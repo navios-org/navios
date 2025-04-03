@@ -3,7 +3,7 @@ import type {
   UrlHasParams,
   UrlParams,
 } from '@navios/navios-zod'
-import type { z } from 'zod'
+import type { AnyZodObject, z } from 'zod'
 
 export type BaseQueryParams<Config extends EndpointConfig, Res = any> = {
   keyPrefix?: string[]
@@ -12,10 +12,14 @@ export type BaseQueryParams<Config extends EndpointConfig, Res = any> = {
   processResponse: (data: z.output<Config['responseSchema']>) => Res
 }
 
-export type BaseQueryArgs<Config extends EndpointConfig> =
-  UrlHasParams<Config['url']> extends true
-    ? { urlParams: UrlParams<Config['url']> }
-    : {}
+export type BaseQueryArgs<Config extends EndpointConfig> = (UrlHasParams<
+  Config['url']
+> extends true
+  ? { urlParams: UrlParams<Config['url']> }
+  : {}) &
+  (Config['querySchema'] extends AnyZodObject
+    ? { params: z.input<Config['querySchema']> }
+    : {})
 
 export type InfiniteQueryOptions<
   Config extends Required<EndpointConfig> = Required<EndpointConfig>,

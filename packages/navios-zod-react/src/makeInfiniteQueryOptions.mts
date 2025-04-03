@@ -26,7 +26,10 @@ export function makeInfiniteQueryOptions<
   baseQuery: BaseQuery = {} as BaseQuery,
 ) {
   const config = endpoint.config
-  const urlParts = config.url.split('/')
+  // Let's hack the url to be a string for now
+  const url = config.url
+  const urlParts = url.split('/')
+
   const processResponse = options.processResponse
   return (
     params: BaseQueryArgs<Config>,
@@ -38,9 +41,14 @@ export function makeInfiniteQueryOptions<
           ? T
           : InfiniteData<Result>
       >
-    : never =>
+    : never => {
+    const queryParams =
+      'querySchema' in config && 'params' in params
+        ? config.querySchema?.parse(params.params)
+        : []
+
     // @ts-expect-error TS2322 We know that the processResponse is defined
-    infiniteQueryOptions({
+    return infiniteQueryOptions({
       queryKey: [
         ...(options.keyPrefix ?? []),
         ...urlParts.map((part) =>
@@ -50,6 +58,7 @@ export function makeInfiniteQueryOptions<
             : part,
         ),
         ...(options.keySuffix ?? []),
+        queryParams ?? [],
       ],
       queryFn: async ({ signal, pageParam }) => {
         let result
@@ -59,7 +68,10 @@ export function makeInfiniteQueryOptions<
             signal,
             // @ts-expect-error TS2345 We bind the url params only if the url has params
             urlParams: params.urlParams as z.infer<UrlParams<Config['url']>>,
-            params: pageParam as z.infer<Config['querySchema']>,
+            params: {
+              ...('params' in params ? params.params : {}),
+              ...(pageParam as z.infer<Config['querySchema']>),
+            },
           })
         } catch (err) {
           if (options.onFail) {
@@ -72,7 +84,9 @@ export function makeInfiniteQueryOptions<
       },
       getNextPageParam: options.getNextPageParam,
       initialPageParam:
-        options.initialPageParam ?? config.querySchema.parse({}),
+        options.initialPageParam ??
+        config.querySchema.parse('params' in params ? params.params : {}),
       ...baseQuery,
     })
+  }
 }

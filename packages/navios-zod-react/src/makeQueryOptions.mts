@@ -1,10 +1,8 @@
 import type {
   EndpointConfig,
   RequiredRequestEndpoint,
-  UrlParams,
 } from '@navios/navios-zod'
 import type { UseQueryOptions } from '@tanstack/react-query'
-import type { z } from 'zod'
 
 import { queryOptions } from '@tanstack/react-query'
 
@@ -23,8 +21,11 @@ export function makeQueryOptions<
   baseQuery: BaseQuery = {} as BaseQuery,
 ) {
   const config = endpoint.config
-  const urlParts = config.url.split('/')
+  // Let's hack the url to be a string for now
+  const url = config.url
+  const urlParts = url.split('/')
   const processResponse = options.processResponse
+
   return (
     params: BaseQueryArgs<Config>,
   ): Options['processResponse'] extends (...args: any[]) => infer Result
@@ -33,9 +34,14 @@ export function makeQueryOptions<
         Error,
         BaseQuery['select'] extends (...args: any[]) => infer T ? T : Result
       >
-    : never =>
+    : never => {
+    const queryParams =
+      'querySchema' in config && 'params' in params
+        ? config.querySchema?.parse(params.params)
+        : []
+
     // @ts-expect-error TS2322 We know that the processResponse is defined
-    queryOptions({
+    return queryOptions({
       queryKey: [
         ...(options.keyPrefix ?? []),
         ...urlParts.map((part) =>
@@ -45,6 +51,7 @@ export function makeQueryOptions<
             : part,
         ),
         ...(options.keySuffix ?? []),
+        queryParams ?? [],
       ],
       queryFn: async ({ signal }) => {
         let result
@@ -52,8 +59,7 @@ export function makeQueryOptions<
           // @ts-expect-error TS2345 The type of request is correct
           result = await endpoint({
             signal,
-            // @ts-expect-error TS2345 We bind the url params only if the url has params
-            urlParams: params.urlParams as z.infer<UrlParams<Config['url']>>,
+            ...params,
           })
         } catch (err) {
           if (options.onFail) {
@@ -66,4 +72,5 @@ export function makeQueryOptions<
       },
       ...baseQuery,
     })
+  }
 }

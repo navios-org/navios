@@ -10,7 +10,9 @@
       "executor": "nx-tsup:build",
       "outputs": ["{workspaceRoot}/dist/{projectRoot}"],
       "options": {
-        "main": "{projectRoot}/src/index.mts",
+        "main": {
+          "index":"./src/index.mts"
+        },
         "outputPath": "{workspaceRoot}/dist/{projectRoot}",
         "format": ["esm", "cjs"],
         "typings": true,
