@@ -14,7 +14,7 @@ describe('makeQueryOptions', () => {
   const endpoint = api.declareEndpoint({
     method: 'GET',
     url: '/test/$testId/foo/$fooId' as const,
-    querySchema: z.object({ testId: z.string(), fooId: z.string() }),
+    querySchema: z.object({ foo: z.string() }),
     responseSchema,
   })
   it('should work with types', () => {
@@ -34,6 +34,9 @@ describe('makeQueryOptions', () => {
     )
     const options = makeOptions({
       urlParams: { testId: '1', fooId: '2' },
+      params: {
+        foo: 'bar',
+      },
     })
     expect(options).toBeDefined()
   })

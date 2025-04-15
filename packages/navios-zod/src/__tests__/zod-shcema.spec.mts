@@ -110,4 +110,37 @@ describe('navios-zod', () => {
     })
     expect(result).toEqual({ data: 'test' })
   })
+
+  it('should work with union request schemas', async () => {
+    const adapter = makeNaviosFakeAdapter()
+    adapter.mock(
+      '/api/bar/test',
+      'POST',
+      () => new Response(JSON.stringify({ data: 'test' })),
+    )
+    const api = createAPI({ baseURL: '/api', adapter: adapter.fetch })
+    const requestSchema = z.union([
+      z.object({
+        foo: z.string(),
+        bar: z.coerce.number(),
+      }),
+      z.object({
+        baz: z.string(),
+        qux: z.coerce.number(),
+      }),
+    ])
+    const getTest = api.declareEndpoint({
+      method: 'POST',
+      url: '/bar/test' as const,
+      responseSchema: z.object({ data: z.string() }),
+      requestSchema,
+    })
+    const result = await getTest({
+      data: {
+        foo: 'foo',
+        bar: 42,
+      },
+    })
+    expect(result).toEqual({ data: 'test' })
+  })
 })

@@ -1,6 +1,6 @@
 {
   "name": "@navios/navios-zod-react",
-  "version": "0.5.0-alpha.6",
+  "version": "0.5.0-alpha.7",
   "author": {
     "name": "Oleksandr Hanzha",
     "email": "alex@granted.name"
@@ -35,6 +35,7 @@
     "@navios/navios-zod": "workspace:^",
     "@tanstack/react-query": "^5.71.5",
     "navios": "workspace:^",
+    "react": "^19.1.0",
     "typescript": "^5.8.2",
     "zod": "^3.24.2"
   }
