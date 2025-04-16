@@ -32,7 +32,7 @@ export function makeDataTag<
     params: BaseQueryArgs<Config>,
   ): Options['processResponse'] extends (...args: any[]) => infer Result
     ? DataTag<[Config['url']], Result, Error>
-    : DataTag<[Config['url']], z.output<Config['responseSchema']>> => {
+    : never => {
     const queryParams =
       'querySchema' in config && 'params' in params
         ? config.querySchema?.parse(params.params)

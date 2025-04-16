@@ -52,6 +52,9 @@ describe('makeDataTag', () => {
 
     const result = makeDataTag(endpoint, {
       processResponse(data) {
+        if (!data.success) {
+          throw new Error(data.message)
+        }
         return data
       },
     })
