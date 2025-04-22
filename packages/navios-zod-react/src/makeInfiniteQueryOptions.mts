@@ -6,6 +6,7 @@ import type {
 import type {
   InfiniteData,
   UseInfiniteQueryOptions,
+  UseSuspenseInfiniteQueryOptions,
 } from '@tanstack/react-query'
 import type { z } from 'zod'
 
@@ -13,12 +14,27 @@ import { infiniteQueryOptions } from '@tanstack/react-query'
 
 import type { BaseQueryArgs, InfiniteQueryOptions } from './types.mjs'
 
+import { queryKeyCreator } from './utils/query-key-creator.mjs'
+
+type Split<S extends string, D extends string> = string extends S
+  ? string[]
+  : S extends ''
+    ? []
+    : S extends `${infer T}${D}${infer U}`
+      ? [T, ...Split<U, D>]
+      : [S]
+
 export function makeInfiniteQueryOptions<
   Config extends Required<EndpointConfig>,
   Options extends InfiniteQueryOptions<Config>,
   BaseQuery extends Omit<
     UseInfiniteQueryOptions<ReturnType<Options['processResponse']>, Error, any>,
-    'queryKey' | 'queryFn' | 'getNextPageParam' | 'initialPageParam'
+    | 'queryKey'
+    | 'queryFn'
+    | 'getNextPageParam'
+    | 'initialPageParam'
+    | 'placeholderData'
+    | 'throwOnError'
   >,
 >(
   endpoint: RequiredRequestEndpoint<Config> & { config: Config },
@@ -26,15 +42,13 @@ export function makeInfiniteQueryOptions<
   baseQuery: BaseQuery = {} as BaseQuery,
 ) {
   const config = endpoint.config
-  // Let's hack the url to be a string for now
-  const url = config.url
-  const urlParts = url.split('/')
+  const queryKey = queryKeyCreator(config, options, true)
 
   const processResponse = options.processResponse
-  return (
+  const res = (
     params: BaseQueryArgs<Config>,
   ): Options['processResponse'] extends (...args: any[]) => infer Result
-    ? UseInfiniteQueryOptions<
+    ? UseSuspenseInfiniteQueryOptions<
         Result,
         Error,
         BaseQuery['select'] extends (...args: any[]) => infer T
@@ -42,24 +56,9 @@ export function makeInfiniteQueryOptions<
           : InfiniteData<Result>
       >
     : never => {
-    const queryParams =
-      'querySchema' in config && 'params' in params
-        ? config.querySchema?.parse(params.params)
-        : []
-
     // @ts-expect-error TS2322 We know that the processResponse is defined
     return infiniteQueryOptions({
-      queryKey: [
-        ...(options.keyPrefix ?? []),
-        ...urlParts.map((part) =>
-          part.startsWith('$')
-            ? // @ts-expect-error TS2339 We know that the urlParams are defined only if the url has params
-              params.urlParams[part.slice(1)].toString()
-            : part,
-        ),
-        ...(options.keySuffix ?? []),
-        queryParams ?? [],
-      ],
+      queryKey: queryKey.dataTag(params),
       queryFn: async ({ signal, pageParam }) => {
         let result
         try {
@@ -89,4 +88,7 @@ export function makeInfiniteQueryOptions<
       ...baseQuery,
     })
   }
+  res.queryKey = queryKey
+
+  return res
 }

@@ -4,15 +4,9 @@ import { QueryClient } from '@tanstack/react-query'
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
 
-import { makeDataTag } from '../makeDataTag.mjs'
+import { makeQueryOptions } from '../makeQueryOptions.mjs'
 
 describe('makeDataTag', () => {
-  it('should be defined', () => {
-    expect(makeDataTag).toBeDefined()
-  })
-  it('should be a function', () => {
-    expect(typeof makeDataTag).toBe('function')
-  })
   it('should return a string', () => {
     const api = declareAPI({})
     const responseSchema = z.discriminatedUnion('success', [
@@ -25,17 +19,26 @@ describe('makeDataTag', () => {
       responseSchema,
     })
 
-    const result = makeDataTag(endpoint, {
+    const result = makeQueryOptions(endpoint, {
       processResponse(data) {
         return data
       },
     })
-    expect(typeof result).toBe('function')
+    expect(typeof result.queryKey.dataTag).toBe('function')
     expect(
-      result({
+      result.queryKey.dataTag({
         urlParams: { testId: '1', fooId: 'bar' },
       }),
-    ).toMatchInlineSnapshot()
+    ).toMatchInlineSnapshot(`
+      [
+        "",
+        "test",
+        "1",
+        "foo",
+        "bar",
+        [],
+      ]
+    `)
   })
   it('should return a string with the correct format', () => {
     const queryClient = new QueryClient()
@@ -50,7 +53,7 @@ describe('makeDataTag', () => {
       responseSchema,
     })
 
-    const result = makeDataTag(endpoint, {
+    const result = makeQueryOptions(endpoint, {
       processResponse(data) {
         if (!data.success) {
           throw new Error(data.message)
@@ -58,8 +61,8 @@ describe('makeDataTag', () => {
         return data
       },
     })
-    expect(typeof result).toBe('function')
-    const queryKey = result({
+    expect(typeof result.queryKey.dataTag).toBe('function')
+    const queryKey = result.queryKey.dataTag({
       urlParams: { testId: '1', fooId: 'bar' },
     })
 

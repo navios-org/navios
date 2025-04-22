@@ -2,18 +2,38 @@ import type {
   EndpointConfig,
   RequiredRequestEndpoint,
 } from '@navios/navios-zod'
-import type { UseQueryOptions } from '@tanstack/react-query'
+import type {
+  DataTag,
+  UseQueryOptions,
+  UseSuspenseQueryOptions,
+} from '@tanstack/react-query'
 
 import { queryOptions } from '@tanstack/react-query'
 
 import type { BaseQueryArgs, BaseQueryParams } from './types.mjs'
+
+import { queryKeyCreator } from './utils/query-key-creator.mjs'
+
+type Split<S extends string, D extends string> = string extends S
+  ? string[]
+  : S extends ''
+    ? []
+    : S extends `${infer T}${D}${infer U}`
+      ? [T, ...Split<U, D>]
+      : [S]
 
 export function makeQueryOptions<
   Config extends EndpointConfig,
   Options extends BaseQueryParams<Config>,
   BaseQuery extends Omit<
     UseQueryOptions<ReturnType<Options['processResponse']>, Error, any>,
-    'queryKey' | 'queryFn' | 'getNextPageParam' | 'initialPageParam'
+    | 'queryKey'
+    | 'queryFn'
+    | 'getNextPageParam'
+    | 'initialPageParam'
+    | 'enabled'
+    | 'throwOnError'
+    | 'placeholderData'
   >,
 >(
   endpoint: RequiredRequestEndpoint<Config> & { config: Config },
@@ -22,37 +42,22 @@ export function makeQueryOptions<
 ) {
   const config = endpoint.config
   // Let's hack the url to be a string for now
-  const url = config.url
-  const urlParts = url.split('/')
+  const queryKey = queryKeyCreator(config, options, false)
   const processResponse = options.processResponse
 
-  return (
+  const result = (
     params: BaseQueryArgs<Config>,
   ): Options['processResponse'] extends (...args: any[]) => infer Result
-    ? UseQueryOptions<
+    ? UseSuspenseQueryOptions<
         Result,
         Error,
-        BaseQuery['select'] extends (...args: any[]) => infer T ? T : Result
+        BaseQuery['select'] extends (...args: any[]) => infer T ? T : Result,
+        DataTag<Split<Config['url'], '/'>, Result, Error>
       >
     : never => {
-    const queryParams =
-      'querySchema' in config && 'params' in params
-        ? config.querySchema?.parse(params.params)
-        : []
-
     // @ts-expect-error TS2322 We know that the processResponse is defined
     return queryOptions({
-      queryKey: [
-        ...(options.keyPrefix ?? []),
-        ...urlParts.map((part) =>
-          part.startsWith('$')
-            ? // @ts-expect-error TS2339 We know that the urlParams are defined only if the url has params
-              params.urlParams[part.slice(1)].toString()
-            : part,
-        ),
-        ...(options.keySuffix ?? []),
-        queryParams ?? [],
-      ],
+      queryKey: queryKey.dataTag(params),
       queryFn: async ({ signal }) => {
         let result
         try {
@@ -73,4 +78,7 @@ export function makeQueryOptions<
       ...baseQuery,
     })
   }
+  result.queryKey = queryKey
+
+  return result
 }
