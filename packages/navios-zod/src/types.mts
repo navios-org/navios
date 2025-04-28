@@ -1,7 +1,7 @@
 import type { HttpMethod, NaviosConfig } from 'navios'
 import type { AnyZodObject, z, ZodDiscriminatedUnion } from 'zod'
 
-import { ZodUnion } from 'zod'
+import { ZodEffects, ZodUnion } from 'zod'
 
 export interface DeclareAPIConfig {
   /**
@@ -79,6 +79,7 @@ export interface EndpointWithDataConfig extends EndpointConfig {
     | AnyZodObject
     | ZodDiscriminatedUnion<any, any>
     | ZodUnion<Readonly<[AnyZodObject, ...AnyZodObject[]]>>
+    | ZodEffects<AnyZodObject>
 }
 
 export interface BlobEndpointConfig {
@@ -122,7 +123,8 @@ export type DataEndpointType<
   RequestSchema extends
     | AnyZodObject
     | ZodDiscriminatedUnion<any, any>
-    | ZodUnion<Readonly<[AnyZodObject, ...AnyZodObject[]]>>,
+    | ZodUnion<Readonly<[AnyZodObject, ...AnyZodObject[]]>>
+    | ZodEffects<AnyZodObject>,
   ResponseSchema extends AnyZodObject | ZodDiscriminatedUnion<any, any>,
   QuerySchema extends AnyZodObject | undefined = undefined,
 > = QuerySchema extends undefined
