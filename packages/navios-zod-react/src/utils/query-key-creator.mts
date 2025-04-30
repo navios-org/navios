@@ -33,8 +33,17 @@ export function queryKeyCreator<
   dataTag: (
     params: (HasParams extends true ? { urlParams: UrlParams<Url> } : {}) &
       (Config['querySchema'] extends AnyZodObject
-        ? { params: z.infer<Config['querySchema']> }
+        ? { params: z.input<Config['querySchema']> }
         : {}),
+  ) => Options['processResponse'] extends (...args: any[]) => infer Result
+    ? DataTag<
+        [Config['url']],
+        IsInfinite extends true ? InfiniteData<Result> : Result,
+        Error
+      >
+    : never
+  filterKey: (
+    params: HasParams extends true ? { urlParams: UrlParams<Url> } : {},
   ) => Options['processResponse'] extends (...args: any[]) => infer Result
     ? DataTag<
         [Config['url']],
@@ -78,6 +87,27 @@ export function queryKeyCreator<
           >
         : never
     },
+    filterKey: (params) => {
+      return [
+        ...(options.keyPrefix ?? []),
+        ...urlParts.map((part) =>
+          part.startsWith('$')
+            ? // @ts-expect-error TS2339 We know that the urlParams are defined only if the url has params
+              params.urlParams[part.slice(1)].toString()
+            : part,
+        ),
+        ...(options.keySuffix ?? []),
+      ] as unknown as Options['processResponse'] extends (
+        ...args: any[]
+      ) => infer Result
+        ? DataTag<
+            [Config['url']],
+            IsInfinite extends true ? InfiniteData<Result> : Result,
+            Error
+          >
+        : never
+    },
+
     bindToUrl: (params) => {
       return bindUrlParams<Url>(url, params ?? ({} as any))
     },
