@@ -31,7 +31,6 @@ describe('makeDataTag', () => {
       }),
     ).toMatchInlineSnapshot(`
       [
-        "",
         "test",
         "1",
         "foo",

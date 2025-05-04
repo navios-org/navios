@@ -16,6 +16,7 @@
         "outputPath": "{workspaceRoot}/dist/{projectRoot}",
         "format": ["esm", "cjs"],
         "typings": true,
+        "external": ["navios", "@navios/navios-zod"],
         "sourceMap": true,
         "clean": true,
         "assets": [

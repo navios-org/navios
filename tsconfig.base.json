@@ -8,7 +8,8 @@
     "module": "Node16",
     "skipLibCheck": true,
     "paths": {
-      "navios": ["./packages/navios/src/index.mts"]
+      "navios": ["./packages/navios/src/index.mts"],
+      "@navios/navios-zod": ["./packages/navios-zod/src/index.mts"]
     }
   }
 }

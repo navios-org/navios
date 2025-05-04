@@ -5,10 +5,5 @@
     "module": "Node16",
     "incremental": false
   },
-  "include": ["src/**/*"],
-  "references": [
-    {
-      "path": "../navios-zod"
-    }
-  ]
+  "include": ["src/**/*"]
 }

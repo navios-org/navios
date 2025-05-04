@@ -12,8 +12,8 @@
     "@angular/core": "^17.0.0"
   },
   "devDependencies": {
-    "@angular/core": "^17.3.9",
-    "@swc/core": "^1.11.16"
+    "@angular/core": "^19.2.9",
+    "@swc/core": "^1.11.24"
   },
   "scripts": {
     "build": "cd ../..;yarn run -T nx build @navios/angular-module"

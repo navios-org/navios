@@ -59,7 +59,7 @@ export function queryKeyCreator<
   ) => string
 } {
   const url = config.url as Url
-  const urlParts = url.split('/') as Split<Url, '/'>
+  const urlParts = url.split('/').filter(Boolean) as Split<Url, '/'>
   return {
     template: urlParts,
     dataTag: (params) => {
