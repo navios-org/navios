@@ -12,14 +12,13 @@ import type {
 } from '@tanstack/react-query'
 import type { z } from 'zod'
 
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import {
+  useIsMutating,
+  useMutation,
+  useQueryClient,
+} from '@tanstack/react-query'
 
-import type {
-  BaseMutationArgs,
-  BaseMutationParams,
-  BaseQueryParams,
-  StrictReturnType,
-} from './types.mjs'
+import type { BaseMutationArgs, BaseMutationParams } from './types.mjs'
 
 import { mutationKeyCreator } from './index.mjs'
 
@@ -28,10 +27,18 @@ export function makeMutation<
   TData = unknown,
   TVariables extends BaseMutationArgs<Config> = BaseMutationArgs<Config>,
   TResponse = z.output<Config['responseSchema']>,
+  TContext = unknown,
   UseKey extends boolean = false,
 >(
   endpoint: RequiredRequestEndpoint<Config> & { config: Config },
-  options: BaseMutationParams<Config, TData, TVariables, TResponse, UseKey>,
+  options: BaseMutationParams<
+    Config,
+    TData,
+    TVariables,
+    TResponse,
+    TContext,
+    UseKey
+  >,
 ): UseKey extends true
   ? UrlHasParams<Config['url']> extends true
     ? ((
@@ -40,11 +47,13 @@ export function makeMutation<
         mutationKey: (
           params: UrlParams<Config['url']>,
         ) => DataTag<[Config['url']], TData, Error>
+        useIsMutating: (keyParams: UrlParams<Config['url']>) => boolean
       }
     : (() => UseMutationResult<TData, Error, TVariables>) & {
         mutationKey: (
           params: UrlParams<Config['url']>,
         ) => DataTag<[Config['url']], TData, Error>
+        useIsMutating: () => boolean
       }
   : () => UseMutationResult<TData, Error, TVariables> {
   const config = endpoint.config
@@ -58,6 +67,7 @@ export function makeMutation<
       : never,
   ): UseMutationResult<TData, Error, BaseMutationArgs<Config>> => {
     const queryClient = useQueryClient()
+    const context = options.useContext?.() as TContext
 
     // @ts-expect-error The types match
     return useMutation(
@@ -67,6 +77,15 @@ export function makeMutation<
               urlParams: keyParams,
             })
           : undefined,
+        scope: options.useKey
+          ? {
+              id: JSON.stringify(
+                mutationKey({
+                  urlParams: keyParams,
+                }),
+              ),
+            }
+          : undefined,
         async mutationFn(params: TVariables) {
           const response = await endpoint(params)
 
@@ -74,17 +93,36 @@ export function makeMutation<
         },
         onSuccess: options.onSuccess
           ? (data: TData, variables: TVariables) => {
-              return options.onSuccess?.(queryClient, data, variables)
+              return options.onSuccess?.(queryClient, data, variables, context)
             }
           : undefined,
         onError: options.onError
           ? (err: Error, variables: TVariables) => {
-              return options.onError?.(err, variables)
+              return options.onError?.(queryClient, err, variables, context)
             }
           : undefined,
       },
       queryClient,
     )
+  }
+  result.useIsMutating = (
+    keyParams: UseKey extends true
+      ? UrlHasParams<Config['url']> extends true
+        ? UrlParams<Config['url']>
+        : never
+      : never,
+  ): boolean => {
+    if (!options.useKey) {
+      throw new Error(
+        'useIsMutating can only be used when useKey is set to true',
+      )
+    }
+    const isMutating = useIsMutating({
+      mutationKey: mutationKey({
+        urlParams: keyParams,
+      }),
+    })
+    return isMutating > 0
   }
   result.mutationKey = mutationKey
 

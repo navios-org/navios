@@ -30,15 +30,27 @@ export interface BaseMutationParams<
   TData = unknown,
   TVariables = BaseMutationArgs<Config>,
   TResponse = z.output<Config['responseSchema']>,
+  TContext = unknown,
   UseKey extends boolean = false,
 > {
   processResponse: ProcessResponseFunction<TData, TResponse>
+  /**
+   * React hooks that will prepare the context for the mutation onSuccess and onError
+   * callbacks. This is useful for when you want to use the context in the callbacks
+   */
+  useContext?: () => TContext
   onSuccess?: (
     queryClient: QueryClient,
     data: TData,
     variables: TVariables,
+    context: TContext,
   ) => void | Promise<void>
-  onError?: (err: unknown, variables: TVariables) => void | Promise<void>
+  onError?: (
+    queryClient: QueryClient,
+    err: unknown,
+    variables: TVariables,
+    context: TContext,
+  ) => void | Promise<void>
 
   /**
    * If true, we will create a mutation key that can be shared across the project.
