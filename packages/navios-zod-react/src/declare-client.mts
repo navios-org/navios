@@ -100,13 +100,17 @@ export type ClientMutationDataConfig<
 > = ClientEndpoint<Method, Url, QuerySchema, Response> & {
   requestSchema: RequestSchema
   processResponse?: (data: z.output<Response>) => Result
-  useContext?: (data: z.output<Response>) => Context
+  useContext?: () => Context
   onSuccess?: (
     queryClient: QueryClient,
-    data: z.output<Response>,
+    data: Result,
     context: Context,
-  ) => void
-  onError?: (queryClient: QueryClient, error: Error, context: Context) => void
+  ) => void | Promise<void>
+  onError?: (
+    queryClient: QueryClient,
+    error: Error,
+    context: Context,
+  ) => void | Promise<void>
   useKey?: UseKey
 }
 
@@ -121,13 +125,17 @@ export type ClientMutationDeleteConfig<
   UseKey extends boolean = false,
 > = ClientEndpoint<Method, Url, QuerySchema, Response> & {
   processResponse?: (data: z.output<Response>) => Result
-  useContext?: (data: z.output<Response>) => Context
+  useContext?: () => Context
   onSuccess?: (
     queryClient: QueryClient,
-    data: z.output<Response>,
+    data: Result,
     context: Context,
-  ) => void
-  onError?: (queryClient: QueryClient, error: Error, context: Context) => void
+  ) => void | Promise<void>
+  onError?: (
+    queryClient: QueryClient,
+    error: Error,
+    context: Context,
+  ) => void | Promise<void>
   useKey?: UseKey
 }
 
