@@ -138,6 +138,7 @@ describe('declareClient', () => {
     const client = declareClient({
       api,
     })
+
     const mutation = client.mutation({
       url: '/test/$testId/foo/$fooId' as const,
       method: 'POST',
@@ -152,9 +153,9 @@ describe('declareClient', () => {
         if (!data.success) {
           throw new Error('error')
         }
-        return data
+        return data.test
       },
-      onSuccess: (queryClient, data, variables) => {
+      onSuccess(queryClient, data, variables) {
         expect(data).toMatchObject({
           success: true,
           test: 'test',
@@ -175,16 +176,13 @@ describe('declareClient', () => {
     })
 
     const mutationResult = mutation()
-    await mutationResult.mutateAsync({
+    const res = await mutationResult.mutateAsync({
       urlParams: {
         testId: '1',
         fooId: '2',
       },
       data: {
         testId: 'test',
-      },
-      params: {
-        foo: 'bar',
       },
     })
   })

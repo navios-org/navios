@@ -26,7 +26,7 @@ import {
   useSuspenseQuery,
 } from '@tanstack/react-query'
 
-import type { ClientOptions } from './types.mjs'
+import type { ClientOptions, ProcessResponseFunction } from './types.mjs'
 import type { QueryKeyCreatorResult } from './utils/query-key-creator.mjs'
 
 import { makeMutation } from './make-mutation.mjs'
@@ -41,25 +41,25 @@ type Split<S extends string, D extends string> = string extends S
       ? [T, ...Split<U, D>]
       : [S]
 
-export type ClientEndpoint<
+export interface ClientEndpoint<
   Method = HttpMethod,
   Url = string,
-  QuerySchema = AnyZodObject,
+  QuerySchema = unknown,
   Response = ZodType,
-> = {
+> {
   method: Method
   url: Url
   querySchema?: QuerySchema
   responseSchema: Response
 }
 
-export type ClientQueryConfig<
+export interface ClientQueryConfig<
   Method = HttpMethod,
   Url = string,
   QuerySchema = AnyZodObject,
   Response extends ZodType = ZodType,
   Result = z.output<Response>,
-> = ClientEndpoint<Method, Url, QuerySchema, Response> & {
+> extends ClientEndpoint<Method, Url, QuerySchema, Response> {
   processResponse?: (data: z.output<Response>) => Result
 }
 
@@ -88,52 +88,38 @@ export type ClientInfiniteQueryConfig<
   initialPageParam?: z.input<QuerySchema>
 }
 
-export type ClientMutationDataConfig<
-  Method extends 'POST' | 'PUT' | 'PATCH' = 'POST' | 'PUT' | 'PATCH',
-  Url = string,
-  RequestSchema extends AnyZodObject = AnyZodObject,
-  QuerySchema = AnyZodObject,
+export interface ClientMutationDataConfig<
+  Method extends 'POST' | 'PUT' | 'PATCH' | 'DELETE' =
+    | 'POST'
+    | 'PUT'
+    | 'PATCH'
+    | 'DELETE',
+  Url extends string = string,
+  RequestSchema = Method extends 'DELETE' ? never : AnyZodObject,
+  QuerySchema = unknown,
   Response extends ZodType = ZodType,
-  Result = z.output<Response>,
+  ReqResult = z.output<Response>,
+  Result = unknown,
   Context = unknown,
   UseKey extends boolean = false,
-> = ClientEndpoint<Method, Url, QuerySchema, Response> & {
-  requestSchema: RequestSchema
-  processResponse?: (data: z.output<Response>) => Result
+> extends ClientEndpoint<Method, Url, QuerySchema, Response> {
+  requestSchema?: RequestSchema
+  processResponse: ProcessResponseFunction<Result, ReqResult>
   useContext?: () => Context
   onSuccess?: (
     queryClient: QueryClient,
-    data: Result,
+    data: NoInfer<Result>,
+    variables: Util_FlatObject<
+      ClientMutationArgs<Url, RequestSchema, QuerySchema>
+    >,
     context: Context,
   ) => void | Promise<void>
   onError?: (
     queryClient: QueryClient,
     error: Error,
-    context: Context,
-  ) => void | Promise<void>
-  useKey?: UseKey
-}
-
-export type ClientMutationDeleteConfig<
-  Method extends 'DELETE' = 'DELETE',
-  Url = string,
-  RequestSchema = never,
-  QuerySchema = AnyZodObject,
-  Response extends ZodType = ZodType,
-  Result = z.output<Response>,
-  Context = unknown,
-  UseKey extends boolean = false,
-> = ClientEndpoint<Method, Url, QuerySchema, Response> & {
-  processResponse?: (data: z.output<Response>) => Result
-  useContext?: () => Context
-  onSuccess?: (
-    queryClient: QueryClient,
-    data: Result,
-    context: Context,
-  ) => void | Promise<void>
-  onError?: (
-    queryClient: QueryClient,
-    error: Error,
+    variables: Util_FlatObject<
+      ClientMutationArgs<Url, RequestSchema, QuerySchema>
+    >,
     context: Context,
   ) => void | Promise<void>
   useKey?: UseKey
@@ -152,8 +138,8 @@ export type ClientQueryUrlParamsArgs<Url extends string = string> =
 
 export type ClientMutationArgs<
   Url extends string = string,
-  RequestSchema extends AnyZodObject | never = AnyZodObject,
-  QuerySchema extends AnyZodObject = AnyZodObject,
+  RequestSchema = unknown,
+  QuerySchema = unknown,
 > = (UrlHasParams<Url> extends true ? { urlParams: UrlParams<Url> } : {}) &
   (RequestSchema extends AnyZodObject ? { data: z.input<RequestSchema> } : {}) &
   (QuerySchema extends AnyZodObject ? { params: z.input<QuerySchema> } : {})
@@ -366,35 +352,24 @@ export function declareClient<Options extends ClientOptions>({
       | 'DELETE',
     Url extends string = string,
     RequestSchema extends AnyZodObject = AnyZodObject,
-    QuerySchema extends AnyZodObject = AnyZodObject,
+    QuerySchema extends AnyZodObject | unknown = unknown,
     Response extends ZodType = ZodType,
-    Result = z.output<Response>,
+    ReqResult = z.output<Response>,
+    Result = unknown,
     Context = unknown,
     UseKey extends boolean = false,
   >(
-    config: Method extends 'POST' | 'PUT' | 'PATCH'
-      ? ClientMutationDataConfig<
-          Method,
-          Url,
-          RequestSchema,
-          QuerySchema,
-          Response,
-          Result,
-          Context,
-          UseKey
-        >
-      : Method extends 'DELETE'
-        ? ClientMutationDeleteConfig<
-            Method,
-            Url,
-            RequestSchema,
-            QuerySchema,
-            Response,
-            Result,
-            Context,
-            UseKey
-          >
-        : never,
+    config: ClientMutationDataConfig<
+      Method,
+      Url,
+      RequestSchema,
+      QuerySchema,
+      Response,
+      ReqResult,
+      Result,
+      Context,
+      UseKey
+    >,
   ): UseKey extends true
     ? UrlHasParams<Url> extends true
       ? ((
@@ -427,10 +402,12 @@ export function declareClient<Options extends ClientOptions>({
     const endpoint = api.declareEndpoint({
       method: config.method,
       url: config.url,
+      // @ts-expect-error We forgot about the DELETE method in original makeMutation
       querySchema: config.querySchema,
-      // @ts-expect-error We know that the requestSchema is defined when needed
+      // @ts-expect-error We forgot about the DELETE method in original makeMutation
       requestSchema: config.requestSchema,
       responseSchema: config.responseSchema,
+      // @ts-expect-error We forgot about the DELETE method in original makeMutation
     }) as unknown as RequiredRequestEndpoint<{
       method: Method
       url: Url
