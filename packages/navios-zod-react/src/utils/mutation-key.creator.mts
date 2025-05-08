@@ -59,6 +59,7 @@ export function mutationKeyCreator<
   : never {
   const queryKey = queryKeyCreator(config, options, false)
 
+  // @ts-expect-error We have correct types in return type
   return (params) => {
     return queryKey.filterKey(params)
   }

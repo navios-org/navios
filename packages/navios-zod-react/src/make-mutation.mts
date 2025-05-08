@@ -67,17 +67,29 @@ export function makeMutation<
       : never,
   ): UseMutationResult<TData, Error, BaseMutationArgs<Config>> => {
     const queryClient = useQueryClient()
-    const context = options.useContext?.() as TContext
+    const {
+      useKey,
+      useContext,
+      onError,
+      onSuccess,
+      keyPrefix,
+      keySuffix,
+      processResponse,
+      ...rest
+    } = options
+
+    const context = useContext?.() as TContext
 
     // @ts-expect-error The types match
     return useMutation(
       {
-        mutationKey: options.useKey
+        ...rest,
+        mutationKey: useKey
           ? mutationKey({
               urlParams: keyParams,
             })
           : undefined,
-        scope: options.useKey
+        scope: useKey
           ? {
               id: JSON.stringify(
                 mutationKey({
@@ -89,16 +101,16 @@ export function makeMutation<
         async mutationFn(params: TVariables) {
           const response = await endpoint(params)
 
-          return options.processResponse(response) as TData
+          return processResponse(response) as TData
         },
-        onSuccess: options.onSuccess
+        onSuccess: onSuccess
           ? (data: TData, variables: TVariables) => {
-              return options.onSuccess?.(queryClient, data, variables, context)
+              return onSuccess?.(queryClient, data, variables, context)
             }
           : undefined,
-        onError: options.onError
+        onError: onError
           ? (err: Error, variables: TVariables) => {
-              return options.onError?.(queryClient, err, variables, context)
+              return onError?.(queryClient, err, variables, context)
             }
           : undefined,
       },

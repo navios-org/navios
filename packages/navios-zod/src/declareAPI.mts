@@ -20,10 +20,7 @@ import { bindUrlParams } from './utils/bindUrlParams.mjs'
 import { downloadBlob } from './utils/downloadBlob.mjs'
 import { endpointCreator } from './utils/endpointCreator.mjs'
 
-export function declareAPI({
-  useDiscriminatorResponse = false,
-  useWholeResponse = false,
-}: DeclareAPIConfig = {}) {
+export function declareAPI(config: DeclareAPIConfig = {}) {
   let client: Navios | null = null
 
   function getClient() {
@@ -84,7 +81,7 @@ export function declareAPI({
   } {
     return endpointCreator(options, {
       getClient,
-      config: { useDiscriminatorResponse, useWholeResponse },
+      config,
     })
   }
 
@@ -99,3 +96,5 @@ export function declareAPI({
     getClient,
   }
 }
+
+export type DeclareAPI = ReturnType<typeof declareAPI>

@@ -18,6 +18,39 @@ type Split<S extends string, D extends string> = string extends S
       ? [T, ...Split<U, D>]
       : [S]
 
+export type QueryKeyCreatorResult<
+  QuerySchema extends AnyZodObject | undefined = AnyZodObject,
+  Url extends string = string,
+  Result = unknown,
+  IsInfinite extends boolean = false,
+  HasParams extends UrlHasParams<Url> = UrlHasParams<Url>,
+> = {
+  template: Split<Url, '/'>
+  dataTag: (
+    params: (HasParams extends true ? { urlParams: UrlParams<Url> } : {}) &
+      (QuerySchema extends AnyZodObject
+        ? { params: z.input<QuerySchema> }
+        : {}),
+  ) => DataTag<
+    Split<Url, '/'>,
+    IsInfinite extends true ? InfiniteData<Result> : Result,
+    Error
+  >
+  filterKey: (
+    params: HasParams extends true ? { urlParams: UrlParams<Url> } : {},
+  ) => DataTag<
+    Split<Url, '/'>,
+    IsInfinite extends true ? InfiniteData<Result> : Result,
+    Error
+  >
+  bindToUrl: (
+    params: (HasParams extends true ? { urlParams: UrlParams<Url> } : {}) &
+      (QuerySchema extends AnyZodObject
+        ? { params: z.infer<QuerySchema> }
+        : {}),
+  ) => string
+}
+
 export function queryKeyCreator<
   Config extends EndpointConfig,
   Options extends BaseQueryParams<Config>,
@@ -28,40 +61,20 @@ export function queryKeyCreator<
   config: Config,
   options: Options,
   isInfinite: IsInfinite,
-): {
-  template: Split<Url, '/'>
-  dataTag: (
-    params: (HasParams extends true ? { urlParams: UrlParams<Url> } : {}) &
-      (Config['querySchema'] extends AnyZodObject
-        ? { params: z.input<Config['querySchema']> }
-        : {}),
-  ) => Options['processResponse'] extends (...args: any[]) => infer Result
-    ? DataTag<
-        [Config['url']],
-        IsInfinite extends true ? InfiniteData<Result> : Result,
-        Error
-      >
-    : never
-  filterKey: (
-    params: HasParams extends true ? { urlParams: UrlParams<Url> } : {},
-  ) => Options['processResponse'] extends (...args: any[]) => infer Result
-    ? DataTag<
-        [Config['url']],
-        IsInfinite extends true ? InfiniteData<Result> : Result,
-        Error
-      >
-    : never
-  bindToUrl: (
-    params: (HasParams extends true ? { urlParams: UrlParams<Url> } : {}) &
-      (Config['querySchema'] extends AnyZodObject
-        ? { params: z.infer<Config['querySchema']> }
-        : {}),
-  ) => string
-} {
+): QueryKeyCreatorResult<
+  Config['querySchema'],
+  Url,
+  Options['processResponse'] extends (...args: any[]) => infer Result
+    ? Result
+    : never,
+  IsInfinite,
+  HasParams
+> {
   const url = config.url as Url
   const urlParts = url.split('/').filter(Boolean) as Split<Url, '/'>
   return {
     template: urlParts,
+    // @ts-expect-error We have correct types in return type
     dataTag: (params) => {
       const queryParams =
         params && 'querySchema' in config && 'params' in params
@@ -77,16 +90,17 @@ export function queryKeyCreator<
         ),
         ...(options.keySuffix ?? []),
         queryParams ?? [],
-      ] as unknown as Options['processResponse'] extends (
-        ...args: any[]
-      ) => infer Result
-        ? DataTag<
-            [Config['url']],
-            IsInfinite extends true ? InfiniteData<Result> : Result,
-            Error
-          >
-        : never
+      ] as unknown as DataTag<
+        Split<Url, '/'>,
+        Options['processResponse'] extends (...args: any[]) => infer Result
+          ? IsInfinite extends true
+            ? InfiniteData<Result>
+            : Result
+          : never,
+        Error
+      >
     },
+    // @ts-expect-error We have correct types in return type
     filterKey: (params) => {
       return [
         ...(options.keyPrefix ?? []),
@@ -97,15 +111,15 @@ export function queryKeyCreator<
             : part,
         ),
         ...(options.keySuffix ?? []),
-      ] as unknown as Options['processResponse'] extends (
-        ...args: any[]
-      ) => infer Result
-        ? DataTag<
-            [Config['url']],
-            IsInfinite extends true ? InfiniteData<Result> : Result,
-            Error
-          >
-        : never
+      ] as unknown as DataTag<
+        Split<Url, '/'>,
+        Options['processResponse'] extends (...args: any[]) => infer Result
+          ? IsInfinite extends true
+            ? InfiniteData<Result>
+            : Result
+          : never,
+        Error
+      >
     },
 
     bindToUrl: (params) => {

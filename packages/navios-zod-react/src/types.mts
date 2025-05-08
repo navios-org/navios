@@ -1,16 +1,40 @@
 import type {
+  DeclareAPI,
   EndpointConfig,
   EndpointWithDataConfig,
   NaviosZodRequest,
   UrlHasParams,
   UrlParams,
 } from '@navios/navios-zod'
-import type { QueryClient } from '@tanstack/react-query'
-import type { AnyZodObject, z } from 'zod'
+import type { QueryClient, UseMutationOptions } from '@tanstack/react-query'
+import type { AnyZodObject, z, ZodDiscriminatedUnion } from 'zod'
 
 export type ProcessResponseFunction<TData = unknown, TVariables = unknown> = (
   variables: TVariables,
 ) => Promise<TData> | TData
+
+type UnionToIntersection<U> = (U extends any ? (k: U) => void : never) extends (
+  k: infer I,
+) => void
+  ? I
+  : never
+
+// Converts union to overloaded function
+type UnionToOvlds<U> = UnionToIntersection<
+  U extends any ? (f: U) => void : never
+>
+
+type PopUnion<U> = UnionToOvlds<U> extends (a: infer A) => void ? A : never
+
+type IsUnion<T> = [T] extends [UnionToIntersection<T>] ? false : true
+
+export type ClientOptions<ProcessResponse = unknown> = {
+  api: DeclareAPI
+  defaults?: {
+    keyPrefix?: string[]
+    keySuffix?: string[]
+  }
+}
 
 export type BaseQueryParams<Config extends EndpointConfig, Res = any> = {
   keyPrefix?: string[]
@@ -32,7 +56,10 @@ export interface BaseMutationParams<
   TResponse = z.output<Config['responseSchema']>,
   TContext = unknown,
   UseKey extends boolean = false,
-> {
+> extends Omit<
+    UseMutationOptions<TData, Error, TVariables>,
+    'mutationKey' | 'mutationFn' | 'onSuccess' | 'onError' | 'scope'
+  > {
   processResponse: ProcessResponseFunction<TData, TResponse>
   /**
    * React hooks that will prepare the context for the mutation onSuccess and onError
@@ -91,6 +118,9 @@ export type InfiniteQueryOptions<
   onFail?: (err: unknown) => void
   getNextPageParam: (
     lastPage: z.infer<Config['responseSchema']>,
+    allPages: z.infer<Config['responseSchema']>[],
+    lastPageParam: z.infer<Config['querySchema']> | undefined,
+    allPageParams: z.infer<Config['querySchema']>[] | undefined,
   ) =>
     | z.input<Config['querySchema']>
     | z.infer<Config['querySchema']>

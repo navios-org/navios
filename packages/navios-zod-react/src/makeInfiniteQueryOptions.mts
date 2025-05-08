@@ -81,6 +81,7 @@ export function makeInfiniteQueryOptions<
 
         return processResponse(result)
       },
+      // @ts-expect-error TS2322 We know types of previous page params
       getNextPageParam: options.getNextPageParam,
       initialPageParam:
         options.initialPageParam ??

@@ -1,5 +1,6 @@
 export * from './utils/mutation-key.creator.mjs'
 export * from './utils/query-key-creator.mjs'
+export * from './declare-client.mjs'
 export * from './make-mutation.mjs'
 export * from './makeInfiniteQueryOptions.mjs'
 export * from './makeQueryOptions.mjs'

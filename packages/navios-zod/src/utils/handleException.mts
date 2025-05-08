@@ -1,25 +1,37 @@
-import type { ZodDiscriminatedUnion } from 'zod'
+import type { ZodType } from 'zod'
 
 import { NaviosError } from 'navios'
 
-import { ZodObject } from 'zod'
+import { ZodError, ZodObject } from 'zod'
 
-import type {  DeclareAPIConfig } from '../types.mjs'
-
+import type { DeclareAPIConfig } from '../types.mjs'
 
 export function handleException(
   config: DeclareAPIConfig,
   error: unknown,
-  responseSchema: ZodObject<any, any, any> | ZodDiscriminatedUnion<any, any>,
+  responseSchema: ZodType,
 ) {
+  if (config.onError) {
+    config.onError(error)
+  }
   if (!config.useDiscriminatorResponse) {
+    if (config.onZodError && error instanceof ZodError) {
+      config.onZodError(error, undefined, undefined)
+    }
     throw error
   }
   if (error instanceof NaviosError && error.response) {
-    if (config.useWholeResponse) {
-      return responseSchema.parse(error.response)
+    try {
+      if (config.useWholeResponse) {
+        return responseSchema.parse(error.response)
+      }
+      return responseSchema.parse(error.response.data)
+    } catch (e) {
+      if (config.onZodError) {
+        config.onZodError(e as ZodError, error.response, error)
+      }
+      throw e
     }
-    return responseSchema.parse(error.response.data)
   }
   throw error
 }

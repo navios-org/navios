@@ -1,5 +1,16 @@
-import type { HttpMethod, NaviosConfig } from 'navios'
-import type { AnyZodObject, z, ZodDiscriminatedUnion } from 'zod'
+import type {
+  HttpMethod,
+  NaviosConfig,
+  NaviosError,
+  NaviosResponse,
+} from 'navios'
+import type {
+  AnyZodObject,
+  z,
+  ZodDiscriminatedUnion,
+  ZodError,
+  ZodType,
+} from 'zod'
 
 import { ZodEffects, ZodUnion } from 'zod'
 
@@ -16,6 +27,28 @@ export interface DeclareAPIConfig {
    * for the response schema, you can set this to true.
    */
   useWholeResponse?: boolean
+
+  /**
+   * This method is used to process the error response or to format the
+   * error message.
+   * @param error unknown or NaviosError
+   */
+  onError?: (error: unknown) => void
+
+  /**
+   * This method is useful to handle the error with the zod schema.
+   * You can use this to log the error or to show a message to the user.
+   *
+   * Please note that this method has lower priority than the onError method.
+   * @param error ZodError
+   * @param response original response
+   * @param originalError original error
+   */
+  onZodError?: (
+    error: ZodError,
+    response: NaviosResponse<any> | undefined,
+    originalError: NaviosError | unknown,
+  ) => void
 }
 
 export type ParsePathParams<
@@ -66,21 +99,31 @@ export interface APIConfig extends DeclareAPIConfig {
   headers?: Record<string, string>
 }
 
-export interface EndpointConfig {
-  method: HttpMethod
-  url: string
-  responseSchema: AnyZodObject | ZodDiscriminatedUnion<any, any>
-  querySchema?: AnyZodObject
+export type BaseEndpointConfig<
+  Method extends HttpMethod = HttpMethod,
+  Url extends string = string,
+  QuerySchema extends AnyZodObject = AnyZodObject,
+  ResponseSchema extends ZodType = ZodType,
+> = {
+  method: Method
+  url: Url
+  querySchema?: QuerySchema
+  responseSchema: ResponseSchema
+}
+export type BaseDataEndpointConfig<
+  Method extends HttpMethod = HttpMethod,
+  Url extends string = string,
+  QuerySchema extends AnyZodObject = AnyZodObject,
+  ResponseSchema extends ZodType = ZodType,
+  RequestSchema extends ZodType = ZodType,
+> = BaseEndpointConfig<Method, Url, QuerySchema, ResponseSchema> & {
+  requestSchema: RequestSchema
 }
 
-export interface EndpointWithDataConfig extends EndpointConfig {
-  method: 'POST' | 'PUT' | 'PATCH'
-  requestSchema:
-    | AnyZodObject
-    | ZodDiscriminatedUnion<any, any>
-    | ZodUnion<Readonly<[AnyZodObject, ...AnyZodObject[]]>>
-    | ZodEffects<AnyZodObject>
-}
+export interface EndpointConfig extends BaseEndpointConfig {}
+
+export interface EndpointWithDataConfig
+  extends BaseDataEndpointConfig<'POST' | 'PUT' | 'PATCH'> {}
 
 export interface BlobEndpointConfig {
   method: 'GET'
@@ -120,26 +163,24 @@ export type Endpoint<Config extends EndpointConfig | EndpointWithDataConfig> =
     : EndpointWithoutQuery<Config>
 
 export type DataEndpointType<
-  RequestSchema extends
-    | AnyZodObject
-    | ZodDiscriminatedUnion<any, any>
-    | ZodUnion<Readonly<[AnyZodObject, ...AnyZodObject[]]>>
-    | ZodEffects<AnyZodObject>,
-  ResponseSchema extends AnyZodObject | ZodDiscriminatedUnion<any, any>,
+  RequestSchema extends ZodType,
+  ResponseSchema extends ZodType,
   QuerySchema extends AnyZodObject | undefined = undefined,
-> = QuerySchema extends undefined
-  ? EndpointWithoutQuery<{
+> = QuerySchema extends AnyZodObject
+  ? Endpoint<
+      BaseDataEndpointConfig<
+        'POST' | 'PUT' | 'PATCH',
+        string,
+        QuerySchema,
+        ResponseSchema,
+        RequestSchema
+      >
+    >
+  : EndpointWithoutQuery<{
       method: 'POST' | 'PUT' | 'PATCH'
       requestSchema: RequestSchema
       responseSchema: ResponseSchema
       url: string
-    }>
-  : Endpoint<{
-      method: 'POST' | 'PUT' | 'PATCH'
-      requestSchema: RequestSchema
-      responseSchema: ResponseSchema
-      url: string
-      querySchema: QuerySchema
     }>
 
 export type EndpointType<
@@ -158,7 +199,7 @@ export type EndpointType<
       querySchema: QuerySchema
     }>
 
-type Util_FlatObject<T> = T extends object
+export type Util_FlatObject<T> = T extends object
   ? { [K in keyof T]: K extends 'urlParams' ? Util_FlatObject<T[K]> : T[K] }
   : T
 
