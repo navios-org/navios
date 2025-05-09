@@ -69,10 +69,11 @@ export class NaviosApplication {
         continue
       }
       this.server.register(
-        (instance) => {
+        (instance, opts, done) => {
           for (const controller of controllers) {
             this.controllerAdapter.setupController(controller, instance)
           }
+          done()
         },
         {
           prefix: globalPrefix,

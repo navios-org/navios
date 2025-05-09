@@ -2,15 +2,11 @@ import type { BaseEndpointConfig } from '@navios/navios-zod'
 import type { HttpMethod } from 'navios'
 
 import type { ClassType } from '../service-locator/injection-token.mjs'
+import type { EndpointMetadata } from './endpoint.decorator.mjs'
 
 import { InjectableScope } from '../service-locator/enums/injectable-scope.enum.mjs'
 import { Injectable, InjectableType } from '../service-locator/index.mjs'
 import { InjectionToken } from '../service-locator/injection-token.mjs'
-import {
-  getServiceLocator,
-  provideServiceLocator,
-} from '../service-locator/injector.mjs'
-import { makeProxyServiceLocator } from '../service-locator/proxy-service-locator.mjs'
 import { EndpointMetadataKey } from './endpoint.decorator.mjs'
 
 export const ControllerMetadataKey = Symbol('ControllerMetadataKey')
@@ -38,16 +34,7 @@ export function Controller() {
     const token = InjectionToken.create(target)
     if (context.metadata) {
       const endpointMetadata = context.metadata[EndpointMetadataKey] as
-        | Map<
-            string,
-            Map<
-              HttpMethod,
-              {
-                method: string
-                config: BaseEndpointConfig
-              }
-            >
-          >
+        | EndpointMetadata
         | undefined
       // @ts-expect-error We add a custom metadata key to the target
       target[ControllerMetadataKey] = {

@@ -5,7 +5,21 @@ import type {
 import type { HttpMethod } from 'navios'
 import type { AnyZodObject, z, ZodType } from 'zod'
 
+import type { ClassTypeWithInstance } from '../service-locator/index.mjs'
+
 export const EndpointMetadataKey = Symbol('EndpointMetadataKey')
+
+export type EndpointMetadata = Map<
+  string,
+  Map<
+    HttpMethod,
+    {
+      method: string
+      config: BaseEndpointConfig
+      middleware?: ClassTypeWithInstance<any>[]
+    }
+  >
+>
 
 export type EndpointParams<
   EndpointDeclaration extends {
@@ -69,28 +83,10 @@ export function Endpoint<
     const config = endpoint.config
     if (context.metadata) {
       let endpointMetadata = context.metadata[EndpointMetadataKey] as
-        | Map<
-            string,
-            Map<
-              HttpMethod,
-              {
-                method: string
-                config: BaseEndpointConfig
-              }
-            >
-          >
+        | EndpointMetadata
         | undefined
       if (!endpointMetadata) {
-        endpointMetadata = new Map<
-          string,
-          Map<
-            HttpMethod,
-            {
-              method: string
-              config: BaseEndpointConfig
-            }
-          >
-        >()
+        endpointMetadata = new Map()
         context.metadata[EndpointMetadataKey] = endpointMetadata
       }
       const urlMetadata = endpointMetadata.get(config.url)
@@ -121,4 +117,15 @@ export function Endpoint<
     }
     return target
   }
+}
+
+export function getEndpointMetadata(target: () => any): EndpointMetadata {
+  // @ts-expect-error We add a custom metadata key to the target
+  const metadata = target[EndpointMetadataKey] as EndpointMetadata | undefined
+  if (!metadata) {
+    throw new Error(
+      '[Navios] No endpoint metadata found. Please make sure to use the @Endpoint decorator.',
+    )
+  }
+  return metadata
 }
