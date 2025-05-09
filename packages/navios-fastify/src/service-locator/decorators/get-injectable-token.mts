@@ -1,0 +1,23 @@
+import type {
+  ClassType,
+  ClassTypeWithInstance,
+  InjectionToken,
+} from '../injection-token.mjs'
+
+import { InjectableTokenMeta } from './injectable.decorator.mjs'
+
+export function getInjectableToken<R, T extends ClassTypeWithInstance<R>>(
+  target: ClassType,
+): R extends { create(...args: any[]): infer V }
+  ? InjectionToken<V>
+  : InjectionToken<R> {
+  // @ts-expect-error We inject the token into the class itself
+  const token = target[InjectableTokenMeta] as InjectionToken<any, any>
+  if (!token) {
+    throw new Error(
+      `[ServiceLocator] Class ${target.name} is not decorated with @Injectable.`,
+    )
+  }
+  // @ts-expect-error We detect factory or class
+  return token
+}

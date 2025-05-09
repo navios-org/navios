@@ -3,7 +3,7 @@ import { declareAPI } from '@navios/navios-zod'
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
 
-import { makeQueryOptions } from '../makeQueryOptions.mjs'
+import { makeQueryOptions } from '../make-query-options.mjs'
 
 describe('makeQueryOptions', () => {
   const api = declareAPI({})

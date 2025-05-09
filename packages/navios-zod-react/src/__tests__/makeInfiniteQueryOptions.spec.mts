@@ -3,7 +3,7 @@ import { declareAPI } from '@navios/navios-zod'
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
 
-import { makeInfiniteQueryOptions } from '../makeInfiniteQueryOptions.mjs'
+import { makeInfiniteQueryOptions } from '../make-infinite-query-options.mjs'
 
 describe('makeInfiniteQueryOptions', () => {
   const api = declareAPI({})

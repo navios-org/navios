@@ -19,7 +19,7 @@ describe('navios-zod', () => {
       url: '/test',
       responseSchema: z.object({ data: z.string() }),
     })
-    const result = await getTest()
+    const result = await getTest({})
     expect(result).toEqual({ data: 'test' })
   })
 

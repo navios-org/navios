@@ -12,8 +12,6 @@ import type {
   ZodType,
 } from 'zod'
 
-import { ZodEffects, ZodUnion } from 'zod'
-
 export interface DeclareAPIConfig {
   /**
    * If your schema uses discriminatedUnion which works for both success
@@ -76,7 +74,7 @@ export interface NaviosZodRequestBase extends RequestInit {
 }
 
 export type NaviosZodRequest<
-  Config extends EndpointConfig | EndpointWithDataConfig | BlobEndpointConfig,
+  Config extends EndpointConfig | BlobEndpointConfig,
 > = (UrlHasParams<Config['url']> extends true
   ? { urlParams: UrlParams<Config['url']> }
   : {}) &
@@ -86,7 +84,9 @@ export type NaviosZodRequest<
       : {}
     : {}) &
   (Config extends EndpointWithDataConfig
-    ? { data: z.input<EndpointRequestSchema<Config>> }
+    ? Config['requestSchema'] extends AnyZodObject
+      ? { data: z.input<Config['requestSchema']> }
+      : {}
     : {}) &
   (Config['querySchema'] extends AnyZodObject
     ? { params: z.input<Config['querySchema']> }
@@ -102,28 +102,20 @@ export interface APIConfig extends DeclareAPIConfig {
 export type BaseEndpointConfig<
   Method extends HttpMethod = HttpMethod,
   Url extends string = string,
-  QuerySchema extends AnyZodObject = AnyZodObject,
+  QuerySchema = undefined,
   ResponseSchema extends ZodType = ZodType,
+  RequestSchema = undefined,
 > = {
   method: Method
   url: Url
-  querySchema?: QuerySchema
   responseSchema: ResponseSchema
-}
-export type BaseDataEndpointConfig<
-  Method extends HttpMethod = HttpMethod,
-  Url extends string = string,
-  QuerySchema extends AnyZodObject = AnyZodObject,
-  ResponseSchema extends ZodType = ZodType,
-  RequestSchema extends ZodType = ZodType,
-> = BaseEndpointConfig<Method, Url, QuerySchema, ResponseSchema> & {
+  querySchema: QuerySchema
   requestSchema: RequestSchema
 }
-
 export interface EndpointConfig extends BaseEndpointConfig {}
 
 export interface EndpointWithDataConfig
-  extends BaseDataEndpointConfig<'POST' | 'PUT' | 'PATCH'> {}
+  extends BaseEndpointConfig<'POST' | 'PUT' | 'PATCH'> {}
 
 export interface BlobEndpointConfig {
   method: 'GET'
@@ -165,39 +157,30 @@ export type Endpoint<Config extends EndpointConfig | EndpointWithDataConfig> =
 export type DataEndpointType<
   RequestSchema extends ZodType,
   ResponseSchema extends ZodType,
-  QuerySchema extends AnyZodObject | undefined = undefined,
+  QuerySchema = undefined,
 > = QuerySchema extends AnyZodObject
-  ? Endpoint<
-      BaseDataEndpointConfig<
+  ? Omit<
+      BaseEndpointConfig<
         'POST' | 'PUT' | 'PATCH',
         string,
-        QuerySchema,
+        undefined,
         ResponseSchema,
         RequestSchema
-      >
-    >
-  : EndpointWithoutQuery<{
-      method: 'POST' | 'PUT' | 'PATCH'
-      requestSchema: RequestSchema
-      responseSchema: ResponseSchema
-      url: string
-    }>
-
-export type EndpointType<
-  ResponseSchema extends AnyZodObject | ZodDiscriminatedUnion<any, any>,
-  QuerySchema extends AnyZodObject | undefined = undefined,
-> = QuerySchema extends undefined
-  ? EndpointWithoutQuery<{
-      method: HttpMethod
-      responseSchema: ResponseSchema
-      url: string
-    }>
-  : Endpoint<{
-      method: HttpMethod
-      responseSchema: ResponseSchema
-      url: string
+      >,
+      'querySchema'
+    > & {
       querySchema: QuerySchema
-    }>
+    }
+  : Omit<
+      BaseEndpointConfig<
+        'POST' | 'PUT' | 'PATCH',
+        string,
+        undefined,
+        ResponseSchema,
+        RequestSchema
+      >,
+      'querySchema'
+    >
 
 export type Util_FlatObject<T> = T extends object
   ? { [K in keyof T]: K extends 'urlParams' ? Util_FlatObject<T[K]> : T[K] }

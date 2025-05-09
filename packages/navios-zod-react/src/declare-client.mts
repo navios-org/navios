@@ -29,9 +29,9 @@ import {
 import type { ClientOptions, ProcessResponseFunction } from './types.mjs'
 import type { QueryKeyCreatorResult } from './utils/query-key-creator.mjs'
 
+import { makeInfiniteQueryOptions } from './make-infinite-query-options.mjs'
 import { makeMutation } from './make-mutation.mjs'
-import { makeInfiniteQueryOptions } from './makeInfiniteQueryOptions.mjs'
-import { makeQueryOptions } from './makeQueryOptions.mjs'
+import { makeQueryOptions } from './make-query-options.mjs'
 
 type Split<S extends string, D extends string> = string extends S
   ? string[]

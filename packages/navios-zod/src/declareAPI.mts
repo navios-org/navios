@@ -1,17 +1,15 @@
-import type { HttpMethod, Navios, NaviosResponse } from 'navios'
-import type { AnyZodObject, z } from 'zod'
-
-import { NaviosError } from 'navios'
+import type { Navios } from 'navios'
+import type { AnyZodObject, z, ZodType } from 'zod'
 
 import type {
-  APIConfig,
+  BaseEndpointConfig,
   BlobEndpointConfig,
   BlobRequestEndpoint,
   DeclareAPIConfig,
-  Endpoint,
-  EndpointConfig,
-  EndpointWithDataConfig,
   NaviosZodRequest,
+  UrlHasParams,
+  UrlParams,
+  Util_FlatObject,
   Util_FlatType,
 } from './types.mjs'
 
@@ -20,7 +18,148 @@ import { bindUrlParams } from './utils/bindUrlParams.mjs'
 import { downloadBlob } from './utils/downloadBlob.mjs'
 import { endpointCreator } from './utils/endpointCreator.mjs'
 
-export function declareAPI(config: DeclareAPIConfig = {}) {
+export type EndpointFunctionArgs<
+  Url extends string,
+  QuerySchema = undefined,
+  RequestSchema = undefined,
+> = (QuerySchema extends AnyZodObject
+  ? {
+      params: z.infer<QuerySchema>
+    }
+  : {}) &
+  (RequestSchema extends ZodType
+    ? {
+        data: z.infer<RequestSchema>
+      }
+    : {}) &
+  (UrlHasParams<Url> extends true
+    ? {
+        urlParams: UrlParams<Url>
+      }
+    : {})
+
+export interface DeclareAPIInstance {
+  provideClient(client: Navios): void
+  getClient(): Navios
+
+  declareEndpoint<
+    Url extends string,
+    Method extends 'POST' | 'PUT' | 'PATCH',
+    QuerySchema extends AnyZodObject,
+    ResponseSchema extends ZodType,
+    RequestSchema extends ZodType,
+  >(options: {
+    method: Method
+    url: Url
+    querySchema: QuerySchema
+    responseSchema: ResponseSchema
+    requestSchema: RequestSchema
+  }): ((
+    params: Util_FlatObject<
+      EndpointFunctionArgs<Url, QuerySchema, RequestSchema>
+    >,
+  ) => Promise<z.output<ResponseSchema>>) & {
+    config: BaseEndpointConfig<
+      Method,
+      Url,
+      QuerySchema,
+      ResponseSchema,
+      RequestSchema
+    >
+  }
+
+  declareEndpoint<
+    Url extends string,
+    Method extends 'POST' | 'PUT' | 'PATCH',
+    ResponseSchema extends ZodType,
+    RequestSchema extends ZodType,
+  >(options: {
+    method: Method
+    url: Url
+    responseSchema: ResponseSchema
+    requestSchema: RequestSchema
+  }): ((
+    params: Util_FlatObject<
+      EndpointFunctionArgs<Url, undefined, RequestSchema>
+    >,
+  ) => Promise<z.output<ResponseSchema>>) & {
+    config: BaseEndpointConfig<
+      Method,
+      Url,
+      undefined,
+      ResponseSchema,
+      RequestSchema
+    >
+  }
+
+  declareEndpoint<
+    Url extends string,
+    Method extends 'POST' | 'PUT' | 'PATCH',
+    ResponseSchema extends ZodType,
+  >(options: {
+    method: Method
+    url: Url
+    responseSchema: ResponseSchema
+  }): ((
+    params: Util_FlatObject<EndpointFunctionArgs<Url, undefined, undefined>>,
+  ) => Promise<z.output<ResponseSchema>>) & {
+    config: BaseEndpointConfig<
+      Method,
+      Url,
+      undefined,
+      ResponseSchema,
+      undefined
+    >
+  }
+
+  declareEndpoint<
+    Url extends string,
+    QuerySchema extends AnyZodObject,
+    Method extends 'GET' | 'DELETE' | 'OPTIONS' | 'HEAD',
+    ResponseSchema extends ZodType,
+  >(options: {
+    method: Method
+    url: Url
+    querySchema: QuerySchema
+    responseSchema: ResponseSchema
+  }): ((
+    params: Util_FlatObject<EndpointFunctionArgs<Url, QuerySchema, undefined>>,
+  ) => Promise<z.output<ResponseSchema>>) & {
+    config: BaseEndpointConfig<
+      Method,
+      Url,
+      QuerySchema,
+      ResponseSchema,
+      undefined
+    >
+  }
+
+  declareEndpoint<
+    Url extends string,
+    Method extends 'GET' | 'DELETE' | 'OPTIONS' | 'HEAD',
+    ResponseSchema extends ZodType,
+  >(options: {
+    method: Method
+    url: Url
+    responseSchema: ResponseSchema
+  }): ((
+    params: Util_FlatObject<EndpointFunctionArgs<Url, undefined, undefined>>,
+  ) => Promise<z.output<ResponseSchema>>) & {
+    config: BaseEndpointConfig<
+      Method,
+      Url,
+      undefined,
+      ResponseSchema,
+      undefined
+    >
+  }
+
+  declareBlobEndpoint<Config extends BlobEndpointConfig>(
+    options: Config,
+  ): Util_FlatType<BlobRequestEndpoint<Config>>
+}
+
+export function declareAPI(config: DeclareAPIConfig = {}): DeclareAPIInstance {
   let client: Navios | null = null
 
   function getClient() {
@@ -72,13 +211,7 @@ export function declareAPI(config: DeclareAPIConfig = {}) {
     }
   }
 
-  function declareEndpoint<
-    Config extends EndpointConfig | EndpointWithDataConfig,
-  >(
-    options: Config,
-  ): Util_FlatType<Endpoint<Config>> & {
-    config: Config
-  } {
+  function declareEndpoint(options: BaseEndpointConfig) {
     return endpointCreator(options, {
       getClient,
       config,
@@ -97,4 +230,4 @@ export function declareAPI(config: DeclareAPIConfig = {}) {
   }
 }
 
-export type DeclareAPI = ReturnType<typeof declareAPI>
+export type DeclareAPI = DeclareAPIInstance

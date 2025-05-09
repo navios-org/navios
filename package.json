@@ -3,6 +3,7 @@
   "packageManager": "yarn@4.2.2",
   "workspaces": [
     "packages/navios",
+    "packages/navios-fastify",
     "packages/navios-zod",
     "packages/navios-zod-react",
     "packages/angular-module",
