@@ -153,7 +153,7 @@ describe('declareClient', () => {
         if (!data.success) {
           throw new Error('error')
         }
-        return data.test
+        return data
       },
       onSuccess(queryClient, data, variables) {
         expect(data).toMatchObject({
