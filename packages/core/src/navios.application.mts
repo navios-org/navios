@@ -13,10 +13,13 @@ import {
 } from 'fastify-type-provider-zod'
 
 import type { NaviosModule } from './interfaces/index.mjs'
+import type { LoggerService, LogLevel } from './logger/index.mjs'
 import type { ClassTypeWithInstance } from './service-locator/index.mjs'
 
+import { Logger, PinoWrapper } from './logger/index.mjs'
 import {
   getServiceLocator,
+  inject,
   Injectable,
   syncInject,
 } from './service-locator/index.mjs'
@@ -26,12 +29,24 @@ import {
 } from './services/index.mjs'
 import { Application } from './tokens/index.mjs'
 
-export interface NaviosApplicationOptions extends FastifyServerOptions {}
+export interface NaviosApplicationContextOptions {
+  /**
+   * Specifies the logger to use.  Pass `false` to turn off logging.
+   */
+  logger?: LoggerService | LogLevel[] | false
+}
+
+export interface NaviosApplicationOptions
+  extends Omit<FastifyServerOptions, 'logger'>,
+    NaviosApplicationContextOptions {}
 
 @Injectable()
 export class NaviosApplication {
   private moduleLoader = syncInject(ModuleLoaderService)
   private controllerAdapter = syncInject(ControllerAdapterService)
+  private logger = syncInject(Logger, {
+    context: NaviosApplication.name,
+  })
   private server: FastifyInstance | null = null
   private corsOptions: FastifyCorsOptions | null = null
   private globalPrefix: string | null = null
@@ -52,7 +67,7 @@ export class NaviosApplication {
       throw new Error('App module is not set. Call setAppModule() first.')
     }
     await this.moduleLoader.loadModules(this.appModule)
-    this.server = fastify(this.options)
+    this.server = await this.getFastifyInstance(this.options)
     getServiceLocator().registerInstance(Application, this.server)
     // Add schema validator and serializer
     this.server.setValidatorCompiler(validatorCompiler)
@@ -61,8 +76,43 @@ export class NaviosApplication {
     if (this.corsOptions) {
       await this.server.register(cors, this.corsOptions)
     }
+
+    await this.initModules()
+
+    this.logger.debug('Navios application initialized')
+  }
+
+  private async getFastifyInstance(rawOptions: NaviosApplicationOptions) {
+    const { logger, ...options } = rawOptions
+    if (logger) {
+      const fastifyOptions = options as FastifyServerOptions
+      if (typeof logger === 'boolean') {
+        if (!logger) {
+          fastifyOptions.logger = false
+        }
+      } else {
+        fastifyOptions.loggerInstance = new PinoWrapper(
+          await inject(Logger, {
+            context: 'FastifyAdapter',
+          }),
+        )
+      }
+      return fastify(fastifyOptions)
+    } else {
+      return fastify({
+        ...options,
+        loggerInstance: new PinoWrapper(
+          await inject(Logger, {
+            context: 'FastifyAdapter',
+          }),
+        ),
+      } as FastifyServerOptions)
+    }
+  }
+
+  private async initModules() {
     const modules = this.moduleLoader.getAllModules()
-    const globalPrefix = this.globalPrefix ?? ''
+    const promises: PromiseLike<any>[] = []
     for (const [moduleName, moduleMetadata] of modules) {
       if (
         !moduleMetadata.controllers ||
@@ -70,27 +120,30 @@ export class NaviosApplication {
       ) {
         continue
       }
-      this.server.register(
-        (instance, opts, done) => {
-          for (const controller of moduleMetadata.controllers) {
-            this.controllerAdapter.setupController(
-              controller,
-              instance,
-              moduleMetadata,
-            )
-          }
-          done()
-        },
-        {
-          prefix: globalPrefix,
-        },
+      promises.push(
+        this.server!.register(
+          (instance, opts, done) => {
+            for (const controller of moduleMetadata.controllers) {
+              this.controllerAdapter.setupController(
+                controller,
+                instance,
+                moduleMetadata,
+              )
+            }
+            done()
+          },
+          {
+            prefix: this.globalPrefix ?? '',
+          },
+        ),
       )
     }
+
+    await Promise.all(promises)
   }
 
   enableCors(options: FastifyCorsOptions) {
     this.corsOptions = options
-    this.server?.register
   }
 
   setGlobalPrefix(prefix: string) {

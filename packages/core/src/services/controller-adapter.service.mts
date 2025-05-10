@@ -5,6 +5,7 @@ import type { ModuleMetadata } from '../metadata/index.mjs'
 import type { ClassType } from '../service-locator/index.mjs'
 
 import { HttpException } from '../exceptions/index.mjs'
+import { Logger } from '../logger/index.mjs'
 import { extractControllerMetadata } from '../metadata/index.mjs'
 import {
   getServiceLocator,
@@ -19,6 +20,9 @@ import { GuardRunnerService } from './guard-runner.service.mjs'
 @Injectable()
 export class ControllerAdapterService {
   guardRunner = syncInject(GuardRunnerService)
+  private logger = syncInject(Logger, {
+    context: ControllerAdapterService.name,
+  })
 
   setupController(
     controller: ClassType,
@@ -119,6 +123,10 @@ export class ControllerAdapterService {
           }
         },
       })
+
+      this.logger.debug(
+        `Registered ${httpMethod} ${url} for ${controller.name}:${classMethod}`,
+      )
     }
   }
 }

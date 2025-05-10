@@ -1,4 +1,4 @@
-import type { AnyZodObject, z } from 'zod'
+import type { AnyZodObject, z, ZodOptional } from 'zod'
 
 import type { ClassType } from './injection-token.mjs'
 
@@ -13,6 +13,11 @@ export function syncInject<T, S extends AnyZodObject>(
   token: InjectionToken<T, S>,
   args: z.input<S>,
 ): T
+export function syncInject<T, S extends ZodOptional<AnyZodObject>>(
+  token: InjectionToken<T, S>,
+  args: z.input<S>,
+): T
+
 export function syncInject<T>(token: InjectionToken<T, undefined>): T
 export function syncInject<
   T,

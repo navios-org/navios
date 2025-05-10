@@ -2,11 +2,15 @@ import type { NaviosModule } from '../interfaces/index.mjs'
 import type { ModuleMetadata } from '../metadata/index.mjs'
 import type { ClassTypeWithInstance } from '../service-locator/index.mjs'
 
+import { Logger } from '../logger/index.mjs'
 import { extractModuleMetadata } from '../metadata/index.mjs'
-import { inject, Injectable } from '../service-locator/index.mjs'
+import { inject, Injectable, syncInject } from '../service-locator/index.mjs'
 
 @Injectable()
 export class ModuleLoaderService {
+  private logger = syncInject(Logger, {
+    context: ModuleLoaderService.name,
+  })
   private modulesMetadata: Map<string, ModuleMetadata> = new Map()
   private loadedModules: Map<string, any> = new Map()
   private initialized = false
@@ -41,6 +45,7 @@ export class ModuleLoaderService {
     if (instance.onModuleInit) {
       await instance.onModuleInit()
     }
+    this.logger.debug(`Module ${moduleName} loaded`)
     this.loadedModules.set(moduleName, instance)
   }
 

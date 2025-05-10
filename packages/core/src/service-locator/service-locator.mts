@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 /* eslint-disable @typescript-eslint/no-empty-object-type */
-import type { AnyZodObject, z } from 'zod'
+import type { AnyZodObject, z, ZodOptional } from 'zod'
 
 import type { ServiceLocatorAbstractFactoryContext } from './service-locator-abstract-factory-context.mjs'
 import type { ServiceLocatorInstanceHolder } from './service-locator-instance-holder.mjs'
@@ -65,7 +65,7 @@ export class ServiceLocator {
 
   public registerAbstractFactory<
     Instance,
-    Schema extends AnyZodObject | undefined,
+    Schema extends AnyZodObject | ZodOptional<AnyZodObject> | undefined,
   >(
     token: InjectionToken<Instance, Schema>,
     factory: (
@@ -88,10 +88,14 @@ export class ServiceLocator {
 
   public getInstanceIdentifier<
     Instance,
-    Schema extends AnyZodObject | undefined,
+    Schema extends AnyZodObject | ZodOptional<AnyZodObject> | undefined,
   >(
     token: InjectionToken<Instance, Schema>,
-    args: Schema extends AnyZodObject ? z.input<Schema> : undefined,
+    args: Schema extends AnyZodObject
+      ? z.input<Schema>
+      : Schema extends ZodOptional<AnyZodObject>
+        ? z.input<Schema> | undefined
+        : undefined,
   ): string {
     const validatedArgs = token.schema
       ? token.schema.safeParse(args)
@@ -106,9 +110,16 @@ export class ServiceLocator {
     return this.makeInstanceName(token, validatedArgs)
   }
 
-  public async getInstance<Instance, Schema extends AnyZodObject | undefined>(
+  public async getInstance<
+    Instance,
+    Schema extends AnyZodObject | ZodOptional<AnyZodObject> | undefined,
+  >(
     token: InjectionToken<Instance, Schema>,
-    args: Schema extends AnyZodObject ? z.input<Schema> : undefined,
+    args: Schema extends AnyZodObject
+      ? z.input<Schema>
+      : Schema extends ZodOptional<AnyZodObject>
+        ? z.input<Schema> | undefined
+        : undefined,
   ): Promise<[undefined, Instance] | [UnknownError | FactoryNotFound]> {
     const validatedArgs = token.schema
       ? token.schema.safeParse(args)
@@ -161,10 +172,14 @@ export class ServiceLocator {
 
   public async getOrThrowInstance<
     Instance,
-    Schema extends AnyZodObject | undefined,
+    Schema extends AnyZodObject | ZodOptional<AnyZodObject> | undefined,
   >(
     token: InjectionToken<Instance, Schema>,
-    args: Schema extends AnyZodObject ? z.input<Schema> : undefined,
+    args: Schema extends AnyZodObject
+      ? z.input<Schema>
+      : Schema extends ZodOptional<AnyZodObject>
+        ? z.input<Schema> | undefined
+        : undefined,
   ): Promise<Instance> {
     const [error, instance] = await this.getInstance(token, args)
     if (error) {
@@ -185,11 +200,15 @@ export class ServiceLocator {
 
   private async createInstance<
     Instance,
-    Schema extends AnyZodObject | undefined,
+    Schema extends AnyZodObject | ZodOptional<AnyZodObject> | undefined,
   >(
     instanceName: string,
     token: InjectionToken<Instance, Schema>,
-    args: Schema extends AnyZodObject ? z.input<Schema> : undefined,
+    args: Schema extends AnyZodObject
+      ? z.input<Schema>
+      : Schema extends ZodOptional<AnyZodObject>
+        ? z.input<Schema> | undefined
+        : undefined,
   ): Promise<[undefined, Instance] | [FactoryNotFound | UnknownError]> {
     this.logger?.log(
       `[ServiceLocator]#createInstance() Creating instance for ${instanceName}`,
@@ -206,8 +225,12 @@ export class ServiceLocator {
 
   private async createInstanceFromAbstractFactory<
     Instance,
-    Schema extends AnyZodObject | undefined,
-    Args extends Schema extends AnyZodObject ? z.input<Schema> : undefined,
+    Schema extends AnyZodObject | ZodOptional<AnyZodObject> | undefined,
+    Args extends Schema extends AnyZodObject
+      ? z.input<Schema>
+      : Schema extends ZodOptional<AnyZodObject>
+        ? z.input<Schema> | undefined
+        : undefined,
   >(
     instanceName: string,
     token: InjectionToken<Instance, Schema>,
@@ -320,7 +343,6 @@ export class ServiceLocator {
             : undefined
           const instanceName = self.makeInstanceName(token, validatedArgs)
           dependencies.add(instanceName)
-          // @ts-expect-error TS2322 This is correct type
           return self.getOrThrowInstance(injectionToken, args)
         }
         throw new Error(
@@ -338,9 +360,16 @@ export class ServiceLocator {
     }
   }
 
-  public getSyncInstance<Instance, Schema extends AnyZodObject | undefined>(
+  public getSyncInstance<
+    Instance,
+    Schema extends AnyZodObject | ZodOptional<AnyZodObject> | undefined,
+  >(
     token: InjectionToken<Instance, Schema>,
-    args: Schema extends AnyZodObject ? z.input<Schema> : undefined,
+    args: Schema extends AnyZodObject
+      ? z.input<Schema>
+      : Schema extends ZodOptional<AnyZodObject>
+        ? z.input<Schema> | undefined
+        : undefined,
   ): Instance | null {
     const validatedArgs = token.schema
       ? token.schema.safeParse(args)

@@ -2,11 +2,16 @@ import type { AnyZodObject } from 'zod'
 
 import { randomUUID } from 'crypto'
 
+import { ZodOptional } from 'zod'
+
 export type ClassType = new (...args: any[]) => any
 
 export type ClassTypeWithInstance<T> = new (...args: any[]) => T
 
-export class InjectionToken<T, S extends AnyZodObject | unknown = unknown> {
+export class InjectionToken<
+  T,
+  S extends AnyZodObject | ZodOptional<AnyZodObject> | unknown = unknown,
+> {
   public id = randomUUID()
   constructor(
     public readonly name: string | symbol | ClassType,
@@ -16,12 +21,12 @@ export class InjectionToken<T, S extends AnyZodObject | unknown = unknown> {
   static create<T extends ClassType>(
     name: T,
   ): InjectionToken<InstanceType<T>, undefined>
-  static create<T extends ClassType, Schema extends AnyZodObject>(
-    name: T,
-    schema: Schema,
-  ): InjectionToken<InstanceType<T>, Schema>
+  static create<
+    T extends ClassType,
+    Schema extends AnyZodObject | ZodOptional<AnyZodObject>,
+  >(name: T, schema: Schema): InjectionToken<InstanceType<T>, Schema>
   static create<T>(name: string): InjectionToken<T, undefined>
-  static create<T, Schema extends AnyZodObject>(
+  static create<T, Schema extends AnyZodObject | ZodOptional<AnyZodObject>>(
     name: string,
     schema: Schema,
   ): InjectionToken<T, Schema>

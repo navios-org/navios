@@ -1,4 +1,4 @@
-import { Module } from '../../../../src/index.mjs'
+import { Logger, Module, syncInject } from '../../../../src/index.mjs'
 import { AclModernGuard } from '../acl/acl-modern.guard.mjs'
 import { UserController } from './user.controller.mjs'
 
@@ -7,7 +7,8 @@ import { UserController } from './user.controller.mjs'
   guards: [AclModernGuard],
 })
 export class UserModule {
+  logger = syncInject(Logger)
   onModuleInit() {
-    console.log('User module initialized')
+    this.logger.debug('Inside UserModule.onModuleInit')
   }
 }
