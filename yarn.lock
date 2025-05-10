@@ -3734,7 +3734,6 @@ __metadata:
     typescript: "npm:^5.8.3"
     zod: "npm:^3.24.3"
   peerDependencies:
-    navios: "workspace:^"
     zod: ^3.23.8
   languageName: unknown
   linkType: soft

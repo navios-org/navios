@@ -4,7 +4,7 @@ import type { UrlHasParams, UrlParams } from '../types.mjs'
 
 export function bindUrlParams<Url extends string>(
   urlPart: Url,
-  params: Omit<NaviosRequestConfig<any, {}>, 'method' | 'url' | 'data'> &
+  params: NaviosRequestConfig<any, any> &
     (UrlHasParams<Url> extends true
       ? {
           urlParams: UrlParams<Url>

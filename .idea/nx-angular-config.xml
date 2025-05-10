@@ -3,9 +3,12 @@
   <component name="NxAngularConfigService" workspaceLocation="file://$PROJECT_DIR$/nx.json">
     <projects>
       <project name="@navios/angular-module" file="file://$PROJECT_DIR$/packages/angular-module/project.json" />
+      <project name="@navios/common" file="file://$PROJECT_DIR$/packages/common/project.json" />
+      <project name="@navios/core" file="file://$PROJECT_DIR$/packages/core/project.json" />
       <project name="@navios/navios-zod" file="file://$PROJECT_DIR$/packages/navios-zod/project.json" />
       <project name="@navios/navios-zod-react" file="file://$PROJECT_DIR$/packages/navios-zod-react/project.json" />
       <project name="@navios/nestjs-module" file="file://$PROJECT_DIR$/packages/nestjs-module/project.json" />
+      <project name="@navios/react-query" file="file://$PROJECT_DIR$/packages/react-query/project.json" />
       <project name="navios" file="file://$PROJECT_DIR$/packages/navios/project.json" />
     </projects>
   </component>

@@ -64,7 +64,6 @@ export function makeQueryOptions<
       queryFn: async ({ signal }) => {
         let result
         try {
-          // @ts-expect-error TS2345 The type of request is correct
           result = await endpoint({
             signal,
             ...params,

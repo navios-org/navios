@@ -96,10 +96,8 @@ export type NaviosZodRequest<Config extends BaseEndpointConfig> = (UrlHasParams<
 > extends true
   ? { urlParams: UrlParams<Config['url']> }
   : {}) &
-  (Config extends EndpointWithDataConfig
-    ? Config['requestSchema'] extends AnyZodObject
-      ? { data: z.input<Config['requestSchema']> }
-      : {}
+  (Config['requestSchema'] extends AnyZodObject
+    ? { data: z.input<Config['requestSchema']> }
     : {}) &
   (Config['querySchema'] extends AnyZodObject
     ? { params: z.input<Config['querySchema']> }
@@ -140,23 +138,10 @@ export type BaseEndpointConfig<
   querySchema: QuerySchema
   requestSchema: RequestSchema
 }
-export interface EndpointConfig extends BaseEndpointConfig {}
-
-export interface EndpointWithDataConfig
-  extends BaseEndpointConfig<'POST' | 'PUT' | 'PATCH'> {}
-
-export type RequiredRequestEndpoint<
-  Config extends EndpointConfig | EndpointWithDataConfig,
-> = (
-  request: NaviosZodRequest<Config>,
-) => Promise<z.infer<EndpointResponseSchema<Config>>>
 
 export type Util_FlatObject<T> = T extends object
   ? { [K in keyof T]: K extends 'urlParams' ? Util_FlatObject<T[K]> : T[K] }
   : T
-
-export type EndpointResponseSchema<Config extends EndpointConfig> =
-  Config['responseSchema']
 
 export type AnyEndpointConfig = BaseEndpointConfig<any, any, any, any, any>
 

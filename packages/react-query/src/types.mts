@@ -1,8 +1,7 @@
 import type {
+  AnyEndpointConfig,
   BaseEndpointConfig,
   BuilderInstance,
-  EndpointConfig,
-  EndpointWithDataConfig,
   HttpMethod,
   NaviosZodRequest,
   UrlHasParams,
@@ -31,7 +30,7 @@ export type ClientOptions<ProcessResponse = unknown> = {
   }
 }
 
-export type BaseQueryParams<Config extends EndpointConfig, Res = any> = {
+export type BaseQueryParams<Config extends AnyEndpointConfig, Res = any> = {
   keyPrefix?: string[]
   keySuffix?: string[]
   onFail?: (err: unknown) => void
@@ -39,7 +38,7 @@ export type BaseQueryParams<Config extends EndpointConfig, Res = any> = {
 }
 
 export interface BaseMutationParams<
-  Config extends EndpointConfig | EndpointWithDataConfig,
+  Config extends AnyEndpointConfig,
   TData = unknown,
   TVariables = BaseMutationArgs<Config>,
   TResponse = z.output<Config['responseSchema']>,
@@ -84,7 +83,7 @@ export interface BaseMutationParams<
     : never
 }
 
-export type BaseQueryArgs<Config extends EndpointConfig> = (UrlHasParams<
+export type BaseQueryArgs<Config extends AnyEndpointConfig> = (UrlHasParams<
   Config['url']
 > extends true
   ? { urlParams: UrlParams<Config['url']> }
@@ -93,9 +92,8 @@ export type BaseQueryArgs<Config extends EndpointConfig> = (UrlHasParams<
     ? { params: z.input<Config['querySchema']> }
     : {})
 
-export type BaseMutationArgs<
-  Config extends EndpointConfig | EndpointWithDataConfig,
-> = NaviosZodRequest<Config>
+export type BaseMutationArgs<Config extends AnyEndpointConfig> =
+  NaviosZodRequest<Config>
 
 export type InfiniteQueryOptions<
   Config extends BaseEndpointConfig<HttpMethod, string, AnyZodObject>,

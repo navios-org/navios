@@ -61,7 +61,6 @@ export function makeInfiniteQueryOptions<
       queryFn: async ({ signal, pageParam }) => {
         let result
         try {
-          // @ts-expect-error TS2345 We bind the url params only if the url has params
           result = await endpoint({
             signal,
             // @ts-expect-error TS2345 We bind the url params only if the url has params

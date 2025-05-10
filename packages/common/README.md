@@ -1,35 +1,49 @@
-# Navios Common
+# Navios Builder
 
-`Navios Common` is a simple wrapper around `zod` library to provide a more convenient way to work with `zod` schemas.
+`Navios Builder` is a helper library on top of `zod` to provide a more declarative way to create an API client with type safety and validation. It allows you to define your API endpoints, request and response schemas, and automatically generates the necessary code to make API requests.
 
 ## Why?
 
-Developers forget to use `zod` to check the data before using it. This can lead to unexpected errors in the application. `Navios Zod` provides a simple way to check the data before using it.
-
-You cannot trust that API will return the data in the format you expect. `Navios Zod` provides a simple way to check the data before using it.
+- **Type Safety**: By using Zod schemas, you can ensure that the data you receive from your API matches the expected structure. This helps catch errors early in the development process.
+- **Validation**: Zod provides powerful validation capabilities, allowing you to define complex validation rules for your data. This ensures that the data you work with is always valid and meets your requirements.
+- **Integration with Navios**: Navios is a powerful HTTP client that simplifies API requests. By combining it with Zod, you can create a robust and type-safe API client.
+- **Declarative API**: The API is designed to be declarative, allowing you to define your API endpoints and their schemas in a clear and concise manner. This makes it easy to understand and maintain your API client.
+- **Discriminated Union Support**: The package supports discriminated unions, allowing you to handle different response types based on a common property. This is useful for APIs that return different data structures based on the request.
+- **Customizable**: The package allows you to customize the behavior of the API client, such as using a custom client.
+- **Error Handling**: The package provides built-in error handling capabilities, allowing you to handle API errors gracefully and provide meaningful feedback to users.
 
 ## Installation
 
 ```bash
-npm install --save @navios/navios-zod zod navios
+npm install --save @navios/common zod
 ```
 
 or
 
 ```bash
-yarn add @navios/navios-zod zod navios
+yarn add @navios/common zod
 ```
 
 ## Usage
 
 ```ts
-import { createAPI } from '@navios/navios-zod'
+import { builder } from '@navios/common'
+import { create } from 'navios'
+// or
+import { create } from 'axios'
 
 import { z } from 'zod'
 
-const API = createAPI({
+const API = builder({
+  useDiscriminatorResponse: true,
+})
+
+const client = create({
   baseURL: 'https://example.com/api/',
 })
+
+// We can provide the client to the API
+API.provideClient(client)
 
 const GetUserResponseSchema = z.object({
   id: z.number(),
@@ -43,16 +57,16 @@ const getUser = API.declareEndpoint({
 })
 ```
 
-Or more complex example with request schema:
+Or a more complex example with the request schema:
 
 ```ts
-import { declareAPI } from '@navios/navios-zod'
+import { builder } from '@navios/common'
 
 import { z } from 'zod'
 
 import { GetUsersResponseSchema } from './schemas/GetUsersResponseSchema.js'
 
-const API = declareAPI({
+const API = builder({
   useDiscriminatorResponse: true,
   useWholeResponse: true,
 })
@@ -84,6 +98,7 @@ const updateUser = API.declareEndpoint({
 
 // In another file you can set the API client
 
+// Use navios client or axios
 const client = create({
   baseURL: 'https://example.com/api/',
   headers: {
@@ -114,12 +129,11 @@ if (status === 200) {
 
 ## API
 
-### `declareAPI`
+### `builder`
 
-`declareAPI` is a function that creates an API object. It accepts an object with the following properties:
+`builder` is a function that creates an API object. It accepts an object with the following properties:
 
 - `useDiscriminatorResponse` - if `true`, the error response will be checked by the original responseSchema. Default is `false`.
-- `useWholeResponse` - if `true`, the whole response will be checked. Default is `false`.
 
 The function returns an API object with the following methods:
 
@@ -129,28 +143,16 @@ The function returns an API object with the following methods:
 declareEndpoint({
   method: 'get' | 'post' | 'put' | 'delete' | 'patch',
   url: string,
-  requestSchema?: z.ZodSchema<unknown>, // Only for POST, PUT, PATCH methods
+  // optional
+  requestSchema: z.ZodSchema<unknown>, // Only for POST, PUT, PATCH methods
   responseSchema: z.ZodSchema<unknown>,
-  querySchema?: z.ZodSchema<unknown>,
+  // optional
+  querySchema: z.ZodSchema<unknown>,
 })
 ```
 
 #### `provideClient` - sets the client for the API.
 
 ```ts
-provideClient(client: Navios)
+provideClient(client) // client is an instance of axios or navios client
 ```
-
-### `createAPI`
-
-`createAPI` is a wrapper around `declareAPI` that creates an API object with default navios client.
-
-```ts
-const API = createAPI({
-  baseURL: string,
-  useDiscriminatorResponse?: boolean,
-  useWholeResponse?: boolean,
-})
-```
-
-The function returns an API object with the same methods as `declareAPI`.

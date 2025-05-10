@@ -15,7 +15,6 @@
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",
   "peerDependencies": {
-    "navios": "workspace:^",
     "zod": "^3.23.8"
   },
   "exports": {
