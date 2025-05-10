@@ -1,4 +1,4 @@
-import type { AnyZodObject, input, output } from 'zod'
+import type { AnyZodObject, output, z, ZodOptional } from 'zod'
 
 import type { FactoryNotFound, UnknownError } from './index.mjs'
 import type { InjectionToken } from './injection-token.mjs'
@@ -33,11 +33,17 @@ export class ProxyServiceLocator implements ServiceLocator {
   ): void {
     return this.serviceLocator.registerAbstractFactory(token, factory)
   }
-  public getInstance<Instance, Schema extends AnyZodObject | undefined>(
+  public getInstance<
+    Instance,
+    Schema extends AnyZodObject | ZodOptional<AnyZodObject> | undefined,
+  >(
     token: InjectionToken<Instance, Schema>,
-    args: Schema extends AnyZodObject ? input<Schema> : undefined,
+    args: Schema extends AnyZodObject
+      ? z.input<Schema>
+      : Schema extends ZodOptional<AnyZodObject>
+        ? z.input<Schema> | undefined
+        : undefined,
   ): Promise<[undefined, Instance] | [UnknownError | FactoryNotFound]> {
-    // @ts-expect-error
     return this.ctx.inject(token, args).then(
       (instance) => {
         return [undefined, instance]
@@ -47,16 +53,29 @@ export class ProxyServiceLocator implements ServiceLocator {
       },
     )
   }
-  public getOrThrowInstance<Instance, Schema extends AnyZodObject | undefined>(
+  public getOrThrowInstance<
+    Instance,
+    Schema extends AnyZodObject | ZodOptional<AnyZodObject> | undefined,
+  >(
     token: InjectionToken<Instance, Schema>,
-    args: Schema extends AnyZodObject ? input<Schema> : undefined,
+    args: Schema extends AnyZodObject
+      ? z.input<Schema>
+      : Schema extends ZodOptional<AnyZodObject>
+        ? z.input<Schema> | undefined
+        : undefined,
   ): Promise<Instance> {
-    // @ts-expect-error We need to pass the args to the ctx.inject method
     return this.ctx.inject(token, args)
   }
-  public getSyncInstance<Instance, Schema extends AnyZodObject | undefined>(
+  public getSyncInstance<
+    Instance,
+    Schema extends AnyZodObject | ZodOptional<AnyZodObject> | undefined,
+  >(
     token: InjectionToken<Instance, Schema>,
-    args: Schema extends AnyZodObject ? input<Schema> : undefined,
+    args: Schema extends AnyZodObject
+      ? z.input<Schema>
+      : Schema extends ZodOptional<AnyZodObject>
+        ? z.input<Schema> | undefined
+        : undefined,
   ): Instance | null {
     return this.serviceLocator.getSyncInstance(token, args)
   }
