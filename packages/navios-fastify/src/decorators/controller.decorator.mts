@@ -5,7 +5,10 @@ import { InjectableScope } from '../service-locator/enums/injectable-scope.enum.
 import { Injectable, InjectableType } from '../service-locator/index.mjs'
 import { InjectionToken } from '../service-locator/injection-token.mjs'
 
-export function Controller() {
+export interface ControllerOptions {
+  guards?: ClassType[] | Set<ClassType>
+}
+export function Controller({ guards }: ControllerOptions = {}) {
   return function (target: ClassType, context: ClassDecoratorContext) {
     if (context.kind !== 'class') {
       throw new Error(
@@ -14,7 +17,12 @@ export function Controller() {
     }
     const token = InjectionToken.create(target)
     if (context.metadata) {
-      getControllerMetadata(target, context)
+      const controllerMetadata = getControllerMetadata(target, context)
+      if (guards) {
+        for (const guard of Array.from(guards).reverse()) {
+          controllerMetadata.guards.add(guard)
+        }
+      }
     }
     return Injectable({
       token,
