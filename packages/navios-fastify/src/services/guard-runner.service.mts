@@ -1,14 +1,8 @@
-import type { FastifyReply, FastifyRequest } from 'fastify'
-
 import type { CanActivate } from '../interfaces/index.mjs'
-import type {
-  ControllerMetadata,
-  EndpointMetadata,
-  ModuleMetadata,
-} from '../metadata/index.mjs'
 import type { ClassTypeWithInstance } from '../service-locator/index.mjs'
+import type { ExecutionContext } from './execution-context.mjs'
 
-import { HttpException } from '../index.mjs'
+import { HttpException } from '../exceptions/index.mjs'
 import {
   inject,
   Injectable,
@@ -22,8 +16,7 @@ export class GuardRunnerService {
       | ClassTypeWithInstance<CanActivate>
       | InjectionToken<CanActivate, undefined>
     >,
-    request: FastifyRequest,
-    reply: FastifyReply,
+    executionContext: ExecutionContext,
   ) {
     let canActivate = true
     for (const guard of Array.from(allGuards).reverse()) {
@@ -36,25 +29,31 @@ export class GuardRunnerService {
         )
       }
       try {
-        canActivate = await guardInstance.canActivate(request, reply)
+        canActivate = await guardInstance.canActivate(executionContext)
         if (!canActivate) {
           break
         }
       } catch (error) {
         if (error instanceof HttpException) {
-          reply.status(error.statusCode).send(error.response)
+          executionContext
+            .getReply()
+            .status(error.statusCode)
+            .send(error.response)
           return false
         } else {
-          reply.status(500).send({
-            message: 'Internal server error',
-            error: (error as Error).message,
-          })
+          executionContext
+            .getReply()
+            .status(500)
+            .send({
+              message: 'Internal server error',
+              error: (error as Error).message,
+            })
           return false
         }
       }
     }
     if (!canActivate) {
-      reply.status(403).send({
+      executionContext.getReply().status(403).send({
         message: 'Forbidden',
       })
       return false
@@ -62,10 +61,8 @@ export class GuardRunnerService {
     return canActivate
   }
 
-  mergeGuards(
-    moduleMetadata: ModuleMetadata,
-    controllerMetadata: ControllerMetadata,
-    endpointMetadata: EndpointMetadata,
+  makeContext(
+    executionContext: ExecutionContext,
   ): Set<
     ClassTypeWithInstance<CanActivate> | InjectionToken<CanActivate, undefined>
   > {
@@ -73,18 +70,21 @@ export class GuardRunnerService {
       | ClassTypeWithInstance<CanActivate>
       | InjectionToken<CanActivate, undefined>
     >()
-    if (endpointMetadata.guards) {
-      for (const guard of endpointMetadata.guards) {
+    const endpointGuards = executionContext.getHandler().guards
+    const controllerGuards = executionContext.getController().guards
+    const moduleGuards = executionContext.getModule().guards
+    if (endpointGuards.size > 0) {
+      for (const guard of endpointGuards) {
         guards.add(guard)
       }
     }
-    if (controllerMetadata.guards) {
-      for (const guard of controllerMetadata.guards) {
+    if (controllerGuards.size > 0) {
+      for (const guard of controllerGuards) {
         guards.add(guard)
       }
     }
-    if (moduleMetadata.guards) {
-      for (const guard of moduleMetadata.guards) {
+    if (moduleGuards.size > 0) {
+      for (const guard of moduleGuards) {
         guards.add(guard)
       }
     }

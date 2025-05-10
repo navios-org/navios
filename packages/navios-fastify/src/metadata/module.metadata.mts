@@ -55,3 +55,8 @@ export function extractModuleMetadata(target: ClassType): ModuleMetadata {
   }
   return metadata
 }
+
+export function hasModuleMetadata(target: ClassType): boolean {
+  // @ts-expect-error We add a custom metadata key to the target
+  return !!target[ModuleMetadataKey]
+}

@@ -55,6 +55,9 @@ export class ModuleLoaderService {
     }
     if (parentMetadata.customAttributes) {
       for (const [key, value] of parentMetadata.customAttributes) {
+        if (metadata.customAttributes.has(key)) {
+          continue
+        }
         metadata.customAttributes.set(key, value)
       }
     }

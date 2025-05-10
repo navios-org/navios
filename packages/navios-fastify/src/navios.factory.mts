@@ -1,4 +1,4 @@
-import type { NaviosModule } from './index.mjs'
+import type { NaviosModule } from './interfaces/index.mjs'
 import type { NaviosApplicationOptions } from './navios.application.mjs'
 import type { ClassTypeWithInstance } from './service-locator/index.mjs'
 

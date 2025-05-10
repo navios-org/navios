@@ -9,6 +9,7 @@ import {
 import { patchUserEndpoint, userEndpoint } from '../../api/index.mjs'
 import { AclGuard } from '../acl/acl.guard.mjs'
 import { OneMoreGuard } from '../acl/one-more.guard.mjs'
+import { Public } from '../acl/public.attribute.mjs'
 import { UserService } from './user.service.mjs'
 
 @UseGuards(AclGuard)
@@ -16,6 +17,7 @@ import { UserService } from './user.service.mjs'
 export class UserController {
   userService = syncInject(UserService)
 
+  @Public()
   @UseGuards(OneMoreGuard)
   @Endpoint(userEndpoint)
   me(params: EndpointParams<typeof userEndpoint>) {

@@ -1,3 +1,5 @@
+import type { ExecutionContext } from '../services/execution-context.mjs'
+
 export interface CanActivate {
-  canActivate(request: unknown, reply: unknown): Promise<boolean> | boolean
+  canActivate(executionContext: ExecutionContext): Promise<boolean> | boolean
 }

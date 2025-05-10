@@ -61,3 +61,11 @@ export function extractControllerMetadata(
   }
   return metadata
 }
+
+export function hasControllerMetadata(target: ClassType): boolean {
+  // @ts-expect-error We add a custom metadata key to the target
+  const metadata = target[ControllerMetadataKey] as
+    | ControllerMetadata
+    | undefined
+  return !!metadata
+}

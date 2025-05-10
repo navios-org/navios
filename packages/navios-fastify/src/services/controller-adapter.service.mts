@@ -1,8 +1,6 @@
 import type { FastifyInstance } from 'fastify'
 import type { ZodTypeProvider } from 'fastify-type-provider-zod'
 
-import { console } from 'inspector'
-
 import type { ModuleMetadata } from '../metadata/index.mjs'
 import type { ClassType } from '../service-locator/index.mjs'
 
@@ -14,7 +12,8 @@ import {
   Injectable,
   syncInject,
 } from '../service-locator/index.mjs'
-import { Reply, Request } from '../tokens/index.mjs'
+import { ExecutionContextToken, Reply, Request } from '../tokens/index.mjs'
+import { ExecutionContext } from './execution-context.mjs'
 import { GuardRunnerService } from './guard-runner.service.mjs'
 
 @Injectable()
@@ -35,11 +34,12 @@ export class ControllerAdapterService {
           `[Navios] Malformed Endpoint ${controller.name}:${classMethod}`,
         )
       }
-      const guards = this.guardRunner.mergeGuards(
+      const executionContext = new ExecutionContext(
         moduleMetadata,
         controllerMetadata,
         endpoint,
       )
+      const guards = this.guardRunner.makeContext(executionContext)
       const { querySchema, requestSchema, responseSchema } = config
       const schema: Record<string, any> = {}
       if (querySchema) {
@@ -59,11 +59,21 @@ export class ControllerAdapterService {
         schema,
         preHandler: async (request, reply) => {
           if (guards.size > 0) {
+            getServiceLocator().registerInstance(Request, request)
+            getServiceLocator().registerInstance(Reply, reply)
+            getServiceLocator().registerInstance(
+              ExecutionContextToken,
+              executionContext,
+            )
+            executionContext.provideRequest(request)
+            executionContext.provideReply(reply)
             const canActivate = await this.guardRunner.runGuards(
               guards,
-              request,
-              reply,
+              executionContext,
             )
+            getServiceLocator().removeInstance(Request)
+            getServiceLocator().removeInstance(Reply)
+            getServiceLocator().removeInstance(ExecutionContextToken)
             if (!canActivate) {
               return reply
             }
@@ -72,6 +82,12 @@ export class ControllerAdapterService {
         handler: async (request, reply) => {
           getServiceLocator().registerInstance(Request, request)
           getServiceLocator().registerInstance(Reply, reply)
+          getServiceLocator().registerInstance(
+            ExecutionContextToken,
+            executionContext,
+          )
+          executionContext.provideRequest(request)
+          executionContext.provideReply(reply)
           const controllerInstance = await inject(controller)
           try {
             const { query, params, body } = request
@@ -99,6 +115,7 @@ export class ControllerAdapterService {
           } finally {
             getServiceLocator().removeInstance(Request)
             getServiceLocator().removeInstance(Reply)
+            getServiceLocator().removeInstance(ExecutionContextToken)
           }
         },
       })

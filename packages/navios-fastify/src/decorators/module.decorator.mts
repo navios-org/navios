@@ -1,4 +1,3 @@
-import type { ModuleMetadata } from '../metadata/index.mjs'
 import type { ClassType } from '../service-locator/injection-token.mjs'
 
 import { getModuleMetadata } from '../metadata/index.mjs'
