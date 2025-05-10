@@ -1,3 +1,4 @@
+export * from './config/index.mjs'
 export * from './decorators/index.mjs'
 export * from './exceptions/index.mjs'
 export * from './interfaces/index.mjs'

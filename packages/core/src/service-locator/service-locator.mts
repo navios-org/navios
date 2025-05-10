@@ -456,7 +456,15 @@ export class ServiceLocator {
   makeInstanceName(token: InjectionToken<any, any>, args: any) {
     let stringifiedArgs = args
       ? ':' +
-        JSON.stringify(args)
+        JSON.stringify(args, (_, value) => {
+          if (typeof value === 'function') {
+            return `function:${value.name}(${value.length})`
+          }
+          if (typeof value === 'symbol') {
+            return value.toString()
+          }
+          return value
+        })
           .replaceAll(/"/g, '')
           .replaceAll(/:/g, '=')
           .replaceAll(/,/g, '|')

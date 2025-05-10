@@ -1,4 +1,5 @@
-import { NaviosFactory } from '../../src/index.mjs'
+import { inject, NaviosFactory } from '../../src/index.mjs'
+import { ConfigService } from './config/config.service.mjs'
 import { AppModule } from './src/app.module.mjs'
 
 export async function boot() {
@@ -7,6 +8,8 @@ export async function boot() {
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   })
   await app.init()
-  await app.listen({ port: 3000, host: '0.0.0.0' })
+  const configService = await inject(ConfigService)
+  const port = configService.getOrThrow('port')
+  await app.listen({ port: port, host: '0.0.0.0' })
 }
 await boot()
