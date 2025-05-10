@@ -8,12 +8,9 @@
     "module": "Node16",
     "skipLibCheck": true,
     "paths": {
-      "@navios/navios-zod": [
-        "./packages/navios-zod/src/index.mts"
-      ],
-      "navios": [
-        "./packages/navios/src/index.mts"
-      ]
+      "@navios/navios-zod": ["./packages/navios-zod/src/index.mts"],
+      "@navios/common": ["./packages/common/src/index.mts"],
+      "navios": ["./packages/navios/src/index.mts"]
     }
   }
 }

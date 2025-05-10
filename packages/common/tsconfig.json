@@ -1,0 +1,10 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "module": "Node16",
+    "incremental": false
+  },
+  "include": ["src/**/*"],
+  "references": []
+}

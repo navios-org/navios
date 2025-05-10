@@ -1,0 +1,42 @@
+{
+  "name": "@navios/react-query",
+  "version": "0.7.3",
+  "author": {
+    "name": "Oleksandr Hanzha",
+    "email": "alex@granted.name"
+  },
+  "repository": {
+    "directory": "packages/react-query",
+    "type": "git",
+    "url": "https://github.com/Arilas/navios.git"
+  },
+  "license": "MIT",
+  "typings": "./dist/index.d.ts",
+  "main": "./dist/index.js",
+  "module": "./dist/index.mjs",
+  "peerDependencies": {
+    "@tanstack/react-query": "^5.51.21",
+    "@navios/common": "workspace:^",
+    "zod": "^3.23.8"
+  },
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.mts",
+        "default": "./src/index.mts"
+      },
+      "require": {
+        "types": "./dist/index.d.ts",
+        "default": "./src/index.mts"
+      }
+    }
+  },
+  "devDependencies": {
+    "@navios/common": "workspace:^",
+    "@tanstack/react-query": "^5.75.1",
+    "navios": "workspace:^",
+    "react": "^19.1.0",
+    "typescript": "^5.8.3",
+    "zod": "^3.24.3"
+  }
+}

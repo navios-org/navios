@@ -3726,6 +3726,36 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@navios/common@workspace:^, @navios/common@workspace:packages/common":
+  version: 0.0.0-use.local
+  resolution: "@navios/common@workspace:packages/common"
+  dependencies:
+    navios: "workspace:^"
+    typescript: "npm:^5.8.3"
+    zod: "npm:^3.24.3"
+  peerDependencies:
+    navios: "workspace:^"
+    zod: ^3.23.8
+  languageName: unknown
+  linkType: soft
+
+"@navios/core@workspace:packages/core":
+  version: 0.0.0-use.local
+  resolution: "@navios/core@workspace:packages/core"
+  dependencies:
+    "@fastify/cors": "npm:^11.0.1"
+    "@navios/common": "workspace:^"
+    fastify: "npm:^5.3.2"
+    fastify-type-provider-zod: "npm:^4.0.2"
+    tsx: "npm:^4.19.4"
+    typescript: "npm:^5.8.3"
+    zod: "npm:^3.24.3"
+  peerDependencies:
+    "@navios/common": "workspace:^"
+    zod: ^3.23.8
+  languageName: unknown
+  linkType: soft
+
 "@navios/mono@workspace:.":
   version: 0.0.0-use.local
   resolution: "@navios/mono@workspace:."
@@ -3771,24 +3801,6 @@ __metadata:
     tsup: "npm:^8.4.0"
     typescript: "npm:^5.8.3"
     vitest: "npm:^3.1.2"
-  languageName: unknown
-  linkType: soft
-
-"@navios/navios-zod-fastify@workspace:packages/navios-fastify":
-  version: 0.0.0-use.local
-  resolution: "@navios/navios-zod-fastify@workspace:packages/navios-fastify"
-  dependencies:
-    "@fastify/cors": "npm:^11.0.1"
-    "@navios/navios-zod": "workspace:^"
-    fastify: "npm:^5.3.2"
-    fastify-type-provider-zod: "npm:^4.0.2"
-    navios: "workspace:^"
-    tsx: "npm:^4.19.4"
-    typescript: "npm:^5.8.3"
-    zod: "npm:^3.24.3"
-  peerDependencies:
-    navios: "workspace:^"
-    zod: ^3.23.8
   languageName: unknown
   linkType: soft
 
@@ -5058,21 +5070,21 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@tanstack/query-core@npm:5.75.0":
-  version: 5.75.0
-  resolution: "@tanstack/query-core@npm:5.75.0"
-  checksum: 10c0/1c90d5f463fe5b4dac4525279300cd950acaef670b8589ba406df833bee3bdb4dcb58fba78c9a5424e7d19a317590eecad838fb389f37a91edb781f9c90af358
+"@tanstack/query-core@npm:5.75.7":
+  version: 5.75.7
+  resolution: "@tanstack/query-core@npm:5.75.7"
+  checksum: 10c0/e1b8489ada09279826a9ed9c79907d5393cb6cd379edb5feb84d2925cf83bc9669a97f52f95229e4e7d59298c9ef88695e8b7107e7ba2461d6c2c6aac66a21a5
   languageName: node
   linkType: hard
 
 "@tanstack/react-query@npm:^5.75.1":
-  version: 5.75.1
-  resolution: "@tanstack/react-query@npm:5.75.1"
+  version: 5.75.7
+  resolution: "@tanstack/react-query@npm:5.75.7"
   dependencies:
-    "@tanstack/query-core": "npm:5.75.0"
+    "@tanstack/query-core": "npm:5.75.7"
   peerDependencies:
     react: ^18 || ^19
-  checksum: 10c0/dbaaed4ca3b6c3dd1cedad0ce4d0a8a8e3553573665d2a1281ca3983e28f7984bb833f17935885a38ac8c35e36b69a4a4fabb3f6aca0e16e8b91cecfbf56008f
+  checksum: 10c0/67a81445236b237ff6cbf30b8814e8de3e95a619509cc6b46ab8c9f550bec19d7543030e7127a4ef808c3b516c4397a7da049b7bd13d33834dd74637f2aead24
   languageName: node
   linkType: hard
 

@@ -1,7 +1,7 @@
 import { create } from 'navios'
 import { makeNaviosFakeAdapter } from 'navios/testing'
 
-import { declareAPI } from '@navios/navios-zod'
+import { builder } from '@navios/common'
 
 import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
@@ -36,7 +36,7 @@ vi.mock('@tanstack/react-query', async (importReal) => {
 })
 describe('declareClient', () => {
   const adapter = makeNaviosFakeAdapter()
-  const api = declareAPI({})
+  const api = builder({})
   api.provideClient(create({ adapter: adapter.fetch }))
   const responseSchema = z.discriminatedUnion('success', [
     z.object({ success: z.literal(true), test: z.string() }),
@@ -93,6 +93,8 @@ describe('declareClient', () => {
         return data
       },
     })
+
+    expect(query).toBeDefined()
   })
 
   it('should work with infinite queries', async () => {
@@ -120,6 +122,8 @@ describe('declareClient', () => {
         return undefined
       },
     })
+
+    expect(query).toBeDefined()
   })
 
   it('should work with mutations', async () => {
@@ -163,6 +167,7 @@ describe('declareClient', () => {
       },
     })
 
+    // @ts-expect-error it's internal type
     const mutationResult = mutation()
     const res = await mutationResult.mutateAsync({
       urlParams: {
@@ -172,6 +177,11 @@ describe('declareClient', () => {
       data: {
         testId: 'test',
       },
+    })
+
+    expect(res).toMatchObject({
+      success: true,
+      test: 'test',
     })
   })
 })
