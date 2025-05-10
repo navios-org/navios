@@ -1,15 +1,9 @@
-import type { ModuleMetadata } from '../decorators/module.decorator.mjs'
-import type {
-  ClassType,
-  ClassTypeWithInstance,
-} from '../service-locator/index.mjs'
+import type { NaviosModule } from '../interfaces/index.mjs'
+import type { ModuleMetadata } from '../metadata/index.mjs'
+import type { ClassTypeWithInstance } from '../service-locator/index.mjs'
 
-import { getModuleMetadata } from '../decorators/module.decorator.mjs'
+import { extractModuleMetadata } from '../metadata/index.mjs'
 import { inject, Injectable } from '../service-locator/index.mjs'
-
-export interface ModuleInstance {
-  onModuleInit?: () => Promise<void>
-}
 
 @Injectable()
 export class ModuleLoaderService {
@@ -17,7 +11,7 @@ export class ModuleLoaderService {
   private loadedModules: Map<string, any> = new Map()
   private initialized = false
 
-  async loadModules(appModule: ClassTypeWithInstance<ModuleInstance>) {
+  async loadModules(appModule: ClassTypeWithInstance<NaviosModule>) {
     if (this.initialized) {
       return
     }
@@ -25,16 +19,22 @@ export class ModuleLoaderService {
     this.initialized = true
   }
 
-  async traverseModules(module: ClassTypeWithInstance<ModuleInstance>) {
-    const metadata = getModuleMetadata(module)
+  private async traverseModules(
+    module: ClassTypeWithInstance<NaviosModule>,
+    parentMetadata?: ModuleMetadata,
+  ) {
+    const metadata = extractModuleMetadata(module)
+    if (parentMetadata) {
+      this.mergeMetadata(metadata, parentMetadata)
+    }
     const moduleName = module.name
     if (this.modulesMetadata.has(moduleName)) {
       return
     }
     this.modulesMetadata.set(moduleName, metadata)
-    const imports = metadata.imports ?? []
-    const loadingPromises = imports.map(async (importedModule) =>
-      this.traverseModules(importedModule),
+    const imports = metadata.imports ?? new Set()
+    const loadingPromises = Array.from(imports).map(async (importedModule) =>
+      this.traverseModules(importedModule, metadata),
     )
     await Promise.all(loadingPromises)
     const instance = await inject(module)
@@ -44,6 +44,21 @@ export class ModuleLoaderService {
     this.loadedModules.set(moduleName, instance)
   }
 
+  private mergeMetadata(
+    metadata: ModuleMetadata,
+    parentMetadata: ModuleMetadata,
+  ): void {
+    if (parentMetadata.guards) {
+      for (const guard of parentMetadata.guards) {
+        metadata.guards.add(guard)
+      }
+    }
+    if (parentMetadata.customAttributes) {
+      for (const [key, value] of parentMetadata.customAttributes) {
+        metadata.customAttributes.set(key, value)
+      }
+    }
+  }
   getAllModules(): Map<string, ModuleMetadata> {
     return this.modulesMetadata
   }

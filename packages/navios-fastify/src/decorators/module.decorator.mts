@@ -1,44 +1,45 @@
+import type { ModuleMetadata } from '../metadata/index.mjs'
 import type { ClassType } from '../service-locator/injection-token.mjs'
 
+import { getModuleMetadata } from '../metadata/index.mjs'
 import { InjectableScope } from '../service-locator/enums/injectable-scope.enum.mjs'
 import { Injectable, InjectableType } from '../service-locator/index.mjs'
 import { InjectionToken } from '../service-locator/injection-token.mjs'
 
-export interface ModuleMetadata {
-  controllers?: ClassType[]
-  imports?: ClassType[]
+export interface ModuleOptions {
+  controllers?: ClassType[] | Set<ClassType>
+  imports?: ClassType[] | Set<ClassType>
+  guards?: ClassType[] | Set<ClassType>
 }
 
-export const ModuleMetadataKey = Symbol('ModuleMetadataKey')
-
-export function Module(metadata: ModuleMetadata) {
+export function Module(metadata: ModuleOptions) {
   return (target: ClassType, context: ClassDecoratorContext) => {
     if (context.kind !== 'class') {
       throw new Error('[Navios] @Module decorator can only be used on classes.')
     }
     // Register the module in the service locator
     const token = InjectionToken.create(target)
-
-    if (context.metadata) {
-      // @ts-expect-error We add a custom metadata key to the target
-      target[ModuleMetadataKey] = {
-        controllers: metadata.controllers ?? [],
-        imports: metadata.imports ?? [],
-      } satisfies ModuleMetadata
+    const moduleMetadata = getModuleMetadata(target, context)
+    if (metadata.controllers) {
+      for (const controller of metadata.controllers) {
+        moduleMetadata.controllers.add(controller)
+      }
     }
+    if (metadata.imports) {
+      for (const importedModule of metadata.imports) {
+        moduleMetadata.imports.add(importedModule)
+      }
+    }
+    if (metadata.guards) {
+      for (const guard of Array.from(metadata.guards).reverse()) {
+        moduleMetadata.guards.add(guard)
+      }
+    }
+
     return Injectable({
       token,
       type: InjectableType.Class,
       scope: InjectableScope.Singleton,
     })(target, context)
   }
-}
-
-export function getModuleMetadata(target: ClassType): ModuleMetadata {
-  // @ts-expect-error We add a custom metadata key to the target
-  const metadata = target[ModuleMetadataKey]
-  if (!metadata) {
-    throw new Error('[Navios] @Module decorator is not used on this class.')
-  }
-  return metadata
 }

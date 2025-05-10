@@ -12,8 +12,8 @@ import {
   validatorCompiler,
 } from 'fastify-type-provider-zod'
 
+import type { NaviosModule } from './index.mjs'
 import type { ClassTypeWithInstance } from './service-locator/index.mjs'
-import type { ModuleInstance } from './services/module-loader.service.mjs'
 
 import {
   getServiceLocator,
@@ -37,11 +37,11 @@ export class NaviosApplication {
   private corsOptions: FastifyCorsOptions | null = null
   private globalPrefix: string | null = null
 
-  private appModule: ClassTypeWithInstance<ModuleInstance> | null = null
+  private appModule: ClassTypeWithInstance<NaviosModule> | null = null
   private options: NaviosApplicationOptions = {}
 
   setup(
-    appModule: ClassTypeWithInstance<ModuleInstance>,
+    appModule: ClassTypeWithInstance<NaviosModule>,
     options: NaviosApplicationOptions = {},
   ) {
     this.appModule = appModule
@@ -64,14 +64,21 @@ export class NaviosApplication {
     }
     const modules = this.moduleLoader.getAllModules()
     const globalPrefix = this.globalPrefix ?? ''
-    for (const [moduleName, { controllers }] of modules) {
-      if (!controllers || controllers.length === 0) {
+    for (const [moduleName, moduleMetadata] of modules) {
+      if (
+        !moduleMetadata.controllers ||
+        moduleMetadata.controllers.size === 0
+      ) {
         continue
       }
       this.server.register(
         (instance, opts, done) => {
-          for (const controller of controllers) {
-            this.controllerAdapter.setupController(controller, instance)
+          for (const controller of moduleMetadata.controllers) {
+            this.controllerAdapter.setupController(
+              controller,
+              instance,
+              moduleMetadata,
+            )
           }
           done()
         },

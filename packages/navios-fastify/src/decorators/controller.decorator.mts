@@ -1,28 +1,9 @@
-import type { BaseEndpointConfig } from '@navios/navios-zod'
-import type { HttpMethod } from 'navios'
-
 import type { ClassType } from '../service-locator/injection-token.mjs'
-import type { EndpointMetadata } from './endpoint.decorator.mjs'
 
+import { getControllerMetadata } from '../metadata/index.mjs'
 import { InjectableScope } from '../service-locator/enums/injectable-scope.enum.mjs'
 import { Injectable, InjectableType } from '../service-locator/index.mjs'
 import { InjectionToken } from '../service-locator/injection-token.mjs'
-import { EndpointMetadataKey } from './endpoint.decorator.mjs'
-
-export const ControllerMetadataKey = Symbol('ControllerMetadataKey')
-
-export interface ControllerMetadata {
-  endpoints: Map<
-    string,
-    Map<
-      HttpMethod,
-      {
-        method: string
-        config: BaseEndpointConfig
-      }
-    >
-  >
-}
 
 export function Controller() {
   return function (target: ClassType, context: ClassDecoratorContext) {
@@ -33,24 +14,7 @@ export function Controller() {
     }
     const token = InjectionToken.create(target)
     if (context.metadata) {
-      const endpointMetadata = context.metadata[EndpointMetadataKey] as
-        | EndpointMetadata
-        | undefined
-      // @ts-expect-error We add a custom metadata key to the target
-      target[ControllerMetadataKey] = {
-        endpoints:
-          endpointMetadata ??
-          new Map<
-            string,
-            Map<
-              HttpMethod,
-              {
-                method: string
-                config: BaseEndpointConfig
-              }
-            >
-          >(),
-      } satisfies ControllerMetadata
+      getControllerMetadata(target, context)
     }
     return Injectable({
       token,
@@ -58,13 +22,4 @@ export function Controller() {
       scope: InjectableScope.Instance,
     })(target, context)
   }
-}
-
-export function getControllerMetadata(target: ClassType): ControllerMetadata {
-  // @ts-expect-error We add a custom metadata key to the target
-  const metadata = target[ControllerMetadataKey]
-  if (!metadata) {
-    throw new Error('[Navios] @Controller decorator is not used on this class.')
-  }
-  return metadata
 }

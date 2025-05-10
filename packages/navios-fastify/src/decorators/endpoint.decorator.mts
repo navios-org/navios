@@ -5,21 +5,7 @@ import type {
 import type { HttpMethod } from 'navios'
 import type { AnyZodObject, z, ZodType } from 'zod'
 
-import type { ClassTypeWithInstance } from '../service-locator/index.mjs'
-
-export const EndpointMetadataKey = Symbol('EndpointMetadataKey')
-
-export type EndpointMetadata = Map<
-  string,
-  Map<
-    HttpMethod,
-    {
-      method: string
-      config: BaseEndpointConfig
-      middleware?: ClassTypeWithInstance<any>[]
-    }
-  >
->
+import { getEndpointMetadata } from '../metadata/index.mjs'
 
 export type EndpointParams<
   EndpointDeclaration extends {
@@ -82,50 +68,18 @@ export function Endpoint<
     }
     const config = endpoint.config
     if (context.metadata) {
-      let endpointMetadata = context.metadata[EndpointMetadataKey] as
-        | EndpointMetadata
-        | undefined
-      if (!endpointMetadata) {
-        endpointMetadata = new Map()
-        context.metadata[EndpointMetadataKey] = endpointMetadata
-      }
-      const urlMetadata = endpointMetadata.get(config.url)
-      if (!urlMetadata) {
-        endpointMetadata.set(config.url, new Map())
-      }
-      let methodMetadata = endpointMetadata.get(config.url)
-      if (!methodMetadata) {
-        methodMetadata = new Map<
-          HttpMethod,
-          {
-            method: string
-            config: BaseEndpointConfig
-          }
-        >()
-        endpointMetadata.set(config.url, methodMetadata)
-      }
-      const existingConfig = methodMetadata.get(config.method)
-      if (existingConfig) {
+      let endpointMetadata = getEndpointMetadata(target, context)
+      if (endpointMetadata.config && endpointMetadata.config.url) {
         throw new Error(
           `[Navios] Endpoint ${config.method} ${config.url} already exists. Please use a different method or url.`,
         )
       }
-      methodMetadata.set(config.method, {
-        method: context.name as string,
-        config: config as BaseEndpointConfig,
-      })
+      // @ts-expect-error We don't need to set correctly in the metadata
+      endpointMetadata.config = config
+      endpointMetadata.classMethod = target.name
+      endpointMetadata.httpMethod = config.method
+      endpointMetadata.url = config.url
     }
     return target
   }
-}
-
-export function getEndpointMetadata(target: () => any): EndpointMetadata {
-  // @ts-expect-error We add a custom metadata key to the target
-  const metadata = target[EndpointMetadataKey] as EndpointMetadata | undefined
-  if (!metadata) {
-    throw new Error(
-      '[Navios] No endpoint metadata found. Please make sure to use the @Endpoint decorator.',
-    )
-  }
-  return metadata
 }

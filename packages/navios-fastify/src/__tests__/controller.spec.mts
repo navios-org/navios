@@ -5,13 +5,9 @@ import { z } from 'zod'
 
 import type { EndpointParams } from '../decorators/endpoint.decorator.mjs'
 
-import {
-  Controller,
-  ControllerMetadataKey,
-  getControllerMetadata,
-} from '../decorators/controller.decorator.mjs'
+import { Controller } from '../decorators/controller.decorator.mjs'
 import { Endpoint } from '../decorators/endpoint.decorator.mjs'
-import { inject } from '../service-locator/index.mjs'
+import { extractControllerMetadata } from '../index.mjs'
 
 describe('Controller decorator', () => {
   const api = declareAPI({
@@ -55,13 +51,10 @@ describe('Controller decorator', () => {
       }
     }
 
-    const metadata = getControllerMetadata(Test)
+    const metadata = extractControllerMetadata(Test)
     console.log(metadata)
     expect(metadata).toBeDefined()
     expect(metadata.endpoints).toBeInstanceOf(Map)
-    expect(metadata.endpoints.size).toBe(1)
-    expect(metadata.endpoints.get('test/$test/foo')).toBeInstanceOf(Map)
-    expect(metadata.endpoints.get('test/$test/foo')?.get('GET')).toBeDefined()
-    expect(metadata.endpoints.get('test/$test/foo')?.get('POST')).toBeDefined()
+    expect(metadata.endpoints.size).toBe(2)
   })
 })
