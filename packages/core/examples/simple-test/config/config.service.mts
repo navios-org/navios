@@ -1,6 +1,6 @@
 import type { Path, PathValue } from '../../../src/index.mjs'
 
-import { makeConfigToken } from '../../../src/index.mjs'
+import { provideConfig } from '../../../src/index.mjs'
 import { configureConfig } from './configuration.mjs'
 
 export type ConfigType = ReturnType<typeof configureConfig>
@@ -9,6 +9,6 @@ export type ConfigMap = {
   [K in ConfigTypePaths]: PathValue<ConfigType, K>
 }
 
-export const ConfigService = makeConfigToken<ConfigMap>({
+export const ConfigService = provideConfig<ConfigMap>({
   load: configureConfig,
 })

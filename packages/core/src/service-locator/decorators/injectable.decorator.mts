@@ -1,5 +1,9 @@
-import type { ClassType } from '../injection-token.mjs'
+import { NaviosException } from '@navios/common'
 
+import type { ClassType } from '../injection-token.mjs'
+import type { ServiceLocatorAbstractFactoryContext } from '../service-locator-abstract-factory-context.mjs'
+
+import { LoggerInstance } from '../../logger/index.mjs'
 import { InjectableScope } from '../enums/index.mjs'
 import { InjectionToken } from '../injection-token.mjs'
 import { getServiceLocator, provideServiceLocator } from '../injector.mjs'
@@ -33,62 +37,22 @@ export function Injectable({
     let injectableToken: InjectionToken<any, any> =
       token ?? InjectionToken.create(target)
     const locator = getServiceLocator()
-    if (!locator) {
-      throw new Error(
-        '[ServiceLocator] Service locator is not initialized. Please provide the service locator before using the @Injectable decorator.',
-      )
-    }
     if (type === InjectableType.Class) {
       locator.registerAbstractFactory(
         injectableToken,
-        async (ctx) => {
-          if (scope === InjectableScope.Instance) {
-            ctx.setTtl(0)
-          }
-          const proxyServiceLocator = makeProxyServiceLocator(
-            getServiceLocator(),
-            ctx,
-          )
-          const promises: Promise<any>[] = []
-          const promiseCollector = (promise: Promise<any>) => {
-            promises.push(promise)
-          }
-          const originalPromiseCollector = setPromiseCollector(promiseCollector)
-          const tryInit = () => {
-            const original = provideServiceLocator(proxyServiceLocator)
-            let result = new target()
-            provideServiceLocator(original)
-            return result
-          }
-          const result = tryInit()
-          setPromiseCollector(originalPromiseCollector)
-          if (promises.length > 0) {
-            await Promise.all(promises)
-            return tryInit()
-          }
-          return result
-        },
+        async (ctx) => resolveService(ctx, target),
         scope,
       )
     } else if (type === InjectableType.Factory) {
       locator.registerAbstractFactory(
         injectableToken,
         async (ctx, args: any) => {
-          if (scope === InjectableScope.Instance) {
-            ctx.setTtl(0)
-          }
-          const proxyServiceLocator = makeProxyServiceLocator(
-            getServiceLocator(),
-            ctx,
-          )
-          const original = provideServiceLocator(proxyServiceLocator)
-          const builder = new target()
+          const builder = await resolveService(ctx, target)
           if (typeof builder.create !== 'function') {
-            throw new Error(
+            throw new NaviosException(
               `[ServiceLocator] Factory ${target.name} does not implement the create method.`,
             )
           }
-          provideServiceLocator(original)
           return builder.create(ctx, args)
         },
         scope,
@@ -100,4 +64,41 @@ export function Injectable({
 
     return target
   }
+}
+
+export async function resolveService<T extends ClassType>(
+  ctx: ServiceLocatorAbstractFactoryContext,
+  target: T,
+): Promise<InstanceType<T>> {
+  const proxyServiceLocator = makeProxyServiceLocator(getServiceLocator(), ctx)
+  let promises: Promise<any>[] = []
+  const promiseCollector = (promise: Promise<any>) => {
+    promises.push(promise)
+  }
+  const originalPromiseCollector = setPromiseCollector(promiseCollector)
+  const tryLoad = () => {
+    const original = provideServiceLocator(proxyServiceLocator)
+    let result = new target()
+    provideServiceLocator(original)
+    return result
+  }
+  let instance = tryLoad()
+  setPromiseCollector(originalPromiseCollector)
+  if (promises.length > 0) {
+    await Promise.all(promises)
+    promises = []
+    instance = tryLoad()
+  }
+  if (promises.length > 0) {
+    LoggerInstance.error(`[ServiceLocator] ${target.name} has problem with it's definition.
+     
+     One or more of the dependencies are registered as a InjectableScope.Instance and are used with syncInject.
+     
+     Please use inject instead of syncInject to load those dependencies.`)
+    throw new NaviosException(
+      `[ServiceLocator] Service ${target.name} cannot be instantiated.`,
+    )
+  }
+
+  return instance
 }

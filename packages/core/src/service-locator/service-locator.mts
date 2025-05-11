@@ -7,7 +7,7 @@ import type { ServiceLocatorInstanceHolder } from './service-locator-instance-ho
 
 import { InjectableScope } from './enums/index.mjs'
 import { ErrorsEnum, FactoryNotFound, UnknownError } from './errors/index.mjs'
-import { getInjectableToken } from './index.mjs'
+import { BoundInjectionToken, getInjectableToken } from './index.mjs'
 import { InjectionToken } from './injection-token.mjs'
 import { ServiceLocatorEventBus } from './service-locator-event-bus.mjs'
 import {
@@ -97,9 +97,12 @@ export class ServiceLocator {
         ? z.input<Schema> | undefined
         : undefined,
   ): string {
-    const validatedArgs = token.schema
-      ? token.schema.safeParse(args)
-      : undefined
+    const validatedArgs =
+      token instanceof BoundInjectionToken
+        ? token.schema?.safeParse(token.value)
+        : token.schema
+          ? token.schema.safeParse(args)
+          : undefined
     if (validatedArgs && !validatedArgs.success) {
       this.logger?.error(
         `[ServiceLocator]#getInstance(): Error validating args for ${token.name.toString()}`,
@@ -107,7 +110,7 @@ export class ServiceLocator {
       )
       throw new UnknownError(validatedArgs.error)
     }
-    return this.makeInstanceName(token, validatedArgs)
+    return this.makeInstanceName(token, validatedArgs?.data)
   }
 
   public async getInstance<
@@ -121,9 +124,12 @@ export class ServiceLocator {
         ? z.input<Schema> | undefined
         : undefined,
   ): Promise<[undefined, Instance] | [UnknownError | FactoryNotFound]> {
-    const validatedArgs = token.schema
-      ? token.schema.safeParse(args)
-      : undefined
+    const validatedArgs =
+      token instanceof BoundInjectionToken
+        ? token.schema?.safeParse(token.value)
+        : token.schema
+          ? token.schema.safeParse(args)
+          : undefined
     if (validatedArgs && !validatedArgs.success) {
       this.logger?.error(
         `[ServiceLocator]#getInstance(): Error validating args for ${token.name.toString()}`,
@@ -131,7 +137,7 @@ export class ServiceLocator {
       )
       return [new UnknownError(validatedArgs.error)]
     }
-    const instanceName = this.makeInstanceName(token, validatedArgs)
+    const instanceName = this.makeInstanceName(token, validatedArgs?.data)
     const [error, holder] = this.manager.get(instanceName)
     if (!error) {
       if (holder.status === ServiceLocatorInstanceHolderStatus.Creating) {
@@ -167,7 +173,8 @@ export class ServiceLocator {
       default:
         return [error]
     }
-    return this.createInstance(instanceName, token, args)
+    // @ts-expect-error TS2322 It's validated
+    return this.createInstance(instanceName, token, validatedArgs?.data)
   }
 
   public async getOrThrowInstance<
@@ -213,13 +220,18 @@ export class ServiceLocator {
     this.logger?.log(
       `[ServiceLocator]#createInstance() Creating instance for ${instanceName}`,
     )
+    let realToken = token instanceof BoundInjectionToken ? token.token : token
     if (
-      this.abstractFactories.has(token) ||
-      this.instanceFactories.has(token)
+      this.abstractFactories.has(realToken) ||
+      this.instanceFactories.has(realToken)
     ) {
-      return this.createInstanceFromAbstractFactory(instanceName, token, args)
+      return this.createInstanceFromAbstractFactory(
+        instanceName,
+        realToken,
+        args,
+      )
     } else {
-      return [new FactoryNotFound(token.name.toString())]
+      return [new FactoryNotFound(realToken.name.toString())]
     }
   }
 
@@ -276,7 +288,7 @@ export class ServiceLocator {
               )
             })
           }
-          if (holder.ttl === 0) {
+          if (holder.ttl === 0 || !shouldStore) {
             // One time instance
             await this.invalidate(instanceName)
           }
@@ -371,9 +383,12 @@ export class ServiceLocator {
         ? z.input<Schema> | undefined
         : undefined,
   ): Instance | null {
-    const validatedArgs = token.schema
-      ? token.schema.safeParse(args)
-      : undefined
+    const validatedArgs =
+      token instanceof BoundInjectionToken
+        ? token.schema?.safeParse(token.value)
+        : token.schema
+          ? token.schema.safeParse(args)
+          : undefined
     if (validatedArgs && !validatedArgs.success) {
       this.logger?.error(
         `[ServiceLocator]#getInstance(): Error validating args for ${token.name.toString()}`,
@@ -381,7 +396,7 @@ export class ServiceLocator {
       )
       throw new UnknownError(validatedArgs.error)
     }
-    const instanceName = this.makeInstanceName(token, validatedArgs)
+    const instanceName = this.makeInstanceName(token, validatedArgs?.data)
     const [error, holder] = this.manager.get(instanceName)
     if (error) {
       return null

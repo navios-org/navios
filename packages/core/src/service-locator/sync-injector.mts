@@ -24,22 +24,16 @@ export function syncInject<
   Token extends InjectionToken<T>,
   S extends AnyZodObject | unknown = Token['schema'],
 >(token: Token, args?: S extends AnyZodObject ? z.input<S> : never): T {
-  if (token.schema) {
-    const parsed = token.schema.safeParse(args)
-    if (!parsed.success) {
-      throw new Error(
-        `[ServiceLocator] Invalid arguments for ${token.name.toString()}: ${parsed.error}`,
-      )
-    }
-  }
   let realToken: InjectionToken<T, S> = token
   if (!(token instanceof InjectionToken)) {
     realToken = getInjectableToken(token) as InjectionToken<T, S>
   }
 
+  // @ts-expect-error We don't need to check the schema here
   const instance = getServiceLocator().getSyncInstance(realToken, args)
   if (!instance) {
     if (promiseCollector) {
+      // @ts-expect-error We don't need to check the schema here
       const promise = getServiceLocator().getInstance(realToken, args)
       promiseCollector(promise)
     } else {
