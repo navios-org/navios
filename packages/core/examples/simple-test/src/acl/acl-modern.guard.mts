@@ -1,11 +1,15 @@
 import type { CanActivate, ExecutionContext } from '../../../../src/index.mjs'
 
-import { Injectable } from '../../../../src/index.mjs'
+import { Injectable, Logger, syncInject } from '../../../../src/index.mjs'
 
 @Injectable()
 export class AclModernGuard implements CanActivate {
+  logger = syncInject(Logger, {
+    context: AclModernGuard.name,
+  })
+
   canActivate(executionContext: ExecutionContext): Promise<boolean> | boolean {
-    console.log('ACL Modern Guard activated')
+    this.logger.log('ACL Modern Guard activated')
     return true
   }
 }

@@ -3,6 +3,7 @@ import type { EndpointParams } from '../../../../src/index.mjs'
 import {
   Controller,
   Endpoint,
+  Logger,
   syncInject,
   UseGuards,
 } from '../../../../src/index.mjs'
@@ -16,18 +17,21 @@ import { UserService } from './user.service.mjs'
 @Controller()
 export class UserController {
   userService = syncInject(UserService)
+  logger = syncInject(Logger, {
+    context: UserController.name,
+  })
 
   @Public()
   @UseGuards(OneMoreGuard)
   @Endpoint(userEndpoint)
   me(params: EndpointParams<typeof userEndpoint>) {
-    console.log(params)
+    this.logger.log(params)
     return this.userService.getUser()
   }
 
   @Endpoint(patchUserEndpoint)
   patchMe(params: EndpointParams<typeof patchUserEndpoint>) {
-    console.log(params)
+    this.logger.log(params)
     return {
       ...this.userService.getUser(),
       ...params.data,

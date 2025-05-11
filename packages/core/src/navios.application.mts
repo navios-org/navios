@@ -16,6 +16,7 @@ import type { NaviosModule } from './interfaces/index.mjs'
 import type { LoggerService, LogLevel } from './logger/index.mjs'
 import type { ClassTypeWithInstance } from './service-locator/index.mjs'
 
+import { HttpException } from './exceptions/index.mjs'
 import { Logger, PinoWrapper } from './logger/index.mjs'
 import {
   getServiceLocator,
@@ -68,6 +69,7 @@ export class NaviosApplication {
     }
     await this.moduleLoader.loadModules(this.appModule)
     this.server = await this.getFastifyInstance(this.options)
+    this.configureFastifyInstance(this.server)
     getServiceLocator().registerInstance(Application, this.server)
     // Add schema validator and serializer
     this.server.setValidatorCompiler(validatorCompiler)
@@ -78,6 +80,7 @@ export class NaviosApplication {
     }
 
     await this.initModules()
+    await this.server.ready()
 
     this.logger.debug('Navios application initialized')
   }
@@ -108,6 +111,37 @@ export class NaviosApplication {
         ),
       } as FastifyServerOptions)
     }
+  }
+
+  private configureFastifyInstance(fastifyInstance: FastifyInstance) {
+    fastifyInstance.setErrorHandler((error, request, reply) => {
+      if (error instanceof HttpException) {
+        return reply.status(error.statusCode).send(error.response)
+      } else {
+        const statusCode = error.statusCode || 500
+        const message = error.message || 'Internal Server Error'
+        const response = {
+          statusCode,
+          message,
+          error: error.name || 'InternalServerError',
+        }
+        this.logger.error(
+          `Error occurred: ${error.message} on ${request.url}`,
+          error,
+        )
+        return reply.status(statusCode).send(response)
+      }
+    })
+
+    fastifyInstance.setNotFoundHandler((req, reply) => {
+      const response = {
+        statusCode: 404,
+        message: 'Not Found',
+        error: 'NotFound',
+      }
+      this.logger.error(`Route not found: ${req.url}`)
+      return reply.status(404).send(response)
+    })
   }
 
   private async initModules() {
@@ -161,6 +195,7 @@ export class NaviosApplication {
     if (!this.server) {
       throw new Error('Server is not initialized. Call init() first.')
     }
-    await this.server.listen(options)
+    const res = await this.server.listen(options)
+    this.logger.debug(`Navios is listening on ${res}`)
   }
 }

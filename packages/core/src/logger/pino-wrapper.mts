@@ -20,8 +20,9 @@ export class PinoWrapper {
     this.logger.warn(message, ...optionalParams)
   }
 
-  info(message: any, ...optionalParams: any[]) {
-    this.logger.log(message, ...optionalParams)
+  info() {
+    // We don't want to populate the logs with the original fastify logs
+    // this.logger.debug?.('INFO', message, ...optionalParams)
   }
 
   debug(message: any, ...optionalParams: any[]) {
@@ -32,7 +33,7 @@ export class PinoWrapper {
     this.logger.verbose?.(message, ...optionalParams)
   }
 
-  silent(message: any, ...optionalParams: any[]) {
+  silent() {
     // noop
   }
 
@@ -56,8 +57,8 @@ export class PinoWrapper {
     }
     const levels = LoggerInstance['logLevels']
     if (levels) {
-      return levels[0]
+      return levels.find((level) => level !== 'verbose')
     }
-    return 'info'
+    return 'warn'
   }
 }

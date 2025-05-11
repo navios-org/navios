@@ -1,7 +1,11 @@
-import type { BaseEndpointConfig, EndpointFunctionArgs, HttpMethod } from '@navios/common'
+import type {
+  BaseEndpointConfig,
+  EndpointFunctionArgs,
+  HttpMethod,
+} from '@navios/common'
 import type { AnyZodObject, z, ZodType } from 'zod'
 
-import { getEndpointMetadata } from '../metadata/index.mjs'
+import { EndpointType, getEndpointMetadata } from '../metadata/index.mjs'
 
 export type EndpointParams<
   EndpointDeclaration extends {
@@ -72,6 +76,7 @@ export function Endpoint<
       }
       // @ts-expect-error We don't need to set correctly in the metadata
       endpointMetadata.config = config
+      endpointMetadata.type = EndpointType.Config
       endpointMetadata.classMethod = target.name
       endpointMetadata.httpMethod = config.method
       endpointMetadata.url = config.url

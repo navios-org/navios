@@ -184,7 +184,6 @@ export class LoggerInstance implements LoggerService {
   }
 
   static overrideLogger(logger: LoggerService | LogLevel[] | boolean) {
-    console.log(logger)
     if (Array.isArray(logger)) {
       LoggerInstance.logLevels = logger
       return this.staticInstanceRef?.setLogLevels?.(logger)

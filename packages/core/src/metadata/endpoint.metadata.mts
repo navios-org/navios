@@ -1,4 +1,5 @@
 import type { BaseEndpointConfig, HttpMethod } from '@navios/common'
+import type { HttpHeader } from 'fastify/types/utils.js'
 
 import type { CanActivate } from '../interfaces/index.mjs'
 import type {
@@ -8,9 +9,18 @@ import type {
 
 export const EndpointMetadataKey = Symbol('EndpointMetadataKey')
 
+export enum EndpointType {
+  Unknown = 'unknown',
+  Config = 'config',
+  Handler = 'handler',
+}
+
 export interface EndpointMetadata {
   classMethod: string
   url: string
+  successStatusCode: number
+  type: EndpointType
+  headers: Partial<Record<HttpHeader, number | string | string[] | undefined>>
   httpMethod: HttpMethod
   config: BaseEndpointConfig | null
   guards: Set<
@@ -52,6 +62,9 @@ export function getEndpointMetadata(
         const newMetadata: EndpointMetadata = {
           classMethod: target.name,
           url: '',
+          successStatusCode: 200,
+          headers: {},
+          type: EndpointType.Unknown,
           httpMethod: 'GET',
           config: null,
           guards: new Set<
