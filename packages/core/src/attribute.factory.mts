@@ -35,7 +35,7 @@ export class AttributeFactory {
   static createAttribute(token: symbol): ClassAttribute
   static createAttribute<T extends ZodType>(
     token: symbol,
-    value: z.input<T>,
+    schema: T,
   ): ClassSchemaAttribute<T>
   static createAttribute(token: symbol, schema?: ZodType) {
     const res =
