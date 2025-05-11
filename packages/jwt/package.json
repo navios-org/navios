@@ -1,7 +1,7 @@
 {
   "name": "@navios/jwt",
   "description": "JWT authentication and authorization for Navios",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "author": {
     "name": "Oleksandr Hanzha",
     "email": "alex@granted.name"

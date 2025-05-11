@@ -1,6 +1,6 @@
 import { Injectable, Logger, syncInject } from '@navios/core'
 
-import * as jwt from 'jsonwebtoken'
+import jwt from 'jsonwebtoken'
 
 import type {
   GetSecretKeyResult,
