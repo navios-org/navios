@@ -6,6 +6,7 @@
     "packages/navios-zod",
     "packages/common",
     "packages/core",
+    "packages/jwt",
     "packages/navios-zod-react",
     "packages/angular-module",
     "packages/nestjs-module",

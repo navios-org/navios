@@ -1,0 +1,42 @@
+{
+  "name": "@navios/jwt",
+  "description": "JWT authentication and authorization for Navios",
+  "version": "0.1.0",
+  "author": {
+    "name": "Oleksandr Hanzha",
+    "email": "alex@granted.name"
+  },
+  "repository": {
+    "directory": "packages/jwt",
+    "type": "git",
+    "url": "https://github.com/Arilas/navios.git"
+  },
+  "license": "MIT",
+  "typings": "./dist/index.d.ts",
+  "main": "./dist/index.js",
+  "module": "./dist/index.mjs",
+  "peerDependencies": {
+    "@navios/core": "workspace:^",
+    "zod": "^3.23.8"
+  },
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.mts",
+        "default": "./src/index.mts"
+      },
+      "require": {
+        "types": "./dist/index.d.ts",
+        "default": "./src/index.mts"
+      }
+    }
+  },
+  "devDependencies": {
+    "@navios/core": "workspace:^",
+    "@types/jsonwebtoken": "^9",
+    "zod": "^3.24.3"
+  },
+  "dependencies": {
+    "jsonwebtoken": "^9.0.2"
+  }
+}
