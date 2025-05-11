@@ -2,11 +2,12 @@ import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
 
 import {
+  getInjectableToken,
   Injectable,
   InjectableType,
 } from '../decorators/index.mjs'
 import { InjectableScope } from '../enums/index.mjs'
-import { getInjectableToken, syncInject } from '../index.mjs'
+import { syncInject } from '../index.mjs'
 import { inject } from '../inject.mjs'
 import { InjectionToken } from '../injection-token.mjs'
 import { getServiceLocator } from '../injector.mjs'

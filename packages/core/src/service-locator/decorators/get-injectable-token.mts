@@ -1,12 +1,8 @@
-import type {
-  ClassType,
-  ClassTypeWithInstance,
-  InjectionToken,
-} from '../injection-token.mjs'
+import type { ClassType, InjectionToken } from '../injection-token.mjs'
 
 import { InjectableTokenMeta } from './injectable.decorator.mjs'
 
-export function getInjectableToken<R, T extends ClassTypeWithInstance<R>>(
+export function getInjectableToken<R>(
   target: ClassType,
 ): R extends { create(...args: any[]): infer V }
   ? InjectionToken<V>

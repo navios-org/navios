@@ -1,5 +1,6 @@
 export * from './errors.enum.mjs'
 export * from './factory-not-found.mjs'
+export * from './factory-token-not-resolved.mjs'
 export * from './instance-destroying.mjs'
 export * from './instance-expired.mjs'
 export * from './instance-not-found.mjs'

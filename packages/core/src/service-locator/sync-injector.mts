@@ -29,11 +29,9 @@ export function syncInject<
     realToken = getInjectableToken(token) as InjectionToken<T, S>
   }
 
-  // @ts-expect-error We don't need to check the schema here
   const instance = getServiceLocator().getSyncInstance(realToken, args)
   if (!instance) {
     if (promiseCollector) {
-      // @ts-expect-error We don't need to check the schema here
       const promise = getServiceLocator().getInstance(realToken, args)
       promiseCollector(promise)
     } else {

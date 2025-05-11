@@ -17,19 +17,12 @@ export function inject<T, S extends ZodOptional<AnyZodObject>>(
 ): Promise<T>
 
 export function inject<T>(token: InjectionToken<T, undefined>): Promise<T>
-export function inject<
-  T,
-  Token extends InjectionToken<T>,
-  S extends AnyZodObject | unknown = Token['schema'],
->(
-  token: Token,
-  args?: S extends AnyZodObject ? z.input<S> : never,
-): Promise<T> {
-  let realToken: InjectionToken<T, S> = token
+export function inject(token: InjectionToken<any>, args?: unknown) {
+  let realToken = token
   if (!(token instanceof InjectionToken)) {
-    realToken = getInjectableToken(token) as InjectionToken<T, S>
+    realToken = getInjectableToken(token)
   }
 
-  // @ts-expect-error We don't need to check the schema here
+  // @ts-expect-error We chek the type in overload
   return getServiceLocator().getOrThrowInstance(realToken, args)
 }

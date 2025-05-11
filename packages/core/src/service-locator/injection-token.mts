@@ -42,26 +42,17 @@ export class InjectionToken<
     return new BoundInjectionToken(token, value)
   }
 
+  static factory<T, S extends AnyZodObject | ZodOptional<AnyZodObject>>(
+    token: InjectionToken<T, S>,
+    factory: () => Promise<z.input<S>>,
+  ): FactoryInjectionToken<T, S> {
+    return new FactoryInjectionToken(token, factory)
+  }
+
   static refineType<T>(
     token: BoundInjectionToken<any, any>,
   ): BoundInjectionToken<T, any> {
     return token as BoundInjectionToken<T, any>
-  }
-
-  get value(): S extends AnyZodObject | ZodOptional<AnyZodObject>
-    ? z.input<S>
-    : undefined {
-    if (this.schema) {
-      const value = this.schema.safeParse(undefined)
-      if (value.success) {
-        // @ts-expect-error We don't need to check the schema here
-        return value.data
-      } else {
-        throw new Error('Cannot access value of an unbound token')
-      }
-    }
-    // @ts-expect-error We don't need to check the schema here
-    return undefined
   }
 }
 
@@ -71,13 +62,31 @@ export class BoundInjectionToken<
 > extends InjectionToken<T, undefined> {
   constructor(
     public readonly token: InjectionToken<T, S>,
-    private readonly _value: z.input<S>,
+    public readonly value: z.input<S>,
   ) {
     super(token.name, token.schema)
     this.id = token.id
   }
+}
 
-  override get value(): any {
-    return this._value
+export class FactoryInjectionToken<
+  T,
+  S extends AnyZodObject | ZodOptional<AnyZodObject>,
+> extends InjectionToken<T, S> {
+  public value?: z.input<S>
+  public resolved = false
+  constructor(
+    public readonly token: InjectionToken<T, S>,
+    public readonly factory: () => Promise<z.input<S>>,
+  ) {
+    super(token.name, token.schema)
+  }
+
+  async resolve(): Promise<z.input<S>> {
+    if (!this.value) {
+      this.value = await this.factory()
+      this.resolved = true
+    }
+    return this.value
   }
 }

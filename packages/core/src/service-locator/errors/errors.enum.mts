@@ -4,4 +4,5 @@ export enum ErrorsEnum {
   InstanceDestroying = 'InstanceDestroying',
   UnknownError = 'UnknownError',
   FactoryNotFound = 'FactoryNotFound',
+  FactoryTokenNotResolved = 'FactoryTokenNotResolved',
 }

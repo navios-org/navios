@@ -6,8 +6,17 @@ import type { ServiceLocatorAbstractFactoryContext } from './service-locator-abs
 import type { ServiceLocatorInstanceHolder } from './service-locator-instance-holder.mjs'
 
 import { InjectableScope } from './enums/index.mjs'
-import { ErrorsEnum, FactoryNotFound, UnknownError } from './errors/index.mjs'
-import { BoundInjectionToken, getInjectableToken } from './index.mjs'
+import {
+  ErrorsEnum,
+  FactoryNotFound,
+  FactoryTokenNotResolved,
+  UnknownError,
+} from './errors/index.mjs'
+import {
+  BoundInjectionToken,
+  FactoryInjectionToken,
+  getInjectableToken,
+} from './index.mjs'
 import { InjectionToken } from './injection-token.mjs'
 import { ServiceLocatorEventBus } from './service-locator-event-bus.mjs'
 import {
@@ -86,6 +95,51 @@ export class ServiceLocator {
     }
   }
 
+  private resolveTokenArgs<
+    Instance,
+    Schema extends AnyZodObject | ZodOptional<AnyZodObject> | undefined,
+  >(
+    token: InjectionToken<Instance, Schema>,
+    args: Schema extends AnyZodObject
+      ? z.input<Schema>
+      : Schema extends ZodOptional<AnyZodObject>
+        ? z.input<Schema> | undefined
+        : undefined,
+  ):
+    | [
+        undefined,
+        Schema extends AnyZodObject
+          ? z.input<Schema>
+          : Schema extends ZodOptional<AnyZodObject>
+            ? z.input<Schema> | undefined
+            : undefined,
+      ]
+    | [FactoryTokenNotResolved | UnknownError] {
+    let realArgs = args
+    if (token instanceof BoundInjectionToken) {
+      realArgs = token.value
+    } else if (token instanceof FactoryInjectionToken) {
+      if (token.resolved) {
+        realArgs = token.value
+      } else {
+        return [new FactoryTokenNotResolved(token.name)]
+      }
+    }
+    if (!token.schema) {
+      return [undefined, realArgs]
+    }
+    const validatedArgs = token.schema?.safeParse(realArgs)
+    if (validatedArgs && !validatedArgs.success) {
+      this.logger?.error(
+        `[ServiceLocator]#getInstance(): Error validating args for ${token.name.toString()}`,
+        validatedArgs.error,
+      )
+      return [new UnknownError(validatedArgs.error)]
+    }
+    // @ts-expect-error We return correct type
+    return [undefined, validatedArgs?.data]
+  }
+
   public getInstanceIdentifier<
     Instance,
     Schema extends AnyZodObject | ZodOptional<AnyZodObject> | undefined,
@@ -97,20 +151,11 @@ export class ServiceLocator {
         ? z.input<Schema> | undefined
         : undefined,
   ): string {
-    const validatedArgs =
-      token instanceof BoundInjectionToken
-        ? token.schema?.safeParse(token.value)
-        : token.schema
-          ? token.schema.safeParse(args)
-          : undefined
-    if (validatedArgs && !validatedArgs.success) {
-      this.logger?.error(
-        `[ServiceLocator]#getInstance(): Error validating args for ${token.name.toString()}`,
-        validatedArgs.error,
-      )
-      throw new UnknownError(validatedArgs.error)
+    const [err, realArgs] = this.resolveTokenArgs(token, args)
+    if (err) {
+      throw err
     }
-    return this.makeInstanceName(token, validatedArgs?.data)
+    return this.makeInstanceName(token, realArgs)
   }
 
   public async getInstance<
@@ -124,20 +169,17 @@ export class ServiceLocator {
         ? z.input<Schema> | undefined
         : undefined,
   ): Promise<[undefined, Instance] | [UnknownError | FactoryNotFound]> {
-    const validatedArgs =
-      token instanceof BoundInjectionToken
-        ? token.schema?.safeParse(token.value)
-        : token.schema
-          ? token.schema.safeParse(args)
-          : undefined
-    if (validatedArgs && !validatedArgs.success) {
-      this.logger?.error(
-        `[ServiceLocator]#getInstance(): Error validating args for ${token.name.toString()}`,
-        validatedArgs.error,
-      )
-      return [new UnknownError(validatedArgs.error)]
+    const [err, realArgs] = this.resolveTokenArgs(token, args)
+    if (err instanceof UnknownError) {
+      throw err
+    } else if (
+      err instanceof FactoryTokenNotResolved &&
+      token instanceof FactoryInjectionToken
+    ) {
+      await token.resolve()
+      return this.getInstance(token, args)
     }
-    const instanceName = this.makeInstanceName(token, validatedArgs?.data)
+    const instanceName = this.makeInstanceName(token, realArgs)
     const [error, holder] = this.manager.get(instanceName)
     if (!error) {
       if (holder.status === ServiceLocatorInstanceHolderStatus.Creating) {
@@ -174,7 +216,7 @@ export class ServiceLocator {
         return [error]
     }
     // @ts-expect-error TS2322 It's validated
-    return this.createInstance(instanceName, token, validatedArgs?.data)
+    return this.createInstance(instanceName, token, realArgs)
   }
 
   public async getOrThrowInstance<
@@ -220,7 +262,11 @@ export class ServiceLocator {
     this.logger?.log(
       `[ServiceLocator]#createInstance() Creating instance for ${instanceName}`,
     )
-    let realToken = token instanceof BoundInjectionToken ? token.token : token
+    let realToken =
+      token instanceof BoundInjectionToken ||
+      token instanceof FactoryInjectionToken
+        ? token.token
+        : token
     if (
       this.abstractFactories.has(realToken) ||
       this.instanceFactories.has(realToken)
@@ -383,20 +429,11 @@ export class ServiceLocator {
         ? z.input<Schema> | undefined
         : undefined,
   ): Instance | null {
-    const validatedArgs =
-      token instanceof BoundInjectionToken
-        ? token.schema?.safeParse(token.value)
-        : token.schema
-          ? token.schema.safeParse(args)
-          : undefined
-    if (validatedArgs && !validatedArgs.success) {
-      this.logger?.error(
-        `[ServiceLocator]#getInstance(): Error validating args for ${token.name.toString()}`,
-        validatedArgs.error,
-      )
-      throw new UnknownError(validatedArgs.error)
+    const [err, realArgs] = this.resolveTokenArgs(token, args)
+    if (err) {
+      return null
     }
-    const instanceName = this.makeInstanceName(token, validatedArgs?.data)
+    const instanceName = this.makeInstanceName(token, realArgs)
     const [error, holder] = this.manager.get(instanceName)
     if (error) {
       return null
