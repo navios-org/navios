@@ -6,11 +6,7 @@ import type {
   UseSuspenseQueryOptions,
 } from '@tanstack/react-query'
 
-import {
-  queryOptions,
-  useInfiniteQuery,
-  useSuspenseInfiniteQuery,
-} from '@tanstack/react-query'
+import { queryOptions, useQuery, useSuspenseQuery } from '@tanstack/react-query'
 
 import type { BaseQueryArgs, BaseQueryParams } from './types.mjs'
 import type { ClientQueryArgs } from './types/index.mjs'
@@ -83,12 +79,12 @@ export function makeQueryOptions<
   result.queryKey = queryKey
   result.use = (params: ClientQueryArgs) => {
     // @ts-expect-error We add additional function to the result
-    return useInfiniteQuery(result(params))
+    return useQuery(result(params))
   }
 
   result.useSuspense = (params: ClientQueryArgs) => {
     // @ts-expect-error We add additional function to the result
-    return useSuspenseInfiniteQuery(result(params))
+    return useSuspenseQuery(result(params))
   }
 
   result.invalidate = (queryClient: QueryClient, params: ClientQueryArgs) => {
