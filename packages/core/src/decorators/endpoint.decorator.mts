@@ -53,7 +53,7 @@ export function Endpoint<
         : RequestSchema extends ZodType
           ? EndpointFunctionArgs<Url, undefined, RequestSchema>
           : EndpointFunctionArgs<Url, undefined, undefined>,
-    ) => z.input<ResponseSchema>,
+    ) => Promise<z.input<ResponseSchema>> | z.input<ResponseSchema>,
     context: ClassMethodDecoratorContext,
   ) => {
     if (typeof target !== 'function') {
