@@ -7,6 +7,7 @@ import type {
 } from 'fastify'
 
 import cors from '@fastify/cors'
+import multipart from '@fastify/multipart'
 import { fastify } from 'fastify'
 import {
   serializerCompiler,
@@ -158,18 +159,10 @@ export class NaviosApplication {
     options: FastifyMultipartOptions | true,
   ): Promise<void> {
     if (options) {
-      try {
-        const multipartModule = await import('@fastify/multipart')
-        await server.register(
-          multipartModule.default,
-          typeof options === 'object' ? options : {},
-        )
-      } catch (error) {
-        this.logger.error(
-          `@fastify/multipart is not installed. Please install it.`,
-        )
-        throw error
-      }
+      await server.register(
+        multipart,
+        typeof options === 'object' ? options : {},
+      )
     }
   }
 
