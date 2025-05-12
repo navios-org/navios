@@ -1,4 +1,8 @@
-import type { BaseEndpointConfig, HttpMethod } from '@navios/common'
+import type {
+  BaseEndpointConfig,
+  BaseStreamConfig,
+  HttpMethod,
+} from '@navios/common'
 import type { HttpHeader } from 'fastify/types/utils.js'
 
 import type { CanActivate } from '../interfaces/index.mjs'
@@ -11,7 +15,8 @@ export const EndpointMetadataKey = Symbol('EndpointMetadataKey')
 
 export enum EndpointType {
   Unknown = 'unknown',
-  Config = 'config',
+  Endpoint = 'endpoint',
+  Stream = 'stream',
   Handler = 'handler',
 }
 
@@ -22,7 +27,7 @@ export interface EndpointMetadata {
   type: EndpointType
   headers: Partial<Record<HttpHeader, number | string | string[] | undefined>>
   httpMethod: HttpMethod
-  config: BaseEndpointConfig | null
+  config: BaseEndpointConfig | BaseStreamConfig | null
   guards: Set<
     ClassTypeWithInstance<CanActivate> | InjectionToken<CanActivate, undefined>
   >

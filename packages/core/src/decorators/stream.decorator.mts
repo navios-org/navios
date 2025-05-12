@@ -1,17 +1,16 @@
 import type {
-  BaseEndpointConfig,
+  BaseStreamConfig,
   EndpointFunctionArgs,
   HttpMethod,
 } from '@navios/common'
-import type { AnyZodObject, z, ZodType } from 'zod'
-
-import { ZodDiscriminatedUnion } from 'zod'
+import type { FastifyReply } from 'fastify'
+import type { AnyZodObject, ZodType } from 'zod'
 
 import { EndpointType, getEndpointMetadata } from '../metadata/index.mjs'
 
-export type EndpointParams<
+export type StreamParams<
   EndpointDeclaration extends {
-    config: BaseEndpointConfig<any, any, any, any, any>
+    config: BaseStreamConfig<any, any, any, any>
   },
   Url extends string = EndpointDeclaration['config']['url'],
   QuerySchema = EndpointDeclaration['config']['querySchema'],
@@ -31,32 +30,13 @@ export type EndpointParams<
       >
     : EndpointFunctionArgs<Url, undefined, undefined>
 
-export type EndpointResult<
-  EndpointDeclaration extends {
-    config: BaseEndpointConfig<any, any, any, any, any>
-  },
-> =
-  EndpointDeclaration['config']['responseSchema'] extends ZodDiscriminatedUnion<
-    any,
-    infer Options
-  >
-    ? Promise<z.input<Options[number]>>
-    : Promise<z.input<EndpointDeclaration['config']['responseSchema']>>
-
-export function Endpoint<
+export function Stream<
   Method extends HttpMethod = HttpMethod,
   Url extends string = string,
   QuerySchema = undefined,
-  ResponseSchema extends ZodType = ZodType,
   RequestSchema = ZodType,
 >(endpoint: {
-  config: BaseEndpointConfig<
-    Method,
-    Url,
-    QuerySchema,
-    ResponseSchema,
-    RequestSchema
-  >
+  config: BaseStreamConfig<Method, Url, QuerySchema, RequestSchema>
 }) {
   return (
     target: (
@@ -67,7 +47,8 @@ export function Endpoint<
         : RequestSchema extends ZodType
           ? EndpointFunctionArgs<Url, undefined, RequestSchema>
           : EndpointFunctionArgs<Url, undefined, undefined>,
-    ) => Promise<z.input<ResponseSchema>>,
+      reply: FastifyReply,
+    ) => Promise<void>,
     context: ClassMethodDecoratorContext,
   ) => {
     if (typeof target !== 'function') {
@@ -90,7 +71,7 @@ export function Endpoint<
       }
       // @ts-expect-error We don't need to set correctly in the metadata
       endpointMetadata.config = config
-      endpointMetadata.type = EndpointType.Endpoint
+      endpointMetadata.type = EndpointType.Stream
       endpointMetadata.classMethod = target.name
       endpointMetadata.httpMethod = config.method
       endpointMetadata.url = config.url

@@ -50,7 +50,7 @@ export function extractModuleMetadata(target: ClassType): ModuleMetadata {
   const metadata = target[ModuleMetadataKey] as ModuleMetadata | undefined
   if (!metadata) {
     throw new Error(
-      '[Navios] Module metadata not found. Make sure to use @Module decorator.',
+      `[Navios] Module metadata not found for ${target.name}. Make sure to use @Module decorator.`,
     )
   }
   return metadata

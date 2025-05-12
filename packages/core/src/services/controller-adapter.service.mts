@@ -1,3 +1,4 @@
+import type { BaseEndpointConfig } from '@navios/common'
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify'
 import type { ZodTypeProvider } from 'fastify-type-provider-zod'
 
@@ -94,7 +95,7 @@ export class ControllerAdapterService {
       return {}
     }
     const { querySchema, requestSchema, responseSchema } =
-      endpointMetadata.config
+      endpointMetadata.config as BaseEndpointConfig
     const schema: Record<string, any> = {}
     if (querySchema) {
       schema.querystring = querySchema
@@ -122,8 +123,14 @@ export class ControllerAdapterService {
           `Unknown endpoint type ${endpointMetadata.type} for ${controller.name}:${endpointMetadata.classMethod}`,
         )
         throw new NaviosException('Unknown endpoint type')
-      case EndpointType.Config:
+      case EndpointType.Endpoint:
         return this.provideHandlerForConfig(
+          controller,
+          executionContext,
+          endpointMetadata,
+        )
+      case EndpointType.Stream:
+        return this.provideHandlerForStream(
           controller,
           executionContext,
           endpointMetadata,
@@ -167,6 +174,43 @@ export class ControllerAdapterService {
           .status(endpointMetadata.successStatusCode)
           .headers(endpointMetadata.headers)
           .send(result)
+      } finally {
+        getServiceLocator().removeInstance(Request)
+        getServiceLocator().removeInstance(Reply)
+        getServiceLocator().removeInstance(ExecutionContextToken)
+      }
+    }
+  }
+
+  private provideHandlerForStream(
+    controller: ClassType,
+    executionContext: ExecutionContext,
+    endpointMetadata: EndpointMetadata,
+  ): (request: FastifyRequest, reply: FastifyReply) => Promise<void> {
+    return async (request, reply) => {
+      getServiceLocator().registerInstance(Request, request)
+      getServiceLocator().registerInstance(Reply, reply)
+      getServiceLocator().registerInstance(
+        ExecutionContextToken,
+        executionContext,
+      )
+      executionContext.provideRequest(request)
+      executionContext.provideReply(reply)
+      const controllerInstance = await inject(controller)
+      try {
+        const { query, params, body } = request
+        const argument: Record<string, any> = {}
+        if (query && Object.keys(query).length > 0) {
+          argument.params = query
+        }
+        if (params && Object.keys(params).length > 0) {
+          argument.urlParams = params
+        }
+        if (body) {
+          argument.data = body
+        }
+
+        await controllerInstance[endpointMetadata.classMethod](argument, reply)
       } finally {
         getServiceLocator().removeInstance(Request)
         getServiceLocator().removeInstance(Reply)
