@@ -5,7 +5,8 @@ import { inspect } from 'util'
 import type { LogLevel } from './log-levels.mjs'
 import type { LoggerService } from './logger-service.interface.mjs'
 
-import { Injectable } from '../service-locator/index.mjs'
+import { getServiceLocator, Injectable } from '../service-locator/index.mjs'
+import { Request } from '../tokens/index.mjs'
 import {
   clc,
   isFunction,
@@ -36,6 +37,10 @@ export interface ConsoleLoggerOptions {
    * Note: This option is not used when `json` is enabled.
    */
   prefix?: string
+  /**
+   * If enabled, will add a request ID to the log message.
+   */
+  requestId?: boolean
   /**
    * If enabled, will print the log message in JSON format.
    */
@@ -129,6 +134,10 @@ export class ConsoleLogger implements LoggerService {
    */
   protected context?: string
   /**
+   * Request ID (if enabled).
+   */
+  protected requestId: string | null = null
+  /**
    * The original context of the logger (set in the constructor).
    */
   protected originalContext?: string
@@ -167,6 +176,24 @@ export class ConsoleLogger implements LoggerService {
     if (context) {
       this.context = context
       this.originalContext = context
+    }
+    if (opts?.requestId) {
+      const locator = getServiceLocator()
+      locator
+        .getEventBus()
+        .on(locator.getInstanceIdentifier(Request, undefined), 'create', () => {
+          const request = locator.getSyncInstance(Request, undefined)
+          this.requestId = request?.id ?? null
+        })
+      locator
+        .getEventBus()
+        .on(
+          locator.getInstanceIdentifier(Request, undefined),
+          'destroy',
+          () => {
+            this.requestId = null
+          },
+        )
     }
   }
 
@@ -358,6 +385,7 @@ export class ConsoleLogger implements LoggerService {
       message: unknown
       context?: string
       stack?: unknown
+      requestId?: string
     }
 
     const logObject: JsonLogObject = {
@@ -374,6 +402,9 @@ export class ConsoleLogger implements LoggerService {
     if (options.errorStack) {
       logObject.stack = options.errorStack
     }
+    if (this.options.requestId && this.requestId) {
+      logObject.requestId = this.requestId
+    }
 
     const formattedMessage =
       !this.options.colors && this.inspectOptions.compact === true
@@ -383,7 +414,7 @@ export class ConsoleLogger implements LoggerService {
   }
 
   protected formatPid(pid: number) {
-    return `[${this.options.prefix}] ${pid}  - `
+    return `[${this.options.prefix}] ${pid} - `
   }
 
   protected formatContext(context: string): string {
@@ -406,7 +437,14 @@ export class ConsoleLogger implements LoggerService {
     const output = this.stringifyMessage(message, logLevel)
     pidMessage = this.colorize(pidMessage, logLevel)
     formattedLogLevel = this.colorize(formattedLogLevel, logLevel)
-    return `${pidMessage}${this.getTimestamp()} ${formattedLogLevel} ${contextMessage}${output}${timestampDiff}\n`
+    return `${pidMessage}${this.getRequestId()}${this.getTimestamp()} ${formattedLogLevel} ${contextMessage}${output}${timestampDiff}\n`
+  }
+
+  protected getRequestId() {
+    if (this.options.requestId && this.requestId) {
+      return `(${this.colorize(this.requestId, 'log')}) `
+    }
+    return ''
   }
 
   protected stringifyMessage(message: unknown, logLevel: LogLevel): string {

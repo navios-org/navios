@@ -5,6 +5,15 @@
       <excludeFolder url="file://$MODULE_DIR$/.tmp" />
       <excludeFolder url="file://$MODULE_DIR$/temp" />
       <excludeFolder url="file://$MODULE_DIR$/tmp" />
+      <excludeFolder url="file://$MODULE_DIR$/packages/common/.tsup" />
+      <excludeFolder url="file://$MODULE_DIR$/packages/core/.tsup" />
+      <excludeFolder url="file://$MODULE_DIR$/packages/jwt/.tsup" />
+      <excludeFolder url="file://$MODULE_DIR$/packages/navios/.tsup" />
+      <excludeFolder url="file://$MODULE_DIR$/packages/navios-zod/.tsup" />
+      <excludeFolder url="file://$MODULE_DIR$/packages/navios-zod/.tsup" />
+      <excludeFolder url="file://$MODULE_DIR$/packages/navios-zod-react/.tsup" />
+      <excludeFolder url="file://$MODULE_DIR$/packages/nestjs-module/.tsup" />
+      <excludeFolder url="file://$MODULE_DIR$/packages/react-query/.tsup" />
     </content>
     <orderEntry type="inheritedJdk" />
     <orderEntry type="sourceFolder" forTests="false" />

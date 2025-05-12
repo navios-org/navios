@@ -65,6 +65,7 @@ export class ServiceLocator {
       destroyPromise: null,
       creationPromise: null,
     })
+    this.eventBus.emit(instanceName, 'create')
   }
 
   public removeInstance<Instance>(token: InjectionToken<Instance, undefined>) {
