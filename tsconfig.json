@@ -1,11 +1,32 @@
 {
-  "compilerOptions": {
-    "incremental": true,
-    "moduleDetection": "force",
-    "declarationMap": true,
-    "verbatimModuleSyntax": true,
-    "forceConsistentCasingInFileNames": true,
-    "strict": true
-  },
-  "extends": "./tsconfig.base.json"
+  "extends": "./tsconfig.base.json",
+  "references": [
+    {
+      "path": "packages/navios"
+    },
+    {
+      "path": "packages/navios-zod"
+    },
+    {
+      "path": "packages/common"
+    },
+    {
+      "path": "packages/core"
+    },
+    {
+      "path": "packages/jwt"
+    },
+    {
+      "path": "packages/navios-zod-react"
+    },
+    {
+      "path": "packages/angular-module"
+    },
+    {
+      "path": "packages/nestjs-module"
+    },
+    {
+      "path": "packages/react-query"
+    }
+  ]
 }

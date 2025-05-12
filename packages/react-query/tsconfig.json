@@ -1,9 +1,17 @@
 {
   "extends": "../../tsconfig.json",
   "compilerOptions": {
-    "noEmit": true,
-    "module": "Node16",
-    "incremental": false
+    "module": "Node16"
   },
-  "include": ["src/**/*"]
+  "include": [
+    "src/**/*"
+  ],
+  "references": [
+    {
+      "path": "../common"
+    },
+    {
+      "path": "../navios"
+    }
+  ]
 }

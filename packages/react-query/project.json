@@ -15,9 +15,7 @@
         },
         "outputPath": "{workspaceRoot}/dist/{projectRoot}",
         "format": ["esm", "cjs"],
-        "typings": true,
-        "external": ["navios", "@navios/navios-zod"],
-        "sourceMap": true,
+        "experimentalDts": true,
         "clean": true,
         "assets": [
           "packages/react-query/*.md",

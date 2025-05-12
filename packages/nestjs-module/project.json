@@ -16,10 +16,8 @@
         },
         "outputPath": "{workspaceRoot}/dist/{projectRoot}",
         "format": ["esm", "cjs"],
-        "typings": true,
-        "sourceMap": true,
+        "experimentalDts": true,
         "clean": true,
-        "external": ["@nestjs/common", "navios"],
         "assets": [
           "packages/nestjs-module/*.md",
           "packages/nestjs-module/LICENSE",

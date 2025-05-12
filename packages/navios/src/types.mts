@@ -1,4 +1,3 @@
-import defaultAdapter from './adapter/native.mjs'
 import { NaviosError } from './NaviosError.mjs'
 
 export interface NaviosResponse<T> {
@@ -9,7 +8,7 @@ export interface NaviosResponse<T> {
 }
 
 export interface NaviosConfig {
-  adapter?: typeof defaultAdapter
+  adapter?: typeof globalThis.fetch
   baseURL?: string
   validateStatus?: (status: number) => boolean
   headers?: { [key: string]: string }

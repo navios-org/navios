@@ -6,13 +6,12 @@ import type {
   PreparedRequestConfig,
 } from './types.mjs'
 
-import defaultAdapter from './adapter/native.mjs'
 import { createInterceptorManager } from './interceptors/interceptor.manager.mjs'
 import { NaviosError, NaviosInternalError } from './NaviosError.mjs'
 import { processResponseBody } from './utils/processResponseBody.mjs'
 
 export function create(baseConfig: NaviosConfig = {}): Navios {
-  const adapter = baseConfig.adapter ?? defaultAdapter
+  const adapter = baseConfig.adapter ?? fetch
   const normalizedBaseConfig: Omit<Required<NaviosConfig>, 'adapter'> = {
     baseURL: baseConfig.baseURL ?? '',
     validateStatus:
@@ -76,7 +75,7 @@ export function create(baseConfig: NaviosConfig = {}): Navios {
       baseURL: '',
       url: config.url
         ? `${config.baseURL ?? normalizedBaseConfig.baseURL}${config.url}`
-        : config.baseURL ?? normalizedBaseConfig.baseURL,
+        : (config.baseURL ?? normalizedBaseConfig.baseURL),
     }
     for (const interceptor of hooks.interceptors.request.init.values()) {
       finalConfig = await interceptor(finalConfig)

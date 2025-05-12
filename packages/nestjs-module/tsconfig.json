@@ -5,8 +5,17 @@
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true,
     "paths": {
-      "navios": ["../navios/src/index.mts"]
+      "navios": [
+        "../navios/src/index.mts"
+      ]
     }
   },
-  "include": ["src/**/*"]
+  "include": [
+    "src/**/*"
+  ],
+  "references": [
+    {
+      "path": "../navios"
+    }
+  ]
 }

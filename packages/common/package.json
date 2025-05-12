@@ -1,6 +1,6 @@
 {
   "name": "@navios/common",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "author": {
     "name": "Oleksandr Hanzha",
     "email": "alex@granted.name"
@@ -32,6 +32,6 @@
   "devDependencies": {
     "navios": "workspace:^",
     "typescript": "^5.8.3",
-    "zod": "^3.24.3"
+    "zod": "^3.24.4"
   }
 }

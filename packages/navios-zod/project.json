@@ -15,8 +15,7 @@
         },
         "outputPath": "{workspaceRoot}/dist/{projectRoot}",
         "format": ["esm", "cjs"],
-        "typings": true,
-        "sourceMap": true,
+        "experimentalDts": true,
         "clean": true,
         "assets": [
           "packages/navios-zod/*.md",
