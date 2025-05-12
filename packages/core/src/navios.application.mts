@@ -55,6 +55,8 @@ export class NaviosApplication {
   private appModule: ClassTypeWithInstance<NaviosModule> | null = null
   private options: NaviosApplicationOptions = {}
 
+  isInitialized = false
+
   setup(
     appModule: ClassTypeWithInstance<NaviosModule>,
     options: NaviosApplicationOptions = {},
@@ -82,6 +84,7 @@ export class NaviosApplication {
     await this.initModules()
     await this.server.ready()
 
+    this.isInitialized = true
     this.logger.debug('Navios application initialized')
   }
 
@@ -197,5 +200,19 @@ export class NaviosApplication {
     }
     const res = await this.server.listen(options)
     this.logger.debug(`Navios is listening on ${res}`)
+  }
+
+  async dispose() {
+    if (this.server) {
+      await this.server.close()
+      this.server = null
+    }
+    if (this.moduleLoader) {
+      this.moduleLoader.dispose()
+    }
+  }
+
+  async close() {
+    await this.dispose()
   }
 }

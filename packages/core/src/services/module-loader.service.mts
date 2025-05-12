@@ -70,4 +70,9 @@ export class ModuleLoaderService {
   getAllModules(): Map<string, ModuleMetadata> {
     return this.modulesMetadata
   }
+  dispose() {
+    this.modulesMetadata.clear()
+    this.loadedModules.clear()
+    this.initialized = false
+  }
 }

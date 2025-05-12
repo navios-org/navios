@@ -2,15 +2,13 @@
   "name": "@navios/mono",
   "packageManager": "yarn@4.2.2",
   "workspaces": [
-    "packages/navios",
-    "packages/navios-zod",
     "packages/common",
     "packages/core",
     "packages/jwt",
+    "packages/navios",
+    "packages/navios-zod",
     "packages/navios-zod-react",
-    "packages/angular-module",
     "packages/nestjs-module",
-    "packages/nx-yarn",
     "packages/react-query"
   ],
   "private": true,
