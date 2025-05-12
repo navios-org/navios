@@ -287,7 +287,7 @@ export class ControllerAdapterService {
             }
           }
         }
-        argument.body = requestSchema.parse(req)
+        argument.data = requestSchema.parse(req)
         const result =
           await controllerInstance[endpointMetadata.classMethod](argument)
         reply
