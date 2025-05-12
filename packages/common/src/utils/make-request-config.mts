@@ -42,6 +42,14 @@ export function makeFormData<Config extends BaseStreamConfig>(
     const value = validatedRequest[key]
     if (value instanceof File) {
       formData.append(key, value, value.name)
+    } else if (Array.isArray(value)) {
+      for (const item of value) {
+        if (item instanceof File) {
+          formData.append(key, item, item.name)
+        } else {
+          formData.append(key, item)
+        }
+      }
     } else {
       formData.append(key, value)
     }
