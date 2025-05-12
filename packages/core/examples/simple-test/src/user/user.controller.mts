@@ -24,13 +24,13 @@ export class UserController {
   @Public()
   @UseGuards(OneMoreGuard)
   @Endpoint(userEndpoint)
-  me(params: EndpointParams<typeof userEndpoint>) {
+  async me(params: EndpointParams<typeof userEndpoint>) {
     this.logger.log(params)
     return this.userService.getUser()
   }
 
   @Endpoint(patchUserEndpoint)
-  patchMe(params: EndpointParams<typeof patchUserEndpoint>) {
+  async patchMe(params: EndpointParams<typeof patchUserEndpoint>) {
     this.logger.log(params)
     return {
       ...this.userService.getUser(),
