@@ -33,6 +33,13 @@ export function builder(config: BuilderConfig = {}): BuilderInstance {
     })
   }
 
+  function declareMultipart(options: BaseEndpointConfig) {
+    return endpointCreator(options, {
+      getClient,
+      config,
+    })
+  }
+
   function provideClient(newClient: Client) {
     client = newClient
   }
@@ -40,6 +47,7 @@ export function builder(config: BuilderConfig = {}): BuilderInstance {
   return {
     declareEndpoint,
     declareStream,
+    declareMultipart,
     provideClient,
     getClient,
   }

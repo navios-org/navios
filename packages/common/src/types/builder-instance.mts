@@ -107,6 +107,72 @@ export interface BuilderInstance {
     config: BaseEndpointConfig<Method, Url, undefined, ResponseSchema>
   }
 
+  // Multipart
+
+  declareMultipart<
+    Url extends string,
+    Method extends 'POST' | 'PUT' | 'PATCH',
+    QuerySchema extends AnyZodObject,
+    ResponseSchema extends ZodType,
+    RequestSchema extends ZodType,
+  >(options: {
+    method: Method
+    url: Url
+    querySchema: QuerySchema
+    responseSchema: ResponseSchema
+    requestSchema: RequestSchema
+  }): ((
+    params: Util_FlatObject<
+      EndpointFunctionArgs<Url, QuerySchema, RequestSchema>
+    >,
+  ) => Promise<z.output<ResponseSchema>>) & {
+    config: BaseEndpointConfig<
+      Method,
+      Url,
+      QuerySchema,
+      ResponseSchema,
+      RequestSchema
+    >
+  }
+
+  declareMultipart<
+    Url extends string,
+    Method extends 'POST' | 'PUT' | 'PATCH',
+    ResponseSchema extends ZodType,
+    RequestSchema extends ZodType,
+  >(options: {
+    method: Method
+    url: Url
+    responseSchema: ResponseSchema
+    requestSchema: RequestSchema
+  }): ((
+    params: Util_FlatObject<
+      EndpointFunctionArgs<Url, undefined, RequestSchema>
+    >,
+  ) => Promise<z.output<ResponseSchema>>) & {
+    config: BaseEndpointConfig<
+      Method,
+      Url,
+      undefined,
+      ResponseSchema,
+      RequestSchema
+    >
+  }
+
+  declareMultipart<
+    Url extends string,
+    Method extends 'POST' | 'PUT' | 'PATCH',
+    ResponseSchema extends ZodType,
+  >(options: {
+    method: Method
+    url: Url
+    responseSchema: ResponseSchema
+  }): ((
+    params: Util_FlatObject<EndpointFunctionArgs<Url>>,
+  ) => Promise<z.output<ResponseSchema>>) & {
+    config: BaseEndpointConfig<Method, Url, undefined, ResponseSchema>
+  }
+
   // Streams
 
   declareStream<
