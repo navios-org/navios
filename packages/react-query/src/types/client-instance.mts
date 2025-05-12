@@ -15,6 +15,7 @@ import type {
 import type { AnyZodObject, z, ZodType } from 'zod'
 
 import type { ProcessResponseFunction, Split } from '../types.mjs'
+import type { ClientEndpointHelper } from './client-endpoint-helper.mjs'
 import type { ClientMutationArgs } from './mutation-args.mjs'
 import type { MutationHelpers } from './mutation-helpers.mjs'
 import type { ClientQueryArgs } from './query-args.mjs'
@@ -39,7 +40,8 @@ export interface ClientInstance {
     Result,
     DataTag<Split<Url, '/'>, Result, Error>
   >) &
-    QueryHelpers<Url, undefined, Result>
+    QueryHelpers<Url, undefined, Result> &
+    ClientEndpointHelper<Method, Url, undefined, Response>
 
   query<
     Method extends 'GET' | 'HEAD' | 'OPTIONS' = 'GET',
@@ -61,7 +63,8 @@ export interface ClientInstance {
     Result,
     DataTag<Split<Url, '/'>, Result, Error>
   >) &
-    QueryHelpers<Url, QuerySchema, Result>
+    QueryHelpers<Url, QuerySchema, Result> &
+    ClientEndpointHelper<Method, Url, undefined, Response, QuerySchema>
 
   infiniteQuery<
     Method extends 'GET' | 'HEAD' | 'OPTIONS' = 'GET',
@@ -98,7 +101,8 @@ export interface ClientInstance {
     DataTag<Split<Url, '/'>, PageResult, Error>,
     z.output<QuerySchema>
   >) &
-    QueryHelpers<Url, QuerySchema, PageResult, true>
+    QueryHelpers<Url, QuerySchema, PageResult, true> &
+    ClientEndpointHelper<Method, Url, undefined, Response, QuerySchema>
 
   mutation<
     Method extends 'POST' | 'PUT' | 'PATCH' = 'POST' | 'PUT' | 'PATCH',
@@ -142,7 +146,8 @@ export interface ClientInstance {
     Error,
     ClientMutationArgs<Url, RequestSchema, QuerySchema>
   >) &
-    MutationHelpers<Url, Result>
+    MutationHelpers<Url, Result> &
+    ClientEndpointHelper<Method, Url, RequestSchema, Response, QuerySchema>
 
   mutation<
     Method extends 'POST' | 'PUT' | 'PATCH' = 'POST' | 'PUT' | 'PATCH',
@@ -183,7 +188,8 @@ export interface ClientInstance {
     Result,
     Error,
     ClientMutationArgs<Url, RequestSchema, QuerySchema>
-  >
+  > &
+    ClientEndpointHelper<Method, Url, RequestSchema, Response, QuerySchema>
 
   mutation<
     Method extends 'POST' | 'PUT' | 'PATCH' = 'POST' | 'PUT' | 'PATCH',
@@ -223,7 +229,8 @@ export interface ClientInstance {
     Error,
     ClientMutationArgs<Url, RequestSchema, undefined>
   >) &
-    MutationHelpers<Url, Result>
+    MutationHelpers<Url, Result> &
+    ClientEndpointHelper<Method, Url, RequestSchema, Response>
 
   mutation<
     Method extends 'POST' | 'PUT' | 'PATCH' = 'POST' | 'PUT' | 'PATCH',
@@ -265,7 +272,8 @@ export interface ClientInstance {
     Error,
     ClientMutationArgs<Url, RequestSchema, undefined>
   >) &
-    MutationHelpers<Url, Result>
+    MutationHelpers<Url, Result> &
+    ClientEndpointHelper<Method, Url, RequestSchema, Response>
 
   mutation<
     Method extends 'DELETE' = 'DELETE',
@@ -307,7 +315,8 @@ export interface ClientInstance {
     Error,
     ClientMutationArgs<Url, undefined, QuerySchema>
   >) &
-    MutationHelpers<Url, Result>
+    MutationHelpers<Url, Result> &
+    ClientEndpointHelper<Method, Url, undefined, Response, QuerySchema>
 
   mutation<
     Method extends 'DELETE' = 'DELETE',
@@ -346,7 +355,8 @@ export interface ClientInstance {
     Result,
     Error,
     ClientMutationArgs<Url, undefined, QuerySchema>
-  >
+  > &
+    ClientEndpointHelper<Method, Url, undefined, Response, QuerySchema>
 
   mutation<
     Method extends 'DELETE' = 'DELETE',
@@ -382,7 +392,8 @@ export interface ClientInstance {
     Error,
     ClientMutationArgs<Url, undefined, undefined>
   >) &
-    MutationHelpers<Url, Result>
+    MutationHelpers<Url, Result> &
+    ClientEndpointHelper<Method, Url, undefined, Response>
 
   mutation<
     Method extends 'DELETE' = 'DELETE',
@@ -415,7 +426,8 @@ export interface ClientInstance {
     Result,
     Error,
     ClientMutationArgs<Url, undefined, undefined>
-  >
+  > &
+    ClientEndpointHelper<Method, Url, undefined, Response>
 
   queryFromEndpoint<
     Method extends 'GET' | 'HEAD' | 'OPTIONS' = 'GET',

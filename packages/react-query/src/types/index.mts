@@ -1,3 +1,4 @@
+export * from './client-endpoint-helper.mjs'
 export * from './client-instance.mjs'
 export * from './mutation-args.mjs'
 export * from './mutation-helpers.mjs'

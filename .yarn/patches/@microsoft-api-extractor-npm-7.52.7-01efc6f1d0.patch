@@ -1,0 +1,14 @@
+diff --git a/lib/analyzer/AstSymbolTable.js b/lib/analyzer/AstSymbolTable.js
+index 37d5bae8442011e74e7719f0ba14a915934db2c9..21afdf2124dee9ec1f339797216dfad343c58ee3 100644
+--- a/lib/analyzer/AstSymbolTable.js
++++ b/lib/analyzer/AstSymbolTable.js
+@@ -300,6 +300,9 @@ class AstSymbolTable {
+                         if (!referencedAstEntity) {
+                             const symbol = this._typeChecker.getSymbolAtLocation(identifierNode);
+                             if (!symbol) {
++                                this._messageRouter.logDiagnostic(`Unable to find symbol for identifier "${identifierNode.text}"` +
++                                    ` in ${SourceFileLocationFormatter_1.SourceFileLocationFormatter.formatDeclaration(identifierNode)}`);
++                                break;
+                                 throw new Error('Symbol not found for identifier: ' + identifierNode.getText());
+                             }
+                             // Normally we expect getSymbolAtLocation() to take us to a declaration within the same source

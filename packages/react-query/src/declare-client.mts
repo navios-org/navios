@@ -14,7 +14,7 @@ import { makeInfiniteQueryOptions } from './make-infinite-query-options.mjs'
 import { makeMutation } from './make-mutation.mjs'
 import { makeQueryOptions } from './make-query-options.mjs'
 
-export interface ClientEndpoint<
+export interface ClientEndpointDefinition<
   Method = HttpMethod,
   Url = string,
   QuerySchema = unknown,
@@ -32,7 +32,7 @@ export interface ClientQueryConfig<
   QuerySchema = AnyZodObject,
   Response extends ZodType = ZodType,
   Result = z.output<Response>,
-> extends ClientEndpoint<Method, Url, QuerySchema, Response> {
+> extends ClientEndpointDefinition<Method, Url, QuerySchema, Response> {
   processResponse?: (data: z.output<Response>) => Result
 }
 
@@ -43,7 +43,7 @@ export type ClientInfiniteQueryConfig<
   Response extends ZodType = ZodType,
   PageResult = z.output<Response>,
   Result = InfiniteData<PageResult>,
-> = Required<ClientEndpoint<Method, Url, QuerySchema, Response>> & {
+> = Required<ClientEndpointDefinition<Method, Url, QuerySchema, Response>> & {
   processResponse?: (data: z.output<Response>) => PageResult
   select?: (data: InfiniteData<PageResult>) => Result
   getNextPageParam: (
@@ -75,7 +75,7 @@ export interface ClientMutationDataConfig<
   Result = unknown,
   Context = unknown,
   UseKey extends boolean = false,
-> extends ClientEndpoint<Method, Url, QuerySchema, Response> {
+> extends ClientEndpointDefinition<Method, Url, QuerySchema, Response> {
   requestSchema?: RequestSchema
   processResponse: ProcessResponseFunction<Result, ReqResult>
   useContext?: () => Context
@@ -111,10 +111,13 @@ export function declareClient<Options extends ClientOptions>({
       responseSchema: config.responseSchema,
     })
 
-    return makeQueryOptions(endpoint, {
+    const queryOptions = makeQueryOptions(endpoint, {
       ...defaults,
       processResponse: config.processResponse ?? ((data) => data),
     })
+    // @ts-expect-error We attach the endpoint to the queryOptions
+    queryOptions.endpoint = endpoint
+    return queryOptions
   }
 
   function queryFromEndpoint(
@@ -139,13 +142,17 @@ export function declareClient<Options extends ClientOptions>({
       querySchema: config.querySchema,
       responseSchema: config.responseSchema,
     })
-    return makeInfiniteQueryOptions(endpoint, {
+    const infiniteQueryOptions = makeInfiniteQueryOptions(endpoint, {
       ...defaults,
       processResponse: config.processResponse ?? ((data) => data),
       getNextPageParam: config.getNextPageParam,
       getPreviousPageParam: config.getPreviousPageParam,
       initialPageParam: config.initialPageParam,
     })
+
+    // @ts-expect-error We attach the endpoint to the infiniteQueryOptions
+    infiniteQueryOptions.endpoint = endpoint
+    return infiniteQueryOptions
   }
 
   function infiniteQueryFromEndpoint(
@@ -188,7 +195,7 @@ export function declareClient<Options extends ClientOptions>({
       responseSchema: config.responseSchema,
     })
 
-    return makeMutation(endpoint, {
+    const useMutation = makeMutation(endpoint, {
       processResponse: config.processResponse ?? ((data) => data),
       useContext: config.useContext,
       // @ts-expect-error We forgot about the DELETE method in original makeMutation
@@ -198,6 +205,10 @@ export function declareClient<Options extends ClientOptions>({
       useKey: config.useKey,
       ...defaults,
     })
+
+    // @ts-expect-error We attach the endpoint to the useMutation
+    useMutation.endpoint = endpoint
+    return useMutation
   }
 
   return {
