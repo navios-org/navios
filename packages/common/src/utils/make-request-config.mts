@@ -1,11 +1,11 @@
 import type {
   AbstractRequestConfig,
-  BaseEndpointConfig,
+  BaseStreamConfig,
   HttpMethod,
   NaviosZodRequest,
 } from '../types.mjs'
 
-export function makeRequestConfig<Config extends BaseEndpointConfig>(
+export function makeRequestConfig<Config extends BaseStreamConfig>(
   request: NaviosZodRequest<Config>,
   options: Config,
   method: HttpMethod,

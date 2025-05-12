@@ -7,7 +7,7 @@ import type { AbstractResponse, BuilderConfig } from '../types.mjs'
 export function handleException(
   config: BuilderConfig,
   error: unknown,
-  responseSchema: ZodType,
+  responseSchema?: ZodType,
 ) {
   if (config.onError) {
     config.onError(error)
@@ -19,6 +19,7 @@ export function handleException(
     throw error
   }
   if (
+    responseSchema &&
     typeof error === 'object' &&
     error &&
     'response' in error &&

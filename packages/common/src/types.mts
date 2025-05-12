@@ -91,7 +91,7 @@ export interface NaviosZodRequestBase
   [key: string]: any
 }
 
-export type NaviosZodRequest<Config extends BaseEndpointConfig> = (UrlHasParams<
+export type NaviosZodRequest<Config extends BaseStreamConfig> = (UrlHasParams<
   Config['url']
 > extends true
   ? { urlParams: UrlParams<Config['url']> }
@@ -125,26 +125,40 @@ export type EndpointFunctionArgs<
     : {}) &
   NaviosZodRequestBase
 
-export type BaseEndpointConfig<
+export interface BaseStreamConfig<
+  Method extends HttpMethod = HttpMethod,
+  Url extends string = string,
+  QuerySchema = undefined,
+  RequestSchema = undefined,
+> {
+  method: Method
+  url: Url
+  querySchema: QuerySchema
+  requestSchema: RequestSchema
+}
+
+export interface BaseEndpointConfig<
   Method extends HttpMethod = HttpMethod,
   Url extends string = string,
   QuerySchema = undefined,
   ResponseSchema extends ZodType = ZodType,
   RequestSchema = undefined,
-> = {
-  method: Method
-  url: Url
+> extends BaseStreamConfig<Method, Url, QuerySchema, RequestSchema> {
   responseSchema: ResponseSchema
-  querySchema: QuerySchema
-  requestSchema: RequestSchema
 }
 
 export type Util_FlatObject<T> = T extends object
   ? { [K in keyof T]: K extends 'urlParams' ? Util_FlatObject<T[K]> : T[K] }
   : T
 
+export type AnyStreamConfig = BaseStreamConfig<any, any, any, any>
 export type AnyEndpointConfig = BaseEndpointConfig<any, any, any, any, any>
 
+export type AbstractStream<Config extends AnyStreamConfig> = ((
+  params: any,
+) => Promise<Blob>) & {
+  config: Config
+}
 export type AbstractEndpoint<Config extends AnyEndpointConfig> = ((
   params: any,
 ) => Promise<z.infer<Config['responseSchema']>>) & {
