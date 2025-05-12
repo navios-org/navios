@@ -7,7 +7,11 @@ import type {
 import type { BuilderInstance } from './types/index.mjs'
 
 import { NaviosException } from './exceptions/index.mjs'
-import { endpointCreator, streamCreator } from './utils/index.mjs'
+import {
+  endpointCreator,
+  multipartCreator,
+  streamCreator,
+} from './utils/index.mjs'
 
 export function builder(config: BuilderConfig = {}): BuilderInstance {
   let client: Client | null = null
@@ -34,7 +38,7 @@ export function builder(config: BuilderConfig = {}): BuilderInstance {
   }
 
   function declareMultipart(options: BaseEndpointConfig) {
-    return endpointCreator(options, {
+    return multipartCreator(options, {
       getClient,
       config,
     })
