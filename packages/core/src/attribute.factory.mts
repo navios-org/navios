@@ -23,7 +23,7 @@ export type ClassAttribute = (() => <T>(
 }
 export type ClassSchemaAttribute<T extends ZodType> = ((
   value: z.input<T>,
-) => <T extends ClassType>(
+) => <T>(
   target: T,
   context: ClassDecoratorContext | ClassMethodDecoratorContext,
 ) => T) & {
