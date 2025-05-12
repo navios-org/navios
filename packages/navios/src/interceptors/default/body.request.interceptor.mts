@@ -17,10 +17,6 @@ export function bodyRequestInterceptor(
     return {
       ...config,
       body: data,
-      headers: {
-        ...config.headers,
-        'Content-Type': 'multipart/form-data',
-      },
     }
   }
   if (typeof data === 'object') {
