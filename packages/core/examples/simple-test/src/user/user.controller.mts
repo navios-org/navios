@@ -1,14 +1,20 @@
-import type { EndpointParams, EndpointResult } from '../../../../src/index.mjs'
+import type {
+  EndpointParams,
+  EndpointResult,
+  MultipartParams,
+} from '../../../../src/index.mjs'
 
 import {
   Controller,
   Endpoint,
   Logger,
+  Multipart,
   syncInject,
   UseGuards,
 } from '../../../../src/index.mjs'
 import {
   discriminatorEndpoint,
+  multipartEndpoint,
   patchUserEndpoint,
   userEndpoint,
 } from '../../api/index.mjs'
@@ -55,5 +61,12 @@ export class UserController {
         email: 'test@example.com',
       },
     }
+  }
+
+  @Multipart(multipartEndpoint)
+  async multipart(params: MultipartParams<typeof multipartEndpoint>) {
+    this.logger.log(params)
+    // params.data.
+    return {}
   }
 }

@@ -52,3 +52,13 @@ export const discriminatorEndpoint = authApi.declareEndpoint({
     }),
   ]),
 })
+
+export const multipartEndpoint = authApi.declareMultipart({
+  method: 'POST',
+  url: '/multipart',
+  requestSchema: z.object({
+    files: z.array(z.instanceof(File)),
+    something: z.string(),
+  }),
+  responseSchema: z.object({}),
+})

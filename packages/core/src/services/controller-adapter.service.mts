@@ -1,8 +1,11 @@
 import type { BaseEndpointConfig } from '@navios/common'
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify'
 import type { ZodTypeProvider } from 'fastify-type-provider-zod'
+import type { AnyZodObject } from 'zod'
 
 import { NaviosException } from '@navios/common'
+
+import { ZodArray } from 'zod'
 
 import type { EndpointMetadata, ModuleMetadata } from '../metadata/index.mjs'
 import type { ClassType } from '../service-locator/index.mjs'
@@ -100,7 +103,7 @@ export class ControllerAdapterService {
     if (querySchema) {
       schema.querystring = querySchema
     }
-    if (requestSchema) {
+    if (requestSchema && endpointMetadata.type !== EndpointType.Multipart) {
       schema.body = requestSchema
     }
     if (responseSchema) {
@@ -131,6 +134,12 @@ export class ControllerAdapterService {
         )
       case EndpointType.Stream:
         return this.provideHandlerForStream(
+          controller,
+          executionContext,
+          endpointMetadata,
+        )
+      case EndpointType.Multipart:
+        return this.provideHandlerForMultipart(
           controller,
           executionContext,
           endpointMetadata,
@@ -211,6 +220,80 @@ export class ControllerAdapterService {
         }
 
         await controllerInstance[endpointMetadata.classMethod](argument, reply)
+      } finally {
+        getServiceLocator().removeInstance(Request)
+        getServiceLocator().removeInstance(Reply)
+        getServiceLocator().removeInstance(ExecutionContextToken)
+      }
+    }
+  }
+
+  private provideHandlerForMultipart(
+    controller: ClassType,
+    executionContext: ExecutionContext,
+    endpointMetadata: EndpointMetadata,
+  ): (request: FastifyRequest, reply: FastifyReply) => Promise<void> {
+    const config = endpointMetadata.config as BaseEndpointConfig
+    const requestSchema = config.requestSchema as unknown as AnyZodObject
+    const shape = requestSchema._def.shape()
+    return async (request, reply) => {
+      getServiceLocator().registerInstance(Request, request)
+      getServiceLocator().registerInstance(Reply, reply)
+      getServiceLocator().registerInstance(
+        ExecutionContextToken,
+        executionContext,
+      )
+      executionContext.provideRequest(request)
+      executionContext.provideReply(reply)
+      const controllerInstance = await inject(controller)
+      try {
+        const parts = request.parts()
+        const { query, params } = request
+        const argument: Record<string, any> = {}
+        if (query && Object.keys(query).length > 0) {
+          argument.params = query
+        }
+        if (params && Object.keys(params).length > 0) {
+          argument.urlParams = params
+        }
+        const req: Record<string, any> = {}
+        for await (const part of parts) {
+          if (!shape[part.fieldname]) {
+            throw new NaviosException(
+              `Invalid field name ${part.fieldname} for multipart request`,
+            )
+          }
+          const schema = shape[part.fieldname]
+          if (part.type === 'file') {
+            const file = new File([await part.toBuffer()], part.filename, {
+              type: part.mimetype,
+            })
+            if (schema instanceof ZodArray) {
+              if (!req[part.fieldname]) {
+                req[part.fieldname] = []
+              }
+              req[part.fieldname].push(file)
+            } else {
+              req[part.fieldname] = file
+            }
+          } else {
+            if (schema instanceof ZodArray) {
+              if (!req[part.fieldname]) {
+                req[part.fieldname] = []
+              }
+              req[part.fieldname].push(part.value)
+            } else {
+              req[part.fieldname] = part.value
+            }
+          }
+        }
+        argument.body = requestSchema.parse(req)
+        const result =
+          await controllerInstance[endpointMetadata.classMethod](argument)
+        reply
+          .status(endpointMetadata.successStatusCode)
+          .headers(endpointMetadata.headers)
+          .send(result)
       } finally {
         getServiceLocator().removeInstance(Request)
         getServiceLocator().removeInstance(Reply)

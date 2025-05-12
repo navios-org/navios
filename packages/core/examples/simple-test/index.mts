@@ -7,6 +7,7 @@ export async function boot() {
   app.enableCors({
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   })
+  app.enableMultipart({})
   await app.init()
   const configService = await inject(ConfigService)
   const port = configService.getOrThrow('port')

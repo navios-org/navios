@@ -2324,6 +2324,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@fastify/busboy@npm:^3.0.0":
+  version: 3.1.1
+  resolution: "@fastify/busboy@npm:3.1.1"
+  checksum: 10c0/d34b3640bc331f9951e27426769bdf90b1a5c238a22e4df39f9b18ec4cf793100a929ac0339f6643a4086f780f49177a528936d918dfd6c9dfe5a12566303215
+  languageName: node
+  linkType: hard
+
 "@fastify/cors@npm:^11.0.1":
   version: 11.0.1
   resolution: "@fastify/cors@npm:11.0.1"
@@ -2331,6 +2338,13 @@ __metadata:
     fastify-plugin: "npm:^5.0.0"
     toad-cache: "npm:^3.7.0"
   checksum: 10c0/0b29e8ef1cc234f97f157d3f05ae7ed8ef332ef121fcbaa23d4de3b97593f54cb96c54fdd42a492530b520777a76a7a19ffc5087cd27da34c63838f4b185cae0
+  languageName: node
+  linkType: hard
+
+"@fastify/deepmerge@npm:^2.0.0":
+  version: 2.0.2
+  resolution: "@fastify/deepmerge@npm:2.0.2"
+  checksum: 10c0/dfb30896d374c25a3f5bc0550cb19d2014946392b2858fadd5feb1486eb3c37751db1db24dcbf801bb11465435939d0d75fb7ee65501287e77b4df7022b3509a
   languageName: node
   linkType: hard
 
@@ -2363,6 +2377,19 @@ __metadata:
   dependencies:
     dequal: "npm:^2.0.3"
   checksum: 10c0/dfa884a8f62d53f71de273fdcd0e501b213367767a7d8c522ae87ba6fb571b3eea85175d6e019036d7c0c5419be60305abe54899b9459f76ed5333358699efcb
+  languageName: node
+  linkType: hard
+
+"@fastify/multipart@npm:^9.0.3":
+  version: 9.0.3
+  resolution: "@fastify/multipart@npm:9.0.3"
+  dependencies:
+    "@fastify/busboy": "npm:^3.0.0"
+    "@fastify/deepmerge": "npm:^2.0.0"
+    "@fastify/error": "npm:^4.0.0"
+    fastify-plugin: "npm:^5.0.0"
+    secure-json-parse: "npm:^3.0.0"
+  checksum: 10c0/589571e71954e28b6445dcaeef3f4e978931f9a697cf259ef45327ee646f85db2195cd38fe4bf758aab3e0d61ceb30429b1389fd9e176f55a3c83b4186ebb20d
   languageName: node
   linkType: hard
 
@@ -2950,6 +2977,7 @@ __metadata:
   resolution: "@navios/core@workspace:packages/core"
   dependencies:
     "@fastify/cors": "npm:^11.0.1"
+    "@fastify/multipart": "npm:^9.0.3"
     "@navios/common": "workspace:^"
     fastify: "npm:^5.3.2"
     fastify-type-provider-zod: "npm:^4.0.2"
@@ -10536,6 +10564,13 @@ __metadata:
   version: 1.4.1
   resolution: "sax@npm:1.4.1"
   checksum: 10c0/6bf86318a254c5d898ede6bd3ded15daf68ae08a5495a2739564eb265cd13bcc64a07ab466fb204f67ce472bb534eb8612dac587435515169593f4fffa11de7c
+  languageName: node
+  linkType: hard
+
+"secure-json-parse@npm:^3.0.0":
+  version: 3.0.2
+  resolution: "secure-json-parse@npm:3.0.2"
+  checksum: 10c0/4c9c005e7fdd8528df35fcdec41dc4e8e15820ce52de19f8102da808f9400a9ed8c0a28971e3efe24b001ee1e60296af553f12bbaab81a152f702dd00af2092d
   languageName: node
   linkType: hard
 

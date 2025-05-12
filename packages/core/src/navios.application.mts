@@ -1,4 +1,5 @@
 import type { FastifyCorsOptions } from '@fastify/cors'
+import type { FastifyMultipartOptions } from '@fastify/multipart'
 import type {
   FastifyInstance,
   FastifyListenOptions,
@@ -50,6 +51,7 @@ export class NaviosApplication {
   })
   private server: FastifyInstance | null = null
   private corsOptions: FastifyCorsOptions | null = null
+  private multipartOptions: FastifyMultipartOptions | true | null = null
   private globalPrefix: string | null = null
 
   private appModule: ClassTypeWithInstance<NaviosModule> | null = null
@@ -79,6 +81,10 @@ export class NaviosApplication {
 
     if (this.corsOptions) {
       await this.server.register(cors, this.corsOptions)
+    }
+
+    if (this.multipartOptions) {
+      await this.configureMultipart(this.server, this.multipartOptions)
     }
 
     await this.initModules()
@@ -147,6 +153,26 @@ export class NaviosApplication {
     })
   }
 
+  async configureMultipart(
+    server: FastifyInstance,
+    options: FastifyMultipartOptions | true,
+  ): Promise<void> {
+    if (options) {
+      try {
+        const multipartModule = await import('@fastify/multipart')
+        await server.register(
+          multipartModule.default,
+          typeof options === 'object' ? options : {},
+        )
+      } catch (error) {
+        this.logger.error(
+          `@fastify/multipart is not installed. Please install it.`,
+        )
+        throw error
+      }
+    }
+  }
+
   private async initModules() {
     const modules = this.moduleLoader.getAllModules()
     const promises: PromiseLike<any>[] = []
@@ -181,6 +207,10 @@ export class NaviosApplication {
 
   enableCors(options: FastifyCorsOptions) {
     this.corsOptions = options
+  }
+
+  enableMultipart(options: FastifyMultipartOptions) {
+    this.multipartOptions = options
   }
 
   setGlobalPrefix(prefix: string) {

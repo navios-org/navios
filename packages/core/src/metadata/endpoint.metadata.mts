@@ -17,6 +17,7 @@ export enum EndpointType {
   Unknown = 'unknown',
   Endpoint = 'endpoint',
   Stream = 'stream',
+  Multipart = 'multipart',
   Handler = 'handler',
 }
 
