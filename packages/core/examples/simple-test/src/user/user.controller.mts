@@ -1,4 +1,4 @@
-import type { EndpointParams } from '../../../../src/index.mjs'
+import type { EndpointParams, EndpointResult } from '../../../../src/index.mjs'
 
 import {
   Controller,
@@ -7,7 +7,11 @@ import {
   syncInject,
   UseGuards,
 } from '../../../../src/index.mjs'
-import { patchUserEndpoint, userEndpoint } from '../../api/index.mjs'
+import {
+  discriminatorEndpoint,
+  patchUserEndpoint,
+  userEndpoint,
+} from '../../api/index.mjs'
 import { AclGuard } from '../acl/acl.guard.mjs'
 import { OneMoreGuard } from '../acl/one-more.guard.mjs'
 import { Public } from '../acl/public.attribute.mjs'
@@ -35,6 +39,21 @@ export class UserController {
     return {
       ...this.userService.getUser(),
       ...params.data,
+    }
+  }
+
+  @Endpoint(discriminatorEndpoint)
+  async discriminator(
+    params: EndpointParams<typeof discriminatorEndpoint>,
+  ): EndpointResult<typeof discriminatorEndpoint> {
+    this.logger.log(params)
+    return {
+      success: true,
+      data: {
+        id: '123',
+        name: 'John Doe',
+        email: 'test@example.com',
+      },
     }
   }
 }

@@ -30,12 +30,25 @@ export const patchUserEndpoint = authApi.declareEndpoint({
   }),
 })
 
-export const blogItemEndpoint = authApi.declareEndpoint({
+export const discriminatorEndpoint = authApi.declareEndpoint({
   method: 'GET',
-  url: '/blog/$id' as const,
-  responseSchema: z.object({
-    id: z.string(),
-    title: z.string(),
-    content: z.string(),
-  }),
+  url: '/discriminator',
+  responseSchema: z.discriminatedUnion('success', [
+    z.object({
+      success: z.literal(true),
+      data: z.object({
+        id: z.string(),
+        name: z.string(),
+
+        email: z.string(),
+      }),
+    }),
+    z.object({
+      success: z.literal(false),
+      error: z.object({
+        code: z.string(),
+        message: z.string(),
+      }),
+    }),
+  ]),
 })
