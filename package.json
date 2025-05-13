@@ -2,6 +2,7 @@
   "name": "@navios/mono",
   "packageManager": "yarn@4.2.2",
   "workspaces": [
+    "packages/cli",
     "packages/common",
     "packages/core",
     "packages/jwt",

@@ -2,6 +2,7 @@
 <project version="4">
   <component name="NxAngularConfigService" workspaceLocation="file://$PROJECT_DIR$/nx.json">
     <projects>
+      <project name="@navios/cli" file="file://$PROJECT_DIR$/packages/cli/project.json" />
       <project name="@navios/common" file="file://$PROJECT_DIR$/packages/common/project.json" />
       <project name="@navios/core" file="file://$PROJECT_DIR$/packages/core/project.json" />
       <project name="@navios/jwt" file="file://$PROJECT_DIR$/packages/jwt/project.json" />

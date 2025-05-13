@@ -1,0 +1,55 @@
+import { IncomingMessage, ServerResponse } from 'node:http'
+
+import { NaviosApplication } from '@navios/core'
+import { defineConfig } from 'vite'
+import { VitePluginNode } from 'vite-plugin-node'
+
+let prevApp: NaviosApplication | null = null
+
+export default defineConfig({
+  server: {
+    port: 4800,
+  },
+  plugins: [
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+    ...VitePluginNode({
+      adapter: async ({
+        app,
+        req,
+        res,
+      }: {
+        app: NaviosApplication
+        req: IncomingMessage
+        res: ServerResponse
+      }) => {
+        if (!app.isInitialized) {
+          if (prevApp) await prevApp.close()
+
+          await app.init()
+          prevApp = app
+        }
+
+        const instance = app.getServer()
+
+        await instance.ready()
+        instance.routing(req, res)
+      },
+      appPath: './src/main.ts',
+      exportName: 'app',
+      tsCompiler: 'swc',
+      outputFormat: 'esm',
+      initAppOnBoot: true,
+      swcOptions: {
+        jsc: {
+          target: 'es2024',
+          parser: {
+            syntax: 'typescript',
+          },
+          transform: {
+            decoratorVersion: '2022-03',
+          },
+        },
+      },
+    }),
+  ],
+})
