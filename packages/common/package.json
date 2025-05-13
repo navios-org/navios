@@ -11,7 +11,7 @@
     "url": "https://github.com/Arilas/navios.git"
   },
   "license": "MIT",
-  "typings": "./dist/index.d.ts",
+  "typings": "./dist/src/index.d.mts",
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",
   "peerDependencies": {
@@ -20,7 +20,7 @@
   "exports": {
     ".": {
       "import": {
-        "types": "./dist/index.d.mts",
+        "types": "./dist/src/index.d.mts",
         "default": "./src/index.mts"
       },
       "require": {

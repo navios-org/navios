@@ -5,9 +5,7 @@
     "module": "Node16",
     "incremental": false
   },
-  "include": [
-    "src/**/*"
-  ],
+  "include": ["src/**/*"],
   "references": [
     {
       "path": "../navios"

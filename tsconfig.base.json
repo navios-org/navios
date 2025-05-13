@@ -2,8 +2,8 @@
   "compileOnSave": false,
   "compilerOptions": {
     "sourceMap": true,
-    "noEmit": true,
     "composite": true,
+    "incremental": true,
     "emitDeclarationOnly": true,
     "moduleResolution": "node16",
     "moduleDetection": "force",
