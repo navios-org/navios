@@ -1,19 +1,20 @@
+import type { ClassType } from '@navios/di'
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify'
 import type { ZodTypeProvider } from 'fastify-type-provider-zod'
 
-import type { HandlerAdapterInterface } from '../adapters/index.mjs'
-import type { ModuleMetadata } from '../metadata/index.mjs'
-import type { ClassType } from '../service-locator/index.mjs'
-
-import { Logger } from '../logger/index.mjs'
-import { extractControllerMetadata } from '../metadata/index.mjs'
 import {
-  getServiceLocator,
+  getGlobalServiceLocator,
   inject,
   Injectable,
   InjectionToken,
   syncInject,
-} from '../service-locator/index.mjs'
+} from '@navios/di'
+
+import type { HandlerAdapterInterface } from '../adapters/index.mjs'
+import type { ModuleMetadata } from '../metadata/index.mjs'
+
+import { Logger } from '../logger/index.mjs'
+import { extractControllerMetadata } from '../metadata/index.mjs'
 import { ExecutionContextToken, Reply, Request } from '../tokens/index.mjs'
 import { ExecutionContext } from './execution-context.mjs'
 import { GuardRunnerService } from './guard-runner.service.mjs'
@@ -100,11 +101,11 @@ export class ControllerAdapterService {
     executionContext: ExecutionContext,
     handler: (request: FastifyRequest, reply: FastifyReply) => Promise<void>,
   ) {
-    const locator = getServiceLocator()
+    const locator = getGlobalServiceLocator()
     return async (request: FastifyRequest, reply: FastifyReply) => {
-      locator.registerInstance(Request, request)
-      locator.registerInstance(Reply, reply)
-      locator.registerInstance(ExecutionContextToken, executionContext)
+      locator.storeInstance(request, Request)
+      locator.storeInstance(reply, Reply)
+      locator.storeInstance(executionContext, ExecutionContextToken)
       executionContext.provideRequest(request)
       executionContext.provideReply(reply)
       try {

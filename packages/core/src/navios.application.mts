@@ -1,10 +1,18 @@
 import type { FastifyCorsOptions } from '@fastify/cors'
 import type { FastifyMultipartOptions } from '@fastify/multipart'
+import type { ClassTypeWithInstance } from '@navios/di'
 import type {
   FastifyInstance,
   FastifyListenOptions,
   FastifyServerOptions,
 } from 'fastify'
+
+import {
+  getGlobalServiceLocator,
+  inject,
+  Injectable,
+  syncInject,
+} from '@navios/di'
 
 import cors from '@fastify/cors'
 import multipart from '@fastify/multipart'
@@ -16,16 +24,9 @@ import {
 
 import type { NaviosModule } from './interfaces/index.mjs'
 import type { LoggerService, LogLevel } from './logger/index.mjs'
-import type { ClassTypeWithInstance } from './service-locator/index.mjs'
 
 import { HttpException } from './exceptions/index.mjs'
 import { Logger, PinoWrapper } from './logger/index.mjs'
-import {
-  getServiceLocator,
-  inject,
-  Injectable,
-  syncInject,
-} from './service-locator/index.mjs'
 import {
   ControllerAdapterService,
   ModuleLoaderService,
@@ -75,7 +76,7 @@ export class NaviosApplication {
     await this.moduleLoader.loadModules(this.appModule)
     this.server = await this.getFastifyInstance(this.options)
     this.configureFastifyInstance(this.server)
-    getServiceLocator().registerInstance(Application, this.server)
+    getGlobalServiceLocator().storeInstance(this.server, Application)
     // Add schema validator and serializer
     this.server.setValidatorCompiler(validatorCompiler)
     this.server.setSerializerCompiler(serializerCompiler)

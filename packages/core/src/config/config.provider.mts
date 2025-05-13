@@ -1,14 +1,15 @@
-import { z } from 'zod'
-
-import type { ConfigService } from './config-service.interface.mjs'
-
-import { Logger } from '../logger/index.mjs'
 import {
   Injectable,
   InjectableType,
   InjectionToken,
   syncInject,
-} from '../service-locator/index.mjs'
+} from '@navios/di'
+
+import { z } from 'zod'
+
+import type { ConfigService } from './config-service.interface.mjs'
+
+import { Logger } from '../logger/index.mjs'
 import { ConfigServiceInstance } from './config.service.mjs'
 
 export const ConfigProviderOptions = z.object({
@@ -52,8 +53,5 @@ export class ConfigProviderFactory {
 export function provideConfig<ConfigMap extends Record<string, unknown>>(
   options: z.input<typeof ConfigProviderOptions>,
 ) {
-  return InjectionToken.bound(ConfigProvider, options) as InjectionToken<
-    ConfigServiceInstance<ConfigMap>,
-    undefined
-  >
+  return InjectionToken.bound(ConfigProvider, options)
 }

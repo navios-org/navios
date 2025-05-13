@@ -1,11 +1,8 @@
-import type { ClassType } from '../service-locator/index.mjs'
+import type { ClassType } from '@navios/di'
+
+import { Injectable, InjectableScope, InjectionToken } from '@navios/di'
 
 import { getControllerMetadata } from '../metadata/index.mjs'
-import {
-  Injectable,
-  InjectableScope,
-  InjectionToken,
-} from '../service-locator/index.mjs'
 
 export interface ControllerOptions {
   guards?: ClassType[] | Set<ClassType>

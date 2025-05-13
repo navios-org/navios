@@ -1,15 +1,12 @@
 import type { BaseEndpointConfig } from '@navios/common'
+import type { ClassType } from '@navios/di'
 import type { FastifyReply, FastifyRequest } from 'fastify'
 
+import { inject, Injectable, InjectionToken } from '@navios/di'
+
 import type { HandlerMetadata } from '../metadata/index.mjs'
-import type { ClassType } from '../service-locator/index.mjs'
 import type { ExecutionContext } from '../services/index.mjs'
 
-import {
-  inject,
-  Injectable,
-  InjectionToken,
-} from '../service-locator/index.mjs'
 import { StreamAdapterService } from './stream-adapter.service.mjs'
 
 export const EndpointAdapterToken =

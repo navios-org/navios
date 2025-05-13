@@ -1,9 +1,10 @@
-import type { CanActivate } from '../interfaces/index.mjs'
 import type {
   ClassType,
   ClassTypeWithInstance,
   InjectionToken,
-} from '../service-locator/index.mjs'
+} from '@navios/di'
+
+import type { CanActivate } from '../interfaces/index.mjs'
 import type { HandlerMetadata } from './handler.metadata.mjs'
 
 import { getAllEndpointMetadata } from './handler.metadata.mjs'

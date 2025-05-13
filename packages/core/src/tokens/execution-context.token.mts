@@ -1,4 +1,5 @@
-import { InjectionToken } from '../service-locator/index.mjs'
+import { InjectionToken } from '@navios/di'
+
 import { ExecutionContext } from '../services/index.mjs'
 
 export const ExecutionContextInjectionToken = 'ExecutionContextInjectionToken'

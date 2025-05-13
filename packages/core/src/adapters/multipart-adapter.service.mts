@@ -3,11 +3,12 @@ import type { BaseEndpointConfig } from '@navios/common'
 import type { FastifyRequest } from 'fastify'
 import type { AnyZodObject, ZodRawShape } from 'zod'
 
+import { Injectable, InjectionToken } from '@navios/di'
+
 import { ZodArray, ZodObject, ZodOptional } from 'zod'
 
 import type { HandlerMetadata } from '../metadata/index.mjs'
 
-import { Injectable, InjectionToken } from '../service-locator/index.mjs'
 import { EndpointAdapterService } from './endpoint-adapter.service.mjs'
 
 export const MultipartAdapterToken =

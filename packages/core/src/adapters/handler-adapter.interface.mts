@@ -1,7 +1,7 @@
+import type { ClassType } from '@navios/di'
 import type { FastifyReply, FastifyRequest } from 'fastify'
 
 import type { HandlerMetadata } from '../metadata/index.mjs'
-import type { ClassType } from '../service-locator/index.mjs'
 import type { ExecutionContext } from '../services/index.mjs'
 
 export interface HandlerAdapterInterface {

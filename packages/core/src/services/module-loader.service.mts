@@ -1,10 +1,12 @@
+import type { ClassTypeWithInstance } from '@navios/di'
+
+import { inject, Injectable, syncInject } from '@navios/di'
+
 import type { NaviosModule } from '../interfaces/index.mjs'
 import type { ModuleMetadata } from '../metadata/index.mjs'
-import type { ClassTypeWithInstance } from '../service-locator/index.mjs'
 
 import { Logger } from '../logger/index.mjs'
 import { extractModuleMetadata } from '../metadata/index.mjs'
-import { inject, Injectable, syncInject } from '../service-locator/index.mjs'
 
 @Injectable()
 export class ModuleLoaderService {

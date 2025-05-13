@@ -1,13 +1,15 @@
+import type { ClassTypeWithInstance } from '@navios/di'
+
+import { inject } from '@navios/di'
+
 import type { NaviosModule } from './interfaces/index.mjs'
 import type {
   NaviosApplicationContextOptions,
   NaviosApplicationOptions,
 } from './navios.application.mjs'
-import type { ClassTypeWithInstance } from './service-locator/index.mjs'
 
 import { isNil, LoggerInstance } from './logger/index.mjs'
 import { NaviosApplication } from './navios.application.mjs'
-import { inject } from './service-locator/index.mjs'
 
 export class NaviosFactory {
   static async create(

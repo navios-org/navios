@@ -1,9 +1,10 @@
-import type { CanActivate } from '../index.mjs'
 import type {
   ClassType,
   ClassTypeWithInstance,
   InjectionToken,
-} from '../service-locator/index.mjs'
+} from '@navios/di'
+
+import type { CanActivate } from '../index.mjs'
 
 export const ModuleMetadataKey = Symbol('ControllerMetadataKey')
 

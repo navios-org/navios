@@ -2,10 +2,11 @@ import type { InspectOptions } from 'util'
 
 import { inspect } from 'util'
 
+import { getGlobalServiceLocator, Injectable } from '@navios/di'
+
 import type { LogLevel } from './log-levels.mjs'
 import type { LoggerService } from './logger-service.interface.mjs'
 
-import { getServiceLocator, Injectable } from '../service-locator/index.mjs'
 import { Request } from '../tokens/index.mjs'
 import {
   clc,
@@ -178,7 +179,7 @@ export class ConsoleLogger implements LoggerService {
       this.originalContext = context
     }
     if (opts?.requestId) {
-      const locator = getServiceLocator()
+      const locator = getGlobalServiceLocator()
       locator
         .getEventBus()
         .on(locator.getInstanceIdentifier(Request, undefined), 'create', () => {

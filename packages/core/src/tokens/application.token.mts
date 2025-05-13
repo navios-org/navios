@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify'
 
-import { InjectionToken } from '../service-locator/index.mjs'
+import { InjectionToken } from '@navios/di'
 
 const ApplicationInjectionToken = 'ApplicationInjectionToken'
 

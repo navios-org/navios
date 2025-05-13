@@ -1,3 +1,4 @@
+import type { ClassType } from '@navios/di'
 import type { z, ZodType } from 'zod'
 
 import type {
@@ -5,7 +6,6 @@ import type {
   HandlerMetadata,
   ModuleMetadata,
 } from './metadata/index.mjs'
-import type { ClassType } from './service-locator/index.mjs'
 
 import {
   getControllerMetadata,

@@ -1,10 +1,9 @@
+import { Injectable, InjectableType, InjectionToken } from '@navios/di'
+
 import { z } from 'zod'
 
-import {
-  Injectable,
-  InjectableType,
-  InjectionToken,
-} from '../service-locator/index.mjs'
+import type { LoggerService } from './logger-service.interface.mjs'
+
 import { LoggerInstance } from './logger.service.mjs'
 
 export const LoggerInjectionToken = 'LoggerInjectionToken'

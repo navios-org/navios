@@ -1,7 +1,8 @@
+import { Injectable } from '@navios/di'
+
 import type { LogLevel } from './log-levels.mjs'
 import type { LoggerService } from './logger-service.interface.mjs'
 
-import { Injectable } from '../service-locator/index.mjs'
 import { ConsoleLogger } from './console-logger.service.mjs'
 import { isLogLevelEnabled, isObject } from './utils/index.mjs'
 
