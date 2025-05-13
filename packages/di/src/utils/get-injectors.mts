@@ -1,14 +1,14 @@
 import type { AnyZodObject, z, ZodOptional } from 'zod'
 
-import type { ClassType } from '../injection-token.mjs'
-import type { ServiceLocator } from '../service-locator.mjs'
-
-import { InjectableTokenMeta } from '../decorators/index.mjs'
-import {
+import type {
   BoundInjectionToken,
+  ClassType,
   FactoryInjectionToken,
   InjectionToken,
 } from '../injection-token.mjs'
+import type { ServiceLocator } from '../service-locator.mjs'
+
+import { InjectableTokenMeta } from '../symbols/index.mjs'
 
 export interface CreateInjectorsOptions {
   baseLocator: ServiceLocator

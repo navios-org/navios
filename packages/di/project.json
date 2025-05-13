@@ -6,9 +6,20 @@
   "tags": [],
   "projectType": "library",
   "targets": {
+    "check": {
+      "executor": "nx:run-commands",
+      "outputs": ["{projectRoot}/dist"],
+      "options": {
+        "command": [
+          "tsc -b"
+        ],
+        "cwd": "{workspaceRoot}"
+      }
+    },
     "build": {
       "executor": "nx-tsup:build",
       "outputs": ["{workspaceRoot}/dist/{projectRoot}"],
+      "dependsOn": ["^check"],
       "options": {
         "main": {
           "index": "./src/index.mts"

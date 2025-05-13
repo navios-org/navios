@@ -10,6 +10,7 @@ import { InjectableScope, InjectableType } from '../enums/index.mjs'
 import { InjectionToken } from '../injection-token.mjs'
 import { globalRegistry } from '../registry.mjs'
 import { resolveService } from '../resolve-service.mjs'
+import { InjectableTokenMeta } from '../symbols/index.mjs'
 
 export interface InjectableOptions {
   scope?: InjectableScope
@@ -17,8 +18,6 @@ export interface InjectableOptions {
   token?: InjectionToken<any, any>
   registry?: Registry
 }
-
-export const InjectableTokenMeta = Symbol.for('InjectableTokenMeta')
 
 export function Injectable(): <T extends ClassType>(
   target: T,

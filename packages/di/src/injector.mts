@@ -1,3 +1,5 @@
+import type { Injectors } from './utils/index.mjs'
+
 import { ServiceLocator } from './service-locator.mjs'
 import { getInjectors } from './utils/index.mjs'
 
@@ -11,9 +13,15 @@ export function getGlobalServiceLocator(): ServiceLocator {
   }
   return globalServiceLocator
 }
-const { inject, syncInject, wrapSyncInit, provideServiceLocator } =
-  getInjectors({
-    baseLocator: globalServiceLocator,
-  })
+const values = getInjectors({
+  baseLocator: globalServiceLocator,
+})
 
-export { inject, syncInject, wrapSyncInit, provideServiceLocator }
+export const inject: Injectors['inject'] = values.inject
+
+export const syncInject: Injectors['syncInject'] = values.syncInject
+
+export const wrapSyncInit: Injectors['wrapSyncInit'] = values.wrapSyncInit
+
+export const provideServiceLocator: Injectors['provideServiceLocator'] =
+  values.provideServiceLocator

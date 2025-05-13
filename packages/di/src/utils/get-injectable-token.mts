@@ -1,6 +1,6 @@
 import type { ClassType, InjectionToken } from '../injection-token.mjs'
 
-import { InjectableTokenMeta } from '../decorators/index.mjs'
+import { InjectableTokenMeta } from '../symbols/index.mjs'
 
 export function getInjectableToken<R>(
   target: ClassType,
