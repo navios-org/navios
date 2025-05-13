@@ -1,4 +1,8 @@
-import type { ServiceLocatorAbstractFactoryContext } from '@navios/core'
+import type {
+  BoundInjectionToken,
+  FactoryContext,
+  FactoryInjectionToken,
+} from '@navios/core'
 
 import {
   Injectable,
@@ -22,14 +26,16 @@ export const JwtServiceToken = InjectionToken.create(
   type: InjectableType.Factory,
 })
 export class JwtServiceFactory {
-  create(ctx: ServiceLocatorAbstractFactoryContext, args: JwtServiceOptions) {
+  create(ctx: FactoryContext, args: JwtServiceOptions) {
     return resolveService(ctx, JwtService, [args])
   }
 }
 
 export function provideJwtService(
   config: JwtServiceOptions | (() => Promise<JwtServiceOptions>),
-): InjectionToken<JwtService, undefined> {
+):
+  | BoundInjectionToken<JwtService, typeof JwtServiceOptionsSchema>
+  | FactoryInjectionToken<JwtService, typeof JwtServiceOptionsSchema> {
   if (typeof config === 'function') {
     return InjectionToken.factory(JwtServiceToken, config)
   }
