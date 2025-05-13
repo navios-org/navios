@@ -108,6 +108,7 @@ export type EndpointFunctionArgs<
   Url extends string,
   QuerySchema = undefined,
   RequestSchema = undefined,
+  IsServer extends boolean = false,
 > = (QuerySchema extends AnyZodObject
   ? {
       params: z.infer<QuerySchema>
@@ -123,7 +124,7 @@ export type EndpointFunctionArgs<
         urlParams: UrlParams<Url>
       }
     : {}) &
-  NaviosZodRequestBase
+  (IsServer extends false ? NaviosZodRequestBase : {})
 
 export interface BaseStreamConfig<
   Method extends HttpMethod = HttpMethod,
