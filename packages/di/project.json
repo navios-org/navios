@@ -1,0 +1,45 @@
+{
+  "name": "@navios/di",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "packages/di/src",
+  "prefix": "di",
+  "tags": [],
+  "projectType": "library",
+  "targets": {
+    "build": {
+      "executor": "nx-tsup:build",
+      "outputs": ["{workspaceRoot}/dist/{projectRoot}"],
+      "options": {
+        "main": {
+          "index": "./src/index.mts"
+        },
+        "outputPath": "{workspaceRoot}/dist/{projectRoot}",
+        "format": ["esm", "cjs"],
+        "experimentalDts": true,
+        "clean": true,
+        "assets": [
+          "packages/di/*.md",
+          "packages/di/LICENSE",
+          {
+            "input": "./packages/di/src",
+            "glob": "**/!(*.ts)",
+            "output": "./src"
+          },
+          {
+            "input": "./packages/di/src",
+            "glob": "**/*.d.ts",
+            "output": "./src"
+          }
+        ],
+        "tsConfig": "{projectRoot}/tsconfig.json"
+      }
+    },
+    "publish": {
+      "executor": "nx-yarn-publish:publish",
+      "options": {
+        "outputPath": "{workspaceRoot}/dist/{projectRoot}",
+        "access": "public"
+      }
+    }
+  }
+}
