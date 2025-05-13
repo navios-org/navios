@@ -167,7 +167,6 @@ describe('declareClient', () => {
       },
     })
 
-    // @ts-expect-error it's internal type
     const mutationResult = mutation()
     const res = await mutationResult.mutateAsync({
       urlParams: {

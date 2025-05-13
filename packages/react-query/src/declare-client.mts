@@ -211,6 +211,35 @@ export function declareClient<Options extends ClientOptions>({
     return useMutation
   }
 
+  function mutationFromEndpoint(
+    endpoint: AbstractEndpoint<AnyEndpointConfig>,
+    options: {
+      processResponse: ProcessResponseFunction
+      useContext?: () => unknown
+      onSuccess?: (
+        queryClient: QueryClient,
+        data: unknown,
+        variables: Util_FlatObject<ClientMutationArgs>,
+        context: unknown,
+      ) => void | Promise<void>
+      onError?: (
+        queryClient: QueryClient,
+        error: Error,
+        variables: Util_FlatObject<ClientMutationArgs>,
+        context: unknown,
+      ) => void | Promise<void>
+    },
+  ) {
+    return makeMutation(endpoint, {
+      processResponse: options.processResponse,
+      useContext: options.useContext,
+      onSuccess: options.onSuccess,
+      // @ts-expect-error simplify types here
+      onError: options.onError,
+      ...defaults,
+    })
+  }
+
   return {
     // @ts-expect-error We simplified types here
     query,
@@ -222,5 +251,7 @@ export function declareClient<Options extends ClientOptions>({
     infiniteQueryFromEndpoint,
     // @ts-expect-error We simplified types here
     mutation,
+    // @ts-expect-error We simplified types here
+    mutationFromEndpoint,
   }
 }

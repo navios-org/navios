@@ -182,13 +182,11 @@ export interface ClientInstance {
       >,
       context: Context,
     ) => void | Promise<void>
-  }): (
-    params: UrlHasParams<Url> extends true ? { urlParams: UrlParams<Url> } : {},
-  ) => UseMutationResult<
+  }): (() => UseMutationResult<
     Result,
     Error,
     ClientMutationArgs<Url, RequestSchema, QuerySchema>
-  > &
+  >) &
     ClientEndpointHelper<Method, Url, RequestSchema, Response, QuerySchema>
 
   mutation<
@@ -222,9 +220,7 @@ export interface ClientInstance {
       >,
       context: Context,
     ) => void | Promise<void>
-  }): ((
-    params: UrlHasParams<Url> extends true ? { urlParams: UrlParams<Url> } : {},
-  ) => UseMutationResult<
+  }): (() => UseMutationResult<
     Result,
     Error,
     ClientMutationArgs<Url, RequestSchema, undefined>
@@ -266,7 +262,7 @@ export interface ClientInstance {
       context: Context,
     ) => void | Promise<void>
   }): ((
-    params: UrlHasParams<Url> extends true ? { urlParams: UrlParams<Url> } : {},
+    params: UrlHasParams<Url> extends true ? UrlParams<Url> : {},
   ) => UseMutationResult<
     Result,
     Error,
@@ -309,7 +305,7 @@ export interface ClientInstance {
       context: Context,
     ) => void | Promise<void>
   }): ((
-    params: UrlHasParams<Url> extends true ? { urlParams: UrlParams<Url> } : {},
+    params: UrlHasParams<Url> extends true ? UrlParams<Url> : {},
   ) => UseMutationResult<
     Result,
     Error,
@@ -349,13 +345,11 @@ export interface ClientInstance {
       >,
       context: Context,
     ) => void | Promise<void>
-  }): (
-    params: UrlHasParams<Url> extends true ? { urlParams: UrlParams<Url> } : {},
-  ) => UseMutationResult<
+  }): (() => UseMutationResult<
     Result,
     Error,
     ClientMutationArgs<Url, undefined, QuerySchema>
-  > &
+  >) &
     ClientEndpointHelper<Method, Url, undefined, Response, QuerySchema>
 
   mutation<
@@ -386,7 +380,7 @@ export interface ClientInstance {
       context: Context,
     ) => void | Promise<void>
   }): ((
-    params: UrlHasParams<Url> extends true ? { urlParams: UrlParams<Url> } : {},
+    params: UrlHasParams<Url> extends true ? UrlParams<Url> : {},
   ) => UseMutationResult<
     Result,
     Error,
@@ -420,13 +414,11 @@ export interface ClientInstance {
       variables: Util_FlatObject<ClientMutationArgs<Url, undefined, undefined>>,
       context: Context,
     ) => void | Promise<void>
-  }): (
-    params: UrlHasParams<Url> extends true ? { urlParams: UrlParams<Url> } : {},
-  ) => UseMutationResult<
+  }): (() => UseMutationResult<
     Result,
     Error,
     ClientMutationArgs<Url, undefined, undefined>
-  > &
+  >) &
     ClientEndpointHelper<Method, Url, undefined, Response>
 
   queryFromEndpoint<
@@ -464,14 +456,14 @@ export interface ClientInstance {
     options?: {
       processResponse?: (data: z.output<Response>) => Result
     },
-  ): (
+  ): ((
     params: UrlHasParams<Url> extends true ? { urlParams: UrlParams<Url> } : {},
   ) => UseSuspenseQueryOptions<
     Result,
     Error,
     Result,
     DataTag<Split<Url, '/'>, Result, Error>
-  > &
+  >) &
     QueryHelpers<Url, undefined, Result>
 
   infiniteQueryFromEndpoint<
@@ -500,7 +492,7 @@ export interface ClientInstance {
         allPageParams: z.infer<QuerySchema>[] | undefined,
       ) => z.input<QuerySchema>
     },
-  ): (
+  ): ((
     params: UrlHasParams<Url> extends true ? { urlParams: UrlParams<Url> } : {},
   ) => UseSuspenseInfiniteQueryOptions<
     PageResult,
@@ -509,6 +501,364 @@ export interface ClientInstance {
     PageResult,
     DataTag<Split<Url, '/'>, PageResult, Error>,
     z.output<QuerySchema>
-  > &
+  >) &
     QueryHelpers<Url, QuerySchema, PageResult, true>
+
+  mutationFromEndpoint<
+    Method extends 'POST' | 'PUT' | 'PATCH' = 'POST' | 'PUT' | 'PATCH',
+    Url extends string = string,
+    RequestSchema extends ZodType = ZodType,
+    QuerySchema extends AnyZodObject = AnyZodObject,
+    Response extends ZodType = ZodType,
+    ReqResult = z.output<Response>,
+    Result = unknown,
+    Context = unknown,
+    UseKey extends true = true,
+  >(
+    endpoint: any & {
+      config: BaseEndpointConfig<
+        Method,
+        Url,
+        QuerySchema,
+        Response,
+        RequestSchema
+      >
+    },
+    mutationOptions: {
+      processResponse: ProcessResponseFunction<Result, ReqResult>
+      useKey: UseKey
+      useContext?: () => Context
+      onSuccess?: (
+        queryClient: QueryClient,
+        data: NoInfer<Result>,
+        variables: Util_FlatObject<
+          ClientMutationArgs<Url, RequestSchema, QuerySchema>
+        >,
+        context: Context,
+      ) => void | Promise<void>
+      onError?: (
+        queryClient: QueryClient,
+        error: Error,
+        variables: Util_FlatObject<
+          ClientMutationArgs<Url, RequestSchema, QuerySchema>
+        >,
+        context: Context,
+      ) => void | Promise<void>
+    },
+  ): ((
+    params: UrlHasParams<Url> extends true ? UrlParams<Url> : {},
+  ) => UseMutationResult<
+    Result,
+    Error,
+    ClientMutationArgs<Url, RequestSchema, QuerySchema>
+  >) &
+    MutationHelpers<Url, Result> &
+    ClientEndpointHelper<Method, Url, RequestSchema, Response, QuerySchema>
+
+  mutationFromEndpoint<
+    Method extends 'POST' | 'PUT' | 'PATCH' = 'POST' | 'PUT' | 'PATCH',
+    Url extends string = string,
+    RequestSchema extends ZodType = ZodType,
+    Response extends ZodType = ZodType,
+    ReqResult = z.output<Response>,
+    Result = unknown,
+    Context = unknown,
+    UseKey extends true = true,
+  >(
+    endpoint: any & {
+      config: BaseEndpointConfig<
+        Method,
+        Url,
+        undefined,
+        Response,
+        RequestSchema
+      >
+    },
+    mutationOptions: {
+      processResponse: ProcessResponseFunction<Result, ReqResult>
+      useKey: UseKey
+      useContext?: () => Context
+      onSuccess?: (
+        queryClient: QueryClient,
+        data: NoInfer<Result>,
+        variables: Util_FlatObject<
+          ClientMutationArgs<Url, RequestSchema, undefined>
+        >,
+        context: Context,
+      ) => void | Promise<void>
+      onError?: (
+        queryClient: QueryClient,
+        error: Error,
+        variables: Util_FlatObject<
+          ClientMutationArgs<Url, RequestSchema, undefined>
+        >,
+        context: Context,
+      ) => void | Promise<void>
+    },
+  ): ((
+    params: UrlHasParams<Url> extends true ? UrlParams<Url> : {},
+  ) => UseMutationResult<
+    Result,
+    Error,
+    ClientMutationArgs<Url, RequestSchema, undefined>
+  >) &
+    MutationHelpers<Url, Result> &
+    ClientEndpointHelper<Method, Url, RequestSchema, Response, undefined>
+
+  mutationFromEndpoint<
+    Method extends 'POST' | 'PUT' | 'PATCH' = 'POST' | 'PUT' | 'PATCH',
+    Url extends string = string,
+    RequestSchema extends ZodType = ZodType,
+    QuerySchema extends AnyZodObject = AnyZodObject,
+    Response extends ZodType = ZodType,
+    ReqResult = z.output<Response>,
+    Result = unknown,
+    Context = unknown,
+  >(
+    endpoint: any & {
+      config: BaseEndpointConfig<
+        Method,
+        Url,
+        QuerySchema,
+        Response,
+        RequestSchema
+      >
+    },
+    mutationOptions: {
+      processResponse: ProcessResponseFunction<Result, ReqResult>
+      useContext?: () => Context
+      onSuccess?: (
+        queryClient: QueryClient,
+        data: NoInfer<Result>,
+        variables: Util_FlatObject<
+          ClientMutationArgs<Url, RequestSchema, QuerySchema>
+        >,
+        context: Context,
+      ) => void | Promise<void>
+      onError?: (
+        queryClient: QueryClient,
+        error: Error,
+        variables: Util_FlatObject<
+          ClientMutationArgs<Url, RequestSchema, QuerySchema>
+        >,
+        context: Context,
+      ) => void | Promise<void>
+    },
+  ): (() => UseMutationResult<
+    Result,
+    Error,
+    ClientMutationArgs<Url, RequestSchema, QuerySchema>
+  >) &
+    ClientEndpointHelper<Method, Url, RequestSchema, Response, QuerySchema>
+
+  mutationFromEndpoint<
+    Method extends 'POST' | 'PUT' | 'PATCH' = 'POST' | 'PUT' | 'PATCH',
+    Url extends string = string,
+    RequestSchema extends ZodType = ZodType,
+    Response extends ZodType = ZodType,
+    ReqResult = z.output<Response>,
+    Result = unknown,
+    Context = unknown,
+  >(
+    endpoint: any & {
+      config: BaseEndpointConfig<
+        Method,
+        Url,
+        undefined,
+        Response,
+        RequestSchema
+      >
+    },
+    mutationOptions: {
+      processResponse: ProcessResponseFunction<Result, ReqResult>
+      useContext?: () => Context
+      onSuccess?: (
+        queryClient: QueryClient,
+        data: NoInfer<Result>,
+        variables: Util_FlatObject<
+          ClientMutationArgs<Url, RequestSchema, undefined>
+        >,
+        context: Context,
+      ) => void | Promise<void>
+      onError?: (
+        queryClient: QueryClient,
+        error: Error,
+        variables: Util_FlatObject<
+          ClientMutationArgs<Url, RequestSchema, undefined>
+        >,
+        context: Context,
+      ) => void | Promise<void>
+    },
+  ): (() => UseMutationResult<
+    Result,
+    Error,
+    ClientMutationArgs<Url, RequestSchema, undefined>
+  >) &
+    ClientEndpointHelper<Method, Url, RequestSchema, Response, undefined>
+
+  mutationFromEndpoint<
+    Method extends 'DELETE' = 'DELETE',
+    Url extends string = string,
+    QuerySchema extends AnyZodObject = AnyZodObject,
+    Response extends ZodType = ZodType,
+    ReqResult = z.output<Response>,
+    Result = unknown,
+    Context = unknown,
+    UseKey extends true = true,
+  >(
+    endpoint: any & {
+      config: BaseEndpointConfig<Method, Url, QuerySchema, Response>
+    },
+    mutationOptions: {
+      processResponse: ProcessResponseFunction<Result, ReqResult>
+      useKey: UseKey
+      useContext?: () => Context
+      onSuccess?: (
+        queryClient: QueryClient,
+        data: NoInfer<Result>,
+        variables: Util_FlatObject<
+          ClientMutationArgs<Url, undefined, QuerySchema>
+        >,
+        context: Context,
+      ) => void | Promise<void>
+      onError?: (
+        queryClient: QueryClient,
+        error: Error,
+        variables: Util_FlatObject<
+          ClientMutationArgs<Url, undefined, QuerySchema>
+        >,
+        context: Context,
+      ) => void | Promise<void>
+    },
+  ): ((
+    params: UrlHasParams<Url> extends true ? UrlParams<Url> : {},
+  ) => UseMutationResult<
+    Result,
+    Error,
+    ClientMutationArgs<Url, undefined, QuerySchema>
+  >) &
+    MutationHelpers<Url, Result> &
+    ClientEndpointHelper<Method, Url, undefined, Response, QuerySchema>
+
+  mutationFromEndpoint<
+    Method extends 'DELETE' = 'DELETE',
+    Url extends string = string,
+    Response extends ZodType = ZodType,
+    ReqResult = z.output<Response>,
+    Result = unknown,
+    Context = unknown,
+    UseKey extends true = true,
+  >(
+    endpoint: any & {
+      config: BaseEndpointConfig<Method, Url, undefined, Response>
+    },
+    mutationOptions: {
+      processResponse: ProcessResponseFunction<Result, ReqResult>
+      useKey: UseKey
+      useContext?: () => Context
+      onSuccess?: (
+        queryClient: QueryClient,
+        data: NoInfer<Result>,
+        variables: Util_FlatObject<
+          ClientMutationArgs<Url, undefined, undefined>
+        >,
+        context: Context,
+      ) => void | Promise<void>
+      onError?: (
+        queryClient: QueryClient,
+        error: Error,
+        variables: Util_FlatObject<
+          ClientMutationArgs<Url, undefined, undefined>
+        >,
+        context: Context,
+      ) => void | Promise<void>
+    },
+  ): ((
+    params: UrlHasParams<Url> extends true ? UrlParams<Url> : {},
+  ) => UseMutationResult<
+    Result,
+    Error,
+    ClientMutationArgs<Url, undefined, undefined>
+  >) &
+    MutationHelpers<Url, Result> &
+    ClientEndpointHelper<Method, Url, undefined, Response, undefined>
+
+  mutationFromEndpoint<
+    Method extends 'DELETE' = 'DELETE',
+    Url extends string = string,
+    QuerySchema extends AnyZodObject = AnyZodObject,
+    Response extends ZodType = ZodType,
+    ReqResult = z.output<Response>,
+    Result = unknown,
+    Context = unknown,
+  >(
+    endpoint: any & {
+      config: BaseEndpointConfig<Method, Url, QuerySchema, Response>
+    },
+    mutationOptions: {
+      processResponse: ProcessResponseFunction<Result, ReqResult>
+      useContext?: () => Context
+      onSuccess?: (
+        queryClient: QueryClient,
+        data: NoInfer<Result>,
+        variables: Util_FlatObject<
+          ClientMutationArgs<Url, undefined, QuerySchema>
+        >,
+        context: Context,
+      ) => void | Promise<void>
+      onError?: (
+        queryClient: QueryClient,
+        error: Error,
+        variables: Util_FlatObject<
+          ClientMutationArgs<Url, undefined, QuerySchema>
+        >,
+        context: Context,
+      ) => void | Promise<void>
+    },
+  ): (() => UseMutationResult<
+    Result,
+    Error,
+    ClientMutationArgs<Url, undefined, QuerySchema>
+  >) &
+    ClientEndpointHelper<Method, Url, undefined, Response, QuerySchema>
+
+  mutationFromEndpoint<
+    Method extends 'DELETE' = 'DELETE',
+    Url extends string = string,
+    Response extends ZodType = ZodType,
+    ReqResult = z.output<Response>,
+    Result = unknown,
+    Context = unknown,
+  >(
+    endpoint: any & {
+      config: BaseEndpointConfig<Method, Url, undefined, Response>
+    },
+    mutationOptions: {
+      processResponse: ProcessResponseFunction<Result, ReqResult>
+      useContext?: () => Context
+      onSuccess?: (
+        queryClient: QueryClient,
+        data: NoInfer<Result>,
+        variables: Util_FlatObject<
+          ClientMutationArgs<Url, undefined, undefined>
+        >,
+        context: Context,
+      ) => void | Promise<void>
+      onError?: (
+        queryClient: QueryClient,
+        error: Error,
+        variables: Util_FlatObject<
+          ClientMutationArgs<Url, undefined, undefined>
+        >,
+        context: Context,
+      ) => void | Promise<void>
+    },
+  ): ((
+    params: UrlHasParams<Url> extends true ? UrlParams<Url> : {},
+  ) => UseMutationResult<
+    Result,
+    Error,
+    ClientMutationArgs<Url, undefined, undefined>
+  >) &
+    ClientEndpointHelper<Method, Url, undefined, Response, undefined>
 }
