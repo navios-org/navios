@@ -2,6 +2,7 @@ import type {
   BaseEndpointConfig,
   EndpointFunctionArgs,
   HttpMethod,
+  Util_FlatObject,
 } from '@navios/common'
 import type { AnyZodObject, z, ZodType } from 'zod'
 
@@ -18,19 +19,25 @@ export type MultipartParams<
   QuerySchema = EndpointDeclaration['config']['querySchema'],
 > = QuerySchema extends AnyZodObject
   ? EndpointDeclaration['config']['requestSchema'] extends ZodType
-    ? EndpointFunctionArgs<
-        Url,
-        QuerySchema,
-        EndpointDeclaration['config']['requestSchema']
+    ? Util_FlatObject<
+        EndpointFunctionArgs<
+          Url,
+          QuerySchema,
+          EndpointDeclaration['config']['requestSchema'],
+          true
+        >
       >
-    : EndpointFunctionArgs<Url, QuerySchema, undefined>
+    : Util_FlatObject<EndpointFunctionArgs<Url, QuerySchema, undefined, true>>
   : EndpointDeclaration['config']['requestSchema'] extends ZodType
-    ? EndpointFunctionArgs<
-        Url,
-        undefined,
-        EndpointDeclaration['config']['requestSchema']
+    ? Util_FlatObject<
+        EndpointFunctionArgs<
+          Url,
+          undefined,
+          EndpointDeclaration['config']['requestSchema'],
+          true
+        >
       >
-    : EndpointFunctionArgs<Url, undefined, undefined>
+    : Util_FlatObject<EndpointFunctionArgs<Url, undefined, undefined, true>>
 
 export type MultipartResult<
   EndpointDeclaration extends {

@@ -2,6 +2,7 @@ import type {
   BaseStreamConfig,
   EndpointFunctionArgs,
   HttpMethod,
+  Util_FlatObject,
 } from '@navios/common'
 import type { FastifyReply } from 'fastify'
 import type { AnyZodObject, ZodType } from 'zod'
@@ -17,19 +18,25 @@ export type StreamParams<
   QuerySchema = EndpointDeclaration['config']['querySchema'],
 > = QuerySchema extends AnyZodObject
   ? EndpointDeclaration['config']['requestSchema'] extends ZodType
-    ? EndpointFunctionArgs<
-        Url,
-        QuerySchema,
-        EndpointDeclaration['config']['requestSchema']
+    ? Util_FlatObject<
+        EndpointFunctionArgs<
+          Url,
+          QuerySchema,
+          EndpointDeclaration['config']['requestSchema'],
+          true
+        >
       >
-    : EndpointFunctionArgs<Url, QuerySchema, undefined>
+    : Util_FlatObject<EndpointFunctionArgs<Url, QuerySchema, undefined, true>>
   : EndpointDeclaration['config']['requestSchema'] extends ZodType
-    ? EndpointFunctionArgs<
-        Url,
-        undefined,
-        EndpointDeclaration['config']['requestSchema']
+    ? Util_FlatObject<
+        EndpointFunctionArgs<
+          Url,
+          undefined,
+          EndpointDeclaration['config']['requestSchema'],
+          true
+        >
       >
-    : EndpointFunctionArgs<Url, undefined, undefined>
+    : Util_FlatObject<EndpointFunctionArgs<Url, undefined, undefined, true>>
 
 export function Stream<
   Method extends HttpMethod = HttpMethod,

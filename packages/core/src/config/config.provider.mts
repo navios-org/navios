@@ -1,4 +1,5 @@
 import {
+  BoundInjectionToken,
   Injectable,
   InjectableType,
   InjectionToken,
@@ -52,6 +53,9 @@ export class ConfigProviderFactory {
 
 export function provideConfig<ConfigMap extends Record<string, unknown>>(
   options: z.input<typeof ConfigProviderOptions>,
-) {
+): BoundInjectionToken<
+  ConfigServiceInstance<ConfigMap>,
+  typeof ConfigProviderOptions
+> {
   return InjectionToken.bound(ConfigProvider, options)
 }
