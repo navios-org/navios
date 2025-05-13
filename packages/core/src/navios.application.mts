@@ -149,7 +149,7 @@ export class NaviosApplication {
         message: 'Not Found',
         error: 'NotFound',
       }
-      this.logger.error(`Route not found: ${req.url}`)
+      this.logger.error(`Route not found: [${req.method}] ${req.url}`)
       return reply.status(404).send(response)
     })
   }
@@ -178,15 +178,14 @@ export class NaviosApplication {
       }
       promises.push(
         this.server!.register(
-          (instance, opts, done) => {
+          async (instance, opts) => {
             for (const controller of moduleMetadata.controllers) {
-              this.controllerAdapter.setupController(
+              await this.controllerAdapter.setupController(
                 controller,
                 instance,
                 moduleMetadata,
               )
             }
-            done()
           },
           {
             prefix: this.globalPrefix ?? '',

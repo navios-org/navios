@@ -4,14 +4,14 @@ import type {
   ClassTypeWithInstance,
   InjectionToken,
 } from '../service-locator/index.mjs'
-import type { EndpointMetadata } from './endpoint.metadata.mjs'
+import type { HandlerMetadata } from './handler.metadata.mjs'
 
-import { getAllEndpointMetadata } from './endpoint.metadata.mjs'
+import { getAllEndpointMetadata } from './handler.metadata.mjs'
 
 export const ControllerMetadataKey = Symbol('ControllerMetadataKey')
 
 export interface ControllerMetadata {
-  endpoints: Set<EndpointMetadata>
+  endpoints: Set<HandlerMetadata>
   guards: Set<
     ClassTypeWithInstance<CanActivate> | InjectionToken<CanActivate, undefined>
   >

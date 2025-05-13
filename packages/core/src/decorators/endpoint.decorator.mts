@@ -7,7 +7,8 @@ import type { AnyZodObject, z, ZodType } from 'zod'
 
 import { ZodDiscriminatedUnion } from 'zod'
 
-import { EndpointType, getEndpointMetadata } from '../metadata/index.mjs'
+import { EndpointAdapterToken } from '../adapters/index.mjs'
+import { getEndpointMetadata } from '../metadata/index.mjs'
 
 export type EndpointParams<
   EndpointDeclaration extends {
@@ -82,7 +83,10 @@ export function Endpoint<
     }
     const config = endpoint.config
     if (context.metadata) {
-      let endpointMetadata = getEndpointMetadata(target, context)
+      let endpointMetadata = getEndpointMetadata<BaseEndpointConfig>(
+        target,
+        context,
+      )
       if (endpointMetadata.config && endpointMetadata.config.url) {
         throw new Error(
           `[Navios] Endpoint ${config.method} ${config.url} already exists. Please use a different method or url.`,
@@ -90,7 +94,7 @@ export function Endpoint<
       }
       // @ts-expect-error We don't need to set correctly in the metadata
       endpointMetadata.config = config
-      endpointMetadata.type = EndpointType.Endpoint
+      endpointMetadata.adapterToken = EndpointAdapterToken
       endpointMetadata.classMethod = target.name
       endpointMetadata.httpMethod = config.method
       endpointMetadata.url = config.url

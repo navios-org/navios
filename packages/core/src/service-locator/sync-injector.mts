@@ -9,6 +9,20 @@ import { getServiceLocator } from './injector.mjs'
 let promiseCollector: null | ((promise: Promise<any>) => void) = null
 
 export function syncInject<T extends ClassType>(token: T): InstanceType<T>
+// Not supported by TypeScript yet
+// export function syncInject<
+//   R,
+//   T extends ClassType & {
+//     [InjectableTokenMeta]: InjectionToken<R, undefined>
+//   },
+// >(token: T): R
+// export function syncInject<
+//   R,
+//   S extends AnyZodObject,
+//   T extends ClassType & {
+//     [InjectableTokenMeta]: InjectionToken<R, S>
+//   },
+// >(token: T, args: z.input<S>): R
 export function syncInject<T, S extends AnyZodObject>(
   token: InjectionToken<T, S>,
   args: z.input<S>,

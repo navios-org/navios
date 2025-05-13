@@ -4,7 +4,6 @@ import { getModuleMetadata } from '../metadata/index.mjs'
 import {
   Injectable,
   InjectableScope,
-  InjectableType,
   InjectionToken,
 } from '../service-locator/index.mjs'
 
@@ -14,7 +13,13 @@ export interface ModuleOptions {
   guards?: ClassType[] | Set<ClassType>
 }
 
-export function Module(metadata: ModuleOptions) {
+export function Module(
+  { controllers = [], imports = [], guards = [] }: ModuleOptions = {
+    controllers: [],
+    imports: [],
+    guards: [],
+  },
+) {
   return (target: ClassType, context: ClassDecoratorContext) => {
     if (context.kind !== 'class') {
       throw new Error('[Navios] @Module decorator can only be used on classes.')
@@ -22,25 +27,18 @@ export function Module(metadata: ModuleOptions) {
     // Register the module in the service locator
     const token = InjectionToken.create(target)
     const moduleMetadata = getModuleMetadata(target, context)
-    if (metadata.controllers) {
-      for (const controller of metadata.controllers) {
-        moduleMetadata.controllers.add(controller)
-      }
+    for (const controller of controllers) {
+      moduleMetadata.controllers.add(controller)
     }
-    if (metadata.imports) {
-      for (const importedModule of metadata.imports) {
-        moduleMetadata.imports.add(importedModule)
-      }
+    for (const importedModule of imports) {
+      moduleMetadata.imports.add(importedModule)
     }
-    if (metadata.guards) {
-      for (const guard of Array.from(metadata.guards).reverse()) {
-        moduleMetadata.guards.add(guard)
-      }
+    for (const guard of Array.from(guards).reverse()) {
+      moduleMetadata.guards.add(guard)
     }
 
     return Injectable({
       token,
-      type: InjectableType.Class,
       scope: InjectableScope.Singleton,
     })(target, context)
   }

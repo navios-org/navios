@@ -6,7 +6,8 @@ import type {
 import type { FastifyReply } from 'fastify'
 import type { AnyZodObject, ZodType } from 'zod'
 
-import { EndpointType, getEndpointMetadata } from '../metadata/index.mjs'
+import { StreamAdapterToken } from '../adapters/index.mjs'
+import { getEndpointMetadata } from '../metadata/index.mjs'
 
 export type StreamParams<
   EndpointDeclaration extends {
@@ -63,7 +64,10 @@ export function Stream<
     }
     const config = endpoint.config
     if (context.metadata) {
-      let endpointMetadata = getEndpointMetadata(target, context)
+      let endpointMetadata = getEndpointMetadata<BaseStreamConfig>(
+        target,
+        context,
+      )
       if (endpointMetadata.config && endpointMetadata.config.url) {
         throw new Error(
           `[Navios] Endpoint ${config.method} ${config.url} already exists. Please use a different method or url.`,
@@ -71,7 +75,7 @@ export function Stream<
       }
       // @ts-expect-error We don't need to set correctly in the metadata
       endpointMetadata.config = config
-      endpointMetadata.type = EndpointType.Stream
+      endpointMetadata.adapterToken = StreamAdapterToken
       endpointMetadata.classMethod = target.name
       endpointMetadata.httpMethod = config.method
       endpointMetadata.url = config.url

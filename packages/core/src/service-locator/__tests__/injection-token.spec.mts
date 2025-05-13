@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
 
+import type {
+  Factory,
+  FactoryWithArgs,
+} from '../interfaces/factory.interface.mjs'
+
 import { Injectable, InjectableType } from '../decorators/index.mjs'
 import { inject } from '../inject.mjs'
 import { InjectionToken } from '../injection-token.mjs'
@@ -39,13 +44,13 @@ describe('InjectToken', () => {
   })
 
   it('should work with factory', async () => {
-    const token = InjectionToken.create('Test')
+    const token = InjectionToken.create<string>('Test')
     @Injectable({
       token,
       type: InjectableType.Factory,
     })
-    class Test {
-      create() {
+    class Test implements Factory<string> {
+      async create() {
         return 'foo'
       }
     }
@@ -64,8 +69,8 @@ describe('InjectToken', () => {
       token,
       type: InjectableType.Factory,
     })
-    class Test {
-      create(ctx: any, args: { test: string }) {
+    class Test implements FactoryWithArgs<string, typeof schema> {
+      async create(ctx: any, args: { test: string }) {
         return args.test
       }
     }

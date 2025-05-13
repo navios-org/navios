@@ -2,7 +2,7 @@ import type { FastifyReply, FastifyRequest } from 'fastify'
 
 import type {
   ControllerMetadata,
-  EndpointMetadata,
+  HandlerMetadata,
   ModuleMetadata,
 } from '../metadata/index.mjs'
 
@@ -12,7 +12,7 @@ export class ExecutionContext {
   constructor(
     private readonly module: ModuleMetadata,
     private readonly controller: ControllerMetadata,
-    private readonly handler: EndpointMetadata,
+    private readonly handler: HandlerMetadata,
   ) {}
   getModule(): ModuleMetadata {
     return this.module
@@ -22,7 +22,7 @@ export class ExecutionContext {
     return this.controller
   }
 
-  getHandler(): EndpointMetadata {
+  getHandler(): HandlerMetadata {
     return this.handler
   }
 
@@ -47,6 +47,7 @@ export class ExecutionContext {
   provideRequest(request: FastifyRequest): void {
     this.request = request
   }
+
   provideReply(reply: FastifyReply): void {
     this.reply = reply
   }

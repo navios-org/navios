@@ -16,7 +16,6 @@ const dateTimeFormatter = new Intl.DateTimeFormat(undefined, {
   month: '2-digit',
 })
 
-// @ts-expect-error We don't need to support this in the current version
 @Injectable()
 export class LoggerInstance implements LoggerService {
   protected static staticInstanceRef?: LoggerService = DEFAULT_LOGGER

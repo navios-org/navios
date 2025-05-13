@@ -1,6 +1,12 @@
+import type { AnyZodObject } from 'zod'
+
 import { NaviosException } from '@navios/common'
 
-import type { ClassType } from '../injection-token.mjs'
+import type { ClassType, ClassTypeWithInstance } from '../injection-token.mjs'
+import type {
+  Factory,
+  FactoryWithArgs,
+} from '../interfaces/factory.interface.mjs'
 
 import { InjectableScope } from '../enums/index.mjs'
 import { InjectionToken } from '../injection-token.mjs'
@@ -18,14 +24,55 @@ export interface InjectableOptions {
   token?: InjectionToken<any, any>
 }
 
-export const InjectableTokenMeta = Symbol('InjectableTokenMeta')
+export const InjectableTokenMeta = Symbol.for('InjectableTokenMeta')
 
+export function Injectable(): <T extends ClassType>(
+  target: T,
+  context: ClassDecoratorContext,
+) => T & { [InjectableTokenMeta]: InjectionToken<InstanceType<T>, undefined> }
+export function Injectable<T extends ClassType>(options: {
+  scope?: InjectableScope
+  token: InjectionToken<T, undefined>
+}): (
+  target: T,
+  context: ClassDecoratorContext,
+) => T & {
+  [InjectableTokenMeta]: InjectionToken<InstanceType<T>, undefined>
+}
+export function Injectable<R>(options: {
+  scope?: InjectableScope
+  type: InjectableType.Factory
+}): <T extends ClassTypeWithInstance<Factory<R>>>(
+  target: T,
+  context: ClassDecoratorContext,
+) => T & { [InjectableTokenMeta]: InjectionToken<R, undefined> }
+export function Injectable<R, S extends AnyZodObject>(options: {
+  scope?: InjectableScope
+  type: InjectableType.Factory
+  token: InjectionToken<R, S>
+}): <T extends ClassTypeWithInstance<FactoryWithArgs<R, S>>>(
+  target: T,
+  context: ClassDecoratorContext,
+) => T & { [InjectableTokenMeta]: InjectionToken<R, S> }
+export function Injectable<R>(options: {
+  scope?: InjectableScope
+  type: InjectableType.Factory
+  token: InjectionToken<R, undefined>
+}): <T extends ClassTypeWithInstance<Factory<R>>>(
+  target: T,
+  context: ClassDecoratorContext,
+) => T & { [InjectableTokenMeta]: InjectionToken<R, undefined> }
 export function Injectable({
   scope = InjectableScope.Singleton,
   type = InjectableType.Class,
   token,
 }: InjectableOptions = {}) {
-  return (target: ClassType, context: ClassDecoratorContext) => {
+  return <T extends ClassType>(
+    target: T,
+    context: ClassDecoratorContext,
+  ): T & {
+    [InjectableTokenMeta]: InjectionToken<any, any>
+  } => {
     if (context.kind !== 'class') {
       throw new Error(
         '[ServiceLocator] @Injectable decorator can only be used on classes.',
@@ -59,6 +106,8 @@ export function Injectable({
     // @ts-expect-error
     target[InjectableTokenMeta] = injectableToken
 
-    return target
+    return target as T & {
+      [InjectableTokenMeta]: InjectionToken<any, any>
+    }
   }
 }

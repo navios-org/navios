@@ -7,6 +7,20 @@ import { InjectionToken } from './injection-token.mjs'
 import { getServiceLocator } from './injector.mjs'
 
 export function inject<T extends ClassType>(token: T): Promise<InstanceType<T>>
+// Not supported by TypeScript yet
+// export function inject<
+//   R,
+//   T extends ClassType & {
+//     [InjectableTokenMeta]: InjectionToken<R, undefined>
+//   },
+// >(token: T): Promise<R>
+// export function inject<
+//   R,
+//   S extends AnyZodObject,
+//   T extends ClassType & {
+//     [InjectableTokenMeta]: InjectionToken<R, S>
+//   },
+// >(token: T, args: z.input<S>): Promise<R>
 export function inject<T, S extends AnyZodObject>(
   token: InjectionToken<T, S>,
   args: z.input<S>,

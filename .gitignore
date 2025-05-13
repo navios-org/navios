@@ -19,3 +19,4 @@ tmp
 .nx/cache
 .angular
 .nx
+tsconfig.tsbuildinfo

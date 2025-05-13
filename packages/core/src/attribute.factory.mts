@@ -2,7 +2,7 @@ import type { z, ZodType } from 'zod'
 
 import type {
   ControllerMetadata,
-  EndpointMetadata,
+  HandlerMetadata,
   ModuleMetadata,
 } from './metadata/index.mjs'
 import type { ClassType } from './service-locator/index.mjs'
@@ -86,30 +86,30 @@ export class AttributeFactory {
 
   static get(
     attribute: ClassAttribute,
-    target: ModuleMetadata | ControllerMetadata | EndpointMetadata,
+    target: ModuleMetadata | ControllerMetadata | HandlerMetadata<any>,
   ): true | null
   static get<T extends ZodType>(
     attribute: ClassSchemaAttribute<T>,
-    target: ModuleMetadata | ControllerMetadata | EndpointMetadata,
+    target: ModuleMetadata | ControllerMetadata | HandlerMetadata<any>,
   ): z.output<T> | null
   static get(
     attribute: ClassAttribute | ClassSchemaAttribute<any>,
-    target: ModuleMetadata | ControllerMetadata | EndpointMetadata,
+    target: ModuleMetadata | ControllerMetadata | HandlerMetadata<any>,
   ) {
     return target.customAttributes.get(attribute.token) ?? null
   }
 
   static getAll(
     attribute: ClassAttribute,
-    target: ModuleMetadata | ControllerMetadata | EndpointMetadata,
+    target: ModuleMetadata | ControllerMetadata | HandlerMetadata<any>,
   ): Array<true> | null
   static getAll<T extends ZodType>(
     attribute: ClassSchemaAttribute<T>,
-    target: ModuleMetadata | ControllerMetadata | EndpointMetadata,
+    target: ModuleMetadata | ControllerMetadata | HandlerMetadata<any>,
   ): Array<z.output<T>> | null
   static getAll(
     attribute: ClassAttribute | ClassSchemaAttribute<any>,
-    target: ModuleMetadata | ControllerMetadata | EndpointMetadata,
+    target: ModuleMetadata | ControllerMetadata | HandlerMetadata<any>,
   ) {
     const values = Array.from(target.customAttributes.entries())
       .filter(([key]) => key === attribute.token)
@@ -119,15 +119,15 @@ export class AttributeFactory {
 
   static getLast(
     attribute: ClassAttribute,
-    target: (ModuleMetadata | ControllerMetadata | EndpointMetadata)[],
+    target: (ModuleMetadata | ControllerMetadata | HandlerMetadata<any>)[],
   ): true | null
   static getLast<T extends ZodType>(
     attribute: ClassSchemaAttribute<T>,
-    target: (ModuleMetadata | ControllerMetadata | EndpointMetadata)[],
+    target: (ModuleMetadata | ControllerMetadata | HandlerMetadata<any>)[],
   ): z.output<T> | null
   static getLast(
     attribute: ClassAttribute | ClassSchemaAttribute<any>,
-    target: (ModuleMetadata | ControllerMetadata | EndpointMetadata)[],
+    target: (ModuleMetadata | ControllerMetadata | HandlerMetadata<any>)[],
   ) {
     for (let i = target.length - 1; i >= 0; i--) {
       const value = target[i].customAttributes.get(attribute.token)
@@ -140,15 +140,15 @@ export class AttributeFactory {
 
   static has(
     attribute: ClassAttribute,
-    target: ModuleMetadata | ControllerMetadata | EndpointMetadata,
+    target: ModuleMetadata | ControllerMetadata | HandlerMetadata<any>,
   ): boolean
   static has<T extends ZodType>(
     attribute: ClassSchemaAttribute<T>,
-    target: ModuleMetadata | ControllerMetadata | EndpointMetadata,
+    target: ModuleMetadata | ControllerMetadata | HandlerMetadata<any>,
   ): boolean
   static has(
     attribute: ClassAttribute | ClassSchemaAttribute<any>,
-    target: ModuleMetadata | ControllerMetadata | EndpointMetadata,
+    target: ModuleMetadata | ControllerMetadata | HandlerMetadata<any>,
   ) {
     return target.customAttributes.has(attribute.token)
   }

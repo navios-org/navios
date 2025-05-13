@@ -29,13 +29,19 @@ export class ConfigProviderFactory {
     context: 'ConfigService',
   })
 
-  async create(ctx: any, args: z.infer<typeof ConfigProviderOptions>) {
+  async create(
+    ctx: any,
+    args: z.infer<typeof ConfigProviderOptions>,
+  ): Promise<ConfigService> {
     const { load } = args
     const logger = this.logger
     try {
       const config = await load()
 
-      return new ConfigServiceInstance(config, logger)
+      return new ConfigServiceInstance(
+        config,
+        logger,
+      ) as unknown as ConfigService
     } catch (error) {
       logger.error('Error loading config', error)
       throw error

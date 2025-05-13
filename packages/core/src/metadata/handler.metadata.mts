@@ -1,10 +1,7 @@
-import type {
-  BaseEndpointConfig,
-  BaseStreamConfig,
-  HttpMethod,
-} from '@navios/common'
+import type { HttpMethod } from '@navios/common'
 import type { HttpHeader } from 'fastify/types/utils.js'
 
+import type { HandlerAdapterInterface } from '../adapters/index.mjs'
 import type { CanActivate } from '../interfaces/index.mjs'
 import type {
   ClassTypeWithInstance,
@@ -13,22 +10,17 @@ import type {
 
 export const EndpointMetadataKey = Symbol('EndpointMetadataKey')
 
-export enum EndpointType {
-  Unknown = 'unknown',
-  Endpoint = 'endpoint',
-  Stream = 'stream',
-  Multipart = 'multipart',
-  Handler = 'handler',
-}
-
-export interface EndpointMetadata {
+export interface HandlerMetadata<Config = null> {
   classMethod: string
   url: string
   successStatusCode: number
-  type: EndpointType
+  adapterToken:
+    | InjectionToken<HandlerAdapterInterface, undefined>
+    | ClassTypeWithInstance<HandlerAdapterInterface>
+    | null
   headers: Partial<Record<HttpHeader, number | string | string[] | undefined>>
   httpMethod: HttpMethod
-  config: BaseEndpointConfig | BaseStreamConfig | null
+  config: Config
   guards: Set<
     ClassTypeWithInstance<CanActivate> | InjectionToken<CanActivate, undefined>
   >
@@ -37,25 +29,25 @@ export interface EndpointMetadata {
 
 export function getAllEndpointMetadata(
   context: ClassMethodDecoratorContext | ClassDecoratorContext,
-): Set<EndpointMetadata> {
+): Set<HandlerMetadata<any>> {
   if (context.metadata) {
     const metadata = context.metadata[EndpointMetadataKey] as
-      | Set<EndpointMetadata>
+      | Set<HandlerMetadata>
       | undefined
     if (metadata) {
       return metadata
     } else {
-      context.metadata[EndpointMetadataKey] = new Set<EndpointMetadata>()
-      return context.metadata[EndpointMetadataKey] as Set<EndpointMetadata>
+      context.metadata[EndpointMetadataKey] = new Set<HandlerMetadata<any>>()
+      return context.metadata[EndpointMetadataKey] as Set<HandlerMetadata<any>>
     }
   }
   throw new Error('[Navios] Wrong environment.')
 }
 
-export function getEndpointMetadata(
+export function getEndpointMetadata<Config = any>(
   target: Function,
   context: ClassMethodDecoratorContext,
-): EndpointMetadata {
+): HandlerMetadata<Config> {
   if (context.metadata) {
     const metadata = getAllEndpointMetadata(context)
     if (metadata) {
@@ -65,13 +57,14 @@ export function getEndpointMetadata(
       if (endpointMetadata) {
         return endpointMetadata
       } else {
-        const newMetadata: EndpointMetadata = {
+        const newMetadata: HandlerMetadata<Config> = {
           classMethod: target.name,
           url: '',
           successStatusCode: 200,
+          adapterToken: null,
           headers: {},
-          type: EndpointType.Unknown,
           httpMethod: 'GET',
+          // @ts-expect-error We are using a generic type here
           config: null,
           guards: new Set<
             | ClassTypeWithInstance<CanActivate>

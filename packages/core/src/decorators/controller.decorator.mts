@@ -4,7 +4,6 @@ import { getControllerMetadata } from '../metadata/index.mjs'
 import {
   Injectable,
   InjectableScope,
-  InjectableType,
   InjectionToken,
 } from '../service-locator/index.mjs'
 
@@ -29,7 +28,6 @@ export function Controller({ guards }: ControllerOptions = {}) {
     }
     return Injectable({
       token,
-      type: InjectableType.Class,
       scope: InjectableScope.Instance,
     })(target, context)
   }
