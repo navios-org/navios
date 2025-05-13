@@ -90,22 +90,18 @@ export class ServiceLocator {
   }
 
   public removeInstance<Instance>(
-    instance: Instance,
     token: BoundInjectionToken<Instance, any>,
   ): void
   public removeInstance<Instance>(
-    instance: Instance,
     token: FactoryInjectionToken<Instance, any>,
   ): void
   public removeInstance<Instance>(
-    instance: Instance,
     token: InjectionToken<Instance, undefined>,
   ): void
   public removeInstance<
     Instance,
     Schema extends AnyZodObject | ZodOptional<AnyZodObject>,
   >(
-    instance: Instance,
     token: InjectionToken<Instance, Schema>,
     args: z.input<Schema>,
   ): void
