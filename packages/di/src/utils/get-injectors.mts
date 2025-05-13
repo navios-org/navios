@@ -35,7 +35,7 @@ export interface Injectors {
   ): T
   syncInject<T, S extends ZodOptional<AnyZodObject>>(
     token: InjectionToken<T, S>,
-    args: z.input<S>,
+    args?: z.input<S>,
   ): T
   syncInject<T>(token: InjectionToken<T, undefined>): T
   syncInject<T>(token: BoundInjectionToken<T, any>): T
