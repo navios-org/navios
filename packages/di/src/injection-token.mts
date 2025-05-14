@@ -5,8 +5,10 @@ import { randomUUID } from 'crypto'
 import { z, ZodOptional } from 'zod'
 
 export type ClassType = new (...args: any[]) => any
+export type ClassTypeWithArgument<Arg> = new (arg: Arg) => any
 
 export type ClassTypeWithInstance<T> = new (...args: any[]) => T
+export type ClassTypeWithInstanceAndArgument<T, Arg> = new (arg: Arg) => T
 
 export class InjectionToken<
   T,

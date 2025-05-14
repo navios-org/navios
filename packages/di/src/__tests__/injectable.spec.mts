@@ -79,7 +79,7 @@ describe('Injectable decorator', () => {
     expect(value).toBeInstanceOf(Test)
   })
 
-  it('should work with injection token and schema', async () => {
+  it('should work with factory injection token and schema', async () => {
     class TestFoo {
       constructor(public readonly foo: string) {}
     }
@@ -163,5 +163,23 @@ describe('Injectable decorator', () => {
     expect(inst1).toBe(inst2)
     const result2 = await inst2.makeFoo()
     expect(result1).toBe(result2)
+  })
+
+  it('should work with constructor argument', async () => {
+    const schema = z.object({
+      foo: z.string(),
+    })
+
+    const token = InjectionToken.create('Test', schema)
+
+    @Injectable({ token })
+    class Test {
+      constructor(public readonly arg: z.output<typeof schema>) {}
+    }
+
+    const value = await inject(token, { foo: 'bar' })
+    expect(value).toBeInstanceOf(Test)
+    // @ts-expect-error It's a test
+    expect(value.arg).toEqual({ foo: 'bar' })
   })
 })
