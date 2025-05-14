@@ -1,5 +1,3 @@
-import { NaviosException } from '@navios/common'
-
 import type { FactoryContext } from './factory-context.mjs'
 import type { ClassType } from './injection-token.mjs'
 
@@ -30,11 +28,11 @@ export async function resolveService<T extends ClassType>(
   }
   if (promises.length > 0) {
     console.error(`[ServiceLocator] ${target.name} has problem with it's definition.
-     
+
      One or more of the dependencies are registered as a InjectableScope.Instance and are used with syncInject.
-     
+
      Please use inject instead of syncInject to load those dependencies.`)
-    throw new NaviosException(
+    throw new Error(
       `[ServiceLocator] Service ${target.name} cannot be instantiated.`,
     )
   }

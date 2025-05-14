@@ -1,4 +1,4 @@
-import type { AnyZodObject, z } from 'zod'
+import type { AnyZodObject, z, ZodType } from 'zod'
 
 import type {
   BaseInjectionTokenSchemaType,
@@ -6,6 +6,7 @@ import type {
   ClassType,
   FactoryInjectionToken,
   InjectionToken,
+  InjectionTokenSchemaType,
   OptionalInjectionTokenSchemaType,
 } from '../injection-token.mjs'
 import type { ServiceLocator } from '../service-locator.mjs'
@@ -15,32 +16,75 @@ import { InjectableTokenMeta } from '../symbols/index.mjs'
 export interface CreateInjectorsOptions {
   baseLocator: ServiceLocator
 }
+type Join<TElements, TSeparator extends string> =
+  TElements extends Readonly<[infer First, ...infer Rest]>
+    ? Rest extends ReadonlyArray<string>
+      ? First extends string
+        ? `${First}${Rest extends [] ? '' : TSeparator}${Join<Rest, TSeparator>}`
+        : never
+      : never
+    : ''
+// credits goes to https://stackoverflow.com/a/50375286
+type UnionToIntersection<U> = (U extends any ? (k: U) => void : never) extends (
+  k: infer I,
+) => void
+  ? I
+  : never
+
+// Converts union to overloaded function
+type UnionToOvlds<U> = UnionToIntersection<
+  U extends any ? (f: U) => void : never
+>
+
+type PopUnion<U> = UnionToOvlds<U> extends (a: infer A) => void ? A : never
+
+type IsUnion<T> = [T] extends [UnionToIntersection<T>] ? false : true
+
+type UnionToArray<T, A extends unknown[] = []> =
+  IsUnion<T> extends true
+    ? UnionToArray<Exclude<T, PopUnion<T>>, [PopUnion<T>, ...A]>
+    : [T, ...A]
 
 export interface Injectors {
   // #1 Simple class
   inject<T extends ClassType>(token: T): Promise<InstanceType<T>>
   // #2 Token with required Schema
-  inject<T, S extends BaseInjectionTokenSchemaType>(
+  inject<T, S extends InjectionTokenSchemaType>(
     token: InjectionToken<T, S>,
     args: z.input<S>,
   ): Promise<T>
-  inject<T, S extends OptionalInjectionTokenSchemaType>(
-    token: InjectionToken<T, S>,
-    args?: z.input<S>,
-  ): Promise<T>
+  // #3 Token with optional Schema
+  inject<T, S extends InjectionTokenSchemaType, R extends boolean>(
+    token: InjectionToken<T, S, R>,
+  ): R extends false
+    ? Promise<T>
+    : S extends ZodType<infer Type>
+      ? `Error: Your token requires args: ${Join<
+          UnionToArray<keyof Type>,
+          ', '
+        >}`
+      : 'Error: Your token requires args'
+  // #4 Token with no Schema
   inject<T>(token: InjectionToken<T, undefined>): Promise<T>
   inject<T>(token: BoundInjectionToken<T, any>): Promise<T>
   inject<T>(token: FactoryInjectionToken<T, any>): Promise<T>
 
   syncInject<T extends ClassType>(token: T): InstanceType<T>
-  syncInject<T, S extends BaseInjectionTokenSchemaType>(
+  syncInject<T, S extends InjectionTokenSchemaType>(
     token: InjectionToken<T, S>,
     args: z.input<S>,
   ): T
-  syncInject<T, S extends OptionalInjectionTokenSchemaType>(
-    token: InjectionToken<T, S>,
-    args?: z.input<S>,
-  ): T
+  // #3 Token with optional Schema
+  syncInject<T, S extends InjectionTokenSchemaType, R extends boolean>(
+    token: InjectionToken<T, S, R>,
+  ): R extends false
+    ? T
+    : S extends ZodType<infer Type>
+      ? `Error: Your token requires args: ${Join<
+          UnionToArray<keyof Type>,
+          ', '
+        >}`
+      : 'Error: Your token requires args'
   syncInject<T>(token: InjectionToken<T, undefined>): T
   syncInject<T>(token: BoundInjectionToken<T, any>): T
   syncInject<T>(token: FactoryInjectionToken<T, any>): T

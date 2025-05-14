@@ -20,3 +20,4 @@ tmp
 .angular
 .nx
 tsconfig.tsbuildinfo
+tsconfig.vitest-temp.json

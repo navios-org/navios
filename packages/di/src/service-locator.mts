@@ -450,7 +450,7 @@ export class ServiceLocator {
             : undefined
           const instanceName = self.makeInstanceName(token, validatedArgs)
           dependencies.add(instanceName)
-          return self.getOrThrowInstance(injectionToken, args)
+          return self.getOrThrowInstance(injectionToken, args as any)
         }
         throw new Error(
           `[ServiceLocator]#inject(): Invalid token type: ${typeof token}. Expected a class or an InjectionToken.`,

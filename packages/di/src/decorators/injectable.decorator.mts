@@ -1,5 +1,3 @@
-import { NaviosException } from '@navios/common'
-
 import { z } from 'zod'
 
 import type {
@@ -126,7 +124,7 @@ export function Injectable({
         async (ctx, args: any) => {
           const builder = await resolveService(ctx, target)
           if (typeof builder.create !== 'function') {
-            throw new NaviosException(
+            throw new Error(
               `[ServiceLocator] Factory ${target.name} does not implement the create method.`,
             )
           }

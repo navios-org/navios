@@ -68,4 +68,32 @@ describe('inject', () => {
 
     assertType<Foo>(await inject(Foo))
   })
+  test('#2 Token with required Schema', async () => {
+    const result = await inject(typelessObjectToken, { foo: 'bar' })
+    assertType<unknown>(result)
+
+    const result2 = await inject(typedObjectToken, { foo: 'bar' })
+    assertType<FooService>(result2)
+
+    // @ts-expect-error We show error when we pass the wrong type
+    await inject(typedObjectToken, undefined)
+  })
+
+  test('#3 Token with optional Schema', async () => {
+    const result = await inject(typelessOptionalObjectToken)
+    assertType<unknown>(result)
+
+    const result2 = await inject(typedOptionalObjectToken)
+    assertType<FooService>(result2)
+
+    const result3 = await inject(typedObjectToken)
+    // Special case when we pass the token without args
+    // We can only return an error string
+    assertType<'Error: Your token requires args: foo'>(result3)
+  })
+
+  test('#4 Token with no Schema', async () => {
+    const result = await inject(typedToken)
+    assertType<FooService>(result)
+  })
 })
