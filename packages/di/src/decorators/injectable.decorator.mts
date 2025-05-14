@@ -3,11 +3,15 @@ import { NaviosException } from '@navios/common'
 import { z } from 'zod'
 
 import type {
+  BaseInjectionTokenSchemaType,
   ClassType,
   ClassTypeWithArgument,
   ClassTypeWithInstance,
   ClassTypeWithInstanceAndArgument,
+  ClassTypeWithInstanceAndOptionalArgument,
+  ClassTypeWithOptionalArgument,
   InjectionTokenSchemaType,
+  OptionalInjectionTokenSchemaType,
 } from '../injection-token.mjs'
 import type { Factory, FactoryWithArgs } from '../interfaces/index.mjs'
 import type { Registry } from '../registry.mjs'
@@ -24,11 +28,12 @@ export interface InjectableOptions {
   token?: InjectionToken<any, any>
   registry?: Registry
 }
-
+// #1 Simple constructorless class
 export function Injectable(): <T extends ClassType>(
   target: T,
   context: ClassDecoratorContext,
 ) => T
+// #2 Factory class without arguments
 export function Injectable<R>(options: {
   scope?: InjectableScope
   type: InjectableType.Factory
@@ -36,42 +41,62 @@ export function Injectable<R>(options: {
   target: T,
   context: ClassDecoratorContext,
 ) => T
-export function Injectable<S extends InjectionTokenSchemaType>(options: {
+
+// #3 Class with typeless token and schema
+export function Injectable<Type, Schema>(options: {
   scope?: InjectableScope
   type?: InjectableType.Class
-  token: InjectionToken<undefined, S>
-}): <T extends ClassTypeWithArgument<z.output<S>>>(
-  target: T,
-  context: ClassDecoratorContext,
-) => T
-export function Injectable<R, S extends InjectionTokenSchemaType>(options: {
-  scope?: InjectableScope
-  type?: InjectableType.Class
-  token: InjectionToken<R, S>
-}): <T extends ClassTypeWithInstanceAndArgument<R, z.output<S>>>(
-  target: T,
-  context: ClassDecoratorContext,
-) => T
-export function Injectable<T extends ClassType>(options: {
-  scope?: InjectableScope
-  token: InjectionToken<T, undefined>
-}): (target: T, context: ClassDecoratorContext) => T
-export function Injectable<R, S extends InjectionTokenSchemaType>(options: {
+  token: InjectionToken<Type, Schema>
+}): Schema extends BaseInjectionTokenSchemaType
+  ? Type extends undefined
+    ? <T extends ClassTypeWithArgument<z.output<Schema>>>(
+        target: T,
+        context: ClassDecoratorContext,
+      ) => T
+    : <T extends ClassTypeWithInstanceAndArgument<Type, z.output<Schema>>>(
+        target: T,
+        context: ClassDecoratorContext,
+      ) => T
+  : Schema extends OptionalInjectionTokenSchemaType
+    ? Type extends undefined
+      ? <T extends ClassTypeWithOptionalArgument<z.output<Schema>>>(
+          target: T,
+          context: ClassDecoratorContext,
+        ) => T
+      : <
+          T extends ClassTypeWithInstanceAndOptionalArgument<
+            Type,
+            z.output<Schema>
+          >,
+        >(
+          target: T,
+          context: ClassDecoratorContext,
+        ) => T
+    : Schema extends undefined
+      ? <R extends ClassTypeWithInstance<Type>>(
+          target: R,
+          context: ClassDecoratorContext,
+        ) => R
+      : never
+
+// #4 Factory with typed token
+export function Injectable<R, S>(options: {
   scope?: InjectableScope
   type: InjectableType.Factory
   token: InjectionToken<R, S>
-}): <T extends ClassTypeWithInstance<FactoryWithArgs<R, S>>>(
-  target: T,
-  context: ClassDecoratorContext,
-) => T
-export function Injectable<R>(options: {
-  scope?: InjectableScope
-  type: InjectableType.Factory
-  token: InjectionToken<R, undefined>
-}): <T extends ClassTypeWithInstance<Factory<R>>>(
-  target: T,
-  context: ClassDecoratorContext,
-) => T
+}): R extends undefined
+  ? never
+  : S extends InjectionTokenSchemaType
+    ? <T extends ClassTypeWithInstance<FactoryWithArgs<R, S>>>(
+        target: T,
+        context: ClassDecoratorContext,
+      ) => T
+    : S extends undefined
+      ? <T extends ClassTypeWithInstance<Factory<R>>>(
+          target: T,
+          context: ClassDecoratorContext,
+        ) => T
+      : never
 export function Injectable({
   scope = InjectableScope.Singleton,
   type = InjectableType.Class,

@@ -50,7 +50,7 @@ interface GreeterInterface {
   getFoo(): string;
 }
 
-const token = new InjectionToken.create<GreeterInterface, typeof schema>(
+const token = new InjectionToken<GreeterInterface, typeof schema>(
   Symbol.for('user'),
   schema,
 )
@@ -77,4 +77,5 @@ const greetEarth = await inject(BoundGreeterService);
 
 console.log(greetWorld.getFoo()); // Hello World
 console.log(greetEarth.getFoo()); // Hello Earth
+
 ```
