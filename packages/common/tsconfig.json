@@ -1,10 +1,10 @@
 {
   "extends": "../../tsconfig.json",
   "compilerOptions": {
-    "module": "Node16",
+    "module": "Node18",
     "outDir": "dist"
   },
-  "include": ["src/**/*"],
+  "include": ["src/**/*", "tsdown.config.mts", "vitest.config.mts"],
   "references": [
     {
       "path": "../navios"
