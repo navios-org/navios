@@ -17,7 +17,9 @@ export interface CreateInjectorsOptions {
 }
 
 export interface Injectors {
+  // #1 Simple class
   inject<T extends ClassType>(token: T): Promise<InstanceType<T>>
+  // #2 Token with required Schema
   inject<T, S extends BaseInjectionTokenSchemaType>(
     token: InjectionToken<T, S>,
     args: z.input<S>,
