@@ -1,6 +1,6 @@
 {
   "name": "@navios/di",
-  "version": "0.1.9",
+  "version": "0.1.10",
   "author": {
     "name": "Oleksandr Hanzha",
     "email": "alex@granted.name"
@@ -11,7 +11,7 @@
     "url": "https://github.com/Arilas/navios.git"
   },
   "license": "MIT",
-  "typings": "./lib/src/index.d.mts",
+  "typings": "./lib/index.d.mts",
   "main": "./lib/index.js",
   "module": "./lib/index.mjs",
   "peerDependencies": {
@@ -20,7 +20,7 @@
   "exports": {
     ".": {
       "import": {
-        "types": "./lib/src/index.d.mts",
+        "types": "./lib/index.d.mts",
         "default": "./lib/index.mjs"
       },
       "require": {
