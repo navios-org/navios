@@ -29,14 +29,14 @@ export interface InjectableOptions {
 export function Injectable(): <T extends ClassType>(
   target: T,
   context: ClassDecoratorContext,
-) => T & { [InjectableTokenMeta]: InjectionToken<InstanceType<T>, undefined> }
+) => T
 export function Injectable<R>(options: {
   scope?: InjectableScope
   type: InjectableType.Factory
 }): <T extends ClassTypeWithInstance<Factory<R>>>(
   target: T,
   context: ClassDecoratorContext,
-) => T & { [InjectableTokenMeta]: InjectionToken<R, undefined> }
+) => T
 export function Injectable<S extends AnyZodObject>(options: {
   scope?: InjectableScope
   type?: InjectableType.Class
@@ -44,7 +44,7 @@ export function Injectable<S extends AnyZodObject>(options: {
 }): <T extends ClassTypeWithArgument<z.output<S>>>(
   target: T,
   context: ClassDecoratorContext,
-) => T & { [InjectableTokenMeta]: InjectionToken<T, S> }
+) => T
 export function Injectable<R, S extends AnyZodObject>(options: {
   scope?: InjectableScope
   type?: InjectableType.Class
@@ -52,16 +52,11 @@ export function Injectable<R, S extends AnyZodObject>(options: {
 }): <T extends ClassTypeWithInstanceAndArgument<R, z.output<S>>>(
   target: T,
   context: ClassDecoratorContext,
-) => T & { [InjectableTokenMeta]: InjectionToken<R, S> }
+) => T
 export function Injectable<T extends ClassType>(options: {
   scope?: InjectableScope
   token: InjectionToken<T, undefined>
-}): (
-  target: T,
-  context: ClassDecoratorContext,
-) => T & {
-  [InjectableTokenMeta]: InjectionToken<InstanceType<T>, undefined>
-}
+}): (target: T, context: ClassDecoratorContext) => T
 
 export function Injectable<R, S extends AnyZodObject>(options: {
   scope?: InjectableScope
@@ -88,9 +83,7 @@ export function Injectable({
   return <T extends ClassType>(
     target: T,
     context: ClassDecoratorContext,
-  ): T & {
-    [InjectableTokenMeta]: InjectionToken<any, any>
-  } => {
+  ): T => {
     if (context.kind !== 'class') {
       throw new Error(
         '[ServiceLocator] @Injectable decorator can only be used on classes.',
@@ -123,8 +116,6 @@ export function Injectable({
     // @ts-expect-error
     target[InjectableTokenMeta] = injectableToken
 
-    return target as T & {
-      [InjectableTokenMeta]: InjectionToken<any, any>
-    }
+    return target
   }
 }
