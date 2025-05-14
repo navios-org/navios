@@ -3,6 +3,11 @@
 import type { AnyZodObject, z, ZodOptional } from 'zod'
 
 import type { FactoryContext } from './factory-context.mjs'
+import type {
+  BaseInjectionTokenSchemaType,
+  InjectionTokenSchemaType,
+  OptionalInjectionTokenSchemaType,
+} from './injection-token.mjs'
 import type { Registry } from './registry.mjs'
 import type { ServiceLocatorInstanceHolder } from './service-locator-instance-holder.mjs'
 
@@ -98,13 +103,15 @@ export class ServiceLocator {
   public removeInstance<Instance>(
     token: InjectionToken<Instance, undefined>,
   ): void
-  public removeInstance<
-    Instance,
-    Schema extends AnyZodObject | ZodOptional<AnyZodObject>,
-  >(
+  public removeInstance<Instance, Schema extends BaseInjectionTokenSchemaType>(
     token: InjectionToken<Instance, Schema>,
     args: z.input<Schema>,
   ): void
+  public removeInstance<
+    Instance,
+    Schema extends OptionalInjectionTokenSchemaType,
+  >(token: InjectionToken<Instance, Schema>, args?: z.input<Schema>): void
+
   public removeInstance(
     token:
       | InjectionToken<any, any>
@@ -116,18 +123,25 @@ export class ServiceLocator {
     const instanceName = this.getInstanceIdentifier(token, args)
     return this.invalidate(instanceName)
   }
-  private resolveTokenArgs<Instance, Schema extends AnyZodObject>(
+
+  private resolveTokenArgs<
+    Instance,
+    Schema extends BaseInjectionTokenSchemaType,
+  >(
     token: InjectionToken<Instance, Schema>,
     args: z.input<Schema>,
   ): [undefined, z.output<Schema>] | [UnknownError]
-  private resolveTokenArgs<Instance, Schema extends ZodOptional<AnyZodObject>>(
+  private resolveTokenArgs<
+    Instance,
+    Schema extends OptionalInjectionTokenSchemaType,
+  >(
     token: InjectionToken<Instance, Schema>,
     args?: z.input<Schema>,
   ): [undefined, z.output<Schema>] | [UnknownError]
-  private resolveTokenArgs<Instance, Schema extends AnyZodObject>(
+  private resolveTokenArgs<Instance, Schema extends InjectionTokenSchemaType>(
     token: BoundInjectionToken<Instance, Schema>,
   ): [undefined, z.output<Schema>] | [UnknownError]
-  private resolveTokenArgs<Instance, Schema extends AnyZodObject>(
+  private resolveTokenArgs<Instance, Schema extends InjectionTokenSchemaType>(
     token: FactoryInjectionToken<Instance, Schema>,
   ): [undefined, z.output<Schema>] | [FactoryTokenNotResolved | UnknownError]
   private resolveTokenArgs(
@@ -161,13 +175,13 @@ export class ServiceLocator {
     return [undefined, validatedArgs?.data]
   }
 
-  public getInstanceIdentifier<Instance, Schema extends AnyZodObject>(
-    token: InjectionToken<Instance, Schema>,
-    args: z.input<Schema>,
-  ): string
   public getInstanceIdentifier<
     Instance,
-    Schema extends ZodOptional<AnyZodObject>,
+    Schema extends BaseInjectionTokenSchemaType,
+  >(token: InjectionToken<Instance, Schema>, args: z.input<Schema>): string
+  public getInstanceIdentifier<
+    Instance,
+    Schema extends OptionalInjectionTokenSchemaType,
   >(token: InjectionToken<Instance, Schema>, args?: z.input<Schema>): string
   public getInstanceIdentifier<Instance>(
     token: InjectionToken<Instance, undefined>,
@@ -195,11 +209,11 @@ export class ServiceLocator {
     return this.makeInstanceName(token as InjectionToken<any>, realArgs)
   }
 
-  public getInstance<Instance, Schema extends AnyZodObject>(
+  public getInstance<Instance, Schema extends BaseInjectionTokenSchemaType>(
     token: InjectionToken<Instance, Schema>,
     args: z.input<Schema>,
   ): Promise<[undefined, Instance] | [UnknownError | FactoryNotFound]>
-  public getInstance<Instance, Schema extends ZodOptional<AnyZodObject>>(
+  public getInstance<Instance, Schema extends OptionalInjectionTokenSchemaType>(
     token: InjectionToken<Instance, Schema>,
     args?: z.input<Schema>,
   ): Promise<[undefined, Instance] | [UnknownError | FactoryNotFound]>
@@ -273,7 +287,7 @@ export class ServiceLocator {
 
   public async getOrThrowInstance<
     Instance,
-    Schema extends AnyZodObject | ZodOptional<AnyZodObject> | undefined,
+    Schema extends InjectionTokenSchemaType | undefined,
   >(
     token: InjectionToken<Instance, Schema>,
     args: Schema extends AnyZodObject
@@ -301,7 +315,7 @@ export class ServiceLocator {
 
   private async createInstance<
     Instance,
-    Schema extends AnyZodObject | ZodOptional<AnyZodObject> | undefined,
+    Schema extends InjectionTokenSchemaType | undefined,
   >(
     instanceName: string,
     token: InjectionToken<Instance, Schema>,
@@ -328,10 +342,10 @@ export class ServiceLocator {
 
   private async resolveInstance<
     Instance,
-    Schema extends AnyZodObject | ZodOptional<AnyZodObject> | undefined,
-    Args extends Schema extends AnyZodObject
+    Schema extends InjectionTokenSchemaType | undefined,
+    Args extends Schema extends BaseInjectionTokenSchemaType
       ? z.input<Schema>
-      : Schema extends ZodOptional<AnyZodObject>
+      : Schema extends OptionalInjectionTokenSchemaType
         ? z.input<Schema> | undefined
         : undefined,
   >(
@@ -455,7 +469,7 @@ export class ServiceLocator {
 
   public getSyncInstance<
     Instance,
-    Schema extends AnyZodObject | ZodOptional<AnyZodObject> | undefined,
+    Schema extends InjectionTokenSchemaType | undefined,
   >(
     token: InjectionToken<Instance, Schema>,
     args: Schema extends AnyZodObject

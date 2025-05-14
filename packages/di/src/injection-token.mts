@@ -2,7 +2,7 @@ import type { AnyZodObject } from 'zod'
 
 import { randomUUID } from 'crypto'
 
-import { z, ZodOptional } from 'zod'
+import { z, ZodOptional, ZodRecord } from 'zod'
 
 export type ClassType = new (...args: any[]) => any
 export type ClassTypeWithArgument<Arg> = new (arg: Arg) => any
@@ -10,9 +10,19 @@ export type ClassTypeWithArgument<Arg> = new (arg: Arg) => any
 export type ClassTypeWithInstance<T> = new (...args: any[]) => T
 export type ClassTypeWithInstanceAndArgument<T, Arg> = new (arg: Arg) => T
 
+export type BaseInjectionTokenSchemaType = AnyZodObject | ZodRecord
+
+export type OptionalInjectionTokenSchemaType =
+  | ZodOptional<AnyZodObject>
+  | ZodOptional<ZodRecord>
+
+export type InjectionTokenSchemaType =
+  | BaseInjectionTokenSchemaType
+  | OptionalInjectionTokenSchemaType
+
 export class InjectionToken<
   T,
-  S extends AnyZodObject | ZodOptional<AnyZodObject> | unknown = unknown,
+  S extends InjectionTokenSchemaType | unknown = unknown,
 > {
   public id = randomUUID()
   private formattedName: string | null = null
@@ -25,12 +35,12 @@ export class InjectionToken<
   static create<T extends ClassType>(
     name: T,
   ): InjectionToken<InstanceType<T>, undefined>
-  static create<
-    T extends ClassType,
-    Schema extends AnyZodObject | ZodOptional<AnyZodObject>,
-  >(name: T, schema: Schema): InjectionToken<InstanceType<T>, Schema>
+  static create<T extends ClassType, Schema extends InjectionTokenSchemaType>(
+    name: T,
+    schema: Schema,
+  ): InjectionToken<InstanceType<T>, Schema>
   static create<T>(name: string | symbol): InjectionToken<T, undefined>
-  static create<T, Schema extends AnyZodObject | ZodOptional<AnyZodObject>>(
+  static create<T, Schema extends InjectionTokenSchemaType>(
     name: string | any,
     schema: Schema,
   ): InjectionToken<T, Schema>
@@ -39,14 +49,14 @@ export class InjectionToken<
     return new InjectionToken(name, schema)
   }
 
-  static bound<T, S extends AnyZodObject | ZodOptional<AnyZodObject>>(
+  static bound<T, S extends InjectionTokenSchemaType>(
     token: InjectionToken<T, S>,
     value: z.input<S>,
   ): BoundInjectionToken<T, S> {
     return new BoundInjectionToken(token, value)
   }
 
-  static factory<T, S extends AnyZodObject | ZodOptional<AnyZodObject>>(
+  static factory<T, S extends InjectionTokenSchemaType>(
     token: InjectionToken<T, S>,
     factory: () => Promise<z.input<S>>,
   ): FactoryInjectionToken<T, S> {
@@ -77,13 +87,10 @@ export class InjectionToken<
   }
 }
 
-export class BoundInjectionToken<
-  T,
-  S extends AnyZodObject | ZodOptional<AnyZodObject>,
-> {
+export class BoundInjectionToken<T, S extends InjectionTokenSchemaType> {
   public id: string
   public name: string | symbol | ClassType
-  public schema: AnyZodObject | ZodOptional<AnyZodObject>
+  public schema: InjectionTokenSchemaType
 
   constructor(
     public readonly token: InjectionToken<T, S>,
@@ -91,7 +98,7 @@ export class BoundInjectionToken<
   ) {
     this.name = token.name
     this.id = token.id
-    this.schema = token.schema as AnyZodObject | ZodOptional<AnyZodObject>
+    this.schema = token.schema as InjectionTokenSchemaType
   }
 
   toString() {
@@ -99,15 +106,12 @@ export class BoundInjectionToken<
   }
 }
 
-export class FactoryInjectionToken<
-  T,
-  S extends AnyZodObject | ZodOptional<AnyZodObject>,
-> {
+export class FactoryInjectionToken<T, S extends InjectionTokenSchemaType> {
   public value?: z.input<S>
   public resolved = false
   public id: string
   public name: string | symbol | ClassType
-  public schema: AnyZodObject | ZodOptional<AnyZodObject>
+  public schema: InjectionTokenSchemaType
 
   constructor(
     public readonly token: InjectionToken<T, S>,
@@ -115,7 +119,7 @@ export class FactoryInjectionToken<
   ) {
     this.name = token.name
     this.id = token.id
-    this.schema = token.schema as AnyZodObject | ZodOptional<AnyZodObject>
+    this.schema = token.schema as InjectionTokenSchemaType
   }
 
   async resolve(): Promise<z.input<S>> {

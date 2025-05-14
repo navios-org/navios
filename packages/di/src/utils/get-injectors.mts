@@ -1,10 +1,12 @@
-import type { AnyZodObject, z, ZodOptional } from 'zod'
+import type { AnyZodObject, z } from 'zod'
 
 import type {
+  BaseInjectionTokenSchemaType,
   BoundInjectionToken,
   ClassType,
   FactoryInjectionToken,
   InjectionToken,
+  OptionalInjectionTokenSchemaType,
 } from '../injection-token.mjs'
 import type { ServiceLocator } from '../service-locator.mjs'
 
@@ -16,11 +18,11 @@ export interface CreateInjectorsOptions {
 
 export interface Injectors {
   inject<T extends ClassType>(token: T): Promise<InstanceType<T>>
-  inject<T, S extends AnyZodObject>(
+  inject<T, S extends BaseInjectionTokenSchemaType>(
     token: InjectionToken<T, S>,
     args: z.input<S>,
   ): Promise<T>
-  inject<T, S extends ZodOptional<AnyZodObject>>(
+  inject<T, S extends OptionalInjectionTokenSchemaType>(
     token: InjectionToken<T, S>,
     args?: z.input<S>,
   ): Promise<T>
@@ -29,11 +31,11 @@ export interface Injectors {
   inject<T>(token: FactoryInjectionToken<T, any>): Promise<T>
 
   syncInject<T extends ClassType>(token: T): InstanceType<T>
-  syncInject<T, S extends AnyZodObject>(
+  syncInject<T, S extends BaseInjectionTokenSchemaType>(
     token: InjectionToken<T, S>,
     args: z.input<S>,
   ): T
-  syncInject<T, S extends ZodOptional<AnyZodObject>>(
+  syncInject<T, S extends OptionalInjectionTokenSchemaType>(
     token: InjectionToken<T, S>,
     args?: z.input<S>,
   ): T

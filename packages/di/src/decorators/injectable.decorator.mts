@@ -1,5 +1,3 @@
-import type { AnyZodObject } from 'zod'
-
 import { NaviosException } from '@navios/common'
 
 import { z } from 'zod'
@@ -9,6 +7,7 @@ import type {
   ClassTypeWithArgument,
   ClassTypeWithInstance,
   ClassTypeWithInstanceAndArgument,
+  InjectionTokenSchemaType,
 } from '../injection-token.mjs'
 import type { Factory, FactoryWithArgs } from '../interfaces/index.mjs'
 import type { Registry } from '../registry.mjs'
@@ -37,7 +36,7 @@ export function Injectable<R>(options: {
   target: T,
   context: ClassDecoratorContext,
 ) => T
-export function Injectable<S extends AnyZodObject>(options: {
+export function Injectable<S extends InjectionTokenSchemaType>(options: {
   scope?: InjectableScope
   type?: InjectableType.Class
   token: InjectionToken<undefined, S>
@@ -45,7 +44,7 @@ export function Injectable<S extends AnyZodObject>(options: {
   target: T,
   context: ClassDecoratorContext,
 ) => T
-export function Injectable<R, S extends AnyZodObject>(options: {
+export function Injectable<R, S extends InjectionTokenSchemaType>(options: {
   scope?: InjectableScope
   type?: InjectableType.Class
   token: InjectionToken<R, S>
@@ -57,15 +56,14 @@ export function Injectable<T extends ClassType>(options: {
   scope?: InjectableScope
   token: InjectionToken<T, undefined>
 }): (target: T, context: ClassDecoratorContext) => T
-
-export function Injectable<R, S extends AnyZodObject>(options: {
+export function Injectable<R, S extends InjectionTokenSchemaType>(options: {
   scope?: InjectableScope
   type: InjectableType.Factory
   token: InjectionToken<R, S>
 }): <T extends ClassTypeWithInstance<FactoryWithArgs<R, S>>>(
   target: T,
   context: ClassDecoratorContext,
-) => T & { [InjectableTokenMeta]: InjectionToken<R, S> }
+) => T
 export function Injectable<R>(options: {
   scope?: InjectableScope
   type: InjectableType.Factory
@@ -73,7 +71,7 @@ export function Injectable<R>(options: {
 }): <T extends ClassTypeWithInstance<Factory<R>>>(
   target: T,
   context: ClassDecoratorContext,
-) => T & { [InjectableTokenMeta]: InjectionToken<R, undefined> }
+) => T
 export function Injectable({
   scope = InjectableScope.Singleton,
   type = InjectableType.Class,
