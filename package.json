@@ -2,13 +2,8 @@
   "name": "@navios/mono",
   "packageManager": "yarn@4.9.1",
   "workspaces": [
-    "packages/cli",
-    "packages/common",
-    "packages/core",
-    "packages/di",
-    "packages/jwt",
-    "packages/navios",
-    "packages/react-query"
+    "apps/*",
+    "packages/*"
   ],
   "private": true,
   "devDependencies": {
