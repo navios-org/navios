@@ -9,6 +9,7 @@
     "check": {
       "executor": "nx:run-commands",
       "outputs": ["{projectRoot}/dist"],
+      "dependsOn": ["^build"],
       "options": {
         "command": ["tsc -b"],
         "cwd": "packages/common"

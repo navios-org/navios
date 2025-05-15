@@ -1,4 +1,4 @@
-import { Injectable, Logger, syncInject } from '@navios/core'
+import { Injectable, InjectionToken, Logger, syncInject } from '@navios/core'
 
 import jwt from 'jsonwebtoken'
 
@@ -11,9 +11,19 @@ import type {
   VerifyOptions,
 } from './options/jwt-service.options.mjs'
 
-import { RequestType } from './options/jwt-service.options.mjs'
+import {
+  JwtServiceOptionsSchema,
+  RequestType,
+} from './options/jwt-service.options.mjs'
 
-@Injectable()
+export const JwtServiceToken = InjectionToken.create(
+  Symbol.for('JwtService'),
+  JwtServiceOptionsSchema,
+)
+
+@Injectable({
+  token: JwtServiceToken,
+})
 export class JwtService {
   logger = syncInject(Logger, {
     context: JwtService.name,

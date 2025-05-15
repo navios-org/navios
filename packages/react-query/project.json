@@ -6,39 +6,45 @@
   "tags": [],
   "projectType": "library",
   "targets": {
-    "build": {
-      "executor": "nx-tsup:build",
-      "outputs": ["{workspaceRoot}/dist/{projectRoot}"],
+    "check": {
+      "executor": "nx:run-commands",
+      "outputs": ["{projectRoot}/dist"],
+      "dependsOn": ["^build"],
       "options": {
-        "main": {
-          "index": "./src/index.mts"
-        },
-        "outputPath": "{workspaceRoot}/dist/{projectRoot}",
-        "format": ["esm", "cjs"],
-        "experimentalDts": true,
-        "clean": true,
-        "assets": [
-          "packages/react-query/*.md",
-          "packages/react-query/LICENSE",
-          {
-            "input": "./packages/react-query/src",
-            "glob": "**/!(*.ts)",
-            "output": "./src"
-          },
-          {
-            "input": "./packages/react-query/src",
-            "glob": "**/*.d.ts",
-            "output": "./src"
-          }
-        ],
-        "tsConfig": "{projectRoot}/tsconfig.json"
+        "command": ["tsc -b"],
+        "cwd": "packages/react-query"
+      }
+    },
+    "test:ci": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "vitest run",
+        "cwd": "packages/react-query"
+      }
+    },
+    "build": {
+      "executor": "nx:run-commands",
+      "outputs": ["{projectRoot}/lib"],
+      "dependsOn": ["check", "test:ci"],
+      "options": {
+        "command": "tsdown",
+        "cwd": "packages/react-query"
       }
     },
     "publish": {
-      "executor": "nx-yarn-publish:publish",
+      "executor": "nx:run-commands",
+      "dependsOn": ["build"],
       "options": {
-        "outputPath": "{workspaceRoot}/dist/{projectRoot}",
-        "access": "public"
+        "command": "yarn npm publish --access public",
+        "cwd": "packages/react-query"
+      }
+    },
+    "publish:next": {
+      "executor": "nx:run-commands",
+      "dependsOn": ["build"],
+      "options": {
+        "command": "yarn npm publish --access public --tag next",
+        "cwd": "packages/react-query"
       }
     }
   }

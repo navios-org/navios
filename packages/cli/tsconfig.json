@@ -4,5 +4,5 @@
     "module": "Node18",
     "outDir": "dist"
   },
-  "include": ["src/**/*"]
+  "include": ["src/**/*", "tsdown.config.mts"],
 }

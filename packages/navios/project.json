@@ -6,40 +6,44 @@
   "tags": [],
   "projectType": "library",
   "targets": {
-    "build": {
-      "executor": "nx-tsup:build",
-      "outputs": ["{workspaceRoot}/dist/{projectRoot}"],
+    "check": {
+      "executor": "nx:run-commands",
+      "outputs": ["{projectRoot}/dist"],
       "options": {
-        "main": {
-          "index": "{projectRoot}/src/index.mts",
-          "testing": "{projectRoot}/src/testing/index.mts"
-        },
-        "outputPath": "{workspaceRoot}/dist/{projectRoot}",
-        "format": ["esm", "cjs"],
-        "experimentalDts": true,
-        "clean": true,
-        "assets": [
-          "packages/navios/*.md",
-          "packages/navios/LICENSE",
-          {
-            "input": "./packages/navios/src",
-            "glob": "**/!(*.ts)",
-            "output": "./src"
-          },
-          {
-            "input": "./packages/navios/src",
-            "glob": "**/*.d.ts",
-            "output": "./src"
-          }
-        ],
-        "tsConfig": "{projectRoot}/tsconfig.json"
+        "command": ["tsc -b"],
+        "cwd": "packages/navios"
+      }
+    },
+    "test:ci": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "vitest run",
+        "cwd": "packages/navios"
+      }
+    },
+    "build": {
+      "executor": "nx:run-commands",
+      "outputs": ["{projectRoot}/lib"],
+      "dependsOn": ["check", "test:ci"],
+      "options": {
+        "command": "tsdown",
+        "cwd": "packages/navios"
       }
     },
     "publish": {
-      "executor": "nx-yarn-publish:publish",
+      "executor": "nx:run-commands",
+      "dependsOn": ["build"],
       "options": {
-        "outputPath": "{workspaceRoot}/dist/{projectRoot}",
-        "access": "public"
+        "command": "yarn npm publish --access public",
+        "cwd": "packages/navios"
+      }
+    },
+    "publish:next": {
+      "executor": "nx:run-commands",
+      "dependsOn": ["build"],
+      "options": {
+        "command": "yarn npm publish --access public --tag next",
+        "cwd": "packages/navios"
       }
     }
   }

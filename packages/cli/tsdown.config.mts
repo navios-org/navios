@@ -1,11 +1,10 @@
 import { defineConfig } from 'tsdown'
 
 export default defineConfig({
-  entry: ['src/index.mts'],
+  entry: ['src/index.ts'],
   outDir: 'lib',
-  format: ['esm', 'cjs'],
+  format: ['esm'],
   dts: true,
   clean: true,
-  sourcemap: true,
   platform: 'neutral',
 })

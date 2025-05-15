@@ -1,16 +1,33 @@
 import { NaviosException } from '@navios/common'
+import { Injectable, InjectionToken, syncInject } from '@navios/di'
 
-import type { LoggerService } from '../logger/index.mjs'
-import type { ConfigService } from './config-service.interface.mjs'
+import { z } from 'zod'
+
+import type { ConfigServiceInterface as IConfigService } from './config-service.interface.mjs'
 import type { Path, PathValue } from './types.mjs'
 
-export class ConfigServiceInstance<Config = Record<string, unknown>>
-  implements ConfigService<Config>
+import { Logger } from '../logger/index.mjs'
+
+export const ConfigServiceOptionsSchema = z.record(z.unknown())
+export type ConfigServiceOptions = z.infer<typeof ConfigServiceOptionsSchema>
+
+export const ConfigServiceToken = InjectionToken.create<
+  IConfigService,
+  typeof ConfigServiceOptionsSchema
+>(Symbol.for('ConfigService'), ConfigServiceOptionsSchema)
+
+@Injectable({
+  token: ConfigServiceToken,
+})
+export class ConfigService<
+  Config extends ConfigServiceOptions = Record<string, unknown>,
+> implements IConfigService<Config>
 {
-  constructor(
-    private config: Config = {} as Config,
-    private logger: LoggerService,
-  ) {}
+  private readonly logger = syncInject(Logger, {
+    context: ConfigService.name,
+  })
+
+  constructor(private config: Config = {} as Config) {}
 
   getConfig(): Config {
     return this.config

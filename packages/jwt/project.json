@@ -6,41 +6,45 @@
   "tags": [],
   "projectType": "library",
   "targets": {
-    "build": {
-      "executor": "nx-tsup:build",
-      "outputs": ["{workspaceRoot}/dist/{projectRoot}"],
+    "check": {
+      "executor": "nx:run-commands",
+      "outputs": ["{projectRoot}/dist"],
+      "dependsOn": ["^build"],
       "options": {
-        "main": {
-          "index": "./src/index.mts"
-        },
-        "outputPath": "{workspaceRoot}/dist/{projectRoot}",
-        "format": ["esm", "cjs"],
-        "experimentalDts": true,
-        "external": ["navios", "@navios/navios-zod"],
-        "sourceMap": true,
-        "clean": true,
-        "assets": [
-          "packages/jwt/*.md",
-          "packages/jwt/LICENSE",
-          {
-            "input": "./packages/jwt/src",
-            "glob": "**/!(*.ts)",
-            "output": "./src"
-          },
-          {
-            "input": "./packages/jwt/src",
-            "glob": "**/*.d.ts",
-            "output": "./src"
-          }
-        ],
-        "tsConfig": "{projectRoot}/tsconfig.json"
+        "command": ["tsc -b"],
+        "cwd": "packages/jwt"
+      }
+    },
+    "test:ci": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "vitest run",
+        "cwd": "packages/jwt"
+      }
+    },
+    "build": {
+      "executor": "nx:run-commands",
+      "outputs": ["{projectRoot}/lib"],
+      "dependsOn": ["check"],
+      "options": {
+        "command": "tsdown",
+        "cwd": "packages/jwt"
       }
     },
     "publish": {
-      "executor": "nx-yarn-publish:publish",
+      "executor": "nx:run-commands",
+      "dependsOn": ["build"],
       "options": {
-        "outputPath": "{workspaceRoot}/dist/{projectRoot}",
-        "access": "public"
+        "command": "yarn npm publish --access public",
+        "cwd": "packages/jwt"
+      }
+    },
+    "publish:next": {
+      "executor": "nx:run-commands",
+      "dependsOn": ["build"],
+      "options": {
+        "command": "yarn npm publish --access public --tag next",
+        "cwd": "packages/jwt"
       }
     }
   }

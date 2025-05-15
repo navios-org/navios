@@ -20,4 +20,7 @@ tmp
 .angular
 .nx
 tsconfig.tsbuildinfo
+
+.cursor/rules/nx-rules.mdc
+.github/instructions/nx.instructions.md
 tsconfig.vitest-temp.json

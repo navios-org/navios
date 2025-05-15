@@ -31,7 +31,7 @@ export function Injectable(): <T extends ClassType>(
   target: T,
   context: ClassDecoratorContext,
 ) => T
-// #2 Factory class without arguments
+// #2 Factory without arguments
 export function Injectable<R>(options: {
   scope?: InjectableScope
   type: InjectableType.Factory
@@ -45,23 +45,24 @@ export function Injectable<Type, Schema>(options: {
   scope?: InjectableScope
   type?: InjectableType.Class
   token: InjectionToken<Type, Schema>
-}): Schema extends BaseInjectionTokenSchemaType
+}): Schema extends BaseInjectionTokenSchemaType // #3.1 Check that schema is an object or a record
   ? Type extends undefined
-    ? <T extends ClassTypeWithArgument<z.output<Schema>>>(
+    ? <T extends ClassTypeWithArgument<z.output<Schema>>>( // #3.1.1 Typeless token
         target: T,
         context: ClassDecoratorContext,
       ) => T
-    : <T extends ClassTypeWithInstanceAndArgument<Type, z.output<Schema>>>(
+    : <T extends ClassTypeWithInstanceAndArgument<Type, z.output<Schema>>>( // #3.1.2 Typed token
         target: T,
         context: ClassDecoratorContext,
       ) => T
-  : Schema extends OptionalInjectionTokenSchemaType
+  : Schema extends OptionalInjectionTokenSchemaType // #3.2 Check that schema is an optional object or a record
     ? Type extends undefined
-      ? <T extends ClassTypeWithOptionalArgument<z.output<Schema>>>(
+      ? <T extends ClassTypeWithOptionalArgument<z.output<Schema>>>( // #3.2.1 Typeless token
           target: T,
           context: ClassDecoratorContext,
         ) => T
       : <
+          // #3.2.2 Typed token
           T extends ClassTypeWithInstanceAndOptionalArgument<
             Type,
             z.output<Schema>
@@ -70,31 +71,31 @@ export function Injectable<Type, Schema>(options: {
           target: T,
           context: ClassDecoratorContext,
         ) => T
-    : Schema extends undefined
-      ? <R extends ClassTypeWithInstance<Type>>(
+    : Schema extends undefined // #3.3 Check that schema is undefined
+      ? <R extends ClassTypeWithInstance<Type>>( // #3.3.1 Token must have a type
           target: R,
           context: ClassDecoratorContext,
         ) => R
-      : never
+      : never // #3.4 Cannot use a token without a type and schema
 
 // #4 Factory with typed token
 export function Injectable<R, S>(options: {
   scope?: InjectableScope
   type: InjectableType.Factory
   token: InjectionToken<R, S>
-}): R extends undefined
-  ? never
-  : S extends InjectionTokenSchemaType
-    ? <T extends ClassTypeWithInstance<FactoryWithArgs<R, S>>>(
+}): R extends undefined // #4.1 Check that token has a type
+  ? never // #4.1.1 Token must have a type
+  : S extends InjectionTokenSchemaType // #4.2 Check that schema is an object or a record
+    ? <T extends ClassTypeWithInstance<FactoryWithArgs<R, S>>>( // #4.2.1 Token have a schema
         target: T,
         context: ClassDecoratorContext,
       ) => T
-    : S extends undefined
-      ? <T extends ClassTypeWithInstance<Factory<R>>>(
+    : S extends undefined // #4.3 For a factory without schema
+      ? <T extends ClassTypeWithInstance<Factory<R>>>( // #4.3.1 Token without a schema
           target: T,
           context: ClassDecoratorContext,
         ) => T
-      : never
+      : never // #4.4 Cannot use a token without a type and schema
 export function Injectable({
   scope = InjectableScope.Singleton,
   type = InjectableType.Class,

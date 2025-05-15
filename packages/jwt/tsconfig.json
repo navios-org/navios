@@ -4,7 +4,7 @@
     "module": "Node18",
     "outDir": "dist"
   },
-  "include": ["src/**/*"],
+  "include": ["src/**/*", "vitest.config.mts", "tsdown.config.mts"],
   "references": [
     {
       "path": "../core"

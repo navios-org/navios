@@ -6,9 +6,9 @@
     "email": "alex@granted.name"
   },
   "description": "CLI tools for Navios projects",
-  "main": "./dist/index.js",
+  "main": "./lib/index.js",
   "bin": {
-    "navios": "dist/bin.js"
+    "navios": "lib/bin.js"
   },
   "files": [
     "dist"

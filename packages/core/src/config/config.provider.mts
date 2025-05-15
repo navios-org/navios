@@ -1,61 +1,24 @@
-import {
-  BoundInjectionToken,
-  Injectable,
-  InjectableType,
-  InjectionToken,
-  syncInject,
-} from '@navios/di'
+import { FactoryInjectionToken, InjectionToken } from '@navios/di'
 
 import { z } from 'zod'
 
-import type { ConfigService } from './config-service.interface.mjs'
+import type { ConfigServiceOptions } from './config.service.mjs'
 
-import { Logger } from '../logger/index.mjs'
-import { ConfigServiceInstance } from './config.service.mjs'
+import {
+  ConfigService,
+  ConfigServiceOptionsSchema,
+  ConfigServiceToken,
+} from './config.service.mjs'
 
 export const ConfigProviderOptions = z.object({
-  load: z.function(),
+  load: z.function().returns(ConfigServiceOptionsSchema),
 })
 
-export const ConfigProvider = InjectionToken.create<
-  ConfigService,
-  typeof ConfigProviderOptions
->(ConfigServiceInstance, ConfigProviderOptions)
-
-@Injectable({
-  token: ConfigProvider,
-  type: InjectableType.Factory,
-})
-export class ConfigProviderFactory {
-  logger = syncInject(Logger, {
-    context: 'ConfigService',
-  })
-
-  async create(
-    ctx: any,
-    args: z.infer<typeof ConfigProviderOptions>,
-  ): Promise<ConfigService> {
-    const { load } = args
-    const logger = this.logger
-    try {
-      const config = await load()
-
-      return new ConfigServiceInstance(
-        config,
-        logger,
-      ) as unknown as ConfigService
-    } catch (error) {
-      logger.error('Error loading config', error)
-      throw error
-    }
-  }
-}
-
-export function provideConfig<ConfigMap extends Record<string, unknown>>(
+export function provideConfig<ConfigMap extends ConfigServiceOptions>(
   options: z.input<typeof ConfigProviderOptions>,
-): BoundInjectionToken<
-  ConfigServiceInstance<ConfigMap>,
-  typeof ConfigProviderOptions
+): FactoryInjectionToken<
+  ConfigService<ConfigMap>,
+  typeof ConfigServiceOptionsSchema
 > {
-  return InjectionToken.bound(ConfigProvider, options)
+  return InjectionToken.factory(ConfigServiceToken, async () => options.load())
 }

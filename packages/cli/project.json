@@ -6,35 +6,37 @@
   "tags": [],
   "projectType": "library",
   "targets": {
-    "build": {
-      "executor": "nx-tsup:build",
-      "outputs": ["{workspaceRoot}/dist/{projectRoot}"],
+    "check": {
+      "executor": "nx:run-commands",
+      "outputs": ["{projectRoot}/dist"],
       "options": {
-        "main": {
-          "index": "./src/index.ts",
-          "bin": "./src/bin.ts"
-        },
-        "outputPath": "{workspaceRoot}/dist/{projectRoot}",
-        "format": ["esm"],
-        "experimentalDts": true,
-        "clean": true,
-        "assets": [
-          "packages/cli/*.md",
-          "packages/cli/LICENSE",
-          {
-            "input": "./packages/cli/src",
-            "glob": "**/*.ts",
-            "output": "./src"
-          }
-        ],
-        "tsConfig": "{projectRoot}/tsconfig.json"
+        "command": ["tsc -b"],
+        "cwd": "packages/cli"
+      }
+    },
+    "build": {
+      "executor": "nx:run-commands",
+      "outputs": ["{projectRoot}/lib"],
+      "dependsOn": ["check"],
+      "options": {
+        "command": "tsdown",
+        "cwd": "packages/cli"
       }
     },
     "publish": {
-      "executor": "nx-yarn-publish:publish",
+      "executor": "nx:run-commands",
+      "dependsOn": ["build"],
       "options": {
-        "outputPath": "{workspaceRoot}/dist/{projectRoot}",
-        "access": "public"
+        "command": "yarn npm publish --access public",
+        "cwd": "packages/cli"
+      }
+    },
+    "publish:next": {
+      "executor": "nx:run-commands",
+      "dependsOn": ["build"],
+      "options": {
+        "command": "yarn npm publish --access public --tag next",
+        "cwd": "packages/cli"
       }
     }
   }
