@@ -25,6 +25,9 @@ export function provideConfig<ConfigMap extends ConfigServiceOptions>(
   return InjectionToken.factory(ConfigServiceToken, async () => options.load())
 }
 
-export const EnvConfigProvider = InjectionToken.bound(ConfigServiceToken, {
+export const EnvConfigProvider = InjectionToken.bound<
+  ConfigService<Record<string, string>>,
+  typeof ConfigServiceOptionsSchema
+>(ConfigServiceToken, {
   ...env,
 })
