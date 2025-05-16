@@ -5,6 +5,7 @@ export default defineConfig({
   outDir: 'lib',
   format: ['esm', 'cjs'],
   clean: true,
+  treeshake: 'smallest',
   sourcemap: true,
   platform: 'node',
   experimentalDts: true,
