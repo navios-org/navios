@@ -17,7 +17,7 @@
     },
     "test:ci": {
       "executor": "nx:run-commands",
-      "inputs": ["^projectSources","project"],
+      "inputs": ["^projectSources", "project"],
       "options": {
         "command": "vitest run",
         "cwd": "packages/jwt"
@@ -27,7 +27,7 @@
       "executor": "nx:run-commands",
       "inputs": ["projectSources"],
       "outputs": ["{projectRoot}/lib"],
-      "dependsOn": ["check", "test:ci"],
+      "dependsOn": ["check"],
       "options": {
         "command": "tsup",
         "cwd": "packages/jwt"

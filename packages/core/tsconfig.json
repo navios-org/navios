@@ -4,8 +4,7 @@
     "module": "Node18",
     "outDir": "dist"
   },
-  "include": ["src/**/*",
-    "tsup.config.mts", "vitest.config.mts"],
+  "include": ["src/**/*"],
   "references": [
     {
       "path": "../common"
