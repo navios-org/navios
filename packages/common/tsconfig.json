@@ -4,7 +4,7 @@
     "module": "Node18",
     "outDir": "dist"
   },
-  "include": ["src/**/*", "tsdown.config.mts", "vitest.config.mts"],
+  "include": ["src/**/*", "tsup.config.mts", "vitest.config.mts"],
   "references": [
     {
       "path": "../navios"

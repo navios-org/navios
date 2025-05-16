@@ -1,10 +1,31 @@
 {
+  "$schema": "./node_modules/nx/schemas/nx-schema.json",
   "targetDefaults": {
+    "check": {
+      "cache": true,
+      "dependsOn": ["^build"]
+    },
     "build": {
-      "dependsOn": ["^build"],
-      "outputs": ["{projectRoot}/dist"],
       "cache": true
+    },
+    "test:ci": {
+      "cache": true,
+      "dependsOn": ["^build"]
     }
+  },
+  "namedInputs": {
+    "default": ["{projectRoot}/**/*"],
+    "project": ["{projectRoot}/src/**/*.{ts,tsx,mts}"],
+    "projectSources": [
+      "project",
+      "!{projectRoot}/src/**/?(*.)+spec.{ts,tsx,mts}",
+      "!{projectRoot}/src/**/?(*.)+spec-d.{ts,tsx,mts}"
+    ],
+    "projectTests": [
+      "{projectRoot}/src/**/?(*.)+spec.{ts,tsx,mts}",
+      "{projectRoot}/src/**/?(*.)+spec-d.{ts,tsx,mts}"
+    ],
+    "production": ["projectSources"]
   },
   "affected": {
     "defaultBase": "main"

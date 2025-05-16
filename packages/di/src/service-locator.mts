@@ -167,7 +167,7 @@ export class ServiceLocator {
     const validatedArgs = token.schema?.safeParse(realArgs)
     if (validatedArgs && !validatedArgs.success) {
       this.logger?.error(
-        `[ServiceLocator]#getInstance(): Error validating args for ${token.name.toString()}`,
+        `[ServiceLocator]#resolveTokenArgs(): Error validating args for ${token.name.toString()}`,
         validatedArgs.error,
       )
       return [new UnknownError(validatedArgs.error)]
@@ -241,9 +241,11 @@ export class ServiceLocator {
       (err as any) instanceof FactoryTokenNotResolved &&
       token instanceof FactoryInjectionToken
     ) {
+      this.logger?.log(
+        `[ServiceLocator]#getInstance() Factory token not resolved, resolving it`,
+      )
       await token.resolve()
-      // @ts-expect-error TS2322 We should redefine the instance name type
-      return this.getInstance(token, args)
+      return this.getInstance(token)
     }
     const instanceName = this.makeInstanceName(token, realArgs)
     const [error, holder] = this.manager.get(instanceName)
@@ -340,7 +342,7 @@ export class ServiceLocator {
     }
   }
 
-  private async resolveInstance<
+  private resolveInstance<
     Instance,
     Schema extends InjectionTokenSchemaType | undefined,
     Args extends Schema extends BaseInjectionTokenSchemaType
@@ -407,6 +409,9 @@ export class ServiceLocator {
     }
 
     if (scope === InjectableScope.Singleton) {
+      this.logger?.debug(
+        `[ServiceLocator]#resolveInstance(): Setting instance for ${instanceName}`,
+      )
       this.manager.set(instanceName, holder)
     }
     // @ts-expect-error TS2322 This is correct type
@@ -444,10 +449,14 @@ export class ServiceLocator {
         if (typeof token === 'function') {
           injectionToken = getInjectableToken(token)
         }
-        if (injectionToken instanceof InjectionToken) {
-          const validatedArgs = token.schema
-            ? token.schema.safeParse(args)
-            : undefined
+        if (injectionToken) {
+          const [err, validatedArgs] = self.resolveTokenArgs(
+            injectionToken,
+            args,
+          )
+          if (err) {
+            throw err
+          }
           const instanceName = self.makeInstanceName(token, validatedArgs)
           dependencies.add(instanceName)
           return self.getOrThrowInstance(injectionToken, args as any)
@@ -563,18 +572,20 @@ export class ServiceLocator {
   ) {
     const formattedArgs = args
       ? ':' +
-        JSON.stringify(args, (_, value) => {
-          if (typeof value === 'function') {
-            return `function:${value.name}(${value.length})`
-          }
-          if (typeof value === 'symbol') {
-            return value.toString()
-          }
-          return value
-        })
+        Object.entries(args ?? {})
+          .sort(([keyA], [keyB]) => keyA.localeCompare(keyB))
+          .map(([key, value]) => {
+            if (typeof value === 'function') {
+              return `${key}=fn_${value.name}(${value.length})`
+            }
+            if (typeof value === 'symbol') {
+              return `${key}=${value.toString()}`
+            }
+            return `${key}=${JSON.stringify(value).slice(0, 40)}`
+          })
+          .join(',')
           .replaceAll(/"/g, '')
           .replaceAll(/:/g, '=')
-          .replaceAll(/,/g, '|')
       : ''
     return `${token.toString()}${formattedArgs}`
   }

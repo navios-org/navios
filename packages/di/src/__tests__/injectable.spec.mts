@@ -3,10 +3,10 @@ import { z } from 'zod'
 
 import { Injectable } from '../decorators/index.mjs'
 import { InjectableScope, InjectableType } from '../enums/index.mjs'
-import { syncInject } from '../index.mjs'
+import { Registry, ServiceLocator, syncInject } from '../index.mjs'
 import { InjectionToken } from '../injection-token.mjs'
 import { getGlobalServiceLocator, inject } from '../injector.mjs'
-import { getInjectableToken } from '../utils/index.mjs'
+import { getInjectableToken, getInjectors } from '../utils/index.mjs'
 
 describe('Injectable decorator', () => {
   it('should work with class', async () => {
@@ -181,5 +181,49 @@ describe('Injectable decorator', () => {
     expect(value).toBeInstanceOf(Test)
     // @ts-expect-error It's a test
     expect(value.arg).toEqual({ foo: 'bar' })
+  })
+
+  it('should work with bound injection token', async () => {
+    const schema = z.object({
+      foo: z.string(),
+    })
+    const token = InjectionToken.create('Test', schema)
+
+    @Injectable({ token })
+    class Test {}
+
+    const boundToken = InjectionToken.bound(token, {
+      foo: 'bar',
+    })
+
+    const value = await inject(boundToken)
+    expect(value).toBeInstanceOf(Test)
+  })
+
+  it('should work with bound injection token', async () => {
+    const registry = new Registry()
+    const newServiceLocator = new ServiceLocator(registry)
+    const { inject, syncInject } = getInjectors({
+      baseLocator: newServiceLocator,
+    })
+    const schema = z.object({
+      foo: z.string(),
+    })
+    const token = InjectionToken.create('TestInner', schema)
+    @Injectable({ token, registry })
+    class TestInner {}
+
+    const boundToken = InjectionToken.bound(token, {
+      foo: 'bar',
+    })
+
+    @Injectable({ registry })
+    class TestOuter {
+      foo = syncInject(boundToken)
+    }
+
+    const value = await inject(TestOuter)
+    expect(value).toBeInstanceOf(TestOuter)
+    expect(value.foo).toBeInstanceOf(TestInner)
   })
 })

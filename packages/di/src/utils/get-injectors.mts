@@ -1,13 +1,11 @@
 import type { AnyZodObject, z, ZodType } from 'zod'
 
 import type {
-  BaseInjectionTokenSchemaType,
   BoundInjectionToken,
   ClassType,
   FactoryInjectionToken,
   InjectionToken,
   InjectionTokenSchemaType,
-  OptionalInjectionTokenSchemaType,
 } from '../injection-token.mjs'
 import type { ServiceLocator } from '../service-locator.mjs'
 
@@ -165,6 +163,16 @@ export function getInjectors({ baseLocator }: CreateInjectorsOptions) {
       } else {
         throw new Error(`[Injector] Cannot initiate ${realToken.toString()}`)
       }
+      return new Proxy(
+        {},
+        {
+          get() {
+            throw new Error(
+              `[Injector] Trying to access ${realToken.toString()} before it's initialized, please use inject() instead of syncInject() or do not use the value outside of class methods`,
+            )
+          },
+        },
+      ) as unknown as T
     }
     return instance as unknown as T
   }

@@ -78,11 +78,6 @@ export function Endpoint<
     ) => Promise<z.input<ResponseSchema>>,
     context: ClassMethodDecoratorContext,
   ) => {
-    if (typeof target !== 'function') {
-      throw new Error(
-        '[Navios] Endpoint decorator can only be used on functions.',
-      )
-    }
     if (context.kind !== 'method') {
       throw new Error(
         '[Navios] Endpoint decorator can only be used on methods.',

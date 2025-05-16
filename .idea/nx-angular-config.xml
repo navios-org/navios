@@ -8,6 +8,7 @@
       <project name="@navios/di" file="file://$PROJECT_DIR$/packages/di/project.json" />
       <project name="@navios/jwt" file="file://$PROJECT_DIR$/packages/jwt/project.json" />
       <project name="@navios/react-query" file="file://$PROJECT_DIR$/packages/react-query/project.json" />
+      <project name="@navios/schedule" file="file://$PROJECT_DIR$/packages/schedule/project.json" />
       <project name="navios" file="file://$PROJECT_DIR$/packages/navios/project.json" />
     </projects>
   </component>

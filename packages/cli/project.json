@@ -9,6 +9,7 @@
     "check": {
       "executor": "nx:run-commands",
       "outputs": ["{projectRoot}/dist"],
+      "inputs": ["^projectSources", "projectSources"],
       "options": {
         "command": ["tsc -b"],
         "cwd": "packages/cli"
@@ -16,10 +17,11 @@
     },
     "build": {
       "executor": "nx:run-commands",
+      "inputs": ["projectSources"],
       "outputs": ["{projectRoot}/lib"],
       "dependsOn": ["check"],
       "options": {
-        "command": "tsdown",
+        "command": "tsup",
         "cwd": "packages/cli"
       }
     },

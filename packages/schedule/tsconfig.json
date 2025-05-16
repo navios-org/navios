@@ -1,7 +1,7 @@
 {
   "extends": "../../tsconfig.json",
   "compilerOptions": {
-    "module": "Node18",
+    "module": "Node16",
     "outDir": "dist"
   },
   "include": ["src/**/*", "vitest.config.mts", "tsup.config.mts"],

@@ -9,7 +9,7 @@
     "check": {
       "executor": "nx:run-commands",
       "outputs": ["{projectRoot}/dist"],
-      "dependsOn": ["^build"],
+      "inputs": ["^projectSources", "projectSources"],
       "options": {
         "command": ["tsc -b"],
         "cwd": "packages/react-query"
@@ -17,6 +17,7 @@
     },
     "test:ci": {
       "executor": "nx:run-commands",
+      "inputs": ["^projectSources", "project"],
       "options": {
         "command": "vitest run",
         "cwd": "packages/react-query"
@@ -24,10 +25,11 @@
     },
     "build": {
       "executor": "nx:run-commands",
+      "inputs": ["projectSources"],
       "outputs": ["{projectRoot}/lib"],
       "dependsOn": ["check", "test:ci"],
       "options": {
-        "command": "tsdown",
+        "command": "tsup",
         "cwd": "packages/react-query"
       }
     },

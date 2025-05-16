@@ -1,0 +1,16 @@
+export enum Schedule {
+  EveryMinute = '*/1 * * * *',
+  EveryFiveMinutes = '*/5 * * * *',
+  EveryTenMinutes = '*/10 * * * *',
+  EveryFifteenMinutes = '*/15 * * * *',
+  EveryThirtyMinutes = '*/30 * * * *',
+  EveryHour = '0 * * * *',
+  EveryTwoHours = '0 */2 * * *',
+  EveryThreeHours = '0 */3 * * *',
+  EveryFourHours = '0 */4 * * *',
+  EverySixHours = '0 */6 * * *',
+  EveryTwelveHours = '0 */12 * * *',
+  EveryDay = '0 0 * * *',
+  EveryWeek = '0 0 * * 0',
+  EveryMonth = '0 0 1 * *',
+}

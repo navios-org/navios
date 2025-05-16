@@ -1,3 +1,5 @@
+import { env } from 'node:process'
+
 import { FactoryInjectionToken, InjectionToken } from '@navios/di'
 
 import { z } from 'zod'
@@ -22,3 +24,7 @@ export function provideConfig<ConfigMap extends ConfigServiceOptions>(
 > {
   return InjectionToken.factory(ConfigServiceToken, async () => options.load())
 }
+
+export const EnvConfigProvider = InjectionToken.bound(ConfigServiceToken, {
+  ...env,
+})

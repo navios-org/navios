@@ -1,8 +1,8 @@
 {
-  "name": "@navios/jwt",
+  "name": "@navios/schedule",
   "$schema": "../../node_modules/nx/schemas/project-schema.json",
-  "sourceRoot": "packages/jwt/src",
-  "prefix": "jwt",
+  "sourceRoot": "packages/schedule/src",
+  "prefix": "schedule",
   "tags": [],
   "projectType": "library",
   "targets": {
@@ -12,15 +12,15 @@
       "inputs": ["^projectSources", "projectSources"],
       "options": {
         "command": ["tsc -b"],
-        "cwd": "packages/jwt"
+        "cwd": "packages/schedule"
       }
     },
     "test:ci": {
       "executor": "nx:run-commands",
-      "inputs": ["^projectSources","project"],
+      "inputs": ["^projectSources", "project"],
       "options": {
         "command": "vitest run",
-        "cwd": "packages/jwt"
+        "cwd": "packages/schedule"
       }
     },
     "build": {
@@ -30,7 +30,7 @@
       "dependsOn": ["check", "test:ci"],
       "options": {
         "command": "tsup",
-        "cwd": "packages/jwt"
+        "cwd": "packages/schedule"
       }
     },
     "publish": {
@@ -38,7 +38,7 @@
       "dependsOn": ["build"],
       "options": {
         "command": "yarn npm publish --access public",
-        "cwd": "packages/jwt"
+        "cwd": "packages/schedule"
       }
     },
     "publish:next": {
@@ -46,7 +46,7 @@
       "dependsOn": ["build"],
       "options": {
         "command": "yarn npm publish --access public --tag next",
-        "cwd": "packages/jwt"
+        "cwd": "packages/schedule"
       }
     }
   }

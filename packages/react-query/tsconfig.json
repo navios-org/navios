@@ -4,7 +4,7 @@
     "module": "Node16",
     "outDir": "dist"
   },
-  "include": ["src/**/*", "vitest.config.mts", "tsdown.config.mts"],
+  "include": ["src/**/*", "vitest.config.mts", "tsup.config.mts"],
   "references": [
     {
       "path": "../common"

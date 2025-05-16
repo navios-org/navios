@@ -1,10 +1,11 @@
-import { defineConfig } from 'tsdown'
+import { defineConfig } from 'tsup'
 
 export default defineConfig({
   entry: ['src/index.mts'],
   outDir: 'lib',
   format: ['esm', 'cjs'],
-  dts: true,
   clean: true,
-  platform: 'neutral',
+  sourcemap: true,
+  platform: 'node',
+  experimentalDts: true,
 })

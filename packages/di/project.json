@@ -9,6 +9,7 @@
     "check": {
       "executor": "nx:run-commands",
       "outputs": ["{projectRoot}/dist"],
+      "inputs": ["^projectSources", "projectSources"],
       "options": {
         "command": ["tsc -b"],
         "cwd": "packages/di"
@@ -16,6 +17,7 @@
     },
     "test:ci": {
       "executor": "nx:run-commands",
+      "inputs": ["^projectSources","project"],
       "options": {
         "command": "vitest run",
         "cwd": "packages/di"
@@ -23,10 +25,11 @@
     },
     "build": {
       "executor": "nx:run-commands",
+      "inputs": ["projectSources"],
       "outputs": ["{projectRoot}/lib"],
       "dependsOn": ["check", "test:ci"],
       "options": {
-        "command": "tsdown",
+        "command": "tsup",
         "cwd": "packages/di"
       }
     },

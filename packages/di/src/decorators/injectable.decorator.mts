@@ -31,10 +31,15 @@ export function Injectable(): <T extends ClassType>(
   target: T,
   context: ClassDecoratorContext,
 ) => T
+export function Injectable(options: {
+  registry: Registry
+}): <T extends ClassType>(target: T, context: ClassDecoratorContext) => T
+
 // #2 Factory without arguments
 export function Injectable<R>(options: {
   scope?: InjectableScope
   type: InjectableType.Factory
+  registry?: Registry
 }): <T extends ClassTypeWithInstance<Factory<R>>>(
   target: T,
   context: ClassDecoratorContext,
@@ -45,6 +50,7 @@ export function Injectable<Type, Schema>(options: {
   scope?: InjectableScope
   type?: InjectableType.Class
   token: InjectionToken<Type, Schema>
+  registry?: Registry
 }): Schema extends BaseInjectionTokenSchemaType // #3.1 Check that schema is an object or a record
   ? Type extends undefined
     ? <T extends ClassTypeWithArgument<z.output<Schema>>>( // #3.1.1 Typeless token
@@ -83,6 +89,7 @@ export function Injectable<R, S>(options: {
   scope?: InjectableScope
   type: InjectableType.Factory
   token: InjectionToken<R, S>
+  registry?: Registry
 }): R extends undefined // #4.1 Check that token has a type
   ? never // #4.1.1 Token must have a type
   : S extends InjectionTokenSchemaType // #4.2 Check that schema is an object or a record

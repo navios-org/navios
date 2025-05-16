@@ -9,10 +9,10 @@ export async function resolveService<T extends ClassType>(
   target: T,
   args: any[] = [],
 ): Promise<InstanceType<T>> {
-  const proxyServiceLocator = makeProxyServiceLocator(ctx.locator, ctx)
   const { wrapSyncInit, provideServiceLocator } = getInjectors({
     baseLocator: ctx.locator,
   })
+  const proxyServiceLocator = makeProxyServiceLocator(ctx.locator, ctx)
   const tryLoad = wrapSyncInit(() => {
     const original = provideServiceLocator(proxyServiceLocator)
     let result = new target(...args)
@@ -21,7 +21,7 @@ export async function resolveService<T extends ClassType>(
   })
   let [instance, promises] = tryLoad()
   if (promises.length > 0) {
-    await Promise.all(promises)
+    await Promise.allSettled(promises)
     const newRes = tryLoad()
     instance = newRes[0]
     promises = newRes[1]

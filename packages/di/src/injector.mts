@@ -1,9 +1,10 @@
 import type { Injectors } from './utils/index.mjs'
 
+import { globalRegistry } from './registry.mjs'
 import { ServiceLocator } from './service-locator.mjs'
 import { getInjectors } from './utils/index.mjs'
 
-const globalServiceLocator: ServiceLocator = new ServiceLocator()
+const globalServiceLocator: ServiceLocator = new ServiceLocator(globalRegistry)
 
 export function getGlobalServiceLocator(): ServiceLocator {
   if (!globalServiceLocator) {
