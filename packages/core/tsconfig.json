@@ -4,8 +4,13 @@
     "module": "Node18",
     "outDir": "dist"
   },
-  "include": ["src/**/*"],
   "references": [
+    {
+      "path": "./tsconfig.lib.json"
+    },
+    {
+      "path": "./tsconfig.spec.json"
+    },
     {
       "path": "../builder"
     },

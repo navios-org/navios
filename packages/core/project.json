@@ -9,7 +9,12 @@
     "check": {
       "executor": "nx:run-commands",
       "outputs": ["{projectRoot}/dist"],
-      "inputs": ["^projectSources", "projectSources"],
+      "inputs": [
+        "^projectSources",
+        "projectSources",
+        "{projectRoot}/tsconfig.json",
+        "{projectRoot}/tsconfig.lib.json"
+      ],
       "options": {
         "command": ["tsc -b"],
         "cwd": "packages/core"
@@ -17,7 +22,7 @@
     },
     "test:ci": {
       "executor": "nx:run-commands",
-      "inputs": ["^projectSources","project"],
+      "inputs": ["^projectSources", "project"],
       "options": {
         "command": "vitest run",
         "cwd": "packages/core"
@@ -25,7 +30,7 @@
     },
     "build": {
       "executor": "nx:run-commands",
-      "inputs": ["projectSources"],
+      "inputs": ["projectSources", "{projectRoot}/tsup.config.mts"],
       "outputs": ["{projectRoot}/lib"],
       "dependsOn": ["check", "test:ci"],
       "options": {
