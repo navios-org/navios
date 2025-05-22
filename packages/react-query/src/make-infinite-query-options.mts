@@ -2,7 +2,7 @@ import type {
   AbstractEndpoint,
   AnyEndpointConfig,
   UrlParams,
-} from '@navios/common'
+} from '@navios/builder'
 import type {
   InfiniteData,
   QueryClient,

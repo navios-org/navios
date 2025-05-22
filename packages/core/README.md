@@ -23,7 +23,6 @@ It uses Fastify under the hood, which is a fast and low-overhead web framework f
 - **Service**: A service is a class that defines the business logic for a specific resource. It is used to separate the business logic from the controller and provide a clear structure for your API.
 - **Guard**: A guard is a class that is used to validate incoming requests and ensure that they meet certain criteria. Guards can be used to validate request parameters, headers, and body. They can also be used to check authentication and authorization.
 - **Attribute**: An attribute is a decorator that is used to add metadata to a class or method. Attributes can be used in guards, controllers, modules, and endpoints to provide additional information about the class or method.
- 
 
 ## Getting Started
 
@@ -33,6 +32,7 @@ Define your API in a shared location accessible to both the client and server. T
 
 ```ts
 import { builder } from '@navios/core'
+
 import { z } from 'zod'
 
 const api = builder({
@@ -66,7 +66,7 @@ const login = api.declareEndpoint({
 ### Create your server
 
 ```bash
-yarn install --save @navios/core @navios/common zod
+yarn install --save @navios/core @navios/builder zod
 ```
 
 Create AuthService:
@@ -86,7 +86,9 @@ export class LoginService {
 Create your first Controller:
 
 ```ts
-import { Controller, Endpoint, type EndpointParams, syncInject } from '@navios/core'
+import type { EndpointParams } from '@navios/core'
+
+import { Controller, Endpoint, syncInject } from '@navios/core'
 
 import { AuthService } from './auth.service.mjs'
 
@@ -111,6 +113,7 @@ export class AuthController {
   }
 }
 ```
+
 Create your AppModule:
 
 ```ts
@@ -128,6 +131,7 @@ Create your server:
 
 ```ts
 import { NaviosFactory } from '@navios/core'
+
 import { AppModule } from './src/app.module.mjs'
 
 export async function boot() {

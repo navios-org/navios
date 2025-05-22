@@ -1,4 +1,4 @@
-import { builder } from '@navios/common'
+import { builder } from '@navios/builder'
 
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'

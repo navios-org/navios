@@ -3,7 +3,7 @@ import type {
   AnyEndpointConfig,
   UrlHasParams,
   UrlParams,
-} from '@navios/common'
+} from '@navios/builder'
 import type { UseMutationResult } from '@tanstack/react-query'
 import type { z } from 'zod'
 

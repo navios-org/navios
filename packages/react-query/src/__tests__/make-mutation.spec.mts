@@ -1,7 +1,7 @@
 import { create } from 'navios'
 import { makeNaviosFakeAdapter } from 'navios/testing'
 
-import { builder } from '@navios/common'
+import { builder } from '@navios/builder'
 
 import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'

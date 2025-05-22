@@ -1,8 +1,12 @@
-import type { AnyEndpointConfig, UrlHasParams, UrlParams } from '@navios/common'
+import type {
+  AnyEndpointConfig,
+  UrlHasParams,
+  UrlParams,
+} from '@navios/builder'
 import type { DataTag, InfiniteData } from '@tanstack/react-query'
 import type { AnyZodObject, z } from 'zod'
 
-import { bindUrlParams } from '@navios/common'
+import { bindUrlParams } from '@navios/builder'
 
 import type { BaseQueryParams } from '../types.mjs'
 

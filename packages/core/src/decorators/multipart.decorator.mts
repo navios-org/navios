@@ -3,7 +3,7 @@ import type {
   EndpointFunctionArgs,
   HttpMethod,
   Util_FlatObject,
-} from '@navios/common'
+} from '@navios/builder'
 import type { AnyZodObject, z, ZodType } from 'zod'
 
 import { ZodDiscriminatedUnion } from 'zod'

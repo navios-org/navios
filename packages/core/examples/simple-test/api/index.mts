@@ -1,4 +1,4 @@
-import { builder } from '@navios/common'
+import { builder } from '@navios/builder'
 
 import { z } from 'zod'
 

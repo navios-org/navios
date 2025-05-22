@@ -1,4 +1,4 @@
-import { NaviosException } from '@navios/common'
+import { NaviosException } from '@navios/builder'
 import { Injectable, InjectionToken, syncInject } from '@navios/di'
 
 import { z } from 'zod'

@@ -6,7 +6,7 @@ import { z } from 'zod'
 
 import { builder } from '../builder.mjs'
 
-describe('navios common', () => {
+describe('navios builder', () => {
   it('should parse the response', async () => {
     const adapter = makeNaviosFakeAdapter()
     adapter.mock(

@@ -12,7 +12,7 @@
   },
   "license": "MIT",
   "peerDependencies": {
-    "@navios/common": "workspace:^",
+    "@navios/builder": "workspace:^",
     "@tanstack/react-query": "^5.51.21",
     "zod": "^3.23.8"
   },
@@ -32,7 +32,7 @@
     }
   },
   "devDependencies": {
-    "@navios/common": "workspace:^",
+    "@navios/builder": "workspace:^",
     "@tanstack/react-query": "^5.75.7",
     "navios": "workspace:^",
     "react": "^19.1.0",

@@ -3,7 +3,7 @@ import type {
   UrlHasParams,
   UrlParams,
   Util_FlatObject,
-} from '@navios/common'
+} from '@navios/builder'
 import type {
   DataTag,
   InfiniteData,

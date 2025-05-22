@@ -1,4 +1,4 @@
-import type { UrlHasParams, UrlParams } from '@navios/common'
+import type { UrlHasParams, UrlParams } from '@navios/builder'
 import type { AnyZodObject, z } from 'zod'
 
 export type ClientQueryArgs<

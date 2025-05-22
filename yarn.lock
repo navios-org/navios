@@ -2073,6 +2073,18 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@navios/builder@workspace:^, @navios/builder@workspace:packages/builder":
+  version: 0.0.0-use.local
+  resolution: "@navios/builder@workspace:packages/builder"
+  dependencies:
+    navios: "workspace:^"
+    typescript: "npm:^5.8.3"
+    zod: "npm:^3.24.4"
+  peerDependencies:
+    zod: ^3.23.8
+  languageName: unknown
+  linkType: soft
+
 "@navios/cli@workspace:packages/cli":
   version: 0.0.0-use.local
   resolution: "@navios/cli@workspace:packages/cli"
@@ -2088,25 +2100,13 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@navios/common@workspace:^, @navios/common@workspace:packages/common":
-  version: 0.0.0-use.local
-  resolution: "@navios/common@workspace:packages/common"
-  dependencies:
-    navios: "workspace:^"
-    typescript: "npm:^5.8.3"
-    zod: "npm:^3.24.4"
-  peerDependencies:
-    zod: ^3.23.8
-  languageName: unknown
-  linkType: soft
-
 "@navios/core@workspace:^, @navios/core@workspace:packages/core":
   version: 0.0.0-use.local
   resolution: "@navios/core@workspace:packages/core"
   dependencies:
     "@fastify/cors": "npm:^11.0.1"
     "@fastify/multipart": "npm:^9.0.3"
-    "@navios/common": "workspace:^"
+    "@navios/builder": "workspace:^"
     "@navios/di": "workspace:^"
     fastify: "npm:^5.3.2"
     fastify-type-provider-zod: "npm:^4.0.2"
@@ -2114,7 +2114,7 @@ __metadata:
     typescript: "npm:^5.8.3"
     zod: "npm:^3.24.4"
   peerDependencies:
-    "@navios/common": "workspace:^"
+    "@navios/builder": "workspace:^"
     zod: ^3.23.8
   languageName: unknown
   linkType: soft
@@ -2172,14 +2172,14 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@navios/react-query@workspace:packages/react-query"
   dependencies:
-    "@navios/common": "workspace:^"
+    "@navios/builder": "workspace:^"
     "@tanstack/react-query": "npm:^5.75.7"
     navios: "workspace:^"
     react: "npm:^19.1.0"
     typescript: "npm:^5.8.3"
     zod: "npm:^3.24.4"
   peerDependencies:
-    "@navios/common": "workspace:^"
+    "@navios/builder": "workspace:^"
     "@tanstack/react-query": ^5.51.21
     zod: ^3.23.8
   languageName: unknown

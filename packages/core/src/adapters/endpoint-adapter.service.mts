@@ -1,4 +1,4 @@
-import type { BaseEndpointConfig } from '@navios/common'
+import type { BaseEndpointConfig } from '@navios/builder'
 import type { ClassType } from '@navios/di'
 import type { FastifyReply, FastifyRequest } from 'fastify'
 

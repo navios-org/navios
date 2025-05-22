@@ -1,4 +1,4 @@
-import type { HttpMethod } from '@navios/common'
+import type { HttpMethod } from '@navios/builder'
 import type { ClassTypeWithInstance, InjectionToken } from '@navios/di'
 import type { HttpHeader } from 'fastify/types/utils.js'
 

@@ -1,4 +1,8 @@
-import type { AnyEndpointConfig, UrlHasParams, UrlParams } from '@navios/common'
+import type {
+  AnyEndpointConfig,
+  UrlHasParams,
+  UrlParams,
+} from '@navios/builder'
 import type { DataTag } from '@tanstack/react-query'
 
 import type { BaseQueryParams } from '../types.mjs'

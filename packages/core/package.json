@@ -12,7 +12,7 @@
   },
   "license": "MIT",
   "peerDependencies": {
-    "@navios/common": "workspace:^",
+    "@navios/builder": "workspace:^",
     "zod": "^3.23.8"
   },
   "typings": "./lib/index.d.mts",
@@ -31,7 +31,7 @@
     }
   },
   "devDependencies": {
-    "@navios/common": "workspace:^",
+    "@navios/builder": "workspace:^",
     "tsx": "^4.19.4",
     "typescript": "^5.8.3",
     "zod": "^3.24.4"

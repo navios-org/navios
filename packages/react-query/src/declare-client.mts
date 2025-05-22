@@ -3,7 +3,7 @@ import type {
   AnyEndpointConfig,
   HttpMethod,
   Util_FlatObject,
-} from '@navios/common'
+} from '@navios/builder'
 import type { InfiniteData, QueryClient } from '@tanstack/react-query'
 import type { AnyZodObject, z, ZodType } from 'zod'
 

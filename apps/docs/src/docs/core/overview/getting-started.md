@@ -21,9 +21,9 @@ This will create a new `package.json` file in your project directory.
 Install Typescript and Navios:
 
 ```bash
-npm install --save-dev typescript @navios/core @navios/cli @navios/common
+npm install --save-dev typescript @navios/core @navios/cli @navios/builder
 # or
-yarn add -D typescript @navios/core @navios/cli @navios/common
+yarn add -D typescript @navios/core @navios/cli @navios/builder
 ```
 
 Set `"type": "module"` in your `package.json` to enable ES modules:
@@ -73,11 +73,9 @@ Create a new directory called `src` in your project root. This is where you will
 Create a new file called `main.ts` in the `src` directory. This is where you will define your app.
 
 ```typescript
-import {
-  LoggerInstance,
-  NaviosFactory,
-  type NaviosApplication,
-} from '@navios/core'
+import type { NaviosApplication } from '@navios/core'
+
+import { LoggerInstance, NaviosFactory } from '@navios/core'
 
 import { AppModule } from './app/app.module.js'
 
@@ -121,6 +119,5 @@ Create a new file called `app.controller.ts` in the `src/app` directory:
 import { Controller } from '@navios/core'
 
 @Controller()
-export class AppController {
-}
+export class AppController {}
 ```

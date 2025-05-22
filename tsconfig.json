@@ -8,7 +8,7 @@
       "path": "packages/navios-zod"
     },
     {
-      "path": "packages/common"
+      "path": "packages/builder"
     },
     {
       "path": "packages/core"

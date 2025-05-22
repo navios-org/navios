@@ -5,7 +5,7 @@
       <excludeFolder url="file://$MODULE_DIR$/.tmp" />
       <excludeFolder url="file://$MODULE_DIR$/temp" />
       <excludeFolder url="file://$MODULE_DIR$/tmp" />
-      <excludeFolder url="file://$MODULE_DIR$/packages/common/.tsup" />
+      <excludeFolder url="file://$MODULE_DIR$/packages/builder/.tsup" />
       <excludeFolder url="file://$MODULE_DIR$/packages/core/.tsup" />
       <excludeFolder url="file://$MODULE_DIR$/packages/jwt/.tsup" />
       <excludeFolder url="file://$MODULE_DIR$/packages/navios/.tsup" />

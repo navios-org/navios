@@ -6,7 +6,7 @@ import type {
   NaviosZodRequest,
   UrlHasParams,
   UrlParams,
-} from '@navios/common'
+} from '@navios/builder'
 import type { QueryClient, UseMutationOptions } from '@tanstack/react-query'
 import type { AnyZodObject, z } from 'zod'
 

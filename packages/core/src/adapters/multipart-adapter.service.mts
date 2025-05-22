@@ -1,5 +1,5 @@
 import type { MultipartFile, MultipartValue } from '@fastify/multipart'
-import type { BaseEndpointConfig } from '@navios/common'
+import type { BaseEndpointConfig } from '@navios/builder'
 import type { FastifyRequest } from 'fastify'
 import type { AnyZodObject, ZodRawShape } from 'zod'
 

@@ -15,19 +15,19 @@
 ## Installation
 
 ```bash
-npm install --save @navios/common zod
+npm install --save @navios/builder zod
 ```
 
 or
 
 ```bash
-yarn add @navios/common zod
+yarn add @navios/builder zod
 ```
 
 ## Usage
 
 ```ts
-import { builder } from '@navios/common'
+import { builder } from '@navios/builder'
 import { create } from 'navios'
 // or
 import { create } from 'axios'
@@ -60,7 +60,7 @@ const getUser = API.declareEndpoint({
 Or a more complex example with the request schema:
 
 ```ts
-import { builder } from '@navios/common'
+import { builder } from '@navios/builder'
 
 import { z } from 'zod'
 

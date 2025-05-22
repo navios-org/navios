@@ -1,8 +1,8 @@
 {
-  "name": "@navios/common",
+  "name": "@navios/builder",
   "$schema": "../../node_modules/nx/schemas/project-schema.json",
-  "sourceRoot": "packages/common/src",
-  "prefix": "common",
+  "sourceRoot": "packages/builder/src",
+  "prefix": "builder",
   "tags": [],
   "projectType": "library",
   "targets": {
@@ -12,15 +12,15 @@
       "inputs": ["^projectSources", "projectSources"],
       "options": {
         "command": ["tsc -b"],
-        "cwd": "packages/common"
+        "cwd": "packages/builder"
       }
     },
     "test:ci": {
       "executor": "nx:run-commands",
-      "inputs": ["^projectSources","project"],
+      "inputs": ["^projectSources", "project"],
       "options": {
         "command": "vitest run",
-        "cwd": "packages/common"
+        "cwd": "packages/builder"
       }
     },
     "build": {
@@ -30,7 +30,7 @@
       "dependsOn": ["check", "test:ci"],
       "options": {
         "command": "tsup",
-        "cwd": "packages/common"
+        "cwd": "packages/builder"
       }
     },
     "publish": {
@@ -38,7 +38,7 @@
       "dependsOn": ["build"],
       "options": {
         "command": "yarn npm publish --access public",
-        "cwd": "packages/common"
+        "cwd": "packages/builder"
       }
     },
     "publish:next": {
@@ -46,7 +46,7 @@
       "dependsOn": ["build"],
       "options": {
         "command": "yarn npm publish --access public --tag next",
-        "cwd": "packages/common"
+        "cwd": "packages/builder"
       }
     }
   }

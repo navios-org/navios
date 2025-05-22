@@ -1,4 +1,4 @@
-import { builder } from '@navios/common'
+import { builder } from '@navios/builder'
 
 import { QueryClient } from '@tanstack/react-query'
 import { describe, expect, it } from 'vitest'

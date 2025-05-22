@@ -1,4 +1,4 @@
-import type { BaseStreamConfig } from '@navios/common'
+import type { BaseStreamConfig } from '@navios/builder'
 import type { ClassType } from '@navios/di'
 import type { FastifyReply, FastifyRequest } from 'fastify'
 

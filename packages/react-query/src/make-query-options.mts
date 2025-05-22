@@ -1,4 +1,4 @@
-import type { AbstractEndpoint, AnyEndpointConfig } from '@navios/common'
+import type { AbstractEndpoint, AnyEndpointConfig } from '@navios/builder'
 import type {
   DataTag,
   QueryClient,

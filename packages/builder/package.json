@@ -1,12 +1,12 @@
 {
-  "name": "@navios/common",
-  "version": "0.1.6",
+  "name": "@navios/builder",
+  "version": "0.2.0",
   "author": {
     "name": "Oleksandr Hanzha",
     "email": "alex@granted.name"
   },
   "repository": {
-    "directory": "packages/common",
+    "directory": "packages/builder",
     "type": "git",
     "url": "https://github.com/Arilas/navios.git"
   },

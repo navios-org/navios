@@ -1,4 +1,4 @@
-import type { UrlHasParams, UrlParams } from '@navios/common'
+import type { UrlHasParams, UrlParams } from '@navios/builder'
 import type { DataTag } from '@tanstack/react-query'
 
 export type MutationHelpers<Url extends string, Result = unknown> =

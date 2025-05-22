@@ -1,4 +1,4 @@
-import type { Util_FlatObject } from '@navios/common'
+import type { Util_FlatObject } from '@navios/builder'
 import type {
   QueryClient,
   UseQueryResult,
