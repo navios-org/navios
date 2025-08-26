@@ -137,6 +137,7 @@ export class JwtService {
       throw new Error()
     }
 
+    // @ts-expect-error We check it
     return jwt.verify(token, secret, verifyOptions) as unknown as T
   }
 
@@ -156,6 +157,7 @@ export class JwtService {
       Promise.resolve()
         .then(() => secret)
         .then((scrt: GetSecretKeyResult) => {
+          // @ts-expect-error We check it
           jwt.verify(token, scrt, verifyOptions, (err, decoded) =>
             err ? reject(err) : resolve(decoded as T),
           )

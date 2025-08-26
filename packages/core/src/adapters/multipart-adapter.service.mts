@@ -65,9 +65,13 @@ export class MultipartAdapterService extends EndpointAdapterService {
     }
     let value
     if (part.type === 'file') {
-      value = new File([await part.toBuffer()], part.filename, {
-        type: part.mimetype,
-      })
+      value = new File(
+        [(await part.toBuffer()) as unknown as ArrayBuffer],
+        part.filename,
+        {
+          type: part.mimetype,
+        },
+      )
     } else {
       value = part.value
       if (isObject && typeof value === 'string') {

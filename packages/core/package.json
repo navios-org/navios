@@ -43,6 +43,6 @@
     "@fastify/multipart": "^9.0.3",
     "@navios/di": "workspace:^",
     "fastify": "^5.5.0",
-    "fastify-type-provider-zod": "^5.0.3"
+    "fastify-type-provider-zod": "^4.0.2"
   }
 }

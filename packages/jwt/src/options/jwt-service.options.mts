@@ -43,7 +43,13 @@ export const SignOptionsSchema = z.object({
   keyid: z.string().optional(),
   expiresIn: z.union([z.string(), z.number()]).optional(),
   notBefore: z.union([z.string(), z.number()]).optional(),
-  audience: z.union([z.string(), z.string().array()]).optional(),
+  audience: z
+    .union([
+      z.string(),
+      z.instanceof(RegExp),
+      z.array(z.union([z.string(), z.instanceof(RegExp)])),
+    ])
+    .optional(),
   subject: z.string().optional(),
   issuer: z.string().optional(),
   jwtid: z.string().optional(),
@@ -60,7 +66,11 @@ export type SignOptions = z.infer<typeof SignOptionsSchema>
 export const VerifyOptionsSchema = z.object({
   algorithms: AlgorithmType.array().optional(),
   audience: z
-    .union([z.string(), z.instanceof(RegExp), z.string().array()])
+    .union([
+      z.string(),
+      z.instanceof(RegExp),
+      z.array(z.union([z.string(), z.instanceof(RegExp)])),
+    ])
     .optional(),
   clockTimestamp: z.number().optional(),
   clockTolerance: z.number().optional(),

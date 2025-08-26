@@ -8,6 +8,12 @@ import { JwtService, JwtServiceToken } from './jwt.service.mjs'
 import { JwtServiceOptionsSchema } from './options/jwt-service.options.mjs'
 
 export function provideJwtService(
+  config: JwtServiceOptions,
+): BoundInjectionToken<JwtService, typeof JwtServiceOptionsSchema>
+export function provideJwtService(
+  config: () => Promise<JwtServiceOptions>,
+): FactoryInjectionToken<JwtService, typeof JwtServiceOptionsSchema>
+export function provideJwtService(
   config: JwtServiceOptions | (() => Promise<JwtServiceOptions>),
 ):
   | BoundInjectionToken<JwtService, typeof JwtServiceOptionsSchema>
