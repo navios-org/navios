@@ -1,0 +1,104 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema",
+  "title": "Navios Application",
+  "description": "A Configuration for the CLI for the Navios application",
+  "type": "object",
+  "definitions": {
+    "BetterAuthConfig": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "const": "@navios/better-auth"
+        },
+        "options": {
+          "type": "object",
+          "properties": {
+            "authService": {
+              "type": "string",
+              "description": "The path to the auth service file",
+              "default": "./src/auth/auth.providers.ts"
+            },
+            "authServiceExport": {
+              "type": "string",
+              "description": "The name of the auth service export",
+              "default": "AuthService"
+            },
+            "dbAdapter": {
+              "type": "string",
+              "description": "The database adapter to use",
+              "enum": ["prisma", "kysely", "drizzle"]
+            }
+          },
+          "required": ["dbAdapter"],
+          "anyOf": [
+            {
+              "properties": {
+                "dbAdapter": {
+                  "const": "prisma"
+                },
+                "schemaLocation": {
+                  "type": "string",
+                  "description": "The path to the database schema file",
+                  "default": "./prisma/schema.prisma"
+                },
+                "modelsFolder": {
+                  "type": "string",
+                  "description": "The path to the models folder"
+                }
+              },
+              "required": ["schemaLocation"]
+            },
+            {
+              "not": {
+                "properties": {
+                  "dbAdapter": {
+                    "const": "prisma"
+                  }
+                }
+              }
+            }
+          ]
+        }
+      },
+      "required": ["name", "options"]
+    }
+  },
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "The name of the application",
+      "default": "navios"
+    },
+    "appPath": {
+      "type": "string",
+      "description": "The path to the app entry file",
+      "default": "./src/main.ts"
+    },
+    "appExport": {
+      "type": "string",
+      "description": "The name of the app export",
+      "default": "app"
+    },
+    "port": {
+      "type": "number",
+      "description": "The port to run the server on",
+      "default": 4800
+    },
+    "host": {
+      "type": "string",
+      "description": "The host to run the server on",
+      "default": "0.0.0.0"
+    },
+    "plugins": {
+      "type": "array",
+      "description": "The plugins to use",
+      "items": {
+        "oneOf": [
+          {
+            "$ref": "#/definitions/BetterAuthConfig"
+          }
+        ]
+      }
+    }
+  }
+}

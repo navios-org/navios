@@ -2,11 +2,13 @@
 <project version="4">
   <component name="NxAngularConfigService" workspaceLocation="file://$PROJECT_DIR$/nx.json">
     <projects>
-      <project name="@navios/cli" file="file://$PROJECT_DIR$/packages/cli/project.json" />
+      <project name="@navios/better-auth" file="file://$PROJECT_DIR$/lab-packages/better-auth/project.json" />
       <project name="@navios/builder" file="file://$PROJECT_DIR$/packages/builder/project.json" />
+      <project name="@navios/cli" file="file://$PROJECT_DIR$/packages/cli/project.json" />
       <project name="@navios/core" file="file://$PROJECT_DIR$/packages/core/project.json" />
       <project name="@navios/di" file="file://$PROJECT_DIR$/packages/di/project.json" />
       <project name="@navios/jwt" file="file://$PROJECT_DIR$/packages/jwt/project.json" />
+      <project name="@navios/queues-core" file="file://$PROJECT_DIR$/lab-packages/queues-core/project.json" />
       <project name="@navios/react-query" file="file://$PROJECT_DIR$/packages/react-query/project.json" />
       <project name="@navios/schedule" file="file://$PROJECT_DIR$/packages/schedule/project.json" />
       <project name="navios" file="file://$PROJECT_DIR$/packages/navios/project.json" />

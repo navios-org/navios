@@ -1,19 +1,12 @@
 {
-  "name": "@navios/builder",
-  "version": "0.2.0",
+  "name": "@navios/better-auth",
+  "version": "0.0.1-alpha.0",
+  "private": true,
   "author": {
     "name": "Oleksandr Hanzha",
     "email": "alex@granted.name"
   },
-  "repository": {
-    "directory": "packages/builder",
-    "type": "git",
-    "url": "https://github.com/Arilas/navios.git"
-  },
   "license": "MIT",
-  "peerDependencies": {
-    "zod": "^3.23.8"
-  },
   "typings": "./lib/index.d.mts",
   "main": "./lib/index.js",
   "module": "./lib/index.mjs",
@@ -29,9 +22,7 @@
       }
     }
   },
-  "devDependencies": {
-    "navios": "workspace:^",
-    "typescript": "^5.9.2",
-    "zod": "^3.25.76"
+  "dependencies": {
+    "@navios/di": "workspace:*"
   }
 }

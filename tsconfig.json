@@ -2,31 +2,31 @@
   "extends": "./tsconfig.base.json",
   "references": [
     {
-      "path": "packages/navios"
-    },
-    {
-      "path": "packages/navios-zod"
-    },
-    {
       "path": "packages/builder"
+    },
+    {
+      "path": "packages/cli"
     },
     {
       "path": "packages/core"
     },
     {
+      "path": "packages/di"
+    },
+    {
       "path": "packages/jwt"
     },
     {
-      "path": "packages/navios-zod-react"
+      "path": "packages/navios"
     },
     {
-      "path": "packages/angular-module"
-    },
-    {
-      "path": "packages/nestjs-module"
+      "path": "packages/queues-core"
     },
     {
       "path": "packages/react-query"
+    },
+    {
+      "path": "packages/schedule"
     }
   ]
 }
