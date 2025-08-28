@@ -1,4 +1,4 @@
-import type { AnyZodObject, z, ZodOptional } from 'zod'
+import type { z, ZodObject, ZodOptional } from 'zod/v4'
 
 import type { FactoryContext } from './factory-context.mjs'
 import type {
@@ -39,12 +39,12 @@ export class ProxyServiceLocator implements ServiceLocator {
   }
   public getOrThrowInstance<
     Instance,
-    Schema extends AnyZodObject | ZodOptional<AnyZodObject> | undefined,
+    Schema extends ZodObject<any> | ZodOptional<ZodObject<any>> | undefined,
   >(
     token: InjectionToken<Instance, Schema>,
-    args: Schema extends AnyZodObject
+    args: Schema extends ZodObject<any>
       ? z.input<Schema>
-      : Schema extends ZodOptional<AnyZodObject>
+      : Schema extends ZodOptional<ZodObject<any>>
         ? z.input<Schema> | undefined
         : undefined,
   ): Promise<Instance> {
@@ -52,16 +52,16 @@ export class ProxyServiceLocator implements ServiceLocator {
   }
   public getSyncInstance<
     Instance,
-    Schema extends AnyZodObject | ZodOptional<AnyZodObject> | undefined,
+    Schema extends ZodObject<any> | ZodOptional<ZodObject<any>> | undefined,
   >(
     token: InjectionToken<Instance, Schema>,
-    args: Schema extends AnyZodObject
+    args: Schema extends ZodObject<any>
       ? z.input<Schema>
-      : Schema extends ZodOptional<AnyZodObject>
+      : Schema extends ZodOptional<ZodObject<any>>
         ? z.input<Schema> | undefined
         : undefined,
   ): Instance | null {
-    return this.serviceLocator.getSyncInstance(token, args)
+    return this.serviceLocator.getSyncInstance<Instance, Schema>(token, args)
   }
   invalidate(service: string, round?: number): Promise<any> {
     return this.serviceLocator.invalidate(service, round)

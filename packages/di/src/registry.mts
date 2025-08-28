@@ -1,6 +1,4 @@
-import type { AnyZodObject } from 'zod'
-
-import { z } from 'zod'
+import type { z, ZodObject } from 'zod/v4'
 
 import type { FactoryContext } from './factory-context.mjs'
 import type { InjectionToken } from './injection-token.mjs'
@@ -17,7 +15,7 @@ export type FactoryRecord<Instance = any, Schema = any> = {
   originalToken: InjectionToken<Instance, Schema>
   factory: InjectionFactory<
     Instance,
-    Schema extends AnyZodObject ? z.input<Schema> : unknown
+    Schema extends ZodObject<any> ? z.input<Schema> : unknown
   >
 }
 

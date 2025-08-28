@@ -1,4 +1,4 @@
-import { z } from 'zod'
+import { z } from 'zod/v4'
 
 import type { FactoryContext } from '../factory-context.mjs'
 import type { InjectionTokenSchemaType } from '../injection-token.mjs'

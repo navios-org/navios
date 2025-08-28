@@ -1,4 +1,4 @@
-import type { AnyZodObject, z, ZodType } from 'zod'
+import type { z, ZodObject, ZodType } from 'zod/v4'
 
 import type {
   BoundInjectionToken,
@@ -150,8 +150,8 @@ export function getInjectors({ baseLocator }: CreateInjectorsOptions) {
       | InjectionToken<T>
       | BoundInjectionToken<T, any>
       | FactoryInjectionToken<T, any>,
-    S extends AnyZodObject | unknown = Token['schema'],
-  >(token: Token, args?: S extends AnyZodObject ? z.input<S> : never): T {
+    S extends ZodObject<any> | unknown = Token['schema'],
+  >(token: Token, args?: S extends ZodObject<any> ? z.input<S> : never): T {
     // @ts-expect-error In case we have a class
     const realToken = token[InjectableTokenMeta] ?? token
 

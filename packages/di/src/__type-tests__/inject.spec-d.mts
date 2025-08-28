@@ -1,5 +1,5 @@
-import { assertType, describe, expectTypeOf, test } from 'vitest'
-import { z } from 'zod'
+import { assertType, describe, test } from 'vitest'
+import { z } from 'zod/v4'
 
 import { Injectable } from '../decorators/index.mjs'
 import { InjectableType } from '../enums/index.mjs'
@@ -18,8 +18,8 @@ const simpleOptionalObjectSchema = z
     foo: z.string(),
   })
   .optional()
-const simpleRecordSchema = z.record(z.string())
-const simpleOptionalRecordSchema = z.record(z.string()).optional()
+const simpleRecordSchema = z.record(z.string(), z.string())
+const simpleOptionalRecordSchema = z.record(z.string(), z.string()).optional()
 
 const typelessObjectToken = InjectionToken.create(
   Symbol.for('Typeless object token'),

@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 /* eslint-disable @typescript-eslint/no-empty-object-type */
-import type { AnyZodObject, z, ZodOptional } from 'zod'
+import type { z, ZodObject, ZodOptional } from 'zod/v4'
 
 import type { FactoryContext } from './factory-context.mjs'
 import type {
@@ -62,7 +62,7 @@ export class ServiceLocator {
   ): void
   public storeInstance<
     Instance,
-    Schema extends AnyZodObject | ZodOptional<AnyZodObject>,
+    Schema extends ZodObject<any> | ZodOptional<ZodObject<any>>,
   >(
     instance: Instance,
     token: InjectionToken<Instance, Schema>,
@@ -292,9 +292,9 @@ export class ServiceLocator {
     Schema extends InjectionTokenSchemaType | undefined,
   >(
     token: InjectionToken<Instance, Schema>,
-    args: Schema extends AnyZodObject
+    args: Schema extends ZodObject<any>
       ? z.input<Schema>
-      : Schema extends ZodOptional<AnyZodObject>
+      : Schema extends ZodOptional<ZodObject<any>>
         ? z.input<Schema> | undefined
         : undefined,
   ): Promise<Instance> {
@@ -321,9 +321,9 @@ export class ServiceLocator {
   >(
     instanceName: string,
     token: InjectionToken<Instance, Schema>,
-    args: Schema extends AnyZodObject
+    args: Schema extends ZodObject<any>
       ? z.input<Schema>
-      : Schema extends ZodOptional<AnyZodObject>
+      : Schema extends ZodOptional<ZodObject<any>>
         ? z.input<Schema> | undefined
         : undefined,
   ): Promise<[undefined, Instance] | [FactoryNotFound | UnknownError]> {
@@ -481,9 +481,9 @@ export class ServiceLocator {
     Schema extends InjectionTokenSchemaType | undefined,
   >(
     token: InjectionToken<Instance, Schema>,
-    args: Schema extends AnyZodObject
+    args: Schema extends ZodObject<any>
       ? z.input<Schema>
-      : Schema extends ZodOptional<AnyZodObject>
+      : Schema extends ZodOptional<ZodObject<any>>
         ? z.input<Schema> | undefined
         : undefined,
   ): Instance | null {
