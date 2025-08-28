@@ -33,7 +33,7 @@ Define your API in a shared location accessible to both the client and server. T
 ```ts
 import { builder } from '@navios/core'
 
-import { z } from 'zod'
+import { z } from 'zod/v4'
 
 const api = builder({
   useDiscriminatorResponse: true,

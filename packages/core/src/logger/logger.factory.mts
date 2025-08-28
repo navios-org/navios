@@ -1,6 +1,6 @@
 import { Injectable, InjectableType, InjectionToken } from '@navios/di'
 
-import { z } from 'zod'
+import { z } from 'zod/v4'
 
 import type { LoggerService } from './logger-service.interface.mjs'
 

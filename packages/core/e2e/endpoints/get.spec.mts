@@ -2,7 +2,7 @@ import { builder } from '@navios/builder'
 
 import supertest from 'supertest'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { z } from 'zod'
+import { z } from 'zod/v4'
 
 import type { EndpointParams } from '../../src/index.mjs'
 

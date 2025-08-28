@@ -1,6 +1,6 @@
 import { builder } from '@navios/builder'
 
-import { z } from 'zod'
+import { z } from 'zod/v4'
 
 export const authApi = builder({
   useDiscriminatorResponse: true,

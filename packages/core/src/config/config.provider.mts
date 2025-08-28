@@ -2,7 +2,7 @@ import { env } from 'node:process'
 
 import { FactoryInjectionToken, InjectionToken } from '@navios/di'
 
-import { z } from 'zod'
+import { z } from 'zod/v4'
 
 import type { ConfigServiceOptions } from './config.service.mjs'
 
@@ -13,7 +13,7 @@ import {
 } from './config.service.mjs'
 
 export const ConfigProviderOptions = z.object({
-  load: z.function().returns(ConfigServiceOptionsSchema),
+  load: z.function({ output: ConfigServiceOptionsSchema }),
 })
 
 export function provideConfig<ConfigMap extends ConfigServiceOptions>(

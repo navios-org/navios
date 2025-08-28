@@ -1,5 +1,5 @@
 import type { ClassType } from '@navios/di'
-import type { z, ZodType } from 'zod'
+import type { z, ZodType } from 'zod/v4'
 
 import type {
   ControllerMetadata,

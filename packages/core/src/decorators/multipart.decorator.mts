@@ -4,9 +4,9 @@ import type {
   HttpMethod,
   Util_FlatObject,
 } from '@navios/builder'
-import type { AnyZodObject, z, ZodType } from 'zod'
+import type { z, ZodObject, ZodType } from 'zod/v4'
 
-import { ZodDiscriminatedUnion } from 'zod'
+import { ZodDiscriminatedUnion } from 'zod/v4'
 
 import { MultipartAdapterToken } from '../adapters/index.mjs'
 import { getEndpointMetadata } from '../metadata/index.mjs'
@@ -17,7 +17,7 @@ export type MultipartParams<
   },
   Url extends string = EndpointDeclaration['config']['url'],
   QuerySchema = EndpointDeclaration['config']['querySchema'],
-> = QuerySchema extends AnyZodObject
+> = QuerySchema extends ZodObject
   ? EndpointDeclaration['config']['requestSchema'] extends ZodType
     ? Util_FlatObject<
         EndpointFunctionArgs<
@@ -68,7 +68,7 @@ export function Multipart<
 }) {
   return (
     target: (
-      params: QuerySchema extends AnyZodObject
+      params: QuerySchema extends ZodObject
         ? RequestSchema extends ZodType
           ? EndpointFunctionArgs<Url, QuerySchema, RequestSchema>
           : EndpointFunctionArgs<Url, QuerySchema, undefined>

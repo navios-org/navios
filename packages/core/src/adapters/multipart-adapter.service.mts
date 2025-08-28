@@ -1,11 +1,11 @@
 import type { MultipartFile, MultipartValue } from '@fastify/multipart'
 import type { BaseEndpointConfig } from '@navios/builder'
 import type { FastifyRequest } from 'fastify'
-import type { AnyZodObject, ZodRawShape } from 'zod'
+import type { ZodRawShape } from 'zod/v4'
 
 import { Injectable, InjectionToken } from '@navios/di'
 
-import { ZodArray, ZodObject, ZodOptional } from 'zod'
+import { ZodArray, ZodObject, ZodOptional } from 'zod/v4'
 
 import type { HandlerMetadata } from '../metadata/index.mjs'
 
@@ -38,8 +38,8 @@ export class MultipartAdapterService extends EndpointAdapterService {
         target.urlParams = request.params
       })
     }
-    const requestSchema = config.requestSchema as unknown as AnyZodObject
-    const shape = requestSchema._def.shape()
+    const requestSchema = config.requestSchema as unknown as ZodObject
+    const shape = requestSchema._zod.def.shape
     const structure = this.analyzeSchema(shape)
     getters.push(async (target, request) => {
       const req: Record<string, any> = {}

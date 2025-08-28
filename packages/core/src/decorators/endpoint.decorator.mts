@@ -4,9 +4,9 @@ import type {
   HttpMethod,
   Util_FlatObject,
 } from '@navios/builder'
-import type { AnyZodObject, z, ZodType } from 'zod'
+import type { z, ZodObject, ZodType } from 'zod/v4'
 
-import { ZodDiscriminatedUnion } from 'zod'
+import { ZodDiscriminatedUnion } from 'zod/v4'
 
 import { EndpointAdapterToken } from '../adapters/index.mjs'
 import { getEndpointMetadata } from '../metadata/index.mjs'
@@ -17,7 +17,7 @@ export type EndpointParams<
   },
   Url extends string = EndpointDeclaration['config']['url'],
   QuerySchema = EndpointDeclaration['config']['querySchema'],
-> = QuerySchema extends AnyZodObject
+> = QuerySchema extends ZodType
   ? EndpointDeclaration['config']['requestSchema'] extends ZodType
     ? Util_FlatObject<
         EndpointFunctionArgs<
@@ -45,7 +45,6 @@ export type EndpointResult<
   },
 > =
   EndpointDeclaration['config']['responseSchema'] extends ZodDiscriminatedUnion<
-    any,
     infer Options
   >
     ? Promise<z.input<Options[number]>>
@@ -68,13 +67,13 @@ export function Endpoint<
 }) {
   return (
     target: (
-      params: QuerySchema extends AnyZodObject
+      params: QuerySchema extends ZodType
         ? RequestSchema extends ZodType
-          ? EndpointFunctionArgs<Url, QuerySchema, RequestSchema>
-          : EndpointFunctionArgs<Url, QuerySchema, undefined>
+          ? EndpointFunctionArgs<Url, QuerySchema, RequestSchema, true>
+          : EndpointFunctionArgs<Url, QuerySchema, undefined, true>
         : RequestSchema extends ZodType
-          ? EndpointFunctionArgs<Url, undefined, RequestSchema>
-          : EndpointFunctionArgs<Url, undefined, undefined>,
+          ? EndpointFunctionArgs<Url, undefined, RequestSchema, true>
+          : EndpointFunctionArgs<Url, undefined, undefined, true>,
     ) => Promise<z.input<ResponseSchema>>,
     context: ClassMethodDecoratorContext,
   ) => {

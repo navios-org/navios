@@ -5,7 +5,7 @@ import type {
   Util_FlatObject,
 } from '@navios/builder'
 import type { FastifyReply } from 'fastify'
-import type { AnyZodObject, ZodType } from 'zod'
+import type { ZodObject, ZodType } from 'zod/v4'
 
 import { StreamAdapterToken } from '../adapters/index.mjs'
 import { getEndpointMetadata } from '../metadata/index.mjs'
@@ -16,7 +16,7 @@ export type StreamParams<
   },
   Url extends string = EndpointDeclaration['config']['url'],
   QuerySchema = EndpointDeclaration['config']['querySchema'],
-> = QuerySchema extends AnyZodObject
+> = QuerySchema extends ZodObject
   ? EndpointDeclaration['config']['requestSchema'] extends ZodType
     ? Util_FlatObject<
         EndpointFunctionArgs<
@@ -48,7 +48,7 @@ export function Stream<
 }) {
   return (
     target: (
-      params: QuerySchema extends AnyZodObject
+      params: QuerySchema extends ZodObject
         ? RequestSchema extends ZodType
           ? EndpointFunctionArgs<Url, QuerySchema, RequestSchema>
           : EndpointFunctionArgs<Url, QuerySchema, undefined>

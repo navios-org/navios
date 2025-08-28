@@ -1,14 +1,14 @@
 import { NaviosException } from '@navios/builder'
 import { Injectable, InjectionToken, syncInject } from '@navios/di'
 
-import { z } from 'zod'
+import { z } from 'zod/v4'
 
 import type { ConfigServiceInterface as IConfigService } from './config-service.interface.mjs'
 import type { Path, PathValue } from './types.mjs'
 
 import { Logger } from '../logger/index.mjs'
 
-export const ConfigServiceOptionsSchema = z.record(z.unknown())
+export const ConfigServiceOptionsSchema = z.record(z.string(), z.unknown())
 export type ConfigServiceOptions = z.infer<typeof ConfigServiceOptionsSchema>
 
 export const ConfigServiceToken = InjectionToken.create<

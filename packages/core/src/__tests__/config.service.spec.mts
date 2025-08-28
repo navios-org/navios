@@ -15,7 +15,7 @@ import {
 
 describe('ConfigService', () => {
   it('should be able to get a config value', async () => {
-    const service = await inject(ConfigServiceToken, env)
+    const service = await inject(ConfigServiceToken, { ...env })
     expect(service).toBeDefined()
     expect(service.get('NODE_ENV')).toBe(env.NODE_ENV)
   })
