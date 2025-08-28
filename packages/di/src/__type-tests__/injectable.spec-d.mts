@@ -286,4 +286,259 @@ test('Injectable types', () => {
       }
     },
   )
+
+  // #1 Injectable w/o decorators enabled in project
+  expectTypeOf(
+    Injectable({
+      token: typedObjectToken,
+    })(
+      class {
+        constructor() {}
+        makeFoo() {
+          return 'foo'
+        }
+      },
+    ),
+  ).toBeConstructibleWith()
+  expectTypeOf(
+    Injectable({
+      type: InjectableType.Factory,
+    })(
+      class {
+        create() {}
+      },
+    ),
+  ).toBeConstructibleWith()
+  expectTypeOf(
+    Injectable({
+      type: InjectableType.Factory,
+    })(
+      // @ts-expect-error should check that the class implements the factory
+      class {},
+    ),
+  ).toBeConstructibleWith()
+
+  // #3 required argument
+  expectTypeOf(
+    Injectable({
+      token: typelessObjectToken,
+    })(
+      class {
+        constructor(public arg: z.infer<typeof simpleObjectSchema>) {}
+      },
+    ),
+  ).toBeConstructibleWith({
+    foo: 'something',
+  })
+  // #3 it's required in token but optional in class allowed
+  expectTypeOf(
+    Injectable({
+      token: typelessObjectToken,
+    })(
+      class {
+        constructor(public arg?: z.infer<typeof simpleObjectSchema>) {}
+      },
+    ),
+  ).toBeConstructibleWith({
+    foo: 'something',
+  })
+  // #3 optional value but class accepts it
+  expectTypeOf(
+    Injectable({
+      token: typelessOptionalObjectToken,
+    })(
+      class {
+        constructor(public arg: z.infer<typeof simpleOptionalObjectSchema>) {}
+      },
+    ),
+  ).toBeConstructibleWith({
+    foo: 'something',
+  })
+  // #3 optional value and class accepts it
+  expectTypeOf(
+    Injectable({
+      token: typelessOptionalObjectToken,
+    })(
+      class {
+        constructor(public arg: z.infer<typeof simpleOptionalObjectSchema>) {}
+      },
+    ),
+  ).toBeConstructibleWith(undefined)
+  // #3 compatible schemas
+  expectTypeOf(
+    Injectable({
+      token: typelessOptionalObjectToken,
+    })(
+      class {
+        constructor(public arg?: z.infer<typeof simpleObjectSchema>) {}
+      },
+    ),
+  ).toBeConstructibleWith(undefined)
+  // #3 compatible schemas
+  expectTypeOf(
+    Injectable({
+      token: typelessOptionalObjectToken,
+    })(
+      // @ts-expect-error token has optional schema, but Class has required, should fail
+      class {
+        constructor(public arg: z.infer<typeof simpleObjectSchema>) {}
+      },
+    ),
+  ).toBeConstructibleWith({
+    foo: 'something',
+  })
+
+  // #3 typed token and required argument
+  expectTypeOf(
+    Injectable({
+      token: typedObjectToken,
+    })(
+      class {
+        constructor(public arg: z.infer<typeof simpleObjectSchema>) {}
+
+        makeFoo() {
+          return this.arg.foo
+        }
+      },
+    ),
+  ).toBeConstructibleWith({
+    foo: 'something',
+  })
+  // #3 typed token and required argument
+  expectTypeOf(
+    Injectable({
+      token: typedOptionalObjectToken,
+    })(
+      class {
+        constructor(public arg?: z.infer<typeof simpleObjectSchema>) {}
+
+        makeFoo() {
+          return this.arg?.foo ?? 'default'
+        }
+      },
+    ),
+  ).toBeConstructibleWith({
+    foo: 'something',
+  })
+  // #3 should fail if not compatible
+  expectTypeOf(
+    Injectable({
+      token: typedOptionalObjectToken,
+    })(
+      // @ts-expect-error class doesn't implement the token type
+      class {
+        constructor(public arg?: z.infer<typeof simpleObjectSchema>) {}
+      },
+    ),
+  ).toBeConstructibleWith({
+    foo: 'something',
+  })
+  // #3 should fail if not compatible
+  expectTypeOf(
+    Injectable({
+      token: typedOptionalObjectToken,
+    })(
+      // @ts-expect-error class doesn't implement the token type
+      class {
+        constructor(public arg?: z.infer<typeof simpleObjectSchema>) {}
+
+        makeFoo() {
+          return this.arg?.foo
+        }
+      },
+    ),
+  ).toBeConstructibleWith({
+    foo: 'something',
+  })
+  // #3 typed token without schema
+  expectTypeOf(
+    Injectable({
+      token: typedToken,
+    })(
+      class {
+        constructor() {}
+        makeFoo() {
+          return 'foo'
+        }
+      },
+    ),
+  ).toBeConstructibleWith()
+  // #3 typed token without schema fail if not compatible
+  expectTypeOf(
+    Injectable({
+      token: typedToken,
+    })(
+      // @ts-expect-error class doesn't implement the token type
+      class {
+        constructor() {}
+      },
+    ),
+  ).toBeConstructibleWith()
+
+  // #4 factory with typed token
+  expectTypeOf(
+    Injectable({
+      type: InjectableType.Factory,
+      token: typedToken,
+    })(
+      class {
+        constructor() {}
+        create() {
+          return {
+            makeFoo: () => 'foo',
+          }
+        }
+      },
+    ),
+  ).toBeConstructibleWith()
+  // #4 factory with typed token without schema should fail if not compatible
+  expectTypeOf(
+    Injectable({
+      type: InjectableType.Factory,
+      token: typedToken,
+    })(
+      // @ts-expect-error factory doesn't implement the token type
+      class {
+        constructor() {}
+        create(ctx: any, arg: z.infer<typeof simpleObjectSchema>) {
+          return {
+            makeFoo: () => 'foo',
+          }
+        }
+      },
+    ),
+  ).toBeConstructibleWith()
+  // #4 factory with typed token fail if not compatible
+  expectTypeOf(
+    Injectable({
+      type: InjectableType.Factory,
+      token: typedToken,
+    })(
+      // @ts-expect-error class doesn't implement the token type
+      class {
+        constructor() {}
+        create() {
+          return {
+            // makeFoo: () => 'foo',
+          }
+        }
+      },
+    ),
+  ).toBeConstructibleWith()
+  // #4 factory with typed token and schema
+  expectTypeOf(
+    Injectable({
+      type: InjectableType.Factory,
+      token: typedObjectToken,
+    })(
+      class {
+        constructor() {}
+        create(ctx: any, arg: z.infer<typeof simpleObjectSchema>) {
+          return {
+            makeFoo: () => 'foo',
+          }
+        }
+      },
+    ),
+  )
 })
