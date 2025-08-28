@@ -1,6 +1,6 @@
 import type { Secret as JwtSecret } from 'jsonwebtoken'
 
-import { z } from 'zod'
+import { z } from 'zod/v4'
 
 export enum RequestType {
   Sign = 'Sign',
@@ -110,13 +110,14 @@ export const JwtServiceOptionsSchema = z.object({
   privateKey: SecretSchema.optional(),
   verifyOptions: VerifyOptionsSchema.optional(),
   secretOrKeyProvider: z
-    .function()
-    .args(
-      z.nativeEnum(RequestType),
-      z.any(),
-      z.union([SignOptionsSchema, VerifyOptionsSchema]).optional(),
-    )
-    .returns(z.union([SecretSchema, z.promise(SecretSchema)]))
+    .function({
+      input: [
+        z.enum(RequestType),
+        z.any(),
+        z.union([SignOptionsSchema, VerifyOptionsSchema]).optional(),
+      ],
+      output: z.union([SecretSchema, z.promise(SecretSchema)]),
+    })
     .optional(),
 })
 
