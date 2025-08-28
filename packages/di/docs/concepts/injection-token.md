@@ -41,7 +41,7 @@ class UserService {
 You can add a parameter to the injection token to make it more specific.
 
 ```ts
-import { z } from 'zod'
+import { z } from 'zod/v4'
 
 const GreeterServiceParams = z.object({
   context: z.string(),

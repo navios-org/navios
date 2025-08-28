@@ -13,41 +13,42 @@ yarn add @navios/di
 ## Simple Usage example
 
 ```ts
-import { Injectable, inject, syncInject } from '@navios/di';
+import { inject, Injectable, syncInject } from '@navios/di'
 
 @Injectable()
 class GreeterService {
   getFoo(user: string): string {
-    return `Hello ${user}`;
+    return `Hello ${user}`
   }
 }
 
 @Injectable()
 class UserService {
-  private readonly greeterService = syncInject(GreeterService);
-  
+  private readonly greeterService = syncInject(GreeterService)
+
   greet(user: string): string {
-    return this.greeterService.getFoo(user);
+    return this.greeterService.getFoo(user)
   }
 }
 
-const userService = await inject(UserService);
+const userService = await inject(UserService)
 
-console.log(userService.greet('World')); // Hello World
+console.log(userService.greet('World')) // Hello World
 ```
 
 ## Usage with Injection Token
 
 ```ts
-import { Injectable, inject, syncInject, InjectionToken } from '@navios/di';
-import { z } from 'zod';
+import { inject, Injectable, InjectionToken, syncInject } from '@navios/di'
+
+import { z } from 'zod/v4'
 
 const schema = z.object({
   user: z.string(),
 })
 
 interface GreeterInterface {
-  getFoo(): string;
+  getFoo(): string
 }
 
 const token = new InjectionToken<GreeterInterface, typeof schema>(
@@ -62,20 +63,19 @@ class GreeterService {
   constructor(private readonly config: z.infer<typeof schema>) {}
 
   getFoo(): string {
-    return `Hello ${this.config.user}`;
+    return `Hello ${this.config.user}`
   }
 }
 
 const greetWorld = await inject(token, {
-  user: 'World'
+  user: 'World',
 })
 const BoundGreeterService = InjectionToken.bound(token, {
-  user: 'Earth'
+  user: 'Earth',
 })
 
-const greetEarth = await inject(BoundGreeterService);
+const greetEarth = await inject(BoundGreeterService)
 
-console.log(greetWorld.getFoo()); // Hello World
-console.log(greetEarth.getFoo()); // Hello Earth
-
+console.log(greetWorld.getFoo()) // Hello World
+console.log(greetEarth.getFoo()) // Hello Earth
 ```

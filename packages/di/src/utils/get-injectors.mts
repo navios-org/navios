@@ -150,8 +150,8 @@ export function getInjectors({ baseLocator }: CreateInjectorsOptions) {
       | InjectionToken<T>
       | BoundInjectionToken<T, any>
       | FactoryInjectionToken<T, any>,
-    S extends ZodObject<any> | unknown = Token['schema'],
-  >(token: Token, args?: S extends ZodObject<any> ? z.input<S> : never): T {
+    S extends ZodObject | unknown = Token['schema'],
+  >(token: Token, args?: S extends ZodObject ? z.input<S> : never): T {
     // @ts-expect-error In case we have a class
     const realToken = token[InjectableTokenMeta] ?? token
 

@@ -15,7 +15,7 @@ export type FactoryRecord<Instance = any, Schema = any> = {
   originalToken: InjectionToken<Instance, Schema>
   factory: InjectionFactory<
     Instance,
-    Schema extends ZodObject<any> ? z.input<Schema> : unknown
+    Schema extends ZodObject ? z.input<Schema> : unknown
   >
 }
 

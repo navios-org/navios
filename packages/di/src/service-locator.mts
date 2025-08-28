@@ -62,7 +62,7 @@ export class ServiceLocator {
   ): void
   public storeInstance<
     Instance,
-    Schema extends ZodObject<any> | ZodOptional<ZodObject<any>>,
+    Schema extends ZodObject | ZodOptional<ZodObject>,
   >(
     instance: Instance,
     token: InjectionToken<Instance, Schema>,
@@ -292,9 +292,9 @@ export class ServiceLocator {
     Schema extends InjectionTokenSchemaType | undefined,
   >(
     token: InjectionToken<Instance, Schema>,
-    args: Schema extends ZodObject<any>
+    args: Schema extends ZodObject
       ? z.input<Schema>
-      : Schema extends ZodOptional<ZodObject<any>>
+      : Schema extends ZodOptional<ZodObject>
         ? z.input<Schema> | undefined
         : undefined,
   ): Promise<Instance> {
@@ -321,9 +321,9 @@ export class ServiceLocator {
   >(
     instanceName: string,
     token: InjectionToken<Instance, Schema>,
-    args: Schema extends ZodObject<any>
+    args: Schema extends ZodObject
       ? z.input<Schema>
-      : Schema extends ZodOptional<ZodObject<any>>
+      : Schema extends ZodOptional<ZodObject>
         ? z.input<Schema> | undefined
         : undefined,
   ): Promise<[undefined, Instance] | [FactoryNotFound | UnknownError]> {
@@ -481,9 +481,9 @@ export class ServiceLocator {
     Schema extends InjectionTokenSchemaType | undefined,
   >(
     token: InjectionToken<Instance, Schema>,
-    args: Schema extends ZodObject<any>
+    args: Schema extends ZodObject
       ? z.input<Schema>
-      : Schema extends ZodOptional<ZodObject<any>>
+      : Schema extends ZodOptional<ZodObject>
         ? z.input<Schema> | undefined
         : undefined,
   ): Instance | null {

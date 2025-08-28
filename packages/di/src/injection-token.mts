@@ -10,10 +10,10 @@ export type ClassTypeWithInstanceAndOptionalArgument<T, Arg> = new (
   arg?: Arg,
 ) => T
 
-export type BaseInjectionTokenSchemaType = ZodObject<any> | ZodRecord
+export type BaseInjectionTokenSchemaType = ZodObject | ZodRecord
 
 export type OptionalInjectionTokenSchemaType =
-  | ZodOptional<ZodObject<any>>
+  | ZodOptional<ZodObject>
   | ZodOptional<ZodRecord>
 
 export type InjectionTokenSchemaType =
@@ -23,11 +23,11 @@ export type InjectionTokenSchemaType =
 export class InjectionToken<
   T,
   S extends InjectionTokenSchemaType | unknown = unknown,
-  Required extends boolean = S extends ZodOptional<ZodObject<any>>
+  Required extends boolean = S extends ZodOptional<ZodObject>
     ? false
     : S extends ZodOptional<ZodRecord>
       ? false
-      : S extends ZodObject<any>
+      : S extends ZodObject
         ? true
         : S extends ZodRecord
           ? true
@@ -38,7 +38,7 @@ export class InjectionToken<
 
   constructor(
     public readonly name: string | symbol | ClassType,
-    public readonly schema: ZodObject<any> | undefined,
+    public readonly schema: ZodObject | undefined,
   ) {}
 
   static create<T extends ClassType>(

@@ -39,12 +39,12 @@ export class ProxyServiceLocator implements ServiceLocator {
   }
   public getOrThrowInstance<
     Instance,
-    Schema extends ZodObject<any> | ZodOptional<ZodObject<any>> | undefined,
+    Schema extends ZodObject | ZodOptional<ZodObject> | undefined,
   >(
     token: InjectionToken<Instance, Schema>,
-    args: Schema extends ZodObject<any>
+    args: Schema extends ZodObject
       ? z.input<Schema>
-      : Schema extends ZodOptional<ZodObject<any>>
+      : Schema extends ZodOptional<ZodObject>
         ? z.input<Schema> | undefined
         : undefined,
   ): Promise<Instance> {
@@ -52,12 +52,12 @@ export class ProxyServiceLocator implements ServiceLocator {
   }
   public getSyncInstance<
     Instance,
-    Schema extends ZodObject<any> | ZodOptional<ZodObject<any>> | undefined,
+    Schema extends ZodObject | ZodOptional<ZodObject> | undefined,
   >(
     token: InjectionToken<Instance, Schema>,
-    args: Schema extends ZodObject<any>
+    args: Schema extends ZodObject
       ? z.input<Schema>
-      : Schema extends ZodOptional<ZodObject<any>>
+      : Schema extends ZodOptional<ZodObject>
         ? z.input<Schema> | undefined
         : undefined,
   ): Instance | null {
