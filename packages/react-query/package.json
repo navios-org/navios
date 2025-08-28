@@ -1,6 +1,6 @@
 {
   "name": "@navios/react-query",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "author": {
     "name": "Oleksandr Hanzha",
     "email": "alex@granted.name"
@@ -14,7 +14,7 @@
   "peerDependencies": {
     "@navios/builder": "workspace:^",
     "@tanstack/react-query": "^5.51.21",
-    "zod": "^3.23.8"
+    "zod": "^3.25.0 || ^4.0.0"
   },
   "typings": "./lib/index.d.mts",
   "main": "./lib/index.js",

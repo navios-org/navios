@@ -4,7 +4,7 @@ import type {
   HttpMethod,
   Util_FlatObject,
 } from '@navios/builder'
-import type { z } from 'zod'
+import type { z } from 'zod/v4'
 
 export type ClientEndpointHelper<
   Method extends HttpMethod = HttpMethod,

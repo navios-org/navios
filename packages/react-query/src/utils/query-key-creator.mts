@@ -4,7 +4,7 @@ import type {
   UrlParams,
 } from '@navios/builder'
 import type { DataTag, InfiniteData } from '@tanstack/react-query'
-import type { AnyZodObject, z } from 'zod'
+import type { z, ZodObject } from 'zod/v4'
 
 import { bindUrlParams } from '@navios/builder'
 
@@ -28,9 +28,7 @@ export type QueryKeyCreatorResult<
   template: Split<Url, '/'>
   dataTag: (
     params: (HasParams extends true ? { urlParams: UrlParams<Url> } : {}) &
-      (QuerySchema extends AnyZodObject
-        ? { params: z.input<QuerySchema> }
-        : {}),
+      (QuerySchema extends ZodObject ? { params: z.input<QuerySchema> } : {}),
   ) => DataTag<
     Split<Url, '/'>,
     IsInfinite extends true ? InfiniteData<Result> : Result,
@@ -45,9 +43,7 @@ export type QueryKeyCreatorResult<
   >
   bindToUrl: (
     params: (HasParams extends true ? { urlParams: UrlParams<Url> } : {}) &
-      (QuerySchema extends AnyZodObject
-        ? { params: z.infer<QuerySchema> }
-        : {}),
+      (QuerySchema extends ZodObject ? { params: z.infer<QuerySchema> } : {}),
   ) => string
 }
 

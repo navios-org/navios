@@ -5,7 +5,7 @@ import type {
   UrlParams,
 } from '@navios/builder'
 import type { UseMutationResult } from '@tanstack/react-query'
-import type { z } from 'zod'
+import type { z } from 'zod/v4'
 
 import {
   useIsMutating,

@@ -12,7 +12,7 @@ import type {
   UseSuspenseInfiniteQueryOptions,
   UseSuspenseQueryOptions,
 } from '@tanstack/react-query'
-import type { AnyZodObject, z, ZodType } from 'zod'
+import type { z, ZodObject, ZodType } from 'zod/v4'
 
 import type { ProcessResponseFunction, Split } from '../types.mjs'
 import type { ClientEndpointHelper } from './client-endpoint-helper.mjs'
@@ -46,7 +46,7 @@ export interface ClientInstance {
   query<
     Method extends 'GET' | 'HEAD' | 'OPTIONS' = 'GET',
     Url extends string = string,
-    QuerySchema extends AnyZodObject = AnyZodObject,
+    QuerySchema extends ZodObject = ZodObject,
     Response extends ZodType = ZodType,
     Result = z.output<Response>,
   >(config: {
@@ -69,7 +69,7 @@ export interface ClientInstance {
   infiniteQuery<
     Method extends 'GET' | 'HEAD' | 'OPTIONS' = 'GET',
     Url extends string = string,
-    QuerySchema extends AnyZodObject = AnyZodObject,
+    QuerySchema extends ZodObject = ZodObject,
     Response extends ZodType = ZodType,
     PageResult = z.output<Response>,
     Result = InfiniteData<PageResult>,
@@ -107,7 +107,7 @@ export interface ClientInstance {
     Method extends 'POST' | 'PUT' | 'PATCH' = 'POST' | 'PUT' | 'PATCH',
     Url extends string = string,
     RequestSchema extends ZodType = ZodType,
-    QuerySchema extends AnyZodObject = AnyZodObject,
+    QuerySchema extends ZodObject = ZodObject,
     Response extends ZodType = ZodType,
     ReqResult = z.output<Response>,
     Result = unknown,
@@ -152,7 +152,7 @@ export interface ClientInstance {
     Method extends 'POST' | 'PUT' | 'PATCH' = 'POST' | 'PUT' | 'PATCH',
     Url extends string = string,
     RequestSchema extends ZodType = ZodType,
-    QuerySchema extends AnyZodObject = AnyZodObject,
+    QuerySchema extends ZodObject = ZodObject,
     Response extends ZodType = ZodType,
     ReqResult = z.output<Response>,
     Result = unknown,
@@ -273,7 +273,7 @@ export interface ClientInstance {
   mutation<
     Method extends 'DELETE' = 'DELETE',
     Url extends string = string,
-    QuerySchema extends AnyZodObject = AnyZodObject,
+    QuerySchema extends ZodObject = ZodObject,
     Response extends ZodType = ZodType,
     ReqResult = z.output<Response>,
     Result = unknown,
@@ -316,7 +316,7 @@ export interface ClientInstance {
   mutation<
     Method extends 'DELETE' = 'DELETE',
     Url extends string = string,
-    QuerySchema extends AnyZodObject = AnyZodObject,
+    QuerySchema extends ZodObject = ZodObject,
     Response extends ZodType = ZodType,
     ReqResult = z.output<Response>,
     Result = unknown,
@@ -423,7 +423,7 @@ export interface ClientInstance {
   queryFromEndpoint<
     Method extends 'GET' | 'HEAD' | 'OPTIONS' = 'GET',
     Url extends string = string,
-    QuerySchema extends AnyZodObject = AnyZodObject,
+    QuerySchema extends ZodObject = ZodObject,
     Response extends ZodType = ZodType,
     Result = z.output<Response>,
   >(
@@ -468,7 +468,7 @@ export interface ClientInstance {
   infiniteQueryFromEndpoint<
     Method extends 'GET' | 'HEAD' | 'OPTIONS' = 'GET',
     Url extends string = string,
-    QuerySchema extends AnyZodObject = AnyZodObject,
+    QuerySchema extends ZodObject = ZodObject,
     Response extends ZodType = ZodType,
     PageResult = z.output<Response>,
     Result = InfiniteData<PageResult>,
@@ -506,7 +506,7 @@ export interface ClientInstance {
     Method extends 'POST' | 'PUT' | 'PATCH' = 'POST' | 'PUT' | 'PATCH',
     Url extends string = string,
     RequestSchema extends ZodType = ZodType,
-    QuerySchema extends AnyZodObject = AnyZodObject,
+    QuerySchema extends ZodObject = ZodObject,
     Response extends ZodType = ZodType,
     ReqResult = z.output<Response>,
     Result = unknown,
@@ -607,7 +607,7 @@ export interface ClientInstance {
     Method extends 'POST' | 'PUT' | 'PATCH' = 'POST' | 'PUT' | 'PATCH',
     Url extends string = string,
     RequestSchema extends ZodType = ZodType,
-    QuerySchema extends AnyZodObject = AnyZodObject,
+    QuerySchema extends ZodObject = ZodObject,
     Response extends ZodType = ZodType,
     ReqResult = z.output<Response>,
     Result = unknown,
@@ -697,7 +697,7 @@ export interface ClientInstance {
   mutationFromEndpoint<
     Method extends 'DELETE' = 'DELETE',
     Url extends string = string,
-    QuerySchema extends AnyZodObject = AnyZodObject,
+    QuerySchema extends ZodObject = ZodObject,
     Response extends ZodType = ZodType,
     ReqResult = z.output<Response>,
     Result = unknown,
@@ -784,7 +784,7 @@ export interface ClientInstance {
   mutationFromEndpoint<
     Method extends 'DELETE' = 'DELETE',
     Url extends string = string,
-    QuerySchema extends AnyZodObject = AnyZodObject,
+    QuerySchema extends ZodObject = ZodObject,
     Response extends ZodType = ZodType,
     ReqResult = z.output<Response>,
     Result = unknown,

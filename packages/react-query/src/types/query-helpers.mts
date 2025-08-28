@@ -4,7 +4,7 @@ import type {
   UseQueryResult,
   UseSuspenseQueryResult,
 } from '@tanstack/react-query'
-import type { AnyZodObject } from 'zod'
+import type { ZodObject } from 'zod/v4'
 
 import type { QueryKeyCreatorResult } from '../utils/query-key-creator.mjs'
 import type { ClientQueryArgs } from './query-args.mjs'
@@ -12,7 +12,7 @@ import type { ClientQueryUrlParamsArgs } from './query-url-params-args.mjs'
 
 export type QueryHelpers<
   Url extends string,
-  QuerySchema extends AnyZodObject | undefined = undefined,
+  QuerySchema extends ZodObject | undefined = undefined,
   Result = undefined,
   IsInfinite extends boolean = false,
 > = {

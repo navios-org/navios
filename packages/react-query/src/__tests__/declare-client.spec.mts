@@ -4,7 +4,7 @@ import { makeNaviosFakeAdapter } from 'navios/testing'
 import { builder } from '@navios/builder'
 
 import { describe, expect, it, vi } from 'vitest'
-import { z } from 'zod'
+import { z } from 'zod/v4'
 
 import { declareClient } from '../declare-client.mjs'
 

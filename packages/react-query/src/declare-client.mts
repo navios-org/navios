@@ -5,7 +5,7 @@ import type {
   Util_FlatObject,
 } from '@navios/builder'
 import type { InfiniteData, QueryClient } from '@tanstack/react-query'
-import type { AnyZodObject, z, ZodType } from 'zod'
+import type { z, ZodObject, ZodType } from 'zod/v4'
 
 import type { ClientOptions, ProcessResponseFunction } from './types.mjs'
 import type { ClientInstance, ClientMutationArgs } from './types/index.mjs'
@@ -29,7 +29,7 @@ export interface ClientEndpointDefinition<
 export interface ClientQueryConfig<
   Method = HttpMethod,
   Url = string,
-  QuerySchema = AnyZodObject,
+  QuerySchema = ZodObject,
   Response extends ZodType = ZodType,
   Result = z.output<Response>,
 > extends ClientEndpointDefinition<Method, Url, QuerySchema, Response> {
@@ -39,7 +39,7 @@ export interface ClientQueryConfig<
 export type ClientInfiniteQueryConfig<
   Method = HttpMethod,
   Url = string,
-  QuerySchema extends AnyZodObject = AnyZodObject,
+  QuerySchema extends ZodObject = ZodObject,
   Response extends ZodType = ZodType,
   PageResult = z.output<Response>,
   Result = InfiniteData<PageResult>,
@@ -68,7 +68,7 @@ export interface ClientMutationDataConfig<
     | 'PATCH'
     | 'DELETE',
   Url extends string = string,
-  RequestSchema = Method extends 'DELETE' ? never : AnyZodObject,
+  RequestSchema = Method extends 'DELETE' ? never : ZodObject,
   QuerySchema = unknown,
   Response extends ZodType = ZodType,
   ReqResult = z.output<Response>,

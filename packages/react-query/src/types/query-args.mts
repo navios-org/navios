@@ -1,8 +1,8 @@
 import type { UrlHasParams, UrlParams } from '@navios/builder'
-import type { AnyZodObject, z } from 'zod'
+import type { z, ZodObject } from 'zod/v4'
 
 export type ClientQueryArgs<
   Url extends string = string,
-  QuerySchema = AnyZodObject,
+  QuerySchema = ZodObject,
 > = (UrlHasParams<Url> extends true ? { urlParams: UrlParams<Url> } : {}) &
-  (QuerySchema extends AnyZodObject ? { params: z.input<QuerySchema> } : {})
+  (QuerySchema extends ZodObject ? { params: z.input<QuerySchema> } : {})

@@ -8,7 +8,7 @@ import type {
   UrlParams,
 } from '@navios/builder'
 import type { QueryClient, UseMutationOptions } from '@tanstack/react-query'
-import type { AnyZodObject, z } from 'zod'
+import type { z, ZodObject } from 'zod/v4'
 
 export type Split<S extends string, D extends string> = string extends S
   ? string[]
@@ -88,7 +88,7 @@ export type BaseQueryArgs<Config extends AnyEndpointConfig> = (UrlHasParams<
 > extends true
   ? { urlParams: UrlParams<Config['url']> }
   : {}) &
-  (Config['querySchema'] extends AnyZodObject
+  (Config['querySchema'] extends ZodObject
     ? { params: z.input<Config['querySchema']> }
     : {})
 
@@ -96,7 +96,7 @@ export type BaseMutationArgs<Config extends AnyEndpointConfig> =
   NaviosZodRequest<Config>
 
 export type InfiniteQueryOptions<
-  Config extends BaseEndpointConfig<HttpMethod, string, AnyZodObject>,
+  Config extends BaseEndpointConfig<HttpMethod, string, ZodObject>,
   Res = any,
 > = {
   keyPrefix?: string[]
@@ -104,8 +104,8 @@ export type InfiniteQueryOptions<
   processResponse: (data: z.infer<Config['responseSchema']>) => Res
   onFail?: (err: unknown) => void
   getNextPageParam: (
-    lastPage: z.infer<Config['responseSchema']>,
-    allPages: z.infer<Config['responseSchema']>[],
+    lastPage: Res,
+    allPages: Res[],
     lastPageParam: z.infer<Config['querySchema']> | undefined,
     allPageParams: z.infer<Config['querySchema']>[] | undefined,
   ) =>

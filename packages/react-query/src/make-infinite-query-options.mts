@@ -9,7 +9,7 @@ import type {
   UseInfiniteQueryOptions,
   UseSuspenseInfiniteQueryOptions,
 } from '@tanstack/react-query'
-import type { z } from 'zod'
+import type { z } from 'zod/v4'
 
 import {
   infiniteQueryOptions,
