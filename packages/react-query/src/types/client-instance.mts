@@ -97,7 +97,6 @@ export interface ClientInstance {
     PageResult,
     Error,
     Result,
-    PageResult,
     DataTag<Split<Url, '/'>, PageResult, Error>,
     z.output<QuerySchema>
   >) &
@@ -498,7 +497,6 @@ export interface ClientInstance {
     PageResult,
     Error,
     Result,
-    PageResult,
     DataTag<Split<Url, '/'>, PageResult, Error>,
     z.output<QuerySchema>
   >) &
