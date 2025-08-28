@@ -28,10 +28,10 @@ yarn add @navios/navios-zod @navios/navios-zod-react zod navios
 ## Usage of Mutations
 
 ```tsx
-import { createAPI } from '@navios/navios-zod'
+import { createAPI } from '@navios/navios-zod/v4'
 import { declareClient } from '@navios/navios-zod-react'
 
-import { z } from 'zod'
+import { z } from 'zod/v4'
 
 const publicApi = createAPI({
   baseURL: 'https://example.com/api/',
@@ -111,10 +111,10 @@ export function Login() {
 ## Usage of Queries
 
 ```tsx
-import { createAPI } from '@navios/navios-zod'
+import { createAPI } from '@navios/navios-zod/v4'
 import { declareClient } from '@navios/navios-zod-react'
 
-import { z } from 'zod'
+import { z } from 'zod/v4'
 
 const publicApi = createAPI({
   baseURL: 'https://example.com/api/',
@@ -177,17 +177,23 @@ export function UsersList() {
     return <p>{error.message}</p>
   }
 
-  return <ul>{data?.map((user) => <li key={user.id}>{user.name}</li>)}</ul>
+  return (
+    <ul>
+      {data?.map((user) => (
+        <li key={user.id}>{user.name}</li>
+      ))}
+    </ul>
+  )
 }
 ```
 
 ## Usage of Infinite Queries
 
 ```tsx
-import { createAPI } from '@navios/navios-zod'
+import { createAPI } from '@navios/navios-zod/v4'
 import { declareClient } from '@navios/navios-zod-react'
 
-import { z } from 'zod'
+import { z } from 'zod/v4'
 
 const publicApi = createAPI({
   baseURL: 'https://example.com/api/',
