@@ -1,4 +1,4 @@
-import type { AnyZodObject, z, ZodType } from 'zod'
+import type { z, ZodObject, ZodType } from 'zod/v4'
 
 import type {
   BaseEndpointConfig,
@@ -16,7 +16,7 @@ export interface BuilderInstance {
   declareEndpoint<
     Url extends string,
     Method extends 'POST' | 'PUT' | 'PATCH',
-    QuerySchema extends AnyZodObject,
+    QuerySchema extends ZodObject,
     ResponseSchema extends ZodType,
     RequestSchema extends ZodType,
   >(options: {
@@ -79,7 +79,7 @@ export interface BuilderInstance {
 
   declareEndpoint<
     Url extends string,
-    QuerySchema extends AnyZodObject,
+    QuerySchema extends ZodObject,
     Method extends 'GET' | 'DELETE' | 'OPTIONS' | 'HEAD',
     ResponseSchema extends ZodType,
   >(options: {
@@ -112,7 +112,7 @@ export interface BuilderInstance {
   declareMultipart<
     Url extends string,
     Method extends 'POST' | 'PUT' | 'PATCH',
-    QuerySchema extends AnyZodObject,
+    QuerySchema extends ZodObject,
     ResponseSchema extends ZodType,
     RequestSchema extends ZodType,
   >(options: {
@@ -178,7 +178,7 @@ export interface BuilderInstance {
   declareStream<
     Url extends string,
     Method extends 'POST' | 'PUT' | 'PATCH',
-    QuerySchema extends AnyZodObject,
+    QuerySchema extends ZodObject,
     RequestSchema extends ZodType,
   >(options: {
     method: Method
@@ -223,7 +223,7 @@ export interface BuilderInstance {
 
   declareStream<
     Url extends string,
-    QuerySchema extends AnyZodObject,
+    QuerySchema extends ZodObject,
     Method extends 'GET' | 'DELETE' | 'OPTIONS' | 'HEAD',
   >(options: {
     method: Method

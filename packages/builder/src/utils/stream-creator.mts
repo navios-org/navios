@@ -15,7 +15,7 @@ export function streamCreator<Config extends BaseStreamConfig>(
   const { method, url } = options
   const handler = async (
     request: NaviosZodRequest<Config> = {} as NaviosZodRequest<Config>,
-  ) => {
+  ): Promise<Blob> => {
     const client = getClient()
 
     const finalUrlPart = bindUrlParams<Config['url']>(url, request)
@@ -31,9 +31,9 @@ export function streamCreator<Config extends BaseStreamConfig>(
           finalUrlPart,
         ),
       )
-      return result.data
+      return result.data as Blob
     } catch (error) {
-      return handleException(config, error)
+      return handleException(config, error) as Blob
     }
   }
   handler.config = options

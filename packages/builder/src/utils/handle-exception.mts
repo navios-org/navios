@@ -1,6 +1,6 @@
-import type { ZodType } from 'zod'
+import type { ZodType } from 'zod/v4'
 
-import { ZodError } from 'zod'
+import { ZodError } from 'zod/v4'
 
 import type { AbstractResponse, BuilderConfig } from '../types.mjs'
 

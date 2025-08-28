@@ -27,12 +27,13 @@ yarn add @navios/builder zod
 ## Usage
 
 ```ts
-import { builder } from '@navios/builder'
 import { create } from 'navios'
+
+import { builder } from '@navios/builder'
+
 // or
 import { create } from 'axios'
-
-import { z } from 'zod'
+import { z } from 'zod/v4'
 
 const API = builder({
   useDiscriminatorResponse: true,
@@ -62,7 +63,7 @@ Or a more complex example with the request schema:
 ```ts
 import { builder } from '@navios/builder'
 
-import { z } from 'zod'
+import { z } from 'zod/v4'
 
 import { GetUsersResponseSchema } from './schemas/GetUsersResponseSchema.js'
 

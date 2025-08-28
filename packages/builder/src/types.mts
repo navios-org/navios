@@ -1,4 +1,4 @@
-import type { AnyZodObject, z, ZodError, ZodType } from 'zod'
+import type { z, ZodError, ZodObject, ZodType } from 'zod/v4'
 
 export interface BuilderConfig {
   /**
@@ -96,10 +96,10 @@ export type NaviosZodRequest<Config extends BaseStreamConfig> = (UrlHasParams<
 > extends true
   ? { urlParams: UrlParams<Config['url']> }
   : {}) &
-  (Config['requestSchema'] extends AnyZodObject
+  (Config['requestSchema'] extends ZodObject
     ? { data: z.input<Config['requestSchema']> }
     : {}) &
-  (Config['querySchema'] extends AnyZodObject
+  (Config['querySchema'] extends ZodObject
     ? { params: z.input<Config['querySchema']> }
     : {}) &
   NaviosZodRequestBase
@@ -109,7 +109,7 @@ export type EndpointFunctionArgs<
   QuerySchema = undefined,
   RequestSchema = undefined,
   IsServer extends boolean = false,
-> = (QuerySchema extends AnyZodObject
+> = (QuerySchema extends ZodObject
   ? {
       params: z.infer<QuerySchema>
     }
