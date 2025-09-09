@@ -34,7 +34,7 @@
   "devDependencies": {
     "@navios/core": "workspace:^",
     "@types/jsonwebtoken": "^9.0.10",
-    "zod": "^4.1.4"
+    "zod": "^4.1.5"
   },
   "dependencies": {
     "jsonwebtoken": "^9.0.2"

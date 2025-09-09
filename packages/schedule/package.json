@@ -33,7 +33,7 @@
   "devDependencies": {
     "@navios/core": "workspace:^",
     "typescript": "^5.9.2",
-    "zod": "^4.1.4"
+    "zod": "^4.1.5"
   },
   "dependencies": {
     "cron": "^4.3.3"
