@@ -7,14 +7,14 @@ import type {
   InjectionToken,
   InjectionTokenSchemaType,
 } from './injection-token.mjs'
-import type { Registry } from './registry.mjs'
 import type { Factorable } from './interfaces/factory.interface.mjs'
+import type { Registry } from './registry.mjs'
 
-import { ServiceLocator } from './service-locator.mjs'
-import { globalRegistry } from './registry.mjs'
-import { getInjectableToken } from './utils/get-injectable-token.mjs'
 import { Injectable } from './decorators/injectable.decorator.mjs'
 import { InjectableScope, InjectableType } from './enums/index.mjs'
+import { globalRegistry } from './registry.mjs'
+import { ServiceLocator } from './service-locator.mjs'
+import { getInjectableToken } from './utils/get-injectable-token.mjs'
 
 type Join<TElements, TSeparator extends string> =
   TElements extends Readonly<[infer First, ...infer Rest]>
@@ -31,15 +31,17 @@ type UnionToIntersection<U> = (U extends any ? (k: U) => void : never) extends (
   ? I
   : never
 
-type PopUnion<T> = UnionToIntersection<T extends any ? () => T : never> extends (
-  ...args: any[]
-) => infer R
-  ? R
-  : never
+type PopUnion<T> =
+  UnionToIntersection<T extends any ? () => T : never> extends (
+    ...args: any[]
+  ) => infer R
+    ? R
+    : never
 
-type UnionToArray<T, A extends unknown[] = []> = T extends PopUnion<T>
-  ? UnionToArray<Exclude<T, PopUnion<T>>, [PopUnion<T>, ...A]>
-  : [T, ...A]
+type UnionToArray<T, A extends unknown[] = []> =
+  T extends PopUnion<T>
+    ? UnionToArray<Exclude<T, PopUnion<T>>, [PopUnion<T>, ...A]>
+    : [T, ...A]
 
 /**
  * Container class that provides a simplified public API for dependency injection.
@@ -49,7 +51,10 @@ type UnionToArray<T, A extends unknown[] = []> = T extends PopUnion<T>
 export class Container {
   private readonly serviceLocator: ServiceLocator
 
-  constructor(registry: Registry = globalRegistry, logger: Console | null = null) {
+  constructor(
+    registry: Registry = globalRegistry,
+    logger: Console | null = null,
+  ) {
     this.serviceLocator = new ServiceLocator(registry, logger)
     this.registerSelf()
   }
@@ -57,7 +62,12 @@ export class Container {
   private registerSelf() {
     const token = getInjectableToken(Container)
     const instanceName = this.serviceLocator.getInstanceIdentifier(token)
-    this.serviceLocator['manager'].createCreatedHolder(instanceName, this, InjectableType.Class, InjectableScope.Singleton)
+    this.serviceLocator['manager'].createCreatedHolder(
+      instanceName,
+      this,
+      InjectableType.Class,
+      InjectableScope.Singleton,
+    )
   }
 
   /**
@@ -65,7 +75,11 @@ export class Container {
    * This method has the same type signature as the inject method from get-injectors.mts
    */
   // #1 Simple class
-  get<T extends ClassType>(token: T): InstanceType<T> extends Factorable<infer R> ? Promise<R> : Promise<InstanceType<T>>
+  get<T extends ClassType>(
+    token: T,
+  ): InstanceType<T> extends Factorable<infer R>
+    ? Promise<R>
+    : Promise<InstanceType<T>>
   // #2 Token with required Schema
   get<T, S extends InjectionTokenSchemaType>(
     token: InjectionToken<T, S>,
@@ -99,7 +113,10 @@ export class Container {
     if (typeof token === 'function') {
       actualToken = getInjectableToken(token)
     }
-    return this.serviceLocator.getOrThrowInstance(actualToken as any, args as any)
+    return this.serviceLocator.getOrThrowInstance(
+      actualToken as any,
+      args as any,
+    )
   }
 
   /**
@@ -113,7 +130,9 @@ export class Container {
    * Invalidates a service and its dependencies
    */
   async invalidate(service: unknown): Promise<void> {
-    const holderMap = this.serviceLocator['manager'].filter(holder => holder.instance === service)
+    const holderMap = this.serviceLocator['manager'].filter(
+      (holder) => holder.instance === service,
+    )
     if (holderMap.size === 0) {
       return
     }

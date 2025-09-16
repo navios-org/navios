@@ -2,7 +2,14 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import { z } from 'zod/v4'
 
 import { Injectable } from '../decorators/index.mjs'
-import { Container, globalRegistry, InjectableScope, Registry, ServiceLocator, syncInject } from '../index.mjs'
+import {
+  Container,
+  globalRegistry,
+  InjectableScope,
+  Registry,
+  ServiceLocator,
+  syncInject,
+} from '../index.mjs'
 import { InjectionToken } from '../injection-token.mjs'
 import { dangerouslySetGlobalFactoryContext, inject } from '../injector.mjs'
 import { getInjectableToken } from '../utils/index.mjs'
@@ -43,7 +50,6 @@ describe('Injectable decorator', () => {
     const result = await value.makeFoo()
     expect(result).toBe('foo')
   })
-
 
   it('should work with injection token', async () => {
     const token = InjectionToken.create('Test')

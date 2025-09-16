@@ -1,11 +1,9 @@
 import type { z, ZodObject } from 'zod/v4'
 
 import type { FactoryContext } from './factory-context.mjs'
-import type { InjectionToken } from './injection-token.mjs'
+import type { ClassType, InjectionToken } from './injection-token.mjs'
 
 import { InjectableScope, InjectableType } from './enums/index.mjs'
-import type { ClassType } from './injection-token.mjs'
-
 
 export type FactoryRecord<Instance = any, Schema = any> = {
   scope: InjectableScope

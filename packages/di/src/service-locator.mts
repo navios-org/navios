@@ -6,6 +6,7 @@ import type { FactoryContext } from './factory-context.mjs'
 import type {
   BaseInjectionTokenSchemaType,
   InjectionTokenSchemaType,
+  InjectionTokenType,
   OptionalInjectionTokenSchemaType,
 } from './injection-token.mjs'
 import type { Registry } from './registry.mjs'
@@ -24,13 +25,11 @@ import {
   InjectionToken,
 } from './injection-token.mjs'
 import { globalRegistry } from './registry.mjs'
+import { ServiceInstantiator } from './service-instantiator.mjs'
 import { ServiceLocatorEventBus } from './service-locator-event-bus.mjs'
-import {
-  ServiceLocatorInstanceHolderStatus,
-} from './service-locator-instance-holder.mjs'
+import { ServiceLocatorInstanceHolderStatus } from './service-locator-instance-holder.mjs'
 import { ServiceLocatorManager } from './service-locator-manager.mjs'
 import { getInjectableToken } from './utils/index.mjs'
-import { ServiceInstantiator } from './service-instantiator.mjs'
 
 export class ServiceLocator {
   private readonly eventBus: ServiceLocatorEventBus
@@ -50,33 +49,7 @@ export class ServiceLocator {
     return this.eventBus
   }
 
-  private resolveTokenArgs<
-    Instance,
-    Schema extends BaseInjectionTokenSchemaType,
-  >(
-    token: InjectionToken<Instance, Schema>,
-    args: z.input<Schema>,
-  ): [undefined, z.output<Schema>] | [UnknownError]
-  private resolveTokenArgs<
-    Instance,
-    Schema extends OptionalInjectionTokenSchemaType,
-  >(
-    token: InjectionToken<Instance, Schema>,
-    args?: z.input<Schema>,
-  ): [undefined, z.output<Schema>] | [UnknownError]
-  private resolveTokenArgs<Instance, Schema extends InjectionTokenSchemaType>(
-    token: BoundInjectionToken<Instance, Schema>,
-  ): [undefined, z.output<Schema>] | [UnknownError]
-  private resolveTokenArgs<Instance, Schema extends InjectionTokenSchemaType>(
-    token: FactoryInjectionToken<Instance, Schema>,
-  ): [undefined, z.output<Schema>] | [FactoryTokenNotResolved | UnknownError]
-  private resolveTokenArgs(
-    token:
-      | InjectionToken<any, any>
-      | BoundInjectionToken<any, any>
-      | FactoryInjectionToken<any, any>,
-    args?: any,
-  ) {
+  private resolveTokenArgs(token: InjectionTokenType, args?: any) {
     let realArgs = args
     if (token instanceof BoundInjectionToken) {
       realArgs = token.value
@@ -101,30 +74,7 @@ export class ServiceLocator {
     return [undefined, validatedArgs?.data]
   }
 
-  public getInstanceIdentifier<
-    Instance,
-    Schema extends BaseInjectionTokenSchemaType,
-  >(token: InjectionToken<Instance, Schema>, args: z.input<Schema>): string
-  public getInstanceIdentifier<
-    Instance,
-    Schema extends OptionalInjectionTokenSchemaType,
-  >(token: InjectionToken<Instance, Schema>, args?: z.input<Schema>): string
-  public getInstanceIdentifier<Instance>(
-    token: InjectionToken<Instance, undefined>,
-  ): string
-  public getInstanceIdentifier<Instance>(
-    token: BoundInjectionToken<Instance, any>,
-  ): string
-  public getInstanceIdentifier<Instance>(
-    token: FactoryInjectionToken<Instance, any>,
-  ): string
-  public getInstanceIdentifier(
-    token:
-      | InjectionToken<any, any>
-      | BoundInjectionToken<any, any>
-      | FactoryInjectionToken<any, any>,
-    args?: any,
-  ): string {
+  public getInstanceIdentifier(token: InjectionTokenType, args?: any): string {
     const [err, realArgs] = this.resolveTokenArgs(
       token as InjectionToken<any>,
       args,
@@ -135,37 +85,17 @@ export class ServiceLocator {
     return this.makeInstanceName(token as InjectionToken<any>, realArgs)
   }
 
-  public getInstance<Instance, Schema extends BaseInjectionTokenSchemaType>(
-    token: InjectionToken<Instance, Schema>,
-    args: z.input<Schema>,
-  ): Promise<[undefined, Instance] | [UnknownError | FactoryNotFound]>
-  public getInstance<Instance, Schema extends OptionalInjectionTokenSchemaType>(
-    token: InjectionToken<Instance, Schema>,
-    args?: z.input<Schema>,
-  ): Promise<[undefined, Instance] | [UnknownError | FactoryNotFound]>
-  public getInstance<Instance>(
-    token: InjectionToken<Instance, undefined>,
-  ): Promise<[undefined, Instance] | [UnknownError | FactoryNotFound]>
-  public getInstance<Instance>(
-    token: BoundInjectionToken<Instance, any>,
-  ): Promise<[undefined, Instance] | [UnknownError | FactoryNotFound]>
-  public getInstance<Instance>(
-    token: FactoryInjectionToken<Instance, any>,
-  ): Promise<[undefined, Instance] | [UnknownError | FactoryNotFound]>
-
-  public async getInstance(
-    token:
-      | InjectionToken<any, any>
-      | BoundInjectionToken<any, any>
-      | FactoryInjectionToken<any, any>,
-    args?: any,
-  ) {
+  public async getInstance(token: InjectionTokenType, args?: any) {
     const [err, data] = await this.prepareArgsAndName(token, args)
     if (err) {
       return [err]
     }
-    const {instanceName, realArgs} = data
-    const [error, holder] = await this.getInstanceByInstanceName(instanceName, token, realArgs)
+    const { instanceName, realArgs } = data
+    const [error, holder] = await this.getInstanceByInstanceName(
+      instanceName,
+      token,
+      realArgs,
+    )
     if (error) {
       return [error]
     }
@@ -180,12 +110,12 @@ export class ServiceLocator {
    * @returns Promise resolving to [error, instanceName, realArgs] or [error] if failed
    */
   private async prepareArgsAndName(
-    token:
-      | InjectionToken<any, any>
-      | BoundInjectionToken<any, any>
-      | FactoryInjectionToken<any, any>,
+    token: InjectionTokenType,
     args?: any,
-  ): Promise<[undefined, {instanceName: string, realArgs: any}] | [UnknownError | FactoryTokenNotResolved]> {
+  ): Promise<
+    | [undefined, { instanceName: string; realArgs: any }]
+    | [UnknownError | FactoryTokenNotResolved]
+  > {
     const [err, realArgs] = this.resolveTokenArgs(token as any, args)
     if (err instanceof UnknownError) {
       return [err]
@@ -200,7 +130,7 @@ export class ServiceLocator {
       return this.prepareArgsAndName(token)
     }
     const instanceName = this.makeInstanceName(token, realArgs)
-    return [undefined, {instanceName, realArgs}]
+    return [undefined, { instanceName, realArgs }]
   }
 
   /**
@@ -212,12 +142,12 @@ export class ServiceLocator {
    */
   private async getInstanceByInstanceName(
     instanceName: string,
-    token:
-      | InjectionToken<any, any>
-      | BoundInjectionToken<any, any>
-      | FactoryInjectionToken<any, any>,
+    token: InjectionTokenType,
     realArgs: any,
-  ): Promise<[undefined, ServiceLocatorInstanceHolder<any>] | [UnknownError | FactoryNotFound]> {
+  ): Promise<
+    | [undefined, ServiceLocatorInstanceHolder<any>]
+    | [UnknownError | FactoryNotFound]
+  > {
     const [error, holder] = this.manager.get(instanceName)
     if (!error) {
       if (holder.status === ServiceLocatorInstanceHolderStatus.Creating) {
@@ -259,23 +189,16 @@ export class ServiceLocator {
     }
     if (result[1].status === ServiceLocatorInstanceHolderStatus.Creating) {
       await result[1].creationPromise
-    } 
+    }
     if (result[1].status === ServiceLocatorInstanceHolderStatus.Error) {
       return [result[1].instance] as [UnknownError | FactoryNotFound]
     }
     return [undefined, result[1]]
   }
 
-  public async getOrThrowInstance<
-    Instance,
-    Schema extends InjectionTokenSchemaType | undefined,
-  >(
-    token: InjectionToken<Instance, Schema>,
-    args: Schema extends ZodObject
-      ? z.input<Schema>
-      : Schema extends ZodOptional<ZodObject>
-        ? z.input<Schema> | undefined
-        : undefined,
+  public async getOrThrowInstance<Instance>(
+    token: InjectionTokenType,
+    args: any,
   ): Promise<Instance> {
     const [error, instance] = await this.getInstance(token, args)
     if (error) {
@@ -305,7 +228,10 @@ export class ServiceLocator {
       : Schema extends ZodOptional<ZodObject>
         ? z.output<Schema> | undefined
         : undefined,
-  ): Promise<[undefined, ServiceLocatorInstanceHolder<Instance>] | [FactoryNotFound | UnknownError]> {
+  ): Promise<
+    | [undefined, ServiceLocatorInstanceHolder<Instance>]
+    | [FactoryNotFound | UnknownError]
+  > {
     this.logger?.log(
       `[ServiceLocator]#createInstance() Creating instance for ${instanceName}`,
     )
@@ -315,7 +241,11 @@ export class ServiceLocator {
         ? token.token
         : token
     if (this.registry.has(realToken)) {
-      return this.resolveInstance<Instance, Schema, any>(instanceName, realToken, args)
+      return this.resolveInstance<Instance, Schema, any>(
+        instanceName,
+        realToken,
+        args,
+      )
     } else {
       return [new FactoryNotFound(realToken.name.toString())]
     }
@@ -347,7 +277,8 @@ export class ServiceLocator {
       type,
       scope,
       // @ts-expect-error TS2322 This is correct type
-      creationPromise: this.serviceInstantiator.instantiateService(ctx, record, args)
+      creationPromise: this.serviceInstantiator
+        .instantiateService(ctx, record, args)
         .then(async (instance: Instance) => {
           holder.instance = instance
           holder.status = ServiceLocatorInstanceHolderStatus.Created
@@ -394,7 +325,10 @@ export class ServiceLocator {
     return [undefined, holder]
   }
 
-  private createFactoryContext(instanceName: string): FactoryContext & { getDestroyListeners: () => (() => void)[], deps: Set<string> } {
+  private createFactoryContext(instanceName: string): FactoryContext & {
+    getDestroyListeners: () => (() => void)[]
+    deps: Set<string>
+  } {
     const destroyListeners = new Set<() => void>()
     const deps = new Set<string>()
     // eslint-disable-next-line @typescript-eslint/no-this-alias
@@ -423,9 +357,13 @@ export class ServiceLocator {
           if (err) {
             throw err
           }
-          const {instanceName, realArgs} = data
+          const { instanceName, realArgs } = data
           deps.add(instanceName)
-          const [error, holder] = await self.getInstanceByInstanceName(instanceName, injectionToken, realArgs)
+          const [error, holder] = await self.getInstanceByInstanceName(
+            instanceName,
+            injectionToken,
+            realArgs,
+          )
           if (error) {
             throw error
           }

@@ -25,6 +25,7 @@ navios serve
 ```
 
 Options:
+
 - `-p, --port <port>`: Specify the port to run the server on
 
 ### Build Command

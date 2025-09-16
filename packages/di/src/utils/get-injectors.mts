@@ -1,5 +1,6 @@
 import type { z, ZodObject, ZodType } from 'zod/v4'
 
+import type { FactoryContext } from '../factory-context.mjs'
 import type {
   BoundInjectionToken,
   ClassType,
@@ -7,11 +8,10 @@ import type {
   InjectionToken,
   InjectionTokenSchemaType,
 } from '../injection-token.mjs'
+import type { Factorable } from '../interfaces/factory.interface.mjs'
 import type { ServiceLocator } from '../service-locator.mjs'
 
 import { InjectableTokenMeta } from '../symbols/index.mjs'
-import type { Factorable } from '../interfaces/factory.interface.mjs'
-import type { FactoryContext } from '../factory-context.mjs'
 
 type Join<TElements, TSeparator extends string> =
   TElements extends Readonly<[infer First, ...infer Rest]>
@@ -46,14 +46,22 @@ export interface InjectState {
   currentIndex: number
   isFrozen: boolean
   requests: {
-    token: InjectionToken<any> | BoundInjectionToken<any, any> | FactoryInjectionToken<any, any> | ClassType
+    token:
+      | InjectionToken<any>
+      | BoundInjectionToken<any, any>
+      | FactoryInjectionToken<any, any>
+      | ClassType
     promise: Promise<any>
   }[]
 }
 
 export interface Injectors {
   // #1 Simple class
-  inject<T extends ClassType>(token: T): InstanceType<T> extends Factorable<infer R> ? Promise<R> : Promise<InstanceType<T>>
+  inject<T extends ClassType>(
+    token: T,
+  ): InstanceType<T> extends Factorable<infer R>
+    ? Promise<R>
+    : Promise<InstanceType<T>>
   // #2 Token with required Schema
   inject<T, S extends InjectionTokenSchemaType>(
     token: InjectionToken<T, S>,
@@ -75,7 +83,9 @@ export interface Injectors {
   inject<T>(token: BoundInjectionToken<T, any>): Promise<T>
   inject<T>(token: FactoryInjectionToken<T, any>): Promise<T>
 
-  syncInject<T extends ClassType>(token: T): InstanceType<T> extends Factorable<infer R> ? R : InstanceType<T>
+  syncInject<T extends ClassType>(
+    token: T,
+  ): InstanceType<T> extends Factorable<infer R> ? R : InstanceType<T>
   syncInject<T, S extends InjectionTokenSchemaType>(
     token: InjectionToken<T, S>,
     args: z.input<S>,
@@ -95,24 +105,28 @@ export interface Injectors {
   syncInject<T>(token: BoundInjectionToken<T, any>): T
   syncInject<T>(token: FactoryInjectionToken<T, any>): T
 
-  wrapSyncInit(cb: () => any): (injectState?: InjectState) => [any, Promise<any>[], InjectState]
+  wrapSyncInit(
+    cb: () => any,
+  ): (injectState?: InjectState) => [any, Promise<any>[], InjectState]
 
   provideFactoryContext(context: FactoryContext | null): FactoryContext | null
 }
 
-
 export function getInjectors() {
   let currentFactoryContext: FactoryContext | null = null
 
-
-  function provideFactoryContext(context: FactoryContext): FactoryContext | null {
+  function provideFactoryContext(
+    context: FactoryContext,
+  ): FactoryContext | null {
     const original = currentFactoryContext
     currentFactoryContext = context
     return original
   }
   function getFactoryContext(): FactoryContext {
     if (!currentFactoryContext) {
-      throw new Error('[Injector] Trying to access injection context outside of a injectable context')
+      throw new Error(
+        '[Injector] Trying to access injection context outside of a injectable context',
+      )
     }
     return currentFactoryContext
   }
@@ -129,13 +143,17 @@ export function getInjectors() {
     args?: unknown,
   ) {
     if (!injectState) {
-      throw new Error('[Injector] Trying to access inject outside of a injectable context')
+      throw new Error(
+        '[Injector] Trying to access inject outside of a injectable context',
+      )
     }
     if (injectState.isFrozen) {
       const idx = injectState.currentIndex++
       const request = injectState.requests[idx]
       if (request.token !== token) {
-        throw new Error(`[Injector] Wrong token order. Expected ${request.token.toString()} but got ${token.toString()}`)
+        throw new Error(
+          `[Injector] Wrong token order. Expected ${request.token.toString()} but got ${token.toString()}`,
+        )
       }
       return request.promise
     }
@@ -155,14 +173,16 @@ export function getInjectors() {
       const promises: Promise<any>[] = []
       const originalPromiseCollector = promiseCollector
       const originalInjectState = injectState
-      injectState = previousState ? {
-        ...previousState,
-        currentIndex: 0,
-      }: {
-        currentIndex: 0,
-        isFrozen: false,
-        requests: [],
-      }
+      injectState = previousState
+        ? {
+            ...previousState,
+            currentIndex: 0,
+          }
+        : {
+            currentIndex: 0,
+            isFrozen: false,
+            requests: [],
+          }
       promiseCollector = (promise) => {
         promises.push(promise)
       }
@@ -188,7 +208,10 @@ export function getInjectors() {
     // @ts-expect-error In case we have a class
     const realToken = token[InjectableTokenMeta] ?? token
 
-    const instance = getFactoryContext().locator.getSyncInstance(realToken, args)
+    const instance = getFactoryContext().locator.getSyncInstance(
+      realToken,
+      args,
+    )
     if (!instance) {
       if (promiseCollector) {
         const promise = getFactoryContext().inject(realToken, args)

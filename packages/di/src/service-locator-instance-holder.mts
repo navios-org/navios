@@ -1,4 +1,4 @@
-import type { InjectableType, InjectableScope } from "./enums/index.mjs"
+import type { InjectableScope, InjectableType } from './enums/index.mjs'
 
 /* eslint-disable @typescript-eslint/no-empty-object-type */
 export enum ServiceLocatorInstanceHolderStatus {

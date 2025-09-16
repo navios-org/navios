@@ -1,17 +1,21 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { z } from 'zod/v4'
 
+import type { FactoryContext } from '../factory-context.mjs'
+import type {
+  Factorable,
+  FactorableWithArgs,
+} from '../interfaces/factory.interface.mjs'
+
 import { Container } from '../container.mjs'
-import { Injectable } from '../decorators/injectable.decorator.mjs'
 import { Factory } from '../decorators/factory.decorator.mjs'
+import { Injectable } from '../decorators/injectable.decorator.mjs'
 import { InjectableScope } from '../enums/injectable-scope.enum.mjs'
 import { InjectionToken } from '../injection-token.mjs'
+import { inject, syncInject } from '../injector.mjs'
 import { Registry } from '../registry.mjs'
 import { ServiceLocator } from '../service-locator.mjs'
-import type { Factorable, FactorableWithArgs } from '../interfaces/factory.interface.mjs'
 import { createDeferred } from '../utils/defer.mjs'
-import type { FactoryContext } from '../factory-context.mjs'
-import { inject, syncInject } from '../injector.mjs'
 
 describe('Container', () => {
   let container: Container
@@ -56,14 +60,14 @@ describe('Container', () => {
   describe('Injectable decorator scenarios', () => {
     describe('Singleton scope', () => {
       it('should return the same instance for singleton services', async () => {
-        @Injectable({ registry})
+        @Injectable({ registry })
         class TestService {
           public id = Math.random()
         }
 
         const instance1 = await container.get(TestService)
         const instance2 = await container.get(TestService)
-        
+
         expect(instance1).toBeInstanceOf(TestService)
         expect(instance2).toBeInstanceOf(TestService)
         expect(instance1).toBe(instance2)
@@ -71,14 +75,14 @@ describe('Container', () => {
       })
 
       it('should work with default singleton scope', async () => {
-        @Injectable({ registry})
+        @Injectable({ registry })
         class TestService {
           public id = Math.random()
         }
 
         const instance1 = await container.get(TestService)
         const instance2 = await container.get(TestService)
-        
+
         expect(instance1).toBe(instance2)
       })
     })
@@ -92,7 +96,7 @@ describe('Container', () => {
 
         const instance1 = await container.get(TestService)
         const instance2 = await container.get(TestService)
-        
+
         expect(instance1).toBeInstanceOf(TestService)
         expect(instance2).toBeInstanceOf(TestService)
         expect(instance1).not.toBe(instance2)
@@ -103,7 +107,7 @@ describe('Container', () => {
     describe('Custom injection tokens', () => {
       it('should work with string tokens', async () => {
         const token = InjectionToken.create<TestService>('TestService')
-        
+
         @Injectable({ token, registry })
         class TestService {
           public value = 'test'
@@ -116,7 +120,7 @@ describe('Container', () => {
 
       it('should work with symbol tokens', async () => {
         const token = InjectionToken.create<TestService>(Symbol('TestService'))
-        
+
         @Injectable({ token, registry })
         class TestService {
           public value = 'test'
@@ -131,7 +135,7 @@ describe('Container', () => {
         const customRegistry = new Registry()
         const customContainer = new Container(customRegistry, mockLogger)
         const token = InjectionToken.create<CustomService>('CustomService')
-        
+
         @Injectable({ token, registry: customRegistry })
         class CustomService {
           public value = 'custom'
@@ -149,8 +153,11 @@ describe('Container', () => {
           name: z.string(),
           age: z.number(),
         })
-        const token = InjectionToken.create<UserService, typeof schema>('UserService', schema)
-        
+        const token = InjectionToken.create<UserService, typeof schema>(
+          'UserService',
+          schema,
+        )
+
         @Injectable({ token, registry })
         class UserService {
           constructor(public readonly config: z.output<typeof schema>) {}
@@ -158,18 +165,23 @@ describe('Container', () => {
 
         const config = { name: 'John', age: 30 }
         const instance = await container.get(token, config)
-        
+
         expect(instance).toBeInstanceOf(UserService)
         expect(instance.config).toEqual(config)
       })
 
       it('should work with optional schema arguments', async () => {
-        const schema = z.object({
-          name: z.string(),
-          age: z.number().optional(),
-        }).optional()
-        const token = InjectionToken.create<OptionalService, typeof schema>('OptionalService', schema)
-        
+        const schema = z
+          .object({
+            name: z.string(),
+            age: z.number().optional(),
+          })
+          .optional()
+        const token = InjectionToken.create<OptionalService, typeof schema>(
+          'OptionalService',
+          schema,
+        )
+
         @Injectable({ token, registry })
         class OptionalService {
           constructor(public readonly config?: z.output<typeof schema>) {}
@@ -198,8 +210,11 @@ describe('Container', () => {
           }),
           settings: z.array(z.string()),
         })
-        const token = InjectionToken.create<ComplexService, typeof schema>('ComplexService', schema)
-        
+        const token = InjectionToken.create<ComplexService, typeof schema>(
+          'ComplexService',
+          schema,
+        )
+
         @Injectable({ token, registry })
         class ComplexService {
           constructor(public readonly config: z.output<typeof schema>) {}
@@ -215,7 +230,7 @@ describe('Container', () => {
           },
           settings: ['setting1', 'setting2'],
         }
-        
+
         const instance = await container.get(token, config)
         expect(instance).toBeInstanceOf(ComplexService)
         expect(instance.config).toEqual(config)
@@ -258,7 +273,7 @@ describe('Container', () => {
 
         const instance1 = await container.get(TestFactory)
         const instance2 = await container.get(TestFactory)
-        
+
         expect(instance1).toBeInstanceOf(TestService)
         expect(instance2).toBeInstanceOf(TestService)
         expect(instance1.id).not.toBe(instance2.id)
@@ -290,10 +305,15 @@ describe('Container', () => {
           name: z.string(),
           value: z.number(),
         })
-        const token = InjectionToken.create<TestService, typeof schema>('ArgFactory', schema)
-        
+        const token = InjectionToken.create<TestService, typeof schema>(
+          'ArgFactory',
+          schema,
+        )
+
         @Factory({ token, registry })
-        class ArgFactory implements FactorableWithArgs<TestService, typeof schema> {
+        class ArgFactory
+          implements FactorableWithArgs<TestService, typeof schema>
+        {
           async create(ctx: any, args: z.output<typeof schema>) {
             return new TestService(args.name, args.value)
           }
@@ -309,21 +329,28 @@ describe('Container', () => {
 
         const args = { name: 'Test', value: 42 }
         const instance = await container.get(token, args)
-        
+
         expect(instance).toBeInstanceOf(TestService)
         expect(instance.name).toBe('Test')
         expect(instance.value).toBe(42)
       })
 
       it('should work with factory and optional arguments', async () => {
-        const schema = z.object({
-          name: z.string(),
-          optional: z.string().optional(),
-        }).optional()
-        const token = InjectionToken.create<TestService, typeof schema>('OptionalArgFactory', schema)
-        
+        const schema = z
+          .object({
+            name: z.string(),
+            optional: z.string().optional(),
+          })
+          .optional()
+        const token = InjectionToken.create<TestService, typeof schema>(
+          'OptionalArgFactory',
+          schema,
+        )
+
         @Factory({ token, registry })
-        class OptionalArgFactory implements FactorableWithArgs<TestService, typeof schema> {
+        class OptionalArgFactory
+          implements FactorableWithArgs<TestService, typeof schema>
+        {
           async create(ctx: any, args: z.output<typeof schema>) {
             return new TestService(args?.name || 'default', args?.optional)
           }
@@ -352,8 +379,10 @@ describe('Container', () => {
 
     describe('Factory with custom tokens', () => {
       it('should work with factory using custom token', async () => {
-        const token = InjectionToken.create<TestService>(Symbol('CustomFactory'))
-        
+        const token = InjectionToken.create<TestService>(
+          Symbol('CustomFactory'),
+        )
+
         @Factory({ token, registry })
         class CustomFactory implements Factorable<TestService> {
           async create() {
@@ -379,16 +408,21 @@ describe('Container', () => {
         const schema = z.object({
           config: z.string(),
         })
-        const token = InjectionToken.create<ConfigService, typeof schema>('ConfigService', schema)
-        
+        const token = InjectionToken.create<ConfigService, typeof schema>(
+          'ConfigService',
+          schema,
+        )
+
         @Injectable({ token, registry })
         class ConfigService {
           constructor(public readonly config: z.output<typeof schema>) {}
         }
 
-        const boundToken = InjectionToken.bound(token, { config: 'bound-value' })
+        const boundToken = InjectionToken.bound(token, {
+          config: 'bound-value',
+        })
         const instance = await container.get(boundToken)
-        
+
         expect(instance).toBeInstanceOf(ConfigService)
         expect(instance.config).toEqual({ config: 'bound-value' })
       })
@@ -397,10 +431,15 @@ describe('Container', () => {
         const schema = z.object({
           factory: z.string(),
         })
-        const token = InjectionToken.create<TestService, typeof schema>('FactoryService', schema)
-        
+        const token = InjectionToken.create<TestService, typeof schema>(
+          'FactoryService',
+          schema,
+        )
+
         @Factory({ token, registry })
-        class FactoryService implements FactorableWithArgs<TestService, typeof schema> {
+        class FactoryService
+          implements FactorableWithArgs<TestService, typeof schema>
+        {
           async create(ctx: any, args: z.output<typeof schema>) {
             return new TestService(args.factory)
           }
@@ -411,9 +450,11 @@ describe('Container', () => {
           constructor(public readonly factory: string) {}
         }
 
-        const boundToken = InjectionToken.bound(token, { factory: 'bound-factory' })
+        const boundToken = InjectionToken.bound(token, {
+          factory: 'bound-factory',
+        })
         const instance = await container.get(boundToken)
-        
+
         expect(instance).toBeInstanceOf(TestService)
         expect(instance.factory).toBe('bound-factory')
       })
@@ -424,8 +465,11 @@ describe('Container', () => {
         const schema = z.object({
           data: z.string(),
         })
-        const token = InjectionToken.create<DataService, typeof schema>('DataService', schema)
-        
+        const token = InjectionToken.create<DataService, typeof schema>(
+          'DataService',
+          schema,
+        )
+
         @Injectable({ token, registry })
         class DataService {
           constructor(public readonly data: z.output<typeof schema>) {}
@@ -434,7 +478,7 @@ describe('Container', () => {
         const factoryToken = InjectionToken.factory(token, async () => ({
           data: 'factory-generated',
         }))
-        
+
         const instance = await container.get(factoryToken)
         expect(instance).toBeInstanceOf(DataService)
         expect(instance.data).toEqual({ data: 'factory-generated' })
@@ -444,8 +488,11 @@ describe('Container', () => {
         const schema = z.object({
           counter: z.number(),
         })
-        const token = InjectionToken.create<CounterService, typeof schema>('CounterService', schema)
-        
+        const token = InjectionToken.create<CounterService, typeof schema>(
+          'CounterService',
+          schema,
+        )
+
         @Injectable({ token, registry })
         class CounterService {
           constructor(public readonly counter: z.output<typeof schema>) {}
@@ -456,10 +503,10 @@ describe('Container', () => {
           callCount++
           return { counter: callCount }
         })
-        
+
         const instance1 = await container.get(factoryToken)
         const instance2 = await container.get(factoryToken)
-        
+
         expect(instance1).toBeInstanceOf(CounterService)
         expect(instance2).toBeInstanceOf(CounterService)
         expect(callCount).toBe(1) // Factory should only be called once
@@ -497,28 +544,28 @@ describe('Container', () => {
 
       @Injectable({ registry })
       class Level2 {
-         level1= syncInject(Level1)
+        level1 = syncInject(Level1)
       }
 
       @Injectable({ registry })
       class Level3 {
-         level2= syncInject(Level2)
+        level2 = syncInject(Level2)
       }
 
       @Injectable({ registry })
       class Level4 {
-         level3= syncInject(Level3)
+        level3 = syncInject(Level3)
       }
 
       const level4 = await container.get(Level4)
       expect(level4).toBeInstanceOf(Level4)
-      
+
       const level3 = await level4.level3
       expect(level3).toBeInstanceOf(Level3)
-      
+
       const level2 = await level3.level2
       expect(level2).toBeInstanceOf(Level2)
-      
+
       const level1 = await level2.level1
       expect(level1).toBeInstanceOf(Level1)
       expect(level1.value).toBe('level1')
@@ -543,7 +590,7 @@ describe('Container', () => {
 
       @Injectable({ registry })
       class AppService {
-        database= inject(DatabaseService)
+        database = inject(DatabaseService)
       }
 
       const app = await container.get(AppService)
@@ -563,8 +610,11 @@ describe('Container', () => {
       const schema = z.object({
         required: z.string(),
       })
-      const token = InjectionToken.create<RequiredService, typeof schema>('RequiredService', schema)
-      
+      const token = InjectionToken.create<RequiredService, typeof schema>(
+        'RequiredService',
+        schema,
+      )
+
       @Injectable({ token, registry })
       class RequiredService {
         constructor(public readonly config: z.output<typeof schema>) {}
@@ -593,7 +643,7 @@ describe('Container', () => {
       @Factory({ registry })
       class AsyncErrorFactory implements Factorable<TestService> {
         async create() {
-          await new Promise(resolve => setTimeout(resolve, 10))
+          await new Promise((resolve) => setTimeout(resolve, 10))
           throw new Error('Async factory error')
         }
       }
@@ -601,21 +651,28 @@ describe('Container', () => {
       @Injectable({ registry })
       class TestService {}
 
-      await expect(container.get(AsyncErrorFactory)).rejects.toThrow('Async factory error')
+      await expect(container.get(AsyncErrorFactory)).rejects.toThrow(
+        'Async factory error',
+      )
     })
 
     it('should handle invalid schema validation', async () => {
       const schema = z.object({
         email: z.string().email(),
       })
-      const token = InjectionToken.create<EmailService, typeof schema>('EmailService', schema)
-      
+      const token = InjectionToken.create<EmailService, typeof schema>(
+        'EmailService',
+        schema,
+      )
+
       @Injectable({ token, registry })
       class EmailService {
         constructor(public readonly config: z.output<typeof schema>) {}
       }
 
-      await expect(container.get(token, { email: 'invalid-email' })).rejects.toThrow()
+      await expect(
+        container.get(token, { email: 'invalid-email' }),
+      ).rejects.toThrow()
     })
   })
 
@@ -628,7 +685,7 @@ describe('Container', () => {
 
       const instance1 = await container.get(TestService)
       await container.invalidate(instance1)
-      
+
       const instance2 = await container.get(TestService)
       expect(instance1).not.toBe(instance2)
       expect(instance1.id).not.toBe(instance2.id)
@@ -642,25 +699,25 @@ describe('Container', () => {
 
       @Injectable({ registry })
       class MainService {
-        dependency= inject(DependencyService)
+        dependency = inject(DependencyService)
         public id = Math.random()
       }
 
       const main1 = await container.get(MainService)
       const dep1 = await main1.dependency
-      
+
       await container.invalidate(main1)
-      
+
       const main2 = await container.get(MainService)
       const dep2 = await main2.dependency
-      
+
       expect(main1).not.toBe(main2)
       expect(dep1).not.toBe(dep2)
     })
 
     it('should handle invalidation of non-existent service', async () => {
       const fakeService = { id: 'fake' }
-      
+
       // Should not throw
       await expect(container.invalidate(fakeService)).resolves.toBeUndefined()
     })
@@ -680,7 +737,7 @@ describe('Container', () => {
 
       const instance1 = await container.get(TestFactory)
       await container.invalidate(instance1)
-      
+
       const instance2 = await container.get(TestFactory)
       expect(instance1).not.toBe(instance2)
       expect(instance1.id).not.toBe(instance2.id)
@@ -690,7 +747,7 @@ describe('Container', () => {
   describe('Ready method and async operations', () => {
     it('should wait for all pending operations', async () => {
       const deferred = createDeferred<string>()
-      
+
       @Factory({ registry })
       class AsyncFactory implements Factorable<TestService> {
         async create() {
@@ -705,13 +762,13 @@ describe('Container', () => {
       }
 
       const promise = container.get(AsyncFactory)
-      
+
       // Should not be ready yet
       await expect(container.ready()).resolves.toBeUndefined()
-      
+
       // Resolve the deferred
       deferred.resolve('async-result')
-      
+
       const instance = await promise
       expect(instance.value).toBe('async-result')
     })
@@ -719,7 +776,7 @@ describe('Container', () => {
     it('should handle multiple concurrent operations', async () => {
       const deferred1 = createDeferred<string>()
       const deferred2 = createDeferred<string>()
-      
+
       @Factory({ registry })
       class AsyncFactory1 implements Factorable<TestService> {
         async create() {
@@ -743,20 +800,20 @@ describe('Container', () => {
 
       const promise1 = container.get(AsyncFactory1)
       const promise2 = container.get(AsyncFactory2)
-      
+
       // Resolve both
       deferred1.resolve('result1')
       deferred2.resolve('result2')
-      
+
       const [instance1, instance2] = await Promise.all([promise1, promise2])
-      
+
       expect(instance1.value).toBe('result1')
       expect(instance2.value).toBe('result2')
     })
 
     it.skip('should handle factory errors in ready state', async () => {
       const deferred = createDeferred<string>()
-      
+
       @Factory({ registry })
       class ErrorFactory implements Factorable<TestService> {
         async create() {
@@ -774,10 +831,10 @@ describe('Container', () => {
       }
 
       const promise = container.get(ErrorFactory)
-      
+
       // Reject the deferred
       deferred.reject(new Error('Deferred error'))
-      
+
       await expect(promise).rejects.toThrow('Deferred error')
     })
   })
@@ -798,8 +855,11 @@ describe('Container', () => {
       const schema = z.object({
         name: z.string(),
       })
-      const token = InjectionToken.create<RequiredService, typeof schema>('RequiredService', schema)
-      
+      const token = InjectionToken.create<RequiredService, typeof schema>(
+        'RequiredService',
+        schema,
+      )
+
       @Injectable({ token, registry })
       class RequiredService {
         constructor(public readonly config: z.output<typeof schema>) {}
@@ -811,11 +871,16 @@ describe('Container', () => {
     })
 
     it('should work with token with optional schema overload', async () => {
-      const schema = z.object({
-        name: z.string(),
-      }).optional()
-      const token = InjectionToken.create<OptionalService, typeof schema>('OptionalService', schema)
-      
+      const schema = z
+        .object({
+          name: z.string(),
+        })
+        .optional()
+      const token = InjectionToken.create<OptionalService, typeof schema>(
+        'OptionalService',
+        schema,
+      )
+
       @Injectable({ token, registry })
       class OptionalService {
         constructor(public readonly config?: z.output<typeof schema>) {}
@@ -828,7 +893,7 @@ describe('Container', () => {
 
     it('should work with token with no schema overload', async () => {
       const token = InjectionToken.create<NoSchemaService>('NoSchemaService')
-      
+
       @Injectable({ token, registry })
       class NoSchemaService {
         public value = 'no-schema'
@@ -843,8 +908,11 @@ describe('Container', () => {
       const schema = z.object({
         value: z.string(),
       })
-      const token = InjectionToken.create<BoundService, typeof schema>('BoundService', schema)
-      
+      const token = InjectionToken.create<BoundService, typeof schema>(
+        'BoundService',
+        schema,
+      )
+
       @Injectable({ token, registry })
       class BoundService {
         constructor(public readonly config: z.output<typeof schema>) {}
@@ -852,7 +920,7 @@ describe('Container', () => {
 
       const boundToken = InjectionToken.bound(token, { value: 'bound' })
       const instance = await container.get(boundToken)
-      
+
       expect(instance).toBeInstanceOf(BoundService)
       expect(instance.config.value).toBe('bound')
     })
@@ -861,8 +929,11 @@ describe('Container', () => {
       const schema = z.object({
         data: z.string(),
       })
-      const token = InjectionToken.create<FactoryService, typeof schema>('FactoryService', schema)
-      
+      const token = InjectionToken.create<FactoryService, typeof schema>(
+        'FactoryService',
+        schema,
+      )
+
       @Injectable({ token, registry })
       class FactoryService {
         constructor(public readonly config: z.output<typeof schema>) {}
@@ -871,7 +942,7 @@ describe('Container', () => {
       const factoryToken = InjectionToken.factory(token, async () => ({
         data: 'factory-data',
       }))
-      
+
       const instance = await container.get(factoryToken)
       expect(instance).toBeInstanceOf(FactoryService)
       expect(instance.config.data).toBe('factory-data')
@@ -881,7 +952,7 @@ describe('Container', () => {
   describe('Performance and memory', () => {
     it('should handle large number of services efficiently', async () => {
       const services: any[] = []
-      
+
       // Create 100 services
       for (let i = 0; i < 100; i++) {
         @Injectable({ registry })
@@ -893,7 +964,7 @@ describe('Container', () => {
 
       // Get all services
       const instances = await Promise.all(
-        services.map(Service => container.get(Service))
+        services.map((Service) => container.get(Service)),
       )
 
       expect(instances).toHaveLength(100)
@@ -918,16 +989,18 @@ describe('Container', () => {
 
         const instance1 = await container.get(ServiceWithSyncInject)
         const instance2 = await container.get(ServiceWithSyncInject)
-        
+
         expect(instance1).toBeInstanceOf(ServiceWithSyncInject)
         expect(instance2).toBeInstanceOf(ServiceWithSyncInject)
         expect(instance1).toBe(instance2) // ServiceWithSyncInject is singleton
-        
+
         // The singleton service should be the same instance
         expect(instance1.singletonService).toBeInstanceOf(SingletonService)
         expect(instance2.singletonService).toBeInstanceOf(SingletonService)
         expect(instance1.singletonService).toBe(instance2.singletonService)
-        expect(instance1.singletonService.id).toBe(instance2.singletonService.id)
+        expect(instance1.singletonService.id).toBe(
+          instance2.singletonService.id,
+        )
       })
 
       it('should handle nested singleton services with syncInject', async () => {
@@ -949,13 +1022,13 @@ describe('Container', () => {
 
         const root1 = await container.get(RootService)
         const root2 = await container.get(RootService)
-        
+
         expect(root1).toBe(root2) // RootService is singleton
-        
+
         // Level2 should be the same instances
         expect(root1.level2).toBe(root2.level2)
         expect(root1.level2.id).toBe(root2.level2.id)
-        
+
         // Level1 should also be the same instances
         expect(root1.level2.level1).toBe(root2.level2.level1)
         expect(root1.level2.level1.id).toBe(root2.level2.level1.id)
@@ -980,21 +1053,22 @@ describe('Container', () => {
 
         const mixed1 = await container.get(MixedService)
         const mixed2 = await container.get(MixedService)
-        
+
         expect(mixed1).toBe(mixed2) // MixedService is singleton
-        
+
         // SingletonService2 should be the same instances
         expect(mixed1.singleton2).toBe(mixed2.singleton2)
         expect(mixed1.singleton2.id).toBe(mixed2.singleton2.id)
-        
+
         // SingletonService1 should also be the same instance
         expect(mixed1.singleton2.singleton1).toBe(mixed2.singleton2.singleton1)
-        expect(mixed1.singleton2.singleton1.id).toBe(mixed2.singleton2.singleton1.id)
+        expect(mixed1.singleton2.singleton1.id).toBe(
+          mixed2.singleton2.singleton1.id,
+        )
       })
     })
 
     describe('syncInject with invalidation', () => {
-
       it('should invalidate singleton services accessed via syncInject', async () => {
         @Injectable({ registry })
         class SingletonService {
@@ -1008,13 +1082,13 @@ describe('Container', () => {
 
         const instance1 = await container.get(ServiceWithSyncInject)
         const singleton1 = instance1.singletonService
-        
+
         // Invalidate the singleton service
         await container.invalidate(singleton1)
-        
+
         const instance2 = await container.get(ServiceWithSyncInject)
         const singleton2 = instance2.singletonService
-        
+
         // Should get a new singleton instance
         expect(singleton1).not.toBe(singleton2)
         expect(singleton1.id).not.toBe(singleton2.id)
@@ -1040,14 +1114,14 @@ describe('Container', () => {
         const root1 = await container.get(RootService)
         const level2_1 = root1.level2
         const level1_1 = level2_1.level1
-        
+
         // Invalidate the root service
         await container.invalidate(level1_1)
-        
+
         const root2 = await container.get(RootService)
         const level2_2 = root2.level2
         const level1_2 = level2_2.level1
-        
+
         // All should be new instances
         expect(root1).not.toBe(root2)
         expect(level2_1).not.toBe(level2_2)
@@ -1076,14 +1150,14 @@ describe('Container', () => {
         const mixed1 = await container.get(MixedService)
         const async1 = await mixed1.asyncService
         const sync1 = mixed1.syncService
-        
+
         // Invalidate the mixed service
         await container.invalidate(mixed1)
-        
+
         const mixed2 = await container.get(MixedService)
         const async2 = await mixed2.asyncService
         const sync2 = mixed2.syncService
-        
+
         // All should be new instances
         expect(mixed1).not.toBe(mixed2)
         expect(async1).toBe(async2)
@@ -1110,13 +1184,13 @@ describe('Container', () => {
 
         const instance1 = await container.get(ServiceWithSyncInject)
         const factory1 = instance1.factoryService
-        
+
         // Invalidate the factory service
         await container.invalidate(factory1)
-        
+
         const instance2 = await container.get(ServiceWithSyncInject)
         const factory2 = instance2.factoryService
-        
+
         // Should get a new factory instance
         expect(factory1).not.toBe(factory2)
         expect(factory1.id).not.toBe(factory2.id)
@@ -1159,16 +1233,16 @@ describe('Container', () => {
         const user1 = auth1.userService
         const db1 = user1.database
         const cache1 = user1.cache
-        
+
         // Invalidate the user service
         await container.invalidate(user1)
-        
+
         const app2 = await container.get(AppService)
         const auth2 = app2.authService
         const user2 = auth2.userService
         const db2 = user2.database
         const cache2 = user2.cache
-        
+
         // User service should be new instance but its dependencies should be the same
         expect(user1).not.toBe(user2)
         expect(db1).toBe(db2)
@@ -1176,11 +1250,11 @@ describe('Container', () => {
         expect(user1.id).not.toBe(user2.id)
         expect(db1.id).toBe(db2.id)
         expect(cache1.id).toBe(cache2.id)
-        
+
         // Auth service should also be new since it depends on user service
         expect(auth1).not.toBe(auth2)
         expect(auth1.id).not.toBe(auth2.id)
-        
+
         // App service should also be new since it depends on auth service
         expect(app1).not.toBe(app2)
       })

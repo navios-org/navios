@@ -1,5 +1,5 @@
 import type { FactoryContext } from './factory-context.mjs'
-import type { Registry, FactoryRecord } from './registry.mjs'
+import type { FactoryRecord, Registry } from './registry.mjs'
 
 import { InjectableType } from './enums/index.mjs'
 import { provideFactoryContext, wrapSyncInit } from './injector.mjs'
@@ -53,11 +53,11 @@ export class ServiceInstantiator {
       provideFactoryContext(original)
       return result
     })
-    
+
     let [instance, promises, injectState] = tryLoad()
     if (promises.length > 0) {
       const results = await Promise.allSettled(promises)
-      if (results.some(result => result.status === 'rejected')) {
+      if (results.some((result) => result.status === 'rejected')) {
         throw new Error(
           `[ServiceInstantiator] Service ${record.target.name} cannot be instantiated.`,
         )
@@ -66,7 +66,7 @@ export class ServiceInstantiator {
       instance = newRes[0]
       promises = newRes[1]
     }
-    
+
     if (promises.length > 0) {
       console.error(`[ServiceInstantiator] ${record.target.name} has problem with it's definition.
 
@@ -103,18 +103,17 @@ export class ServiceInstantiator {
     record: FactoryRecord<T, any>,
     args: any,
   ): Promise<T> {
-    
     const tryLoad = wrapSyncInit(() => {
       const original = provideFactoryContext(ctx)
       let result = new record.target()
       provideFactoryContext(original)
       return result
     })
-    
+
     let [builder, promises, injectState] = tryLoad()
     if (promises.length > 0) {
       const results = await Promise.allSettled(promises)
-      if (results.some(result => result.status === 'rejected')) {
+      if (results.some((result) => result.status === 'rejected')) {
         throw new Error(
           `[ServiceInstantiator] Service ${record.target.name} cannot be instantiated.`,
         )
@@ -123,7 +122,7 @@ export class ServiceInstantiator {
       builder = newRes[0]
       promises = newRes[1]
     }
-    
+
     if (promises.length > 0) {
       console.error(`[ServiceInstantiator] ${record.target.name} has problem with it's definition.
 

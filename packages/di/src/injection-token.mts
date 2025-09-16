@@ -145,3 +145,8 @@ export class FactoryInjectionToken<T, S extends InjectionTokenSchemaType> {
     return this.token.toString()
   }
 }
+
+export type InjectionTokenType =
+  | InjectionToken<any, any>
+  | BoundInjectionToken<any, any>
+  | FactoryInjectionToken<any, any>

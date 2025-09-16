@@ -2,7 +2,7 @@ import type {
   ClassTypeWithInstance,
   InjectionTokenSchemaType,
 } from '../injection-token.mjs'
-  import type { Factorable, FactorableWithArgs } from '../interfaces/index.mjs'
+import type { Factorable, FactorableWithArgs } from '../interfaces/index.mjs'
 import type { Registry } from '../registry.mjs'
 
 import { InjectableScope, InjectableType } from '../enums/index.mjs'
@@ -49,7 +49,11 @@ export function Factory({
   token,
   registry = globalRegistry,
 }: FactoryOptions = {}) {
-  return <T extends ClassTypeWithInstance<Factorable<any> | FactorableWithArgs<any, any>>>(
+  return <
+    T extends ClassTypeWithInstance<
+      Factorable<any> | FactorableWithArgs<any, any>
+    >,
+  >(
     target: T,
     context?: ClassDecoratorContext,
   ): T => {
@@ -64,13 +68,8 @@ export function Factory({
 
     let injectableToken: InjectionToken<any, any> =
       token ?? InjectionToken.create(target)
-    
-    registry.set(
-      injectableToken,
-      scope,
-      target,
-      InjectableType.Factory,
-    )
+
+    registry.set(injectableToken, scope, target, InjectableType.Factory)
 
     // @ts-expect-error
     target[InjectableTokenMeta] = injectableToken

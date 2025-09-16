@@ -1,11 +1,17 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import {  z } from 'zod/v4'
+import { z } from 'zod/v4'
 
 import { Factory } from '../decorators/index.mjs'
 import { InjectableScope } from '../enums/index.mjs'
-import { globalRegistry, Registry, ServiceLocator, syncInject, Container } from '../index.mjs'
+import {
+  Container,
+  globalRegistry,
+  Registry,
+  ServiceLocator,
+  syncInject,
+} from '../index.mjs'
 import { InjectionToken } from '../injection-token.mjs'
-import { inject, dangerouslySetGlobalFactoryContext } from '../injector.mjs'
+import { dangerouslySetGlobalFactoryContext, inject } from '../injector.mjs'
 import { getInjectableToken, getInjectors } from '../utils/index.mjs'
 
 describe('Factory decorator', () => {
@@ -121,7 +127,6 @@ describe('Factory decorator', () => {
       }
     }
 
-    
     const factory = await container.get(TestFactory)
     const result1 = factory
     const inst2 = await container.get(TestFactory)

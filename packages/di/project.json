@@ -17,7 +17,7 @@
     },
     "test:ci": {
       "executor": "nx:run-commands",
-      "inputs": ["^projectSources","project"],
+      "inputs": ["^projectSources", "project"],
       "options": {
         "command": "vitest run",
         "cwd": "packages/di"

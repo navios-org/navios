@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-empty-object-type */
 import type { ServiceLocatorInstanceHolder } from './service-locator-instance-holder.mjs'
 
+import { InjectableScope, InjectableType } from './enums/index.mjs'
 import {
   ErrorsEnum,
   InstanceDestroying,
@@ -8,7 +9,6 @@ import {
   InstanceNotFound,
 } from './errors/index.mjs'
 import { ServiceLocatorInstanceHolderStatus } from './service-locator-instance-holder.mjs'
-import { InjectableType, InjectableScope } from './enums/index.mjs'
 import { createDeferred } from './utils/defer.mjs'
 
 export class ServiceLocatorManager {
@@ -110,9 +110,12 @@ export class ServiceLocatorManager {
     scope: InjectableScope,
     deps: Set<string> = new Set(),
     ttl: number = Infinity,
-  ): [ReturnType<typeof createDeferred<[undefined, Instance]>>, ServiceLocatorInstanceHolder<Instance>] {
+  ): [
+    ReturnType<typeof createDeferred<[undefined, Instance]>>,
+    ServiceLocatorInstanceHolder<Instance>,
+  ] {
     const deferred = createDeferred<[undefined, Instance]>()
-    
+
     const holder: ServiceLocatorInstanceHolder<Instance> = {
       status: ServiceLocatorInstanceHolderStatus.Creating,
       name,

@@ -5,7 +5,10 @@
 export type EventsConfig = {
   [event: string]: any[]
 }
-export type EventsNames<Events extends EventsConfig> = Exclude<keyof Events, symbol | number>
+export type EventsNames<Events extends EventsConfig> = Exclude<
+  keyof Events,
+  symbol | number
+>
 export type EventsArgs<
   Events extends EventsConfig,
   Name extends EventsNames<Events>,
@@ -16,7 +19,11 @@ export type ChannelEmitter<
   Ns extends string,
   E extends EventsNames<Events>,
 > = {
-  emit<Args extends EventsArgs<Events, E>>(ns: Ns, event: E, ...args: Args): Promise<any>
+  emit<Args extends EventsArgs<Events, E>>(
+    ns: Ns,
+    event: E,
+    ...args: Args
+  ): Promise<any>
 }
 
 export interface EventEmitterInterface<Events extends EventsConfig> {
@@ -94,7 +101,11 @@ export class EventEmitter<Events extends EventsConfig = {}>
       return
     }
 
-    return Promise.all(Array.from(this.listeners.get(event)!).map(listener => listener(...args)))
+    return Promise.all(
+      Array.from(this.listeners.get(event)!).map((listener) =>
+        listener(...args),
+      ),
+    )
   }
 
   addChannel<

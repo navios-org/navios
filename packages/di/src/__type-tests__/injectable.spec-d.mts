@@ -377,5 +377,4 @@ test('Injectable types', () => {
       },
     ),
   ).toBeConstructibleWith()
-
 })

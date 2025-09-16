@@ -24,10 +24,9 @@ yarn add navios
 ## Usage
 
 ```js
-import navios from 'navios';
+import navios from 'navios'
 
 navios.get('https://example.com').then((response) => {
-  console.log(response.data);
-});
+  console.log(response.data)
+})
 ```
-

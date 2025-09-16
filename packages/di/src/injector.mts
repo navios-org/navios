@@ -14,15 +14,23 @@ export const wrapSyncInit: Injectors['wrapSyncInit'] = values.wrapSyncInit
 export const provideFactoryContext: Injectors['provideFactoryContext'] =
   values.provideFactoryContext
 
-export function dangerouslySetGlobalFactoryContext(serviceLocator: ServiceLocator) {
+export function dangerouslySetGlobalFactoryContext(
+  serviceLocator: ServiceLocator,
+) {
   values.provideFactoryContext({
     // @ts-expect-error This is correct type
-    inject(token: ClassType | InjectionToken<any, any> | BoundInjectionToken<any, any> | FactoryInjectionToken<any, any>, args?: unknown) {
+    inject(
+      token:
+        | ClassType
+        | InjectionToken<any, any>
+        | BoundInjectionToken<any, any>
+        | FactoryInjectionToken<any, any>,
+      args?: unknown,
+    ) {
       let injectionToken = token
       if (typeof token === 'function') {
         injectionToken = getInjectableToken(token)
       }
-    // @ts-expect-error This is correct type
       return serviceLocator.getOrThrowInstance(injectionToken, args)
     },
     locator: serviceLocator,

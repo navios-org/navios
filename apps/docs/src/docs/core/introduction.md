@@ -29,4 +29,3 @@ It uses Fastify under the hood, which is a fast and low-overhead web framework f
 - **Attribute**: An attribute is a decorator that is used to add metadata to a class or method. Attributes can be used in guards, controllers, modules, and endpoints to provide additional information about the class or method.
 
 ## Why Navios?
-

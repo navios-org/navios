@@ -27,19 +27,18 @@ yarn add @navios/jwt
 ### Basic Setup
 
 ```typescript
-import { inject } from '@navios/core';
-import { provideJwtService } from '@navios/jwt';
-
+import { inject } from '@navios/core'
+import { provideJwtService } from '@navios/jwt'
 
 const MyJwtService = provideJwtService({
   secret: 'your-secret-key',
   signOptions: {
-    expiresIn: '1h'
+    expiresIn: '1h',
   },
 })
 // Or with factory
 const JwtService = provideJwtService(async () => {
-  const config = await inject(ConfigService);
+  const config = await inject(ConfigService)
   return config.jwt
 })
 ```
@@ -49,20 +48,20 @@ const JwtService = provideJwtService(async () => {
 ```typescript
 // Create a token
 import { Injectable, syncInject } from '@navios/core'
-import { JwtService } from '../service/jwt.service.mjs'
 //or to load without options
 import { JwtService } from '@navios/jwt'
+
+import { JwtService } from '../service/jwt.service.mjs'
 
 @Injectable()
 class AuthService {
   jwtService = syncInject(JwtService)
-  
+
   async generateToken(userId: number, role: string) {
-    const token = await this.jwtService.signAsync({ userId, role });
-    return token;
+    const token = await this.jwtService.signAsync({ userId, role })
+    return token
   }
 }
-
 ```
 
 ### Verifying Tokens
@@ -70,14 +69,14 @@ class AuthService {
 ```typescript
 try {
   // Verify and decode a token
-  const payload = await jwtService.verify(token);
-  console.log(payload); // { userId: 123, role: 'admin', iat: 1234567890, exp: 1234571490 }
+  const payload = await jwtService.verify(token)
+  console.log(payload) // { userId: 123, role: 'admin', iat: 1234567890, exp: 1234571490 }
 } catch (error) {
   // Handle verification errors
   if (error instanceof TokenExpiredError) {
-    console.error('Token expired');
+    console.error('Token expired')
   } else if (error instanceof JsonWebTokenError) {
-    console.error('Invalid token');
+    console.error('Invalid token')
   }
 }
 ```
@@ -90,22 +89,23 @@ Configuration options for the JWT service:
 
 ```typescript
 interface JwtServiceOptions {
-  signOptions?: SignOptions;
-  secret?: string;
-  publicKey?: string | Buffer;
-  privateKey?: Secret;
-  verifyOptions?: VerifyOptions;
+  signOptions?: SignOptions
+  secret?: string
+  publicKey?: string | Buffer
+  privateKey?: Secret
+  verifyOptions?: VerifyOptions
   secretOrKeyProvider?: (
     requestType: RequestType,
     token?: string,
-    options?: SignOptions | VerifyOptions
-  ) => Secret | Promise<Secret>;
+    options?: SignOptions | VerifyOptions,
+  ) => Secret | Promise<Secret>
 }
 ```
 
 ### Error Handling
 
 The library exports error classes from the underlying `jsonwebtoken` library:
+
 - `TokenExpiredError`: Thrown when the token is expired
 - `NotBeforeError`: Thrown when the token is not yet valid
 - `JsonWebTokenError`: Base class for all JWT errors

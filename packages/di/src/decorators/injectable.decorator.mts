@@ -35,7 +35,6 @@ export function Injectable(options: {
   scope: InjectableScope
 }): <T extends ClassType>(target: T, context?: ClassDecoratorContext) => T
 
-
 // #3 Class with typeless token and schema
 export function Injectable<Type, Schema>(options: {
   scope?: InjectableScope
@@ -93,13 +92,8 @@ export function Injectable({
     }
     let injectableToken: InjectionToken<any, any> =
       token ?? InjectionToken.create(target)
-        
-    registry.set(
-      injectableToken,
-      scope,
-      target,
-      InjectableType.Class,
-    )
+
+    registry.set(injectableToken, scope, target, InjectableType.Class)
 
     // @ts-expect-error
     target[InjectableTokenMeta] = injectableToken
