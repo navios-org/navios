@@ -11,10 +11,8 @@ import type { ServiceLocator } from '../service-locator.mjs'
 
 import { InjectableTokenMeta } from '../symbols/index.mjs'
 import type { Factorable } from '../interfaces/factory.interface.mjs'
+import type { FactoryContext } from '../factory-context.mjs'
 
-export interface CreateInjectorsOptions {
-  baseLocator: ServiceLocator
-}
 type Join<TElements, TSeparator extends string> =
   TElements extends Readonly<[infer First, ...infer Rest]>
     ? Rest extends ReadonlyArray<string>
@@ -90,29 +88,24 @@ export interface Injectors {
 
   wrapSyncInit(cb: () => any): () => [any, Promise<any>[]]
 
-  provideServiceLocator(locator: ServiceLocator): ServiceLocator
+  provideFactoryContext(context: FactoryContext | null): FactoryContext | null
 }
 
-export const InjectorsBase = new Map<ServiceLocator, Injectors>()
 
-export function getInjectors({ baseLocator }: CreateInjectorsOptions) {
-  if (InjectorsBase.has(baseLocator)) {
-    return InjectorsBase.get(baseLocator)!
-  }
-  let currentLocator: ServiceLocator = baseLocator
+export function getInjectors() {
+  let currentFactoryContext: FactoryContext | null = null
 
-  function getServiceLocator() {
-    if (!currentLocator) {
-      throw new Error(
-        '[Injector] Service locator is not initialized. Please provide the service locator before using the @Injectable decorator.',
-      )
-    }
-    return currentLocator
-  }
-  function provideServiceLocator(locator: ServiceLocator): ServiceLocator {
-    const original = currentLocator
-    currentLocator = locator
+
+  function provideFactoryContext(context: FactoryContext): FactoryContext | null {
+    const original = currentFactoryContext
+    currentFactoryContext = context
     return original
+  }
+  function getFactoryContext(): FactoryContext {
+    if (!currentFactoryContext) {
+      throw new Error('[Injector] Trying to access injection context outside of a injectable context')
+    }
+    return currentFactoryContext
   }
 
   function inject(
@@ -123,11 +116,8 @@ export function getInjectors({ baseLocator }: CreateInjectorsOptions) {
       | FactoryInjectionToken<any, any>,
     args?: unknown,
   ) {
-    // @ts-expect-error In case we have a class
-    const realToken = token[InjectableTokenMeta] ?? token
-
     // @ts-expect-error We check the type in overload
-    return getServiceLocator().getOrThrowInstance(realToken, args)
+    return getFactoryContext().inject(token, args)
   }
 
   let promiseCollector: null | ((promise: Promise<any>) => void) = null
@@ -156,10 +146,10 @@ export function getInjectors({ baseLocator }: CreateInjectorsOptions) {
     // @ts-expect-error In case we have a class
     const realToken = token[InjectableTokenMeta] ?? token
 
-    const instance = getServiceLocator().getSyncInstance(realToken, args)
+    const instance = getFactoryContext().locator.getSyncInstance(realToken, args)
     if (!instance) {
       if (promiseCollector) {
-        const promise = getServiceLocator().getInstance(realToken, args)
+        const promise = getFactoryContext().inject(realToken, args)
         promiseCollector(promise)
       } else {
         throw new Error(`[Injector] Cannot initiate ${realToken.toString()}`)
@@ -182,9 +172,8 @@ export function getInjectors({ baseLocator }: CreateInjectorsOptions) {
     inject,
     syncInject,
     wrapSyncInit,
-    provideServiceLocator,
+    provideFactoryContext,
   } as Injectors
-  InjectorsBase.set(baseLocator, injectors)
 
   return injectors
 }

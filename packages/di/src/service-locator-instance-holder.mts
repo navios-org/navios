@@ -1,11 +1,6 @@
+import type { InjectableType, InjectableScope } from "./enums/index.mjs"
+
 /* eslint-disable @typescript-eslint/no-empty-object-type */
-
-export enum ServiceLocatorInstanceHolderKind {
-  Instance = 'instance',
-  Factory = 'factory',
-  AbstractFactory = 'abstractFactory',
-}
-
 export enum ServiceLocatorInstanceHolderStatus {
   Created = 'created',
   Creating = 'creating',
@@ -21,9 +16,9 @@ export interface ServiceLocatorInstanceHolderCreating<Instance> {
   instance: null
   creationPromise: Promise<[undefined, Instance]> | null
   destroyPromise: null
-  kind: ServiceLocatorInstanceHolderKind
-  effects: ServiceLocatorInstanceEffect[]
-  deps: string[]
+  type: InjectableType
+  scope: InjectableScope
+  deps: Set<string>
   destroyListeners: ServiceLocatorInstanceDestroyListener[]
   createdAt: number
   ttl: number
@@ -35,9 +30,9 @@ export interface ServiceLocatorInstanceHolderCreated<Instance> {
   instance: Instance
   creationPromise: null
   destroyPromise: null
-  kind: ServiceLocatorInstanceHolderKind
-  effects: ServiceLocatorInstanceEffect[]
-  deps: string[]
+  type: InjectableType
+  scope: InjectableScope
+  deps: Set<string>
   destroyListeners: ServiceLocatorInstanceDestroyListener[]
   createdAt: number
   ttl: number
@@ -49,9 +44,9 @@ export interface ServiceLocatorInstanceHolderDestroying<Instance> {
   instance: Instance | null
   creationPromise: null
   destroyPromise: Promise<void>
-  kind: ServiceLocatorInstanceHolderKind
-  effects: ServiceLocatorInstanceEffect[]
-  deps: string[]
+  type: InjectableType
+  scope: InjectableScope
+  deps: Set<string>
   destroyListeners: ServiceLocatorInstanceDestroyListener[]
   createdAt: number
   ttl: number

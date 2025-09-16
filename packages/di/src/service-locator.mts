@@ -26,15 +26,16 @@ import {
 import { globalRegistry } from './registry.mjs'
 import { ServiceLocatorEventBus } from './service-locator-event-bus.mjs'
 import {
-  ServiceLocatorInstanceHolderKind,
   ServiceLocatorInstanceHolderStatus,
 } from './service-locator-instance-holder.mjs'
 import { ServiceLocatorManager } from './service-locator-manager.mjs'
 import { getInjectableToken } from './utils/index.mjs'
+import { ServiceInstantiator } from './service-instantiator.mjs'
 
 export class ServiceLocator {
   private readonly eventBus: ServiceLocatorEventBus
   private readonly manager: ServiceLocatorManager
+  private readonly serviceInstantiator: ServiceInstantiator
 
   constructor(
     private readonly registry: Registry = globalRegistry,
@@ -42,86 +43,11 @@ export class ServiceLocator {
   ) {
     this.eventBus = new ServiceLocatorEventBus(logger)
     this.manager = new ServiceLocatorManager(logger)
+    this.serviceInstantiator = new ServiceInstantiator(registry)
   }
 
   getEventBus() {
     return this.eventBus
-  }
-
-  public storeInstance<Instance>(
-    instance: Instance,
-    token: BoundInjectionToken<Instance, any>,
-  ): void
-  public storeInstance<Instance>(
-    instance: Instance,
-    token: FactoryInjectionToken<Instance, any>,
-  ): void
-  public storeInstance<Instance>(
-    instance: Instance,
-    token: InjectionToken<Instance, undefined>,
-  ): void
-  public storeInstance<
-    Instance,
-    Schema extends ZodObject | ZodOptional<ZodObject>,
-  >(
-    instance: Instance,
-    token: InjectionToken<Instance, Schema>,
-    args: z.input<Schema>,
-  ): void
-  public storeInstance(
-    instance: any,
-    token:
-      | InjectionToken<any, any>
-      | BoundInjectionToken<any, any>
-      | FactoryInjectionToken<any, any>,
-    args?: any,
-  ): void {
-    // @ts-expect-error We should redefine the instance name type
-    const instanceName = this.getInstanceIdentifier(token, args)
-    this.manager.set(instanceName, {
-      name: instanceName,
-      instance,
-      status: ServiceLocatorInstanceHolderStatus.Created,
-      kind: ServiceLocatorInstanceHolderKind.Instance,
-      createdAt: Date.now(),
-      ttl: Infinity,
-      deps: [],
-      destroyListeners: [],
-      effects: [],
-      destroyPromise: null,
-      creationPromise: null,
-    })
-    this.notifyListeners(instanceName)
-  }
-
-  public removeInstance<Instance>(
-    token: BoundInjectionToken<Instance, any>,
-  ): void
-  public removeInstance<Instance>(
-    token: FactoryInjectionToken<Instance, any>,
-  ): void
-  public removeInstance<Instance>(
-    token: InjectionToken<Instance, undefined>,
-  ): void
-  public removeInstance<Instance, Schema extends BaseInjectionTokenSchemaType>(
-    token: InjectionToken<Instance, Schema>,
-    args: z.input<Schema>,
-  ): void
-  public removeInstance<
-    Instance,
-    Schema extends OptionalInjectionTokenSchemaType,
-  >(token: InjectionToken<Instance, Schema>, args?: z.input<Schema>): void
-
-  public removeInstance(
-    token:
-      | InjectionToken<any, any>
-      | BoundInjectionToken<any, any>
-      | FactoryInjectionToken<any, any>,
-    args?: any,
-  ) {
-    // @ts-expect-error We should redefine the instance name type
-    const instanceName = this.getInstanceIdentifier(token, args)
-    return this.invalidate(instanceName)
   }
 
   private resolveTokenArgs<
@@ -234,6 +160,32 @@ export class ServiceLocator {
       | FactoryInjectionToken<any, any>,
     args?: any,
   ) {
+    const [err, data] = await this.prepareArgsAndName(token, args)
+    if (err) {
+      return [err]
+    }
+    const {instanceName, realArgs} = data
+    const [error, holder] = await this.getInstanceByInstanceName(instanceName, token, realArgs)
+    if (error) {
+      return [error]
+    }
+    return [undefined, holder.instance]
+  }
+
+  /**
+   * Internal method to resolve token args and create instance name.
+   * Handles factory token resolution and validation.
+   * @param token The injection token
+   * @param args Optional arguments
+   * @returns Promise resolving to [error, instanceName, realArgs] or [error] if failed
+   */
+  private async prepareArgsAndName(
+    token:
+      | InjectionToken<any, any>
+      | BoundInjectionToken<any, any>
+      | FactoryInjectionToken<any, any>,
+    args?: any,
+  ): Promise<[undefined, {instanceName: string, realArgs: any}] | [UnknownError | FactoryTokenNotResolved]> {
     const [err, realArgs] = this.resolveTokenArgs(token as any, args)
     if (err instanceof UnknownError) {
       return [err]
@@ -242,49 +194,73 @@ export class ServiceLocator {
       token instanceof FactoryInjectionToken
     ) {
       this.logger?.log(
-        `[ServiceLocator]#getInstance() Factory token not resolved, resolving it`,
+        `[ServiceLocator]#resolveArgsAndCreateInstanceNameInternal() Factory token not resolved, resolving it`,
       )
       await token.resolve()
-      return this.getInstance(token)
+      return this.prepareArgsAndName(token)
     }
     const instanceName = this.makeInstanceName(token, realArgs)
+    return [undefined, {instanceName, realArgs}]
+  }
+
+  /**
+   * Gets an instance by its instance name, handling all the logic after instance name creation.
+   * @param instanceName The instance name to look up
+   * @param token The injection token (for recursive calls)
+   * @param realArgs The resolved arguments (for recursive calls)
+   * @returns Promise resolving to the instance or error
+   */
+  private async getInstanceByInstanceName(
+    instanceName: string,
+    token:
+      | InjectionToken<any, any>
+      | BoundInjectionToken<any, any>
+      | FactoryInjectionToken<any, any>,
+    realArgs: any,
+  ): Promise<[undefined, ServiceLocatorInstanceHolder<any>] | [UnknownError | FactoryNotFound]> {
     const [error, holder] = this.manager.get(instanceName)
     if (!error) {
       if (holder.status === ServiceLocatorInstanceHolderStatus.Creating) {
-        return holder.creationPromise
+        await holder.creationPromise
+        return [undefined, holder]
       } else if (
         holder.status === ServiceLocatorInstanceHolderStatus.Destroying
       ) {
         // Should never happen
         return [new UnknownError(ErrorsEnum.InstanceDestroying)]
       }
-      return [undefined, holder.instance]
+      return [undefined, holder]
     }
     switch (error.code) {
       case ErrorsEnum.InstanceDestroying:
         this.logger?.log(
-          `[ServiceLocator]#getInstance() TTL expired for ${holder?.name}`,
+          `[ServiceLocator]#getInstanceByInstanceName() TTL expired for ${holder?.name}`,
         )
         await holder?.destroyPromise
         //Maybe we already have a new instance
-        // @ts-expect-error We should redefine the instance name type
-        return this.getInstance(token, args)
+        return this.getInstanceByInstanceName(instanceName, token, realArgs)
 
       case ErrorsEnum.InstanceExpired:
         this.logger?.log(
-          `[ServiceLocator]#getInstance() TTL expired for ${holder?.name}`,
+          `[ServiceLocator]#getInstanceByInstanceName() TTL expired for ${holder?.name}`,
         )
         await this.invalidate(instanceName)
         //Maybe we already have a new instance
-        // @ts-expect-error We should redefine the instance name type
-        return this.getInstance(token, args)
+        return this.getInstanceByInstanceName(instanceName, token, realArgs)
       case ErrorsEnum.InstanceNotFound:
         break
       default:
         return [error]
     }
     // @ts-expect-error TS2322 It's validated
-    return this.createInstance(instanceName, token, realArgs)
+    const result = await this.createInstance(instanceName, token, realArgs)
+    if (result[0]) {
+      return [result[0]]
+    }
+    if (result[1].status === ServiceLocatorInstanceHolderStatus.Creating) {
+      await result[1].creationPromise
+    }
+    return [undefined, result[1]]
   }
 
   public async getOrThrowInstance<
@@ -322,11 +298,11 @@ export class ServiceLocator {
     instanceName: string,
     token: InjectionToken<Instance, Schema>,
     args: Schema extends ZodObject
-      ? z.input<Schema>
+      ? z.output<Schema>
       : Schema extends ZodOptional<ZodObject>
-        ? z.input<Schema> | undefined
+        ? z.output<Schema> | undefined
         : undefined,
-  ): Promise<[undefined, Instance] | [FactoryNotFound | UnknownError]> {
+  ): Promise<[undefined, ServiceLocatorInstanceHolder<Instance>] | [FactoryNotFound | UnknownError]> {
     this.logger?.log(
       `[ServiceLocator]#createInstance() Creating instance for ${instanceName}`,
     )
@@ -336,7 +312,7 @@ export class ServiceLocator {
         ? token.token
         : token
     if (this.registry.has(realToken)) {
-      return this.resolveInstance(instanceName, realToken, args)
+      return this.resolveInstance<Instance, Schema, any>(instanceName, realToken, args)
     } else {
       return [new FactoryNotFound(realToken.name.toString())]
     }
@@ -346,40 +322,36 @@ export class ServiceLocator {
     Instance,
     Schema extends InjectionTokenSchemaType | undefined,
     Args extends Schema extends BaseInjectionTokenSchemaType
-      ? z.input<Schema>
+      ? z.output<Schema>
       : Schema extends OptionalInjectionTokenSchemaType
-        ? z.input<Schema> | undefined
+        ? z.output<Schema> | undefined
         : undefined,
   >(
     instanceName: string,
     token: InjectionToken<Instance, Schema>,
     args: Args,
-  ): Promise<[undefined, Instance] | [FactoryNotFound]> {
+  ): Promise<[undefined, ServiceLocatorInstanceHolder<Instance>]> {
     this.logger?.log(
       `[ServiceLocator]#resolveInstance(): Creating instance for ${instanceName} from abstract factory`,
     )
     const ctx = this.createFactoryContext(instanceName)
-    let { factory, scope } = this.registry.get<Instance, Schema>(token)
+    let record = this.registry.get<Instance, Schema>(token)
+    let { scope, type } = record
     const holder: ServiceLocatorInstanceHolder<Instance> = {
       name: instanceName,
       instance: null,
       status: ServiceLocatorInstanceHolderStatus.Creating,
-      kind: ServiceLocatorInstanceHolderKind.AbstractFactory,
+      type,
+      scope,
       // @ts-expect-error TS2322 This is correct type
-      creationPromise: factory(ctx, args)
+      creationPromise: this.serviceInstantiator.instantiateService(ctx, record, args)
         .then(async (instance: Instance) => {
           holder.instance = instance
           holder.status = ServiceLocatorInstanceHolderStatus.Created
-          holder.deps = ctx.getDependencies()
           holder.destroyListeners = ctx.getDestroyListeners()
-          holder.ttl = ctx.getTtl()
-          if (holder.deps.length > 0) {
-            this.logger?.log(
-              `[ServiceLocator]#createInstanceFromAbstractFactory(): Adding subscriptions for ${instanceName} dependencies for their invalidations: ${holder.deps.join(
-                ', ',
-              )}`,
-            )
-            holder.deps.forEach((dependency) => {
+          holder.ttl = Infinity // Simplified: no TTL management
+          if (ctx.deps.size > 0) {
+            ctx.deps.forEach((dependency) => {
               holder.destroyListeners.push(
                 this.eventBus.on(dependency, 'destroy', () =>
                   this.invalidate(instanceName),
@@ -387,12 +359,8 @@ export class ServiceLocator {
               )
             })
           }
-          if (holder.ttl === 0 || scope === InjectableScope.Instance) {
-            // One time instance
-            await this.invalidate(instanceName)
-          }
           await this.notifyListeners(instanceName)
-          return [undefined, instance as Instance]
+          return [undefined, instance] as [undefined, Instance]
         })
         .catch((error) => {
           this.logger?.error(
@@ -401,8 +369,7 @@ export class ServiceLocator {
           )
           return [new UnknownError(error)]
         }),
-      effects: [],
-      deps: [],
+      deps: ctx.deps,
       destroyListeners: [],
       createdAt: Date.now(),
       ttl: Infinity,
@@ -415,31 +382,21 @@ export class ServiceLocator {
       this.manager.set(instanceName, holder)
     }
     // @ts-expect-error TS2322 This is correct type
-    return holder.creationPromise
+    return [undefined, holder]
   }
 
-  private createFactoryContext(instanceName: string): FactoryContext {
-    const dependencies = new Set<string>()
+  private createFactoryContext(instanceName: string): FactoryContext & { getDestroyListeners: () => (() => void)[], deps: Set<string> } {
     const destroyListeners = new Set<() => void>()
+    const deps = new Set<string>()
     // eslint-disable-next-line @typescript-eslint/no-this-alias
     const self = this
 
-    function invalidate(name = instanceName) {
-      return self.invalidate(name)
-    }
-    function addEffect(listener: () => void) {
+    function addDestroyListener(listener: () => void) {
       destroyListeners.add(listener)
     }
-    let ttl = Infinity
-    function setTtl(value: number) {
-      ttl = value
-    }
-    function getTtl() {
-      return ttl
-    }
 
-    function on(key: string, event: string, listener: (event: string) => void) {
-      destroyListeners.add(self.eventBus.on(key, event, listener))
+    function getDestroyListeners() {
+      return Array.from(destroyListeners)
     }
 
     return {
@@ -450,29 +407,29 @@ export class ServiceLocator {
           injectionToken = getInjectableToken(token)
         }
         if (injectionToken) {
-          const [err, validatedArgs] = self.resolveTokenArgs(
+          const [err, data] = await self.prepareArgsAndName(
             injectionToken,
             args,
           )
           if (err) {
             throw err
           }
-          const instanceName = self.makeInstanceName(token, validatedArgs)
-          dependencies.add(instanceName)
-          return self.getOrThrowInstance(injectionToken, args as any)
+          const {instanceName, realArgs} = data
+          deps.add(instanceName)
+          const [error, holder] = await self.getInstanceByInstanceName(instanceName, injectionToken, realArgs)
+          if (error) {
+            throw error
+          }
+          return holder.instance
         }
         throw new Error(
           `[ServiceLocator]#inject(): Invalid token type: ${typeof token}. Expected a class or an InjectionToken.`,
         )
       },
-      invalidate,
-      on: on as ServiceLocatorEventBus['on'],
-      getDependencies: () => Array.from(dependencies),
-      addEffect,
-      getDestroyListeners: () => Array.from(destroyListeners),
-      setTtl,
-      getTtl,
+      addDestroyListener,
+      getDestroyListeners,
       locator: self,
+      deps,
     }
   }
 
@@ -504,7 +461,7 @@ export class ServiceLocator {
       `[ServiceLocator]#invalidate(): Starting Invalidating process of ${service}`,
     )
     const toInvalidate = this.manager.filter(
-      (holder) => holder.name === service || holder.deps.includes(service),
+      (holder) => holder.name === service || holder.deps.has(service),
     )
     const promises = []
     for (const [key, holder] of toInvalidate.entries()) {

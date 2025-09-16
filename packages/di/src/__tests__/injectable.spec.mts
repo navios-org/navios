@@ -1,13 +1,18 @@
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 import { z } from 'zod/v4'
 
 import { Injectable } from '../decorators/index.mjs'
-import { Registry, ServiceLocator, syncInject } from '../index.mjs'
+import { globalRegistry, Registry, ServiceLocator, syncInject } from '../index.mjs'
 import { InjectionToken } from '../injection-token.mjs'
-import { getGlobalServiceLocator, inject } from '../injector.mjs'
-import { getInjectableToken, getInjectors } from '../utils/index.mjs'
+import { dangerouslySetGlobalFactoryContext, inject } from '../injector.mjs'
+import { getInjectableToken } from '../utils/index.mjs'
 
 describe('Injectable decorator', () => {
+  let serviceLocator: ServiceLocator
+  beforeEach(() => {
+    serviceLocator = new ServiceLocator(globalRegistry, console)
+    dangerouslySetGlobalFactoryContext(serviceLocator)
+  })
   it('should work with class', async () => {
     @Injectable()
     class Test {}
@@ -66,7 +71,7 @@ describe('Injectable decorator', () => {
         return test.value
       }
     }
-    const identifier = getGlobalServiceLocator().getInstanceIdentifier(
+    const identifier = serviceLocator.getInstanceIdentifier(
       getInjectableToken(Test),
       undefined,
     )
@@ -76,7 +81,7 @@ describe('Injectable decorator', () => {
     const inst2 = await inject(Test2)
     expect(inst1).toBe(inst2)
     const result2 = await inst2.makeFoo()
-    await getGlobalServiceLocator().invalidate(identifier)
+    await serviceLocator.invalidate(identifier)
     await new Promise((resolve) => setTimeout(resolve, 10))
     const inst3 = await inject(Test2)
     expect(inst1).not.toBe(inst3)
@@ -101,6 +106,7 @@ describe('Injectable decorator', () => {
       }
     }
     const inst1 = await inject(Test2)
+    console.log('inst1', inst1)
     expect(inst1).toBeInstanceOf(Test2)
     const result1 = inst1.makeFoo()
     const inst2 = await inject(Test2)
@@ -144,12 +150,9 @@ describe('Injectable decorator', () => {
     expect(value).toBeInstanceOf(Test)
   })
 
-  it('should work with bound injection token', async () => {
+  it('should work with bound injection token and custom registry', async () => {
     const registry = new Registry()
-    const newServiceLocator = new ServiceLocator(registry)
-    const { inject, syncInject } = getInjectors({
-      baseLocator: newServiceLocator,
-    })
+    const newServiceLocator = new ServiceLocator(registry, console)
     const schema = z.object({
       foo: z.string(),
     })
@@ -166,7 +169,7 @@ describe('Injectable decorator', () => {
       foo = syncInject(boundToken)
     }
 
-    const value = await inject(TestOuter)
+    const value = await newServiceLocator.getOrThrowInstance(getInjectableToken(TestOuter), undefined)
     expect(value).toBeInstanceOf(TestOuter)
     expect(value.foo).toBeInstanceOf(TestInner)
   })

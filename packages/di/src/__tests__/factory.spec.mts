@@ -1,14 +1,19 @@
-import { describe, expect, it } from 'vitest'
-import { z } from 'zod/v4'
+import { beforeEach, describe, expect, it } from 'vitest'
+import {  z } from 'zod/v4'
 
 import { Factory } from '../decorators/index.mjs'
 import { InjectableScope } from '../enums/index.mjs'
-import { Registry, ServiceLocator, syncInject } from '../index.mjs'
+import { globalRegistry, Registry, ServiceLocator, syncInject } from '../index.mjs'
 import { InjectionToken } from '../injection-token.mjs'
-import { getGlobalServiceLocator, inject } from '../injector.mjs'
+import { inject, dangerouslySetGlobalFactoryContext } from '../injector.mjs'
 import { getInjectableToken, getInjectors } from '../utils/index.mjs'
 
 describe('Factory decorator', () => {
+  let serviceLocator: ServiceLocator
+  beforeEach(() => {
+    serviceLocator = new ServiceLocator(globalRegistry, console)
+    dangerouslySetGlobalFactoryContext(serviceLocator)
+  })
   it('should work with factory', async () => {
     @Factory()
     class Test {
@@ -55,9 +60,14 @@ describe('Factory decorator', () => {
       }
     }
 
+    console.log('before inject')
     const value = await inject(token, { foo: 'bar' })
-    const differentValue = await inject(token, { foo: 'baz' })
+    console.log('after inject')
+    console.log(serviceLocator['manager'])
     const sameValue = await inject(token, { foo: 'bar' })
+    const differentValue = await inject(token, { foo: 'baz' })
+    console.log(serviceLocator['manager'])
+    // await new Promise((resolve) => setTimeout(resolve, 10))
     expect(value).toBeInstanceOf(TestFoo)
     expect(value.foo).toBe('bar')
     expect(differentValue).toBeInstanceOf(TestFoo)
@@ -96,9 +106,6 @@ describe('Factory decorator', () => {
   it('should work with factory and custom registry', async () => {
     const registry = new Registry()
     const newServiceLocator = new ServiceLocator(registry)
-    const { inject } = getInjectors({
-      baseLocator: newServiceLocator,
-    })
 
     @Factory({ registry })
     class TestFactory {
@@ -107,7 +114,7 @@ describe('Factory decorator', () => {
       }
     }
 
-    const value = await inject(TestFactory)
+    const value = await newServiceLocator.getOrThrowInstance(getInjectableToken(TestFactory), undefined)
     expect(value).toBe('custom-registry-foo')
   })
 
@@ -119,7 +126,7 @@ describe('Factory decorator', () => {
       }
     }
 
-    const identifier = getGlobalServiceLocator().getInstanceIdentifier(
+    const identifier = serviceLocator.getInstanceIdentifier(
       getInjectableToken(TestFactory),
       undefined,
     )
@@ -129,7 +136,7 @@ describe('Factory decorator', () => {
     const inst2 = await inject(TestFactory)
     expect(factory).toBe(inst2)
     const result2 = inst2
-    await getGlobalServiceLocator().invalidate(identifier)
+    await serviceLocator.invalidate(identifier)
     await new Promise((resolve) => setTimeout(resolve, 10))
     const inst3 = await inject(TestFactory)
     expect(factory).not.toBe(inst3)

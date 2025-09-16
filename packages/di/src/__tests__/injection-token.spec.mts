@@ -1,13 +1,20 @@
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 import { z } from 'zod/v4'
 
 import type { Factorable, FactorableWithArgs } from '../interfaces/index.mjs'
 
 import { Factory, Injectable } from '../decorators/index.mjs'
+import { globalRegistry } from '../index.mjs'
 import { InjectionToken } from '../injection-token.mjs'
-import { inject } from '../injector.mjs'
+import { dangerouslySetGlobalFactoryContext, inject } from '../injector.mjs'
+import { ServiceLocator } from '../service-locator.mjs'
 
 describe('InjectToken', () => {
+  let serviceLocator: ServiceLocator
+  beforeEach(() => {
+    serviceLocator = new ServiceLocator(globalRegistry, console)
+    dangerouslySetGlobalFactoryContext(serviceLocator)
+  })
   it('should work with class', async () => {
     const token = InjectionToken.create('Test')
     @Injectable({
