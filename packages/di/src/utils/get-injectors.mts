@@ -10,6 +10,7 @@ import type {
 import type { ServiceLocator } from '../service-locator.mjs'
 
 import { InjectableTokenMeta } from '../symbols/index.mjs'
+import type { Factorable } from '../interfaces/factory.interface.mjs'
 
 export interface CreateInjectorsOptions {
   baseLocator: ServiceLocator
@@ -45,7 +46,7 @@ type UnionToArray<T, A extends unknown[] = []> =
 
 export interface Injectors {
   // #1 Simple class
-  inject<T extends ClassType>(token: T): Promise<InstanceType<T>>
+  inject<T extends ClassType>(token: T): InstanceType<T> extends Factorable<infer R> ? Promise<R> : Promise<InstanceType<T>>
   // #2 Token with required Schema
   inject<T, S extends InjectionTokenSchemaType>(
     token: InjectionToken<T, S>,
@@ -67,7 +68,7 @@ export interface Injectors {
   inject<T>(token: BoundInjectionToken<T, any>): Promise<T>
   inject<T>(token: FactoryInjectionToken<T, any>): Promise<T>
 
-  syncInject<T extends ClassType>(token: T): InstanceType<T>
+  syncInject<T extends ClassType>(token: T): InstanceType<T> extends Factorable<infer R> ? R : InstanceType<T>
   syncInject<T, S extends InjectionTokenSchemaType>(
     token: InjectionToken<T, S>,
     args: z.input<S>,

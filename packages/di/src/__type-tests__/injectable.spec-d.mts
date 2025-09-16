@@ -2,7 +2,6 @@ import { expectTypeOf, test } from 'vitest'
 import { z } from 'zod/v4'
 
 import { Injectable } from '../decorators/index.mjs'
-import { InjectableType } from '../enums/index.mjs'
 import { InjectionToken } from '../injection-token.mjs'
 
 interface FooService {
@@ -62,24 +61,8 @@ test('Injectable types', () => {
     @Injectable()
     class {},
   ).toBeConstructibleWith()
-  // #2
-  expectTypeOf(
-    @Injectable({
-      type: InjectableType.Factory,
-    })
-    class {
-      create() {}
-    },
-  ).toBeConstructibleWith()
-  expectTypeOf(
-    // @ts-expect-error should check that the class implements the factory
-    @Injectable({
-      type: InjectableType.Factory,
-    })
-    class {},
-  ).toBeConstructibleWith()
 
-  // #3 required argument
+  // #2 required argument
   expectTypeOf(
     @Injectable({
       token: typelessObjectToken,
@@ -90,7 +73,7 @@ test('Injectable types', () => {
   ).toBeConstructibleWith({
     foo: 'something',
   })
-  // #3 it's required in token but optional in class allowed
+  // #2 it's required in token but optional in class allowed
   expectTypeOf(
     @Injectable({
       token: typelessObjectToken,
@@ -101,7 +84,7 @@ test('Injectable types', () => {
   ).toBeConstructibleWith({
     foo: 'something',
   })
-  // #3 optional value but class accepts it
+  // #2 optional value but class accepts it
   expectTypeOf(
     @Injectable({
       token: typelessOptionalObjectToken,
@@ -112,7 +95,7 @@ test('Injectable types', () => {
   ).toBeConstructibleWith({
     foo: 'something',
   })
-  // #3 optional value and class accepts it
+  // #2 optional value and class accepts it
   expectTypeOf(
     @Injectable({
       token: typelessOptionalObjectToken,
@@ -121,7 +104,7 @@ test('Injectable types', () => {
       constructor(public arg: z.infer<typeof simpleOptionalObjectSchema>) {}
     },
   ).toBeConstructibleWith(undefined)
-  // #3 compatible schemas
+  // #2 compatible schemas
   expectTypeOf(
     @Injectable({
       token: typelessOptionalObjectToken,
@@ -130,7 +113,7 @@ test('Injectable types', () => {
       constructor(public arg?: z.infer<typeof simpleObjectSchema>) {}
     },
   ).toBeConstructibleWith(undefined)
-  // #3 compatible schemas
+  // #2 compatible schemas
   expectTypeOf(
     // @ts-expect-error token has optional schema, but Class has required, should fail
     @Injectable({
@@ -143,7 +126,7 @@ test('Injectable types', () => {
     foo: 'something',
   })
 
-  // #3 typed token and required argument
+  // #2 typed token and required argument
   expectTypeOf(
     @Injectable({
       token: typedObjectToken,
@@ -158,7 +141,7 @@ test('Injectable types', () => {
   ).toBeConstructibleWith({
     foo: 'something',
   })
-  // #3 typed token and required argument
+  // #2 typed token and required argument
   expectTypeOf(
     @Injectable({
       token: typedOptionalObjectToken,
@@ -173,7 +156,7 @@ test('Injectable types', () => {
   ).toBeConstructibleWith({
     foo: 'something',
   })
-  // #3 should fail if not compatible
+  // #2 should fail if not compatible
   expectTypeOf(
     // @ts-expect-error class doesn't implement the token type
     @Injectable({
@@ -185,7 +168,7 @@ test('Injectable types', () => {
   ).toBeConstructibleWith({
     foo: 'something',
   })
-  // #3 should fail if not compatible
+  // #2 should fail if not compatible
   expectTypeOf(
     // @ts-expect-error class doesn't implement the token type
     @Injectable({
@@ -201,7 +184,7 @@ test('Injectable types', () => {
   ).toBeConstructibleWith({
     foo: 'something',
   })
-  // #3 typed token without schema
+  // #2 typed token without schema
   expectTypeOf(
     @Injectable({
       token: typedToken,
@@ -213,7 +196,7 @@ test('Injectable types', () => {
       }
     },
   ).toBeConstructibleWith()
-  // #3 typed token without schema fail if not compatible
+  // #2 typed token without schema fail if not compatible
   expectTypeOf(
     // @ts-expect-error class doesn't implement the token type
     @Injectable({
@@ -223,69 +206,6 @@ test('Injectable types', () => {
       constructor() {}
     },
   ).toBeConstructibleWith()
-
-  // #4 factory with typed token
-  expectTypeOf(
-    @Injectable({
-      type: InjectableType.Factory,
-      token: typedToken,
-    })
-    class {
-      constructor() {}
-      create() {
-        return {
-          makeFoo: () => 'foo',
-        }
-      }
-    },
-  ).toBeConstructibleWith()
-  // #4 factory with typed token without schema should fail if not compatible
-  expectTypeOf(
-    // @ts-expect-error factory doesn't implement the token type
-    @Injectable({
-      type: InjectableType.Factory,
-      token: typedToken,
-    })
-    class {
-      constructor() {}
-      create(ctx: any, arg: z.infer<typeof simpleObjectSchema>) {
-        return {
-          makeFoo: () => 'foo',
-        }
-      }
-    },
-  ).toBeConstructibleWith()
-  // #4 factory with typed token fail if not compatible
-  expectTypeOf(
-    // @ts-expect-error class doesn't implement the token type
-    @Injectable({
-      type: InjectableType.Factory,
-      token: typedToken,
-    })
-    class {
-      constructor() {}
-      create() {
-        return {
-          // makeFoo: () => 'foo',
-        }
-      }
-    },
-  ).toBeConstructibleWith()
-  // #4 factory with typed token and schema
-  expectTypeOf(
-    @Injectable({
-      type: InjectableType.Factory,
-      token: typedObjectToken,
-    })
-    class {
-      constructor() {}
-      create(ctx: any, arg: z.infer<typeof simpleObjectSchema>) {
-        return {
-          makeFoo: () => 'foo',
-        }
-      }
-    },
-  )
 
   // #1 Injectable w/o decorators enabled in project
   expectTypeOf(
@@ -300,25 +220,8 @@ test('Injectable types', () => {
       },
     ),
   ).toBeConstructibleWith()
-  expectTypeOf(
-    Injectable({
-      type: InjectableType.Factory,
-    })(
-      class {
-        create() {}
-      },
-    ),
-  ).toBeConstructibleWith()
-  expectTypeOf(
-    Injectable({
-      type: InjectableType.Factory,
-    })(
-      // @ts-expect-error should check that the class implements the factory
-      class {},
-    ),
-  ).toBeConstructibleWith()
 
-  // #3 required argument
+  // #2 required argument
   expectTypeOf(
     Injectable({
       token: typelessObjectToken,
@@ -330,7 +233,7 @@ test('Injectable types', () => {
   ).toBeConstructibleWith({
     foo: 'something',
   })
-  // #3 it's required in token but optional in class allowed
+  // #2 it's required in token but optional in class allowed
   expectTypeOf(
     Injectable({
       token: typelessObjectToken,
@@ -342,7 +245,7 @@ test('Injectable types', () => {
   ).toBeConstructibleWith({
     foo: 'something',
   })
-  // #3 optional value but class accepts it
+  // #2 optional value but class accepts it
   expectTypeOf(
     Injectable({
       token: typelessOptionalObjectToken,
@@ -354,7 +257,7 @@ test('Injectable types', () => {
   ).toBeConstructibleWith({
     foo: 'something',
   })
-  // #3 optional value and class accepts it
+  // #2 optional value and class accepts it
   expectTypeOf(
     Injectable({
       token: typelessOptionalObjectToken,
@@ -364,7 +267,7 @@ test('Injectable types', () => {
       },
     ),
   ).toBeConstructibleWith(undefined)
-  // #3 compatible schemas
+  // #2 compatible schemas
   expectTypeOf(
     Injectable({
       token: typelessOptionalObjectToken,
@@ -374,7 +277,7 @@ test('Injectable types', () => {
       },
     ),
   ).toBeConstructibleWith(undefined)
-  // #3 compatible schemas
+  // #2 compatible schemas
   expectTypeOf(
     Injectable({
       token: typelessOptionalObjectToken,
@@ -388,7 +291,7 @@ test('Injectable types', () => {
     foo: 'something',
   })
 
-  // #3 typed token and required argument
+  // #2 typed token and required argument
   expectTypeOf(
     Injectable({
       token: typedObjectToken,
@@ -404,7 +307,7 @@ test('Injectable types', () => {
   ).toBeConstructibleWith({
     foo: 'something',
   })
-  // #3 typed token and required argument
+  // #2 typed token and required argument
   expectTypeOf(
     Injectable({
       token: typedOptionalObjectToken,
@@ -420,7 +323,7 @@ test('Injectable types', () => {
   ).toBeConstructibleWith({
     foo: 'something',
   })
-  // #3 should fail if not compatible
+  // #2 should fail if not compatible
   expectTypeOf(
     Injectable({
       token: typedOptionalObjectToken,
@@ -433,7 +336,7 @@ test('Injectable types', () => {
   ).toBeConstructibleWith({
     foo: 'something',
   })
-  // #3 should fail if not compatible
+  // #2 should fail if not compatible
   expectTypeOf(
     Injectable({
       token: typedOptionalObjectToken,
@@ -450,7 +353,7 @@ test('Injectable types', () => {
   ).toBeConstructibleWith({
     foo: 'something',
   })
-  // #3 typed token without schema
+  // #2 typed token without schema
   expectTypeOf(
     Injectable({
       token: typedToken,
@@ -463,7 +366,7 @@ test('Injectable types', () => {
       },
     ),
   ).toBeConstructibleWith()
-  // #3 typed token without schema fail if not compatible
+  // #2 typed token without schema fail if not compatible
   expectTypeOf(
     Injectable({
       token: typedToken,
@@ -475,70 +378,4 @@ test('Injectable types', () => {
     ),
   ).toBeConstructibleWith()
 
-  // #4 factory with typed token
-  expectTypeOf(
-    Injectable({
-      type: InjectableType.Factory,
-      token: typedToken,
-    })(
-      class {
-        constructor() {}
-        create() {
-          return {
-            makeFoo: () => 'foo',
-          }
-        }
-      },
-    ),
-  ).toBeConstructibleWith()
-  // #4 factory with typed token without schema should fail if not compatible
-  expectTypeOf(
-    Injectable({
-      type: InjectableType.Factory,
-      token: typedToken,
-    })(
-      // @ts-expect-error factory doesn't implement the token type
-      class {
-        constructor() {}
-        create(ctx: any, arg: z.infer<typeof simpleObjectSchema>) {
-          return {
-            makeFoo: () => 'foo',
-          }
-        }
-      },
-    ),
-  ).toBeConstructibleWith()
-  // #4 factory with typed token fail if not compatible
-  expectTypeOf(
-    Injectable({
-      type: InjectableType.Factory,
-      token: typedToken,
-    })(
-      // @ts-expect-error class doesn't implement the token type
-      class {
-        constructor() {}
-        create() {
-          return {
-            // makeFoo: () => 'foo',
-          }
-        }
-      },
-    ),
-  ).toBeConstructibleWith()
-  // #4 factory with typed token and schema
-  expectTypeOf(
-    Injectable({
-      type: InjectableType.Factory,
-      token: typedObjectToken,
-    })(
-      class {
-        constructor() {}
-        create(ctx: any, arg: z.infer<typeof simpleObjectSchema>) {
-          return {
-            makeFoo: () => 'foo',
-          }
-        }
-      },
-    ),
-  )
 })

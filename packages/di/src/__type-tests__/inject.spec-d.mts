@@ -2,7 +2,6 @@ import { assertType, describe, test } from 'vitest'
 import { z } from 'zod/v4'
 
 import { Injectable } from '../decorators/index.mjs'
-import { InjectableType } from '../enums/index.mjs'
 import { InjectionToken } from '../injection-token.mjs'
 import { inject } from '../injector.mjs'
 

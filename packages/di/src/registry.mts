@@ -3,7 +3,8 @@ import type { z, ZodObject } from 'zod/v4'
 import type { FactoryContext } from './factory-context.mjs'
 import type { InjectionToken } from './injection-token.mjs'
 
-import { InjectableScope } from './enums/index.mjs'
+import { InjectableScope, InjectableType } from './enums/index.mjs'
+import type { ClassType } from './injection-token.mjs'
 
 export type InjectionFactory<T = unknown, Args = unknown> = (
   ctx: FactoryContext,
@@ -13,6 +14,8 @@ export type InjectionFactory<T = unknown, Args = unknown> = (
 export type FactoryRecord<Instance = any, Schema = any> = {
   scope: InjectableScope
   originalToken: InjectionToken<Instance, Schema>
+  target: ClassType
+  type: InjectableType
   factory: InjectionFactory<
     Instance,
     Schema extends ZodObject ? z.input<Schema> : unknown
@@ -51,8 +54,10 @@ export class Registry {
     token: InjectionToken<Instance, Schema>,
     factory: InjectionFactory,
     scope: InjectableScope,
+    target: ClassType,
+    type: InjectableType,
   ) {
-    this.factories.set(token.id, { factory, scope, originalToken: token })
+    this.factories.set(token.id, { factory, scope, originalToken: token, target, type })
   }
 
   delete(token: InjectionToken<any, any>) {

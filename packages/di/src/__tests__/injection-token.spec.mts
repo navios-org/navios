@@ -1,10 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod/v4'
 
-import type { Factory, FactoryWithArgs } from '../interfaces/index.mjs'
+import type { Factorable, FactorableWithArgs } from '../interfaces/index.mjs'
 
-import { Injectable } from '../decorators/index.mjs'
-import { InjectableType } from '../enums/index.mjs'
+import { Factory, Injectable } from '../decorators/index.mjs'
 import { InjectionToken } from '../injection-token.mjs'
 import { inject } from '../injector.mjs'
 
@@ -43,11 +42,10 @@ describe('InjectToken', () => {
 
   it('should work with factory', async () => {
     const token = InjectionToken.create<string>('Test')
-    @Injectable({
+    @Factory({
       token,
-      type: InjectableType.Factory,
     })
-    class Test implements Factory<string> {
+    class Test implements Factorable<string> {
       async create() {
         return 'foo'
       }
@@ -63,11 +61,10 @@ describe('InjectToken', () => {
     })
     const token = InjectionToken.create<string, typeof schema>('Test', schema)
 
-    @Injectable({
+    @Factory({
       token,
-      type: InjectableType.Factory,
     })
-    class Test implements FactoryWithArgs<string, typeof schema> {
+    class Test implements FactorableWithArgs<string, typeof schema> {
       async create(ctx: any, args: { test: string }) {
         return args.test
       }

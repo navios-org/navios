@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest'
 import { z } from 'zod/v4'
 
 import { Injectable } from '../decorators/index.mjs'
-import { InjectableScope, InjectableType } from '../enums/index.mjs'
 import { Registry, ServiceLocator, syncInject } from '../index.mjs'
 import { InjectionToken } from '../injection-token.mjs'
 import { getGlobalServiceLocator, inject } from '../injector.mjs'
@@ -41,33 +40,6 @@ describe('Injectable decorator', () => {
     expect(result).toBe('foo')
   })
 
-  it('should work with factory', async () => {
-    @Injectable({ type: InjectableType.Factory })
-    class Test {
-      create() {
-        return 'foo'
-      }
-    }
-
-    const value = await inject(Test)
-    expect(value).toBe('foo')
-  })
-  it('should work with request scope', async () => {
-    @Injectable({
-      scope: InjectableScope.Instance,
-      type: InjectableType.Factory,
-    })
-    class Test {
-      create() {
-        return Date.now()
-      }
-    }
-
-    const value = await inject(Test)
-    await new Promise((resolve) => setTimeout(resolve, 10))
-    const value2 = await inject(Test)
-    expect(value).not.toBe(value2)
-  })
 
   it('should work with injection token', async () => {
     const token = InjectionToken.create('Test')
@@ -79,34 +51,6 @@ describe('Injectable decorator', () => {
     expect(value).toBeInstanceOf(Test)
   })
 
-  it('should work with factory injection token and schema', async () => {
-    class TestFoo {
-      constructor(public readonly foo: string) {}
-    }
-    const token = InjectionToken.create(
-      TestFoo,
-      z.object({
-        foo: z.string(),
-      }),
-    )
-
-    @Injectable({ token, type: InjectableType.Factory })
-    class Test {
-      create(ctx: any, args: { foo: string }) {
-        return new TestFoo(args.foo)
-      }
-    }
-
-    const value = await inject(token, { foo: 'bar' })
-    const differentValue = await inject(token, { foo: 'baz' })
-    const sameValue = await inject(token, { foo: 'bar' })
-    expect(value).toBeInstanceOf(TestFoo)
-    expect(value.foo).toBe('bar')
-    expect(differentValue).toBeInstanceOf(TestFoo)
-    expect(differentValue.foo).toBe('baz')
-    expect(value).not.toBe(differentValue)
-    expect(value).toBe(sameValue)
-  })
   it('should work with invalidation', async () => {
     @Injectable()
     class Test {
