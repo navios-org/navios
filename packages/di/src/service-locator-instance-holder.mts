@@ -5,6 +5,7 @@ export enum ServiceLocatorInstanceHolderStatus {
   Created = 'created',
   Creating = 'creating',
   Destroying = 'destroying',
+  Error = 'error',
 }
 
 export type ServiceLocatorInstanceEffect = () => void
@@ -52,7 +53,22 @@ export interface ServiceLocatorInstanceHolderDestroying<Instance> {
   ttl: number
 }
 
+export interface ServiceLocatorInstanceHolderError<Instance> {
+  status: ServiceLocatorInstanceHolderStatus.Error
+  name: string
+  instance: Error
+  creationPromise: null
+  destroyPromise: null
+  type: InjectableType
+  scope: InjectableScope
+  deps: Set<string>
+  destroyListeners: ServiceLocatorInstanceDestroyListener[]
+  createdAt: number
+  ttl: number
+}
+
 export type ServiceLocatorInstanceHolder<Instance = unknown> =
   | ServiceLocatorInstanceHolderCreating<Instance>
   | ServiceLocatorInstanceHolderCreated<Instance>
   | ServiceLocatorInstanceHolderDestroying<Instance>
+  | ServiceLocatorInstanceHolderError<Instance>

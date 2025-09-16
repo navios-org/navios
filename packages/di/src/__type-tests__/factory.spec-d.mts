@@ -15,7 +15,7 @@ class TestFactory1 implements Factorable<string> {
 }
 
 // Test factory with scope
-@Factory({ scope: InjectableScope.Instance })
+@Factory({ scope: InjectableScope.Transient })
 class TestFactory2 implements Factorable<number> {
   create() {
     return 42

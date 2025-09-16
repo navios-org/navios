@@ -4,16 +4,15 @@ import { z } from 'zod/v4'
 import type { Factorable, FactorableWithArgs } from '../interfaces/index.mjs'
 
 import { Factory, Injectable } from '../decorators/index.mjs'
-import { globalRegistry } from '../index.mjs'
+import { Container, globalRegistry } from '../index.mjs'
 import { InjectionToken } from '../injection-token.mjs'
 import { dangerouslySetGlobalFactoryContext, inject } from '../injector.mjs'
 import { ServiceLocator } from '../service-locator.mjs'
 
 describe('InjectToken', () => {
-  let serviceLocator: ServiceLocator
+  let container: Container
   beforeEach(() => {
-    serviceLocator = new ServiceLocator(globalRegistry, console)
-    dangerouslySetGlobalFactoryContext(serviceLocator)
+    container = new Container()
   })
   it('should work with class', async () => {
     const token = InjectionToken.create('Test')
@@ -22,7 +21,7 @@ describe('InjectToken', () => {
     })
     class Test {}
 
-    const value = await inject(Test)
+    const value = await container.get(Test)
     expect(value).toBeInstanceOf(Test)
   })
 
@@ -40,7 +39,7 @@ describe('InjectToken', () => {
         return 'foo'
       }
     }
-    const value = await inject(token, {
+    const value = await container.get(token, {
       test: 'test',
     })
 
@@ -58,7 +57,7 @@ describe('InjectToken', () => {
       }
     }
 
-    const value = await inject(Test)
+    const value = await container.get(Test)
     expect(value).toBe('foo')
   })
 
@@ -76,7 +75,7 @@ describe('InjectToken', () => {
         return args.test
       }
     }
-    const value = await inject(token, {
+    const value = await container.get(token, {
       test: 'test',
     })
 
@@ -100,7 +99,7 @@ describe('InjectToken', () => {
         return 'foo'
       }
     }
-    const value = await inject(boundToken)
+    const value = await container.get(boundToken)
 
     expect(value).toBeInstanceOf(Test)
   })
@@ -124,7 +123,7 @@ describe('InjectToken', () => {
         return 'foo'
       }
     }
-    const value = await inject(factoryInjectionToken)
+    const value = await container.get(factoryInjectionToken)
 
     expect(value).toBeInstanceOf(Test)
   })

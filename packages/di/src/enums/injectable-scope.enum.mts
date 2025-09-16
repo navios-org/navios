@@ -6,5 +6,5 @@ export enum InjectableScope {
   /**
    * Instance scope: A new instance is created for each injection.
    */
-  Instance = 'Instance',
+  Transient = 'Transient',
 }

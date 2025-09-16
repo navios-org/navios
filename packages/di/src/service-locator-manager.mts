@@ -8,6 +8,8 @@ import {
   InstanceNotFound,
 } from './errors/index.mjs'
 import { ServiceLocatorInstanceHolderStatus } from './service-locator-instance-holder.mjs'
+import { InjectableType, InjectableScope } from './enums/index.mjs'
+import { createDeferred } from './utils/defer.mjs'
 
 export class ServiceLocatorManager {
   private readonly instancesHolders: Map<string, ServiceLocatorInstanceHolder> =
@@ -38,6 +40,11 @@ export class ServiceLocatorManager {
           `[ServiceLocatorManager]#getInstanceHolder() Instance ${holder.name} is destroying`,
         )
         return [new InstanceDestroying(holder.name), holder]
+      } else if (holder.status === ServiceLocatorInstanceHolderStatus.Error) {
+        this.logger?.log(
+          `[ServiceLocatorManager]#getInstanceHolder() Instance ${holder.name} is in error state`,
+        )
+        return [holder.instance as InstanceNotFound, holder]
       }
 
       return [undefined, holder]
@@ -85,5 +92,81 @@ export class ServiceLocatorManager {
         predicate(value, key),
       ),
     )
+  }
+
+  /**
+   * Creates a new holder with Creating status and a deferred creation promise.
+   * This is useful for creating placeholder holders that can be fulfilled later.
+   * @param name The name of the instance
+   * @param type The injectable type
+   * @param scope The injectable scope
+   * @param deps Optional set of dependencies
+   * @param ttl Optional time-to-live in milliseconds (defaults to Infinity)
+   * @returns A tuple containing the deferred promise and the holder
+   */
+  createCreatingHolder<Instance>(
+    name: string,
+    type: InjectableType,
+    scope: InjectableScope,
+    deps: Set<string> = new Set(),
+    ttl: number = Infinity,
+  ): [ReturnType<typeof createDeferred<[undefined, Instance]>>, ServiceLocatorInstanceHolder<Instance>] {
+    const deferred = createDeferred<[undefined, Instance]>()
+    
+    const holder: ServiceLocatorInstanceHolder<Instance> = {
+      status: ServiceLocatorInstanceHolderStatus.Creating,
+      name,
+      instance: null,
+      creationPromise: deferred.promise,
+      destroyPromise: null,
+      type,
+      scope,
+      deps,
+      destroyListeners: [],
+      createdAt: Date.now(),
+      ttl,
+    }
+
+    this.instancesHolders.set(name, holder)
+
+    return [deferred, holder]
+  }
+
+  /**
+   * Creates a new holder with Created status and an actual instance.
+   * This is useful for creating holders that already have their instance ready.
+   * @param name The name of the instance
+   * @param instance The actual instance to store
+   * @param type The injectable type
+   * @param scope The injectable scope
+   * @param deps Optional set of dependencies
+   * @param ttl Optional time-to-live in milliseconds (defaults to Infinity)
+   * @returns The created holder
+   */
+  createCreatedHolder<Instance>(
+    name: string,
+    instance: Instance,
+    type: InjectableType,
+    scope: InjectableScope,
+    deps: Set<string> = new Set(),
+    ttl: number = Infinity,
+  ): ServiceLocatorInstanceHolder<Instance> {
+    const holder: ServiceLocatorInstanceHolder<Instance> = {
+      status: ServiceLocatorInstanceHolderStatus.Created,
+      name,
+      instance,
+      creationPromise: null,
+      destroyPromise: null,
+      type,
+      scope,
+      deps,
+      destroyListeners: [],
+      createdAt: Date.now(),
+      ttl,
+    }
+
+    this.instancesHolders.set(name, holder)
+
+    return holder
   }
 }

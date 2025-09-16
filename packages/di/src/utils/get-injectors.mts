@@ -42,6 +42,15 @@ type UnionToArray<T, A extends unknown[] = []> =
     ? UnionToArray<Exclude<T, PopUnion<T>>, [PopUnion<T>, ...A]>
     : [T, ...A]
 
+export interface InjectState {
+  currentIndex: number
+  isFrozen: boolean
+  requests: {
+    token: InjectionToken<any> | BoundInjectionToken<any, any> | FactoryInjectionToken<any, any> | ClassType
+    promise: Promise<any>
+  }[]
+}
+
 export interface Injectors {
   // #1 Simple class
   inject<T extends ClassType>(token: T): InstanceType<T> extends Factorable<infer R> ? Promise<R> : Promise<InstanceType<T>>
@@ -86,7 +95,7 @@ export interface Injectors {
   syncInject<T>(token: BoundInjectionToken<T, any>): T
   syncInject<T>(token: FactoryInjectionToken<T, any>): T
 
-  wrapSyncInit(cb: () => any): () => [any, Promise<any>[]]
+  wrapSyncInit(cb: () => any): (injectState?: InjectState) => [any, Promise<any>[], InjectState]
 
   provideFactoryContext(context: FactoryContext | null): FactoryContext | null
 }
@@ -108,6 +117,9 @@ export function getInjectors() {
     return currentFactoryContext
   }
 
+  let promiseCollector: null | ((promise: Promise<any>) => void) = null
+  let injectState: InjectState | null = null
+
   function inject(
     token:
       | ClassType
@@ -116,22 +128,52 @@ export function getInjectors() {
       | FactoryInjectionToken<any, any>,
     args?: unknown,
   ) {
-    // @ts-expect-error We check the type in overload
-    return getFactoryContext().inject(token, args)
+    if (!injectState) {
+      throw new Error('[Injector] Trying to access inject outside of a injectable context')
+    }
+    if (injectState.isFrozen) {
+      const idx = injectState.currentIndex++
+      const request = injectState.requests[idx]
+      if (request.token !== token) {
+        throw new Error(`[Injector] Wrong token order. Expected ${request.token.toString()} but got ${token.toString()}`)
+      }
+      return request.promise
+    }
+
+    const promise = getFactoryContext().inject(token as any, args as any)
+    injectState.requests.push({
+      token,
+      promise,
+    })
+    injectState.currentIndex++
+
+    return promise
   }
 
-  let promiseCollector: null | ((promise: Promise<any>) => void) = null
-
   function wrapSyncInit(cb: () => any) {
-    return () => {
+    return (previousState?: InjectState) => {
       const promises: Promise<any>[] = []
       const originalPromiseCollector = promiseCollector
+      const originalInjectState = injectState
+      injectState = previousState ? {
+        ...previousState,
+        currentIndex: 0,
+      }: {
+        currentIndex: 0,
+        isFrozen: false,
+        requests: [],
+      }
       promiseCollector = (promise) => {
         promises.push(promise)
       }
       const result = cb()
       promiseCollector = originalPromiseCollector
-      return [result, promises]
+      const newInjectState = {
+        ...injectState,
+        isFrozen: true,
+      }
+      injectState = originalInjectState
+      return [result, promises, newInjectState]
     }
   }
 

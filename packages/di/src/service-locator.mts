@@ -222,7 +222,7 @@ export class ServiceLocator {
     if (!error) {
       if (holder.status === ServiceLocatorInstanceHolderStatus.Creating) {
         await holder.creationPromise
-        return [undefined, holder]
+        return this.getInstanceByInstanceName(instanceName, token, realArgs)
       } else if (
         holder.status === ServiceLocatorInstanceHolderStatus.Destroying
       ) {
@@ -259,6 +259,9 @@ export class ServiceLocator {
     }
     if (result[1].status === ServiceLocatorInstanceHolderStatus.Creating) {
       await result[1].creationPromise
+    } 
+    if (result[1].status === ServiceLocatorInstanceHolderStatus.Error) {
+      return [result[1].instance] as [UnknownError | FactoryNotFound]
     }
     return [undefined, result[1]]
   }
@@ -367,7 +370,13 @@ export class ServiceLocator {
             `[ServiceLocator]#createInstanceFromAbstractFactory(): Error creating instance for ${instanceName}`,
             error,
           )
-          return [new UnknownError(error)]
+          holder.creationPromise = null
+          holder.status = ServiceLocatorInstanceHolderStatus.Error
+          holder.instance = error
+          if (scope === InjectableScope.Singleton) {
+            setTimeout(() => this.invalidate(instanceName), 10)
+          }
+          return [error]
         }),
       deps: ctx.deps,
       destroyListeners: [],

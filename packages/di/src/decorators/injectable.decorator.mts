@@ -15,7 +15,6 @@ import type { Registry } from '../registry.mjs'
 import { InjectableScope, InjectableType } from '../enums/index.mjs'
 import { InjectionToken } from '../injection-token.mjs'
 import { globalRegistry } from '../registry.mjs'
-import { ServiceInstantiator } from '../service-instantiator.mjs'
 import { InjectableTokenMeta } from '../symbols/index.mjs'
 
 export interface InjectableOptions {
@@ -29,7 +28,11 @@ export function Injectable(): <T extends ClassType>(
   context?: ClassDecoratorContext,
 ) => T
 export function Injectable(options: {
+  scope?: InjectableScope
   registry: Registry
+}): <T extends ClassType>(target: T, context?: ClassDecoratorContext) => T
+export function Injectable(options: {
+  scope: InjectableScope
 }): <T extends ClassType>(target: T, context?: ClassDecoratorContext) => T
 
 
@@ -90,15 +93,9 @@ export function Injectable({
     }
     let injectableToken: InjectionToken<any, any> =
       token ?? InjectionToken.create(target)
-    
-    const serviceInstantiator = new ServiceInstantiator(registry)
-    
+        
     registry.set(
       injectableToken,
-      async (ctx, args: any) => {
-        const record = registry.get(injectableToken)
-        return serviceInstantiator.instantiateService(ctx, record, args)
-      },
       scope,
       target,
       InjectableType.Class,

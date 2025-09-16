@@ -3,16 +3,15 @@ import {  z } from 'zod/v4'
 
 import { Factory } from '../decorators/index.mjs'
 import { InjectableScope } from '../enums/index.mjs'
-import { globalRegistry, Registry, ServiceLocator, syncInject } from '../index.mjs'
+import { globalRegistry, Registry, ServiceLocator, syncInject, Container } from '../index.mjs'
 import { InjectionToken } from '../injection-token.mjs'
 import { inject, dangerouslySetGlobalFactoryContext } from '../injector.mjs'
 import { getInjectableToken, getInjectors } from '../utils/index.mjs'
 
 describe('Factory decorator', () => {
-  let serviceLocator: ServiceLocator
+  let container: Container
   beforeEach(() => {
-    serviceLocator = new ServiceLocator(globalRegistry, console)
-    dangerouslySetGlobalFactoryContext(serviceLocator)
+    container = new Container()
   })
   it('should work with factory', async () => {
     @Factory()
@@ -22,13 +21,13 @@ describe('Factory decorator', () => {
       }
     }
 
-    const value = await inject(Test)
+    const value = await container.get(Test)
     expect(value).toBe('foo')
   })
 
   it('should work with request scope', async () => {
     @Factory({
-      scope: InjectableScope.Instance,
+      scope: InjectableScope.Transient,
     })
     class Test {
       create() {
@@ -36,9 +35,9 @@ describe('Factory decorator', () => {
       }
     }
 
-    const value = await inject(Test)
+    const value = await container.get(Test)
     await new Promise((resolve) => setTimeout(resolve, 10))
-    const value2 = await inject(Test)
+    const value2 = await container.get(Test)
     expect(value).not.toBe(value2)
   })
 
@@ -60,13 +59,9 @@ describe('Factory decorator', () => {
       }
     }
 
-    console.log('before inject')
-    const value = await inject(token, { foo: 'bar' })
-    console.log('after inject')
-    console.log(serviceLocator['manager'])
-    const sameValue = await inject(token, { foo: 'bar' })
-    const differentValue = await inject(token, { foo: 'baz' })
-    console.log(serviceLocator['manager'])
+    const value = await container.get(token, { foo: 'bar' })
+    const sameValue = await container.get(token, { foo: 'bar' })
+    const differentValue = await container.get(token, { foo: 'baz' })
     // await new Promise((resolve) => setTimeout(resolve, 10))
     expect(value).toBeInstanceOf(TestFoo)
     expect(value.foo).toBe('bar')
@@ -91,21 +86,21 @@ describe('Factory decorator', () => {
       create() {
         return {
           async makeFoo() {
-            const instance = await inject(TestFactory)
+            const instance = await container.get(TestFactory)
             return instance.makeFoo()
           },
         }
       }
     }
 
-    const instance = await inject(Test2Factory)
+    const instance = await container.get(Test2Factory)
     const result = await instance.makeFoo()
     expect(result).toBe('foo')
   })
 
   it('should work with factory and custom registry', async () => {
     const registry = new Registry()
-    const newServiceLocator = new ServiceLocator(registry)
+    const newContainer = new Container(registry)
 
     @Factory({ registry })
     class TestFactory {
@@ -114,7 +109,7 @@ describe('Factory decorator', () => {
       }
     }
 
-    const value = await newServiceLocator.getOrThrowInstance(getInjectableToken(TestFactory), undefined)
+    const value = await newContainer.get(TestFactory)
     expect(value).toBe('custom-registry-foo')
   })
 
@@ -126,19 +121,15 @@ describe('Factory decorator', () => {
       }
     }
 
-    const identifier = serviceLocator.getInstanceIdentifier(
-      getInjectableToken(TestFactory),
-      undefined,
-    )
     
-    const factory = await inject(TestFactory)
+    const factory = await container.get(TestFactory)
     const result1 = factory
-    const inst2 = await inject(TestFactory)
+    const inst2 = await container.get(TestFactory)
     expect(factory).toBe(inst2)
     const result2 = inst2
-    await serviceLocator.invalidate(identifier)
+    await container.invalidate(factory)
     await new Promise((resolve) => setTimeout(resolve, 10))
-    const inst3 = await inject(TestFactory)
+    const inst3 = await container.get(TestFactory)
     expect(factory).not.toBe(inst3)
     const result3 = inst3
     expect(result1).not.toBe(result3)

@@ -54,10 +54,15 @@ export class ServiceInstantiator {
       return result
     })
     
-    let [instance, promises] = tryLoad()
+    let [instance, promises, injectState] = tryLoad()
     if (promises.length > 0) {
-      await Promise.allSettled(promises)
-      const newRes = tryLoad()
+      const results = await Promise.allSettled(promises)
+      if (results.some(result => result.status === 'rejected')) {
+        throw new Error(
+          `[ServiceInstantiator] Service ${record.target.name} cannot be instantiated.`,
+        )
+      }
+      const newRes = tryLoad(injectState)
       instance = newRes[0]
       promises = newRes[1]
     }
@@ -106,10 +111,15 @@ export class ServiceInstantiator {
       return result
     })
     
-    let [builder, promises] = tryLoad()
+    let [builder, promises, injectState] = tryLoad()
     if (promises.length > 0) {
-      await Promise.allSettled(promises)
-      const newRes = tryLoad()
+      const results = await Promise.allSettled(promises)
+      if (results.some(result => result.status === 'rejected')) {
+        throw new Error(
+          `[ServiceInstantiator] Service ${record.target.name} cannot be instantiated.`,
+        )
+      }
+      const newRes = tryLoad(injectState)
       builder = newRes[0]
       promises = newRes[1]
     }
