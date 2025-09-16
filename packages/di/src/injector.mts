@@ -1,3 +1,4 @@
+import type { ClassType, InjectionTokenType } from './injection-token.mjs'
 import type { ServiceLocator } from './service-locator.mjs'
 import type { Injectors } from './utils/index.mjs'
 
@@ -18,20 +19,15 @@ export function dangerouslySetGlobalFactoryContext(
   serviceLocator: ServiceLocator,
 ) {
   values.provideFactoryContext({
-    // @ts-expect-error This is correct type
-    inject(
-      token:
-        | ClassType
-        | InjectionToken<any, any>
-        | BoundInjectionToken<any, any>
-        | FactoryInjectionToken<any, any>,
-      args?: unknown,
-    ) {
+    inject(token: ClassType | InjectionTokenType, args?: unknown) {
       let injectionToken = token
       if (typeof token === 'function') {
         injectionToken = getInjectableToken(token)
       }
-      return serviceLocator.getOrThrowInstance(injectionToken, args)
+      return serviceLocator.getOrThrowInstance(
+        injectionToken as InjectionTokenType,
+        args,
+      )
     },
     locator: serviceLocator,
     addDestroyListener: () => {},
