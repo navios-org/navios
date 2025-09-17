@@ -24,6 +24,15 @@ class Container {
   invalidate(service: unknown): Promise<void>
   ready(): Promise<void>
   getServiceLocator(): ServiceLocator
+
+  // Request Context Management
+  beginRequest(
+    requestId: string,
+    metadata?: Record<string, any>,
+    priority?: number,
+  ): RequestContextHolder
+  endRequest(requestId: string): Promise<void>
+  setCurrentRequestContext(requestId: string): void
 }
 ```
 
@@ -38,6 +47,12 @@ class Container {
 - `invalidate(service: unknown)` - Invalidate a service and its dependencies
 - `ready()` - Wait for all pending operations to complete
 - `getServiceLocator()` - Get the underlying ServiceLocator instance
+
+**Request Context Management:**
+
+- `beginRequest(requestId: string, metadata?: Record<string, any>, priority?: number)` - Begin a new request context
+- `endRequest(requestId: string)` - End a request context and clean up instances
+- `setCurrentRequestContext(requestId: string)` - Switch to a different request context
 
 ### InjectionToken
 
@@ -244,6 +259,7 @@ Service lifetime scope.
 enum InjectableScope {
   Singleton = 'Singleton', // One instance shared across the application
   Transient = 'Transient', // New instance created for each injection
+  Request = 'Request', // One instance per request context
 }
 ```
 
@@ -314,6 +330,31 @@ interface FactoryContext {
   addEffect(effect: Function): void
   setTtl(ttl: number): void
   getTtl(): number | null
+}
+```
+
+### RequestContextHolder
+
+Request context holder for managing request-scoped instances.
+
+```typescript
+interface RequestContextHolder {
+  readonly requestId: string
+  readonly priority: number
+  readonly createdAt: number
+  readonly instances: Map<string, any>
+  readonly metadata: Map<string, any>
+
+  addInstance(
+    instanceName: string,
+    instance: any,
+    holder: ServiceLocatorInstanceHolder,
+  ): void
+  getInstance(instanceName: string): any | undefined
+  hasInstance(instanceName: string): boolean
+  clear(): void
+  getMetadata(key: string): any | undefined
+  setMetadata(key: string, value: any): void
 }
 ```
 
@@ -469,6 +510,18 @@ type InjectionTokenType =
   | BoundInjectionToken<any, any>
   | FactoryInjectionToken<any, any>
 ```
+
+## Scope Compatibility
+
+### Injection Method Compatibility
+
+| Scope     | inject           | asyncInject  |
+| --------- | ---------------- | ------------ |
+| Singleton | ✅ Supported     | ✅ Supported |
+| Transient | ❌ Not Supported | ✅ Supported |
+| Request   | ✅ Supported     | ✅ Supported |
+
+**Note:** The `inject` function only works with Singleton and Request scopes because it requires synchronous resolution. Transient services must use `asyncInject` since they create new instances on each injection.
 
 ## Error Classes
 
@@ -649,4 +702,62 @@ class DatabaseService implements OnServiceInit, OnServiceDestroy {
     return { connected: true }
   }
 }
+```
+
+### Request Scope Usage
+
+```typescript
+import { Container, inject, Injectable, InjectableScope } from '@navios/di'
+
+@Injectable({ scope: InjectableScope.Request })
+class RequestContext {
+  private readonly requestId = Math.random().toString(36)
+  private readonly startTime = Date.now()
+
+  getRequestId() {
+    return this.requestId
+  }
+
+  getDuration() {
+    return Date.now() - this.startTime
+  }
+}
+
+@Injectable({ scope: InjectableScope.Request })
+class UserSession {
+  private readonly context = inject(RequestContext)
+  private readonly userId: string
+
+  constructor(userId: string) {
+    this.userId = userId
+  }
+
+  getUserId() {
+    return this.userId
+  }
+
+  async getRequestInfo() {
+    const ctx = await this.context
+    return {
+      userId: this.userId,
+      requestId: ctx.getRequestId(),
+      duration: ctx.getDuration(),
+    }
+  }
+}
+
+// Usage
+const container = new Container()
+
+// Begin request context
+container.beginRequest('req-123', { userId: 'user123' })
+
+// Get request-scoped instances
+const session1 = await container.get(UserSession)
+const session2 = await container.get(UserSession)
+
+console.log(session1 === session2) // true - same instance within request
+
+// End request context
+await container.endRequest('req-123')
 ```
