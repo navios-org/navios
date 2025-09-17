@@ -265,7 +265,7 @@ export class ServiceLocator {
       this.logger?.log(
         `[ServiceLocator]#resolveTokenAndPrepareInstanceName() Factory token not resolved, resolving it`,
       )
-      await actualToken.resolve()
+      await actualToken.resolve(this.createFactoryContext())
       return this.resolveTokenAndPrepareInstanceName(token)
     }
     const instanceName = this.generateInstanceName(actualToken, validatedArgs)

@@ -47,7 +47,7 @@ class UserService {
 }
 
 // Inject using the token
-const userService = await inject(USER_SERVICE_TOKEN)
+const userService = await container.get(USER_SERVICE_TOKEN)
 console.log(userService.getUsers())
 ```
 
@@ -190,8 +190,8 @@ const CONFIG_TOKEN = InjectionToken.create<Config, typeof configSchema>(
 )
 
 // Create factory token
-const DYNAMIC_CONFIG = InjectionToken.factory(CONFIG_TOKEN, async () => {
-  const envService = await inject(EnvironmentService)
+const DYNAMIC_CONFIG = InjectionToken.factory(CONFIG_TOKEN, async (ctx) => {
+  const envService = await ctx.inject(EnvironmentService)
 
   return {
     apiUrl: envService.getApiUrl(),
@@ -273,7 +273,7 @@ class OptionalConfigService {
 }
 
 // Usage with partial configuration
-const config = await inject(OPTIONAL_CONFIG_TOKEN, {
+const config = await container.get(OPTIONAL_CONFIG_TOKEN, {
   apiUrl: 'https://api.example.com',
   // timeout and retries are optional
 })
@@ -386,7 +386,7 @@ static bound<T, S extends InjectionTokenSchemaType>(
 ```typescript
 static factory<T, S extends InjectionTokenSchemaType>(
   token: InjectionToken<T, S>,
-  factory: () => Promise<z.input<S>>
+  factory: (ctx: FactoryContext) => Promise<z.input<S>>
 ): FactoryInjectionToken<T, S>
 ```
 

@@ -1,5 +1,7 @@
 import type { z, ZodObject, ZodOptional, ZodRecord } from 'zod/v4'
 
+import type { FactoryContext } from './factory-context.mjs'
+
 export type ClassType = new (...args: any[]) => any
 export type ClassTypeWithArgument<Arg> = new (arg: Arg) => any
 export type ClassTypeWithOptionalArgument<Arg> = new (arg?: Arg) => any
@@ -71,7 +73,7 @@ export class InjectionToken<
 
   static factory<T, S extends InjectionTokenSchemaType>(
     token: InjectionToken<T, S>,
-    factory: () => Promise<z.input<S>>,
+    factory: (ctx: FactoryContext) => Promise<z.input<S>>,
   ): FactoryInjectionToken<T, S> {
     return new FactoryInjectionToken(token, factory)
   }
@@ -128,16 +130,16 @@ export class FactoryInjectionToken<T, S extends InjectionTokenSchemaType> {
 
   constructor(
     public readonly token: InjectionToken<T, S>,
-    public readonly factory: () => Promise<z.input<S>>,
+    public readonly factory: (ctx: FactoryContext) => Promise<z.input<S>>,
   ) {
     this.name = token.name
     this.id = token.id
     this.schema = token.schema as InjectionTokenSchemaType
   }
 
-  async resolve(): Promise<z.input<S>> {
+  async resolve(ctx: FactoryContext): Promise<z.input<S>> {
     if (!this.value) {
-      this.value = await this.factory()
+      this.value = await this.factory(ctx)
       this.resolved = true
     }
     return this.value

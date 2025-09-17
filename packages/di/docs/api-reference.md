@@ -99,7 +99,7 @@ class InjectionToken<
 - `create<T>(name: string | symbol)` - Create a simple injection token
 - `create<T, S>(name: string | symbol, schema: S)` - Create a token with schema
 - `bound<T, S>(token: InjectionToken<T, S>, value: z.input<S>)` - Create a bound token
-- `factory<T, S>(token: InjectionToken<T, S>, factory: () => Promise<z.input<S>>)` - Create a factory token
+- `factory<T, S>(token: InjectionToken<T, S>, factory: (ctx: FactoryContext) => Promise<z.input<S>>)` - Create a factory token
 
 ### BoundInjectionToken
 
