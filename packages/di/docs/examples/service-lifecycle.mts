@@ -1,6 +1,6 @@
 import type { OnServiceDestroy, OnServiceInit } from '@navios/di'
 
-import { Container, inject, Injectable, syncInject } from '@navios/di'
+import { asyncInject, Container, inject, Injectable } from '@navios/di'
 
 const container = new Container()
 /**
@@ -231,9 +231,9 @@ class EmailService implements OnServiceInit, OnServiceDestroy {
 // 4. Service that depends on other services with lifecycle
 @Injectable()
 class UserService implements OnServiceInit, OnServiceDestroy {
-  private readonly db = syncInject(DatabaseService)
-  private readonly cache = syncInject(CacheService)
-  private readonly email = inject(EmailService)
+  private readonly db = inject(DatabaseService)
+  private readonly cache = inject(CacheService)
+  private readonly email = asyncInject(EmailService)
   private initialized = false
 
   async onServiceInit() {

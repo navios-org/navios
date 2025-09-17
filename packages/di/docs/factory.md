@@ -118,7 +118,7 @@ await emailService.sendEmail('user@example.com', 'Hello')
 ### Factory with Dependencies
 
 ```typescript
-import { Factory, Injectable, syncInject } from '@navios/di'
+import { Factory, inject, Injectable } from '@navios/di'
 
 @Injectable()
 class LoggerService {
@@ -136,8 +136,8 @@ class ConfigService {
 
 @Factory()
 class DatabaseConnectionFactory {
-  private readonly logger = syncInject(LoggerService)
-  private readonly config = syncInject(ConfigService)
+  private readonly logger = inject(LoggerService)
+  private readonly config = inject(ConfigService)
 
   create() {
     const url = this.config.getDatabaseUrl()
@@ -245,7 +245,7 @@ console.log(id2.id) // Different random ID
 Factories have access to a `FactoryContext` that provides additional functionality:
 
 ```typescript
-import { Factory, inject, Injectable } from '@navios/di'
+import { Factory, Injectable } from '@navios/di'
 
 @Injectable()
 class DatabaseService {
@@ -386,7 +386,7 @@ class CacheFactory {
 ### Database Connection Pool Factory
 
 ```typescript
-import { Factory, Injectable, syncInject } from '@navios/di'
+import { Factory, inject, Injectable } from '@navios/di'
 
 @Injectable()
 class DatabaseConfigService {
@@ -404,7 +404,7 @@ class DatabaseConfigService {
 
 @Factory()
 class DatabasePoolFactory {
-  private readonly config = syncInject(DatabaseConfigService)
+  private readonly config = inject(DatabaseConfigService)
 
   create() {
     const config = this.config.getConfig()

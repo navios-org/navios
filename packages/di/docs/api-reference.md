@@ -319,54 +319,54 @@ interface FactoryContext {
 
 ## Functions
 
-### inject
+### asyncInject
 
 Asynchronous dependency injection.
 
 ```typescript
-function inject<T extends ClassType>(
+function asyncInject<T extends ClassType>(
   token: T,
 ): InstanceType<T> extends Factorable<infer R>
   ? Promise<R>
   : Promise<InstanceType<T>>
-function inject<T, S extends InjectionTokenSchemaType>(
+function asyncInject<T, S extends InjectionTokenSchemaType>(
   token: InjectionToken<T, S>,
   args: z.input<S>,
 ): Promise<T>
-function inject<T, S extends InjectionTokenSchemaType, R extends boolean>(
+function asyncInject<T, S extends InjectionTokenSchemaType, R extends boolean>(
   token: InjectionToken<T, S, R>,
 ): R extends false
   ? Promise<T>
   : S extends ZodType<infer Type>
     ? `Error: Your token requires args: ${Join<UnionToArray<keyof Type>, ', '>}`
     : 'Error: Your token requires args'
-function inject<T>(token: InjectionToken<T, undefined>): Promise<T>
-function inject<T>(token: BoundInjectionToken<T, any>): Promise<T>
-function inject<T>(token: FactoryInjectionToken<T, any>): Promise<T>
+function asyncInject<T>(token: InjectionToken<T, undefined>): Promise<T>
+function asyncInject<T>(token: BoundInjectionToken<T, any>): Promise<T>
+function asyncInject<T>(token: FactoryInjectionToken<T, any>): Promise<T>
 ```
 
-### syncInject
+### inject
 
 Synchronous dependency injection (singleton only).
 
 ```typescript
-function syncInject<T extends ClassType>(
+function inject<T extends ClassType>(
   token: T,
 ): InstanceType<T> extends Factorable<infer R> ? R : InstanceType<T>
-function syncInject<T, S extends InjectionTokenSchemaType>(
+function inject<T, S extends InjectionTokenSchemaType>(
   token: InjectionToken<T, S>,
   args: z.input<S>,
 ): T
-function syncInject<T, S extends InjectionTokenSchemaType, R extends boolean>(
+function inject<T, S extends InjectionTokenSchemaType, R extends boolean>(
   token: InjectionToken<T, S, R>,
 ): R extends false
   ? T
   : S extends ZodType<infer Type>
     ? `Error: Your token requires args: ${Join<UnionToArray<keyof Type>, ', '>}`
     : 'Error: Your token requires args'
-function syncInject<T>(token: InjectionToken<T, undefined>): T
-function syncInject<T>(token: BoundInjectionToken<T, any>): T
-function syncInject<T>(token: FactoryInjectionToken<T, any>): T
+function inject<T>(token: InjectionToken<T, undefined>): T
+function inject<T>(token: BoundInjectionToken<T, any>): T
+function inject<T>(token: FactoryInjectionToken<T, any>): T
 ```
 
 ## Types
@@ -553,7 +553,7 @@ const userService = await container.get(UserService)
 ### Service with Dependencies
 
 ```typescript
-import { Injectable, syncInject } from '@navios/di'
+import { inject, Injectable } from '@navios/di'
 
 @Injectable()
 class EmailService {
@@ -564,7 +564,7 @@ class EmailService {
 
 @Injectable()
 class UserService {
-  private readonly emailService = syncInject(EmailService)
+  private readonly emailService = inject(EmailService)
 
   async createUser(name: string, email: string) {
     await this.emailService.sendEmail(email, 'Welcome!', `Hello ${name}!`)
@@ -599,7 +599,7 @@ class ConfigService {
   }
 }
 
-const config = await inject(CONFIG_TOKEN, {
+const config = await container.get(CONFIG_TOKEN, {
   apiUrl: 'https://api.example.com',
   timeout: 5000,
 })
@@ -621,7 +621,7 @@ class DatabaseConnectionFactory {
   }
 }
 
-const connection = await inject(DatabaseConnectionFactory)
+const connection = await container.get(DatabaseConnectionFactory)
 ```
 
 ### Service Lifecycle

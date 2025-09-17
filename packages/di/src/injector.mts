@@ -4,9 +4,10 @@ import { getInjectors } from './utils/index.mjs'
 
 export const defaultInjectors = getInjectors()
 
-export const inject: Injectors['inject'] = defaultInjectors.inject
+export const asyncInject: Injectors['asyncInject'] =
+  defaultInjectors.asyncInject
 
-export const syncInject: Injectors['syncInject'] = defaultInjectors.syncInject
+export const inject: Injectors['inject'] = defaultInjectors.inject
 
 export const wrapSyncInit: Injectors['wrapSyncInit'] =
   defaultInjectors.wrapSyncInit

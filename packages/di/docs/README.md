@@ -35,7 +35,7 @@ Welcome to the comprehensive documentation for Navios DI, a powerful dependency 
 ### Getting Started
 
 ```typescript
-import { Container, inject, Injectable, syncInject } from '@navios/di'
+import { Container, inject, Injectable } from '@navios/di'
 
 @Injectable()
 class DatabaseService {
@@ -46,7 +46,7 @@ class DatabaseService {
 
 @Injectable()
 class UserService {
-  private readonly db = syncInject(DatabaseService)
+  private readonly db = inject(DatabaseService)
 
   async getUsers() {
     const connection = await this.db.connect()
@@ -65,7 +65,7 @@ console.log(await userService.getUsers())
 Navios DI follows a modern, decorator-based architecture:
 
 1. **Services** are marked with `@Injectable()` decorator
-2. **Dependencies** are injected using `syncInject()` or `inject()`
+2. **Dependencies** are injected using `asyncInject()` or `inject()`
 3. **Container** manages service instances and their lifecycle
 4. **Injection Tokens** provide flexible dependency resolution
 5. **Factories** handle complex object creation
@@ -92,7 +92,7 @@ class EmailService {
 
 @Injectable()
 class NotificationService {
-  private readonly emailService = syncInject(EmailService)
+  private readonly emailService = inject(EmailService)
 
   notify(user: string, message: string) {
     return this.emailService.sendEmail(user, `Notification: ${message}`)

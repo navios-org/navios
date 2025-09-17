@@ -3,11 +3,11 @@ import { z } from 'zod/v4'
 
 import { Injectable } from '../decorators/index.mjs'
 import {
+  asyncInject,
   Container,
   inject,
   InjectableScope,
   Registry,
-  syncInject,
 } from '../index.mjs'
 import { InjectionToken } from '../injection-token.mjs'
 
@@ -34,7 +34,7 @@ describe('Injectable decorator', () => {
 
     @Injectable()
     class Test2 {
-      fooMaker = inject(Test)
+      fooMaker = asyncInject(Test)
 
       async makeFoo() {
         const fooMaker = await this.fooMaker
@@ -66,7 +66,7 @@ describe('Injectable decorator', () => {
 
     @Injectable()
     class Test2 {
-      test = inject(Test)
+      test = asyncInject(Test)
 
       async makeFoo() {
         const test = await this.test
@@ -89,7 +89,7 @@ describe('Injectable decorator', () => {
     expect(result1).toBe(result2)
   })
 
-  it('should work with syncInject', async () => {
+  it('should work with inject', async () => {
     @Injectable()
     class Test {
       value = Date.now()
@@ -97,7 +97,7 @@ describe('Injectable decorator', () => {
 
     @Injectable()
     class Test2 {
-      test = syncInject(Test)
+      test = inject(Test)
 
       makeFoo() {
         return this.test.value
@@ -163,7 +163,7 @@ describe('Injectable decorator', () => {
 
     @Injectable({ registry })
     class TestOuter {
-      foo = syncInject(boundToken)
+      foo = inject(boundToken)
     }
 
     const value = await newContainer.get(TestOuter)

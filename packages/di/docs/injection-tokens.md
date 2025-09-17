@@ -37,7 +37,7 @@ const CONFIG_TOKEN = InjectionToken.create<Config, typeof configSchema>(
 ### Using Injection Tokens
 
 ```typescript
-import { inject, Injectable } from '@navios/di'
+import { Injectable } from '@navios/di'
 
 @Injectable({ token: USER_SERVICE_TOKEN })
 class UserService {
@@ -79,7 +79,7 @@ await emailService.sendEmail('user@example.com', 'Hello')
 ### Token with Schema
 
 ```typescript
-import { inject, Injectable, InjectionToken } from '@navios/di'
+import { Injectable, InjectionToken } from '@navios/di'
 
 import { z } from 'zod'
 
@@ -122,7 +122,7 @@ console.log(dbConfig.getConnectionString())
 Bound tokens allow you to pre-configure a token with specific values:
 
 ```typescript
-import { inject, InjectionToken } from '@navios/di'
+import { InjectionToken } from '@navios/di'
 
 const configSchema = z.object({
   apiUrl: z.string(),
@@ -158,7 +158,7 @@ console.log(devConfig.apiUrl) // 'https://api.dev.com'
 Factory tokens dynamically resolve values using a factory function:
 
 ```typescript
-import { inject, Injectable, InjectionToken } from '@navios/di'
+import { Injectable, InjectionToken } from '@navios/di'
 
 @Injectable()
 class EnvironmentService {
@@ -209,7 +209,7 @@ console.log(config.apiUrl) // Dynamically resolved based on environment
 ### Multiple Implementations
 
 ```typescript
-import { inject, Injectable, InjectionToken } from '@navios/di'
+import { Injectable, InjectionToken } from '@navios/di'
 
 interface PaymentProcessor {
   processPayment(amount: number): Promise<string>
@@ -242,7 +242,7 @@ await paymentProcessor.processPayment(100)
 ### Token with Optional Schema
 
 ```typescript
-import { inject, Injectable, InjectionToken } from '@navios/di'
+import { Injectable, InjectionToken } from '@navios/di'
 
 const optionalConfigSchema = z.object({
   apiUrl: z.string(),

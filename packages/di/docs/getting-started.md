@@ -42,7 +42,7 @@ Make sure your `tsconfig.json` has legacy decorators disabled:
 ### 2. Import the Library
 
 ```typescript
-import { Container, inject, Injectable, syncInject } from '@navios/di'
+import { asyncInject, Container, inject, Injectable } from '@navios/di'
 ```
 
 ## Your First Example
@@ -50,7 +50,7 @@ import { Container, inject, Injectable, syncInject } from '@navios/di'
 Let's create a simple example with a user service that depends on an email service:
 
 ```typescript
-import { Container, inject, Injectable, syncInject } from '@navios/di'
+import { asyncInject, Container, inject, Injectable } from '@navios/di'
 
 // 1. Create an email service
 @Injectable()
@@ -66,7 +66,7 @@ class EmailService {
 // 2. Create a user service that depends on the email service
 @Injectable()
 class UserService {
-  private readonly emailService = syncInject(EmailService)
+  private readonly emailService = inject(EmailService)
 
   async createUser(name: string, email: string) {
     console.log(`Creating user: ${name}`)
@@ -113,12 +113,12 @@ class EmailService {
 
 ### Dependency Injection
 
-The `syncInject()` function injects a dependency synchronously:
+The `inject()` function injects a dependency synchronously:
 
 ```typescript
 @Injectable()
 class UserService {
-  private readonly emailService = syncInject(EmailService)
+  private readonly emailService = inject(EmailService)
   //                                    ^^^^^^^^^^^^
   //                                    Dependency injection
 }
@@ -139,12 +139,12 @@ const userService = await container.get(UserService)
 
 ### Asynchronous Injection
 
-Use `inject()` for asynchronous dependency resolution:
+Use `asyncInject()` for asynchronous dependency resolution:
 
 ```typescript
 @Injectable()
 class UserService {
-  private readonly emailService = inject(EmailService)
+  private readonly emailService = asyncInject(EmailService)
 
   async createUser(name: string, email: string) {
     const emailService = await this.emailService
@@ -288,7 +288,7 @@ class DatabaseService implements OnServiceInit, OnServiceDestroy {
 
 **Circular dependencies:**
 
-- Use `inject()` instead of `syncInject()` for circular dependencies
+- Use `asyncInject()` instead of `inject()` for circular dependencies
 - Consider restructuring your services to avoid circular references
 
 **Services not found:**

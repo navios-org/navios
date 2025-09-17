@@ -26,7 +26,7 @@ yarn add @navios/di
 ### Basic Usage
 
 ```typescript
-import { Container, inject, Injectable, syncInject } from '@navios/di'
+import { Container, inject, Injectable } from '@navios/di'
 
 @Injectable()
 class DatabaseService {
@@ -37,7 +37,7 @@ class DatabaseService {
 
 @Injectable()
 class UserService {
-  private readonly db = syncInject(DatabaseService)
+  private readonly db = inject(DatabaseService)
 
   async getUsers() {
     const connection = await this.db.connect()
@@ -49,10 +49,6 @@ class UserService {
 const container = new Container()
 const userService = await container.get(UserService)
 console.log(await userService.getUsers()) // "Users from Connected to database"
-
-// Using inject function
-const userService2 = await inject(UserService)
-console.log(await userService2.getUsers()) // "Users from Connected to database"
 ```
 
 ## Core Concepts
@@ -98,9 +94,9 @@ class TokenizedService {}
 
 ### Injection Methods
 
-#### `syncInject` - Synchronous Injection
+#### `inject` - Synchronous Injection
 
-Use `syncInject` for immediate access to dependencies:
+Use `inject` for immediate access to dependencies:
 
 ```typescript
 @Injectable()
@@ -112,7 +108,7 @@ class EmailService {
 
 @Injectable()
 class NotificationService {
-  private readonly emailService = syncInject(EmailService)
+  private readonly emailService = inject(EmailService)
 
   notify(message: string) {
     return this.emailService.sendEmail(message)
@@ -120,14 +116,14 @@ class NotificationService {
 }
 ```
 
-#### `inject` - Asynchronous Injection
+#### `asyncInject` - Asynchronous Injection
 
-Use `inject` for async dependency resolution:
+Use `asyncInject` for async dependency resolution:
 
 ```typescript
 @Injectable()
 class AsyncService {
-  private readonly emailService = inject(EmailService)
+  private readonly emailService = asyncInject(EmailService)
 
   async notify(message: string) {
     const emailService = await this.emailService
@@ -196,7 +192,7 @@ Use injection tokens for flexible dependency resolution:
 #### Basic Injection Token
 
 ```typescript
-import { Container, inject, Injectable, InjectionToken } from '@navios/di'
+import { Container, Injectable, InjectionToken } from '@navios/di'
 
 import { z } from 'zod'
 
@@ -317,8 +313,8 @@ const newService = await container.get(MyService)
 
 ### Injection Methods
 
-- `syncInject<T>(token: T): T` - Synchronous injection
-- `inject<T>(token: T): Promise<T>` - Asynchronous injection
+- `inject<T>(token: T): T` - Synchronous injection
+- `asyncInject<T>(token: T): Promise<T>` - Asynchronous injection
 
 ### Injection Tokens
 
@@ -334,8 +330,8 @@ const newService = await container.get(MyService)
 
 ## Best Practices
 
-1. **Use `syncInject` for immediate dependencies** - When you need the dependency right away
-2. **Use `inject` for async dependencies** - When the dependency might not be ready yet
+1. **Use `inject` for immediate dependencies** - When you need the dependency right away
+2. **Use `asyncInject` for async dependencies** - When the dependency might not be ready yet
 3. **Implement lifecycle hooks** - For proper resource management
 4. **Use injection tokens** - For configuration and interface-based dependencies
 5. **Prefer singletons** - Unless you specifically need new instances each time

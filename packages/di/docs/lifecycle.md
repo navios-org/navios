@@ -80,10 +80,10 @@ The `onServiceInit` method is called after:
 
 1. The service instance is created
 2. All constructor dependencies are injected
-3. All property dependencies (via `syncInject` or `inject`) are resolved
+3. All property dependencies (via `asyncInject` or `inject`) are resolved
 
 ```typescript
-import { Injectable, OnServiceInit, syncInject } from '@navios/di'
+import { inject, Injectable, OnServiceInit } from '@navios/di'
 
 @Injectable()
 class LoggerService {
@@ -94,7 +94,7 @@ class LoggerService {
 
 @Injectable()
 class DatabaseService implements OnServiceInit {
-  private readonly logger = syncInject(LoggerService)
+  private readonly logger = inject(LoggerService)
   private connection: any = null
 
   async onServiceInit() {
@@ -377,12 +377,7 @@ class RobustService implements OnServiceInit, OnServiceDestroy {
 ### Service Depending on Other Services with Lifecycle
 
 ```typescript
-import {
-  Injectable,
-  OnServiceDestroy,
-  OnServiceInit,
-  syncInject,
-} from '@navios/di'
+import { inject, Injectable, OnServiceDestroy, OnServiceInit } from '@navios/di'
 
 @Injectable()
 class LoggerService implements OnServiceInit, OnServiceDestroy {
@@ -409,7 +404,7 @@ class LoggerService implements OnServiceInit, OnServiceDestroy {
 
 @Injectable()
 class DatabaseService implements OnServiceInit, OnServiceDestroy {
-  private readonly logger = syncInject(LoggerService)
+  private readonly logger = inject(LoggerService)
   private connection: any = null
 
   async onServiceInit() {

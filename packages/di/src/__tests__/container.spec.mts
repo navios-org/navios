@@ -13,7 +13,7 @@ import { Injectable } from '../decorators/injectable.decorator.mjs'
 import { InjectableScope } from '../enums/injectable-scope.enum.mjs'
 import { getInjectors } from '../index.mjs'
 import { InjectionToken } from '../injection-token.mjs'
-import { inject, syncInject } from '../injector.mjs'
+import { asyncInject, inject } from '../injector.mjs'
 import { Registry } from '../registry.mjs'
 import { ServiceLocator } from '../service-locator.mjs'
 import { createDeferred } from '../utils/defer.mjs'
@@ -525,12 +525,12 @@ describe('Container', () => {
     it('should handle circular dependencies gracefully', async () => {
       @Injectable({ registry })
       class ServiceA {
-        serviceB = inject(ServiceB)
+        serviceB = asyncInject(ServiceB)
       }
 
       @Injectable({ registry })
       class ServiceB {
-        serviceA = inject(ServiceA)
+        serviceA = asyncInject(ServiceA)
       }
 
       // This should not throw but handle the circular dependency
@@ -549,17 +549,17 @@ describe('Container', () => {
 
       @Injectable({ registry })
       class Level2 {
-        level1 = syncInject(Level1)
+        level1 = inject(Level1)
       }
 
       @Injectable({ registry })
       class Level3 {
-        level2 = syncInject(Level2)
+        level2 = inject(Level2)
       }
 
       @Injectable({ registry })
       class Level4 {
-        level3 = syncInject(Level3)
+        level3 = inject(Level3)
       }
 
       const level4 = await container.get(Level4)
@@ -595,7 +595,7 @@ describe('Container', () => {
 
       @Injectable({ registry })
       class AppService {
-        database = inject(DatabaseFactory)
+        database = asyncInject(DatabaseFactory)
       }
 
       const app = await container.get(AppService)
@@ -704,7 +704,7 @@ describe('Container', () => {
 
       @Injectable({ registry })
       class MainService {
-        dependency = inject(DependencyService)
+        dependency = asyncInject(DependencyService)
         public id = Math.random()
       }
 
@@ -979,9 +979,9 @@ describe('Container', () => {
     })
   })
 
-  describe('syncInject scenarios', () => {
-    describe('Singleton scope with syncInject', () => {
-      it('should return same instances for singleton services with syncInject', async () => {
+  describe('inject scenarios', () => {
+    describe('Singleton scope with inject', () => {
+      it('should return same instances for singleton services with inject', async () => {
         @Injectable({ registry })
         class SingletonService {
           public id = Math.random()
@@ -989,7 +989,7 @@ describe('Container', () => {
 
         @Injectable({ registry })
         class ServiceWithSyncInject {
-          singletonService = syncInject(SingletonService)
+          singletonService = inject(SingletonService)
         }
 
         const instance1 = await container.get(ServiceWithSyncInject)
@@ -1008,7 +1008,7 @@ describe('Container', () => {
         )
       })
 
-      it('should handle nested singleton services with syncInject', async () => {
+      it('should handle nested singleton services with inject', async () => {
         @Injectable({ registry })
         class Level1Singleton {
           public id = Math.random()
@@ -1016,13 +1016,13 @@ describe('Container', () => {
 
         @Injectable({ registry })
         class Level2Singleton {
-          level1 = syncInject(Level1Singleton)
+          level1 = inject(Level1Singleton)
           public id = Math.random()
         }
 
         @Injectable({ registry })
         class RootService {
-          level2 = syncInject(Level2Singleton)
+          level2 = inject(Level2Singleton)
         }
 
         const root1 = await container.get(RootService)
@@ -1039,7 +1039,7 @@ describe('Container', () => {
         expect(root1.level2.level1.id).toBe(root2.level2.level1.id)
       })
 
-      it('should handle mixed singleton services with syncInject', async () => {
+      it('should handle mixed singleton services with inject', async () => {
         @Injectable({ registry })
         class SingletonService1 {
           public id = Math.random()
@@ -1047,13 +1047,13 @@ describe('Container', () => {
 
         @Injectable({ registry })
         class SingletonService2 {
-          singleton1 = syncInject(SingletonService1)
+          singleton1 = inject(SingletonService1)
           public id = Math.random()
         }
 
         @Injectable({ registry })
         class MixedService {
-          singleton2 = syncInject(SingletonService2)
+          singleton2 = inject(SingletonService2)
         }
 
         const mixed1 = await container.get(MixedService)
@@ -1073,8 +1073,8 @@ describe('Container', () => {
       })
     })
 
-    describe('syncInject with invalidation', () => {
-      it('should invalidate singleton services accessed via syncInject', async () => {
+    describe('inject with invalidation', () => {
+      it('should invalidate singleton services accessed via inject', async () => {
         @Injectable({ registry })
         class SingletonService {
           public id = Math.random()
@@ -1082,7 +1082,7 @@ describe('Container', () => {
 
         @Injectable({ registry })
         class ServiceWithSyncInject {
-          singletonService = syncInject(SingletonService)
+          singletonService = inject(SingletonService)
         }
 
         const instance1 = await container.get(ServiceWithSyncInject)
@@ -1099,7 +1099,7 @@ describe('Container', () => {
         expect(singleton1.id).not.toBe(singleton2.id)
       })
 
-      it('should invalidate services with nested syncInject dependencies', async () => {
+      it('should invalidate services with nested inject dependencies', async () => {
         @Injectable({ registry })
         class Level1Service {
           public id = Math.random()
@@ -1107,13 +1107,13 @@ describe('Container', () => {
 
         @Injectable({ registry })
         class Level2Service {
-          level1 = syncInject(Level1Service)
+          level1 = inject(Level1Service)
           public id = Math.random()
         }
 
         @Injectable({ registry })
         class RootService {
-          level2 = syncInject(Level2Service)
+          level2 = inject(Level2Service)
         }
 
         const root1 = await container.get(RootService)
@@ -1135,7 +1135,7 @@ describe('Container', () => {
         expect(level1_1.id).not.toBe(level1_2.id)
       })
 
-      it('should handle invalidation of services with mixed inject and syncInject', async () => {
+      it('should handle invalidation of services with mixed inject and asyncInject', async () => {
         @Injectable({ registry })
         class AsyncService {
           public id = Math.random()
@@ -1148,8 +1148,8 @@ describe('Container', () => {
 
         @Injectable({ registry })
         class MixedService {
-          asyncService = inject(AsyncService)
-          syncService = syncInject(SyncService)
+          asyncService = asyncInject(AsyncService)
+          syncService = inject(SyncService)
         }
 
         const mixed1 = await container.get(MixedService)
@@ -1169,7 +1169,7 @@ describe('Container', () => {
         expect(sync1).toBe(sync2)
       })
 
-      it('should handle invalidation of factory services accessed via syncInject', async () => {
+      it('should handle invalidation of factory services accessed via inject', async () => {
         @Injectable({ registry })
         class TestService {
           public id = Math.random()
@@ -1184,7 +1184,7 @@ describe('Container', () => {
 
         @Injectable({ registry })
         class ServiceWithSyncInject {
-          factoryService = syncInject(TestFactory)
+          factoryService = inject(TestFactory)
         }
 
         const instance1 = await container.get(ServiceWithSyncInject)
@@ -1201,7 +1201,7 @@ describe('Container', () => {
         expect(factory1.id).not.toBe(factory2.id)
       })
 
-      it('should handle invalidation of services with complex dependency chains using syncInject', async () => {
+      it('should handle invalidation of services with complex dependency chains using inject', async () => {
         @Injectable({ registry })
         class DatabaseService {
           public id = Math.random()
@@ -1217,20 +1217,20 @@ describe('Container', () => {
 
         @Injectable({ registry })
         class UserService {
-          database = syncInject(DatabaseService)
-          cache = syncInject(CacheService)
+          database = inject(DatabaseService)
+          cache = inject(CacheService)
           public id = Math.random()
         }
 
         @Injectable({ registry })
         class AuthService {
-          userService = syncInject(UserService)
+          userService = inject(UserService)
           public id = Math.random()
         }
 
         @Injectable({ registry })
         class AppService {
-          authService = syncInject(AuthService)
+          authService = inject(AuthService)
         }
 
         const app1 = await container.get(AppService)
@@ -1265,13 +1265,13 @@ describe('Container', () => {
       })
     })
 
-    describe('syncInject error handling', () => {
-      it('should handle unregistered services with syncInject', async () => {
+    describe('inject error handling', () => {
+      it('should handle unregistered services with inject', async () => {
         class UnregisteredService {}
 
         @Injectable({ registry })
         class ServiceWithUnregistered {
-          unregistered = syncInject(UnregisteredService)
+          unregistered = inject(UnregisteredService)
         }
 
         // This should throw during instantiation, not during get()
@@ -1284,14 +1284,14 @@ describe('Container', () => {
       const injectors = getInjectors()
       const container = new Container(registry, mockLogger, injectors)
       expect(container).toBeInstanceOf(Container)
-      const { syncInject } = injectors
+      const { inject } = injectors
       @Injectable({ registry })
       class TestService {
         test = 'a'
       }
       @Injectable({ registry })
       class TestService2 {
-        test = syncInject(TestService)
+        test = inject(TestService)
       }
       const instance = await container.get(TestService2)
       expect(instance).toBeInstanceOf(TestService2)

@@ -3,10 +3,10 @@ import type { Factorable, FactorableWithArgs, FactoryContext } from '@navios/di'
 import {
   Container,
   Factory,
+  inject,
   Injectable,
   InjectableScope,
   InjectionToken,
-  syncInject,
 } from '@navios/di'
 
 import { z } from 'zod'
@@ -44,7 +44,7 @@ class LoggerService {
 
 @Factory()
 class DatabaseConnectionFactory {
-  private readonly logger = syncInject(LoggerService)
+  private readonly logger = inject(LoggerService)
 
   create() {
     this.logger.log('Creating database connection...')
@@ -204,7 +204,7 @@ class ConfigService {
 
 @Factory()
 class ApplicationContextFactory {
-  private readonly config = syncInject(ConfigService)
+  private readonly config = inject(ConfigService)
 
   create() {
     const dbConfig = this.config.getDatabaseConfig()

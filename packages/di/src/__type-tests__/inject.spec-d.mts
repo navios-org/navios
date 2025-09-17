@@ -3,7 +3,7 @@ import { z } from 'zod/v4'
 
 import { Injectable } from '../decorators/index.mjs'
 import { InjectionToken } from '../injection-token.mjs'
-import { inject } from '../injector.mjs'
+import { asyncInject } from '../injector.mjs'
 
 interface FooService {
   makeFoo(): string
@@ -65,34 +65,34 @@ describe('inject', () => {
       }
     }
 
-    assertType<Foo>(await inject(Foo))
+    assertType<Foo>(await asyncInject(Foo))
   })
   test('#2 Token with required Schema', async () => {
-    const result = await inject(typelessObjectToken, { foo: 'bar' })
+    const result = await asyncInject(typelessObjectToken, { foo: 'bar' })
     assertType<unknown>(result)
 
-    const result2 = await inject(typedObjectToken, { foo: 'bar' })
+    const result2 = await asyncInject(typedObjectToken, { foo: 'bar' })
     assertType<FooService>(result2)
 
     // @ts-expect-error We show error when we pass the wrong type
-    await inject(typedObjectToken, undefined)
+    await asyncInject(typedObjectToken, undefined)
   })
 
   test('#3 Token with optional Schema', async () => {
-    const result = await inject(typelessOptionalObjectToken)
+    const result = await asyncInject(typelessOptionalObjectToken)
     assertType<unknown>(result)
 
-    const result2 = await inject(typedOptionalObjectToken)
+    const result2 = await asyncInject(typedOptionalObjectToken)
     assertType<FooService>(result2)
 
-    const result3 = await inject(typedObjectToken)
+    const result3 = await asyncInject(typedObjectToken)
     // Special case when we pass the token without args
     // We can only return an error string
     assertType<'Error: Your token requires args: foo'>(result3)
   })
 
   test('#4 Token with no Schema', async () => {
-    const result = await inject(typedToken)
+    const result = await asyncInject(typedToken)
     assertType<FooService>(result)
   })
 })

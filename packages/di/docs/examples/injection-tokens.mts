@@ -8,7 +8,7 @@
  * - Token-based dependency resolution
  */
 
-import { Container, inject, Injectable, InjectionToken } from '@navios/di'
+import { Container, Injectable, InjectionToken } from '@navios/di'
 
 import { z } from 'zod'
 

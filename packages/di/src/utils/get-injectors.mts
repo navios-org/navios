@@ -15,18 +15,18 @@ import { InjectableTokenMeta } from '../symbols/index.mjs'
 
 export interface Injectors {
   // #1 Simple class
-  inject<T extends ClassType>(
+  asyncInject<T extends ClassType>(
     token: T,
   ): InstanceType<T> extends Factorable<infer R>
     ? Promise<R>
     : Promise<InstanceType<T>>
   // #2 Token with required Schema
-  inject<T, S extends InjectionTokenSchemaType>(
+  asyncInject<T, S extends InjectionTokenSchemaType>(
     token: InjectionToken<T, S>,
     args: z.input<S>,
   ): Promise<T>
   // #3 Token with optional Schema
-  inject<T, S extends InjectionTokenSchemaType, R extends boolean>(
+  asyncInject<T, S extends InjectionTokenSchemaType, R extends boolean>(
     token: InjectionToken<T, S, R>,
   ): R extends false
     ? Promise<T>
@@ -37,19 +37,19 @@ export interface Injectors {
         >}`
       : 'Error: Your token requires args'
   // #4 Token with no Schema
-  inject<T>(token: InjectionToken<T, undefined>): Promise<T>
-  inject<T>(token: BoundInjectionToken<T, any>): Promise<T>
-  inject<T>(token: FactoryInjectionToken<T, any>): Promise<T>
+  asyncInject<T>(token: InjectionToken<T, undefined>): Promise<T>
+  asyncInject<T>(token: BoundInjectionToken<T, any>): Promise<T>
+  asyncInject<T>(token: FactoryInjectionToken<T, any>): Promise<T>
 
-  syncInject<T extends ClassType>(
+  inject<T extends ClassType>(
     token: T,
   ): InstanceType<T> extends Factorable<infer R> ? R : InstanceType<T>
-  syncInject<T, S extends InjectionTokenSchemaType>(
+  inject<T, S extends InjectionTokenSchemaType>(
     token: InjectionToken<T, S>,
     args: z.input<S>,
   ): T
   // #3 Token with optional Schema
-  syncInject<T, S extends InjectionTokenSchemaType, R extends boolean>(
+  inject<T, S extends InjectionTokenSchemaType, R extends boolean>(
     token: InjectionToken<T, S, R>,
   ): R extends false
     ? T
@@ -59,9 +59,9 @@ export interface Injectors {
           ', '
         >}`
       : 'Error: Your token requires args'
-  syncInject<T>(token: InjectionToken<T, undefined>): T
-  syncInject<T>(token: BoundInjectionToken<T, any>): T
-  syncInject<T>(token: FactoryInjectionToken<T, any>): T
+  inject<T>(token: InjectionToken<T, undefined>): T
+  inject<T>(token: BoundInjectionToken<T, any>): T
+  inject<T>(token: FactoryInjectionToken<T, any>): T
 
   wrapSyncInit(
     cb: () => any,
@@ -92,7 +92,7 @@ export function getInjectors() {
   let promiseCollector: null | ((promise: Promise<any>) => void) = null
   let injectState: InjectState | null = null
 
-  function inject(
+  function asyncInject(
     token:
       | ClassType
       | InjectionToken<any>
@@ -155,7 +155,7 @@ export function getInjectors() {
     }
   }
 
-  function syncInject<
+  function inject<
     T,
     Token extends
       | InjectionToken<T>
@@ -182,7 +182,7 @@ export function getInjectors() {
         {
           get() {
             throw new Error(
-              `[Injector] Trying to access ${realToken.toString()} before it's initialized, please use inject() instead of syncInject() or do not use the value outside of class methods`,
+              `[Injector] Trying to access ${realToken.toString()} before it's initialized, please use asyncInject() instead of inject() or do not use the value outside of class methods`,
             )
           },
         },
@@ -192,8 +192,8 @@ export function getInjectors() {
   }
 
   const injectors: Injectors = {
+    asyncInject,
     inject,
-    syncInject,
     wrapSyncInit,
     provideFactoryContext,
   } as Injectors

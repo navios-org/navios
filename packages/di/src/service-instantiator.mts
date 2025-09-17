@@ -75,9 +75,9 @@ export class ServiceInstantiator {
       if (promises.length > 0) {
         console.error(`[ServiceInstantiator] ${record.target.name} has problem with it's definition.
 
-       One or more of the dependencies are registered as a InjectableScope.Instance and are used with syncInject.
+       One or more of the dependencies are registered as a InjectableScope.Instance and are used with inject.
 
-       Please use inject instead of syncInject to load those dependencies.`)
+       Please use inject asyncInject of inject to load those dependencies.`)
         throw new Error(
           `[ServiceInstantiator] Service ${record.target.name} cannot be instantiated.`,
         )
@@ -135,9 +135,9 @@ export class ServiceInstantiator {
       if (promises.length > 0) {
         console.error(`[ServiceInstantiator] ${record.target.name} has problem with it's definition.
 
-       One or more of the dependencies are registered as a InjectableScope.Instance and are used with syncInject.
+       One or more of the dependencies are registered as a InjectableScope.Instance and are used with inject.
 
-       Please use inject instead of syncInject to load those dependencies.`)
+       Please use asyncInject instead of inject to load those dependencies.`)
         throw new Error(
           `[ServiceInstantiator] Service ${record.target.name} cannot be instantiated.`,
         )

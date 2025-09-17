@@ -20,7 +20,7 @@ class UserService {
 ### Service with Dependencies
 
 ```typescript
-import { Injectable, syncInject } from '@navios/di'
+import { inject, Injectable } from '@navios/di'
 
 @Injectable()
 class DatabaseService {
@@ -31,7 +31,7 @@ class DatabaseService {
 
 @Injectable()
 class UserService {
-  private readonly db = syncInject(DatabaseService)
+  private readonly db = inject(DatabaseService)
 
   async getUsers() {
     const connection = await this.db.connect()
@@ -86,12 +86,12 @@ class CustomService {}
 
 ## Injection Methods
 
-### Synchronous Injection with `syncInject`
+### Synchronous Injection with `inject`
 
-Use `syncInject` when you need immediate access to a dependency:
+Use `inject` when you need immediate access to a dependency:
 
 ```typescript
-import { Injectable, syncInject } from '@navios/di'
+import { inject, Injectable } from '@navios/di'
 
 @Injectable()
 class EmailService {
@@ -102,7 +102,7 @@ class EmailService {
 
 @Injectable()
 class NotificationService {
-  private readonly emailService = syncInject(EmailService)
+  private readonly emailService = inject(EmailService)
 
   notify(user: string, message: string) {
     // Direct access - no await needed
@@ -111,7 +111,7 @@ class NotificationService {
 }
 ```
 
-**Important:** `syncInject` only works with singleton services. For transient services, use `inject` instead.
+**Important:** `inject` only works with singleton services. For transient services, use `asyncInject` instead.
 
 ### Asynchronous Injection with `inject`
 
@@ -133,7 +133,7 @@ class TransientService {
 
 @Injectable()
 class ConsumerService {
-  private readonly transientService = inject(TransientService)
+  private readonly transientService = asyncInject(TransientService)
 
   async getRandomValue() {
     const service = await this.transientService
@@ -183,7 +183,7 @@ class ConfigService {
 ### Service with Multiple Dependencies
 
 ```typescript
-import { Injectable, syncInject } from '@navios/di'
+import { inject, Injectable } from '@navios/di'
 
 @Injectable()
 class LoggerService {
@@ -212,9 +212,9 @@ class CacheService {
 
 @Injectable()
 class UserService {
-  private readonly logger = syncInject(LoggerService)
-  private readonly db = syncInject(DatabaseService)
-  private readonly cache = syncInject(CacheService)
+  private readonly logger = inject(LoggerService)
+  private readonly db = inject(DatabaseService)
+  private readonly cache = inject(CacheService)
 
   async getUser(id: string) {
     this.logger.log(`Getting user ${id}`)
@@ -292,8 +292,8 @@ class SingletonService {
 @Injectable()
 class ConsumerService {
   // Both injection methods work with singletons
-  private readonly syncService = syncInject(SingletonService)
-  private readonly asyncService = inject(SingletonService)
+  private readonly syncService = inject(SingletonService)
+  private readonly asyncService = asyncInject(SingletonService)
 
   async demonstrate() {
     // Both return the same instance
@@ -318,8 +318,8 @@ class TransientService {
 
 @Injectable()
 class ConsumerService {
-  // Only inject() works with transient services
-  private readonly transientService = inject(TransientService)
+  // Only asyncInject() works with transient services
+  private readonly transientService = asyncInject(TransientService)
 
   async demonstrate() {
     const instance1 = await this.transientService
@@ -336,11 +336,11 @@ class ConsumerService {
 ### Common Errors
 
 ```typescript
-import { Injectable, syncInject } from '@navios/di'
+import { inject, Injectable } from '@navios/di'
 
 @Injectable()
 class ProblematicService {
-  private readonly nonExistentService = syncInject(NonExistentService)
+  private readonly nonExistentService = inject(NonExistentService)
   // Error: NonExistentService is not registered
 }
 
@@ -349,8 +349,8 @@ class TransientService {}
 
 @Injectable()
 class WrongInjectionService {
-  private readonly transientService = syncInject(TransientService)
-  // Error: Cannot use syncInject with transient services
+  private readonly transientService = inject(TransientService)
+  // Error: Cannot use inject with transient services
 }
 ```
 
@@ -361,7 +361,9 @@ import { inject, Injectable } from '@navios/di'
 
 @Injectable()
 class SafeService {
-  private readonly optionalService = inject(OptionalService).catch(() => null)
+  private readonly optionalService = asyncInject(OptionalService).catch(
+    () => null,
+  )
 
   async doSomething() {
     try {
@@ -383,10 +385,10 @@ class SafeService {
 ### 1. Use Appropriate Injection Method
 
 ```typescript
-// ✅ Good: Use syncInject for singleton dependencies
+// ✅ Good: Use inject for singleton dependencies
 @Injectable()
 class UserService {
-  private readonly logger = syncInject(LoggerService)
+  private readonly logger = inject(LoggerService)
 
   getUser(id: string) {
     this.logger.log(`Getting user ${id}`)
@@ -394,10 +396,10 @@ class UserService {
   }
 }
 
-// ✅ Good: Use inject for transient dependencies
+// ✅ Good: Use asyncInject for transient dependencies
 @Injectable()
 class RequestService {
-  private readonly transientService = inject(TransientService)
+  private readonly transientService = asyncInject(TransientService)
 
   async handleRequest() {
     const service = await this.transientService
@@ -490,5 +492,5 @@ enum InjectableScope {
 
 ### Injection Methods
 
-- `syncInject<T>(token: T): T` - Synchronous injection (singleton only)
-- `inject<T>(token: T): Promise<T>` - Asynchronous injection (all scopes)
+- `inject<T>(token: T): T` - Synchronous injection (singleton only)
+- `asyncInject<T>(token: T): Promise<T>` - Asynchronous injection (all scopes)

@@ -3,11 +3,11 @@
  *
  * This example demonstrates the fundamental concepts of Navios DI:
  * - Service registration with @Injectable
- * - Dependency injection with syncInject and inject
+ * - Dependency injection with asyncInject and inject
  * - Container usage
  */
 
-import { Container, inject, Injectable, syncInject } from '@navios/di'
+import { asyncInject, Container, inject, Injectable } from '@navios/di'
 
 // 1. Create a simple service
 @Injectable()
@@ -20,7 +20,7 @@ class LoggerService {
 // 2. Create a service that depends on LoggerService
 @Injectable()
 class UserService {
-  private readonly logger = syncInject(LoggerService)
+  private readonly logger = inject(LoggerService)
 
   createUser(name: string, email: string) {
     this.logger.log(`Creating user: ${name}`)
@@ -31,7 +31,7 @@ class UserService {
 // 3. Create a service that uses async injection
 @Injectable()
 class EmailService {
-  private readonly logger = inject(LoggerService)
+  private readonly logger = asyncInject(LoggerService)
 
   async sendEmail(to: string, subject: string, body: string) {
     const logger = await this.logger
@@ -47,9 +47,9 @@ class EmailService {
 // 4. Create a service that orchestrates other services
 @Injectable()
 class UserRegistrationService {
-  private readonly userService = syncInject(UserService)
-  private readonly emailService = syncInject(EmailService)
-  private readonly logger = syncInject(LoggerService)
+  private readonly userService = inject(UserService)
+  private readonly emailService = inject(EmailService)
+  private readonly logger = inject(LoggerService)
 
   async registerUser(name: string, email: string) {
     this.logger.log(`Starting user registration for ${name}`)
