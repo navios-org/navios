@@ -1,6 +1,9 @@
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
 /* eslint-disable @typescript-eslint/no-empty-object-type */
 /* eslint-disable @typescript-eslint/no-unsafe-function-type */
+
+import { Injectable, InjectableScope } from './index.mjs'
+
 /* eslint-disable @typescript-eslint/no-explicit-any */
 export type EventsConfig = {
   [event: string]: any[]
@@ -35,17 +38,9 @@ export interface EventEmitterInterface<Events extends EventsConfig> {
     event: E,
     ...args: Args
   ): void
-  addChannel<
-    E extends EventsNames<Events>,
-    Ns extends string,
-    Emmiter extends ChannelEmitter<Events, Ns, E>,
-  >(
-    ns: Ns,
-    event: E,
-    target: Emmiter,
-  ): () => void
 }
 
+@Injectable({ scope: InjectableScope.Transient })
 export class EventEmitter<Events extends EventsConfig = {}>
   implements EventEmitterInterface<Events>
 {
@@ -106,13 +101,5 @@ export class EventEmitter<Events extends EventsConfig = {}>
         listener(...args),
       ),
     )
-  }
-
-  addChannel<
-    E extends EventsNames<Events>,
-    Ns extends string,
-    Emitter extends ChannelEmitter<Events, Ns, E>,
-  >(ns: Ns, event: E, target: Emitter) {
-    return this.on(event, (...args) => target.emit(ns, event, ...args))
   }
 }

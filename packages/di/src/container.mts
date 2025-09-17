@@ -9,39 +9,13 @@ import type {
 } from './injection-token.mjs'
 import type { Factorable } from './interfaces/factory.interface.mjs'
 import type { Registry } from './registry.mjs'
+import type { Join, UnionToArray } from './utils/types.mjs'
 
 import { Injectable } from './decorators/injectable.decorator.mjs'
 import { InjectableScope, InjectableType } from './enums/index.mjs'
 import { globalRegistry } from './registry.mjs'
 import { ServiceLocator } from './service-locator.mjs'
 import { getInjectableToken } from './utils/get-injectable-token.mjs'
-
-type Join<TElements, TSeparator extends string> =
-  TElements extends Readonly<[infer First, ...infer Rest]>
-    ? Rest extends ReadonlyArray<string>
-      ? First extends string
-        ? `${First}${Rest extends [] ? '' : TSeparator}${Join<Rest, TSeparator>}`
-        : never
-      : never
-    : ''
-
-type UnionToIntersection<U> = (U extends any ? (k: U) => void : never) extends (
-  k: infer I,
-) => void
-  ? I
-  : never
-
-type PopUnion<T> =
-  UnionToIntersection<T extends any ? () => T : never> extends (
-    ...args: any[]
-  ) => infer R
-    ? R
-    : never
-
-type UnionToArray<T, A extends unknown[] = []> =
-  T extends PopUnion<T>
-    ? UnionToArray<Exclude<T, PopUnion<T>>, [PopUnion<T>, ...A]>
-    : [T, ...A]
 
 /**
  * Container class that provides a simplified public API for dependency injection.
@@ -62,7 +36,7 @@ export class Container {
   private registerSelf() {
     const token = getInjectableToken(Container)
     const instanceName = this.serviceLocator.getInstanceIdentifier(token)
-    this.serviceLocator['manager'].createCreatedHolder(
+    this.serviceLocator['manager'].storeCreatedHolder(
       instanceName,
       this,
       InjectableType.Class,
@@ -109,14 +83,7 @@ export class Container {
       | FactoryInjectionToken<any, any>,
     args?: unknown,
   ) {
-    let actualToken = token
-    if (typeof token === 'function') {
-      actualToken = getInjectableToken(token)
-    }
-    return this.serviceLocator.getOrThrowInstance(
-      actualToken as any,
-      args as any,
-    )
+    return this.serviceLocator.getOrThrowInstance(token, args as any)
   }
 
   /**

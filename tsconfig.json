@@ -20,7 +20,7 @@
       "path": "packages/navios"
     },
     {
-      "path": "packages/queues-core"
+      "path": "lab-packages/queues-core"
     },
     {
       "path": "packages/react-query"

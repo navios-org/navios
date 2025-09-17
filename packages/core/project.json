@@ -20,6 +20,14 @@
         "cwd": "packages/core"
       }
     },
+    "lint": {
+      "executor": "nx:run-commands",
+      "inputs": ["^projectSources", "project"],
+      "options": {
+        "command": "oxlint --fix",
+        "cwd": "packages/core"
+      }
+    },
     "test:ci": {
       "executor": "nx:run-commands",
       "inputs": ["^projectSources", "project"],
@@ -32,7 +40,7 @@
       "executor": "nx:run-commands",
       "inputs": ["projectSources", "{projectRoot}/tsup.config.mts"],
       "outputs": ["{projectRoot}/lib"],
-      "dependsOn": ["check", "test:ci"],
+      "dependsOn": ["check", "test:ci", "lint"],
       "options": {
         "command": "tsup",
         "cwd": "packages/core"

@@ -43,21 +43,6 @@ export class ServiceLocatorEventBus {
 
     const events = this.listeners.get(key)!
 
-    const preEvent = `pre:${event}`
-    const postEvent = `post:${event}`
-    this.logger?.debug(`[ServiceLocatorEventBus]#emit(): ${key}:${preEvent}`)
-    await Promise.allSettled(
-      [...(events.get(preEvent) ?? [])].map((listener) => listener(preEvent)),
-    ).then((results) => {
-      results
-        .filter((result) => result.status === 'rejected')
-        .forEach((result: PromiseRejectedResult) => {
-          this.logger?.warn(
-            `[ServiceLocatorEventBus]#emit(): ${key}:${preEvent} rejected with`,
-            result.reason,
-          )
-        })
-    })
     this.logger?.debug(`[ServiceLocatorEventBus]#emit(): ${key}:${event}`)
 
     const res = await Promise.allSettled(
@@ -77,19 +62,6 @@ export class ServiceLocatorEventBus {
         return Promise.reject(res)
       }
       return results
-    })
-    this.logger?.debug(`[ServiceLocatorEventBus]#emit(): ${key}:${postEvent}`)
-    await Promise.allSettled(
-      [...(events.get(postEvent) ?? [])].map((listener) => listener(postEvent)),
-    ).then((results) => {
-      results
-        .filter((result) => result.status === 'rejected')
-        .forEach((result: PromiseRejectedResult) => {
-          this.logger?.warn(
-            `[ServiceLocatorEventBus]#emit(): ${key}:${postEvent} rejected with`,
-            result.reason,
-          )
-        })
     })
     return res
   }

@@ -3,16 +3,8 @@ import { z } from 'zod/v4'
 
 import { Factory } from '../decorators/index.mjs'
 import { InjectableScope } from '../enums/index.mjs'
-import {
-  Container,
-  globalRegistry,
-  Registry,
-  ServiceLocator,
-  syncInject,
-} from '../index.mjs'
+import { Container, Registry } from '../index.mjs'
 import { InjectionToken } from '../injection-token.mjs'
-import { dangerouslySetGlobalFactoryContext, inject } from '../injector.mjs'
-import { getInjectableToken, getInjectors } from '../utils/index.mjs'
 
 describe('Factory decorator', () => {
   let container: Container
@@ -59,6 +51,7 @@ describe('Factory decorator', () => {
     )
 
     @Factory({ token })
+    // oxlint-disable-next-line no-unused-vars
     class Test {
       create(ctx: any, args: { foo: string }) {
         return new TestFoo(args.foo)

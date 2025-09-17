@@ -130,8 +130,6 @@ export class ServiceLocatorManager {
       ttl,
     }
 
-    this.instancesHolders.set(name, holder)
-
     return [deferred, holder]
   }
 
@@ -146,7 +144,7 @@ export class ServiceLocatorManager {
    * @param ttl Optional time-to-live in milliseconds (defaults to Infinity)
    * @returns The created holder
    */
-  createCreatedHolder<Instance>(
+  storeCreatedHolder<Instance>(
     name: string,
     instance: Instance,
     type: InjectableType,

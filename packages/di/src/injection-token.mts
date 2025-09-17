@@ -21,8 +21,10 @@ export type InjectionTokenSchemaType =
   | OptionalInjectionTokenSchemaType
 
 export class InjectionToken<
+  // oxlint-disable-next-line no-unused-vars
   T,
   S extends InjectionTokenSchemaType | unknown = unknown,
+  // oxlint-disable-next-line no-unused-vars
   Required extends boolean = S extends ZodOptional<ZodObject>
     ? false
     : S extends ZodOptional<ZodRecord>
@@ -145,6 +147,12 @@ export class FactoryInjectionToken<T, S extends InjectionTokenSchemaType> {
     return this.token.toString()
   }
 }
+
+export type AnyInjectableType =
+  | ClassType
+  | InjectionToken<any, any>
+  | BoundInjectionToken<any, any>
+  | FactoryInjectionToken<any, any>
 
 export type InjectionTokenType =
   | InjectionToken<any, any>

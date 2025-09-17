@@ -283,7 +283,7 @@ describe('Container', () => {
         @Factory({ registry })
         class ContextFactory implements Factorable<TestService> {
           async create(ctx: FactoryContext) {
-            const container = await ctx?.inject(Container)
+            const container = await ctx.inject(Container)
             return new TestService(container)
           }
         }
@@ -311,6 +311,7 @@ describe('Container', () => {
         )
 
         @Factory({ token, registry })
+        // oxlint-disable-next-line no-unused-vars
         class ArgFactory
           implements FactorableWithArgs<TestService, typeof schema>
         {
@@ -348,6 +349,7 @@ describe('Container', () => {
         )
 
         @Factory({ token, registry })
+        // oxlint-disable-next-line no-unused-vars
         class OptionalArgFactory
           implements FactorableWithArgs<TestService, typeof schema>
         {
@@ -384,6 +386,7 @@ describe('Container', () => {
         )
 
         @Factory({ token, registry })
+        // oxlint-disable-next-line no-unused-vars
         class CustomFactory implements Factorable<TestService> {
           async create() {
             return new TestService('custom')
@@ -437,6 +440,7 @@ describe('Container', () => {
         )
 
         @Factory({ token, registry })
+        // oxlint-disable-next-line no-unused-vars
         class FactoryService
           implements FactorableWithArgs<TestService, typeof schema>
         {
@@ -581,7 +585,7 @@ describe('Container', () => {
 
       @Factory({ registry })
       class DatabaseFactory implements Factorable<DatabaseService> {
-        async create(ctx: any) {
+        async create() {
           const db = new DatabaseService()
           await db.connect()
           return db
@@ -590,7 +594,7 @@ describe('Container', () => {
 
       @Injectable({ registry })
       class AppService {
-        database = inject(DatabaseService)
+        database = inject(DatabaseFactory)
       }
 
       const app = await container.get(AppService)

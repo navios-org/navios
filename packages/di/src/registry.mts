@@ -1,6 +1,3 @@
-import type { z, ZodObject } from 'zod/v4'
-
-import type { FactoryContext } from './factory-context.mjs'
 import type { ClassType, InjectionToken } from './injection-token.mjs'
 
 import { InjectableScope, InjectableType } from './enums/index.mjs'

@@ -15,6 +15,14 @@
         "cwd": "packages/react-query"
       }
     },
+    "lint": {
+      "executor": "nx:run-commands",
+      "inputs": ["^projectSources", "project"],
+      "options": {
+        "command": "oxlint --fix",
+        "cwd": "packages/react-query"
+      }
+    },
     "test:ci": {
       "executor": "nx:run-commands",
       "inputs": ["^projectSources", "project"],
@@ -27,7 +35,7 @@
       "executor": "nx:run-commands",
       "inputs": ["projectSources"],
       "outputs": ["{projectRoot}/lib"],
-      "dependsOn": ["check", "test:ci"],
+      "dependsOn": ["check", "test:ci", "lint"],
       "options": {
         "command": "tsup",
         "cwd": "packages/react-query"

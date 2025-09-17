@@ -4,15 +4,12 @@ import { z } from 'zod/v4'
 import { Injectable } from '../decorators/index.mjs'
 import {
   Container,
-  globalRegistry,
+  inject,
   InjectableScope,
   Registry,
-  ServiceLocator,
   syncInject,
 } from '../index.mjs'
 import { InjectionToken } from '../injection-token.mjs'
-import { dangerouslySetGlobalFactoryContext, inject } from '../injector.mjs'
-import { getInjectableToken } from '../utils/index.mjs'
 
 describe('Injectable decorator', () => {
   let container: Container

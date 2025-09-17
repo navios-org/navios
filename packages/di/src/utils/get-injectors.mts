@@ -9,51 +9,9 @@ import type {
   InjectionTokenSchemaType,
 } from '../injection-token.mjs'
 import type { Factorable } from '../interfaces/factory.interface.mjs'
-import type { ServiceLocator } from '../service-locator.mjs'
+import type { InjectState, Join, UnionToArray } from './types.mjs'
 
 import { InjectableTokenMeta } from '../symbols/index.mjs'
-
-type Join<TElements, TSeparator extends string> =
-  TElements extends Readonly<[infer First, ...infer Rest]>
-    ? Rest extends ReadonlyArray<string>
-      ? First extends string
-        ? `${First}${Rest extends [] ? '' : TSeparator}${Join<Rest, TSeparator>}`
-        : never
-      : never
-    : ''
-// credits goes to https://stackoverflow.com/a/50375286
-type UnionToIntersection<U> = (U extends any ? (k: U) => void : never) extends (
-  k: infer I,
-) => void
-  ? I
-  : never
-
-// Converts union to overloaded function
-type UnionToOvlds<U> = UnionToIntersection<
-  U extends any ? (f: U) => void : never
->
-
-type PopUnion<U> = UnionToOvlds<U> extends (a: infer A) => void ? A : never
-
-type IsUnion<T> = [T] extends [UnionToIntersection<T>] ? false : true
-
-type UnionToArray<T, A extends unknown[] = []> =
-  IsUnion<T> extends true
-    ? UnionToArray<Exclude<T, PopUnion<T>>, [PopUnion<T>, ...A]>
-    : [T, ...A]
-
-export interface InjectState {
-  currentIndex: number
-  isFrozen: boolean
-  requests: {
-    token:
-      | InjectionToken<any>
-      | BoundInjectionToken<any, any>
-      | FactoryInjectionToken<any, any>
-      | ClassType
-    promise: Promise<any>
-  }[]
-}
 
 export interface Injectors {
   // #1 Simple class

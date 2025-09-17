@@ -53,7 +53,7 @@ export interface ServiceLocatorInstanceHolderDestroying<Instance> {
   ttl: number
 }
 
-export interface ServiceLocatorInstanceHolderError<Instance> {
+export interface ServiceLocatorInstanceHolderError {
   status: ServiceLocatorInstanceHolderStatus.Error
   name: string
   instance: Error
@@ -71,4 +71,4 @@ export type ServiceLocatorInstanceHolder<Instance = unknown> =
   | ServiceLocatorInstanceHolderCreating<Instance>
   | ServiceLocatorInstanceHolderCreated<Instance>
   | ServiceLocatorInstanceHolderDestroying<Instance>
-  | ServiceLocatorInstanceHolderError<Instance>
+  | ServiceLocatorInstanceHolderError

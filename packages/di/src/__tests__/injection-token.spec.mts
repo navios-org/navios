@@ -4,10 +4,8 @@ import { z } from 'zod/v4'
 import type { Factorable, FactorableWithArgs } from '../interfaces/index.mjs'
 
 import { Factory, Injectable } from '../decorators/index.mjs'
-import { Container, globalRegistry } from '../index.mjs'
+import { Container } from '../index.mjs'
 import { InjectionToken } from '../injection-token.mjs'
-import { dangerouslySetGlobalFactoryContext, inject } from '../injector.mjs'
-import { ServiceLocator } from '../service-locator.mjs'
 
 describe('InjectToken', () => {
   let container: Container
@@ -70,6 +68,7 @@ describe('InjectToken', () => {
     @Factory({
       token,
     })
+    // oxlint-disable-next-line no-unused-vars
     class Test implements FactorableWithArgs<string, typeof schema> {
       async create(ctx: any, args: { test: string }) {
         return args.test

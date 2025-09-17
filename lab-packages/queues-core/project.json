@@ -15,11 +15,19 @@
         "cwd": "lab-packages/queues-core"
       }
     },
+    "lint": {
+      "executor": "nx:run-commands",
+      "inputs": ["^projectSources", "project"],
+      "options": {
+        "command": "oxlint --fix",
+        "cwd": "lab-packages/queues-core"
+      }
+    },
     "build": {
       "executor": "nx:run-commands",
       "inputs": ["projectSources"],
       "outputs": ["{projectRoot}/lib"],
-      "dependsOn": ["check"],
+      "dependsOn": ["check", "lint"],
       "options": {
         "command": "tsup",
         "cwd": "lab-packages/queues-core"

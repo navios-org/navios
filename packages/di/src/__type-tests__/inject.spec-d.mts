@@ -17,8 +17,8 @@ const simpleOptionalObjectSchema = z
     foo: z.string(),
   })
   .optional()
-const simpleRecordSchema = z.record(z.string(), z.string())
-const simpleOptionalRecordSchema = z.record(z.string(), z.string()).optional()
+// const simpleRecordSchema = z.record(z.string(), z.string())
+// const simpleOptionalRecordSchema = z.record(z.string(), z.string()).optional()
 
 const typelessObjectToken = InjectionToken.create(
   Symbol.for('Typeless object token'),
@@ -28,14 +28,14 @@ const typelessOptionalObjectToken = InjectionToken.create(
   Symbol.for('Typeless optional object token'),
   simpleOptionalObjectSchema,
 )
-const typelessRecordToken = InjectionToken.create(
-  Symbol.for('Typeless record token'),
-  simpleRecordSchema,
-)
-const typelessOptionalRecordToken = InjectionToken.create(
-  Symbol.for('Typeless optional record token'),
-  simpleOptionalRecordSchema,
-)
+// const typelessRecordToken = InjectionToken.create(
+//   Symbol.for('Typeless record token'),
+//   simpleRecordSchema,
+// )
+// const typelessOptionalRecordToken = InjectionToken.create(
+//   Symbol.for('Typeless optional record token'),
+//   simpleOptionalRecordSchema,
+// )
 
 const typedObjectToken = InjectionToken.create<
   FooService,
@@ -45,14 +45,14 @@ const typedOptionalObjectToken = InjectionToken.create<
   FooService,
   typeof simpleOptionalObjectSchema
 >(Symbol.for('Typed optional object token'), simpleOptionalObjectSchema)
-const typedRecordToken = InjectionToken.create<
-  FooService,
-  typeof simpleRecordSchema
->(Symbol.for('Typed record token'), simpleRecordSchema)
-const typedOptionalRecordToken = InjectionToken.create<
-  FooService,
-  typeof simpleOptionalRecordSchema
->(Symbol.for('Typed optional record token'), simpleOptionalRecordSchema)
+// const typedRecordToken = InjectionToken.create<
+//   FooService,
+//   typeof simpleRecordSchema
+// >(Symbol.for('Typed record token'), simpleRecordSchema)
+// const typedOptionalRecordToken = InjectionToken.create<
+//   FooService,
+//   typeof simpleOptionalRecordSchema
+// >(Symbol.for('Typed optional record token'), simpleOptionalRecordSchema)
 
 const typedToken = InjectionToken.create<FooService>(Symbol.for('Typed token'))
 
