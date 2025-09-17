@@ -11,6 +11,7 @@ import type {
   OptionalInjectionTokenSchemaType,
 } from './injection-token.mjs'
 import type { Registry } from './registry.mjs'
+import type { RequestContextHolder } from './request-context-holder.mjs'
 import type { ServiceLocatorInstanceHolder } from './service-locator-instance-holder.mjs'
 import type { Injectors } from './utils/index.mjs'
 
@@ -28,6 +29,7 @@ import {
 } from './injection-token.mjs'
 import { defaultInjectors } from './injector.mjs'
 import { globalRegistry } from './registry.mjs'
+import { DefaultRequestContextHolder } from './request-context-holder.mjs'
 import { ServiceInstantiator } from './service-instantiator.mjs'
 import { ServiceLocatorEventBus } from './service-locator-event-bus.mjs'
 import { ServiceLocatorInstanceHolderStatus } from './service-locator-instance-holder.mjs'
@@ -38,6 +40,8 @@ export class ServiceLocator {
   private readonly eventBus: ServiceLocatorEventBus
   private readonly manager: ServiceLocatorManager
   private readonly serviceInstantiator: ServiceInstantiator
+  private readonly requestContexts = new Map<string, RequestContextHolder>()
+  private currentRequestContext: RequestContextHolder | null = null
 
   constructor(
     private readonly registry: Registry = globalRegistry,
@@ -129,6 +133,12 @@ export class ServiceLocator {
       return null
     }
     const instanceName = this.generateInstanceName(actualToken, validatedArgs)
+    if (this.currentRequestContext) {
+      const requestHolder = this.currentRequestContext.getHolder(instanceName)
+      if (requestHolder) {
+        return requestHolder.instance as Instance
+      }
+    }
     const [error, holder] = this.manager.get(instanceName)
     if (error) {
       return null
@@ -198,6 +208,100 @@ export class ServiceLocator {
         return Promise.resolve(null)
       }),
     ).then(() => null)
+  }
+
+  // ============================================================================
+  // REQUEST CONTEXT MANAGEMENT
+  // ============================================================================
+
+  /**
+   * Begins a new request context with the given parameters.
+   * @param requestId Unique identifier for this request
+   * @param metadata Optional metadata for the request
+   * @param priority Priority for resolution (higher = more priority)
+   * @returns The created request context holder
+   */
+  beginRequest(
+    requestId: string,
+    metadata?: Record<string, any>,
+    priority: number = 100,
+  ): RequestContextHolder {
+    if (this.requestContexts.has(requestId)) {
+      throw new Error(
+        `[ServiceLocator] Request context ${requestId} already exists`,
+      )
+    }
+
+    const contextHolder = new DefaultRequestContextHolder(
+      requestId,
+      priority,
+      metadata,
+    )
+    this.requestContexts.set(requestId, contextHolder)
+    this.currentRequestContext = contextHolder
+
+    this.logger?.log(`[ServiceLocator] Started request context: ${requestId}`)
+    return contextHolder
+  }
+
+  /**
+   * Ends a request context and cleans up all associated instances.
+   * @param requestId The request ID to end
+   */
+  async endRequest(requestId: string): Promise<void> {
+    const contextHolder = this.requestContexts.get(requestId)
+    if (!contextHolder) {
+      this.logger?.warn(
+        `[ServiceLocator] Request context ${requestId} not found`,
+      )
+      return
+    }
+
+    this.logger?.log(`[ServiceLocator] Ending request context: ${requestId}`)
+
+    // Clean up all request-scoped instances
+    const cleanupPromises: Promise<any>[] = []
+    for (const [, holder] of contextHolder.holders) {
+      if (holder.destroyListeners.length > 0) {
+        cleanupPromises.push(
+          Promise.all(holder.destroyListeners.map((listener) => listener())),
+        )
+      }
+    }
+
+    await Promise.all(cleanupPromises)
+
+    // Clear the context
+    contextHolder.clear()
+    this.requestContexts.delete(requestId)
+
+    // Reset current context if it was the one being ended
+    if (this.currentRequestContext === contextHolder) {
+      this.currentRequestContext =
+        Array.from(this.requestContexts.values()).at(-1) ?? null
+    }
+
+    this.logger?.log(`[ServiceLocator] Request context ${requestId} ended`)
+  }
+
+  /**
+   * Gets the current request context.
+   * @returns The current request context holder or null
+   */
+  getCurrentRequestContext(): RequestContextHolder | null {
+    return this.currentRequestContext
+  }
+
+  /**
+   * Sets the current request context.
+   * @param requestId The request ID to set as current
+   */
+  setCurrentRequestContext(requestId: string): void {
+    const contextHolder = this.requestContexts.get(requestId)
+    if (!contextHolder) {
+      throw new Error(`[ServiceLocator] Request context ${requestId} not found`)
+    }
+    this.currentRequestContext = contextHolder
   }
 
   // ============================================================================
@@ -296,6 +400,38 @@ export class ServiceLocator {
     | [undefined, ServiceLocatorInstanceHolder<any>]
     | [UnknownError | FactoryNotFound]
   > {
+    // Check if this is a request-scoped service and we have a current request context
+    if (this.registry.has(realToken)) {
+      const record = this.registry.get(realToken)
+      if (record.scope === InjectableScope.Request) {
+        if (!this.currentRequestContext) {
+          this.logger?.log(
+            `[ServiceLocator]#retrieveOrCreateInstanceByInstanceName() No current request context available for request-scoped service ${instanceName}`,
+          )
+          return [new UnknownError(ErrorsEnum.InstanceNotFound)]
+        }
+        const requestHolder = this.currentRequestContext.getHolder(instanceName)
+        if (requestHolder) {
+          if (
+            requestHolder.status === ServiceLocatorInstanceHolderStatus.Creating
+          ) {
+            await requestHolder.creationPromise
+            return this.retrieveOrCreateInstanceByInstanceName(
+              instanceName,
+              realToken,
+              realArgs,
+            )
+          } else if (
+            requestHolder.status ===
+            ServiceLocatorInstanceHolderStatus.Destroying
+          ) {
+            return [new UnknownError(ErrorsEnum.InstanceDestroying)]
+          }
+          return [undefined, requestHolder]
+        }
+      }
+    }
+
     const [error, holder] = this.manager.get(instanceName)
     if (!error) {
       if (holder.status === ServiceLocatorInstanceHolderStatus.Creating) {
@@ -423,7 +559,9 @@ export class ServiceLocator {
     this.logger?.log(
       `[ServiceLocator]#instantiateServiceFromRegistry(): Creating instance for ${instanceName} from abstract factory`,
     )
-    const ctx = this.createFactoryContext()
+    const ctx = this.createFactoryContext(
+      this.currentRequestContext || undefined,
+    )
     let record = this.registry.get<Instance, Schema>(token)
     let { scope, type } = record
 
@@ -488,6 +626,20 @@ export class ServiceLocator {
         `[ServiceLocator]#instantiateServiceFromRegistry(): Setting instance for ${instanceName}`,
       )
       this.manager.set(instanceName, holder)
+    } else if (
+      scope === InjectableScope.Request &&
+      this.currentRequestContext
+    ) {
+      this.logger?.debug(
+        `[ServiceLocator]#instantiateServiceFromRegistry(): Setting request-scoped instance for ${instanceName}`,
+      )
+      // For request-scoped services, we don't store them in the global manager
+      // They will be managed by the request context holder
+      this.currentRequestContext.addInstance(
+        instanceName,
+        holder.instance,
+        holder,
+      )
     }
     // @ts-expect-error TS2322 This is correct type
     return [undefined, holder]
@@ -495,8 +647,11 @@ export class ServiceLocator {
 
   /**
    * Creates a factory context for dependency injection during service instantiation.
+   * @param contextHolder Optional request context holder for priority-based resolution
    */
-  private createFactoryContext(): FactoryContext & {
+  private createFactoryContext(
+    contextHolder?: RequestContextHolder,
+  ): FactoryContext & {
     getDestroyListeners: () => (() => void)[]
     deps: Set<string>
   } {
@@ -516,6 +671,37 @@ export class ServiceLocator {
     return {
       // @ts-expect-error This is correct type
       async inject(token, args) {
+        // 1. Check RequestContextHolder first (if provided and has higher priority)
+        if (contextHolder && contextHolder.priority > 0) {
+          const instanceName = self.generateInstanceName(token, args)
+          const prePreparedInstance = contextHolder.getInstance(instanceName)
+          if (prePreparedInstance !== undefined) {
+            self.logger?.debug(
+              `[ServiceLocator] Using pre-prepared instance ${instanceName} from request context ${contextHolder.requestId}`,
+            )
+            deps.add(instanceName)
+            return prePreparedInstance
+          }
+        }
+
+        // 2. Check current request context (if different from provided contextHolder)
+        if (
+          self.currentRequestContext &&
+          self.currentRequestContext !== contextHolder
+        ) {
+          const instanceName = self.generateInstanceName(token, args)
+          const prePreparedInstance =
+            self.currentRequestContext.getInstance(instanceName)
+          if (prePreparedInstance !== undefined) {
+            self.logger?.debug(
+              `[ServiceLocator] Using pre-prepared instance ${instanceName} from current request context ${self.currentRequestContext.requestId}`,
+            )
+            deps.add(instanceName)
+            return prePreparedInstance
+          }
+        }
+
+        // 3. Fall back to normal resolution
         const [error, instance] = await self.getInstance(
           token,
           args,

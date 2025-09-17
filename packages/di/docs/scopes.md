@@ -4,10 +4,11 @@ Service scopes determine the lifetime and sharing behavior of service instances 
 
 ## Overview
 
-Navios DI supports two service scopes:
+Navios DI supports three service scopes:
 
 - **Singleton**: One instance shared across the entire application
 - **Transient**: New instance created for each injection
+- **Request**: One instance shared within a request context, isolated between requests
 
 ## Singleton Scope
 
@@ -201,6 +202,136 @@ console.log(result1.requestId) // Different ID
 console.log(result2.requestId) // Different ID
 ```
 
+## Request Scope
+
+Request scope creates one instance per request context and shares it within that request. This is ideal for web applications where you need request-specific data that should be isolated between different requests.
+
+### Basic Usage
+
+```typescript
+import { Injectable, InjectableScope } from '@navios/di'
+
+@Injectable({ scope: InjectableScope.Request })
+class RequestContext {
+  private readonly requestId = Math.random().toString(36)
+  private readonly startTime = Date.now()
+  private readonly userId: string
+
+  constructor(userId: string) {
+    this.userId = userId
+  }
+
+  getRequestId() {
+    return this.requestId
+  }
+
+  getDuration() {
+    return Date.now() - this.startTime
+  }
+
+  getUserId() {
+    return this.userId
+  }
+}
+```
+
+### Request Context Management
+
+```typescript
+import { Container } from '@navios/di'
+
+const container = new Container()
+
+// Begin a request context
+const requestId = 'req-123'
+container.beginRequest(requestId, { userId: 'user123' })
+
+// All injections within this request will share the same Request-scoped instances
+const context1 = await container.get(RequestContext)
+const context2 = await container.get(RequestContext)
+
+console.log(context1 === context2) // true - same instance within request
+
+// End the request context (cleans up all request-scoped instances)
+await container.endRequest(requestId)
+```
+
+### Request Scope with Dependencies
+
+```typescript
+import { inject, Injectable, InjectableScope } from '@navios/di'
+
+@Injectable()
+class LoggerService {
+  log(message: string) {
+    console.log(`[LOG] ${message}`)
+  }
+}
+
+@Injectable({ scope: InjectableScope.Request })
+class UserSession {
+  private readonly logger = inject(LoggerService)
+  private readonly sessionId = Math.random().toString(36)
+  private readonly userId: string
+
+  constructor(userId: string) {
+    this.userId = userId
+  }
+
+  async logActivity(activity: string) {
+    const logger = await this.logger
+    logger.log(`User ${this.userId}: ${activity}`)
+  }
+
+  getSessionId() {
+    return this.sessionId
+  }
+}
+
+@Injectable({ scope: InjectableScope.Request })
+class OrderService {
+  private readonly userSession = inject(UserSession)
+  private orders: string[] = []
+
+  async createOrder(productName: string) {
+    const session = await this.userSession
+    const orderId = `order_${Math.random().toString(36)}`
+
+    this.orders.push(orderId)
+    await session.logActivity(`Created order ${orderId} for ${productName}`)
+
+    return { orderId, userId: session.getSessionId() }
+  }
+}
+```
+
+### Request Context Switching
+
+You can manage multiple request contexts and switch between them:
+
+```typescript
+const container = new Container()
+
+// Start multiple requests
+container.beginRequest('req-1', { userId: 'user1' })
+container.beginRequest('req-2', { userId: 'user2' })
+
+// Switch to request 1
+container.setCurrentRequestContext('req-1')
+const context1 = await container.get(RequestContext)
+
+// Switch to request 2
+container.setCurrentRequestContext('req-2')
+const context2 = await container.get(RequestContext)
+
+// Different instances for different requests
+console.log(context1 !== context2) // true
+
+// Clean up
+await container.endRequest('req-1')
+await container.endRequest('req-2')
+```
+
 ## Scope Compatibility
 
 ### Injection Method Compatibility
@@ -209,6 +340,7 @@ console.log(result2.requestId) // Different ID
 | --------- | ---------------- | ------------ |
 | Singleton | ✅ Supported     | ✅ Supported |
 | Transient | ❌ Not Supported | ✅ Supported |
+| Request   | ✅ Supported     | ✅ Supported |
 
 ### Why inject Doesn't Work with Transient
 
@@ -599,6 +731,7 @@ class TransientService implements OnServiceDestroy {
 enum InjectableScope {
   Singleton = 'Singleton', // One instance shared across the application
   Transient = 'Transient', // New instance created for each injection
+  Request = 'Request', // One instance shared within a request context
 }
 ```
 
@@ -610,4 +743,7 @@ class SingletonService {}
 
 @Injectable({ scope: InjectableScope.Transient })
 class TransientService {}
+
+@Injectable({ scope: InjectableScope.Request })
+class RequestService {}
 ```

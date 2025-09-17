@@ -9,6 +9,7 @@ import type {
 } from './injection-token.mjs'
 import type { Factorable } from './interfaces/factory.interface.mjs'
 import type { Registry } from './registry.mjs'
+import type { RequestContextHolder } from './request-context-holder.mjs'
 import type { Injectors } from './utils/index.mjs'
 import type { Join, UnionToArray } from './utils/types.mjs'
 
@@ -119,5 +120,48 @@ export class Container {
    */
   async ready(): Promise<void> {
     await this.serviceLocator.ready()
+  }
+
+  // ============================================================================
+  // REQUEST CONTEXT MANAGEMENT
+  // ============================================================================
+
+  /**
+   * Begins a new request context with the given parameters.
+   * @param requestId Unique identifier for this request
+   * @param metadata Optional metadata for the request
+   * @param priority Priority for resolution (higher = more priority)
+   * @returns The created request context holder
+   */
+  beginRequest(
+    requestId: string,
+    metadata?: Record<string, any>,
+    priority: number = 100,
+  ): RequestContextHolder {
+    return this.serviceLocator.beginRequest(requestId, metadata, priority)
+  }
+
+  /**
+   * Ends a request context and cleans up all associated instances.
+   * @param requestId The request ID to end
+   */
+  async endRequest(requestId: string): Promise<void> {
+    await this.serviceLocator.endRequest(requestId)
+  }
+
+  /**
+   * Gets the current request context.
+   * @returns The current request context holder or null
+   */
+  getCurrentRequestContext(): RequestContextHolder | null {
+    return this.serviceLocator.getCurrentRequestContext()
+  }
+
+  /**
+   * Sets the current request context.
+   * @param requestId The request ID to set as current
+   */
+  setCurrentRequestContext(requestId: string): void {
+    this.serviceLocator.setCurrentRequestContext(requestId)
   }
 }
