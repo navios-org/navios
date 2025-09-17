@@ -4,7 +4,7 @@ import { z } from 'zod/v4'
 import type { Factorable, FactorableWithArgs } from '../interfaces/index.mjs'
 
 import { Factory, Injectable } from '../decorators/index.mjs'
-import { Container, inject } from '../index.mjs'
+import { Container } from '../index.mjs'
 import { InjectionToken } from '../injection-token.mjs'
 
 describe('InjectToken', () => {
