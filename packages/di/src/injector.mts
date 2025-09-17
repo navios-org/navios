@@ -2,13 +2,14 @@ import type { Injectors } from './utils/index.mjs'
 
 import { getInjectors } from './utils/index.mjs'
 
-const values = getInjectors()
+export const defaultInjectors = getInjectors()
 
-export const inject: Injectors['inject'] = values.inject
+export const inject: Injectors['inject'] = defaultInjectors.inject
 
-export const syncInject: Injectors['syncInject'] = values.syncInject
+export const syncInject: Injectors['syncInject'] = defaultInjectors.syncInject
 
-export const wrapSyncInit: Injectors['wrapSyncInit'] = values.wrapSyncInit
+export const wrapSyncInit: Injectors['wrapSyncInit'] =
+  defaultInjectors.wrapSyncInit
 
 export const provideFactoryContext: Injectors['provideFactoryContext'] =
-  values.provideFactoryContext
+  defaultInjectors.provideFactoryContext

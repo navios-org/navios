@@ -9,10 +9,12 @@ import type {
 } from './injection-token.mjs'
 import type { Factorable } from './interfaces/factory.interface.mjs'
 import type { Registry } from './registry.mjs'
+import type { Injectors } from './utils/index.mjs'
 import type { Join, UnionToArray } from './utils/types.mjs'
 
 import { Injectable } from './decorators/injectable.decorator.mjs'
 import { InjectableScope, InjectableType } from './enums/index.mjs'
+import { defaultInjectors } from './injector.mjs'
 import { globalRegistry } from './registry.mjs'
 import { ServiceLocator } from './service-locator.mjs'
 import { getInjectableToken } from './utils/get-injectable-token.mjs'
@@ -28,20 +30,23 @@ export class Container {
   constructor(
     registry: Registry = globalRegistry,
     logger: Console | null = null,
+    injectors: Injectors = defaultInjectors,
   ) {
-    this.serviceLocator = new ServiceLocator(registry, logger)
+    this.serviceLocator = new ServiceLocator(registry, logger, injectors)
     this.registerSelf()
   }
 
   private registerSelf() {
     const token = getInjectableToken(Container)
     const instanceName = this.serviceLocator.getInstanceIdentifier(token)
-    this.serviceLocator['manager'].storeCreatedHolder(
-      instanceName,
-      this,
-      InjectableType.Class,
-      InjectableScope.Singleton,
-    )
+    this.serviceLocator
+      .getManager()
+      .storeCreatedHolder(
+        instanceName,
+        this,
+        InjectableType.Class,
+        InjectableScope.Singleton,
+      )
   }
 
   /**
@@ -97,9 +102,9 @@ export class Container {
    * Invalidates a service and its dependencies
    */
   async invalidate(service: unknown): Promise<void> {
-    const holderMap = this.serviceLocator['manager'].filter(
-      (holder) => holder.instance === service,
-    )
+    const holderMap = this.serviceLocator
+      .getManager()
+      .filter((holder) => holder.instance === service)
     if (holderMap.size === 0) {
       return
     }

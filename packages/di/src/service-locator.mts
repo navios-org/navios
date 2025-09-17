@@ -12,6 +12,7 @@ import type {
 } from './injection-token.mjs'
 import type { Registry } from './registry.mjs'
 import type { ServiceLocatorInstanceHolder } from './service-locator-instance-holder.mjs'
+import type { Injectors } from './utils/index.mjs'
 
 import { InjectableScope } from './enums/index.mjs'
 import {
@@ -25,6 +26,7 @@ import {
   FactoryInjectionToken,
   InjectionToken,
 } from './injection-token.mjs'
+import { defaultInjectors } from './injector.mjs'
 import { globalRegistry } from './registry.mjs'
 import { ServiceInstantiator } from './service-instantiator.mjs'
 import { ServiceLocatorEventBus } from './service-locator-event-bus.mjs'
@@ -40,10 +42,11 @@ export class ServiceLocator {
   constructor(
     private readonly registry: Registry = globalRegistry,
     private readonly logger: Console | null = null,
+    private readonly injectors: Injectors = defaultInjectors,
   ) {
     this.eventBus = new ServiceLocatorEventBus(logger)
     this.manager = new ServiceLocatorManager(logger)
-    this.serviceInstantiator = new ServiceInstantiator(registry)
+    this.serviceInstantiator = new ServiceInstantiator(injectors)
   }
 
   // ============================================================================
@@ -52,6 +55,10 @@ export class ServiceLocator {
 
   getEventBus() {
     return this.eventBus
+  }
+
+  getManager() {
+    return this.manager
   }
 
   public getInstanceIdentifier(token: AnyInjectableType, args?: any): string {

@@ -1,15 +1,15 @@
 import type { FactoryContext } from './factory-context.mjs'
-import type { FactoryRecord, Registry } from './registry.mjs'
+import type { FactoryRecord } from './registry.mjs'
+import type { Injectors } from './utils/get-injectors.mjs'
 
 import { InjectableType } from './enums/index.mjs'
-import { provideFactoryContext, wrapSyncInit } from './injector.mjs'
 
 /**
  * ServiceInstantiator handles the instantiation of services based on registry records.
  * It replaces the hard-coded logic in Injectable and Factory decorators.
  */
 export class ServiceInstantiator {
-  constructor(private readonly registry: Registry) {}
+  constructor(private readonly injectors: Injectors) {}
 
   /**
    * Instantiates a service based on its registry record.
@@ -52,10 +52,10 @@ export class ServiceInstantiator {
     args: any,
   ): Promise<[undefined, T] | [Error]> {
     try {
-      const tryLoad = wrapSyncInit(() => {
-        const original = provideFactoryContext(ctx)
+      const tryLoad = this.injectors.wrapSyncInit(() => {
+        const original = this.injectors.provideFactoryContext(ctx)
         let result = new record.target(...(args ? [args] : []))
-        provideFactoryContext(original)
+        this.injectors.provideFactoryContext(original)
         return result
       })
 
@@ -112,10 +112,10 @@ export class ServiceInstantiator {
     args: any,
   ): Promise<[undefined, T] | [Error]> {
     try {
-      const tryLoad = wrapSyncInit(() => {
-        const original = provideFactoryContext(ctx)
+      const tryLoad = this.injectors.wrapSyncInit(() => {
+        const original = this.injectors.provideFactoryContext(ctx)
         let result = new record.target()
-        provideFactoryContext(original)
+        this.injectors.provideFactoryContext(original)
         return result
       })
 

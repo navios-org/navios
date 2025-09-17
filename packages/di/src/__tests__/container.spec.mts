@@ -11,6 +11,7 @@ import { Container } from '../container.mjs'
 import { Factory } from '../decorators/factory.decorator.mjs'
 import { Injectable } from '../decorators/injectable.decorator.mjs'
 import { InjectableScope } from '../enums/injectable-scope.enum.mjs'
+import { getInjectors } from '../index.mjs'
 import { InjectionToken } from '../injection-token.mjs'
 import { inject, syncInject } from '../injector.mjs'
 import { Registry } from '../registry.mjs'
@@ -1276,6 +1277,25 @@ describe('Container', () => {
         // This should throw during instantiation, not during get()
         await expect(container.get(ServiceWithUnregistered)).rejects.toThrow()
       })
+    })
+  })
+  describe('custom injectors', () => {
+    it('should work with custom injectors', async () => {
+      const injectors = getInjectors()
+      const container = new Container(registry, mockLogger, injectors)
+      expect(container).toBeInstanceOf(Container)
+      const { syncInject } = injectors
+      @Injectable({ registry })
+      class TestService {
+        test = 'a'
+      }
+      @Injectable({ registry })
+      class TestService2 {
+        test = syncInject(TestService)
+      }
+      const instance = await container.get(TestService2)
+      expect(instance).toBeInstanceOf(TestService2)
+      expect(instance.test.test).toBe('a')
     })
   })
 })
