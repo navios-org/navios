@@ -7,9 +7,9 @@ import type {
 import {
   Controller,
   Endpoint,
+  inject,
   Logger,
   Multipart,
-  syncInject,
   UseGuards,
 } from '../../../../src/index.mjs'
 import {
@@ -26,8 +26,8 @@ import { UserService } from './user.service.mjs'
 @UseGuards(AclGuard)
 @Controller()
 export class UserController {
-  userService = syncInject(UserService)
-  logger = syncInject(Logger, {
+  userService = inject(UserService)
+  logger = inject(Logger, {
     context: UserController.name,
   })
 

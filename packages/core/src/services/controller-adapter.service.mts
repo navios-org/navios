@@ -114,7 +114,7 @@ export class ControllerAdapterService {
       try {
         return await handler(requestContext, request, reply)
       } finally {
-        this.container.endRequest(request.id)
+        await this.container.endRequest(request.id)
       }
     }
   }

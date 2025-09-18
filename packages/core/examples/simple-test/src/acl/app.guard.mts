@@ -2,15 +2,15 @@ import type { CanActivate, ExecutionContext } from '../../../../src/index.mjs'
 
 import {
   AttributeFactory,
+  inject,
   Injectable,
   Logger,
-  syncInject,
 } from '../../../../src/index.mjs'
 import { Public } from './public.attribute.mjs'
 
 @Injectable()
 export class AppGuard implements CanActivate {
-  logger = syncInject(Logger, {
+  logger = inject(Logger, {
     context: AppGuard.name,
   })
 

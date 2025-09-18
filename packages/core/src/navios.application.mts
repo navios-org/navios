@@ -53,6 +53,7 @@ export class NaviosApplication {
     context: NaviosApplication.name,
   })
   protected container = inject(Container)
+
   private server: FastifyInstance | null = null
   private corsOptions: FastifyCorsOptions | null = null
   private multipartOptions: FastifyMultipartOptions | true | null = null
@@ -69,6 +70,10 @@ export class NaviosApplication {
   ) {
     this.appModule = appModule
     this.options = options
+  }
+
+  getContainer() {
+    return this.container
   }
 
   async init() {
