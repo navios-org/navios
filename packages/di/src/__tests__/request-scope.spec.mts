@@ -4,6 +4,7 @@ import { Container } from '../container.mjs'
 import { Injectable } from '../decorators/injectable.decorator.mjs'
 import { InjectableScope } from '../enums/index.mjs'
 import { inject } from '../index.mjs'
+import { InjectionToken } from '../injection-token.mjs'
 import { Registry } from '../registry.mjs'
 import { createRequestContextHolder } from '../request-context-holder.mjs'
 
@@ -258,6 +259,169 @@ describe('Request Scope', () => {
 
       holder.clear()
       expect(holder.getMetadata('key1')).toBeUndefined()
+    })
+
+    it('should store instances by InjectionToken', () => {
+      const holder = createRequestContextHolder('test-request')
+      const token = InjectionToken.create<string>('TestService')
+      const instance = { id: 'test-instance', data: 'test-data' }
+
+      // Store instance by InjectionToken
+      holder.addInstance(token, instance)
+
+      // Verify instance is stored and retrievable
+      expect(holder.hasInstance(token.toString())).toBe(true)
+      expect(holder.getInstance(token.toString())).toBe(instance)
+
+      // Verify holder is created with correct properties
+      const holderInfo = holder.getHolder(token.toString())
+      expect(holderInfo).toBeDefined()
+      expect(holderInfo?.instance).toBe(instance)
+      expect(holderInfo?.name).toBe(token.toString())
+    })
+
+    it('should store multiple instances by different InjectionTokens', () => {
+      const holder = createRequestContextHolder('test-request')
+
+      const token1 = InjectionToken.create<string>('Service1')
+      const token2 = InjectionToken.create<number>('Service2')
+      const token3 = InjectionToken.create<boolean>('Service3')
+
+      const instance1 = { id: 'instance1', type: 'string' }
+      const instance2 = { id: 'instance2', type: 'number' }
+      const instance3 = { id: 'instance3', type: 'boolean' }
+
+      // Store multiple instances
+      holder.addInstance(token1, instance1)
+      holder.addInstance(token2, instance2)
+      holder.addInstance(token3, instance3)
+
+      // Verify all instances are stored correctly
+      expect(holder.hasInstance(token1.toString())).toBe(true)
+      expect(holder.hasInstance(token2.toString())).toBe(true)
+      expect(holder.hasInstance(token3.toString())).toBe(true)
+
+      expect(holder.getInstance(token1.toString())).toBe(instance1)
+      expect(holder.getInstance(token2.toString())).toBe(instance2)
+      expect(holder.getInstance(token3.toString())).toBe(instance3)
+
+      // Verify each has its own holder
+      const holder1 = holder.getHolder(token1.toString())
+      const holder2 = holder.getHolder(token2.toString())
+      const holder3 = holder.getHolder(token3.toString())
+
+      expect(holder1?.instance).toBe(instance1)
+      expect(holder2?.instance).toBe(instance2)
+      expect(holder3?.instance).toBe(instance3)
+    })
+
+    it('should override instances stored by InjectionToken', () => {
+      const holder = createRequestContextHolder('test-request')
+      const token = InjectionToken.create<string>('TestService')
+
+      const originalInstance = { id: 'original', data: 'original-data' }
+      const newInstance = { id: 'new', data: 'new-data' }
+
+      // Store original instance
+      holder.addInstance(token, originalInstance)
+      expect(holder.getInstance(token.toString())).toBe(originalInstance)
+
+      // Override with new instance
+      holder.addInstance(token, newInstance)
+      expect(holder.getInstance(token.toString())).toBe(newInstance)
+      expect(holder.getInstance(token.toString())).not.toBe(originalInstance)
+
+      // Verify holder is updated
+      const holderInfo = holder.getHolder(token.toString())
+      expect(holderInfo?.instance).toBe(newInstance)
+    })
+
+    it('should handle InjectionToken with different name types', () => {
+      const holder = createRequestContextHolder('test-request')
+
+      // Test with string name
+      const stringToken = InjectionToken.create<string>('StringService')
+      const stringInstance = { type: 'string' }
+
+      // Test with symbol name
+      const symbolToken = InjectionToken.create<number>(Symbol('SymbolService'))
+      const symbolInstance = { type: 'symbol' }
+
+      // Test with class name
+      class TestClass {}
+      const classToken = InjectionToken.create(TestClass)
+      const classInstance = { type: 'class' }
+
+      holder.addInstance(stringToken, stringInstance)
+      holder.addInstance(symbolToken, symbolInstance)
+      holder.addInstance(classToken, classInstance)
+
+      expect(holder.getInstance(stringToken.toString())).toBe(stringInstance)
+      expect(holder.getInstance(symbolToken.toString())).toBe(symbolInstance)
+      expect(holder.getInstance(classToken.toString())).toBe(classInstance)
+    })
+
+    it('should clear instances stored by InjectionToken', () => {
+      const holder = createRequestContextHolder('test-request')
+      const token1 = InjectionToken.create<string>('Service1')
+      const token2 = InjectionToken.create<number>('Service2')
+
+      const instance1 = { id: 'instance1' }
+      const instance2 = { id: 'instance2' }
+
+      holder.addInstance(token1, instance1)
+      holder.addInstance(token2, instance2)
+
+      expect(holder.hasInstance(token1.toString())).toBe(true)
+      expect(holder.hasInstance(token2.toString())).toBe(true)
+
+      // Clear all instances
+      holder.clear()
+
+      expect(holder.hasInstance(token1.toString())).toBe(false)
+      expect(holder.hasInstance(token2.toString())).toBe(false)
+      expect(holder.getInstance(token1.toString())).toBeUndefined()
+      expect(holder.getInstance(token2.toString())).toBeUndefined()
+    })
+
+    it('should handle mixed storage by InjectionToken and string name', () => {
+      const holder = createRequestContextHolder('test-request')
+
+      const token = InjectionToken.create<string>('TokenService')
+      const tokenInstance = { id: 'token-instance' }
+
+      const stringName = 'string-service'
+      const stringInstance = { id: 'string-instance' }
+
+      // Store by InjectionToken
+      holder.addInstance(token, tokenInstance)
+
+      // Store by string name (requires holder)
+      const mockHolder = {
+        status: 'Created' as any,
+        name: stringName,
+        instance: stringInstance,
+        creationPromise: null,
+        destroyPromise: null,
+        type: 'Class' as any,
+        scope: 'Singleton' as any,
+        deps: new Set<string>(),
+        destroyListeners: [],
+        createdAt: Date.now(),
+        ttl: Infinity,
+      }
+      holder.addInstance(stringName, stringInstance, mockHolder)
+
+      // Verify both are stored correctly
+      expect(holder.hasInstance(token.toString())).toBe(true)
+      expect(holder.hasInstance(stringName)).toBe(true)
+
+      expect(holder.getInstance(token.toString())).toBe(tokenInstance)
+      expect(holder.getInstance(stringName)).toBe(stringInstance)
+
+      // Verify holders
+      expect(holder.getHolder(token.toString())?.instance).toBe(tokenInstance)
+      expect(holder.getHolder(stringName)?.instance).toBe(stringInstance)
     })
   })
 })

@@ -1,5 +1,9 @@
 import type { ServiceLocatorInstanceHolder } from './service-locator-instance-holder.mjs'
 
+import { InjectableScope, InjectableType } from './enums/index.mjs'
+import { InjectionToken } from './injection-token.mjs'
+import { ServiceLocatorInstanceHolderStatus } from './service-locator-instance-holder.mjs'
+
 /**
  * Request context holder that manages pre-prepared instances for a specific request.
  * This allows for efficient instantiation of request-scoped services.
@@ -44,6 +48,11 @@ export interface RequestContextHolder {
     instance: any,
     holder: ServiceLocatorInstanceHolder,
   ): void
+
+  /**
+   * Adds a pre-prepared instance to this context.
+   */
+  addInstance(token: InjectionToken<any, undefined>, instance: any): void
 
   /**
    * Gets a pre-prepared instance from this context.
@@ -98,12 +107,32 @@ export class DefaultRequestContextHolder implements RequestContextHolder {
   }
 
   addInstance(
-    instanceName: string,
+    instanceName: string | InjectionToken<any, undefined>,
     instance: any,
-    holder: ServiceLocatorInstanceHolder,
+    holder?: ServiceLocatorInstanceHolder,
   ): void {
-    this.instances.set(instanceName, instance)
-    this.holders.set(instanceName, holder)
+    if (instanceName instanceof InjectionToken) {
+      this.instances.set(instanceName.toString(), instance)
+      this.holders.set(instanceName.toString(), {
+        instance,
+        status: ServiceLocatorInstanceHolderStatus.Created,
+        creationPromise: null,
+        destroyPromise: null,
+        destroyListeners: [],
+        deps: new Set(),
+        name: instanceName.toString(),
+        type: InjectableType.Class,
+        scope: InjectableScope.Singleton,
+        createdAt: Date.now(),
+        ttl: Infinity,
+      })
+    } else {
+      if (!holder) {
+        throw new Error('Holder is required when adding an instance by name')
+      }
+      this.instances.set(instanceName, instance)
+      this.holders.set(instanceName, holder)
+    }
   }
 
   getInstance(instanceName: string): any | undefined {
