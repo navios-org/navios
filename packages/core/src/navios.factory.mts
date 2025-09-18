@@ -12,7 +12,7 @@ import type {
   NaviosApplicationOptions,
 } from './navios.application.mjs'
 
-import { defineFastifyEnvironment } from './index.mjs'
+import { defineFastifyEnvironment } from './adapter-fastify/index.mjs'
 import { ConsoleLogger, isNil, LoggerOutput } from './logger/index.mjs'
 import { NaviosApplication } from './navios.application.mjs'
 import { NaviosEnvironment } from './navios.environment.mjs'
@@ -29,7 +29,7 @@ export class NaviosFactory {
     await this.registerLoggerConfiguration(container, options)
     await this.registerEnvironment(container, environment)
     const app = await container.get(NaviosApplication)
-    app.setup(appModule, options)
+    await app.setup(appModule, options)
     return app
   }
 

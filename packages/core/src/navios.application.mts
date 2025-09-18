@@ -3,6 +3,7 @@ import type { ClassTypeWithInstance } from '@navios/di'
 import { Container, inject, Injectable } from '@navios/di'
 
 import type {
+  AbstractHttpAdapterInterface,
   AbstractHttpListenOptions,
   NaviosModule,
 } from './interfaces/index.mjs'
@@ -10,6 +11,7 @@ import type { LoggerService, LogLevel } from './logger/index.mjs'
 
 import { HttpAdapterToken } from './index.mjs'
 import { Logger } from './logger/index.mjs'
+import { NaviosEnvironment } from './navios.environment.mjs'
 import { ModuleLoaderService } from './services/index.mjs'
 
 export interface NaviosApplicationContextOptions {
@@ -27,8 +29,9 @@ export interface NaviosApplicationOptions
 
 @Injectable()
 export class NaviosApplication {
+  private environment = inject(NaviosEnvironment)
   private moduleLoader = inject(ModuleLoaderService)
-  private httpApplication = inject(HttpAdapterToken)
+  private httpApplication: AbstractHttpAdapterInterface<any> | null = null
   private logger = inject(Logger, {
     context: NaviosApplication.name,
   })
@@ -39,12 +42,15 @@ export class NaviosApplication {
 
   isInitialized = false
 
-  setup(
+  async setup(
     appModule: ClassTypeWithInstance<NaviosModule>,
     options: NaviosApplicationOptions = {},
   ) {
     this.appModule = appModule
     this.options = options
+    if (this.environment.hasHttpSetup()) {
+      this.httpApplication = await this.container.get(HttpAdapterToken)
+    }
   }
 
   getContainer() {
@@ -56,10 +62,14 @@ export class NaviosApplication {
       throw new Error('App module is not set. Call setAppModule() first.')
     }
     await this.moduleLoader.loadModules(this.appModule)
-    await this.httpApplication.createHttpServer(this.options)
-    await this.httpApplication.initServer()
+    if (this.environment.hasHttpSetup()) {
+      await this.httpApplication?.createHttpServer(this.options)
+      await this.httpApplication?.initServer()
+    }
     await this.initModules()
-    await this.httpApplication.ready()
+    if (this.environment.hasHttpSetup()) {
+      await this.httpApplication?.ready()
+    }
 
     this.isInitialized = true
     this.logger.debug('Navios application initialized')
@@ -67,31 +77,48 @@ export class NaviosApplication {
 
   private async initModules() {
     const modules = this.moduleLoader.getAllModules()
-    await this.httpApplication.onModulesInit(modules)
+    await this.httpApplication?.onModulesInit(modules)
   }
 
   enableCors(options: any) {
+    if (!this.httpApplication) {
+      throw new Error('HTTP application is not set')
+    }
     this.httpApplication.enableCors(options)
   }
 
   enableMultipart(options: any) {
+    if (!this.httpApplication) {
+      throw new Error('HTTP application is not set')
+    }
     this.httpApplication.enableMultipart(options)
   }
 
   setGlobalPrefix(prefix: string) {
+    if (!this.httpApplication) {
+      throw new Error('HTTP application is not set')
+    }
     this.httpApplication.setGlobalPrefix(prefix)
   }
 
   getServer() {
+    if (!this.httpApplication) {
+      throw new Error('HTTP application is not set')
+    }
     return this.httpApplication.getServer()
   }
 
   async listen(options: AbstractHttpListenOptions) {
+    if (!this.httpApplication) {
+      throw new Error('HTTP application is not set')
+    }
     await this.httpApplication.listen(options)
   }
 
   async dispose() {
-    await this.httpApplication.dispose()
+    if (this.httpApplication) {
+      await this.httpApplication.dispose()
+    }
     if (this.moduleLoader) {
       this.moduleLoader.dispose()
     }

@@ -18,4 +18,8 @@ export class NaviosEnvironment {
   getHttpToken(token: InjectionToken<any, undefined>) {
     return this.httpTokens.get(token)
   }
+
+  hasHttpSetup() {
+    return this.httpTokens.size > 0
+  }
 }
