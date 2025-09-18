@@ -1,8 +1,8 @@
 import type { BaseEndpointConfig } from '@navios/builder'
-import type { ClassType } from '@navios/di'
+import type { ClassType, RequestContextHolder } from '@navios/di'
 import type { FastifyReply, FastifyRequest } from 'fastify'
 
-import { inject, Injectable, InjectionToken } from '@navios/di'
+import { Injectable, InjectionToken } from '@navios/di'
 
 import type { HandlerMetadata } from '../metadata/index.mjs'
 import type { ExecutionContext } from '../services/index.mjs'
@@ -43,7 +43,11 @@ export class EndpointAdapterService extends StreamAdapterService {
     controller: ClassType,
     executionContext: ExecutionContext,
     handlerMetadata: HandlerMetadata<BaseEndpointConfig>,
-  ): (request: FastifyRequest, reply: FastifyReply) => Promise<any> {
+  ): (
+    context: RequestContextHolder,
+    request: FastifyRequest,
+    reply: FastifyReply,
+  ) => Promise<any> {
     const getters = this.prepareArguments(handlerMetadata)
     const formatArguments = async (request: FastifyRequest) => {
       const argument: Record<string, any> = {}
@@ -58,8 +62,12 @@ export class EndpointAdapterService extends StreamAdapterService {
       return argument
     }
 
-    return async function (request, reply) {
-      const controllerInstance = await inject(controller)
+    return async (
+      context: RequestContextHolder,
+      request: FastifyRequest,
+      reply: FastifyReply,
+    ) => {
+      const controllerInstance = await this.container.get(controller)
       const argument = await formatArguments(request)
       const result =
         await controllerInstance[handlerMetadata.classMethod](argument)

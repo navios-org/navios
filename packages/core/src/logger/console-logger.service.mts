@@ -2,12 +2,12 @@ import type { InspectOptions } from 'util'
 
 import { inspect } from 'util'
 
-import { getGlobalServiceLocator, Injectable } from '@navios/di'
+import { Container, inject, Injectable } from '@navios/di'
 
 import type { LogLevel } from './log-levels.mjs'
 import type { LoggerService } from './logger-service.interface.mjs'
 
-import { Request } from '../tokens/index.mjs'
+import { LoggerOutput } from './logger.tokens.mjs'
 import {
   clc,
   isFunction,
@@ -124,20 +124,19 @@ const dateTimeFormatter = new Intl.DateTimeFormat(undefined, {
 /**
  * @publicApi
  */
-@Injectable()
+@Injectable({
+  token: LoggerOutput,
+})
 export class ConsoleLogger implements LoggerService {
+  protected readonly container = inject(Container)
   /**
    * The options of the logger.
    */
-  protected options: ConsoleLoggerOptions
+  protected options: ConsoleLoggerOptions = {}
   /**
    * The context of the logger (can be set manually or automatically inferred).
    */
   protected context?: string
-  /**
-   * Request ID (if enabled).
-   */
-  protected requestId: string | null = null
   /**
    * The original context of the logger (set in the constructor).
    */
@@ -145,17 +144,17 @@ export class ConsoleLogger implements LoggerService {
   /**
    * The options used for the "inspect" method.
    */
-  protected inspectOptions: InspectOptions
+  protected inspectOptions: InspectOptions = this.getInspectOptions()
   /**
    * The last timestamp at which the log message was printed.
    */
-  protected static lastTimestampAt?: number
+  protected lastTimestampAt?: number
 
-  constructor()
-  constructor(context: string)
-  constructor(options: ConsoleLoggerOptions)
-  constructor(context: string, options: ConsoleLoggerOptions)
-  constructor(
+  setup(): void
+  setup(context: string): void
+  setup(options: ConsoleLoggerOptions): void
+  setup(context: string, options: ConsoleLoggerOptions): void
+  setup(
     contextOrOptions?: string | ConsoleLoggerOptions,
     options?: ConsoleLoggerOptions,
   ) {
@@ -178,24 +177,10 @@ export class ConsoleLogger implements LoggerService {
       this.context = context
       this.originalContext = context
     }
-    if (opts?.requestId) {
-      const locator = getGlobalServiceLocator()
-      locator
-        .getEventBus()
-        .on(locator.getInstanceIdentifier(Request, undefined), 'create', () => {
-          const request = locator.getSyncInstance(Request, undefined)
-          this.requestId = request?.id ?? null
-        })
-      locator
-        .getEventBus()
-        .on(
-          locator.getInstanceIdentifier(Request, undefined),
-          'destroy',
-          () => {
-            this.requestId = null
-          },
-        )
-    }
+  }
+
+  protected get requestId() {
+    return this.container.getCurrentRequestContext()?.requestId ?? null
   }
 
   /**
@@ -490,12 +475,11 @@ export class ConsoleLogger implements LoggerService {
   }
 
   protected updateAndGetTimestampDiff(): string {
-    const includeTimestamp =
-      ConsoleLogger.lastTimestampAt && this.options?.timestamp
+    const includeTimestamp = this.lastTimestampAt && this.options?.timestamp
     const result = includeTimestamp
-      ? this.formatTimestampDiff(Date.now() - ConsoleLogger.lastTimestampAt!)
+      ? this.formatTimestampDiff(Date.now() - this.lastTimestampAt!)
       : ''
-    ConsoleLogger.lastTimestampAt = Date.now()
+    this.lastTimestampAt = Date.now()
     return result
   }
 

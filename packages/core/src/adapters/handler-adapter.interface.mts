@@ -1,4 +1,4 @@
-import type { ClassType } from '@navios/di'
+import type { ClassType, RequestContextHolder } from '@navios/di'
 import type { FastifyReply, FastifyRequest } from 'fastify'
 
 import type { HandlerMetadata } from '../metadata/index.mjs'
@@ -17,5 +17,9 @@ export interface HandlerAdapterInterface {
     controller: ClassType,
     executionContext: ExecutionContext,
     handlerMetadata: HandlerMetadata<any>,
-  ) => (request: FastifyRequest, reply: FastifyReply) => Promise<any>
+  ) => (
+    context: RequestContextHolder,
+    request: FastifyRequest,
+    reply: FastifyReply,
+  ) => Promise<any>
 }

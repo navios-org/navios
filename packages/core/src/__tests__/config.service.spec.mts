@@ -1,27 +1,29 @@
 import { env } from 'node:process'
 
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 
 import {
-  ConfigService,
   ConfigServiceToken,
+  Container,
   EnvConfigProvider,
-  getGlobalServiceLocator,
   inject,
   Injectable,
   Logger,
-  syncInject,
 } from '../index.mjs'
 
 describe('ConfigService', () => {
+  let container: Container
+  beforeEach(() => {
+    container = new Container()
+  })
   it('should be able to get a config value', async () => {
-    const service = await inject(ConfigServiceToken, { ...env })
+    const service = await container.get(ConfigServiceToken, { ...env })
     expect(service).toBeDefined()
     expect(service.get('NODE_ENV')).toBe(env.NODE_ENV)
   })
 
   it('should be possible to use bound config service', async () => {
-    const service = await inject(EnvConfigProvider)
+    const service = await container.get(EnvConfigProvider)
     expect(service).toBeDefined()
     expect(service.get('NODE_ENV')).toBe(env.NODE_ENV)
   })
@@ -29,11 +31,11 @@ describe('ConfigService', () => {
   it('should be possible to use inside service as a syncInject', async () => {
     @Injectable()
     class TestService {
-      public readonly configService = syncInject(EnvConfigProvider)
-      public readonly logger = syncInject(Logger)
+      public readonly configService = inject(EnvConfigProvider)
+      public readonly logger = inject(Logger)
     }
 
-    const service = await inject(TestService)
+    const service = await container.get(TestService)
 
     expect(service.configService).toBeDefined()
     expect(service.configService.get('NODE_ENV')).toBe(env.NODE_ENV)

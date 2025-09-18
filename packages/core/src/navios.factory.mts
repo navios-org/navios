@@ -1,6 +1,6 @@
 import type { ClassTypeWithInstance } from '@navios/di'
 
-import { inject } from '@navios/di'
+import { Container } from '@navios/di'
 
 import type { NaviosModule } from './interfaces/index.mjs'
 import type {
@@ -8,7 +8,7 @@ import type {
   NaviosApplicationOptions,
 } from './navios.application.mjs'
 
-import { isNil, LoggerInstance } from './logger/index.mjs'
+import { isNil } from './logger/index.mjs'
 import { NaviosApplication } from './navios.application.mjs'
 
 export class NaviosFactory {
@@ -16,7 +16,8 @@ export class NaviosFactory {
     appModule: ClassTypeWithInstance<NaviosModule>,
     options: NaviosApplicationOptions = {},
   ) {
-    const app = await inject(NaviosApplication)
+    const container = new Container()
+    const app = await container.get(NaviosApplication)
     this.registerLoggerConfiguration(options)
     app.setup(appModule, options)
     return app
@@ -30,7 +31,7 @@ export class NaviosFactory {
     }
     const { logger } = options
     if ((logger as boolean) !== true && !isNil(logger)) {
-      LoggerInstance.overrideLogger(logger)
+      // LoggerInstance.staticInstanceRef = logger
     }
   }
 }

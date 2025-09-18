@@ -1,8 +1,8 @@
 import type { BaseStreamConfig } from '@navios/builder'
-import type { ClassType } from '@navios/di'
+import type { ClassType, RequestContextHolder } from '@navios/di'
 import type { FastifyReply, FastifyRequest } from 'fastify'
 
-import { inject, Injectable, InjectionToken } from '@navios/di'
+import { Container, inject, Injectable, InjectionToken } from '@navios/di'
 
 import type { HandlerMetadata } from '../metadata/index.mjs'
 import type { ExecutionContext } from '../services/index.mjs'
@@ -16,6 +16,8 @@ export const StreamAdapterToken = InjectionToken.create<StreamAdapterService>(
   token: StreamAdapterToken,
 })
 export class StreamAdapterService implements HandlerAdapterInterface {
+  protected container = inject(Container)
+
   hasSchema(handlerMetadata: HandlerMetadata<BaseStreamConfig>): boolean {
     const config = handlerMetadata.config
     return !!config.requestSchema || !!config.querySchema
@@ -50,7 +52,11 @@ export class StreamAdapterService implements HandlerAdapterInterface {
     controller: ClassType,
     executionContext: ExecutionContext,
     handlerMetadata: HandlerMetadata<BaseStreamConfig>,
-  ): (request: FastifyRequest, reply: FastifyReply) => Promise<any> {
+  ): (
+    context: RequestContextHolder,
+    request: FastifyRequest,
+    reply: FastifyReply,
+  ) => Promise<any> {
     const getters = this.prepareArguments(handlerMetadata)
     const formatArguments = async (request: FastifyRequest) => {
       const argument: Record<string, any> = {}
@@ -65,8 +71,12 @@ export class StreamAdapterService implements HandlerAdapterInterface {
       return argument
     }
 
-    return async function (request: FastifyRequest, reply: FastifyReply) {
-      const controllerInstance = await inject(controller)
+    return async (
+      context: RequestContextHolder,
+      request: FastifyRequest,
+      reply: FastifyReply,
+    ) => {
+      const controllerInstance = await this.container.get(controller)
       const argument = await formatArguments(request)
 
       await controllerInstance[handlerMetadata.classMethod](argument, reply)

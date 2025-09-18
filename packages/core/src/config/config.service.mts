@@ -1,5 +1,5 @@
 import { NaviosException } from '@navios/builder'
-import { Injectable, InjectionToken, syncInject } from '@navios/di'
+import { inject, Injectable, InjectionToken } from '@navios/di'
 
 import { z } from 'zod/v4'
 
@@ -23,7 +23,7 @@ export class ConfigService<
   Config extends ConfigServiceOptions = Record<string, unknown>,
 > implements IConfigService<Config>
 {
-  private readonly logger = syncInject(Logger, {
+  private readonly logger = inject(Logger, {
     context: ConfigService.name,
   })
 

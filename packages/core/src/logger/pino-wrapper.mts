@@ -1,9 +1,13 @@
+import { Container, inject, Injectable } from '@navios/di'
+
 import type { LoggerService } from './logger-service.interface.mjs'
 
-import { LoggerInstance } from './logger.service.mjs'
+import { Logger } from './logger.tokens.mjs'
 
+@Injectable()
 export class PinoWrapper {
-  constructor(protected readonly logger: LoggerService) {}
+  protected container = inject(Container)
+  protected logger = inject(Logger)
 
   fatal(message: any, ...optionalParams: any[]) {
     if (this.logger.fatal === undefined) {
@@ -39,25 +43,32 @@ export class PinoWrapper {
 
   child(options: any) {
     const keys = Object.keys(options)
-    // @ts-expect-error We don't need to support this in the current version
     let newContext = this.logger['context'] ?? ''
     if (keys.length > 1) {
-      // @ts-expect-error We don't need to support this in the current version
       newContext = `${this.logger['context'] ?? ''}:${JSON.stringify(options)}`
     }
-    return new PinoWrapper(
-      // @ts-expect-error We don't need to support this in the current version
-      new LoggerInstance(newContext, this.logger['options']),
-    )
+    const loggerPromise = this.container.get(Logger, {
+      context: newContext,
+    })
+    const newPinoWrapper = Object.create(PinoWrapper.prototype)
+    newPinoWrapper.container = this.container
+    newPinoWrapper.logger = this.logger
+    loggerPromise.then((logger) => {
+      newPinoWrapper.logger = logger
+    })
+    return newPinoWrapper
   }
 
   get level(): any {
     if ('level' in this.logger && this.logger.level) {
       return this.logger.level
     }
-    const levels = LoggerInstance['logLevels']
-    if (levels) {
-      return levels.find((level) => level !== 'verbose')
+    if (
+      'logLevels' in this.logger &&
+      this.logger.logLevels &&
+      Array.isArray(this.logger.logLevels)
+    ) {
+      return this.logger.logLevels.find((level) => level !== 'verbose')
     }
     return 'warn'
   }

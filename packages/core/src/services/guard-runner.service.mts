@@ -1,6 +1,6 @@
 import type { ClassTypeWithInstance } from '@navios/di'
 
-import { inject, Injectable, InjectionToken } from '@navios/di'
+import { Container, inject, Injectable, InjectionToken } from '@navios/di'
 
 import type { CanActivate } from '../interfaces/index.mjs'
 import type { ExecutionContext } from './execution-context.mjs'
@@ -9,6 +9,7 @@ import { HttpException } from '../exceptions/index.mjs'
 
 @Injectable()
 export class GuardRunnerService {
+  protected container = inject(Container)
   async runGuards(
     allGuards: Set<
       | ClassTypeWithInstance<CanActivate>
@@ -18,7 +19,7 @@ export class GuardRunnerService {
   ) {
     let canActivate = true
     for (const guard of Array.from(allGuards).reverse()) {
-      const guardInstance = await inject(
+      const guardInstance = await this.container.get(
         guard as InjectionToken<CanActivate, undefined>,
       )
       if (!guardInstance.canActivate) {

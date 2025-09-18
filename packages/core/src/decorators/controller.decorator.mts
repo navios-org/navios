@@ -25,7 +25,7 @@ export function Controller({ guards }: ControllerOptions = {}) {
     }
     return Injectable({
       token,
-      scope: InjectableScope.Instance,
+      scope: InjectableScope.Request,
     })(target, context)
   }
 }

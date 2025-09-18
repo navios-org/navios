@@ -1,14 +1,8 @@
-import type { ClassType } from '@navios/di'
+import type { ClassType, RequestContextHolder } from '@navios/di'
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify'
 import type { ZodTypeProvider } from 'fastify-type-provider-zod'
 
-import {
-  getGlobalServiceLocator,
-  inject,
-  Injectable,
-  InjectionToken,
-  syncInject,
-} from '@navios/di'
+import { Container, inject, Injectable, InjectionToken } from '@navios/di'
 
 import type { HandlerAdapterInterface } from '../adapters/index.mjs'
 import type { ModuleMetadata } from '../metadata/index.mjs'
@@ -21,8 +15,9 @@ import { GuardRunnerService } from './guard-runner.service.mjs'
 
 @Injectable()
 export class ControllerAdapterService {
-  guardRunner = syncInject(GuardRunnerService)
-  private logger = syncInject(Logger, {
+  private guardRunner = inject(GuardRunnerService)
+  private container = inject(Container)
+  private logger = inject(Logger, {
     context: ControllerAdapterService.name,
   })
 
@@ -40,7 +35,7 @@ export class ControllerAdapterService {
           `[Navios] Malformed Endpoint ${controller.name}:${classMethod}`,
         )
       }
-      const adapter = await inject(
+      const adapter = await this.container.get(
         adapterToken as InjectionToken<HandlerAdapterInterface>,
       )
       const executionContext = new ExecutionContext(
@@ -83,7 +78,11 @@ export class ControllerAdapterService {
     return guards.size > 0
       ? this.wrapHandler(
           executionContext,
-          async (request: FastifyRequest, reply: FastifyReply) => {
+          async (
+            context: RequestContextHolder,
+            request: FastifyRequest,
+            reply: FastifyReply,
+          ) => {
             let canActivate = true
             canActivate = await this.guardRunner.runGuards(
               guards,
@@ -99,25 +98,23 @@ export class ControllerAdapterService {
 
   private wrapHandler(
     executionContext: ExecutionContext,
-    handler: (request: FastifyRequest, reply: FastifyReply) => Promise<void>,
+    handler: (
+      context: RequestContextHolder,
+      request: FastifyRequest,
+      reply: FastifyReply,
+    ) => Promise<void>,
   ) {
-    const locator = getGlobalServiceLocator()
     return async (request: FastifyRequest, reply: FastifyReply) => {
-      locator.storeInstance(request, Request)
-      locator.storeInstance(reply, Reply)
-      locator.storeInstance(executionContext, ExecutionContextToken)
+      const requestContext = this.container.beginRequest(request.id)
+      requestContext.addInstance(Request, request)
+      requestContext.addInstance(Reply, reply)
+      requestContext.addInstance(ExecutionContextToken, executionContext)
       executionContext.provideRequest(request)
       executionContext.provideReply(reply)
       try {
-        return await handler(request, reply)
+        return await handler(requestContext, request, reply)
       } finally {
-        Promise.all([
-          locator.removeInstance(Request),
-          locator.removeInstance(Reply),
-          locator.removeInstance(ExecutionContextToken),
-        ]).catch((err) => {
-          this.logger.warn(`Error removing instances: ${err}`)
-        })
+        this.container.endRequest(request.id)
       }
     }
   }

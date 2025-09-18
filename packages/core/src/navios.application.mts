@@ -8,10 +8,11 @@ import type {
 } from 'fastify'
 
 import {
-  getGlobalServiceLocator,
+  Container,
   inject,
   Injectable,
-  syncInject,
+  InjectableScope,
+  InjectableType,
 } from '@navios/di'
 
 import cors from '@fastify/cors'
@@ -46,11 +47,12 @@ export interface NaviosApplicationOptions
 
 @Injectable()
 export class NaviosApplication {
-  private moduleLoader = syncInject(ModuleLoaderService)
-  private controllerAdapter = syncInject(ControllerAdapterService)
-  private logger = syncInject(Logger, {
+  private moduleLoader = inject(ModuleLoaderService)
+  private controllerAdapter = inject(ControllerAdapterService)
+  private logger = inject(Logger, {
     context: NaviosApplication.name,
   })
+  protected container = inject(Container)
   private server: FastifyInstance | null = null
   private corsOptions: FastifyCorsOptions | null = null
   private multipartOptions: FastifyMultipartOptions | true | null = null
@@ -76,7 +78,19 @@ export class NaviosApplication {
     await this.moduleLoader.loadModules(this.appModule)
     this.server = await this.getFastifyInstance(this.options)
     this.configureFastifyInstance(this.server)
-    getGlobalServiceLocator().storeInstance(this.server, Application)
+    const instanceName = this.container
+      .getServiceLocator()
+      .getInstanceIdentifier(Application)
+    this.container
+      .getServiceLocator()
+      .getManager()
+      .storeCreatedHolder(
+        instanceName,
+        this.server,
+        InjectableType.Class,
+        InjectableScope.Singleton,
+      )
+
     // Add schema validator and serializer
     this.server.setValidatorCompiler(validatorCompiler)
     this.server.setSerializerCompiler(serializerCompiler)
@@ -105,21 +119,13 @@ export class NaviosApplication {
           fastifyOptions.logger = false
         }
       } else {
-        fastifyOptions.loggerInstance = new PinoWrapper(
-          await inject(Logger, {
-            context: 'FastifyAdapter',
-          }),
-        )
+        fastifyOptions.loggerInstance = await this.container.get(PinoWrapper)
       }
       return fastify(fastifyOptions)
     } else {
       return fastify({
         ...options,
-        loggerInstance: new PinoWrapper(
-          await inject(Logger, {
-            context: 'FastifyAdapter',
-          }),
-        ),
+        loggerInstance: await this.container.get(PinoWrapper),
       } as FastifyServerOptions)
     }
   }

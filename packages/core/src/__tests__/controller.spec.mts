@@ -51,7 +51,6 @@ describe('Controller decorator', () => {
     }
 
     const metadata = extractControllerMetadata(Test)
-    console.log(metadata)
     expect(metadata).toBeDefined()
     expect(metadata.endpoints).toBeInstanceOf(Set)
     expect(metadata.endpoints.size).toBe(2)
