@@ -2,8 +2,10 @@ import type { ClassTypeWithInstance } from '@navios/di'
 
 import { Container, inject, Injectable, InjectionToken } from '@navios/di'
 
-import type { CanActivate } from '../interfaces/index.mjs'
-import type { ExecutionContext } from './execution-context.mjs'
+import type {
+  AbstractExecutionContext,
+  CanActivate,
+} from '../interfaces/index.mjs'
 
 import { HttpException } from '../exceptions/index.mjs'
 
@@ -15,7 +17,7 @@ export class GuardRunnerService {
       | ClassTypeWithInstance<CanActivate>
       | InjectionToken<CanActivate, undefined>
     >,
-    executionContext: ExecutionContext,
+    executionContext: AbstractExecutionContext,
   ) {
     let canActivate = true
     for (const guard of Array.from(allGuards).reverse()) {
@@ -61,7 +63,7 @@ export class GuardRunnerService {
   }
 
   makeContext(
-    executionContext: ExecutionContext,
+    executionContext: AbstractExecutionContext,
   ): Set<
     ClassTypeWithInstance<CanActivate> | InjectionToken<CanActivate, undefined>
   > {

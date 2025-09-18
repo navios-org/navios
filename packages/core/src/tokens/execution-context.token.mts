@@ -1,9 +1,9 @@
 import { InjectionToken } from '@navios/di'
 
-import { ExecutionContext } from '../services/index.mjs'
+import type { AbstractExecutionContext } from '../interfaces/index.mjs'
 
 export const ExecutionContextInjectionToken = 'ExecutionContextInjectionToken'
 
-export const ExecutionContextToken = InjectionToken.create<ExecutionContext>(
+export const ExecutionContext = InjectionToken.create<AbstractExecutionContext>(
   ExecutionContextInjectionToken,
 )

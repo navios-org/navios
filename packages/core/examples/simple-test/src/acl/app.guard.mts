@@ -1,4 +1,7 @@
-import type { CanActivate, ExecutionContext } from '../../../../src/index.mjs'
+import type {
+  AbstractExecutionContext,
+  CanActivate,
+} from '../../../../src/index.mjs'
 
 import {
   AttributeFactory,
@@ -14,7 +17,9 @@ export class AppGuard implements CanActivate {
     context: AppGuard.name,
   })
 
-  canActivate(executionContext: ExecutionContext): Promise<boolean> | boolean {
+  canActivate(
+    executionContext: AbstractExecutionContext,
+  ): Promise<boolean> | boolean {
     const isPublic = AttributeFactory.getLast(Public, [
       executionContext.getModule(),
       executionContext.getController(),

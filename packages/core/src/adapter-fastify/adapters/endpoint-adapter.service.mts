@@ -4,8 +4,8 @@ import type { FastifyReply, FastifyRequest } from 'fastify'
 
 import { Injectable, InjectionToken } from '@navios/di'
 
+import type { AbstractExecutionContext } from '../../interfaces/index.mjs'
 import type { HandlerMetadata } from '../../metadata/index.mjs'
-import type { ExecutionContext } from '../../services/index.mjs'
 
 import { FastifyStreamAdapterService } from './stream-adapter.service.mjs'
 
@@ -41,7 +41,7 @@ export class FastifyEndpointAdapterService extends FastifyStreamAdapterService {
 
   override provideHandler(
     controller: ClassType,
-    executionContext: ExecutionContext,
+    executionContext: AbstractExecutionContext,
     handlerMetadata: HandlerMetadata<BaseEndpointConfig>,
   ): (
     context: RequestContextHolder,

@@ -1,4 +1,7 @@
-import type { CanActivate, ExecutionContext } from '../../../../src/index.mjs'
+import type {
+  AbstractExecutionContext,
+  CanActivate,
+} from '../../../../src/index.mjs'
 
 import { inject, Injectable, Logger } from '../../../../src/index.mjs'
 
@@ -8,7 +11,9 @@ export class OneMoreGuard implements CanActivate {
     context: OneMoreGuard.name,
   })
 
-  canActivate(executionContext: ExecutionContext): Promise<boolean> | boolean {
+  canActivate(
+    executionContext: AbstractExecutionContext,
+  ): Promise<boolean> | boolean {
     this.logger.log('One More Guard activated')
     return true
   }

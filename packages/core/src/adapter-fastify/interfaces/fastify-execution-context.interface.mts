@@ -1,12 +1,13 @@
 import type { FastifyReply, FastifyRequest } from 'fastify'
 
 import type {
+  AbstractExecutionContext,
   ControllerMetadata,
   HandlerMetadata,
   ModuleMetadata,
-} from '../metadata/index.mjs'
+} from '../../index.mjs'
 
-export class ExecutionContext {
+export class FastifyExecutionContext implements AbstractExecutionContext {
   private request: FastifyRequest | undefined
   private reply: FastifyReply | undefined
   constructor(

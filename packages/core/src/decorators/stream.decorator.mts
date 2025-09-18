@@ -4,7 +4,6 @@ import type {
   HttpMethod,
   Util_FlatObject,
 } from '@navios/builder'
-import type { FastifyReply } from 'fastify'
 import type { ZodObject, ZodType } from 'zod/v4'
 
 import { getEndpointMetadata } from '../metadata/index.mjs'
@@ -55,7 +54,7 @@ export function Stream<
         : RequestSchema extends ZodType
           ? EndpointFunctionArgs<Url, undefined, RequestSchema>
           : EndpointFunctionArgs<Url, undefined, undefined>,
-      reply: FastifyReply,
+      reply: any,
     ) => Promise<void>,
     context: ClassMethodDecoratorContext,
   ) => {

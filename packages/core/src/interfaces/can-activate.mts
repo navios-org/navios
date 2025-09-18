@@ -1,5 +1,7 @@
-import type { ExecutionContext } from '../services/index.mjs'
+import type { AbstractExecutionContext } from '../interfaces/index.mjs'
 
 export interface CanActivate {
-  canActivate(executionContext: ExecutionContext): Promise<boolean> | boolean
+  canActivate(
+    executionContext: AbstractExecutionContext,
+  ): Promise<boolean> | boolean
 }

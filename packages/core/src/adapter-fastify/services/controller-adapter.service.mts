@@ -9,11 +9,11 @@ import type { FastifyHandlerAdapterInterface } from '../adapters/index.mjs'
 
 import {
   ExecutionContext,
-  ExecutionContextToken,
   extractControllerMetadata,
   GuardRunnerService,
   Logger,
 } from '../../index.mjs'
+import { FastifyExecutionContext } from '../interfaces/index.mjs'
 import { FastifyReplyToken, FastifyRequestToken } from '../tokens/index.mjs'
 
 @Injectable()
@@ -41,7 +41,7 @@ export class FastifyControllerAdapterService {
       const adapter = await this.container.get(
         adapterToken as InjectionToken<FastifyHandlerAdapterInterface>,
       )
-      const executionContext = new ExecutionContext(
+      const executionContext = new FastifyExecutionContext(
         moduleMetadata,
         controllerMetadata,
         endpoint,
@@ -76,7 +76,7 @@ export class FastifyControllerAdapterService {
     }
   }
 
-  private providePreHandler(executionContext: ExecutionContext) {
+  private providePreHandler(executionContext: FastifyExecutionContext) {
     const guards = this.guardRunner.makeContext(executionContext)
     return guards.size > 0
       ? this.wrapHandler(
@@ -100,7 +100,7 @@ export class FastifyControllerAdapterService {
   }
 
   private wrapHandler(
-    executionContext: ExecutionContext,
+    executionContext: FastifyExecutionContext,
     handler: (
       context: RequestContextHolder,
       request: FastifyRequest,
@@ -111,7 +111,7 @@ export class FastifyControllerAdapterService {
       const requestContext = this.container.beginRequest(request.id)
       requestContext.addInstance(FastifyRequestToken, request)
       requestContext.addInstance(FastifyReplyToken, reply)
-      requestContext.addInstance(ExecutionContextToken, executionContext)
+      requestContext.addInstance(ExecutionContext, executionContext)
       executionContext.provideRequest(request)
       executionContext.provideReply(reply)
       try {
