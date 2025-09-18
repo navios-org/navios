@@ -2,8 +2,10 @@ import type { HttpMethod } from '@navios/builder'
 import type { ClassTypeWithInstance, InjectionToken } from '@navios/di'
 import type { HttpHeader } from 'fastify/types/utils.js'
 
-import type { HandlerAdapterInterface } from '../adapters/index.mjs'
-import type { CanActivate } from '../interfaces/index.mjs'
+import type {
+  AbstractHttpHandlerAdapterInterface,
+  CanActivate,
+} from '../interfaces/index.mjs'
 
 export const EndpointMetadataKey = Symbol('EndpointMetadataKey')
 
@@ -12,8 +14,8 @@ export interface HandlerMetadata<Config = null> {
   url: string
   successStatusCode: number
   adapterToken:
-    | InjectionToken<HandlerAdapterInterface, undefined>
-    | ClassTypeWithInstance<HandlerAdapterInterface>
+    | InjectionToken<AbstractHttpHandlerAdapterInterface, undefined>
+    | ClassTypeWithInstance<AbstractHttpHandlerAdapterInterface>
     | null
   headers: Partial<Record<HttpHeader, number | string | string[] | undefined>>
   httpMethod: HttpMethod

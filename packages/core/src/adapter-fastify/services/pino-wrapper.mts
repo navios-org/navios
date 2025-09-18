@@ -1,8 +1,6 @@
 import { Container, inject, Injectable } from '@navios/di'
 
-import type { LoggerService } from './logger-service.interface.mjs'
-
-import { Logger } from './logger.tokens.mjs'
+import { Logger } from '../../logger/logger.tokens.mjs'
 
 @Injectable()
 export class PinoWrapper {

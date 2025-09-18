@@ -1,10 +1,14 @@
 import type { ClassType, RequestContextHolder } from '@navios/di'
 import type { FastifyReply, FastifyRequest } from 'fastify'
 
-import type { HandlerMetadata } from '../metadata/index.mjs'
-import type { ExecutionContext } from '../services/index.mjs'
+import type {
+  AbstractHttpHandlerAdapterInterface,
+  ExecutionContext,
+  HandlerMetadata,
+} from '../../index.mjs'
 
-export interface HandlerAdapterInterface {
+export interface FastifyHandlerAdapterInterface
+  extends AbstractHttpHandlerAdapterInterface {
   provideSchema?: (handlerMetadata: HandlerMetadata<any>) => Record<string, any>
   hasSchema?: (handlerMetadata: HandlerMetadata<any>) => boolean
   prepareArguments?: (

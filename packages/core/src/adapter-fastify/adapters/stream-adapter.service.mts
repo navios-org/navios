@@ -4,18 +4,20 @@ import type { FastifyReply, FastifyRequest } from 'fastify'
 
 import { Container, inject, Injectable, InjectionToken } from '@navios/di'
 
-import type { HandlerMetadata } from '../metadata/index.mjs'
-import type { ExecutionContext } from '../services/index.mjs'
-import type { HandlerAdapterInterface } from './handler-adapter.interface.mjs'
+import type { ExecutionContext, HandlerMetadata } from '../../index.mjs'
+import type { FastifyHandlerAdapterInterface } from './handler-adapter.interface.mjs'
 
-export const StreamAdapterToken = InjectionToken.create<StreamAdapterService>(
-  Symbol.for('StreamAdapterService'),
-)
+export const FastifyStreamAdapterToken =
+  InjectionToken.create<FastifyStreamAdapterService>(
+    Symbol.for('FastifyStreamAdapterService'),
+  )
 
 @Injectable({
-  token: StreamAdapterToken,
+  token: FastifyStreamAdapterToken,
 })
-export class StreamAdapterService implements HandlerAdapterInterface {
+export class FastifyStreamAdapterService
+  implements FastifyHandlerAdapterInterface
+{
   protected container = inject(Container)
 
   hasSchema(handlerMetadata: HandlerMetadata<BaseStreamConfig>): boolean {

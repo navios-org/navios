@@ -7,8 +7,8 @@ import type {
 import type { FastifyReply } from 'fastify'
 import type { ZodObject, ZodType } from 'zod/v4'
 
-import { StreamAdapterToken } from '../adapters/index.mjs'
 import { getEndpointMetadata } from '../metadata/index.mjs'
+import { StreamAdapterToken } from '../tokens/index.mjs'
 
 export type StreamParams<
   EndpointDeclaration extends {

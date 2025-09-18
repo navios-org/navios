@@ -4,12 +4,12 @@ import type {
   HttpMethod,
   Util_FlatObject,
 } from '@navios/builder'
-import type { z, ZodObject, ZodType } from 'zod/v4'
+import type { z, ZodType } from 'zod/v4'
 
 import { ZodDiscriminatedUnion } from 'zod/v4'
 
-import { EndpointAdapterToken } from '../adapters/index.mjs'
 import { getEndpointMetadata } from '../metadata/index.mjs'
+import { EndpointAdapterToken } from '../tokens/index.mjs'
 
 export type EndpointParams<
   EndpointDeclaration extends {

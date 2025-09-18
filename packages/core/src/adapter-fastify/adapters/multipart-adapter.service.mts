@@ -7,19 +7,19 @@ import { Injectable, InjectionToken } from '@navios/di'
 
 import { ZodArray, ZodObject, ZodOptional } from 'zod/v4'
 
-import type { HandlerMetadata } from '../metadata/index.mjs'
+import type { HandlerMetadata } from '../../metadata/index.mjs'
 
-import { EndpointAdapterService } from './endpoint-adapter.service.mjs'
+import { FastifyEndpointAdapterService } from './endpoint-adapter.service.mjs'
 
-export const MultipartAdapterToken =
-  InjectionToken.create<MultipartAdapterService>(
-    Symbol.for('MultipartAdapterService'),
+export const FastifyMultipartAdapterToken =
+  InjectionToken.create<FastifyMultipartAdapterService>(
+    Symbol.for('FastifyMultipartAdapterService'),
   )
 
 @Injectable({
-  token: MultipartAdapterToken,
+  token: FastifyMultipartAdapterToken,
 })
-export class MultipartAdapterService extends EndpointAdapterService {
+export class FastifyMultipartAdapterService extends FastifyEndpointAdapterService {
   prepareArguments(
     handlerMetadata: HandlerMetadata<BaseEndpointConfig>,
   ): ((target: Record<string, any>, request: FastifyRequest) => void)[] {

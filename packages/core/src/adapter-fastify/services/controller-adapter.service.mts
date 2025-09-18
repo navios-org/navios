@@ -4,21 +4,24 @@ import type { ZodTypeProvider } from 'fastify-type-provider-zod'
 
 import { Container, inject, Injectable, InjectionToken } from '@navios/di'
 
-import type { HandlerAdapterInterface } from '../adapters/index.mjs'
-import type { ModuleMetadata } from '../metadata/index.mjs'
+import type { ModuleMetadata } from '../../index.mjs'
+import type { FastifyHandlerAdapterInterface } from '../adapters/index.mjs'
 
-import { Logger } from '../logger/index.mjs'
-import { extractControllerMetadata } from '../metadata/index.mjs'
-import { ExecutionContextToken, Reply, Request } from '../tokens/index.mjs'
-import { ExecutionContext } from './execution-context.mjs'
-import { GuardRunnerService } from './guard-runner.service.mjs'
+import {
+  ExecutionContext,
+  ExecutionContextToken,
+  extractControllerMetadata,
+  GuardRunnerService,
+  Logger,
+} from '../../index.mjs'
+import { FastifyReplyToken, FastifyRequestToken } from '../tokens/index.mjs'
 
 @Injectable()
-export class ControllerAdapterService {
+export class FastifyControllerAdapterService {
   private guardRunner = inject(GuardRunnerService)
   private container = inject(Container)
   private logger = inject(Logger, {
-    context: ControllerAdapterService.name,
+    context: FastifyControllerAdapterService.name,
   })
 
   async setupController(
@@ -36,7 +39,7 @@ export class ControllerAdapterService {
         )
       }
       const adapter = await this.container.get(
-        adapterToken as InjectionToken<HandlerAdapterInterface>,
+        adapterToken as InjectionToken<FastifyHandlerAdapterInterface>,
       )
       const executionContext = new ExecutionContext(
         moduleMetadata,
@@ -73,7 +76,7 @@ export class ControllerAdapterService {
     }
   }
 
-  providePreHandler(executionContext: ExecutionContext) {
+  private providePreHandler(executionContext: ExecutionContext) {
     const guards = this.guardRunner.makeContext(executionContext)
     return guards.size > 0
       ? this.wrapHandler(
@@ -106,8 +109,8 @@ export class ControllerAdapterService {
   ) {
     return async (request: FastifyRequest, reply: FastifyReply) => {
       const requestContext = this.container.beginRequest(request.id)
-      requestContext.addInstance(Request, request)
-      requestContext.addInstance(Reply, reply)
+      requestContext.addInstance(FastifyRequestToken, request)
+      requestContext.addInstance(FastifyReplyToken, reply)
       requestContext.addInstance(ExecutionContextToken, executionContext)
       executionContext.provideRequest(request)
       executionContext.provideReply(reply)

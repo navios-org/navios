@@ -4,20 +4,20 @@ import type { FastifyReply, FastifyRequest } from 'fastify'
 
 import { Injectable, InjectionToken } from '@navios/di'
 
-import type { HandlerMetadata } from '../metadata/index.mjs'
-import type { ExecutionContext } from '../services/index.mjs'
+import type { HandlerMetadata } from '../../metadata/index.mjs'
+import type { ExecutionContext } from '../../services/index.mjs'
 
-import { StreamAdapterService } from './stream-adapter.service.mjs'
+import { FastifyStreamAdapterService } from './stream-adapter.service.mjs'
 
-export const EndpointAdapterToken =
-  InjectionToken.create<EndpointAdapterService>(
-    Symbol.for('EndpointAdapterService'),
+export const FastifyEndpointAdapterToken =
+  InjectionToken.create<FastifyEndpointAdapterService>(
+    Symbol.for('FastifyEndpointAdapterService'),
   )
 
 @Injectable({
-  token: EndpointAdapterToken,
+  token: FastifyEndpointAdapterToken,
 })
-export class EndpointAdapterService extends StreamAdapterService {
+export class FastifyEndpointAdapterService extends FastifyStreamAdapterService {
   override hasSchema(
     handlerMetadata: HandlerMetadata<BaseEndpointConfig>,
   ): boolean {

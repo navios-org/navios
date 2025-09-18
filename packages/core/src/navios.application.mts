@@ -1,38 +1,16 @@
-import type { FastifyCorsOptions } from '@fastify/cors'
-import type { FastifyMultipartOptions } from '@fastify/multipart'
 import type { ClassTypeWithInstance } from '@navios/di'
+
+import { Container, inject, Injectable } from '@navios/di'
+
 import type {
-  FastifyInstance,
-  FastifyListenOptions,
-  FastifyServerOptions,
-} from 'fastify'
-
-import {
-  Container,
-  inject,
-  Injectable,
-  InjectableScope,
-  InjectableType,
-} from '@navios/di'
-
-import cors from '@fastify/cors'
-import multipart from '@fastify/multipart'
-import { fastify } from 'fastify'
-import {
-  serializerCompiler,
-  validatorCompiler,
-} from 'fastify-type-provider-zod'
-
-import type { NaviosModule } from './interfaces/index.mjs'
+  AbstractHttpListenOptions,
+  NaviosModule,
+} from './interfaces/index.mjs'
 import type { LoggerService, LogLevel } from './logger/index.mjs'
 
-import { HttpException } from './exceptions/index.mjs'
-import { Logger, PinoWrapper } from './logger/index.mjs'
-import {
-  ControllerAdapterService,
-  ModuleLoaderService,
-} from './services/index.mjs'
-import { Application } from './tokens/index.mjs'
+import { HttpAdapterToken } from './index.mjs'
+import { Logger } from './logger/index.mjs'
+import { ModuleLoaderService } from './services/index.mjs'
 
 export interface NaviosApplicationContextOptions {
   /**
@@ -42,22 +20,19 @@ export interface NaviosApplicationContextOptions {
 }
 
 export interface NaviosApplicationOptions
-  extends Omit<FastifyServerOptions, 'logger'>,
-    NaviosApplicationContextOptions {}
+  extends NaviosApplicationContextOptions {
+  // Fastify server options will be handled by FastifyApplicationService
+  [key: string]: any
+}
 
 @Injectable()
 export class NaviosApplication {
   private moduleLoader = inject(ModuleLoaderService)
-  private controllerAdapter = inject(ControllerAdapterService)
+  private httpApplication = inject(HttpAdapterToken)
   private logger = inject(Logger, {
     context: NaviosApplication.name,
   })
   protected container = inject(Container)
-
-  private server: FastifyInstance | null = null
-  private corsOptions: FastifyCorsOptions | null = null
-  private multipartOptions: FastifyMultipartOptions | true | null = null
-  private globalPrefix: string | null = null
 
   private appModule: ClassTypeWithInstance<NaviosModule> | null = null
   private options: NaviosApplicationOptions = {}
@@ -81,166 +56,42 @@ export class NaviosApplication {
       throw new Error('App module is not set. Call setAppModule() first.')
     }
     await this.moduleLoader.loadModules(this.appModule)
-    this.server = await this.getFastifyInstance(this.options)
-    this.configureFastifyInstance(this.server)
-    const instanceName = this.container
-      .getServiceLocator()
-      .getInstanceIdentifier(Application)
-    this.container
-      .getServiceLocator()
-      .getManager()
-      .storeCreatedHolder(
-        instanceName,
-        this.server,
-        InjectableType.Class,
-        InjectableScope.Singleton,
-      )
-
-    // Add schema validator and serializer
-    this.server.setValidatorCompiler(validatorCompiler)
-    this.server.setSerializerCompiler(serializerCompiler)
-
-    if (this.corsOptions) {
-      await this.server.register(cors, this.corsOptions)
-    }
-
-    if (this.multipartOptions) {
-      await this.configureMultipart(this.server, this.multipartOptions)
-    }
-
+    await this.httpApplication.createHttpServer(this.options)
+    await this.httpApplication.initServer()
     await this.initModules()
-    await this.server.ready()
+    await this.httpApplication.ready()
 
     this.isInitialized = true
     this.logger.debug('Navios application initialized')
   }
 
-  private async getFastifyInstance(rawOptions: NaviosApplicationOptions) {
-    const { logger, ...options } = rawOptions
-    if (logger) {
-      const fastifyOptions = options as FastifyServerOptions
-      if (typeof logger === 'boolean') {
-        if (!logger) {
-          fastifyOptions.logger = false
-        }
-      } else {
-        fastifyOptions.loggerInstance = await this.container.get(PinoWrapper)
-      }
-      return fastify(fastifyOptions)
-    } else {
-      return fastify({
-        ...options,
-        loggerInstance: await this.container.get(PinoWrapper),
-      } as FastifyServerOptions)
-    }
-  }
-
-  private configureFastifyInstance(fastifyInstance: FastifyInstance) {
-    fastifyInstance.setErrorHandler((error, request, reply) => {
-      if (error instanceof HttpException) {
-        return reply.status(error.statusCode).send(error.response)
-      } else {
-        const statusCode = error.statusCode || 500
-        const message = error.message || 'Internal Server Error'
-        const response = {
-          statusCode,
-          message,
-          error: error.name || 'InternalServerError',
-        }
-        this.logger.error(
-          `Error occurred: ${error.message} on ${request.url}`,
-          error,
-        )
-        return reply.status(statusCode).send(response)
-      }
-    })
-
-    fastifyInstance.setNotFoundHandler((req, reply) => {
-      const response = {
-        statusCode: 404,
-        message: 'Not Found',
-        error: 'NotFound',
-      }
-      this.logger.error(`Route not found: [${req.method}] ${req.url}`)
-      return reply.status(404).send(response)
-    })
-  }
-
-  async configureMultipart(
-    server: FastifyInstance,
-    options: FastifyMultipartOptions | true,
-  ): Promise<void> {
-    if (options) {
-      await server.register(
-        multipart,
-        typeof options === 'object' ? options : {},
-      )
-    }
-  }
-
   private async initModules() {
     const modules = this.moduleLoader.getAllModules()
-    const promises: PromiseLike<any>[] = []
-    for (const [moduleName, moduleMetadata] of modules) {
-      if (
-        !moduleMetadata.controllers ||
-        moduleMetadata.controllers.size === 0
-      ) {
-        continue
-      }
-      promises.push(
-        this.server!.register(
-          async (instance, opts) => {
-            for (const controller of moduleMetadata.controllers) {
-              await this.controllerAdapter.setupController(
-                controller,
-                instance,
-                moduleMetadata,
-              )
-            }
-          },
-          {
-            prefix: this.globalPrefix ?? '',
-          },
-        ),
-      )
-    }
-
-    await Promise.all(promises)
+    await this.httpApplication.onModulesInit(modules)
   }
 
-  enableCors(options: FastifyCorsOptions) {
-    this.corsOptions = options
+  enableCors(options: any) {
+    this.httpApplication.enableCors(options)
   }
 
-  enableMultipart(options: FastifyMultipartOptions) {
-    this.multipartOptions = options
+  enableMultipart(options: any) {
+    this.httpApplication.enableMultipart(options)
   }
 
   setGlobalPrefix(prefix: string) {
-    this.globalPrefix = prefix
+    this.httpApplication.setGlobalPrefix(prefix)
   }
 
-  getServer(): FastifyInstance {
-    if (!this.server) {
-      throw new Error('Server is not initialized. Call init() first.')
-    }
-    return this.server
+  getServer() {
+    return this.httpApplication.getServer()
   }
 
-  async listen(options: FastifyListenOptions) {
-    if (!this.server) {
-      throw new Error('Server is not initialized. Call init() first.')
-    }
-    const res = await this.server.listen(options)
-    this.logger.debug(`Navios is listening on ${res}`)
+  async listen(options: AbstractHttpListenOptions) {
+    await this.httpApplication.listen(options)
   }
 
   async dispose() {
-    if (this.server) {
-      await this.server.close()
-      this.server = null
-    }
+    await this.httpApplication.dispose()
     if (this.moduleLoader) {
       this.moduleLoader.dispose()
     }

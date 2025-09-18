@@ -8,8 +8,8 @@ import type { z, ZodObject, ZodType } from 'zod/v4'
 
 import { ZodDiscriminatedUnion } from 'zod/v4'
 
-import { MultipartAdapterToken } from '../adapters/index.mjs'
 import { getEndpointMetadata } from '../metadata/index.mjs'
+import { MultipartAdapterToken } from '../tokens/index.mjs'
 
 export type MultipartParams<
   EndpointDeclaration extends {
