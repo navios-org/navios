@@ -1,5 +1,4 @@
 export * from '@navios/di'
-// export * from './adapter-fastify/index.mjs'
 export * from './config/index.mjs'
 export * from './decorators/index.mjs'
 export * from './exceptions/index.mjs'

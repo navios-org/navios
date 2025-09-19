@@ -1,0 +1,3 @@
+preload = ["./bun-plugin.mts"]
+[test]
+preload = ["./bun-plugin.mts"]

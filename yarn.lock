@@ -1823,6 +1823,19 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@fastify/swagger@npm:^9.1.0":
+  version: 9.5.1
+  resolution: "@fastify/swagger@npm:9.5.1"
+  dependencies:
+    fastify-plugin: "npm:^5.0.0"
+    json-schema-resolver: "npm:^3.0.0"
+    openapi-types: "npm:^12.1.3"
+    rfdc: "npm:^1.3.1"
+    yaml: "npm:^2.4.2"
+  checksum: 10c0/ae9b822a90572d48c50cb60903d1c69083a56dee007843a0c7549a851aea99ec4758062e18ad00b16aaf4390c500108b516974620e354814035b754b405de61c
+  languageName: node
+  linkType: hard
+
 "@ianvs/prettier-plugin-sort-imports@npm:^4.7.0":
   version: 4.7.0
   resolution: "@ianvs/prettier-plugin-sort-imports@npm:4.7.0"
@@ -2091,6 +2104,47 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@navios/adapter-bun@workspace:packages/adapter-bun":
+  version: 0.0.0-use.local
+  resolution: "@navios/adapter-bun@workspace:packages/adapter-bun"
+  dependencies:
+    "@navios/core": "workspace:^"
+    "@navios/di": "workspace:^"
+    "@types/bun": "npm:^1.2.22"
+    "@types/supertest": "npm:^6.0.3"
+    supertest: "npm:^7.1.4"
+    tsx: "npm:^4.20.5"
+    typescript: "npm:^5.9.2"
+  peerDependencies:
+    "@navios/core": "workspace:^"
+    "@navios/di": "workspace:^"
+  languageName: unknown
+  linkType: soft
+
+"@navios/adapter-fastify@workspace:packages/adapter-fastify":
+  version: 0.0.0-use.local
+  resolution: "@navios/adapter-fastify@workspace:packages/adapter-fastify"
+  dependencies:
+    "@fastify/cors": "npm:^11.1.0"
+    "@fastify/multipart": "npm:^9.2.1"
+    "@fastify/swagger": "npm:^9.1.0"
+    "@navios/core": "workspace:^"
+    "@navios/di": "workspace:^"
+    "@types/supertest": "npm:^6.0.3"
+    fastify: "npm:^5.6.0"
+    fastify-type-provider-zod: "npm:^6.0.0"
+    openapi-types: "npm:^12.1.3"
+    supertest: "npm:^7.1.4"
+    tsx: "npm:^4.20.5"
+    typescript: "npm:^5.9.2"
+    zod: "npm:^4.1.8"
+  peerDependencies:
+    "@navios/core": "workspace:^"
+    "@navios/di": "workspace:^"
+    fastify: ^5.6.0
+  languageName: unknown
+  linkType: soft
+
 "@navios/better-auth@workspace:lab-packages/better-auth":
   version: 0.0.0-use.local
   resolution: "@navios/better-auth@workspace:lab-packages/better-auth"
@@ -2099,7 +2153,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@navios/builder@workspace:^, @navios/builder@workspace:packages/builder":
+"@navios/builder@workspace:*, @navios/builder@workspace:^, @navios/builder@workspace:packages/builder":
   version: 0.0.0-use.local
   resolution: "@navios/builder@workspace:packages/builder"
   dependencies:
@@ -2126,18 +2180,14 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@navios/core@workspace:^, @navios/core@workspace:packages/core":
+"@navios/core@workspace:*, @navios/core@workspace:^, @navios/core@workspace:packages/core":
   version: 0.0.0-use.local
   resolution: "@navios/core@workspace:packages/core"
   dependencies:
-    "@fastify/cors": "npm:^11.1.0"
-    "@fastify/multipart": "npm:^9.2.1"
     "@navios/builder": "workspace:^"
     "@navios/di": "workspace:^"
     "@types/bun": "npm:^1.2.22"
     "@types/supertest": "npm:^6.0.3"
-    fastify: "npm:^5.6.0"
-    fastify-type-provider-zod: "npm:^6.0.0"
     supertest: "npm:^7.1.4"
     tsx: "npm:^4.20.5"
     typescript: "npm:^5.9.2"
@@ -5534,7 +5584,14 @@ __metadata:
   languageName: node
   linkType: hard
 
-"fast-uri@npm:^3.0.0, fast-uri@npm:^3.0.1":
+"fast-uri@npm:^3.0.0, fast-uri@npm:^3.0.5":
+  version: 3.1.0
+  resolution: "fast-uri@npm:3.1.0"
+  checksum: 10c0/44364adca566f70f40d1e9b772c923138d47efeac2ae9732a872baafd77061f26b097ba2f68f0892885ad177becd065520412b8ffeec34b16c99433c5b9e2de7
+  languageName: node
+  linkType: hard
+
+"fast-uri@npm:^3.0.1":
   version: 3.0.6
   resolution: "fast-uri@npm:3.0.6"
   checksum: 10c0/74a513c2af0584448aee71ce56005185f81239eab7a2343110e5bad50c39ad4fb19c5a6f99783ead1cac7ccaf3461a6034fda89fffa2b30b6d99b9f21c2f9d29
@@ -6523,6 +6580,17 @@ __metadata:
   dependencies:
     dequal: "npm:^2.0.3"
   checksum: 10c0/3ea894d79dd176b4ef31f1a3b7b335447b854780f2bc49af2918de0502d3eabad1889232a7a72c37f1c7ca429acc2eaad940ca5fd25f8ead044d5fecb00e0378
+  languageName: node
+  linkType: hard
+
+"json-schema-resolver@npm:^3.0.0":
+  version: 3.0.0
+  resolution: "json-schema-resolver@npm:3.0.0"
+  dependencies:
+    debug: "npm:^4.1.1"
+    fast-uri: "npm:^3.0.5"
+    rfdc: "npm:^1.1.4"
+  checksum: 10c0/f84edefb65da8833ee5949415abf599ebe18bec82ebf8f154b3565490552eaf1d9c6389d7310e5cdb611a21e655baaf20025f005c9222885ab69a092afd3f011
   languageName: node
   linkType: hard
 
@@ -7523,6 +7591,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"openapi-types@npm:^12.1.3":
+  version: 12.1.3
+  resolution: "openapi-types@npm:12.1.3"
+  checksum: 10c0/4ad4eb91ea834c237edfa6ab31394e87e00c888fc2918009763389c00d02342345195d6f302d61c3fd807f17723cd48df29b47b538b68375b3827b3758cd520f
+  languageName: node
+  linkType: hard
+
 "ora@npm:5.3.0":
   version: 5.3.0
   resolution: "ora@npm:5.3.0"
@@ -7730,15 +7805,15 @@ __metadata:
   linkType: hard
 
 "pino@npm:^9.0.0":
-  version: 9.6.0
-  resolution: "pino@npm:9.6.0"
+  version: 9.10.0
+  resolution: "pino@npm:9.10.0"
   dependencies:
     atomic-sleep: "npm:^1.0.0"
     fast-redact: "npm:^3.1.1"
     on-exit-leak-free: "npm:^2.1.0"
     pino-abstract-transport: "npm:^2.0.0"
     pino-std-serializers: "npm:^7.0.0"
-    process-warning: "npm:^4.0.0"
+    process-warning: "npm:^5.0.0"
     quick-format-unescaped: "npm:^4.0.3"
     real-require: "npm:^0.2.0"
     safe-stable-stringify: "npm:^2.3.1"
@@ -7746,7 +7821,7 @@ __metadata:
     thread-stream: "npm:^3.0.0"
   bin:
     pino: bin.js
-  checksum: 10c0/bcd1e9d9b301bea13b95689ca9ad7105ae9451928fb6c0b67b3e58c5fe37cea1d40665f3d6641e3da00be0bbc17b89031e67abbc8ea6aac6164f399309fd78e7
+  checksum: 10c0/42fb5a800e51e8cacf3ec0f0b03183775219e4248bd10f0638741f21eabfb58f904ec2ed4ec79d40850bc42725c7414ec3c3e69f7c0a21450ce12d181deeb278
   languageName: node
   linkType: hard
 
@@ -8171,13 +8246,13 @@ __metadata:
   linkType: hard
 
 "reusify@npm:^1.0.4":
-  version: 1.0.4
-  resolution: "reusify@npm:1.0.4"
-  checksum: 10c0/c19ef26e4e188f408922c46f7ff480d38e8dfc55d448310dfb518736b23ed2c4f547fb64a6ed5bdba92cd7e7ddc889d36ff78f794816d5e71498d645ef476107
+  version: 1.1.0
+  resolution: "reusify@npm:1.1.0"
+  checksum: 10c0/4eff0d4a5f9383566c7d7ec437b671cc51b25963bd61bf127c3f3d3f68e44a026d99b8d2f1ad344afff8d278a8fe70a8ea092650a716d22287e8bef7126bb2fa
   languageName: node
   linkType: hard
 
-"rfdc@npm:^1.2.0, rfdc@npm:^1.3.1":
+"rfdc@npm:^1.1.4, rfdc@npm:^1.2.0, rfdc@npm:^1.3.1":
   version: 1.4.1
   resolution: "rfdc@npm:1.4.1"
   checksum: 10c0/4614e4292356cafade0b6031527eea9bc90f2372a22c012313be1dcc69a3b90c7338158b414539be863fa95bfcb2ddcd0587be696841af4e6679d85e62c060c7
@@ -8569,6 +8644,17 @@ __metadata:
   checksum: 10c0/41602dce540e46d599edba9d9860193398d135f7ff72cab629db5171516cfae628d21e7bfccde1bbfdf11c48726bc2a6d1a8fb8701125852fbfda7cf19c6aa83
   languageName: node
   linkType: hard
+
+"simple-test@workspace:examples/simple-test":
+  version: 0.0.0-use.local
+  resolution: "simple-test@workspace:examples/simple-test"
+  dependencies:
+    "@navios/builder": "workspace:*"
+    "@navios/core": "workspace:*"
+    "@navios/di": "workspace:*"
+    tsx: "npm:^4.19.2"
+  languageName: unknown
+  linkType: soft
 
 "sirv@npm:^3.0.1":
   version: 3.0.1
@@ -9912,6 +9998,15 @@ __metadata:
   version: 1.10.2
   resolution: "yaml@npm:1.10.2"
   checksum: 10c0/5c28b9eb7adc46544f28d9a8d20c5b3cb1215a886609a2fd41f51628d8aaa5878ccd628b755dbcd29f6bb4921bd04ffbc6dcc370689bb96e594e2f9813d2605f
+  languageName: node
+  linkType: hard
+
+"yaml@npm:^2.4.2":
+  version: 2.8.1
+  resolution: "yaml@npm:2.8.1"
+  bin:
+    yaml: bin.mjs
+  checksum: 10c0/7c587be00d9303d2ae1566e03bc5bc7fe978ba0d9bf39cc418c3139d37929dfcb93a230d9749f2cb578b6aa5d9ebebc322415e4b653cb83acd8bc0bc321707f3
   languageName: node
   linkType: hard
 

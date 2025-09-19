@@ -1,0 +1,66 @@
+{
+  "name": "@navios/adapter-bun",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "packages/adapter-bun/src",
+  "prefix": "adapter-bun",
+  "tags": [],
+  "projectType": "library",
+  "targets": {
+    "check": {
+      "executor": "nx:run-commands",
+      "outputs": ["{projectRoot}/dist"],
+      "inputs": [
+        "^projectSources",
+        "projectSources",
+        "{projectRoot}/tsconfig.json",
+        "{projectRoot}/tsconfig.lib.json"
+      ],
+      "options": {
+        "command": ["tsc -b"],
+        "cwd": "packages/adapter-bun"
+      }
+    },
+    "lint": {
+      "executor": "nx:run-commands",
+      "inputs": ["^projectSources", "project"],
+      "options": {
+        "command": "oxlint --fix",
+        "cwd": "packages/adapter-bun"
+      }
+    },
+    "test:ci": {
+      "executor": "nx:run-commands",
+      "inputs": ["^projectSources", "project"],
+      "options": {
+        "command": "bun test",
+        "cwd": "packages/adapter-bun"
+      }
+    },
+    "build": {
+      "executor": "nx:run-commands",
+      "inputs": ["projectSources", "{projectRoot}/tsup.config.mts"],
+      "outputs": ["{projectRoot}/lib"],
+      "dependsOn": ["check", "test:ci", "lint"],
+      "options": {
+        "command": "tsup",
+        "cwd": "packages/adapter-bun"
+      }
+    },
+    "publish": {
+      "executor": "nx:run-commands",
+      "dependsOn": ["build"],
+      "options": {
+        "command": "yarn npm publish --access public",
+        "cwd": "packages/adapter-bun"
+      }
+    },
+    "publish:next": {
+      "executor": "nx:run-commands",
+      "dependsOn": ["build"],
+      "options": {
+        "command": "yarn npm publish --access public --tag next",
+        "cwd": "packages/adapter-bun"
+      }
+    }
+  }
+}

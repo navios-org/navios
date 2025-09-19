@@ -1,4 +1,4 @@
-import type { HttpHeader } from 'fastify/types/utils.js'
+import type { HttpHeader } from '../interfaces/index.mjs'
 
 import { getEndpointMetadata } from '../metadata/index.mjs'
 

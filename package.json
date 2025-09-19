@@ -4,7 +4,8 @@
   "workspaces": [
     "apps/*",
     "packages/*",
-    "lab-packages/*"
+    "lab-packages/*",
+    "examples/*"
   ],
   "private": true,
   "devDependencies": {

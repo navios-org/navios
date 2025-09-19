@@ -1,10 +1,10 @@
 import type { HttpMethod } from '@navios/builder'
 import type { ClassTypeWithInstance, InjectionToken } from '@navios/di'
-import type { HttpHeader } from 'fastify/types/utils.js'
 
 import type {
   AbstractHttpHandlerAdapterInterface,
   CanActivate,
+  HttpHeader,
 } from '../interfaces/index.mjs'
 
 export const EndpointMetadataKey = Symbol('EndpointMetadataKey')
