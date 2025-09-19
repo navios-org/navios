@@ -128,11 +128,9 @@ describe('GET variants', () => {
   class SomethingModule {}
 
   beforeAll(async () => {
-    server = await NaviosFactory.create(
-      SomethingModule,
-      {},
-      defineBunEnvironment(),
-    )
+    server = await NaviosFactory.create(SomethingModule, {
+      adapter: defineBunEnvironment(),
+    })
     await server.init()
     await server.listen({ port: 3001, host: 'localhost' })
     realServer = server.getServer().url.href

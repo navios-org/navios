@@ -19,14 +19,18 @@ import { NaviosEnvironment } from './navios.environment.mjs'
 export class NaviosFactory {
   static async create(
     appModule: ClassTypeWithInstance<NaviosModule>,
-    options: NaviosApplicationOptions = {},
-    environment: {
-      httpTokens?: Map<InjectionToken<any, undefined>, AnyInjectableType>
-    } = {},
+    options: NaviosApplicationOptions = {
+      adapter: [],
+    },
   ) {
     const container = new Container()
     await this.registerLoggerConfiguration(container, options)
-    await this.registerEnvironment(container, environment)
+    const adapters = Array.isArray(options.adapter)
+      ? options.adapter
+      : [options.adapter]
+    for (const adapter of adapters) {
+      await this.registerEnvironment(container, adapter)
+    }
     const app = await container.get(NaviosApplication)
     await app.setup(appModule, options)
     return app

@@ -76,11 +76,9 @@ describe('POST variants', () => {
   class SomethingModule {}
 
   beforeAll(async () => {
-    server = await NaviosFactory.create(
-      SomethingModule,
-      {},
-      defineFastifyEnvironment(),
-    )
+    server = await NaviosFactory.create(SomethingModule, {
+      adapter: defineFastifyEnvironment(),
+    })
     await server.init()
   })
 

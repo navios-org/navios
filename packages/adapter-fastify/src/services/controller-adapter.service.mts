@@ -131,9 +131,8 @@ export class FastifyControllerAdapterService {
             reply: FastifyReply,
           ) => {
             let canActivate = true
-            const executionContext = context.getInstance(
-              ExecutionContext.toString(),
-            ) as FastifyExecutionContext
+            const executionContext = context.get(ExecutionContext.toString())
+              ?.instance as FastifyExecutionContext
             canActivate = await this.guardRunner.runGuards(
               guards,
               executionContext,

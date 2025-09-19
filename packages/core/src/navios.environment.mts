@@ -2,6 +2,11 @@ import type { AnyInjectableType, InjectionToken } from '@navios/di'
 
 import { Injectable } from '@navios/di'
 
+export interface NaviosEnvironmentOptions {
+  // Future options can be added here
+  httpTokens?: Map<InjectionToken<any, undefined>, AnyInjectableType>
+}
+
 @Injectable()
 export class NaviosEnvironment {
   private httpTokens = new Map<

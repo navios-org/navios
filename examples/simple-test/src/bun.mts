@@ -6,7 +6,9 @@ import { AppModule } from './app/app.module.mjs'
 import { ConfigService } from './config/config.service.mjs'
 
 export async function boot() {
-  const app = await NaviosFactory.create(AppModule, {}, defineBunEnvironment())
+  const app = await NaviosFactory.create(AppModule, {
+    adapter: defineBunEnvironment(),
+  })
   app.enableCors({
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   })

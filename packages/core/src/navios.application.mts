@@ -8,6 +8,7 @@ import type {
   NaviosModule,
 } from './interfaces/index.mjs'
 import type { LoggerService, LogLevel } from './logger/index.mjs'
+import type { NaviosEnvironmentOptions } from './navios.environment.mjs'
 
 import { HttpAdapterToken } from './index.mjs'
 import { Logger } from './logger/index.mjs'
@@ -24,7 +25,7 @@ export interface NaviosApplicationContextOptions {
 export interface NaviosApplicationOptions
   extends NaviosApplicationContextOptions {
   // Fastify server options will be handled by FastifyApplicationService
-  [key: string]: any
+  adapter: NaviosEnvironmentOptions | NaviosEnvironmentOptions[]
 }
 
 @Injectable()
@@ -38,13 +39,17 @@ export class NaviosApplication {
   protected container = inject(Container)
 
   private appModule: ClassTypeWithInstance<NaviosModule> | null = null
-  private options: NaviosApplicationOptions = {}
+  private options: NaviosApplicationOptions = {
+    adapter: [],
+  }
 
   isInitialized = false
 
   async setup(
     appModule: ClassTypeWithInstance<NaviosModule>,
-    options: NaviosApplicationOptions = {},
+    options: NaviosApplicationOptions = {
+      adapter: [],
+    },
   ) {
     this.appModule = appModule
     this.options = options
