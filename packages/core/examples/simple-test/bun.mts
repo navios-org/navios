@@ -1,9 +1,10 @@
+import { defineBunEnvironment } from '../../src/adapter-bun/define-environment.mjs'
 import { NaviosFactory } from '../../src/index.mjs'
 import { ConfigService } from './config/config.service.mjs'
 import { AppModule } from './src/app.module.mjs'
 
 export async function boot() {
-  const app = await NaviosFactory.create(AppModule)
+  const app = await NaviosFactory.create(AppModule, {}, defineBunEnvironment())
   app.enableCors({
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   })

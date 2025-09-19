@@ -24,7 +24,7 @@ export interface FastifyApplicationServiceInterface
     FastifyApplicationOptions,
     FastifyMultipartOptions
   > {
-  createHttpServer(options: FastifyApplicationOptions): Promise<FastifyInstance>
+  setupHttpServer(options: FastifyApplicationOptions): Promise<void>
   initServer(): Promise<void>
   ready(): Promise<void>
   getServer(): FastifyInstance

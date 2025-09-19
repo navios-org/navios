@@ -25,8 +25,8 @@ export class AppGuard implements CanActivate {
       executionContext.getController(),
       executionContext.getHandler(),
     ])
-    this.logger.log('App Guard activated')
-    this.logger.log('isPublic', isPublic)
+    // this.logger.log('App Guard activated')
+    // this.logger.log('isPublic', isPublic)
     return true
   }
 }

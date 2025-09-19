@@ -51,9 +51,7 @@ export class FastifyApplicationService
   private corsOptions: FastifyCorsOptions | null = null
   private multipartOptions: FastifyMultipartOptions | true | null = null
 
-  async createHttpServer(
-    options: FastifyApplicationOptions,
-  ): Promise<FastifyInstance> {
+  async setupHttpServer(options: FastifyApplicationOptions): Promise<void> {
     const { logger, ...fastifyOptions } = options
     if (logger) {
       const serverOptions = fastifyOptions as FastifyServerOptions
@@ -71,7 +69,7 @@ export class FastifyApplicationService
         loggerInstance: await this.container.get(PinoWrapper),
       } as FastifyServerOptions)
     }
-    return this.server
+    await this.initServer()
   }
 
   async initServer(): Promise<void> {

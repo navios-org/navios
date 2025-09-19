@@ -63,8 +63,7 @@ export class NaviosApplication {
     }
     await this.moduleLoader.loadModules(this.appModule)
     if (this.environment.hasHttpSetup()) {
-      await this.httpApplication?.createHttpServer(this.options)
-      await this.httpApplication?.initServer()
+      await this.httpApplication?.setupHttpServer(this.options)
     }
     await this.initModules()
     if (this.environment.hasHttpSetup()) {

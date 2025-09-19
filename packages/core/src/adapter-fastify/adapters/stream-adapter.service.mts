@@ -4,7 +4,7 @@ import type { FastifyReply, FastifyRequest } from 'fastify'
 
 import { Container, inject, Injectable, InjectionToken } from '@navios/di'
 
-import type { AbstractExecutionContext, HandlerMetadata } from '../../index.mjs'
+import type { HandlerMetadata } from '../../index.mjs'
 import type { FastifyHandlerAdapterInterface } from './handler-adapter.interface.mjs'
 
 export const FastifyStreamAdapterToken =

@@ -8,9 +8,8 @@ export interface AbstractHttpAdapterInterface<
   Options = {},
   MultipartOptions = {},
 > {
-  createHttpServer(options: Options): Promise<ServerInstance>
+  setupHttpServer(options: Options): Promise<void>
   onModulesInit(modules: Map<string, ModuleMetadata>): Promise<void>
-  initServer(): Promise<void>
   ready(): Promise<void>
   getServer(): ServerInstance
   setGlobalPrefix(prefix: string): void

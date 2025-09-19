@@ -2134,6 +2134,7 @@ __metadata:
     "@fastify/multipart": "npm:^9.2.1"
     "@navios/builder": "workspace:^"
     "@navios/di": "workspace:^"
+    "@types/bun": "npm:^1.2.22"
     "@types/supertest": "npm:^6.0.3"
     fastify: "npm:^5.6.0"
     fastify-type-provider-zod: "npm:^6.0.0"
@@ -3567,6 +3568,15 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@types/bun@npm:^1.2.22":
+  version: 1.2.22
+  resolution: "@types/bun@npm:1.2.22"
+  dependencies:
+    bun-types: "npm:1.2.22"
+  checksum: 10c0/2d9ae0e1abd52ee6472bba7ff92b8c281a5e5a26a6c3506cdbf854461606ace6ca22764783729df6430351cf6d39552e69e78280dc981251b99747eafe64a807
+  languageName: node
+  linkType: hard
+
 "@types/chai@npm:^5.2.2":
   version: 5.2.2
   resolution: "@types/chai@npm:5.2.2"
@@ -4477,6 +4487,17 @@ __metadata:
   dependencies:
     semver: "npm:^7.0.0"
   checksum: 10c0/9390a51a9abbc0233dac79c66715f927508b9d0c62cb7a42448fe8c52def60c707e6e9eb2cc4c9b7aba11601899935bca4e4064ae5e19c04c7e1bb9309e69134
+  languageName: node
+  linkType: hard
+
+"bun-types@npm:1.2.22":
+  version: 1.2.22
+  resolution: "bun-types@npm:1.2.22"
+  dependencies:
+    "@types/node": "npm:*"
+  peerDependencies:
+    "@types/react": ^19
+  checksum: 10c0/fe9ecbdd9777b00e791be74cb018793ad6b4bd2ed069fa3f55601249328420d498f98189c448f3d179ed02efd79916693d7327ef4ec913de4f616ce4f000206f
   languageName: node
   linkType: hard
 
