@@ -1,5 +1,6 @@
 import type { ServiceLocatorInstanceHolder } from './service-locator-instance-holder.mjs'
 
+import { BaseInstanceHolderManager } from './base-instance-holder-manager.mjs'
 import { InjectableScope, InjectableType } from './enums/index.mjs'
 import { InjectionToken } from './injection-token.mjs'
 import { ServiceLocatorInstanceHolderStatus } from './service-locator-instance-holder.mjs'
@@ -13,11 +14,6 @@ export interface RequestContextHolder {
    * Unique identifier for this request context.
    */
   readonly requestId: string
-
-  /**
-   * Pre-prepared instances for this request, keyed by instance name.
-   */
-  readonly instances: Map<string, any>
 
   /**
    * Instance holders for request-scoped services.
@@ -55,19 +51,14 @@ export interface RequestContextHolder {
   addInstance(token: InjectionToken<any, undefined>, instance: any): void
 
   /**
-   * Gets a pre-prepared instance from this context.
-   */
-  getInstance(instanceName: string): any | undefined
-
-  /**
    * Gets an instance holder from this context.
    */
-  getHolder(instanceName: string): ServiceLocatorInstanceHolder | undefined
+  get(instanceName: string): ServiceLocatorInstanceHolder | undefined
 
   /**
    * Checks if this context has a pre-prepared instance.
    */
-  hasInstance(instanceName: string): boolean
+  has(instanceName: string): boolean
 
   /**
    * Clears all instances and holders from this context.
@@ -83,14 +74,41 @@ export interface RequestContextHolder {
    * Sets metadata value by key.
    */
   setMetadata(key: string, value: any): void
+
+  // Methods inherited from BaseInstanceHolderManager
+  /**
+   * Filters holders based on a predicate function.
+   */
+  filter(
+    predicate: (
+      value: ServiceLocatorInstanceHolder<any>,
+      key: string,
+    ) => boolean,
+  ): Map<string, ServiceLocatorInstanceHolder>
+
+  /**
+   * Deletes a holder by name.
+   */
+  delete(name: string): boolean
+
+  /**
+   * Gets the number of holders currently managed.
+   */
+  size(): number
+
+  /**
+   * Checks if this manager has any holders.
+   */
+  isEmpty(): boolean
 }
 
 /**
  * Default implementation of RequestContextHolder.
  */
-export class DefaultRequestContextHolder implements RequestContextHolder {
-  public readonly instances = new Map<string, any>()
-  public readonly holders = new Map<string, ServiceLocatorInstanceHolder>()
+export class DefaultRequestContextHolder
+  extends BaseInstanceHolderManager
+  implements RequestContextHolder
+{
   public readonly metadata = new Map<string, any>()
   public readonly createdAt = Date.now()
 
@@ -99,11 +117,40 @@ export class DefaultRequestContextHolder implements RequestContextHolder {
     public readonly priority: number = 100,
     initialMetadata?: Record<string, any>,
   ) {
+    super(null) // RequestContextHolder doesn't need logging
     if (initialMetadata) {
       Object.entries(initialMetadata).forEach(([key, value]) => {
         this.metadata.set(key, value)
       })
     }
+  }
+
+  /**
+   * Public getter for holders to maintain interface compatibility.
+   */
+  get holders(): Map<string, ServiceLocatorInstanceHolder> {
+    return this._holders
+  }
+
+  /**
+   * Gets a holder by name. For RequestContextHolder, this is a simple lookup.
+   */
+  get(name: string): ServiceLocatorInstanceHolder | undefined {
+    return this._holders.get(name)
+  }
+
+  /**
+   * Sets a holder by name.
+   */
+  set(name: string, holder: ServiceLocatorInstanceHolder): void {
+    this._holders.set(name, holder)
+  }
+
+  /**
+   * Checks if a holder exists by name.
+   */
+  has(name: string): boolean {
+    return this._holders.has(name)
   }
 
   addInstance(
@@ -112,44 +159,26 @@ export class DefaultRequestContextHolder implements RequestContextHolder {
     holder?: ServiceLocatorInstanceHolder,
   ): void {
     if (instanceName instanceof InjectionToken) {
-      this.instances.set(instanceName.toString(), instance)
-      this.holders.set(instanceName.toString(), {
+      const name = instanceName.toString()
+      const createdHolder = this.createCreatedHolder(
+        name,
         instance,
-        status: ServiceLocatorInstanceHolderStatus.Created,
-        creationPromise: null,
-        destroyPromise: null,
-        destroyListeners: [],
-        deps: new Set(),
-        name: instanceName.toString(),
-        type: InjectableType.Class,
-        scope: InjectableScope.Singleton,
-        createdAt: Date.now(),
-        ttl: Infinity,
-      })
+        InjectableType.Class,
+        InjectableScope.Singleton,
+        new Set(),
+        Infinity,
+      )
+      this._holders.set(name, createdHolder)
     } else {
       if (!holder) {
         throw new Error('Holder is required when adding an instance by name')
       }
-      this.instances.set(instanceName, instance)
-      this.holders.set(instanceName, holder)
+      this._holders.set(instanceName, holder)
     }
   }
 
-  getInstance(instanceName: string): any | undefined {
-    return this.instances.get(instanceName)
-  }
-
-  getHolder(instanceName: string): ServiceLocatorInstanceHolder | undefined {
-    return this.holders.get(instanceName)
-  }
-
-  hasInstance(instanceName: string): boolean {
-    return this.instances.has(instanceName)
-  }
-
   clear(): void {
-    this.instances.clear()
-    this.holders.clear()
+    super.clear() // Use the base class clear method for holders
     this.metadata.clear()
   }
 

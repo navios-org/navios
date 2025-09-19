@@ -238,13 +238,12 @@ describe('Request Scope', () => {
 
       holder.addInstance('test-instance', mockInstance, mockHolder)
 
-      expect(holder.hasInstance('test-instance')).toBe(true)
-      expect(holder.getInstance('test-instance')).toBe(mockInstance)
-      expect(holder.getHolder('test-instance')).toBe(mockHolder)
+      expect(holder.has('test-instance')).toBe(true)
+      expect(holder.get('test-instance')).toBe(mockHolder)
 
       // Clear instances
       holder.clear()
-      expect(holder.hasInstance('test-instance')).toBe(false)
+      expect(holder.has('test-instance')).toBe(false)
     })
 
     it('should handle metadata correctly', () => {
@@ -270,11 +269,11 @@ describe('Request Scope', () => {
       holder.addInstance(token, instance)
 
       // Verify instance is stored and retrievable
-      expect(holder.hasInstance(token.toString())).toBe(true)
-      expect(holder.getInstance(token.toString())).toBe(instance)
+      expect(holder.has(token.toString())).toBe(true)
+      expect(holder.get(token.toString())?.instance).toBe(instance)
 
       // Verify holder is created with correct properties
-      const holderInfo = holder.getHolder(token.toString())
+      const holderInfo = holder.get(token.toString())
       expect(holderInfo).toBeDefined()
       expect(holderInfo?.instance).toBe(instance)
       expect(holderInfo?.name).toBe(token.toString())
@@ -297,18 +296,18 @@ describe('Request Scope', () => {
       holder.addInstance(token3, instance3)
 
       // Verify all instances are stored correctly
-      expect(holder.hasInstance(token1.toString())).toBe(true)
-      expect(holder.hasInstance(token2.toString())).toBe(true)
-      expect(holder.hasInstance(token3.toString())).toBe(true)
+      expect(holder.has(token1.toString())).toBe(true)
+      expect(holder.has(token2.toString())).toBe(true)
+      expect(holder.has(token3.toString())).toBe(true)
 
-      expect(holder.getInstance(token1.toString())).toBe(instance1)
-      expect(holder.getInstance(token2.toString())).toBe(instance2)
-      expect(holder.getInstance(token3.toString())).toBe(instance3)
+      expect(holder.get(token1.toString())?.instance).toBe(instance1)
+      expect(holder.get(token2.toString())?.instance).toBe(instance2)
+      expect(holder.get(token3.toString())?.instance).toBe(instance3)
 
       // Verify each has its own holder
-      const holder1 = holder.getHolder(token1.toString())
-      const holder2 = holder.getHolder(token2.toString())
-      const holder3 = holder.getHolder(token3.toString())
+      const holder1 = holder.get(token1.toString())
+      const holder2 = holder.get(token2.toString())
+      const holder3 = holder.get(token3.toString())
 
       expect(holder1?.instance).toBe(instance1)
       expect(holder2?.instance).toBe(instance2)
@@ -324,15 +323,15 @@ describe('Request Scope', () => {
 
       // Store original instance
       holder.addInstance(token, originalInstance)
-      expect(holder.getInstance(token.toString())).toBe(originalInstance)
+      expect(holder.get(token.toString())?.instance).toBe(originalInstance)
 
       // Override with new instance
       holder.addInstance(token, newInstance)
-      expect(holder.getInstance(token.toString())).toBe(newInstance)
-      expect(holder.getInstance(token.toString())).not.toBe(originalInstance)
+      expect(holder.get(token.toString())?.instance).toBe(newInstance)
+      expect(holder.get(token.toString())?.instance).not.toBe(originalInstance)
 
       // Verify holder is updated
-      const holderInfo = holder.getHolder(token.toString())
+      const holderInfo = holder.get(token.toString())
       expect(holderInfo?.instance).toBe(newInstance)
     })
 
@@ -356,9 +355,9 @@ describe('Request Scope', () => {
       holder.addInstance(symbolToken, symbolInstance)
       holder.addInstance(classToken, classInstance)
 
-      expect(holder.getInstance(stringToken.toString())).toBe(stringInstance)
-      expect(holder.getInstance(symbolToken.toString())).toBe(symbolInstance)
-      expect(holder.getInstance(classToken.toString())).toBe(classInstance)
+      expect(holder.get(stringToken.toString())?.instance).toBe(stringInstance)
+      expect(holder.get(symbolToken.toString())?.instance).toBe(symbolInstance)
+      expect(holder.get(classToken.toString())?.instance).toBe(classInstance)
     })
 
     it('should clear instances stored by InjectionToken', () => {
@@ -372,16 +371,16 @@ describe('Request Scope', () => {
       holder.addInstance(token1, instance1)
       holder.addInstance(token2, instance2)
 
-      expect(holder.hasInstance(token1.toString())).toBe(true)
-      expect(holder.hasInstance(token2.toString())).toBe(true)
+      expect(holder.has(token1.toString())).toBe(true)
+      expect(holder.has(token2.toString())).toBe(true)
 
       // Clear all instances
       holder.clear()
 
-      expect(holder.hasInstance(token1.toString())).toBe(false)
-      expect(holder.hasInstance(token2.toString())).toBe(false)
-      expect(holder.getInstance(token1.toString())).toBeUndefined()
-      expect(holder.getInstance(token2.toString())).toBeUndefined()
+      expect(holder.has(token1.toString())).toBe(false)
+      expect(holder.has(token2.toString())).toBe(false)
+      expect(holder.get(token1.toString())?.instance).toBeUndefined()
+      expect(holder.get(token2.toString())?.instance).toBeUndefined()
     })
 
     it('should handle mixed storage by InjectionToken and string name', () => {
@@ -413,15 +412,15 @@ describe('Request Scope', () => {
       holder.addInstance(stringName, stringInstance, mockHolder)
 
       // Verify both are stored correctly
-      expect(holder.hasInstance(token.toString())).toBe(true)
-      expect(holder.hasInstance(stringName)).toBe(true)
+      expect(holder.has(token.toString())).toBe(true)
+      expect(holder.has(stringName)).toBe(true)
 
-      expect(holder.getInstance(token.toString())).toBe(tokenInstance)
-      expect(holder.getInstance(stringName)).toBe(stringInstance)
+      expect(holder.get(token.toString())?.instance).toBe(tokenInstance)
+      expect(holder.get(stringName)?.instance).toBe(stringInstance)
 
       // Verify holders
-      expect(holder.getHolder(token.toString())?.instance).toBe(tokenInstance)
-      expect(holder.getHolder(stringName)?.instance).toBe(stringInstance)
+      expect(holder.get(token.toString())?.instance).toBe(tokenInstance)
+      expect(holder.get(stringName)?.instance).toBe(stringInstance)
     })
   })
 })

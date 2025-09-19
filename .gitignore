@@ -27,3 +27,4 @@ tsconfig.vitest-temp.json
 
 .cursor/rules/nx-rules.mdc
 .github/instructions/nx.instructions.md
+coverage

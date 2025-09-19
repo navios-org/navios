@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-empty-object-type */
 import type { ServiceLocatorInstanceHolder } from './service-locator-instance-holder.mjs'
 
+import { BaseInstanceHolderManager } from './base-instance-holder-manager.mjs'
 import { InjectableScope, InjectableType } from './enums/index.mjs'
 import {
   ErrorsEnum,
@@ -9,13 +10,11 @@ import {
   InstanceNotFound,
 } from './errors/index.mjs'
 import { ServiceLocatorInstanceHolderStatus } from './service-locator-instance-holder.mjs'
-import { createDeferred } from './utils/defer.mjs'
 
-export class ServiceLocatorManager {
-  private readonly instancesHolders: Map<string, ServiceLocatorInstanceHolder> =
-    new Map()
-
-  constructor(private readonly logger: Console | null = null) {}
+export class ServiceLocatorManager extends BaseInstanceHolderManager {
+  constructor(logger: Console | null = null) {
+    super(logger)
+  }
 
   get(
     name: string,
@@ -23,7 +22,7 @@ export class ServiceLocatorManager {
     | [InstanceExpired | InstanceDestroying, ServiceLocatorInstanceHolder]
     | [InstanceNotFound]
     | [undefined, ServiceLocatorInstanceHolder] {
-    const holder = this.instancesHolders.get(name)
+    const holder = this._holders.get(name)
     if (holder) {
       if (holder.ttl !== Infinity) {
         const now = Date.now()
@@ -57,7 +56,7 @@ export class ServiceLocatorManager {
   }
 
   set(name: string, holder: ServiceLocatorInstanceHolder): void {
-    this.instancesHolders.set(name, holder)
+    this._holders.set(name, holder)
   }
 
   has(
@@ -77,61 +76,9 @@ export class ServiceLocatorManager {
     return [undefined, !!holder]
   }
 
-  delete(name: string): boolean {
-    return this.instancesHolders.delete(name)
-  }
+  // delete and filter methods are inherited from BaseInstanceHolderManager
 
-  filter(
-    predicate: (
-      value: ServiceLocatorInstanceHolder<any>,
-      key: string,
-    ) => boolean,
-  ): Map<string, ServiceLocatorInstanceHolder> {
-    return new Map(
-      [...this.instancesHolders].filter(([key, value]) =>
-        predicate(value, key),
-      ),
-    )
-  }
-
-  /**
-   * Creates a new holder with Creating status and a deferred creation promise.
-   * This is useful for creating placeholder holders that can be fulfilled later.
-   * @param name The name of the instance
-   * @param type The injectable type
-   * @param scope The injectable scope
-   * @param deps Optional set of dependencies
-   * @param ttl Optional time-to-live in milliseconds (defaults to Infinity)
-   * @returns A tuple containing the deferred promise and the holder
-   */
-  createCreatingHolder<Instance>(
-    name: string,
-    type: InjectableType,
-    scope: InjectableScope,
-    deps: Set<string> = new Set(),
-    ttl: number = Infinity,
-  ): [
-    ReturnType<typeof createDeferred<[undefined, Instance]>>,
-    ServiceLocatorInstanceHolder<Instance>,
-  ] {
-    const deferred = createDeferred<[undefined, Instance]>()
-
-    const holder: ServiceLocatorInstanceHolder<Instance> = {
-      status: ServiceLocatorInstanceHolderStatus.Creating,
-      name,
-      instance: null,
-      creationPromise: deferred.promise,
-      destroyPromise: null,
-      type,
-      scope,
-      deps,
-      destroyListeners: [],
-      createdAt: Date.now(),
-      ttl,
-    }
-
-    return [deferred, holder]
-  }
+  // createCreatingHolder method is inherited from BaseInstanceHolderManager
 
   /**
    * Creates a new holder with Created status and an actual instance.
@@ -152,21 +99,16 @@ export class ServiceLocatorManager {
     deps: Set<string> = new Set(),
     ttl: number = Infinity,
   ): ServiceLocatorInstanceHolder<Instance> {
-    const holder: ServiceLocatorInstanceHolder<Instance> = {
-      status: ServiceLocatorInstanceHolderStatus.Created,
+    const holder = this.createCreatedHolder(
       name,
       instance,
-      creationPromise: null,
-      destroyPromise: null,
       type,
       scope,
       deps,
-      destroyListeners: [],
-      createdAt: Date.now(),
       ttl,
-    }
+    )
 
-    this.instancesHolders.set(name, holder)
+    this._holders.set(name, holder)
 
     return holder
   }

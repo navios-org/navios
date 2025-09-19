@@ -90,10 +90,10 @@ export class ServiceLocator {
     if (err) {
       return [err]
     }
+
     const { instanceName, validatedArgs, actualToken, realToken } = data
-    if (onPrepare) {
-      onPrepare({ instanceName, actualToken, validatedArgs })
-    }
+    onPrepare?.({ instanceName, actualToken, validatedArgs })
+
     const [error, holder] = await this.retrieveOrCreateInstanceByInstanceName(
       instanceName,
       realToken,
@@ -133,12 +133,16 @@ export class ServiceLocator {
       return null
     }
     const instanceName = this.generateInstanceName(actualToken, validatedArgs)
+
+    // Try request context first
     if (this.currentRequestContext) {
-      const requestHolder = this.currentRequestContext.getHolder(instanceName)
+      const requestHolder = this.currentRequestContext.get(instanceName)
       if (requestHolder) {
         return requestHolder.instance as Instance
       }
     }
+
+    // Try singleton manager
     const [error, holder] = this.manager.get(instanceName)
     if (error) {
       return null
@@ -148,66 +152,101 @@ export class ServiceLocator {
 
   invalidate(service: string, round = 1): Promise<any> {
     this.logger?.log(
-      `[ServiceLocator]#invalidate(): Starting Invalidating process of ${service}`,
+      `[ServiceLocator] Starting invalidation process for ${service}`,
     )
     const toInvalidate = this.manager.filter(
       (holder) => holder.name === service || holder.deps.has(service),
     )
     const promises = []
     for (const [key, holder] of toInvalidate.entries()) {
-      if (holder.status === ServiceLocatorInstanceHolderStatus.Destroying) {
-        this.logger?.trace(
-          `[ServiceLocator]#invalidate(): ${key} is already being destroyed`,
-        )
-        promises.push(holder.destroyPromise)
-        continue
-      }
-      if (holder.status === ServiceLocatorInstanceHolderStatus.Creating) {
-        this.logger?.trace(
-          `[ServiceLocator]#invalidate(): ${key} is being created, waiting for creation to finish`,
-        )
-        promises.push(
-          holder.creationPromise?.then(() => {
-            if (round > 3) {
-              this.logger?.error(
-                `[ServiceLocator]#invalidate(): ${key} creation is triggering a new invalidation round, but it is still not created`,
-              )
-              return
-            }
-            return this.invalidate(key, round + 1)
-          }),
-        )
-        continue
-      }
-      // @ts-expect-error TS2322 we are changing the status
-      holder.status = ServiceLocatorInstanceHolderStatus.Destroying
-      this.logger?.log(
-        `[ServiceLocator]#invalidate(): Invalidating ${key} and notifying listeners`,
-      )
-      // @ts-expect-error TS2322 we are changing the status
-      holder.destroyPromise = Promise.all(
-        holder.destroyListeners.map((listener) => listener()),
-      ).then(async () => {
-        this.manager.delete(key)
-        await this.emitInstanceEvent(key, 'destroy')
-      })
-      promises.push(holder.destroyPromise)
+      promises.push(this.invalidateHolder(key, holder, round))
     }
     return Promise.all(promises)
   }
 
+  /**
+   * Invalidates a single holder based on its current status.
+   */
+  private async invalidateHolder(
+    key: string,
+    holder: ServiceLocatorInstanceHolder<any>,
+    round: number,
+  ): Promise<void> {
+    switch (holder.status) {
+      case ServiceLocatorInstanceHolderStatus.Destroying:
+        this.logger?.trace(`[ServiceLocator] ${key} is already being destroyed`)
+        await holder.destroyPromise
+        break
+
+      case ServiceLocatorInstanceHolderStatus.Creating:
+        this.logger?.trace(
+          `[ServiceLocator] ${key} is being created, waiting...`,
+        )
+        await holder.creationPromise
+        if (round > 3) {
+          this.logger?.error(
+            `[ServiceLocator] ${key} creation triggered too many invalidation rounds`,
+          )
+          return
+        }
+        await this.invalidate(key, round + 1)
+        break
+
+      default:
+        await this.destroyHolder(key, holder)
+        break
+    }
+  }
+
+  /**
+   * Destroys a holder and cleans up its resources.
+   */
+  private async destroyHolder(
+    key: string,
+    holder: ServiceLocatorInstanceHolder<any>,
+  ): Promise<void> {
+    holder.status = ServiceLocatorInstanceHolderStatus.Destroying
+    this.logger?.log(
+      `[ServiceLocator] Invalidating ${key} and notifying listeners`,
+    )
+
+    holder.destroyPromise = Promise.all(
+      holder.destroyListeners.map((listener) => listener()),
+    ).then(async () => {
+      this.manager.delete(key)
+      await this.emitInstanceEvent(key, 'destroy')
+    })
+
+    await holder.destroyPromise
+  }
+
   async ready() {
-    return Promise.all(
-      Array.from(this.manager.filter(() => true)).map(([, holder]) => {
-        if (holder.status === ServiceLocatorInstanceHolderStatus.Creating) {
-          return holder.creationPromise?.then(() => null)
-        }
-        if (holder.status === ServiceLocatorInstanceHolderStatus.Destroying) {
-          return holder.destroyPromise.then(() => null)
-        }
-        return Promise.resolve(null)
-      }),
-    ).then(() => null)
+    const holders = Array.from(this.manager.filter(() => true)).map(
+      ([, holder]) => holder,
+    )
+    await Promise.all(
+      holders.map((holder) => this.waitForHolderToSettle(holder)),
+    )
+  }
+
+  /**
+   * Waits for a holder to settle (either created, destroyed, or error state).
+   */
+  private async waitForHolderToSettle(
+    holder: ServiceLocatorInstanceHolder<any>,
+  ): Promise<void> {
+    switch (holder.status) {
+      case ServiceLocatorInstanceHolderStatus.Creating:
+        await holder.creationPromise
+        break
+      case ServiceLocatorInstanceHolderStatus.Destroying:
+        await holder.destroyPromise
+        break
+      // Already settled states
+      case ServiceLocatorInstanceHolderStatus.Created:
+      case ServiceLocatorInstanceHolderStatus.Error:
+        break
+    }
   }
 
   // ============================================================================
@@ -400,84 +439,16 @@ export class ServiceLocator {
     | [undefined, ServiceLocatorInstanceHolder<any>]
     | [UnknownError | FactoryNotFound]
   > {
-    // Check if this is a request-scoped service and we have a current request context
-    if (this.registry.has(realToken)) {
-      const record = this.registry.get(realToken)
-      if (record.scope === InjectableScope.Request) {
-        if (!this.currentRequestContext) {
-          this.logger?.log(
-            `[ServiceLocator]#retrieveOrCreateInstanceByInstanceName() No current request context available for request-scoped service ${instanceName}`,
-          )
-          return [new UnknownError(ErrorsEnum.InstanceNotFound)]
-        }
-        const requestHolder = this.currentRequestContext.getHolder(instanceName)
-        if (requestHolder) {
-          if (
-            requestHolder.status === ServiceLocatorInstanceHolderStatus.Creating
-          ) {
-            await requestHolder.creationPromise
-            return this.retrieveOrCreateInstanceByInstanceName(
-              instanceName,
-              realToken,
-              realArgs,
-            )
-          } else if (
-            requestHolder.status ===
-            ServiceLocatorInstanceHolderStatus.Destroying
-          ) {
-            return [new UnknownError(ErrorsEnum.InstanceDestroying)]
-          }
-          return [undefined, requestHolder]
-        }
-      }
+    // Try to get existing instance (handles both request-scoped and singleton)
+    const existingHolder = await this.tryGetExistingInstance(
+      instanceName,
+      realToken,
+    )
+    if (existingHolder) {
+      return existingHolder
     }
 
-    const [error, holder] = this.manager.get(instanceName)
-    if (!error) {
-      if (holder.status === ServiceLocatorInstanceHolderStatus.Creating) {
-        await holder.creationPromise
-        return this.retrieveOrCreateInstanceByInstanceName(
-          instanceName,
-          realToken,
-          realArgs,
-        )
-      } else if (
-        holder.status === ServiceLocatorInstanceHolderStatus.Destroying
-      ) {
-        // Should never happen
-        return [new UnknownError(ErrorsEnum.InstanceDestroying)]
-      }
-      return [undefined, holder]
-    }
-    switch (error.code) {
-      case ErrorsEnum.InstanceDestroying:
-        this.logger?.log(
-          `[ServiceLocator]#retrieveOrCreateInstanceByInstanceName() TTL expired for ${holder?.name}`,
-        )
-        await holder?.destroyPromise
-        //Maybe we already have a new instance
-        return this.retrieveOrCreateInstanceByInstanceName(
-          instanceName,
-          realToken,
-          realArgs,
-        )
-
-      case ErrorsEnum.InstanceExpired:
-        this.logger?.log(
-          `[ServiceLocator]#retrieveOrCreateInstanceByInstanceName() TTL expired for ${holder?.name}`,
-        )
-        await this.invalidate(instanceName)
-        //Maybe we already have a new instance
-        return this.retrieveOrCreateInstanceByInstanceName(
-          instanceName,
-          realToken,
-          realArgs,
-        )
-      case ErrorsEnum.InstanceNotFound:
-        break
-      default:
-        return [error]
-    }
+    // No existing instance found, create a new one
     const result = await this.createNewInstance(
       instanceName,
       realToken,
@@ -486,13 +457,130 @@ export class ServiceLocator {
     if (result[0]) {
       return [result[0]]
     }
-    if (result[1].status === ServiceLocatorInstanceHolderStatus.Creating) {
-      await result[1].creationPromise
+
+    const [, holder] = result
+    return this.waitForInstanceReady(holder)
+  }
+
+  /**
+   * Attempts to retrieve an existing instance, handling request-scoped and singleton instances.
+   * Returns null if no instance exists and a new one should be created.
+   */
+  private async tryGetExistingInstance(
+    instanceName: string,
+    realToken: InjectionToken<any, any>,
+  ): Promise<
+    [undefined, ServiceLocatorInstanceHolder<any>] | [UnknownError] | null
+  > {
+    // Check request-scoped instances first
+    const requestResult = await this.tryGetRequestScopedInstance(
+      instanceName,
+      realToken,
+    )
+    if (requestResult) {
+      return requestResult
     }
-    if (result[1].status === ServiceLocatorInstanceHolderStatus.Error) {
-      return [result[1].instance] as [UnknownError | FactoryNotFound]
+
+    // Check singleton instances
+    return this.tryGetSingletonInstance(instanceName)
+  }
+
+  /**
+   * Attempts to get a request-scoped instance if applicable.
+   */
+  private async tryGetRequestScopedInstance(
+    instanceName: string,
+    realToken: InjectionToken<any, any>,
+  ): Promise<
+    [undefined, ServiceLocatorInstanceHolder<any>] | [UnknownError] | null
+  > {
+    if (!this.registry.has(realToken)) {
+      return null
     }
-    return [undefined, result[1]]
+
+    const record = this.registry.get(realToken)
+    if (record.scope !== InjectableScope.Request) {
+      return null
+    }
+
+    if (!this.currentRequestContext) {
+      this.logger?.log(
+        `[ServiceLocator] No current request context available for request-scoped service ${instanceName}`,
+      )
+      return [new UnknownError(ErrorsEnum.InstanceNotFound)]
+    }
+
+    const requestHolder = this.currentRequestContext.get(instanceName)
+    if (!requestHolder) {
+      return null
+    }
+
+    return this.waitForInstanceReady(requestHolder)
+  }
+
+  /**
+   * Attempts to get a singleton instance from the manager.
+   */
+  private async tryGetSingletonInstance(
+    instanceName: string,
+  ): Promise<
+    [undefined, ServiceLocatorInstanceHolder<any>] | [UnknownError] | null
+  > {
+    const [error, holder] = this.manager.get(instanceName)
+
+    if (!error) {
+      return this.waitForInstanceReady(holder)
+    }
+
+    // Handle recovery scenarios
+    switch (error.code) {
+      case ErrorsEnum.InstanceDestroying:
+        this.logger?.log(
+          `[ServiceLocator] Instance ${instanceName} is being destroyed, waiting...`,
+        )
+        await holder?.destroyPromise
+        // Retry after destruction is complete
+        return this.tryGetSingletonInstance(instanceName)
+
+      case ErrorsEnum.InstanceExpired:
+        this.logger?.log(
+          `[ServiceLocator] Instance ${instanceName} expired, invalidating...`,
+        )
+        await this.invalidate(instanceName)
+        // Retry after invalidation
+        return this.tryGetSingletonInstance(instanceName)
+
+      case ErrorsEnum.InstanceNotFound:
+        return null // Instance doesn't exist, should create new one
+
+      default:
+        return [error]
+    }
+  }
+
+  /**
+   * Waits for an instance holder to be ready and returns the appropriate result.
+   */
+  private async waitForInstanceReady<T>(
+    holder: ServiceLocatorInstanceHolder<T>,
+  ): Promise<[undefined, ServiceLocatorInstanceHolder<T>] | [UnknownError]> {
+    switch (holder.status) {
+      case ServiceLocatorInstanceHolderStatus.Creating:
+        await holder.creationPromise
+        return this.waitForInstanceReady(holder)
+
+      case ServiceLocatorInstanceHolderStatus.Destroying:
+        return [new UnknownError(ErrorsEnum.InstanceDestroying)]
+
+      case ServiceLocatorInstanceHolderStatus.Error:
+        return [holder.instance as UnknownError]
+
+      case ServiceLocatorInstanceHolderStatus.Created:
+        return [undefined, holder]
+
+      default:
+        return [new UnknownError(ErrorsEnum.InstanceNotFound)]
+    }
   }
 
   /**
@@ -578,71 +666,191 @@ export class ServiceLocator {
     this.serviceInstantiator
       .instantiateService(ctx, record, args)
       .then(async ([error, instance]) => {
-        holder.destroyListeners = ctx.getDestroyListeners()
-        holder.creationPromise = null
-        if (error) {
-          this.logger?.error(
-            `[ServiceLocator]#instantiateServiceFromRegistry(): Error creating instance for ${instanceName}`,
-            error,
-          )
-          holder.status = ServiceLocatorInstanceHolderStatus.Error
-          holder.instance = error
-          if (scope === InjectableScope.Singleton) {
-            setTimeout(() => this.invalidate(instanceName), 10)
-          }
-          deferred.reject(error)
-        } else {
-          holder.instance = instance
-          holder.status = ServiceLocatorInstanceHolderStatus.Created
-          if (ctx.deps.size > 0) {
-            ctx.deps.forEach((dependency) => {
-              holder.destroyListeners.push(
-                this.eventBus.on(dependency, 'destroy', () =>
-                  this.invalidate(instanceName),
-                ),
-              )
-            })
-          }
-          await this.emitInstanceEvent(instanceName)
-          deferred.resolve([undefined, instance])
-        }
+        await this.handleInstantiationResult(
+          instanceName,
+          holder,
+          ctx,
+          deferred,
+          scope,
+          error,
+          instance,
+        )
       })
-      .catch((error) => {
-        this.logger?.error(
-          `[ServiceLocator]#instantiateServiceFromRegistry(): Unexpected error creating instance for ${instanceName}`,
+      .catch(async (error) => {
+        await this.handleInstantiationError(
+          instanceName,
+          holder,
+          deferred,
+          scope,
           error,
         )
-        holder.status = ServiceLocatorInstanceHolderStatus.Error
-        holder.instance = error
-        holder.creationPromise = null
-        if (scope === InjectableScope.Singleton) {
-          setTimeout(() => this.invalidate(instanceName), 10)
-        }
-        deferred.reject(error)
       })
 
-    if (scope === InjectableScope.Singleton) {
-      this.logger?.debug(
-        `[ServiceLocator]#instantiateServiceFromRegistry(): Setting instance for ${instanceName}`,
-      )
-      this.manager.set(instanceName, holder)
-    } else if (
-      scope === InjectableScope.Request &&
-      this.currentRequestContext
-    ) {
-      this.logger?.debug(
-        `[ServiceLocator]#instantiateServiceFromRegistry(): Setting request-scoped instance for ${instanceName}`,
-      )
-      // For request-scoped services, we don't store them in the global manager
-      // They will be managed by the request context holder
-      this.currentRequestContext.addInstance(
-        instanceName,
-        holder.instance,
-        holder,
-      )
-    }
+    this.storeInstanceByScope(scope, instanceName, holder)
     // @ts-expect-error TS2322 This is correct type
     return [undefined, holder]
+  }
+
+  /**
+   * Handles the result of service instantiation.
+   */
+  private async handleInstantiationResult(
+    instanceName: string,
+    holder: ServiceLocatorInstanceHolder<any>,
+    ctx: any,
+    deferred: any,
+    scope: InjectableScope,
+    error: any,
+    instance: any,
+  ): Promise<void> {
+    holder.destroyListeners = ctx.getDestroyListeners()
+    holder.creationPromise = null
+
+    if (error) {
+      await this.handleInstantiationError(
+        instanceName,
+        holder,
+        deferred,
+        scope,
+        error,
+      )
+    } else {
+      await this.handleInstantiationSuccess(
+        instanceName,
+        holder,
+        ctx,
+        deferred,
+        instance,
+      )
+    }
+  }
+
+  /**
+   * Handles successful service instantiation.
+   */
+  private async handleInstantiationSuccess(
+    instanceName: string,
+    holder: ServiceLocatorInstanceHolder<any>,
+    ctx: any,
+    deferred: any,
+    instance: any,
+  ): Promise<void> {
+    holder.instance = instance
+    holder.status = ServiceLocatorInstanceHolderStatus.Created
+
+    // Set up dependency invalidation listeners
+    if (ctx.deps.size > 0) {
+      ctx.deps.forEach((dependency: string) => {
+        holder.destroyListeners.push(
+          this.eventBus.on(dependency, 'destroy', () =>
+            this.invalidate(instanceName),
+          ),
+        )
+      })
+    }
+
+    await this.emitInstanceEvent(instanceName)
+    deferred.resolve([undefined, instance])
+  }
+
+  /**
+   * Handles service instantiation errors.
+   */
+  private async handleInstantiationError(
+    instanceName: string,
+    holder: ServiceLocatorInstanceHolder<any>,
+    deferred: any,
+    scope: InjectableScope,
+    error: any,
+  ): Promise<void> {
+    this.logger?.error(
+      `[ServiceLocator] Error creating instance for ${instanceName}`,
+      error,
+    )
+
+    holder.status = ServiceLocatorInstanceHolderStatus.Error
+    holder.instance = error
+    holder.creationPromise = null
+
+    if (scope === InjectableScope.Singleton) {
+      setTimeout(() => this.invalidate(instanceName), 10)
+    }
+
+    deferred.reject(error)
+  }
+
+  /**
+   * Stores an instance holder based on its scope.
+   */
+  private storeInstanceByScope(
+    scope: InjectableScope,
+    instanceName: string,
+    holder: ServiceLocatorInstanceHolder<any>,
+  ): void {
+    switch (scope) {
+      case InjectableScope.Singleton:
+        this.logger?.debug(
+          `[ServiceLocator] Setting singleton instance for ${instanceName}`,
+        )
+        this.manager.set(instanceName, holder)
+        break
+
+      case InjectableScope.Request:
+        if (this.currentRequestContext) {
+          this.logger?.debug(
+            `[ServiceLocator] Setting request-scoped instance for ${instanceName}`,
+          )
+          this.currentRequestContext.addInstance(
+            instanceName,
+            holder.instance,
+            holder,
+          )
+        }
+        break
+
+      case InjectableScope.Transient:
+        // Transient instances are not stored anywhere
+        break
+    }
+  }
+
+  /**
+   * Tries to get a pre-prepared instance from request contexts.
+   */
+  private tryGetPrePreparedInstance(
+    instanceName: string,
+    contextHolder: RequestContextHolder | undefined,
+    deps: Set<string>,
+  ): any {
+    // Check provided context holder first (if has higher priority)
+    if (contextHolder && contextHolder.priority > 0) {
+      const prePreparedInstance = contextHolder.get(instanceName)?.instance
+      if (prePreparedInstance !== undefined) {
+        this.logger?.debug(
+          `[ServiceLocator] Using pre-prepared instance ${instanceName} from request context ${contextHolder.requestId}`,
+        )
+        deps.add(instanceName)
+        return prePreparedInstance
+      }
+    }
+
+    // Check current request context (if different from provided contextHolder)
+    if (
+      this.currentRequestContext &&
+      this.currentRequestContext !== contextHolder
+    ) {
+      const prePreparedInstance =
+        this.currentRequestContext.get(instanceName)?.instance
+      if (prePreparedInstance !== undefined) {
+        this.logger?.debug(
+          `[ServiceLocator] Using pre-prepared instance ${instanceName} from current request context ${this.currentRequestContext.requestId}`,
+        )
+        deps.add(instanceName)
+        return prePreparedInstance
+      }
+    }
+
+    return undefined
   }
 
   /**
@@ -671,37 +879,19 @@ export class ServiceLocator {
     return {
       // @ts-expect-error This is correct type
       async inject(token, args) {
-        // 1. Check RequestContextHolder first (if provided and has higher priority)
-        if (contextHolder && contextHolder.priority > 0) {
-          const instanceName = self.generateInstanceName(token, args)
-          const prePreparedInstance = contextHolder.getInstance(instanceName)
-          if (prePreparedInstance !== undefined) {
-            self.logger?.debug(
-              `[ServiceLocator] Using pre-prepared instance ${instanceName} from request context ${contextHolder.requestId}`,
-            )
-            deps.add(instanceName)
-            return prePreparedInstance
-          }
+        const instanceName = self.generateInstanceName(token, args)
+
+        // Check request contexts for pre-prepared instances
+        const prePreparedInstance = self.tryGetPrePreparedInstance(
+          instanceName,
+          contextHolder,
+          deps,
+        )
+        if (prePreparedInstance !== undefined) {
+          return prePreparedInstance
         }
 
-        // 2. Check current request context (if different from provided contextHolder)
-        if (
-          self.currentRequestContext &&
-          self.currentRequestContext !== contextHolder
-        ) {
-          const instanceName = self.generateInstanceName(token, args)
-          const prePreparedInstance =
-            self.currentRequestContext.getInstance(instanceName)
-          if (prePreparedInstance !== undefined) {
-            self.logger?.debug(
-              `[ServiceLocator] Using pre-prepared instance ${instanceName} from current request context ${self.currentRequestContext.requestId}`,
-            )
-            deps.add(instanceName)
-            return prePreparedInstance
-          }
-        }
-
-        // 3. Fall back to normal resolution
+        // Fall back to normal resolution
         const [error, instance] = await self.getInstance(
           token,
           args,
@@ -725,23 +915,28 @@ export class ServiceLocator {
    * Generates a unique instance name based on token and arguments.
    */
   private generateInstanceName(token: InjectionTokenType, args: any) {
-    const formattedArgs = args
-      ? ':' +
-        Object.entries(args ?? {})
-          .sort(([keyA], [keyB]) => keyA.localeCompare(keyB))
-          .map(([key, value]) => {
-            if (typeof value === 'function') {
-              return `${key}=fn_${value.name}(${value.length})`
-            }
-            if (typeof value === 'symbol') {
-              return `${key}=${value.toString()}`
-            }
-            return `${key}=${JSON.stringify(value).slice(0, 40)}`
-          })
-          .join(',')
-          .replaceAll(/"/g, '')
-          .replaceAll(/:/g, '=')
-      : ''
-    return `${token.toString()}${formattedArgs}`
+    if (!args) {
+      return token.toString()
+    }
+
+    const formattedArgs = Object.entries(args)
+      .sort(([keyA], [keyB]) => keyA.localeCompare(keyB))
+      .map(([key, value]) => `${key}=${this.formatArgValue(value)}`)
+      .join(',')
+
+    return `${token.toString()}:${formattedArgs.replaceAll(/"/g, '').replaceAll(/:/g, '=')}`
+  }
+
+  /**
+   * Formats a single argument value for instance name generation.
+   */
+  private formatArgValue(value: any): string {
+    if (typeof value === 'function') {
+      return `fn_${value.name}(${value.length})`
+    }
+    if (typeof value === 'symbol') {
+      return value.toString()
+    }
+    return JSON.stringify(value).slice(0, 40)
   }
 }
