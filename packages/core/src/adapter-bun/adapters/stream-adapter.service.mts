@@ -87,6 +87,12 @@ export class BunStreamAdapterService implements BunHandlerAdapterInterface {
           end: () => {},
         },
       )
+      if (result instanceof Response) {
+        for (const [key, value] of Object.entries(handlerMetadata.headers)) {
+          result.headers.set(key, String(value))
+        }
+        return result
+      }
 
       const headers: Record<string, string> = {}
       for (const [key, value] of Object.entries(handlerMetadata.headers)) {

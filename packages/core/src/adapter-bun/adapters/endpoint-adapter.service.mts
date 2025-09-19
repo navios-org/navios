@@ -48,6 +48,12 @@ export class BunEndpointAdapterService extends BunStreamAdapterService {
       await Promise.all(promises)
       return argument
     }
+    const responseSchema = handlerMetadata.config.responseSchema
+    const formatResponse = responseSchema
+      ? (result: any) => {
+          return responseSchema.parse(result)
+        }
+      : (result: any) => result
 
     return async (context: RequestContextHolder, request: BunRequest) => {
       const controllerInstance = await this.container.get(controller)
@@ -58,7 +64,7 @@ export class BunEndpointAdapterService extends BunStreamAdapterService {
       for (const [key, value] of Object.entries(handlerMetadata.headers)) {
         headers[key] = String(value)
       }
-      return new Response(JSON.stringify(result), {
+      return new Response(JSON.stringify(formatResponse(result)), {
         status: handlerMetadata.successStatusCode,
         headers: { 'Content-Type': 'application/json', ...headers },
       })

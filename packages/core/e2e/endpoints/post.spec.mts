@@ -6,6 +6,7 @@ import { z } from 'zod/v4'
 
 import type { EndpointParams } from '../../src/index.mjs'
 
+import { defineFastifyEnvironment } from '../../src/adapter-fastify/define-environment.mjs'
 import {
   Controller,
   Endpoint,
@@ -75,7 +76,11 @@ describe('POST variants', () => {
   class SomethingModule {}
 
   beforeAll(async () => {
-    server = await NaviosFactory.create(SomethingModule)
+    server = await NaviosFactory.create(
+      SomethingModule,
+      {},
+      defineFastifyEnvironment(),
+    )
     await server.init()
   })
 

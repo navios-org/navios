@@ -11,6 +11,7 @@ import {
 } from '../index.mjs'
 import {
   BunEndpointAdapterService,
+  BunMultipartAdapterService,
   BunStreamAdapterService,
 } from './adapters/index.mjs'
 import { BunApplicationService } from './services/index.mjs'
@@ -21,7 +22,7 @@ export function defineBunEnvironment() {
     [
       [EndpointAdapterToken, BunEndpointAdapterService],
       [StreamAdapterToken, BunStreamAdapterService],
-      [MultipartAdapterToken, BunStreamAdapterService], // Use stream for multipart
+      [MultipartAdapterToken, BunMultipartAdapterService], // Use stream for multipart
       [HttpAdapterToken, BunApplicationService],
       [Request, BunRequestToken],
     ],
