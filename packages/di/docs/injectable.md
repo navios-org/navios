@@ -20,7 +20,7 @@ class UserService {
 ### Service with Dependencies
 
 ```typescript
-import { inject, Injectable } from '@navios/di'
+import { asyncInject, Injectable } from '@navios/di'
 
 @Injectable()
 class DatabaseService {
@@ -31,10 +31,11 @@ class DatabaseService {
 
 @Injectable()
 class UserService {
-  private readonly db = inject(DatabaseService)
+  private readonly db = asyncInject(DatabaseService)
 
   async getUsers() {
-    const connection = await this.db.connect()
+    const dbService = await this.db
+    const connection = await dbService.connect()
     return `Users from ${connection}`
   }
 }

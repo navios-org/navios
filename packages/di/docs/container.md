@@ -143,6 +143,41 @@ const serviceLocator = container.getServiceLocator()
 const instance = await serviceLocator.getOrThrowInstance(UserService)
 ```
 
+## Request Context Management
+
+The Container provides built-in support for request contexts, allowing you to manage request-scoped services:
+
+```typescript
+const container = new Container()
+
+// Begin a request context
+const context = container.beginRequest('req-123', { userId: 456 }, 100)
+
+// Add request-specific instances
+const REQUEST_ID_TOKEN = InjectionToken.create<string>('REQUEST_ID')
+context.addInstance(REQUEST_ID_TOKEN, 'req-123')
+
+// Set as current context
+container.setCurrentRequestContext('req-123')
+
+// Services can now access request-scoped data
+@Injectable()
+class RequestService {
+  private readonly requestId = asyncInject(REQUEST_ID_TOKEN)
+
+  async process() {
+    const id = await this.requestId
+    console.log(`Processing in request: ${id}`)
+  }
+}
+
+const service = await container.get(RequestService)
+await service.process() // "Processing in request: req-123"
+
+// Clean up when done
+await container.endRequest('req-123')
+```
+
 ## Best Practices
 
 ### 1. Use Container for Application Setup
@@ -215,6 +250,26 @@ const userContainer = new Container(userRegistry)
 const paymentContainer = new Container(paymentRegistry)
 ```
 
+### 5. Manage Request Contexts Properly
+
+```typescript
+// Always clean up request contexts
+async function handleRequest(req, res) {
+  const requestId = generateRequestId()
+  const context = container.beginRequest(requestId, {
+    ip: req.ip,
+    userAgent: req.get('User-Agent'),
+  })
+
+  try {
+    container.setCurrentRequestContext(requestId)
+    await processRequest(req, res)
+  } finally {
+    await container.endRequest(requestId)
+  }
+}
+```
+
 ## API Reference
 
 ### Constructor
@@ -251,6 +306,26 @@ Waits for all pending operations to complete.
 #### `getServiceLocator(): ServiceLocator`
 
 Returns the underlying ServiceLocator instance.
+
+#### `beginRequest(requestId: string, metadata?: Record<string, any>, priority?: number): RequestContextHolder`
+
+Begins a new request context with the given parameters.
+
+- `requestId`: Unique identifier for this request
+- `metadata`: Optional metadata for the request
+- `priority`: Priority for resolution (higher = more priority, defaults to 100)
+
+#### `endRequest(requestId: string): Promise<void>`
+
+Ends a request context and cleans up all associated instances.
+
+#### `getCurrentRequestContext(): RequestContextHolder | null`
+
+Gets the current request context.
+
+#### `setCurrentRequestContext(requestId: string): void`
+
+Sets the current request context.
 
 ## Error Handling
 

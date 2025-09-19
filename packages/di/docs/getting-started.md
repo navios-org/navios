@@ -66,13 +66,14 @@ class EmailService {
 // 2. Create a user service that depends on the email service
 @Injectable()
 class UserService {
-  private readonly emailService = inject(EmailService)
+  private readonly emailService = asyncInject(EmailService)
 
   async createUser(name: string, email: string) {
     console.log(`Creating user: ${name}`)
 
-    // Send welcome email
-    await this.emailService.sendEmail(
+    // Get the email service and send welcome email
+    const emailService = await this.emailService
+    await emailService.sendEmail(
       email,
       'Welcome!',
       `Hello ${name}, welcome to our platform!`,

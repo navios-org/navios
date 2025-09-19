@@ -9,6 +9,7 @@ Welcome to the comprehensive documentation for Navios DI, a powerful dependency 
 - [Injectable Decorator](./injectable.md) - Service registration and configuration
 - [Factory Decorator](./factory.md) - Factory pattern implementation
 - [Injection Tokens](./injection-tokens.md) - Token-based dependency resolution
+- [Request Contexts](./request-contexts.md) - Request-scoped services and cleanup
 - [Service Lifecycle](./lifecycle.md) - Initialization and cleanup hooks
 - [Scopes](./scopes.md) - Singleton and transient service scopes
 - [Advanced Patterns](./advanced-patterns.md) - Complex usage scenarios
@@ -23,6 +24,7 @@ Welcome to the comprehensive documentation for Navios DI, a powerful dependency 
 - **[Injectable](./injectable.md)** - Decorator for marking classes as injectable services
 - **[Factory](./factory.md)** - Decorator for creating factory classes
 - **[Injection Tokens](./injection-tokens.md)** - Flexible token-based dependency resolution
+- **[Request Contexts](./request-contexts.md)** - Request-scoped services with automatic cleanup
 
 ### Key Features
 
@@ -31,11 +33,12 @@ Welcome to the comprehensive documentation for Navios DI, a powerful dependency 
 - **Multiple Scopes** - Singleton and transient service lifetimes
 - **Async/Sync Injection** - Both synchronous and asynchronous dependency resolution
 - **Factory Pattern** - Complex object creation with factory classes
+- **Request Contexts** - Request-scoped services with priority resolution and automatic cleanup
 
 ### Getting Started
 
 ```typescript
-import { Container, inject, Injectable } from '@navios/di'
+import { asyncInject, Container, Injectable } from '@navios/di'
 
 @Injectable()
 class DatabaseService {
@@ -46,7 +49,7 @@ class DatabaseService {
 
 @Injectable()
 class UserService {
-  private readonly db = inject(DatabaseService)
+  private readonly db = asyncInject(DatabaseService)
 
   async getUsers() {
     const connection = await this.db.connect()

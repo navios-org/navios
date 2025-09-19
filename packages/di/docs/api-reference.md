@@ -52,6 +52,7 @@ class Container {
 
 - `beginRequest(requestId: string, metadata?: Record<string, any>, priority?: number)` - Begin a new request context
 - `endRequest(requestId: string)` - End a request context and clean up instances
+- `getCurrentRequestContext()` - Get the current request context
 - `setCurrentRequestContext(requestId: string)` - Switch to a different request context
 
 ### InjectionToken
@@ -313,6 +314,43 @@ Factory interface for factories with arguments.
 ```typescript
 interface FactorableWithArgs<T, S> {
   create(args: z.input<S>): T
+}
+```
+
+### RequestContextHolder
+
+Interface for managing request-scoped instances.
+
+```typescript
+interface RequestContextHolder {
+  readonly requestId: string
+  readonly holders: Map<string, ServiceLocatorInstanceHolder>
+  readonly priority: number
+  readonly metadata: Map<string, any>
+  readonly createdAt: number
+
+  addInstance(
+    instanceName: string,
+    instance: any,
+    holder: ServiceLocatorInstanceHolder,
+  ): void
+  addInstance(token: InjectionToken<any, undefined>, instance: any): void
+  get(instanceName: string): ServiceLocatorInstanceHolder | undefined
+  has(instanceName: string): boolean
+  clear(): void
+  getMetadata(key: string): any | undefined
+  setMetadata(key: string, value: any): void
+
+  // Inherited from BaseInstanceHolderManager
+  filter(
+    predicate: (
+      value: ServiceLocatorInstanceHolder<any>,
+      key: string,
+    ) => boolean,
+  ): Map<string, ServiceLocatorInstanceHolder>
+  delete(name: string): boolean
+  size(): number
+  isEmpty(): boolean
 }
 ```
 
