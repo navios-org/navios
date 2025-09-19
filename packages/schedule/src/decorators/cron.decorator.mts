@@ -1,4 +1,3 @@
-import type { ClassType } from '@navios/core'
 import type { CronJobParams } from 'cron'
 
 import { getCronMetadata } from '../metadata/index.mjs'

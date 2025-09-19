@@ -1,376 +1,280 @@
-# Navios Schedule
+# @navios/schedule
 
-`Navios Zod React` is a helper for a navios zod to use with Tanstack React Query.
+A powerful and type-safe job scheduling library for Navios applications, built on top of the popular `cron` package. Schedule and manage recurring tasks with decorator-based configuration and dependency injection support.
 
-## Why?
+## Why @navios/schedule?
 
-- **Type Safety**: By using Zod schemas, you can ensure that the data you receive from your API matches the expected structure. This helps catch errors early in the development process.
-- **Validation**: Zod provides powerful validation capabilities, allowing you to define complex validation rules for your data. This ensures that the data you work with is always valid and meets your requirements.
-- **Integration with Navios**: Navios is a powerful HTTP client that simplifies API requests. By combining it with Zod, you can create a robust and type-safe API client.
-- **React Query Support**: This package is designed to work seamlessly with Tanstack React Query, making it easy to manage API requests and responses in your React applications.
-- **Declarative API**: The API is designed to be declarative, allowing you to define your API endpoints and their schemas in a clear and concise manner. This makes it easy to understand and maintain your API client.
-- **Discriminated Union Support**: The package supports discriminated unions, allowing you to handle different response types based on a common property. This is useful for APIs that return different data structures based on the request.
-- **Customizable**: The package allows you to customize the behavior of the API client, such as using a custom Navios client or enabling/disabling certain features like whole response validation.
-- **Error Handling**: The package provides built-in error handling capabilities, allowing you to handle API errors gracefully and provide meaningful feedback to users.
+- **Type Safety**: Full TypeScript support with strict typing for cron expressions and job methods
+- **Decorator-Based**: Clean, declarative API using decorators for defining schedulable services and cron jobs
+- **Dependency Injection**: Seamless integration with Navios's dependency injection container
+- **Error Handling**: Built-in error handling that logs errors without crashing the scheduler
+- **Flexible Configuration**: Support for custom cron expressions and job-specific options
+- **Runtime Control**: Start, stop, and manage individual jobs or all jobs at once
+- **Pre-defined Schedules**: Common scheduling patterns available as constants
 
 ## Installation
 
 ```bash
-npm install --save @navios/navios-zod @navios/navios-zod-react zod navios
+npm install --save @navios/schedule @navios/core cron
 ```
 
 or
 
 ```bash
-yarn add @navios/navios-zod @navios/navios-zod-react zod navios
+yarn add @navios/schedule @navios/core cron
 ```
 
-## Usage of Mutations
+## Basic Usage
 
-```tsx
-import { createAPI } from '@navios/navios-zod/v4'
-import { declareClient } from '@navios/navios-zod-react'
+### 1. Create a Schedulable Service
 
-import { z } from 'zod/v4'
+```typescript
+import { Cron, Schedulable, Schedule } from '@navios/schedule'
 
-const publicApi = createAPI({
-  baseURL: 'https://example.com/api/',
-  useDiscriminatorResponse: true,
-})
+@Schedulable()
+class TaskService {
+  @Cron('0 0 * * *') // Run daily at midnight
+  async dailyCleanup() {
+    console.log('Running daily cleanup...')
+    // Your cleanup logic here
+  }
 
-const publicClient = declareClient({
-  api: publicApi,
-})
+  @Cron(Schedule.EveryFiveMinutes)
+  async healthCheck() {
+    console.log('Performing health check...')
+    // Your health check logic here
+  }
 
-const RequestSchema = z.object({
-  email: z.string().email(),
-  password: z.string().min(8).max(32),
-})
-
-const loginMutation = publicClient.mutation({
-  url: 'auth/login',
-  method: 'post',
-  // Navios Zod also validates the request body
-  requestSchema: RequestSchema,
-  responseSchema: z.discriminatedUnion('success', [
-    z.object({
-      success: z.literal(true),
-      data: z.object({
-        accessToken: z.string(),
-        refreshToken: z.string(),
-      }),
-    }),
-    z.object({
-      success: z.literal(false),
-      error: z.object({
-        message: z.string(),
-      }),
-    }),
-  ]),
-  processResponse: (response) => {
-    if (response.success) {
-      return response.data
-    } else {
-      throw new Error(response.error.message)
-    }
-  },
-})
-
-export function Login() {
-  const { mutateAsync: login, data, isSuccess, error } = loginMutation()
-
-  const form = useForm({
-    resolver: zodResolver(RequestSchema),
-    defaultValues: {
-      email: '',
-      password: '',
-    },
-  })
-
-  useEffect(() => {
-    if (isSuccess) {
-      console.log('Login successful:', data)
-    }
-  }, [isSuccess, data])
-
-  return (
-    <form onSubmit={form.handleSubmit(login)}>
-      {error && <p>{error.message}</p>}
-      <input {...form.register('email')} placeholder="Email" />
-      <input
-        {...form.register('password')}
-        type="password"
-        placeholder="Password"
-      />
-      <button type="submit">Login</button>
-    </form>
-  )
+  @Cron('*/30 * * * * *', { disabled: true })
+  async disabledJob() {
+    // This job won't run automatically
+    console.log('This job is disabled')
+  }
 }
 ```
 
-## Usage of Queries
+### 2. Register Schedulable Services
 
-```tsx
-import { createAPI } from '@navios/navios-zod/v4'
-import { declareClient } from '@navios/navios-zod-react'
+Register your schedulable services in a module's `onModuleInit` method (recommended approach):
 
-import { z } from 'zod/v4'
+```typescript
+import { inject, Injectable, Module, OnModuleInit } from '@navios/core'
+import { SchedulerService } from '@navios/schedule'
 
-const publicApi = createAPI({
-  baseURL: 'https://example.com/api/',
-  useDiscriminatorResponse: true,
-})
+@Module({})
+export class AppModule implements OnModuleInit {
+  private readonly schedulerService = inject(SchedulerService)
 
-const publicClient = declareClient({
-  api: publicApi,
-})
-
-const usersList = publicClient.query({
-  url: 'users',
-  method: 'GET',
-  querySchema: z.object({
-    page: z.number().optional().default(1),
-    limit: z.number().optional().default(10),
-  }),
-  responseSchema: z.discriminatedUnion('success', [
-    z.object({
-      success: z.literal(true),
-      data: z.array(
-        z.object({
-          id: z.string(),
-          name: z.string(),
-          email: z.string().email(),
-        }),
-      ),
-    }),
-    z.object({
-      success: z.literal(false),
-      error: z.object({
-        message: z.string(),
-      }),
-    }),
-  ]),
-  processResponse: (response) => {
-    if (response.success) {
-      return response.data
-    } else {
-      throw new Error(response.error.message)
-    }
-  },
-})
-
-export function UsersList() {
-  const { page, limit } = routeApi.useSearch()
-  const navigate = routeApi.useNavigate()
-  const { data, isLoading, error } = usersList.use({
-    params: {
-      page,
-      limit,
-    },
-  })
-
-  if (isLoading) {
-    return <p>Loading...</p>
+  async onModuleInit() {
+    // Register schedulable services
+    this.schedulerService.register(TaskService)
   }
-
-  if (error) {
-    return <p>{error.message}</p>
-  }
-
-  return (
-    <ul>
-      {data?.map((user) => (
-        <li key={user.id}>{user.name}</li>
-      ))}
-    </ul>
-  )
 }
 ```
 
-## Usage of Infinite Queries
+Alternatively, you can register services manually:
 
-```tsx
-import { createAPI } from '@navios/navios-zod/v4'
-import { declareClient } from '@navios/navios-zod-react'
+```typescript
+import { Container } from '@navios/core'
+import { SchedulerService } from '@navios/schedule'
 
-import { z } from 'zod/v4'
+const container = new Container()
+const schedulerService = await container.get(SchedulerService)
 
-const publicApi = createAPI({
-  baseURL: 'https://example.com/api/',
-  useDiscriminatorResponse: true,
-})
+// Register the schedulable service
+schedulerService.register(TaskService)
+```
 
-const publicClient = declareClient({
-  api: publicApi,
-})
+## Cron Expression Format
 
-const usersList = publicClient.infiniteQuery({
-  url: 'users',
-  method: 'GET',
-  querySchema: z.object({
-    page: z.number().optional().default(1),
-    limit: z.number().optional().default(10),
-  }),
-  responseSchema: z.discriminatedUnion('success', [
-    z.object({
-      success: z.literal(true),
-      data: z.array(
-        z.object({
-          id: z.string(),
-          name: z.string(),
-          email: z.string().email(),
-        }),
-      ),
-      meta: z.object({
-        total: z.number(),
-        totalPages: z.number(),
-        page: z.number(),
-      }),
-    }),
-    z.object({
-      success: z.literal(false),
-      error: z.object({
-        message: z.string(),
-      }),
-    }),
-  ]),
-  processResponse: (response) => {
-    if (response.success) {
-      return response.data
-    } else {
-      throw new Error(response.error.message)
-    }
-  },
-  getNextPageParam: (lastPage, pages) => {
-    if (lastPage.meta.page < lastPage.meta.totalPages) {
-      return lastPage.meta.page + 1
-    }
-    return undefined
-  },
-  select: (data) => {
-    return data.pages.flatMap((page) => page.data)
-  },
-})
+Cron expressions follow the standard 5 or 6 field format:
 
-export function UsersList() {
-  const { page, limit } = routeApi.useSearch()
-  const { data, isLoading, error, fetchNextPage, hasNextPage } = usersList.use({
-    params: {
-      page,
-      limit,
-    },
-  })
+```
+# ┌────────────── second (optional, 0-59)
+# │ ┌──────────── minute (0-59)
+# │ │ ┌────────── hour (0-23)
+# │ │ │ ┌──────── day of month (1-31)
+# │ │ │ │ ┌────── month (1-12)
+# │ │ │ │ │ ┌──── day of week (0-6, Sunday to Saturday)
+# │ │ │ │ │ │
+# │ │ │ │ │ │
+# * * * * * *
+```
 
-  if (isLoading) {
-    return <p>Loading...</p>
-  }
+### Examples:
 
-  if (error) {
-    return <p>{error.message}</p>
-  }
+- `'0 0 * * *'` - Daily at midnight
+- `'*/5 * * * *'` - Every 5 minutes
+- `'0 9 * * 1-5'` - Every weekday at 9 AM
+- `'0 0 1 * *'` - First day of every month at midnight
+- `'*/30 * * * * *'` - Every 30 seconds (6-field format)
 
-  return (
-    <div>
-      <ul>
-        {data?.map((page) =>
-          page.data.map((user) => <li key={user.id}>{user.name}</li>),
-        )}
-      </ul>
-      <button disabled={!hasNextPage} onClick={() => fetchNextPage()}>
-        Load more
-      </button>
-    </div>
-  )
+## Pre-defined Schedule Constants
+
+For common scheduling patterns, use the `Schedule` enum:
+
+```typescript
+import { Schedule } from '@navios/schedule'
+
+@Schedulable()
+class ExampleService {
+  @Cron(Schedule.EveryMinute)
+  async everyMinute() {}
+
+  @Cron(Schedule.EveryFiveMinutes)
+  async everyFiveMinutes() {}
+
+  @Cron(Schedule.EveryHour)
+  async hourly() {}
+
+  @Cron(Schedule.EveryDay)
+  async daily() {}
+
+  @Cron(Schedule.EveryWeek)
+  async weekly() {}
+
+  @Cron(Schedule.EveryMonth)
+  async monthly() {}
 }
 ```
 
-## API
+Available constants:
 
-### `declareClient`
+- `EveryMinute` - `'*/1 * * * *'`
+- `EveryFiveMinutes` - `'*/5 * * * *'`
+- `EveryTenMinutes` - `'*/10 * * * *'`
+- `EveryFifteenMinutes` - `'*/15 * * * *'`
+- `EveryThirtyMinutes` - `'*/30 * * * *'`
+- `EveryHour` - `'0 * * * *'`
+- `EveryTwoHours` - `'0 */2 * * *'`
+- `EveryThreeHours` - `'0 */3 * * *'`
+- `EveryFourHours` - `'0 */4 * * *'`
+- `EverySixHours` - `'0 */6 * * *'`
+- `EveryTwelveHours` - `'0 */12 * * *'`
+- `EveryDay` - `'0 0 * * *'`
+- `EveryWeek` - `'0 0 * * 0'`
+- `EveryMonth` - `'0 0 1 * *'`
 
-This function is used to create a client for the API. It takes an object with the following properties:
+## Advanced Usage
 
-- `api`: The API object created using `declareAPI` or `createAPI` from `@navios/navios-zod`.
+### Cron Options
 
-The client object will have the following properties:
+```typescript
+@Schedulable()
+class ConfigurableService {
+  @Cron('0 2 * * *', { disabled: true })
+  async maintenanceJob() {
+    // This job is disabled by default
+    console.log('Running maintenance...')
+  }
+}
+```
 
-- `query`: A function that takes a configuration object and returns a query object.
-- `mutation`: A function that takes a configuration object and returns a mutation object.
-- `infiniteQuery`: A function that takes a configuration object and returns an infinite query object.
+### Runtime Job Management
 
-#### `query`
+```typescript
+// Get a specific job
+const job = schedulerService.getJob(TaskService, 'dailyCleanup')
+console.log('Job is active:', job?.isActive)
 
-This function is used to create a query for the API. It takes a configuration object with the following properties:
+// Start all jobs
+schedulerService.startAll()
 
-- `url`: The URL of the API endpoint. For parameterized URLs, use the format `/users/$userId`.
-- `method`: The HTTP method to use (GET, POST, PUT, DELETE, etc.).
-- `querySchema`: A Zod schema for validating the query parameters. (optional)
-- `responseSchema`: A Zod schema for validating the response data.
-- `processResponse`: A function that takes the response data and returns the processed data. (optional, but recommended)
+// Stop all jobs
+schedulerService.stopAll()
+```
 
-The result is a function that can be used to get query options. The function takes an object with the following properties:
+### Multiple Jobs in One Service
 
-- `params`: An object with the query parameters to send with the request. (required if `querySchema` is defined)
-- `urlParams`: An object with the URL parameters to send with the request. (required if `url` contains URL parameters)
+```typescript
+@Schedulable()
+class DataProcessingService {
+  @Cron('0 1 * * *') // 1 AM daily
+  async processUserData() {
+    console.log('Processing user data...')
+  }
 
-Function returns options for `useQuery` or `useSuspenseQuery` from `@tanstack/react-query`.
+  @Cron('0 3 * * *') // 3 AM daily
+  async generateReports() {
+    console.log('Generating reports...')
+  }
 
-##### `queryName.use`
+  @Cron(Schedule.EveryFifteenMinutes)
+  async syncExternalData() {
+    console.log('Syncing external data...')
+  }
+}
+```
 
-This function is a helper hook which is a wrapper around `useQuery` from `@tanstack/react-query`. It takes the same parameters as the `query` result function and returns the query result.
+### Error Handling
 
-##### `queryName.useSuspense`
+The scheduler automatically handles errors in job execution:
 
-This function is a helper hook which is a wrapper around `useSuspenseQuery` from `@tanstack/react-query`. It takes the same parameters as the `query` result function and returns the query result.
+```typescript
+@Schedulable()
+class RobustService {
+  @Cron(Schedule.EveryMinute)
+  async riskyJob() {
+    try {
+      // Your job logic here
+      await someRiskyOperation()
+    } catch (error) {
+      // Handle specific errors if needed
+      console.error('Job failed:', error)
+      throw error // Re-throw to let scheduler log it
+    }
+  }
+}
+```
 
-##### `queryName.invalidate`
+Jobs that throw errors will:
 
-This function is a helper function which is a wrapper around `invalidateQueries` from `@tanstack/react-query`. It takes parameters:
+- Be logged automatically by the scheduler
+- Continue running on their schedule (errors don't stop the job)
+- Not affect other jobs in the same or different services
 
-- `queryClient`: The query client to use. (optional, defaults to the query client from the context)
-- `params`: An object with `urlParams` and `params` to invalidate the query. (required if `url` contains URL parameters or `querySchema` is defined)
+## API Reference
 
-This function is used to invalidate the query in the cache. It can be used to refetch the query data when the data changes or when the user navigates to a different page.
+### Decorators
 
-##### `queryName.invalidateAll`
+#### `@Schedulable()`
 
-This function is a helper function which is a wrapper around `invalidateQueries` from `@tanstack/react-query`. It takes parameters:
+Marks a class as schedulable and makes it injectable. Required for any class that contains `@Cron` decorated methods.
 
-- `queryClient`: The query client to use. (optional, defaults to the query client from the context)
-- `params`: An object with `urlParams` to invalidate the query. (required if `url` contains URL parameters)
+#### `@Cron(cronTime, options?)`
 
-This function is used to invalidate query ignoring query params. It can be used to refetch all query data when the data changes or when the user navigates to a different page.
+Decorates a method to run on a cron schedule.
 
-#### `mutation`
+**Parameters:**
 
-This function is used to create a mutation for the API. It takes a configuration object with the following properties:
+- `cronTime: string` - Cron expression (5 or 6 fields)
+- `options?: CronOptions` - Optional configuration
+  - `disabled?: boolean` - Whether the job should be disabled by default
 
-- `url`: The URL of the API endpoint. For parameterized URLs, use the format `/users/$userId`.
-- `method`: The HTTP method to use (PATCH, POST, PUT, DELETE, etc.).
-- `requestSchema`: A Zod schema for validating the request body.
-- `responseSchema`: A Zod schema for validating the response data.
-- `processResponse`: A function that takes the response data and returns the processed data. (optional, but recommended)
-- `useContext`: A function that is called before the mutation is executed. It can be used to set the context for the onSuccess and onError. (optional)
-- `onSuccess`: A function that is called when the mutation is successful. (optional)
-- `onError`: A function that is called when the mutation fails. (optional)
-- `useKey`: If true, the mutation will have a mutation key which can be used to get the mutation status, limit parallel requests, etc. (optional, defaults to false)
+### SchedulerService
 
-The result is a function that can be used to get mutation in react query. When `useKey` is true, the function requires a `urlParams` argument.
+#### Methods
 
-The result is a react query mutation object
+- `register(service: ClassType)` - Register a schedulable service
+- `getJob<T>(service: T, method: keyof InstanceType<T>): CronJob | undefined` - Get a specific job instance
+- `startAll()` - Start all registered jobs
+- `stopAll()` - Stop all registered jobs
 
-#### `infiniteQuery`
+## Best Practices
 
-This function is used to create an infinite query for the API. It takes a configuration object with the following properties:
+1. **Module Registration**: Always register schedulable services in a module's `onModuleInit` method for proper lifecycle management
 
-- `url`: The URL of the API endpoint. For parameterized URLs, use the format `/users/$userId`.
-- `method`: The HTTP method to use (GET, POST, PUT, DELETE, etc.).
-- `querySchema`: A Zod schema for validating the query parameters. (required)
-- `responseSchema`: A Zod schema for validating the response data.
-- `processResponse`: A function that takes the response data and returns the processed data. (optional, but recommended)
-- `getNextPageParam`: A function that takes the last page and all pages and returns the next page param. (required)
-- `initialPageData`: The initial data to use for the first page. (optional)
-- `getPreviousPageParam`: A function that takes the first page and all pages and returns the previous page param. (optional)
-- `select`: A function that takes the data and returns the selected data. (optional)
+2. **Error Handling**: Implement proper error handling within your job methods, but let the scheduler handle logging
 
-It works the same as `query`, but it returns an infinite query object. Please refer to the `query` section for more details.
+3. **Resource Management**: Be mindful of long-running jobs that might overlap with subsequent executions
+
+4. **Testing**: Use dependency injection to mock schedulable services in tests
+
+5. **Monitoring**: Consider adding logging or monitoring to track job execution and failures
+
+## Requirements
+
+- Node.js 18+
+- TypeScript 5.0+
+- `@navios/core` for dependency injection
+- `cron` package for job scheduling

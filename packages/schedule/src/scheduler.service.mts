@@ -1,12 +1,6 @@
 import type { ClassType } from '@navios/core'
 
-import {
-  EnvConfigProvider,
-  inject,
-  Injectable,
-  Logger,
-  syncInject,
-} from '@navios/core'
+import { Container, inject, Injectable, Logger } from '@navios/core'
 
 import { CronJob } from 'cron'
 
@@ -19,10 +13,10 @@ import {
 
 @Injectable()
 export class SchedulerService {
-  // private readonly configService = syncInject(EnvConfigProvider)
-  private readonly logger = syncInject(Logger, {
+  private readonly logger = inject(Logger, {
     context: SchedulerService.name,
   })
+  private readonly container = inject(Container)
   private readonly jobs: Map<string, CronJob> = new Map()
 
   register(service: ClassType) {
@@ -61,7 +55,7 @@ export class SchedulerService {
         async onTick() {
           try {
             self.logger.debug('Executing job', name)
-            const instance = await inject(service)
+            const instance = await self.container.get(service)
             await instance[job.classMethod]()
           } catch (error) {
             self.logger.error('Error executing job', name, error)

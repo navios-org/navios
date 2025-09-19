@@ -1,4 +1,4 @@
-import { inject, Injectable } from '@navios/core'
+import { Container, Injectable } from '@navios/core'
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -6,14 +6,16 @@ import { Cron, Schedulable } from '../decorators/index.mjs'
 import { SchedulerService } from '../scheduler.service.mjs'
 
 describe('Schedule Module', () => {
+  let container: Container
   let schedulerService: SchedulerService
 
   beforeEach(async () => {
     vi.useFakeTimers()
-    schedulerService = await inject(SchedulerService)
+    container = new Container()
+    schedulerService = await container.get(SchedulerService)
   })
 
-  afterEach(() => {
+  afterEach(async () => {
     schedulerService.stopAll()
     vi.useRealTimers()
     vi.clearAllMocks()
