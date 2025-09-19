@@ -113,6 +113,132 @@ Modules in Navios follow a specific lifecycle:
 4. **Guard Application**: Module-level guards are applied to all controllers
 5. **Initialization**: Module initialization hooks are called
 
+## Module Lifecycle Methods
+
+### `onModuleInit`
+
+The `onModuleInit` lifecycle method is called after the module has been initialized and all its dependencies have been resolved. This is useful for performing setup tasks, initializing connections, or running startup logic.
+
+#### Interface
+
+```typescript
+interface NaviosModule {
+  onModuleInit(): void | Promise<void>
+}
+```
+
+#### Usage
+
+To use the `onModuleInit` lifecycle method, implement the `NaviosModule` interface in your module class:
+
+```typescript
+import { Module, NaviosModule } from '@navios/core'
+
+@Module({
+  controllers: [UserController],
+})
+export class UserModule implements NaviosModule {
+  onModuleInit() {
+    console.log('UserModule has been initialized')
+    // Perform initialization logic here
+  }
+}
+```
+
+#### Async Initialization
+
+The `onModuleInit` method can be asynchronous, allowing you to perform async setup tasks:
+
+```typescript
+import { Module, NaviosModule } from '@navios/core'
+
+@Module({
+  controllers: [DatabaseController],
+})
+export class DatabaseModule implements NaviosModule {
+  async onModuleInit() {
+    console.log('Initializing database connection...')
+    await this.connectToDatabase()
+    console.log('Database connection established')
+  }
+
+  private async connectToDatabase() {
+    // Database connection logic
+    return new Promise((resolve) => setTimeout(resolve, 1000))
+  }
+}
+```
+
+#### Common Use Cases
+
+- **Database Connections**: Initialize database connections or verify connectivity
+- **Cache Warming**: Pre-populate caches with frequently accessed data
+- **External Service Setup**: Initialize connections to external APIs or services
+- **Configuration Validation**: Validate required configuration settings
+- **Background Tasks**: Start background processes or scheduled tasks
+
+```typescript
+import { Module, NaviosModule } from '@navios/core'
+
+@Module({
+  controllers: [CacheController],
+})
+export class CacheModule implements NaviosModule {
+  private cache = new Map<string, any>()
+
+  async onModuleInit() {
+    // Warm up the cache with initial data
+    await this.warmUpCache()
+
+    // Validate configuration
+    this.validateConfiguration()
+
+    console.log('CacheModule initialized successfully')
+  }
+
+  private async warmUpCache() {
+    // Pre-populate cache with frequently accessed data
+    this.cache.set('app:config', await this.loadAppConfig())
+    this.cache.set('user:defaults', await this.loadUserDefaults())
+  }
+
+  private validateConfiguration() {
+    if (!process.env.CACHE_TTL) {
+      throw new Error('CACHE_TTL environment variable is required')
+    }
+  }
+
+  private async loadAppConfig() {
+    // Load application configuration
+    return { theme: 'dark', language: 'en' }
+  }
+
+  private async loadUserDefaults() {
+    // Load default user settings
+    return { notifications: true, theme: 'auto' }
+  }
+}
+```
+
+#### Execution Order
+
+The `onModuleInit` methods are called in dependency order:
+
+1. **Imported modules first**: All imported modules' `onModuleInit` methods are called before the current module
+2. **Current module last**: The current module's `onModuleInit` method is called after all its dependencies
+
+```typescript
+@Module({
+  imports: [DatabaseModule, CacheModule], // These initialize first
+})
+export class AppModule implements NaviosModule {
+  onModuleInit() {
+    // This runs after DatabaseModule and CacheModule have been initialized
+    console.log('AppModule initialized - all dependencies are ready')
+  }
+}
+```
+
 ## Module Metadata
 
 Each module decorated with `@Module()` has associated metadata that Navios uses internally:
