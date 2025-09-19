@@ -4,7 +4,24 @@ Navios is a Type-Safe HTTP Server with Zod Validation.
 
 It is a powerful tool for building robust and type-safe APIs using TypeScript. It leverages the power of Zod for validation and provides a simple and intuitive API for defining endpoints, request and response schemas, and handling errors.
 
-It uses Fastify under the hood, which is a fast and low-overhead web framework for Node.js. This allows Navios to provide high performance and low latency for your APIs.
+Navios is adapter-based, allowing you to choose the underlying HTTP server implementation. Currently supported adapters include:
+
+- **Fastify** (via `@navios/adapter-fastify`) - A fast and low-overhead web framework for Node.js
+- **Bun** (via `@navios/adapter-bun`) - A fast JavaScript runtime optimized for server-side applications
+
+## Prerequisites
+
+To work as an HTTP server, you must install one of the supported adapters:
+
+```bash
+# For Fastify adapter
+npm install @navios/adapter-fastify
+
+# OR for Bun adapter
+npm install @navios/adapter-bun
+```
+
+The adapter must be provided when creating your Navios application to define the underlying HTTP server implementation.
 
 ## Features
 
@@ -14,6 +31,49 @@ It uses Fastify under the hood, which is a fast and low-overhead web framework f
 - **Declarative API**: The API is designed to be declarative, allowing you to define your API endpoints and their schemas in a clear and concise manner. This makes it easy to understand and maintain your API client.
 - **Customizable**: The package allows you to customize the behavior of the API client, such as using a custom client.
 - **Error Handling**: The package provides built-in error handling capabilities, allowing you to handle API errors gracefully and provide meaningful feedback to users.
+
+## Adapters
+
+Navios uses an adapter pattern to support different HTTP server implementations. Each adapter provides the necessary bindings to integrate with a specific runtime or framework.
+
+### Available Adapters
+
+#### Fastify Adapter (`@navios/adapter-fastify`)
+
+- Built on top of [Fastify](https://www.fastify.io/), a fast and low-overhead web framework
+- Excellent performance and a rich ecosystem of plugins
+- Full Node.js compatibility
+- Supports all Fastify features including hooks, plugins, and decorators
+
+```ts
+import { defineFastifyEnvironment } from '@navios/adapter-fastify'
+
+const app = await NaviosFactory.create(AppModule, {
+  adapter: defineFastifyEnvironment(),
+})
+```
+
+#### Bun Adapter (`@navios/adapter-bun`)
+
+- Built for [Bun](https://bun.sh/), a fast JavaScript runtime optimized for performance
+- Native HTTP server implementation with excellent performance
+- Optimized for Bun's runtime features
+- Lightweight and efficient
+
+```ts
+import { defineBunEnvironment } from '@navios/adapter-bun'
+
+const app = await NaviosFactory.create(AppModule, {
+  adapter: defineBunEnvironment(),
+})
+```
+
+### Choosing an Adapter
+
+The choice of adapter depends on your deployment environment and performance requirements:
+
+- Use **Fastify adapter** if you need Node.js compatibility, access to the Fastify ecosystem, or are deploying to traditional Node.js environments
+- Use **Bun adapter** if you're running on Bun runtime and want to take advantage of its performance optimizations
 
 ## Main Concepts
 
@@ -66,7 +126,13 @@ const login = api.declareEndpoint({
 ### Create your server
 
 ```bash
+# Install core dependencies
 yarn install --save @navios/core @navios/builder zod
+
+# Install one of the supported adapters
+yarn install --save @navios/adapter-fastify
+# OR
+yarn install --save @navios/adapter-bun
 ```
 
 Create AuthService:
@@ -130,12 +196,20 @@ export class AppModule {}
 Create your server:
 
 ```ts
+// Import your chosen adapter
+import { defineFastifyEnvironment } from '@navios/adapter-fastify'
 import { NaviosFactory } from '@navios/core'
+
+// OR import { defineBunEnvironment } from '@navios/adapter-bun'
 
 import { AppModule } from './src/app.module.mjs'
 
 export async function boot() {
-  const app = await NaviosFactory.create(AppModule)
+  const app = await NaviosFactory.create(AppModule, {
+    // Provide the adapter environment
+    adapter: defineFastifyEnvironment(),
+    // OR adapter: defineBunEnvironment(),
+  })
   app.setGlobalPrefix('/api')
   app.enableCors({
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
@@ -147,3 +221,22 @@ await boot()
 ```
 
 That's it! You have created your first Navios server. You can now run your server and test the `/api/login` endpoint.
+
+## Documentation
+
+- **[Quick Start Guide](./docs/quick-start.md)** - Get up and running quickly
+- **[Complete Documentation](./docs/README.md)** - Comprehensive framework documentation
+- **[Adapter Guide](./docs/adapters.md)** - Detailed adapter information and comparison
+- **[API Examples](https://github.com/Arilas/navios/tree/main/examples)** - Working code examples
+
+## Related Packages
+
+- **[@navios/adapter-fastify](https://www.npmjs.com/package/@navios/adapter-fastify)** - Fastify HTTP adapter
+- **[@navios/adapter-bun](https://www.npmjs.com/package/@navios/adapter-bun)** - Bun HTTP adapter
+- **[@navios/builder](https://www.npmjs.com/package/@navios/builder)** - Type-safe API definitions
+- **[@navios/di](https://www.npmjs.com/package/@navios/di)** - Dependency injection container
+- **[@navios/jwt](https://www.npmjs.com/package/@navios/jwt)** - JWT authentication utilities
+
+## License
+
+MIT

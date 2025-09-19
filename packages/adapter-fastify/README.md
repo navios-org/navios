@@ -2,46 +2,145 @@
 
 Fastify adapter for Navios - a Type-Safe HTTP Server with Zod Validation.
 
-This package provides the Fastify adapter for Navios, allowing you to run Navios applications using the Fastify web framework.
+This package provides the Fastify adapter for Navios, allowing you to run Navios applications using the high-performance [Fastify](https://www.fastify.io/) web framework.
+
+## Overview
+
+**Important**: `@navios/core` requires an HTTP adapter to function as a server. This package provides the Fastify implementation. You must install and configure an adapter to use Navios as an HTTP server.
+
+## Features
+
+- High-performance HTTP server based on Fastify
+- Full TypeScript support
+- Rich ecosystem of Fastify plugins
+- Production-ready with extensive documentation
+- Built-in request/response validation
+- Comprehensive middleware support
 
 ## Installation
 
 ```bash
-yarn install --save @navios/adapter-fastify @navios/core @navios/di fastify
+npm install @navios/adapter-fastify @navios/core fastify
+```
+
+Or with yarn:
+
+```bash
+yarn add @navios/adapter-fastify @navios/core fastify
 ```
 
 ## Usage
 
+### Basic Setup
+
 ```ts
-import { FastifyApplicationService } from '@navios/adapter-fastify'
+import { defineFastifyEnvironment } from '@navios/adapter-fastify'
 import { NaviosFactory } from '@navios/core'
 
-import { AppModule } from './src/app.module.mjs'
+import { AppModule } from './app.module.js'
 
-export async function boot() {
+async function bootstrap() {
   const app = await NaviosFactory.create(AppModule, {
-    adapter: FastifyApplicationService,
+    adapter: defineFastifyEnvironment(), // Required!
   })
+
   app.setGlobalPrefix('/api')
+  app.enableCors({
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  })
+
   await app.init()
-  await app.listen({ port: 3000, host: 'localhost' })
+  await app.listen({ port: 3000, host: '0.0.0.0' })
 }
 
-await boot()
+bootstrap()
+```
+
+### Advanced Configuration
+
+```ts
+import { defineFastifyEnvironment } from '@navios/adapter-fastify'
+import { NaviosFactory } from '@navios/core'
+
+const app = await NaviosFactory.create(AppModule, {
+  adapter: defineFastifyEnvironment({
+    // Fastify server options
+    logger: true,
+    trustProxy: true,
+  }),
+})
+
+// Enable multipart support for file uploads
+app.enableMultipart({
+  limits: {
+    fileSize: 1024 * 1024 * 10, // 10MB
+  },
+})
+```
+
+### Accessing Fastify Instance
+
+```ts
+// Get access to the underlying Fastify instance if needed
+const fastifyInstance = app.getServer()
+
+// Register Fastify plugins
+await fastifyInstance.register(require('@fastify/static'), {
+  root: path.join(__dirname, 'public'),
+  prefix: '/public/',
+})
 ```
 
 ## Features
 
-- **Fastify Integration**: Full support for Fastify's plugin ecosystem
-- **Type Safety**: Maintains Navios' type-safe API
-- **Performance**: Leverages Fastify's high-performance HTTP framework
-- **Compatibility**: Drop-in replacement for other adapters
-- **CORS Support**: Built-in CORS support via @fastify/cors
-- **Multipart Support**: Built-in multipart form support via @fastify/multipart
+- **High Performance**: Built on Fastify, one of the fastest Node.js web frameworks
+- **Rich Ecosystem**: Access to extensive Fastify plugin system
+- **Type Safety**: Maintains Navios' complete type-safe API
+- **Production Ready**: Battle-tested Fastify foundation
+- **Plugin System**: Full support for Fastify plugins and hooks
+- **Schema Validation**: Built-in JSON Schema validation
+- **Request/Response Lifecycle**: Complete control over request/response handling
+- **Error Handling**: Comprehensive error handling integration
+- **WebSocket Support**: Via Fastify WebSocket plugins
+- **Static File Serving**: Via @fastify/static plugin
 
 ## Requirements
 
-- Node.js runtime
-- @navios/core
-- @navios/di
-- fastify ^5.6.0
+- **Runtime**: Node.js 18+
+- **Dependencies**:
+  - `@navios/core` - Core Navios framework
+  - `fastify` ^5.6.0 - Fastify web framework
+  - `@navios/di` - Dependency injection (peer dependency)
+
+## When to Use Fastify Adapter
+
+Choose the Fastify adapter when:
+
+- ✅ Running on Node.js environments
+- ✅ Need access to Fastify's rich plugin ecosystem
+- ✅ Require mature, production-proven HTTP server
+- ✅ Working with teams familiar with Express/Fastify patterns
+- ✅ Need comprehensive middleware support
+- ✅ Deploying to traditional Node.js hosting platforms
+
+## Comparison with Other Adapters
+
+| Feature     | Fastify Adapter  | Bun Adapter |
+| ----------- | ---------------- | ----------- |
+| Runtime     | Node.js          | Bun         |
+| Performance | High             | Very High   |
+| Ecosystem   | Rich             | Growing     |
+| Maturity    | Production Ready | Emerging    |
+| Plugins     | Extensive        | Limited     |
+
+## Examples
+
+Check out the [examples directory](../../examples/simple-test/src/fastify.mts) for complete working examples.
+
+## Documentation
+
+For complete documentation on using Navios with adapters, see:
+
+- [Navios Core Documentation](../core/README.md)
+- [Adapter Guide](../core/docs/adapters.md)
+- [Quick Start Guide](../core/docs/quick-start.md)
