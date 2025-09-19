@@ -4,13 +4,18 @@ import type { ZodTypeProvider } from 'fastify-type-provider-zod'
 
 import { Container, inject, Injectable, InjectionToken } from '@navios/di'
 
-import type { ModuleMetadata } from '../../index.mjs'
+import type {
+  ControllerMetadata,
+  HandlerMetadata,
+  ModuleMetadata,
+} from '../../index.mjs'
 import type { FastifyHandlerAdapterInterface } from '../adapters/index.mjs'
 
 import {
   ExecutionContext,
   extractControllerMetadata,
   GuardRunnerService,
+  InternalServerErrorException,
   Logger,
 } from '../../index.mjs'
 import { FastifyExecutionContext } from '../interfaces/index.mjs'
@@ -41,32 +46,45 @@ export class FastifyControllerAdapterService {
       const adapter = await this.container.get(
         adapterToken as InjectionToken<FastifyHandlerAdapterInterface>,
       )
-      const executionContext = new FastifyExecutionContext(
-        moduleMetadata,
-        controllerMetadata,
-        endpoint,
-      )
       const hasSchema = adapter.hasSchema?.(endpoint) ?? false
       if (hasSchema) {
         instance.withTypeProvider<ZodTypeProvider>().route({
           method: httpMethod,
           url: url.replaceAll('$', ':'),
           schema: adapter.provideSchema?.(endpoint) ?? {},
-          preHandler: this.providePreHandler(executionContext),
-          handler: this.wrapHandler(
-            executionContext,
-            adapter.provideHandler(controller, executionContext, endpoint),
+          onRequest: this.provideOnRequest(
+            moduleMetadata,
+            controllerMetadata,
+            endpoint,
           ),
+          preHandler: this.providePreHandler(
+            moduleMetadata,
+            controllerMetadata,
+            endpoint,
+          ),
+          handler: this.wrapHandler(
+            adapter.provideHandler(controller, endpoint),
+          ),
+          onResponse: this.provideOnResponse(),
         })
       } else {
         instance.route({
           method: httpMethod,
           url: url.replaceAll('$', ':'),
-          preHandler: this.providePreHandler(executionContext),
-          handler: this.wrapHandler(
-            executionContext,
-            adapter.provideHandler(controller, executionContext, endpoint),
+          onRequest: this.provideOnRequest(
+            moduleMetadata,
+            controllerMetadata,
+            endpoint,
           ),
+          preHandler: this.providePreHandler(
+            moduleMetadata,
+            controllerMetadata,
+            endpoint,
+          ),
+          handler: this.wrapHandler(
+            adapter.provideHandler(controller, endpoint),
+          ),
+          onResponse: this.provideOnResponse(),
         })
       }
 
@@ -75,18 +93,47 @@ export class FastifyControllerAdapterService {
       )
     }
   }
+  private provideOnRequest(
+    moduleMetadata: ModuleMetadata,
+    controllerMetadata: ControllerMetadata,
+    endpoint: HandlerMetadata,
+  ) {
+    return async (request: FastifyRequest, reply: FastifyReply) => {
+      const executionContext = new FastifyExecutionContext(
+        moduleMetadata,
+        controllerMetadata,
+        endpoint,
+        request,
+        reply,
+      )
+      const requestContext = this.container.beginRequest(request.id)
+      requestContext.addInstance(FastifyRequestToken, request)
+      requestContext.addInstance(FastifyReplyToken, reply)
+      requestContext.addInstance(ExecutionContext, executionContext)
+    }
+  }
 
-  private providePreHandler(executionContext: FastifyExecutionContext) {
-    const guards = this.guardRunner.makeContext(executionContext)
+  private providePreHandler(
+    moduleMetadata: ModuleMetadata,
+    controllerMetadata: ControllerMetadata,
+    endpoint: HandlerMetadata,
+  ) {
+    const guards = this.guardRunner.makeContext(
+      moduleMetadata,
+      controllerMetadata,
+      endpoint,
+    )
     return guards.size > 0
       ? this.wrapHandler(
-          executionContext,
           async (
             context: RequestContextHolder,
             request: FastifyRequest,
             reply: FastifyReply,
           ) => {
             let canActivate = true
+            const executionContext = context.getInstance(
+              ExecutionContext.toString(),
+            ) as FastifyExecutionContext
             canActivate = await this.guardRunner.runGuards(
               guards,
               executionContext,
@@ -99,8 +146,13 @@ export class FastifyControllerAdapterService {
       : undefined
   }
 
+  private provideOnResponse() {
+    return async (request: FastifyRequest) => {
+      await this.container.endRequest(request.id)
+    }
+  }
+
   private wrapHandler(
-    executionContext: FastifyExecutionContext,
     handler: (
       context: RequestContextHolder,
       request: FastifyRequest,
@@ -108,17 +160,14 @@ export class FastifyControllerAdapterService {
     ) => Promise<void>,
   ) {
     return async (request: FastifyRequest, reply: FastifyReply) => {
-      const requestContext = this.container.beginRequest(request.id)
-      requestContext.addInstance(FastifyRequestToken, request)
-      requestContext.addInstance(FastifyReplyToken, reply)
-      requestContext.addInstance(ExecutionContext, executionContext)
-      executionContext.provideRequest(request)
-      executionContext.provideReply(reply)
-      try {
-        return await handler(requestContext, request, reply)
-      } finally {
-        await this.container.endRequest(request.id)
+      this.container.setCurrentRequestContext(request.id)
+      const requestContext = this.container.getCurrentRequestContext()
+      if (!requestContext) {
+        throw new InternalServerErrorException(
+          '[Navios] Request context not found',
+        )
       }
+      return await handler(requestContext, request, reply)
     }
   }
 }

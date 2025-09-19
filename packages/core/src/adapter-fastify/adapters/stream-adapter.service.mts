@@ -52,7 +52,6 @@ export class FastifyStreamAdapterService
 
   provideHandler(
     controller: ClassType,
-    executionContext: AbstractExecutionContext,
     handlerMetadata: HandlerMetadata<BaseStreamConfig>,
   ): (
     context: RequestContextHolder,

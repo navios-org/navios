@@ -6,6 +6,11 @@ import type {
   AbstractExecutionContext,
   CanActivate,
 } from '../interfaces/index.mjs'
+import type {
+  ControllerMetadata,
+  HandlerMetadata,
+  ModuleMetadata,
+} from '../metadata/index.mjs'
 
 import { HttpException } from '../exceptions/index.mjs'
 
@@ -63,7 +68,9 @@ export class GuardRunnerService {
   }
 
   makeContext(
-    executionContext: AbstractExecutionContext,
+    moduleMetadata: ModuleMetadata,
+    controllerMetadata: ControllerMetadata,
+    endpoint: HandlerMetadata,
   ): Set<
     ClassTypeWithInstance<CanActivate> | InjectionToken<CanActivate, undefined>
   > {
@@ -71,9 +78,9 @@ export class GuardRunnerService {
       | ClassTypeWithInstance<CanActivate>
       | InjectionToken<CanActivate, undefined>
     >()
-    const endpointGuards = executionContext.getHandler().guards
-    const controllerGuards = executionContext.getController().guards
-    const moduleGuards = executionContext.getModule().guards
+    const endpointGuards = endpoint.guards
+    const controllerGuards = controllerMetadata.guards
+    const moduleGuards = moduleMetadata.guards
     if (endpointGuards.size > 0) {
       for (const guard of endpointGuards) {
         guards.add(guard)

@@ -10,6 +10,4 @@ export interface AbstractExecutionContext {
   getHandler(): HandlerMetadata
   getRequest(): any
   getReply(): any
-  provideRequest(request: any): void
-  provideReply(reply: any): void
 }

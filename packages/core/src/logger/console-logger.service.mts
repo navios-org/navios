@@ -2,7 +2,7 @@ import type { InspectOptions } from 'util'
 
 import { inspect } from 'util'
 
-import { Container, inject, Injectable } from '@navios/di'
+import { Injectable } from '@navios/di'
 
 import type { LogLevel } from './log-levels.mjs'
 import type { LoggerService } from './logger-service.interface.mjs'
@@ -128,7 +128,6 @@ const dateTimeFormatter = new Intl.DateTimeFormat(undefined, {
   token: LoggerOutput,
 })
 export class ConsoleLogger implements LoggerService {
-  protected readonly container = inject(Container)
   /**
    * The options of the logger.
    */
@@ -179,10 +178,6 @@ export class ConsoleLogger implements LoggerService {
     }
   }
 
-  protected get requestId() {
-    return this.container.getCurrentRequestContext()?.requestId ?? null
-  }
-
   /**
    * Write a 'log' level log, if the configured level allows for it.
    * Prints to `stdout` with newline.
@@ -214,7 +209,7 @@ export class ConsoleLogger implements LoggerService {
     const { messages, context, stack } =
       this.getContextAndStackAndMessagesToPrint([message, ...optionalParams])
 
-    this.printMessages(messages, context, 'error', 'stderr', stack)
+    this.printMessages(messages, context, 'error', undefined, 'stderr', stack)
     this.printStackTrace(stack!)
   }
 
@@ -325,6 +320,7 @@ export class ConsoleLogger implements LoggerService {
     messages: unknown[],
     context = '',
     logLevel: LogLevel = 'log',
+    requestId?: string,
     writeStreamType?: 'stdout' | 'stderr',
     errorStack?: unknown,
   ) {
@@ -335,6 +331,7 @@ export class ConsoleLogger implements LoggerService {
           logLevel,
           writeStreamType,
           errorStack,
+          requestId,
         })
         return
       }
@@ -349,6 +346,7 @@ export class ConsoleLogger implements LoggerService {
         formattedLogLevel,
         contextMessage,
         timestampDiff,
+        requestId,
       )
 
       process[writeStreamType ?? 'stdout'].write(formattedMessage)
@@ -362,6 +360,7 @@ export class ConsoleLogger implements LoggerService {
       logLevel: LogLevel
       writeStreamType?: 'stdout' | 'stderr'
       errorStack?: unknown
+      requestId?: string
     },
   ) {
     type JsonLogObject = {
@@ -388,8 +387,8 @@ export class ConsoleLogger implements LoggerService {
     if (options.errorStack) {
       logObject.stack = options.errorStack
     }
-    if (this.options.requestId && this.requestId) {
-      logObject.requestId = this.requestId
+    if (this.options.requestId && options.requestId) {
+      logObject.requestId = options.requestId
     }
 
     const formattedMessage =
@@ -419,16 +418,17 @@ export class ConsoleLogger implements LoggerService {
     formattedLogLevel: string,
     contextMessage: string,
     timestampDiff: string,
+    requestId?: string,
   ) {
     const output = this.stringifyMessage(message, logLevel)
     pidMessage = this.colorize(pidMessage, logLevel)
     formattedLogLevel = this.colorize(formattedLogLevel, logLevel)
-    return `${pidMessage}${this.getRequestId()}${this.getTimestamp()} ${formattedLogLevel} ${contextMessage}${output}${timestampDiff}\n`
+    return `${pidMessage}${this.getRequestId(requestId)}${this.getTimestamp()} ${formattedLogLevel} ${contextMessage}${output}${timestampDiff}\n`
   }
 
-  protected getRequestId() {
-    if (this.options.requestId && this.requestId) {
-      return `(${this.colorize(this.requestId, 'log')}) `
+  protected getRequestId(requestId?: string) {
+    if (this.options.requestId && requestId) {
+      return `(${this.colorize(requestId, 'log')}) `
     }
     return ''
   }

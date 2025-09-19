@@ -8,12 +8,12 @@ import type {
 } from '../../index.mjs'
 
 export class FastifyExecutionContext implements AbstractExecutionContext {
-  private request: FastifyRequest | undefined
-  private reply: FastifyReply | undefined
   constructor(
     private readonly module: ModuleMetadata,
     private readonly controller: ControllerMetadata,
     private readonly handler: HandlerMetadata,
+    private readonly request: FastifyRequest,
+    private readonly reply: FastifyReply,
   ) {}
   getModule(): ModuleMetadata {
     return this.module
@@ -43,13 +43,5 @@ export class FastifyExecutionContext implements AbstractExecutionContext {
       )
     }
     return this.reply
-  }
-
-  provideRequest(request: FastifyRequest): void {
-    this.request = request
-  }
-
-  provideReply(reply: FastifyReply): void {
-    this.reply = reply
   }
 }

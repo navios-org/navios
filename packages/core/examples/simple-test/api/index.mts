@@ -6,6 +6,14 @@ export const authApi = builder({
   useDiscriminatorResponse: true,
 })
 
+export const appEndpoint = authApi.declareEndpoint({
+  method: 'GET',
+  url: '/',
+  responseSchema: z.object({
+    message: z.string(),
+  }),
+})
+
 export const userEndpoint = authApi.declareEndpoint({
   method: 'GET',
   url: '/user',
