@@ -1,4 +1,4 @@
-import { Injectable, InjectionToken, Logger, syncInject } from '@navios/core'
+import { inject, Injectable, InjectionToken, Logger } from '@navios/core'
 
 import jwt from 'jsonwebtoken'
 
@@ -25,7 +25,7 @@ export const JwtServiceToken = InjectionToken.create(
   token: JwtServiceToken,
 })
 export class JwtService {
-  logger = syncInject(Logger, {
+  logger = inject(Logger, {
     context: JwtService.name,
   })
 
@@ -182,7 +182,7 @@ export class JwtService {
     }
     return options
       ? {
-          ...(this.options[key] || {}),
+          ...this.options[key],
           ...options,
         }
       : // @ts-expect-error We check it
