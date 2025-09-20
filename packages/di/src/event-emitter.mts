@@ -32,12 +32,12 @@ export type ChannelEmitter<
 export interface EventEmitterInterface<Events extends EventsConfig> {
   on<E extends EventsNames<Events>, Args extends EventsArgs<Events, E>>(
     event: E,
-    listener: (...args: Args) => void,
+    listener: (...args: Args) => void | Promise<void>,
   ): () => void
   emit<E extends EventsNames<Events>, Args extends EventsArgs<Events, E>>(
     event: E,
     ...args: Args
-  ): void
+  ): void | Promise<void>
 }
 
 @Injectable({ scope: InjectableScope.Transient })
@@ -48,7 +48,7 @@ export class EventEmitter<Events extends EventsConfig = {}>
 
   on<E extends EventsNames<Events>, Args extends EventsArgs<Events, E>>(
     event: E,
-    listener: (...args: Args) => void,
+    listener: (...args: Args) => void | Promise<void>,
   ) {
     if (!this.listeners.has(event)) {
       this.listeners.set(event, new Set())
@@ -63,7 +63,7 @@ export class EventEmitter<Events extends EventsConfig = {}>
 
   off<E extends EventsNames<Events>, Args extends EventsArgs<Events, E>>(
     event: E,
-    listener: (...args: Args) => void,
+    listener: (...args: Args) => void | Promise<void>,
   ) {
     if (!this.listeners.has(event)) {
       return
@@ -77,7 +77,7 @@ export class EventEmitter<Events extends EventsConfig = {}>
 
   once<E extends EventsNames<Events>, Args extends EventsArgs<Events, E>>(
     event: E,
-    listener: (...args: Args) => void,
+    listener: (...args: Args) => void | Promise<void>,
   ) {
     const off = this.on(event, (...args) => {
       off()
