@@ -29,9 +29,9 @@ export class Container {
   private readonly serviceLocator: ServiceLocator
 
   constructor(
-    registry: Registry = globalRegistry,
-    logger: Console | null = null,
-    injectors: Injectors = defaultInjectors,
+    protected readonly registry: Registry = globalRegistry,
+    protected readonly logger: Console | null = null,
+    protected readonly injectors: Injectors = defaultInjectors,
   ) {
     this.serviceLocator = new ServiceLocator(registry, logger, injectors)
     this.registerSelf()
@@ -163,5 +163,13 @@ export class Container {
    */
   setCurrentRequestContext(requestId: string): void {
     this.serviceLocator.setCurrentRequestContext(requestId)
+  }
+
+  /**
+   * Clears all instances and bindings from the container.
+   * This is useful for testing or resetting the container state.
+   */
+  clear(): void {
+    this.serviceLocator.getManager().clear()
   }
 }

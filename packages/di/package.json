@@ -1,6 +1,6 @@
 {
   "name": "@navios/di",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "author": {
     "name": "Oleksandr Hanzha",
     "email": "alex@granted.name"
@@ -26,6 +26,16 @@
       "require": {
         "types": "./lib/index.d.ts",
         "default": "./lib/index.js"
+      }
+    },
+    "./testing": {
+      "import": {
+        "types": "./lib/testing/index.d.mts",
+        "default": "./lib/testing/index.mjs"
+      },
+      "require": {
+        "types": "./lib/testing/index.d.ts",
+        "default": "./lib/testing/index.js"
       }
     }
   },
