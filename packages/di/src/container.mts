@@ -10,6 +10,7 @@ import type {
 import type { Factorable } from './interfaces/factory.interface.mjs'
 import type { Registry } from './registry.mjs'
 import type { RequestContextHolder } from './request-context-holder.mjs'
+import type { ServiceLocatorInstanceHolder } from './service-locator-instance-holder.mjs'
 import type { Injectors } from './utils/index.mjs'
 import type { Join, UnionToArray } from './utils/types.mjs'
 
@@ -106,10 +107,21 @@ export class Container {
     const holderMap = this.serviceLocator
       .getManager()
       .filter((holder) => holder.instance === service)
-    if (holderMap.size === 0) {
+    const requestHolderMap = new Map<string, ServiceLocatorInstanceHolder>()
+    this.serviceLocator.getRequestContexts().forEach((requestContext) => {
+      requestContext.holders.forEach((holder) => {
+        if (holder.instance === service) {
+          requestHolderMap.set(holder.name, holder)
+        }
+      })
+    })
+    console.log(holderMap, requestHolderMap)
+    if (holderMap.size === 0 && requestHolderMap.size === 0) {
       return
     }
-    const holder = holderMap.values().next().value
+    const holder = [...holderMap.values(), ...requestHolderMap.values()].find(
+      (holder) => holder.instance === service,
+    )
     if (holder) {
       await this.serviceLocator.invalidate(holder.name)
     }
@@ -169,7 +181,7 @@ export class Container {
    * Clears all instances and bindings from the container.
    * This is useful for testing or resetting the container state.
    */
-  clear(): void {
-    this.serviceLocator.getManager().clear()
+  clear(): Promise<void> {
+    return this.serviceLocator.clearAll()
   }
 }

@@ -65,6 +65,10 @@ export class ServiceLocator {
     return this.manager
   }
 
+  getRequestContexts() {
+    return this.requestContexts
+  }
+
   public getInstanceIdentifier(token: AnyInjectableType, args?: any): string {
     const [err, { actualToken, validatedArgs }] =
       this.validateAndResolveTokenArgs(token, args)
@@ -161,7 +165,247 @@ export class ServiceLocator {
     for (const [key, holder] of toInvalidate.entries()) {
       promises.push(this.invalidateHolder(key, holder, round))
     }
+
+    // Also invalidate request-scoped instances that depend on the service or match the service name
+    for (const [requestId, requestContext] of this.requestContexts.entries()) {
+      for (const [instanceName, holder] of requestContext.holders) {
+        if (holder.name === service || holder.deps.has(service)) {
+          this.logger?.log(
+            `[ServiceLocator] Invalidating request-scoped instance ${instanceName} in request ${requestId} ${
+              holder.name === service
+                ? `(matches service name ${service})`
+                : `(depends on ${service})`
+            }`,
+          )
+          promises.push(
+            this.invalidateRequestHolder(
+              requestId,
+              instanceName,
+              holder,
+              round,
+            ),
+          )
+        }
+      }
+    }
+
     return Promise.all(promises)
+  }
+
+  /**
+   * Gracefully clears all services in the ServiceLocator using invalidation logic.
+   * This method respects service dependencies and ensures proper cleanup order.
+   * Services that depend on others will be invalidated first, then their dependencies.
+   *
+   * @param options Optional configuration for the clearing process
+   * @returns Promise that resolves when all services have been cleared
+   */
+  async clearAll(
+    options: {
+      /** Whether to also clear request contexts (default: true) */
+      clearRequestContexts?: boolean
+      /** Maximum number of invalidation rounds to prevent infinite loops (default: 10) */
+      maxRounds?: number
+      /** Whether to wait for all services to settle before starting (default: true) */
+      waitForSettlement?: boolean
+    } = {},
+  ): Promise<void> {
+    const {
+      clearRequestContexts = true,
+      maxRounds = 10,
+      waitForSettlement = true,
+    } = options
+
+    this.logger?.log(
+      '[ServiceLocator] Starting graceful clearing of all services',
+    )
+
+    // Wait for all services to settle if requested
+    if (waitForSettlement) {
+      this.logger?.log('[ServiceLocator] Waiting for all services to settle...')
+      await this.ready()
+    }
+
+    // Get all service names that need to be cleared
+    const allServiceNames = this.getAllServiceNames()
+
+    if (allServiceNames.length === 0) {
+      this.logger?.log('[ServiceLocator] No singleton services to clear')
+    } else {
+      this.logger?.log(
+        `[ServiceLocator] Found ${allServiceNames.length} services to clear: ${allServiceNames.join(', ')}`,
+      )
+
+      // Clear services using dependency-aware invalidation
+      await this.clearServicesWithDependencyAwareness(
+        allServiceNames,
+        maxRounds,
+      )
+    }
+
+    // Clear request contexts if requested
+    if (clearRequestContexts) {
+      await this.clearAllRequestContexts()
+    }
+
+    this.logger?.log('[ServiceLocator] Graceful clearing completed')
+  }
+
+  /**
+   * Clears services with dependency awareness, ensuring proper cleanup order.
+   * Services with no dependencies are cleared first, then services that depend on them.
+   */
+  private async clearServicesWithDependencyAwareness(
+    serviceNames: string[],
+    maxRounds: number,
+  ): Promise<void> {
+    const clearedServices = new Set<string>()
+    let round = 1
+
+    while (clearedServices.size < serviceNames.length && round <= maxRounds) {
+      this.logger?.log(
+        `[ServiceLocator] Clearing round ${round}/${maxRounds}, ${clearedServices.size}/${serviceNames.length} services cleared`,
+      )
+
+      // Find services that can be cleared in this round
+      const servicesToClearThisRound = this.findServicesReadyForClearing(
+        serviceNames,
+        clearedServices,
+      )
+
+      if (servicesToClearThisRound.length === 0) {
+        // If no services can be cleared, try to clear remaining services anyway
+        // This handles circular dependencies or other edge cases
+        const remainingServices = serviceNames.filter(
+          (name) => !clearedServices.has(name),
+        )
+
+        if (remainingServices.length > 0) {
+          this.logger?.warn(
+            `[ServiceLocator] No services ready for clearing, forcing cleanup of remaining: ${remainingServices.join(', ')}`,
+          )
+          await this.forceClearServices(remainingServices)
+          remainingServices.forEach((name) => clearedServices.add(name))
+        }
+        break
+      }
+
+      // Clear services in this round
+      const clearPromises = servicesToClearThisRound.map(
+        async (serviceName) => {
+          try {
+            await this.invalidate(serviceName, round)
+            clearedServices.add(serviceName)
+            this.logger?.log(
+              `[ServiceLocator] Successfully cleared service: ${serviceName}`,
+            )
+          } catch (error) {
+            this.logger?.error(
+              `[ServiceLocator] Error clearing service ${serviceName}:`,
+              error,
+            )
+            // Still mark as cleared to avoid infinite loops
+            clearedServices.add(serviceName)
+          }
+        },
+      )
+
+      await Promise.all(clearPromises)
+      round++
+    }
+
+    if (clearedServices.size < serviceNames.length) {
+      this.logger?.warn(
+        `[ServiceLocator] Clearing completed after ${maxRounds} rounds, but ${serviceNames.length - clearedServices.size} services may not have been properly cleared`,
+      )
+    }
+  }
+
+  /**
+   * Finds services that are ready to be cleared in the current round.
+   * A service is ready if all its dependencies have already been cleared.
+   */
+  private findServicesReadyForClearing(
+    allServiceNames: string[],
+    clearedServices: Set<string>,
+  ): string[] {
+    return allServiceNames.filter((serviceName) => {
+      if (clearedServices.has(serviceName)) {
+        return false // Already cleared
+      }
+
+      // Check if this service has any dependencies that haven't been cleared yet
+      const [error, holder] = this.manager.get(serviceName)
+      if (error) {
+        return true // Service not found or in error state, can be cleared
+      }
+
+      // Check if all dependencies have been cleared
+      const hasUnclearedDependencies = Array.from(holder.deps).some(
+        (dep) => !clearedServices.has(dep),
+      )
+
+      return !hasUnclearedDependencies
+    })
+  }
+
+  /**
+   * Force clears services that couldn't be cleared through normal dependency resolution.
+   * This handles edge cases like circular dependencies.
+   */
+  private async forceClearServices(serviceNames: string[]): Promise<void> {
+    const promises = serviceNames.map(async (serviceName) => {
+      try {
+        // Directly destroy the holder without going through normal invalidation
+        const [error, holder] = this.manager.get(serviceName)
+        if (!error && holder) {
+          await this.destroyHolder(serviceName, holder)
+        }
+      } catch (error) {
+        this.logger?.error(
+          `[ServiceLocator] Error force clearing service ${serviceName}:`,
+          error,
+        )
+      }
+    })
+
+    await Promise.all(promises)
+  }
+
+  /**
+   * Gets all service names currently managed by the ServiceLocator.
+   */
+  private getAllServiceNames(): string[] {
+    return this.manager.getAllNames()
+  }
+
+  /**
+   * Clears all request contexts.
+   */
+  private async clearAllRequestContexts(): Promise<void> {
+    const requestIds = Array.from(this.requestContexts.keys())
+
+    if (requestIds.length === 0) {
+      this.logger?.log('[ServiceLocator] No request contexts to clear')
+      return
+    }
+
+    this.logger?.log(
+      `[ServiceLocator] Clearing ${requestIds.length} request contexts: ${requestIds.join(', ')}`,
+    )
+
+    // Clear request contexts sequentially to avoid race conditions
+    for (const requestId of requestIds) {
+      try {
+        await this.endRequest(requestId)
+      } catch (error) {
+        this.logger?.error(
+          `[ServiceLocator] Error clearing request context ${requestId}:`,
+          error,
+        )
+        // Continue with other request contexts even if one fails
+      }
+    }
   }
 
   /**
@@ -172,28 +416,96 @@ export class ServiceLocator {
     holder: ServiceLocatorInstanceHolder<any>,
     round: number,
   ): Promise<void> {
+    await this.invalidateHolderByStatus(holder, round, {
+      context: key,
+      isRequestScoped: false,
+      onDestroying: () =>
+        this.logger?.trace(
+          `[ServiceLocator] ${key} is already being destroyed`,
+        ),
+      onCreating: () =>
+        this.logger?.trace(
+          `[ServiceLocator] ${key} is being created, waiting...`,
+        ),
+      onCreationError: () =>
+        this.logger?.error(
+          `[ServiceLocator] ${key} creation triggered too many invalidation rounds`,
+        ),
+      onRecursiveInvalidate: () => this.invalidate(key, round + 1),
+      onDestroy: () => this.destroyHolder(key, holder),
+    })
+  }
+
+  /**
+   * Invalidates a request-scoped holder based on its current status.
+   */
+  private async invalidateRequestHolder(
+    requestId: string,
+    instanceName: string,
+    holder: ServiceLocatorInstanceHolder<any>,
+    round: number,
+  ): Promise<void> {
+    await this.invalidateHolderByStatus(holder, round, {
+      context: `Request-scoped ${instanceName} in ${requestId}`,
+      isRequestScoped: true,
+      onDestroying: () =>
+        this.logger?.trace(
+          `[ServiceLocator] Request-scoped ${instanceName} in ${requestId} is already being destroyed`,
+        ),
+      onCreating: () =>
+        this.logger?.trace(
+          `[ServiceLocator] Request-scoped ${instanceName} in ${requestId} is being created, waiting...`,
+        ),
+      onCreationError: () =>
+        this.logger?.error(
+          `[ServiceLocator] Request-scoped ${instanceName} in ${requestId} creation triggered too many invalidation rounds`,
+        ),
+      onRecursiveInvalidate: () =>
+        this.invalidateRequestHolder(
+          requestId,
+          instanceName,
+          holder,
+          round + 1,
+        ),
+      onDestroy: () =>
+        this.destroyRequestHolder(requestId, instanceName, holder),
+    })
+  }
+
+  /**
+   * Common invalidation logic for holders based on their status.
+   */
+  private async invalidateHolderByStatus(
+    holder: ServiceLocatorInstanceHolder<any>,
+    round: number,
+    options: {
+      context: string
+      isRequestScoped: boolean
+      onDestroying: () => void
+      onCreating: () => void
+      onCreationError: () => void
+      onRecursiveInvalidate: () => Promise<void>
+      onDestroy: () => Promise<void>
+    },
+  ): Promise<void> {
     switch (holder.status) {
       case ServiceLocatorInstanceHolderStatus.Destroying:
-        this.logger?.trace(`[ServiceLocator] ${key} is already being destroyed`)
+        options.onDestroying()
         await holder.destroyPromise
         break
 
       case ServiceLocatorInstanceHolderStatus.Creating:
-        this.logger?.trace(
-          `[ServiceLocator] ${key} is being created, waiting...`,
-        )
+        options.onCreating()
         await holder.creationPromise
         if (round > 3) {
-          this.logger?.error(
-            `[ServiceLocator] ${key} creation triggered too many invalidation rounds`,
-          )
+          options.onCreationError()
           return
         }
-        await this.invalidate(key, round + 1)
+        await options.onRecursiveInvalidate()
         break
 
       default:
-        await this.destroyHolder(key, holder)
+        await options.onDestroy()
         break
     }
   }
@@ -205,16 +517,57 @@ export class ServiceLocator {
     key: string,
     holder: ServiceLocatorInstanceHolder<any>,
   ): Promise<void> {
+    await this.destroyHolderWithCleanup(holder, {
+      context: key,
+      logMessage: `[ServiceLocator] Invalidating ${key} and notifying listeners`,
+      cleanup: () => this.manager.delete(key),
+      eventName: key,
+    })
+  }
+
+  /**
+   * Destroys a request-scoped holder and cleans up its resources.
+   */
+  private async destroyRequestHolder(
+    requestId: string,
+    instanceName: string,
+    holder: ServiceLocatorInstanceHolder<any>,
+  ): Promise<void> {
+    await this.destroyHolderWithCleanup(holder, {
+      context: `Request-scoped ${instanceName} in ${requestId}`,
+      logMessage: `[ServiceLocator] Invalidating request-scoped ${instanceName} in ${requestId} and notifying listeners`,
+      cleanup: () => {
+        const requestContext = this.requestContexts.get(requestId)
+        if (requestContext) {
+          requestContext.delete(instanceName)
+        }
+      },
+      eventName: instanceName,
+    })
+  }
+
+  /**
+   * Common destroy logic for holders with customizable cleanup.
+   */
+  private async destroyHolderWithCleanup(
+    holder: ServiceLocatorInstanceHolder<any>,
+    options: {
+      context: string
+      logMessage: string
+      cleanup: () => void
+      eventName: string
+    },
+  ): Promise<void> {
     holder.status = ServiceLocatorInstanceHolderStatus.Destroying
-    this.logger?.log(
-      `[ServiceLocator] Invalidating ${key} and notifying listeners`,
-    )
+    this.logger?.log(options.logMessage)
 
     holder.destroyPromise = Promise.all(
       holder.destroyListeners.map((listener) => listener()),
     ).then(async () => {
-      this.manager.delete(key)
-      await this.emitInstanceEvent(key, 'destroy')
+      holder.destroyListeners = []
+      holder.deps.clear()
+      options.cleanup()
+      await this.emitInstanceEvent(options.eventName, 'destroy')
     })
 
     await holder.destroyPromise
