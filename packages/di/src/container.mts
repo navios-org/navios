@@ -106,6 +106,7 @@ export class Container {
   async invalidate(service: unknown): Promise<void> {
     const holder = this.getHolderByInstance(service)
     if (holder) {
+      console.log('invalidating', holder.name)
       await this.serviceLocator.invalidate(holder.name)
     } else {
       const requestHolder = this.getRequestHolderByInstance(service)
@@ -121,11 +122,14 @@ export class Container {
   private getHolderByInstance(
     instance: unknown,
   ): ServiceLocatorInstanceHolder | null {
-    const holderMap = this.serviceLocator
-      .getManager()
-      .filter((holder) => holder.instance === instance)
+    const holderMap = Array.from(
+      this.serviceLocator
+        .getManager()
+        .filter((holder) => holder.instance === instance)
+        .values(),
+    )
 
-    return holderMap.size > 0 ? holderMap.values().next().value || null : null
+    return holderMap.length > 0 ? holderMap[0] : null
   }
 
   private getRequestHolderByInstance(

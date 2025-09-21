@@ -28,74 +28,30 @@ export class ServiceInvalidator {
   ) {}
 
   /**
-   * Finds all services that depend on the given service (transitively).
-   * This includes services that depend on services that depend on the given service.
-   */
-  private findTransitiveDependents(
-    service: string,
-  ): Map<string, ServiceLocatorInstanceHolder> {
-    const toInvalidate = new Map<string, ServiceLocatorInstanceHolder>()
-    const visited = new Set<string>()
-
-    // Add the service itself
-    const serviceHolder = this.manager.get(service)
-    if (serviceHolder[1]) {
-      toInvalidate.set(service, serviceHolder[1])
-      visited.add(service)
-    }
-
-    // Find all services that depend on the given service (directly or transitively)
-    const findDependents = (targetService: string) => {
-      const dependents = this.manager.filter(
-        (holder, name) => !visited.has(name) && holder.deps.has(targetService),
-      )
-
-      for (const [name, holder] of dependents.entries()) {
-        toInvalidate.set(name, holder)
-        visited.add(name)
-        // Recursively find services that depend on this one
-        findDependents(name)
-      }
-    }
-
-    findDependents(service)
-    return toInvalidate
-  }
-
-  /**
    * Invalidates a service and all its dependencies.
    */
   invalidate(service: string, round = 1): Promise<any> {
     this.logger?.log(
       `[ServiceInvalidator] Starting invalidation process for ${service}`,
     )
-    const toInvalidate = this.findTransitiveDependents(service)
+    const [, toInvalidate] = this.manager.get(service)
+
     const promises = []
-    for (const [key, holder] of toInvalidate.entries()) {
-      promises.push(this.invalidateHolder(key, holder, round))
+    if (toInvalidate) {
+      promises.push(this.invalidateHolder(service, toInvalidate, round))
     }
 
     // Also invalidate request-scoped instances that depend on the service or match the service name
     const requestContexts = this.requestContextManager.getRequestContexts()
     for (const [requestId, requestContext] of requestContexts.entries()) {
-      for (const [instanceName, holder] of requestContext.holders) {
-        if (holder.name === service || holder.deps.has(service)) {
-          this.logger?.log(
-            `[ServiceInvalidator] Invalidating request-scoped instance ${instanceName} in request ${requestId} ${
-              holder.name === service
-                ? `(matches service name ${service})`
-                : `(depends on ${service})`
-            }`,
-          )
-          promises.push(
-            this.invalidateRequestHolder(
-              requestId,
-              instanceName,
-              holder,
-              round,
-            ),
-          )
-        }
+      const holder = requestContext.get(service)
+      if (holder) {
+        this.logger?.log(
+          `[ServiceInvalidator] Invalidating request-scoped instance ${service} in request ${requestId}`,
+        )
+        promises.push(
+          this.invalidateRequestHolder(requestId, service, holder, round),
+        )
       }
     }
 
@@ -174,14 +130,6 @@ export class ServiceInvalidator {
     await this.invalidateHolderByStatus(holder, round, {
       context: key,
       isRequestScoped: false,
-      onDestroying: () =>
-        this.logger?.trace(
-          `[ServiceInvalidator] ${key} is already being destroyed`,
-        ),
-      onCreating: () =>
-        this.logger?.trace(
-          `[ServiceInvalidator] ${key} is being created, waiting...`,
-        ),
       onCreationError: () =>
         this.logger?.error(
           `[ServiceInvalidator] ${key} creation triggered too many invalidation rounds`,
@@ -203,14 +151,6 @@ export class ServiceInvalidator {
     await this.invalidateHolderByStatus(holder, round, {
       context: `Request-scoped ${instanceName} in ${requestId}`,
       isRequestScoped: true,
-      onDestroying: () =>
-        this.logger?.trace(
-          `[ServiceInvalidator] Request-scoped ${instanceName} in ${requestId} is already being destroyed`,
-        ),
-      onCreating: () =>
-        this.logger?.trace(
-          `[ServiceInvalidator] Request-scoped ${instanceName} in ${requestId} is being created, waiting...`,
-        ),
       onCreationError: () =>
         this.logger?.error(
           `[ServiceInvalidator] Request-scoped ${instanceName} in ${requestId} creation triggered too many invalidation rounds`,
@@ -236,8 +176,6 @@ export class ServiceInvalidator {
     options: {
       context: string
       isRequestScoped: boolean
-      onDestroying: () => void
-      onCreating: () => void
       onCreationError: () => void
       onRecursiveInvalidate: () => Promise<void>
       onDestroy: () => Promise<void>
@@ -245,12 +183,10 @@ export class ServiceInvalidator {
   ): Promise<void> {
     switch (holder.status) {
       case ServiceLocatorInstanceHolderStatus.Destroying:
-        options.onDestroying()
         await holder.destroyPromise
         break
 
       case ServiceLocatorInstanceHolderStatus.Creating:
-        options.onCreating()
         await holder.creationPromise
         if (round > 3) {
           options.onCreationError()

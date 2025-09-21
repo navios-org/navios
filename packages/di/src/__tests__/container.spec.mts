@@ -16,7 +16,6 @@ import { InjectionToken } from '../injection-token.mjs'
 import { asyncInject, inject } from '../injector.mjs'
 import { Registry } from '../registry.mjs'
 import { ServiceLocator } from '../service-locator.mjs'
-import { createDeferred } from '../utils/defer.mjs'
 
 describe('Container', () => {
   let container: Container
@@ -751,7 +750,7 @@ describe('Container', () => {
 
   describe('Ready method and async operations', () => {
     it('should wait for all pending operations', async () => {
-      const deferred = createDeferred<string>()
+      const deferred = Promise.withResolvers<string>()
 
       @Factory({ registry })
       class AsyncFactory implements Factorable<TestService> {
@@ -779,8 +778,8 @@ describe('Container', () => {
     })
 
     it('should handle multiple concurrent operations', async () => {
-      const deferred1 = createDeferred<string>()
-      const deferred2 = createDeferred<string>()
+      const deferred1 = Promise.withResolvers<string>()
+      const deferred2 = Promise.withResolvers<string>()
 
       @Factory({ registry })
       class AsyncFactory1 implements Factorable<TestService> {
@@ -817,7 +816,7 @@ describe('Container', () => {
     })
 
     it.skip('should handle factory errors in ready state', async () => {
-      const deferred = createDeferred<string>()
+      const deferred = Promise.withResolvers<string>()
 
       @Factory({ registry })
       class ErrorFactory implements Factorable<TestService> {

@@ -2,6 +2,8 @@
 /* eslint-disable @typescript-eslint/no-empty-object-type */
 import type { z, ZodObject, ZodOptional } from 'zod/v4'
 
+import { th } from 'zod/locales'
+
 import type { FactoryContext } from './factory-context.mjs'
 import type {
   AnyInjectableType,
@@ -292,8 +294,7 @@ export class InstanceResolver {
         this.logger?.log(
           `[InstanceResolver] Instance ${instanceName} expired, invalidating...`,
         )
-        // Note: This would need access to the service invalidator
-        // For now, we'll return the error
+        this.serviceLocator.getServiceInvalidator().invalidate(instanceName)
         return [error]
 
       case ErrorsEnum.InstanceNotFound:
@@ -383,7 +384,7 @@ export class InstanceResolver {
     this.logger?.log(
       `[InstanceResolver]#instantiateServiceFromRegistry(): Creating instance for ${instanceName} from abstract factory`,
     )
-    const ctx = this.createFactoryContext(requestContext)
+    const ctx = this.createFactoryContext()
     let record = this.registry.get<Instance, Schema>(token)
     let { scope, type } = record
 
@@ -432,7 +433,10 @@ export class InstanceResolver {
   private async handleInstantiationResult(
     instanceName: string,
     holder: ServiceLocatorInstanceHolder<any>,
-    ctx: any,
+    ctx: FactoryContext & {
+      deps: Set<string>
+      getDestroyListeners: () => (() => void)[]
+    },
     deferred: any,
     scope: InjectableScope,
     error: any,
@@ -467,7 +471,10 @@ export class InstanceResolver {
   private async handleInstantiationSuccess(
     instanceName: string,
     holder: ServiceLocatorInstanceHolder<any>,
-    ctx: any,
+    ctx: FactoryContext & {
+      deps: Set<string>
+      getDestroyListeners: () => (() => void)[]
+    },
     deferred: any,
     instance: any,
   ): Promise<void> {
@@ -478,13 +485,12 @@ export class InstanceResolver {
     if (ctx.deps.size > 0) {
       ctx.deps.forEach((dependency: string) => {
         holder.destroyListeners.push(
-          // Note: This would need access to the event bus
-          // For now, we'll skip this functionality
-          () => {
+          this.serviceLocator.getEventBus().on(dependency, 'destroy', () => {
             this.logger?.log(
               `[InstanceResolver] Dependency ${dependency} destroyed, invalidating ${instanceName}`,
             )
-          },
+            this.serviceLocator.getServiceInvalidator().invalidate(instanceName)
+          }),
         )
       })
     }
@@ -516,10 +522,10 @@ export class InstanceResolver {
     holder.creationPromise = null
 
     if (scope === InjectableScope.Singleton) {
-      // Note: This would need access to the service invalidator
       this.logger?.log(
         `[InstanceResolver] Singleton ${instanceName} failed, will be invalidated`,
       )
+      this.serviceLocator.getServiceInvalidator().invalidate(instanceName)
     }
 
     deferred.reject(error)
@@ -559,17 +565,11 @@ export class InstanceResolver {
 
   /**
    * Creates a factory context for dependency injection during service instantiation.
-   * @param contextHolder Optional request context holder for priority-based resolution
    */
-  private createFactoryContext(
-    contextHolder?: RequestContextHolder,
-  ): FactoryContext & {
+  private createFactoryContext(): FactoryContext & {
     getDestroyListeners: () => (() => void)[]
     deps: Set<string>
   } {
-    return this.tokenProcessor.createFactoryContext(
-      contextHolder,
-      this.serviceLocator,
-    )
+    return this.tokenProcessor.createFactoryContext(this.serviceLocator)
   }
 }

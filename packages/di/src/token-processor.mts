@@ -93,11 +93,9 @@ export class TokenProcessor {
 
   /**
    * Creates a factory context for dependency injection during service instantiation.
-   * @param contextHolder Optional request context holder for priority-based resolution
    * @param serviceLocator Reference to the service locator for dependency resolution
    */
   createFactoryContext(
-    contextHolder: RequestContextHolder | undefined,
     serviceLocator: ServiceLocator, // ServiceLocator reference for dependency resolution
   ): FactoryContext & {
     getDestroyListeners: () => (() => void)[]
@@ -105,7 +103,6 @@ export class TokenProcessor {
   } {
     const destroyListeners = new Set<() => void>()
     const deps = new Set<string>()
-    const tokenProcessor = this
 
     function addDestroyListener(listener: () => void) {
       destroyListeners.add(listener)
@@ -118,19 +115,6 @@ export class TokenProcessor {
     return {
       // @ts-expect-error This is correct type
       async inject(token, args) {
-        const instanceName = tokenProcessor.generateInstanceName(token, args)
-
-        // Check request contexts for pre-prepared instances
-        const prePreparedInstance = tokenProcessor.tryGetPrePreparedInstance(
-          instanceName,
-          contextHolder,
-          deps,
-          serviceLocator.getRequestContextManager().getCurrentRequestContext(),
-        )
-        if (prePreparedInstance !== undefined) {
-          return prePreparedInstance
-        }
-
         // Fall back to normal resolution
         const [error, instance] = await serviceLocator.getInstance(
           token,

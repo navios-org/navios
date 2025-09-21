@@ -2,7 +2,6 @@ import type { ServiceLocatorInstanceHolder } from './service-locator-instance-ho
 
 import { InjectableScope, InjectableType } from './enums/index.mjs'
 import { ServiceLocatorInstanceHolderStatus } from './service-locator-instance-holder.mjs'
-import { createDeferred } from './utils/defer.mjs'
 
 /**
  * Abstract base class that provides common functionality for managing ServiceLocatorInstanceHolder objects.
@@ -94,10 +93,10 @@ export abstract class BaseInstanceHolderManager {
     deps: Set<string> = new Set(),
     ttl: number = Infinity,
   ): [
-    ReturnType<typeof createDeferred<[undefined, Instance]>>,
+    ReturnType<typeof Promise.withResolvers<[undefined, Instance]>>,
     ServiceLocatorInstanceHolder<Instance>,
   ] {
-    const deferred = createDeferred<[undefined, Instance]>()
+    const deferred = Promise.withResolvers<[undefined, Instance]>()
 
     const holder: ServiceLocatorInstanceHolder<Instance> = {
       status: ServiceLocatorInstanceHolderStatus.Creating,

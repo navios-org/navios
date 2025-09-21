@@ -76,6 +76,10 @@ export class ServiceLocator {
     return this.requestContextManager
   }
 
+  getServiceInvalidator() {
+    return this.serviceInvalidator
+  }
+
   public getInstanceIdentifier(token: AnyInjectableType, args?: any): string {
     const [err, { actualToken, validatedArgs }] =
       this.tokenProcessor.validateAndResolveTokenArgs(token, args)
