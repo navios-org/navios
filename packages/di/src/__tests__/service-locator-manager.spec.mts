@@ -1,11 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { InjectableScope, InjectableType } from '../enums/index.mjs'
-import {
-  InstanceDestroying,
-  InstanceExpired,
-  InstanceNotFound,
-} from '../errors/index.mjs'
+import { DIError } from '../errors/index.mjs'
 import { ServiceLocatorInstanceHolderStatus } from '../service-locator-instance-holder.mjs'
 import { ServiceLocatorManager } from '../service-locator-manager.mjs'
 
@@ -32,11 +28,11 @@ describe('ServiceLocatorManager', () => {
   })
 
   describe('get', () => {
-    it('should return InstanceNotFound for non-existent instance', () => {
+    it('should return DIError.instanceNotFound for non-existent instance', () => {
       const result = manager.get('non-existent')
 
       expect(result).toHaveLength(1)
-      expect(result[0]).toBeInstanceOf(InstanceNotFound)
+      expect(result[0]).toBeInstanceOf(DIError)
       expect(mockLogger.log).toHaveBeenCalledWith(
         '[ServiceLocatorManager]#getInstanceHolder() Instance non-existent not found',
       )
@@ -57,30 +53,7 @@ describe('ServiceLocatorManager', () => {
       expect(result[1]).toBe(holder)
     })
 
-    it('should return InstanceExpired for expired instance with TTL', () => {
-      const holder = manager.storeCreatedHolder(
-        'expired-instance',
-        { value: 'test' },
-        InjectableType.Class,
-        InjectableScope.Singleton,
-        new Set(),
-        100, // 100ms TTL
-      )
-
-      // Manually set creation time to past
-      holder.createdAt = Date.now() - 200
-
-      const result = manager.get('expired-instance')
-
-      expect(result).toHaveLength(2)
-      expect(result[0]).toBeInstanceOf(InstanceExpired)
-      expect(result[1]).toBe(holder)
-      expect(mockLogger.log).toHaveBeenCalledWith(
-        '[ServiceLocatorManager]#getInstanceHolder() TTL expired for expired-instance',
-      )
-    })
-
-    it('should return InstanceDestroying for destroying instance', () => {
+    it('should return DIError.instanceDestroying for destroying instance', () => {
       const holder = manager.storeCreatedHolder(
         'destroying-instance',
         { value: 'test' },
@@ -94,7 +67,7 @@ describe('ServiceLocatorManager', () => {
       const result = manager.get('destroying-instance')
 
       expect(result).toHaveLength(2)
-      expect(result[0]).toBeInstanceOf(InstanceDestroying)
+      expect(result[0]).toBeInstanceOf(DIError)
       expect(result[1]).toBe(holder)
       expect(mockLogger.log).toHaveBeenCalledWith(
         '[ServiceLocatorManager]#getInstanceHolder() Instance destroying-instance is destroying',
@@ -111,34 +84,17 @@ describe('ServiceLocatorManager', () => {
 
       // Manually set status to error with an error instance
       holder.status = ServiceLocatorInstanceHolderStatus.Error
-      const errorInstance = new InstanceNotFound('error-instance')
+      const errorInstance = DIError.instanceNotFound('error-instance')
       holder.instance = errorInstance
 
       const result = manager.get('error-instance')
 
       expect(result).toHaveLength(2)
-      expect(result[0]).toBeInstanceOf(InstanceNotFound)
+      expect(result[0]).toBeInstanceOf(DIError)
       expect(result[1]).toBe(holder)
       expect(mockLogger.log).toHaveBeenCalledWith(
         '[ServiceLocatorManager]#getInstanceHolder() Instance error-instance is in error state',
       )
-    })
-
-    it('should handle instance with infinite TTL correctly', () => {
-      const holder = manager.storeCreatedHolder(
-        'infinite-ttl-instance',
-        { value: 'test' },
-        InjectableType.Class,
-        InjectableScope.Singleton,
-        new Set(),
-        Infinity,
-      )
-
-      const result = manager.get('infinite-ttl-instance')
-
-      expect(result).toHaveLength(2)
-      expect(result[0]).toBeUndefined()
-      expect(result[1]).toBe(holder)
     })
   })
 
@@ -184,24 +140,6 @@ describe('ServiceLocatorManager', () => {
       expect(result[1]).toBe(true)
     })
 
-    it('should return error for expired instance', () => {
-      const holder = manager.storeCreatedHolder(
-        'expired-instance',
-        { value: 'test' },
-        InjectableType.Class,
-        InjectableScope.Singleton,
-        new Set(),
-        100,
-      )
-
-      holder.createdAt = Date.now() - 200
-
-      const result = manager.has('expired-instance')
-
-      expect(result).toHaveLength(1)
-      expect(result[0]).toBeInstanceOf(InstanceExpired)
-    })
-
     it('should return error for destroying instance', () => {
       const holder = manager.storeCreatedHolder(
         'destroying-instance',
@@ -215,7 +153,7 @@ describe('ServiceLocatorManager', () => {
       const result = manager.has('destroying-instance')
 
       expect(result).toHaveLength(1)
-      expect(result[0]).toBeInstanceOf(InstanceDestroying)
+      expect(result[0]).toBeInstanceOf(DIError)
     })
   })
 
@@ -233,7 +171,7 @@ describe('ServiceLocatorManager', () => {
 
       const getResult = manager.get('test-instance')
       expect(getResult).toHaveLength(1)
-      expect(getResult[0]).toBeInstanceOf(InstanceNotFound)
+      expect(getResult[0]).toBeInstanceOf(DIError)
     })
 
     it('should return false for non-existent instance', () => {
@@ -299,23 +237,19 @@ describe('ServiceLocatorManager', () => {
       expect(holder.type).toBe(InjectableType.Class)
       expect(holder.scope).toBe(InjectableScope.Singleton)
       expect(holder.deps).toEqual(new Set())
-      expect(holder.ttl).toBe(Infinity)
     })
 
-    it('should create holder with custom dependencies and TTL', () => {
+    it('should create holder with custom dependencies', () => {
       const deps = new Set(['dep1', 'dep2'])
-      const ttl = 5000
 
-      const [deferred, holder] = manager.createCreatingHolder(
+      const [, holder] = manager.createCreatingHolder(
         'test-instance',
         InjectableType.Factory,
         InjectableScope.Request,
         deps,
-        ttl,
       )
 
       expect(holder.deps).toBe(deps)
-      expect(holder.ttl).toBe(ttl)
       expect(holder.type).toBe(InjectableType.Factory)
       expect(holder.scope).toBe(InjectableScope.Request)
     })
@@ -338,7 +272,6 @@ describe('ServiceLocatorManager', () => {
       expect(holder.type).toBe(InjectableType.Class)
       expect(holder.scope).toBe(InjectableScope.Singleton)
       expect(holder.deps).toEqual(new Set())
-      expect(holder.ttl).toBe(Infinity)
 
       // Verify it's stored
       const getResult = manager.get('test-instance')
@@ -347,9 +280,8 @@ describe('ServiceLocatorManager', () => {
       expect(getResult[1]).toBe(holder)
     })
 
-    it('should create holder with custom dependencies and TTL', () => {
+    it('should create holder with custom dependencies', () => {
       const deps = new Set(['dep1', 'dep2'])
-      const ttl = 5000
       const instance = { value: 'test' }
 
       const holder = manager.storeCreatedHolder(
@@ -358,11 +290,9 @@ describe('ServiceLocatorManager', () => {
         InjectableType.Factory,
         InjectableScope.Request,
         deps,
-        ttl,
       )
 
       expect(holder.deps).toBe(deps)
-      expect(holder.ttl).toBe(ttl)
       expect(holder.type).toBe(InjectableType.Factory)
       expect(holder.scope).toBe(InjectableScope.Request)
     })

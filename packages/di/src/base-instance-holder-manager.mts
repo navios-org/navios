@@ -83,7 +83,6 @@ export abstract class BaseInstanceHolderManager {
    * @param type The injectable type
    * @param scope The injectable scope
    * @param deps Optional set of dependencies
-   * @param ttl Optional time-to-live in milliseconds (defaults to Infinity)
    * @returns A tuple containing the deferred promise and the holder
    */
   createCreatingHolder<Instance>(
@@ -91,7 +90,6 @@ export abstract class BaseInstanceHolderManager {
     type: InjectableType,
     scope: InjectableScope,
     deps: Set<string> = new Set(),
-    ttl: number = Infinity,
   ): [
     ReturnType<typeof Promise.withResolvers<[undefined, Instance]>>,
     ServiceLocatorInstanceHolder<Instance>,
@@ -109,7 +107,6 @@ export abstract class BaseInstanceHolderManager {
       deps,
       destroyListeners: [],
       createdAt: Date.now(),
-      ttl,
     }
 
     return [deferred, holder]
@@ -123,7 +120,6 @@ export abstract class BaseInstanceHolderManager {
    * @param type The injectable type
    * @param scope The injectable scope
    * @param deps Optional set of dependencies
-   * @param ttl Optional time-to-live in milliseconds (defaults to Infinity)
    * @returns The created holder
    */
   protected createCreatedHolder<Instance>(
@@ -132,7 +128,6 @@ export abstract class BaseInstanceHolderManager {
     type: InjectableType,
     scope: InjectableScope,
     deps: Set<string> = new Set(),
-    ttl: number = Infinity,
   ): ServiceLocatorInstanceHolder<Instance> {
     const holder: ServiceLocatorInstanceHolder<Instance> = {
       status: ServiceLocatorInstanceHolderStatus.Created,
@@ -145,7 +140,6 @@ export abstract class BaseInstanceHolderManager {
       deps,
       destroyListeners: [],
       createdAt: Date.now(),
-      ttl,
     }
 
     return holder

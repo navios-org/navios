@@ -2,8 +2,6 @@
 /* eslint-disable @typescript-eslint/no-empty-object-type */
 import type { z, ZodObject, ZodOptional } from 'zod/v4'
 
-import { th } from 'zod/locales'
-
 import type { FactoryContext } from './factory-context.mjs'
 import type {
   AnyInjectableType,
@@ -21,12 +19,7 @@ import type { ServiceLocator } from './service-locator.mjs'
 import type { TokenProcessor } from './token-processor.mjs'
 
 import { InjectableScope } from './enums/index.mjs'
-import {
-  ErrorsEnum,
-  FactoryNotFound,
-  FactoryTokenNotResolved,
-  UnknownError,
-} from './errors/index.mjs'
+import { DIError, DIErrorCode } from './errors/index.mjs'
 import {
   BoundInjectionToken,
   FactoryInjectionToken,
@@ -55,7 +48,7 @@ export class InstanceResolver {
     token: AnyInjectableType,
     args?: any,
     requestContext?: RequestContextHolder,
-  ): Promise<[undefined, any] | [UnknownError | FactoryTokenNotResolved]> {
+  ): Promise<[undefined, any] | [DIError]> {
     const [err, data] = await this.resolveTokenAndPrepareInstanceName(
       token,
       args,
@@ -141,14 +134,15 @@ export class InstanceResolver {
           realToken: InjectionToken<any, any>
         },
       ]
-    | [UnknownError | FactoryTokenNotResolved]
+    | [DIError]
   > {
     const [err, { actualToken, validatedArgs }] =
       this.tokenProcessor.validateAndResolveTokenArgs(token, args)
-    if (err instanceof UnknownError) {
+    if (err instanceof DIError && err.code === DIErrorCode.UnknownError) {
       return [err]
     } else if (
-      (err as any) instanceof FactoryTokenNotResolved &&
+      err instanceof DIError &&
+      err.code === DIErrorCode.FactoryTokenNotResolved &&
       actualToken instanceof FactoryInjectionToken
     ) {
       this.logger?.log(
@@ -178,10 +172,7 @@ export class InstanceResolver {
     realToken: InjectionToken<any, any>,
     realArgs: any,
     requestContext?: RequestContextHolder,
-  ): Promise<
-    | [undefined, ServiceLocatorInstanceHolder<any>]
-    | [UnknownError | FactoryNotFound]
-  > {
+  ): Promise<[undefined, ServiceLocatorInstanceHolder<any>] | [DIError]> {
     // Try to get existing instance (handles both request-scoped and singleton)
     const existingHolder = await this.tryGetExistingInstance(
       instanceName,
@@ -216,7 +207,7 @@ export class InstanceResolver {
     realToken: InjectionToken<any, any>,
     requestContext?: RequestContextHolder,
   ): Promise<
-    [undefined, ServiceLocatorInstanceHolder<any>] | [UnknownError] | null
+    [undefined, ServiceLocatorInstanceHolder<any>] | [DIError] | null
   > {
     // Check request-scoped instances first
     const requestResult = await this.tryGetRequestScopedInstance(
@@ -240,7 +231,7 @@ export class InstanceResolver {
     realToken: InjectionToken<any, any>,
     requestContext?: RequestContextHolder,
   ): Promise<
-    [undefined, ServiceLocatorInstanceHolder<any>] | [UnknownError] | null
+    [undefined, ServiceLocatorInstanceHolder<any>] | [DIError] | null
   > {
     if (!this.registry.has(realToken)) {
       return null
@@ -255,7 +246,11 @@ export class InstanceResolver {
       this.logger?.log(
         `[InstanceResolver] No current request context available for request-scoped service ${instanceName}`,
       )
-      return [new UnknownError(ErrorsEnum.InstanceNotFound)]
+      return [
+        DIError.unknown(
+          `No current request context available for request-scoped service ${instanceName}`,
+        ),
+      ]
     }
 
     const requestHolder = requestContext.get(instanceName)
@@ -272,7 +267,7 @@ export class InstanceResolver {
   private async tryGetSingletonInstance(
     instanceName: string,
   ): Promise<
-    [undefined, ServiceLocatorInstanceHolder<any>] | [UnknownError] | null
+    [undefined, ServiceLocatorInstanceHolder<any>] | [DIError] | null
   > {
     const [error, holder] = this.manager.get(instanceName)
 
@@ -282,7 +277,7 @@ export class InstanceResolver {
 
     // Handle recovery scenarios
     switch (error.code) {
-      case ErrorsEnum.InstanceDestroying:
+      case DIErrorCode.InstanceDestroying:
         this.logger?.log(
           `[InstanceResolver] Instance ${instanceName} is being destroyed, waiting...`,
         )
@@ -290,14 +285,7 @@ export class InstanceResolver {
         // Retry after destruction is complete
         return this.tryGetSingletonInstance(instanceName)
 
-      case ErrorsEnum.InstanceExpired:
-        this.logger?.log(
-          `[InstanceResolver] Instance ${instanceName} expired, invalidating...`,
-        )
-        this.serviceLocator.getServiceInvalidator().invalidate(instanceName)
-        return [error]
-
-      case ErrorsEnum.InstanceNotFound:
+      case DIErrorCode.InstanceNotFound:
         return null // Instance doesn't exist, should create new one
 
       default:
@@ -310,23 +298,23 @@ export class InstanceResolver {
    */
   private async waitForInstanceReady<T>(
     holder: ServiceLocatorInstanceHolder<T>,
-  ): Promise<[undefined, ServiceLocatorInstanceHolder<T>] | [UnknownError]> {
+  ): Promise<[undefined, ServiceLocatorInstanceHolder<T>] | [DIError]> {
     switch (holder.status) {
       case ServiceLocatorInstanceHolderStatus.Creating:
         await holder.creationPromise
         return this.waitForInstanceReady(holder)
 
       case ServiceLocatorInstanceHolderStatus.Destroying:
-        return [new UnknownError(ErrorsEnum.InstanceDestroying)]
+        return [DIError.instanceDestroying(holder.name)]
 
       case ServiceLocatorInstanceHolderStatus.Error:
-        return [holder.instance as UnknownError]
+        return [holder.instance as DIError]
 
       case ServiceLocatorInstanceHolderStatus.Created:
         return [undefined, holder]
 
       default:
-        return [new UnknownError(ErrorsEnum.InstanceNotFound)]
+        return [DIError.instanceNotFound('unknown')]
     }
   }
 
@@ -345,10 +333,7 @@ export class InstanceResolver {
         ? z.output<Schema> | undefined
         : undefined,
     requestContext?: RequestContextHolder,
-  ): Promise<
-    | [undefined, ServiceLocatorInstanceHolder<Instance>]
-    | [FactoryNotFound | UnknownError]
-  > {
+  ): Promise<[undefined, ServiceLocatorInstanceHolder<Instance>] | [DIError]> {
     this.logger?.log(
       `[InstanceResolver]#createNewInstance() Creating instance for ${instanceName}`,
     )
@@ -360,7 +345,7 @@ export class InstanceResolver {
         requestContext,
       )
     } else {
-      return [new FactoryNotFound(realToken.name.toString())]
+      return [DIError.factoryNotFound(realToken.name.toString())]
     }
   }
 
@@ -394,7 +379,6 @@ export class InstanceResolver {
       type,
       scope,
       ctx.deps,
-      Infinity,
     )
 
     // Start the instantiation process

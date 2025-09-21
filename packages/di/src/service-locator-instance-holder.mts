@@ -22,7 +22,6 @@ export interface ServiceLocatorInstanceHolderCreating<Instance> {
   deps: Set<string>
   destroyListeners: ServiceLocatorInstanceDestroyListener[]
   createdAt: number
-  ttl: number
 }
 
 export interface ServiceLocatorInstanceHolderCreated<Instance> {
@@ -36,7 +35,6 @@ export interface ServiceLocatorInstanceHolderCreated<Instance> {
   deps: Set<string>
   destroyListeners: ServiceLocatorInstanceDestroyListener[]
   createdAt: number
-  ttl: number
 }
 
 export interface ServiceLocatorInstanceHolderDestroying<Instance> {
@@ -50,7 +48,6 @@ export interface ServiceLocatorInstanceHolderDestroying<Instance> {
   deps: Set<string>
   destroyListeners: ServiceLocatorInstanceDestroyListener[]
   createdAt: number
-  ttl: number
 }
 
 export interface ServiceLocatorInstanceHolderError {
@@ -64,7 +61,6 @@ export interface ServiceLocatorInstanceHolderError {
   deps: Set<string>
   destroyListeners: ServiceLocatorInstanceDestroyListener[]
   createdAt: number
-  ttl: number
 }
 
 export type ServiceLocatorInstanceHolder<Instance = unknown> =

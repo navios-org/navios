@@ -233,7 +233,6 @@ describe('Request Scope', () => {
         deps: new Set<string>(),
         destroyListeners: [],
         createdAt: Date.now(),
-        ttl: Infinity,
       }
 
       holder.addInstance('test-instance', mockInstance, mockHolder)
@@ -407,7 +406,6 @@ describe('Request Scope', () => {
         deps: new Set<string>(),
         destroyListeners: [],
         createdAt: Date.now(),
-        ttl: Infinity,
       }
       holder.addInstance(stringName, stringInstance, mockHolder)
 

@@ -3,12 +3,7 @@ import type { ServiceLocatorInstanceHolder } from './service-locator-instance-ho
 
 import { BaseInstanceHolderManager } from './base-instance-holder-manager.mjs'
 import { InjectableScope, InjectableType } from './enums/index.mjs'
-import {
-  ErrorsEnum,
-  InstanceDestroying,
-  InstanceExpired,
-  InstanceNotFound,
-} from './errors/index.mjs'
+import { DIError, DIErrorCode } from './errors/index.mjs'
 import { ServiceLocatorInstanceHolderStatus } from './service-locator-instance-holder.mjs'
 
 export class ServiceLocatorManager extends BaseInstanceHolderManager {
@@ -19,31 +14,21 @@ export class ServiceLocatorManager extends BaseInstanceHolderManager {
   get(
     name: string,
   ):
-    | [InstanceExpired | InstanceDestroying, ServiceLocatorInstanceHolder]
-    | [InstanceNotFound]
+    | [DIError, ServiceLocatorInstanceHolder]
+    | [DIError]
     | [undefined, ServiceLocatorInstanceHolder] {
     const holder = this._holders.get(name)
     if (holder) {
-      if (holder.ttl !== Infinity) {
-        const now = Date.now()
-        if (now - holder.createdAt > holder.ttl) {
-          this.logger?.log(
-            `[ServiceLocatorManager]#getInstanceHolder() TTL expired for ${holder.name}`,
-          )
-          return [new InstanceExpired(holder.name), holder]
-        }
-      } else if (
-        holder.status === ServiceLocatorInstanceHolderStatus.Destroying
-      ) {
+      if (holder.status === ServiceLocatorInstanceHolderStatus.Destroying) {
         this.logger?.log(
           `[ServiceLocatorManager]#getInstanceHolder() Instance ${holder.name} is destroying`,
         )
-        return [new InstanceDestroying(holder.name), holder]
+        return [DIError.instanceDestroying(holder.name), holder]
       } else if (holder.status === ServiceLocatorInstanceHolderStatus.Error) {
         this.logger?.log(
           `[ServiceLocatorManager]#getInstanceHolder() Instance ${holder.name} is in error state`,
         )
-        return [holder.instance as InstanceNotFound, holder]
+        return [holder.instance as DIError, holder]
       }
 
       return [undefined, holder]
@@ -51,7 +36,7 @@ export class ServiceLocatorManager extends BaseInstanceHolderManager {
       this.logger?.log(
         `[ServiceLocatorManager]#getInstanceHolder() Instance ${name} not found`,
       )
-      return [new InstanceNotFound(name)]
+      return [DIError.instanceNotFound(name)]
     }
   }
 
@@ -59,18 +44,12 @@ export class ServiceLocatorManager extends BaseInstanceHolderManager {
     this._holders.set(name, holder)
   }
 
-  has(
-    name: string,
-  ): [InstanceExpired | InstanceDestroying] | [undefined, boolean] {
+  has(name: string): [DIError] | [undefined, boolean] {
     const [error, holder] = this.get(name)
     if (!error) {
       return [undefined, true]
     }
-    if (
-      [ErrorsEnum.InstanceExpired, ErrorsEnum.InstanceDestroying].includes(
-        error.code,
-      )
-    ) {
+    if (error.code === DIErrorCode.InstanceDestroying) {
       return [error]
     }
     return [undefined, !!holder]
@@ -88,7 +67,6 @@ export class ServiceLocatorManager extends BaseInstanceHolderManager {
    * @param type The injectable type
    * @param scope The injectable scope
    * @param deps Optional set of dependencies
-   * @param ttl Optional time-to-live in milliseconds (defaults to Infinity)
    * @returns The created holder
    */
   storeCreatedHolder<Instance>(
@@ -97,16 +75,8 @@ export class ServiceLocatorManager extends BaseInstanceHolderManager {
     type: InjectableType,
     scope: InjectableScope,
     deps: Set<string> = new Set(),
-    ttl: number = Infinity,
   ): ServiceLocatorInstanceHolder<Instance> {
-    const holder = this.createCreatedHolder(
-      name,
-      instance,
-      type,
-      scope,
-      deps,
-      ttl,
-    )
+    const holder = this.createCreatedHolder(name, instance, type, scope, deps)
 
     this._holders.set(name, holder)
 

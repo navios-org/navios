@@ -1,0 +1,16 @@
+---
+description: DI rules
+globs:
+alwaysApply: true
+---
+
+# DI Rules
+
+- When creating a new service, use the `@Injectable` decorator. To inject a dependency (that is not a Transient service), use the `inject` function. To inject a dependency (that is a Transient service or to check circular dependencies), use the `asyncInject` function.
+- When creating a new factory that will be used to create a service, use the `@Factory` decorator. To inject a dependency (that is not a Transient service), use the `inject` function. To inject a dependency (that is a Transient service or to check circular dependencies), use the `asyncInject` function.
+- When creating a new injection token, use the `InjectionToken.create` function. If you need to pass some arguments to the service, that will use this token, use the `InjectionToken.create` function with a zod schema.
+- When you want to bind a value to an injection token, use the `InjectionToken.bound` function.
+- When you want to make a factory for a value that is not immediately available, use the `InjectionToken.factory` function.
+- When creating a new registry, use the `Registry` class.
+- When creating a new container, use the `Container` class.
+- When creating a new request context, use the `RequestContextHolder` class.

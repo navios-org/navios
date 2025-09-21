@@ -1,61 +1,87 @@
 import { describe, expect, it } from 'vitest'
 
-import { ErrorsEnum } from '../errors/errors.enum.mjs'
-import {
-  FactoryNotFound,
-  InstanceDestroying,
-  InstanceExpired,
-} from '../errors/index.mjs'
+import { DIError, DIErrorCode } from '../errors/index.mjs'
 
-describe('Error Classes', () => {
-  describe('FactoryNotFound', () => {
+describe('DIError', () => {
+  describe('factoryNotFound', () => {
     it('should create error with proper message and code', () => {
-      const error = new FactoryNotFound('TestFactory')
+      const error = DIError.factoryNotFound('TestFactory')
 
       expect(error.message).toBe('Factory TestFactory not found')
-      expect(error.code).toBe(ErrorsEnum.FactoryNotFound)
-      expect(error.name).toBe('TestFactory')
+      expect(error.code).toBe(DIErrorCode.FactoryNotFound)
+      expect(error.context?.name).toBe('TestFactory')
+      expect(error).toBeInstanceOf(DIError)
       expect(error).toBeInstanceOf(Error)
     })
 
     it('should be throwable', () => {
       expect(() => {
-        throw new FactoryNotFound('SomeFactory')
+        throw DIError.factoryNotFound('SomeFactory')
       }).toThrow('Factory SomeFactory not found')
     })
   })
 
-  describe('InstanceDestroying', () => {
+  describe('instanceDestroying', () => {
     it('should create error with proper message and code', () => {
-      const error = new InstanceDestroying('TestInstance')
+      const error = DIError.instanceDestroying('TestInstance')
 
       expect(error.message).toBe('Instance TestInstance destroying')
-      expect(error.code).toBe(ErrorsEnum.InstanceDestroying)
-      expect(error.name).toBe('TestInstance')
+      expect(error.code).toBe(DIErrorCode.InstanceDestroying)
+      expect(error.context?.name).toBe('TestInstance')
+      expect(error).toBeInstanceOf(DIError)
       expect(error).toBeInstanceOf(Error)
     })
 
     it('should be throwable', () => {
       expect(() => {
-        throw new InstanceDestroying('SomeInstance')
+        throw DIError.instanceDestroying('SomeInstance')
       }).toThrow('Instance SomeInstance destroying')
     })
   })
 
-  describe('InstanceExpired', () => {
+  describe('instanceNotFound', () => {
     it('should create error with proper message and code', () => {
-      const error = new InstanceExpired('TestInstance')
+      const error = DIError.instanceNotFound('TestInstance')
 
-      expect(error.message).toBe('Instance TestInstance expired')
-      expect(error.code).toBe(ErrorsEnum.InstanceExpired)
-      expect(error.name).toBe('TestInstance')
+      expect(error.message).toBe('Instance TestInstance not found')
+      expect(error.code).toBe(DIErrorCode.InstanceNotFound)
+      expect(error.context?.name).toBe('TestInstance')
+      expect(error).toBeInstanceOf(DIError)
+      expect(error).toBeInstanceOf(Error)
+    })
+  })
+
+  describe('factoryTokenNotResolved', () => {
+    it('should create error with proper message and code', () => {
+      const error = DIError.factoryTokenNotResolved('TestToken')
+
+      expect(error.message).toBe('Factory token not resolved: TestToken')
+      expect(error.code).toBe(DIErrorCode.FactoryTokenNotResolved)
+      expect(error.context?.token).toBe('TestToken')
+      expect(error).toBeInstanceOf(DIError)
+      expect(error).toBeInstanceOf(Error)
+    })
+  })
+
+  describe('unknown', () => {
+    it('should create error with string message', () => {
+      const error = DIError.unknown('Test error message')
+
+      expect(error.message).toBe('Test error message')
+      expect(error.code).toBe(DIErrorCode.UnknownError)
+      expect(error).toBeInstanceOf(DIError)
       expect(error).toBeInstanceOf(Error)
     })
 
-    it('should be throwable', () => {
-      expect(() => {
-        throw new InstanceExpired('SomeInstance')
-      }).toThrow('Instance SomeInstance expired')
+    it('should create error with Error object', () => {
+      const originalError = new Error('Original error')
+      const error = DIError.unknown(originalError)
+
+      expect(error.message).toBe('Original error')
+      expect(error.code).toBe(DIErrorCode.UnknownError)
+      expect(error.context?.parent).toBe(originalError)
+      expect(error).toBeInstanceOf(DIError)
+      expect(error).toBeInstanceOf(Error)
     })
   })
 })

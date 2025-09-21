@@ -9,7 +9,7 @@ import type {
 import type { RequestContextHolder } from './request-context-holder.mjs'
 import type { ServiceLocator } from './service-locator.mjs'
 
-import { FactoryTokenNotResolved, UnknownError } from './errors/index.mjs'
+import { DIError } from './errors/index.mjs'
 import {
   BoundInjectionToken,
   FactoryInjectionToken,
@@ -31,7 +31,7 @@ export class TokenProcessor {
     token: AnyInjectableType,
     args?: any,
   ): [
-    FactoryTokenNotResolved | UnknownError | undefined,
+    DIError | undefined,
     { actualToken: InjectionTokenType; validatedArgs?: any },
   ] {
     let actualToken = token as InjectionToken<any, any>
@@ -45,7 +45,7 @@ export class TokenProcessor {
       if (actualToken.resolved) {
         realArgs = actualToken.value
       } else {
-        return [new FactoryTokenNotResolved(token.name), { actualToken }]
+        return [DIError.factoryTokenNotResolved(token.name), { actualToken }]
       }
     }
     if (!actualToken.schema) {
@@ -57,7 +57,7 @@ export class TokenProcessor {
         `[TokenProcessor]#validateAndResolveTokenArgs(): Error validating args for ${actualToken.name.toString()}`,
         validatedArgs.error,
       )
-      return [new UnknownError(validatedArgs.error), { actualToken }]
+      return [DIError.unknown(validatedArgs.error), { actualToken }]
     }
     return [undefined, { actualToken, validatedArgs: validatedArgs?.data }]
   }

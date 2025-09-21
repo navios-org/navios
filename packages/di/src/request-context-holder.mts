@@ -3,7 +3,6 @@ import type { ServiceLocatorInstanceHolder } from './service-locator-instance-ho
 import { BaseInstanceHolderManager } from './base-instance-holder-manager.mjs'
 import { InjectableScope, InjectableType } from './enums/index.mjs'
 import { InjectionToken } from './injection-token.mjs'
-import { ServiceLocatorInstanceHolderStatus } from './service-locator-instance-holder.mjs'
 
 /**
  * Request context holder that manages pre-prepared instances for a specific request.
@@ -166,7 +165,6 @@ export class DefaultRequestContextHolder
         InjectableType.Class,
         InjectableScope.Singleton,
         new Set(),
-        Infinity,
       )
       this._holders.set(name, createdHolder)
     } else {
