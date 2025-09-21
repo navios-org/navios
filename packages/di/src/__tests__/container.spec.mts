@@ -1135,6 +1135,46 @@ describe('Container', () => {
         expect(level1_1.id).not.toBe(level1_2.id)
       })
 
+      it('should invalidate services with nested inject dependencies in request context', async () => {
+        @Injectable({ registry, scope: InjectableScope.Request })
+        class Level1Service {
+          public id = Math.random()
+        }
+
+        @Injectable({ registry })
+        class Level2Service {
+          level1 = inject(Level1Service)
+          public id = Math.random()
+        }
+
+        @Injectable({ registry })
+        class RootService {
+          level2 = inject(Level2Service)
+        }
+
+        container.beginRequest('request-1')
+
+        const root1 = await container.get(RootService)
+        const level2_1 = root1.level2
+        const level1_1 = level2_1.level1
+
+        // Invalidate the root service
+        await container.invalidate(level1_1)
+
+        const root2 = await container.get(RootService)
+        const level2_2 = root2.level2
+        const level1_2 = level2_2.level1
+
+        // All should be new instances
+        expect(root1).not.toBe(root2)
+        expect(level2_1).not.toBe(level2_2)
+        expect(level1_1).not.toBe(level1_2)
+        expect(level2_1.id).not.toBe(level2_2.id)
+        expect(level1_1.id).not.toBe(level1_2.id)
+
+        await container.endRequest('request-1')
+      })
+
       it('should handle invalidation of services with mixed inject and asyncInject', async () => {
         @Injectable({ registry })
         class AsyncService {
