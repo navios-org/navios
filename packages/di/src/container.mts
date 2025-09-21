@@ -104,27 +104,64 @@ export class Container {
    * Invalidates a service and its dependencies
    */
   async invalidate(service: unknown): Promise<void> {
-    const holderMap = this.serviceLocator
-      .getManager()
-      .filter((holder) => holder.instance === service)
-    const requestHolderMap = new Map<string, ServiceLocatorInstanceHolder>()
-    this.serviceLocator.getRequestContexts().forEach((requestContext) => {
-      requestContext.holders.forEach((holder) => {
-        if (holder.instance === service) {
-          requestHolderMap.set(holder.name, holder)
-        }
-      })
-    })
-    console.log(holderMap, requestHolderMap)
-    if (holderMap.size === 0 && requestHolderMap.size === 0) {
-      return
-    }
-    const holder = [...holderMap.values(), ...requestHolderMap.values()].find(
-      (holder) => holder.instance === service,
-    )
+    const holder = this.getHolderByInstance(service)
     if (holder) {
       await this.serviceLocator.invalidate(holder.name)
+    } else {
+      const requestHolder = this.getRequestHolderByInstance(service)
+      if (requestHolder) {
+        await this.serviceLocator.invalidate(requestHolder.name)
+      }
     }
+  }
+
+  /**
+   * Gets a service holder by instance (reverse lookup)
+   */
+  private getHolderByInstance(
+    instance: unknown,
+  ): ServiceLocatorInstanceHolder | null {
+    const holderMap = this.serviceLocator
+      .getManager()
+      .filter((holder) => holder.instance === instance)
+
+    return holderMap.size > 0 ? holderMap.values().next().value || null : null
+  }
+
+  private getRequestHolderByInstance(
+    instance: unknown,
+  ): ServiceLocatorInstanceHolder | null {
+    const requestContexts = this.serviceLocator
+      .getRequestContextManager()
+      .getRequestContexts()
+    if (requestContexts) {
+      for (const requestContext of requestContexts.values()) {
+        for (const holder of requestContext.holders.values()) {
+          if (holder.instance === instance) {
+            return holder
+          }
+        }
+      }
+    }
+    return null
+  }
+
+  /**
+   * Checks if a service is registered in the container
+   */
+  isRegistered(token: any): boolean {
+    try {
+      return this.serviceLocator.getInstanceIdentifier(token) !== null
+    } catch {
+      return false
+    }
+  }
+
+  /**
+   * Disposes the container and cleans up all resources
+   */
+  async dispose(): Promise<void> {
+    await this.serviceLocator.clearAll()
   }
 
   /**

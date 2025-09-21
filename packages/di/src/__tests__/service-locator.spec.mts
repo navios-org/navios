@@ -87,10 +87,7 @@ describe('ServiceLocator', () => {
       // Verify all services are cleared
       expect(serviceLocator.getManager().size()).toBe(0)
       expect(mockLogger.log).toHaveBeenCalledWith(
-        '[ServiceLocator] Starting graceful clearing of all services',
-      )
-      expect(mockLogger.log).toHaveBeenCalledWith(
-        '[ServiceLocator] Graceful clearing completed',
+        '[ServiceInvalidator] Graceful clearing completed',
       )
     })
 
@@ -98,7 +95,7 @@ describe('ServiceLocator', () => {
       await serviceLocator.clearAll()
 
       expect(mockLogger.log).toHaveBeenCalledWith(
-        '[ServiceLocator] No singleton services to clear',
+        '[ServiceInvalidator] No singleton services to clear',
       )
     })
 
