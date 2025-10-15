@@ -401,4 +401,255 @@ describe('CliParserService', () => {
       expect(result.positionals).toEqual(['-'])
     })
   })
+
+  describe('array option parsing', () => {
+    it('should accumulate multiple values for array options', () => {
+      const schema = z.object({
+        tags: z.array(z.string()),
+      })
+
+      const result = parser.parse(
+        [
+          'node',
+          'script.js',
+          'test',
+          '--tags',
+          'foo',
+          '--tags',
+          'bar',
+          '--tags',
+          'baz',
+        ],
+        schema,
+      )
+
+      expect(result.options).toEqual({
+        tags: ['foo', 'bar', 'baz'],
+      })
+    })
+
+    it('should handle array options with equal sign syntax', () => {
+      const schema = z.object({
+        tags: z.array(z.string()),
+      })
+
+      const result = parser.parse(
+        [
+          'node',
+          'script.js',
+          'test',
+          '--tags=foo',
+          '--tags=bar',
+          '--tags=baz',
+        ],
+        schema,
+      )
+
+      expect(result.options).toEqual({
+        tags: ['foo', 'bar', 'baz'],
+      })
+    })
+
+    it('should handle array options with kebab-case', () => {
+      const schema = z.object({
+        excludePaths: z.array(z.string()),
+      })
+
+      const result = parser.parse(
+        [
+          'node',
+          'script.js',
+          'test',
+          '--exclude-paths',
+          'node_modules',
+          '--exclude-paths',
+          'dist',
+        ],
+        schema,
+      )
+
+      expect(result.options).toEqual({
+        excludePaths: ['node_modules', 'dist'],
+      })
+    })
+
+    it('should handle optional array options', () => {
+      const schema = z.object({
+        tags: z.array(z.string()).optional(),
+        verbose: z.boolean(),
+      })
+
+      const result = parser.parse(
+        [
+          'node',
+          'script.js',
+          'test',
+          '--tags',
+          'foo',
+          '--tags',
+          'bar',
+          '--verbose',
+        ],
+        schema,
+      )
+
+      expect(result.options).toEqual({
+        tags: ['foo', 'bar'],
+        verbose: true,
+      })
+    })
+
+    it('should handle array options with default values', () => {
+      const schema = z.object({
+        tags: z.array(z.string()).default([]),
+      })
+
+      const result = parser.parse(
+        ['node', 'script.js', 'test', '--tags', 'foo', '--tags', 'bar'],
+        schema,
+      )
+
+      expect(result.options).toEqual({
+        tags: ['foo', 'bar'],
+      })
+    })
+
+    it('should handle mixed array, boolean, and string options', () => {
+      const schema = z.object({
+        tags: z.array(z.string()),
+        verbose: z.boolean(),
+        config: z.string(),
+        ports: z.array(z.number()),
+      })
+
+      const result = parser.parse(
+        [
+          'node',
+          'script.js',
+          'test',
+          '--tags',
+          'foo',
+          '--verbose',
+          '--config',
+          'prod',
+          '--tags',
+          'bar',
+          '--ports',
+          '3000',
+          '--ports',
+          '4000',
+        ],
+        schema,
+      )
+
+      expect(result.options).toEqual({
+        tags: ['foo', 'bar'],
+        verbose: true,
+        config: 'prod',
+        ports: [3000, 4000],
+      })
+    })
+
+    it('should handle short array options', () => {
+      const schema = z.object({
+        t: z.array(z.string()),
+      })
+
+      const result = parser.parse(
+        ['node', 'script.js', 'test', '-t', 'foo', '-t', 'bar'],
+        schema,
+      )
+
+      expect(result.options).toEqual({
+        t: ['foo', 'bar'],
+      })
+    })
+
+    it('should parse array option values with correct types', () => {
+      const schema = z.object({
+        ports: z.array(z.number()),
+        flags: z.array(z.boolean()),
+      })
+
+      const result = parser.parse(
+        [
+          'node',
+          'script.js',
+          'test',
+          '--ports',
+          '3000',
+          '--ports',
+          '4000',
+          '--flags',
+          'true',
+          '--flags',
+          'false',
+        ],
+        schema,
+      )
+
+      expect(result.options).toEqual({
+        ports: [3000, 4000],
+        flags: [true, false],
+      })
+    })
+
+    it('should handle JSON array values for array options', () => {
+      const schema = z.object({
+        items: z.array(z.any()),
+      })
+
+      const result = parser.parse(
+        ['node', 'script.js', 'test', '--items', '[1,2,3]', '--items', '["a","b"]'],
+        schema,
+      )
+
+      expect(result.options).toEqual({
+        items: [[1, 2, 3], ['a', 'b']],
+      })
+    })
+
+    it('should handle array options with positionals', () => {
+      const schema = z.object({
+        tags: z.array(z.string()),
+      })
+
+      const result = parser.parse(
+        [
+          'node',
+          'script.js',
+          'test',
+          '--tags',
+          'foo',
+          'file1.txt',
+          '--tags',
+          'bar',
+          'file2.txt',
+        ],
+        schema,
+      )
+
+      expect(result.options).toEqual({
+        tags: ['foo', 'bar'],
+      })
+      expect(result.positionals).toEqual(['file1.txt', 'file2.txt'])
+    })
+
+    it('should not treat non-array options as arrays without schema', () => {
+      // Without schema, multiple values should overwrite
+      const result = parser.parse([
+        'node',
+        'script.js',
+        'test',
+        '--tag',
+        'foo',
+        '--tag',
+        'bar',
+      ])
+
+      expect(result.options).toEqual({
+        tag: 'bar', // Last value wins without schema
+      })
+    })
+  })
 })

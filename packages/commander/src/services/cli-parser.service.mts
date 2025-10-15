@@ -27,9 +27,12 @@ export class CliParserService {
       throw new Error('[Navios Commander] No command provided')
     }
 
-    // Extract boolean field names from schema for accurate parsing
+    // Extract boolean and array field names from schema for accurate parsing
     const booleanFields = optionsSchema
       ? this.extractBooleanFields(optionsSchema)
+      : new Set<string>()
+    const arrayFields = optionsSchema
+      ? this.extractArrayFields(optionsSchema)
       : new Set<string>()
 
     // Collect command words until we hit an argument that starts with '-' or '--'
@@ -59,19 +62,38 @@ export class CliParserService {
           // Format: --key=value
           const optionName = key.slice(0, equalIndex)
           const optionValue = key.slice(equalIndex + 1)
-          options[this.camelCase(optionName)] = this.parseValue(optionValue)
+          const camelCaseKey = this.camelCase(optionName)
+          const isArray = arrayFields.has(camelCaseKey) || arrayFields.has(optionName)
+
+          if (isArray) {
+            // For array fields, accumulate values
+            if (!options[camelCaseKey]) {
+              options[camelCaseKey] = []
+            }
+            options[camelCaseKey].push(this.parseValue(optionValue))
+          } else {
+            options[camelCaseKey] = this.parseValue(optionValue)
+          }
           i++
         } else {
           // Format: --key value or --boolean-flag
           const camelCaseKey = this.camelCase(key)
           const isBoolean =
             booleanFields.has(camelCaseKey) || booleanFields.has(key)
+          const isArray = arrayFields.has(camelCaseKey) || arrayFields.has(key)
           const nextArg = args[i + 1]
 
           if (isBoolean) {
             // Known boolean flag from schema
             options[camelCaseKey] = true
             i++
+          } else if (isArray && nextArg && !nextArg.startsWith('-')) {
+            // Known array field from schema - accumulate values
+            if (!options[camelCaseKey]) {
+              options[camelCaseKey] = []
+            }
+            options[camelCaseKey].push(this.parseValue(nextArg))
+            i += 2
           } else if (nextArg && !nextArg.startsWith('-')) {
             // Has a value
             options[camelCaseKey] = this.parseValue(nextArg)
@@ -89,12 +111,20 @@ export class CliParserService {
         if (flags.length === 1) {
           // Single short flag: -k value or -k
           const isBoolean = booleanFields.has(flags)
+          const isArray = arrayFields.has(flags)
           const nextArg = args[i + 1]
 
           if (isBoolean) {
             // Known boolean flag from schema
             options[flags] = true
             i++
+          } else if (isArray && nextArg && !nextArg.startsWith('-')) {
+            // Known array field from schema - accumulate values
+            if (!options[flags]) {
+              options[flags] = []
+            }
+            options[flags].push(this.parseValue(nextArg))
+            i += 2
           } else if (nextArg && !nextArg.startsWith('-')) {
             options[flags] = this.parseValue(nextArg)
             i += 2
@@ -198,6 +228,34 @@ export class CliParserService {
   }
 
   /**
+   * Extracts array field names from a Zod schema
+   * Handles ZodObject, ZodOptional, and ZodDefault wrappers
+   */
+  private extractArrayFields(schema: ZodObject): Set<string> {
+    const arrayFields = new Set<string>()
+
+    try {
+      const typeName = schema.def.type
+
+      if (typeName === 'object') {
+        const shape = schema.def.shape
+
+        if (shape && typeof shape === 'object') {
+          for (const [key, fieldSchema] of Object.entries(shape)) {
+            if (this.isSchemaArray(fieldSchema as any)) {
+              arrayFields.add(key)
+            }
+          }
+        }
+      }
+    } catch {
+      // Silently fail if schema introspection fails
+    }
+
+    return arrayFields
+  }
+
+  /**
    * Checks if a Zod schema represents a boolean type
    * Unwraps ZodOptional and ZodDefault
    */
@@ -213,6 +271,27 @@ export class CliParserService {
 
       const innerTypeName = currentSchema.def.type
       return innerTypeName === 'boolean'
+    } catch {
+      return false
+    }
+  }
+
+  /**
+   * Checks if a Zod schema represents an array type
+   * Unwraps ZodOptional and ZodDefault
+   */
+  private isSchemaArray(schema: ZodType): boolean {
+    try {
+      let currentSchema = schema
+      const typeName = currentSchema.def.type
+
+      // Unwrap ZodOptional and ZodDefault
+      if (typeName === 'optional' || typeName === 'default') {
+        currentSchema = (currentSchema as any)?._def?.innerType || currentSchema
+      }
+
+      const innerTypeName = currentSchema.def.type
+      return innerTypeName === 'array'
     } catch {
       return false
     }
