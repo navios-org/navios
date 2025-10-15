@@ -4,7 +4,9 @@ import { Container, inject, Injectable } from '@navios/di'
 
 import type { CommandHandler, Module } from './interfaces/index.mjs'
 
+import { CommanderExecutionContext } from './interfaces/index.mjs'
 import { CliParserService, ModuleLoaderService } from './services/index.mjs'
+import { ExecutionContext } from './tokens/index.mjs'
 
 export interface CommanderApplicationOptions {}
 
@@ -63,18 +65,40 @@ export class CommanderApplication {
       validatedOptions = metadata.optionsSchema.parse(options)
     }
 
-    // Get command instance and execute
-    const commandInstance = await this.container.get<CommandHandler>(
-      commandClass as unknown as InjectionToken<CommandHandler>,
+    // Create execution context and provide it to the container
+    const executionContext = new CommanderExecutionContext(
+      metadata,
+      commandPath,
+      validatedOptions,
     )
 
-    if (!commandInstance.execute) {
-      throw new Error(
-        `[Navios Commander] Command ${commandPath} does not implement execute method`,
-      )
-    }
+    // Generate a unique request ID for this command execution
+    const requestId = `cmd-${Date.now()}-${Math.random().toString(36).substring(7)}`
 
-    await commandInstance.execute(validatedOptions)
+    // Begin request context and add ExecutionContext
+    const requestContext = this.container.beginRequest(requestId)
+    requestContext.addInstance(ExecutionContext, executionContext)
+
+    try {
+      // Set current request context
+      this.container.setCurrentRequestContext(requestId)
+
+      // Get command instance and execute
+      const commandInstance = await this.container.get<CommandHandler>(
+        commandClass as unknown as InjectionToken<CommandHandler>,
+      )
+
+      if (!commandInstance.execute) {
+        throw new Error(
+          `[Navios Commander] Command ${commandPath} does not implement execute method`,
+        )
+      }
+
+      await commandInstance.execute(validatedOptions)
+    } finally {
+      // Clean up request context
+      await this.container.endRequest(requestId)
+    }
   }
 
   getAllCommands() {
