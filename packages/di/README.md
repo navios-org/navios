@@ -88,6 +88,9 @@ The `@Injectable` decorator marks a class as injectable:
 ```typescript
 import { Injectable, InjectableScope } from '@navios/di'
 
+// With schema (for constructor arguments)
+import { z } from 'zod'
+
 // Singleton (default)
 @Injectable()
 class SingletonService {}
@@ -99,6 +102,16 @@ class TransientService {}
 // With custom injection token
 @Injectable({ token: MyToken })
 class TokenizedService {}
+
+const configSchema = z.object({
+  host: z.string(),
+  port: z.number(),
+})
+
+@Injectable({ schema: configSchema })
+class DatabaseConfig {
+  constructor(public readonly config: z.output<typeof configSchema>) {}
+}
 ```
 
 ### Injection Methods
@@ -302,6 +315,201 @@ const FactoryConfig = InjectionToken.factory(CONFIG_TOKEN, async () => {
 const config = await container.get(FactoryConfig)
 ```
 
+### Injectable with Schema
+
+Instead of creating an injection token with a schema, you can directly provide a schema to the `@Injectable` decorator. This is a more concise way to define services that require constructor arguments with validation.
+
+#### Basic Schema Usage
+
+```typescript
+import { getInjectableToken, Injectable, InjectionToken } from '@navios/di'
+
+import { z } from 'zod'
+
+const databaseConfigSchema = z.object({
+  host: z.string(),
+  port: z.number(),
+  username: z.string(),
+  password: z.string(),
+})
+
+@Injectable({ schema: databaseConfigSchema })
+class DatabaseConfig {
+  constructor(public readonly config: z.output<typeof databaseConfigSchema>) {}
+
+  getConnectionString() {
+    return `${this.config.host}:${this.config.port}`
+  }
+}
+
+// Usage with bound token
+const container = new Container()
+const config = await container.get(DatabaseConfig, {
+  host: 'localhost',
+  port: 5432,
+  username: 'admin',
+  password: 'secret',
+})
+console.log(config.getConnectionString()) // "localhost:5432"
+```
+
+#### Schema with Different Scopes
+
+```typescript
+// Singleton with schema (default)
+@Injectable({ schema: apiConfigSchema })
+class ApiConfig {
+  constructor(public readonly config: z.output<typeof apiConfigSchema>) {}
+}
+
+// Transient with schema
+@Injectable({
+  schema: loggerConfigSchema,
+  scope: InjectableScope.Transient,
+})
+class Logger {
+  constructor(public readonly config: z.output<typeof loggerConfigSchema>) {}
+}
+
+// Request-scoped with schema
+@Injectable({
+  schema: userContextSchema,
+  scope: InjectableScope.Request,
+})
+class UserContext {
+  constructor(public readonly context: z.output<typeof userContextSchema>) {}
+}
+```
+
+#### Using Schema-based Services as Dependencies
+
+```typescript
+const dbConfigSchema = z.object({
+  connectionString: z.string(),
+})
+
+@Injectable({ schema: dbConfigSchema })
+class DatabaseConfig {
+  constructor(public readonly config: z.output<typeof dbConfigSchema>) {}
+}
+
+@Injectable()
+class DatabaseService {
+  // Inject with bound token
+  private dbConfig = inject(DatabaseConfig, {
+    connectionString: 'postgres://localhost:5432/myapp',
+  })
+
+  connect() {
+    return `Connecting to ${this.dbConfig.config.connectionString}`
+  }
+}
+
+// Or with async injection
+@Injectable()
+class AsyncDatabaseService {
+  private dbConfig = asyncInject(DatabaseConfig, {
+    connectionString: 'postgres://localhost:5432/myapp',
+  })
+
+  async connect() {
+    const config = await this.dbConfig
+    return `Connecting to ${config.config.connectionString}`
+  }
+}
+```
+
+#### Complex Nested Schemas
+
+```typescript
+const appConfigSchema = z.object({
+  database: z.object({
+    host: z.string(),
+    port: z.number(),
+    credentials: z.object({
+      username: z.string(),
+      password: z.string(),
+    }),
+  }),
+  cache: z.object({
+    enabled: z.boolean(),
+    ttl: z.number(),
+  }),
+  api: z.object({
+    baseUrl: z.string(),
+    timeout: z.number(),
+  }),
+})
+
+@Injectable({ schema: appConfigSchema })
+class AppConfig {
+  constructor(public readonly config: z.output<typeof appConfigSchema>) {}
+
+  getDatabaseConfig() {
+    return this.config.database
+  }
+
+  getCacheConfig() {
+    return this.config.cache
+  }
+
+  getApiConfig() {
+    return this.config.api
+  }
+}
+
+// Usage
+const container = new Container()
+const config = await container.get(AppConfig, {
+  database: {
+    host: 'db.example.com',
+    port: 5432,
+    credentials: {
+      username: 'admin',
+      password: 'secret',
+    },
+  },
+  cache: {
+    enabled: true,
+    ttl: 300,
+  },
+  api: {
+    baseUrl: 'https://api.example.com',
+    timeout: 5000,
+  },
+})
+```
+
+#### Schema vs Token with Schema
+
+There are two ways to use schemas with `@Injectable`:
+
+**Option 1: Direct Schema (Recommended for simplicity)**
+
+```typescript
+@Injectable({ schema: configSchema })
+class ConfigService {
+  constructor(public readonly config: z.output<typeof configSchema>) {}
+}
+```
+
+**Option 2: Token with Schema (Use when you need to share the token)**
+
+```typescript
+const CONFIG_TOKEN = InjectionToken.create('CONFIG', configSchema)
+
+@Injectable({ token: CONFIG_TOKEN })
+class ConfigService {
+  constructor(public readonly config: z.output<typeof configSchema>) {}
+}
+```
+
+The direct schema approach is simpler and creates the injection token automatically. Use the token approach when you need to:
+
+- Share the same token across multiple classes
+- Reference the token in multiple places
+- Have more control over the token name
+
 ## Advanced Usage
 
 ### Custom Registry
@@ -350,9 +558,11 @@ const newService = await container.get(MyService)
 
 - `@Injectable(options?: InjectableOptions)` - Mark class as injectable
 - Options:
-  - `scope?: InjectableScope` - Service scope (Singleton | Transient)
+  - `scope?: InjectableScope` - Service scope (Singleton | Transient | Request)
   - `token?: InjectionToken` - Custom injection token
+  - `schema?: ZodSchema` - Zod schema for constructor arguments (alternative to token)
   - `registry?: Registry` - Custom registry
+- Note: Cannot use both `token` and `schema` options together
 
 ### Factory Decorator
 

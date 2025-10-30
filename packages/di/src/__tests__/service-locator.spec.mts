@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { z } from 'zod/v4'
 
 import type { OnServiceDestroy } from '../index.mjs'
 
@@ -750,6 +751,293 @@ describe('ServiceLocator', () => {
           serviceLocator.getInstance(RequestService),
         ).rejects.toThrow('Singleton creation failed')
       })
+    })
+  })
+
+  describe('Injectable with Schema', () => {
+    let serviceLocator: ServiceLocator
+
+    beforeEach(() => {
+      serviceLocator = new ServiceLocator(globalRegistry)
+    })
+
+    it('should work with simple schema definition', async () => {
+      const configSchema = z.object({
+        host: z.string(),
+        port: z.number(),
+      })
+
+      @Injectable({ schema: configSchema })
+      class DatabaseConfig {
+        constructor(public readonly config: z.output<typeof configSchema>) {}
+
+        getConnectionString() {
+          return `${this.config.host}:${this.config.port}`
+        }
+      }
+
+      const token = getInjectableToken(DatabaseConfig)
+      const [error, instance] = await serviceLocator.getInstance(
+        InjectionToken.bound(token, {
+          host: 'localhost',
+          port: 5432,
+        }),
+      )
+
+      expect(error).toBeUndefined()
+      expect(instance).toBeInstanceOf(DatabaseConfig)
+      expect(instance.config).toEqual({ host: 'localhost', port: 5432 })
+      expect(instance.getConnectionString()).toBe('localhost:5432')
+    })
+
+    it('should work with schema and singleton scope', async () => {
+      const apiSchema = z.object({
+        apiKey: z.string(),
+        baseUrl: z.string(),
+      })
+
+      @Injectable({ schema: apiSchema, scope: InjectableScope.Singleton })
+      class ApiClient {
+        constructor(public readonly config: z.output<typeof apiSchema>) {}
+
+        getApiKey() {
+          return this.config.apiKey
+        }
+      }
+
+      const [error1, instance1] = await serviceLocator.getInstance(ApiClient, {
+        apiKey: 'secret-key',
+        baseUrl: 'https://api.example.com',
+      })
+      const [error2, instance2] = await serviceLocator.getInstance(ApiClient, {
+        apiKey: 'secret-key',
+        baseUrl: 'https://api.example.com',
+      })
+
+      expect(error1).toBeUndefined()
+      expect(error2).toBeUndefined()
+      expect(instance1).toBe(instance2) // Same singleton instance
+      expect(instance1.getApiKey()).toBe('secret-key')
+    })
+
+    it('should work with schema and transient scope', async () => {
+      const loggerSchema = z.object({
+        level: z.enum(['debug', 'info', 'warn', 'error']),
+        prefix: z.string(),
+      })
+
+      @Injectable({ schema: loggerSchema, scope: InjectableScope.Transient })
+      class Logger {
+        constructor(public readonly config: z.output<typeof loggerSchema>) {}
+
+        log(message: string) {
+          return `[${this.config.prefix}] ${message}`
+        }
+      }
+
+      const [error1, instance1] = await serviceLocator.getInstance(Logger, {
+        level: 'info' as const,
+        prefix: 'APP',
+      })
+      const [error2, instance2] = await serviceLocator.getInstance(Logger, {
+        level: 'info' as const,
+        prefix: 'APP',
+      })
+
+      expect(error1).toBeUndefined()
+      expect(error2).toBeUndefined()
+      expect(instance1).not.toBe(instance2) // Different transient instances
+      expect(instance1.log('test')).toBe('[APP] test')
+      expect(instance2.log('test')).toBe('[APP] test')
+    })
+
+    it('should work with schema and dependency injection', async () => {
+      const dbConfigSchema = z.object({
+        connectionString: z.string(),
+      })
+
+      @Injectable({ schema: dbConfigSchema })
+      class DatabaseConfig {
+        constructor(public readonly config: z.output<typeof dbConfigSchema>) {}
+      }
+
+      @Injectable()
+      class DatabaseService {
+        private dbConfig = inject(DatabaseConfig, {
+          connectionString: 'postgres://localhost:5432/mydb',
+        })
+
+        getConnectionString() {
+          return this.dbConfig.config.connectionString
+        }
+      }
+
+      const [error, instance] =
+        await serviceLocator.getInstance(DatabaseService)
+
+      expect(error).toBeUndefined()
+      if (!instance) throw new Error('Instance is undefined')
+      expect(instance).toBeInstanceOf(DatabaseService)
+      expect(instance.getConnectionString()).toBe(
+        'postgres://localhost:5432/mydb',
+      )
+    })
+
+    it('should work with schema and async dependency injection', async () => {
+      const cacheConfigSchema = z.object({
+        ttl: z.number(),
+        maxSize: z.number(),
+      })
+
+      @Injectable({ schema: cacheConfigSchema })
+      class CacheConfig {
+        constructor(
+          public readonly config: z.output<typeof cacheConfigSchema>,
+        ) {}
+      }
+
+      @Injectable()
+      class CacheService {
+        private cacheConfig = asyncInject(CacheConfig, {
+          ttl: 3600,
+          maxSize: 1000,
+        })
+
+        async getConfig() {
+          const config = await this.cacheConfig
+          return config.config
+        }
+      }
+
+      const [error, instance] = await serviceLocator.getInstance(CacheService)
+
+      expect(error).toBeUndefined()
+      if (!instance) throw new Error('Instance is undefined')
+      expect(instance).toBeInstanceOf(CacheService)
+      const config = await instance.getConfig()
+      expect(config).toEqual({ ttl: 3600, maxSize: 1000 })
+    })
+
+    it('should validate schema when using bound tokens', async () => {
+      const strictSchema = z.object({
+        required: z.string(),
+        optional: z.number().optional(),
+      })
+
+      @Injectable({ schema: strictSchema })
+      class StrictService {
+        constructor(public readonly config: z.output<typeof strictSchema>) {}
+      }
+
+      // Valid configuration
+      const [error1, instance1] = await serviceLocator.getInstance(
+        StrictService,
+        {
+          required: 'value',
+          optional: 42,
+        },
+      )
+
+      expect(error1).toBeUndefined()
+      expect(instance1).toBeInstanceOf(StrictService)
+      expect(instance1.config).toEqual({ required: 'value', optional: 42 })
+
+      // Valid with optional field missing
+      const [error2, instance2] = await serviceLocator.getInstance(
+        StrictService,
+        {
+          required: 'another value',
+        },
+      )
+
+      expect(error2).toBeUndefined()
+      expect(instance2).toBeInstanceOf(StrictService)
+      expect(instance2.config).toEqual({ required: 'another value' })
+    })
+
+    it('should work with complex nested schemas', async () => {
+      const nestedSchema = z.object({
+        database: z.object({
+          host: z.string(),
+          port: z.number(),
+          credentials: z.object({
+            username: z.string(),
+            password: z.string(),
+          }),
+        }),
+        cache: z.object({
+          enabled: z.boolean(),
+          ttl: z.number(),
+        }),
+      })
+
+      @Injectable({ schema: nestedSchema })
+      class AppConfig {
+        constructor(public readonly config: z.output<typeof nestedSchema>) {}
+
+        getDatabaseHost() {
+          return this.config.database.host
+        }
+
+        isCacheEnabled() {
+          return this.config.cache.enabled
+        }
+      }
+
+      const [error, instance] = await serviceLocator.getInstance(AppConfig, {
+        database: {
+          host: 'db.example.com',
+          port: 5432,
+          credentials: {
+            username: 'admin',
+            password: 'secret',
+          },
+        },
+        cache: {
+          enabled: true,
+          ttl: 300,
+        },
+      })
+
+      expect(error).toBeUndefined()
+      expect(instance).toBeInstanceOf(AppConfig)
+      expect(instance.getDatabaseHost()).toBe('db.example.com')
+      expect(instance.isCacheEnabled()).toBe(true)
+    })
+
+    it('should work with schema in request-scoped services', async () => {
+      const userContextSchema = z.object({
+        userId: z.string(),
+        sessionId: z.string(),
+      })
+
+      @Injectable({
+        schema: userContextSchema,
+        scope: InjectableScope.Request,
+      })
+      class UserContext {
+        constructor(
+          public readonly context: z.output<typeof userContextSchema>,
+        ) {}
+
+        getUserId() {
+          return this.context.userId
+        }
+      }
+
+      const requestId = 'test-request'
+      serviceLocator.beginRequest(requestId)
+
+      const [error, instance] = await serviceLocator.getInstance(UserContext, {
+        userId: 'user-123',
+        sessionId: 'session-456',
+      })
+
+      expect(error).toBeUndefined()
+      expect(instance).toBeInstanceOf(UserContext)
+      expect(instance.getUserId()).toBe('user-123')
+
+      await serviceLocator.endRequest(requestId)
     })
   })
 })
