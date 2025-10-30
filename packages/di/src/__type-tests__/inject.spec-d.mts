@@ -57,15 +57,38 @@ const typedOptionalObjectToken = InjectionToken.create<
 const typedToken = InjectionToken.create<FooService>(Symbol.for('Typed token'))
 
 describe('inject', () => {
-  test('#1 Classes', async () => {
-    @Injectable()
-    class Foo {
-      makeFoo() {
-        return 'foo'
+  describe('#1 Classes', () => {
+    test('simple class', async () => {
+      @Injectable()
+      class Foo {
+        makeFoo() {
+          return 'foo'
+        }
       }
-    }
 
-    assertType<Foo>(await asyncInject(Foo))
+      assertType<Foo>(await asyncInject(Foo))
+    })
+    test('class with required argument', async () => {
+      @Injectable({
+        schema: simpleObjectSchema,
+      })
+      class Foo {
+        constructor(public arg: z.infer<typeof simpleObjectSchema>) {}
+      }
+
+      assertType<Foo>(await asyncInject(Foo, { foo: 'bar' }))
+    })
+    test('should fail if not compatible', async () => {
+      @Injectable({
+        schema: simpleObjectSchema,
+      })
+      class Foo {
+        constructor(public arg: z.infer<typeof simpleObjectSchema>) {}
+      }
+
+      // @ts-expect-error Should fail if not compatible
+      await asyncInject(Foo, { test: 'bar' })
+    })
   })
   test('#2 Token with required Schema', async () => {
     const result = await asyncInject(typelessObjectToken, { foo: 'bar' })

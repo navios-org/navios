@@ -9,6 +9,8 @@ export const asyncInject: Injectors['asyncInject'] =
 
 export const inject: Injectors['inject'] = defaultInjectors.inject
 
+export const optional: Injectors['optional'] = defaultInjectors.optional
+
 export const wrapSyncInit: Injectors['wrapSyncInit'] =
   defaultInjectors.wrapSyncInit
 

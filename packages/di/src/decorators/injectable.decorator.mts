@@ -1,4 +1,4 @@
-import { z } from 'zod/v4'
+import { z, ZodObject } from 'zod/v4'
 
 import type {
   BaseInjectionTokenSchemaType,
@@ -8,6 +8,8 @@ import type {
   ClassTypeWithInstanceAndArgument,
   ClassTypeWithInstanceAndOptionalArgument,
   ClassTypeWithOptionalArgument,
+  ClassTypeWithoutArguments,
+  InjectionTokenSchemaType,
   OptionalInjectionTokenSchemaType,
 } from '../injection-token.mjs'
 import type { Registry } from '../registry.mjs'
@@ -20,20 +22,36 @@ import { InjectableTokenMeta } from '../symbols/index.mjs'
 export interface InjectableOptions {
   scope?: InjectableScope
   token?: InjectionToken<any, any>
+  schema?: InjectionTokenSchemaType
   registry?: Registry
 }
 // #1 Simple constructorless class
-export function Injectable(): <T extends ClassType>(
+export function Injectable(): <T extends ClassTypeWithoutArguments>(
   target: T,
   context?: ClassDecoratorContext,
 ) => T
 export function Injectable(options: {
   scope?: InjectableScope
   registry: Registry
-}): <T extends ClassType>(target: T, context?: ClassDecoratorContext) => T
+}): <T extends ClassTypeWithoutArguments>(
+  target: T,
+  context?: ClassDecoratorContext,
+) => T
 export function Injectable(options: {
   scope: InjectableScope
-}): <T extends ClassType>(target: T, context?: ClassDecoratorContext) => T
+}): <T extends ClassTypeWithoutArguments>(
+  target: T,
+  context?: ClassDecoratorContext,
+) => T
+// #2 Class with schema
+export function Injectable<Schema extends InjectionTokenSchemaType>(options: {
+  scope?: InjectableScope
+  schema: Schema
+  registry?: Registry
+}): <T extends ClassTypeWithArgument<z.output<Schema>>>(
+  target: T,
+  context?: ClassDecoratorContext,
+) => T
 
 // #3 Class with typeless token and schema
 export function Injectable<Type, Schema>(options: {
@@ -76,6 +94,7 @@ export function Injectable<Type, Schema>(options: {
 export function Injectable({
   scope = InjectableScope.Singleton,
   token,
+  schema,
   registry = globalRegistry,
 }: InjectableOptions = {}) {
   return <T extends ClassType>(
@@ -90,8 +109,13 @@ export function Injectable({
         '[ServiceLocator] @Injectable decorator can only be used on classes.',
       )
     }
+    if (schema && token) {
+      throw new Error(
+        '[ServiceLocator] @Injectable decorator cannot have both a token and a schema',
+      )
+    }
     let injectableToken: InjectionToken<any, any> =
-      token ?? InjectionToken.create(target)
+      token ?? InjectionToken.create(target, schema as InjectionTokenSchemaType)
 
     registry.set(injectableToken, scope, target, InjectableType.Class)
 

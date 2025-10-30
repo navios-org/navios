@@ -106,7 +106,6 @@ export class Container {
   async invalidate(service: unknown): Promise<void> {
     const holder = this.getHolderByInstance(service)
     if (holder) {
-      console.log('invalidating', holder.name)
       await this.serviceLocator.invalidate(holder.name)
     } else {
       const requestHolder = this.getRequestHolderByInstance(service)

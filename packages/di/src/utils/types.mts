@@ -44,7 +44,8 @@ export type InjectRequest = {
     | FactoryInjectionToken<any, any>
     | ClassType
   promise: Promise<any>
-  result: any
+  readonly result: any
+  readonly error: Error | null
 }
 
 // InjectState interface for managing injection state

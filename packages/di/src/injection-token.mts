@@ -3,6 +3,7 @@ import type { z, ZodObject, ZodOptional, ZodRecord } from 'zod/v4'
 import type { FactoryContext } from './factory-context.mjs'
 
 export type ClassType = new (...args: any[]) => any
+export type ClassTypeWithoutArguments = new () => any
 export type ClassTypeWithArgument<Arg> = new (arg: Arg) => any
 export type ClassTypeWithOptionalArgument<Arg> = new (arg?: Arg) => any
 

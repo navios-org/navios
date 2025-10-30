@@ -1,3 +1,4 @@
+// oxlint-disable no-unused-vars
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { z } from 'zod/v4'
 
@@ -320,7 +321,6 @@ describe('Container', () => {
           }
         }
 
-        @Injectable({ registry })
         class TestService {
           constructor(
             public readonly name: string,
@@ -358,7 +358,6 @@ describe('Container', () => {
           }
         }
 
-        @Injectable({ registry })
         class TestService {
           constructor(
             public readonly name: string,
@@ -393,7 +392,6 @@ describe('Container', () => {
           }
         }
 
-        @Injectable({ registry })
         class TestService {
           constructor(public readonly type: string) {}
         }
@@ -449,7 +447,6 @@ describe('Container', () => {
           }
         }
 
-        @Injectable({ registry })
         class TestService {
           constructor(public readonly factory: string) {}
         }
@@ -760,7 +757,6 @@ describe('Container', () => {
         }
       }
 
-      @Injectable({ registry })
       class TestService {
         constructor(public readonly value: string) {}
       }
@@ -797,7 +793,6 @@ describe('Container', () => {
         }
       }
 
-      @Injectable({ registry })
       class TestService {
         constructor(public readonly value: string) {}
       }
@@ -825,13 +820,13 @@ describe('Container', () => {
           if (result === 'error') {
             throw new Error('Factory error')
           }
-          return new TestService(result)
+          return new TestService()
         }
       }
 
       @Injectable({ registry })
       class TestService {
-        constructor(public readonly value: string) {}
+        constructor() {}
       }
 
       const promise = container.get(ErrorFactory)

@@ -748,7 +748,7 @@ describe('ServiceLocator', () => {
         // The system should throw an error when the service cannot be instantiated
         await expect(
           serviceLocator.getInstance(RequestService),
-        ).rejects.toThrow('Service RequestService cannot be instantiated')
+        ).rejects.toThrow('Singleton creation failed')
       })
     })
   })

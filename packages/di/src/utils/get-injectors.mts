@@ -4,11 +4,16 @@ import type { FactoryContext } from '../factory-context.mjs'
 import type {
   BoundInjectionToken,
   ClassType,
+  ClassTypeWithArgument,
+  ClassTypeWithoutArguments,
   FactoryInjectionToken,
   InjectionToken,
   InjectionTokenSchemaType,
 } from '../injection-token.mjs'
-import type { Factorable } from '../interfaces/factory.interface.mjs'
+import type {
+  Factorable,
+  FactorableWithArgs,
+} from '../interfaces/factory.interface.mjs'
 import type {
   InjectRequest,
   InjectState,
@@ -20,11 +25,24 @@ import { InjectableTokenMeta } from '../symbols/index.mjs'
 
 export interface Injectors {
   // #1 Simple class
-  asyncInject<T extends ClassType>(
+  asyncInject<T extends ClassTypeWithoutArguments>(
     token: T,
   ): InstanceType<T> extends Factorable<infer R>
     ? Promise<R>
     : Promise<InstanceType<T>>
+  asyncInject<Args, T extends ClassTypeWithArgument<Args>>(
+    token: T,
+    args: Args,
+  ): Promise<InstanceType<T>>
+  asyncInject<
+    Schema extends InjectionTokenSchemaType,
+    R,
+    T extends FactorableWithArgs<R, Schema>,
+  >(
+    token: T,
+    args: z.input<Schema>,
+  ): Promise<R>
+
   // #2 Token with required Schema
   asyncInject<T, S extends InjectionTokenSchemaType>(
     token: InjectionToken<T, S>,
@@ -46,9 +64,22 @@ export interface Injectors {
   asyncInject<T>(token: BoundInjectionToken<T, any>): Promise<T>
   asyncInject<T>(token: FactoryInjectionToken<T, any>): Promise<T>
 
-  inject<T extends ClassType>(
+  inject<T extends ClassTypeWithoutArguments>(
     token: T,
   ): InstanceType<T> extends Factorable<infer R> ? R : InstanceType<T>
+  inject<Args, T extends ClassTypeWithArgument<Args>>(
+    token: T,
+    args: Args,
+  ): InstanceType<T>
+  inject<
+    Schema extends InjectionTokenSchemaType,
+    R,
+    T extends FactorableWithArgs<R, Schema>,
+  >(
+    token: T,
+    args: z.input<Schema>,
+  ): R
+
   inject<T, S extends InjectionTokenSchemaType>(
     token: InjectionToken<T, S>,
     args: z.input<S>,
@@ -67,6 +98,45 @@ export interface Injectors {
   inject<T>(token: InjectionToken<T, undefined>): T
   inject<T>(token: BoundInjectionToken<T, any>): T
   inject<T>(token: FactoryInjectionToken<T, any>): T
+
+  /**
+   * Optional injection that returns null if the service fails to initialize
+   * or is not available. This is useful when you want to inject a service
+   * that may not be configured or may fail gracefully.
+   *
+   * @example
+   * ```ts
+   * class MyService {
+   *   constructor() {
+   *     const optionalService = optional(OptionalServiceToken)
+   *     // optionalService will be null if initialization fails
+   *     if (optionalService) {
+   *       optionalService.doSomething()
+   *     }
+   *   }
+   * }
+   * ```
+   */
+  optional<T extends ClassType>(
+    token: T,
+  ): (InstanceType<T> extends Factorable<infer R> ? R : InstanceType<T>) | null
+  optional<T, S extends InjectionTokenSchemaType>(
+    token: InjectionToken<T, S>,
+    args: z.input<S>,
+  ): T | null
+  optional<T, S extends InjectionTokenSchemaType, R extends boolean>(
+    token: InjectionToken<T, S, R>,
+  ): R extends false
+    ? T | null
+    : S extends ZodType<infer Type>
+      ? `Error: Your token requires args: ${Join<
+          UnionToArray<keyof Type>,
+          ', '
+        >}`
+      : 'Error: Your token requires args'
+  optional<T>(token: InjectionToken<T, undefined>): T | null
+  optional<T>(token: BoundInjectionToken<T, any>): T | null
+  optional<T>(token: FactoryInjectionToken<T, any>): T | null
 
   wrapSyncInit(
     cb: () => any,
@@ -97,6 +167,50 @@ export function getInjectors() {
   let promiseCollector: null | ((promise: Promise<any>) => void) = null
   let injectState: InjectState | null = null
 
+  function getRequest(token: InjectionToken<any>, args?: unknown) {
+    if (!injectState) {
+      throw new Error(
+        '[Injector] Trying to make a request outside of a injectable context',
+      )
+    }
+    if (injectState.isFrozen) {
+      const idx = injectState.currentIndex++
+      const request = injectState.requests[idx]
+      if (request.token !== token) {
+        throw new Error(
+          `[Injector] Wrong token order. Expected ${request.token.toString()} but got ${token.toString()}`,
+        )
+      }
+      return request
+    }
+    let result: any = null
+    let error: Error | null = null
+    const promise = getFactoryContext()
+      .inject(token as any, args as any)
+      .then((r) => {
+        result = r
+        return r
+      })
+      .catch((e) => {
+        // We don't throw here because we have a mechanism to handle errors
+        error = e
+      })
+    const request: InjectRequest = {
+      token,
+      promise,
+      get result() {
+        return result
+      },
+      get error() {
+        return error
+      },
+    }
+    injectState.requests.push(request)
+    injectState.currentIndex++
+
+    return request
+  }
+
   function asyncInject(
     token:
       | ClassType
@@ -110,26 +224,16 @@ export function getInjectors() {
         '[Injector] Trying to access inject outside of a injectable context',
       )
     }
-    if (injectState.isFrozen) {
-      const idx = injectState.currentIndex++
-      const request = injectState.requests[idx]
-      if (request.token !== token) {
-        throw new Error(
-          `[Injector] Wrong token order. Expected ${request.token.toString()} but got ${token.toString()}`,
-        )
+    // @ts-expect-error In case we have a class
+    const realToken = token[InjectableTokenMeta] ?? token
+    const request = getRequest(realToken, args)
+    return request.promise.then((result) => {
+      if (request.error) {
+        // We throw here because we want to fail the asyncInject call if the dependency fails to initialize
+        throw request.error
       }
-      return request.promise
-    }
-
-    const promise = getFactoryContext().inject(token as any, args as any)
-    injectState.requests.push({
-      token,
-      promise,
-      result: null,
+      return result
     })
-    injectState.currentIndex++
-
-    return promise
   }
 
   function wrapSyncInit(cb: () => any) {
@@ -183,48 +287,14 @@ export function getInjectors() {
       args,
     )
     if (!instance) {
-      if (injectState.isFrozen) {
-        const idx = injectState.currentIndex++
-        const request = injectState.requests[idx]
-        if (!request) {
-          throw new Error(
-            `[Injector] No request found for ${realToken.toString()}`,
-          )
-        }
-        if (request.token !== realToken) {
-          throw new Error(
-            `[Injector] Wrong token order. Expected ${request.token.toString()} but got ${token.toString()}`,
-          )
-        }
+      const request = getRequest(realToken, args)
+      if (request.error) {
+        throw request.error
+      } else if (request.result) {
         return request.result
       }
-      // Store the current factory context's locator for later lookups
-      const ctx = getFactoryContext()
-
-      // Support both promiseCollector (legacy) and injectState (new)
-      if (promiseCollector || injectState) {
-        let result: any = null
-        const promise = ctx.inject(realToken, args).then((r) => {
-          result = r
-          return r
-        })
-
-        if (promiseCollector) {
-          promiseCollector(promise)
-        }
-
-        // Also track in injectState
-        const request: InjectRequest = {
-          token: realToken,
-          promise: promise,
-          get result() {
-            return result
-          },
-        }
-        injectState.requests.push(request)
-        injectState.currentIndex++
-      } else {
-        throw new Error(`[Injector] Cannot initiate ${realToken.toString()}`)
+      if (promiseCollector) {
+        promiseCollector(request.promise)
       }
       // Return a dynamic proxy that looks up the instance when accessed
       return new Proxy(
@@ -232,7 +302,7 @@ export function getInjectors() {
         {
           get() {
             throw new Error(
-              `[Injector] Trying to access ${realToken.toString()} before it's initialized, please use asyncInject() instead of inject() or do not use the value outside of class methods`,
+              `[Injector] Trying to access ${realToken.toString()} before it's initialized, please move the code to a onServiceInit method`,
             )
           },
         },
@@ -241,9 +311,26 @@ export function getInjectors() {
     return instance as unknown as T
   }
 
+  function optional<
+    T,
+    Token extends
+      | InjectionToken<T>
+      | BoundInjectionToken<T, any>
+      | FactoryInjectionToken<T, any>,
+    S extends ZodObject | unknown = Token['schema'],
+  >(token: Token, args?: S extends ZodObject ? z.input<S> : never): T | null {
+    try {
+      return inject(token, args)
+    } catch {
+      // If injection fails, return null instead of throwing
+      return null
+    }
+  }
+
   const injectors: Injectors = {
     asyncInject,
     inject,
+    optional,
     wrapSyncInit,
     provideFactoryContext,
   } as Injectors
