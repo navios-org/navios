@@ -112,14 +112,14 @@ class NotificationService {
 }
 ```
 
-**Important:** `inject` only works with singleton services. For transient services, use `asyncInject` instead.
+**Important:** The `inject` helper now supports all service scopes including Transient. When using `inject` with Transient services, the dependency is tracked for async initialization and will be available in your service methods after initialization completes.
 
-### Asynchronous Injection with `inject`
+### Asynchronous Injection with `asyncInject`
 
-Use `inject` for services that might not be immediately available:
+Use `asyncInject` when you need explicit async control over dependency resolution:
 
 ```typescript
-import { inject, Injectable } from '@navios/di'
+import { asyncInject, Injectable, InjectableScope } from '@navios/di'
 
 @Injectable({ scope: InjectableScope.Transient })
 class TransientService {
@@ -139,6 +139,31 @@ class ConsumerService {
   async getRandomValue() {
     const service = await this.transientService
     return service.getValue()
+  }
+}
+```
+
+### Using `inject` with Transient Services
+
+You can now use `inject` with Transient services. The dependency will be tracked for async initialization:
+
+```typescript
+import { inject, Injectable, InjectableScope } from '@navios/di'
+
+@Injectable({ scope: InjectableScope.Transient })
+class TransientService {
+  getValue() {
+    return Math.random()
+  }
+}
+
+@Injectable()
+class ConsumerService {
+  private readonly transientService = inject(TransientService)
+
+  async getRandomValue() {
+    // Service is available in async methods after initialization
+    return this.transientService.getValue()
   }
 }
 ```
@@ -319,15 +344,19 @@ class TransientService {
 
 @Injectable()
 class ConsumerService {
-  // Only asyncInject() works with transient services
-  private readonly transientService = asyncInject(TransientService)
+  // Both inject() and asyncInject() now work with transient services
+  private readonly transientService = inject(TransientService)
+  private readonly asyncTransientService = asyncInject(TransientService)
 
   async demonstrate() {
-    const instance1 = await this.transientService
-    const instance2 = await this.transientService
+    // Using inject with transient services (available after initialization)
+    console.log(this.transientService.getId())
 
-    console.log(instance1.getId()) // Different ID
-    console.log(instance2.getId()) // Different ID
+    // Using asyncInject for explicit async access
+    const instance1 = await this.asyncTransientService
+    const instance2 = await this.asyncTransientService
+    console.log(instance1.getId()) // Same as first call
+    console.log(instance2.getId()) // Same as first call
   }
 }
 ```
@@ -397,7 +426,18 @@ class UserService {
   }
 }
 
-// ✅ Good: Use asyncInject for transient dependencies
+// ✅ Good: Use inject or asyncInject for transient dependencies
+@Injectable()
+class RequestService {
+  // inject now works with transient services
+  private readonly transientService = inject(TransientService)
+
+  async handleRequest() {
+    return this.transientService.process()
+  }
+}
+
+// ✅ Also good: Use asyncInject for explicit async control
 @Injectable()
 class RequestService {
   private readonly transientService = asyncInject(TransientService)

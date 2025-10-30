@@ -37,16 +37,19 @@ export type UnionToArray<T, A extends unknown[] = []> =
     ? UnionToArray<Exclude<T, PopUnion<T>>, [PopUnion<T>, ...A]>
     : [T, ...A]
 
+export type InjectRequest = {
+  token:
+    | InjectionToken<any>
+    | BoundInjectionToken<any, any>
+    | FactoryInjectionToken<any, any>
+    | ClassType
+  promise: Promise<any>
+  result: any
+}
+
 // InjectState interface for managing injection state
 export interface InjectState {
   currentIndex: number
   isFrozen: boolean
-  requests: {
-    token:
-      | InjectionToken<any>
-      | BoundInjectionToken<any, any>
-      | FactoryInjectionToken<any, any>
-      | ClassType
-    promise: Promise<any>
-  }[]
+  requests: InjectRequest[]
 }

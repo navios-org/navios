@@ -184,8 +184,8 @@ class RequestHandler {
   private readonly requestId = Math.random().toString(36)
 
   async handleRequest() {
-    const logger = await this.logger
-    logger.log(`Handling request ${this.requestId}`)
+    // Logger is available in async methods
+    this.logger.log(`Handling request ${this.requestId}`)
     return { requestId: this.requestId, status: 'processed' }
   }
 }
@@ -336,36 +336,51 @@ await container.endRequest('req-2')
 
 ### Injection Method Compatibility
 
-| Scope     | inject           | asyncInject  |
-| --------- | ---------------- | ------------ |
-| Singleton | ✅ Supported     | ✅ Supported |
-| Transient | ❌ Not Supported | ✅ Supported |
-| Request   | ✅ Supported     | ✅ Supported |
+| Scope     | inject                              | asyncInject  |
+| --------- | ----------------------------------- | ------------ |
+| Singleton | ✅ Supported                        | ✅ Supported |
+| Transient | ✅ Supported (async initialization) | ✅ Supported |
+| Request   | ✅ Supported                        | ✅ Supported |
 
-### Why inject Doesn't Work with Transient
+### Using inject with Transient Services
+
+The `inject` helper now supports Transient services through automatic async initialization tracking. When you use `inject` with a Transient service, the DI system tracks the async dependencies and ensures they're resolved before the service is fully initialized.
 
 ```typescript
-// ❌ This will cause an error
 @Injectable({ scope: InjectableScope.Transient })
-class TransientService {}
+class TransientService {
+  async onServiceInit() {
+    console.log('Transient service initialized')
+  }
+}
 
 @Injectable()
 class ConsumerService {
+  // ✅ This now works! The inject helper tracks async initialization
   private readonly service = inject(TransientService)
-  // Error: Cannot use inject with transient services
+
+  async doSomething() {
+    // The service will be available after initialization completes
+    this.service.someMethod()
+  }
 }
 
-// ✅ Use inject instead
+// ✅ You can still use asyncInject for explicit async access
 @Injectable()
 class ConsumerService {
   private readonly service = asyncInject(TransientService)
 
   async doSomething() {
     const service = await this.service
-    // Use the service
+    service.someMethod()
   }
 }
 ```
+
+**Important Notes:**
+- When using `inject` with Transient services, the dependency won't be immediately available during constructor execution
+- Access the service only in async methods or after the service initialization completes
+- For synchronous access during construction, use `asyncInject` and await it explicitly
 
 ## Real-World Examples
 
@@ -414,7 +429,7 @@ class DatabasePool implements OnServiceInit, OnServiceDestroy {
 ### Transient: Request Context
 
 ```typescript
-import { Injectable, InjectableScope } from '@navios/di'
+import { inject, Injectable, InjectableScope } from '@navios/di'
 
 @Injectable({ scope: InjectableScope.Transient })
 class RequestContext {
@@ -447,16 +462,17 @@ class RequestContext {
 
 @Injectable()
 class RequestHandler {
-  private readonly context = asyncInject(RequestContext)
+  private readonly context = inject(RequestContext)
 
   async handleRequest() {
-    const ctx = await this.context
-    console.log(`Handling request ${ctx.getRequestId()} from ${ctx.getIp()}`)
+    console.log(
+      `Handling request ${this.context.getRequestId()} from ${this.context.getIp()}`,
+    )
 
     // Process request...
 
     console.log(
-      `Request ${ctx.getRequestId()} completed in ${ctx.getDuration()}ms`,
+      `Request ${this.context.getRequestId()} completed in ${this.context.getDuration()}ms`,
     )
   }
 }
@@ -465,7 +481,7 @@ class RequestHandler {
 ### Mixed Scopes
 
 ```typescript
-import { asyncInject, inject, Injectable, InjectableScope } from '@navios/di'
+import { inject, Injectable, InjectableScope } from '@navios/di'
 
 // Singleton services
 @Injectable()
@@ -506,19 +522,18 @@ class UserSession {
 class UserService {
   private readonly config = inject(ConfigService) // Singleton
   private readonly logger = inject(LoggerService) // Singleton
-  private readonly session = asyncInject(UserSession) // Transient
+  private readonly session = inject(UserSession) // Transient (with async initialization)
 
   async authenticateUser(userId: string) {
     this.logger.log(`Authenticating user ${userId}`)
 
-    const session = await this.session
     this.logger.log(
-      `Created session ${session.getSessionId()} for user ${userId}`,
+      `Created session ${this.session.getSessionId()} for user ${userId}`,
     )
 
     return {
       userId,
-      sessionId: session.getSessionId(),
+      sessionId: this.session.getSessionId(),
       apiUrl: this.config.getConfig().apiUrl,
     }
   }
@@ -668,27 +683,46 @@ class RequestCache {
 }
 ```
 
-### 2. Incorrect Injection Method
+### 2. Accessing Transient Services Too Early
 
 ```typescript
-// ❌ Problem: Using inject with transient
+// ❌ Problem: Accessing transient service during construction
 @Injectable({ scope: InjectableScope.Transient })
-class TransientService {}
+class TransientService {
+  getData() {
+    return 'data'
+  }
+}
 
 @Injectable()
 class ConsumerService {
   private readonly service = inject(TransientService)
-  // Error: Cannot use inject with transient services
+
+  constructor() {
+    // Error: Service not initialized yet during construction!
+    console.log(this.service.getData())
+  }
 }
 
-// ✅ Solution: Use asyncInject with transient
+// ✅ Solution 1: Access in async methods after initialization
+@Injectable()
+class ConsumerService {
+  private readonly service = inject(TransientService)
+
+  async doSomething() {
+    // Service is available in methods
+    console.log(this.service.getData())
+  }
+}
+
+// ✅ Solution 2: Use asyncInject for explicit control
 @Injectable()
 class ConsumerService {
   private readonly service = asyncInject(TransientService)
 
   async doSomething() {
     const service = await this.service
-    // Use the service
+    console.log(service.getData())
   }
 }
 ```

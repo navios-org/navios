@@ -9,7 +9,12 @@ import type {
   InjectionTokenSchemaType,
 } from '../injection-token.mjs'
 import type { Factorable } from '../interfaces/factory.interface.mjs'
-import type { InjectState, Join, UnionToArray } from './types.mjs'
+import type {
+  InjectRequest,
+  InjectState,
+  Join,
+  UnionToArray,
+} from './types.mjs'
 
 import { InjectableTokenMeta } from '../symbols/index.mjs'
 
@@ -120,6 +125,7 @@ export function getInjectors() {
     injectState.requests.push({
       token,
       promise,
+      result: null,
     })
     injectState.currentIndex++
 
@@ -166,17 +172,61 @@ export function getInjectors() {
     // @ts-expect-error In case we have a class
     const realToken = token[InjectableTokenMeta] ?? token
 
+    if (!injectState) {
+      throw new Error(
+        '[Injector] Trying to access inject outside of a injectable context',
+      )
+    }
+
     const instance = getFactoryContext().locator.getSyncInstance(
       realToken,
       args,
     )
     if (!instance) {
-      if (promiseCollector) {
-        const promise = getFactoryContext().inject(realToken, args)
-        promiseCollector(promise)
+      if (injectState.isFrozen) {
+        const idx = injectState.currentIndex++
+        const request = injectState.requests[idx]
+        if (!request) {
+          throw new Error(
+            `[Injector] No request found for ${realToken.toString()}`,
+          )
+        }
+        if (request.token !== realToken) {
+          throw new Error(
+            `[Injector] Wrong token order. Expected ${request.token.toString()} but got ${token.toString()}`,
+          )
+        }
+        return request.result
+      }
+      // Store the current factory context's locator for later lookups
+      const ctx = getFactoryContext()
+
+      // Support both promiseCollector (legacy) and injectState (new)
+      if (promiseCollector || injectState) {
+        let result: any = null
+        const promise = ctx.inject(realToken, args).then((r) => {
+          result = r
+          return r
+        })
+
+        if (promiseCollector) {
+          promiseCollector(promise)
+        }
+
+        // Also track in injectState
+        const request: InjectRequest = {
+          token: realToken,
+          promise: promise,
+          get result() {
+            return result
+          },
+        }
+        injectState.requests.push(request)
+        injectState.currentIndex++
       } else {
         throw new Error(`[Injector] Cannot initiate ${realToken.toString()}`)
       }
+      // Return a dynamic proxy that looks up the instance when accessed
       return new Proxy(
         {},
         {

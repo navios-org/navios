@@ -170,4 +170,77 @@ describe('Injectable decorator', () => {
     expect(value).toBeInstanceOf(TestOuter)
     expect(value.foo).toBeInstanceOf(TestInner)
   })
+
+  it('should work with inject and Transient services', async () => {
+    @Injectable({ scope: InjectableScope.Transient })
+    class TransientService {
+      value = Math.random()
+
+      getValue() {
+        return this.value
+      }
+    }
+
+    @Injectable()
+    class ConsumerService {
+      private readonly transientService = inject(TransientService)
+
+      async getTransientValue() {
+        // Service should be available in async methods after initialization
+        return this.transientService.getValue()
+      }
+
+      // Synchronous access should work after initialization
+      getTransientValueSync() {
+        return this.transientService.getValue()
+      }
+    }
+
+    const consumer1 = await container.get(ConsumerService)
+    expect(consumer1).toBeInstanceOf(ConsumerService)
+
+    const value1 = await consumer1.getTransientValue()
+    expect(typeof value1).toBe('number')
+
+    const value2 = consumer1.getTransientValueSync()
+    expect(value2).toBe(value1) // Should be the same instance
+
+    // Each consumer gets a new transient instance
+    const consumer2 = await container.get(ConsumerService)
+    expect(consumer2).toBe(consumer1) // Consumer is singleton
+
+    const value3 = await consumer2.getTransientValue()
+    expect(value3).toBe(value1) // Same transient instance for same consumer
+  })
+
+  it('should track async dependencies with inject for Transient services', async () => {
+    @Injectable({ scope: InjectableScope.Transient })
+    class AsyncTransientService {
+      private initialized = false
+
+      async onServiceInit() {
+        await new Promise((resolve) => setTimeout(resolve, 10))
+        this.initialized = true
+      }
+
+      isInitialized() {
+        return this.initialized
+      }
+    }
+
+    @Injectable()
+    class AsyncConsumerService {
+      private readonly transientService = inject(AsyncTransientService)
+
+      async checkInitialization() {
+        return this.transientService.isInitialized()
+      }
+    }
+
+    const consumer = await container.get(AsyncConsumerService)
+    expect(consumer).toBeInstanceOf(AsyncConsumerService)
+
+    const isInitialized = await consumer.checkInitialization()
+    expect(isInitialized).toBe(true) // Should be initialized after container.get()
+  })
 })
