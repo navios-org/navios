@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.5.1] - Dec 13, 2025
+
+### Fixed
+
+- **Fixed type errors** - Fixed type errors with mutations.
+
 ## [0.5.0] - Dec 13, 2025
 
 ### Breaking Changes

@@ -393,7 +393,7 @@ export interface ClientInstance {
       context: Context,
     ) => void | Promise<void>
   }): ((
-    params: UrlHasParams<Url> extends true ? UrlParams<Url> : {},
+    params: UrlHasParams<Url> extends true ? { urlParams: UrlParams<Url> } : {},
   ) => UseMutationResult<
     Result,
     Error,
@@ -437,7 +437,7 @@ export interface ClientInstance {
       context: Context,
     ) => void | Promise<void>
   }): ((
-    params: UrlHasParams<Url> extends true ? UrlParams<Url> : {},
+    params: UrlHasParams<Url> extends true ? { urlParams: UrlParams<Url> } : {},
   ) => UseMutationResult<
     Result,
     Error,
@@ -511,7 +511,7 @@ export interface ClientInstance {
       context: Context,
     ) => void | Promise<void>
   }): ((
-    params: UrlHasParams<Url> extends true ? UrlParams<Url> : {},
+    params: UrlHasParams<Url> extends true ? { urlParams: UrlParams<Url> } : {},
   ) => UseMutationResult<
     Result,
     Error,
@@ -686,7 +686,7 @@ export interface ClientInstance {
       ) => void | Promise<void>
     },
   ): ((
-    params: Util_FlatObject<MutationArgs<Url, RequestSchema, QuerySchema>>,
+    params: UrlHasParams<Url> extends true ? { urlParams: UrlParams<Url> } : {},
   ) => UseMutationResult<
     Result,
     Error,
@@ -732,7 +732,7 @@ export interface ClientInstance {
       ) => void | Promise<void>
     },
   ): ((
-    params: Util_FlatObject<MutationArgs<Url, RequestSchema, undefined>>,
+    params: UrlHasParams<Url> extends true ? { urlParams: UrlParams<Url> } : {},
   ) => UseMutationResult<
     Result,
     Error,
@@ -780,9 +780,7 @@ export interface ClientInstance {
         context: Context,
       ) => void | Promise<void>
     },
-  ): ((
-    params: Util_FlatObject<MutationArgs<Url, RequestSchema, QuerySchema>>,
-  ) => UseMutationResult<
+  ): (() => UseMutationResult<
     Result,
     Error,
     MutationArgs<Url, RequestSchema, QuerySchema>
@@ -823,9 +821,7 @@ export interface ClientInstance {
         context: Context,
       ) => void | Promise<void>
     },
-  ): ((
-    params: Util_FlatObject<MutationArgs<Url, RequestSchema, undefined>>,
-  ) => UseMutationResult<
+  ): (() => UseMutationResult<
     Result,
     Error,
     MutationArgs<Url, RequestSchema, undefined>
@@ -866,9 +862,7 @@ export interface ClientInstance {
         context: Context,
       ) => void | Promise<void>
     },
-  ): ((
-    params: Util_FlatObject<MutationArgs<Url, undefined, QuerySchema>>,
-  ) => UseMutationResult<
+  ): (() => UseMutationResult<
     Result,
     Error,
     MutationArgs<Url, undefined, QuerySchema>
@@ -906,7 +900,7 @@ export interface ClientInstance {
       ) => void | Promise<void>
     },
   ): ((
-    params: Util_FlatObject<MutationArgs<Url, undefined, undefined>>,
+    params: UrlHasParams<Url> extends true ? { urlParams: UrlParams<Url> } : {},
   ) => UseMutationResult<
     Result,
     Error,
@@ -943,9 +937,7 @@ export interface ClientInstance {
         context: Context,
       ) => void | Promise<void>
     },
-  ): ((
-    params: Util_FlatObject<MutationArgs<Url, undefined, QuerySchema>>,
-  ) => UseMutationResult<
+  ): (() => UseMutationResult<
     Result,
     Error,
     MutationArgs<Url, undefined, QuerySchema>
@@ -979,9 +971,7 @@ export interface ClientInstance {
         context: Context,
       ) => void | Promise<void>
     },
-  ): ((
-    params: Util_FlatObject<MutationArgs<Url, undefined, undefined>>,
-  ) => UseMutationResult<
+  ): (() => UseMutationResult<
     Result,
     Error,
     MutationArgs<Url, undefined, undefined>
@@ -1135,7 +1125,7 @@ export interface ClientInstance {
       context: Context,
     ) => void | Promise<void>
   }): ((
-    params: UrlHasParams<Url> extends true ? UrlParams<Url> : {},
+    params: UrlHasParams<Url> extends true ? { urlParams: UrlParams<Url> } : {},
   ) => UseMutationResult<
     Result,
     Error,
