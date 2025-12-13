@@ -34,9 +34,9 @@
     "@navios/builder": "workspace:^",
     "@types/supertest": "^6.0.3",
     "supertest": "^7.1.4",
-    "tsx": "^4.20.6",
+    "tsx": "^4.21.0",
     "typescript": "^5.9.3",
-    "zod": "^4.1.12"
+    "zod": "^4.1.13"
   },
   "dependencies": {
     "@navios/di": "workspace:^"

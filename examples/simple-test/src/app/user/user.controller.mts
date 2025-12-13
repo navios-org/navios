@@ -2,6 +2,7 @@ import type {
   EndpointParams,
   EndpointResult,
   MultipartParams,
+  MultipartResult,
 } from '@navios/core'
 
 import {
@@ -65,7 +66,9 @@ export class UserController {
   }
 
   @Multipart(multipartEndpoint)
-  async multipart(params: MultipartParams<typeof multipartEndpoint>) {
+  async multipart(
+    params: MultipartParams<typeof multipartEndpoint>,
+  ): MultipartResult<typeof multipartEndpoint> {
     this.logger.log(params)
     // params.data.
     return {}

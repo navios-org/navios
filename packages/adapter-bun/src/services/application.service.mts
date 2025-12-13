@@ -1,5 +1,5 @@
 import type { ModuleMetadata } from '@navios/core'
-import type { ServeOptions, Server } from 'bun'
+import type { Serve, Server } from 'bun'
 
 import { Logger } from '@navios/core'
 import {
@@ -27,11 +27,11 @@ export class BunApplicationService implements BunApplicationServiceInterface {
     context: BunApplicationService.name,
   })
   protected container = inject(Container)
-  private server: Server | null = null
+  private server: Server<undefined> | null = null
   private controllerAdapter = inject(BunControllerAdapterService)
   private globalPrefix: string = ''
   private routes: BunRoutes = {}
-  private serverOptions: ServeOptions | null = null
+  private serverOptions: Serve.Options<undefined, string> | null = null
 
   async setupHttpServer(options: BunApplicationOptions): Promise<void> {
     // Collect routes from modules
@@ -63,7 +63,7 @@ export class BunApplicationService implements BunApplicationServiceInterface {
     this.globalPrefix = prefix
   }
 
-  getServer(): Server {
+  getServer(): Server<undefined> {
     if (!this.server) {
       throw new Error('Server is not initialized. Call createHttpServer first.')
     }

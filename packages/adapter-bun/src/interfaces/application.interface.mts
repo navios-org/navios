@@ -3,9 +3,9 @@ import type {
   LoggerService,
   LogLevel,
 } from '@navios/core'
-import type { ServeOptions, Server } from 'bun'
+import type { Serve, Server } from 'bun'
 
-export interface BunApplicationOptions extends ServeOptions {
+export type BunApplicationOptions = Serve.Options<undefined, string> & {
   /**
    * Specifies the logger to use. Pass `false` to turn off logging.
    */
@@ -14,7 +14,7 @@ export interface BunApplicationOptions extends ServeOptions {
 
 export interface BunApplicationServiceInterface
   extends AbstractHttpAdapterInterface<
-    Server,
+    Server<undefined>,
     never, // No CORS support for now
     BunApplicationOptions,
     never // No multipart support for now
@@ -22,7 +22,7 @@ export interface BunApplicationServiceInterface
   setupHttpServer(options: BunApplicationOptions): Promise<void>
   initServer(): Promise<void>
   ready(): Promise<void>
-  getServer(): Server
+  getServer(): Server<undefined>
   setGlobalPrefix(prefix: string): void
   enableCors(options: never): void
   enableMultipart(options: never): void

@@ -1,0 +1,13 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "module": "Node16",
+    "outDir": "dist"
+  },
+  "include": ["src/**/*"],
+  "references": [
+    {
+      "path": "../di"
+    }
+  ]
+}

@@ -31,7 +31,7 @@
   },
   "devDependencies": {
     "navios": "workspace:^",
-    "typescript": "^5.9.2",
-    "zod": "^4.1.8"
+    "typescript": "^5.9.3",
+    "zod": "^4.1.13"
   }
 }

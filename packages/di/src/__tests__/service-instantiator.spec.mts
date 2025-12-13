@@ -56,6 +56,7 @@ describe('ServiceInstantiator', () => {
     mockContext = {
       inject: vi.fn(),
       locator: {} as any,
+      // @ts-expect-error Test
       addDestroyListener: mockAddDestroyListener,
     }
 

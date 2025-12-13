@@ -13,6 +13,6 @@
     "@navios/di": "workspace:*"
   },
   "devDependencies": {
-    "tsx": "^4.19.2"
+    "tsx": "^4.21.0"
   }
 }
