@@ -10,7 +10,7 @@ import type {
 import type {
   DataTag,
   InfiniteData,
-  QueryClient,
+  MutationFunctionContext,
   UseMutationResult,
   UseSuspenseInfiniteQueryOptions,
   UseSuspenseQueryOptions,
@@ -274,6 +274,7 @@ export interface ClientInstance {
     Response extends ZodType = ZodType,
     ReqResult = z.output<Response>,
     Result = unknown,
+    OnMutateResult = unknown,
     Context = unknown,
     UseKey extends true = true,
   >(config: {
@@ -285,24 +286,36 @@ export interface ClientInstance {
     responseSchema: Response
     processResponse: ProcessResponseFunction<Result, ReqResult>
     useContext?: () => Context
+    onMutate?: (
+      variables: Util_FlatObject<MutationArgs<Url, RequestSchema, QuerySchema>>,
+      context: Context & MutationFunctionContext,
+    ) => OnMutateResult | Promise<OnMutateResult>
     onSuccess?: (
-      queryClient: QueryClient,
       data: NoInfer<Result>,
       variables: Util_FlatObject<MutationArgs<Url, RequestSchema, QuerySchema>>,
-      context: Context,
+      context: Context &
+        MutationFunctionContext & { onMutateResult: OnMutateResult | undefined },
     ) => void | Promise<void>
     onError?: (
-      queryClient: QueryClient,
       error: Error,
       variables: Util_FlatObject<MutationArgs<Url, RequestSchema, QuerySchema>>,
-      context: Context,
+      context: Context &
+        MutationFunctionContext & { onMutateResult: OnMutateResult | undefined },
+    ) => void | Promise<void>
+    onSettled?: (
+      data: NoInfer<Result> | undefined,
+      error: Error | null,
+      variables: Util_FlatObject<MutationArgs<Url, RequestSchema, QuerySchema>>,
+      context: Context &
+        MutationFunctionContext & { onMutateResult: OnMutateResult | undefined },
     ) => void | Promise<void>
   }): ((
     params: UrlHasParams<Url> extends true ? { urlParams: UrlParams<Url> } : {},
   ) => UseMutationResult<
     Result,
     Error,
-    MutationArgs<Url, RequestSchema, QuerySchema>
+    MutationArgs<Url, RequestSchema, QuerySchema>,
+    OnMutateResult
   >) &
     MutationHelpers<Url, Result> &
     EndpointHelper<Method, Url, RequestSchema, Response, QuerySchema>
@@ -316,6 +329,7 @@ export interface ClientInstance {
     Response extends ZodType = ZodType,
     ReqResult = z.output<Response>,
     Result = unknown,
+    OnMutateResult = unknown,
     Context = unknown,
   >(config: {
     method: Method
@@ -325,22 +339,34 @@ export interface ClientInstance {
     responseSchema: Response
     processResponse: ProcessResponseFunction<Result, ReqResult>
     useContext?: () => Context
+    onMutate?: (
+      variables: Util_FlatObject<MutationArgs<Url, RequestSchema, QuerySchema>>,
+      context: Context & MutationFunctionContext,
+    ) => OnMutateResult | Promise<OnMutateResult>
     onSuccess?: (
-      queryClient: QueryClient,
       data: NoInfer<Result>,
       variables: Util_FlatObject<MutationArgs<Url, RequestSchema, QuerySchema>>,
-      context: Context,
+      context: Context &
+        MutationFunctionContext & { onMutateResult: OnMutateResult | undefined },
     ) => void | Promise<void>
     onError?: (
-      queryClient: QueryClient,
       error: Error,
       variables: Util_FlatObject<MutationArgs<Url, RequestSchema, QuerySchema>>,
-      context: Context,
+      context: Context &
+        MutationFunctionContext & { onMutateResult: OnMutateResult | undefined },
+    ) => void | Promise<void>
+    onSettled?: (
+      data: NoInfer<Result> | undefined,
+      error: Error | null,
+      variables: Util_FlatObject<MutationArgs<Url, RequestSchema, QuerySchema>>,
+      context: Context &
+        MutationFunctionContext & { onMutateResult: OnMutateResult | undefined },
     ) => void | Promise<void>
   }): (() => UseMutationResult<
     Result,
     Error,
-    MutationArgs<Url, RequestSchema, QuerySchema>
+    MutationArgs<Url, RequestSchema, QuerySchema>,
+    OnMutateResult
   >) &
     MutationHelpers<Url, Result> &
     EndpointHelper<Method, Url, RequestSchema, Response, QuerySchema>
@@ -353,6 +379,7 @@ export interface ClientInstance {
     Response extends ZodType = ZodType,
     ReqResult = z.output<Response>,
     Result = unknown,
+    OnMutateResult = unknown,
     Context = unknown,
   >(config: {
     method: Method
@@ -361,22 +388,34 @@ export interface ClientInstance {
     responseSchema: Response
     processResponse: ProcessResponseFunction<Result, ReqResult>
     useContext?: () => Context
+    onMutate?: (
+      variables: Util_FlatObject<MutationArgs<Url, RequestSchema, undefined>>,
+      context: Context & MutationFunctionContext,
+    ) => OnMutateResult | Promise<OnMutateResult>
     onSuccess?: (
-      queryClient: QueryClient,
       data: NoInfer<Result>,
       variables: Util_FlatObject<MutationArgs<Url, RequestSchema, undefined>>,
-      context: Context,
+      context: Context &
+        MutationFunctionContext & { onMutateResult: OnMutateResult | undefined },
     ) => void | Promise<void>
     onError?: (
-      queryClient: QueryClient,
       error: Error,
       variables: Util_FlatObject<MutationArgs<Url, RequestSchema, undefined>>,
-      context: Context,
+      context: Context &
+        MutationFunctionContext & { onMutateResult: OnMutateResult | undefined },
+    ) => void | Promise<void>
+    onSettled?: (
+      data: NoInfer<Result> | undefined,
+      error: Error | null,
+      variables: Util_FlatObject<MutationArgs<Url, RequestSchema, undefined>>,
+      context: Context &
+        MutationFunctionContext & { onMutateResult: OnMutateResult | undefined },
     ) => void | Promise<void>
   }): (() => UseMutationResult<
     Result,
     Error,
-    MutationArgs<Url, RequestSchema, undefined>
+    MutationArgs<Url, RequestSchema, undefined>,
+    OnMutateResult
   >) &
     MutationHelpers<Url, Result> &
     EndpointHelper<Method, Url, RequestSchema, Response>
@@ -389,6 +428,7 @@ export interface ClientInstance {
     Response extends ZodType = ZodType,
     ReqResult = z.output<Response>,
     Result = unknown,
+    OnMutateResult = unknown,
     Context = unknown,
     UseKey extends true = true,
   >(config: {
@@ -399,24 +439,36 @@ export interface ClientInstance {
     responseSchema: Response
     processResponse: ProcessResponseFunction<Result, ReqResult>
     useContext?: () => Context
+    onMutate?: (
+      variables: Util_FlatObject<MutationArgs<Url, RequestSchema, undefined>>,
+      context: Context & MutationFunctionContext,
+    ) => OnMutateResult | Promise<OnMutateResult>
     onSuccess?: (
-      queryClient: QueryClient,
       data: NoInfer<Result>,
       variables: Util_FlatObject<MutationArgs<Url, RequestSchema, undefined>>,
-      context: Context,
+      context: Context &
+        MutationFunctionContext & { onMutateResult: OnMutateResult | undefined },
     ) => void | Promise<void>
     onError?: (
-      queryClient: QueryClient,
       error: Error,
       variables: Util_FlatObject<MutationArgs<Url, RequestSchema, undefined>>,
-      context: Context,
+      context: Context &
+        MutationFunctionContext & { onMutateResult: OnMutateResult | undefined },
+    ) => void | Promise<void>
+    onSettled?: (
+      data: NoInfer<Result> | undefined,
+      error: Error | null,
+      variables: Util_FlatObject<MutationArgs<Url, RequestSchema, undefined>>,
+      context: Context &
+        MutationFunctionContext & { onMutateResult: OnMutateResult | undefined },
     ) => void | Promise<void>
   }): ((
     params: UrlHasParams<Url> extends true ? { urlParams: UrlParams<Url> } : {},
   ) => UseMutationResult<
     Result,
     Error,
-    MutationArgs<Url, RequestSchema, undefined>
+    MutationArgs<Url, RequestSchema, undefined>,
+    OnMutateResult
   >) &
     MutationHelpers<Url, Result> &
     EndpointHelper<Method, Url, RequestSchema, Response>
@@ -433,6 +485,7 @@ export interface ClientInstance {
     Response extends ZodType = ZodType,
     ReqResult = z.output<Response>,
     Result = unknown,
+    OnMutateResult = unknown,
     Context = unknown,
     UseKey extends true = true,
   >(config: {
@@ -443,24 +496,36 @@ export interface ClientInstance {
     responseSchema: Response
     processResponse: ProcessResponseFunction<Result, ReqResult>
     useContext?: () => Context
+    onMutate?: (
+      variables: Util_FlatObject<MutationArgs<Url, undefined, QuerySchema>>,
+      context: Context & MutationFunctionContext,
+    ) => OnMutateResult | Promise<OnMutateResult>
     onSuccess?: (
-      queryClient: QueryClient,
       data: NoInfer<Result>,
       variables: Util_FlatObject<MutationArgs<Url, undefined, QuerySchema>>,
-      context: Context,
+      context: Context &
+        MutationFunctionContext & { onMutateResult: OnMutateResult | undefined },
     ) => void | Promise<void>
     onError?: (
-      queryClient: QueryClient,
       error: Error,
       variables: Util_FlatObject<MutationArgs<Url, undefined, QuerySchema>>,
-      context: Context,
+      context: Context &
+        MutationFunctionContext & { onMutateResult: OnMutateResult | undefined },
+    ) => void | Promise<void>
+    onSettled?: (
+      data: NoInfer<Result> | undefined,
+      error: Error | null,
+      variables: Util_FlatObject<MutationArgs<Url, undefined, QuerySchema>>,
+      context: Context &
+        MutationFunctionContext & { onMutateResult: OnMutateResult | undefined },
     ) => void | Promise<void>
   }): ((
     params: UrlHasParams<Url> extends true ? { urlParams: UrlParams<Url> } : {},
   ) => UseMutationResult<
     Result,
     Error,
-    MutationArgs<Url, undefined, QuerySchema>
+    MutationArgs<Url, undefined, QuerySchema>,
+    OnMutateResult
   >) &
     MutationHelpers<Url, Result> &
     EndpointHelper<Method, Url, undefined, Response, QuerySchema>
@@ -473,6 +538,7 @@ export interface ClientInstance {
     Response extends ZodType = ZodType,
     ReqResult = z.output<Response>,
     Result = unknown,
+    OnMutateResult = unknown,
     Context = unknown,
   >(config: {
     method: Method
@@ -481,22 +547,34 @@ export interface ClientInstance {
     responseSchema: Response
     processResponse: ProcessResponseFunction<Result, ReqResult>
     useContext?: () => Context
+    onMutate?: (
+      variables: Util_FlatObject<MutationArgs<Url, undefined, QuerySchema>>,
+      context: Context & MutationFunctionContext,
+    ) => OnMutateResult | Promise<OnMutateResult>
     onSuccess?: (
-      queryClient: QueryClient,
       data: NoInfer<Result>,
       variables: Util_FlatObject<MutationArgs<Url, undefined, QuerySchema>>,
-      context: Context,
+      context: Context &
+        MutationFunctionContext & { onMutateResult: OnMutateResult | undefined },
     ) => void | Promise<void>
     onError?: (
-      queryClient: QueryClient,
       error: Error,
       variables: Util_FlatObject<MutationArgs<Url, undefined, QuerySchema>>,
-      context: Context,
+      context: Context &
+        MutationFunctionContext & { onMutateResult: OnMutateResult | undefined },
+    ) => void | Promise<void>
+    onSettled?: (
+      data: NoInfer<Result> | undefined,
+      error: Error | null,
+      variables: Util_FlatObject<MutationArgs<Url, undefined, QuerySchema>>,
+      context: Context &
+        MutationFunctionContext & { onMutateResult: OnMutateResult | undefined },
     ) => void | Promise<void>
   }): (() => UseMutationResult<
     Result,
     Error,
-    MutationArgs<Url, undefined, QuerySchema>
+    MutationArgs<Url, undefined, QuerySchema>,
+    OnMutateResult
   >) &
     MutationHelpers<Url, Result> &
     EndpointHelper<Method, Url, undefined, Response, QuerySchema>
@@ -508,6 +586,7 @@ export interface ClientInstance {
     Response extends ZodType = ZodType,
     ReqResult = z.output<Response>,
     Result = unknown,
+    OnMutateResult = unknown,
     Context = unknown,
     UseKey extends true = true,
   >(config: {
@@ -517,24 +596,36 @@ export interface ClientInstance {
     responseSchema: Response
     processResponse: ProcessResponseFunction<Result, ReqResult>
     useContext?: () => Context
+    onMutate?: (
+      variables: Util_FlatObject<MutationArgs<Url, undefined, undefined>>,
+      context: Context & MutationFunctionContext,
+    ) => OnMutateResult | Promise<OnMutateResult>
     onSuccess?: (
-      queryClient: QueryClient,
       data: NoInfer<Result>,
       variables: Util_FlatObject<MutationArgs<Url, undefined, undefined>>,
-      context: Context,
+      context: Context &
+        MutationFunctionContext & { onMutateResult: OnMutateResult | undefined },
     ) => void | Promise<void>
     onError?: (
-      queryClient: QueryClient,
       error: Error,
       variables: Util_FlatObject<MutationArgs<Url, undefined, undefined>>,
-      context: Context,
+      context: Context &
+        MutationFunctionContext & { onMutateResult: OnMutateResult | undefined },
+    ) => void | Promise<void>
+    onSettled?: (
+      data: NoInfer<Result> | undefined,
+      error: Error | null,
+      variables: Util_FlatObject<MutationArgs<Url, undefined, undefined>>,
+      context: Context &
+        MutationFunctionContext & { onMutateResult: OnMutateResult | undefined },
     ) => void | Promise<void>
   }): ((
     params: UrlHasParams<Url> extends true ? { urlParams: UrlParams<Url> } : {},
   ) => UseMutationResult<
     Result,
     Error,
-    MutationArgs<Url, undefined, undefined>
+    MutationArgs<Url, undefined, undefined>,
+    OnMutateResult
   >) &
     MutationHelpers<Url, Result> &
     EndpointHelper<Method, Url, undefined, Response>
@@ -546,6 +637,7 @@ export interface ClientInstance {
     Response extends ZodType = ZodType,
     ReqResult = z.output<Response>,
     Result = unknown,
+    OnMutateResult = unknown,
     Context = unknown,
   >(config: {
     method: Method
@@ -553,22 +645,34 @@ export interface ClientInstance {
     responseSchema: Response
     processResponse: ProcessResponseFunction<Result, ReqResult>
     useContext?: () => Context
+    onMutate?: (
+      variables: Util_FlatObject<MutationArgs<Url, undefined, undefined>>,
+      context: Context & MutationFunctionContext,
+    ) => OnMutateResult | Promise<OnMutateResult>
     onSuccess?: (
-      queryClient: QueryClient,
       data: NoInfer<Result>,
       variables: Util_FlatObject<MutationArgs<Url, undefined, undefined>>,
-      context: Context,
+      context: Context &
+        MutationFunctionContext & { onMutateResult: OnMutateResult | undefined },
     ) => void | Promise<void>
     onError?: (
-      queryClient: QueryClient,
       error: Error,
       variables: Util_FlatObject<MutationArgs<Url, undefined, undefined>>,
-      context: Context,
+      context: Context &
+        MutationFunctionContext & { onMutateResult: OnMutateResult | undefined },
+    ) => void | Promise<void>
+    onSettled?: (
+      data: NoInfer<Result> | undefined,
+      error: Error | null,
+      variables: Util_FlatObject<MutationArgs<Url, undefined, undefined>>,
+      context: Context &
+        MutationFunctionContext & { onMutateResult: OnMutateResult | undefined },
     ) => void | Promise<void>
   }): (() => UseMutationResult<
     Result,
     Error,
-    MutationArgs<Url, undefined, undefined>
+    MutationArgs<Url, undefined, undefined>,
+    OnMutateResult
   >) &
     MutationHelpers<Url, Result> &
     EndpointHelper<Method, Url, undefined, Response>
@@ -671,6 +775,7 @@ export interface ClientInstance {
     Response extends ZodType = ZodType,
     ReqResult = z.output<Response>,
     Result = unknown,
+    OnMutateResult = unknown,
     Context = unknown,
     UseKey extends true = true,
   >(
@@ -687,21 +792,42 @@ export interface ClientInstance {
       processResponse: ProcessResponseFunction<Result, ReqResult>
       useKey: UseKey
       useContext?: () => Context
+      onMutate?: (
+        variables: Util_FlatObject<
+          MutationArgs<Url, RequestSchema, QuerySchema>
+        >,
+        context: Context & MutationFunctionContext,
+      ) => OnMutateResult | Promise<OnMutateResult>
       onSuccess?: (
-        queryClient: QueryClient,
         data: NoInfer<Result>,
         variables: Util_FlatObject<
           MutationArgs<Url, RequestSchema, QuerySchema>
         >,
-        context: Context,
+        context: Context &
+          MutationFunctionContext & {
+            onMutateResult: OnMutateResult | undefined
+          },
       ) => void | Promise<void>
       onError?: (
-        queryClient: QueryClient,
         error: Error,
         variables: Util_FlatObject<
           MutationArgs<Url, RequestSchema, QuerySchema>
         >,
-        context: Context,
+        context: Context &
+          MutationFunctionContext & {
+            onMutateResult: OnMutateResult | undefined
+          },
+      ) => void | Promise<void>
+      onSettled?: (
+        data: NoInfer<Result> | undefined,
+        error: Error | null,
+        variables: Util_FlatObject<
+          MutationArgs<Url, RequestSchema, QuerySchema>
+        >,
+        context: Context &
+          MutationFunctionContext & {
+            onMutateResult: OnMutateResult | undefined
+          },
       ) => void | Promise<void>
     },
   ): ((
@@ -709,7 +835,8 @@ export interface ClientInstance {
   ) => UseMutationResult<
     Result,
     Error,
-    MutationArgs<Url, RequestSchema, QuerySchema>
+    MutationArgs<Url, RequestSchema, QuerySchema>,
+    OnMutateResult
   >) &
     MutationHelpers<Url, Result> &
     EndpointHelper<Method, Url, RequestSchema, Response, QuerySchema>
@@ -721,6 +848,7 @@ export interface ClientInstance {
     Response extends ZodType = ZodType,
     ReqResult = z.output<Response>,
     Result = unknown,
+    OnMutateResult = unknown,
     Context = unknown,
     UseKey extends true = true,
   >(
@@ -737,17 +865,34 @@ export interface ClientInstance {
       processResponse: ProcessResponseFunction<Result, ReqResult>
       useKey: UseKey
       useContext?: () => Context
+      onMutate?: (
+        variables: Util_FlatObject<MutationArgs<Url, RequestSchema, undefined>>,
+        context: Context & MutationFunctionContext,
+      ) => OnMutateResult | Promise<OnMutateResult>
       onSuccess?: (
-        queryClient: QueryClient,
         data: NoInfer<Result>,
         variables: Util_FlatObject<MutationArgs<Url, RequestSchema, undefined>>,
-        context: Context,
+        context: Context &
+          MutationFunctionContext & {
+            onMutateResult: OnMutateResult | undefined
+          },
       ) => void | Promise<void>
       onError?: (
-        queryClient: QueryClient,
         error: Error,
         variables: Util_FlatObject<MutationArgs<Url, RequestSchema, undefined>>,
-        context: Context,
+        context: Context &
+          MutationFunctionContext & {
+            onMutateResult: OnMutateResult | undefined
+          },
+      ) => void | Promise<void>
+      onSettled?: (
+        data: NoInfer<Result> | undefined,
+        error: Error | null,
+        variables: Util_FlatObject<MutationArgs<Url, RequestSchema, undefined>>,
+        context: Context &
+          MutationFunctionContext & {
+            onMutateResult: OnMutateResult | undefined
+          },
       ) => void | Promise<void>
     },
   ): ((
@@ -755,7 +900,8 @@ export interface ClientInstance {
   ) => UseMutationResult<
     Result,
     Error,
-    MutationArgs<Url, RequestSchema, undefined>
+    MutationArgs<Url, RequestSchema, undefined>,
+    OnMutateResult
   >) &
     MutationHelpers<Url, Result> &
     EndpointHelper<Method, Url, RequestSchema, Response, undefined>
@@ -768,6 +914,7 @@ export interface ClientInstance {
     Response extends ZodType = ZodType,
     ReqResult = z.output<Response>,
     Result = unknown,
+    OnMutateResult = unknown,
     Context = unknown,
   >(
     endpoint: {
@@ -782,27 +929,49 @@ export interface ClientInstance {
     mutationOptions: {
       processResponse: ProcessResponseFunction<Result, ReqResult>
       useContext?: () => Context
+      onMutate?: (
+        variables: Util_FlatObject<
+          MutationArgs<Url, RequestSchema, QuerySchema>
+        >,
+        context: Context & MutationFunctionContext,
+      ) => OnMutateResult | Promise<OnMutateResult>
       onSuccess?: (
-        queryClient: QueryClient,
         data: NoInfer<Result>,
         variables: Util_FlatObject<
           MutationArgs<Url, RequestSchema, QuerySchema>
         >,
-        context: Context,
+        context: Context &
+          MutationFunctionContext & {
+            onMutateResult: OnMutateResult | undefined
+          },
       ) => void | Promise<void>
       onError?: (
-        queryClient: QueryClient,
         error: Error,
         variables: Util_FlatObject<
           MutationArgs<Url, RequestSchema, QuerySchema>
         >,
-        context: Context,
+        context: Context &
+          MutationFunctionContext & {
+            onMutateResult: OnMutateResult | undefined
+          },
+      ) => void | Promise<void>
+      onSettled?: (
+        data: NoInfer<Result> | undefined,
+        error: Error | null,
+        variables: Util_FlatObject<
+          MutationArgs<Url, RequestSchema, QuerySchema>
+        >,
+        context: Context &
+          MutationFunctionContext & {
+            onMutateResult: OnMutateResult | undefined
+          },
       ) => void | Promise<void>
     },
   ): (() => UseMutationResult<
     Result,
     Error,
-    MutationArgs<Url, RequestSchema, QuerySchema>
+    MutationArgs<Url, RequestSchema, QuerySchema>,
+    OnMutateResult
   >) &
     EndpointHelper<Method, Url, RequestSchema, Response, QuerySchema>
 
@@ -813,6 +982,7 @@ export interface ClientInstance {
     Response extends ZodType = ZodType,
     ReqResult = z.output<Response>,
     Result = unknown,
+    OnMutateResult = unknown,
     Context = unknown,
   >(
     endpoint: {
@@ -827,23 +997,41 @@ export interface ClientInstance {
     mutationOptions: {
       processResponse: ProcessResponseFunction<Result, ReqResult>
       useContext?: () => Context
+      onMutate?: (
+        variables: Util_FlatObject<MutationArgs<Url, RequestSchema, undefined>>,
+        context: Context & MutationFunctionContext,
+      ) => OnMutateResult | Promise<OnMutateResult>
       onSuccess?: (
-        queryClient: QueryClient,
         data: NoInfer<Result>,
         variables: Util_FlatObject<MutationArgs<Url, RequestSchema, undefined>>,
-        context: Context,
+        context: Context &
+          MutationFunctionContext & {
+            onMutateResult: OnMutateResult | undefined
+          },
       ) => void | Promise<void>
       onError?: (
-        queryClient: QueryClient,
         error: Error,
         variables: Util_FlatObject<MutationArgs<Url, RequestSchema, undefined>>,
-        context: Context,
+        context: Context &
+          MutationFunctionContext & {
+            onMutateResult: OnMutateResult | undefined
+          },
+      ) => void | Promise<void>
+      onSettled?: (
+        data: NoInfer<Result> | undefined,
+        error: Error | null,
+        variables: Util_FlatObject<MutationArgs<Url, RequestSchema, undefined>>,
+        context: Context &
+          MutationFunctionContext & {
+            onMutateResult: OnMutateResult | undefined
+          },
       ) => void | Promise<void>
     },
   ): (() => UseMutationResult<
     Result,
     Error,
-    MutationArgs<Url, RequestSchema, undefined>
+    MutationArgs<Url, RequestSchema, undefined>,
+    OnMutateResult
   >) &
     EndpointHelper<Method, Url, RequestSchema, Response, undefined>
 
@@ -858,6 +1046,7 @@ export interface ClientInstance {
     Response extends ZodType = ZodType,
     ReqResult = z.output<Response>,
     Result = unknown,
+    OnMutateResult = unknown,
     Context = unknown,
     UseKey extends true = true,
   >(
@@ -868,23 +1057,41 @@ export interface ClientInstance {
       processResponse: ProcessResponseFunction<Result, ReqResult>
       useKey: UseKey
       useContext?: () => Context
+      onMutate?: (
+        variables: Util_FlatObject<MutationArgs<Url, undefined, QuerySchema>>,
+        context: Context & MutationFunctionContext,
+      ) => OnMutateResult | Promise<OnMutateResult>
       onSuccess?: (
-        queryClient: QueryClient,
         data: NoInfer<Result>,
         variables: Util_FlatObject<MutationArgs<Url, undefined, QuerySchema>>,
-        context: Context,
+        context: Context &
+          MutationFunctionContext & {
+            onMutateResult: OnMutateResult | undefined
+          },
       ) => void | Promise<void>
       onError?: (
-        queryClient: QueryClient,
         error: Error,
         variables: Util_FlatObject<MutationArgs<Url, undefined, QuerySchema>>,
-        context: Context,
+        context: Context &
+          MutationFunctionContext & {
+            onMutateResult: OnMutateResult | undefined
+          },
+      ) => void | Promise<void>
+      onSettled?: (
+        data: NoInfer<Result> | undefined,
+        error: Error | null,
+        variables: Util_FlatObject<MutationArgs<Url, undefined, QuerySchema>>,
+        context: Context &
+          MutationFunctionContext & {
+            onMutateResult: OnMutateResult | undefined
+          },
       ) => void | Promise<void>
     },
   ): (() => UseMutationResult<
     Result,
     Error,
-    MutationArgs<Url, undefined, QuerySchema>
+    MutationArgs<Url, undefined, QuerySchema>,
+    OnMutateResult
   >) &
     MutationHelpers<Url, Result> &
     EndpointHelper<Method, Url, undefined, Response, QuerySchema>
@@ -895,6 +1102,7 @@ export interface ClientInstance {
     Response extends ZodType = ZodType,
     ReqResult = z.output<Response>,
     Result = unknown,
+    OnMutateResult = unknown,
     Context = unknown,
     UseKey extends true = true,
   >(
@@ -905,17 +1113,34 @@ export interface ClientInstance {
       processResponse: ProcessResponseFunction<Result, ReqResult>
       useKey: UseKey
       useContext?: () => Context
+      onMutate?: (
+        variables: Util_FlatObject<MutationArgs<Url, undefined, undefined>>,
+        context: Context & MutationFunctionContext,
+      ) => OnMutateResult | Promise<OnMutateResult>
       onSuccess?: (
-        queryClient: QueryClient,
         data: NoInfer<Result>,
         variables: Util_FlatObject<MutationArgs<Url, undefined, undefined>>,
-        context: Context,
+        context: Context &
+          MutationFunctionContext & {
+            onMutateResult: OnMutateResult | undefined
+          },
       ) => void | Promise<void>
       onError?: (
-        queryClient: QueryClient,
         error: Error,
         variables: Util_FlatObject<MutationArgs<Url, undefined, undefined>>,
-        context: Context,
+        context: Context &
+          MutationFunctionContext & {
+            onMutateResult: OnMutateResult | undefined
+          },
+      ) => void | Promise<void>
+      onSettled?: (
+        data: NoInfer<Result> | undefined,
+        error: Error | null,
+        variables: Util_FlatObject<MutationArgs<Url, undefined, undefined>>,
+        context: Context &
+          MutationFunctionContext & {
+            onMutateResult: OnMutateResult | undefined
+          },
       ) => void | Promise<void>
     },
   ): ((
@@ -923,7 +1148,8 @@ export interface ClientInstance {
   ) => UseMutationResult<
     Result,
     Error,
-    MutationArgs<Url, undefined, undefined>
+    MutationArgs<Url, undefined, undefined>,
+    OnMutateResult
   >) &
     MutationHelpers<Url, Result> &
     EndpointHelper<Method, Url, undefined, Response, undefined>
@@ -935,6 +1161,7 @@ export interface ClientInstance {
     Response extends ZodType = ZodType,
     ReqResult = z.output<Response>,
     Result = unknown,
+    OnMutateResult = unknown,
     Context = unknown,
   >(
     endpoint: {
@@ -943,23 +1170,41 @@ export interface ClientInstance {
     mutationOptions: {
       processResponse: ProcessResponseFunction<Result, ReqResult>
       useContext?: () => Context
+      onMutate?: (
+        variables: Util_FlatObject<MutationArgs<Url, undefined, QuerySchema>>,
+        context: Context & MutationFunctionContext,
+      ) => OnMutateResult | Promise<OnMutateResult>
       onSuccess?: (
-        queryClient: QueryClient,
         data: NoInfer<Result>,
         variables: Util_FlatObject<MutationArgs<Url, undefined, QuerySchema>>,
-        context: Context,
+        context: Context &
+          MutationFunctionContext & {
+            onMutateResult: OnMutateResult | undefined
+          },
       ) => void | Promise<void>
       onError?: (
-        queryClient: QueryClient,
         error: Error,
         variables: Util_FlatObject<MutationArgs<Url, undefined, QuerySchema>>,
-        context: Context,
+        context: Context &
+          MutationFunctionContext & {
+            onMutateResult: OnMutateResult | undefined
+          },
+      ) => void | Promise<void>
+      onSettled?: (
+        data: NoInfer<Result> | undefined,
+        error: Error | null,
+        variables: Util_FlatObject<MutationArgs<Url, undefined, QuerySchema>>,
+        context: Context &
+          MutationFunctionContext & {
+            onMutateResult: OnMutateResult | undefined
+          },
       ) => void | Promise<void>
     },
   ): (() => UseMutationResult<
     Result,
     Error,
-    MutationArgs<Url, undefined, QuerySchema>
+    MutationArgs<Url, undefined, QuerySchema>,
+    OnMutateResult
   >) &
     EndpointHelper<Method, Url, undefined, Response, QuerySchema>
 
@@ -969,6 +1214,7 @@ export interface ClientInstance {
     Response extends ZodType = ZodType,
     ReqResult = z.output<Response>,
     Result = unknown,
+    OnMutateResult = unknown,
     Context = unknown,
   >(
     endpoint: {
@@ -977,23 +1223,41 @@ export interface ClientInstance {
     mutationOptions: {
       processResponse: ProcessResponseFunction<Result, ReqResult>
       useContext?: () => Context
+      onMutate?: (
+        variables: Util_FlatObject<MutationArgs<Url, undefined, undefined>>,
+        context: Context & MutationFunctionContext,
+      ) => OnMutateResult | Promise<OnMutateResult>
       onSuccess?: (
-        queryClient: QueryClient,
         data: NoInfer<Result>,
         variables: Util_FlatObject<MutationArgs<Url, undefined, undefined>>,
-        context: Context,
+        context: Context &
+          MutationFunctionContext & {
+            onMutateResult: OnMutateResult | undefined
+          },
       ) => void | Promise<void>
       onError?: (
-        queryClient: QueryClient,
         error: Error,
         variables: Util_FlatObject<MutationArgs<Url, undefined, undefined>>,
-        context: Context,
+        context: Context &
+          MutationFunctionContext & {
+            onMutateResult: OnMutateResult | undefined
+          },
+      ) => void | Promise<void>
+      onSettled?: (
+        data: NoInfer<Result> | undefined,
+        error: Error | null,
+        variables: Util_FlatObject<MutationArgs<Url, undefined, undefined>>,
+        context: Context &
+          MutationFunctionContext & {
+            onMutateResult: OnMutateResult | undefined
+          },
       ) => void | Promise<void>
     },
   ): (() => UseMutationResult<
     Result,
     Error,
-    MutationArgs<Url, undefined, undefined>
+    MutationArgs<Url, undefined, undefined>,
+    OnMutateResult
   >) &
     EndpointHelper<Method, Url, undefined, Response, undefined>
 
@@ -1009,6 +1273,7 @@ export interface ClientInstance {
     Response extends ZodType = ZodType,
     ReqResult = z.output<Response>,
     Result = unknown,
+    OnMutateResult = unknown,
     Context = unknown,
     UseKey extends true = true,
   >(config: {
@@ -1020,24 +1285,36 @@ export interface ClientInstance {
     responseSchema: Response
     processResponse: ProcessResponseFunction<Result, ReqResult>
     useContext?: () => Context
+    onMutate?: (
+      variables: Util_FlatObject<MutationArgs<Url, RequestSchema, QuerySchema>>,
+      context: Context & MutationFunctionContext,
+    ) => OnMutateResult | Promise<OnMutateResult>
     onSuccess?: (
-      queryClient: QueryClient,
       data: NoInfer<Result>,
       variables: Util_FlatObject<MutationArgs<Url, RequestSchema, QuerySchema>>,
-      context: Context,
+      context: Context &
+        MutationFunctionContext & { onMutateResult: OnMutateResult | undefined },
     ) => void | Promise<void>
     onError?: (
-      queryClient: QueryClient,
       error: Error,
       variables: Util_FlatObject<MutationArgs<Url, RequestSchema, QuerySchema>>,
-      context: Context,
+      context: Context &
+        MutationFunctionContext & { onMutateResult: OnMutateResult | undefined },
+    ) => void | Promise<void>
+    onSettled?: (
+      data: NoInfer<Result> | undefined,
+      error: Error | null,
+      variables: Util_FlatObject<MutationArgs<Url, RequestSchema, QuerySchema>>,
+      context: Context &
+        MutationFunctionContext & { onMutateResult: OnMutateResult | undefined },
     ) => void | Promise<void>
   }): ((
     params: UrlHasParams<Url> extends true ? { urlParams: UrlParams<Url> } : {},
   ) => UseMutationResult<
     Result,
     Error,
-    MutationArgs<Url, RequestSchema, QuerySchema>
+    MutationArgs<Url, RequestSchema, QuerySchema>,
+    OnMutateResult
   >) &
     MutationHelpers<Url, Result> &
     EndpointHelper<Method, Url, RequestSchema, Response, QuerySchema>
@@ -1050,6 +1327,7 @@ export interface ClientInstance {
     Response extends ZodType = ZodType,
     ReqResult = z.output<Response>,
     Result = unknown,
+    OnMutateResult = unknown,
     Context = unknown,
   >(config: {
     method: Method
@@ -1059,22 +1337,34 @@ export interface ClientInstance {
     responseSchema: Response
     processResponse: ProcessResponseFunction<Result, ReqResult>
     useContext?: () => Context
+    onMutate?: (
+      variables: Util_FlatObject<MutationArgs<Url, RequestSchema, QuerySchema>>,
+      context: Context & MutationFunctionContext,
+    ) => OnMutateResult | Promise<OnMutateResult>
     onSuccess?: (
-      queryClient: QueryClient,
       data: NoInfer<Result>,
       variables: Util_FlatObject<MutationArgs<Url, RequestSchema, QuerySchema>>,
-      context: Context,
+      context: Context &
+        MutationFunctionContext & { onMutateResult: OnMutateResult | undefined },
     ) => void | Promise<void>
     onError?: (
-      queryClient: QueryClient,
       error: Error,
       variables: Util_FlatObject<MutationArgs<Url, RequestSchema, QuerySchema>>,
-      context: Context,
+      context: Context &
+        MutationFunctionContext & { onMutateResult: OnMutateResult | undefined },
+    ) => void | Promise<void>
+    onSettled?: (
+      data: NoInfer<Result> | undefined,
+      error: Error | null,
+      variables: Util_FlatObject<MutationArgs<Url, RequestSchema, QuerySchema>>,
+      context: Context &
+        MutationFunctionContext & { onMutateResult: OnMutateResult | undefined },
     ) => void | Promise<void>
   }): (() => UseMutationResult<
     Result,
     Error,
-    MutationArgs<Url, RequestSchema, QuerySchema>
+    MutationArgs<Url, RequestSchema, QuerySchema>,
+    OnMutateResult
   >) &
     MutationHelpers<Url, Result> &
     EndpointHelper<Method, Url, RequestSchema, Response, QuerySchema>
@@ -1086,6 +1376,7 @@ export interface ClientInstance {
     Response extends ZodType = ZodType,
     ReqResult = z.output<Response>,
     Result = unknown,
+    OnMutateResult = unknown,
     Context = unknown,
   >(config: {
     method: Method
@@ -1094,22 +1385,34 @@ export interface ClientInstance {
     responseSchema: Response
     processResponse: ProcessResponseFunction<Result, ReqResult>
     useContext?: () => Context
+    onMutate?: (
+      variables: Util_FlatObject<MutationArgs<Url, RequestSchema, undefined>>,
+      context: Context & MutationFunctionContext,
+    ) => OnMutateResult | Promise<OnMutateResult>
     onSuccess?: (
-      queryClient: QueryClient,
       data: NoInfer<Result>,
       variables: Util_FlatObject<MutationArgs<Url, RequestSchema, undefined>>,
-      context: Context,
+      context: Context &
+        MutationFunctionContext & { onMutateResult: OnMutateResult | undefined },
     ) => void | Promise<void>
     onError?: (
-      queryClient: QueryClient,
       error: Error,
       variables: Util_FlatObject<MutationArgs<Url, RequestSchema, undefined>>,
-      context: Context,
+      context: Context &
+        MutationFunctionContext & { onMutateResult: OnMutateResult | undefined },
+    ) => void | Promise<void>
+    onSettled?: (
+      data: NoInfer<Result> | undefined,
+      error: Error | null,
+      variables: Util_FlatObject<MutationArgs<Url, RequestSchema, undefined>>,
+      context: Context &
+        MutationFunctionContext & { onMutateResult: OnMutateResult | undefined },
     ) => void | Promise<void>
   }): (() => UseMutationResult<
     Result,
     Error,
-    MutationArgs<Url, RequestSchema, undefined>
+    MutationArgs<Url, RequestSchema, undefined>,
+    OnMutateResult
   >) &
     MutationHelpers<Url, Result> &
     EndpointHelper<Method, Url, RequestSchema, Response>
@@ -1121,6 +1424,7 @@ export interface ClientInstance {
     Response extends ZodType = ZodType,
     ReqResult = z.output<Response>,
     Result = unknown,
+    OnMutateResult = unknown,
     Context = unknown,
     UseKey extends true = true,
   >(config: {
@@ -1131,24 +1435,36 @@ export interface ClientInstance {
     responseSchema: Response
     processResponse: ProcessResponseFunction<Result, ReqResult>
     useContext?: () => Context
+    onMutate?: (
+      variables: Util_FlatObject<MutationArgs<Url, RequestSchema, undefined>>,
+      context: Context & MutationFunctionContext,
+    ) => OnMutateResult | Promise<OnMutateResult>
     onSuccess?: (
-      queryClient: QueryClient,
       data: NoInfer<Result>,
       variables: Util_FlatObject<MutationArgs<Url, RequestSchema, undefined>>,
-      context: Context,
+      context: Context &
+        MutationFunctionContext & { onMutateResult: OnMutateResult | undefined },
     ) => void | Promise<void>
     onError?: (
-      queryClient: QueryClient,
       error: Error,
       variables: Util_FlatObject<MutationArgs<Url, RequestSchema, undefined>>,
-      context: Context,
+      context: Context &
+        MutationFunctionContext & { onMutateResult: OnMutateResult | undefined },
+    ) => void | Promise<void>
+    onSettled?: (
+      data: NoInfer<Result> | undefined,
+      error: Error | null,
+      variables: Util_FlatObject<MutationArgs<Url, RequestSchema, undefined>>,
+      context: Context &
+        MutationFunctionContext & { onMutateResult: OnMutateResult | undefined },
     ) => void | Promise<void>
   }): ((
     params: UrlHasParams<Url> extends true ? { urlParams: UrlParams<Url> } : {},
   ) => UseMutationResult<
     Result,
     Error,
-    MutationArgs<Url, RequestSchema, undefined>
+    MutationArgs<Url, RequestSchema, undefined>,
+    OnMutateResult
   >) &
     MutationHelpers<Url, Result> &
     EndpointHelper<Method, Url, RequestSchema, Response>
@@ -1164,6 +1480,7 @@ export interface ClientInstance {
     RequestSchema extends ZodType = ZodType,
     QuerySchema extends ZodObject = ZodObject,
     Result = Blob,
+    OnMutateResult = unknown,
     Context = unknown,
     UseKey extends true = true,
   >(
@@ -1174,21 +1491,42 @@ export interface ClientInstance {
       processResponse?: ProcessResponseFunction<Result, Blob>
       useKey: UseKey
       useContext?: () => Context
+      onMutate?: (
+        variables: Util_FlatObject<
+          MutationArgs<Url, RequestSchema, QuerySchema>
+        >,
+        context: Context & MutationFunctionContext,
+      ) => OnMutateResult | Promise<OnMutateResult>
       onSuccess?: (
-        queryClient: QueryClient,
         data: NoInfer<Result>,
         variables: Util_FlatObject<
           MutationArgs<Url, RequestSchema, QuerySchema>
         >,
-        context: Context,
+        context: Context &
+          MutationFunctionContext & {
+            onMutateResult: OnMutateResult | undefined
+          },
       ) => void | Promise<void>
       onError?: (
-        queryClient: QueryClient,
         error: Error,
         variables: Util_FlatObject<
           MutationArgs<Url, RequestSchema, QuerySchema>
         >,
-        context: Context,
+        context: Context &
+          MutationFunctionContext & {
+            onMutateResult: OnMutateResult | undefined
+          },
+      ) => void | Promise<void>
+      onSettled?: (
+        data: NoInfer<Result> | undefined,
+        error: Error | null,
+        variables: Util_FlatObject<
+          MutationArgs<Url, RequestSchema, QuerySchema>
+        >,
+        context: Context &
+          MutationFunctionContext & {
+            onMutateResult: OnMutateResult | undefined
+          },
       ) => void | Promise<void>
     },
   ): ((
@@ -1196,7 +1534,8 @@ export interface ClientInstance {
   ) => UseMutationResult<
     Result,
     Error,
-    MutationArgs<Url, RequestSchema, QuerySchema>
+    MutationArgs<Url, RequestSchema, QuerySchema>,
+    OnMutateResult
   >) &
     MutationHelpers<Url, Result> &
     StreamHelper<Method, Url, RequestSchema, QuerySchema>
@@ -1208,6 +1547,7 @@ export interface ClientInstance {
     RequestSchema extends ZodType = ZodType,
     QuerySchema extends ZodObject = ZodObject,
     Result = Blob,
+    OnMutateResult = unknown,
     Context = unknown,
   >(
     endpoint: {
@@ -1216,27 +1556,49 @@ export interface ClientInstance {
     mutationOptions?: {
       processResponse?: ProcessResponseFunction<Result, Blob>
       useContext?: () => Context
+      onMutate?: (
+        variables: Util_FlatObject<
+          MutationArgs<Url, RequestSchema, QuerySchema>
+        >,
+        context: Context & MutationFunctionContext,
+      ) => OnMutateResult | Promise<OnMutateResult>
       onSuccess?: (
-        queryClient: QueryClient,
         data: NoInfer<Result>,
         variables: Util_FlatObject<
           MutationArgs<Url, RequestSchema, QuerySchema>
         >,
-        context: Context,
+        context: Context &
+          MutationFunctionContext & {
+            onMutateResult: OnMutateResult | undefined
+          },
       ) => void | Promise<void>
       onError?: (
-        queryClient: QueryClient,
         error: Error,
         variables: Util_FlatObject<
           MutationArgs<Url, RequestSchema, QuerySchema>
         >,
-        context: Context,
+        context: Context &
+          MutationFunctionContext & {
+            onMutateResult: OnMutateResult | undefined
+          },
+      ) => void | Promise<void>
+      onSettled?: (
+        data: NoInfer<Result> | undefined,
+        error: Error | null,
+        variables: Util_FlatObject<
+          MutationArgs<Url, RequestSchema, QuerySchema>
+        >,
+        context: Context &
+          MutationFunctionContext & {
+            onMutateResult: OnMutateResult | undefined
+          },
       ) => void | Promise<void>
     },
   ): (() => UseMutationResult<
     Result,
     Error,
-    MutationArgs<Url, RequestSchema, QuerySchema>
+    MutationArgs<Url, RequestSchema, QuerySchema>,
+    OnMutateResult
   >) &
     StreamHelper<Method, Url, RequestSchema, QuerySchema>
 
@@ -1246,6 +1608,7 @@ export interface ClientInstance {
     Url extends string = string,
     RequestSchema extends ZodType = ZodType,
     Result = Blob,
+    OnMutateResult = unknown,
     Context = unknown,
     UseKey extends true = true,
   >(
@@ -1256,17 +1619,34 @@ export interface ClientInstance {
       processResponse?: ProcessResponseFunction<Result, Blob>
       useKey: UseKey
       useContext?: () => Context
+      onMutate?: (
+        variables: Util_FlatObject<MutationArgs<Url, RequestSchema, undefined>>,
+        context: Context & MutationFunctionContext,
+      ) => OnMutateResult | Promise<OnMutateResult>
       onSuccess?: (
-        queryClient: QueryClient,
         data: NoInfer<Result>,
         variables: Util_FlatObject<MutationArgs<Url, RequestSchema, undefined>>,
-        context: Context,
+        context: Context &
+          MutationFunctionContext & {
+            onMutateResult: OnMutateResult | undefined
+          },
       ) => void | Promise<void>
       onError?: (
-        queryClient: QueryClient,
         error: Error,
         variables: Util_FlatObject<MutationArgs<Url, RequestSchema, undefined>>,
-        context: Context,
+        context: Context &
+          MutationFunctionContext & {
+            onMutateResult: OnMutateResult | undefined
+          },
+      ) => void | Promise<void>
+      onSettled?: (
+        data: NoInfer<Result> | undefined,
+        error: Error | null,
+        variables: Util_FlatObject<MutationArgs<Url, RequestSchema, undefined>>,
+        context: Context &
+          MutationFunctionContext & {
+            onMutateResult: OnMutateResult | undefined
+          },
       ) => void | Promise<void>
     },
   ): ((
@@ -1274,7 +1654,8 @@ export interface ClientInstance {
   ) => UseMutationResult<
     Result,
     Error,
-    MutationArgs<Url, RequestSchema, undefined>
+    MutationArgs<Url, RequestSchema, undefined>,
+    OnMutateResult
   >) &
     MutationHelpers<Url, Result> &
     StreamHelper<Method, Url, RequestSchema, undefined>
@@ -1285,6 +1666,7 @@ export interface ClientInstance {
     Url extends string = string,
     RequestSchema extends ZodType = ZodType,
     Result = Blob,
+    OnMutateResult = unknown,
     Context = unknown,
   >(
     endpoint: {
@@ -1293,23 +1675,41 @@ export interface ClientInstance {
     mutationOptions?: {
       processResponse?: ProcessResponseFunction<Result, Blob>
       useContext?: () => Context
+      onMutate?: (
+        variables: Util_FlatObject<MutationArgs<Url, RequestSchema, undefined>>,
+        context: Context & MutationFunctionContext,
+      ) => OnMutateResult | Promise<OnMutateResult>
       onSuccess?: (
-        queryClient: QueryClient,
         data: NoInfer<Result>,
         variables: Util_FlatObject<MutationArgs<Url, RequestSchema, undefined>>,
-        context: Context,
+        context: Context &
+          MutationFunctionContext & {
+            onMutateResult: OnMutateResult | undefined
+          },
       ) => void | Promise<void>
       onError?: (
-        queryClient: QueryClient,
         error: Error,
         variables: Util_FlatObject<MutationArgs<Url, RequestSchema, undefined>>,
-        context: Context,
+        context: Context &
+          MutationFunctionContext & {
+            onMutateResult: OnMutateResult | undefined
+          },
+      ) => void | Promise<void>
+      onSettled?: (
+        data: NoInfer<Result> | undefined,
+        error: Error | null,
+        variables: Util_FlatObject<MutationArgs<Url, RequestSchema, undefined>>,
+        context: Context &
+          MutationFunctionContext & {
+            onMutateResult: OnMutateResult | undefined
+          },
       ) => void | Promise<void>
     },
   ): (() => UseMutationResult<
     Result,
     Error,
-    MutationArgs<Url, RequestSchema, undefined>
+    MutationArgs<Url, RequestSchema, undefined>,
+    OnMutateResult
   >) &
     StreamHelper<Method, Url, RequestSchema, undefined>
 
@@ -1319,6 +1719,7 @@ export interface ClientInstance {
     Url extends string = string,
     QuerySchema extends ZodObject = ZodObject,
     Result = Blob,
+    OnMutateResult = unknown,
     Context = unknown,
     UseKey extends true = true,
   >(
@@ -1329,17 +1730,34 @@ export interface ClientInstance {
       processResponse?: ProcessResponseFunction<Result, Blob>
       useKey: UseKey
       useContext?: () => Context
+      onMutate?: (
+        variables: Util_FlatObject<MutationArgs<Url, undefined, QuerySchema>>,
+        context: Context & MutationFunctionContext,
+      ) => OnMutateResult | Promise<OnMutateResult>
       onSuccess?: (
-        queryClient: QueryClient,
         data: NoInfer<Result>,
         variables: Util_FlatObject<MutationArgs<Url, undefined, QuerySchema>>,
-        context: Context,
+        context: Context &
+          MutationFunctionContext & {
+            onMutateResult: OnMutateResult | undefined
+          },
       ) => void | Promise<void>
       onError?: (
-        queryClient: QueryClient,
         error: Error,
         variables: Util_FlatObject<MutationArgs<Url, undefined, QuerySchema>>,
-        context: Context,
+        context: Context &
+          MutationFunctionContext & {
+            onMutateResult: OnMutateResult | undefined
+          },
+      ) => void | Promise<void>
+      onSettled?: (
+        data: NoInfer<Result> | undefined,
+        error: Error | null,
+        variables: Util_FlatObject<MutationArgs<Url, undefined, QuerySchema>>,
+        context: Context &
+          MutationFunctionContext & {
+            onMutateResult: OnMutateResult | undefined
+          },
       ) => void | Promise<void>
     },
   ): ((
@@ -1347,7 +1765,8 @@ export interface ClientInstance {
   ) => UseMutationResult<
     Result,
     Error,
-    MutationArgs<Url, undefined, QuerySchema>
+    MutationArgs<Url, undefined, QuerySchema>,
+    OnMutateResult
   >) &
     MutationHelpers<Url, Result> &
     StreamHelper<Method, Url, undefined, QuerySchema>
@@ -1358,6 +1777,7 @@ export interface ClientInstance {
     Url extends string = string,
     QuerySchema extends ZodObject = ZodObject,
     Result = Blob,
+    OnMutateResult = unknown,
     Context = unknown,
   >(
     endpoint: {
@@ -1366,23 +1786,41 @@ export interface ClientInstance {
     mutationOptions?: {
       processResponse?: ProcessResponseFunction<Result, Blob>
       useContext?: () => Context
+      onMutate?: (
+        variables: Util_FlatObject<MutationArgs<Url, undefined, QuerySchema>>,
+        context: Context & MutationFunctionContext,
+      ) => OnMutateResult | Promise<OnMutateResult>
       onSuccess?: (
-        queryClient: QueryClient,
         data: NoInfer<Result>,
         variables: Util_FlatObject<MutationArgs<Url, undefined, QuerySchema>>,
-        context: Context,
+        context: Context &
+          MutationFunctionContext & {
+            onMutateResult: OnMutateResult | undefined
+          },
       ) => void | Promise<void>
       onError?: (
-        queryClient: QueryClient,
         error: Error,
         variables: Util_FlatObject<MutationArgs<Url, undefined, QuerySchema>>,
-        context: Context,
+        context: Context &
+          MutationFunctionContext & {
+            onMutateResult: OnMutateResult | undefined
+          },
+      ) => void | Promise<void>
+      onSettled?: (
+        data: NoInfer<Result> | undefined,
+        error: Error | null,
+        variables: Util_FlatObject<MutationArgs<Url, undefined, QuerySchema>>,
+        context: Context &
+          MutationFunctionContext & {
+            onMutateResult: OnMutateResult | undefined
+          },
       ) => void | Promise<void>
     },
   ): (() => UseMutationResult<
     Result,
     Error,
-    MutationArgs<Url, undefined, QuerySchema>
+    MutationArgs<Url, undefined, QuerySchema>,
+    OnMutateResult
   >) &
     StreamHelper<Method, Url, undefined, QuerySchema>
 
@@ -1391,6 +1829,7 @@ export interface ClientInstance {
     Method extends 'GET' | 'DELETE' | 'OPTIONS' | 'HEAD' = 'GET',
     Url extends string = string,
     Result = Blob,
+    OnMutateResult = unknown,
     Context = unknown,
     UseKey extends true = true,
   >(
@@ -1401,17 +1840,34 @@ export interface ClientInstance {
       processResponse?: ProcessResponseFunction<Result, Blob>
       useKey: UseKey
       useContext?: () => Context
+      onMutate?: (
+        variables: Util_FlatObject<MutationArgs<Url, undefined, undefined>>,
+        context: Context & MutationFunctionContext,
+      ) => OnMutateResult | Promise<OnMutateResult>
       onSuccess?: (
-        queryClient: QueryClient,
         data: NoInfer<Result>,
         variables: Util_FlatObject<MutationArgs<Url, undefined, undefined>>,
-        context: Context,
+        context: Context &
+          MutationFunctionContext & {
+            onMutateResult: OnMutateResult | undefined
+          },
       ) => void | Promise<void>
       onError?: (
-        queryClient: QueryClient,
         error: Error,
         variables: Util_FlatObject<MutationArgs<Url, undefined, undefined>>,
-        context: Context,
+        context: Context &
+          MutationFunctionContext & {
+            onMutateResult: OnMutateResult | undefined
+          },
+      ) => void | Promise<void>
+      onSettled?: (
+        data: NoInfer<Result> | undefined,
+        error: Error | null,
+        variables: Util_FlatObject<MutationArgs<Url, undefined, undefined>>,
+        context: Context &
+          MutationFunctionContext & {
+            onMutateResult: OnMutateResult | undefined
+          },
       ) => void | Promise<void>
     },
   ): ((
@@ -1419,7 +1875,8 @@ export interface ClientInstance {
   ) => UseMutationResult<
     Result,
     Error,
-    MutationArgs<Url, undefined, undefined>
+    MutationArgs<Url, undefined, undefined>,
+    OnMutateResult
   >) &
     MutationHelpers<Url, Result> &
     StreamHelper<Method, Url, undefined, undefined>
@@ -1429,6 +1886,7 @@ export interface ClientInstance {
     Method extends 'GET' | 'DELETE' | 'OPTIONS' | 'HEAD' = 'GET',
     Url extends string = string,
     Result = Blob,
+    OnMutateResult = unknown,
     Context = unknown,
   >(
     endpoint: {
@@ -1437,23 +1895,41 @@ export interface ClientInstance {
     mutationOptions?: {
       processResponse?: ProcessResponseFunction<Result, Blob>
       useContext?: () => Context
+      onMutate?: (
+        variables: Util_FlatObject<MutationArgs<Url, undefined, undefined>>,
+        context: Context & MutationFunctionContext,
+      ) => OnMutateResult | Promise<OnMutateResult>
       onSuccess?: (
-        queryClient: QueryClient,
         data: NoInfer<Result>,
         variables: Util_FlatObject<MutationArgs<Url, undefined, undefined>>,
-        context: Context,
+        context: Context &
+          MutationFunctionContext & {
+            onMutateResult: OnMutateResult | undefined
+          },
       ) => void | Promise<void>
       onError?: (
-        queryClient: QueryClient,
         error: Error,
         variables: Util_FlatObject<MutationArgs<Url, undefined, undefined>>,
-        context: Context,
+        context: Context &
+          MutationFunctionContext & {
+            onMutateResult: OnMutateResult | undefined
+          },
+      ) => void | Promise<void>
+      onSettled?: (
+        data: NoInfer<Result> | undefined,
+        error: Error | null,
+        variables: Util_FlatObject<MutationArgs<Url, undefined, undefined>>,
+        context: Context &
+          MutationFunctionContext & {
+            onMutateResult: OnMutateResult | undefined
+          },
       ) => void | Promise<void>
     },
   ): (() => UseMutationResult<
     Result,
     Error,
-    MutationArgs<Url, undefined, undefined>
+    MutationArgs<Url, undefined, undefined>,
+    OnMutateResult
   >) &
     StreamHelper<Method, Url, undefined, undefined>
 }

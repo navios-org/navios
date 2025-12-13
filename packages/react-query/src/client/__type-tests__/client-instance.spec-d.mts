@@ -758,7 +758,7 @@ describe('mutationFromEndpoint() with stream endpoints', () => {
 
   test('stream mutation with onSuccess callback', () => {
     const mutation = client.mutationFromEndpoint(streamEndpointGet, {
-      onSuccess: (_queryClient, data, variables) => {
+      onSuccess: (data, variables) => {
         // data should be Blob
         assertType<Blob>(data)
         // variables should have urlParams
@@ -778,7 +778,7 @@ describe('mutationFromEndpoint() with stream endpoints', () => {
   test('stream mutation with custom processResponse and onSuccess', () => {
     const mutation = client.mutationFromEndpoint(streamEndpointGet, {
       processResponse: (blob) => ({ url: URL.createObjectURL(blob), size: blob.size }),
-      onSuccess: (_queryClient, data) => {
+      onSuccess: (data) => {
         // data should be the transformed type
         assertType<{ url: string; size: number }>(data)
       },
