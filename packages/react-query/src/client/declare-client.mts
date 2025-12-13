@@ -2,48 +2,54 @@ import type {
   AbstractEndpoint,
   AnyEndpointConfig,
   HttpMethod,
-  Util_FlatObject,
 } from '@navios/builder'
 import type { InfiniteData, QueryClient } from '@tanstack/react-query'
 import type { z, ZodObject, ZodType } from 'zod/v4'
 
-import type { ClientOptions, ProcessResponseFunction } from './types.mjs'
-import type { ClientInstance, ClientMutationArgs } from './types/index.mjs'
+import type { ClientOptions, ProcessResponseFunction } from '../common/types.mjs'
+import type { MutationArgs } from '../mutation/types.mjs'
+import type { ClientInstance } from './types.mjs'
 
-import { makeInfiniteQueryOptions } from './make-infinite-query-options.mjs'
-import { makeMutation } from './make-mutation.mjs'
-import { makeQueryOptions } from './make-query-options.mjs'
+import { makeMutation } from '../mutation/make-hook.mjs'
+import { makeInfiniteQueryOptions } from '../query/make-infinite-options.mjs'
+import { makeQueryOptions } from '../query/make-options.mjs'
 
-export interface ClientEndpointDefinition<
-  Method = HttpMethod,
-  Url = string,
-  QuerySchema = unknown,
-  Response = ZodType,
-> {
-  method: Method
-  url: Url
-  querySchema?: QuerySchema
-  responseSchema: Response
-}
-
-export interface ClientQueryConfig<
+/**
+ * Configuration for declaring a query endpoint.
+ */
+export interface QueryConfig<
   Method = HttpMethod,
   Url = string,
   QuerySchema = ZodObject,
   Response extends ZodType = ZodType,
   Result = z.output<Response>,
-> extends ClientEndpointDefinition<Method, Url, QuerySchema, Response> {
+  RequestSchema = unknown,
+> {
+  method: Method
+  url: Url
+  querySchema?: QuerySchema
+  responseSchema: Response
+  requestSchema?: RequestSchema
   processResponse?: (data: z.output<Response>) => Result
 }
 
-export type ClientInfiniteQueryConfig<
+/**
+ * Configuration for declaring an infinite query endpoint.
+ */
+export type InfiniteQueryConfig<
   Method = HttpMethod,
   Url = string,
   QuerySchema extends ZodObject = ZodObject,
   Response extends ZodType = ZodType,
   PageResult = z.output<Response>,
   Result = InfiniteData<PageResult>,
-> = Required<ClientEndpointDefinition<Method, Url, QuerySchema, Response>> & {
+  RequestSchema = unknown,
+> = {
+  method: Method
+  url: Url
+  querySchema: QuerySchema
+  responseSchema: Response
+  requestSchema?: RequestSchema
   processResponse?: (data: z.output<Response>) => PageResult
   select?: (data: InfiniteData<PageResult>) => Result
   getNextPageParam: (
@@ -61,7 +67,10 @@ export type ClientInfiniteQueryConfig<
   initialPageParam?: z.input<QuerySchema>
 }
 
-export interface ClientMutationDataConfig<
+/**
+ * Configuration for declaring a mutation endpoint.
+ */
+export interface MutationConfig<
   Method extends 'POST' | 'PUT' | 'PATCH' | 'DELETE' =
     | 'POST'
     | 'PUT'
@@ -75,39 +84,61 @@ export interface ClientMutationDataConfig<
   Result = unknown,
   Context = unknown,
   UseKey extends boolean = false,
-> extends ClientEndpointDefinition<Method, Url, QuerySchema, Response> {
+> {
+  method: Method
+  url: Url
+  querySchema?: QuerySchema
+  responseSchema: Response
   requestSchema?: RequestSchema
   processResponse: ProcessResponseFunction<Result, ReqResult>
   useContext?: () => Context
   onSuccess?: (
     queryClient: QueryClient,
     data: NoInfer<Result>,
-    variables: Util_FlatObject<
-      ClientMutationArgs<Url, RequestSchema, QuerySchema>
-    >,
+    variables: MutationArgs<Url, RequestSchema, QuerySchema>,
     context: Context,
   ) => void | Promise<void>
   onError?: (
     queryClient: QueryClient,
     error: Error,
-    variables: Util_FlatObject<
-      ClientMutationArgs<Url, RequestSchema, QuerySchema>
-    >,
+    variables: MutationArgs<Url, RequestSchema, QuerySchema>,
     context: Context,
   ) => void | Promise<void>
   useKey?: UseKey
 }
 
+/**
+ * Creates a client instance for making type-safe queries and mutations.
+ *
+ * @param options - Client configuration including the API builder and defaults
+ * @returns A client instance with query, infiniteQuery, and mutation methods
+ *
+ * @example
+ * ```typescript
+ * const api = createBuilder({ baseUrl: '/api' });
+ * const client = declareClient({ api });
+ *
+ * const getUser = client.query({
+ *   method: 'GET',
+ *   url: '/users/$id',
+ *   responseSchema: UserSchema,
+ * });
+ *
+ * // In a component
+ * const { data } = useSuspenseQuery(getUser({ urlParams: { id: '123' } }));
+ * ```
+ */
 export function declareClient<Options extends ClientOptions>({
   api,
   defaults = {},
 }: Options): ClientInstance {
-  function query(config: ClientQueryConfig) {
+  function query(config: QueryConfig) {
     const endpoint = api.declareEndpoint({
       // @ts-expect-error we accept only specific methods
       method: config.method,
       url: config.url,
       querySchema: config.querySchema,
+      requestSchema: config.requestSchema,
       responseSchema: config.responseSchema,
     })
 
@@ -134,12 +165,13 @@ export function declareClient<Options extends ClientOptions>({
     })
   }
 
-  function infiniteQuery(config: ClientInfiniteQueryConfig) {
+  function infiniteQuery(config: InfiniteQueryConfig) {
     const endpoint = api.declareEndpoint({
       // @ts-expect-error we accept only specific methods
       method: config.method,
       url: config.url,
       querySchema: config.querySchema,
+      requestSchema: config.requestSchema,
       responseSchema: config.responseSchema,
     })
     const infiniteQueryOptions = makeInfiniteQueryOptions(endpoint, {
@@ -185,7 +217,7 @@ export function declareClient<Options extends ClientOptions>({
     })
   }
 
-  function mutation(config: ClientMutationDataConfig) {
+  function mutation(config: MutationConfig) {
     const endpoint = api.declareEndpoint({
       // @ts-expect-error We forgot about the DELETE method in original makeMutation
       method: config.method,
@@ -219,13 +251,13 @@ export function declareClient<Options extends ClientOptions>({
       onSuccess?: (
         queryClient: QueryClient,
         data: unknown,
-        variables: Util_FlatObject<ClientMutationArgs>,
+        variables: MutationArgs,
         context: unknown,
       ) => void | Promise<void>
       onError?: (
         queryClient: QueryClient,
         error: Error,
-        variables: Util_FlatObject<ClientMutationArgs>,
+        variables: MutationArgs,
         context: unknown,
       ) => void | Promise<void>
     },
@@ -238,6 +270,32 @@ export function declareClient<Options extends ClientOptions>({
       onError: options.onError,
       ...defaults,
     })
+  }
+
+  function multipartMutation(config: MutationConfig) {
+    const endpoint = api.declareMultipart({
+      // @ts-expect-error we accept only specific methods
+      method: config.method,
+      url: config.url,
+      querySchema: config.querySchema,
+      requestSchema: config.requestSchema,
+      responseSchema: config.responseSchema,
+    })
+
+    const useMutation = makeMutation(endpoint, {
+      processResponse: config.processResponse ?? ((data) => data),
+      useContext: config.useContext,
+      // @ts-expect-error We forgot about the DELETE method in original makeMutation
+      onSuccess: config.onSuccess,
+      // @ts-expect-error We forgot about the DELETE method in original makeMutation
+      onError: config.onError,
+      useKey: config.useKey,
+      ...defaults,
+    })
+
+    // @ts-expect-error We attach the endpoint to the useMutation
+    useMutation.endpoint = endpoint
+    return useMutation
   }
 
   return {
@@ -253,5 +311,7 @@ export function declareClient<Options extends ClientOptions>({
     mutation,
     // @ts-expect-error We simplified types here
     mutationFromEndpoint,
+    // @ts-expect-error We simplified types here
+    multipartMutation,
   }
 }

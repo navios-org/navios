@@ -8,22 +8,25 @@ import type {
 
 import { queryOptions, useQuery, useSuspenseQuery } from '@tanstack/react-query'
 
-import type { BaseQueryArgs, BaseQueryParams } from './types.mjs'
-import type { ClientQueryArgs } from './types/index.mjs'
+import type { Split } from '../common/types.mjs'
+import type { QueryArgs, QueryParams } from './types.mjs'
 
-import { queryKeyCreator } from './utils/query-key-creator.mjs'
+import { createQueryKey } from './key-creator.mjs'
 
-type Split<S extends string, D extends string> = string extends S
-  ? string[]
-  : S extends ''
-    ? []
-    : S extends `${infer T}${D}${infer U}`
-      ? [T, ...Split<U, D>]
-      : [S]
-
+/**
+ * Creates query options for a given endpoint.
+ *
+ * Returns a function that generates TanStack Query options when called with params.
+ * The returned function also has helper methods attached (use, useSuspense, invalidate, etc.)
+ *
+ * @param endpoint - The navios endpoint to create query options for
+ * @param options - Query configuration including processResponse
+ * @param baseQuery - Optional base query options to merge
+ * @returns A function that generates query options with attached helpers
+ */
 export function makeQueryOptions<
   Config extends AnyEndpointConfig,
-  Options extends BaseQueryParams<Config>,
+  Options extends QueryParams<Config>,
   BaseQuery extends Omit<
     UseQueryOptions<ReturnType<Options['processResponse']>, Error, any>,
     | 'queryKey'
@@ -40,12 +43,11 @@ export function makeQueryOptions<
   baseQuery: BaseQuery = {} as BaseQuery,
 ) {
   const config = endpoint.config
-  // Let's hack the url to be a string for now
-  const queryKey = queryKeyCreator(config, options, false)
+  const queryKey = createQueryKey(config, options, false)
   const processResponse = options.processResponse
 
   const result = (
-    params: BaseQueryArgs<Config>,
+    params: QueryArgs<Config['url'], Config['querySchema']>,
   ): Options['processResponse'] extends (...args: any[]) => infer Result
     ? UseSuspenseQueryOptions<
         Result,
@@ -57,7 +59,7 @@ export function makeQueryOptions<
     // @ts-expect-error TS2322 We know that the processResponse is defined
     return queryOptions({
       queryKey: queryKey.dataTag(params),
-      queryFn: async ({ signal }) => {
+      queryFn: async ({ signal }): Promise<ReturnType<Options['processResponse']>> => {
         let result
         try {
           result = await endpoint({
@@ -71,35 +73,34 @@ export function makeQueryOptions<
           throw err
         }
 
-        return processResponse(result)
+        return processResponse(result) as ReturnType<Options['processResponse']>
       },
       ...baseQuery,
     })
   }
   result.queryKey = queryKey
-  result.use = (params: ClientQueryArgs) => {
-    // @ts-expect-error We add additional function to the result
+  result.use = (params: QueryArgs<Config['url'], Config['querySchema']>) => {
     return useQuery(result(params))
   }
 
-  result.useSuspense = (params: ClientQueryArgs) => {
-    // @ts-expect-error We add additional function to the result
+  result.useSuspense = (params: QueryArgs<Config['url'], Config['querySchema']>) => {
     return useSuspenseQuery(result(params))
   }
 
-  result.invalidate = (queryClient: QueryClient, params: ClientQueryArgs) => {
+  result.invalidate = (
+    queryClient: QueryClient,
+    params: QueryArgs<Config['url'], Config['querySchema']>,
+  ) => {
     return queryClient.invalidateQueries({
-      // @ts-expect-error We add additional function to the result
       queryKey: result.queryKey.dataTag(params),
     })
   }
 
   result.invalidateAll = (
     queryClient: QueryClient,
-    params: ClientQueryArgs,
+    params: QueryArgs<Config['url'], Config['querySchema']>,
   ) => {
     return queryClient.invalidateQueries({
-      // @ts-expect-error We add additional function to the result
       queryKey: result.queryKey.filterKey(params),
       exact: false,
     })

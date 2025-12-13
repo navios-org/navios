@@ -6,7 +6,7 @@ import { builder } from '@navios/builder'
 import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod/v4'
 
-import { declareClient } from '../declare-client.mjs'
+import { declareClient } from '../client/declare-client.mjs'
 
 vi.mock('@tanstack/react-query', async (importReal) => {
   const actual = await importReal<typeof import('@tanstack/react-query')>()

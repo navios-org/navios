@@ -6,7 +6,7 @@ import { builder } from '@navios/builder'
 import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod/v4'
 
-import { makeMutation } from '../make-mutation.mjs'
+import { makeMutation } from '../mutation/make-hook.mjs'
 
 vi.mock('@tanstack/react-query', async (importReal) => {
   const actual = await importReal<typeof import('@tanstack/react-query')>()

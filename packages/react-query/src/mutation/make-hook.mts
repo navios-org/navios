@@ -1,6 +1,7 @@
 import type {
   AbstractEndpoint,
   AnyEndpointConfig,
+  NaviosZodRequest,
   UrlHasParams,
   UrlParams,
 } from '@navios/builder'
@@ -13,20 +14,30 @@ import {
   useQueryClient,
 } from '@tanstack/react-query'
 
-import type { BaseMutationArgs, BaseMutationParams } from './types.mjs'
+import type { MutationParams } from './types.mjs'
 
-import { mutationKeyCreator } from './index.mjs'
+import { createMutationKey } from './key-creator.mjs'
 
+/**
+ * Creates a mutation hook for a given endpoint.
+ *
+ * Returns a function that when called returns a TanStack Query mutation result.
+ * The returned function also has helper methods attached (mutationKey, useIsMutating).
+ *
+ * @param endpoint - The navios endpoint to create a mutation hook for
+ * @param options - Mutation configuration including processResponse and callbacks
+ * @returns A hook function that returns mutation result with attached helpers
+ */
 export function makeMutation<
   Config extends AnyEndpointConfig,
   TData = unknown,
-  TVariables extends BaseMutationArgs<Config> = BaseMutationArgs<Config>,
+  TVariables extends NaviosZodRequest<Config> = NaviosZodRequest<Config>,
   TResponse = z.output<Config['responseSchema']>,
   TContext = unknown,
   UseKey extends boolean = false,
 >(
   endpoint: AbstractEndpoint<Config>,
-  options: BaseMutationParams<
+  options: MutationParams<
     Config,
     TData,
     TVariables,
@@ -37,22 +48,22 @@ export function makeMutation<
 ) {
   const config = endpoint.config
 
-  const mutationKey = mutationKeyCreator(config, options)
+  const mutationKey = createMutationKey(config, options)
   const result = (
     keyParams: UseKey extends true
       ? UrlHasParams<Config['url']> extends true
         ? UrlParams<Config['url']>
         : never
       : never,
-  ): UseMutationResult<TData, Error, BaseMutationArgs<Config>> => {
+  ): UseMutationResult<TData, Error, NaviosZodRequest<Config>> => {
     const queryClient = useQueryClient()
     const {
       useKey,
       useContext,
       onError,
       onSuccess,
-      keyPrefix,
-      keySuffix,
+      keyPrefix: _keyPrefix,
+      keySuffix: _keySuffix,
       processResponse,
       ...rest
     } = options

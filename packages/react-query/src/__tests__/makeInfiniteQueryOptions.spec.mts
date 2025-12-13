@@ -3,7 +3,7 @@ import { builder } from '@navios/builder'
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod/v4'
 
-import { makeInfiniteQueryOptions } from '../make-infinite-query-options.mjs'
+import { makeInfiniteQueryOptions } from '../query/make-infinite-options.mjs'
 
 describe('makeInfiniteQueryOptions', () => {
   const api = builder({})
@@ -36,7 +36,6 @@ describe('makeInfiniteQueryOptions', () => {
       },
     )
     const options = makeOptions({
-      // @ts-expect-error it's internal type
       urlParams: { testId: '1', fooId: '2' },
       params: {},
     })

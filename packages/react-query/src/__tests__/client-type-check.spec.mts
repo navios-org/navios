@@ -3,7 +3,7 @@ import { builder } from '@navios/builder'
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod/v4'
 
-import { declareClient } from '../declare-client.mjs'
+import { declareClient } from '../client/declare-client.mjs'
 
 describe('client type check', () => {
   const api = builder({

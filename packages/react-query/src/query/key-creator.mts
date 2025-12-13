@@ -1,62 +1,32 @@
-import type {
-  AnyEndpointConfig,
-  UrlHasParams,
-  UrlParams,
-} from '@navios/builder'
+import type { AnyEndpointConfig, UrlHasParams } from '@navios/builder'
 import type { DataTag, InfiniteData } from '@tanstack/react-query'
-import type { z, ZodObject } from 'zod/v4'
 
 import { bindUrlParams } from '@navios/builder'
 
-import type { BaseQueryParams } from '../types.mjs'
+import type { Split } from '../common/types.mjs'
+import type { QueryKeyCreatorResult, QueryParams } from './types.mjs'
 
-type Split<S extends string, D extends string> = string extends S
-  ? string[]
-  : S extends ''
-    ? []
-    : S extends `${infer T}${D}${infer U}`
-      ? [T, ...Split<U, D>]
-      : [S]
-
-export type QueryKeyCreatorResult<
-  QuerySchema = undefined,
-  Url extends string = string,
-  Result = unknown,
-  IsInfinite extends boolean = false,
-  HasParams extends UrlHasParams<Url> = UrlHasParams<Url>,
-> = {
-  template: Split<Url, '/'>
-  dataTag: (
-    params: (HasParams extends true ? { urlParams: UrlParams<Url> } : {}) &
-      (QuerySchema extends ZodObject ? { params: z.input<QuerySchema> } : {}),
-  ) => DataTag<
-    Split<Url, '/'>,
-    IsInfinite extends true ? InfiniteData<Result> : Result,
-    Error
-  >
-  filterKey: (
-    params: HasParams extends true ? { urlParams: UrlParams<Url> } : {},
-  ) => DataTag<
-    Split<Url, '/'>,
-    IsInfinite extends true ? InfiniteData<Result> : Result,
-    Error
-  >
-  bindToUrl: (
-    params: (HasParams extends true ? { urlParams: UrlParams<Url> } : {}) &
-      (QuerySchema extends ZodObject ? { params: z.infer<QuerySchema> } : {}),
-  ) => string
-}
-
-export function queryKeyCreator<
+/**
+ * Creates a query key generator for a given endpoint configuration.
+ *
+ * The returned object provides methods to generate query keys that can be used
+ * with TanStack Query for caching, invalidation, and data tagging.
+ *
+ * @param config - The endpoint configuration
+ * @param options - Query parameters including processResponse and key prefix/suffix
+ * @param isInfinite - Whether this is for an infinite query
+ * @returns An object with methods to generate query keys
+ */
+export function createQueryKey<
   Config extends AnyEndpointConfig,
-  Options extends BaseQueryParams<Config>,
+  Options extends QueryParams<Config>,
   IsInfinite extends boolean,
   Url extends Config['url'] = Config['url'],
   HasParams extends UrlHasParams<Url> = UrlHasParams<Url>,
 >(
   config: Config,
   options: Options,
-  isInfinite: IsInfinite,
+  _isInfinite: IsInfinite,
 ): QueryKeyCreatorResult<
   Config['querySchema'],
   Url,
@@ -119,7 +89,11 @@ export function queryKeyCreator<
     },
 
     bindToUrl: (params) => {
-      return bindUrlParams<Url>(url, params ?? ({} as any))
+      return bindUrlParams<Url>(url, params ?? ({} as never))
     },
   }
 }
+
+// Legacy export for backwards compatibility
+/** @deprecated Use createQueryKey instead */
+export const queryKeyCreator = createQueryKey
