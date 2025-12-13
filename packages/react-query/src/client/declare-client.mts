@@ -1,12 +1,21 @@
 import type {
   AbstractEndpoint,
+  AbstractStream,
   AnyEndpointConfig,
+  AnyStreamConfig,
   HttpMethod,
 } from '@navios/builder'
-import type { InfiniteData, QueryClient } from '@tanstack/react-query'
+import type {
+  InfiniteData,
+  MutationFunctionContext,
+  QueryClient,
+} from '@tanstack/react-query'
 import type { z, ZodObject, ZodType } from 'zod/v4'
 
-import type { ClientOptions, ProcessResponseFunction } from '../common/types.mjs'
+import type {
+  ClientOptions,
+  ProcessResponseFunction,
+} from '../common/types.mjs'
 import type { MutationArgs } from '../mutation/types.mjs'
 import type { ClientInstance } from './types.mjs'
 
@@ -82,6 +91,7 @@ export interface MutationConfig<
   Response extends ZodType = ZodType,
   ReqResult = z.output<Response>,
   Result = unknown,
+  TOnMutateResult = unknown,
   Context = unknown,
   UseKey extends boolean = false,
 > {
@@ -93,18 +103,30 @@ export interface MutationConfig<
   processResponse: ProcessResponseFunction<Result, ReqResult>
   useContext?: () => Context
   onSuccess?: (
-    queryClient: QueryClient,
-    data: NoInfer<Result>,
+    data: Result,
     variables: MutationArgs<Url, RequestSchema, QuerySchema>,
-    context: Context,
+    context: Context &
+      MutationFunctionContext & { onMutateResult: TOnMutateResult | undefined },
   ) => void | Promise<void>
   onError?: (
-    queryClient: QueryClient,
-    error: Error,
+    err: unknown,
     variables: MutationArgs<Url, RequestSchema, QuerySchema>,
-    context: Context,
+    context: Context &
+      MutationFunctionContext & { onMutateResult: TOnMutateResult | undefined },
+  ) => void | Promise<void>
+  onMutate?: (
+    variables: MutationArgs<Url, RequestSchema, QuerySchema>,
+    context: Context & MutationFunctionContext,
+  ) => TOnMutateResult | Promise<TOnMutateResult>
+  onSettled?: (
+    data: Result | undefined,
+    error: Error | null,
+    variables: MutationArgs<Url, RequestSchema, QuerySchema>,
+    context: Context &
+      MutationFunctionContext & { onMutateResult: TOnMutateResult | undefined },
   ) => void | Promise<void>
   useKey?: UseKey
+  meta?: Record<string, unknown>
 }
 
 /**
@@ -235,6 +257,7 @@ export function declareClient<Options extends ClientOptions>({
       // @ts-expect-error We forgot about the DELETE method in original makeMutation
       onError: config.onError,
       useKey: config.useKey,
+      meta: config.meta,
       ...defaults,
     })
 
@@ -244,9 +267,11 @@ export function declareClient<Options extends ClientOptions>({
   }
 
   function mutationFromEndpoint(
-    endpoint: AbstractEndpoint<AnyEndpointConfig>,
-    options: {
-      processResponse: ProcessResponseFunction
+    endpoint:
+      | AbstractEndpoint<AnyEndpointConfig>
+      | AbstractStream<AnyStreamConfig>,
+    options?: {
+      processResponse?: ProcessResponseFunction
       useContext?: () => unknown
       onSuccess?: (
         queryClient: QueryClient,
@@ -262,12 +287,12 @@ export function declareClient<Options extends ClientOptions>({
       ) => void | Promise<void>
     },
   ) {
+    // @ts-expect-error endpoint types are compatible at runtime
     return makeMutation(endpoint, {
-      processResponse: options.processResponse,
-      useContext: options.useContext,
-      onSuccess: options.onSuccess,
-      // @ts-expect-error simplify types here
-      onError: options.onError,
+      processResponse: options?.processResponse,
+      useContext: options?.useContext,
+      onSuccess: options?.onSuccess,
+      onError: options?.onError,
       ...defaults,
     })
   }
@@ -289,6 +314,10 @@ export function declareClient<Options extends ClientOptions>({
       onSuccess: config.onSuccess,
       // @ts-expect-error We forgot about the DELETE method in original makeMutation
       onError: config.onError,
+      // @ts-expect-error We forgot about the DELETE method in original makeMutation
+      onMutate: config.onMutate,
+      // @ts-expect-error We forgot about the DELETE method in original makeMutation
+      onSettled: config.onSettled,
       useKey: config.useKey,
       ...defaults,
     })

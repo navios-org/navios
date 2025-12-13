@@ -5,14 +5,13 @@ import type {
   UrlHasParams,
   UrlParams,
 } from '@navios/builder'
-import type { UseMutationResult } from '@tanstack/react-query'
+import type {
+  MutationFunctionContext,
+  UseMutationResult,
+} from '@tanstack/react-query'
 import type { z } from 'zod/v4'
 
-import {
-  useIsMutating,
-  useMutation,
-  useQueryClient,
-} from '@tanstack/react-query'
+import { useIsMutating, useMutation } from '@tanstack/react-query'
 
 import type { MutationParams } from './types.mjs'
 
@@ -33,6 +32,7 @@ export function makeMutation<
   TData = unknown,
   TVariables extends NaviosZodRequest<Config> = NaviosZodRequest<Config>,
   TResponse = z.output<Config['responseSchema']>,
+  TOnMutateResult = unknown,
   TContext = unknown,
   UseKey extends boolean = false,
 >(
@@ -42,70 +42,127 @@ export function makeMutation<
     TData,
     TVariables,
     TResponse,
+    TOnMutateResult,
     TContext,
     UseKey
   >,
 ) {
   const config = endpoint.config
 
-  const mutationKey = createMutationKey(config, options)
+  const mutationKey = createMutationKey(config, {
+    ...options,
+    processResponse: options.processResponse ?? ((data) => data),
+  })
   const result = (
     keyParams: UseKey extends true
       ? UrlHasParams<Config['url']> extends true
         ? UrlParams<Config['url']>
         : never
       : never,
-  ): UseMutationResult<TData, Error, NaviosZodRequest<Config>> => {
-    const queryClient = useQueryClient()
+  ): UseMutationResult<
+    TData,
+    Error,
+    NaviosZodRequest<Config>,
+    TOnMutateResult
+  > => {
     const {
       useKey,
       useContext,
+      onMutate,
       onError,
       onSuccess,
+      onSettled,
       keyPrefix: _keyPrefix,
       keySuffix: _keySuffix,
       processResponse,
       ...rest
     } = options
 
-    const context = useContext?.() as TContext
+    const ownContext = (useContext?.() as TContext) ?? {}
 
     // @ts-expect-error The types match
-    return useMutation(
-      {
-        ...rest,
-        mutationKey: useKey
-          ? mutationKey({
-              urlParams: keyParams,
-            })
-          : undefined,
-        scope: useKey
-          ? {
-              id: JSON.stringify(
-                mutationKey({
-                  urlParams: keyParams,
-                }),
-              ),
-            }
-          : undefined,
-        async mutationFn(params: TVariables) {
-          const response = await endpoint(params)
+    return useMutation({
+      ...rest,
+      mutationKey: useKey
+        ? mutationKey({
+            urlParams: keyParams,
+          })
+        : undefined,
+      scope: useKey
+        ? {
+            id: JSON.stringify(
+              mutationKey({
+                urlParams: keyParams,
+              }),
+            ),
+          }
+        : undefined,
+      async mutationFn(params: TVariables) {
+        const response = await endpoint(params)
 
-          return processResponse(response) as TData
-        },
-        onSuccess: onSuccess
-          ? (data: TData, variables: TVariables) => {
-              return onSuccess?.(queryClient, data, variables, context)
-            }
-          : undefined,
-        onError: onError
-          ? (err: Error, variables: TVariables) => {
-              return onError?.(queryClient, err, variables, context)
-            }
-          : undefined,
+        return (processResponse ? processResponse(response) : response) as TData
       },
-      queryClient,
-    )
+      onSuccess: onSuccess
+        ? (
+            data: TData,
+            variables: TVariables,
+            onMutateResult: TOnMutateResult | undefined,
+            context: MutationFunctionContext,
+          ) => {
+            return onSuccess?.(data, variables, {
+              ...ownContext,
+              ...context,
+              onMutateResult,
+            } as TContext &
+              MutationFunctionContext & {
+                onMutateResult: TOnMutateResult | undefined
+              })
+          }
+        : undefined,
+      onError: onError
+        ? (
+            err: Error,
+            variables: TVariables,
+            onMutateResult: TOnMutateResult | undefined,
+            context: MutationFunctionContext,
+          ) => {
+            return onError?.(err, variables, {
+              onMutateResult,
+              ...ownContext,
+              ...context,
+            } as TContext &
+              MutationFunctionContext & {
+                onMutateResult: TOnMutateResult | undefined
+              })
+          }
+        : undefined,
+      onMutate: onMutate
+        ? (variables: TVariables, context: MutationFunctionContext) => {
+            return onMutate(variables, {
+              ...ownContext,
+              ...context,
+            } as TContext & MutationFunctionContext)
+          }
+        : undefined,
+      onSettled: onSettled
+        ? (
+            data: TData | undefined,
+            error: Error | null,
+            variables: TVariables,
+            onMutateResult: TOnMutateResult | undefined,
+            context: MutationFunctionContext,
+          ) => {
+            return onSettled(data, error, variables, {
+              ...ownContext,
+              ...context,
+              onMutateResult,
+            } as TContext &
+              MutationFunctionContext & {
+                onMutateResult: TOnMutateResult | undefined
+              })
+          }
+        : undefined,
+    })
   }
   result.useIsMutating = (
     keyParams: UseKey extends true

@@ -4,7 +4,11 @@ import type {
   UrlHasParams,
   UrlParams,
 } from '@navios/builder'
-import type { DataTag, QueryClient, UseMutationOptions } from '@tanstack/react-query'
+import type {
+  DataTag,
+  MutationFunctionContext,
+  UseMutationOptions,
+} from '@tanstack/react-query'
 import type { z, ZodObject } from 'zod/v4'
 
 import type { ProcessResponseFunction } from '../common/types.mjs'
@@ -42,29 +46,47 @@ export interface MutationParams<
   TData = unknown,
   TVariables = NaviosZodRequest<Config>,
   TResponse = z.output<Config['responseSchema']>,
+  TOnMutateResult = unknown,
   TContext = unknown,
   UseKey extends boolean = false,
 > extends Omit<
     UseMutationOptions<TData, Error, TVariables>,
-    'mutationKey' | 'mutationFn' | 'onSuccess' | 'onError' | 'scope'
+    | 'mutationKey'
+    | 'mutationFn'
+    | 'onMutate'
+    | 'onSuccess'
+    | 'onError'
+    | 'onSettled'
+    | 'scope'
   > {
-  processResponse: ProcessResponseFunction<TData, TResponse>
+  processResponse?: ProcessResponseFunction<TData, TResponse>
   /**
    * React hooks that will prepare the context for the mutation onSuccess and onError
    * callbacks. This is useful for when you want to use the context in the callbacks
    */
   useContext?: () => TContext
   onSuccess?: (
-    queryClient: QueryClient,
     data: TData,
     variables: TVariables,
-    context: TContext,
+    context: TContext &
+      MutationFunctionContext & { onMutateResult: TOnMutateResult | undefined },
   ) => void | Promise<void>
   onError?: (
-    queryClient: QueryClient,
     err: unknown,
     variables: TVariables,
-    context: TContext,
+    context: TContext &
+      MutationFunctionContext & { onMutateResult: TOnMutateResult | undefined },
+  ) => void | Promise<void>
+  onMutate?: (
+    variables: TVariables,
+    context: TContext & MutationFunctionContext,
+  ) => TOnMutateResult | Promise<TOnMutateResult>
+  onSettled?: (
+    data: TData | undefined,
+    error: Error | null,
+    variables: TVariables,
+    context: TContext &
+      MutationFunctionContext & { onMutateResult: TOnMutateResult | undefined },
   ) => void | Promise<void>
 
   /**

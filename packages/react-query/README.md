@@ -1,376 +1,508 @@
-# Navios Zod React
+# @navios/react-query
 
-`Navios Zod React` is a helper for a navios zod to use with Tanstack React Query.
+Type-safe React Query integration for Navios API client with Zod schema validation.
 
-## Why?
+## Features
 
-- **Type Safety**: By using Zod schemas, you can ensure that the data you receive from your API matches the expected structure. This helps catch errors early in the development process.
-- **Validation**: Zod provides powerful validation capabilities, allowing you to define complex validation rules for your data. This ensures that the data you work with is always valid and meets your requirements.
-- **Integration with Navios**: Navios is a powerful HTTP client that simplifies API requests. By combining it with Zod, you can create a robust and type-safe API client.
-- **React Query Support**: This package is designed to work seamlessly with Tanstack React Query, making it easy to manage API requests and responses in your React applications.
-- **Declarative API**: The API is designed to be declarative, allowing you to define your API endpoints and their schemas in a clear and concise manner. This makes it easy to understand and maintain your API client.
-- **Discriminated Union Support**: The package supports discriminated unions, allowing you to handle different response types based on a common property. This is useful for APIs that return different data structures based on the request.
-- **Customizable**: The package allows you to customize the behavior of the API client, such as using a custom Navios client or enabling/disabling certain features like whole response validation.
-- **Error Handling**: The package provides built-in error handling capabilities, allowing you to handle API errors gracefully and provide meaningful feedback to users.
+- **Type Safety** - Full TypeScript support with Zod schema inference
+- **Schema Validation** - Request and response validation using Zod schemas
+- **React Query Integration** - Seamless integration with TanStack Query v5
+- **Declarative API** - Define endpoints once, use everywhere
+- **URL Parameters** - Built-in support for parameterized URLs (`/users/$userId`)
+- **Optimistic Updates** - First-class support via `onMutate` callback
+- **Stream Support** - Handle file downloads and blob responses
 
 ## Installation
 
 ```bash
-npm install --save @navios/navios-zod @navios/navios-zod-react zod navios
+npm install @navios/react-query @navios/builder navios zod @tanstack/react-query
 ```
 
-or
+## Quick Start
 
-```bash
-yarn add @navios/navios-zod @navios/navios-zod-react zod navios
-```
-
-## Usage of Mutations
-
-```tsx
-import { createAPI } from '@navios/navios-zod/v4'
-import { declareClient } from '@navios/navios-zod-react'
-
+```typescript
+import { builder } from '@navios/builder'
+import { declareClient } from '@navios/react-query'
+import { create } from 'navios'
 import { z } from 'zod/v4'
 
-const publicApi = createAPI({
-  baseURL: 'https://example.com/api/',
-  useDiscriminatorResponse: true,
-})
+// Create the API builder
+const api = builder({})
+api.provideClient(create({ baseURL: 'https://api.example.com' }))
 
-const publicClient = declareClient({
-  api: publicApi,
-})
-
-const RequestSchema = z.object({
-  email: z.string().email(),
-  password: z.string().min(8).max(32),
-})
-
-const loginMutation = publicClient.mutation({
-  url: 'auth/login',
-  method: 'post',
-  // Navios Zod also validates the request body
-  requestSchema: RequestSchema,
-  responseSchema: z.discriminatedUnion('success', [
-    z.object({
-      success: z.literal(true),
-      data: z.object({
-        accessToken: z.string(),
-        refreshToken: z.string(),
-      }),
-    }),
-    z.object({
-      success: z.literal(false),
-      error: z.object({
-        message: z.string(),
-      }),
-    }),
-  ]),
-  processResponse: (response) => {
-    if (response.success) {
-      return response.data
-    } else {
-      throw new Error(response.error.message)
-    }
-  },
-})
-
-export function Login() {
-  const { mutateAsync: login, data, isSuccess, error } = loginMutation()
-
-  const form = useForm({
-    resolver: zodResolver(RequestSchema),
-    defaultValues: {
-      email: '',
-      password: '',
-    },
-  })
-
-  useEffect(() => {
-    if (isSuccess) {
-      console.log('Login successful:', data)
-    }
-  }, [isSuccess, data])
-
-  return (
-    <form onSubmit={form.handleSubmit(login)}>
-      {error && <p>{error.message}</p>}
-      <input {...form.register('email')} placeholder="Email" />
-      <input
-        {...form.register('password')}
-        type="password"
-        placeholder="Password"
-      />
-      <button type="submit">Login</button>
-    </form>
-  )
-}
+// Create the client
+const client = declareClient({ api })
 ```
 
-## Usage of Queries
+## Queries
 
-```tsx
-import { createAPI } from '@navios/navios-zod/v4'
-import { declareClient } from '@navios/navios-zod-react'
+### Basic Query
 
-import { z } from 'zod/v4'
-
-const publicApi = createAPI({
-  baseURL: 'https://example.com/api/',
-  useDiscriminatorResponse: true,
-})
-
-const publicClient = declareClient({
-  api: publicApi,
-})
-
-const usersList = publicClient.query({
-  url: 'users',
+```typescript
+const getUsers = client.query({
   method: 'GET',
-  querySchema: z.object({
-    page: z.number().optional().default(1),
-    limit: z.number().optional().default(10),
-  }),
-  responseSchema: z.discriminatedUnion('success', [
-    z.object({
-      success: z.literal(true),
-      data: z.array(
-        z.object({
-          id: z.string(),
-          name: z.string(),
-          email: z.string().email(),
-        }),
-      ),
-    }),
-    z.object({
-      success: z.literal(false),
-      error: z.object({
-        message: z.string(),
-      }),
-    }),
-  ]),
-  processResponse: (response) => {
-    if (response.success) {
-      return response.data
-    } else {
-      throw new Error(response.error.message)
-    }
-  },
+  url: '/users',
+  responseSchema: z.array(z.object({
+    id: z.string(),
+    name: z.string(),
+    email: z.string().email(),
+  })),
 })
 
-export function UsersList() {
-  const { page, limit } = routeApi.useSearch()
-  const navigate = routeApi.useNavigate()
-  const { data, isLoading, error } = usersList.use({
-    params: {
-      page,
-      limit,
-    },
-  })
-
-  if (isLoading) {
-    return <p>Loading...</p>
-  }
-
-  if (error) {
-    return <p>{error.message}</p>
-  }
-
+// In a component
+function UsersList() {
+  const { data } = getUsers.useSuspense({})
   return (
     <ul>
-      {data?.map((user) => (
-        <li key={user.id}>{user.name}</li>
-      ))}
+      {data.map(user => <li key={user.id}>{user.name}</li>)}
     </ul>
   )
 }
 ```
 
-## Usage of Infinite Queries
+### Query with URL Parameters
 
-```tsx
-import { createAPI } from '@navios/navios-zod/v4'
-import { declareClient } from '@navios/navios-zod-react'
-
-import { z } from 'zod/v4'
-
-const publicApi = createAPI({
-  baseURL: 'https://example.com/api/',
-  useDiscriminatorResponse: true,
-})
-
-const publicClient = declareClient({
-  api: publicApi,
-})
-
-const usersList = publicClient.infiniteQuery({
-  url: 'users',
+```typescript
+const getUser = client.query({
   method: 'GET',
-  querySchema: z.object({
-    page: z.number().optional().default(1),
-    limit: z.number().optional().default(10),
+  url: '/users/$userId',
+  responseSchema: z.object({
+    id: z.string(),
+    name: z.string(),
   }),
+})
+
+function UserProfile({ userId }: { userId: string }) {
+  const { data } = getUser.useSuspense({
+    urlParams: { userId },
+  })
+  return <h1>{data.name}</h1>
+}
+```
+
+### Query with Query Parameters
+
+```typescript
+const searchUsers = client.query({
+  method: 'GET',
+  url: '/users',
+  querySchema: z.object({
+    page: z.number().default(1),
+    limit: z.number().default(10),
+    search: z.string().optional(),
+  }),
+  responseSchema: z.object({
+    users: z.array(UserSchema),
+    total: z.number(),
+  }),
+})
+
+function UsersPage() {
+  const { data } = searchUsers.useSuspense({
+    params: { page: 1, limit: 20, search: 'john' },
+  })
+  return <div>Found {data.total} users</div>
+}
+```
+
+### Query with Response Transformation
+
+```typescript
+const getUsers = client.query({
+  method: 'GET',
+  url: '/users',
   responseSchema: z.discriminatedUnion('success', [
     z.object({
       success: z.literal(true),
-      data: z.array(
-        z.object({
-          id: z.string(),
-          name: z.string(),
-          email: z.string().email(),
-        }),
-      ),
-      meta: z.object({
-        total: z.number(),
-        totalPages: z.number(),
-        page: z.number(),
-      }),
+      data: z.array(UserSchema),
     }),
     z.object({
       success: z.literal(false),
-      error: z.object({
-        message: z.string(),
-      }),
+      error: z.object({ message: z.string() }),
     }),
   ]),
   processResponse: (response) => {
-    if (response.success) {
-      return response.data
-    } else {
+    if (!response.success) {
       throw new Error(response.error.message)
     }
-  },
-  getNextPageParam: (lastPage, pages) => {
-    if (lastPage.meta.page < lastPage.meta.totalPages) {
-      return lastPage.meta.page + 1
-    }
-    return undefined
-  },
-  select: (data) => {
-    return data.pages.flatMap((page) => page.data)
+    return response.data
   },
 })
+```
 
-export function UsersList() {
-  const { page, limit } = routeApi.useSearch()
-  const { data, isLoading, error, fetchNextPage, hasNextPage } = usersList.use({
-    params: {
-      page,
-      limit,
-    },
+### Query Helpers
+
+```typescript
+// Get query options for use with useQuery
+const options = getUsers({ params: { page: 1 } })
+
+// Helper hooks
+const { data } = getUsers.use({ params: { page: 1 } })
+const { data } = getUsers.useSuspense({ params: { page: 1 } })
+
+// Invalidation
+getUsers.invalidate({ params: { page: 1 } })
+getUsers.invalidateAll({}) // Invalidate all pages
+```
+
+## Infinite Queries
+
+```typescript
+const getUsers = client.infiniteQuery({
+  method: 'GET',
+  url: '/users',
+  querySchema: z.object({
+    cursor: z.string().optional(),
+    limit: z.number().default(20),
+  }),
+  responseSchema: z.object({
+    users: z.array(UserSchema),
+    nextCursor: z.string().nullable(),
+  }),
+  getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
+})
+
+function InfiniteUsersList() {
+  const { data, fetchNextPage, hasNextPage } = getUsers.useSuspense({
+    params: { limit: 20 },
   })
-
-  if (isLoading) {
-    return <p>Loading...</p>
-  }
-
-  if (error) {
-    return <p>{error.message}</p>
-  }
 
   return (
     <div>
-      <ul>
-        {data?.map((page) =>
-          page.data.map((user) => <li key={user.id}>{user.name}</li>),
-        )}
-      </ul>
-      <button disabled={!hasNextPage} onClick={() => fetchNextPage()}>
-        Load more
-      </button>
+      {data.pages.flatMap(page =>
+        page.users.map(user => <UserCard key={user.id} user={user} />)
+      )}
+      {hasNextPage && (
+        <button onClick={() => fetchNextPage()}>Load More</button>
+      )}
     </div>
   )
 }
 ```
 
-## API
+## Mutations
 
-### `declareClient`
+### Basic Mutation
 
-This function is used to create a client for the API. It takes an object with the following properties:
+```typescript
+const createUser = client.mutation({
+  method: 'POST',
+  url: '/users',
+  requestSchema: z.object({
+    name: z.string(),
+    email: z.string().email(),
+  }),
+  responseSchema: z.object({
+    id: z.string(),
+    name: z.string(),
+  }),
+  processResponse: (data) => data,
+})
 
-- `api`: The API object created using `declareAPI` or `createAPI` from `@navios/navios-zod`.
+function CreateUserForm() {
+  const { mutateAsync, isPending } = createUser()
 
-The client object will have the following properties:
+  const handleSubmit = async (formData: FormData) => {
+    await mutateAsync({
+      data: {
+        name: formData.get('name') as string,
+        email: formData.get('email') as string,
+      },
+    })
+  }
 
-- `query`: A function that takes a configuration object and returns a query object.
-- `mutation`: A function that takes a configuration object and returns a mutation object.
-- `infiniteQuery`: A function that takes a configuration object and returns an infinite query object.
+  return <form onSubmit={handleSubmit}>...</form>
+}
+```
 
-#### `query`
+### Mutation with URL Parameters
 
-This function is used to create a query for the API. It takes a configuration object with the following properties:
+```typescript
+const updateUser = client.mutation({
+  method: 'PUT',
+  url: '/users/$userId',
+  requestSchema: z.object({
+    name: z.string(),
+  }),
+  responseSchema: UserSchema,
+  processResponse: (data) => data,
+})
 
-- `url`: The URL of the API endpoint. For parameterized URLs, use the format `/users/$userId`.
-- `method`: The HTTP method to use (GET, POST, PUT, DELETE, etc.).
-- `querySchema`: A Zod schema for validating the query parameters. (optional)
-- `responseSchema`: A Zod schema for validating the response data.
-- `processResponse`: A function that takes the response data and returns the processed data. (optional, but recommended)
+function EditUserForm({ userId }: { userId: string }) {
+  const { mutateAsync } = updateUser()
 
-The result is a function that can be used to get query options. The function takes an object with the following properties:
+  const handleSubmit = async (name: string) => {
+    await mutateAsync({
+      urlParams: { userId },
+      data: { name },
+    })
+  }
 
-- `params`: An object with the query parameters to send with the request. (required if `querySchema` is defined)
-- `urlParams`: An object with the URL parameters to send with the request. (required if `url` contains URL parameters)
+  return <form>...</form>
+}
+```
 
-Function returns options for `useQuery` or `useSuspenseQuery` from `@tanstack/react-query`.
+### Mutation with Callbacks and Optimistic Updates
 
-##### `queryName.use`
+```typescript
+const updateUser = client.mutation({
+  method: 'PUT',
+  url: '/users/$userId',
+  requestSchema: z.object({ name: z.string() }),
+  responseSchema: UserSchema,
+  processResponse: (data) => data,
 
-This function is a helper hook which is a wrapper around `useQuery` from `@tanstack/react-query`. It takes the same parameters as the `query` result function and returns the query result.
+  // Provide context (e.g., queryClient) via hook
+  useContext: () => {
+    const queryClient = useQueryClient()
+    return { queryClient }
+  },
 
-##### `queryName.useSuspense`
+  // Called before mutation - return value available as context.onMutateResult
+  onMutate: async (variables, context) => {
+    // Cancel outgoing queries
+    await context.queryClient.cancelQueries({
+      queryKey: ['users', variables.urlParams.userId]
+    })
 
-This function is a helper hook which is a wrapper around `useSuspenseQuery` from `@tanstack/react-query`. It takes the same parameters as the `query` result function and returns the query result.
+    // Snapshot previous value
+    const previousUser = context.queryClient.getQueryData(
+      ['users', variables.urlParams.userId]
+    )
 
-##### `queryName.invalidate`
+    // Optimistically update
+    context.queryClient.setQueryData(
+      ['users', variables.urlParams.userId],
+      { ...previousUser, name: variables.data.name }
+    )
 
-This function is a helper function which is a wrapper around `invalidateQueries` from `@tanstack/react-query`. It takes parameters:
+    return { previousUser }
+  },
 
-- `queryClient`: The query client to use. (optional, defaults to the query client from the context)
-- `params`: An object with `urlParams` and `params` to invalidate the query. (required if `url` contains URL parameters or `querySchema` is defined)
+  // Called on success
+  onSuccess: (data, variables, context) => {
+    context.queryClient.invalidateQueries({ queryKey: ['users'] })
+  },
 
-This function is used to invalidate the query in the cache. It can be used to refetch the query data when the data changes or when the user navigates to a different page.
+  // Called on error - rollback optimistic update
+  onError: (error, variables, context) => {
+    if (context.onMutateResult?.previousUser) {
+      context.queryClient.setQueryData(
+        ['users', variables.urlParams.userId],
+        context.onMutateResult.previousUser
+      )
+    }
+  },
 
-##### `queryName.invalidateAll`
+  // Called on both success and error
+  onSettled: (data, error, variables, context) => {
+    context.queryClient.invalidateQueries({
+      queryKey: ['users', variables.urlParams.userId]
+    })
+  },
+})
+```
 
-This function is a helper function which is a wrapper around `invalidateQueries` from `@tanstack/react-query`. It takes parameters:
+### DELETE Mutation
 
-- `queryClient`: The query client to use. (optional, defaults to the query client from the context)
-- `params`: An object with `urlParams` to invalidate the query. (required if `url` contains URL parameters)
+```typescript
+const deleteUser = client.mutation({
+  method: 'DELETE',
+  url: '/users/$userId',
+  responseSchema: z.object({ success: z.boolean() }),
+  processResponse: (data) => data,
+})
 
-This function is used to invalidate query ignoring query params. It can be used to refetch all query data when the data changes or when the user navigates to a different page.
+const { mutateAsync } = deleteUser()
+await mutateAsync({ urlParams: { userId: '123' } })
+```
 
-#### `mutation`
+### Mutation with useKey (Scoped Mutations)
 
-This function is used to create a mutation for the API. It takes a configuration object with the following properties:
+When `useKey` is true, mutations are scoped by URL parameters, preventing parallel mutations to the same resource:
 
-- `url`: The URL of the API endpoint. For parameterized URLs, use the format `/users/$userId`.
-- `method`: The HTTP method to use (PATCH, POST, PUT, DELETE, etc.).
-- `requestSchema`: A Zod schema for validating the request body.
-- `responseSchema`: A Zod schema for validating the response data.
-- `processResponse`: A function that takes the response data and returns the processed data. (optional, but recommended)
-- `useContext`: A function that is called before the mutation is executed. It can be used to set the context for the onSuccess and onError. (optional)
-- `onSuccess`: A function that is called when the mutation is successful. (optional)
-- `onError`: A function that is called when the mutation fails. (optional)
-- `useKey`: If true, the mutation will have a mutation key which can be used to get the mutation status, limit parallel requests, etc. (optional, defaults to false)
+```typescript
+const updateUser = client.mutation({
+  method: 'PUT',
+  url: '/users/$userId',
+  useKey: true,
+  requestSchema: UpdateUserSchema,
+  responseSchema: UserSchema,
+  processResponse: (data) => data,
+})
 
-The result is a function that can be used to get mutation in react query. When `useKey` is true, the function requires a `urlParams` argument.
+// With useKey, you must pass urlParams when calling the hook
+const { mutateAsync, isPending } = updateUser({
+  urlParams: { userId: '123' }
+})
 
-The result is a react query mutation object
+// Check if any mutation for this user is in progress
+const isMutating = updateUser.useIsMutating({ userId: '123' })
+```
 
-#### `infiniteQuery`
+## Stream Endpoints (File Downloads)
 
-This function is used to create an infinite query for the API. It takes a configuration object with the following properties:
+```typescript
+// Define stream endpoint
+const downloadFile = api.declareStream({
+  method: 'GET',
+  url: '/files/$fileId/download',
+})
 
-- `url`: The URL of the API endpoint. For parameterized URLs, use the format `/users/$userId`.
-- `method`: The HTTP method to use (GET, POST, PUT, DELETE, etc.).
-- `querySchema`: A Zod schema for validating the query parameters. (required)
-- `responseSchema`: A Zod schema for validating the response data.
-- `processResponse`: A function that takes the response data and returns the processed data. (optional, but recommended)
-- `getNextPageParam`: A function that takes the last page and all pages and returns the next page param. (required)
-- `initialPageData`: The initial data to use for the first page. (optional)
-- `getPreviousPageParam`: A function that takes the first page and all pages and returns the previous page param. (optional)
-- `select`: A function that takes the data and returns the selected data. (optional)
+// Create mutation from stream endpoint
+const useDownloadFile = client.mutationFromEndpoint(downloadFile, {
+  // processResponse is optional - defaults to returning Blob
+  processResponse: (blob) => URL.createObjectURL(blob),
 
-It works the same as `query`, but it returns an infinite query object. Please refer to the `query` section for more details.
+  onSuccess: (url, variables, context) => {
+    window.open(url)
+  },
+})
+
+function DownloadButton({ fileId }: { fileId: string }) {
+  const { mutate, isPending } = useDownloadFile()
+
+  return (
+    <button
+      onClick={() => mutate({ urlParams: { fileId } })}
+      disabled={isPending}
+    >
+      {isPending ? 'Downloading...' : 'Download'}
+    </button>
+  )
+}
+```
+
+## Using Existing Endpoints
+
+If you have endpoints defined separately, you can use them with the client:
+
+```typescript
+// Define endpoint separately
+const getUserEndpoint = api.declareEndpoint({
+  method: 'GET',
+  url: '/users/$userId',
+  responseSchema: UserSchema,
+})
+
+// Create query from endpoint
+const getUser = client.queryFromEndpoint(getUserEndpoint, {
+  processResponse: (data) => data,
+})
+
+// Create mutation from endpoint
+const updateUser = client.mutationFromEndpoint(updateUserEndpoint, {
+  processResponse: (data) => data,
+  onSuccess: (data, variables, context) => {
+    console.log('Updated:', data)
+  },
+})
+```
+
+## Multipart Mutations (File Uploads)
+
+```typescript
+const uploadAvatar = client.multipartMutation({
+  method: 'POST',
+  url: '/users/$userId/avatar',
+  requestSchema: z.object({
+    file: z.instanceof(File),
+  }),
+  responseSchema: z.object({
+    url: z.string(),
+  }),
+  processResponse: (data) => data,
+})
+
+function AvatarUpload({ userId }: { userId: string }) {
+  const { mutateAsync } = uploadAvatar()
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      const result = await mutateAsync({
+        urlParams: { userId },
+        data: { file },
+      })
+      console.log('Uploaded to:', result.url)
+    }
+  }
+
+  return <input type="file" onChange={handleFileChange} />
+}
+```
+
+## API Reference
+
+### `declareClient(options)`
+
+Creates a client instance for making type-safe queries and mutations.
+
+**Options:**
+- `api` - The API builder created with `@navios/builder`
+- `defaults` - Default options applied to all queries/mutations
+
+**Returns:** `ClientInstance` with the following methods:
+
+### Query Methods
+
+- `client.query(config)` - Create a query
+- `client.queryFromEndpoint(endpoint, options)` - Create a query from an existing endpoint
+- `client.infiniteQuery(config)` - Create an infinite query
+- `client.infiniteQueryFromEndpoint(endpoint, options)` - Create an infinite query from an endpoint
+
+### Mutation Methods
+
+- `client.mutation(config)` - Create a mutation
+- `client.mutationFromEndpoint(endpoint, options)` - Create a mutation from an existing endpoint
+- `client.multipartMutation(config)` - Create a multipart/form-data mutation
+
+### Query Config
+
+| Property | Type | Required | Description |
+|----------|------|----------|-------------|
+| `method` | `'GET' \| 'POST' \| 'HEAD' \| 'OPTIONS'` | Yes | HTTP method |
+| `url` | `string` | Yes | URL pattern (e.g., `/users/$userId`) |
+| `responseSchema` | `ZodSchema` | Yes | Zod schema for response validation |
+| `querySchema` | `ZodObject` | No | Zod schema for query parameters |
+| `requestSchema` | `ZodSchema` | No | Zod schema for request body (POST queries) |
+| `processResponse` | `(data) => Result` | No | Transform the response |
+
+### Mutation Config
+
+| Property | Type | Required | Description |
+|----------|------|----------|-------------|
+| `method` | `'POST' \| 'PUT' \| 'PATCH' \| 'DELETE'` | Yes | HTTP method |
+| `url` | `string` | Yes | URL pattern (e.g., `/users/$userId`) |
+| `responseSchema` | `ZodSchema` | Yes | Zod schema for response validation |
+| `requestSchema` | `ZodSchema` | No | Zod schema for request body |
+| `querySchema` | `ZodObject` | No | Zod schema for query parameters |
+| `processResponse` | `(data) => Result` | No | Transform the response |
+| `useKey` | `boolean` | No | Enable mutation key for scoping |
+| `useContext` | `() => Context` | No | Hook to provide context to callbacks |
+| `onMutate` | `(variables, context) => onMutateResult` | No | Called before mutation |
+| `onSuccess` | `(data, variables, context) => void` | No | Called on success |
+| `onError` | `(error, variables, context) => void` | No | Called on error |
+| `onSettled` | `(data, error, variables, context) => void` | No | Called on completion |
+
+### Context Object
+
+The context passed to mutation callbacks includes:
+
+- Properties from `useContext()` return value
+- `mutationId` - TanStack Query mutation ID
+- `meta` - Mutation metadata
+- `onMutateResult` - Return value from `onMutate` (in `onSuccess`, `onError`, `onSettled`)
+
+## Migration from 0.5.x
+
+See [CHANGELOG.md](./CHANGELOG.md) for migration guide from 0.5.x to 0.6.0.
+
+Key changes:
+- Mutation callbacks now receive `(data, variables, context)` instead of `(queryClient, data, variables)`
+- Use `useContext` hook to provide `queryClient` and other dependencies
+- New `onMutate` and `onSettled` callbacks for optimistic updates
+
+## License
+
+MIT

@@ -1,5 +1,6 @@
 import type {
   BaseEndpointConfig,
+  BaseStreamConfig,
   EndpointFunctionArgs,
   HttpMethod,
   UrlHasParams,
@@ -54,6 +55,24 @@ export type ClientEndpointHelper<
   ResponseSchema extends z.ZodType = z.ZodType,
   QuerySchema = unknown,
 > = EndpointHelper<Method, Url, RequestSchema, ResponseSchema, QuerySchema>
+
+/**
+ * Helper type that attaches a stream endpoint to mutation results.
+ */
+export type StreamHelper<
+  Method extends HttpMethod = HttpMethod,
+  Url extends string = string,
+  RequestSchema = unknown,
+  QuerySchema = unknown,
+> = {
+  endpoint: ((
+    params: Util_FlatObject<
+      EndpointFunctionArgs<Url, QuerySchema, RequestSchema>
+    >,
+  ) => Promise<Blob>) & {
+    config: BaseStreamConfig<Method, Url, QuerySchema, RequestSchema>
+  }
+}
 
 /**
  * The main client instance interface.
@@ -1133,4 +1152,308 @@ export interface ClientInstance {
   >) &
     MutationHelpers<Url, Result> &
     EndpointHelper<Method, Url, RequestSchema, Response>
+
+  // ============================================================================
+  // STREAM MUTATION FROM ENDPOINT METHODS
+  // ============================================================================
+
+  // Stream mutation with useKey, requestSchema, and querySchema
+  mutationFromEndpoint<
+    Method extends 'POST' | 'PUT' | 'PATCH' = 'POST' | 'PUT' | 'PATCH',
+    Url extends string = string,
+    RequestSchema extends ZodType = ZodType,
+    QuerySchema extends ZodObject = ZodObject,
+    Result = Blob,
+    Context = unknown,
+    UseKey extends true = true,
+  >(
+    endpoint: {
+      config: BaseStreamConfig<Method, Url, QuerySchema, RequestSchema>
+    },
+    mutationOptions: {
+      processResponse?: ProcessResponseFunction<Result, Blob>
+      useKey: UseKey
+      useContext?: () => Context
+      onSuccess?: (
+        queryClient: QueryClient,
+        data: NoInfer<Result>,
+        variables: Util_FlatObject<
+          MutationArgs<Url, RequestSchema, QuerySchema>
+        >,
+        context: Context,
+      ) => void | Promise<void>
+      onError?: (
+        queryClient: QueryClient,
+        error: Error,
+        variables: Util_FlatObject<
+          MutationArgs<Url, RequestSchema, QuerySchema>
+        >,
+        context: Context,
+      ) => void | Promise<void>
+    },
+  ): ((
+    params: UrlHasParams<Url> extends true ? { urlParams: UrlParams<Url> } : {},
+  ) => UseMutationResult<
+    Result,
+    Error,
+    MutationArgs<Url, RequestSchema, QuerySchema>
+  >) &
+    MutationHelpers<Url, Result> &
+    StreamHelper<Method, Url, RequestSchema, QuerySchema>
+
+  // Stream mutation without useKey, with requestSchema and querySchema
+  mutationFromEndpoint<
+    Method extends 'POST' | 'PUT' | 'PATCH' = 'POST' | 'PUT' | 'PATCH',
+    Url extends string = string,
+    RequestSchema extends ZodType = ZodType,
+    QuerySchema extends ZodObject = ZodObject,
+    Result = Blob,
+    Context = unknown,
+  >(
+    endpoint: {
+      config: BaseStreamConfig<Method, Url, QuerySchema, RequestSchema>
+    },
+    mutationOptions?: {
+      processResponse?: ProcessResponseFunction<Result, Blob>
+      useContext?: () => Context
+      onSuccess?: (
+        queryClient: QueryClient,
+        data: NoInfer<Result>,
+        variables: Util_FlatObject<
+          MutationArgs<Url, RequestSchema, QuerySchema>
+        >,
+        context: Context,
+      ) => void | Promise<void>
+      onError?: (
+        queryClient: QueryClient,
+        error: Error,
+        variables: Util_FlatObject<
+          MutationArgs<Url, RequestSchema, QuerySchema>
+        >,
+        context: Context,
+      ) => void | Promise<void>
+    },
+  ): (() => UseMutationResult<
+    Result,
+    Error,
+    MutationArgs<Url, RequestSchema, QuerySchema>
+  >) &
+    StreamHelper<Method, Url, RequestSchema, QuerySchema>
+
+  // Stream mutation with useKey, requestSchema only
+  mutationFromEndpoint<
+    Method extends 'POST' | 'PUT' | 'PATCH' = 'POST' | 'PUT' | 'PATCH',
+    Url extends string = string,
+    RequestSchema extends ZodType = ZodType,
+    Result = Blob,
+    Context = unknown,
+    UseKey extends true = true,
+  >(
+    endpoint: {
+      config: BaseStreamConfig<Method, Url, undefined, RequestSchema>
+    },
+    mutationOptions: {
+      processResponse?: ProcessResponseFunction<Result, Blob>
+      useKey: UseKey
+      useContext?: () => Context
+      onSuccess?: (
+        queryClient: QueryClient,
+        data: NoInfer<Result>,
+        variables: Util_FlatObject<MutationArgs<Url, RequestSchema, undefined>>,
+        context: Context,
+      ) => void | Promise<void>
+      onError?: (
+        queryClient: QueryClient,
+        error: Error,
+        variables: Util_FlatObject<MutationArgs<Url, RequestSchema, undefined>>,
+        context: Context,
+      ) => void | Promise<void>
+    },
+  ): ((
+    params: UrlHasParams<Url> extends true ? { urlParams: UrlParams<Url> } : {},
+  ) => UseMutationResult<
+    Result,
+    Error,
+    MutationArgs<Url, RequestSchema, undefined>
+  >) &
+    MutationHelpers<Url, Result> &
+    StreamHelper<Method, Url, RequestSchema, undefined>
+
+  // Stream mutation without useKey, with requestSchema only
+  mutationFromEndpoint<
+    Method extends 'POST' | 'PUT' | 'PATCH' = 'POST' | 'PUT' | 'PATCH',
+    Url extends string = string,
+    RequestSchema extends ZodType = ZodType,
+    Result = Blob,
+    Context = unknown,
+  >(
+    endpoint: {
+      config: BaseStreamConfig<Method, Url, undefined, RequestSchema>
+    },
+    mutationOptions?: {
+      processResponse?: ProcessResponseFunction<Result, Blob>
+      useContext?: () => Context
+      onSuccess?: (
+        queryClient: QueryClient,
+        data: NoInfer<Result>,
+        variables: Util_FlatObject<MutationArgs<Url, RequestSchema, undefined>>,
+        context: Context,
+      ) => void | Promise<void>
+      onError?: (
+        queryClient: QueryClient,
+        error: Error,
+        variables: Util_FlatObject<MutationArgs<Url, RequestSchema, undefined>>,
+        context: Context,
+      ) => void | Promise<void>
+    },
+  ): (() => UseMutationResult<
+    Result,
+    Error,
+    MutationArgs<Url, RequestSchema, undefined>
+  >) &
+    StreamHelper<Method, Url, RequestSchema, undefined>
+
+  // Stream mutation GET methods with useKey and querySchema
+  mutationFromEndpoint<
+    Method extends 'GET' | 'DELETE' | 'OPTIONS' | 'HEAD' = 'GET',
+    Url extends string = string,
+    QuerySchema extends ZodObject = ZodObject,
+    Result = Blob,
+    Context = unknown,
+    UseKey extends true = true,
+  >(
+    endpoint: {
+      config: BaseStreamConfig<Method, Url, QuerySchema, undefined>
+    },
+    mutationOptions: {
+      processResponse?: ProcessResponseFunction<Result, Blob>
+      useKey: UseKey
+      useContext?: () => Context
+      onSuccess?: (
+        queryClient: QueryClient,
+        data: NoInfer<Result>,
+        variables: Util_FlatObject<MutationArgs<Url, undefined, QuerySchema>>,
+        context: Context,
+      ) => void | Promise<void>
+      onError?: (
+        queryClient: QueryClient,
+        error: Error,
+        variables: Util_FlatObject<MutationArgs<Url, undefined, QuerySchema>>,
+        context: Context,
+      ) => void | Promise<void>
+    },
+  ): ((
+    params: UrlHasParams<Url> extends true ? { urlParams: UrlParams<Url> } : {},
+  ) => UseMutationResult<
+    Result,
+    Error,
+    MutationArgs<Url, undefined, QuerySchema>
+  >) &
+    MutationHelpers<Url, Result> &
+    StreamHelper<Method, Url, undefined, QuerySchema>
+
+  // Stream mutation GET methods without useKey, with querySchema
+  mutationFromEndpoint<
+    Method extends 'GET' | 'DELETE' | 'OPTIONS' | 'HEAD' = 'GET',
+    Url extends string = string,
+    QuerySchema extends ZodObject = ZodObject,
+    Result = Blob,
+    Context = unknown,
+  >(
+    endpoint: {
+      config: BaseStreamConfig<Method, Url, QuerySchema, undefined>
+    },
+    mutationOptions?: {
+      processResponse?: ProcessResponseFunction<Result, Blob>
+      useContext?: () => Context
+      onSuccess?: (
+        queryClient: QueryClient,
+        data: NoInfer<Result>,
+        variables: Util_FlatObject<MutationArgs<Url, undefined, QuerySchema>>,
+        context: Context,
+      ) => void | Promise<void>
+      onError?: (
+        queryClient: QueryClient,
+        error: Error,
+        variables: Util_FlatObject<MutationArgs<Url, undefined, QuerySchema>>,
+        context: Context,
+      ) => void | Promise<void>
+    },
+  ): (() => UseMutationResult<
+    Result,
+    Error,
+    MutationArgs<Url, undefined, QuerySchema>
+  >) &
+    StreamHelper<Method, Url, undefined, QuerySchema>
+
+  // Stream mutation GET methods with useKey only (no schemas)
+  mutationFromEndpoint<
+    Method extends 'GET' | 'DELETE' | 'OPTIONS' | 'HEAD' = 'GET',
+    Url extends string = string,
+    Result = Blob,
+    Context = unknown,
+    UseKey extends true = true,
+  >(
+    endpoint: {
+      config: BaseStreamConfig<Method, Url, undefined, undefined>
+    },
+    mutationOptions: {
+      processResponse?: ProcessResponseFunction<Result, Blob>
+      useKey: UseKey
+      useContext?: () => Context
+      onSuccess?: (
+        queryClient: QueryClient,
+        data: NoInfer<Result>,
+        variables: Util_FlatObject<MutationArgs<Url, undefined, undefined>>,
+        context: Context,
+      ) => void | Promise<void>
+      onError?: (
+        queryClient: QueryClient,
+        error: Error,
+        variables: Util_FlatObject<MutationArgs<Url, undefined, undefined>>,
+        context: Context,
+      ) => void | Promise<void>
+    },
+  ): ((
+    params: UrlHasParams<Url> extends true ? { urlParams: UrlParams<Url> } : {},
+  ) => UseMutationResult<
+    Result,
+    Error,
+    MutationArgs<Url, undefined, undefined>
+  >) &
+    MutationHelpers<Url, Result> &
+    StreamHelper<Method, Url, undefined, undefined>
+
+  // Stream mutation GET methods without useKey (no schemas)
+  mutationFromEndpoint<
+    Method extends 'GET' | 'DELETE' | 'OPTIONS' | 'HEAD' = 'GET',
+    Url extends string = string,
+    Result = Blob,
+    Context = unknown,
+  >(
+    endpoint: {
+      config: BaseStreamConfig<Method, Url, undefined, undefined>
+    },
+    mutationOptions?: {
+      processResponse?: ProcessResponseFunction<Result, Blob>
+      useContext?: () => Context
+      onSuccess?: (
+        queryClient: QueryClient,
+        data: NoInfer<Result>,
+        variables: Util_FlatObject<MutationArgs<Url, undefined, undefined>>,
+        context: Context,
+      ) => void | Promise<void>
+      onError?: (
+        queryClient: QueryClient,
+        error: Error,
+        variables: Util_FlatObject<MutationArgs<Url, undefined, undefined>>,
+        context: Context,
+      ) => void | Promise<void>
+    },
+  ): (() => UseMutationResult<
+    Result,
+    Error,
+    MutationArgs<Url, undefined, undefined>
+  >) &
+    StreamHelper<Method, Url, undefined, undefined>
 }

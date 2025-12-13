@@ -10,11 +10,12 @@ import type { z } from 'zod/v4'
 import { assertType, describe, test } from 'vitest'
 import { z as zod } from 'zod/v4'
 
-import type { ClientInstance } from '../types.mjs'
+import type { ClientInstance, StreamHelper } from '../types.mjs'
 import type { QueryHelpers } from '../../query/types.mjs'
 import type { MutationHelpers } from '../../mutation/types.mjs'
 import type { EndpointHelper } from '../types.mjs'
 import type { Split } from '../../common/types.mjs'
+import type { BaseStreamConfig } from '@navios/builder'
 
 declare const client: ClientInstance
 
@@ -641,6 +642,155 @@ describe('ClientInstance', () => {
         >
       >(mutation)
     })
+  })
+})
+
+// Stream endpoint type declarations for testing
+declare const streamEndpointGet: {
+  config: BaseStreamConfig<'GET', '/files/$fileId/download', undefined, undefined>
+} & ((params: { urlParams: { fileId: string | number } }) => Promise<Blob>)
+
+declare const streamEndpointGetWithQuery: {
+  config: BaseStreamConfig<
+    'GET',
+    '/files/$fileId/download',
+    typeof querySchema,
+    undefined
+  >
+} & ((params: {
+  urlParams: { fileId: string | number }
+  params: z.input<typeof querySchema>
+}) => Promise<Blob>)
+
+declare const streamEndpointPost: {
+  config: BaseStreamConfig<
+    'POST',
+    '/files/$fileId/export',
+    undefined,
+    typeof requestSchema
+  >
+} & ((params: {
+  urlParams: { fileId: string | number }
+  data: z.input<typeof requestSchema>
+}) => Promise<Blob>)
+
+describe('mutationFromEndpoint() with stream endpoints', () => {
+  test('GET stream mutation without options (returns Blob)', () => {
+    const mutation = client.mutationFromEndpoint(streamEndpointGet)
+
+    // Should return a function that returns UseMutationResult with Blob
+    assertType<
+      () => UseMutationResult<Blob, Error, { urlParams: { fileId: string | number } }>
+    >(mutation)
+
+    // Should have StreamHelper
+    assertType<
+      StreamHelper<'GET', '/files/$fileId/download', undefined, undefined>['endpoint']
+    >(mutation.endpoint)
+  })
+
+  test('GET stream mutation with processResponse transformation', () => {
+    const mutation = client.mutationFromEndpoint(streamEndpointGet, {
+      processResponse: (blob) => URL.createObjectURL(blob),
+    })
+
+    // Result type should be string (transformed)
+    assertType<
+      () => UseMutationResult<
+        string,
+        Error,
+        { urlParams: { fileId: string | number } }
+      >
+    >(mutation)
+  })
+
+  test('GET stream mutation with useKey', () => {
+    const mutation = client.mutationFromEndpoint(streamEndpointGet, {
+      useKey: true,
+    })
+
+    // With useKey, should require urlParams in the call
+    assertType<
+      (params: {
+        urlParams: { fileId: string | number }
+      }) => UseMutationResult<
+        Blob,
+        Error,
+        { urlParams: { fileId: string | number } }
+      >
+    >(mutation)
+
+    // Should have MutationHelpers
+    assertType<
+      MutationHelpers<'/files/$fileId/download', Blob>['mutationKey']
+    >(mutation.mutationKey)
+  })
+
+  test('GET stream mutation with querySchema', () => {
+    const mutation = client.mutationFromEndpoint(streamEndpointGetWithQuery)
+
+    assertType<
+      () => UseMutationResult<
+        Blob,
+        Error,
+        {
+          urlParams: { fileId: string | number }
+          params: z.input<typeof querySchema>
+        }
+      >
+    >(mutation)
+  })
+
+  test('POST stream mutation with requestSchema', () => {
+    const mutation = client.mutationFromEndpoint(streamEndpointPost)
+
+    assertType<
+      () => UseMutationResult<
+        Blob,
+        Error,
+        {
+          urlParams: { fileId: string | number }
+          data: z.input<typeof requestSchema>
+        }
+      >
+    >(mutation)
+  })
+
+  test('stream mutation with onSuccess callback', () => {
+    const mutation = client.mutationFromEndpoint(streamEndpointGet, {
+      onSuccess: (_queryClient, data, variables) => {
+        // data should be Blob
+        assertType<Blob>(data)
+        // variables should have urlParams
+        assertType<{ urlParams: { fileId: string | number } }>(variables)
+      },
+    })
+
+    assertType<
+      () => UseMutationResult<
+        Blob,
+        Error,
+        { urlParams: { fileId: string | number } }
+      >
+    >(mutation)
+  })
+
+  test('stream mutation with custom processResponse and onSuccess', () => {
+    const mutation = client.mutationFromEndpoint(streamEndpointGet, {
+      processResponse: (blob) => ({ url: URL.createObjectURL(blob), size: blob.size }),
+      onSuccess: (_queryClient, data) => {
+        // data should be the transformed type
+        assertType<{ url: string; size: number }>(data)
+      },
+    })
+
+    assertType<
+      () => UseMutationResult<
+        { url: string; size: number },
+        Error,
+        { urlParams: { fileId: string | number } }
+      >
+    >(mutation)
   })
 })
 

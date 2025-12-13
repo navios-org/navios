@@ -10,6 +10,7 @@ import { declareClient } from '../client/declare-client.mjs'
 
 vi.mock('@tanstack/react-query', async (importReal) => {
   const actual = await importReal<typeof import('@tanstack/react-query')>()
+  const mockMutationContext = { mutationId: 1, meta: undefined }
   return {
     ...actual,
     useQueryClient: () => ({
@@ -22,11 +23,27 @@ vi.mock('@tanstack/react-query', async (importReal) => {
       ...req,
       mutateAsync: async (data: unknown) => {
         try {
+          const onMutateResult = await req.onMutate?.(data, mockMutationContext)
           const res = await req.mutationFn(data)
-          await req.onSuccess?.(res, data)
+          await req.onSuccess?.(res, data, onMutateResult, mockMutationContext)
+          await req.onSettled?.(
+            res,
+            null,
+            data,
+            onMutateResult,
+            mockMutationContext,
+          )
           return res
         } catch (err) {
-          req.onError?.(err, data)
+          const onMutateResult = undefined
+          await req.onError?.(err, data, onMutateResult, mockMutationContext)
+          await req.onSettled?.(
+            undefined,
+            err,
+            data,
+            onMutateResult,
+            mockMutationContext,
+          )
           throw err
         }
       },
@@ -147,7 +164,7 @@ describe('declareClient', () => {
         }
         return data
       },
-      onSuccess(queryClient, data, variables) {
+      onSuccess(data, variables, context) {
         expect(data).toMatchObject({
           success: true,
           test: 'test',
@@ -161,9 +178,11 @@ describe('declareClient', () => {
             testId: 'test',
           },
         })
+        expect(context).toHaveProperty('mutationId')
+        expect(context).toHaveProperty('onMutateResult')
       },
-      onError: (err) => {
-        console.log('onError', err)
+      onError: (err, _variables, context) => {
+        console.log('onError', err, context)
       },
     })
 

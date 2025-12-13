@@ -1,5 +1,80 @@
 # Changelog
 
+## [0.6.0] - Dec 13, 2025
+
+### Breaking Changes
+
+- **Mutation callback signatures changed** - The `onSuccess`, `onError`, `onMutate`, and `onSettled` callbacks now use a unified context-based signature instead of receiving `queryClient` as the first parameter:
+
+  **Before (0.5.x):**
+  ```typescript
+  const mutation = client.mutation({
+    onSuccess: (queryClient, data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['users'] })
+    },
+    onError: (queryClient, error, variables) => {
+      console.error(error)
+    },
+  })
+  ```
+
+  **After (0.6.0):**
+  ```typescript
+  const mutation = client.mutation({
+    onSuccess: (data, variables, context) => {
+      // Access queryClient via useContext if needed
+      context.queryClient.invalidateQueries({ queryKey: ['users'] })
+    },
+    onError: (error, variables, context) => {
+      console.error(error)
+    },
+    onMutate: (variables, context) => {
+      // Return value is available in other callbacks as context.onMutateResult
+      return { previousData: context.queryClient.getQueryData(['users']) }
+    },
+    onSettled: (data, error, variables, context) => {
+      // Called on both success and error
+      // context.onMutateResult contains the return value from onMutate
+    },
+    useContext: () => {
+      const queryClient = useQueryClient()
+      return { queryClient }
+    },
+  })
+  ```
+
+- **New `TOnMutateResult` type parameter** - `MutationParams` now includes a `TOnMutateResult` generic for typing the return value of `onMutate`, which is passed to other callbacks via `context.onMutateResult`.
+
+### Added
+
+- **`onMutate` callback** - Called before the mutation executes. The return value is available in `onSuccess`, `onError`, and `onSettled` callbacks via `context.onMutateResult`. This enables optimistic updates pattern.
+
+- **`onSettled` callback** - Called after the mutation completes (success or failure). Receives `data` (undefined on error), `error` (null on success), `variables`, and `context`.
+
+- **`MutationFunctionContext` integration** - All callbacks now receive TanStack Query's `MutationFunctionContext` merged with your custom context, providing access to `mutationId` and `meta`.
+
+- **Stream mutation support** - `mutationFromEndpoint` now supports stream endpoints created with `api.declareStream()`. This enables file downloads and other blob responses in mutations.
+
+  ```typescript
+  const downloadFile = api.declareStream({
+    method: 'GET',
+    url: '/files/$id/download',
+  })
+
+  const useDownloadFile = client.mutationFromEndpoint(downloadFile, {
+    onSuccess: (blob, variables, context) => {
+      const url = URL.createObjectURL(blob)
+      window.open(url)
+    },
+  })
+  ```
+
+- **New `StreamHelper` type** - Helper type that attaches stream endpoint to mutation results, similar to `EndpointHelper` for regular endpoints.
+
+### Changed
+
+- **`processResponse` is now optional** - For both regular mutations and stream mutations, `processResponse` defaults to an identity function when not provided. This is particularly useful for stream mutations where you often just want the raw `Blob`.
+
 ## [0.5.1] - Dec 13, 2025
 
 ### Fixed
