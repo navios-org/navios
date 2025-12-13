@@ -45,7 +45,6 @@ export type MultipartResult<
   },
 > =
   EndpointDeclaration['config']['responseSchema'] extends ZodDiscriminatedUnion<
-    any,
     infer Options
   >
     ? Promise<z.input<Options[number]>>

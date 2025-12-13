@@ -260,11 +260,10 @@ export class EmailProviderFactory {
 
 @Injectable()
 export class EmailService {
-  private emailProviderFactory = inject(EmailProviderFactory)
+  private emailProvider = inject(EmailProviderFactory)
 
   async sendWelcomeEmail(user: User) {
-    const provider = this.emailProviderFactory.create()
-    await provider.send(
+    await this.emailProvider.send(
       user.email,
       'Welcome!',
       `Hello ${user.name}, welcome to our platform!`,
