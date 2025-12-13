@@ -1,12 +1,8 @@
 import type { z, ZodObject, ZodType } from 'zod/v4'
 
-import type {
-  BaseEndpointConfig,
-  BaseStreamConfig,
-  Client,
-  EndpointFunctionArgs,
-  Util_FlatObject,
-} from '../types.mjs'
+import type { Client } from './common.mjs'
+import type { BaseEndpointConfig, BaseStreamConfig } from './config.mjs'
+import type { EndpointFunctionArgs, Util_FlatObject } from './request.mjs'
 
 export interface BuilderInstance {
   provideClient(client: Client): void

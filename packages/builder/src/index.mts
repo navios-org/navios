@@ -1,5 +1,14 @@
-export * from './utils/index.mjs'
-export * from './exceptions/index.mjs'
+// Main builder function
 export * from './builder.mjs'
-export * from './types.mjs'
+
+// Types
 export * from './types/index.mjs'
+
+// Handlers
+export * from './handlers/index.mjs'
+
+// Request utilities
+export * from './request/index.mjs'
+
+// Errors
+export * from './errors/index.mjs'

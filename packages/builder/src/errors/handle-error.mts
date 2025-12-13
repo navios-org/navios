@@ -2,9 +2,9 @@ import type { ZodType } from 'zod/v4'
 
 import { ZodError } from 'zod/v4'
 
-import type { AbstractResponse, BuilderConfig } from '../types.mjs'
+import type { AbstractResponse, BuilderConfig } from '../types/index.mjs'
 
-export function handleException(
+export function handleError(
   config: BuilderConfig,
   error: unknown,
   responseSchema?: ZodType,
@@ -37,3 +37,8 @@ export function handleException(
   }
   throw error
 }
+
+/**
+ * @deprecated Use handleError instead. Will be removed in next major version.
+ */
+export const handleException = handleError
