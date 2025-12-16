@@ -52,19 +52,24 @@
     },
     "./jsx": {
       "import": {
-        "types": "./lib/jsx.d.mts",
+        "types": "./jsx.d.ts",
         "default": "./lib/jsx.mjs"
       },
       "require": {
-        "types": "./lib/jsx.d.ts",
+        "types": "./jsx.d.ts",
         "default": "./lib/jsx.js"
       }
     }
   },
   "devDependencies": {
+    "@navios/adapter-bun": "workspace:^",
+    "@navios/adapter-fastify": "workspace:^",
     "@navios/builder": "workspace:^",
     "@navios/core": "workspace:^",
     "@navios/di": "workspace:^",
+    "@types/bun": "^1.3.4",
+    "@types/supertest": "^6.0.3",
+    "supertest": "^7.1.4",
     "tsx": "^4.21.0",
     "typescript": "^5.9.3",
     "vitest": "^3.2.4"

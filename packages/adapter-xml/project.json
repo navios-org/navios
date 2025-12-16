@@ -31,8 +31,33 @@
     "test:ci": {
       "executor": "nx:run-commands",
       "inputs": ["^projectSources", "project"],
+      "dependsOn": ["test:ci:unit", "test:ci:fastify", "test:ci:bun"],
       "options": {
-        "command": "vitest run",
+        "command": "echo 'All tests passed'",
+        "cwd": "packages/adapter-xml"
+      }
+    },
+    "test:ci:unit": {
+      "executor": "nx:run-commands",
+      "inputs": ["^projectSources", "project"],
+      "options": {
+        "command": "vitest run --config vitest.config.mts src/",
+        "cwd": "packages/adapter-xml"
+      }
+    },
+    "test:ci:fastify": {
+      "executor": "nx:run-commands",
+      "inputs": ["^projectSources", "project"],
+      "options": {
+        "command": "vitest run --config vitest.e2e.fastify.config.mts",
+        "cwd": "packages/adapter-xml"
+      }
+    },
+    "test:ci:bun": {
+      "executor": "nx:run-commands",
+      "inputs": ["^projectSources", "project"],
+      "options": {
+        "command": "bun test e2e/bun/",
         "cwd": "packages/adapter-xml"
       }
     },

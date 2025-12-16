@@ -1,14 +1,18 @@
+import { Container, Registry } from '@navios/di'
+
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod/v4'
 
-import { Container, Registry } from '@navios/di'
-
 import type { XmlComponent } from '../types/component.mjs'
 
-import { Component, ComponentMeta, isComponentClass } from './component.decorator.mjs'
 import { createElement } from '../runtime/create-element.mjs'
 import { renderToXml } from '../runtime/render-to-xml.mjs'
 import { ClassComponent } from '../types/xml-node.mjs'
+import {
+  Component,
+  ComponentMeta,
+  isComponentClass,
+} from './component.decorator.mjs'
 
 describe('@Component decorator', () => {
   it('should mark class as a component', () => {
@@ -26,8 +30,8 @@ describe('@Component decorator', () => {
 
   it('should throw if class does not have render method', () => {
     expect(() => {
-      @Component()
       // @ts-expect-error - Testing invalid class
+      @Component()
       class InvalidComponent {
         notRender() {
           return null
@@ -263,7 +267,10 @@ describe('class component rendering', () => {
     try {
       // Valid props
       const validNode = createElement(StrictComponent, { count: 5 })
-      const xml = await renderToXml(validNode, { declaration: false, container })
+      const xml = await renderToXml(validNode, {
+        declaration: false,
+        container,
+      })
       expect(xml).toBe('<count>5</count>')
 
       // Invalid props - negative number

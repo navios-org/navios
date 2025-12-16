@@ -1,9 +1,22 @@
 {
   "extends": "./tsconfig.json",
   "compilerOptions": {
-    "outDir": "./dist"
+    "outDir": "./dist",
+    "module": "preserve",
+    "moduleResolution": "bundler",
+    "jsx": "react-jsx",
+    "jsxImportSource": "@navios/adapter-xml",
+    "types": ["./jsx.d.ts"]
   },
-  "include": ["src/**/*.spec.mts", "src/**/__tests__/*.spec.mts", "vitest.config.mts"],
+  "include": [
+    "src/**/*.spec.mts",
+    "src/**/__tests__/*.spec.mts",
+    "e2e/**/*.mts",
+    "vitest.config.mts",
+    "vitest.e2e.fastify.config.mts",
+    "e2e/fastify/xml-stream.spec.tsx",
+    "e2e/bun/xml-stream.spec.tsx"
+  ],
   "references": [
     {
       "path": "./tsconfig.lib.json"

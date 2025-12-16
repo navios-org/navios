@@ -2257,7 +2257,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@navios/adapter-bun@workspace:packages/adapter-bun":
+"@navios/adapter-bun@workspace:^, @navios/adapter-bun@workspace:packages/adapter-bun":
   version: 0.0.0-use.local
   resolution: "@navios/adapter-bun@workspace:packages/adapter-bun"
   dependencies:
@@ -2274,7 +2274,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@navios/adapter-fastify@workspace:packages/adapter-fastify":
+"@navios/adapter-fastify@workspace:^, @navios/adapter-fastify@workspace:packages/adapter-fastify":
   version: 0.0.0-use.local
   resolution: "@navios/adapter-fastify@workspace:packages/adapter-fastify"
   dependencies:
@@ -2302,9 +2302,14 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@navios/adapter-xml@workspace:packages/adapter-xml"
   dependencies:
+    "@navios/adapter-bun": "workspace:^"
+    "@navios/adapter-fastify": "workspace:^"
     "@navios/builder": "workspace:^"
     "@navios/core": "workspace:^"
     "@navios/di": "workspace:^"
+    "@types/bun": "npm:^1.3.4"
+    "@types/supertest": "npm:^6.0.3"
+    supertest: "npm:^7.1.4"
     tsx: "npm:^4.21.0"
     typescript: "npm:^5.9.3"
     vitest: "npm:^3.2.4"

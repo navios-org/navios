@@ -6,6 +6,7 @@ A JSX-based XML adapter for Navios that enables building XML responses (RSS feed
 
 - **JSX Syntax** - Write XML using JSX with TypeScript type checking
 - **Async Components** - Support for async components that fetch data during rendering
+- **Class Components** - `@Component` decorator with dependency injection support via `@navios/di`
 - **Type-Safe Tags** - Define custom XML tags with Zod schema validation
 - **Runtime Agnostic** - Works with both Fastify and Bun adapters
 - **CDATA Support** - Built-in `CData` component for safe text content
@@ -230,6 +231,99 @@ async function LatestPosts() {
 }
 ```
 
+### Class Components
+
+Class components use the `@Component` decorator and implement the `XmlComponent` interface. They support dependency injection via `@navios/di`, making them ideal for components that need access to services.
+
+```tsx
+import { Component, XmlComponent } from '@navios/adapter-xml'
+import { inject, Injectable } from '@navios/di'
+
+// Define a service
+@Injectable()
+class PostService {
+  async getLatestPosts() {
+    // Fetch posts from database
+    return [{ title: 'Hello World', url: '/posts/hello' }]
+  }
+}
+
+// Basic class component without props
+@Component()
+class LatestPostsComponent implements XmlComponent {
+  private readonly postService = inject(PostService)
+
+  async render() {
+    const posts = await this.postService.getLatestPosts()
+
+    return (
+      <>
+        {posts.map((post) => (
+          <item>
+            <title>{post.title}</title>
+            <link>{post.url}</link>
+          </item>
+        ))}
+      </>
+    )
+  }
+}
+
+// Usage in JSX
+<channel>
+  <LatestPostsComponent />
+</channel>
+```
+
+#### Class Components with Props
+
+Use a Zod schema to define typed props for your component:
+
+```tsx
+import { Component, XmlComponent, CData } from '@navios/adapter-xml'
+import { z } from 'zod/v4'
+
+const DescriptionSchema = z.object({
+  content: z.string(),
+  wrapInCData: z.boolean().optional(),
+})
+
+@Component({ schema: DescriptionSchema })
+class DescriptionComponent implements XmlComponent {
+  constructor(private props: z.output<typeof DescriptionSchema>) {}
+
+  async render() {
+    const { content, wrapInCData } = this.props
+
+    return (
+      <description>
+        {wrapInCData ? <CData>{content}</CData> : content}
+      </description>
+    )
+  }
+}
+
+// Usage with typed props
+<DescriptionComponent
+  content="<p>HTML content here</p>"
+  wrapInCData={true}
+/>
+```
+
+#### Rendering with Container
+
+When using class components, pass a DI container to `renderToXml`:
+
+```tsx
+import { renderToXml } from '@navios/adapter-xml'
+import { Container } from '@navios/di'
+
+const container = new Container()
+container.beginRequest('request-id')
+
+const xml = await renderToXml(<RssFeed />, { container })
+```
+
 ### CDATA Sections
 
 Use `CData` for text content that may contain special characters:
@@ -298,6 +392,34 @@ Decorator for controller methods that return XML.
 
 Returns environment configuration to merge with your base adapter.
 
+### `@Component(options?)`
+
+Decorator for class-based XML components with dependency injection support.
+
+```typescript
+// Without props
+@Component()
+class MyComponent implements XmlComponent { ... }
+
+// With props schema
+@Component({ schema: MyPropsSchema })
+class MyComponent implements XmlComponent { ... }
+
+// With custom registry
+@Component({ registry: customRegistry })
+class MyComponent implements XmlComponent { ... }
+```
+
+### `XmlComponent`
+
+Interface for class components. Must implement a `render()` method.
+
+```typescript
+interface XmlComponent {
+  render(): AnyXmlNode | Promise<AnyXmlNode>
+}
+```
+
 ### `CData`
 
 Component for CDATA sections. Automatically handles content containing `]]>`.
@@ -315,6 +437,7 @@ interface RenderOptions {
   declaration?: boolean // Include XML declaration
   encoding?: string // XML encoding
   pretty?: boolean // Pretty print output
+  container?: Container // DI container for class components
 }
 ```
 
