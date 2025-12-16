@@ -4,14 +4,23 @@ export type {
   AsyncXmlNode,
   CDataNode,
   RawXmlNode,
+  ClassComponentNode,
   AnyXmlNode,
   BaseXmlStreamConfig,
+  XmlComponent,
+  ComponentClass,
 } from './types/index.mjs'
 
-export { Fragment, AsyncComponent, CDataSymbol, RawXmlSymbol } from './types/index.mjs'
+export {
+  Fragment,
+  AsyncComponent,
+  CDataSymbol,
+  RawXmlSymbol,
+  ClassComponent,
+} from './types/index.mjs'
 
 // Runtime
-export { createElement, CData, DangerouslyInsertRawXml, renderToXml } from './runtime/index.mjs'
+export { createElement, CData, DangerouslyInsertRawXml, renderToXml, MissingContainerError } from './runtime/index.mjs'
 export type { RenderOptions } from './runtime/index.mjs'
 
 // Tags
@@ -19,7 +28,7 @@ export { defineTag } from './tags/index.mjs'
 export type { TagComponent } from './tags/index.mjs'
 
 // Decorators
-export { XmlStream } from './decorators/index.mjs'
+export { XmlStream, Component, isComponentClass } from './decorators/index.mjs'
 export type { XmlStreamParams } from './decorators/index.mjs'
 
 // Handlers

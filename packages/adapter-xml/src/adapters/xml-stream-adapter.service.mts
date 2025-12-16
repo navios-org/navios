@@ -77,17 +77,18 @@ export class XmlStreamAdapterService implements AbstractHttpHandlerAdapterInterf
     const renderOptions = {
       declaration: config.xmlDeclaration ?? true,
       encoding: config.encoding ?? 'UTF-8',
+      container: this.container,
     }
 
     return async (context: RequestContextHolder, request: any, reply: any) => {
       const controllerInstance = await this.container.get(controller)
       const argument = await formatArguments(request)
 
-      // Call controller method - returns XmlNode (JSX), may contain async components
+      // Call controller method - returns XmlNode (JSX), may contain async/class components
       const xmlNode: AnyXmlNode =
         await controllerInstance[handlerMetadata.classMethod](argument)
 
-      // Render JSX to XML string (async - resolves all async components)
+      // Render JSX to XML string (async - resolves all async and class components)
       const xml = await renderToXml(xmlNode, renderOptions)
 
       // Environment detection: Bun doesn't have reply

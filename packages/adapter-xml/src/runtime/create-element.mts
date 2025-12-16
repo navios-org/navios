@@ -1,10 +1,13 @@
-import type { AnyXmlNode, AsyncXmlNode, XmlNode } from '../types/xml-node.mjs'
+import type { AnyXmlNode, AsyncXmlNode, ClassComponentNode, XmlNode } from '../types/xml-node.mjs'
+import type { ComponentClass } from '../types/component.mjs'
 
-import { AsyncComponent, Fragment } from '../types/xml-node.mjs'
+import { isComponentClass } from '../decorators/component.decorator.mjs'
+import { AsyncComponent, ClassComponent, Fragment } from '../types/xml-node.mjs'
 
-type SyncComponent = (props: any) => XmlNode | AsyncXmlNode
-type AsyncComponentFn = (props: any) => Promise<XmlNode | AsyncXmlNode>
-type ComponentType = SyncComponent | AsyncComponentFn
+type SyncComponent = (props: any) => XmlNode | AsyncXmlNode | ClassComponentNode
+type AsyncComponentFn = (props: any) => Promise<XmlNode | AsyncXmlNode | ClassComponentNode>
+type FunctionalComponent = SyncComponent | AsyncComponentFn
+type ComponentType = FunctionalComponent | ComponentClass
 
 function flattenChildren(children: any): AnyXmlNode[] {
   if (children == null || children === false) {
@@ -24,12 +27,22 @@ function flattenChildren(children: any): AnyXmlNode[] {
 export function jsx(
   type: string | typeof Fragment | ComponentType,
   props: Record<string, unknown> | null,
-): XmlNode | AsyncXmlNode {
+): XmlNode | AsyncXmlNode | ClassComponentNode {
   const { children, ...restProps } = props ?? {}
+  const flatChildren = flattenChildren(children)
+
+  // Handle class components - create ClassComponentNode for later resolution
+  if (isComponentClass(type)) {
+    return {
+      type: ClassComponent,
+      componentClass: type,
+      props: { ...restProps, children: flatChildren },
+    }
+  }
 
   // Handle function components (sync or async)
   if (typeof type === 'function') {
-    const result = type({ ...restProps, children: flattenChildren(children) })
+    const result = type({ ...restProps, children: flatChildren })
 
     // If component returns a Promise, wrap it in AsyncXmlNode
     if (result instanceof Promise) {
@@ -45,7 +58,7 @@ export function jsx(
   return {
     type,
     props: restProps,
-    children: flattenChildren(children),
+    children: flatChildren,
   }
 }
 
@@ -63,10 +76,21 @@ export function createElement(
   type: string | typeof Fragment | ComponentType,
   props: Record<string, unknown> | null,
   ...children: any[]
-): XmlNode | AsyncXmlNode {
+): XmlNode | AsyncXmlNode | ClassComponentNode {
+  const flatChildren = flattenChildren(children)
+
+  // Handle class components - create ClassComponentNode for later resolution
+  if (isComponentClass(type)) {
+    return {
+      type: ClassComponent,
+      componentClass: type,
+      props: { ...props, children: flatChildren },
+    }
+  }
+
   // Handle function components (sync or async)
   if (typeof type === 'function') {
-    const result = type({ ...props, children: flattenChildren(children) })
+    const result = type({ ...props, children: flatChildren })
 
     // If component returns a Promise, wrap it in AsyncXmlNode
     if (result instanceof Promise) {
@@ -82,7 +106,7 @@ export function createElement(
   return {
     type,
     props: props ?? {},
-    children: flattenChildren(children),
+    children: flatChildren,
   }
 }
 

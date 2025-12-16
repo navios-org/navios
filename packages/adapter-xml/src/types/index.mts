@@ -3,6 +3,7 @@ export {
   AsyncComponent,
   CDataSymbol,
   RawXmlSymbol,
+  ClassComponent,
 } from './xml-node.mjs'
 
 export type {
@@ -10,8 +11,11 @@ export type {
   AsyncXmlNode,
   CDataNode,
   RawXmlNode,
+  ClassComponentNode,
   AnyXmlNode,
 } from './xml-node.mjs'
+
+export type { XmlComponent, ComponentClass } from './component.mjs'
 
 export type { BaseXmlStreamConfig } from './config.mjs'
 

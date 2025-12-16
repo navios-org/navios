@@ -2298,7 +2298,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@navios/adapter-xml@workspace:packages/adapter-xml":
+"@navios/adapter-xml@workspace:*, @navios/adapter-xml@workspace:packages/adapter-xml":
   version: 0.0.0-use.local
   resolution: "@navios/adapter-xml@workspace:packages/adapter-xml"
   dependencies:
@@ -4306,6 +4306,20 @@ __metadata:
   checksum: 10c0/dbd36c1ed1d2fa3550140000371fcf721578095b18777b85a79df231ca093b08edc6858d75d6e48c73e431c174dcf9214edbd7e6fa5911b93bd8abfa54e47123
   languageName: node
   linkType: hard
+
+"adapter-xml-example@workspace:examples/adapter-xml":
+  version: 0.0.0-use.local
+  resolution: "adapter-xml-example@workspace:examples/adapter-xml"
+  dependencies:
+    "@navios/adapter-xml": "workspace:*"
+    "@navios/builder": "workspace:*"
+    "@navios/core": "workspace:*"
+    "@navios/di": "workspace:*"
+    tsx: "npm:^4.21.0"
+    typescript: "npm:^5.9.3"
+    zod: "npm:^4.1.13"
+  languageName: unknown
+  linkType: soft
 
 "address@npm:^1.0.1":
   version: 1.2.2

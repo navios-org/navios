@@ -1,7 +1,10 @@
+import type { ComponentClass } from './component.mjs'
+
 export const Fragment = Symbol.for('xml.fragment')
 export const AsyncComponent = Symbol.for('xml.async')
 export const CDataSymbol = Symbol.for('xml.cdata')
 export const RawXmlSymbol = Symbol.for('xml.raw')
+export const ClassComponent = Symbol.for('xml.class-component')
 
 /** Represents a CDATA section - content is wrapped in <![CDATA[...]]> */
 export interface CDataNode {
@@ -13,6 +16,13 @@ export interface CDataNode {
 export interface RawXmlNode {
   type: typeof RawXmlSymbol
   content: string
+}
+
+/** Represents a class component that needs to be resolved via DI */
+export interface ClassComponentNode {
+  type: typeof ClassComponent
+  componentClass: ComponentClass
+  props: Record<string, unknown>
 }
 
 export interface XmlNode {
@@ -28,4 +38,13 @@ export interface AsyncXmlNode {
 }
 
 /** Union type for all possible node types */
-export type AnyXmlNode = XmlNode | AsyncXmlNode | CDataNode | RawXmlNode | string | number | null | undefined
+export type AnyXmlNode =
+  | XmlNode
+  | AsyncXmlNode
+  | CDataNode
+  | RawXmlNode
+  | ClassComponentNode
+  | string
+  | number
+  | null
+  | undefined
