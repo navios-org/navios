@@ -26,7 +26,7 @@ export class ServiceLocatorEventBus {
     nsEvents.get(event)!.add(listener)
 
     return () => {
-      nsEvents.get(event)!.delete(listener)
+      nsEvents.get(event)?.delete(listener)
       if (nsEvents.get(event)?.size === 0) {
         nsEvents.delete(event)
       }
