@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 
-import { createContext, createElement, useEffect, useId, useRef } from 'react'
+import { createContext, useEffect, useId, useRef } from 'react'
+import { jsx } from 'react/jsx-runtime'
 
 import { useContainer } from '../hooks/use-container.mjs'
 
@@ -80,9 +81,5 @@ export function ScopeProvider({
     }
   }, [container, effectiveScopeId])
 
-  return createElement(
-    ScopeContext.Provider,
-    { value: effectiveScopeId },
-    children,
-  )
+  return jsx(ScopeContext.Provider, { value: effectiveScopeId, children })
 }

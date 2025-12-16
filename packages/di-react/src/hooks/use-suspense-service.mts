@@ -196,13 +196,13 @@ export function useSuspenseService(
   // Cleanup subscription on unmount
   useEffect(() => {
     return () => {
-      // If there are no subscribers, unsubscribe and delete the cache entry
-      if (entry.subscribers.size === 0) {
-        entry.unsubscribe?.()
-        cache.delete(cacheKey)
-      }
+      // // If there are no subscribers, unsubscribe and delete the cache entry
+      // if (entry.subscribers.size === 0) {
+      //   entry.unsubscribe?.()
+      //   cache.delete(cacheKey)
+      // }
     }
-  }, [entry])
+  }, [])
 
   // Start fetching if not already
   if (entry.status === 'pending' && !entry.promise) {

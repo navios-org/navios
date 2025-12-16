@@ -1,7 +1,7 @@
 import type { Container } from '@navios/di'
 import type { ReactNode } from 'react'
 
-import { createElement } from 'react'
+import { jsx } from 'react/jsx-runtime'
 
 import { ContainerContext } from './context.mjs'
 
@@ -14,9 +14,5 @@ export function ContainerProvider({
   container,
   children,
 }: ContainerProviderProps) {
-  return createElement(
-    ContainerContext.Provider,
-    { value: container },
-    children,
-  )
+  return jsx(ContainerContext.Provider, { value: container, children })
 }
