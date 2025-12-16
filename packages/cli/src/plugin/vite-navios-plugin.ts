@@ -51,10 +51,10 @@ export function ViteNaviosPlugin({
         parser: {
           syntax: 'typescript',
         },
-        ...(swcOptions?.jsc ?? {}),
+        ...swcOptions?.jsc,
         transform: {
           decoratorVersion: '2022-03',
-          ...(swcOptions?.jsc?.transform ?? {}),
+          ...swcOptions?.jsc?.transform,
         },
       },
     },

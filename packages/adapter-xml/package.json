@@ -1,0 +1,75 @@
+{
+  "name": "@navios/adapter-xml",
+  "version": "0.1.0",
+  "author": {
+    "name": "Oleksandr Hanzha",
+    "email": "alex@granted.name"
+  },
+  "repository": {
+    "directory": "packages/adapter-xml",
+    "type": "git",
+    "url": "https://github.com/Arilas/navios.git"
+  },
+  "license": "MIT",
+  "peerDependencies": {
+    "@navios/builder": "workspace:^",
+    "@navios/core": "workspace:^",
+    "@navios/di": "workspace:^"
+  },
+  "typings": "./lib/index.d.mts",
+  "main": "./lib/index.js",
+  "module": "./lib/index.mjs",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./lib/index.d.mts",
+        "default": "./lib/index.mjs"
+      },
+      "require": {
+        "types": "./lib/index.d.ts",
+        "default": "./lib/index.js"
+      }
+    },
+    "./jsx-runtime": {
+      "import": {
+        "types": "./lib/jsx-runtime.d.mts",
+        "default": "./lib/jsx-runtime.mjs"
+      },
+      "require": {
+        "types": "./lib/jsx-runtime.d.ts",
+        "default": "./lib/jsx-runtime.js"
+      }
+    },
+    "./jsx-dev-runtime": {
+      "import": {
+        "types": "./lib/jsx-dev-runtime.d.mts",
+        "default": "./lib/jsx-dev-runtime.mjs"
+      },
+      "require": {
+        "types": "./lib/jsx-dev-runtime.d.ts",
+        "default": "./lib/jsx-dev-runtime.js"
+      }
+    },
+    "./jsx": {
+      "import": {
+        "types": "./lib/jsx.d.mts",
+        "default": "./lib/jsx.mjs"
+      },
+      "require": {
+        "types": "./lib/jsx.d.ts",
+        "default": "./lib/jsx.js"
+      }
+    }
+  },
+  "devDependencies": {
+    "@navios/builder": "workspace:^",
+    "@navios/core": "workspace:^",
+    "@navios/di": "workspace:^",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.4"
+  },
+  "dependencies": {
+    "zod": "^4.1.13"
+  }
+}

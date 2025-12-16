@@ -1,0 +1,66 @@
+{
+  "name": "@navios/adapter-xml",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "packages/adapter-xml/src",
+  "prefix": "adapter-xml",
+  "tags": [],
+  "projectType": "library",
+  "targets": {
+    "check": {
+      "executor": "nx:run-commands",
+      "outputs": ["{projectRoot}/dist"],
+      "inputs": [
+        "^projectSources",
+        "projectSources",
+        "{projectRoot}/tsconfig.json",
+        "{projectRoot}/tsconfig.lib.json"
+      ],
+      "options": {
+        "command": ["tsc -b"],
+        "cwd": "packages/adapter-xml"
+      }
+    },
+    "lint": {
+      "executor": "nx:run-commands",
+      "inputs": ["^projectSources", "project"],
+      "options": {
+        "command": "oxlint --fix",
+        "cwd": "packages/adapter-xml"
+      }
+    },
+    "test:ci": {
+      "executor": "nx:run-commands",
+      "inputs": ["^projectSources", "project"],
+      "options": {
+        "command": "vitest run",
+        "cwd": "packages/adapter-xml"
+      }
+    },
+    "build": {
+      "executor": "nx:run-commands",
+      "inputs": ["projectSources", "{projectRoot}/tsup.config.mts"],
+      "outputs": ["{projectRoot}/lib"],
+      "dependsOn": ["check", "test:ci", "lint"],
+      "options": {
+        "command": "tsup",
+        "cwd": "packages/adapter-xml"
+      }
+    },
+    "publish": {
+      "executor": "nx:run-commands",
+      "dependsOn": ["build"],
+      "options": {
+        "command": "yarn npm publish --access public",
+        "cwd": "packages/adapter-xml"
+      }
+    },
+    "publish:next": {
+      "executor": "nx:run-commands",
+      "dependsOn": ["build"],
+      "options": {
+        "command": "yarn npm publish --access public --tag next",
+        "cwd": "packages/adapter-xml"
+      }
+    }
+  }
+}
