@@ -11,7 +11,7 @@ const config: Config = {
     v4: true,
   },
 
-  url: 'https://navios.dev',
+  url: 'https://navios.tech',
   baseUrl: '/',
 
   organizationName: 'Arilas',
