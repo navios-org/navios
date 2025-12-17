@@ -1,0 +1,221 @@
+/**
+ * Navios Framework - Custom Theme
+ * Dark-first color scheme with blue accent
+ */
+
+:root {
+  /* Primary blue accent */
+  --ifm-color-primary: #3b82f6;
+  --ifm-color-primary-dark: #2563eb;
+  --ifm-color-primary-darker: #1d4ed8;
+  --ifm-color-primary-darkest: #1e40af;
+  --ifm-color-primary-light: #60a5fa;
+  --ifm-color-primary-lighter: #93c5fd;
+  --ifm-color-primary-lightest: #bfdbfe;
+
+  --ifm-code-font-size: 95%;
+  --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.1);
+
+  /* Typography */
+  --ifm-heading-font-weight: 600;
+  --ifm-font-family-base: system-ui, -apple-system, 'Segoe UI', Roboto, Ubuntu,
+    Cantarell, 'Noto Sans', sans-serif;
+  --ifm-font-family-monospace: 'JetBrains Mono', 'Fira Code', ui-monospace,
+    SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+[data-theme='dark'] {
+  /* Cyan/teal accent for dark mode */
+  --ifm-color-primary: #22d3ee;
+  --ifm-color-primary-dark: #06b6d4;
+  --ifm-color-primary-darker: #0891b2;
+  --ifm-color-primary-darkest: #0e7490;
+  --ifm-color-primary-light: #67e8f9;
+  --ifm-color-primary-lighter: #a5f3fc;
+  --ifm-color-primary-lightest: #cffafe;
+
+  --ifm-background-color: #0f172a;
+  --ifm-background-surface-color: #1e293b;
+  --ifm-navbar-background-color: #0f172a;
+  --ifm-footer-background-color: #020617;
+
+  --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.3);
+}
+
+/* Hero section styling */
+.hero {
+  background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%);
+  padding: 4rem 0;
+}
+
+[data-theme='dark'] .hero {
+  background: linear-gradient(135deg, #020617 0%, #0f172a 50%, #020617 100%);
+}
+
+.hero__title {
+  font-size: 3.5rem;
+  font-weight: 700;
+  background: linear-gradient(135deg, #22d3ee 0%, #3b82f6 50%, #8b5cf6 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.hero__subtitle {
+  font-size: 1.5rem;
+  color: #94a3b8;
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+/* Button styling */
+.button--primary {
+  background: linear-gradient(135deg, #22d3ee 0%, #3b82f6 100%);
+  border: none;
+  transition: all 0.2s ease;
+}
+
+.button--primary:hover {
+  background: linear-gradient(135deg, #67e8f9 0%, #60a5fa 100%);
+  transform: translateY(-2px);
+  box-shadow: 0 10px 25px -10px rgba(34, 211, 238, 0.4);
+}
+
+.button--secondary {
+  border: 2px solid #3b82f6;
+  color: #3b82f6;
+  background: transparent;
+  transition: all 0.2s ease;
+}
+
+[data-theme='dark'] .button--secondary {
+  border-color: #22d3ee;
+  color: #22d3ee;
+}
+
+.button--secondary:hover {
+  background: rgba(59, 130, 246, 0.1);
+  transform: translateY(-2px);
+}
+
+[data-theme='dark'] .button--secondary:hover {
+  background: rgba(34, 211, 238, 0.1);
+}
+
+/* Navbar styling */
+.navbar {
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  backdrop-filter: blur(8px);
+}
+
+[data-theme='dark'] .navbar {
+  background-color: rgba(15, 23, 42, 0.9);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.navbar__title {
+  font-weight: 700;
+  font-size: 1.25rem;
+}
+
+/* Sidebar styling */
+[data-theme='dark'] .menu {
+  background-color: transparent;
+}
+
+.menu__link--active {
+  font-weight: 600;
+}
+
+/* Code blocks */
+.prism-code {
+  border-radius: 8px;
+}
+
+[data-theme='dark'] pre {
+  background-color: #1e293b !important;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Table styling */
+[data-theme='dark'] table {
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+[data-theme='dark'] th {
+  background-color: rgba(255, 255, 255, 0.05);
+}
+
+[data-theme='dark'] tr:nth-child(2n) {
+  background-color: rgba(255, 255, 255, 0.02);
+}
+
+/* Feature cards */
+.feature-card {
+  background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+  border-radius: 12px;
+  padding: 2rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  transition: all 0.3s ease;
+}
+
+.feature-card:hover {
+  transform: translateY(-4px);
+  border-color: rgba(34, 211, 238, 0.3);
+  box-shadow: 0 20px 40px -20px rgba(34, 211, 238, 0.2);
+}
+
+/* Custom scrollbar for dark mode */
+[data-theme='dark'] ::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+[data-theme='dark'] ::-webkit-scrollbar-track {
+  background: #0f172a;
+}
+
+[data-theme='dark'] ::-webkit-scrollbar-thumb {
+  background: #334155;
+  border-radius: 4px;
+}
+
+[data-theme='dark'] ::-webkit-scrollbar-thumb:hover {
+  background: #475569;
+}
+
+/* Admonition (callout) styling */
+[data-theme='dark'] .alert {
+  background-color: rgba(255, 255, 255, 0.05);
+  border-left-width: 4px;
+}
+
+/* Package badges */
+.package-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.25rem 0.75rem;
+  background: rgba(34, 211, 238, 0.1);
+  border: 1px solid rgba(34, 211, 238, 0.3);
+  border-radius: 9999px;
+  font-size: 0.875rem;
+  color: #22d3ee;
+}
+
+/* Doc page improvements */
+.markdown h1:first-child {
+  font-size: 2.5rem;
+}
+
+.markdown h2 {
+  margin-top: 2.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Footer styling */
+[data-theme='dark'] .footer {
+  background: linear-gradient(180deg, #0f172a 0%, #020617 100%);
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}

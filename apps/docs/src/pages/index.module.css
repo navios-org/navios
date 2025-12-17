@@ -1,0 +1,198 @@
+.heroBanner {
+  padding: 6rem 0;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+}
+
+.buttons {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  margin-top: 2rem;
+}
+
+/* Features section */
+.features {
+  padding: 4rem 0;
+  background: var(--ifm-background-surface-color);
+}
+
+.featureLink {
+  text-decoration: none;
+  color: inherit;
+  display: block;
+  height: 100%;
+}
+
+.featureLink:hover {
+  text-decoration: none;
+}
+
+.featureCard {
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.05) 0%,
+    rgba(255, 255, 255, 0.02) 100%
+  );
+  border-radius: 12px;
+  padding: 2rem;
+  height: 100%;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  transition: all 0.3s ease;
+  margin-bottom: 1.5rem;
+}
+
+.featureCard:hover {
+  transform: translateY(-4px);
+  border-color: rgba(34, 211, 238, 0.3);
+  box-shadow: 0 20px 40px -20px rgba(34, 211, 238, 0.15);
+}
+
+.featureIcon {
+  font-size: 2.5rem;
+  margin-bottom: 1rem;
+}
+
+.featureTitle {
+  font-size: 1.25rem;
+  margin-bottom: 0.75rem;
+}
+
+.featureDescription {
+  color: var(--ifm-color-emphasis-700);
+  font-size: 0.95rem;
+  line-height: 1.6;
+  margin: 0;
+}
+
+/* Code example section */
+.codeSection {
+  padding: 4rem 0;
+}
+
+.codeBlock {
+  background: #1e293b;
+  border-radius: 12px;
+  padding: 1.5rem;
+  overflow-x: auto;
+  font-size: 0.9rem;
+  line-height: 1.6;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.codeBlock code {
+  color: #e2e8f0;
+  font-family: var(--ifm-font-family-monospace);
+}
+
+.benefitsList {
+  margin-top: 1.5rem;
+  padding-left: 1.25rem;
+}
+
+.benefitsList li {
+  margin-bottom: 0.5rem;
+  color: var(--ifm-color-emphasis-700);
+}
+
+/* Packages section */
+.packagesSection {
+  padding: 4rem 0;
+  background: var(--ifm-background-surface-color);
+}
+
+.sectionTitle {
+  text-align: center;
+  margin-bottom: 3rem;
+  font-size: 2rem;
+}
+
+.packageCard {
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.03) 0%,
+    rgba(255, 255, 255, 0.01) 100%
+  );
+  border-radius: 12px;
+  padding: 1.5rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  transition: all 0.3s ease;
+  height: 100%;
+}
+
+.packageCard:hover {
+  border-color: rgba(34, 211, 238, 0.3);
+}
+
+.packageBadge {
+  display: inline-block;
+  padding: 0.25rem 0.75rem;
+  background: rgba(34, 211, 238, 0.1);
+  border: 1px solid rgba(34, 211, 238, 0.3);
+  border-radius: 9999px;
+  font-size: 0.875rem;
+  color: #22d3ee;
+  font-family: var(--ifm-font-family-monospace);
+  margin-bottom: 1rem;
+}
+
+.packageCard p {
+  color: var(--ifm-color-emphasis-700);
+  margin-bottom: 1rem;
+  font-size: 0.95rem;
+}
+
+.packageCard a {
+  color: var(--ifm-color-primary);
+  font-weight: 500;
+}
+
+/* Light theme adjustments */
+[data-theme='light'] .featureCard {
+  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+  border-color: #e2e8f0;
+}
+
+[data-theme='light'] .featureCard:hover {
+  border-color: #3b82f6;
+  box-shadow: 0 20px 40px -20px rgba(59, 130, 246, 0.15);
+}
+
+[data-theme='light'] .codeBlock {
+  background: #1e293b;
+}
+
+[data-theme='light'] .packageCard {
+  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+  border-color: #e2e8f0;
+}
+
+[data-theme='light'] .packageCard:hover {
+  border-color: #3b82f6;
+}
+
+[data-theme='light'] .packageBadge {
+  background: rgba(59, 130, 246, 0.1);
+  border-color: rgba(59, 130, 246, 0.3);
+  color: #3b82f6;
+}
+
+@media screen and (max-width: 996px) {
+  .heroBanner {
+    padding: 4rem 1rem;
+  }
+
+  .buttons {
+    flex-direction: column;
+  }
+
+  .codeSection .row {
+    flex-direction: column;
+  }
+
+  .codeBlock {
+    margin-top: 2rem;
+  }
+}
