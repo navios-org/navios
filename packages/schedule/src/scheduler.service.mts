@@ -11,6 +11,29 @@ import {
   hasScheduleMetadata,
 } from './metadata/index.mjs'
 
+/**
+ * Service responsible for managing and executing scheduled cron jobs.
+ * 
+ * The SchedulerService registers schedulable services decorated with `@Schedulable()`
+ * and automatically starts their cron jobs based on the `@Cron()` decorator configuration.
+ * 
+ * @example
+ * ```typescript
+ * import { inject, Injectable } from '@navios/core'
+ * import { SchedulerService } from '@navios/schedule'
+ * 
+ * @Injectable()
+ * class AppModule {
+ *   private readonly scheduler = inject(SchedulerService)
+ * 
+ *   async onModuleInit() {
+ *     this.scheduler.register(MySchedulableService)
+ *   }
+ * }
+ * ```
+ * 
+ * @public
+ */
 @Injectable()
 export class SchedulerService {
   private readonly logger = inject(Logger, {
@@ -19,6 +42,30 @@ export class SchedulerService {
   private readonly container = inject(Container)
   private readonly jobs: Map<string, CronJob> = new Map()
 
+  /**
+   * Registers a schedulable service and starts all its cron jobs.
+   * 
+   * The service must be decorated with `@Schedulable()` and contain methods
+   * decorated with `@Cron()` to be registered successfully.
+   * 
+   * @param service - The schedulable service class to register
+   * @throws {Error} If the service is not decorated with `@Schedulable()`
+   * 
+   * @example
+   * ```typescript
+   * @Schedulable()
+   * class TaskService {
+   *   @Cron('0 0 * * *')
+   *   async dailyTask() {
+   *     // Runs daily at midnight
+   *   }
+   * }
+   * 
+   * schedulerService.register(TaskService)
+   * ```
+   * 
+   * @public
+   */
   register(service: ClassType) {
     if (!hasScheduleMetadata(service)) {
       throw new Error(
@@ -30,6 +77,25 @@ export class SchedulerService {
     this.registerJobs(service, metadata)
   }
 
+  /**
+   * Retrieves a specific cron job instance for a method in a schedulable service.
+   * 
+   * @param service - The schedulable service class
+   * @param method - The name of the method decorated with `@Cron()`
+   * @returns The CronJob instance if found, undefined otherwise
+   * 
+   * @example
+   * ```typescript
+   * const job = schedulerService.getJob(TaskService, 'dailyTask')
+   * if (job) {
+   *   console.log('Job is active:', job.isActive)
+   *   job.start() // Manually start the job
+   *   job.stop()  // Manually stop the job
+   * }
+   * ```
+   * 
+   * @public
+   */
   getJob<T extends ClassType>(
     service: T,
     method: keyof InstanceType<T>,
@@ -67,6 +133,23 @@ export class SchedulerService {
     }
   }
 
+  /**
+   * Starts all registered cron jobs that are currently inactive.
+   * 
+   * Only jobs that are not already active will be started. This method
+   * is useful for resuming all jobs after calling `stopAll()`.
+   * 
+   * @example
+   * ```typescript
+   * // Stop all jobs
+   * schedulerService.stopAll()
+   * 
+   * // Later, resume all jobs
+   * schedulerService.startAll()
+   * ```
+   * 
+   * @public
+   */
   startAll() {
     for (const job of this.jobs.values()) {
       if (job.isActive) {
@@ -76,6 +159,24 @@ export class SchedulerService {
     }
   }
 
+  /**
+   * Stops all registered cron jobs that are currently active.
+   * 
+   * Only jobs that are currently active will be stopped. This method
+   * is useful for pausing all scheduled tasks, for example during
+   * application shutdown or maintenance.
+   * 
+   * @example
+   * ```typescript
+   * // Pause all scheduled jobs
+   * schedulerService.stopAll()
+   * 
+   * // Jobs can be resumed later with startAll()
+   * schedulerService.startAll()
+   * ```
+   * 
+   * @public
+   */
   stopAll() {
     for (const job of this.jobs.values()) {
       if (!job.isActive) {
