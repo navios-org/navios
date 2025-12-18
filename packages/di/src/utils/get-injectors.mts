@@ -282,7 +282,7 @@ export function getInjectors() {
       )
     }
 
-    const instance = getFactoryContext().locator.getSyncInstance(
+    const instance = getFactoryContext().container.tryGetSync(
       realToken,
       args,
     )

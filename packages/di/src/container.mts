@@ -1,33 +1,40 @@
 import type { z, ZodType } from 'zod/v4'
 
+import type { IContainer } from './interfaces/container.interface.mjs'
 import type {
-  BoundInjectionToken,
   ClassType,
-  FactoryInjectionToken,
   InjectionToken,
   InjectionTokenSchemaType,
 } from './injection-token.mjs'
 import type { Factorable } from './interfaces/factory.interface.mjs'
 import type { Registry } from './registry.mjs'
-import type { RequestContextHolder } from './request-context-holder.mjs'
 import type { ServiceLocatorInstanceHolder } from './service-locator-instance-holder.mjs'
 import type { Injectors } from './utils/index.mjs'
 import type { Join, UnionToArray } from './utils/types.mjs'
 
 import { Injectable } from './decorators/injectable.decorator.mjs'
 import { InjectableScope, InjectableType } from './enums/index.mjs'
+import { DIError } from './errors/index.mjs'
+import {
+  BoundInjectionToken,
+  FactoryInjectionToken,
+} from './injection-token.mjs'
 import { defaultInjectors } from './injector.mjs'
 import { globalRegistry } from './registry.mjs'
+import { ScopedContainer } from './scoped-container.mjs'
 import { ServiceLocator } from './service-locator.mjs'
 import { getInjectableToken } from './utils/get-injectable-token.mjs'
 
 /**
  * Container class that provides a simplified public API for dependency injection.
  * It wraps a ServiceLocator instance and provides convenient methods for getting instances.
+ *
+ * For request-scoped services, use beginRequest() to create a ScopedContainer.
  */
 @Injectable()
-export class Container {
+export class Container implements IContainer {
   private readonly serviceLocator: ServiceLocator
+  private readonly activeRequestIds = new Set<string>()
 
   constructor(
     protected readonly registry: Registry = globalRegistry,
@@ -54,6 +61,9 @@ export class Container {
   /**
    * Gets an instance from the container.
    * This method has the same type signature as the inject method from get-injectors.mts
+   *
+   * NOTE: Request-scoped services cannot be resolved directly from Container.
+   * Use beginRequest() to create a ScopedContainer for request-scoped services.
    */
   // #1 Simple class
   get<T extends ClassType>(
@@ -90,7 +100,72 @@ export class Container {
       | FactoryInjectionToken<any, any>,
     args?: unknown,
   ) {
-    return this.serviceLocator.getOrThrowInstance(token, args as any)
+    // Check if this is a request-scoped service
+    const actualToken =
+      typeof token === 'function' ? getInjectableToken(token) : token
+    // Get the underlying token (for BoundInjectionToken and FactoryInjectionToken)
+    const realToken =
+      actualToken instanceof BoundInjectionToken ||
+      actualToken instanceof FactoryInjectionToken
+        ? actualToken.token
+        : actualToken
+
+    if (this.registry.has(realToken)) {
+      const record = this.registry.get(realToken)
+      if (record.scope === InjectableScope.Request) {
+        throw DIError.unknown(
+          `Cannot resolve request-scoped service "${String(realToken.name)}" from Container. ` +
+            `Use beginRequest() to create a ScopedContainer for request-scoped services.`,
+        )
+      }
+    }
+
+    return this.serviceLocator.getOrThrowInstance(token, args as any, this)
+  }
+
+  /**
+   * Gets an instance with a specific container context.
+   * Used by ScopedContainer to delegate singleton/transient resolution
+   * while maintaining the correct container context for nested inject() calls.
+   *
+   * @internal
+   */
+  async getWithContext(
+    token:
+      | ClassType
+      | InjectionToken<any>
+      | BoundInjectionToken<any, any>
+      | FactoryInjectionToken<any, any>,
+    args: unknown,
+    contextContainer: IContainer,
+  ): Promise<any> {
+    return this.serviceLocator.getOrThrowInstance(
+      token,
+      args as any,
+      contextContainer,
+    )
+  }
+
+  /**
+   * Resolves a request-scoped service for a ScopedContainer.
+   * The service will be stored in the ScopedContainer's request context.
+   *
+   * @internal
+   */
+  async resolveForRequest(
+    token:
+      | ClassType
+      | InjectionToken<any>
+      | BoundInjectionToken<any, any>
+      | FactoryInjectionToken<any, any>,
+    args: unknown,
+    scopedContainer: ScopedContainer,
+  ): Promise<any> {
+    return this.serviceLocator.resolveRequestScoped(
+      token,
+      args as any,
+      scopedContainer,
+    )
   }
 
   /**
@@ -101,17 +176,19 @@ export class Container {
   }
 
   /**
+   * Gets the registry
+   */
+  getRegistry(): Registry {
+    return this.registry
+  }
+
+  /**
    * Invalidates a service and its dependencies
    */
   async invalidate(service: unknown): Promise<void> {
     const holder = this.getHolderByInstance(service)
     if (holder) {
       await this.serviceLocator.invalidate(holder.name)
-    } else {
-      const requestHolder = this.getRequestHolderByInstance(service)
-      if (requestHolder) {
-        await this.serviceLocator.invalidate(requestHolder.name)
-      }
     }
   }
 
@@ -129,24 +206,6 @@ export class Container {
     )
 
     return holderMap.length > 0 ? holderMap[0] : null
-  }
-
-  private getRequestHolderByInstance(
-    instance: unknown,
-  ): ServiceLocatorInstanceHolder | null {
-    const requestContexts = this.serviceLocator
-      .getRequestContextManager()
-      .getRequestContexts()
-    if (requestContexts) {
-      for (const requestContext of requestContexts.values()) {
-        for (const holder of requestContext.holders.values()) {
-          if (holder.instance === instance) {
-            return holder
-          }
-        }
-      }
-    }
-    return null
   }
 
   /**
@@ -174,47 +233,71 @@ export class Container {
     await this.serviceLocator.ready()
   }
 
+  /**
+   * @internal
+   * Attempts to get an instance synchronously if it already exists.
+   * Returns null if the instance doesn't exist or is not ready.
+   */
+  tryGetSync<T>(token: any, args?: any): T | null {
+    return this.serviceLocator.getSyncInstance(token, args, this)
+  }
+
   // ============================================================================
   // REQUEST CONTEXT MANAGEMENT
   // ============================================================================
 
   /**
-   * Begins a new request context with the given parameters.
+   * Begins a new request context and returns a ScopedContainer.
+   *
+   * The ScopedContainer provides isolated request-scoped service resolution
+   * while delegating singleton and transient services to this Container.
+   *
    * @param requestId Unique identifier for this request
    * @param metadata Optional metadata for the request
    * @param priority Priority for resolution (higher = more priority)
-   * @returns The created request context holder
+   * @returns A ScopedContainer for this request
    */
   beginRequest(
     requestId: string,
     metadata?: Record<string, any>,
     priority: number = 100,
-  ): RequestContextHolder {
-    return this.serviceLocator.beginRequest(requestId, metadata, priority)
+  ): ScopedContainer {
+    if (this.activeRequestIds.has(requestId)) {
+      throw DIError.unknown(
+        `Request context "${requestId}" already exists. Use a unique request ID.`,
+      )
+    }
+
+    this.activeRequestIds.add(requestId)
+
+    this.logger?.log(`[Container] Started request context: ${requestId}`)
+
+    return new ScopedContainer(this, this.registry, requestId, metadata, priority)
   }
 
   /**
-   * Ends a request context and cleans up all associated instances.
-   * @param requestId The request ID to end
+   * Removes a request ID from the active set.
+   * Called by ScopedContainer when the request ends.
+   *
+   * @internal
    */
-  async endRequest(requestId: string): Promise<void> {
-    await this.serviceLocator.endRequest(requestId)
+  removeActiveRequest(requestId: string): void {
+    this.activeRequestIds.delete(requestId)
+    this.logger?.log(`[Container] Ended request context: ${requestId}`)
   }
 
   /**
-   * Gets the current request context.
-   * @returns The current request context holder or null
+   * Gets the set of active request IDs.
    */
-  getCurrentRequestContext(): RequestContextHolder | null {
-    return this.serviceLocator.getCurrentRequestContext()
+  getActiveRequestIds(): ReadonlySet<string> {
+    return this.activeRequestIds
   }
 
   /**
-   * Sets the current request context.
-   * @param requestId The request ID to set as current
+   * Checks if a request ID is currently active.
    */
-  setCurrentRequestContext(requestId: string): void {
-    this.serviceLocator.setCurrentRequestContext(requestId)
+  hasActiveRequest(requestId: string): boolean {
+    return this.activeRequestIds.has(requestId)
   }
 
   /**

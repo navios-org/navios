@@ -1,133 +1,170 @@
 # Request Contexts
 
-Request contexts in Navios DI provide a powerful way to manage request-scoped services with automatic cleanup and priority-based resolution. This is particularly useful in web applications where you need to maintain request-specific data and ensure proper cleanup after each request.
+Request contexts in Navios DI provide a powerful way to manage request-scoped services with automatic cleanup. This is particularly useful in web applications where you need to maintain request-specific data and ensure proper cleanup after each request.
 
 ## Overview
 
-A request context is a scoped container that can hold pre-prepared instances and metadata for a specific request. When a request context is active, services can access request-specific data through dependency injection.
+A `ScopedContainer` provides isolated request context management while sharing singleton and transient services with the parent `Container`. Each request gets its own `ScopedContainer` instance, ensuring complete isolation between concurrent requests.
 
 ### Key Features
 
-- **Request-scoped instances**: Services that exist only for the duration of a request
+- **Request isolation**: Each request has its own isolated container - no race conditions
 - **Automatic cleanup**: All request-scoped instances are automatically cleaned up when the request ends
-- **Priority-based resolution**: Multiple contexts can exist with different priorities
+- **Seamless delegation**: Singleton and transient services are resolved through the parent container
 - **Metadata support**: Attach arbitrary metadata to request contexts
-- **Thread-safe**: Safe to use in concurrent environments
+- **Thread-safe**: Safe to use in concurrent environments with no shared mutable state
 
 ## Basic Usage
 
 ### Creating and Managing Request Contexts
 
 ```typescript
-import { Container, Injectable, InjectionToken } from '@navios/di'
+import { Container, Injectable, InjectableScope } from '@navios/di'
 
 const container = new Container()
 
-// Begin a new request context
-const context = container.beginRequest('req-123', { userId: 456 }, 100)
+// Begin a new request context - returns a ScopedContainer
+const scoped = container.beginRequest('req-123', { userId: 456 })
 
-// Set it as the current context
-container.setCurrentRequestContext('req-123')
+// Use the scoped container for this request
+const service = await scoped.get(RequestService)
 
-// End the request context when done
-await container.endRequest('req-123')
+// End the request when done
+await scoped.endRequest()
 ```
 
-### Using Request-Scoped Data
+### Using Request-Scoped Services
 
 ```typescript
-const REQUEST_ID_TOKEN = InjectionToken.create<string>('REQUEST_ID')
-const USER_ID_TOKEN = InjectionToken.create<number>('USER_ID')
+import { Injectable, InjectableScope, inject } from '@navios/di'
 
-@Injectable()
+@Injectable({ scope: InjectableScope.Request })
 class RequestLogger {
-  private readonly requestId = asyncInject(REQUEST_ID_TOKEN)
-  private readonly userId = asyncInject(USER_ID_TOKEN)
+  private requestId: string
 
-  async log(message: string) {
-    const reqId = await this.requestId
-    const uid = await this.userId
-    console.log(`[${reqId}] User ${uid}: ${message}`)
+  setRequestId(id: string) {
+    this.requestId = id
+  }
+
+  log(message: string) {
+    console.log(`[${this.requestId}] ${message}`)
   }
 }
 
-// Setup request context
-const context = container.beginRequest('req-123')
-context.addInstance(REQUEST_ID_TOKEN, 'req-123')
-context.addInstance(USER_ID_TOKEN, 456)
+@Injectable({ scope: InjectableScope.Singleton })
+class DatabaseService {
+  query(sql: string) {
+    return `Result: ${sql}`
+  }
+}
 
-container.setCurrentRequestContext('req-123')
+@Injectable({ scope: InjectableScope.Request })
+class RequestHandler {
+  private logger = inject(RequestLogger)
+  private db = inject(DatabaseService) // Singleton, shared across requests
 
-// Use the service
-const logger = await container.get(RequestLogger)
-await logger.log('Processing request') // "[req-123] User 456: Processing request"
+  async handle() {
+    this.logger.log('Processing request')
+    return this.db.query('SELECT * FROM users')
+  }
+}
+
+// Usage
+const scoped = container.beginRequest('req-123')
+const handler = await scoped.get(RequestHandler)
+await handler.handle()
+await scoped.endRequest()
+```
+
+## ScopedContainer API
+
+The `ScopedContainer` implements the same `IContainer` interface as `Container`:
+
+```typescript
+interface IContainer {
+  get<T>(token, args?): Promise<T>
+  invalidate(service: unknown): Promise<void>
+  isRegistered(token): boolean
+  dispose(): Promise<void>
+  ready(): Promise<void>
+  tryGetSync<T>(token, args?): T | null
+}
+```
+
+### Additional ScopedContainer Methods
+
+```typescript
+class ScopedContainer implements IContainer {
+  // Get the parent Container
+  getParent(): Container
+
+  // Get the request ID
+  getRequestId(): string
+
+  // Get metadata value
+  getMetadata(key: string): any | undefined
+
+  // Add a pre-prepared instance to the request context
+  addInstance(token: InjectionToken<any>, instance: any): void
+
+  // End the request and cleanup all request-scoped services
+  endRequest(): Promise<void>
+}
 ```
 
 ## Advanced Features
-
-### Priority-Based Resolution
-
-When multiple request contexts exist, the one with the highest priority is used:
-
-```typescript
-// High priority context (e.g., admin request)
-const adminContext = container.beginRequest('admin-req', {}, 200)
-
-// Normal priority context
-const userContext = container.beginRequest('user-req', {}, 100)
-
-// Admin context will be used due to higher priority
-container.setCurrentRequestContext('admin-req')
-```
-
-### Request Metadata
-
-Request contexts can carry metadata that services can access:
-
-```typescript
-@Injectable()
-class AuditService {
-  private readonly context = asyncInject(Container)
-
-  async logAction(action: string) {
-    const container = await this.context
-    const requestContext = container.getCurrentRequestContext()
-
-    if (requestContext) {
-      const userId = requestContext.getMetadata('userId')
-      const traceId = requestContext.getMetadata('traceId')
-
-      console.log(`User ${userId} performed ${action} (trace: ${traceId})`)
-    }
-  }
-}
-
-// Setup with metadata
-const context = container.beginRequest('req-123', {
-  userId: 456,
-  traceId: 'abc-123',
-  userAgent: 'Mozilla/5.0...',
-})
-```
 
 ### Pre-prepared Instances
 
 You can add pre-prepared instances to a request context:
 
 ```typescript
-@Injectable()
-class DatabaseConnection {
-  constructor(private connectionString: string) {}
+const REQUEST_TOKEN = InjectionToken.create<{ userId: string }>('RequestData')
 
-  async query(sql: string) {
-    return `Executing: ${sql} on ${this.connectionString}`
-  }
-}
+const scoped = container.beginRequest('req-123')
 
-// Create a request-specific database connection
-const dbConnection = new DatabaseConnection('user-specific-db')
-const context = container.beginRequest('req-123')
-context.addInstance('DatabaseConnection', dbConnection)
+// Add a pre-prepared instance
+scoped.addInstance(REQUEST_TOKEN, { userId: 'user-456' })
+
+// This will return the pre-prepared instance
+const requestData = await scoped.get(REQUEST_TOKEN)
+```
+
+### Request Metadata
+
+Request contexts can carry metadata:
+
+```typescript
+const scoped = container.beginRequest('req-123', {
+  userId: 456,
+  traceId: 'abc-123',
+  userAgent: 'Mozilla/5.0...',
+})
+
+// Access metadata
+const userId = scoped.getMetadata('userId') // 456
+const traceId = scoped.getMetadata('traceId') // 'abc-123'
+```
+
+### Parallel Requests
+
+Multiple requests can run concurrently without interference:
+
+```typescript
+// Start multiple requests in parallel
+const scoped1 = container.beginRequest('req-1')
+const scoped2 = container.beginRequest('req-2')
+
+// Resolve services concurrently - each gets its own instance
+const [service1, service2] = await Promise.all([
+  scoped1.get(RequestService),
+  scoped2.get(RequestService),
+])
+
+// service1 !== service2 (different instances)
+
+// Clean up both
+await Promise.all([scoped1.endRequest(), scoped2.endRequest()])
 ```
 
 ## Web Framework Integration
@@ -135,91 +172,89 @@ context.addInstance('DatabaseConnection', dbConnection)
 ### Express.js Example
 
 ```typescript
-import { Container, Injectable, InjectionToken } from '@navios/di'
-
+import { Container, Injectable, InjectableScope, inject } from '@navios/di'
 import express from 'express'
 
-const REQUEST_TOKEN = InjectionToken.create<express.Request>('REQUEST')
-const RESPONSE_TOKEN = InjectionToken.create<express.Response>('RESPONSE')
-
-@Injectable()
+@Injectable({ scope: InjectableScope.Request })
 class RequestHandler {
-  private readonly req = asyncInject(REQUEST_TOKEN)
-  private readonly res = asyncInject(RESPONSE_TOKEN)
+  private requestId: string = ''
 
-  async handleRequest() {
-    const request = await this.req
-    const response = await this.res
+  setContext(req: express.Request) {
+    this.requestId = req.headers['x-request-id'] as string
+  }
 
-    response.json({
-      message: 'Hello!',
-      path: request.path,
-      method: request.method,
-    })
+  async handle() {
+    return { message: 'Hello!', requestId: this.requestId }
   }
 }
 
 const app = express()
 const container = new Container()
 
-app.use('*', async (req, res, next) => {
-  const requestId = `req-${Date.now()}-${Math.random()}`
+app.use(async (req, res, next) => {
+  const requestId = `req-${Date.now()}-${Math.random().toString(36).slice(2)}`
 
-  // Create request context
-  const context = container.beginRequest(requestId, {
+  // Create scoped container for this request
+  const scoped = container.beginRequest(requestId, {
     path: req.path,
     method: req.method,
     userAgent: req.get('User-Agent'),
   })
 
-  // Add request-specific instances
-  context.addInstance(REQUEST_TOKEN, req)
-  context.addInstance(RESPONSE_TOKEN, res)
+  // Store scoped container on request for later use
+  ;(req as any).scoped = scoped
 
-  // Set as current context
-  container.setCurrentRequestContext(requestId)
+  // Cleanup on response finish
+  res.on('finish', async () => {
+    await scoped.endRequest()
+  })
 
-  try {
-    const handler = await container.get(RequestHandler)
-    await handler.handleRequest()
-  } finally {
-    // Clean up request context
-    await container.endRequest(requestId)
-  }
+  next()
+})
+
+app.get('/', async (req, res) => {
+  const scoped = (req as any).scoped
+  const handler = await scoped.get(RequestHandler)
+  handler.setContext(req)
+  const result = await handler.handle()
+  res.json(result)
 })
 ```
 
 ### Fastify Example
 
 ```typescript
-import { Container, Injectable, InjectionToken } from '@navios/di'
-
+import { Container, Injectable, InjectableScope } from '@navios/di'
 import fastify from 'fastify'
-
-const REQUEST_TOKEN = InjectionToken.create<any>('FASTIFY_REQUEST')
 
 const app = fastify()
 const container = new Container()
 
+// Type augmentation for request
+declare module 'fastify' {
+  interface FastifyRequest {
+    scoped: ScopedContainer
+  }
+}
+
 app.addHook('preHandler', async (request, reply) => {
   const requestId = `req-${request.id}`
 
-  const context = container.beginRequest(requestId, {
+  request.scoped = container.beginRequest(requestId, {
     ip: request.ip,
     userAgent: request.headers['user-agent'],
   })
-
-  context.addInstance(REQUEST_TOKEN, request)
-  container.setCurrentRequestContext(requestId)
-
-  // Store requestId for cleanup
-  request.requestId = requestId
 })
 
 app.addHook('onResponse', async (request, reply) => {
-  if (request.requestId) {
-    await container.endRequest(request.requestId)
+  if (request.scoped) {
+    await request.scoped.endRequest()
   }
+})
+
+app.get('/', async (request, reply) => {
+  const service = await request.scoped.get(MyRequestService)
+  return service.getData()
 })
 ```
 
@@ -230,15 +265,14 @@ app.addHook('onResponse', async (request, reply) => {
 Always ensure request contexts are properly cleaned up:
 
 ```typescript
-const requestId = generateRequestId()
-const context = container.beginRequest(requestId)
+const scoped = container.beginRequest(requestId)
 
 try {
-  // Process request
-  await processRequest()
+  const service = await scoped.get(RequestService)
+  await service.process()
 } finally {
   // Always clean up, even on errors
-  await container.endRequest(requestId)
+  await scoped.endRequest()
 }
 ```
 
@@ -248,29 +282,15 @@ Use descriptive request IDs that help with debugging:
 
 ```typescript
 const requestId = `${req.method}-${req.path}-${Date.now()}-${Math.random().toString(36).slice(2)}`
+const scoped = container.beginRequest(requestId)
 ```
 
-### 3. Set Appropriate Priorities
-
-Use priorities to ensure correct resolution order:
-
-```typescript
-// System/admin requests - highest priority
-const adminContext = container.beginRequest('admin-req', {}, 1000)
-
-// Authenticated user requests
-const userContext = container.beginRequest('user-req', {}, 500)
-
-// Anonymous requests - lowest priority
-const anonContext = container.beginRequest('anon-req', {}, 100)
-```
-
-### 4. Leverage Metadata
+### 3. Leverage Metadata
 
 Use metadata for cross-cutting concerns:
 
 ```typescript
-const context = container.beginRequest('req-123', {
+const scoped = container.beginRequest('req-123', {
   traceId: generateTraceId(),
   correlationId: req.headers['x-correlation-id'],
   userId: req.user?.id,
@@ -279,12 +299,12 @@ const context = container.beginRequest('req-123', {
 })
 ```
 
-### 5. Combine with Lifecycle Hooks
+### 4. Combine with Lifecycle Hooks
 
 Use lifecycle hooks for request-scoped resource management:
 
 ```typescript
-@Injectable()
+@Injectable({ scope: InjectableScope.Request })
 class DatabaseTransaction implements OnServiceInit, OnServiceDestroy {
   private transaction: any = null
 
@@ -300,65 +320,84 @@ class DatabaseTransaction implements OnServiceInit, OnServiceDestroy {
 
   async commit() {
     await this.transaction.commit()
+    this.transaction = null
   }
 }
 ```
 
 ## Error Handling
 
-Request contexts handle errors gracefully:
+### Request-Scoped Services from Container
+
+Attempting to resolve a request-scoped service directly from `Container` throws an error:
 
 ```typescript
-try {
-  const context = container.beginRequest('req-123')
-  container.setCurrentRequestContext('req-123')
+@Injectable({ scope: InjectableScope.Request })
+class RequestService {}
 
-  // If this throws, cleanup will still happen
-  await processRequest()
-} catch (error) {
-  console.error('Request failed:', error)
-  throw error
-} finally {
-  // Context cleanup happens automatically
-  await container.endRequest('req-123')
-}
+// This throws an error!
+await container.get(RequestService)
+// Error: Cannot resolve request-scoped service "RequestService" from Container.
+// Use beginRequest() to create a ScopedContainer for request-scoped services.
+
+// Correct way:
+const scoped = container.beginRequest('req-123')
+await scoped.get(RequestService) // Works!
+```
+
+### Duplicate Request IDs
+
+Each request ID must be unique while the request is active:
+
+```typescript
+const scoped1 = container.beginRequest('req-123')
+
+// This throws an error!
+const scoped2 = container.beginRequest('req-123')
+// Error: Request context "req-123" already exists. Use a unique request ID.
+
+// After ending the first request, the ID can be reused
+await scoped1.endRequest()
+const scoped3 = container.beginRequest('req-123') // Works!
 ```
 
 ## API Reference
 
 ### Container Methods
 
-- `beginRequest(requestId: string, metadata?: Record<string, any>, priority?: number): RequestContextHolder`
-- `endRequest(requestId: string): Promise<void>`
-- `getCurrentRequestContext(): RequestContextHolder | null`
-- `setCurrentRequestContext(requestId: string): void`
+- `beginRequest(requestId: string, metadata?: Record<string, any>, priority?: number): ScopedContainer` - Creates a new ScopedContainer for the request
+- `hasActiveRequest(requestId: string): boolean` - Checks if a request ID is currently active
+- `getActiveRequestIds(): ReadonlySet<string>` - Gets all active request IDs
 
-### RequestContextHolder Interface
+### ScopedContainer Methods
 
-- `requestId: string` - Unique identifier for this request
-- `priority: number` - Priority for resolution
-- `metadata: Map<string, any>` - Request-specific metadata
-- `createdAt: number` - Timestamp when context was created
-- `addInstance(token: InjectionToken<any>, instance: any): void`
-- `getMetadata(key: string): any | undefined`
-- `setMetadata(key: string, value: any): void`
-- `clear(): void` - Clear all instances and metadata
+- `get<T>(token, args?): Promise<T>` - Gets a service instance (request-scoped resolved locally, others delegated)
+- `invalidate(service: unknown): Promise<void>` - Invalidates a service and its dependents
+- `isRegistered(token): boolean` - Checks if a token is registered
+- `dispose(): Promise<void>` - Alias for `endRequest()`
+- `ready(): Promise<void>` - Waits for pending operations
+- `tryGetSync<T>(token, args?): T | null` - Synchronously gets an instance if available
+- `getParent(): Container` - Gets the parent Container
+- `getRequestId(): string` - Gets the request ID
+- `getMetadata(key: string): any` - Gets metadata value
+- `addInstance(token, instance): void` - Adds a pre-prepared instance
+- `endRequest(): Promise<void>` - Ends the request and cleans up all request-scoped services
 
 ## Performance Considerations
 
-- Request contexts are lightweight and designed for high-throughput scenarios
-- Cleanup is asynchronous and won't block request processing
-- Use appropriate priorities to avoid unnecessary context switching
-- Consider pooling request contexts for very high-frequency scenarios
+- `ScopedContainer` instances are lightweight - create one per request
+- Request-scoped services are stored in a simple Map per request
+- Cleanup is asynchronous but fast - lifecycle hooks run in parallel
+- No global state to synchronize - each request is completely isolated
 
 ## Troubleshooting
 
 ### Common Issues
 
-**Context not found**: Make sure you've called `setCurrentRequestContext()` before accessing request-scoped services.
+**"Cannot resolve request-scoped service from Container"**: Use `container.beginRequest()` to create a `ScopedContainer` first.
 
-**Wrong priority resolution**: Check that your priority values are set correctly (higher = more priority).
+**"Request context already exists"**: Each request needs a unique ID. Generate unique IDs using timestamps or UUIDs.
 
-**Memory leaks**: Always call `endRequest()` to clean up contexts, preferably in a `finally` block.
+**Memory leaks**: Always call `endRequest()` to clean up contexts, preferably in a `finally` block or response hook.
 
-**Service not found in context**: Ensure you've added the instance to the context with `addInstance()`.
+**Service not available after request ends**: Request-scoped services are destroyed when `endRequest()` is called. Don't hold references to them after the request.

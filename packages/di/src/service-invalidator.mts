@@ -1,5 +1,4 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import type { RequestContextManager } from './request-context-manager.mjs'
 import type { ServiceLocatorEventBus } from './service-locator-event-bus.mjs'
 import type { ServiceLocatorInstanceHolder } from './service-locator-instance-holder.mjs'
 import type { ServiceLocatorManager } from './service-locator-manager.mjs'
@@ -7,8 +6,6 @@ import type { ServiceLocatorManager } from './service-locator-manager.mjs'
 import { ServiceLocatorInstanceHolderStatus } from './service-locator-instance-holder.mjs'
 
 export interface ClearAllOptions {
-  /** Whether to also clear request contexts (default: true) */
-  clearRequestContexts?: boolean
   /** Maximum number of invalidation rounds to prevent infinite loops (default: 10) */
   maxRounds?: number
   /** Whether to wait for all services to settle before starting (default: true) */
@@ -18,11 +15,13 @@ export interface ClearAllOptions {
 /**
  * ServiceInvalidator handles service invalidation, cleanup, and graceful clearing.
  * Extracted from ServiceLocator to improve separation of concerns.
+ *
+ * Note: Request-scoped service invalidation is handled by ScopedContainer directly.
+ * This class only manages singleton and transient service invalidation.
  */
 export class ServiceInvalidator {
   constructor(
     private readonly manager: ServiceLocatorManager,
-    private readonly requestContextManager: RequestContextManager,
     private readonly eventBus: ServiceLocatorEventBus,
     private readonly logger: Console | null = null,
   ) {}
@@ -41,20 +40,6 @@ export class ServiceInvalidator {
       promises.push(this.invalidateHolder(service, toInvalidate, round))
     }
 
-    // Also invalidate request-scoped instances that depend on the service or match the service name
-    const requestContexts = this.requestContextManager.getRequestContexts()
-    for (const [requestId, requestContext] of requestContexts.entries()) {
-      const holder = requestContext.get(service)
-      if (holder) {
-        this.logger?.log(
-          `[ServiceInvalidator] Invalidating request-scoped instance ${service} in request ${requestId}`,
-        )
-        promises.push(
-          this.invalidateRequestHolder(requestId, service, holder, round),
-        )
-      }
-    }
-
     return Promise.all(promises)
   }
 
@@ -62,10 +47,12 @@ export class ServiceInvalidator {
    * Gracefully clears all services in the ServiceLocator using invalidation logic.
    * This method respects service dependencies and ensures proper cleanup order.
    * Services that depend on others will be invalidated first, then their dependencies.
+   *
+   * Note: Request-scoped services are managed by ScopedContainer and are
+   * cleaned up when the request ends via ScopedContainer.endRequest().
    */
   async clearAll(options: ClearAllOptions = {}): Promise<void> {
     const {
-      clearRequestContexts = true,
       maxRounds = 10,
       waitForSettlement = true,
     } = options
@@ -99,11 +86,6 @@ export class ServiceInvalidator {
       )
     }
 
-    // Clear request contexts if requested
-    if (clearRequestContexts) {
-      await this.requestContextManager.clearAllRequestContexts()
-    }
-
     this.logger?.log('[ServiceInvalidator] Graceful clearing completed')
   }
 
@@ -129,41 +111,12 @@ export class ServiceInvalidator {
   ): Promise<void> {
     await this.invalidateHolderByStatus(holder, round, {
       context: key,
-      isRequestScoped: false,
       onCreationError: () =>
         this.logger?.error(
           `[ServiceInvalidator] ${key} creation triggered too many invalidation rounds`,
         ),
       onRecursiveInvalidate: () => this.invalidate(key, round + 1),
       onDestroy: () => this.destroyHolder(key, holder),
-    })
-  }
-
-  /**
-   * Invalidates a request-scoped holder based on its current status.
-   */
-  private async invalidateRequestHolder(
-    requestId: string,
-    instanceName: string,
-    holder: ServiceLocatorInstanceHolder<any>,
-    round: number,
-  ): Promise<void> {
-    await this.invalidateHolderByStatus(holder, round, {
-      context: `Request-scoped ${instanceName} in ${requestId}`,
-      isRequestScoped: true,
-      onCreationError: () =>
-        this.logger?.error(
-          `[ServiceInvalidator] Request-scoped ${instanceName} in ${requestId} creation triggered too many invalidation rounds`,
-        ),
-      onRecursiveInvalidate: () =>
-        this.invalidateRequestHolder(
-          requestId,
-          instanceName,
-          holder,
-          round + 1,
-        ),
-      onDestroy: () =>
-        this.destroyRequestHolder(requestId, instanceName, holder),
     })
   }
 
@@ -175,7 +128,6 @@ export class ServiceInvalidator {
     round: number,
     options: {
       context: string
-      isRequestScoped: boolean
       onCreationError: () => void
       onRecursiveInvalidate: () => Promise<void>
       onDestroy: () => Promise<void>
@@ -213,29 +165,6 @@ export class ServiceInvalidator {
       logMessage: `[ServiceInvalidator] Invalidating ${key} and notifying listeners`,
       cleanup: () => this.manager.delete(key),
       eventName: key,
-    })
-  }
-
-  /**
-   * Destroys a request-scoped holder and cleans up its resources.
-   */
-  private async destroyRequestHolder(
-    requestId: string,
-    instanceName: string,
-    holder: ServiceLocatorInstanceHolder<any>,
-  ): Promise<void> {
-    await this.destroyHolderWithCleanup(holder, {
-      context: `Request-scoped ${instanceName} in ${requestId}`,
-      logMessage: `[ServiceInvalidator] Invalidating request-scoped ${instanceName} in ${requestId} and notifying listeners`,
-      cleanup: () => {
-        const requestContext = this.requestContextManager
-          .getRequestContexts()
-          .get(requestId)
-        if (requestContext) {
-          requestContext.delete(instanceName)
-        }
-      },
-      eventName: instanceName,
     })
   }
 

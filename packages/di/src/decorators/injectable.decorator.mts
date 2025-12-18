@@ -1,4 +1,4 @@
-import { z, ZodObject } from 'zod/v4'
+import { z } from 'zod/v4'
 
 import type {
   BaseInjectionTokenSchemaType,

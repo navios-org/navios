@@ -6,8 +6,7 @@ import type {
   AnyInjectableType,
   InjectionTokenType,
 } from './injection-token.mjs'
-import type { RequestContextHolder } from './request-context-holder.mjs'
-import type { ServiceLocator } from './service-locator.mjs'
+import type { IContainer } from './interfaces/container.interface.mjs'
 
 import { DIError } from './errors/index.mjs'
 import {
@@ -93,10 +92,12 @@ export class TokenProcessor {
 
   /**
    * Creates a factory context for dependency injection during service instantiation.
-   * @param serviceLocator Reference to the service locator for dependency resolution
+   * @param container The container instance (Container or ScopedContainer) for dependency resolution
+   * @param onDependencyResolved Callback when a dependency is resolved, receives the instance name
    */
   createFactoryContext(
-    serviceLocator: ServiceLocator, // ServiceLocator reference for dependency resolution
+    container: IContainer,
+    onDependencyResolved?: (instanceName: string) => void,
   ): FactoryContext & {
     getDestroyListeners: () => (() => void)[]
     deps: Set<string>
@@ -112,63 +113,28 @@ export class TokenProcessor {
       return Array.from(destroyListeners)
     }
 
+    const self = this
+
     return {
       // @ts-expect-error This is correct type
       async inject(token, args) {
-        // Fall back to normal resolution
-        const [error, instance] = await serviceLocator.getInstance(
-          token,
-          args,
-          ({ instanceName }: { instanceName: string }) => {
-            deps.add(instanceName)
-          },
-        )
-        if (error) {
-          throw error
+        // Get the instance name for dependency tracking
+        const actualToken =
+          typeof token === 'function' ? getInjectableToken(token) : token
+        const instanceName = self.generateInstanceName(actualToken, args)
+        deps.add(instanceName)
+
+        if (onDependencyResolved) {
+          onDependencyResolved(instanceName)
         }
-        return instance
+
+        // Use the container's get method for resolution
+        return container.get(token, args)
       },
       addDestroyListener,
       getDestroyListeners,
-      locator: serviceLocator,
+      container,
       deps,
     }
-  }
-
-  /**
-   * Tries to get a pre-prepared instance from request contexts.
-   */
-  tryGetPrePreparedInstance(
-    instanceName: string,
-    contextHolder: RequestContextHolder | undefined,
-    deps: Set<string>,
-    currentRequestContext: RequestContextHolder | null,
-  ): any {
-    // Check provided context holder first (if has higher priority)
-    if (contextHolder && contextHolder.priority > 0) {
-      const prePreparedInstance = contextHolder.get(instanceName)?.instance
-      if (prePreparedInstance !== undefined) {
-        this.logger?.debug(
-          `[TokenProcessor] Using pre-prepared instance ${instanceName} from request context ${contextHolder.requestId}`,
-        )
-        deps.add(instanceName)
-        return prePreparedInstance
-      }
-    }
-
-    // Check current request context (if different from provided contextHolder)
-    if (currentRequestContext && currentRequestContext !== contextHolder) {
-      const prePreparedInstance =
-        currentRequestContext.get(instanceName)?.instance
-      if (prePreparedInstance !== undefined) {
-        this.logger?.debug(
-          `[TokenProcessor] Using pre-prepared instance ${instanceName} from current request context ${currentRequestContext.requestId}`,
-        )
-        deps.add(instanceName)
-        return prePreparedInstance
-      }
-    }
-
-    return undefined
   }
 }

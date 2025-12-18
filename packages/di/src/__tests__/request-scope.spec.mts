@@ -6,7 +6,7 @@ import { InjectableScope } from '../enums/index.mjs'
 import { inject } from '../index.mjs'
 import { InjectionToken } from '../injection-token.mjs'
 import { Registry } from '../registry.mjs'
-import { createRequestContextHolder } from '../request-context-holder.mjs'
+import { ScopedContainer } from '../scoped-container.mjs'
 
 describe('Request Scope', () => {
   let container: Container
@@ -17,7 +17,7 @@ describe('Request Scope', () => {
     container = new Container(registry)
   })
 
-  describe('Request-scoped services', () => {
+  describe('Request-scoped services with ScopedContainer', () => {
     it('should create different instances for different requests', async () => {
       @Injectable({ registry, scope: InjectableScope.Request })
       class RequestService {
@@ -25,15 +25,15 @@ describe('Request Scope', () => {
         public readonly createdAt = new Date()
       }
 
-      // Start first request
-      container.beginRequest('request-1')
-      const instance1a = await container.get(RequestService)
-      const instance1b = await container.get(RequestService)
+      // Start first request - get a ScopedContainer
+      const scoped1 = container.beginRequest('request-1')
+      const instance1a = await scoped1.get(RequestService)
+      const instance1b = await scoped1.get(RequestService)
 
-      // Start second request
-      container.beginRequest('request-2')
-      const instance2a = await container.get(RequestService)
-      const instance2b = await container.get(RequestService)
+      // Start second request - get another ScopedContainer
+      const scoped2 = container.beginRequest('request-2')
+      const instance2a = await scoped2.get(RequestService)
+      const instance2b = await scoped2.get(RequestService)
 
       // Within same request, instances should be the same
       expect(instance1a).toBe(instance1b)
@@ -44,8 +44,8 @@ describe('Request Scope', () => {
       expect(instance1a.requestId).not.toBe(instance2a.requestId)
 
       // Clean up
-      await container.endRequest('request-1')
-      await container.endRequest('request-2')
+      await scoped1.endRequest()
+      await scoped2.endRequest()
     })
 
     it('should handle request context lifecycle correctly', async () => {
@@ -59,15 +59,14 @@ describe('Request Scope', () => {
         }
       }
 
-      // Start request
-      const requestId = 'test-request'
-      container.beginRequest(requestId)
+      // Start request - get a ScopedContainer
+      const scoped = container.beginRequest('test-request')
 
-      const instance = await container.get(RequestService)
+      const instance = await scoped.get(RequestService)
       expect(instance.destroyed).toBe(false)
 
       // End request should trigger cleanup
-      await container.endRequest(requestId)
+      await scoped.endRequest()
       expect(instance.destroyed).toBe(true)
     })
 
@@ -75,350 +74,265 @@ describe('Request Scope', () => {
       const requestId = 'test-request'
       const metadata = { userId: 'user123', sessionId: 'session456' }
 
-      container.beginRequest(requestId, metadata)
+      const scoped = container.beginRequest(requestId, metadata)
 
-      // Note: In a real implementation, you might want to inject metadata
-      // For now, we'll just verify the context exists
-      const context = container.getCurrentRequestContext()
-      expect(context).not.toBeNull()
-      expect(context?.requestId).toBe(requestId)
-      expect(context?.getMetadata('userId')).toBe('user123')
-      expect(context?.getMetadata('sessionId')).toBe('session456')
+      // Verify metadata is accessible from the scoped container
+      expect(scoped.getRequestId()).toBe(requestId)
+      expect(scoped.getMetadata('userId')).toBe('user123')
+      expect(scoped.getMetadata('sessionId')).toBe('session456')
 
-      await container.endRequest(requestId)
+      await scoped.endRequest()
     })
 
     it('should handle pre-prepared instances', async () => {
+      const token = InjectionToken.create<{ value: string }>('PrePrepared')
+
+      @Injectable({ registry, scope: InjectableScope.Request, token })
+      class RequestService {
+        constructor(public readonly value: string = 'default') {}
+      }
+
+      const scoped = container.beginRequest('test-request')
+
+      // Add a pre-prepared instance
+      const prePreparedInstance = { value: 'pre-prepared' }
+      scoped.addInstance(token, prePreparedInstance)
+
+      // Getting the service should return the pre-prepared instance
+      const instance = await scoped.get(token)
+      expect(instance).toBe(prePreparedInstance)
+
+      await scoped.endRequest()
+    })
+
+    it('should throw error when resolving request-scoped service from Container directly', async () => {
       @Injectable({ registry, scope: InjectableScope.Request })
       class RequestService {
         public readonly requestId = Math.random().toString(36)
-        public readonly prePrepared = true
       }
 
-      const requestId = 'test-request'
-      container.beginRequest(requestId)
-
-      // Getting the instance should be fast (pre-prepared)
-      const instance = await container.get(RequestService)
-      expect(instance.prePrepared).toBe(true)
-
-      await container.endRequest(requestId)
+      // Trying to resolve request-scoped service from Container should throw
+      await expect(container.get(RequestService)).rejects.toThrow(
+        /Cannot resolve request-scoped service/,
+      )
     })
 
-    it('should handle mixed scopes correctly', async () => {
-      @Injectable({ registry, scope: InjectableScope.Singleton })
-      class SingletonService {
-        public readonly id = Math.random().toString(36)
-      }
-
-      @Injectable({ registry, scope: InjectableScope.Request })
-      class RequestService {
-        public readonly id = Math.random().toString(36)
-        singleton: SingletonService = inject(SingletonService)
-      }
-
-      @Injectable({ registry, scope: InjectableScope.Transient })
-      class TransientService {
-        requestService = inject(RequestService)
-        public readonly id = Math.random().toString(36)
-      }
-
-      // Start request
-      container.beginRequest('test-request')
-
-      const requestService1 = await container.get(RequestService)
-      const requestService2 = await container.get(RequestService)
-      const singleton1 = await container.get(SingletonService)
-      const singleton2 = await container.get(SingletonService)
-      const transient1 = await container.get(TransientService)
-      const transient2 = await container.get(TransientService)
-
-      // Request-scoped: same instance within request
-      expect(requestService1).toBe(requestService2)
-      expect(requestService1.singleton).toBe(singleton1)
-
-      // Singleton: same instance always
-      expect(singleton1).toBe(singleton2)
-
-      // Transient: different instances always
-      expect(transient1).not.toBe(transient2)
-      expect(transient1.requestService).toBe(transient2.requestService)
-
-      await container.endRequest('test-request')
-    })
-
-    it('should handle nested request contexts', async () => {
-      @Injectable({ registry, scope: InjectableScope.Request })
-      class RequestService {
-        public readonly id = Math.random().toString(36)
-      }
-
-      // Start first request
+    it('should throw error when creating duplicate request ID', () => {
       container.beginRequest('request-1')
-      const instance1 = await container.get(RequestService)
 
-      // Start second request (nested)
-      container.beginRequest('request-2')
-      const instance2 = await container.get(RequestService)
-
-      // Should be different instances
-      expect(instance1).not.toBe(instance2)
-
-      // End second request
-      await container.endRequest('request-2')
-
-      // Get instance from first request again
-      const instance1Again = await container.get(RequestService)
-      expect(instance1).toBe(instance1Again)
-
-      // End first request
-      await container.endRequest('request-1')
+      // Creating another request with the same ID should throw
+      expect(() => container.beginRequest('request-1')).toThrow(
+        /Request context "request-1" already exists/,
+      )
     })
 
-    it('should handle request context switching', async () => {
-      @Injectable({ registry, scope: InjectableScope.Request })
-      class RequestService {
-        public readonly id = Math.random().toString(36)
-      }
+    it('should allow reusing request ID after ending the request', async () => {
+      const scoped1 = container.beginRequest('request-1')
+      await scoped1.endRequest()
 
-      // Start multiple requests
-      container.beginRequest('request-1')
-      container.beginRequest('request-2')
-      container.beginRequest('request-3')
-
-      // Switch to request-1
-      container.setCurrentRequestContext('request-1')
-      const instance1 = await container.get(RequestService)
-
-      // Switch to request-2
-      container.setCurrentRequestContext('request-2')
-      const instance2 = await container.get(RequestService)
-
-      // Switch back to request-1
-      container.setCurrentRequestContext('request-1')
-      const instance1Again = await container.get(RequestService)
-
-      // Should get same instance for request-1
-      expect(instance1).toBe(instance1Again)
-      // Should get different instance for request-2
-      expect(instance1).not.toBe(instance2)
-
-      // Clean up all requests
-      await container.endRequest('request-1')
-      await container.endRequest('request-2')
-      await container.endRequest('request-3')
+      // Should be able to create a new request with the same ID
+      const scoped2 = container.beginRequest('request-1')
+      expect(scoped2).toBeInstanceOf(ScopedContainer)
+      await scoped2.endRequest()
     })
   })
 
-  describe('RequestContextHolder', () => {
-    it('should manage instances correctly', () => {
-      const holder = createRequestContextHolder('test-request', 100, {
-        userId: 'user123',
-      })
-
-      expect(holder.requestId).toBe('test-request')
-      expect(holder.priority).toBe(100)
-      expect(holder.getMetadata('userId')).toBe('user123')
-
-      // Add instance
-      const mockInstance = { id: 'test-instance' }
-      const mockHolder = {
-        status: 'Created' as any,
-        name: 'test-instance',
-        instance: mockInstance,
-        creationPromise: null,
-        destroyPromise: null,
-        type: 'Class' as any,
-        scope: 'Request' as any,
-        deps: new Set<string>(),
-        destroyListeners: [],
-        createdAt: Date.now(),
+  describe('ScopedContainer delegation', () => {
+    it('should delegate singleton resolution to parent Container', async () => {
+      @Injectable({ registry })
+      class SingletonService {
+        public readonly id = Math.random()
       }
 
-      holder.addInstance('test-instance', mockInstance, mockHolder)
+      const scoped = container.beginRequest('test-request')
 
-      expect(holder.has('test-instance')).toBe(true)
-      expect(holder.get('test-instance')).toBe(mockHolder)
+      // Get singleton from scoped container
+      const instance1 = await scoped.get(SingletonService)
 
-      // Clear instances
-      holder.clear()
-      expect(holder.has('test-instance')).toBe(false)
+      // Get singleton from main container
+      const instance2 = await container.get(SingletonService)
+
+      // Should be the same instance
+      expect(instance1).toBe(instance2)
+
+      await scoped.endRequest()
     })
 
-    it('should handle metadata correctly', () => {
-      const holder = createRequestContextHolder('test-request')
-
-      holder.setMetadata('key1', 'value1')
-      holder.setMetadata('key2', 'value2')
-
-      expect(holder.getMetadata('key1')).toBe('value1')
-      expect(holder.getMetadata('key2')).toBe('value2')
-      expect(holder.getMetadata('nonexistent')).toBeUndefined()
-
-      holder.clear()
-      expect(holder.getMetadata('key1')).toBeUndefined()
-    })
-
-    it('should store instances by InjectionToken', () => {
-      const holder = createRequestContextHolder('test-request')
-      const token = InjectionToken.create<string>('TestService')
-      const instance = { id: 'test-instance', data: 'test-data' }
-
-      // Store instance by InjectionToken
-      holder.addInstance(token, instance)
-
-      // Verify instance is stored and retrievable
-      expect(holder.has(token.toString())).toBe(true)
-      expect(holder.get(token.toString())?.instance).toBe(instance)
-
-      // Verify holder is created with correct properties
-      const holderInfo = holder.get(token.toString())
-      expect(holderInfo).toBeDefined()
-      expect(holderInfo?.instance).toBe(instance)
-      expect(holderInfo?.name).toBe(token.toString())
-    })
-
-    it('should store multiple instances by different InjectionTokens', () => {
-      const holder = createRequestContextHolder('test-request')
-
-      const token1 = InjectionToken.create<string>('Service1')
-      const token2 = InjectionToken.create<number>('Service2')
-      const token3 = InjectionToken.create<boolean>('Service3')
-
-      const instance1 = { id: 'instance1', type: 'string' }
-      const instance2 = { id: 'instance2', type: 'number' }
-      const instance3 = { id: 'instance3', type: 'boolean' }
-
-      // Store multiple instances
-      holder.addInstance(token1, instance1)
-      holder.addInstance(token2, instance2)
-      holder.addInstance(token3, instance3)
-
-      // Verify all instances are stored correctly
-      expect(holder.has(token1.toString())).toBe(true)
-      expect(holder.has(token2.toString())).toBe(true)
-      expect(holder.has(token3.toString())).toBe(true)
-
-      expect(holder.get(token1.toString())?.instance).toBe(instance1)
-      expect(holder.get(token2.toString())?.instance).toBe(instance2)
-      expect(holder.get(token3.toString())?.instance).toBe(instance3)
-
-      // Verify each has its own holder
-      const holder1 = holder.get(token1.toString())
-      const holder2 = holder.get(token2.toString())
-      const holder3 = holder.get(token3.toString())
-
-      expect(holder1?.instance).toBe(instance1)
-      expect(holder2?.instance).toBe(instance2)
-      expect(holder3?.instance).toBe(instance3)
-    })
-
-    it('should override instances stored by InjectionToken', () => {
-      const holder = createRequestContextHolder('test-request')
-      const token = InjectionToken.create<string>('TestService')
-
-      const originalInstance = { id: 'original', data: 'original-data' }
-      const newInstance = { id: 'new', data: 'new-data' }
-
-      // Store original instance
-      holder.addInstance(token, originalInstance)
-      expect(holder.get(token.toString())?.instance).toBe(originalInstance)
-
-      // Override with new instance
-      holder.addInstance(token, newInstance)
-      expect(holder.get(token.toString())?.instance).toBe(newInstance)
-      expect(holder.get(token.toString())?.instance).not.toBe(originalInstance)
-
-      // Verify holder is updated
-      const holderInfo = holder.get(token.toString())
-      expect(holderInfo?.instance).toBe(newInstance)
-    })
-
-    it('should handle InjectionToken with different name types', () => {
-      const holder = createRequestContextHolder('test-request')
-
-      // Test with string name
-      const stringToken = InjectionToken.create<string>('StringService')
-      const stringInstance = { type: 'string' }
-
-      // Test with symbol name
-      const symbolToken = InjectionToken.create<number>(Symbol('SymbolService'))
-      const symbolInstance = { type: 'symbol' }
-
-      // Test with class name
-      class TestClass {}
-      const classToken = InjectionToken.create(TestClass)
-      const classInstance = { type: 'class' }
-
-      holder.addInstance(stringToken, stringInstance)
-      holder.addInstance(symbolToken, symbolInstance)
-      holder.addInstance(classToken, classInstance)
-
-      expect(holder.get(stringToken.toString())?.instance).toBe(stringInstance)
-      expect(holder.get(symbolToken.toString())?.instance).toBe(symbolInstance)
-      expect(holder.get(classToken.toString())?.instance).toBe(classInstance)
-    })
-
-    it('should clear instances stored by InjectionToken', () => {
-      const holder = createRequestContextHolder('test-request')
-      const token1 = InjectionToken.create<string>('Service1')
-      const token2 = InjectionToken.create<number>('Service2')
-
-      const instance1 = { id: 'instance1' }
-      const instance2 = { id: 'instance2' }
-
-      holder.addInstance(token1, instance1)
-      holder.addInstance(token2, instance2)
-
-      expect(holder.has(token1.toString())).toBe(true)
-      expect(holder.has(token2.toString())).toBe(true)
-
-      // Clear all instances
-      holder.clear()
-
-      expect(holder.has(token1.toString())).toBe(false)
-      expect(holder.has(token2.toString())).toBe(false)
-      expect(holder.get(token1.toString())?.instance).toBeUndefined()
-      expect(holder.get(token2.toString())?.instance).toBeUndefined()
-    })
-
-    it('should handle mixed storage by InjectionToken and string name', () => {
-      const holder = createRequestContextHolder('test-request')
-
-      const token = InjectionToken.create<string>('TokenService')
-      const tokenInstance = { id: 'token-instance' }
-
-      const stringName = 'string-service'
-      const stringInstance = { id: 'string-instance' }
-
-      // Store by InjectionToken
-      holder.addInstance(token, tokenInstance)
-
-      // Store by string name (requires holder)
-      const mockHolder = {
-        status: 'Created' as any,
-        name: stringName,
-        instance: stringInstance,
-        creationPromise: null,
-        destroyPromise: null,
-        type: 'Class' as any,
-        scope: 'Singleton' as any,
-        deps: new Set<string>(),
-        destroyListeners: [],
-        createdAt: Date.now(),
+    it('should delegate transient resolution to parent Container', async () => {
+      @Injectable({ registry, scope: InjectableScope.Transient })
+      class TransientService {
+        public readonly id = Math.random()
       }
-      holder.addInstance(stringName, stringInstance, mockHolder)
 
-      // Verify both are stored correctly
-      expect(holder.has(token.toString())).toBe(true)
-      expect(holder.has(stringName)).toBe(true)
+      const scoped = container.beginRequest('test-request')
 
-      expect(holder.get(token.toString())?.instance).toBe(tokenInstance)
-      expect(holder.get(stringName)?.instance).toBe(stringInstance)
+      // Each get should create a new instance
+      const instance1 = await scoped.get(TransientService)
+      const instance2 = await scoped.get(TransientService)
 
-      // Verify holders
-      expect(holder.get(token.toString())?.instance).toBe(tokenInstance)
-      expect(holder.get(stringName)?.instance).toBe(stringInstance)
+      expect(instance1).not.toBe(instance2)
+
+      await scoped.endRequest()
+    })
+
+    it('should allow request-scoped services to depend on singletons', async () => {
+      @Injectable({ registry })
+      class SingletonService {
+        public readonly id = Math.random()
+      }
+
+      @Injectable({ registry, scope: InjectableScope.Request })
+      class RequestService {
+        singleton = inject(SingletonService)
+        public readonly id = Math.random()
+      }
+
+      const scoped = container.beginRequest('test-request')
+
+      const requestInstance = await scoped.get(RequestService)
+      const singletonFromRequest = requestInstance.singleton
+      const singletonDirect = await container.get(SingletonService)
+
+      // The singleton injected into the request service should be the same
+      // as the one from the main container
+      expect(singletonFromRequest).toBe(singletonDirect)
+
+      await scoped.endRequest()
+    })
+  })
+
+  describe('Request isolation (race condition prevention)', () => {
+    it('should isolate request contexts during concurrent async operations', async () => {
+      @Injectable({ registry, scope: InjectableScope.Request })
+      class RequestService {
+        public readonly requestId: string
+
+        constructor() {
+          this.requestId = Math.random().toString(36)
+        }
+      }
+
+      // Start two requests concurrently
+      const scoped1 = container.beginRequest('request-1')
+      const scoped2 = container.beginRequest('request-2')
+
+      // Simulate concurrent async operations
+      const [instance1, instance2] = await Promise.all([
+        scoped1.get(RequestService),
+        scoped2.get(RequestService),
+      ])
+
+      // Each request should have its own instance
+      expect(instance1.requestId).not.toBe(instance2.requestId)
+
+      // Verify they're still accessible after concurrent resolution
+      const instance1Again = await scoped1.get(RequestService)
+      const instance2Again = await scoped2.get(RequestService)
+
+      expect(instance1).toBe(instance1Again)
+      expect(instance2).toBe(instance2Again)
+
+      await scoped1.endRequest()
+      await scoped2.endRequest()
+    })
+
+    it('should maintain correct context during interleaved async operations', async () => {
+      @Injectable({ registry, scope: InjectableScope.Request })
+      class RequestService {
+        public readonly requestId: string
+        public value = 0
+
+        constructor() {
+          this.requestId = Math.random().toString(36)
+        }
+
+        async asyncOperation(delay: number): Promise<void> {
+          await new Promise((resolve) => setTimeout(resolve, delay))
+          this.value++
+        }
+      }
+
+      const scoped1 = container.beginRequest('request-1')
+      const scoped2 = container.beginRequest('request-2')
+
+      const instance1 = await scoped1.get(RequestService)
+      const instance2 = await scoped2.get(RequestService)
+
+      // Start async operations with different delays
+      await Promise.all([
+        instance1.asyncOperation(50),
+        instance2.asyncOperation(25),
+        instance1.asyncOperation(10),
+        instance2.asyncOperation(75),
+      ])
+
+      // Each instance should have been modified independently
+      expect(instance1.value).toBe(2)
+      expect(instance2.value).toBe(2)
+
+      await scoped1.endRequest()
+      await scoped2.endRequest()
+    })
+  })
+
+  describe('ScopedContainer API', () => {
+    it('should implement IContainer interface', async () => {
+      const scoped = container.beginRequest('test-request')
+
+      // Check that all IContainer methods exist
+      expect(typeof scoped.get).toBe('function')
+      expect(typeof scoped.invalidate).toBe('function')
+      expect(typeof scoped.isRegistered).toBe('function')
+      expect(typeof scoped.dispose).toBe('function')
+      expect(typeof scoped.ready).toBe('function')
+      expect(typeof scoped.tryGetSync).toBe('function')
+
+      await scoped.endRequest()
+    })
+
+    it('should track active request IDs in Container', async () => {
+      expect(container.hasActiveRequest('request-1')).toBe(false)
+
+      const scoped1 = container.beginRequest('request-1')
+      expect(container.hasActiveRequest('request-1')).toBe(true)
+
+      const scoped2 = container.beginRequest('request-2')
+      expect(container.hasActiveRequest('request-2')).toBe(true)
+
+      expect(container.getActiveRequestIds().size).toBe(2)
+
+      await scoped1.endRequest()
+      expect(container.hasActiveRequest('request-1')).toBe(false)
+      expect(container.hasActiveRequest('request-2')).toBe(true)
+
+      await scoped2.endRequest()
+      expect(container.getActiveRequestIds().size).toBe(0)
+    })
+
+    it('should return parent Container from ScopedContainer', async () => {
+      const scoped = container.beginRequest('test-request')
+      expect(scoped.getParent()).toBe(container)
+      await scoped.endRequest()
+    })
+
+    it('dispose() should be an alias for endRequest()', async () => {
+      @Injectable({ registry, scope: InjectableScope.Request })
+      class RequestService {
+        public destroyed = false
+
+        async onServiceDestroy() {
+          this.destroyed = true
+        }
+      }
+
+      const scoped = container.beginRequest('test-request')
+      const instance = await scoped.get(RequestService)
+
+      // Use dispose() instead of endRequest()
+      await scoped.dispose()
+
+      expect(instance.destroyed).toBe(true)
+      expect(container.hasActiveRequest('test-request')).toBe(false)
     })
   })
 })

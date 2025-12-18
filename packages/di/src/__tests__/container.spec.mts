@@ -1135,27 +1135,27 @@ describe('Container', () => {
           public id = Math.random()
         }
 
-        @Injectable({ registry })
+        @Injectable({ registry, scope: InjectableScope.Request })
         class Level2Service {
           level1 = inject(Level1Service)
           public id = Math.random()
         }
 
-        @Injectable({ registry })
+        @Injectable({ registry, scope: InjectableScope.Request })
         class RootService {
           level2 = inject(Level2Service)
         }
 
-        container.beginRequest('request-1')
+        const scoped = container.beginRequest('request-1')
 
-        const root1 = await container.get(RootService)
+        const root1 = await scoped.get(RootService)
         const level2_1 = root1.level2
         const level1_1 = level2_1.level1
 
         // Invalidate the root service
-        await container.invalidate(level1_1)
+        await scoped.invalidate(level1_1)
 
-        const root2 = await container.get(RootService)
+        const root2 = await scoped.get(RootService)
         const level2_2 = root2.level2
         const level1_2 = level2_2.level1
 
@@ -1166,7 +1166,7 @@ describe('Container', () => {
         expect(level2_1.id).not.toBe(level2_2.id)
         expect(level1_1.id).not.toBe(level1_2.id)
 
-        await container.endRequest('request-1')
+        await scoped.endRequest()
       })
 
       it('should handle invalidation of services with mixed inject and asyncInject', async () => {

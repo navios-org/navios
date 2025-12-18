@@ -6,15 +6,15 @@ import type {
   AnyInjectableType,
   InjectionTokenSchemaType,
 } from './injection-token.mjs'
+import type { IContainer } from './interfaces/container.interface.mjs'
 import type { Registry } from './registry.mjs'
-import type { RequestContextHolder } from './request-context-holder.mjs'
+import type { ScopedContainer } from './scoped-container.mjs'
 import type { ClearAllOptions } from './service-invalidator.mjs'
 import type { Injectors } from './utils/index.mjs'
 
 import { defaultInjectors } from './injector.mjs'
 import { InstanceResolver } from './instance-resolver.mjs'
 import { globalRegistry } from './registry.mjs'
-import { RequestContextManager } from './request-context-manager.mjs'
 import { ServiceInstantiator } from './service-instantiator.mjs'
 import { ServiceInvalidator } from './service-invalidator.mjs'
 import { ServiceLocatorEventBus } from './service-locator-event-bus.mjs'
@@ -26,7 +26,6 @@ export class ServiceLocator {
   private readonly manager: ServiceLocatorManager
   private readonly serviceInstantiator: ServiceInstantiator
   private readonly tokenProcessor: TokenProcessor
-  private readonly requestContextManager: RequestContextManager
   private readonly serviceInvalidator: ServiceInvalidator
   private readonly instanceResolver: InstanceResolver
 
@@ -39,10 +38,8 @@ export class ServiceLocator {
     this.manager = new ServiceLocatorManager(logger)
     this.serviceInstantiator = new ServiceInstantiator(injectors)
     this.tokenProcessor = new TokenProcessor(logger)
-    this.requestContextManager = new RequestContextManager(logger)
     this.serviceInvalidator = new ServiceInvalidator(
       this.manager,
-      this.requestContextManager,
       this.eventBus,
       logger,
     )
@@ -68,16 +65,12 @@ export class ServiceLocator {
     return this.manager
   }
 
-  getRequestContexts() {
-    return this.requestContextManager.getRequestContexts()
-  }
-
-  getRequestContextManager() {
-    return this.requestContextManager
-  }
-
   getServiceInvalidator() {
     return this.serviceInvalidator
+  }
+
+  getTokenProcessor() {
+    return this.tokenProcessor
   }
 
   public getInstanceIdentifier(token: AnyInjectableType, args?: any): string {
@@ -89,46 +82,69 @@ export class ServiceLocator {
     return this.tokenProcessor.generateInstanceName(actualToken, validatedArgs)
   }
 
+  /**
+   * Gets or creates an instance for the given token.
+   * @param token The injection token
+   * @param args Optional arguments
+   * @param contextContainer The container to use for creating FactoryContext
+   */
   public async getInstance(
     token: AnyInjectableType,
-    args?: any,
-    onPrepare?: (data: {
-      instanceName: string
-      actualToken: any
-      validatedArgs?: any
-    }) => void,
+    args: any,
+    contextContainer: IContainer,
   ) {
     const [err, data] = await this.instanceResolver.resolveInstance(
       token,
       args,
-      this.requestContextManager.getCurrentRequestContext() || undefined,
+      contextContainer,
     )
     if (err) {
       return [err]
     }
 
-    // Call onPrepare callback if provided
-    if (onPrepare) {
-      const instanceName = this.getInstanceIdentifier(token, args)
-      const [tokenErr, { actualToken, validatedArgs }] =
-        this.tokenProcessor.validateAndResolveTokenArgs(token, args)
-      if (!tokenErr) {
-        onPrepare({ instanceName, actualToken, validatedArgs })
-      }
-    }
-
     return [undefined, data]
   }
 
+  /**
+   * Gets or throws an instance for the given token.
+   * @param token The injection token
+   * @param args Optional arguments
+   * @param contextContainer The container to use for creating FactoryContext
+   */
   public async getOrThrowInstance<Instance>(
     token: AnyInjectableType,
     args: any,
+    contextContainer: IContainer,
   ): Promise<Instance> {
-    const [error, instance] = await this.getInstance(token, args)
+    const [error, instance] = await this.getInstance(token, args, contextContainer)
     if (error) {
       throw error
     }
     return instance
+  }
+
+  /**
+   * Resolves a request-scoped service for a ScopedContainer.
+   * The service will be stored in the ScopedContainer's request context.
+   *
+   * @param token The injection token
+   * @param args Optional arguments
+   * @param scopedContainer The ScopedContainer that owns the request context
+   */
+  public async resolveRequestScoped(
+    token: AnyInjectableType,
+    args: any,
+    scopedContainer: ScopedContainer,
+  ): Promise<any> {
+    const [err, data] = await this.instanceResolver.resolveRequestScopedInstance(
+      token,
+      args,
+      scopedContainer,
+    )
+    if (err) {
+      throw err
+    }
+    return data
   }
 
   public getSyncInstance<
@@ -141,12 +157,9 @@ export class ServiceLocator {
       : Schema extends ZodOptional<ZodObject>
         ? z.input<Schema> | undefined
         : undefined,
+    contextContainer: IContainer,
   ): Instance | null {
-    return this.instanceResolver.getSyncInstance(
-      token,
-      args as any,
-      this.requestContextManager.getCurrentRequestContext(),
-    )
+    return this.instanceResolver.getSyncInstance(token, args as any, contextContainer)
   }
 
   invalidate(service: string, round = 1): Promise<any> {
@@ -165,75 +178,11 @@ export class ServiceLocator {
     return this.serviceInvalidator.clearAll(options)
   }
 
-  // ============================================================================
-  // REQUEST CONTEXT MANAGEMENT
-  // ============================================================================
-
-  /**
-   * Begins a new request context with the given parameters.
-   * @param requestId Unique identifier for this request
-   * @param metadata Optional metadata for the request
-   * @param priority Priority for resolution (higher = more priority)
-   * @returns The created request context holder
-   */
-  beginRequest(
-    requestId: string,
-    metadata?: Record<string, any>,
-    priority: number = 100,
-  ): RequestContextHolder {
-    return this.requestContextManager.beginRequest(
-      requestId,
-      metadata,
-      priority,
-    )
-  }
-
-  /**
-   * Ends a request context and cleans up all associated instances.
-   * @param requestId The request ID to end
-   */
-  async endRequest(requestId: string): Promise<void> {
-    return this.requestContextManager.endRequest(requestId)
-  }
-
-  /**
-   * Gets the current request context.
-   * @returns The current request context holder or null
-   */
-  getCurrentRequestContext(): RequestContextHolder | null {
-    return this.requestContextManager.getCurrentRequestContext()
-  }
-
-  /**
-   * Sets the current request context.
-   * @param requestId The request ID to set as current
-   */
-  setCurrentRequestContext(requestId: string): void {
-    return this.requestContextManager.setCurrentRequestContext(requestId)
-  }
-
   /**
    * Waits for all services to settle (either created, destroyed, or error state).
    */
   async ready(): Promise<void> {
     return this.serviceInvalidator.ready()
-  }
-
-  /**
-   * Helper method for TokenProcessor to access pre-prepared instances.
-   * This is needed for the factory context creation.
-   */
-  tryGetPrePreparedInstance(
-    instanceName: string,
-    contextHolder: RequestContextHolder | undefined,
-    deps: Set<string>,
-  ): any {
-    return this.tokenProcessor.tryGetPrePreparedInstance(
-      instanceName,
-      contextHolder,
-      deps,
-      this.requestContextManager.getCurrentRequestContext(),
-    )
   }
 
   /**

@@ -2,48 +2,200 @@
 
 This guide helps you migrate between different versions of Navios DI.
 
+## Migrating to v0.4.x (ScopedContainer)
+
+### Breaking Changes
+
+v0.4.x introduces `ScopedContainer` for request context management. This is a **breaking change** that fixes race conditions in concurrent request handling.
+
+#### Removed Methods
+
+The following `Container` methods have been **removed**:
+
+- `Container.setCurrentRequestContext(requestId)` - removed
+- `Container.getCurrentRequestContext()` - removed
+- `Container.endRequest(requestId)` - removed (use `ScopedContainer.endRequest()`)
+
+#### Changed Return Type
+
+- `Container.beginRequest()` now returns a `ScopedContainer` instead of `RequestContextHolder`
+
+#### New API
+
+```typescript
+// OLD (v0.3.x) - no longer works
+const context = container.beginRequest('req-123')
+container.setCurrentRequestContext('req-123')
+const service = await container.get(RequestService)
+await container.endRequest('req-123')
+
+// NEW (v0.4.x) - use ScopedContainer
+const scoped = container.beginRequest('req-123')
+const service = await scoped.get(RequestService)
+await scoped.endRequest()
+```
+
+### Migration Steps
+
+#### 1. Update Request Context Creation
+
+**Before:**
+```typescript
+const context = container.beginRequest('req-123', { userId: 456 })
+container.setCurrentRequestContext('req-123')
+```
+
+**After:**
+```typescript
+const scoped = container.beginRequest('req-123', { userId: 456 })
+```
+
+#### 2. Update Service Resolution
+
+**Before:**
+```typescript
+container.setCurrentRequestContext('req-123')
+const service = await container.get(RequestService)
+```
+
+**After:**
+```typescript
+const scoped = container.beginRequest('req-123')
+const service = await scoped.get(RequestService)
+```
+
+#### 3. Update Cleanup
+
+**Before:**
+```typescript
+await container.endRequest('req-123')
+```
+
+**After:**
+```typescript
+await scoped.endRequest()
+// or
+await scoped.dispose()
+```
+
+#### 4. Update Middleware (Express/Fastify)
+
+**Before:**
+```typescript
+app.use(async (req, res, next) => {
+  const requestId = `req-${Date.now()}`
+  const context = container.beginRequest(requestId)
+  container.setCurrentRequestContext(requestId)
+
+  res.on('finish', () => container.endRequest(requestId))
+  next()
+})
+
+app.get('/', async (req, res) => {
+  const service = await container.get(RequestService)
+  res.json(service.getData())
+})
+```
+
+**After:**
+```typescript
+app.use(async (req, res, next) => {
+  const requestId = `req-${Date.now()}`
+  const scoped = container.beginRequest(requestId)
+  ;(req as any).scoped = scoped
+
+  res.on('finish', () => scoped.endRequest())
+  next()
+})
+
+app.get('/', async (req, res) => {
+  const scoped = (req as any).scoped
+  const service = await scoped.get(RequestService)
+  res.json(service.getData())
+})
+```
+
+### Why This Change?
+
+The old API had a race condition:
+
+```typescript
+// Request A starts
+container.setCurrentRequestContext('req-A')
+const serviceA = await container.get(RequestService) // async...
+
+// Request B starts while A is still resolving
+container.setCurrentRequestContext('req-B')
+
+// Service A might get Request B's context! Bug!
+```
+
+The new API eliminates this by giving each request its own container:
+
+```typescript
+// Request A
+const scopedA = container.beginRequest('req-A')
+const serviceA = await scopedA.get(RequestService) // Always gets A's context
+
+// Request B
+const scopedB = container.beginRequest('req-B')
+const serviceB = await scopedB.get(RequestService) // Always gets B's context
+
+// No race condition possible
+```
+
+### New Features
+
+#### IContainer Interface
+
+Both `Container` and `ScopedContainer` implement `IContainer`:
+
+```typescript
+interface IContainer {
+  get<T>(token, args?): Promise<T>
+  invalidate(service: unknown): Promise<void>
+  isRegistered(token): boolean
+  dispose(): Promise<void>
+  ready(): Promise<void>
+  tryGetSync<T>(token, args?): T | null
+}
+```
+
+#### Request-Scoped Error Protection
+
+Attempting to get a request-scoped service from Container now throws a helpful error:
+
+```typescript
+await container.get(RequestService)
+// Error: Cannot resolve request-scoped service "RequestService" from Container.
+// Use beginRequest() to create a ScopedContainer for request-scoped services.
+```
+
+#### Active Request Tracking
+
+```typescript
+const scoped = container.beginRequest('req-123')
+container.hasActiveRequest('req-123') // true
+await scoped.endRequest()
+container.hasActiveRequest('req-123') // false
+```
+
+---
+
 ## Migrating to v0.3.x
 
 ### New Features
 
-#### Request Context Management
+#### Request Context Management (Legacy)
 
-The biggest addition in v0.3.x is request context management. This feature allows you to manage request-scoped services with automatic cleanup.
+> **Note:** This section documents the v0.3.x API which is deprecated in v0.4.x. See "Migrating to v0.4.x" above for the current API.
 
-**New APIs:**
+**Old APIs (deprecated in v0.4.x):**
 
-- `Container.beginRequest(requestId, metadata?, priority?)`
-- `Container.endRequest(requestId)`
-- `Container.getCurrentRequestContext()`
-- `Container.setCurrentRequestContext(requestId)`
-- `RequestContextHolder` interface
-
-**Example:**
-
-```typescript
-// New request context API
-const container = new Container()
-const context = container.beginRequest('req-123', { userId: 456 })
-container.setCurrentRequestContext('req-123')
-
-// Add request-scoped data
-const REQUEST_ID_TOKEN = InjectionToken.create<string>('REQUEST_ID')
-context.addInstance(REQUEST_ID_TOKEN, 'req-123')
-
-// Use in services
-@Injectable()
-class RequestService {
-  private readonly requestId = asyncInject(REQUEST_ID_TOKEN)
-
-  async process() {
-    const id = await this.requestId
-    console.log(`Processing request: ${id}`)
-  }
-}
-
-// Clean up when done
-await container.endRequest('req-123')
-```
+- `Container.beginRequest(requestId, metadata?, priority?)` - returns `RequestContextHolder` in v0.3.x
+- `Container.endRequest(requestId)` - removed in v0.4.x
+- `Container.getCurrentRequestContext()` - removed in v0.4.x
+- `Container.setCurrentRequestContext(requestId)` - removed in v0.4.x
 
 ### Recommended Changes
 
