@@ -1,7 +1,6 @@
+import { builder } from '@navios/builder'
 import { create } from '@navios/http'
 import { makeNaviosFakeAdapter } from '@navios/http/testing'
-
-import { builder } from '@navios/builder'
 
 import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod/v4'
@@ -148,8 +147,10 @@ describe('makeMutation', () => {
       useKey: true,
     })
     const mutationResult = mutation({
-      fooId: '2',
-      testId: '1',
+      urlParams: {
+        fooId: '2',
+        testId: '1',
+      },
     })
     console.log('mutationResult', mutationResult)
 
@@ -306,10 +307,10 @@ describe('makeMutation', () => {
 
       // Restore the mock
       adapter.mock('/test/1/foo/2', 'POST', () => {
-        return new Response(
-          JSON.stringify({ success: true, test: 'test' }),
-          { status: 200, headers: { 'content-type': 'application/json' } },
-        )
+        return new Response(JSON.stringify({ success: true, test: 'test' }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        })
       })
     })
 

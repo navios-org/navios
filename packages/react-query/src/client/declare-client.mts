@@ -8,7 +8,6 @@ import type {
 import type {
   InfiniteData,
   MutationFunctionContext,
-  QueryClient,
 } from '@tanstack/react-query'
 import type { z, ZodObject, ZodType } from 'zod/v4'
 
@@ -273,26 +272,49 @@ export function declareClient<Options extends ClientOptions>({
     options?: {
       processResponse?: ProcessResponseFunction
       useContext?: () => unknown
+      onMutate?: (
+        variables: MutationArgs,
+        context: MutationFunctionContext & { [key: string]: unknown },
+      ) => unknown | Promise<unknown>
       onSuccess?: (
-        queryClient: QueryClient,
         data: unknown,
         variables: MutationArgs,
-        context: unknown,
+        context: MutationFunctionContext & {
+          onMutateResult: unknown | undefined
+          [key: string]: unknown
+        },
       ) => void | Promise<void>
       onError?: (
-        queryClient: QueryClient,
-        error: Error,
+        err: unknown,
         variables: MutationArgs,
-        context: unknown,
+        context: MutationFunctionContext & {
+          onMutateResult: unknown | undefined
+          [key: string]: unknown
+        },
       ) => void | Promise<void>
+      onSettled?: (
+        data: unknown | undefined,
+        error: Error | null,
+        variables: MutationArgs,
+        context: MutationFunctionContext & {
+          onMutateResult: unknown | undefined
+          [key: string]: unknown
+        },
+      ) => void | Promise<void>
+      useKey?: boolean
+      meta?: Record<string, unknown>
     },
   ) {
     // @ts-expect-error endpoint types are compatible at runtime
     return makeMutation(endpoint, {
       processResponse: options?.processResponse,
       useContext: options?.useContext,
+      onMutate: options?.onMutate,
       onSuccess: options?.onSuccess,
       onError: options?.onError,
+      onSettled: options?.onSettled,
+      useKey: options?.useKey,
+      meta: options?.meta,
       ...defaults,
     })
   }

@@ -1,5 +1,44 @@
 # Changelog
 
+## [0.7.0] - 2025-12-18
+
+### Fixed
+
+- **Fixed `mutationFromEndpoint` callback signatures** - The `mutationFromEndpoint` method now uses the correct callback signature `(data, variables, context)` instead of the deprecated `(queryClient, data, variables, context)`. This makes it consistent with the main `mutation` API introduced in 0.6.0.
+
+  **Before:**
+
+  ```typescript
+  client.mutationFromEndpoint(endpoint, {
+    onSuccess: (queryClient, data, variables, context) => {
+      queryClient.invalidateQueries({ queryKey: ['users'] })
+    },
+  })
+  ```
+
+  **After:**
+
+  ```typescript
+  client.mutationFromEndpoint(endpoint, {
+    useContext: () => {
+      const queryClient = useQueryClient()
+      return { queryClient }
+    },
+    onSuccess: (data, variables, context) => {
+      context.queryClient.invalidateQueries({ queryKey: ['users'] })
+    },
+  })
+  ```
+
+### Added
+
+- **Documentation improvements** - Added comprehensive documentation for:
+  - `onFail` callback for query error handling
+  - `defaults` option in `declareClient` for setting default `keyPrefix` and `keySuffix`
+  - `keyPrefix` and `keySuffix` options for query/mutation key customization
+  - Examples for `queryFromEndpoint` and `infiniteQueryFromEndpoint`
+  - Query helper methods documentation
+
 ## [0.6.0] - Dec 13, 2025
 
 ### Breaking Changes
@@ -7,6 +46,7 @@
 - **Mutation callback signatures changed** - The `onSuccess`, `onError`, `onMutate`, and `onSettled` callbacks now use a unified context-based signature instead of receiving `queryClient` as the first parameter:
 
   **Before (0.5.x):**
+
   ```typescript
   const mutation = client.mutation({
     onSuccess: (queryClient, data, variables) => {
@@ -19,6 +59,7 @@
   ```
 
   **After (0.6.0):**
+
   ```typescript
   const mutation = client.mutation({
     onSuccess: (data, variables, context) => {

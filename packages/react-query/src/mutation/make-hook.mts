@@ -56,7 +56,7 @@ export function makeMutation<
   const result = (
     keyParams: UseKey extends true
       ? UrlHasParams<Config['url']> extends true
-        ? UrlParams<Config['url']>
+        ? { urlParams: UrlParams<Config['url']> }
         : never
       : never,
   ): UseMutationResult<
@@ -83,18 +83,10 @@ export function makeMutation<
     // @ts-expect-error The types match
     return useMutation({
       ...rest,
-      mutationKey: useKey
-        ? mutationKey({
-            urlParams: keyParams,
-          })
-        : undefined,
+      mutationKey: useKey ? mutationKey(keyParams) : undefined,
       scope: useKey
         ? {
-            id: JSON.stringify(
-              mutationKey({
-                urlParams: keyParams,
-              }),
-            ),
+            id: JSON.stringify(mutationKey(keyParams)),
           }
         : undefined,
       async mutationFn(params: TVariables) {

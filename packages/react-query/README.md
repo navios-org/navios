@@ -22,16 +22,19 @@ npm install @navios/react-query @navios/builder @navios/http zod @tanstack/react
 
 ```typescript
 import { builder } from '@navios/builder'
-import { declareClient } from '@navios/react-query'
 import { create } from '@navios/http'
+import { declareClient } from '@navios/react-query'
+
 import { z } from 'zod/v4'
 
 // Create the API builder
 const api = builder({})
 api.provideClient(create({ baseURL: 'https://api.example.com' }))
 
-// Create the client
-const client = declareClient({ api })
+// Create the client with optional defaults
+const client = declareClient({
+  api,
+})
 ```
 
 ## Queries
@@ -130,6 +133,22 @@ const getUsers = client.query({
 })
 ```
 
+### Query with Error Handling
+
+```typescript
+const getUsers = client.query({
+  method: 'GET',
+  url: '/users',
+  responseSchema: z.array(UserSchema),
+  onFail: (error) => {
+    // Called when the endpoint throws an error
+    // Note: The error is still thrown after this callback
+    console.error('Failed to fetch users:', error)
+    // You can log to error tracking service, show toast, etc.
+  },
+})
+```
+
 ### Query Helpers
 
 ```typescript
@@ -141,8 +160,13 @@ const { data } = getUsers.use({ params: { page: 1 } })
 const { data } = getUsers.useSuspense({ params: { page: 1 } })
 
 // Invalidation
-getUsers.invalidate({ params: { page: 1 } })
-getUsers.invalidateAll({}) // Invalidate all pages
+const queryClient = useQueryClient()
+getUsers.invalidate(queryClient, { params: { page: 1 } })
+getUsers.invalidateAll(queryClient, {}) // Invalidate all pages
+
+// Access query key creator
+const queryKey = getUsers.queryKey.dataTag({ params: { page: 1 } })
+// Use with queryClient.getQueryData(queryKey), etc.
 ```
 
 ## Infinite Queries
@@ -262,19 +286,20 @@ const updateUser = client.mutation({
   onMutate: async (variables, context) => {
     // Cancel outgoing queries
     await context.queryClient.cancelQueries({
-      queryKey: ['users', variables.urlParams.userId]
+      queryKey: ['users', variables.urlParams.userId],
     })
 
     // Snapshot previous value
-    const previousUser = context.queryClient.getQueryData(
-      ['users', variables.urlParams.userId]
-    )
+    const previousUser = context.queryClient.getQueryData([
+      'users',
+      variables.urlParams.userId,
+    ])
 
     // Optimistically update
-    context.queryClient.setQueryData(
-      ['users', variables.urlParams.userId],
-      { ...previousUser, name: variables.data.name }
-    )
+    context.queryClient.setQueryData(['users', variables.urlParams.userId], {
+      ...previousUser,
+      name: variables.data.name,
+    })
 
     return { previousUser }
   },
@@ -289,7 +314,7 @@ const updateUser = client.mutation({
     if (context.onMutateResult?.previousUser) {
       context.queryClient.setQueryData(
         ['users', variables.urlParams.userId],
-        context.onMutateResult.previousUser
+        context.onMutateResult.previousUser,
       )
     }
   },
@@ -297,7 +322,7 @@ const updateUser = client.mutation({
   // Called on both success and error
   onSettled: (data, error, variables, context) => {
     context.queryClient.invalidateQueries({
-      queryKey: ['users', variables.urlParams.userId]
+      queryKey: ['users', variables.urlParams.userId],
     })
   },
 })
@@ -333,7 +358,7 @@ const updateUser = client.mutation({
 
 // With useKey, you must pass urlParams when calling the hook
 const { mutateAsync, isPending } = updateUser({
-  urlParams: { userId: '123' }
+  urlParams: { userId: '123' },
 })
 
 // Check if any mutation for this user is in progress
@@ -377,6 +402,8 @@ function DownloadButton({ fileId }: { fileId: string }) {
 
 If you have endpoints defined separately, you can use them with the client:
 
+### Query from Endpoint
+
 ```typescript
 // Define endpoint separately
 const getUserEndpoint = api.declareEndpoint({
@@ -390,11 +417,66 @@ const getUser = client.queryFromEndpoint(getUserEndpoint, {
   processResponse: (data) => data,
 })
 
-// Create mutation from endpoint
+// Use in component
+function UserProfile({ userId }: { userId: string }) {
+  const { data } = getUser.useSuspense({
+    urlParams: { userId },
+  })
+  return <div>{data.name}</div>
+}
+```
+
+### Infinite Query from Endpoint
+
+```typescript
+const getUsersEndpoint = api.declareEndpoint({
+  method: 'GET',
+  url: '/users',
+  querySchema: z.object({
+    cursor: z.string().optional(),
+    limit: z.number().default(20),
+  }),
+  responseSchema: z.object({
+    users: z.array(UserSchema),
+    nextCursor: z.string().nullable(),
+  }),
+})
+
+const getUsers = client.infiniteQueryFromEndpoint(getUsersEndpoint, {
+  processResponse: (data) => data,
+  getNextPageParam: (lastPage, allPages) => lastPage.nextCursor ?? undefined,
+})
+
+function InfiniteUsersList() {
+  const { data, fetchNextPage } = getUsers.useSuspense({
+    params: { limit: 20 },
+  })
+  // ... use data
+}
+```
+
+### Mutation from Endpoint
+
+```typescript
+const updateUserEndpoint = api.declareEndpoint({
+  method: 'PUT',
+  url: '/users/$userId',
+  requestSchema: z.object({ name: z.string() }),
+  responseSchema: UserSchema,
+})
+
 const updateUser = client.mutationFromEndpoint(updateUserEndpoint, {
   processResponse: (data) => data,
+  useContext: () => {
+    const queryClient = useQueryClient()
+    return { queryClient }
+  },
   onSuccess: (data, variables, context) => {
+    context.queryClient.invalidateQueries({ queryKey: ['users'] })
     console.log('Updated:', data)
+  },
+  onError: (error, variables, context) => {
+    console.error('Update failed:', error)
   },
 })
 ```
@@ -439,8 +521,23 @@ function AvatarUpload({ userId }: { userId: string }) {
 Creates a client instance for making type-safe queries and mutations.
 
 **Options:**
+
 - `api` - The API builder created with `@navios/builder`
-- `defaults` - Default options applied to all queries/mutations
+- `defaults` - Optional default options applied to all queries/mutations:
+  - `keyPrefix?: string[]` - Prefix added to all query/mutation keys
+  - `keySuffix?: string[]` - Suffix added to all query/mutation keys
+
+**Example:**
+
+```typescript
+const client = declareClient({
+  api,
+  defaults: {
+    keyPrefix: ['api', 'v1'], // All keys will start with ['api', 'v1']
+    keySuffix: ['cache'], // All keys will end with ['cache']
+  },
+})
+```
 
 **Returns:** `ClientInstance` with the following methods:
 
@@ -459,31 +556,34 @@ Creates a client instance for making type-safe queries and mutations.
 
 ### Query Config
 
-| Property | Type | Required | Description |
-|----------|------|----------|-------------|
-| `method` | `'GET' \| 'POST' \| 'HEAD' \| 'OPTIONS'` | Yes | HTTP method |
-| `url` | `string` | Yes | URL pattern (e.g., `/users/$userId`) |
-| `responseSchema` | `ZodSchema` | Yes | Zod schema for response validation |
-| `querySchema` | `ZodObject` | No | Zod schema for query parameters |
-| `requestSchema` | `ZodSchema` | No | Zod schema for request body (POST queries) |
-| `processResponse` | `(data) => Result` | No | Transform the response |
+| Property          | Type                                     | Required | Description                                                      |
+| ----------------- | ---------------------------------------- | -------- | ---------------------------------------------------------------- |
+| `method`          | `'GET' \| 'POST' \| 'HEAD' \| 'OPTIONS'` | Yes      | HTTP method                                                      |
+| `url`             | `string`                                 | Yes      | URL pattern (e.g., `/users/$userId`)                             |
+| `responseSchema`  | `ZodSchema`                              | Yes      | Zod schema for response validation                               |
+| `querySchema`     | `ZodObject`                              | No       | Zod schema for query parameters                                  |
+| `requestSchema`   | `ZodSchema`                              | No       | Zod schema for request body (POST queries)                       |
+| `processResponse` | `(data) => Result`                       | No       | Transform the response                                           |
+| `onFail`          | `(error) => void`                        | No       | Called when the endpoint throws an error (error is still thrown) |
+| `keyPrefix`       | `string[]`                               | No       | Prefix to add to query keys (useful for namespacing)             |
+| `keySuffix`       | `string[]`                               | No       | Suffix to add to query keys                                      |
 
 ### Mutation Config
 
-| Property | Type | Required | Description |
-|----------|------|----------|-------------|
-| `method` | `'POST' \| 'PUT' \| 'PATCH' \| 'DELETE'` | Yes | HTTP method |
-| `url` | `string` | Yes | URL pattern (e.g., `/users/$userId`) |
-| `responseSchema` | `ZodSchema` | Yes | Zod schema for response validation |
-| `requestSchema` | `ZodSchema` | No | Zod schema for request body |
-| `querySchema` | `ZodObject` | No | Zod schema for query parameters |
-| `processResponse` | `(data) => Result` | No | Transform the response |
-| `useKey` | `boolean` | No | Enable mutation key for scoping |
-| `useContext` | `() => Context` | No | Hook to provide context to callbacks |
-| `onMutate` | `(variables, context) => onMutateResult` | No | Called before mutation |
-| `onSuccess` | `(data, variables, context) => void` | No | Called on success |
-| `onError` | `(error, variables, context) => void` | No | Called on error |
-| `onSettled` | `(data, error, variables, context) => void` | No | Called on completion |
+| Property          | Type                                        | Required | Description                          |
+| ----------------- | ------------------------------------------- | -------- | ------------------------------------ |
+| `method`          | `'POST' \| 'PUT' \| 'PATCH' \| 'DELETE'`    | Yes      | HTTP method                          |
+| `url`             | `string`                                    | Yes      | URL pattern (e.g., `/users/$userId`) |
+| `responseSchema`  | `ZodSchema`                                 | Yes      | Zod schema for response validation   |
+| `requestSchema`   | `ZodSchema`                                 | No       | Zod schema for request body          |
+| `querySchema`     | `ZodObject`                                 | No       | Zod schema for query parameters      |
+| `processResponse` | `(data) => Result`                          | No       | Transform the response               |
+| `useKey`          | `boolean`                                   | No       | Enable mutation key for scoping      |
+| `useContext`      | `() => Context`                             | No       | Hook to provide context to callbacks |
+| `onMutate`        | `(variables, context) => onMutateResult`    | No       | Called before mutation               |
+| `onSuccess`       | `(data, variables, context) => void`        | No       | Called on success                    |
+| `onError`         | `(error, variables, context) => void`       | No       | Called on error                      |
+| `onSettled`       | `(data, error, variables, context) => void` | No       | Called on completion                 |
 
 ### Context Object
 
@@ -499,6 +599,7 @@ The context passed to mutation callbacks includes:
 See [CHANGELOG.md](./CHANGELOG.md) for migration guide from 0.5.x to 0.6.0.
 
 Key changes:
+
 - Mutation callbacks now receive `(data, variables, context)` instead of `(queryClient, data, variables)`
 - Use `useContext` hook to provide `queryClient` and other dependencies
 - New `onMutate` and `onSettled` callbacks for optimistic updates
