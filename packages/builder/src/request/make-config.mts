@@ -11,6 +11,24 @@ function parseWithSchema(schema: ZodType | undefined, value: unknown): unknown {
   return schema ? schema.parse(value) : value
 }
 
+/**
+ * Creates a request configuration object for the HTTP client.
+ *
+ * This function:
+ * - Validates and parses query parameters using `querySchema` (if provided)
+ * - Validates and parses request body data using `requestSchema` (if provided)
+ * - Converts request data to FormData if `isMultipart` is true
+ * - Merges all request properties (headers, signal, etc.) into the final config
+ *
+ * @param request - The request parameters object
+ * @param options - Endpoint configuration containing schemas
+ * @param method - HTTP method to use
+ * @param finalUrlPart - The final URL with parameters bound
+ * @param isMultipart - Whether to convert the request data to FormData
+ * @returns A request configuration object compatible with the Client interface
+ *
+ * @internal
+ */
 export function makeConfig<Config extends BaseStreamConfig>(
   request: NaviosZodRequest<Config>,
   options: Config,
@@ -29,6 +47,21 @@ export function makeConfig<Config extends BaseStreamConfig>(
   } satisfies AbstractRequestConfig
 }
 
+/**
+ * Serializes a value for inclusion in FormData.
+ *
+ * Handles various types:
+ * - File instances are returned as-is
+ * - null/undefined become empty strings
+ * - Dates are converted to ISO strings
+ * - Objects with toISOString or toJSON methods are serialized appropriately
+ * - Other objects are JSON stringified
+ * - Primitives are converted to strings
+ *
+ * @param value - The value to serialize
+ * @returns A string representation or File instance
+ * @internal
+ */
 function serializeFormDataValue(value: unknown): string | File {
   if (value instanceof File) {
     return value
@@ -57,6 +90,31 @@ function serializeFormDataValue(value: unknown): string | File {
   return String(value)
 }
 
+/**
+ * Converts request data to FormData for multipart/form-data requests.
+ *
+ * The function:
+ * - Validates the request data against `requestSchema` (if provided)
+ * - Creates a FormData instance
+ * - Appends all fields, handling File instances, arrays, and other types appropriately
+ * - Files are appended with their name property
+ * - Arrays of files are appended individually
+ * - Other values are serialized using `serializeFormDataValue`
+ *
+ * @param request - The request parameters object
+ * @param options - Endpoint configuration containing request schema
+ * @returns A FormData instance ready for multipart requests
+ *
+ * @example
+ * ```ts
+ * const formData = makeFormData(
+ *   { data: { file: new File(['content'], 'file.txt'), name: 'My File' } },
+ *   { requestSchema: z.object({ file: z.instanceof(File), name: z.string() }) }
+ * )
+ * ```
+ *
+ * @internal
+ */
 export function makeFormData<Config extends BaseStreamConfig>(
   request: NaviosZodRequest<Config>,
   options: Config,

@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.5.0] - 2025-12-18
+
+### Changed
+
+- **Removed `useWholeResponse` option**: This option was documented but never implemented. The README has been updated to reflect the actual behavior where endpoints return only the parsed response data, not the full response object.
+- **Improved documentation**: Added comprehensive JSDoc comments to all public APIs including:
+  - `builder` function and configuration options
+  - `declareEndpoint`, `declareStream`, and `declareMultipart` methods
+  - Error handling functions (`NaviosError`, `handleError`)
+  - Request utilities (`bindUrlParams`, `makeConfig`, `makeFormData`)
+  - Type definitions and interfaces
+
+### Documentation
+
+- Updated README examples to match actual API behavior
+- Added detailed JSDoc comments for better IDE support and developer experience
+- Clarified usage examples for discriminated unions and error handling
+
 ## [0.4.0] - Dec 13, 2025
 
 ### Breaking Changes

@@ -68,7 +68,6 @@ import { GetUsersResponseSchema } from './schemas/GetUsersResponseSchema.js'
 
 const API = builder({
   useDiscriminatorResponse: true,
-  useWholeResponse: true,
 })
 
 const UpdateUserRequestSchema = z.object({
@@ -78,14 +77,12 @@ const UpdateUserRequestSchema = z.object({
 
 const UpdateUserResponseSchema = z.discriminatedUnion('status', [
   z.object({
-    status: z.literal(200),
+    status: z.literal('success'),
     data: GetUsersResponseSchema,
   }),
   z.object({
-    status: z.literal(400),
-    data: z.object({
-      error: z.string(),
-    }),
+    status: z.literal('error'),
+    error: z.string(),
   }),
 ])
 
@@ -110,7 +107,7 @@ API.provideClient(client)
 
 // Usage
 
-const { data: updatedUserOrError, status } = await updateUser({
+const result = await updateUser({
   urlParams: {
     userId: 1,
   },
@@ -120,10 +117,10 @@ const { data: updatedUserOrError, status } = await updateUser({
   },
 })
 
-if (status === 200) {
-  console.log(updatedUserOrError)
+if (result.status === 'success') {
+  console.log(result.data)
 } else {
-  console.error(updatedUserOrError)
+  console.error(result.error)
 }
 ```
 
@@ -141,18 +138,63 @@ The function returns an API object with the following methods:
 
 ```ts
 declareEndpoint({
-  method: 'get' | 'post' | 'put' | 'delete' | 'patch',
+  method: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH' | 'HEAD' | 'OPTIONS',
   url: string,
+  responseSchema: z.ZodSchema<unknown>, // Required
   // optional
   requestSchema: z.ZodSchema<unknown>, // Only for POST, PUT, PATCH methods
-  responseSchema: z.ZodSchema<unknown>,
-  // optional
-  querySchema: z.ZodSchema<unknown>,
+  querySchema: z.ZodSchema<unknown>, // For query parameters
 })
 ```
 
-#### `provideClient` - sets the client for the API.
+Returns a function that makes the HTTP request. The function accepts:
+- `urlParams`: Object with URL parameter values (when URL contains `$paramName`)
+- `data`: Request body data (when `requestSchema` is provided)
+- `params`: Query parameters (when `querySchema` is provided)
+- `headers`: Additional headers
+- `signal`: AbortSignal for request cancellation
+
+The function returns a Promise that resolves to the parsed response data (validated by `responseSchema`).
+
+#### `declareStream` - creates a stream endpoint for downloading files.
+
+```ts
+declareStream({
+  method: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH' | 'HEAD' | 'OPTIONS',
+  url: string,
+  // optional
+  requestSchema: z.ZodSchema<unknown>, // Only for POST, PUT, PATCH methods
+  querySchema: z.ZodSchema<unknown>, // For query parameters
+})
+```
+
+Returns a function that makes the HTTP request and returns a `Blob`.
+
+#### `declareMultipart` - creates a multipart/form-data endpoint for file uploads.
+
+```ts
+declareMultipart({
+  method: 'POST' | 'PUT' | 'PATCH',
+  url: string,
+  responseSchema: z.ZodSchema<unknown>, // Required
+  // optional
+  requestSchema: z.ZodSchema<unknown>, // Should include File instances
+  querySchema: z.ZodSchema<unknown>, // For query parameters
+})
+```
+
+Returns a function that automatically converts the request data to `FormData` and makes the HTTP request.
+
+#### `provideClient` - sets the HTTP client for the API.
 
 ```ts
 provideClient(client) // client is an instance of axios or @navios/http client
+```
+
+The client must implement the `Client` interface with a `request` method that accepts `AbstractRequestConfig` and returns `Promise<AbstractResponse<T>>`.
+
+#### `getClient` - gets the current HTTP client.
+
+```ts
+getClient() // Returns the current client or throws NaviosError if not set
 ```

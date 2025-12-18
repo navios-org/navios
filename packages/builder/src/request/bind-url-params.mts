@@ -1,5 +1,30 @@
 import type { BaseEndpointConfig, NaviosZodRequest } from '../types/index.mjs'
 
+/**
+ * Binds URL parameters to a URL template string.
+ *
+ * Replaces placeholders in the format `$paramName` with actual values from `urlParams`.
+ * All parameter values are URL-encoded to ensure safe inclusion in URLs.
+ *
+ * @param urlPart - URL template with parameter placeholders (e.g., '/users/$userId/posts/$postId')
+ * @param params - Request parameters object containing `urlParams` with parameter values
+ * @returns The URL with parameters replaced and URL-encoded
+ * @throws {Error} If required URL parameters are missing
+ *
+ * @example
+ * ```ts
+ * const url = bindUrlParams('/users/$userId/posts/$postId', {
+ *   urlParams: { userId: '123', postId: '456' }
+ * })
+ * // Returns: '/users/123/posts/456'
+ *
+ * // With special characters (automatically encoded)
+ * const url2 = bindUrlParams('/search/$query', {
+ *   urlParams: { query: 'hello world' }
+ * })
+ * // Returns: '/search/hello%20world'
+ * ```
+ */
 export function bindUrlParams<Url extends string>(
   urlPart: Url,
   params: NaviosZodRequest<BaseEndpointConfig<any, Url, any, any, any>>,
