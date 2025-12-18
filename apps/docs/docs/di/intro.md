@@ -19,6 +19,9 @@ A lightweight, type-safe dependency injection container for TypeScript. Features
 - Request, Singleton, and Transient scopes
 - Async factory support
 - Event bus for inter-service communication
+- Injection tokens with Zod schema validation
+- Factory pattern support
+- Service lifecycle management
 
 [Get Started with DI](/docs/di/di/overview)
 
@@ -31,5 +34,7 @@ React bindings for @navios/di. Seamlessly integrate dependency injection into yo
 - `useService` and `useSuspenseService` hooks
 - Automatic scope management
 - Server-side rendering support
+- Automatic invalidation subscriptions
+- Optional service support
 
 [React Integration](/docs/di/di-react/overview)

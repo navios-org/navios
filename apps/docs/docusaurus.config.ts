@@ -1,6 +1,7 @@
-import { themes as prismThemes } from 'prism-react-renderer'
-import type { Config } from '@docusaurus/types'
 import type * as Preset from '@docusaurus/preset-classic'
+import type { Config } from '@docusaurus/types'
+
+import { themes as prismThemes } from 'prism-react-renderer'
 
 const config: Config = {
   title: 'Navios Framework',
@@ -65,6 +66,16 @@ const config: Config = {
         editUrl: 'https://github.com/Arilas/navios/tree/main/apps/docs/',
       },
     ],
+    [
+      '@docusaurus/plugin-content-docs',
+      {
+        id: 'packages',
+        path: 'docs/packages',
+        routeBasePath: 'docs/packages',
+        sidebarPath: './sidebars/packages.ts',
+        editUrl: 'https://github.com/Arilas/navios/tree/main/apps/docs/',
+      },
+    ],
   ],
 
   themeConfig: {
@@ -103,6 +114,13 @@ const config: Config = {
           docsPluginId: 'di',
         },
         {
+          type: 'docSidebar',
+          sidebarId: 'packagesSidebar',
+          position: 'left',
+          label: 'Packages',
+          docsPluginId: 'packages',
+        },
+        {
           href: 'https://github.com/Arilas/navios',
           label: 'GitHub',
           position: 'right',
@@ -127,10 +145,14 @@ const config: Config = {
               label: 'DI',
               to: '/docs/di',
             },
+            {
+              label: 'Packages',
+              to: '/docs/packages',
+            },
           ],
         },
         {
-          title: 'Packages',
+          title: 'Core Packages',
           items: [
             {
               label: '@navios/core',
@@ -143,6 +165,43 @@ const config: Config = {
             {
               label: '@navios/di',
               href: 'https://www.npmjs.com/package/@navios/di',
+            },
+            {
+              label: '@navios/http',
+              href: 'https://www.npmjs.com/package/@navios/http',
+            },
+          ],
+        },
+        {
+          title: 'Adapters & Tools',
+          items: [
+            {
+              label: '@navios/adapter-fastify',
+              href: 'https://www.npmjs.com/package/@navios/adapter-fastify',
+            },
+            {
+              label: '@navios/adapter-bun',
+              href: 'https://www.npmjs.com/package/@navios/adapter-bun',
+            },
+            {
+              label: '@navios/adapter-xml',
+              href: 'https://www.npmjs.com/package/@navios/adapter-xml',
+            },
+            {
+              label: '@navios/jwt',
+              href: 'https://www.npmjs.com/package/@navios/jwt',
+            },
+            {
+              label: '@navios/schedule',
+              href: 'https://www.npmjs.com/package/@navios/schedule',
+            },
+            {
+              label: '@navios/commander',
+              href: 'https://www.npmjs.com/package/@navios/commander',
+            },
+            {
+              label: '@navios/react-query',
+              href: 'https://www.npmjs.com/package/@navios/react-query',
             },
           ],
         },

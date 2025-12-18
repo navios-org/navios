@@ -21,6 +21,18 @@ A type-safe API declaration builder that enables sharing endpoint definitions be
 
 [Get Started with Builder](/docs/builder/builder/overview)
 
+### @navios/http
+
+A lightweight, fetch-based HTTP client that serves as a modern alternative to axios. Works seamlessly with `@navios/builder` for type-safe API calls.
+
+**Key Features:**
+- Native `fetch` API everywhere
+- Next.js caching support
+- Familiar axios-like API
+- Interceptors support
+
+[HTTP Client Documentation](/docs/packages/http/overview)
+
 ### @navios/react-query
 
 TanStack React Query integration for Navios. Use your builder-defined endpoints with React Query's powerful data fetching capabilities.

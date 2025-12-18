@@ -10,7 +10,9 @@ Get up and running with Navios Server in minutes.
 
 ## Choose Your Adapter
 
-Navios supports two HTTP adapters that can run on different runtimes:
+Navios supports multiple adapters for different use cases:
+
+### HTTP Adapters
 
 | Feature | Fastify + Node.js | Fastify + Bun | Bun Adapter |
 |---------|-------------------|---------------|-------------|
@@ -22,6 +24,10 @@ Navios supports two HTTP adapters that can run on different runtimes:
 | **Hot Reload** | ✅ Via @navios/cli | ✅ Native | ✅ Native |
 | **ES Decorators** | ✅ Native (Node 20+) | ⚠️ Requires plugin | ⚠️ Requires plugin |
 | **Maturity** | Production-ready | Stable | Experimental |
+
+### Additional Adapters
+
+- **XML Adapter** (`@navios/adapter-xml`) - Build XML responses (RSS, sitemaps, Atom feeds) using JSX syntax. Works with both Fastify and Bun adapters.
 
 ## Installation
 
@@ -121,3 +127,4 @@ curl http://localhost:3000/users/123
 - [Architecture](/docs/server/overview/architecture) - Understand modules, controllers, and endpoints
 - [Controllers & Endpoints](/docs/server/guides/controllers) - Learn about routing and request handling
 - [Adapters](/docs/server/adapters/fastify) - Configure your HTTP runtime
+- [Packages](/docs/packages) - Explore additional packages like JWT, Schedule, and more
