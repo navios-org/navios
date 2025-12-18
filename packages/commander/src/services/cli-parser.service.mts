@@ -2,12 +2,40 @@ import type { ZodObject, ZodType } from 'zod'
 
 import { Injectable } from '@navios/core'
 
+/**
+ * Result of parsing command-line arguments.
+ *
+ * @public
+ */
 export interface ParsedCliArgs {
+  /**
+   * The command path (e.g., 'greet', 'user:create').
+   * Multi-word commands are joined with spaces.
+   */
   command: string
+  /**
+   * Parsed options as key-value pairs.
+   * Keys are converted from kebab-case to camelCase.
+   */
   options: Record<string, any>
+  /**
+   * Positional arguments that don't match any option flags.
+   */
   positionals: string[]
 }
 
+/**
+ * Service for parsing command-line arguments.
+ *
+ * Handles parsing of various CLI argument formats including:
+ * - Long options: `--key value` or `--key=value`
+ * - Short options: `-k value` or `-abc` (multiple flags)
+ * - Boolean flags
+ * - Array options
+ * - Positional arguments
+ *
+ * @public
+ */
 @Injectable()
 export class CliParserService {
   /**
@@ -299,7 +327,10 @@ export class CliParserService {
   }
 
   /**
-   * Formats help text for available commands
+   * Formats help text listing all available commands.
+   *
+   * @param commands - Array of command objects with path and class
+   * @returns Formatted string listing all commands
    */
   formatCommandList(commands: Array<{ path: string; class: any }>): string {
     const lines = ['Available commands:', '']

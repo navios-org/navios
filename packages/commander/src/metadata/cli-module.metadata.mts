@@ -1,13 +1,39 @@
 import type { ClassType } from '@navios/core'
 
+/**
+ * @internal
+ * Symbol key used to store CLI module metadata on classes.
+ */
 export const CliModuleMetadataKey = Symbol('CliModuleMetadataKey')
 
+/**
+ * Metadata associated with a CLI module.
+ *
+ * @public
+ */
 export interface CliModuleMetadata {
+  /**
+   * Set of command classes registered in this module.
+   */
   commands: Set<ClassType>
+  /**
+   * Set of other modules imported by this module.
+   */
   imports: Set<ClassType>
+  /**
+   * Map of custom attributes that can be attached to the module.
+   */
   customAttributes: Map<string | symbol, any>
 }
 
+/**
+ * Gets or creates CLI module metadata for a class.
+ *
+ * @internal
+ * @param target - The module class
+ * @param context - The decorator context
+ * @returns The module metadata
+ */
 export function getCliModuleMetadata(
   target: ClassType,
   context: ClassDecoratorContext,
@@ -33,6 +59,19 @@ export function getCliModuleMetadata(
   throw new Error('[Navios Commander] Wrong environment.')
 }
 
+/**
+ * Extracts CLI module metadata from a class.
+ *
+ * @param target - The module class
+ * @returns The module metadata
+ * @throws {Error} If the class is not decorated with @CliModule
+ *
+ * @example
+ * ```typescript
+ * const metadata = extractCliModuleMetadata(AppModule)
+ * console.log(metadata.commands.size) // Number of commands
+ * ```
+ */
 export function extractCliModuleMetadata(target: ClassType): CliModuleMetadata {
   // @ts-expect-error We add a custom metadata key to the target
   const metadata = target[CliModuleMetadataKey] as CliModuleMetadata | undefined
@@ -44,6 +83,12 @@ export function extractCliModuleMetadata(target: ClassType): CliModuleMetadata {
   return metadata
 }
 
+/**
+ * Checks if a class has CLI module metadata.
+ *
+ * @param target - The class to check
+ * @returns `true` if the class is decorated with @CliModule, `false` otherwise
+ */
 export function hasCliModuleMetadata(target: ClassType): boolean {
   // @ts-expect-error We add a custom metadata key to the target
   return !!target[CliModuleMetadataKey]

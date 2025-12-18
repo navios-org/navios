@@ -10,11 +10,30 @@ import {
   extractCommandMetadata,
 } from '../metadata/index.mjs'
 
+/**
+ * Command class with its associated metadata.
+ *
+ * @public
+ */
 export interface CommandWithMetadata {
+  /**
+   * The command class constructor.
+   */
   class: ClassTypeWithInstance<CommandHandler>
+  /**
+   * The command metadata including path and options schema.
+   */
   metadata: CommandMetadata
 }
 
+/**
+ * Service for loading and managing CLI modules and commands.
+ *
+ * Handles module traversal, command registration, and metadata collection.
+ * This service is used internally by CommanderApplication.
+ *
+ * @public
+ */
 @Injectable()
 export class CliModuleLoaderService {
   protected container = inject(Container)
@@ -23,6 +42,13 @@ export class CliModuleLoaderService {
   private commandsMetadata: Map<string, CommandWithMetadata> = new Map()
   private initialized = false
 
+  /**
+   * Loads all modules starting from the root app module.
+   *
+   * Traverses the module tree, loads imported modules, and collects command metadata.
+   *
+   * @param appModule - The root CLI module
+   */
   async loadModules(appModule: ClassTypeWithInstance<NaviosModule>) {
     if (this.initialized) {
       return
@@ -80,10 +106,20 @@ export class CliModuleLoaderService {
     }
   }
 
+  /**
+   * Gets all loaded module metadata.
+   *
+   * @returns Map of module names to their metadata
+   */
   getAllModules(): Map<string, CliModuleMetadata> {
     return this.modulesMetadata
   }
 
+  /**
+   * Gets all command classes indexed by command class name.
+   *
+   * @returns Map of command class names to command classes
+   */
   getAllCommands(): Map<string, ClassTypeWithInstance<any>> {
     const commands = new Map<string, ClassTypeWithInstance<any>>()
     for (const metadata of this.modulesMetadata.values()) {
@@ -111,6 +147,9 @@ export class CliModuleLoaderService {
     return this.commandsMetadata.get(path)
   }
 
+  /**
+   * Disposes of all loaded modules and commands, clearing internal state.
+   */
   dispose() {
     this.modulesMetadata.clear()
     this.loadedModules.clear()

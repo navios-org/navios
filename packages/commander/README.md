@@ -140,18 +140,18 @@ export class AppModule {}
 The `ExecutionContext` provides access to the current command execution information, including the module metadata, command metadata, command path, and options. This is useful for middleware, guards, or any service that needs context about the current command execution.
 
 ```typescript
-import { Command, CommandHandler, ExecutionContext } from '@navios/commander'
+import { Command, CommandHandler, CommandExecutionContext } from '@navios/commander'
 import { inject, Injectable } from '@navios/di'
 
 @Injectable()
 class CommandLogger {
-  private executionContext = inject(ExecutionContext)
+  private executionContext = inject(CommandExecutionContext)
 
   logCommandInfo() {
     const ctx = this.executionContext
     console.log('Command Path:', ctx.getCommandPath())
     console.log('Command Options:', ctx.getOptions())
-    console.log('Module:', ctx.getModule())
+    console.log('Command Metadata:', ctx.getCommand())
   }
 }
 
@@ -168,7 +168,6 @@ export class ExampleCommand implements CommandHandler {
 
 The `ExecutionContext` provides the following methods:
 
-- `getModule()` - Returns the CLI module metadata
 - `getCommand()` - Returns the command metadata
 - `getCommandPath()` - Returns the command path (e.g., 'user:create')
 - `getOptions()` - Returns the validated command options

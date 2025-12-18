@@ -4,11 +4,46 @@ import { Injectable, InjectableScope, InjectionToken } from '@navios/core'
 
 import { getCliModuleMetadata } from '../metadata/index.mjs'
 
+/**
+ * Options for the `@CliModule` decorator.
+ *
+ * @public
+ */
 export interface CliModuleOptions {
+  /**
+   * Array or Set of command classes to register in this module.
+   * Commands must be decorated with `@Command`.
+   */
   commands?: ClassType[] | Set<ClassType>
+  /**
+   * Array or Set of other CLI modules to import.
+   * Imported modules' commands will be available in this module.
+   */
   imports?: ClassType[] | Set<ClassType>
 }
 
+/**
+ * Decorator that marks a class as a CLI module.
+ *
+ * Modules organize commands and can import other modules to compose larger CLI applications.
+ * The module can optionally implement `NaviosModule` interface for lifecycle hooks.
+ *
+ * @param options - Configuration options for the module
+ * @returns A class decorator function
+ *
+ * @example
+ * ```typescript
+ * import { CliModule } from '@navios/commander'
+ * import { GreetCommand } from './greet.command'
+ * import { UserModule } from './user.module'
+ *
+ * @CliModule({
+ *   commands: [GreetCommand],
+ *   imports: [UserModule]
+ * })
+ * export class AppModule {}
+ * ```
+ */
 export function CliModule(
   { commands = [], imports = [] }: CliModuleOptions = {
     commands: [],

@@ -12,8 +12,26 @@ import { CommanderExecutionContext } from './interfaces/index.mjs'
 import { CliModuleLoaderService, CliParserService } from './services/index.mjs'
 import { CommandExecutionContext } from './tokens/index.mjs'
 
+/**
+ * Configuration options for CommanderApplication.
+ *
+ * @public
+ */
 export interface CommanderApplicationOptions {}
 
+/**
+ * Main application class for managing CLI command execution.
+ *
+ * This class handles module loading, command registration, and command execution.
+ * It provides both programmatic and CLI-based command execution capabilities.
+ *
+ * @example
+ * ```typescript
+ * const app = await CommanderFactory.create(AppModule)
+ * await app.init()
+ * await app.run(process.argv)
+ * ```
+ */
 @Injectable()
 export class CommanderApplication {
   private moduleLoader = inject(CliModuleLoaderService)
@@ -23,8 +41,17 @@ export class CommanderApplication {
   private appModule: ClassTypeWithInstance<NaviosModule> | null = null
   private options: CommanderApplicationOptions = {}
 
+  /**
+   * Indicates whether the application has been initialized.
+   * Set to `true` after `init()` is called successfully.
+   */
   isInitialized = false
 
+  /**
+   * @internal
+   * Sets up the application with the provided module and options.
+   * This is called automatically by CommanderFactory.create().
+   */
   async setup(
     appModule: ClassTypeWithInstance<NaviosModule>,
     options: CommanderApplicationOptions = {},
@@ -33,10 +60,35 @@ export class CommanderApplication {
     this.options = options
   }
 
+  /**
+   * Gets the dependency injection container used by this application.
+   *
+   * @returns The Container instance
+   *
+   * @example
+   * ```typescript
+   * const container = app.getContainer()
+   * const service = await container.get(MyService)
+   * ```
+   */
   getContainer() {
     return this.container
   }
 
+  /**
+   * Initializes the application by loading all modules and registering commands.
+   *
+   * This method must be called before executing commands or running the CLI.
+   * It traverses the module tree, loads all imported modules, and collects command metadata.
+   *
+   * @throws {Error} If the app module is not set (setup() was not called)
+   *
+   * @example
+   * ```typescript
+   * const app = await CommanderFactory.create(AppModule)
+   * await app.init() // Must be called before run() or executeCommand()
+   * ```
+   */
   async init() {
     if (!this.appModule) {
       throw new Error(
@@ -47,6 +99,27 @@ export class CommanderApplication {
     this.isInitialized = true
   }
 
+  /**
+   * Executes a command programmatically with the provided options.
+   *
+   * This method is useful for testing, automation, or programmatic workflows.
+   * The options will be validated against the command's Zod schema if one is provided.
+   *
+   * @param commandPath - The command path (e.g., 'greet', 'user:create')
+   * @param options - The command options object (will be validated if schema exists)
+   * @throws {Error} If the application is not initialized
+   * @throws {Error} If the command is not found
+   * @throws {Error} If the command does not implement the execute method
+   * @throws {ZodError} If options validation fails
+   *
+   * @example
+   * ```typescript
+   * await app.executeCommand('greet', {
+   *   name: 'World',
+   *   greeting: 'Hi'
+   * })
+   * ```
+   */
   async executeCommand(commandPath: string, options: any = {}) {
     if (!this.isInitialized) {
       throw new Error(
@@ -102,6 +175,19 @@ export class CommanderApplication {
     }
   }
 
+  /**
+   * Gets all registered commands with their paths and class references.
+   *
+   * @returns An array of objects containing the command path and class
+   *
+   * @example
+   * ```typescript
+   * const commands = app.getAllCommands()
+   * commands.forEach(({ path }) => {
+   *   console.log(`Available: ${path}`)
+   * })
+   * ```
+   */
   getAllCommands() {
     // Use pre-collected command metadata from module loading
     const commandsMap = this.moduleLoader.getAllCommandsWithMetadata()
@@ -121,8 +207,26 @@ export class CommanderApplication {
   }
 
   /**
-   * Runs the CLI application by parsing process.argv and executing the command
-   * @param argv - Command-line arguments (defaults to process.argv)
+   * Runs the CLI application by parsing command-line arguments and executing the appropriate command.
+   *
+   * This is the main entry point for CLI usage. It parses `argv`, validates options,
+   * and executes the matching command. Supports help command (`help`, `--help`, `-h`)
+   * which displays all available commands.
+   *
+   * @param argv - Command-line arguments array (defaults to `process.argv`)
+   * @throws {Error} If the application is not initialized
+   * @throws {Error} If no command is provided
+   * @throws {Error} If the command is not found
+   * @throws {ZodError} If options validation fails
+   *
+   * @example
+   * ```typescript
+   * // Parse and execute from process.argv
+   * await app.run()
+   *
+   * // Or provide custom arguments
+   * await app.run(['node', 'cli.js', 'greet', '--name', 'World'])
+   * ```
    */
   async run(argv: string[] = process.argv) {
     if (!this.isInitialized) {
@@ -172,12 +276,27 @@ export class CommanderApplication {
     }
   }
 
+  /**
+   * @internal
+   * Disposes of resources used by the application.
+   */
   async dispose() {
     if (this.moduleLoader) {
       this.moduleLoader.dispose()
     }
   }
 
+  /**
+   * Closes the application and cleans up resources.
+   *
+   * This should be called when the application is no longer needed to free up resources.
+   *
+   * @example
+   * ```typescript
+   * await app.run(process.argv)
+   * await app.close()
+   * ```
+   */
   async close() {
     await this.dispose()
   }
