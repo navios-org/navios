@@ -11,11 +11,12 @@ This package provides the Fastify adapter for Navios, allowing you to run Navios
 ## Features
 
 - High-performance HTTP server based on Fastify
-- Full TypeScript support
+- Full TypeScript support with comprehensive JSDoc documentation
 - Rich ecosystem of Fastify plugins
 - Production-ready with extensive documentation
-- Built-in request/response validation
+- Built-in request/response validation with Zod schemas
 - Comprehensive middleware support
+- Native CORS and multipart form data support
 
 ## Installation
 
@@ -63,19 +64,26 @@ import { defineFastifyEnvironment } from '@navios/adapter-fastify'
 import { NaviosFactory } from '@navios/core'
 
 const app = await NaviosFactory.create(AppModule, {
-  adapter: defineFastifyEnvironment({
-    // Fastify server options
-    logger: true,
-    trustProxy: true,
-  }),
+  adapter: defineFastifyEnvironment(),
+})
+
+// Enable CORS support
+app.enableCors({
+  origin: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  credentials: true,
 })
 
 // Enable multipart support for file uploads
 app.enableMultipart({
   limits: {
     fileSize: 1024 * 1024 * 10, // 10MB
+    files: 5, // Max 5 files
   },
 })
+
+await app.init()
+await app.listen({ port: 3000, host: '0.0.0.0' })
 ```
 
 ### Accessing Fastify Instance
@@ -95,12 +103,14 @@ await fastifyInstance.register(require('@fastify/static'), {
 
 - **High Performance**: Built on Fastify, one of the fastest Node.js web frameworks
 - **Rich Ecosystem**: Access to extensive Fastify plugin system
-- **Type Safety**: Maintains Navios' complete type-safe API
+- **Type Safety**: Maintains Navios' complete type-safe API with full JSDoc support
 - **Production Ready**: Battle-tested Fastify foundation
 - **Plugin System**: Full support for Fastify plugins and hooks
-- **Schema Validation**: Built-in JSON Schema validation
+- **Schema Validation**: Built-in Zod schema validation with Fastify type provider
 - **Request/Response Lifecycle**: Complete control over request/response handling
 - **Error Handling**: Comprehensive error handling integration
+- **CORS Support**: Native CORS support via @fastify/cors
+- **Multipart Support**: Native file upload support via @fastify/multipart
 - **WebSocket Support**: Via Fastify WebSocket plugins
 - **Static File Serving**: Via @fastify/static plugin
 

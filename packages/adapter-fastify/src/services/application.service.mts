@@ -35,6 +35,33 @@ import { FastifyServerToken } from '../tokens/server.token.mjs'
 import { FastifyControllerAdapterService } from './controller-adapter.service.mjs'
 import { PinoWrapper } from './pino-wrapper.mjs'
 
+/**
+ * Fastify HTTP adapter service implementation for Navios.
+ *
+ * This service provides the core HTTP server functionality for Navios applications
+ * running on the Fastify runtime. It handles server initialization, route registration,
+ * request handling, CORS configuration, multipart support, and server lifecycle management.
+ *
+ * @example
+ * ```ts
+ * const app = await NaviosFactory.create(AppModule, {
+ *   adapter: defineFastifyEnvironment(),
+ * })
+ *
+ * await app.setupHttpServer({
+ *   logger: true,
+ *   trustProxy: true,
+ * })
+ *
+ * app.enableCors({ origin: true })
+ * app.enableMultipart({ limits: { fileSize: 10 * 1024 * 1024 } })
+ *
+ * await app.init()
+ * await app.listen({ port: 3000, host: '0.0.0.0' })
+ * ```
+ *
+ * @implements {FastifyApplicationServiceInterface}
+ */
 @Injectable({
   token: FastifyApplicationServiceToken,
 })
@@ -50,6 +77,25 @@ export class FastifyApplicationService implements FastifyApplicationServiceInter
   private corsOptions: FastifyCorsOptions | null = null
   private multipartOptions: FastifyMultipartOptions | true | null = null
 
+  /**
+   * Configures and initializes the Fastify HTTP server with the provided options.
+   *
+   * This method should be called before `init()` to set up server configuration.
+   * It creates the Fastify instance, configures logging, and prepares the server
+   * for route registration.
+   *
+   * @param options - Fastify server configuration options including logger settings,
+   * trust proxy configuration, and other Fastify-specific options.
+   *
+   * @example
+   * ```ts
+   * await app.setupHttpServer({
+   *   logger: true,
+   *   trustProxy: true,
+   *   disableRequestLogging: false,
+   * })
+   * ```
+   */
   async setupHttpServer(options: FastifyApplicationOptions): Promise<void> {
     const { logger, ...fastifyOptions } = options
     if (logger) {
@@ -71,20 +117,65 @@ export class FastifyApplicationService implements FastifyApplicationServiceInter
     await this.initServer()
   }
 
+  /**
+   * Initializes the Fastify server instance and configures plugins.
+   *
+   * This method is called automatically during server setup. It configures
+   * error handlers, not found handlers, schema validators, and registers
+   * the server instance in the dependency injection container.
+   */
   async initServer(): Promise<void> {
     this.configureFastifyInstance()
     this.registerFastifyInstance()
     await this.configurePlugins()
   }
 
+  /**
+   * Waits for the Fastify server to be ready.
+   *
+   * This method ensures all plugins are registered and the server is ready
+   * to accept connections before starting to listen.
+   */
   async ready(): Promise<void> {
     await this.server!.ready()
   }
 
+  /**
+   * Sets a global prefix for all routes.
+   *
+   * This prefix will be prepended to all registered route paths. Useful for
+   * API versioning or organizing routes under a common path.
+   *
+   * @param prefix - The prefix to prepend to all routes (e.g., '/api/v1').
+   * Should start with a forward slash.
+   *
+   * @example
+   * ```ts
+   * app.setGlobalPrefix('/api/v1')
+   * // All routes will be prefixed with /api/v1
+   * ```
+   */
   setGlobalPrefix(prefix: string): void {
     this.globalPrefix = prefix
   }
 
+  /**
+   * Gets the underlying Fastify server instance.
+   *
+   * This allows direct access to the Fastify instance for advanced use cases,
+   * such as registering custom plugins, hooks, or decorators.
+   *
+   * @returns The Fastify server instance.
+   * @throws {Error} If the server has not been initialized yet.
+   *
+   * @example
+   * ```ts
+   * const fastify = app.getServer()
+   * await fastify.register(require('@fastify/static'), {
+   *   root: path.join(__dirname, 'public'),
+   * })
+   * ```
+   */
   getServer(): FastifyInstance {
     if (!this.server) {
       throw new Error('Server is not initialized. Call init() first.')
@@ -122,6 +213,16 @@ export class FastifyApplicationService implements FastifyApplicationServiceInter
     await Promise.all(promises)
   }
 
+  /**
+   * Configures Fastify instance with error handlers, validators, and serializers.
+   *
+   * Sets up:
+   * - Global error handler for HttpException and other errors
+   * - Not found handler for unmatched routes
+   * - Zod-based validator and serializer compilers
+   *
+   * @private
+   */
   configureFastifyInstance(): void {
     this.server!.setErrorHandler((error: any, request: any, reply: any) => {
       if (error instanceof HttpException) {
@@ -157,6 +258,14 @@ export class FastifyApplicationService implements FastifyApplicationServiceInter
     this.server!.setSerializerCompiler(serializerCompiler)
   }
 
+  /**
+   * Configures and registers Fastify plugins (CORS, multipart, etc.).
+   *
+   * This method registers plugins that were configured via `enableCors()`
+   * and `enableMultipart()` methods.
+   *
+   * @private
+   */
   async configurePlugins(): Promise<void> {
     if (this.corsOptions) {
       await this.server!.register(cors, this.corsOptions)
@@ -167,6 +276,12 @@ export class FastifyApplicationService implements FastifyApplicationServiceInter
     }
   }
 
+  /**
+   * Configures multipart form data support.
+   *
+   * @param options - Multipart configuration options or `true` for defaults.
+   * @private
+   */
   async configureMultipart(
     options: FastifyMultipartOptions | true,
   ): Promise<void> {
@@ -178,6 +293,13 @@ export class FastifyApplicationService implements FastifyApplicationServiceInter
     }
   }
 
+  /**
+   * Registers the Fastify instance in the dependency injection container.
+   *
+   * Makes the server instance available for injection via `FastifyServerToken`.
+   *
+   * @private
+   */
   registerFastifyInstance(): void {
     const instanceName = this.container
       .getServiceLocator()
@@ -193,20 +315,91 @@ export class FastifyApplicationService implements FastifyApplicationServiceInter
       )
   }
 
+  /**
+   * Enables CORS (Cross-Origin Resource Sharing) support.
+   *
+   * Configures CORS headers for all routes. The options are applied when
+   * the server is initialized.
+   *
+   * @param options - CORS configuration options from `@fastify/cors`.
+   *
+   * @example
+   * ```ts
+   * app.enableCors({
+   *   origin: true, // Allow all origins
+   *   methods: ['GET', 'POST', 'PUT', 'DELETE'],
+   *   credentials: true,
+   * })
+   * ```
+   *
+   * @see {@link https://github.com/fastify/fastify-cors} Fastify CORS plugin documentation
+   */
   enableCors(options: FastifyCorsOptions): void {
     this.corsOptions = options
   }
 
+  /**
+   * Enables multipart form data support for file uploads.
+   *
+   * Configures multipart handling for all routes. The options are applied when
+   * the server is initialized.
+   *
+   * @param options - Multipart configuration options from `@fastify/multipart`.
+   *
+   * @example
+   * ```ts
+   * app.enableMultipart({
+   *   limits: {
+   *     fileSize: 10 * 1024 * 1024, // 10MB
+   *     files: 5, // Max 5 files
+   *   },
+   * })
+   * ```
+   *
+   * @see {@link https://github.com/fastify/fastify-multipart} Fastify Multipart plugin documentation
+   */
   enableMultipart(options: FastifyMultipartOptions): void {
     this.multipartOptions = options
   }
 
+  /**
+   * Starts the Fastify HTTP server and begins listening for incoming requests.
+   *
+   * This method starts the server with the configured routes and options.
+   * The server will handle all registered routes and return 404 for unmatched requests.
+   *
+   * @param options - Server listen options including port and host.
+   * @returns A promise that resolves to the server address string.
+   *
+   * @example
+   * ```ts
+   * const address = await app.listen({
+   *   port: 3000,
+   *   host: '0.0.0.0',
+   * })
+   * console.log(`Server listening on ${address}`)
+   * ```
+   */
   async listen(options: FastifyListenOptions): Promise<string> {
     const res = await this.server!.listen(options)
     this.logger.debug(`Navios is listening on ${res}`)
     return res
   }
 
+  /**
+   * Gracefully shuts down the Fastify server.
+   *
+   * This method closes all connections and cleans up resources. Should be called
+   * during application shutdown to ensure proper cleanup.
+   *
+   * @example
+   * ```ts
+   * process.on('SIGTERM', async () => {
+   *   await app.dispose()
+   *   process.exit(0)
+   * })
+   * ```
+   */
   async dispose(): Promise<void> {
     await this.server!.close()
   }
