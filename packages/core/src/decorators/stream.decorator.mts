@@ -9,6 +9,13 @@ import type { ZodObject, ZodType } from 'zod/v4'
 import { getEndpointMetadata } from '../metadata/index.mjs'
 import { StreamAdapterToken } from '../tokens/index.mjs'
 
+/**
+ * Extracts the typed parameters for a stream endpoint handler function.
+ * 
+ * Similar to `EndpointParams`, but specifically for streaming endpoints.
+ * 
+ * @typeParam EndpointDeclaration - The stream endpoint declaration from @navios/builder
+ */
 export type StreamParams<
   EndpointDeclaration extends {
     config: BaseStreamConfig<any, any, any, any>
@@ -37,6 +44,32 @@ export type StreamParams<
       >
     : Util_FlatObject<EndpointFunctionArgs<Url, undefined, undefined, true>>
 
+/**
+ * Decorator that marks a method as a streaming endpoint.
+ * 
+ * Use this decorator for endpoints that stream data (e.g., file downloads, SSE).
+ * The endpoint must be defined using @navios/builder's `declareStream` method.
+ * 
+ * @param endpoint - The stream endpoint declaration from @navios/builder
+ * @returns A method decorator
+ * 
+ * @example
+ * ```typescript
+ * const downloadFileEndpoint = api.declareStream({
+ *   method: 'get',
+ *   url: '/files/$fileId',
+ * })
+ * 
+ * @Controller()
+ * export class FileController {
+ *   @Stream(downloadFileEndpoint)
+ *   async downloadFile(request: StreamParams<typeof downloadFileEndpoint>, reply: any) {
+ *     const { fileId } = request.urlParams
+ *     // Stream file data to reply
+ *   }
+ * }
+ * ```
+ */
 export function Stream<
   Method extends HttpMethod = HttpMethod,
   Url extends string = string,

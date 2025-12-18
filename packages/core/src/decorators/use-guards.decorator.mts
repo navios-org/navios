@@ -11,6 +11,35 @@ import {
   getEndpointMetadata,
 } from '../metadata/index.mjs'
 
+/**
+ * Decorator that applies guards to a controller or endpoint.
+ * 
+ * Guards are used for authentication, authorization, and request validation.
+ * They implement the `CanActivate` interface and are executed before the endpoint handler.
+ * Guards can be applied at the module, controller, or endpoint level.
+ * 
+ * @param guards - Guard classes or injection tokens to apply
+ * @returns A class or method decorator
+ * 
+ * @example
+ * ```typescript
+ * // Apply to a controller
+ * @Controller()
+ * @UseGuards(AuthGuard, RoleGuard)
+ * export class UserController {
+ *   @Endpoint(getUserEndpoint)
+ *   async getUser() { }
+ * }
+ * 
+ * // Apply to a specific endpoint
+ * @Controller()
+ * export class UserController {
+ *   @Endpoint(getUserEndpoint)
+ *   @UseGuards(AuthGuard)
+ *   async getUser() { }
+ * }
+ * ```
+ */
 export function UseGuards(
   ...guards: (
     | ClassTypeWithInstance<CanActivate>

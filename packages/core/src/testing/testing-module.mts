@@ -7,16 +7,38 @@ import { TestContainer } from '@navios/di/testing'
 import { NaviosApplication } from '../navios.application.mjs'
 import { NaviosFactory } from '../navios.factory.mjs'
 
+/**
+ * Configuration for overriding a provider in the testing module.
+ * 
+ * @typeParam T - The type of the provider being overridden
+ */
 export interface TestingModuleOverride<T = any> {
+  /**
+   * The injection token or class to override.
+   */
   token: ClassType | InjectionToken<T, any>
+  /**
+   * Value to use instead of the original provider.
+   */
   useValue?: T
+  /**
+   * Class to use instead of the original provider.
+   */
   useClass?: ClassType
 }
 
+/**
+ * Options for creating a testing module.
+ * 
+ * Extends NaviosApplicationOptions but excludes the container option,
+ * as TestingModule manages its own TestContainer.
+ */
 export interface TestingModuleOptions
   extends Omit<NaviosApplicationOptions, 'container'> {
   /**
-   * Override providers for testing
+   * Initial provider overrides to apply when creating the testing module.
+   * 
+   * You can also use `overrideProvider()` method for a fluent API.
    */
   overrides?: TestingModuleOverride[]
 }
@@ -114,9 +136,25 @@ export class TestingModule {
   }
 }
 
+/**
+ * Fluent builder interface for TestingModule.
+ * 
+ * Provides a chainable API for configuring and using a testing module.
+ */
 export interface TestingModuleBuilder {
   /**
    * Override a provider with a mock value or class.
+   * 
+   * @param token - The injection token or class to override
+   * @returns An object with `useValue` and `useClass` methods for chaining
+   * 
+   * @example
+   * ```typescript
+   * const testingModule = await createTestingModule(AppModule)
+   *   .overrideProvider(DatabaseService)
+   *   .useValue(mockDatabaseService)
+   *   .compile()
+   * ```
    */
   overrideProvider<T>(token: ClassType | InjectionToken<T, any>): {
     useValue: (value: T) => TestingModuleBuilder
@@ -125,26 +163,35 @@ export interface TestingModuleBuilder {
 
   /**
    * Compiles the testing module and returns the NaviosApplication.
+   * 
+   * This creates the application instance but does not initialize it.
+   * Call `init()` if you need the application to be fully initialized.
    */
   compile(): Promise<NaviosApplication>
 
   /**
    * Initializes the application (loads modules, sets up HTTP if configured).
+   * 
+   * This is equivalent to calling `compile()` followed by `app.init()`.
    */
   init(): Promise<NaviosApplication>
 
   /**
-   * Gets the underlying TestContainer.
+   * Gets the underlying TestContainer for direct manipulation.
    */
   getContainer(): TestContainer
 
   /**
    * Gets an instance from the container.
+   * 
+   * @typeParam T - The type of the instance to retrieve
+   * @param token - The injection token or class
+   * @returns The resolved instance
    */
   get<T>(token: ClassTypeWithInstance<T> | InjectionToken<T, any>): Promise<T>
 
   /**
-   * Disposes the testing module.
+   * Disposes the testing module and cleans up resources.
    */
   close(): Promise<void>
 }

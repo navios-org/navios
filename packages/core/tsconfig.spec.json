@@ -7,6 +7,9 @@
   "references": [
     {
       "path": "./tsconfig.lib.json"
+    },
+    {
+      "path": "./src/legacy-compat/__type-tests__/tsconfig.json"
     }
   ]
 }

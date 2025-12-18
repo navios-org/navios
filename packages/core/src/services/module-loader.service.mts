@@ -38,18 +38,23 @@ export class ModuleLoaderService {
     if (this.modulesMetadata.has(moduleName)) {
       return
     }
-    this.modulesMetadata.set(moduleName, metadata)
-    const imports = metadata.imports ?? new Set()
-    const loadingPromises = Array.from(imports).map(async (importedModule) =>
-      this.traverseModules(importedModule, metadata),
-    )
-    await Promise.all(loadingPromises)
-    const instance = await this.container.get(module)
-    if (instance.onModuleInit) {
-      await instance.onModuleInit()
+    try {
+      this.modulesMetadata.set(moduleName, metadata)
+      const imports = metadata.imports ?? new Set()
+      const loadingPromises = Array.from(imports).map(async (importedModule) =>
+        this.traverseModules(importedModule, metadata),
+      )
+      await Promise.all(loadingPromises)
+      const instance = await this.container.get(module)
+      if (instance.onModuleInit) {
+        await instance.onModuleInit()
+      }
+      this.logger.debug(`Module ${moduleName} loaded`)
+      this.loadedModules.set(moduleName, instance)
+    } catch (error) {
+      this.logger.error(`Error loading module ${moduleName}`, error)
+      throw error
     }
-    this.logger.debug(`Module ${moduleName} loaded`)
-    this.loadedModules.set(moduleName, instance)
   }
 
   private mergeMetadata(

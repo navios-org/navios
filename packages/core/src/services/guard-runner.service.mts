@@ -1,6 +1,6 @@
 import type { ClassTypeWithInstance, ScopedContainer } from '@navios/di'
 
-import { Injectable, InjectionToken } from '@navios/di'
+import { inject, Injectable, InjectionToken } from '@navios/di'
 
 import type {
   AbstractExecutionContext,
@@ -13,9 +13,13 @@ import type {
 } from '../metadata/index.mjs'
 
 import { HttpException } from '../exceptions/index.mjs'
+import { Logger } from '../logger/index.mjs'
 
 @Injectable()
 export class GuardRunnerService {
+  private readonly logger = inject(Logger, {
+    context: GuardRunnerService.name,
+  })
   async runGuards(
     allGuards: Set<
       | ClassTypeWithInstance<CanActivate>
@@ -47,13 +51,10 @@ export class GuardRunnerService {
             .send(error.response)
           return false
         } else {
-          executionContext
-            .getReply()
-            .status(500)
-            .send({
-              message: 'Internal server error',
-              error: (error as Error).message,
-            })
+          this.logger.error('Error running guard', error)
+          executionContext.getReply().status(500).send({
+            message: 'Internal server error',
+          })
           return false
         }
       }

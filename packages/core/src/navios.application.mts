@@ -15,9 +15,17 @@ import { Logger } from './logger/index.mjs'
 import { NaviosEnvironment } from './navios.environment.mjs'
 import { ModuleLoaderService } from './services/index.mjs'
 
+/**
+ * Options for configuring the Navios application context.
+ * These options control dependency injection and logging behavior.
+ */
 export interface NaviosApplicationContextOptions {
   /**
-   * Specifies the logger to use.  Pass `false` to turn off logging.
+   * Specifies the logger to use. Pass `false` to turn off logging.
+   * 
+   * - `LoggerService` instance: Use a custom logger implementation
+   * - `LogLevel[]`: Enable specific log levels (e.g., ['error', 'warn', 'log'])
+   * - `false`: Disable logging completely
    */
   logger?: LoggerService | LogLevel[] | false
 
@@ -28,12 +36,44 @@ export interface NaviosApplicationContextOptions {
   container?: Container
 }
 
+/**
+ * Complete options for creating a Navios application.
+ * Extends NaviosApplicationContextOptions with adapter configuration.
+ */
 export interface NaviosApplicationOptions
   extends NaviosApplicationContextOptions {
-  // Fastify server options will be handled by FastifyApplicationService
+  /**
+   * HTTP adapter environment(s) to use for the application.
+   * Can be a single adapter or an array of adapters.
+   * 
+   * @example
+   * ```typescript
+   * adapter: defineFastifyEnvironment()
+   * // or
+   * adapter: [defineFastifyEnvironment(), defineBunEnvironment()]
+   * ```
+   */
   adapter: NaviosEnvironmentOptions | NaviosEnvironmentOptions[]
 }
 
+/**
+ * Main application class for Navios.
+ * 
+ * This class represents a Navios application instance and provides methods
+ * for initializing, configuring, and managing the HTTP server.
+ * 
+ * @example
+ * ```typescript
+ * const app = await NaviosFactory.create(AppModule, {
+ *   adapter: defineFastifyEnvironment(),
+ * })
+ * 
+ * app.setGlobalPrefix('/api')
+ * app.enableCors({ origin: ['http://localhost:3000'] })
+ * await app.init()
+ * await app.listen({ port: 3000, host: '0.0.0.0' })
+ * ```
+ */
 @Injectable()
 export class NaviosApplication {
   private environment = inject(NaviosEnvironment)
@@ -49,8 +89,20 @@ export class NaviosApplication {
     adapter: [],
   }
 
+  /**
+   * Indicates whether the application has been initialized.
+   * Set to `true` after `init()` completes successfully.
+   */
   isInitialized = false
 
+  /**
+   * Sets up the application with the provided module and options.
+   * This is called automatically by NaviosFactory.create().
+   * 
+   * @param appModule - The root application module
+   * @param options - Application configuration options
+   * @internal
+   */
   async setup(
     appModule: ClassTypeWithInstance<NaviosModule>,
     options: NaviosApplicationOptions = {
@@ -64,10 +116,37 @@ export class NaviosApplication {
     }
   }
 
+  /**
+   * Gets the dependency injection container used by this application.
+   * 
+   * @returns The Container instance
+   */
   getContainer() {
     return this.container
   }
 
+  /**
+   * Initializes the application.
+   * 
+   * This method:
+   * - Loads all modules and their dependencies
+   * - Sets up the HTTP server if an adapter is configured
+   * - Calls onModuleInit hooks on all modules
+   * - Marks the application as initialized
+   * 
+   * Must be called before `listen()`.
+   * 
+   * @throws Error if app module is not set
+   * 
+   * @example
+   * ```typescript
+   * const app = await NaviosFactory.create(AppModule, {
+   *   adapter: defineFastifyEnvironment(),
+   * })
+   * await app.init()
+   * await app.listen({ port: 3000 })
+   * ```
+   */
   async init() {
     if (!this.appModule) {
       throw new Error('App module is not set. Call setAppModule() first.')
@@ -90,6 +169,21 @@ export class NaviosApplication {
     await this.httpApplication?.onModulesInit(modules)
   }
 
+  /**
+   * Enables CORS (Cross-Origin Resource Sharing) for the application.
+   * 
+   * @param options - CORS configuration options (adapter-specific)
+   * @throws Error if HTTP application is not set
+   * 
+   * @example
+   * ```typescript
+   * app.enableCors({
+   *   origin: ['http://localhost:3000', 'https://example.com'],
+   *   methods: ['GET', 'POST', 'PUT', 'DELETE'],
+   *   credentials: true,
+   * })
+   * ```
+   */
   enableCors(options: any) {
     if (!this.httpApplication) {
       throw new Error('HTTP application is not set')
@@ -97,6 +191,21 @@ export class NaviosApplication {
     this.httpApplication.enableCors(options)
   }
 
+  /**
+   * Enables multipart/form-data support for file uploads.
+   * 
+   * @param options - Multipart configuration options (adapter-specific)
+   * @throws Error if HTTP application is not set
+   * 
+   * @example
+   * ```typescript
+   * app.enableMultipart({
+   *   limits: {
+   *     fileSize: 1024 * 1024 * 10, // 10MB
+   *   },
+   * })
+   * ```
+   */
   enableMultipart(options: any) {
     if (!this.httpApplication) {
       throw new Error('HTTP application is not set')
@@ -104,6 +213,18 @@ export class NaviosApplication {
     this.httpApplication.enableMultipart(options)
   }
 
+  /**
+   * Sets a global prefix for all routes.
+   * 
+   * @param prefix - The prefix to prepend to all route URLs (e.g., '/api')
+   * @throws Error if HTTP application is not set
+   * 
+   * @example
+   * ```typescript
+   * app.setGlobalPrefix('/api/v1')
+   * // All routes will be prefixed with /api/v1
+   * ```
+   */
   setGlobalPrefix(prefix: string) {
     if (!this.httpApplication) {
       throw new Error('HTTP application is not set')
@@ -111,6 +232,22 @@ export class NaviosApplication {
     this.httpApplication.setGlobalPrefix(prefix)
   }
 
+  /**
+   * Gets the underlying HTTP server instance.
+   * 
+   * The type of the returned server depends on the adapter used:
+   * - Fastify adapter: Returns FastifyInstance
+   * - Bun adapter: Returns Bun.Server
+   * 
+   * @returns The HTTP server instance
+   * @throws Error if HTTP application is not set
+   * 
+   * @example
+   * ```typescript
+   * const server = app.getServer()
+   * // Use adapter-specific server methods
+   * ```
+   */
   getServer() {
     if (!this.httpApplication) {
       throw new Error('HTTP application is not set')
@@ -118,6 +255,17 @@ export class NaviosApplication {
     return this.httpApplication.getServer()
   }
 
+  /**
+   * Starts the HTTP server and begins listening for requests.
+   * 
+   * @param options - Listen options (port, host, etc.)
+   * @throws Error if HTTP application is not set
+   * 
+   * @example
+   * ```typescript
+   * await app.listen({ port: 3000, host: '0.0.0.0' })
+   * ```
+   */
   async listen(options: AbstractHttpListenOptions) {
     if (!this.httpApplication) {
       throw new Error('HTTP application is not set')
@@ -125,6 +273,12 @@ export class NaviosApplication {
     await this.httpApplication.listen(options)
   }
 
+  /**
+   * Disposes of application resources.
+   * 
+   * Cleans up the HTTP server and module loader.
+   * This method is called automatically by `close()`.
+   */
   async dispose() {
     if (this.httpApplication) {
       await this.httpApplication.dispose()
@@ -134,6 +288,20 @@ export class NaviosApplication {
     }
   }
 
+  /**
+   * Closes the application and cleans up all resources.
+   * 
+   * This is an alias for `dispose()`.
+   * 
+   * @example
+   * ```typescript
+   * // Graceful shutdown
+   * process.on('SIGTERM', async () => {
+   *   await app.close()
+   *   process.exit(0)
+   * })
+   * ```
+   */
   async close() {
     await this.dispose()
   }

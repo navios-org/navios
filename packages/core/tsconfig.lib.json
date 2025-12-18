@@ -4,5 +4,5 @@
     "outDir": "./dist"
   },
   "include": ["src/**/*"],
-  "exclude": ["src/**/*.spec.mts"]
+  "exclude": ["src/**/*.spec.mts", "src/**/*.spec-d.mts"]
 }
