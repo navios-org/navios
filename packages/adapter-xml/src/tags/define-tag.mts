@@ -3,6 +3,14 @@ import type { z } from 'zod/v4'
 
 import type { AnyXmlNode, XmlNode } from '../types/xml-node.mjs'
 
+/**
+ * Type for XML tag components created by `defineTag`.
+ *
+ * Tag components are functions that accept props and children, and return
+ * an XML node. They also have a `tagName` property for identification.
+ *
+ * @template Props - The props type for the tag component.
+ */
 export interface TagComponent<Props extends Record<string, unknown>> {
   (props: Props & { children?: AnyXmlNode | AnyXmlNode[] }): XmlNode
   tagName: string

@@ -4,7 +4,7 @@ A JSX-based XML adapter for Navios that enables building XML responses (RSS feed
 
 ## Features
 
-- **JSX Syntax** - Write XML using JSX with TypeScript type checking
+- **JSX Syntax** - Write XML using JSX with TypeScript type checking and comprehensive JSDoc support
 - **Async Components** - Support for async components that fetch data during rendering
 - **Class Components** - `@Component` decorator with dependency injection support via `@navios/di`
 - **Type-Safe Tags** - Define custom XML tags with Zod schema validation
@@ -12,6 +12,7 @@ A JSX-based XML adapter for Navios that enables building XML responses (RSS feed
 - **CDATA Support** - Built-in `CData` component for safe text content
 - **Raw XML** - `DangerouslyInsertRawXml` for pre-rendered content
 - **XML Namespaces** - Full support for namespaced tags (e.g., `atom:link`)
+- **Full TypeScript Support** - Complete type definitions with JSDoc documentation for better IDE experience
 
 ## Installation
 

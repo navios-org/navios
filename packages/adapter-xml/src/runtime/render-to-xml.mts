@@ -17,6 +17,19 @@ import {
   RawXmlSymbol,
 } from '../types/xml-node.mjs'
 
+/**
+ * Options for rendering XML from JSX nodes.
+ *
+ * @example
+ * ```ts
+ * const xml = await renderToXml(<rss version="2.0">...</rss>, {
+ *   declaration: true,
+ *   encoding: 'UTF-8',
+ *   pretty: true,
+ *   container: myContainer, // Required for class components
+ * })
+ * ```
+ */
 export interface RenderOptions {
   /** Include XML declaration (<?xml version="1.0"?>) - defaults to true */
   declaration?: boolean
@@ -31,6 +44,25 @@ export interface RenderOptions {
   container?: Container | ScopedContainer
 }
 
+/**
+ * Error thrown when attempting to render a class component without a container.
+ *
+ * Class components require a dependency injection container to be instantiated.
+ * This error is thrown when `renderToXml` is called with a class component in
+ * the tree but no container is provided in the options.
+ *
+ * @example
+ * ```ts
+ * try {
+ *   await renderToXml(<MyClassComponent />)
+ * } catch (error) {
+ *   if (error instanceof MissingContainerError) {
+ *     // Provide a container
+ *     await renderToXml(<MyClassComponent />, { container })
+ *   }
+ * }
+ * ```
+ */
 export class MissingContainerError extends Error {
   constructor(componentName: string) {
     super(
@@ -41,6 +73,42 @@ export class MissingContainerError extends Error {
   }
 }
 
+/**
+ * Renders a JSX XML node tree to an XML string.
+ *
+ * This function handles:
+ * - Regular XML nodes (tags with props and children)
+ * - Async components (resolves promises in parallel)
+ * - Class components (resolves via DI container)
+ * - CDATA sections
+ * - Raw XML content
+ * - Fragments
+ * - Text content with proper escaping
+ *
+ * @param node - The root XML node (JSX element) to render.
+ * @param options - Rendering options including declaration, encoding, pretty printing, and container.
+ * @returns A promise that resolves to the XML string.
+ *
+ * @throws {MissingContainerError} If the tree contains class components but no container is provided.
+ *
+ * @example
+ * ```ts
+ * // Simple rendering
+ * const xml = await renderToXml(<rss version="2.0"><channel>...</channel></rss>)
+ *
+ * // With options
+ * const xml = await renderToXml(<feed>...</feed>, {
+ *   declaration: true,
+ *   encoding: 'UTF-8',
+ *   pretty: true,
+ * })
+ *
+ * // With class components (requires container)
+ * const container = new Container()
+ * container.beginRequest('request-id')
+ * const xml = await renderToXml(<MyClassComponent />, { container })
+ * ```
+ */
 export async function renderToXml(
   node: AnyXmlNode,
   options: RenderOptions = {},

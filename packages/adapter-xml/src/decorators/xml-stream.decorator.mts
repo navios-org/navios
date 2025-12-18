@@ -5,6 +5,28 @@ import { getEndpointMetadata, XmlStreamAdapterToken } from '@navios/core'
 
 import type { BaseXmlStreamConfig } from '../types/config.mjs'
 
+/**
+ * Type helper that extracts the parameter types for an XML Stream endpoint handler.
+ *
+ * This type automatically infers the correct parameter types based on the endpoint
+ * configuration, including URL parameters, query parameters, and request body.
+ *
+ * @template EndpointDeclaration - The endpoint declaration type from `declareXmlStream`.
+ * @template Url - The URL path pattern.
+ * @template QuerySchema - The query parameter schema type.
+ *
+ * @example
+ * ```typescript
+ * const getFeed = declareXmlStream({
+ *   method: 'GET',
+ *   url: '/feed/:category',
+ *   querySchema: z.object({ page: z.string() }),
+ * })
+ *
+ * // XmlStreamParams<typeof getFeed> resolves to:
+ * // { urlParams: { category: string }, query: { page: string } }
+ * ```
+ */
 export type XmlStreamParams<
   EndpointDeclaration extends {
     config: BaseXmlStreamConfig<any, any, any, any>
@@ -22,16 +44,30 @@ export type XmlStreamParams<
 /**
  * Decorator for XML Stream endpoints that return JSX-based XML responses.
  *
+ * This decorator marks controller methods that return JSX elements, which will be
+ * automatically rendered to XML and sent with the appropriate Content-Type header.
+ * The method can be async and can contain async components, class components, and
+ * regular JSX elements.
+ *
+ * @template Method - The HTTP method (GET, POST, etc.).
+ * @template Url - The URL path pattern (supports parameters like `/posts/:id`).
+ * @template QuerySchema - Optional Zod schema for query parameter validation.
+ * @template RequestSchema - Optional Zod schema for request body validation.
+ *
+ * @param endpoint - The endpoint declaration created with `declareXmlStream`.
+ * @returns A method decorator function.
+ *
+ * @throws {Error} If used on a non-function or non-method.
+ * @throws {Error} If the endpoint URL already exists.
+ *
  * @example
  * ```typescript
- * import { XmlStream } from '@navios/adapter-xml'
+ * import { XmlStream, declareXmlStream } from '@navios/adapter-xml'
  * import { Controller } from '@navios/core'
  *
  * const getRssFeed = declareXmlStream({
  *   method: 'GET',
  *   url: '/feed.xml',
- *   querySchema: undefined,
- *   requestSchema: undefined,
  *   contentType: 'application/rss+xml',
  * })
  *
@@ -46,6 +82,25 @@ export type XmlStreamParams<
  *         </channel>
  *       </rss>
  *     )
+ *   }
+ * }
+ * ```
+ *
+ * @example
+ * ```typescript
+ * // With query parameters
+ * const getSitemap = declareXmlStream({
+ *   method: 'GET',
+ *   url: '/sitemap.xml',
+ *   querySchema: z.object({ page: z.string().optional() }),
+ * })
+ *
+ * @Controller()
+ * class SitemapController {
+ *   @XmlStream(getSitemap)
+ *   async getSitemap(params: { query?: { page?: string } }) {
+ *     const page = params.query?.page
+ *     return <urlset>...</urlset>
  *   }
  * }
  * ```
