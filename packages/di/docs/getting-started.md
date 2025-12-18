@@ -50,7 +50,7 @@ import { asyncInject, Container, inject, Injectable } from '@navios/di'
 Let's create a simple example with a user service that depends on an email service:
 
 ```typescript
-import { asyncInject, Container, inject, Injectable } from '@navios/di'
+import { Container, inject, Injectable } from '@navios/di'
 
 // 1. Create an email service
 @Injectable()
@@ -66,14 +66,13 @@ class EmailService {
 // 2. Create a user service that depends on the email service
 @Injectable()
 class UserService {
-  private readonly emailService = asyncInject(EmailService)
+  private readonly emailService = inject(EmailService)
 
   async createUser(name: string, email: string) {
     console.log(`Creating user: ${name}`)
 
-    // Get the email service and send welcome email
-    const emailService = await this.emailService
-    await emailService.sendEmail(
+    // Use the injected email service
+    await this.emailService.sendEmail(
       email,
       'Welcome!',
       `Hello ${name}, welcome to our platform!`,
@@ -289,8 +288,39 @@ class DatabaseService implements OnServiceInit, OnServiceDestroy {
 
 **Circular dependencies:**
 
-- Use `asyncInject()` instead of `inject()` for circular dependencies
-- Consider restructuring your services to avoid circular references
+The library automatically detects circular dependencies and throws a clear error:
+
+```typescript
+// This will throw: "Circular dependency detected: ServiceA -> ServiceB -> ServiceA"
+@Injectable()
+class ServiceA {
+  private serviceB = inject(ServiceB)
+}
+
+@Injectable()
+class ServiceB {
+  private serviceA = inject(ServiceA)
+}
+```
+
+To fix circular dependencies, use `asyncInject()` on at least one side:
+
+```typescript
+@Injectable()
+class ServiceA {
+  private serviceB = asyncInject(ServiceB)  // Break cycle with asyncInject
+
+  async doSomething() {
+    const b = await this.serviceB
+    return b.process()
+  }
+}
+
+@Injectable()
+class ServiceB {
+  private serviceA = inject(ServiceA)  // This side can use inject()
+}
+```
 
 **Services not found:**
 
@@ -305,5 +335,4 @@ class DatabaseService implements OnServiceInit, OnServiceDestroy {
 ### Getting Help
 
 - Check the [API Reference](./api-reference.md)
-- Look at [Advanced Patterns](./advanced-patterns.md)
 - Review the [Examples](./examples/) folder

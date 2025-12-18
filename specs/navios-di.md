@@ -24,6 +24,11 @@ src/
 ├── interfaces/          # Public interfaces
 ├── internal/            # Internal implementation
 │   ├── context/         # Resolution and request contexts
+│   │   ├── async-local-storage.mts  # Cross-platform AsyncLocalStorage
+│   │   ├── sync-local-storage.mts   # Browser polyfill
+│   │   ├── factory-context.mts      # Factory context
+│   │   ├── request-context.mts      # Request context
+│   │   └── resolution-context.mts   # Resolution tracking for cycles
 │   ├── core/            # Service locator, resolver, instantiator
 │   ├── holder/          # Instance holder management
 │   └── lifecycle/       # Event bus, circular detector
@@ -35,18 +40,44 @@ src/
 
 ### Key Components
 
-| Component         | Purpose                                           |
-| ----------------- | ------------------------------------------------- |
-| `Container`       | Main entry point for service resolution           |
-| `ScopedContainer` | Request-scoped container for isolated resolution  |
-| `Registry`        | Central storage for service metadata              |
-| `ServiceLocator`  | Coordinates dependency resolution                 |
-| `Instantiator`    | Creates service instances                         |
-| `InstanceResolver`| Resolves instances from storage or creates new    |
-| `Invalidator`     | Handles service invalidation and cleanup          |
-| `TokenProcessor`  | Normalizes and processes injection tokens         |
-| `CircularDetector`| Detects circular dependencies during resolution   |
-| `InjectionToken`  | Type-safe tokens for dynamic resolution           |
+| Component          | Purpose                                             |
+| ------------------ | --------------------------------------------------- |
+| `Container`        | Main entry point for service resolution             |
+| `ScopedContainer`  | Request-scoped container for isolated resolution    |
+| `Registry`         | Central storage for service metadata                |
+| `ServiceLocator`   | Coordinates dependency resolution                   |
+| `Instantiator`     | Creates service instances                           |
+| `InstanceResolver` | Resolves instances from storage or creates new      |
+| `Invalidator`      | Handles service invalidation and cleanup            |
+| `TokenProcessor`   | Normalizes and processes injection tokens           |
+| `CircularDetector` | Detects circular dependencies during resolution     |
+| `InjectionToken`   | Type-safe tokens for dynamic resolution             |
+
+---
+
+## Platform Support
+
+The library supports multiple JavaScript runtimes:
+
+| Platform | AsyncLocalStorage | Notes                              |
+| -------- | ----------------- | ---------------------------------- |
+| Node.js  | Native            | Full async tracking support        |
+| Bun      | Native            | Full async tracking support        |
+| Deno     | Native            | Via Node compatibility layer       |
+| Browser  | Polyfill          | Sync-only tracking (SyncLocalStorage) |
+
+### Browser Entry Point
+
+For browser environments, use the dedicated entry point that uses a synchronous polyfill:
+
+```typescript
+// Bundlers automatically select the browser entry via package.json exports
+import { Container, inject } from '@navios/di'
+```
+
+The browser build uses `SyncLocalStorage` which tracks context synchronously. This is sufficient for most use cases since:
+1. Constructors are typically synchronous
+2. Circular dependency detection mainly needs sync tracking
 
 ---
 
@@ -219,6 +250,7 @@ class ServiceB {
 
 - Circular dependencies between services
 - When you need to defer resolution until the dependency is actually needed
+- `asyncInject` runs outside the resolution context, so it doesn't participate in circular dependency detection
 
 **Note:** You cannot use `asyncInject` inside `onServiceInit` - dependencies should be declared as class properties.
 
@@ -345,19 +377,20 @@ constructor(
 
 #### Methods
 
-| Method                              | Return                  | Description                           |
-| ----------------------------------- | ----------------------- | ------------------------------------- |
-| `get<T>(token, args?)`              | `Promise<T>`            | Resolve a service instance            |
-| `invalidate(service)`               | `Promise<void>`         | Invalidate service and dependents     |
-| `ready()`                           | `Promise<void>`         | Wait for all pending operations       |
-| `isRegistered(token)`               | `boolean`               | Check if service is registered        |
-| `dispose()`                         | `Promise<void>`         | Clean up all resources                |
-| `clear()`                           | `Promise<void>`         | Clear all instances and bindings      |
-| `getServiceLocator()`               | `ServiceLocator`        | Access underlying service locator     |
-| `getRegistry()`                     | `Registry`              | Get the registry                      |
-| `beginRequest(id, metadata?, prio?)`| `ScopedContainer`       | Start a new request context           |
-| `getActiveRequestIds()`             | `ReadonlySet<string>`   | Get active request IDs                |
-| `hasActiveRequest(id)`              | `boolean`               | Check if request is active            |
+| Method                              | Return                | Description                         |
+| ----------------------------------- | --------------------- | ----------------------------------- |
+| `get<T>(token, args?)`              | `Promise<T>`          | Resolve a service instance          |
+| `invalidate(service)`               | `Promise<void>`       | Invalidate service and dependents   |
+| `ready()`                           | `Promise<void>`       | Wait for all pending operations     |
+| `isRegistered(token)`               | `boolean`             | Check if service is registered      |
+| `dispose()`                         | `Promise<void>`       | Clean up all resources              |
+| `clear()`                           | `Promise<void>`       | Clear all instances and bindings    |
+| `getServiceLocator()`               | `ServiceLocator`      | Access underlying service locator   |
+| `getRegistry()`                     | `Registry`            | Get the registry                    |
+| `beginRequest(id, metadata?, prio?)`| `ScopedContainer`     | Start a new request context         |
+| `getActiveRequestIds()`             | `ReadonlySet<string>` | Get active request IDs              |
+| `hasActiveRequest(id)`              | `boolean`             | Check if request is active          |
+| `tryGetSync<T>(token, args?)`       | `T \| null`           | Get instance sync if exists         |
 
 #### Example
 
@@ -392,21 +425,22 @@ const scopedContainer = container.beginRequest('req-123', { userId: 456 })
 
 #### Methods
 
-| Method                       | Return                  | Description                           |
-| ---------------------------- | ----------------------- | ------------------------------------- |
-| `get<T>(token, args?)`       | `Promise<T>`            | Resolve a service (scoped or parent)  |
-| `invalidate(service)`        | `Promise<void>`         | Invalidate a service                  |
-| `endRequest()`               | `Promise<void>`         | End request and cleanup               |
-| `dispose()`                  | `Promise<void>`         | Alias for endRequest()                |
-| `ready()`                    | `Promise<void>`         | Wait for pending operations           |
-| `isRegistered(token)`        | `boolean`               | Check if service is registered        |
-| `getMetadata(key)`           | `any`                   | Get request metadata                  |
-| `setMetadata(key, value)`    | `void`                  | Set request metadata                  |
-| `addInstance(token, inst)`   | `void`                  | Add pre-prepared instance             |
-| `getRequestId()`             | `string`                | Get the request ID                    |
-| `getParent()`                | `Container`             | Get the parent container              |
-| `getRequestContextHolder()`  | `RequestContext`        | Get underlying request context        |
-| `getHolderStorage()`         | `IHolderStorage`        | Get holder storage                    |
+| Method                      | Return           | Description                         |
+| --------------------------- | ---------------- | ----------------------------------- |
+| `get<T>(token, args?)`      | `Promise<T>`     | Resolve a service (scoped or parent)|
+| `invalidate(service)`       | `Promise<void>`  | Invalidate a service                |
+| `endRequest()`              | `Promise<void>`  | End request and cleanup             |
+| `dispose()`                 | `Promise<void>`  | Alias for endRequest()              |
+| `ready()`                   | `Promise<void>`  | Wait for pending operations         |
+| `isRegistered(token)`       | `boolean`        | Check if service is registered      |
+| `getMetadata(key)`          | `any`            | Get request metadata                |
+| `setMetadata(key, value)`   | `void`           | Set request metadata                |
+| `addInstance(token, inst)`  | `void`           | Add pre-prepared instance           |
+| `getRequestId()`            | `string`         | Get the request ID                  |
+| `getParent()`               | `Container`      | Get the parent container            |
+| `getRequestContextHolder()` | `RequestContext` | Get underlying request context      |
+| `getHolderStorage()`        | `IHolderStorage` | Get holder storage                  |
+| `tryGetSync<T>(token, args?)`| `T \| null`     | Get instance sync if exists         |
 
 #### Request Context Example
 
@@ -553,6 +587,63 @@ interface RequestContext {
 
 ---
 
+### Circular Dependency Detection
+
+The library automatically detects circular dependencies and throws clear error messages.
+
+#### How It Works
+
+1. **Resolution Context Tracking**: Uses `AsyncLocalStorage` (or `SyncLocalStorage` in browsers) to track which service is currently being instantiated
+2. **waitingFor Graph**: Each `InstanceHolder` tracks which services it's waiting for
+3. **BFS Cycle Detection**: Before waiting on a "Creating" holder, `CircularDetector` uses BFS to find cycles in the waitingFor graph
+
+#### Example
+
+```typescript
+// This will throw: "Circular dependency detected: ServiceA -> ServiceB -> ServiceA"
+@Injectable()
+class ServiceA {
+  private serviceB = inject(ServiceB)
+}
+
+@Injectable()
+class ServiceB {
+  private serviceA = inject(ServiceA)
+}
+```
+
+#### Breaking Circular Dependencies
+
+Use `asyncInject` on at least one side of the circular dependency:
+
+```typescript
+@Injectable()
+class ServiceA {
+  private serviceB = asyncInject(ServiceB)  // Use asyncInject to break cycle
+
+  async doSomething() {
+    const b = await this.serviceB
+    return b.process()
+  }
+}
+
+@Injectable()
+class ServiceB {
+  private serviceA = inject(ServiceA)  // This side can use inject()
+
+  process() {
+    return 'processed'
+  }
+}
+```
+
+`asyncInject` works because it:
+- Returns a Promise immediately without blocking the constructor
+- Runs outside the resolution context (`withoutResolutionContext`)
+- Does not participate in circular dependency detection
+
+---
+
 ### Error Handling
 
 #### DIErrorCode
@@ -585,7 +676,7 @@ try {
         console.error('Service is being destroyed')
         break
       case DIErrorCode.CircularDependency:
-        console.error('Circular dependency detected')
+        console.error('Circular dependency detected:', error.message)
         break
     }
   }
@@ -679,6 +770,30 @@ await container.invalidate(databaseService)
 // They will be re-created on next injection
 ```
 
+#### Cross-Storage Invalidation
+
+Singletons that depend on request-scoped services are automatically invalidated when the request ends:
+
+```typescript
+@Injectable({ scope: InjectableScope.Request })
+class RequestData {
+  data = 'request-specific'
+}
+
+@Injectable({ scope: InjectableScope.Singleton })
+class SingletonService {
+  private requestData = inject(RequestData)
+
+  async getData() {
+    return (await this.requestData).data
+  }
+}
+
+// When the request ends:
+await scopedContainer.endRequest()
+// SingletonService is also invalidated because it depends on RequestData
+```
+
 ---
 
 ## Internal Components
@@ -703,9 +818,12 @@ interface InstanceHolder<T = unknown> {
   status: InstanceStatus
   type: InjectableType
   scope: InjectableScope
-  dependencies: Set<string>
-  dependents: Set<string>
-  // ... additional properties
+  deps: Set<string>          // Dependencies (services this holder depends on)
+  waitingFor: Set<string>    // Services this holder is waiting for (for cycle detection)
+  destroyListeners: InstanceDestroyListener[]
+  createdAt: number
+  creationPromise: Promise<[undefined, T]> | null
+  destroyPromise: Promise<void> | null
 }
 ```
 
@@ -725,14 +843,17 @@ class HolderManager extends BaseHolderManager {
 
 ### CircularDetector
 
-Detects circular dependencies during resolution.
+Detects circular dependencies during resolution using BFS.
 
 ```typescript
 class CircularDetector {
-  beginResolution(instanceName: string): void
-  endResolution(instanceName: string): void
-  isResolving(instanceName: string): boolean
-  getResolutionPath(): string[]
+  static detectCycle(
+    waiterName: string,
+    targetName: string,
+    getHolder: (name: string) => InstanceHolder | undefined
+  ): string[] | null
+
+  static formatCycle(cycle: string[]): string
 }
 ```
 
@@ -747,6 +868,26 @@ class LifecycleEventBus {
   emitCreated(instanceName: string): void
   emitDestroyed(instanceName: string): void
 }
+```
+
+### Resolution Context
+
+Tracks the current resolution context for circular dependency detection.
+
+```typescript
+interface ResolutionContextData {
+  waiterHolder: InstanceHolder
+  getHolder: (name: string) => InstanceHolder | undefined
+}
+
+// Run code within a resolution context
+withResolutionContext(waiterHolder, getHolder, fn)
+
+// Get current context
+getCurrentResolutionContext(): ResolutionContextData | undefined
+
+// Run code outside any resolution context (used by asyncInject)
+withoutResolutionContext(fn)
 ```
 
 ---
@@ -955,3 +1096,30 @@ app.use(async (req, res, next) => {
   }
 })
 ```
+
+---
+
+## Deprecated Aliases
+
+For backward compatibility, the following deprecated aliases are provided:
+
+| Deprecated Name                      | New Name                |
+| ------------------------------------ | ----------------------- |
+| `ServiceLocatorInstanceHolder`       | `InstanceHolder`        |
+| `ServiceLocatorInstanceHolderStatus` | `InstanceStatus`        |
+| `ServiceLocatorInstanceEffect`       | `InstanceEffect`        |
+| `ServiceLocatorInstanceDestroyListener` | `InstanceDestroyListener` |
+| `ServiceLocatorInstanceHolderCreating` | `InstanceHolderCreating` |
+| `ServiceLocatorInstanceHolderCreated` | `InstanceHolderCreated` |
+| `ServiceLocatorInstanceHolderDestroying` | `InstanceHolderDestroying` |
+| `ServiceLocatorInstanceHolderError`  | `InstanceHolderError`   |
+| `BaseInstanceHolderManager`          | `BaseHolderManager`     |
+| `ServiceLocatorManager`              | `HolderManager`         |
+| `SingletonHolderStorage`             | `SingletonStorage`      |
+| `RequestHolderStorage`               | `RequestStorage`        |
+| `ServiceLocatorEventBus`             | `LifecycleEventBus`     |
+| `CircularDependencyDetector`         | `CircularDetector`      |
+| `ServiceInstantiator`                | `Instantiator`          |
+| `RequestContextHolder`               | `RequestContext`        |
+| `DefaultRequestContextHolder`        | `DefaultRequestContext` |
+| `createRequestContextHolder`         | `createRequestContext`  |

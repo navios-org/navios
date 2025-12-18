@@ -2,7 +2,115 @@
 
 This guide helps you migrate between different versions of Navios DI.
 
-## Migrating to v0.4.x (ScopedContainer)
+## Migrating to v0.5.x (Circular Dependency Detection & Browser Support)
+
+### New Features
+
+#### Circular Dependency Detection
+
+v0.5.x adds automatic circular dependency detection. When services form a circular dependency using `inject()`, the system now throws a clear error instead of hanging:
+
+```typescript
+@Injectable()
+class ServiceA {
+  private serviceB = inject(ServiceB)
+}
+
+@Injectable()
+class ServiceB {
+  private serviceA = inject(ServiceA)
+}
+
+// Error: Circular dependency detected: ServiceA -> ServiceB -> ServiceA
+await container.get(ServiceA)
+```
+
+**Breaking circular dependencies** - Use `asyncInject()` on at least one side:
+
+```typescript
+@Injectable()
+class ServiceA {
+  private serviceB = asyncInject(ServiceB) // Break cycle with asyncInject
+
+  async doSomething() {
+    const b = await this.serviceB
+    return b.process()
+  }
+}
+
+@Injectable()
+class ServiceB {
+  private serviceA = inject(ServiceA) // This side can use inject()
+}
+```
+
+#### Browser Support
+
+The library now supports browser environments with a dedicated entry point:
+
+```typescript
+// Bundlers automatically select the browser entry via package.json exports
+import { Container, inject } from '@navios/di'
+```
+
+The browser build uses `SyncLocalStorage` instead of `AsyncLocalStorage`, which works for synchronous dependency tracking.
+
+#### Cross-Storage Invalidation
+
+Singletons that depend on request-scoped services are now properly invalidated when the request ends:
+
+```typescript
+@Injectable({ scope: InjectableScope.Request })
+class RequestData {}
+
+@Injectable({ scope: InjectableScope.Singleton })
+class SingletonConsumer {
+  private requestData = inject(RequestData)
+}
+
+// When the request ends:
+await scopedContainer.endRequest()
+// SingletonConsumer is automatically invalidated
+```
+
+### Renamed Types (Deprecated Aliases Available)
+
+For cleaner naming, many internal types have been renamed. Deprecated aliases are provided for backward compatibility:
+
+| Old Name                                | New Name                  |
+| --------------------------------------- | ------------------------- |
+| `ServiceLocatorInstanceHolder`          | `InstanceHolder`          |
+| `ServiceLocatorInstanceHolderStatus`    | `InstanceStatus`          |
+| `ServiceLocatorInstanceEffect`          | `InstanceEffect`          |
+| `ServiceLocatorInstanceDestroyListener` | `InstanceDestroyListener` |
+| `BaseInstanceHolderManager`             | `BaseHolderManager`       |
+| `ServiceLocatorManager`                 | `HolderManager`           |
+| `SingletonHolderStorage`                | `SingletonStorage`        |
+| `RequestHolderStorage`                  | `RequestStorage`          |
+| `ServiceLocatorEventBus`                | `LifecycleEventBus`       |
+| `CircularDependencyDetector`            | `CircularDetector`        |
+| `ServiceInstantiator`                   | `Instantiator`            |
+| `RequestContextHolder`                  | `RequestContext`          |
+| `DefaultRequestContextHolder`           | `DefaultRequestContext`   |
+| `createRequestContextHolder`            | `createRequestContext`    |
+
+### Migration Steps
+
+1. **Update circular dependencies**: If your code hangs during startup, you likely have circular dependencies. Add `asyncInject()` to break the cycle.
+
+2. **Update type imports**: While deprecated aliases work, consider updating to new names:
+
+   ```typescript
+   // Before
+   // After
+   import { InstanceHolder, ServiceLocatorInstanceHolder } from '@navios/di'
+   ```
+
+3. **Browser builds**: No changes needed - bundlers automatically select the correct entry point.
+
+---
+
+## ScopedContainer
 
 ### Breaking Changes
 
@@ -40,12 +148,14 @@ await scoped.endRequest()
 #### 1. Update Request Context Creation
 
 **Before:**
+
 ```typescript
 const context = container.beginRequest('req-123', { userId: 456 })
 container.setCurrentRequestContext('req-123')
 ```
 
 **After:**
+
 ```typescript
 const scoped = container.beginRequest('req-123', { userId: 456 })
 ```
@@ -53,12 +163,14 @@ const scoped = container.beginRequest('req-123', { userId: 456 })
 #### 2. Update Service Resolution
 
 **Before:**
+
 ```typescript
 container.setCurrentRequestContext('req-123')
 const service = await container.get(RequestService)
 ```
 
 **After:**
+
 ```typescript
 const scoped = container.beginRequest('req-123')
 const service = await scoped.get(RequestService)
@@ -67,11 +179,13 @@ const service = await scoped.get(RequestService)
 #### 3. Update Cleanup
 
 **Before:**
+
 ```typescript
 await container.endRequest('req-123')
 ```
 
 **After:**
+
 ```typescript
 await scoped.endRequest()
 // or
@@ -81,6 +195,7 @@ await scoped.dispose()
 #### 4. Update Middleware (Express/Fastify)
 
 **Before:**
+
 ```typescript
 app.use(async (req, res, next) => {
   const requestId = `req-${Date.now()}`
@@ -98,6 +213,7 @@ app.get('/', async (req, res) => {
 ```
 
 **After:**
+
 ```typescript
 app.use(async (req, res, next) => {
   const requestId = `req-${Date.now()}`
@@ -309,19 +425,30 @@ If you encounter issues during migration:
 
 ## Changelog Summary
 
-### v0.3.1
+### v0.5.x
+
+- **Circular Dependency Detection**: Automatic detection with clear error messages
+- **Browser Support**: Dedicated browser entry point with `SyncLocalStorage` polyfill
+- **Cross-Storage Invalidation**: Singletons depending on request-scoped services are properly invalidated
+- **Resolution Context**: Uses `AsyncLocalStorage` to track resolution across async boundaries
+- **Type Renames**: Cleaner names for internal types (with deprecated aliases)
+- **Platform Support**: Node.js, Bun, Deno, and browser environments
+
+### v0.4.x
+
+- **ScopedContainer**: New request context management API
+- **Race Condition Fix**: Eliminates concurrency issues with request-scoped services
+- **IContainer Interface**: Common interface for `Container` and `ScopedContainer`
+- **Request-Scoped Errors**: Clear error when resolving request-scoped from `Container`
+- **Active Request Tracking**: `hasActiveRequest()` and `getActiveRequestIds()` methods
+
+### v0.3.x
 
 - Added request context management
 - Improved TypeScript type definitions
 - Enhanced container API with request context methods
 - New `RequestContextHolder` interface
 - Better error messages for injection failures
-
-### v0.3.0
-
-- Initial release with request context support
-- Container API improvements
-- Better async injection handling
 
 ### v0.2.x
 

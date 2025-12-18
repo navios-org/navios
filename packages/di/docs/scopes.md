@@ -215,11 +215,7 @@ import { Injectable, InjectableScope } from '@navios/di'
 class RequestContext {
   private readonly requestId = Math.random().toString(36)
   private readonly startTime = Date.now()
-  private readonly userId: string
-
-  constructor(userId: string) {
-    this.userId = userId
-  }
+  userId?: string
 
   getRequestId() {
     return this.requestId
@@ -228,32 +224,44 @@ class RequestContext {
   getDuration() {
     return Date.now() - this.startTime
   }
-
-  getUserId() {
-    return this.userId
-  }
 }
 ```
 
 ### Request Context Management
+
+Request-scoped services require using `ScopedContainer`, which is created via `container.beginRequest()`:
 
 ```typescript
 import { Container } from '@navios/di'
 
 const container = new Container()
 
-// Begin a request context
-const requestId = 'req-123'
-container.beginRequest(requestId, { userId: 'user123' })
+// Begin a request context - returns a ScopedContainer
+const scopedContainer = container.beginRequest('req-123', { userId: 'user123' })
 
 // All injections within this request will share the same Request-scoped instances
-const context1 = await container.get(RequestContext)
-const context2 = await container.get(RequestContext)
+const context1 = await scopedContainer.get(RequestContext)
+const context2 = await scopedContainer.get(RequestContext)
 
 console.log(context1 === context2) // true - same instance within request
 
+// Access metadata
+const userId = scopedContainer.getMetadata('userId')
+
 // End the request context (cleans up all request-scoped instances)
-await container.endRequest(requestId)
+await scopedContainer.endRequest()
+```
+
+**Important**: You cannot resolve request-scoped services directly from the main `Container`. Attempting to do so will throw an error:
+
+```typescript
+// ❌ This will throw an error
+const context = await container.get(RequestContext)
+// Error: Cannot resolve request-scoped service from Container
+
+// ✅ Use ScopedContainer instead
+const scoped = container.beginRequest('req-123')
+const context = await scoped.get(RequestContext)
 ```
 
 ### Request Scope with Dependencies
@@ -272,15 +280,10 @@ class LoggerService {
 class UserSession {
   private readonly logger = inject(LoggerService)
   private readonly sessionId = Math.random().toString(36)
-  private readonly userId: string
+  userId?: string
 
-  constructor(userId: string) {
-    this.userId = userId
-  }
-
-  async logActivity(activity: string) {
-    const logger = await this.logger
-    logger.log(`User ${this.userId}: ${activity}`)
+  logActivity(activity: string) {
+    this.logger.log(`User ${this.userId}: ${activity}`)
   }
 
   getSessionId() {
@@ -293,43 +296,77 @@ class OrderService {
   private readonly userSession = inject(UserSession)
   private orders: string[] = []
 
-  async createOrder(productName: string) {
-    const session = await this.userSession
+  createOrder(productName: string) {
     const orderId = `order_${Math.random().toString(36)}`
 
     this.orders.push(orderId)
-    await session.logActivity(`Created order ${orderId} for ${productName}`)
+    this.userSession.logActivity(`Created order ${orderId} for ${productName}`)
 
-    return { orderId, userId: session.getSessionId() }
+    return { orderId, sessionId: this.userSession.getSessionId() }
   }
 }
 ```
 
-### Request Context Switching
+### Multiple Concurrent Requests
 
-You can manage multiple request contexts and switch between them:
+Each request gets its own isolated `ScopedContainer`:
 
 ```typescript
 const container = new Container()
 
-// Start multiple requests
-container.beginRequest('req-1', { userId: 'user1' })
-container.beginRequest('req-2', { userId: 'user2' })
+// Start multiple concurrent requests
+const scoped1 = container.beginRequest('req-1', { userId: 'user1' })
+const scoped2 = container.beginRequest('req-2', { userId: 'user2' })
 
-// Switch to request 1
-container.setCurrentRequestContext('req-1')
-const context1 = await container.get(RequestContext)
-
-// Switch to request 2
-container.setCurrentRequestContext('req-2')
-const context2 = await container.get(RequestContext)
+// Each scoped container has its own request-scoped instances
+const context1 = await scoped1.get(RequestContext)
+const context2 = await scoped2.get(RequestContext)
 
 // Different instances for different requests
 console.log(context1 !== context2) // true
 
-// Clean up
-await container.endRequest('req-1')
-await container.endRequest('req-2')
+// Singletons are shared across all requests
+const logger1 = await scoped1.get(LoggerService)
+const logger2 = await scoped2.get(LoggerService)
+console.log(logger1 === logger2) // true - same singleton
+
+// Clean up each request independently
+await scoped1.endRequest()
+await scoped2.endRequest()
+```
+
+### Cross-Storage Dependency Invalidation
+
+When a request-scoped service is destroyed (via `endRequest()`), any singleton services that depend on it are automatically invalidated:
+
+```typescript
+@Injectable({ scope: InjectableScope.Request })
+class RequestData {
+  data = 'request-specific'
+}
+
+@Injectable({ scope: InjectableScope.Singleton })
+class SingletonConsumer {
+  private requestData = inject(RequestData)
+
+  getData() {
+    return this.requestData.data
+  }
+}
+
+const container = new Container()
+const scoped = container.beginRequest('req-1')
+
+const singleton = await scoped.get(SingletonConsumer)
+await singleton.getData() // Works fine
+
+await scoped.endRequest()
+// SingletonConsumer is also invalidated because it depends on RequestData
+
+// Next request gets fresh instances
+const scoped2 = container.beginRequest('req-2')
+const singleton2 = await scoped2.get(SingletonConsumer)
+console.log(singleton !== singleton2) // true - new instance
 ```
 
 ## Scope Compatibility

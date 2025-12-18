@@ -19,6 +19,28 @@
   "module": "./lib/index.mjs",
   "exports": {
     ".": {
+      "browser": {
+        "types": "./lib/browser/index.d.mts",
+        "default": "./lib/browser/index.mjs"
+      },
+      "bun": {
+        "types": "./lib/index.d.mts",
+        "default": "./lib/index.mjs"
+      },
+      "deno": {
+        "types": "./lib/index.d.mts",
+        "default": "./lib/index.mjs"
+      },
+      "node": {
+        "import": {
+          "types": "./lib/index.d.mts",
+          "default": "./lib/index.mjs"
+        },
+        "require": {
+          "types": "./lib/index.d.ts",
+          "default": "./lib/index.js"
+        }
+      },
       "import": {
         "types": "./lib/index.d.mts",
         "default": "./lib/index.mjs"

@@ -560,14 +560,9 @@ interface FactoryOptions {
 
 ```typescript
 interface FactoryContext {
-  inject<T>(token: T): Promise<T>
-  locator: ServiceLocator
-  on(event: string, listener: Function): void
-  getDependencies(): any[]
-  invalidate(): Promise<void>
-  addEffect(effect: Function): void
-  setTtl(ttl: number): void
-  getTtl(): number | null
+  inject: typeof asyncInject  // Inject dependencies asynchronously
+  locator: ServiceLocator     // Access to the service locator
+  addDestroyListener: (listener: () => void | Promise<void>) => void  // Register cleanup callback
 }
 ```
 

@@ -9,9 +9,14 @@ Complete API reference for Navios DI library.
 The main entry point for dependency injection.
 
 ```typescript
-class Container {
-  constructor(registry?: Registry, logger?: Console | null)
+class Container implements IContainer {
+  constructor(
+    registry?: Registry,
+    logger?: Console | null,
+    injectors?: Injectors
+  )
 
+  // Service resolution
   get<T>(token: T): Promise<InstanceType<T>>
   get<T, S extends InjectionTokenSchemaType>(
     token: InjectionToken<T, S>,
@@ -21,18 +26,26 @@ class Container {
   get<T>(token: BoundInjectionToken<T, any>): Promise<T>
   get<T>(token: FactoryInjectionToken<T, any>): Promise<T>
 
+  // Lifecycle
   invalidate(service: unknown): Promise<void>
   ready(): Promise<void>
+  dispose(): Promise<void>
+  clear(): Promise<void>
+
+  // Introspection
+  isRegistered(token: any): boolean
   getServiceLocator(): ServiceLocator
+  getRegistry(): Registry
+  tryGetSync<T>(token: any, args?: any): T | null
 
   // Request Context Management
   beginRequest(
     requestId: string,
     metadata?: Record<string, any>,
     priority?: number,
-  ): RequestContextHolder
-  endRequest(requestId: string): Promise<void>
-  setCurrentRequestContext(requestId: string): void
+  ): ScopedContainer
+  getActiveRequestIds(): ReadonlySet<string>
+  hasActiveRequest(requestId: string): boolean
 }
 ```
 
@@ -40,20 +53,72 @@ class Container {
 
 - `registry?: Registry` - Optional registry instance (defaults to global registry)
 - `logger?: Console | null` - Optional logger for debugging
+- `injectors?: Injectors` - Optional custom injectors
 
 **Methods:**
 
-- `get<T>(token: T)` - Get a service instance
+- `get<T>(token: T)` - Get a service instance (throws error for request-scoped services)
 - `invalidate(service: unknown)` - Invalidate a service and its dependencies
 - `ready()` - Wait for all pending operations to complete
+- `dispose()` - Clean up all resources
+- `clear()` - Clear all instances and bindings
+- `isRegistered(token: any)` - Check if a service is registered
 - `getServiceLocator()` - Get the underlying ServiceLocator instance
+- `getRegistry()` - Get the registry
+- `tryGetSync<T>(token, args?)` - Get instance synchronously if it exists
 
 **Request Context Management:**
 
-- `beginRequest(requestId: string, metadata?: Record<string, any>, priority?: number)` - Begin a new request context
-- `endRequest(requestId: string)` - End a request context and clean up instances
-- `getCurrentRequestContext()` - Get the current request context
-- `setCurrentRequestContext(requestId: string)` - Switch to a different request context
+- `beginRequest(requestId, metadata?, priority?)` - Begin a new request context, returns `ScopedContainer`
+- `getActiveRequestIds()` - Get set of active request IDs
+- `hasActiveRequest(requestId)` - Check if a request is active
+
+### ScopedContainer
+
+Request-scoped container for isolated request-scoped service resolution.
+
+```typescript
+class ScopedContainer implements IContainer {
+  readonly requestId: string
+
+  // Service resolution
+  get<T>(token: T): Promise<InstanceType<T>>
+  get<T, S extends InjectionTokenSchemaType>(
+    token: InjectionToken<T, S>,
+    args: z.input<S>,
+  ): Promise<T>
+
+  // Lifecycle
+  invalidate(service: unknown): Promise<void>
+  endRequest(): Promise<void>
+  dispose(): Promise<void>  // Alias for endRequest()
+  ready(): Promise<void>
+
+  // Introspection
+  isRegistered(token: any): boolean
+  getParent(): Container
+  getRequestId(): string
+  getRequestContextHolder(): RequestContext
+  getHolderStorage(): IHolderStorage
+  tryGetSync<T>(token: any, args?: any): T | null
+
+  // Metadata
+  getMetadata(key: string): any | undefined
+  setMetadata(key: string, value: any): void
+  addInstance(token: InjectionToken<any, undefined>, instance: any): void
+}
+```
+
+**Methods:**
+
+- `get<T>(token: T)` - Get a service instance (request-scoped or delegated to parent)
+- `invalidate(service: unknown)` - Invalidate a service
+- `endRequest()` - End request and cleanup all request-scoped instances
+- `dispose()` - Alias for `endRequest()`
+- `ready()` - Wait for pending operations
+- `getMetadata(key)` - Get request metadata
+- `setMetadata(key, value)` - Set request metadata
+- `addInstance(token, instance)` - Add pre-prepared instance to request context
 
 ### InjectionToken
 
@@ -317,42 +382,40 @@ interface FactorableWithArgs<T, S> {
 }
 ```
 
-### RequestContextHolder
+### RequestContext
 
 Interface for managing request-scoped instances.
 
 ```typescript
-interface RequestContextHolder {
+interface RequestContext {
   readonly requestId: string
-  readonly holders: Map<string, ServiceLocatorInstanceHolder>
+  readonly holders: Map<string, InstanceHolder>
   readonly priority: number
   readonly metadata: Map<string, any>
   readonly createdAt: number
 
+  addInstance(token: InjectionToken<any, undefined>, instance: any): void
   addInstance(
     instanceName: string,
     instance: any,
-    holder: ServiceLocatorInstanceHolder,
+    holder: InstanceHolder,
   ): void
-  addInstance(token: InjectionToken<any, undefined>, instance: any): void
-  get(instanceName: string): ServiceLocatorInstanceHolder | undefined
+  get(instanceName: string): InstanceHolder | undefined
+  set(instanceName: string, holder: InstanceHolder): void
   has(instanceName: string): boolean
   clear(): void
   getMetadata(key: string): any | undefined
   setMetadata(key: string, value: any): void
-
-  // Inherited from BaseInstanceHolderManager
   filter(
-    predicate: (
-      value: ServiceLocatorInstanceHolder<any>,
-      key: string,
-    ) => boolean,
-  ): Map<string, ServiceLocatorInstanceHolder>
+    predicate: (value: InstanceHolder<any>, key: string) => boolean,
+  ): Map<string, InstanceHolder>
   delete(name: string): boolean
   size(): number
   isEmpty(): boolean
 }
 ```
+
+**Deprecated alias:** `RequestContextHolder`
 
 ### FactoryContext
 
@@ -360,41 +423,61 @@ Context provided to factory methods.
 
 ```typescript
 interface FactoryContext {
-  inject<T>(token: T): Promise<T>
+  inject: typeof asyncInject
   locator: ServiceLocator
-  on(event: string, listener: Function): void
-  getDependencies(): any[]
-  invalidate(): Promise<void>
-  addEffect(effect: Function): void
-  setTtl(ttl: number): void
-  getTtl(): number | null
+  addDestroyListener: (listener: () => void | Promise<void>) => void
 }
 ```
 
-### RequestContextHolder
+### IContainer
 
-Request context holder for managing request-scoped instances.
+Common interface for Container and ScopedContainer.
 
 ```typescript
-interface RequestContextHolder {
-  readonly requestId: string
-  readonly priority: number
-  readonly createdAt: number
-  readonly instances: Map<string, any>
-  readonly metadata: Map<string, any>
-
-  addInstance(
-    instanceName: string,
-    instance: any,
-    holder: ServiceLocatorInstanceHolder,
-  ): void
-  getInstance(instanceName: string): any | undefined
-  hasInstance(instanceName: string): boolean
-  clear(): void
-  getMetadata(key: string): any | undefined
-  setMetadata(key: string, value: any): void
+interface IContainer {
+  get<T>(token: T, args?: any): Promise<T>
+  invalidate(service: unknown): Promise<void>
+  isRegistered(token: any): boolean
+  dispose(): Promise<void>
+  ready(): Promise<void>
+  tryGetSync<T>(token: any, args?: any): T | null
 }
 ```
+
+### InstanceHolder
+
+Represents a managed service instance with its lifecycle state.
+
+```typescript
+interface InstanceHolder<T = unknown> {
+  name: string
+  instance: T | null
+  status: InstanceStatus
+  type: InjectableType
+  scope: InjectableScope
+  deps: Set<string>           // Services this holder depends on
+  waitingFor: Set<string>     // Services this holder is waiting for (cycle detection)
+  destroyListeners: InstanceDestroyListener[]
+  createdAt: number
+  creationPromise: Promise<[undefined, T]> | null
+  destroyPromise: Promise<void> | null
+}
+```
+
+**Deprecated alias:** `ServiceLocatorInstanceHolder`
+
+### InstanceStatus
+
+```typescript
+enum InstanceStatus {
+  Creating = 'creating',
+  Created = 'created',
+  Destroying = 'destroying',
+  Error = 'error',
+}
+```
+
+**Deprecated alias:** `ServiceLocatorInstanceHolderStatus`
 
 ## Functions
 
@@ -446,6 +529,66 @@ function inject<T, S extends InjectionTokenSchemaType, R extends boolean>(
 function inject<T>(token: InjectionToken<T, undefined>): T
 function inject<T>(token: BoundInjectionToken<T, any>): T
 function inject<T>(token: FactoryInjectionToken<T, any>): T
+```
+
+### optional
+
+Optional dependency injection (returns null if not registered).
+
+```typescript
+function optional<T extends ClassType>(
+  token: T,
+): InstanceType<T> | null
+function optional<T>(token: InjectionToken<T, any>): T | null
+```
+
+### wrapSyncInit
+
+Wraps a synchronous initialization function.
+
+```typescript
+function wrapSyncInit<T>(fn: () => T): T
+```
+
+### provideFactoryContext
+
+Provides a factory context for the duration of a function execution.
+
+```typescript
+function provideFactoryContext<T>(ctx: FactoryContext, fn: () => T): T
+```
+
+### withResolutionContext
+
+Runs a function within a resolution context for cycle detection.
+
+```typescript
+function withResolutionContext<T>(
+  waiterHolder: InstanceHolder,
+  getHolder: (name: string) => InstanceHolder | undefined,
+  fn: () => T
+): T
+```
+
+### getCurrentResolutionContext
+
+Gets the current resolution context if any.
+
+```typescript
+function getCurrentResolutionContext(): ResolutionContextData | undefined
+
+interface ResolutionContextData {
+  waiterHolder: InstanceHolder
+  getHolder: (name: string) => InstanceHolder | undefined
+}
+```
+
+### withoutResolutionContext
+
+Runs a function outside of any resolution context (used by asyncInject).
+
+```typescript
+function withoutResolutionContext<T>(fn: () => T): T
 ```
 
 ## Types
@@ -553,73 +696,73 @@ type InjectionTokenType =
 
 ### Injection Method Compatibility
 
-| Scope     | inject           | asyncInject  |
-| --------- | ---------------- | ------------ |
-| Singleton | ✅ Supported     | ✅ Supported |
-| Transient | ❌ Not Supported | ✅ Supported |
-| Request   | ✅ Supported     | ✅ Supported |
+| Scope     | inject       | asyncInject  | optional     |
+| --------- | ------------ | ------------ | ------------ |
+| Singleton | ✅ Supported | ✅ Supported | ✅ Supported |
+| Transient | ✅ Supported | ✅ Supported | ✅ Supported |
+| Request   | ✅ Supported | ✅ Supported | ✅ Supported |
 
-**Note:** The `inject` function only works with Singleton and Request scopes because it requires synchronous resolution. Transient services must use `asyncInject` since they create new instances on each injection.
+**Notes:**
+- `inject()` works with all scopes but returns a proxy for dependencies not yet initialized
+- `asyncInject()` is recommended for circular dependencies as it runs outside the resolution context
+- `optional()` returns `null` if the service is not registered
 
-## Error Classes
+## Error Handling
 
-### InstanceNotFoundError
+### DIError
 
-Thrown when a service instance is not found.
+Base error class for all DI-related errors.
 
 ```typescript
-class InstanceNotFoundError extends Error {
-  constructor(message: string)
+class DIError extends Error {
+  readonly code: DIErrorCode
+
+  constructor(code: DIErrorCode, message: string)
+
+  // Static factory methods
+  static factoryNotFound(message: string): DIError
+  static factoryTokenNotResolved(message: string): DIError
+  static instanceNotFound(message: string): DIError
+  static instanceDestroying(message: string): DIError
+  static circularDependency(message: string): DIError
+  static unknown(message: string): DIError
 }
 ```
 
-### InstanceExpiredError
-
-Thrown when a service instance has expired.
+### DIErrorCode
 
 ```typescript
-class InstanceExpiredError extends Error {
-  constructor(message: string)
+enum DIErrorCode {
+  FactoryNotFound = 'FACTORY_NOT_FOUND',
+  FactoryTokenNotResolved = 'FACTORY_TOKEN_NOT_RESOLVED',
+  InstanceNotFound = 'INSTANCE_NOT_FOUND',
+  InstanceDestroying = 'INSTANCE_DESTROYING',
+  CircularDependency = 'CIRCULAR_DEPENDENCY',
+  UnknownError = 'UNKNOWN_ERROR',
 }
 ```
 
-### InstanceDestroyingError
-
-Thrown when trying to access a service being destroyed.
+### Error Handling Example
 
 ```typescript
-class InstanceDestroyingError extends Error {
-  constructor(message: string)
-}
-```
+import { DIError, DIErrorCode } from '@navios/di'
 
-### FactoryNotFoundError
-
-Thrown when a factory is not found.
-
-```typescript
-class FactoryNotFoundError extends Error {
-  constructor(message: string)
-}
-```
-
-### FactoryTokenNotResolvedError
-
-Thrown when a factory token cannot be resolved.
-
-```typescript
-class FactoryTokenNotResolvedError extends Error {
-  constructor(message: string)
-}
-```
-
-### UnknownError
-
-Thrown for unexpected errors.
-
-```typescript
-class UnknownError extends Error {
-  constructor(message: string)
+try {
+  const service = await container.get(UnregisteredService)
+} catch (error) {
+  if (error instanceof DIError) {
+    switch (error.code) {
+      case DIErrorCode.FactoryNotFound:
+        console.error('Service not registered')
+        break
+      case DIErrorCode.InstanceDestroying:
+        console.error('Service is being destroyed')
+        break
+      case DIErrorCode.CircularDependency:
+        console.error('Circular dependency detected:', error.message)
+        break
+    }
+  }
 }
 ```
 
@@ -764,22 +907,13 @@ class RequestContext {
 @Injectable({ scope: InjectableScope.Request })
 class UserSession {
   private readonly context = inject(RequestContext)
-  private readonly userId: string
+  userId?: string
 
-  constructor(userId: string) {
-    this.userId = userId
-  }
-
-  getUserId() {
-    return this.userId
-  }
-
-  async getRequestInfo() {
-    const ctx = await this.context
+  getRequestInfo() {
     return {
       userId: this.userId,
-      requestId: ctx.getRequestId(),
-      duration: ctx.getDuration(),
+      requestId: this.context.getRequestId(),
+      duration: this.context.getDuration(),
     }
   }
 }
@@ -787,15 +921,45 @@ class UserSession {
 // Usage
 const container = new Container()
 
-// Begin request context
-container.beginRequest('req-123', { userId: 'user123' })
+// Begin request context - returns a ScopedContainer
+const scoped = container.beginRequest('req-123', { userId: 'user123' })
 
-// Get request-scoped instances
-const session1 = await container.get(UserSession)
-const session2 = await container.get(UserSession)
+// Get request-scoped instances from the ScopedContainer
+const session1 = await scoped.get(UserSession)
+const session2 = await scoped.get(UserSession)
 
 console.log(session1 === session2) // true - same instance within request
 
-// End request context
-await container.endRequest('req-123')
+// End request context and cleanup
+await scoped.endRequest()
+```
+
+### Circular Dependency Handling
+
+```typescript
+import { asyncInject, inject, Injectable } from '@navios/di'
+
+// Use asyncInject to break circular dependencies
+@Injectable()
+class ServiceA {
+  private serviceB = asyncInject(ServiceB)  // Break cycle here
+
+  async doSomething() {
+    const b = await this.serviceB
+    return b.process()
+  }
+}
+
+@Injectable()
+class ServiceB {
+  private serviceA = inject(ServiceA)  // This side can use inject
+
+  process() {
+    return 'processed'
+  }
+}
+
+const container = new Container()
+const serviceA = await container.get(ServiceA)
+await serviceA.doSomething() // Works!
 ```

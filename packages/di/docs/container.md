@@ -9,6 +9,7 @@ The Container wraps a `ServiceLocator` instance and provides convenient methods 
 - Getting service instances
 - Invalidating services and their dependencies
 - Managing service lifecycle
+- Creating request-scoped containers via `ScopedContainer`
 - Accessing the underlying service locator for advanced usage
 
 ## Basic Usage
@@ -26,14 +27,7 @@ const customRegistry = new Registry()
 const container = new Container(customRegistry)
 
 // Create with custom registry and logger
-const mockLogger = {
-  log: console.log,
-  error: console.error,
-  warn: console.warn,
-  info: console.info,
-  debug: console.debug,
-}
-const container = new Container(customRegistry, mockLogger)
+const container = new Container(customRegistry, console)
 ```
 
 ### Getting Service Instances
@@ -131,6 +125,25 @@ await container.ready()
 const [userService, emailService, dbService] = await Promise.all(promises)
 ```
 
+### Synchronous Instance Access
+
+Use `tryGetSync` to get an instance synchronously if it already exists:
+
+```typescript
+const container = new Container()
+
+// First, ensure the service is created
+await container.get(UserService)
+
+// Now you can get it synchronously
+const userService = container.tryGetSync(UserService)
+if (userService) {
+  console.log('Service already exists:', userService)
+} else {
+  console.log('Service not yet created')
+}
+```
+
 ### Accessing the Service Locator
 
 For advanced usage, you can access the underlying `ServiceLocator`:
@@ -145,37 +158,86 @@ const instance = await serviceLocator.getOrThrowInstance(UserService)
 
 ## Request Context Management
 
-The Container provides built-in support for request contexts, allowing you to manage request-scoped services:
+The Container provides built-in support for request contexts via `ScopedContainer`. This allows you to manage request-scoped services with proper isolation between concurrent requests.
+
+### Creating a ScopedContainer
 
 ```typescript
-const container = new Container()
+import { Container, Injectable, InjectableScope } from '@navios/di'
 
-// Begin a request context
-const context = container.beginRequest('req-123', { userId: 456 }, 100)
-
-// Add request-specific instances
-const REQUEST_ID_TOKEN = InjectionToken.create<string>('REQUEST_ID')
-context.addInstance(REQUEST_ID_TOKEN, 'req-123')
-
-// Set as current context
-container.setCurrentRequestContext('req-123')
-
-// Services can now access request-scoped data
-@Injectable()
-class RequestService {
-  private readonly requestId = asyncInject(REQUEST_ID_TOKEN)
-
-  async process() {
-    const id = await this.requestId
-    console.log(`Processing in request: ${id}`)
-  }
+@Injectable({ scope: InjectableScope.Request })
+class RequestContext {
+  userId?: string
+  correlationId?: string
 }
 
-const service = await container.get(RequestService)
-await service.process() // "Processing in request: req-123"
+const container = new Container()
+
+// Begin a request context - returns a ScopedContainer
+const scoped = container.beginRequest('req-123', {
+  userId: 'user-456',
+  correlationId: 'corr-789',
+})
+
+// Get request-scoped services from the ScopedContainer
+const context = await scoped.get(RequestContext)
+
+// Access metadata
+const userId = scoped.getMetadata('userId')
 
 // Clean up when done
-await container.endRequest('req-123')
+await scoped.endRequest()
+```
+
+### Why ScopedContainer?
+
+The `ScopedContainer` pattern eliminates race conditions that occurred with the old API:
+
+```typescript
+// OLD API (removed) - had race conditions:
+// container.setCurrentRequestContext('req-A')
+// const serviceA = await container.get(RequestService) // async...
+// container.setCurrentRequestContext('req-B') // Request B starts while A is resolving
+// Service A might get Request B's context! Bug!
+
+// NEW API - no race conditions:
+const scopedA = container.beginRequest('req-A')
+const serviceA = await scopedA.get(RequestService) // Always gets A's context
+
+const scopedB = container.beginRequest('req-B')
+const serviceB = await scopedB.get(RequestService) // Always gets B's context
+```
+
+### Request-Scoped Service Error
+
+Attempting to get a request-scoped service from the main Container throws an error:
+
+```typescript
+@Injectable({ scope: InjectableScope.Request })
+class RequestService {}
+
+// ❌ This throws an error
+await container.get(RequestService)
+// Error: Cannot resolve request-scoped service "RequestService" from Container.
+// Use beginRequest() to create a ScopedContainer for request-scoped services.
+
+// ✅ Use ScopedContainer instead
+const scoped = container.beginRequest('req-123')
+const service = await scoped.get(RequestService)
+```
+
+### Tracking Active Requests
+
+```typescript
+const scoped1 = container.beginRequest('req-1')
+const scoped2 = container.beginRequest('req-2')
+
+// Check active requests
+console.log(container.hasActiveRequest('req-1')) // true
+console.log(container.getActiveRequestIds()) // Set { 'req-1', 'req-2' }
+
+await scoped1.endRequest()
+console.log(container.hasActiveRequest('req-1')) // false
 ```
 
 ## Best Practices
@@ -220,13 +282,22 @@ await container.invalidate(userSessionService)
 ### 3. Handle Errors Gracefully
 
 ```typescript
+import { DIError, DIErrorCode } from '@navios/di'
+
 try {
   const service = await container.get(NonExistentService)
 } catch (error) {
-  if (error instanceof InstanceNotFoundError) {
-    console.error('Service not registered:', error.message)
-  } else {
-    console.error('Unexpected error:', error)
+  if (error instanceof DIError) {
+    switch (error.code) {
+      case DIErrorCode.FactoryNotFound:
+        console.error('Service not registered:', error.message)
+        break
+      case DIErrorCode.CircularDependency:
+        console.error('Circular dependency:', error.message)
+        break
+      default:
+        console.error('DI error:', error.message)
+    }
   }
 }
 ```
@@ -253,21 +324,33 @@ const paymentContainer = new Container(paymentRegistry)
 ### 5. Manage Request Contexts Properly
 
 ```typescript
-// Always clean up request contexts
+// Always clean up request contexts with try/finally
 async function handleRequest(req, res) {
   const requestId = generateRequestId()
-  const context = container.beginRequest(requestId, {
+  const scoped = container.beginRequest(requestId, {
     ip: req.ip,
     userAgent: req.get('User-Agent'),
   })
 
   try {
-    container.setCurrentRequestContext(requestId)
-    await processRequest(req, res)
+    const service = await scoped.get(RequestHandler)
+    await service.handle(req, res)
   } finally {
-    await container.endRequest(requestId)
+    await scoped.endRequest()
   }
 }
+```
+
+### 6. Clean Up on Shutdown
+
+```typescript
+async function shutdown() {
+  // Dispose the container to clean up all services
+  await container.dispose()
+}
+
+process.on('SIGTERM', shutdown)
+process.on('SIGINT', shutdown)
 ```
 
 ## API Reference
@@ -275,11 +358,16 @@ async function handleRequest(req, res) {
 ### Constructor
 
 ```typescript
-constructor(registry?: Registry, logger?: Console | null)
+constructor(
+  registry?: Registry,
+  logger?: Console | null,
+  injectors?: Injectors
+)
 ```
 
 - `registry`: Optional registry instance (defaults to global registry)
 - `logger`: Optional logger instance for debugging
+- `injectors`: Optional custom injectors
 
 ### Methods
 
@@ -295,6 +383,8 @@ Gets a service instance from the container.
 - `get<T>(token: BoundInjectionToken<T, any>): Promise<T>`
 - `get<T>(token: FactoryInjectionToken<T, any>): Promise<T>`
 
+**Note:** Throws an error for request-scoped services. Use `ScopedContainer` instead.
+
 #### `invalidate(service: unknown): Promise<void>`
 
 Invalidates a service and its dependencies.
@@ -303,47 +393,121 @@ Invalidates a service and its dependencies.
 
 Waits for all pending operations to complete.
 
+#### `dispose(): Promise<void>`
+
+Disposes the container and cleans up all resources.
+
+#### `clear(): Promise<void>`
+
+Clears all instances and bindings.
+
+#### `isRegistered(token: any): boolean`
+
+Checks if a service is registered.
+
+#### `tryGetSync<T>(token: any, args?: any): T | null`
+
+Gets an instance synchronously if it already exists and is ready.
+
 #### `getServiceLocator(): ServiceLocator`
 
 Returns the underlying ServiceLocator instance.
 
-#### `beginRequest(requestId: string, metadata?: Record<string, any>, priority?: number): RequestContextHolder`
+#### `getRegistry(): Registry`
 
-Begins a new request context with the given parameters.
+Returns the registry used by this container.
+
+#### `beginRequest(requestId: string, metadata?: Record<string, any>, priority?: number): ScopedContainer`
+
+Begins a new request context and returns a `ScopedContainer`.
 
 - `requestId`: Unique identifier for this request
 - `metadata`: Optional metadata for the request
 - `priority`: Priority for resolution (higher = more priority, defaults to 100)
 
-#### `endRequest(requestId: string): Promise<void>`
+#### `getActiveRequestIds(): ReadonlySet<string>`
 
-Ends a request context and cleans up all associated instances.
+Gets the set of active request IDs.
 
-#### `getCurrentRequestContext(): RequestContextHolder | null`
+#### `hasActiveRequest(requestId: string): boolean`
 
-Gets the current request context.
+Checks if a request is active.
 
-#### `setCurrentRequestContext(requestId: string): void`
+## ScopedContainer API
 
-Sets the current request context.
+The `ScopedContainer` is returned by `container.beginRequest()` and provides isolated request-scoped service resolution.
+
+### Methods
+
+#### `get<T>(token: T): Promise<InstanceType<T>>`
+
+Gets a service instance. Request-scoped services are resolved from this container's context, others are delegated to the parent.
+
+#### `invalidate(service: unknown): Promise<void>`
+
+Invalidates a service within the request context.
+
+#### `endRequest(): Promise<void>`
+
+Ends the request and cleans up all request-scoped instances.
+
+#### `dispose(): Promise<void>`
+
+Alias for `endRequest()`.
+
+#### `ready(): Promise<void>`
+
+Waits for pending operations.
+
+#### `getMetadata(key: string): any | undefined`
+
+Gets request metadata.
+
+#### `setMetadata(key: string, value: any): void`
+
+Sets request metadata.
+
+#### `addInstance(token: InjectionToken<any, undefined>, instance: any): void`
+
+Adds a pre-prepared instance to the request context.
+
+#### `getRequestId(): string`
+
+Gets the request ID.
+
+#### `getParent(): Container`
+
+Gets the parent container.
+
+#### `tryGetSync<T>(token: any, args?: any): T | null`
+
+Gets an instance synchronously if it exists and is ready.
 
 ## Error Handling
 
-The Container can throw various errors:
-
-- `InstanceNotFoundError`: When a service is not registered
-- `InstanceExpiredError`: When a service instance has expired
-- `InstanceDestroyingError`: When trying to access a service being destroyed
-- `UnknownError`: For unexpected errors
+The Container throws `DIError` with specific error codes:
 
 ```typescript
-import { InstanceNotFoundError } from '@navios/di'
+import { DIError, DIErrorCode } from '@navios/di'
 
 try {
   const service = await container.get(UnregisteredService)
 } catch (error) {
-  if (error instanceof InstanceNotFoundError) {
-    console.error('Service not found:', error.message)
+  if (error instanceof DIError) {
+    switch (error.code) {
+      case DIErrorCode.FactoryNotFound:
+        console.error('Service not registered')
+        break
+      case DIErrorCode.InstanceDestroying:
+        console.error('Service is being destroyed')
+        break
+      case DIErrorCode.CircularDependency:
+        console.error('Circular dependency detected:', error.message)
+        break
+      case DIErrorCode.UnknownError:
+        console.error('Unknown error:', error.message)
+        break
+    }
   }
 }
 ```

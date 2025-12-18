@@ -1,6 +1,6 @@
-import { AsyncLocalStorage } from 'node:async_hooks'
-
 import type { InstanceHolder } from '../holder/instance-holder.mjs'
+
+import { createAsyncLocalStorage } from './async-local-storage.mjs'
 
 /**
  * Data stored in the resolution context during service instantiation.
@@ -19,7 +19,7 @@ export interface ResolutionContextData {
  * async boundaries (like when inject() is called inside a constructor).
  * Essential for circular dependency detection.
  */
-export const resolutionContext = new AsyncLocalStorage<ResolutionContextData>()
+export const resolutionContext = createAsyncLocalStorage<ResolutionContextData>()
 
 /**
  * Runs a function within a resolution context.

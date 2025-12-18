@@ -11,8 +11,7 @@ Welcome to the comprehensive documentation for Navios DI, a powerful dependency 
 - [Injection Tokens](./injection-tokens.md) - Token-based dependency resolution
 - [Request Contexts](./request-contexts.md) - Request-scoped services and cleanup
 - [Service Lifecycle](./lifecycle.md) - Initialization and cleanup hooks
-- [Scopes](./scopes.md) - Singleton and transient service scopes
-- [Advanced Patterns](./advanced-patterns.md) - Complex usage scenarios
+- [Scopes](./scopes.md) - Singleton, transient, and request service scopes
 - [API Reference](./api-reference.md) - Complete API documentation
 - [Migration Guide](./migration.md) - Upgrading from older versions
 
@@ -30,15 +29,17 @@ Welcome to the comprehensive documentation for Navios DI, a powerful dependency 
 
 - **Type Safety** - Full TypeScript support with compile-time checking
 - **Lifecycle Management** - Built-in hooks for service initialization and cleanup
-- **Multiple Scopes** - Singleton and transient service lifetimes
+- **Multiple Scopes** - Singleton, transient, and request service lifetimes
 - **Async/Sync Injection** - Both synchronous and asynchronous dependency resolution
+- **Circular Dependency Detection** - Automatic detection with clear error messages
 - **Factory Pattern** - Complex object creation with factory classes
 - **Request Contexts** - Request-scoped services with priority resolution and automatic cleanup
+- **Cross-Platform** - Works in Node.js, Bun, Deno, and browsers
 
 ### Getting Started
 
 ```typescript
-import { asyncInject, Container, Injectable } from '@navios/di'
+import { inject, Container, Injectable } from '@navios/di'
 
 @Injectable()
 class DatabaseService {
@@ -49,11 +50,11 @@ class DatabaseService {
 
 @Injectable()
 class UserService {
-  private readonly db = asyncInject(DatabaseService)
+  private readonly db = inject(DatabaseService)
 
   async getUsers() {
-    const connection = await this.db.connect()
-    return `Users from ${connection}`
+    const users = await this.db.query('SELECT * FROM users')
+    return users
   }
 }
 
@@ -68,10 +69,12 @@ console.log(await userService.getUsers())
 Navios DI follows a modern, decorator-based architecture:
 
 1. **Services** are marked with `@Injectable()` decorator
-2. **Dependencies** are injected using `asyncInject()` or `inject()`
+2. **Dependencies** are injected using `inject()` or `asyncInject()`
 3. **Container** manages service instances and their lifecycle
-4. **Injection Tokens** provide flexible dependency resolution
-5. **Factories** handle complex object creation
+4. **ScopedContainer** provides request-scoped isolation
+5. **Injection Tokens** provide flexible dependency resolution
+6. **Factories** handle complex object creation
+7. **CircularDetector** prevents circular dependency deadlocks
 
 ## Design Principles
 
@@ -80,6 +83,16 @@ Navios DI follows a modern, decorator-based architecture:
 - **Flexible Resolution** - Support both class-based and token-based injection
 - **Lifecycle Awareness** - Built-in support for service initialization and cleanup
 - **Performance Optimized** - Efficient instance management and caching
+- **Safe by Default** - Automatic circular dependency detection
+
+## Platform Support
+
+| Platform | AsyncLocalStorage | Notes                              |
+| -------- | ----------------- | ---------------------------------- |
+| Node.js  | Native            | Full async tracking support        |
+| Bun      | Native            | Full async tracking support        |
+| Deno     | Native            | Via Node compatibility layer       |
+| Browser  | Polyfill          | Sync-only tracking (SyncLocalStorage) |
 
 ## Examples
 
@@ -149,9 +162,54 @@ class DatabaseService implements OnServiceInit, OnServiceDestroy {
 }
 ```
 
+### Handling Circular Dependencies
+
+```typescript
+// Use asyncInject to break circular dependencies
+@Injectable()
+class ServiceA {
+  private serviceB = asyncInject(ServiceB)  // Use asyncInject to break cycle
+
+  async doSomething() {
+    const b = await this.serviceB
+    return b.process()
+  }
+}
+
+@Injectable()
+class ServiceB {
+  private serviceA = inject(ServiceA)  // This side can use inject()
+
+  process() {
+    return 'processed'
+  }
+}
+```
+
+### Request-Scoped Services
+
+```typescript
+@Injectable({ scope: InjectableScope.Request })
+class RequestContext {
+  userId?: string
+  correlationId?: string
+}
+
+// In HTTP middleware
+app.use(async (req, res, next) => {
+  const scoped = container.beginRequest(req.id, { userId: req.userId })
+  req.container = scoped
+
+  try {
+    await next()
+  } finally {
+    await scoped.endRequest()
+  }
+})
+```
+
 ## Need Help?
 
 - Check the [API Reference](./api-reference.md) for detailed method documentation
-- Look at [Advanced Patterns](./advanced-patterns.md) for complex scenarios
 - Review the [Migration Guide](./migration.md) if upgrading from older versions
 - See the [Examples](./examples/) folder for complete working examples
