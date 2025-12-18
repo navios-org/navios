@@ -300,6 +300,12 @@ export class InstanceResolver {
             error,
           )
         })
+        .catch(() => {
+          // Suppress unhandled rejections from the async chain.
+          // Errors are communicated to awaiters via deferred.reject() which
+          // rejects holder.creationPromise. This catch is a safety net for
+          // any errors that might occur in the error handling itself.
+        })
     })
 
     // Wait for instance to be ready
@@ -606,7 +612,14 @@ export class InstanceResolver {
       this.logger?.log(
         `[InstanceResolver] Singleton ${instanceName} failed, will be invalidated`,
       )
-      this.serviceLocator.getInvalidator().invalidate(instanceName)
+      // Fire-and-forget invalidation - don't await as it could cause deadlocks
+      // Suppress any potential rejections since the primary error is already handled
+      this.serviceLocator
+        .getInvalidator()
+        .invalidate(instanceName)
+        .catch(() => {
+          // Suppress - primary error is communicated via deferred.reject()
+        })
     }
 
     deferred.reject(error)
