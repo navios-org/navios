@@ -211,6 +211,7 @@ export class ScopedContainer implements IContainer {
 
   /**
    * Ends the request and cleans up all request-scoped instances.
+   * Uses the invalidation system to properly cascade to dependent singletons.
    */
   async endRequest(): Promise<void> {
     if (this.disposed) {
@@ -219,19 +220,17 @@ export class ScopedContainer implements IContainer {
 
     this.disposed = true
 
-    // Clean up all request-scoped instances
-    const cleanupPromises: Promise<any>[] = []
-    for (const [, holder] of this.requestContextHolder.holders) {
-      if (holder.destroyListeners.length > 0) {
-        cleanupPromises.push(
-          Promise.all(holder.destroyListeners.map((listener) => listener())),
-        )
-      }
-    }
+    // Use clearAllWithStorage to properly invalidate all request-scoped services
+    // This will cascade invalidation to singletons that depend on request-scoped services
+    await this.parent
+      .getServiceLocator()
+      .getServiceInvalidator()
+      .clearAllWithStorage(this.holderStorage, {
+        waitForSettlement: true,
+        maxRounds: 10,
+      })
 
-    await Promise.all(cleanupPromises)
-
-    // Clear the context
+    // Clear the context (any remaining holders that weren't invalidated)
     this.requestContextHolder.clear()
 
     // Remove from parent's active requests

@@ -26,6 +26,10 @@ import {
   FactoryInjectionToken,
   InjectionToken,
 } from './injection-token.mjs'
+import {
+  getCurrentResolutionContext,
+  withResolutionContext,
+} from './resolution-context.mjs'
 import { ServiceLocatorInstanceHolderStatus } from './service-locator-instance-holder.mjs'
 import { SingletonHolderStorage } from './singleton-holder-storage.mjs'
 
@@ -255,30 +259,46 @@ export class InstanceResolver {
     // Store holder immediately (for lock mechanism)
     storage.set(instanceName, holder)
 
-    // Start async instantiation
-    this.serviceInstantiator
-      .instantiateService(ctx, record, args)
-      .then(async ([error, instance]) => {
-        await this.handleInstantiationResult(
-          instanceName,
-          holder,
-          ctx,
-          deferred,
-          scope,
-          error,
-          instance,
-          scopedContainer,
-        )
-      })
-      .catch(async (error) => {
-        await this.handleInstantiationError(
-          instanceName,
-          holder,
-          deferred,
-          scope,
-          error,
-        )
-      })
+    // Create a getHolder function that looks up holders from both the manager and storage
+    const getHolder = (name: string): ServiceLocatorInstanceHolder | undefined => {
+      // First check the storage (which might be request-scoped)
+      const storageResult = storage.get(name)
+      if (storageResult !== null) {
+        const [, storageHolder] = storageResult
+        if (storageHolder) return storageHolder
+      }
+      // Fall back to the singleton manager
+      const [, managerHolder] = this.manager.get(name)
+      return managerHolder
+    }
+
+    // Start async instantiation within the resolution context
+    // This allows circular dependency detection to track the waiter
+    withResolutionContext(holder, getHolder, () => {
+      this.serviceInstantiator
+        .instantiateService(ctx, record, args)
+        .then(async ([error, instance]) => {
+          await this.handleInstantiationResult(
+            instanceName,
+            holder,
+            ctx,
+            deferred,
+            scope,
+            error,
+            instance,
+            scopedContainer,
+          )
+        })
+        .catch(async (error) => {
+          await this.handleInstantiationError(
+            instanceName,
+            holder,
+            deferred,
+            scope,
+            error,
+          )
+        })
+    })
 
     // Wait for instance to be ready
     return this.waitForInstanceReady(holder)
@@ -298,10 +318,32 @@ export class InstanceResolver {
       `[InstanceResolver]#createTransientInstance() Creating transient instance for ${instanceName}`,
     )
 
-    const [error, instance] = await this.serviceInstantiator.instantiateService(
-      ctx,
-      record,
-      args,
+    // Create a temporary holder for resolution context (transient instances can still have deps)
+    const tempHolder: ServiceLocatorInstanceHolder<Instance> = {
+      status: ServiceLocatorInstanceHolderStatus.Creating,
+      name: instanceName,
+      instance: null,
+      creationPromise: null,
+      destroyPromise: null,
+      type: record.type,
+      scope: InjectableScope.Transient,
+      deps: ctx.deps,
+      destroyListeners: [],
+      createdAt: Date.now(),
+      waitingFor: new Set(),
+    }
+
+    // Create a getHolder function for resolution context
+    const getHolder = (name: string): ServiceLocatorInstanceHolder | undefined => {
+      const [, managerHolder] = this.manager.get(name)
+      return managerHolder
+    }
+
+    // Run instantiation within resolution context for cycle detection
+    const [error, instance] = await withResolutionContext(
+      tempHolder,
+      getHolder,
+      () => this.serviceInstantiator.instantiateService(ctx, record, args),
     )
 
     if (error) {
@@ -320,6 +362,7 @@ export class InstanceResolver {
       deps: ctx.deps,
       destroyListeners: ctx.getDestroyListeners(),
       createdAt: Date.now(),
+      waitingFor: new Set(),
     }
 
     return [undefined, holder]
@@ -422,11 +465,19 @@ export class InstanceResolver {
   /**
    * Waits for an instance holder to be ready and returns the appropriate result.
    * Uses the shared utility from BaseInstanceHolderManager.
+   * Passes the current resolution context for circular dependency detection.
    */
   private waitForInstanceReady<T>(
     holder: ServiceLocatorInstanceHolder<T>,
   ): Promise<[undefined, ServiceLocatorInstanceHolder<T>] | [DIError]> {
-    return BaseInstanceHolderManager.waitForHolderReady(holder)
+    // Get the current resolution context (if we're inside an instantiation)
+    const ctx = getCurrentResolutionContext()
+
+    return BaseInstanceHolderManager.waitForHolderReady(
+      holder,
+      ctx?.waiterHolder,
+      ctx?.getHolder,
+    )
   }
 
   /**

@@ -110,11 +110,21 @@ export class RequestHolderStorage implements IHolderStorage {
 
   findDependents(instanceName: string): string[] {
     const dependents: string[] = []
+
+    // Check request-scoped holders
     for (const [name, holder] of this.contextHolder.holders) {
       if (holder.deps.has(instanceName)) {
         dependents.push(name)
       }
     }
+
+    // Also check singleton holders - a singleton may depend on this request-scoped service
+    for (const [name, holder] of this.holderManager.filter(() => true)) {
+      if (holder.deps.has(instanceName)) {
+        dependents.push(name)
+      }
+    }
+
     return dependents
   }
 }

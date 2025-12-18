@@ -1,5 +1,6 @@
 import type { ServiceLocatorInstanceHolder } from './service-locator-instance-holder.mjs'
 
+import { CircularDependencyDetector } from './circular-dependency-detector.mjs'
 import { InjectableScope, InjectableType } from './enums/index.mjs'
 import { DIError } from './errors/index.mjs'
 import { ServiceLocatorInstanceHolderStatus } from './service-locator-instance-holder.mjs'
@@ -116,6 +117,7 @@ export abstract class BaseInstanceHolderManager {
       deps,
       destroyListeners: [],
       createdAt: Date.now(),
+      waitingFor: new Set(),
     }
 
     return [deferred, holder]
@@ -149,6 +151,7 @@ export abstract class BaseInstanceHolderManager {
       deps,
       destroyListeners: [],
       createdAt: Date.now(),
+      waitingFor: new Set(),
     }
 
     return holder
@@ -180,15 +183,47 @@ export abstract class BaseInstanceHolderManager {
    * This is a shared utility used by both singleton and request-scoped resolution.
    *
    * @param holder The holder to wait for
+   * @param waiterHolder Optional holder that is doing the waiting (for circular dependency detection)
+   * @param getHolder Optional function to retrieve holders by name (required if waiterHolder is provided)
    * @returns A promise that resolves with [undefined, holder] on success or [DIError] on failure
    */
   static async waitForHolderReady<T>(
     holder: ServiceLocatorInstanceHolder<T>,
+    waiterHolder?: ServiceLocatorInstanceHolder,
+    getHolder?: (name: string) => ServiceLocatorInstanceHolder | undefined,
   ): Promise<HolderReadyResult<T>> {
     switch (holder.status) {
-      case ServiceLocatorInstanceHolderStatus.Creating:
-        await holder.creationPromise
-        return BaseInstanceHolderManager.waitForHolderReady(holder)
+      case ServiceLocatorInstanceHolderStatus.Creating: {
+        // Check for circular dependency before waiting
+        if (waiterHolder && getHolder) {
+          const cycle = CircularDependencyDetector.detectCycle(
+            waiterHolder.name,
+            holder.name,
+            getHolder,
+          )
+          if (cycle) {
+            return [DIError.circularDependency(cycle)]
+          }
+
+          // Track the waiting relationship
+          waiterHolder.waitingFor.add(holder.name)
+        }
+
+        try {
+          await holder.creationPromise
+        } finally {
+          // Clean up the waiting relationship
+          if (waiterHolder) {
+            waiterHolder.waitingFor.delete(holder.name)
+          }
+        }
+
+        return BaseInstanceHolderManager.waitForHolderReady(
+          holder,
+          waiterHolder,
+          getHolder,
+        )
+      }
 
       case ServiceLocatorInstanceHolderStatus.Destroying:
         return [DIError.instanceDestroying(holder.name)]

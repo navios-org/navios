@@ -21,6 +21,8 @@ export interface InvalidationOptions {
   onInvalidated?: (instanceName: string) => Promise<void>
   /** Whether to cascade invalidation to dependents (default: true) */
   cascade?: boolean
+  /** Internal: tracks services being invalidated in the current call chain to prevent circular loops */
+  _invalidating?: Set<string>
 }
 
 /**
@@ -64,7 +66,15 @@ export class ServiceInvalidator {
     round = 1,
     options: InvalidationOptions = {},
   ): Promise<void> {
-    const { cascade = true } = options
+    const { cascade = true, _invalidating = new Set<string>() } = options
+
+    // Prevent infinite recursion from circular dependencies
+    if (_invalidating.has(service)) {
+      this.logger?.log(
+        `[ServiceInvalidator] Skipping ${service} - already being invalidated in this chain`,
+      )
+      return
+    }
 
     this.logger?.log(
       `[ServiceInvalidator] Starting invalidation process for ${service}`,
@@ -75,17 +85,23 @@ export class ServiceInvalidator {
       return
     }
 
+    // Mark this service as being invalidated
+    _invalidating.add(service)
+
+    // Pass the tracking set to cascaded invalidations
+    const optionsWithTracking = { ...options, _invalidating }
+
     // Cascade invalidation: first invalidate all services that depend on this one
     if (cascade) {
       const dependents = storage.findDependents(service)
       for (const dependentName of dependents) {
-        await this.invalidateWithStorage(dependentName, storage, round, options)
+        await this.invalidateWithStorage(dependentName, storage, round, optionsWithTracking)
       }
     }
 
     const [, holder] = result
     if (holder) {
-      await this.invalidateHolderWithStorage(service, holder, storage, round, options)
+      await this.invalidateHolderWithStorage(service, holder, storage, round, optionsWithTracking)
     }
   }
 

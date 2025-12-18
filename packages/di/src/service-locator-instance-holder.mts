@@ -22,6 +22,8 @@ export interface ServiceLocatorInstanceHolderCreating<Instance> {
   deps: Set<string>
   destroyListeners: ServiceLocatorInstanceDestroyListener[]
   createdAt: number
+  /** Tracks which services this holder is currently waiting for (for circular dependency detection) */
+  waitingFor: Set<string>
 }
 
 export interface ServiceLocatorInstanceHolderCreated<Instance> {
@@ -35,6 +37,8 @@ export interface ServiceLocatorInstanceHolderCreated<Instance> {
   deps: Set<string>
   destroyListeners: ServiceLocatorInstanceDestroyListener[]
   createdAt: number
+  /** Tracks which services this holder is currently waiting for (for circular dependency detection) */
+  waitingFor: Set<string>
 }
 
 export interface ServiceLocatorInstanceHolderDestroying<Instance> {
@@ -48,6 +52,8 @@ export interface ServiceLocatorInstanceHolderDestroying<Instance> {
   deps: Set<string>
   destroyListeners: ServiceLocatorInstanceDestroyListener[]
   createdAt: number
+  /** Tracks which services this holder is currently waiting for (for circular dependency detection) */
+  waitingFor: Set<string>
 }
 
 export interface ServiceLocatorInstanceHolderError {
@@ -61,6 +67,8 @@ export interface ServiceLocatorInstanceHolderError {
   deps: Set<string>
   destroyListeners: ServiceLocatorInstanceDestroyListener[]
   createdAt: number
+  /** Tracks which services this holder is currently waiting for (for circular dependency detection) */
+  waitingFor: Set<string>
 }
 
 export type ServiceLocatorInstanceHolder<Instance = unknown> =

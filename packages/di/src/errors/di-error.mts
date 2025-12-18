@@ -3,6 +3,7 @@ export enum DIErrorCode {
   FactoryTokenNotResolved = 'FactoryTokenNotResolved',
   InstanceNotFound = 'InstanceNotFound',
   InstanceDestroying = 'InstanceDestroying',
+  CircularDependency = 'CircularDependency',
   UnknownError = 'UnknownError',
 }
 
@@ -65,5 +66,14 @@ export class DIError extends Error {
       })
     }
     return new DIError(DIErrorCode.UnknownError, message, context)
+  }
+
+  static circularDependency(cycle: string[]): DIError {
+    const cycleStr = cycle.join(' -> ')
+    return new DIError(
+      DIErrorCode.CircularDependency,
+      `Circular dependency detected: ${cycleStr}`,
+      { cycle },
+    )
   }
 }
