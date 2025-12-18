@@ -1,9 +1,9 @@
+import type { RequestContext } from '../context/request-context.mjs'
 import type { BaseHolderManager } from './base-holder-manager.mjs'
 import type {
   HolderGetResult,
   IHolderStorage,
 } from './holder-storage.interface.mjs'
-import type { RequestContext } from '../context/request-context.mjs'
 import type { InstanceHolder } from './instance-holder.mjs'
 
 import { InjectableScope, InjectableType } from '../../enums/index.mjs'
@@ -41,7 +41,10 @@ export class RequestStorage implements IHolderStorage {
         ]
 
       case InstanceStatus.Error:
-        return [holder.instance as DIError, holder as InstanceHolder<T>]
+        return [
+          holder.instance as unknown as DIError,
+          holder as InstanceHolder<T>,
+        ]
 
       case InstanceStatus.Creating:
       case InstanceStatus.Created:
@@ -94,9 +97,7 @@ export class RequestStorage implements IHolderStorage {
     return names
   }
 
-  forEach(
-    callback: (name: string, holder: InstanceHolder) => void,
-  ): void {
+  forEach(callback: (name: string, holder: InstanceHolder) => void): void {
     for (const [name, holder] of this.contextHolder.holders) {
       callback(name, holder)
     }

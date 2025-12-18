@@ -2,23 +2,22 @@
 /* eslint-disable @typescript-eslint/no-empty-object-type */
 import type { z, ZodObject, ZodOptional } from 'zod/v4'
 
+import type { ScopedContainer } from '../../container/scoped-container.mjs'
+import type { IContainer } from '../../interfaces/container.interface.mjs'
 import type {
   AnyInjectableType,
   InjectionTokenSchemaType,
   InjectionTokenType,
 } from '../../token/injection-token.mjs'
-import type { FactoryContext } from '../context/factory-context.mjs'
-import type { IContainer } from '../../interfaces/container.interface.mjs'
-import type { IHolderStorage } from '../holder/holder-storage.interface.mjs'
 import type { Registry } from '../../token/registry.mjs'
-import type { ScopedContainer } from '../../container/scoped-container.mjs'
-import type { Instantiator } from './instantiator.mjs'
-import type { InstanceHolder } from '../holder/instance-holder.mjs'
+import type { FactoryContext } from '../context/factory-context.mjs'
 import type { HolderManager } from '../holder/holder-manager.mjs'
+import type { IHolderStorage } from '../holder/holder-storage.interface.mjs'
+import type { InstanceHolder } from '../holder/instance-holder.mjs'
+import type { Instantiator } from './instantiator.mjs'
 import type { ServiceLocator } from './service-locator.mjs'
 import type { TokenProcessor } from './token-processor.mjs'
 
-import { BaseHolderManager } from '../holder/base-holder-manager.mjs'
 import { InjectableScope } from '../../enums/index.mjs'
 import { DIError, DIErrorCode } from '../../errors/index.mjs'
 import {
@@ -30,6 +29,7 @@ import {
   getCurrentResolutionContext,
   withResolutionContext,
 } from '../context/resolution-context.mjs'
+import { BaseHolderManager } from '../holder/base-holder-manager.mjs'
 import { InstanceStatus } from '../holder/instance-holder.mjs'
 import { SingletonStorage } from '../holder/singleton-storage.mjs'
 
@@ -277,8 +277,9 @@ export class InstanceResolver {
     withResolutionContext(holder, getHolder, () => {
       this.instantiator
         .instantiateService(ctx, record, args)
-        .then(async (result: [undefined, Instance] | [Error]) => {
-          const [error, instance] = result.length === 2 ? result : [result[0], undefined]
+        .then(async (result: [undefined, Instance] | [DIError]) => {
+          const [error, instance] =
+            result.length === 2 ? result : [result[0], undefined]
           await this.handleInstantiationResult(
             instanceName,
             holder,
@@ -313,7 +314,10 @@ export class InstanceResolver {
     instanceName: string,
     record: any,
     args: any,
-    ctx: FactoryContext & { deps: Set<string>; getDestroyListeners: () => (() => void)[] },
+    ctx: FactoryContext & {
+      deps: Set<string>
+      getDestroyListeners: () => (() => void)[]
+    },
   ): Promise<[undefined, InstanceHolder<Instance>] | [DIError]> {
     this.logger?.log(
       `[InstanceResolver]#createTransientInstance() Creating transient instance for ${instanceName}`,
@@ -444,7 +448,11 @@ export class InstanceResolver {
         `[InstanceResolver]#resolveTokenAndPrepareInstanceName() Factory token not resolved, resolving it`,
       )
       await actualToken.resolve(this.createFactoryContext(contextContainer))
-      return this.resolveTokenAndPrepareInstanceName(token, undefined, contextContainer)
+      return this.resolveTokenAndPrepareInstanceName(
+        token,
+        undefined,
+        contextContainer,
+      )
     }
     const instanceName = this.tokenProcessor.generateInstanceName(
       actualToken,
@@ -551,15 +559,18 @@ export class InstanceResolver {
 
         // For request-scoped services, also listen with prefixed event name
         if (scopedContainer) {
-          const prefixedDependency = scopedContainer.getPrefixedEventName(dependency)
+          const prefixedDependency =
+            scopedContainer.getPrefixedEventName(dependency)
           holder.destroyListeners.push(
-            this.serviceLocator.getEventBus().on(prefixedDependency, 'destroy', () => {
-              this.logger?.log(
-                `[InstanceResolver] Request-scoped dependency ${dependency} destroyed, invalidating ${instanceName}`,
-              )
-              // For request-scoped, we need to invalidate within the scoped container
-              scopedContainer.invalidate(instance)
-            }),
+            this.serviceLocator
+              .getEventBus()
+              .on(prefixedDependency, 'destroy', () => {
+                this.logger?.log(
+                  `[InstanceResolver] Request-scoped dependency ${dependency} destroyed, invalidating ${instanceName}`,
+                )
+                // For request-scoped, we need to invalidate within the scoped container
+                scopedContainer.invalidate(instance)
+              }),
           )
         }
       })

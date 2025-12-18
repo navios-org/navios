@@ -7,10 +7,10 @@ import { Container } from '../container/container.mjs'
 import { Injectable } from '../decorators/injectable.decorator.mjs'
 import { InjectableScope } from '../enums/index.mjs'
 import { getInjectableToken } from '../index.mjs'
-import { InjectionToken } from '../token/injection-token.mjs'
 import { asyncInject, inject } from '../injectors.mjs'
-import { globalRegistry, Registry } from '../token/registry.mjs'
 import { ServiceLocator } from '../internal/core/service-locator.mjs'
+import { InjectionToken } from '../token/injection-token.mjs'
+import { globalRegistry } from '../token/registry.mjs'
 
 describe('ServiceLocator', () => {
   describe('getInstanceIdentifier', () => {
@@ -91,7 +91,7 @@ describe('ServiceLocator', () => {
       // Verify all services are cleared
       expect(serviceLocator.getManager().size()).toBe(0)
       expect(mockLogger.log).toHaveBeenCalledWith(
-        '[ServiceInvalidator] Graceful clearing completed',
+        '[Invalidator] Graceful clearing completed',
       )
     })
 
@@ -100,7 +100,7 @@ describe('ServiceLocator', () => {
       await serviceLocator.clearAll()
 
       expect(mockLogger.log).toHaveBeenCalledWith(
-        '[ServiceInvalidator] No services to clear',
+        '[Invalidator] No services to clear',
       )
     })
 

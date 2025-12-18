@@ -2,32 +2,51 @@
 
 ## Overview
 
-`@navios/di` is a powerful, type-safe dependency injection framework for TypeScript. It provides decorator-based service registration, multiple injection scopes, lifecycle management, and comprehensive async support.
+`@navios/di` is a powerful, type-safe dependency injection framework for TypeScript. It provides decorator-based service registration, multiple injection scopes, lifecycle management, circular dependency detection, and comprehensive async support.
 
 **Package:** `@navios/di`
 **Version:** 0.5.1
 **License:** MIT
 **Peer Dependencies:** `zod` (^3.25.0 || ^4.0.0)
 
-## Core Concepts
+## Architecture
 
-### Dependency Injection Pattern
+The library follows a modular architecture with clear separation of concerns:
 
-The DI system follows a registration-resolution pattern:
-
-1. **Registration** - Services are registered via decorators (`@Injectable`, `@Factory`)
-2. **Resolution** - Dependencies are resolved via injection functions (`inject`, `asyncInject`)
-3. **Lifecycle** - Services have scoped lifetimes and lifecycle hooks
+```
+src/
+├── container/           # Public container API
+│   ├── container.mts    # Main Container class
+│   └── scoped-container.mts  # Request-scoped ScopedContainer
+├── decorators/          # @Injectable, @Factory decorators
+├── enums/               # InjectableScope, InjectableType
+├── errors/              # DIError, DIErrorCode
+├── interfaces/          # Public interfaces
+├── internal/            # Internal implementation
+│   ├── context/         # Resolution and request contexts
+│   ├── core/            # Service locator, resolver, instantiator
+│   ├── holder/          # Instance holder management
+│   └── lifecycle/       # Event bus, circular detector
+├── symbols/             # Symbol constants
+├── testing/             # TestContainer utilities
+├── token/               # InjectionToken, Registry
+└── utils/               # Injection utilities
+```
 
 ### Key Components
 
-| Component             | Purpose                                 |
-| --------------------- | --------------------------------------- |
-| `Registry`            | Central storage for service metadata    |
-| `Container`           | Main entry point for service resolution |
-| `ServiceLocator`      | Coordinates dependency resolution       |
-| `ServiceInstantiator` | Creates service instances               |
-| `InjectionToken`      | Type-safe tokens for dynamic resolution |
+| Component         | Purpose                                           |
+| ----------------- | ------------------------------------------------- |
+| `Container`       | Main entry point for service resolution           |
+| `ScopedContainer` | Request-scoped container for isolated resolution  |
+| `Registry`        | Central storage for service metadata              |
+| `ServiceLocator`  | Coordinates dependency resolution                 |
+| `Instantiator`    | Creates service instances                         |
+| `InstanceResolver`| Resolves instances from storage or creates new    |
+| `Invalidator`     | Handles service invalidation and cleanup          |
+| `TokenProcessor`  | Normalizes and processes injection tokens         |
+| `CircularDetector`| Detects circular dependencies during resolution   |
+| `InjectionToken`  | Type-safe tokens for dynamic resolution           |
 
 ---
 
@@ -74,12 +93,17 @@ class TransientService {
 Marks a class as a factory for creating service instances.
 
 ```typescript
-import { Factorable, Factory } from '@navios/di'
+import { Factorable, Factory, FactoryContext } from '@navios/di'
 
 @Factory()
 class ConnectionFactory implements Factorable<Connection> {
   async create(ctx?: FactoryContext): Promise<Connection> {
-    return new Connection(await this.getConfig())
+    const config = await ctx?.inject(ConfigService)
+    const connection = new Connection(config)
+
+    ctx?.addDestroyListener(() => connection.close())
+
+    return connection
   }
 }
 ```
@@ -100,7 +124,7 @@ class ConnectionFactory implements Factorable<Connection> {
 enum InjectableScope {
   Singleton = 'singleton', // One instance for entire application
   Transient = 'transient', // New instance per injection
-  Request = 'request', // One instance per request context
+  Request = 'request',     // One instance per request context
 }
 ```
 
@@ -129,7 +153,7 @@ class LogEntry {
 
 #### Request
 
-One instance per request context. Requires explicit request context management.
+One instance per request context. Requires using `ScopedContainer`.
 
 ```typescript
 @Injectable({ scope: InjectableScope.Request })
@@ -165,7 +189,7 @@ class OrderService {
 
 #### `asyncInject<T>(token: T, args?): Promise<T>`
 
-Asynchronously injects a dependency. Primarily used for resolving circular dependencies where two services depend on each other.
+Asynchronously injects a dependency. Use for circular dependencies.
 
 ```typescript
 import { asyncInject } from '@navios/di'
@@ -173,7 +197,6 @@ import { asyncInject } from '@navios/di'
 // Circular dependency example
 @Injectable()
 class ServiceA {
-  // Use asyncInject to break circular dependency
   private serviceB = asyncInject(ServiceB)
 
   async doSomething() {
@@ -218,6 +241,32 @@ class NotificationService {
 }
 ```
 
+#### `wrapSyncInit<T>(fn: () => T): T`
+
+Wraps a synchronous initialization function.
+
+```typescript
+import { wrapSyncInit } from '@navios/di'
+
+const result = wrapSyncInit(() => {
+  // Synchronous initialization logic
+  return computedValue
+})
+```
+
+#### `provideFactoryContext<T>(ctx: FactoryContext, fn: () => T): T`
+
+Provides a factory context for the duration of a function execution.
+
+```typescript
+import { provideFactoryContext } from '@navios/di'
+
+const result = provideFactoryContext(ctx, () => {
+  // Factory context is available here
+  return createdValue
+})
+```
+
 ---
 
 ### Injection Tokens
@@ -228,7 +277,6 @@ Creates type-safe tokens for dynamic dependency resolution.
 
 ```typescript
 import { InjectionToken } from '@navios/di'
-
 import { z } from 'zod'
 
 // Simple token
@@ -285,26 +333,31 @@ import { Container } from '@navios/di'
 const container = new Container()
 ```
 
+#### Constructor
+
+```typescript
+constructor(
+  registry: Registry = globalRegistry,
+  logger: Console | null = null,
+  injectors: Injectors = defaultInjectors
+)
+```
+
 #### Methods
 
-| Method                 | Return           | Description                                   |
-| ---------------------- | ---------------- | --------------------------------------------- |
-| `get<T>(token, args?)` | `Promise<T>`     | Resolve a service instance with optional args |
-| `invalidate(service)`  | `Promise<void>`  | Invalidate service and dependents             |
-| `ready()`              | `Promise<void>`  | Wait for all pending operations               |
-| `isRegistered(token)`  | `boolean`        | Check if service is registered                |
-| `dispose()`            | `Promise<void>`  | Clean up all resources                        |
-| `clear()`              | `Promise<void>`  | Clear all instances and bindings              |
-| `getServiceLocator()`  | `ServiceLocator` | Access underlying service locator             |
-
-#### Request Context Methods
-
-| Method                                          | Return                         | Description                       |
-| ----------------------------------------------- | ------------------------------ | --------------------------------- |
-| `beginRequest(requestId, metadata?, priority?)` | `RequestContextHolder`         | Start a new request context       |
-| `endRequest(requestId)`                         | `Promise<void>`                | End and cleanup a request context |
-| `getCurrentRequestContext()`                    | `RequestContextHolder \| null` | Get the current request context   |
-| `setCurrentRequestContext(requestId)`           | `void`                         | Set the active request context    |
+| Method                              | Return                  | Description                           |
+| ----------------------------------- | ----------------------- | ------------------------------------- |
+| `get<T>(token, args?)`              | `Promise<T>`            | Resolve a service instance            |
+| `invalidate(service)`               | `Promise<void>`         | Invalidate service and dependents     |
+| `ready()`                           | `Promise<void>`         | Wait for all pending operations       |
+| `isRegistered(token)`               | `boolean`               | Check if service is registered        |
+| `dispose()`                         | `Promise<void>`         | Clean up all resources                |
+| `clear()`                           | `Promise<void>`         | Clear all instances and bindings      |
+| `getServiceLocator()`               | `ServiceLocator`        | Access underlying service locator     |
+| `getRegistry()`                     | `Registry`              | Get the registry                      |
+| `beginRequest(id, metadata?, prio?)`| `ScopedContainer`       | Start a new request context           |
+| `getActiveRequestIds()`             | `ReadonlySet<string>`   | Get active request IDs                |
+| `hasActiveRequest(id)`              | `boolean`               | Check if request is active            |
 
 #### Example
 
@@ -327,29 +380,57 @@ await container.ready()
 await container.dispose()
 ```
 
+---
+
+### ScopedContainer API
+
+The `ScopedContainer` class provides isolated request-scoped service resolution.
+
+```typescript
+const scopedContainer = container.beginRequest('req-123', { userId: 456 })
+```
+
+#### Methods
+
+| Method                       | Return                  | Description                           |
+| ---------------------------- | ----------------------- | ------------------------------------- |
+| `get<T>(token, args?)`       | `Promise<T>`            | Resolve a service (scoped or parent)  |
+| `invalidate(service)`        | `Promise<void>`         | Invalidate a service                  |
+| `endRequest()`               | `Promise<void>`         | End request and cleanup               |
+| `dispose()`                  | `Promise<void>`         | Alias for endRequest()                |
+| `ready()`                    | `Promise<void>`         | Wait for pending operations           |
+| `isRegistered(token)`        | `boolean`               | Check if service is registered        |
+| `getMetadata(key)`           | `any`                   | Get request metadata                  |
+| `setMetadata(key, value)`    | `void`                  | Set request metadata                  |
+| `addInstance(token, inst)`   | `void`                  | Add pre-prepared instance             |
+| `getRequestId()`             | `string`                | Get the request ID                    |
+| `getParent()`                | `Container`             | Get the parent container              |
+| `getRequestContextHolder()`  | `RequestContext`        | Get underlying request context        |
+| `getHolderStorage()`         | `IHolderStorage`        | Get holder storage                    |
+
 #### Request Context Example
 
 ```typescript
 const container = new Container()
 
 // Begin a request context (e.g., in HTTP middleware)
-const requestContext = container.beginRequest('req-123', {
+const scopedContainer = container.beginRequest('req-123', {
   userId: 'user-456',
   correlationId: 'corr-789',
 })
 
-// Set as current context for this async flow
-container.setCurrentRequestContext('req-123')
+// Request-scoped services are isolated to this request
+const requestLogger = await scopedContainer.get(RequestLogger)
 
-// Request-scoped services are now isolated to this request
-const requestLogger = await container.get(RequestLogger)
+// Access metadata
+const userId = scopedContainer.getMetadata('userId')
 
-// Access metadata from context
-const currentContext = container.getCurrentRequestContext()
-const userId = currentContext?.getMetadata()?.userId
+// Add pre-prepared instances
+const REQUEST_ID = InjectionToken.create<string>('REQUEST_ID')
+scopedContainer.addInstance(REQUEST_ID, 'req-123')
 
 // End request and cleanup request-scoped instances
-await container.endRequest('req-123')
+await scopedContainer.endRequest()
 ```
 
 ---
@@ -408,7 +489,7 @@ interface FactorableWithArgs<T, Schema extends ZodType> {
 }
 ```
 
-#### Factory Context
+#### FactoryContext
 
 The `FactoryContext` provides access to DI within factories:
 
@@ -443,42 +524,32 @@ class HttpClientFactory implements Factorable<HttpClient> {
 
 ---
 
-### Request Context
+### RequestContext
 
-For request-scoped services, manage request boundaries:
+The `RequestContext` interface manages request-scoped instances.
 
 ```typescript
-import { RequestContextHolder } from '@navios/di'
+interface RequestContext {
+  readonly requestId: string
+  readonly priority: number
+  readonly metadata: Map<string, any>
+  readonly createdAt: number
+  readonly holders: Map<string, InstanceHolder>
 
-// Begin a request
-const requestId = 'req-123'
-const context = requestContextHolder.beginRequest(requestId, {
-  userId: 'user-456',
-})
-
-// Set as current
-requestContextHolder.setCurrentRequestContext(requestId)
-
-// Get current
-const current = requestContextHolder.getCurrentRequestContext()
-
-// Access metadata
-const metadata = current?.getMetadata()
-
-// End request (cleans up request-scoped services)
-requestContextHolder.endRequest(requestId)
+  addInstance(token: InjectionToken, instance: any): void
+  addInstance(name: string, instance: any, holder: InstanceHolder): void
+  get(instanceName: string): InstanceHolder | undefined
+  set(instanceName: string, holder: InstanceHolder): void
+  has(instanceName: string): boolean
+  clear(): void
+  getMetadata(key: string): any | undefined
+  setMetadata(key: string, value: any): void
+  filter(predicate: (value, key) => boolean): Map<string, InstanceHolder>
+  delete(name: string): boolean
+  size(): number
+  isEmpty(): boolean
+}
 ```
-
-#### Methods
-
-| Method                                   | Description                       |
-| ---------------------------------------- | --------------------------------- |
-| `beginRequest(id, metadata?, priority?)` | Start a new request context       |
-| `endRequest(id)`                         | End and cleanup a request context |
-| `setCurrentRequestContext(id)`           | Set the active request context    |
-| `getCurrentRequestContext()`             | Get the current request context   |
-| `getMetadata()`                          | Get metadata from current context |
-| `setMetadata(key, value)`                | Set metadata on current context   |
 
 ---
 
@@ -492,6 +563,7 @@ enum DIErrorCode {
   FactoryTokenNotResolved = 'FACTORY_TOKEN_NOT_RESOLVED',
   InstanceNotFound = 'INSTANCE_NOT_FOUND',
   InstanceDestroying = 'INSTANCE_DESTROYING',
+  CircularDependency = 'CIRCULAR_DEPENDENCY',
   UnknownError = 'UNKNOWN_ERROR',
 }
 ```
@@ -511,6 +583,9 @@ try {
         break
       case DIErrorCode.InstanceDestroying:
         console.error('Service is being destroyed')
+        break
+      case DIErrorCode.CircularDependency:
+        console.error('Circular dependency detected')
         break
     }
   }
@@ -533,6 +608,10 @@ describe('UserService', () => {
 
   beforeEach(() => {
     container = new TestContainer()
+  })
+
+  afterEach(async () => {
+    await container.dispose()
   })
 
   it('should create user', async () => {
@@ -594,10 +673,80 @@ Invalidate a service and all its dependents:
 
 ```typescript
 // Invalidate a service (calls onServiceDestroy)
-await container.invalidate(DatabaseService)
+await container.invalidate(databaseService)
 
 // The service and any services that depend on it are destroyed
 // They will be re-created on next injection
+```
+
+---
+
+## Internal Components
+
+These components are exported for advanced use cases but are considered internal API.
+
+### InstanceHolder
+
+Represents a managed service instance with its lifecycle state.
+
+```typescript
+enum InstanceStatus {
+  Creating = 'creating',
+  Created = 'created',
+  Destroying = 'destroying',
+  Error = 'error',
+}
+
+interface InstanceHolder<T = unknown> {
+  name: string
+  instance: T | null
+  status: InstanceStatus
+  type: InjectableType
+  scope: InjectableScope
+  dependencies: Set<string>
+  dependents: Set<string>
+  // ... additional properties
+}
+```
+
+### HolderManager
+
+Manages instance holders and their lifecycle.
+
+```typescript
+class HolderManager extends BaseHolderManager {
+  get(instanceName: string): InstanceHolder | undefined
+  storeCreatingHolder(name, type, scope): InstanceHolder
+  storeCreatedHolder(name, instance, type, scope): InstanceHolder
+  filter(predicate): Map<string, InstanceHolder>
+  // ...
+}
+```
+
+### CircularDetector
+
+Detects circular dependencies during resolution.
+
+```typescript
+class CircularDetector {
+  beginResolution(instanceName: string): void
+  endResolution(instanceName: string): void
+  isResolving(instanceName: string): boolean
+  getResolutionPath(): string[]
+}
+```
+
+### LifecycleEventBus
+
+Manages lifecycle events for services.
+
+```typescript
+class LifecycleEventBus {
+  onCreated(instanceName: string, callback: () => void): void
+  onDestroyed(instanceName: string, callback: () => void): void
+  emitCreated(instanceName: string): void
+  emitDestroyed(instanceName: string): void
+}
 ```
 
 ---
@@ -611,7 +760,6 @@ Handle circular dependencies using `asyncInject`:
 ```typescript
 @Injectable()
 class ServiceA {
-  // Use asyncInject to break the circular dependency
   private serviceB = asyncInject(ServiceB)
 
   async doSomething() {
@@ -622,7 +770,6 @@ class ServiceA {
 
 @Injectable()
 class ServiceB {
-  // One side can use regular inject
   private serviceA = inject(ServiceA)
 
   process() {
@@ -631,7 +778,7 @@ class ServiceB {
 }
 ```
 
-At least one side of the circular dependency must use `asyncInject` to break the cycle. The async injection defers resolution until the dependency is actually needed.
+At least one side of the circular dependency must use `asyncInject` to break the cycle.
 
 ### Conditional Services
 
@@ -668,7 +815,7 @@ class ServerService {
 }
 
 // Inject with validated args
-const server = await asyncInject(ServerService, {
+const server = await container.get(ServerService, {
   host: 'localhost',
   port: 3000,
 })
@@ -769,10 +916,10 @@ class ConsoleLogger implements Logger {
 ### 4. Prefer asyncInject for Circular Dependencies
 
 ```typescript
-// Avoid - may throw if not ready
+// May throw if circular - use asyncInject to break cycle
 const service = inject(ServiceA)
 
-// Prefer - always safe
+// Safe for circular dependencies
 const service = await asyncInject(ServiceA)
 ```
 
@@ -790,5 +937,21 @@ describe('Tests', () => {
   afterEach(async () => {
     await container.dispose()
   })
+})
+```
+
+### 6. Use ScopedContainer for Request Isolation
+
+```typescript
+// In HTTP middleware
+app.use(async (req, res, next) => {
+  const scopedContainer = container.beginRequest(req.id, { userId: req.userId })
+  req.container = scopedContainer
+
+  try {
+    await next()
+  } finally {
+    await scopedContainer.endRequest()
+  }
 })
 ```

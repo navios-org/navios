@@ -118,6 +118,7 @@ export {
   resolutionContext,
   withResolutionContext,
   getCurrentResolutionContext,
+  withoutResolutionContext,
 } from './internal/context/resolution-context.mjs'
 
 // Holder types

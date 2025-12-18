@@ -48,3 +48,16 @@ export function withResolutionContext<T>(
 export function getCurrentResolutionContext(): ResolutionContextData | undefined {
   return resolutionContext.getStore()
 }
+
+/**
+ * Runs a function outside any resolution context.
+ *
+ * This is useful for async injections that should not participate
+ * in circular dependency detection since they don't block.
+ *
+ * @param fn The function to run without resolution context
+ */
+export function withoutResolutionContext<T>(fn: () => T): T {
+  // Run with undefined context to clear any current context
+  return resolutionContext.run(undefined as any, fn)
+}

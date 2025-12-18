@@ -1,19 +1,19 @@
 # Navios DI
 
-A powerful, type-safe dependency injection library for TypeScript applications. Navios DI provides a modern, decorator-based approach to dependency injection with support for singletons, transients, factories, injection tokens, and service lifecycle management.
+A powerful, type-safe dependency injection library for TypeScript applications. Navios DI provides a modern, decorator-based approach to dependency injection with support for singletons, transients, request-scoped services, factories, injection tokens, and service lifecycle management.
 
 ## Features
 
-- 🎯 **Type-safe**: Full TypeScript support with compile-time type checking
-- 🏗️ **Decorator-based**: Clean, declarative syntax using decorators
-- 🔄 **Lifecycle Management**: Built-in support for service initialization and cleanup
-- 🏭 **Factory Pattern**: Create instances using factory classes
-- 🎫 **Injection Tokens**: Flexible token-based dependency resolution
-- 📦 **Scoped Instances**: Singleton and transient scopes
-- ⚡ **Async/Sync Injection**: Both synchronous and asynchronous dependency resolution
-- 🔧 **Container API**: Simple container-based API for dependency management
-- 🌐 **Request Context**: Manage request-scoped services with automatic cleanup
-- 🔀 **Priority Resolution**: Request contexts with priority-based resolution
+- **Type-safe**: Full TypeScript support with compile-time type checking
+- **Decorator-based**: Clean, declarative syntax using decorators
+- **Lifecycle Management**: Built-in support for service initialization and cleanup
+- **Factory Pattern**: Create instances using factory classes
+- **Injection Tokens**: Flexible token-based dependency resolution
+- **Scoped Instances**: Singleton, transient, and request scopes
+- **Async/Sync Injection**: Both synchronous and asynchronous dependency resolution
+- **Container API**: Simple container-based API for dependency management
+- **Request Context**: Manage request-scoped services with automatic cleanup via ScopedContainer
+- **Circular Dependency Detection**: Automatic detection and helpful error messages for circular dependencies
 
 ## Installation
 
@@ -74,11 +74,38 @@ await container.invalidate(service)
 // Wait for all pending operations
 await container.ready()
 
-// Request context management
-const context = container.beginRequest('req-123', { userId: 456 })
-container.setCurrentRequestContext('req-123')
-// ... do work within request context
-await container.endRequest('req-123')
+// Clean up all resources
+await container.dispose()
+```
+
+### ScopedContainer (Request Context)
+
+For request-scoped services, use `ScopedContainer` which provides isolated service resolution:
+
+```typescript
+import { Container, Injectable, InjectableScope } from '@navios/di'
+
+@Injectable({ scope: InjectableScope.Request })
+class RequestLogger {
+  constructor() {
+    console.log('New logger for this request')
+  }
+}
+
+const container = new Container()
+
+// Begin a request context - returns a ScopedContainer
+const scopedContainer = container.beginRequest('req-123', { userId: 456 })
+
+// Use the scoped container for request-scoped services
+const logger = await scopedContainer.get(RequestLogger)
+
+// Access metadata
+scopedContainer.setMetadata('correlationId', 'abc-123')
+const corrId = scopedContainer.getMetadata('correlationId')
+
+// End the request (cleanup all request-scoped instances)
+await scopedContainer.endRequest()
 ```
 
 ### Injectable Decorator
@@ -87,8 +114,6 @@ The `@Injectable` decorator marks a class as injectable:
 
 ```typescript
 import { Injectable, InjectableScope } from '@navios/di'
-
-// With schema (for constructor arguments)
 import { z } from 'zod'
 
 // Singleton (default)
@@ -99,10 +124,15 @@ class SingletonService {}
 @Injectable({ scope: InjectableScope.Transient })
 class TransientService {}
 
+// Request-scoped (new instance per request context)
+@Injectable({ scope: InjectableScope.Request })
+class RequestService {}
+
 // With custom injection token
 @Injectable({ token: MyToken })
 class TokenizedService {}
 
+// With schema for constructor arguments
 const configSchema = z.object({
   host: z.string(),
   port: z.number(),
@@ -141,7 +171,7 @@ class NotificationService {
 
 #### `asyncInject` - Asynchronous Injection
 
-Use `asyncInject` for async dependency resolution:
+Use `asyncInject` for async dependency resolution, especially useful for circular dependencies:
 
 ```typescript
 @Injectable()
@@ -155,21 +185,46 @@ class AsyncService {
 }
 ```
 
+#### `optional` - Optional Injection
+
+Use `optional` to inject a dependency only if it's available:
+
+```typescript
+@Injectable()
+class FeatureService {
+  private readonly analytics = optional(AnalyticsService)
+
+  track(event: string) {
+    // Only calls analytics if the service is available
+    this.analytics?.track(event)
+  }
+}
+```
+
 ### Factory Decorator
 
 Create instances using factory classes:
 
 ```typescript
-import { Factory } from '@navios/di'
+import { Factory, Factorable, FactoryContext } from '@navios/di'
 
 @Factory()
-class DatabaseConnectionFactory {
-  create() {
-    return {
-      host: 'localhost',
-      port: 5432,
+class DatabaseConnectionFactory implements Factorable<Connection> {
+  async create(ctx?: FactoryContext) {
+    const config = await ctx?.inject(ConfigService)
+
+    const connection = {
+      host: config?.host ?? 'localhost',
+      port: config?.port ?? 5432,
       connected: true,
     }
+
+    // Register cleanup callback
+    ctx?.addDestroyListener(() => {
+      connection.connected = false
+    })
+
+    return connection
   }
 }
 
@@ -203,46 +258,9 @@ class DatabaseService implements OnServiceInit, OnServiceDestroy {
 
   private async connect() {
     // Database connection logic
-    return { connected: true }
+    return { connected: true, close: async () => {} }
   }
 }
-```
-
-### Request Context Management
-
-Manage request-scoped services with automatic cleanup and priority-based resolution:
-
-```typescript
-import { Container, Injectable, InjectionToken } from '@navios/di'
-
-const REQUEST_ID_TOKEN = InjectionToken.create<string>('REQUEST_ID')
-
-@Injectable()
-class RequestLogger {
-  private readonly requestId = asyncInject(REQUEST_ID_TOKEN)
-
-  async log(message: string) {
-    const id = await this.requestId
-    console.log(`[${id}] ${message}`)
-  }
-}
-
-// Usage
-const container = new Container()
-
-// Begin a request context
-const context = container.beginRequest('req-123', { userId: 456 }, 100)
-context.addInstance(REQUEST_ID_TOKEN, 'req-123')
-
-// Set as current context
-container.setCurrentRequestContext('req-123')
-
-// Use services within the request context
-const logger = await container.get(RequestLogger)
-await logger.log('Processing request') // "[req-123] Processing request"
-
-// End the request context (automatically cleans up)
-await container.endRequest('req-123')
 ```
 
 ### Injection Tokens
@@ -253,7 +271,6 @@ Use injection tokens for flexible dependency resolution:
 
 ```typescript
 import { Container, Injectable, InjectionToken } from '@navios/di'
-
 import { z } from 'zod'
 
 const configSchema = z.object({
@@ -261,7 +278,7 @@ const configSchema = z.object({
   timeout: z.number(),
 })
 
-const CONFIG_TOKEN = InjectionToken.create<Config, typeof configSchema>(
+const CONFIG_TOKEN = InjectionToken.create<z.infer<typeof configSchema>, typeof configSchema>(
   'APP_CONFIG',
   configSchema,
 )
@@ -295,7 +312,6 @@ const BoundConfig = InjectionToken.bound(CONFIG_TOKEN, {
 
 // No need to provide arguments
 const container = new Container()
-
 const config = await container.get(BoundConfig)
 ```
 
@@ -317,13 +333,10 @@ const config = await container.get(FactoryConfig)
 
 ### Injectable with Schema
 
-Instead of creating an injection token with a schema, you can directly provide a schema to the `@Injectable` decorator. This is a more concise way to define services that require constructor arguments with validation.
-
-#### Basic Schema Usage
+Instead of creating an injection token with a schema, you can directly provide a schema to the `@Injectable` decorator:
 
 ```typescript
-import { getInjectableToken, Injectable, InjectionToken } from '@navios/di'
-
+import { Injectable } from '@navios/di'
 import { z } from 'zod'
 
 const databaseConfigSchema = z.object({
@@ -342,7 +355,7 @@ class DatabaseConfig {
   }
 }
 
-// Usage with bound token
+// Usage with arguments
 const container = new Container()
 const config = await container.get(DatabaseConfig, {
   host: 'localhost',
@@ -351,34 +364,6 @@ const config = await container.get(DatabaseConfig, {
   password: 'secret',
 })
 console.log(config.getConnectionString()) // "localhost:5432"
-```
-
-#### Schema with Different Scopes
-
-```typescript
-// Singleton with schema (default)
-@Injectable({ schema: apiConfigSchema })
-class ApiConfig {
-  constructor(public readonly config: z.output<typeof apiConfigSchema>) {}
-}
-
-// Transient with schema
-@Injectable({
-  schema: loggerConfigSchema,
-  scope: InjectableScope.Transient,
-})
-class Logger {
-  constructor(public readonly config: z.output<typeof loggerConfigSchema>) {}
-}
-
-// Request-scoped with schema
-@Injectable({
-  schema: userContextSchema,
-  scope: InjectableScope.Request,
-})
-class UserContext {
-  constructor(public readonly context: z.output<typeof userContextSchema>) {}
-}
 ```
 
 #### Using Schema-based Services as Dependencies
@@ -395,7 +380,7 @@ class DatabaseConfig {
 
 @Injectable()
 class DatabaseService {
-  // Inject with bound token
+  // Inject with bound arguments
   private dbConfig = inject(DatabaseConfig, {
     connectionString: 'postgres://localhost:5432/myapp',
   })
@@ -404,113 +389,35 @@ class DatabaseService {
     return `Connecting to ${this.dbConfig.config.connectionString}`
   }
 }
-
-// Or with async injection
-@Injectable()
-class AsyncDatabaseService {
-  private dbConfig = asyncInject(DatabaseConfig, {
-    connectionString: 'postgres://localhost:5432/myapp',
-  })
-
-  async connect() {
-    const config = await this.dbConfig
-    return `Connecting to ${config.config.connectionString}`
-  }
-}
 ```
-
-#### Complex Nested Schemas
-
-```typescript
-const appConfigSchema = z.object({
-  database: z.object({
-    host: z.string(),
-    port: z.number(),
-    credentials: z.object({
-      username: z.string(),
-      password: z.string(),
-    }),
-  }),
-  cache: z.object({
-    enabled: z.boolean(),
-    ttl: z.number(),
-  }),
-  api: z.object({
-    baseUrl: z.string(),
-    timeout: z.number(),
-  }),
-})
-
-@Injectable({ schema: appConfigSchema })
-class AppConfig {
-  constructor(public readonly config: z.output<typeof appConfigSchema>) {}
-
-  getDatabaseConfig() {
-    return this.config.database
-  }
-
-  getCacheConfig() {
-    return this.config.cache
-  }
-
-  getApiConfig() {
-    return this.config.api
-  }
-}
-
-// Usage
-const container = new Container()
-const config = await container.get(AppConfig, {
-  database: {
-    host: 'db.example.com',
-    port: 5432,
-    credentials: {
-      username: 'admin',
-      password: 'secret',
-    },
-  },
-  cache: {
-    enabled: true,
-    ttl: 300,
-  },
-  api: {
-    baseUrl: 'https://api.example.com',
-    timeout: 5000,
-  },
-})
-```
-
-#### Schema vs Token with Schema
-
-There are two ways to use schemas with `@Injectable`:
-
-**Option 1: Direct Schema (Recommended for simplicity)**
-
-```typescript
-@Injectable({ schema: configSchema })
-class ConfigService {
-  constructor(public readonly config: z.output<typeof configSchema>) {}
-}
-```
-
-**Option 2: Token with Schema (Use when you need to share the token)**
-
-```typescript
-const CONFIG_TOKEN = InjectionToken.create('CONFIG', configSchema)
-
-@Injectable({ token: CONFIG_TOKEN })
-class ConfigService {
-  constructor(public readonly config: z.output<typeof configSchema>) {}
-}
-```
-
-The direct schema approach is simpler and creates the injection token automatically. Use the token approach when you need to:
-
-- Share the same token across multiple classes
-- Reference the token in multiple places
-- Have more control over the token name
 
 ## Advanced Usage
+
+### Circular Dependency Detection
+
+The library automatically detects circular dependencies and provides helpful error messages:
+
+```typescript
+@Injectable()
+class ServiceA {
+  // Use asyncInject to break circular dependency
+  private serviceB = asyncInject(ServiceB)
+
+  async doSomething() {
+    const b = await this.serviceB
+    return b.getValue()
+  }
+}
+
+@Injectable()
+class ServiceB {
+  private serviceA = inject(ServiceA)
+
+  getValue() {
+    return 'value from B'
+  }
+}
+```
 
 ### Custom Registry
 
@@ -524,10 +431,21 @@ const container = new Container(customRegistry)
 ### Error Handling
 
 ```typescript
+import { DIError, DIErrorCode } from '@navios/di'
+
 try {
   const service = await container.get(NonExistentService)
 } catch (error) {
-  console.error('Service not found:', error.message)
+  if (error instanceof DIError) {
+    switch (error.code) {
+      case DIErrorCode.FactoryNotFound:
+        console.error('Service not registered')
+        break
+      case DIErrorCode.InstanceDestroying:
+        console.error('Service is being destroyed')
+        break
+    }
+  }
 }
 ```
 
@@ -545,14 +463,32 @@ const newService = await container.get(MyService)
 
 ### Container
 
-- `get<T>(token: T): Promise<InstanceType<T>>` - Get an instance
+- `get<T>(token: T, args?): Promise<T>` - Get an instance
 - `invalidate(service: unknown): Promise<void>` - Invalidate a service
 - `ready(): Promise<void>` - Wait for pending operations
+- `dispose(): Promise<void>` - Clean up all resources
+- `clear(): Promise<void>` - Clear all instances and bindings
+- `isRegistered(token: any): boolean` - Check if service is registered
 - `getServiceLocator(): ServiceLocator` - Get underlying service locator
-- `beginRequest(requestId: string, metadata?, priority?): RequestContextHolder` - Begin request context
-- `endRequest(requestId: string): Promise<void>` - End request context
-- `getCurrentRequestContext(): RequestContextHolder | null` - Get current request context
-- `setCurrentRequestContext(requestId: string): void` - Set current request context
+- `getRegistry(): Registry` - Get the registry
+- `beginRequest(requestId: string, metadata?, priority?): ScopedContainer` - Begin request context
+- `getActiveRequestIds(): ReadonlySet<string>` - Get active request IDs
+- `hasActiveRequest(requestId: string): boolean` - Check if request is active
+
+### ScopedContainer
+
+- `get<T>(token: T, args?): Promise<T>` - Get an instance (request-scoped or delegated)
+- `invalidate(service: unknown): Promise<void>` - Invalidate a service
+- `endRequest(): Promise<void>` - End request and cleanup
+- `dispose(): Promise<void>` - Alias for endRequest()
+- `ready(): Promise<void>` - Wait for pending operations
+- `isRegistered(token: any): boolean` - Check if service is registered
+- `getMetadata(key: string): any` - Get request metadata
+- `setMetadata(key: string, value: any): void` - Set request metadata
+- `addInstance(token: InjectionToken, instance: any): void` - Add pre-prepared instance
+- `getRequestId(): string` - Get the request ID
+- `getParent(): Container` - Get the parent container
+- `getRequestContextHolder(): RequestContext` - Get the underlying request context
 
 ### Injectable Decorator
 
@@ -560,7 +496,7 @@ const newService = await container.get(MyService)
 - Options:
   - `scope?: InjectableScope` - Service scope (Singleton | Transient | Request)
   - `token?: InjectionToken` - Custom injection token
-  - `schema?: ZodSchema` - Zod schema for constructor arguments (alternative to token)
+  - `schema?: ZodSchema` - Zod schema for constructor arguments
   - `registry?: Registry` - Custom registry
 - Note: Cannot use both `token` and `schema` options together
 
@@ -574,8 +510,11 @@ const newService = await container.get(MyService)
 
 ### Injection Methods
 
-- `inject<T>(token: T): T` - Synchronous injection
-- `asyncInject<T>(token: T): Promise<T>` - Asynchronous injection
+- `inject<T>(token: T, args?): T` - Synchronous injection
+- `asyncInject<T>(token: T, args?): Promise<T>` - Asynchronous injection
+- `optional<T>(token: T, args?): T | null` - Optional injection
+- `wrapSyncInit<T>(fn: () => T): T` - Wrap synchronous initialization
+- `provideFactoryContext<T>(ctx: FactoryContext, fn: () => T): T` - Provide factory context
 
 ### Injection Tokens
 
@@ -589,24 +528,62 @@ const newService = await container.get(MyService)
 - `OnServiceInit` - Implement `onServiceInit(): Promise<void> | void`
 - `OnServiceDestroy` - Implement `onServiceDestroy(): Promise<void> | void`
 
-### Request Context
+### RequestContext
 
-- `RequestContextHolder` - Interface for managing request-scoped instances
-- `beginRequest(requestId, metadata?, priority?)` - Create new request context
-- `endRequest(requestId)` - Clean up request context
-- `addInstance(token, instance)` - Add pre-prepared instance to context
-- `setMetadata(key, value)` - Set request-specific metadata
+- `requestId: string` - Unique request identifier
+- `priority: number` - Priority for resolution
+- `metadata: Map<string, any>` - Request metadata
+- `createdAt: number` - Creation timestamp
+- `addInstance(token, instance): void` - Add pre-prepared instance
+- `get(instanceName): InstanceHolder | undefined` - Get instance holder
+- `set(instanceName, holder): void` - Set instance holder
+- `has(instanceName): boolean` - Check if instance exists
+- `clear(): void` - Clear all instances
+- `getMetadata(key): any` - Get metadata value
+- `setMetadata(key, value): void` - Set metadata value
+
+## Testing
+
+### TestContainer
+
+```typescript
+import { TestContainer } from '@navios/di/testing'
+
+describe('UserService', () => {
+  let container: TestContainer
+
+  beforeEach(() => {
+    container = new TestContainer()
+  })
+
+  afterEach(async () => {
+    await container.dispose()
+  })
+
+  it('should create user', async () => {
+    // Bind mock
+    container.bind(DatabaseService).toValue({
+      save: vi.fn().mockResolvedValue({ id: '1' }),
+    })
+
+    const userService = await container.get(UserService)
+    const user = await userService.create({ name: 'John' })
+
+    expect(user.id).toBe('1')
+  })
+})
+```
 
 ## Best Practices
 
-1. **Use `asyncInject` for most dependencies** - Safer than `inject` and handles async initialization
-2. **Use `inject` only for immediate dependencies** - When you're certain the dependency is ready
-3. **Implement lifecycle hooks** - For proper resource management
-4. **Use injection tokens** - For configuration and interface-based dependencies
-5. **Prefer singletons** - Unless you specifically need new instances each time
-6. **Use factories** - For complex object creation logic
-7. **Leverage request contexts** - For request-scoped data and cleanup
-8. **Set appropriate priorities** - When using multiple request contexts
+1. **Use `asyncInject` for circular dependencies** - Breaks circular dependency cycles safely
+2. **Use `inject` for simple dependencies** - When you're certain the dependency is ready
+3. **Use `optional` for feature flags** - Dependencies that may not be available
+4. **Implement lifecycle hooks** - For proper resource management
+5. **Use injection tokens** - For configuration and interface-based dependencies
+6. **Prefer singletons** - Unless you specifically need new instances each time
+7. **Use factories** - For complex object creation logic
+8. **Leverage ScopedContainer** - For request-scoped data and cleanup
 
 ## License
 

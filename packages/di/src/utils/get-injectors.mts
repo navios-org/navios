@@ -22,6 +22,7 @@ import type {
 } from './types.mjs'
 
 import { InjectableTokenMeta } from '../symbols/index.mjs'
+import { withoutResolutionContext } from '../internal/context/resolution-context.mjs'
 
 export interface Injectors {
   // #1 Simple class
@@ -167,7 +168,11 @@ export function getInjectors() {
   let promiseCollector: null | ((promise: Promise<any>) => void) = null
   let injectState: InjectState | null = null
 
-  function getRequest(token: InjectionToken<any>, args?: unknown) {
+  function getRequest(
+    token: InjectionToken<any>,
+    args?: unknown,
+    skipCycleTracking = false,
+  ) {
     if (!injectState) {
       throw new Error(
         '[Injector] Trying to make a request outside of a injectable context',
@@ -185,16 +190,26 @@ export function getInjectors() {
     }
     let result: any = null
     let error: Error | null = null
-    const promise = getFactoryContext()
-      .inject(token as any, args as any)
-      .then((r) => {
-        result = r
-        return r
-      })
-      .catch((e) => {
-        // We don't throw here because we have a mechanism to handle errors
-        error = e
-      })
+
+    // For async inject, we run outside the resolution context to skip cycle tracking.
+    // This is because asyncInject returns a promise that doesn't block the constructor,
+    // so it cannot cause a deadlock even with circular dependencies.
+    const doInject = () =>
+      getFactoryContext()
+        .inject(token as any, args as any)
+        .then((r) => {
+          result = r
+          return r
+        })
+        .catch((e) => {
+          // We don't throw here because we have a mechanism to handle errors
+          error = e
+        })
+
+    const promise = skipCycleTracking
+      ? withoutResolutionContext(doInject)
+      : doInject()
+
     const request: InjectRequest = {
       token,
       promise,
@@ -226,7 +241,9 @@ export function getInjectors() {
     }
     // @ts-expect-error In case we have a class
     const realToken = token[InjectableTokenMeta] ?? token
-    const request = getRequest(realToken, args)
+    // Pass skipCycleTracking=true because asyncInject returns a promise that doesn't
+    // block the constructor, so it cannot cause a deadlock even with circular dependencies.
+    const request = getRequest(realToken, args, true)
     return request.promise.then((result) => {
       if (request.error) {
         // We throw here because we want to fail the asyncInject call if the dependency fails to initialize

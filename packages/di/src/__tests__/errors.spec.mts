@@ -11,7 +11,7 @@ describe('DIError', () => {
       expect(error.code).toBe(DIErrorCode.FactoryNotFound)
       expect(error.context?.name).toBe('TestFactory')
       expect(error).toBeInstanceOf(DIError)
-      expect(error).toBeInstanceOf(Error)
+      expect(error).not.toBeInstanceOf(Error)
     })
 
     it('should be throwable', () => {
@@ -29,7 +29,7 @@ describe('DIError', () => {
       expect(error.code).toBe(DIErrorCode.InstanceDestroying)
       expect(error.context?.name).toBe('TestInstance')
       expect(error).toBeInstanceOf(DIError)
-      expect(error).toBeInstanceOf(Error)
+      expect(error).not.toBeInstanceOf(Error)
     })
 
     it('should be throwable', () => {
@@ -47,7 +47,7 @@ describe('DIError', () => {
       expect(error.code).toBe(DIErrorCode.InstanceNotFound)
       expect(error.context?.name).toBe('TestInstance')
       expect(error).toBeInstanceOf(DIError)
-      expect(error).toBeInstanceOf(Error)
+      expect(error).not.toBeInstanceOf(Error)
     })
   })
 
@@ -59,7 +59,7 @@ describe('DIError', () => {
       expect(error.code).toBe(DIErrorCode.FactoryTokenNotResolved)
       expect(error.context?.token).toBe('TestToken')
       expect(error).toBeInstanceOf(DIError)
-      expect(error).toBeInstanceOf(Error)
+      expect(error).not.toBeInstanceOf(Error)
     })
   })
 
@@ -70,7 +70,7 @@ describe('DIError', () => {
       expect(error.message).toBe('Test error message')
       expect(error.code).toBe(DIErrorCode.UnknownError)
       expect(error).toBeInstanceOf(DIError)
-      expect(error).toBeInstanceOf(Error)
+      expect(error).not.toBeInstanceOf(Error)
     })
 
     it('should create error with Error object', () => {
@@ -81,7 +81,7 @@ describe('DIError', () => {
       expect(error.code).toBe(DIErrorCode.UnknownError)
       expect(error.context?.parent).toBe(originalError)
       expect(error).toBeInstanceOf(DIError)
-      expect(error).toBeInstanceOf(Error)
+      expect(error).not.toBeInstanceOf(Error)
     })
   })
 })

@@ -1,8 +1,9 @@
-import type { FactoryContext } from '../context/factory-context.mjs'
 import type { FactoryRecord } from '../../token/registry.mjs'
 import type { Injectors } from '../../utils/get-injectors.mjs'
+import type { FactoryContext } from '../context/factory-context.mjs'
 
 import { InjectableType } from '../../enums/index.mjs'
+import { DIError } from '../../errors/index.mjs'
 
 /**
  * Creates service instances from registry records.
@@ -25,7 +26,7 @@ export class Instantiator {
     ctx: FactoryContext,
     record: FactoryRecord<T, any>,
     args: any = undefined,
-  ): Promise<[undefined, T] | [Error]> {
+  ): Promise<[undefined, T] | [DIError]> {
     try {
       switch (record.type) {
         case InjectableType.Class:
@@ -33,12 +34,12 @@ export class Instantiator {
         case InjectableType.Factory:
           return this.instantiateFactory(ctx, record, args)
         default:
-          throw new Error(
+          throw DIError.unknown(
             `[Instantiator] Unknown service type: ${record.type}`,
           )
       }
     } catch (error) {
-      return [error instanceof Error ? error : new Error(String(error))]
+      return [error instanceof DIError ? error : DIError.unknown(String(error))]
     }
   }
 
@@ -53,7 +54,7 @@ export class Instantiator {
     ctx: FactoryContext,
     record: FactoryRecord<T, any>,
     args: any,
-  ): Promise<[undefined, T] | [Error]> {
+  ): Promise<[undefined, T] | [DIError]> {
     try {
       const tryLoad = this.injectors.wrapSyncInit(() => {
         const original = this.injectors.provideFactoryContext(ctx)
@@ -66,7 +67,7 @@ export class Instantiator {
       if (promises.length > 0) {
         const results = await Promise.allSettled(promises)
         if (results.some((result) => result.status === 'rejected')) {
-          throw new Error(
+          throw DIError.unknown(
             `[Instantiator] Service ${record.target.name} cannot be instantiated.`,
           )
         }
@@ -81,7 +82,7 @@ export class Instantiator {
        One or more of the dependencies are registered as a InjectableScope.Instance and are used with inject.
 
        Please use inject asyncInject of inject to load those dependencies.`)
-        throw new Error(
+        throw DIError.unknown(
           `[Instantiator] Service ${record.target.name} cannot be instantiated.`,
         )
       }
@@ -98,7 +99,7 @@ export class Instantiator {
 
       return [undefined, instance]
     } catch (error) {
-      return [error instanceof Error ? error : new Error(String(error))]
+      return [error instanceof DIError ? error : DIError.unknown(String(error))]
     }
   }
 
@@ -113,7 +114,7 @@ export class Instantiator {
     ctx: FactoryContext,
     record: FactoryRecord<T, any>,
     args: any,
-  ): Promise<[undefined, T] | [Error]> {
+  ): Promise<[undefined, T] | [DIError]> {
     try {
       const tryLoad = this.injectors.wrapSyncInit(() => {
         const original = this.injectors.provideFactoryContext(ctx)
@@ -126,7 +127,7 @@ export class Instantiator {
       if (promises.length > 0) {
         const results = await Promise.allSettled(promises)
         if (results.some((result) => result.status === 'rejected')) {
-          throw new Error(
+          throw DIError.unknown(
             `[Instantiator] Service ${record.target.name} cannot be instantiated.`,
           )
         }
@@ -141,13 +142,13 @@ export class Instantiator {
        One or more of the dependencies are registered as a InjectableScope.Instance and are used with inject.
 
        Please use asyncInject instead of inject to load those dependencies.`)
-        throw new Error(
+        throw DIError.unknown(
           `[Instantiator] Service ${record.target.name} cannot be instantiated.`,
         )
       }
 
       if (typeof builder.create !== 'function') {
-        throw new Error(
+        throw DIError.unknown(
           `[Instantiator] Factory ${record.target.name} does not implement the create method.`,
         )
       }
@@ -155,7 +156,7 @@ export class Instantiator {
       const instance = await builder.create(ctx, args)
       return [undefined, instance]
     } catch (error) {
-      return [error instanceof Error ? error : new Error(String(error))]
+      return [error instanceof DIError ? error : DIError.unknown(String(error))]
     }
   }
 }

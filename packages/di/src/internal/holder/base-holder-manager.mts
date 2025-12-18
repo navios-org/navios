@@ -1,17 +1,15 @@
 import type { InstanceHolder } from './instance-holder.mjs'
 
-import { CircularDetector } from '../lifecycle/circular-detector.mjs'
 import { InjectableScope, InjectableType } from '../../enums/index.mjs'
 import { DIError } from '../../errors/index.mjs'
+import { CircularDetector } from '../lifecycle/circular-detector.mjs'
 import { InstanceStatus } from './instance-holder.mjs'
 
 /**
  * Result type for waitForHolderReady.
  * Returns either [undefined, holder] on success or [error] on failure.
  */
-export type HolderReadyResult<T> =
-  | [undefined, InstanceHolder<T>]
-  | [DIError]
+export type HolderReadyResult<T> = [undefined, InstanceHolder<T>] | [DIError]
 
 /**
  * Abstract base class providing common functionality for managing InstanceHolder objects.
@@ -64,10 +62,7 @@ export abstract class BaseHolderManager {
    * @returns A new Map containing only the holders that match the predicate
    */
   filter(
-    predicate: (
-      value: InstanceHolder<any>,
-      key: string,
-    ) => boolean,
+    predicate: (value: InstanceHolder<any>, key: string) => boolean,
   ): Map<string, InstanceHolder> {
     return new Map(
       [...this._holders].filter(([key, value]) => predicate(value, key)),
@@ -231,7 +226,7 @@ export abstract class BaseHolderManager {
         return [DIError.instanceDestroying(holder.name)]
 
       case InstanceStatus.Error:
-        return [holder.instance as DIError]
+        return [holder.instance as unknown as DIError]
 
       case InstanceStatus.Created:
         return [undefined, holder]

@@ -32,7 +32,7 @@ describe('LifecycleEventBus', () => {
       eventBus.on('test-ns', 'create', listener)
 
       expect(mockLogger.debug).toHaveBeenCalledWith(
-        '[ServiceLocatorEventBus]#on(): ns:test-ns event:create',
+        '[LifecycleEventBus]#on(): ns:test-ns event:create',
       )
     })
 
@@ -54,10 +54,10 @@ describe('LifecycleEventBus', () => {
       eventBus.on('test-ns', 'destroy', listener2)
 
       expect(mockLogger.debug).toHaveBeenCalledWith(
-        '[ServiceLocatorEventBus]#on(): ns:test-ns event:create',
+        '[LifecycleEventBus]#on(): ns:test-ns event:create',
       )
       expect(mockLogger.debug).toHaveBeenCalledWith(
-        '[ServiceLocatorEventBus]#on(): ns:test-ns event:destroy',
+        '[LifecycleEventBus]#on(): ns:test-ns event:destroy',
       )
     })
 
@@ -86,7 +86,7 @@ describe('LifecycleEventBus', () => {
 
       expect(listener).toHaveBeenCalledWith('create')
       expect(mockLogger.debug).toHaveBeenCalledWith(
-        '[ServiceLocatorEventBus]#emit(): test-ns:create',
+        '[LifecycleEventBus]#emit(): test-ns:create',
       )
     })
 

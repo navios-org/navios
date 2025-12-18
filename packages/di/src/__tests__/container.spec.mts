@@ -2,21 +2,21 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { z } from 'zod/v4'
 
-import type { FactoryContext } from '../internal/context/factory-context.mjs'
 import type {
   Factorable,
   FactorableWithArgs,
 } from '../interfaces/factory.interface.mjs'
+import type { FactoryContext } from '../internal/context/factory-context.mjs'
 
 import { Container } from '../container/container.mjs'
 import { Factory } from '../decorators/factory.decorator.mjs'
 import { Injectable } from '../decorators/injectable.decorator.mjs'
 import { InjectableScope } from '../enums/injectable-scope.enum.mjs'
 import { getInjectors } from '../index.mjs'
-import { InjectionToken } from '../token/injection-token.mjs'
 import { asyncInject, inject } from '../injectors.mjs'
-import { Registry } from '../token/registry.mjs'
 import { ServiceLocator } from '../internal/core/service-locator.mjs'
+import { InjectionToken } from '../token/injection-token.mjs'
+import { Registry } from '../token/registry.mjs'
 
 describe('Container', () => {
   let container: Container
@@ -313,9 +313,10 @@ describe('Container', () => {
 
         @Factory({ token, registry })
         // oxlint-disable-next-line no-unused-vars
-        class ArgFactory
-          implements FactorableWithArgs<TestService, typeof schema>
-        {
+        class ArgFactory implements FactorableWithArgs<
+          TestService,
+          typeof schema
+        > {
           async create(ctx: any, args: z.output<typeof schema>) {
             return new TestService(args.name, args.value)
           }
@@ -350,9 +351,10 @@ describe('Container', () => {
 
         @Factory({ token, registry })
         // oxlint-disable-next-line no-unused-vars
-        class OptionalArgFactory
-          implements FactorableWithArgs<TestService, typeof schema>
-        {
+        class OptionalArgFactory implements FactorableWithArgs<
+          TestService,
+          typeof schema
+        > {
           async create(ctx: any, args: z.output<typeof schema>) {
             return new TestService(args?.name || 'default', args?.optional)
           }
@@ -439,9 +441,10 @@ describe('Container', () => {
 
         @Factory({ token, registry })
         // oxlint-disable-next-line no-unused-vars
-        class FactoryService
-          implements FactorableWithArgs<TestService, typeof schema>
-        {
+        class FactoryService implements FactorableWithArgs<
+          TestService,
+          typeof schema
+        > {
           async create(ctx: any, args: z.output<typeof schema>) {
             return new TestService(args.factory)
           }
@@ -526,7 +529,7 @@ describe('Container', () => {
 
       @Injectable({ registry })
       class ServiceB {
-        serviceA = asyncInject(ServiceA)
+        serviceA = asyncInject(ServiceA).catch(() => null)
       }
 
       // This should not throw but handle the circular dependency
@@ -535,6 +538,8 @@ describe('Container', () => {
       expect(serviceA.serviceB).toBeInstanceOf(Promise)
       const serviceB = await serviceA.serviceB
       expect(serviceB).toBeInstanceOf(ServiceB)
+      const serviceA2 = await serviceB.serviceA
+      expect(serviceA2).toBeInstanceOf(ServiceA)
     })
 
     it('should handle deep dependency chains', async () => {

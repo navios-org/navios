@@ -5,8 +5,9 @@ import type { FactoryRecord } from '../token/registry.mjs'
 import type { Injectors } from '../utils/get-injectors.mjs'
 
 import { InjectableScope, InjectableType } from '../enums/index.mjs'
-import { InjectionToken } from '../token/injection-token.mjs'
+import { DIError } from '../errors/index.mjs'
 import { Instantiator } from '../internal/core/instantiator.mjs'
+import { InjectionToken } from '../token/injection-token.mjs'
 
 // Mock classes for testing
 class TestService {
@@ -126,7 +127,7 @@ describe('Instantiator', () => {
       const result = await instantiator.instantiateService(mockContext, record)
 
       expect(result).toHaveLength(1)
-      expect(result[0]).toBeInstanceOf(Error)
+      expect(result[0]).toBeInstanceOf(DIError)
       expect(result[0]!.message).toContain('Unknown service type: Unknown')
     })
 
@@ -147,8 +148,8 @@ describe('Instantiator', () => {
       const result = await instantiator.instantiateService(mockContext, record)
 
       expect(result).toHaveLength(1)
-      expect(result[0]).toBeInstanceOf(Error)
-      expect(result[0]!.message).toBe('Constructor error')
+      expect(result[0]).toBeInstanceOf(DIError)
+      expect(result[0]!.message).toBe('Error: Constructor error')
     })
   })
 
@@ -237,7 +238,7 @@ describe('Instantiator', () => {
       const result = await instantiator.instantiateService(mockContext, record)
 
       expect(result).toHaveLength(1)
-      expect(result[0]).toBeInstanceOf(Error)
+      expect(result[0]).toBeInstanceOf(DIError)
       expect(result[0]!.message).toContain('cannot be instantiated')
     })
 
@@ -266,7 +267,7 @@ describe('Instantiator', () => {
       const result = await instantiator.instantiateService(mockContext, record)
 
       expect(result).toHaveLength(1)
-      expect(result[0]).toBeInstanceOf(Error)
+      expect(result[0]).toBeInstanceOf(DIError)
       expect(result[0]!.message).toContain('cannot be instantiated')
       expect(consoleSpy).toHaveBeenCalledWith(
         expect.stringContaining("has problem with it's definition"),
@@ -303,7 +304,7 @@ describe('Instantiator', () => {
       const result = await instantiator.instantiateService(mockContext, record)
 
       expect(result).toHaveLength(1)
-      expect(result[0]).toBeInstanceOf(Error)
+      expect(result[0]).toBeInstanceOf(DIError)
       expect(result[0]!.message).toContain(
         'does not implement the create method',
       )
@@ -355,7 +356,7 @@ describe('Instantiator', () => {
       const result = await instantiator.instantiateService(mockContext, record)
 
       expect(result).toHaveLength(1)
-      expect(result[0]).toBeInstanceOf(Error)
+      expect(result[0]).toBeInstanceOf(DIError)
       expect(result[0]!.message).toContain('cannot be instantiated')
     })
 
@@ -377,7 +378,7 @@ describe('Instantiator', () => {
       const result = await instantiator.instantiateService(mockContext, record)
 
       expect(result).toHaveLength(1)
-      expect(result[0]).toBeInstanceOf(Error)
+      expect(result[0]).toBeInstanceOf(DIError)
       expect(consoleSpy).toHaveBeenCalledWith(
         expect.stringContaining('asyncInject instead of inject'),
       )
@@ -402,8 +403,8 @@ describe('Instantiator', () => {
       const result = await instantiator.instantiateService(mockContext, record)
 
       expect(result).toHaveLength(1)
-      expect(result[0]).toBeInstanceOf(Error)
-      expect(result[0]!.message).toBe('Factory create error')
+      expect(result[0]).toBeInstanceOf(DIError)
+      expect(result[0]!.message).toBe('Error: Factory create error')
     })
   })
 })

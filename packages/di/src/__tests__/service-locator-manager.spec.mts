@@ -2,8 +2,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { InjectableScope, InjectableType } from '../enums/index.mjs'
 import { DIError } from '../errors/index.mjs'
-import { InstanceStatus } from '../internal/holder/instance-holder.mjs'
 import { HolderManager } from '../internal/holder/holder-manager.mjs'
+import { InstanceStatus } from '../internal/holder/instance-holder.mjs'
 
 describe('HolderManager', () => {
   let manager: HolderManager
@@ -34,7 +34,7 @@ describe('HolderManager', () => {
       expect(result).toHaveLength(1)
       expect(result[0]).toBeInstanceOf(DIError)
       expect(mockLogger.log).toHaveBeenCalledWith(
-        '[ServiceLocatorManager]#getInstanceHolder() Instance non-existent not found',
+        '[HolderManager]#get() Instance non-existent not found',
       )
     })
 
@@ -70,7 +70,7 @@ describe('HolderManager', () => {
       expect(result[0]).toBeInstanceOf(DIError)
       expect(result[1]).toBe(holder)
       expect(mockLogger.log).toHaveBeenCalledWith(
-        '[ServiceLocatorManager]#getInstanceHolder() Instance destroying-instance is destroying',
+        '[HolderManager]#get() Instance destroying-instance is destroying',
       )
     })
 
@@ -85,7 +85,7 @@ describe('HolderManager', () => {
       // Manually set status to error with an error instance
       holder.status = InstanceStatus.Error
       const errorInstance = DIError.instanceNotFound('error-instance')
-      holder.instance = errorInstance
+      holder.instance = errorInstance as unknown as Error
 
       const result = manager.get('error-instance')
 
@@ -93,7 +93,7 @@ describe('HolderManager', () => {
       expect(result[0]).toBeInstanceOf(DIError)
       expect(result[1]).toBe(holder)
       expect(mockLogger.log).toHaveBeenCalledWith(
-        '[ServiceLocatorManager]#getInstanceHolder() Instance error-instance is in error state',
+        '[HolderManager]#get() Instance error-instance is in error state',
       )
     })
   })

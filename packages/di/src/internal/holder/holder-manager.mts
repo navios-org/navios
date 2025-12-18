@@ -1,8 +1,8 @@
 import type { InstanceHolder } from './instance-holder.mjs'
 
-import { BaseHolderManager } from './base-holder-manager.mjs'
 import { InjectableScope, InjectableType } from '../../enums/index.mjs'
 import { DIError, DIErrorCode } from '../../errors/index.mjs'
+import { BaseHolderManager } from './base-holder-manager.mjs'
 import { InstanceStatus } from './instance-holder.mjs'
 
 /**
@@ -18,10 +18,7 @@ export class HolderManager extends BaseHolderManager {
 
   get(
     name: string,
-  ):
-    | [DIError, InstanceHolder]
-    | [DIError]
-    | [undefined, InstanceHolder] {
+  ): [DIError, InstanceHolder] | [DIError] | [undefined, InstanceHolder] {
     const holder = this._holders.get(name)
     if (holder) {
       if (holder.status === InstanceStatus.Destroying) {
@@ -33,14 +30,12 @@ export class HolderManager extends BaseHolderManager {
         this.logger?.log(
           `[HolderManager]#get() Instance ${holder.name} is in error state`,
         )
-        return [holder.instance as DIError, holder]
+        return [holder.instance as unknown as DIError, holder]
       }
 
       return [undefined, holder]
     } else {
-      this.logger?.log(
-        `[HolderManager]#get() Instance ${name} not found`,
-      )
+      this.logger?.log(`[HolderManager]#get() Instance ${name} not found`)
       return [DIError.instanceNotFound(name)]
     }
   }
