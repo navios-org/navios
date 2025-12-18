@@ -4796,7 +4796,6 @@ __metadata:
     typescript: "npm:^5.9.3"
   peerDependencies:
     "@navios/core": "workspace:^"
-    "@navios/di": "workspace:^"
   languageName: unknown
   linkType: soft
 
@@ -4859,7 +4858,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@navios/builder@workspace:packages/builder"
   dependencies:
-    navios: "workspace:^"
+    "@navios/http": "workspace:^"
     typescript: "npm:^5.9.3"
     zod: "npm:^4.1.13"
   peerDependencies:
@@ -4961,6 +4960,14 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@navios/http@workspace:^, @navios/http@workspace:packages/navios":
+  version: 0.0.0-use.local
+  resolution: "@navios/http@workspace:packages/navios"
+  dependencies:
+    typescript: "npm:^5.9.3"
+  languageName: unknown
+  linkType: soft
+
 "@navios/jwt@workspace:packages/jwt":
   version: 0.0.0-use.local
   resolution: "@navios/jwt@workspace:packages/jwt"
@@ -5014,8 +5021,8 @@ __metadata:
   resolution: "@navios/react-query@workspace:packages/react-query"
   dependencies:
     "@navios/builder": "workspace:^"
+    "@navios/http": "workspace:^"
     "@tanstack/react-query": "npm:^5.90.12"
-    navios: "workspace:^"
     react: "npm:^19.2.3"
     typescript: "npm:^5.9.3"
     zod: "npm:^4.1.13"
@@ -13994,14 +14001,6 @@ __metadata:
   checksum: 10c0/40e7f70b3d15f725ca072dfc4f74e81fcf1fbb02e491cf58ac0c79093adc9b0a73b152bcde57df4b79cd097e13023d7504acb38404a4da7bc1cd8e887b82fe0b
   languageName: node
   linkType: hard
-
-"navios@workspace:^, navios@workspace:packages/navios":
-  version: 0.0.0-use.local
-  resolution: "navios@workspace:packages/navios"
-  dependencies:
-    typescript: "npm:^5.9.3"
-  languageName: unknown
-  linkType: soft
 
 "negotiator@npm:0.6.3, negotiator@npm:^0.6.3":
   version: 0.6.3

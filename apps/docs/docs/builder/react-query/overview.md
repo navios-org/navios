@@ -29,7 +29,7 @@ npm install @navios/react-query @navios/builder @tanstack/react-query zod
 ```typescript
 // Setup client
 import { builder } from '@navios/builder'
-import { create } from 'navios'
+import { create } from '@navios/http'
 import { declareClient } from '@navios/react-query'
 import { z } from 'zod'
 

@@ -219,7 +219,7 @@ export class UserController {
   }
 }`,
   client: `// client/app.ts
-import { create } from 'navios'  // or axios
+import { create } from '@navios/http'  // or axios
 import { API, getUser } from '../shared/api.js'
 
 API.provideClient(create({ baseUrl: 'http://localhost:3000' }))

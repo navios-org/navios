@@ -159,7 +159,7 @@ const result = await uploadFile({
 Registers the HTTP client for making requests.
 
 ```typescript
-import { create } from 'navios'
+import { create } from '@navios/http'
 
 const client = create({ baseURL: 'https://api.example.com' })
 API.provideClient(client)

@@ -1,6 +1,6 @@
-# Navios
+# @navios/http
 
-Drop-in minimalistic `axios` replacement based on a native `fetch`.
+Drop-in minimalistic `axios` replacement based on a native `fetch`. A lightweight HTTP client library that provides a familiar API while leveraging modern web standards.
 
 ## Why?
 
@@ -11,22 +11,28 @@ Drop-in minimalistic `axios` replacement based on a native `fetch`.
 - It's slow on Node.js
 - It's not supporting Next.JS caching mechanism, because it's not using `fetch`
 
+`@navios/http` solves these issues by:
+- Being lightweight and focused
+- Using native `fetch` API everywhere for consistency
+- Supporting Next.JS caching and React Server Components
+- Providing a familiar API similar to `axios`
+
 ## Installation
 
 ```bash
-npm install --save navios
+npm install --save @navios/http
 ```
 
 or
 
 ```bash
-yarn add navios
+yarn add @navios/http
 ```
 
 ## Basic Usage
 
 ```js
-import navios from 'navios'
+import navios from '@navios/http'
 
 navios.get('https://example.com').then((response) => {
   console.log(response.data)
@@ -36,7 +42,7 @@ navios.get('https://example.com').then((response) => {
 ## Usage with interceptors
 
 ```ts
-import { create } from 'navios'
+import { create } from '@navios/http'
 
 const client = create({
   baseURL: 'https://example.com/api/',
@@ -69,11 +75,54 @@ client.get('users').then((response) => {
 })
 ```
 
+## Usage with @navios/builder
+
+`@navios/http` works seamlessly with `@navios/builder` to create type-safe API clients with Zod validation:
+
+```ts
+import { create } from '@navios/http'
+import { builder } from '@navios/builder'
+import { z } from 'zod'
+
+// Create the HTTP client
+const client = create({
+  baseURL: 'https://api.example.com',
+  headers: {
+    'Authorization': 'Bearer token',
+  },
+})
+
+// Create the API builder
+const API = builder({
+  useDiscriminatorResponse: true,
+})
+
+// Provide the client to the builder
+API.provideClient(client)
+
+// Define your endpoints with type safety
+const getUser = API.declareEndpoint({
+  method: 'GET',
+  url: '/users/$userId',
+  responseSchema: z.object({
+    id: z.string(),
+    name: z.string(),
+    email: z.string().email(),
+  }),
+})
+
+// Use the endpoint with full type safety
+const user = await getUser({ urlParams: { userId: '123' } })
+console.log(user.name) // TypeScript knows this is a string
+```
+
+For more information about using `@navios/http` with `@navios/builder`, see the [@navios/builder documentation](../../builder/README.md).
+
 ## API
 
 ### `create(config)`
 
-Creates a new instance of `navios` with a custom configuration.
+Creates a new instance of `@navios/http` client with a custom configuration.
 
 #### `config`
 

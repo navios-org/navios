@@ -30,7 +30,7 @@
     }
   },
   "devDependencies": {
-    "navios": "workspace:^",
+    "@navios/http": "workspace:^",
     "typescript": "^5.9.3",
     "zod": "^4.1.13"
   }

@@ -50,7 +50,7 @@ Creates a client instance for type-safe queries and mutations.
 
 ```typescript
 import { builder } from '@navios/builder'
-import { create } from 'navios'
+import { create } from '@navios/http'
 import { declareClient } from '@navios/react-query'
 
 // Create and configure the API builder
@@ -663,7 +663,7 @@ export const deleteUser = API.declareEndpoint({
 
 ```typescript
 // client/index.ts
-import { create } from 'navios'
+import { create } from '@navios/http'
 import { declareClient } from '@navios/react-query'
 import { API } from '../shared/endpoints/users'
 

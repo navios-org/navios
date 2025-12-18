@@ -6,7 +6,7 @@
 
 - **Type Safety**: By using Zod schemas, you can ensure that the data you receive from your API matches the expected structure. This helps catch errors early in the development process.
 - **Validation**: Zod provides powerful validation capabilities, allowing you to define complex validation rules for your data. This ensures that the data you work with is always valid and meets your requirements.
-- **Integration with Navios**: Navios is a powerful HTTP client that simplifies API requests. By combining it with Zod, you can create a robust and type-safe API client.
+- **Integration with @navios/http**: @navios/http is a powerful HTTP client that simplifies API requests. By combining it with Zod, you can create a robust and type-safe API client.
 - **Declarative API**: The API is designed to be declarative, allowing you to define your API endpoints and their schemas in a clear and concise manner. This makes it easy to understand and maintain your API client.
 - **Discriminated Union Support**: The package supports discriminated unions, allowing you to handle different response types based on a common property. This is useful for APIs that return different data structures based on the request.
 - **Customizable**: The package allows you to customize the behavior of the API client, such as using a custom client.
@@ -27,13 +27,12 @@ yarn add @navios/builder zod
 ## Usage
 
 ```ts
-import { create } from 'navios'
-
+import { create } from '@navios/http'
 import { builder } from '@navios/builder'
+import { z } from 'zod/v4'
 
 // or
 import { create } from 'axios'
-import { z } from 'zod/v4'
 
 const API = builder({
   useDiscriminatorResponse: true,
@@ -99,7 +98,7 @@ const updateUser = API.declareEndpoint({
 
 // In another file you can set the API client
 
-// Use navios client or axios
+// Use @navios/http client or axios
 const client = create({
   baseURL: 'https://example.com/api/',
   headers: {
@@ -155,5 +154,5 @@ declareEndpoint({
 #### `provideClient` - sets the client for the API.
 
 ```ts
-provideClient(client) // client is an instance of axios or navios client
+provideClient(client) // client is an instance of axios or @navios/http client
 ```

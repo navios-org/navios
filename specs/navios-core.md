@@ -238,7 +238,7 @@ class UserController {
 ```typescript
 // client/api.ts - Client uses same endpoint definitions
 import { getUser, createUser, API } from '../shared/endpoints/users'
-import { create } from 'navios'
+import { create } from '@navios/http'
 
 API.provideClient(create({ baseURL: 'http://localhost:3000' }))
 
@@ -933,7 +933,7 @@ bootstrap()
 
 ```typescript
 // client/api.ts - Client uses same endpoint definitions
-import { create } from 'navios'
+import { create } from '@navios/http'
 import { API, getUser, createUser } from '../shared/endpoints/users'
 
 // Provide HTTP client

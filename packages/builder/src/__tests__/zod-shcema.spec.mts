@@ -1,5 +1,5 @@
-import { create } from 'navios'
-import { makeNaviosFakeAdapter } from 'navios/testing'
+import { create } from '@navios/http'
+import { makeNaviosFakeAdapter } from '@navios/http/testing'
 
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod/v4'

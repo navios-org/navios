@@ -15,7 +15,7 @@ Type-safe React Query integration for Navios API client with Zod schema validati
 ## Installation
 
 ```bash
-npm install @navios/react-query @navios/builder navios zod @tanstack/react-query
+npm install @navios/react-query @navios/builder @navios/http zod @tanstack/react-query
 ```
 
 ## Quick Start
@@ -23,7 +23,7 @@ npm install @navios/react-query @navios/builder navios zod @tanstack/react-query
 ```typescript
 import { builder } from '@navios/builder'
 import { declareClient } from '@navios/react-query'
-import { create } from 'navios'
+import { create } from '@navios/http'
 import { z } from 'zod/v4'
 
 // Create the API builder

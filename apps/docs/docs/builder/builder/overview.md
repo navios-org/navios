@@ -41,7 +41,7 @@ The builder creates a centralized API definition that:
 
 ```typescript
 import { builder } from '@navios/builder'
-import { create } from 'navios'
+import { create } from '@navios/http'
 import { z } from 'zod'
 
 // Create a builder instance

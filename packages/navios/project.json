@@ -1,5 +1,5 @@
 {
-  "name": "navios",
+  "name": "@navios/http",
   "$schema": "../../node_modules/nx/schemas/project-schema.json",
   "sourceRoot": "packages/navios/src",
   "prefix": "navios",
