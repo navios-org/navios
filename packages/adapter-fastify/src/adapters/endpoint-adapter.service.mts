@@ -1,9 +1,8 @@
 import type { BaseEndpointConfig } from '@navios/builder'
-import type { HandlerMetadata } from '@navios/core'
-import type { ClassType, RequestContextHolder } from '@navios/di'
+import type { ClassType, HandlerMetadata, ScopedContainer } from '@navios/core'
 import type { FastifyReply, FastifyRequest } from 'fastify'
 
-import { Injectable, InjectionToken } from '@navios/di'
+import { Injectable, InjectionToken } from '@navios/core'
 
 import { FastifyStreamAdapterService } from './stream-adapter.service.mjs'
 
@@ -41,7 +40,7 @@ export class FastifyEndpointAdapterService extends FastifyStreamAdapterService {
     controller: ClassType,
     handlerMetadata: HandlerMetadata<BaseEndpointConfig>,
   ): (
-    context: RequestContextHolder,
+    context: ScopedContainer,
     request: FastifyRequest,
     reply: FastifyReply,
   ) => Promise<any> {
@@ -58,20 +57,26 @@ export class FastifyEndpointAdapterService extends FastifyStreamAdapterService {
       await Promise.all(promises)
       return argument
     }
+    const responseSchema = handlerMetadata.config.responseSchema
+    const formatResponse = responseSchema
+      ? (result: any) => {
+          return responseSchema.parse(result)
+        }
+      : (result: any) => result
 
     return async (
-      context: RequestContextHolder,
+      context: ScopedContainer,
       request: FastifyRequest,
       reply: FastifyReply,
     ) => {
-      const controllerInstance = await this.container.get(controller)
+      const controllerInstance = await context.get(controller)
       const argument = await formatArguments(request)
       const result =
         await controllerInstance[handlerMetadata.classMethod](argument)
       reply
         .status(handlerMetadata.successStatusCode)
         .headers(handlerMetadata.headers)
-        .send(result)
+        .send(formatResponse(result))
     }
   }
 }

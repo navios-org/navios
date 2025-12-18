@@ -1,12 +1,12 @@
 import type {
   AbstractHttpHandlerAdapterInterface,
+  ClassType,
   HandlerMetadata,
+  ScopedContainer,
 } from '@navios/core'
-import type { ClassType, RequestContextHolder } from '@navios/di'
 import type { BunRequest } from 'bun'
 
-export interface BunHandlerAdapterInterface
-  extends AbstractHttpHandlerAdapterInterface {
+export interface BunHandlerAdapterInterface extends AbstractHttpHandlerAdapterInterface {
   provideSchema?: (handlerMetadata: HandlerMetadata<any>) => Record<string, any>
   hasSchema?: (handlerMetadata: HandlerMetadata<any>) => boolean
   prepareArguments?: (
@@ -18,5 +18,5 @@ export interface BunHandlerAdapterInterface
   provideHandler: (
     controller: ClassType,
     handlerMetadata: HandlerMetadata<any>,
-  ) => (context: RequestContextHolder, request: BunRequest) => Promise<Response>
+  ) => (context: ScopedContainer, request: BunRequest) => Promise<Response>
 }

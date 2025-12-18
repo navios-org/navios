@@ -1,12 +1,13 @@
-import { defineConfig } from 'tsup'
+import { defineConfig } from 'tsdown'
 
 export default defineConfig({
   entry: ['src/index.ts', 'src/bin.ts'],
   outDir: 'lib',
   format: ['esm'],
   clean: true,
-  treeshake: 'smallest',
+  treeshake: true,
   sourcemap: true,
   platform: 'node',
-  experimentalDts: true,
+  dts: true,
+  target: 'es2022',
 })

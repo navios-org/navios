@@ -33,11 +33,11 @@
     },
     "build": {
       "executor": "nx:run-commands",
-      "inputs": ["projectSources"],
+      "inputs": ["projectSources", "{projectRoot}/tsdown.config.mts"],
       "outputs": ["{projectRoot}/lib"],
       "dependsOn": ["check", "test:ci", "lint"],
       "options": {
-        "command": "tsup",
+        "command": "tsdown",
         "cwd": "packages/react-query"
       }
     },

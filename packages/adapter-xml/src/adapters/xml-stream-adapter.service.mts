@@ -1,11 +1,16 @@
 import type {
   AbstractHttpHandlerAdapterInterface,
+  ClassType,
   HandlerMetadata,
+  ScopedContainer,
 } from '@navios/core'
-import type { ClassType, RequestContextHolder } from '@navios/di'
 
-import { StreamAdapterToken, XmlStreamAdapterToken } from '@navios/core'
-import { Container, inject, Injectable } from '@navios/di'
+import {
+  inject,
+  Injectable,
+  StreamAdapterToken,
+  XmlStreamAdapterToken,
+} from '@navios/core'
 
 import type { BaseXmlStreamConfig } from '../types/config.mjs'
 import type { AnyXmlNode } from '../types/xml-node.mjs'
@@ -16,7 +21,6 @@ import { renderToXml } from '../runtime/render-to-xml.mjs'
   token: XmlStreamAdapterToken,
 })
 export class XmlStreamAdapterService implements AbstractHttpHandlerAdapterInterface {
-  protected container = inject(Container)
   /** Base stream adapter - we proxy hasSchema, prepareArguments, provideSchema to it */
   protected streamAdapter = inject(StreamAdapterToken)
 
@@ -56,7 +60,7 @@ export class XmlStreamAdapterService implements AbstractHttpHandlerAdapterInterf
   provideHandler(
     controller: ClassType,
     handlerMetadata: HandlerMetadata<BaseXmlStreamConfig>,
-  ): (context: RequestContextHolder, request: any, reply: any) => Promise<any> {
+  ): (context: ScopedContainer, request: any, reply: any) => Promise<any> {
     const getters = this.prepareArguments(handlerMetadata)
     const config = handlerMetadata.config
 
@@ -74,14 +78,9 @@ export class XmlStreamAdapterService implements AbstractHttpHandlerAdapterInterf
     }
 
     const contentType = config.contentType ?? 'application/xml'
-    const renderOptions = {
-      declaration: config.xmlDeclaration ?? true,
-      encoding: config.encoding ?? 'UTF-8',
-      container: this.container,
-    }
 
-    return async (context: RequestContextHolder, request: any, reply: any) => {
-      const controllerInstance = await this.container.get(controller)
+    return async (context: ScopedContainer, request: any, reply: any) => {
+      const controllerInstance = await context.get(controller)
       const argument = await formatArguments(request)
 
       // Call controller method - returns XmlNode (JSX), may contain async/class components
@@ -89,7 +88,11 @@ export class XmlStreamAdapterService implements AbstractHttpHandlerAdapterInterf
         await controllerInstance[handlerMetadata.classMethod](argument)
 
       // Render JSX to XML string (async - resolves all async and class components)
-      const xml = await renderToXml(xmlNode, renderOptions)
+      const xml = await renderToXml(xmlNode, {
+        declaration: config.xmlDeclaration ?? true,
+        encoding: config.encoding ?? 'UTF-8',
+        container: context,
+      })
 
       // Environment detection: Bun doesn't have reply
       const isHttpStandardEnvironment = reply === undefined

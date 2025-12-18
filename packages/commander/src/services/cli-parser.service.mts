@@ -1,6 +1,6 @@
 import type { ZodObject, ZodType } from 'zod'
 
-import { Injectable } from '@navios/di'
+import { Injectable } from '@navios/core'
 
 export interface ParsedCliArgs {
   command: string
@@ -63,7 +63,8 @@ export class CliParserService {
           const optionName = key.slice(0, equalIndex)
           const optionValue = key.slice(equalIndex + 1)
           const camelCaseKey = this.camelCase(optionName)
-          const isArray = arrayFields.has(camelCaseKey) || arrayFields.has(optionName)
+          const isArray =
+            arrayFields.has(camelCaseKey) || arrayFields.has(optionName)
 
           if (isArray) {
             // For array fields, accumulate values

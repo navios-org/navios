@@ -1,6 +1,5 @@
 import fs from 'fs'
 
-import * as babel from '@babel/core'
 import { plugin } from 'bun'
 import chalk from 'chalk'
 
@@ -118,30 +117,9 @@ async function transpileFileForReal(
   name: string,
   codeTS: string,
 ): Promise<string> {
-  if (MODE === 'babel') return transpileFileWithBabel(name, codeTS)
   if (MODE === 'esbuild') return transpileFileWithEsbuild(name, codeTS)
   if (MODE === 'typescript') return transpileFileWithTypescript(name, codeTS)
   throw new Error(`MODE ${MODE} is ont supported`)
-}
-
-// alt 1. babel  -------------------------------------------------------------------------
-async function transpileFileWithBabel(
-  name: string,
-  codeTS: string,
-): Promise<string> {
-  const res = await babel.transformAsync(codeTS, {
-    filename: name,
-    plugins: [
-      ['@babel/plugin-proposal-decorators', { version: '2023-05' }],
-      '@babel/plugin-syntax-import-attributes',
-    ],
-    presets: [
-      ['@babel/preset-typescript', { allowDeclareFields: true }],
-      ['@babel/preset-react', { runtime: 'automatic' }],
-    ],
-  })
-  const codeJS = res?.code ?? ''
-  return codeJS
 }
 
 // alt 2. esbuild ------------------------------------------------------------------------

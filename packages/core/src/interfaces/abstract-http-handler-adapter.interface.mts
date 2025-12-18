@@ -1,4 +1,4 @@
-import type { ClassType, RequestContextHolder } from '@navios/di'
+import type { ClassType, ScopedContainer } from '@navios/di'
 
 import type { HandlerMetadata } from '../metadata/index.mjs'
 
@@ -9,5 +9,5 @@ export interface AbstractHttpHandlerAdapterInterface {
   provideHandler: (
     controller: ClassType,
     handlerMetadata: HandlerMetadata<any>,
-  ) => (context: RequestContextHolder, request: any, reply: any) => Promise<any>
+  ) => (context: ScopedContainer, request: any, reply: any) => Promise<any>
 }

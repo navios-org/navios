@@ -1,12 +1,12 @@
 import type {
   AbstractHttpHandlerAdapterInterface,
+  ClassType,
   HandlerMetadata,
+  ScopedContainer,
 } from '@navios/core'
-import type { ClassType, RequestContextHolder } from '@navios/di'
 import type { FastifyReply, FastifyRequest } from 'fastify'
 
-export interface FastifyHandlerAdapterInterface
-  extends AbstractHttpHandlerAdapterInterface {
+export interface FastifyHandlerAdapterInterface extends AbstractHttpHandlerAdapterInterface {
   provideSchema?: (handlerMetadata: HandlerMetadata<any>) => Record<string, any>
   hasSchema?: (handlerMetadata: HandlerMetadata<any>) => boolean
   prepareArguments?: (
@@ -19,7 +19,7 @@ export interface FastifyHandlerAdapterInterface
     controller: ClassType,
     handlerMetadata: HandlerMetadata<any>,
   ) => (
-    context: RequestContextHolder,
+    context: ScopedContainer,
     request: FastifyRequest,
     reply: FastifyReply,
   ) => Promise<any>

@@ -1,15 +1,14 @@
-import type { ClassTypeWithInstance } from '@navios/di'
+import type { ClassTypeWithInstance, NaviosModule } from '@navios/core'
 
-import { Container } from '@navios/di'
+import { Container } from '@navios/core'
 
 import type { CommanderApplicationOptions } from './commander.application.mjs'
-import type { Module } from './interfaces/index.mjs'
 
 import { CommanderApplication } from './commander.application.mjs'
 
 export class CommanderFactory {
   static async create(
-    appModule: ClassTypeWithInstance<Module>,
+    appModule: ClassTypeWithInstance<NaviosModule>,
     options: CommanderApplicationOptions = {},
   ) {
     const container = new Container()

@@ -1,4 +1,4 @@
-import { NaviosException } from '@navios/builder'
+import { NaviosError } from '@navios/builder'
 import { inject, Injectable, InjectionToken } from '@navios/di'
 
 import { z } from 'zod/v4'
@@ -21,8 +21,7 @@ export const ConfigServiceToken = InjectionToken.create<
 })
 export class ConfigService<
   Config extends ConfigServiceOptions = Record<string, unknown>,
-> implements IConfigService<Config>
-{
+> implements IConfigService<Config> {
   private readonly logger = inject(Logger, {
     context: ConfigService.name,
   })
@@ -78,7 +77,7 @@ export class ConfigService<
         errorMessage ||
         `Configuration value for key "${String(key)}" is not defined`
       this.logger.error(message)
-      throw new NaviosException(message)
+      throw new NaviosError(message)
     }
 
     return value

@@ -1,4 +1,4 @@
-import { InjectionToken } from '@navios/di'
+import { InjectionToken } from '@navios/core'
 
 import type { BunApplicationServiceInterface } from '../interfaces/application.interface.mjs'
 

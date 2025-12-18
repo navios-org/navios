@@ -1,10 +1,11 @@
-import { InjectionToken } from '@navios/di'
+import { InjectionToken } from '@navios/core'
 
 import type { CommanderExecutionContext } from '../interfaces/index.mjs'
 
-export const ExecutionContextInjectionToken =
+const CommandExecutionContextInjectionToken =
   'CommanderExecutionContextInjectionToken'
 
-export const ExecutionContext = InjectionToken.create<CommanderExecutionContext>(
-  ExecutionContextInjectionToken,
-)
+export const CommandExecutionContext =
+  InjectionToken.create<CommanderExecutionContext>(
+    CommandExecutionContextInjectionToken,
+  )

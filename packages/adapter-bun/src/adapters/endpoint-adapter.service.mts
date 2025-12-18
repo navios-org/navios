@@ -1,9 +1,8 @@
 import type { BaseEndpointConfig } from '@navios/builder'
-import type { HandlerMetadata } from '@navios/core'
-import type { ClassType, RequestContextHolder } from '@navios/di'
+import type { ClassType, HandlerMetadata, ScopedContainer } from '@navios/core'
 import type { BunRequest } from 'bun'
 
-import { Injectable, InjectionToken } from '@navios/di'
+import { Injectable, InjectionToken } from '@navios/core'
 
 import { BunStreamAdapterService } from './stream-adapter.service.mjs'
 
@@ -33,7 +32,7 @@ export class BunEndpointAdapterService extends BunStreamAdapterService {
   override provideHandler(
     controller: ClassType,
     handlerMetadata: HandlerMetadata<BaseEndpointConfig>,
-  ): (context: RequestContextHolder, request: BunRequest) => Promise<Response> {
+  ): (context: ScopedContainer, request: BunRequest) => Promise<Response> {
     const getters = this.prepareArguments(handlerMetadata)
     const formatArguments = async (request: BunRequest) => {
       const argument: Record<string, any> = {}
@@ -54,8 +53,8 @@ export class BunEndpointAdapterService extends BunStreamAdapterService {
         }
       : (result: any) => result
 
-    return async (context: RequestContextHolder, request: BunRequest) => {
-      const controllerInstance = await this.container.get(controller)
+    return async (context: ScopedContainer, request: BunRequest) => {
+      const controllerInstance = await context.get(controller)
       const argument = await formatArguments(request)
       const result =
         await controllerInstance[handlerMetadata.classMethod](argument)

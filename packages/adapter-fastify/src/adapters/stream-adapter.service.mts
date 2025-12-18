@@ -1,9 +1,8 @@
 import type { BaseStreamConfig } from '@navios/builder'
-import type { HandlerMetadata } from '@navios/core'
-import type { ClassType, RequestContextHolder } from '@navios/di'
+import type { ClassType, HandlerMetadata, ScopedContainer } from '@navios/core'
 import type { FastifyReply, FastifyRequest } from 'fastify'
 
-import { Container, inject, Injectable, InjectionToken } from '@navios/di'
+import { Injectable, InjectionToken } from '@navios/core'
 
 import type { FastifyHandlerAdapterInterface } from './handler-adapter.interface.mjs'
 
@@ -15,11 +14,7 @@ export const FastifyStreamAdapterToken =
 @Injectable({
   token: FastifyStreamAdapterToken,
 })
-export class FastifyStreamAdapterService
-  implements FastifyHandlerAdapterInterface
-{
-  protected container = inject(Container)
-
+export class FastifyStreamAdapterService implements FastifyHandlerAdapterInterface {
   hasSchema(handlerMetadata: HandlerMetadata<BaseStreamConfig>): boolean {
     const config = handlerMetadata.config
     return !!config.requestSchema || !!config.querySchema
@@ -54,7 +49,7 @@ export class FastifyStreamAdapterService
     controller: ClassType,
     handlerMetadata: HandlerMetadata<BaseStreamConfig>,
   ): (
-    context: RequestContextHolder,
+    context: ScopedContainer,
     request: FastifyRequest,
     reply: FastifyReply,
   ) => Promise<any> {
@@ -73,11 +68,11 @@ export class FastifyStreamAdapterService
     }
 
     return async (
-      context: RequestContextHolder,
+      context: ScopedContainer,
       request: FastifyRequest,
       reply: FastifyReply,
     ) => {
-      const controllerInstance = await this.container.get(controller)
+      const controllerInstance = await context.get(controller)
       const argument = await formatArguments(request)
 
       await controllerInstance[handlerMetadata.classMethod](argument, reply)

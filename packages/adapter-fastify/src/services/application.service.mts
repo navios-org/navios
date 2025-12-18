@@ -7,14 +7,15 @@ import type {
   FastifyServerOptions,
 } from 'fastify'
 
-import { HttpException, Logger } from '@navios/core'
 import {
   Container,
+  HttpException,
   inject,
   Injectable,
   InjectableScope,
   InjectableType,
-} from '@navios/di'
+  Logger,
+} from '@navios/core'
 
 import cors from '@fastify/cors'
 import multipart from '@fastify/multipart'
@@ -37,9 +38,7 @@ import { PinoWrapper } from './pino-wrapper.mjs'
 @Injectable({
   token: FastifyApplicationServiceToken,
 })
-export class FastifyApplicationService
-  implements FastifyApplicationServiceInterface
-{
+export class FastifyApplicationService implements FastifyApplicationServiceInterface {
   private logger = inject(Logger, {
     context: FastifyApplicationService.name,
   })

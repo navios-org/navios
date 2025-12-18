@@ -1,4 +1,4 @@
-import { Container, Registry } from '@navios/di'
+import { Container, Registry } from '@navios/core'
 
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod/v4'
@@ -152,13 +152,16 @@ describe('class component rendering', () => {
     }
 
     const container = new Container()
-    container.beginRequest('test-request')
+    const requestContainer = container.beginRequest('test-request')
     try {
       const node = createElement(SimpleComponent, null)
-      const xml = await renderToXml(node, { declaration: false, container })
+      const xml = await renderToXml(node, {
+        declaration: false,
+        container: requestContainer,
+      })
       expect(xml).toBe('<simple>content</simple>')
     } finally {
-      await container.endRequest('test-request')
+      await requestContainer.endRequest()
     }
   })
 
@@ -177,13 +180,16 @@ describe('class component rendering', () => {
     }
 
     const container = new Container()
-    container.beginRequest('test-request')
+    const requestContainer = container.beginRequest('test-request')
     try {
       const node = createElement(Greeting, { name: 'World' })
-      const xml = await renderToXml(node, { declaration: false, container })
+      const xml = await renderToXml(node, {
+        declaration: false,
+        container: requestContainer,
+      })
       expect(xml).toBe('<greeting>Hello, World!</greeting>')
     } finally {
-      await container.endRequest('test-request')
+      await requestContainer.endRequest()
     }
   })
 
@@ -203,13 +209,16 @@ describe('class component rendering', () => {
     }
 
     const container = new Container()
-    container.beginRequest('test-request')
+    const requestContainer = container.beginRequest('test-request')
     try {
       const node = createElement(Outer, null)
-      const xml = await renderToXml(node, { declaration: false, container })
+      const xml = await renderToXml(node, {
+        declaration: false,
+        container: requestContainer,
+      })
       expect(xml).toBe('<outer><inner>nested</inner></outer>')
     } finally {
-      await container.endRequest('test-request')
+      await requestContainer.endRequest()
     }
   })
 
@@ -223,13 +232,16 @@ describe('class component rendering', () => {
     }
 
     const container = new Container()
-    container.beginRequest('test-request')
+    const requestContainer = container.beginRequest('test-request')
     try {
       const node = createElement(AsyncComponent, null)
-      const xml = await renderToXml(node, { declaration: false, container })
+      const xml = await renderToXml(node, {
+        declaration: false,
+        container: requestContainer,
+      })
       expect(xml).toBe('<async>loaded</async>')
     } finally {
-      await container.endRequest('test-request')
+      await requestContainer.endRequest()
     }
   })
 
@@ -263,13 +275,13 @@ describe('class component rendering', () => {
     }
 
     const container = new Container()
-    container.beginRequest('test-request')
+    const requestContainer = container.beginRequest('test-request')
     try {
       // Valid props
       const validNode = createElement(StrictComponent, { count: 5 })
       const xml = await renderToXml(validNode, {
         declaration: false,
-        container,
+        container: requestContainer,
       })
       expect(xml).toBe('<count>5</count>')
 
@@ -279,7 +291,7 @@ describe('class component rendering', () => {
         renderToXml(invalidNode, { declaration: false, container }),
       ).rejects.toThrow()
     } finally {
-      await container.endRequest('test-request')
+      await requestContainer.endRequest()
     }
   })
 
@@ -296,7 +308,7 @@ describe('class component rendering', () => {
     }
 
     const container = new Container()
-    container.beginRequest('test-request')
+    const requestContainer = container.beginRequest('test-request')
     try {
       const node = createElement(
         'page',
@@ -304,12 +316,15 @@ describe('class component rendering', () => {
         createElement(Header, { title: 'Welcome' }),
         createElement(Footer, null),
       )
-      const xml = await renderToXml(node, { declaration: false, container })
+      const xml = await renderToXml(node, {
+        declaration: false,
+        container: requestContainer,
+      })
       expect(xml).toBe(
         '<page><header>Welcome</header><footer>Copyright 2025</footer></page>',
       )
     } finally {
-      await container.endRequest('test-request')
+      await requestContainer.endRequest()
     }
   })
 
@@ -328,7 +343,7 @@ describe('class component rendering', () => {
     }
 
     const container = new Container()
-    container.beginRequest('test-request')
+    const requestContainer = container.beginRequest('test-request')
     try {
       const node = createElement(
         Wrapper,
@@ -336,10 +351,13 @@ describe('class component rendering', () => {
         createElement('child1', null),
         createElement('child2', null),
       )
-      const xml = await renderToXml(node, { declaration: false, container })
+      const xml = await renderToXml(node, {
+        declaration: false,
+        container: requestContainer,
+      })
       expect(xml).toBe('<wrapper><child1/><child2/></wrapper>')
     } finally {
-      await container.endRequest('test-request')
+      await requestContainer.endRequest()
     }
   })
 })

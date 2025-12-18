@@ -1,28 +1,32 @@
-import type { ClassTypeWithInstance, InjectionToken } from '@navios/di'
+import type {
+  ClassTypeWithInstance,
+  InjectionToken,
+  NaviosModule,
+} from '@navios/core'
 
-import { Container, inject, Injectable } from '@navios/di'
+import { Container, inject, Injectable } from '@navios/core'
 
-import type { CommandHandler, Module } from './interfaces/index.mjs'
+import type { CommandHandler } from './interfaces/index.mjs'
 
 import { CommanderExecutionContext } from './interfaces/index.mjs'
-import { CliParserService, ModuleLoaderService } from './services/index.mjs'
-import { ExecutionContext } from './tokens/index.mjs'
+import { CliModuleLoaderService, CliParserService } from './services/index.mjs'
+import { CommandExecutionContext } from './tokens/index.mjs'
 
 export interface CommanderApplicationOptions {}
 
 @Injectable()
 export class CommanderApplication {
-  private moduleLoader = inject(ModuleLoaderService)
+  private moduleLoader = inject(CliModuleLoaderService)
   private cliParser = inject(CliParserService)
   protected container = inject(Container)
 
-  private appModule: ClassTypeWithInstance<Module> | null = null
+  private appModule: ClassTypeWithInstance<NaviosModule> | null = null
   private options: CommanderApplicationOptions = {}
 
   isInitialized = false
 
   async setup(
-    appModule: ClassTypeWithInstance<Module>,
+    appModule: ClassTypeWithInstance<NaviosModule>,
     options: CommanderApplicationOptions = {},
   ) {
     this.appModule = appModule
@@ -76,15 +80,12 @@ export class CommanderApplication {
     const requestId = `cmd-${Date.now()}-${Math.random().toString(36).substring(7)}`
 
     // Begin request context and add ExecutionContext
-    const requestContext = this.container.beginRequest(requestId)
-    requestContext.addInstance(ExecutionContext, executionContext)
+    const scopeContainer = this.container.beginRequest(requestId)
+    scopeContainer.addInstance(CommandExecutionContext, executionContext)
 
     try {
-      // Set current request context
-      this.container.setCurrentRequestContext(requestId)
-
       // Get command instance and execute
-      const commandInstance = await this.container.get<CommandHandler>(
+      const commandInstance = await scopeContainer.get<CommandHandler>(
         commandClass as unknown as InjectionToken<CommandHandler>,
       )
 
@@ -97,7 +98,7 @@ export class CommanderApplication {
       await commandInstance.execute(validatedOptions)
     } finally {
       // Clean up request context
-      await this.container.endRequest(requestId)
+      await scopeContainer.endRequest()
     }
   }
 

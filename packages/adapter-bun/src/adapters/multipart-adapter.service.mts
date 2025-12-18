@@ -2,7 +2,7 @@ import type { BaseEndpointConfig } from '@navios/builder'
 import type { HandlerMetadata } from '@navios/core'
 import type { BunRequest } from 'bun'
 
-import { Injectable, InjectionToken } from '@navios/di'
+import { Injectable, InjectionToken } from '@navios/core'
 
 import { BunEndpointAdapterService } from './endpoint-adapter.service.mjs'
 

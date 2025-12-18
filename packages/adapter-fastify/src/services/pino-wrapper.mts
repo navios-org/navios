@@ -1,5 +1,4 @@
-import { Logger } from '@navios/core'
-import { Container, inject, Injectable } from '@navios/di'
+import { Container, inject, Injectable, Logger } from '@navios/core'
 
 @Injectable()
 export class PinoWrapper {

@@ -1,4 +1,4 @@
-import type { ClassType } from '@navios/di'
+import type { ClassType } from '@navios/core'
 
 export const CliModuleMetadataKey = Symbol('CliModuleMetadataKey')
 
@@ -33,13 +33,9 @@ export function getCliModuleMetadata(
   throw new Error('[Navios Commander] Wrong environment.')
 }
 
-export function extractCliModuleMetadata(
-  target: ClassType,
-): CliModuleMetadata {
+export function extractCliModuleMetadata(target: ClassType): CliModuleMetadata {
   // @ts-expect-error We add a custom metadata key to the target
-  const metadata = target[CliModuleMetadataKey] as
-    | CliModuleMetadata
-    | undefined
+  const metadata = target[CliModuleMetadataKey] as CliModuleMetadata | undefined
   if (!metadata) {
     throw new Error(
       `[Navios Commander] Module metadata not found for ${target.name}. Make sure to use @CliModule decorator.`,

@@ -4,7 +4,7 @@ import type { HandlerMetadata } from '@navios/core'
 import type { FastifyRequest } from 'fastify'
 import type { ZodRawShape } from 'zod/v4'
 
-import { Injectable, InjectionToken } from '@navios/di'
+import { Injectable, InjectionToken } from '@navios/core'
 
 import { ZodArray, ZodObject, ZodOptional } from 'zod/v4'
 

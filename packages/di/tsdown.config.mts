@@ -1,0 +1,67 @@
+import { withFilter } from 'rolldown/filter'
+import { defineConfig } from 'tsdown'
+import swc from 'unplugin-swc'
+
+export default defineConfig([
+  // Node.js build (default)
+  {
+    entry: ['src/index.mts', 'src/testing/index.mts'],
+    outDir: 'lib',
+    format: ['esm', 'cjs'],
+    clean: true,
+    treeshake: true,
+    sourcemap: true,
+    platform: 'node',
+    dts: true,
+    target: 'es2022',
+    plugins: [
+      withFilter(
+        swc.rolldown({
+          jsc: {
+            target: 'es2022',
+            parser: {
+              syntax: 'typescript',
+              decorators: true,
+            },
+            transform: {
+              decoratorVersion: '2022-03',
+            },
+          },
+        }),
+        // Only run this transform if the file contains a decorator.
+        { transform: { code: '@' } },
+      ),
+    ],
+  },
+  // Browser build - uses dedicated entry that forces SyncLocalStorage
+  {
+    entry: {
+      'browser/index': 'src/browser.mts',
+    },
+    outDir: 'lib',
+    format: ['esm'],
+    treeshake: true,
+    sourcemap: true,
+    platform: 'browser',
+    dts: true,
+    target: 'es2022',
+    plugins: [
+      withFilter(
+        swc.rolldown({
+          jsc: {
+            target: 'es2022',
+            parser: {
+              syntax: 'typescript',
+              decorators: true,
+            },
+            transform: {
+              decoratorVersion: '2022-03',
+            },
+          },
+        }),
+        // Only run this transform if the file contains a decorator.
+        { transform: { code: '@' } },
+      ),
+    ],
+  },
+])

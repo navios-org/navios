@@ -1,7 +1,7 @@
-import type { ClassType } from '@navios/di'
+import type { ClassType } from '@navios/core'
 import type { ZodObject } from 'zod'
 
-import { Injectable, InjectableScope, InjectionToken } from '@navios/di'
+import { Injectable, InjectableScope, InjectionToken } from '@navios/core'
 
 import { getCommandMetadata } from '../metadata/index.mjs'
 

@@ -1,9 +1,8 @@
 import type { BaseStreamConfig } from '@navios/builder'
-import type { HandlerMetadata } from '@navios/core'
-import type { ClassType, RequestContextHolder } from '@navios/di'
+import type { ClassType, HandlerMetadata, ScopedContainer } from '@navios/core'
 import type { BunRequest } from 'bun'
 
-import { Container, inject, Injectable, InjectionToken } from '@navios/di'
+import { Injectable, InjectionToken } from '@navios/core'
 
 import type { BunHandlerAdapterInterface } from './handler-adapter.interface.mjs'
 
@@ -16,8 +15,6 @@ export const BunStreamAdapterToken =
   token: BunStreamAdapterToken,
 })
 export class BunStreamAdapterService implements BunHandlerAdapterInterface {
-  protected container = inject(Container)
-
   hasSchema(handlerMetadata: HandlerMetadata<BaseStreamConfig>): boolean {
     const config = handlerMetadata.config
     return !!config.requestSchema || !!config.querySchema
@@ -54,7 +51,7 @@ export class BunStreamAdapterService implements BunHandlerAdapterInterface {
   provideHandler(
     controller: ClassType,
     handlerMetadata: HandlerMetadata<BaseStreamConfig>,
-  ): (context: RequestContextHolder, request: BunRequest) => Promise<Response> {
+  ): (context: ScopedContainer, request: BunRequest) => Promise<Response> {
     const getters = this.prepareArguments(handlerMetadata)
     const formatArguments = async (request: BunRequest) => {
       const argument: Record<string, any> = {}
@@ -69,8 +66,8 @@ export class BunStreamAdapterService implements BunHandlerAdapterInterface {
       return argument
     }
 
-    return async (context: RequestContextHolder, request: BunRequest) => {
-      const controllerInstance = await this.container.get(controller)
+    return async (context: ScopedContainer, request: BunRequest) => {
+      const controllerInstance = await context.get(controller)
       const argument = await formatArguments(request)
 
       // For stream, assume the handler returns a Response

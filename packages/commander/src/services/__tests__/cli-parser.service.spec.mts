@@ -1,4 +1,4 @@
-import { Container } from '@navios/di'
+import { Container } from '@navios/core'
 
 import { beforeEach, describe, expect, it } from 'vitest'
 import { z } from 'zod'
@@ -434,14 +434,7 @@ describe('CliParserService', () => {
       })
 
       const result = parser.parse(
-        [
-          'node',
-          'script.js',
-          'test',
-          '--tags=foo',
-          '--tags=bar',
-          '--tags=baz',
-        ],
+        ['node', 'script.js', 'test', '--tags=foo', '--tags=bar', '--tags=baz'],
         schema,
       )
 
@@ -600,12 +593,23 @@ describe('CliParserService', () => {
       })
 
       const result = parser.parse(
-        ['node', 'script.js', 'test', '--items', '[1,2,3]', '--items', '["a","b"]'],
+        [
+          'node',
+          'script.js',
+          'test',
+          '--items',
+          '[1,2,3]',
+          '--items',
+          '["a","b"]',
+        ],
         schema,
       )
 
       expect(result.options).toEqual({
-        items: [[1, 2, 3], ['a', 'b']],
+        items: [
+          [1, 2, 3],
+          ['a', 'b'],
+        ],
       })
     })
 

@@ -12,8 +12,7 @@
   },
   "license": "MIT",
   "peerDependencies": {
-    "@navios/core": "workspace:^",
-    "@navios/di": "workspace:^"
+    "@navios/core": "workspace:^"
   },
   "typings": "./lib/index.d.mts",
   "main": "./lib/index.js",

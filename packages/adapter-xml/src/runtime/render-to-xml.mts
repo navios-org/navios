@@ -1,5 +1,6 @@
-import type { Container } from '@navios/di'
+import type { Container, ScopedContainer } from '@navios/core'
 
+import type { XmlComponent } from '../types/component.mjs'
 import type {
   AnyXmlNode,
   AsyncXmlNode,
@@ -7,7 +8,6 @@ import type {
   ClassComponentNode,
   RawXmlNode,
 } from '../types/xml-node.mjs'
-import type { XmlComponent } from '../types/component.mjs'
 
 import {
   AsyncComponent,
@@ -28,7 +28,7 @@ export interface RenderOptions {
    * DI container for resolving class components.
    * Required if the tree contains any class components.
    */
-  container?: Container
+  container?: Container | ScopedContainer
 }
 
 export class MissingContainerError extends Error {
@@ -65,7 +65,7 @@ export async function renderToXml(
 async function renderNode(
   node: AnyXmlNode,
   indent: number,
-  container: Container | undefined,
+  container: Container | ScopedContainer | undefined,
 ): Promise<string> {
   if (node == null) return ''
   if (typeof node === 'string') return escapeXml(node)

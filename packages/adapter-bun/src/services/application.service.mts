@@ -1,14 +1,14 @@
 import type { ModuleMetadata } from '@navios/core'
 import type { Serve, Server } from 'bun'
 
-import { Logger } from '@navios/core'
 import {
   Container,
   inject,
   Injectable,
   InjectableScope,
   InjectableType,
-} from '@navios/di'
+  Logger,
+} from '@navios/core'
 
 import type {
   BunApplicationOptions,

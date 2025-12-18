@@ -38,11 +38,11 @@
     },
     "build": {
       "executor": "nx:run-commands",
-      "inputs": ["projectSources", "{projectRoot}/tsup.config.mts"],
+      "inputs": ["projectSources", "{projectRoot}/tsdown.config.mts"],
       "outputs": ["{projectRoot}/lib"],
       "dependsOn": ["check", "test:ci", "lint"],
       "options": {
-        "command": "tsup",
+        "command": "tsdown",
         "cwd": "packages/core"
       }
     },

@@ -1,6 +1,6 @@
-import type { ClassType } from '@navios/di'
+import type { ClassType } from '@navios/core'
 
-import { Injectable, InjectableScope, InjectionToken } from '@navios/di'
+import { Injectable, InjectableScope, InjectionToken } from '@navios/core'
 
 import { getCliModuleMetadata } from '../metadata/index.mjs'
 

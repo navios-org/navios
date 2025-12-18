@@ -1,6 +1,5 @@
 import fs from 'fs'
 
-import * as babel from '@babel/core'
 import { plugin } from 'bun'
 import chalk from 'chalk'
 
@@ -88,7 +87,9 @@ export function debounce<F extends (...args: any[]) => void>(
 }
 
 const saveCacheImpl = debounce(() => {
-  log(`saving cache with ${cache.size} entries (spent ${totalTimeSpentTranspiling.toFixed(2)}ms transpiling)`)
+  log(
+    `saving cache with ${cache.size} entries (spent ${totalTimeSpentTranspiling.toFixed(2)}ms transpiling)`,
+  )
   void Bun.file('./bunPlugin.cache').write(JSON.stringify([...cache.entries()]))
 }, 50)
 
@@ -116,7 +117,8 @@ async function transpileFileForReal(
   const esbuild = (await import('esbuild')).default
 
   // Determine loader based on file extension and content
-  const hasJsx = codeTS.includes('<') && (codeTS.includes('/>') || codeTS.includes('</'))
+  const hasJsx =
+    codeTS.includes('<') && (codeTS.includes('/>') || codeTS.includes('</'))
   const loader = hasJsx ? 'tsx' : 'ts'
 
   const result = await esbuild.transform(codeTS, {

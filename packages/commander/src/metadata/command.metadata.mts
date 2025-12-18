@@ -1,4 +1,4 @@
-import type { ClassType } from '@navios/di'
+import type { ClassType } from '@navios/core'
 import type { ZodObject } from 'zod'
 
 export const CommandMetadataKey = Symbol('CommandMetadataKey')

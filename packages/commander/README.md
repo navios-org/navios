@@ -23,6 +23,7 @@ Commands are defined using the `@Command` decorator. Each command must implement
 
 ```typescript
 import { Command, CommandHandler } from '@navios/commander'
+
 import { z } from 'zod'
 
 const greetOptionsSchema = z.object({
@@ -49,6 +50,7 @@ Modules organize commands and can import other modules:
 
 ```typescript
 import { CliModule } from '@navios/commander'
+
 import { GreetCommand } from './greet.command'
 
 @CliModule({
@@ -63,6 +65,7 @@ Use `CommanderFactory` to create and run your CLI application:
 
 ```typescript
 import { CommanderFactory } from '@navios/commander'
+
 import { AppModule } from './app.module'
 
 async function bootstrap() {
@@ -87,8 +90,9 @@ node dist/cli.js greet --name World --greeting Hi
 ### Advanced Example with Dependency Injection
 
 ```typescript
-import { Command, CommandHandler, CliModule } from '@navios/commander'
-import { Injectable, inject } from '@navios/di'
+import { CliModule, Command, CommandHandler } from '@navios/commander'
+import { inject, Injectable } from '@navios/di'
+
 import { z } from 'zod'
 
 // Service
@@ -108,7 +112,9 @@ const userOptionsSchema = z.object({
   path: 'user:show',
   optionsSchema: userOptionsSchema,
 })
-export class ShowUserCommand implements CommandHandler<z.infer<typeof userOptionsSchema>> {
+export class ShowUserCommand implements CommandHandler<
+  z.infer<typeof userOptionsSchema>
+> {
   private userService = inject(UserService)
 
   async execute(options: { userId: string }) {
@@ -135,7 +141,7 @@ The `ExecutionContext` provides access to the current command execution informat
 
 ```typescript
 import { Command, CommandHandler, ExecutionContext } from '@navios/commander'
-import { Injectable, inject } from '@navios/di'
+import { inject, Injectable } from '@navios/di'
 
 @Injectable()
 class CommandLogger {
@@ -161,6 +167,7 @@ export class ExampleCommand implements CommandHandler {
 ```
 
 The `ExecutionContext` provides the following methods:
+
 - `getModule()` - Returns the CLI module metadata
 - `getCommand()` - Returns the command metadata
 - `getCommandPath()` - Returns the command path (e.g., 'user:create')
@@ -187,6 +194,7 @@ For advanced use cases where you need to execute commands programmatically (e.g.
 
 ```typescript
 import { CommanderFactory } from '@navios/commander'
+
 import { AppModule } from './app.module'
 
 async function bootstrap() {
@@ -206,6 +214,7 @@ bootstrap()
 ```
 
 This is useful for:
+
 - Unit and integration testing
 - Building CLI tools that wrap other CLI tools
 - Programmatic automation workflows
@@ -219,6 +228,7 @@ This is useful for:
 Defines a CLI command.
 
 **Options:**
+
 - `path: string` - The command path (e.g., 'user:create', 'db:migrate')
 - `optionsSchema?: ZodSchema` - Optional Zod schema for validating command options
 
@@ -227,6 +237,7 @@ Defines a CLI command.
 Defines a CLI module.
 
 **Options:**
+
 - `commands?: ClassType[]` - Array of command classes
 - `imports?: ClassType[]` - Array of other modules to import
 
@@ -242,14 +253,13 @@ interface CommandHandler<TOptions = any> {
 }
 ```
 
-#### `CliModule`
+#### `Module` (alias for `NaviosModule`)
 
-Optional lifecycle hooks for modules.
+Optional lifecycle hooks for modules. This is an alias for `NaviosModule` from `@navios/core`.
 
 ```typescript
-interface CliModule {
-  onModuleInit?(): void | Promise<void>
-  onModuleDestroy?(): void | Promise<void>
+interface NaviosModule {
+  onModuleInit?: () => Promise<void> | void
 }
 ```
 
@@ -260,6 +270,7 @@ interface CliModule {
 Factory class for creating CLI applications.
 
 **Methods:**
+
 - `static async create(appModule, options?)` - Creates a new CommanderApplication
 
 #### `CommanderApplication`
@@ -267,6 +278,7 @@ Factory class for creating CLI applications.
 Main application class.
 
 **Methods:**
+
 - `async init()` - Initializes the application
 - `async run(argv)` - Parses command-line arguments and executes the appropriate command (default usage)
 - `async executeCommand(path, options?)` - Executes a command programmatically with options (advanced usage)

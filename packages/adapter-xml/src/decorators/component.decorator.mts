@@ -1,14 +1,13 @@
+import type { Registry } from '@navios/core'
 import type { z, ZodObject, ZodRawShape } from 'zod/v4'
 
-import type { Registry } from '@navios/di'
-
 import {
-  InjectableScope,
-  InjectableType,
-  InjectableTokenMeta,
-  InjectionToken,
   globalRegistry,
-} from '@navios/di'
+  InjectableScope,
+  InjectableTokenMeta,
+  InjectableType,
+  InjectionToken,
+} from '@navios/core'
 
 import type { ComponentClass, XmlComponent } from '../types/component.mjs'
 
@@ -32,10 +31,7 @@ export function Component<Schema extends ZodObject<ZodRawShape>>(options: {
 // #3 Component with custom registry only
 export function Component(options: {
   registry: Registry
-}): <T extends ComponentClass>(
-  target: T,
-  context?: ClassDecoratorContext,
-) => T
+}): <T extends ComponentClass>(target: T, context?: ClassDecoratorContext) => T
 
 export function Component(
   options: {

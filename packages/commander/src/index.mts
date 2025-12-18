@@ -1,4 +1,7 @@
-export * from '@navios/di'
+// Re-export DI types and values that users might need
+export * from '@navios/core'
+
+// Export commander-specific exports
 export * from './commander.application.mjs'
 export * from './commander.factory.mjs'
 export * from './decorators/index.mjs'

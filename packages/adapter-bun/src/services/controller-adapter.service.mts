@@ -1,19 +1,24 @@
 import type {
+  ClassType,
   ControllerMetadata,
   HandlerMetadata,
   ModuleMetadata,
+  ScopedContainer,
 } from '@navios/core'
-import type { ClassType, RequestContextHolder } from '@navios/di'
 import type { BunRequest } from 'bun'
 
 import {
+  Container,
   ExecutionContext,
   extractControllerMetadata,
   GuardRunnerService,
   HttpException,
+  inject,
+  Injectable,
+  InjectionToken,
   Logger,
+  runWithRequestId,
 } from '@navios/core'
-import { Container, inject, Injectable, InjectionToken } from '@navios/di'
 
 import type { BunHandlerAdapterInterface } from '../adapters/index.mjs'
 
@@ -70,7 +75,7 @@ export class BunControllerAdapterService {
 
   private wrapHandler(
     handler: (
-      context: RequestContextHolder,
+      context: ScopedContainer,
       request: BunRequest,
     ) => Promise<Response>,
     moduleMetadata: ModuleMetadata,
@@ -85,29 +90,32 @@ export class BunControllerAdapterService {
         request,
       )
       const requestId = crypto.randomUUID()
-      const requestContext = this.container.beginRequest(requestId)
-      requestContext.addInstance(BunRequestToken, request)
-      requestContext.addInstance(ExecutionContext, executionContext)
+      const requestContainer = this.container.beginRequest(requestId)
+      requestContainer.addInstance(BunRequestToken, request)
+      requestContainer.addInstance(ExecutionContext, executionContext)
 
       try {
-        // Run guards
-        const guards = this.guardRunner.makeContext(
-          moduleMetadata,
-          controllerMetadata,
-          endpoint,
-        )
-        if (guards.size > 0) {
-          const canActivate = await this.guardRunner.runGuards(
-            guards,
-            executionContext,
+        return await runWithRequestId(requestId, async () => {
+          // Run guards
+          const guards = this.guardRunner.makeContext(
+            moduleMetadata,
+            controllerMetadata,
+            endpoint,
           )
-          if (!canActivate) {
-            return new Response('Forbidden', { status: 403 })
+          if (guards.size > 0) {
+            const canActivate = await this.guardRunner.runGuards(
+              guards,
+              executionContext,
+              requestContainer,
+            )
+            if (!canActivate) {
+              return new Response('Forbidden', { status: 403 })
+            }
           }
-        }
 
-        const response = await handler(requestContext, request)
-        return response
+          const response = await handler(requestContainer, request)
+          return response
+        })
       } catch (error) {
         // Handle errors
         if (error instanceof HttpException) {
@@ -131,7 +139,7 @@ export class BunControllerAdapterService {
           )
         }
       } finally {
-        this.container.endRequest(requestId).catch((err) => {
+        requestContainer.endRequest().catch((err: any) => {
           this.logger.error(
             `Error ending request context ${requestId}: ${err.message}`,
             err,

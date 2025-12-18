@@ -1,8 +1,8 @@
-import type { ClassTypeWithInstance } from '@navios/di'
+import type { ClassTypeWithInstance, NaviosModule } from '@navios/core'
 
-import { Container, inject, Injectable } from '@navios/di'
+import { Container, inject, Injectable } from '@navios/core'
 
-import type { CommandHandler, Module } from '../interfaces/index.mjs'
+import type { CommandHandler } from '../interfaces/index.mjs'
 import type { CliModuleMetadata, CommandMetadata } from '../metadata/index.mjs'
 
 import {
@@ -16,14 +16,14 @@ export interface CommandWithMetadata {
 }
 
 @Injectable()
-export class ModuleLoaderService {
+export class CliModuleLoaderService {
   protected container = inject(Container)
   private modulesMetadata: Map<string, CliModuleMetadata> = new Map()
   private loadedModules: Map<string, any> = new Map()
   private commandsMetadata: Map<string, CommandWithMetadata> = new Map()
   private initialized = false
 
-  async loadModules(appModule: ClassTypeWithInstance<Module>) {
+  async loadModules(appModule: ClassTypeWithInstance<NaviosModule>) {
     if (this.initialized) {
       return
     }
@@ -32,7 +32,7 @@ export class ModuleLoaderService {
   }
 
   private async traverseModules(
-    module: ClassTypeWithInstance<Module>,
+    module: ClassTypeWithInstance<NaviosModule>,
     parentMetadata?: CliModuleMetadata,
   ) {
     const metadata = extractCliModuleMetadata(module)

@@ -1,14 +1,14 @@
-import type { AnyInjectableType } from '@navios/di'
+import type { AnyInjectableType } from '@navios/core'
 
 import {
   EndpointAdapterToken,
   HttpAdapterToken,
+  InjectionToken,
   MultipartAdapterToken,
   Reply,
   Request,
   StreamAdapterToken,
 } from '@navios/core'
-import { InjectionToken } from '@navios/di'
 
 import {
   FastifyEndpointAdapterService,
