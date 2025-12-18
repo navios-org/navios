@@ -6,15 +6,63 @@ import { Injectable, InjectionToken } from '@navios/core'
 
 import { BunEndpointAdapterService } from './endpoint-adapter.service.mjs'
 
+/**
+ * Injection token for the Bun multipart adapter service.
+ *
+ * This token is used to inject the `BunMultipartAdapterService` instance
+ * into the dependency injection container.
+ */
 export const BunMultipartAdapterToken =
   InjectionToken.create<BunMultipartAdapterService>(
     Symbol.for('BunMultipartAdapterService'),
   )
 
+/**
+ * Adapter service for handling multipart/form-data requests in Bun.
+ *
+ * This service extends `BunEndpointAdapterService` and provides specialized
+ * handling for file uploads and multipart form data. It automatically parses
+ * FormData objects, handles file uploads, and validates the data against
+ * Zod schemas.
+ *
+ * @extends {BunEndpointAdapterService}
+ *
+ * @example
+ * ```ts
+ * // Used automatically when defining endpoints with @Multipart()
+ * @Controller()
+ * class UploadController {
+ *   @Multipart({
+ *     method: 'POST',
+ *     url: '/upload',
+ *     requestSchema: uploadSchema,
+ *   })
+ *   async uploadFile(data: UploadDto) {
+ *     // data contains parsed form fields and File objects
+ *     return { success: true }
+ *   }
+ * }
+ * ```
+ */
 @Injectable({
   token: BunMultipartAdapterToken,
 })
 export class BunMultipartAdapterService extends BunEndpointAdapterService {
+  /**
+   * Prepares argument getters for parsing multipart form data.
+   *
+   * This method creates an array of functions that extract and validate
+   * data from multipart requests, including:
+   * - Query parameters
+   * - URL parameters
+   * - Form fields and file uploads from FormData
+   *
+   * Files are preserved as File objects, and form fields are parsed and
+   * validated against the request schema.
+   *
+   * @param handlerMetadata - The handler metadata with schemas and configuration.
+   * @returns An array of getter functions that populate request arguments.
+   */
   override prepareArguments(
     handlerMetadata: HandlerMetadata<BaseEndpointConfig>,
   ): ((

@@ -12,17 +12,19 @@ This package provides the Bun runtime adapter for Navios, allowing you to run Na
 
 - Bun does not yet support all Node.js APIs, so some third-party libraries may not work as expected.
 - WebSocket support is not yet implemented (coming soon).
-- No support for CORS middleware out of the box
-- No support for configuration of multipart/form-data requests out of the box
+- CORS middleware support is not yet implemented (use Bun's native CORS handling or custom middleware).
+- Multipart/form-data is handled automatically by Bun's native FormData support, but advanced configuration options are not yet available.
 
 ## Features
 
 - Native Bun HTTP server implementation
 - Optimized performance for Bun runtime
 - Fast startup times and low memory usage
-- Full TypeScript support
-- WebSocket support (coming soon)
+- Full TypeScript support with comprehensive JSDoc documentation
+- Automatic request/response validation with Zod schemas
+- Native multipart/form-data support via Bun's FormData API
 - Efficient request/response handling
+- WebSocket support (coming soon)
 
 ## Installation
 
@@ -54,7 +56,7 @@ async function bootstrap() {
   app.setGlobalPrefix('/api')
 
   await app.init()
-  await app.listen({ port: 3000, host: '0.0.0.0' })
+  await app.listen({ port: 3000, hostname: '0.0.0.0' })
 }
 
 bootstrap()
@@ -62,23 +64,34 @@ bootstrap()
 
 ### Advanced Configuration
 
-````ts
+```ts
 import { defineBunEnvironment } from '@navios/adapter-bun'
 import { NaviosFactory } from '@navios/core'
 
 const app = await NaviosFactory.create(AppModule, {
-  adapter: defineBunEnvironment({
-    // Bun server options
-    development: process.env.NODE_ENV === 'development',
-  }),
+  adapter: defineBunEnvironment(),
 })
+
+// Configure Bun server options before initialization
+await app.setupHttpServer({
+  development: process.env.NODE_ENV === 'development',
+  maxRequestBodySize: 1024 * 1024, // 1MB
+})
+
+await app.init()
+await app.listen({ port: 3000, hostname: '0.0.0.0' })
+```
 
 ### Accessing Bun Server Instance
 
 ```ts
 // Get access to the underlying Bun server instance if needed
-const bunServer = app.getHttpAdapter().getInstance()
-````
+const bunServer = app.getServer()
+
+// Use Bun-specific server methods
+// For example, WebSocket upgrades:
+// bunServer.upgrade(request, { data: { userId: 123 } })
+```
 
 ## Features
 

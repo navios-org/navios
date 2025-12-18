@@ -1,0 +1,26 @@
+# Changelog
+
+All notable changes to this project will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [0.7.0] - 2025-01-XX
+
+### Added
+
+- **Comprehensive JSDoc Documentation**: Added detailed JSDoc comments to all public APIs including:
+  - `defineBunEnvironment` function with configuration options
+  - `BunApplicationService` class and all methods (`setupHttpServer`, `initServer`, `ready`, `setGlobalPrefix`, `getServer`, `listen`, `dispose`)
+  - Adapter services (`BunEndpointAdapterService`, `BunStreamAdapterService`, `BunMultipartAdapterService`)
+  - `BunControllerAdapterService` class
+  - Type definitions and interfaces (`BunApplicationOptions`, `BunListenOptions`, `BunApplicationServiceInterface`, `BunHandlerAdapterInterface`, `BunExecutionContext`)
+  - Injection tokens (`BunApplicationServiceToken`, `BunServerToken`, `BunRequestToken`, `BunEndpointAdapterToken`, `BunStreamAdapterToken`, `BunMultipartAdapterToken`)
+- **Enhanced README**: Improved documentation with better examples and clearer API reference
+
+### Documentation
+
+- Complete JSDoc comments for better IDE support and developer experience
+- Updated README with comprehensive examples and API documentation
+- Clarified usage patterns and configuration options
+- Added examples for different server configurations and options
