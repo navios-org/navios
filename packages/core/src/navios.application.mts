@@ -20,6 +20,12 @@ export interface NaviosApplicationContextOptions {
    * Specifies the logger to use.  Pass `false` to turn off logging.
    */
   logger?: LoggerService | LogLevel[] | false
+
+  /**
+   * Specifies a custom container to use. Useful for testing.
+   * If not provided, a new Container will be created.
+   */
+  container?: Container
 }
 
 export interface NaviosApplicationOptions

@@ -1,9 +1,5 @@
 # Testing Guide
 
-> This guide is for future reference and may be updated over time
->
-> Not represent the final state of the testing strategy for Navios
-
 This guide covers testing strategies and best practices for Navios applications, including unit testing, integration testing, and end-to-end testing.
 
 ## Testing Philosophy
@@ -21,6 +17,132 @@ Navios promotes a testing-first approach with:
 ```bash
 npm install --save-dev vitest supertest @navios/builder
 ```
+
+## Testing Module
+
+Navios provides a dedicated testing module that simplifies setting up test environments with mock dependencies.
+
+### Creating a Testing Module
+
+The `createTestingModule` function is the main entry point for setting up tests:
+
+```typescript
+import { createTestingModule } from '@navios/core/testing'
+
+import { AppModule } from './app.module'
+import { DatabaseService } from './database.service'
+
+describe('AppModule', () => {
+  it('should create application with mocked dependencies', async () => {
+    const mockDatabase = {
+      query: vi.fn().mockResolvedValue([]),
+    }
+
+    const testingModule = createTestingModule(AppModule, {
+      adapter: [], // No HTTP adapter for unit tests
+    })
+      .overrideProvider(DatabaseService)
+      .useValue(mockDatabase)
+
+    const app = await testingModule.compile()
+
+    // App is ready to use with mocked DatabaseService
+    expect(app).toBeDefined()
+
+    await testingModule.close()
+  })
+})
+```
+
+### TestingModule API
+
+#### `createTestingModule(appModule, options)`
+
+Creates a new testing module builder.
+
+```typescript
+const testingModule = createTestingModule(AppModule, {
+  adapter: [], // Required: HTTP adapter configuration
+  logger: false, // Optional: Disable logging for tests
+  overrides: [ // Optional: Initial overrides
+    { token: SomeService, useValue: mockService },
+  ],
+})
+```
+
+#### `.overrideProvider(token)`
+
+Returns a builder for overriding a provider:
+
+```typescript
+testingModule
+  .overrideProvider(DatabaseService)
+  .useValue(mockDatabaseService) // Use a mock value
+
+testingModule
+  .overrideProvider(CacheService)
+  .useClass(MockCacheService) // Use a mock class
+```
+
+#### `.compile()`
+
+Compiles the testing module and returns the `NaviosApplication`:
+
+```typescript
+const app = await testingModule.compile()
+```
+
+#### `.init()`
+
+Compiles and initializes the application (equivalent to calling `compile()` then `app.init()`):
+
+```typescript
+const app = await testingModule.init()
+```
+
+#### `.get(token)`
+
+Gets an instance from the container:
+
+```typescript
+const userService = await testingModule.get(UserService)
+```
+
+#### `.getContainer()`
+
+Gets the underlying `TestContainer` for direct manipulation:
+
+```typescript
+const container = testingModule.getContainer()
+container.bind(SomeToken).toValue(someValue)
+```
+
+#### `.close()`
+
+Disposes the testing module and cleans up resources:
+
+```typescript
+await testingModule.close()
+```
+
+### Custom Container Support
+
+You can also pass a custom container directly to `NaviosFactory.create()`:
+
+```typescript
+import { NaviosFactory } from '@navios/core'
+import { TestContainer } from '@navios/core/testing'
+
+const container = new TestContainer()
+container.bind(DatabaseService).toValue(mockDatabase)
+
+const app = await NaviosFactory.create(AppModule, {
+  adapter: [],
+  container, // Use custom container
+})
+```
+
+This is useful when you need more control over the container setup or when integrating with existing test infrastructure.
 
 ## Unit Testing
 
@@ -332,29 +454,31 @@ describe('AuthGuard', () => {
 ### Testing Module Integration
 
 ```typescript
-import { NaviosFactory } from '@navios/core'
+import { createTestingModule } from '@navios/core/testing'
+import { defineFastifyEnvironment } from '@navios/adapter-fastify'
 
 import { DatabaseService } from './database.service'
 import { UserModule } from './user.module'
 import { UserService } from './user.service'
 
 describe('UserModule', () => {
-  let module: TestingModule
+  let testingModule: ReturnType<typeof createTestingModule>
   let userService: UserService
   let databaseService: DatabaseService
 
   beforeAll(async () => {
-    module = await NaviosFactory.create(UserModule, {
+    testingModule = createTestingModule(UserModule, {
       adapter: defineFastifyEnvironment(),
     })
-    await module.init()
 
-    userService = module.get<UserService>(UserService)
-    databaseService = module.get<DatabaseService>(DatabaseService)
+    await testingModule.init()
+
+    userService = await testingModule.get(UserService)
+    databaseService = await testingModule.get(DatabaseService)
   })
 
   afterAll(async () => {
-    await module.close()
+    await testingModule.close()
   })
 
   it('should be defined', () => {
@@ -374,28 +498,27 @@ When testing HTTP endpoints, ensure your endpoints are defined using `@navios/bu
 
 ```typescript
 import { defineFastifyEnvironment } from '@navios/adapter-fastify'
-import { NaviosFactory } from '@navios/core'
+import { createTestingModule } from '@navios/core/testing'
 
 import * as request from 'supertest'
 
 import { AppModule } from '../app.module'
 
 describe('UserController (e2e)', () => {
-  let app: any
+  let testingModule: ReturnType<typeof createTestingModule>
   let httpServer: any
 
   beforeAll(async () => {
-    const moduleFixture = await NaviosFactory.create(AppModule, {
+    testingModule = createTestingModule(AppModule, {
       adapter: defineFastifyEnvironment(),
     })
-    await moduleFixture.init()
 
-    await app.init()
+    const app = await testingModule.init()
     httpServer = app.getServer()
   })
 
   afterAll(async () => {
-    await app.close()
+    await testingModule.close()
   })
 
   describe('/users (GET)', () => {

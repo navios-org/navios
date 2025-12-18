@@ -23,7 +23,7 @@ export class NaviosFactory {
       adapter: [],
     },
   ) {
-    const container = new Container()
+    const container = options.container ?? new Container()
     await this.registerLoggerConfiguration(container, options)
     const adapters = Array.isArray(options.adapter)
       ? options.adapter

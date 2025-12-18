@@ -7,6 +7,7 @@ import { Injectable } from '@navios/di'
 import type { LogLevel } from './log-levels.mjs'
 import type { LoggerService } from './logger-service.interface.mjs'
 
+import { getRequestId } from '../stores/request-id.store.mjs'
 import { LoggerOutput } from './logger.tokens.mjs'
 import {
   clc,
@@ -312,6 +313,17 @@ export class ConsoleLogger implements LoggerService {
     return isLogLevelEnabled(level, logLevels)
   }
 
+  /**
+   * Gets the current request ID from the AsyncLocalStorage store.
+   * Only returns a value if the requestId option is enabled.
+   */
+  protected getCurrentRequestId(): string | undefined {
+    if (!this.options.requestId) {
+      return undefined
+    }
+    return getRequestId()
+  }
+
   protected getTimestamp(): string {
     return dateTimeFormatter.format(Date.now())
   }
@@ -324,6 +336,7 @@ export class ConsoleLogger implements LoggerService {
     writeStreamType?: 'stdout' | 'stderr',
     errorStack?: unknown,
   ) {
+    const resolvedRequestId = requestId ?? this.getCurrentRequestId()
     messages.forEach((message) => {
       if (this.options.json) {
         this.printAsJson(message, {
@@ -331,7 +344,7 @@ export class ConsoleLogger implements LoggerService {
           logLevel,
           writeStreamType,
           errorStack,
-          requestId,
+          requestId: resolvedRequestId,
         })
         return
       }
@@ -346,7 +359,7 @@ export class ConsoleLogger implements LoggerService {
         formattedLogLevel,
         contextMessage,
         timestampDiff,
-        requestId,
+        resolvedRequestId,
       )
 
       process[writeStreamType ?? 'stdout'].write(formattedMessage)

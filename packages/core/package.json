@@ -28,6 +28,16 @@
         "types": "./lib/index.d.ts",
         "default": "./lib/index.js"
       }
+    },
+    "./testing": {
+      "import": {
+        "types": "./lib/testing/index.d.mts",
+        "default": "./lib/testing/index.mjs"
+      },
+      "require": {
+        "types": "./lib/testing/index.d.ts",
+        "default": "./lib/testing/index.js"
+      }
     }
   },
   "devDependencies": {
