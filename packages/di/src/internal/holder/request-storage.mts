@@ -132,6 +132,3 @@ export class RequestStorage implements IHolderStorage {
     return dependents
   }
 }
-
-/** @deprecated Use RequestStorage instead */
-export const RequestHolderStorage = RequestStorage

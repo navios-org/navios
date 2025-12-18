@@ -103,6 +103,3 @@ export class SingletonStorage implements IHolderStorage {
     return dependents
   }
 }
-
-/** @deprecated Use SingletonStorage instead */
-export const SingletonHolderStorage = SingletonStorage

@@ -73,6 +73,3 @@ export class LifecycleEventBus {
     return res
   }
 }
-
-/** @deprecated Use LifecycleEventBus instead */
-export const ServiceLocatorEventBus = LifecycleEventBus

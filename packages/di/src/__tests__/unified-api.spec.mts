@@ -1,53 +1,53 @@
 import { describe, expect, it } from 'vitest'
 
 import { InjectableScope, InjectableType } from '../enums/index.mjs'
-import { DefaultRequestContextHolder } from '../internal/context/request-context.mjs'
-import { ServiceLocatorManager } from '../internal/holder/holder-manager.mjs'
+import { DefaultRequestContext } from '../internal/context/request-context.mjs'
+import { HolderManager } from '../internal/holder/holder-manager.mjs'
 
 describe('Unified API', () => {
-  describe('Common methods between ServiceLocatorManager and RequestContextHolder', () => {
+  describe('Common methods between HolderManager and RequestContext', () => {
     it('should have the same basic API surface', () => {
-      const serviceManager = new ServiceLocatorManager()
-      const requestContext = new DefaultRequestContextHolder(
+      const holderManager = new HolderManager()
+      const requestContext = new DefaultRequestContext(
         'test-request',
         100,
       )
 
       // Both should have the same common methods
-      expect(typeof serviceManager.size).toBe('function')
+      expect(typeof holderManager.size).toBe('function')
       expect(typeof requestContext.size).toBe('function')
 
-      expect(typeof serviceManager.isEmpty).toBe('function')
+      expect(typeof holderManager.isEmpty).toBe('function')
       expect(typeof requestContext.isEmpty).toBe('function')
 
-      expect(typeof serviceManager.filter).toBe('function')
+      expect(typeof holderManager.filter).toBe('function')
       expect(typeof requestContext.filter).toBe('function')
 
-      expect(typeof serviceManager.clear).toBe('function')
+      expect(typeof holderManager.clear).toBe('function')
       expect(typeof requestContext.clear).toBe('function')
 
-      expect(typeof serviceManager.delete).toBe('function')
+      expect(typeof holderManager.delete).toBe('function')
       expect(typeof requestContext.delete).toBe('function')
 
-      expect(typeof serviceManager.getAllNames).toBe('function')
+      expect(typeof holderManager.getAllNames).toBe('function')
       expect(typeof requestContext.getAllNames).toBe('function')
 
-      expect(typeof serviceManager.getAllHolders).toBe('function')
+      expect(typeof holderManager.getAllHolders).toBe('function')
       expect(typeof requestContext.getAllHolders).toBe('function')
 
-      expect(typeof serviceManager.createCreatingHolder).toBe('function')
+      expect(typeof holderManager.createCreatingHolder).toBe('function')
       expect(typeof requestContext.createCreatingHolder).toBe('function')
     })
 
     it('should work with the same holder creation patterns', () => {
-      const serviceManager = new ServiceLocatorManager()
-      const requestContext = new DefaultRequestContextHolder(
+      const holderManager = new HolderManager()
+      const requestContext = new DefaultRequestContext(
         'test-request',
         100,
       )
 
       // Both should be able to create holders the same way
-      const [deferred1, holder1] = serviceManager.createCreatingHolder(
+      const [deferred1, holder1] = holderManager.createCreatingHolder(
         'Service1',
         InjectableType.Class,
         InjectableScope.Singleton,
@@ -65,22 +65,22 @@ describe('Unified API', () => {
       expect(holder2.scope).toBe(InjectableScope.Request)
 
       // Both should be able to store holders
-      serviceManager.set('Service1', holder1)
+      holderManager.set('Service1', holder1)
       requestContext.set('Service2', holder2)
 
-      expect(serviceManager.size()).toBe(1)
+      expect(holderManager.size()).toBe(1)
       expect(requestContext.size()).toBe(1)
     })
 
     it('should support the same filtering patterns', () => {
-      const serviceManager = new ServiceLocatorManager()
-      const requestContext = new DefaultRequestContextHolder(
+      const holderManager = new HolderManager()
+      const requestContext = new DefaultRequestContext(
         'test-request',
         100,
       )
 
       // Create and store different types of holders
-      const singletonHolder = serviceManager.storeCreatedHolder(
+      const singletonHolder = holderManager.storeCreatedHolder(
         'Singleton',
         {},
         InjectableType.Class,
@@ -97,7 +97,7 @@ describe('Unified API', () => {
       const transientHolder = transientHolderTemp
 
       // Both should support the same filtering API
-      const singletons = serviceManager.filter(
+      const singletons = holderManager.filter(
         (holder) => holder.scope === InjectableScope.Singleton,
       )
       const transients = requestContext.filter(
@@ -111,17 +111,17 @@ describe('Unified API', () => {
     })
 
     it('should maintain their specific behaviors while sharing common API', () => {
-      const serviceManager = new ServiceLocatorManager()
-      const requestContext = new DefaultRequestContextHolder(
+      const holderManager = new HolderManager()
+      const requestContext = new DefaultRequestContext(
         'test-request',
         100,
       )
 
-      // ServiceLocatorManager has specific error handling
-      const [notFound] = serviceManager.get('NonExistent')
+      // HolderManager has specific error handling
+      const [notFound] = holderManager.get('NonExistent')
       expect(notFound).toBeDefined()
 
-      // RequestContextHolder has specific request features
+      // RequestContext has specific request features
       expect(requestContext.requestId).toBe('test-request')
       expect(requestContext.priority).toBe(100)
       expect(requestContext.metadata).toBeInstanceOf(Map)

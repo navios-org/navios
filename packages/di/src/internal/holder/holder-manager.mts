@@ -83,6 +83,3 @@ export class HolderManager extends BaseHolderManager {
     return holder
   }
 }
-
-/** @deprecated Use HolderManager instead */
-export const ServiceLocatorManager = HolderManager

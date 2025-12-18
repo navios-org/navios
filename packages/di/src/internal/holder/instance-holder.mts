@@ -14,20 +14,11 @@ export enum InstanceStatus {
   Error = 'error',
 }
 
-/** @deprecated Use InstanceStatus instead */
-export const ServiceLocatorInstanceHolderStatus = InstanceStatus
-
 /** Callback function for instance effects */
 export type InstanceEffect = () => void
 
-/** @deprecated Use InstanceEffect instead */
-export type ServiceLocatorInstanceEffect = InstanceEffect
-
 /** Callback function for instance destruction listeners */
 export type InstanceDestroyListener = () => void | Promise<void>
-
-/** @deprecated Use InstanceDestroyListener instead */
-export type ServiceLocatorInstanceDestroyListener = InstanceDestroyListener
 
 /**
  * Instance holder in the Creating state.
@@ -48,9 +39,6 @@ export interface InstanceHolderCreating<Instance> {
   waitingFor: Set<string>
 }
 
-/** @deprecated Use InstanceHolderCreating instead */
-export type ServiceLocatorInstanceHolderCreating<T> = InstanceHolderCreating<T>
-
 /**
  * Instance holder in the Created state.
  * The instance is available and ready for use.
@@ -69,9 +57,6 @@ export interface InstanceHolderCreated<Instance> {
   /** Tracks which services this holder is currently waiting for (for circular dependency detection) */
   waitingFor: Set<string>
 }
-
-/** @deprecated Use InstanceHolderCreated instead */
-export type ServiceLocatorInstanceHolderCreated<T> = InstanceHolderCreated<T>
 
 /**
  * Instance holder in the Destroying state.
@@ -92,9 +77,6 @@ export interface InstanceHolderDestroying<Instance> {
   waitingFor: Set<string>
 }
 
-/** @deprecated Use InstanceHolderDestroying instead */
-export type ServiceLocatorInstanceHolderDestroying<T> = InstanceHolderDestroying<T>
-
 /**
  * Instance holder in the Error state.
  * The instance field contains the error that occurred during creation.
@@ -114,9 +96,6 @@ export interface InstanceHolderError {
   waitingFor: Set<string>
 }
 
-/** @deprecated Use InstanceHolderError instead */
-export type ServiceLocatorInstanceHolderError = InstanceHolderError
-
 /**
  * Holds the state of a service instance throughout its lifecycle.
  *
@@ -128,6 +107,3 @@ export type InstanceHolder<Instance = unknown> =
   | InstanceHolderCreated<Instance>
   | InstanceHolderDestroying<Instance>
   | InstanceHolderError
-
-/** @deprecated Use InstanceHolder instead */
-export type ServiceLocatorInstanceHolder<T = unknown> = InstanceHolder<T>

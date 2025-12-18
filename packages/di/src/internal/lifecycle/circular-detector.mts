@@ -75,6 +75,3 @@ export class CircularDetector {
     return cycle.join(' -> ')
   }
 }
-
-/** @deprecated Use CircularDetector instead */
-export const CircularDependencyDetector = CircularDetector

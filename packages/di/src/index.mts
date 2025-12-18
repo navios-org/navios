@@ -107,11 +107,9 @@ export * from './testing/index.mjs'
 export type { FactoryContext } from './internal/context/factory-context.mjs'
 export {
   type RequestContext,
-  type RequestContextHolder, // deprecated alias
+  type RequestContextHolder,
   DefaultRequestContext,
-  DefaultRequestContextHolder, // deprecated alias
   createRequestContext,
-  createRequestContextHolder, // deprecated alias
 } from './internal/context/request-context.mjs'
 export {
   type ResolutionContextData,
@@ -124,66 +122,39 @@ export {
 // Holder types
 export {
   InstanceStatus,
-  ServiceLocatorInstanceHolderStatus, // deprecated alias
   type InstanceHolder,
-  type ServiceLocatorInstanceHolder, // deprecated alias
   type InstanceEffect,
-  type ServiceLocatorInstanceEffect, // deprecated alias
   type InstanceDestroyListener,
-  type ServiceLocatorInstanceDestroyListener, // deprecated alias
   type InstanceHolderCreating,
-  type ServiceLocatorInstanceHolderCreating, // deprecated alias
   type InstanceHolderCreated,
-  type ServiceLocatorInstanceHolderCreated, // deprecated alias
   type InstanceHolderDestroying,
-  type ServiceLocatorInstanceHolderDestroying, // deprecated alias
   type InstanceHolderError,
-  type ServiceLocatorInstanceHolderError, // deprecated alias
 } from './internal/holder/instance-holder.mjs'
 
 export {
   BaseHolderManager,
-  BaseInstanceHolderManager, // deprecated alias
   type HolderReadyResult,
 } from './internal/holder/base-holder-manager.mjs'
 
-export {
-  HolderManager,
-  ServiceLocatorManager, // deprecated alias
-} from './internal/holder/holder-manager.mjs'
+export { HolderManager } from './internal/holder/holder-manager.mjs'
 
 export {
   type HolderGetResult,
   type IHolderStorage,
 } from './internal/holder/holder-storage.interface.mjs'
 
-export {
-  SingletonStorage,
-  SingletonHolderStorage, // deprecated alias
-} from './internal/holder/singleton-storage.mjs'
+export { SingletonStorage } from './internal/holder/singleton-storage.mjs'
 
-export {
-  RequestStorage,
-  RequestHolderStorage, // deprecated alias
-} from './internal/holder/request-storage.mjs'
+export { RequestStorage } from './internal/holder/request-storage.mjs'
 
 // Lifecycle
-export {
-  LifecycleEventBus,
-  ServiceLocatorEventBus, // deprecated alias
-} from './internal/lifecycle/lifecycle-event-bus.mjs'
+export { LifecycleEventBus } from './internal/lifecycle/lifecycle-event-bus.mjs'
 
-export {
-  CircularDetector,
-  CircularDependencyDetector, // deprecated alias
-} from './internal/lifecycle/circular-detector.mjs'
+export { CircularDetector } from './internal/lifecycle/circular-detector.mjs'
 
 // Core engine
 export { ServiceLocator } from './internal/core/service-locator.mjs'
 export { InstanceResolver } from './internal/core/instance-resolver.mjs'
-export {
-  Instantiator,
-  ServiceInstantiator, // deprecated alias
-} from './internal/core/instantiator.mjs'
+export { Instantiator } from './internal/core/instantiator.mjs'
 export { Invalidator } from './internal/core/invalidator.mjs'
 export { TokenProcessor } from './internal/core/token-processor.mjs'

@@ -76,11 +76,6 @@ export class ServiceLocator {
     return this.invalidator
   }
 
-  /** @deprecated Use getInvalidator() instead */
-  getServiceInvalidator() {
-    return this.invalidator
-  }
-
   getTokenProcessor() {
     return this.tokenProcessor
   }

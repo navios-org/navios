@@ -160,6 +160,3 @@ export class Instantiator {
     }
   }
 }
-
-/** @deprecated Use Instantiator instead */
-export const ServiceInstantiator = Instantiator

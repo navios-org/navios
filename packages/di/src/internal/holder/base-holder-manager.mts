@@ -236,6 +236,3 @@ export abstract class BaseHolderManager {
     }
   }
 }
-
-/** @deprecated Use BaseHolderManager instead */
-export const BaseInstanceHolderManager = BaseHolderManager

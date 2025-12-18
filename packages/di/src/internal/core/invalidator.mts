@@ -435,6 +435,3 @@ export class Invalidator {
     return this.eventBus.emit(name, event)
   }
 }
-
-/** @deprecated Use Invalidator instead */
-export const ServiceInvalidator = Invalidator

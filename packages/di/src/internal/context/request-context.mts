@@ -202,9 +202,6 @@ export class DefaultRequestContext
   }
 }
 
-/** @deprecated Use DefaultRequestContext instead */
-export const DefaultRequestContextHolder = DefaultRequestContext
-
 /**
  * Creates a new request context with the given parameters.
  */
@@ -215,6 +212,3 @@ export function createRequestContext(
 ): RequestContext {
   return new DefaultRequestContext(requestId, priority, initialMetadata)
 }
-
-/** @deprecated Use createRequestContext instead */
-export const createRequestContextHolder = createRequestContext
