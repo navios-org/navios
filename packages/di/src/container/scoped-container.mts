@@ -8,33 +8,32 @@ import type {
   FactoryInjectionToken,
   InjectionToken,
   InjectionTokenSchemaType,
-} from './injection-token.mjs'
-import type { IContainer } from './interfaces/container.interface.mjs'
-import type { IHolderStorage } from './interfaces/holder-storage.interface.mjs'
-import type { Factorable } from './interfaces/factory.interface.mjs'
-import type { Registry } from './registry.mjs'
-import type { RequestContextHolder } from './request-context-holder.mjs'
-import type { ServiceLocatorInstanceHolder } from './service-locator-instance-holder.mjs'
-import type { Join, UnionToArray } from './utils/types.mjs'
+} from '../token/injection-token.mjs'
+import type { IContainer } from '../interfaces/container.interface.mjs'
+import type { IHolderStorage } from '../internal/holder/holder-storage.interface.mjs'
+import type { Factorable } from '../interfaces/factory.interface.mjs'
+import type { Registry } from '../token/registry.mjs'
+import type { RequestContext } from '../internal/context/request-context.mjs'
+import type { InstanceHolder } from '../internal/holder/instance-holder.mjs'
+import type { Join, UnionToArray } from '../utils/types.mjs'
 
-import { BaseInstanceHolderManager } from './base-instance-holder-manager.mjs'
-import { InjectableScope } from './enums/index.mjs'
-import { DIError } from './errors/index.mjs'
-import { DefaultRequestContextHolder } from './request-context-holder.mjs'
-import { RequestHolderStorage } from './request-holder-storage.mjs'
-import { ServiceLocatorInstanceHolderStatus } from './service-locator-instance-holder.mjs'
+import { BaseHolderManager } from '../internal/holder/base-holder-manager.mjs'
+import { InjectableScope } from '../enums/index.mjs'
+import { DIError } from '../errors/index.mjs'
+import { DefaultRequestContext } from '../internal/context/request-context.mjs'
+import { RequestStorage } from '../internal/holder/request-storage.mjs'
+import { InstanceStatus } from '../internal/holder/instance-holder.mjs'
 
 /**
- * ScopedContainer provides request-scoped dependency injection.
+ * Request-scoped dependency injection container.
  *
- * It wraps a parent Container and provides isolated request-scoped instances
+ * Wraps a parent Container and provides isolated request-scoped instances
  * while delegating singleton and transient resolution to the parent.
- *
  * This design eliminates race conditions that can occur with async operations
  * when multiple requests are processed concurrently.
  */
 export class ScopedContainer implements IContainer {
-  private readonly requestContextHolder: RequestContextHolder
+  private readonly requestContextHolder: RequestContext
   private readonly holderStorage: IHolderStorage
   private disposed = false
 
@@ -45,13 +44,13 @@ export class ScopedContainer implements IContainer {
     metadata?: Record<string, any>,
     priority: number = 100,
   ) {
-    this.requestContextHolder = new DefaultRequestContextHolder(
+    this.requestContextHolder = new DefaultRequestContext(
       requestId,
       priority,
       metadata,
     )
     // Create storage once and reuse for all resolutions
-    this.holderStorage = new RequestHolderStorage(
+    this.holderStorage = new RequestStorage(
       this.requestContextHolder,
       this.parent.getServiceLocator().getManager(),
     )
@@ -60,7 +59,7 @@ export class ScopedContainer implements IContainer {
   /**
    * Gets the request context holder for this scoped container.
    */
-  getRequestContextHolder(): RequestContextHolder {
+  getRequestContextHolder(): RequestContext {
     return this.requestContextHolder
   }
 
@@ -180,10 +179,10 @@ export class ScopedContainer implements IContainer {
     // Check if the service is in our request context
     const holder = this.holderStorage.findByInstance(service)
     if (holder) {
-      // Use the shared ServiceInvalidator with our request-scoped storage
+      // Use the shared Invalidator with our request-scoped storage
       await this.parent
         .getServiceLocator()
-        .getServiceInvalidator()
+        .getInvalidator()
         .invalidateWithStorage(holder.name, this.holderStorage, 1, {
           emitEvents: false, // Request-scoped services don't emit global events
         })
@@ -224,7 +223,7 @@ export class ScopedContainer implements IContainer {
     // This will cascade invalidation to singletons that depend on request-scoped services
     await this.parent
       .getServiceLocator()
-      .getServiceInvalidator()
+      .getInvalidator()
       .clearAllWithStorage(this.holderStorage, {
         waitForSettlement: true,
         maxRounds: 10,
@@ -264,7 +263,7 @@ export class ScopedContainer implements IContainer {
       // Only return if holder exists AND is in Created status
       if (
         holder &&
-        holder.status === ServiceLocatorInstanceHolderStatus.Created
+        holder.status === InstanceStatus.Created
       ) {
         return holder.instance as T
       }
@@ -307,7 +306,7 @@ export class ScopedContainer implements IContainer {
       // This prevents race conditions where multiple concurrent calls
       // might try to create the same service
       const [error, readyHolder] =
-        await BaseInstanceHolderManager.waitForHolderReady(existingHolder)
+        await BaseHolderManager.waitForHolderReady(existingHolder)
       if (error) {
         throw error
       }
@@ -326,7 +325,7 @@ export class ScopedContainer implements IContainer {
   storeRequestInstance(
     instanceName: string,
     instance: any,
-    holder: ServiceLocatorInstanceHolder,
+    holder: InstanceHolder,
   ): void {
     this.requestContextHolder.addInstance(instanceName, instance, holder)
   }
@@ -337,7 +336,7 @@ export class ScopedContainer implements IContainer {
    */
   getRequestInstance(
     instanceName: string,
-  ): ServiceLocatorInstanceHolder | undefined {
+  ): InstanceHolder | undefined {
     return this.requestContextHolder.get(instanceName)
   }
 

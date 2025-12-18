@@ -1,11 +1,11 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import type { IHolderStorage } from './interfaces/holder-storage.interface.mjs'
-import type { ServiceLocatorEventBus } from './service-locator-event-bus.mjs'
-import type { ServiceLocatorInstanceHolder } from './service-locator-instance-holder.mjs'
-import type { ServiceLocatorManager } from './service-locator-manager.mjs'
+import type { IHolderStorage } from '../holder/holder-storage.interface.mjs'
+import type { LifecycleEventBus } from '../lifecycle/lifecycle-event-bus.mjs'
+import type { InstanceHolder } from '../holder/instance-holder.mjs'
+import type { HolderManager } from '../holder/holder-manager.mjs'
 
-import { ServiceLocatorInstanceHolderStatus } from './service-locator-instance-holder.mjs'
-import { SingletonHolderStorage } from './singleton-holder-storage.mjs'
+import { InstanceStatus } from '../holder/instance-holder.mjs'
+import { SingletonStorage } from '../holder/singleton-storage.mjs'
 
 export interface ClearAllOptions {
   /** Maximum number of invalidation rounds to prevent infinite loops (default: 10) */
@@ -26,21 +26,21 @@ export interface InvalidationOptions {
 }
 
 /**
- * ServiceInvalidator handles service invalidation, cleanup, and graceful clearing.
- * Extracted from ServiceLocator to improve separation of concerns.
+ * Manages graceful service cleanup with dependency-aware invalidation.
  *
- * This class works with any IHolderStorage implementation, enabling unified
- * invalidation logic for both singleton and request-scoped services.
+ * Ensures services are destroyed in the correct order based on their dependencies.
+ * Works with any IHolderStorage implementation, enabling unified invalidation
+ * for both singleton and request-scoped services.
  */
-export class ServiceInvalidator {
+export class Invalidator {
   private readonly storage: IHolderStorage
 
   constructor(
-    manager: ServiceLocatorManager,
-    private readonly eventBus: ServiceLocatorEventBus | null,
+    manager: HolderManager,
+    private readonly eventBus: LifecycleEventBus | null,
     private readonly logger: Console | null = null,
   ) {
-    this.storage = new SingletonHolderStorage(manager)
+    this.storage = new SingletonStorage(manager)
   }
 
   /**
@@ -53,7 +53,7 @@ export class ServiceInvalidator {
 
   /**
    * Invalidates a service using a specific storage.
-   * This allows request-scoped invalidation using a RequestHolderStorage.
+   * This allows request-scoped invalidation using a RequestStorage.
    *
    * @param service The instance name to invalidate
    * @param storage The storage to use for this invalidation
@@ -71,13 +71,13 @@ export class ServiceInvalidator {
     // Prevent infinite recursion from circular dependencies
     if (_invalidating.has(service)) {
       this.logger?.log(
-        `[ServiceInvalidator] Skipping ${service} - already being invalidated in this chain`,
+        `[Invalidator] Skipping ${service} - already being invalidated in this chain`,
       )
       return
     }
 
     this.logger?.log(
-      `[ServiceInvalidator] Starting invalidation process for ${service}`,
+      `[Invalidator] Starting invalidation process for ${service}`,
     )
 
     const result = storage.get(service)
@@ -116,7 +116,7 @@ export class ServiceInvalidator {
 
   /**
    * Gracefully clears all services in a specific storage.
-   * This allows clearing request-scoped services using a RequestHolderStorage.
+   * This allows clearing request-scoped services using a RequestStorage.
    */
   async clearAllWithStorage(
     storage: IHolderStorage,
@@ -125,13 +125,13 @@ export class ServiceInvalidator {
     const { maxRounds = 10, waitForSettlement = true } = options
 
     this.logger?.log(
-      '[ServiceInvalidator] Starting graceful clearing of all services',
+      '[Invalidator] Starting graceful clearing of all services',
     )
 
     // Wait for all services to settle if requested
     if (waitForSettlement) {
       this.logger?.log(
-        '[ServiceInvalidator] Waiting for all services to settle...',
+        '[Invalidator] Waiting for all services to settle...',
       )
       await this.readyWithStorage(storage)
     }
@@ -140,10 +140,10 @@ export class ServiceInvalidator {
     const allServiceNames = storage.getAllNames()
 
     if (allServiceNames.length === 0) {
-      this.logger?.log('[ServiceInvalidator] No services to clear')
+      this.logger?.log('[Invalidator] No services to clear')
     } else {
       this.logger?.log(
-        `[ServiceInvalidator] Found ${allServiceNames.length} services to clear: ${allServiceNames.join(', ')}`,
+        `[Invalidator] Found ${allServiceNames.length} services to clear: ${allServiceNames.join(', ')}`,
       )
 
       // Clear services using dependency-aware invalidation
@@ -154,7 +154,7 @@ export class ServiceInvalidator {
       )
     }
 
-    this.logger?.log('[ServiceInvalidator] Graceful clearing completed')
+    this.logger?.log('[Invalidator] Graceful clearing completed')
   }
 
   /**
@@ -168,8 +168,8 @@ export class ServiceInvalidator {
    * Waits for all services in a specific storage to settle.
    */
   async readyWithStorage(storage: IHolderStorage): Promise<void> {
-    const holders: ServiceLocatorInstanceHolder<any>[] = []
-    storage.forEach((_, holder) => holders.push(holder))
+    const holders: InstanceHolder<any>[] = []
+    storage.forEach((_: string, holder: InstanceHolder) => holders.push(holder))
     await Promise.all(
       holders.map((holder) => this.waitForHolderToSettle(holder)),
     )
@@ -184,7 +184,7 @@ export class ServiceInvalidator {
    */
   private async invalidateHolderWithStorage(
     key: string,
-    holder: ServiceLocatorInstanceHolder<any>,
+    holder: InstanceHolder<any>,
     storage: IHolderStorage,
     round: number,
     options: InvalidationOptions = {},
@@ -195,7 +195,7 @@ export class ServiceInvalidator {
       context: key,
       onCreationError: () =>
         this.logger?.error(
-          `[ServiceInvalidator] ${key} creation triggered too many invalidation rounds`,
+          `[Invalidator] ${key} creation triggered too many invalidation rounds`,
         ),
       onRecursiveInvalidate: () =>
         this.invalidateWithStorage(key, storage, round + 1, options),
@@ -208,7 +208,7 @@ export class ServiceInvalidator {
    * Common invalidation logic for holders based on their status.
    */
   private async invalidateHolderByStatus(
-    holder: ServiceLocatorInstanceHolder<any>,
+    holder: InstanceHolder<any>,
     round: number,
     options: {
       context: string
@@ -218,11 +218,11 @@ export class ServiceInvalidator {
     },
   ): Promise<void> {
     switch (holder.status) {
-      case ServiceLocatorInstanceHolderStatus.Destroying:
+      case InstanceStatus.Destroying:
         await holder.destroyPromise
         break
 
-      case ServiceLocatorInstanceHolderStatus.Creating:
+      case InstanceStatus.Creating:
         await holder.creationPromise
         if (round > 3) {
           options.onCreationError()
@@ -242,13 +242,13 @@ export class ServiceInvalidator {
    */
   private async destroyHolderWithStorage(
     key: string,
-    holder: ServiceLocatorInstanceHolder<any>,
+    holder: InstanceHolder<any>,
     storage: IHolderStorage,
     emitEvents: boolean,
     onInvalidated?: (instanceName: string) => Promise<void>,
   ): Promise<void> {
-    holder.status = ServiceLocatorInstanceHolderStatus.Destroying
-    this.logger?.log(`[ServiceInvalidator] Invalidating ${key} and notifying listeners`)
+    holder.status = InstanceStatus.Destroying
+    this.logger?.log(`[Invalidator] Invalidating ${key} and notifying listeners`)
 
     holder.destroyPromise = Promise.all(
       holder.destroyListeners.map((listener) => listener()),
@@ -275,18 +275,18 @@ export class ServiceInvalidator {
    * Waits for a holder to settle (either created, destroyed, or error state).
    */
   private async waitForHolderToSettle(
-    holder: ServiceLocatorInstanceHolder<any>,
+    holder: InstanceHolder<any>,
   ): Promise<void> {
     switch (holder.status) {
-      case ServiceLocatorInstanceHolderStatus.Creating:
+      case InstanceStatus.Creating:
         await holder.creationPromise
         break
-      case ServiceLocatorInstanceHolderStatus.Destroying:
+      case InstanceStatus.Destroying:
         await holder.destroyPromise
         break
       // Already settled states
-      case ServiceLocatorInstanceHolderStatus.Created:
-      case ServiceLocatorInstanceHolderStatus.Error:
+      case InstanceStatus.Created:
+      case InstanceStatus.Error:
         break
     }
   }
@@ -304,7 +304,7 @@ export class ServiceInvalidator {
 
     while (clearedServices.size < serviceNames.length && round <= maxRounds) {
       this.logger?.log(
-        `[ServiceInvalidator] Clearing round ${round}/${maxRounds}, ${clearedServices.size}/${serviceNames.length} services cleared`,
+        `[Invalidator] Clearing round ${round}/${maxRounds}, ${clearedServices.size}/${serviceNames.length} services cleared`,
       )
 
       // Find services that can be cleared in this round
@@ -323,7 +323,7 @@ export class ServiceInvalidator {
 
         if (remainingServices.length > 0) {
           this.logger?.warn(
-            `[ServiceInvalidator] No services ready for clearing, forcing cleanup of remaining: ${remainingServices.join(', ')}`,
+            `[Invalidator] No services ready for clearing, forcing cleanup of remaining: ${remainingServices.join(', ')}`,
           )
           await this.forceClearServicesInStorage(remainingServices, storage)
           remainingServices.forEach((name) => clearedServices.add(name))
@@ -338,11 +338,11 @@ export class ServiceInvalidator {
             await this.invalidateWithStorage(serviceName, storage, round)
             clearedServices.add(serviceName)
             this.logger?.log(
-              `[ServiceInvalidator] Successfully cleared service: ${serviceName}`,
+              `[Invalidator] Successfully cleared service: ${serviceName}`,
             )
           } catch (error) {
             this.logger?.error(
-              `[ServiceInvalidator] Error clearing service ${serviceName}:`,
+              `[Invalidator] Error clearing service ${serviceName}:`,
               error,
             )
             // Still mark as cleared to avoid infinite loops
@@ -357,7 +357,7 @@ export class ServiceInvalidator {
 
     if (clearedServices.size < serviceNames.length) {
       this.logger?.warn(
-        `[ServiceInvalidator] Clearing completed after ${maxRounds} rounds, but ${serviceNames.length - clearedServices.size} services may not have been properly cleared`,
+        `[Invalidator] Clearing completed after ${maxRounds} rounds, but ${serviceNames.length - clearedServices.size} services may not have been properly cleared`,
       )
     }
   }
@@ -410,7 +410,7 @@ export class ServiceInvalidator {
         }
       } catch (error) {
         this.logger?.error(
-          `[ServiceInvalidator] Error force clearing service ${serviceName}:`,
+          `[Invalidator] Error force clearing service ${serviceName}:`,
           error,
         )
       }
@@ -430,8 +430,11 @@ export class ServiceInvalidator {
       return Promise.resolve()
     }
     this.logger?.log(
-      `[ServiceInvalidator]#emitInstanceEvent() Notifying listeners for ${name} with event ${event}`,
+      `[Invalidator]#emitInstanceEvent() Notifying listeners for ${name} with event ${event}`,
     )
     return this.eventBus.emit(name, event)
   }
 }
+
+/** @deprecated Use Invalidator instead */
+export const ServiceInvalidator = Invalidator

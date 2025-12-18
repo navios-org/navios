@@ -10,11 +10,11 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { Container } from '../container.mjs'
+import { Container } from '../container/container.mjs'
 import { Injectable } from '../decorators/injectable.decorator.mjs'
 import { InjectableScope } from '../enums/index.mjs'
 import type { OnServiceDestroy } from '../interfaces/on-service-destroy.interface.mjs'
-import { Registry } from '../registry.mjs'
+import { Registry } from '../token/registry.mjs'
 import { getInjectors } from '../utils/get-injectors.mjs'
 
 function createTestSetup() {

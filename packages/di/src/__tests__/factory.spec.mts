@@ -4,7 +4,7 @@ import { z } from 'zod/v4'
 import { Factory } from '../decorators/index.mjs'
 import { InjectableScope } from '../enums/index.mjs'
 import { Container, Registry } from '../index.mjs'
-import { InjectionToken } from '../injection-token.mjs'
+import { InjectionToken } from '../token/injection-token.mjs'
 
 describe('Factory decorator', () => {
   let container: Container

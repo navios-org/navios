@@ -1,25 +1,28 @@
-import type { BaseInstanceHolderManager } from './base-instance-holder-manager.mjs'
+import type { BaseHolderManager } from './base-holder-manager.mjs'
 import type {
   HolderGetResult,
   IHolderStorage,
-} from './interfaces/holder-storage.interface.mjs'
-import type { RequestContextHolder } from './request-context-holder.mjs'
-import type { ServiceLocatorInstanceHolder } from './service-locator-instance-holder.mjs'
+} from './holder-storage.interface.mjs'
+import type { RequestContext } from '../context/request-context.mjs'
+import type { InstanceHolder } from './instance-holder.mjs'
 
-import { InjectableScope, InjectableType } from './enums/index.mjs'
-import { DIError } from './errors/index.mjs'
-import { ServiceLocatorInstanceHolderStatus } from './service-locator-instance-holder.mjs'
+import { InjectableScope, InjectableType } from '../../enums/index.mjs'
+import { DIError } from '../../errors/index.mjs'
+import { InstanceStatus } from './instance-holder.mjs'
 
 /**
- * Holder storage implementation for Request-scoped services.
- * Wraps a RequestContextHolder instance from a ScopedContainer.
+ * Storage implementation for Request-scoped services.
+ *
+ * Wraps a RequestContext instance from a ScopedContainer and provides
+ * the IHolderStorage interface. This allows the InstanceResolver to work
+ * with request-scoped storage using the same interface as singleton storage.
  */
-export class RequestHolderStorage implements IHolderStorage {
+export class RequestStorage implements IHolderStorage {
   readonly scope = InjectableScope.Request
 
   constructor(
-    private readonly contextHolder: RequestContextHolder,
-    private readonly holderManager: BaseInstanceHolderManager,
+    private readonly contextHolder: RequestContext,
+    private readonly holderManager: BaseHolderManager,
   ) {}
 
   get<T = unknown>(instanceName: string): HolderGetResult<T> {
@@ -31,25 +34,25 @@ export class RequestHolderStorage implements IHolderStorage {
 
     // Check holder status for error states
     switch (holder.status) {
-      case ServiceLocatorInstanceHolderStatus.Destroying:
+      case InstanceStatus.Destroying:
         return [
           DIError.instanceDestroying(instanceName),
-          holder as ServiceLocatorInstanceHolder<T>,
+          holder as InstanceHolder<T>,
         ]
 
-      case ServiceLocatorInstanceHolderStatus.Error:
-        return [holder.instance as DIError, holder as ServiceLocatorInstanceHolder<T>]
+      case InstanceStatus.Error:
+        return [holder.instance as DIError, holder as InstanceHolder<T>]
 
-      case ServiceLocatorInstanceHolderStatus.Creating:
-      case ServiceLocatorInstanceHolderStatus.Created:
-        return [undefined, holder as ServiceLocatorInstanceHolder<T>]
+      case InstanceStatus.Creating:
+      case InstanceStatus.Created:
+        return [undefined, holder as InstanceHolder<T>]
 
       default:
         return null
     }
   }
 
-  set(instanceName: string, holder: ServiceLocatorInstanceHolder): void {
+  set(instanceName: string, holder: InstanceHolder): void {
     this.contextHolder.set(instanceName, holder)
   }
 
@@ -63,10 +66,10 @@ export class RequestHolderStorage implements IHolderStorage {
     deps: Set<string>,
   ): [
     ReturnType<typeof Promise.withResolvers<[undefined, T]>>,
-    ServiceLocatorInstanceHolder<T>,
+    InstanceHolder<T>,
   ] {
     // Use the holderManager's createCreatingHolder method
-    // which is inherited from BaseInstanceHolderManager
+    // which is inherited from BaseHolderManager
     return this.holderManager.createCreatingHolder<T>(
       instanceName,
       type,
@@ -92,14 +95,14 @@ export class RequestHolderStorage implements IHolderStorage {
   }
 
   forEach(
-    callback: (name: string, holder: ServiceLocatorInstanceHolder) => void,
+    callback: (name: string, holder: InstanceHolder) => void,
   ): void {
     for (const [name, holder] of this.contextHolder.holders) {
       callback(name, holder)
     }
   }
 
-  findByInstance(instance: unknown): ServiceLocatorInstanceHolder | null {
+  findByInstance(instance: unknown): InstanceHolder | null {
     for (const holder of this.contextHolder.holders.values()) {
       if (holder.instance === instance) {
         return holder
@@ -128,3 +131,6 @@ export class RequestHolderStorage implements IHolderStorage {
     return dependents
   }
 }
+
+/** @deprecated Use RequestStorage instead */
+export const RequestHolderStorage = RequestStorage

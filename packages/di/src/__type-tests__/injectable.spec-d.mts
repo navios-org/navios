@@ -3,7 +3,7 @@ import { expectTypeOf, test } from 'vitest'
 import { z } from 'zod/v4'
 
 import { Injectable } from '../decorators/index.mjs'
-import { InjectionToken } from '../injection-token.mjs'
+import { InjectionToken } from '../token/injection-token.mjs'
 
 interface FooService {
   makeFoo(): string

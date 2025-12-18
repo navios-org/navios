@@ -3,8 +3,15 @@
 
 type ListenersMap = Map<string, Map<string, Set<Function>>>
 
+/**
+ * Event bus for service lifecycle events (create, destroy, etc.).
+ *
+ * Enables loose coupling between services by allowing them to subscribe
+ * to lifecycle events of their dependencies without direct references.
+ * Used primarily for invalidation cascading.
+ */
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
-export class ServiceLocatorEventBus {
+export class LifecycleEventBus {
   private listeners: ListenersMap = new Map()
   constructor(private readonly logger: Console | null = null) {}
 
@@ -13,7 +20,7 @@ export class ServiceLocatorEventBus {
     event: Event,
     listener: (event: Event) => void,
   ) {
-    this.logger?.debug(`[ServiceLocatorEventBus]#on(): ns:${ns} event:${event}`)
+    this.logger?.debug(`[LifecycleEventBus]#on(): ns:${ns} event:${event}`)
     if (!this.listeners.has(ns)) {
       this.listeners.set(ns, new Map())
     }
@@ -43,7 +50,7 @@ export class ServiceLocatorEventBus {
 
     const events = this.listeners.get(key)!
 
-    this.logger?.debug(`[ServiceLocatorEventBus]#emit(): ${key}:${event}`)
+    this.logger?.debug(`[LifecycleEventBus]#emit(): ${key}:${event}`)
 
     const res = await Promise.allSettled(
       [...(events.get(event) ?? [])!].map((listener) => listener(event)),
@@ -52,7 +59,7 @@ export class ServiceLocatorEventBus {
         .filter((result) => result.status === 'rejected')
         .map((result: PromiseRejectedResult) => {
           this.logger?.warn(
-            `[ServiceLocatorEventBus]#emit(): ${key}:${event} rejected with`,
+            `[LifecycleEventBus]#emit(): ${key}:${event} rejected with`,
             result.reason,
           )
           return result
@@ -66,3 +73,6 @@ export class ServiceLocatorEventBus {
     return res
   }
 }
+
+/** @deprecated Use LifecycleEventBus instead */
+export const ServiceLocatorEventBus = LifecycleEventBus

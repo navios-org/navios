@@ -7,7 +7,7 @@ import type {
   FactoryInjectionToken,
   InjectionToken,
   InjectionTokenSchemaType,
-} from '../injection-token.mjs'
+} from '../token/injection-token.mjs'
 import type { Join, UnionToArray } from '../utils/types.mjs'
 import type { Factorable } from './factory.interface.mjs'
 

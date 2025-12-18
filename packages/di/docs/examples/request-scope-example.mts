@@ -5,10 +5,10 @@
  * where you need services that are shared within a request but isolated between requests.
  */
 
-import { Container } from '../../src/container.mjs'
+import { Container } from '../../src/container/container.mjs'
 import { Injectable } from '../../src/decorators/injectable.decorator.mjs'
 import { InjectableScope } from '../../src/enums/index.mjs'
-import { inject } from '../../src/injector.mjs'
+import { inject } from '../../src/injectors.mjs'
 
 // ============================================================================
 // EXAMPLE SERVICES

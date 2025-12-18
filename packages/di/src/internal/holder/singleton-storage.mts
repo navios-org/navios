@@ -1,27 +1,30 @@
-import type { ServiceLocatorManager } from './service-locator-manager.mjs'
+import type { HolderManager } from './holder-manager.mjs'
 import type {
   HolderGetResult,
   IHolderStorage,
-} from './interfaces/holder-storage.interface.mjs'
-import type { ServiceLocatorInstanceHolder } from './service-locator-instance-holder.mjs'
+} from './holder-storage.interface.mjs'
+import type { InstanceHolder } from './instance-holder.mjs'
 
-import { InjectableScope, InjectableType } from './enums/index.mjs'
-import { DIErrorCode } from './errors/index.mjs'
+import { InjectableScope, InjectableType } from '../../enums/index.mjs'
+import { DIErrorCode } from '../../errors/index.mjs'
 
 /**
- * Holder storage implementation for Singleton-scoped services.
- * Wraps a ServiceLocatorManager instance.
+ * Storage implementation for Singleton-scoped services.
+ *
+ * Wraps a HolderManager instance and provides the IHolderStorage interface.
+ * This allows the InstanceResolver to work with singleton storage
+ * using the same interface as request-scoped storage.
  */
-export class SingletonHolderStorage implements IHolderStorage {
+export class SingletonStorage implements IHolderStorage {
   readonly scope = InjectableScope.Singleton
 
-  constructor(private readonly manager: ServiceLocatorManager) {}
+  constructor(private readonly manager: HolderManager) {}
 
   get<T = unknown>(instanceName: string): HolderGetResult<T> {
     const [error, holder] = this.manager.get(instanceName)
 
     if (!error) {
-      return [undefined, holder as ServiceLocatorInstanceHolder<T>]
+      return [undefined, holder as InstanceHolder<T>]
     }
 
     // Handle different error types
@@ -30,14 +33,14 @@ export class SingletonHolderStorage implements IHolderStorage {
         return null
 
       case DIErrorCode.InstanceDestroying:
-        return [error, holder as ServiceLocatorInstanceHolder<T> | undefined]
+        return [error, holder as InstanceHolder<T> | undefined]
 
       default:
         return [error]
     }
   }
 
-  set(instanceName: string, holder: ServiceLocatorInstanceHolder): void {
+  set(instanceName: string, holder: InstanceHolder): void {
     this.manager.set(instanceName, holder)
   }
 
@@ -51,7 +54,7 @@ export class SingletonHolderStorage implements IHolderStorage {
     deps: Set<string>,
   ): [
     ReturnType<typeof Promise.withResolvers<[undefined, T]>>,
-    ServiceLocatorInstanceHolder<T>,
+    InstanceHolder<T>,
   ] {
     return this.manager.createCreatingHolder<T>(
       instanceName,
@@ -74,14 +77,14 @@ export class SingletonHolderStorage implements IHolderStorage {
   }
 
   forEach(
-    callback: (name: string, holder: ServiceLocatorInstanceHolder) => void,
+    callback: (name: string, holder: InstanceHolder) => void,
   ): void {
     for (const [name, holder] of this.manager.filter(() => true)) {
       callback(name, holder)
     }
   }
 
-  findByInstance(instance: unknown): ServiceLocatorInstanceHolder | null {
+  findByInstance(instance: unknown): InstanceHolder | null {
     for (const [, holder] of this.manager.filter(
       (h) => h.instance === instance,
     )) {
@@ -100,3 +103,6 @@ export class SingletonHolderStorage implements IHolderStorage {
     return dependents
   }
 }
+
+/** @deprecated Use SingletonStorage instead */
+export const SingletonHolderStorage = SingletonStorage

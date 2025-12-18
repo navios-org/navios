@@ -3,14 +3,14 @@ import { z } from 'zod/v4'
 
 import type { OnServiceDestroy } from '../index.mjs'
 
-import { Container } from '../container.mjs'
+import { Container } from '../container/container.mjs'
 import { Injectable } from '../decorators/injectable.decorator.mjs'
 import { InjectableScope } from '../enums/index.mjs'
 import { getInjectableToken } from '../index.mjs'
-import { InjectionToken } from '../injection-token.mjs'
-import { asyncInject, inject } from '../injector.mjs'
-import { globalRegistry, Registry } from '../registry.mjs'
-import { ServiceLocator } from '../service-locator.mjs'
+import { InjectionToken } from '../token/injection-token.mjs'
+import { asyncInject, inject } from '../injectors.mjs'
+import { globalRegistry, Registry } from '../token/registry.mjs'
+import { ServiceLocator } from '../internal/core/service-locator.mjs'
 
 describe('ServiceLocator', () => {
   describe('getInstanceIdentifier', () => {

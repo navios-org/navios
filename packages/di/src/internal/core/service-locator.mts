@@ -5,28 +5,35 @@ import type { z, ZodObject, ZodOptional } from 'zod/v4'
 import type {
   AnyInjectableType,
   InjectionTokenSchemaType,
-} from './injection-token.mjs'
-import type { IContainer } from './interfaces/container.interface.mjs'
-import type { Registry } from './registry.mjs'
-import type { ScopedContainer } from './scoped-container.mjs'
-import type { ClearAllOptions } from './service-invalidator.mjs'
-import type { Injectors } from './utils/index.mjs'
+} from '../../token/injection-token.mjs'
+import type { IContainer } from '../../interfaces/container.interface.mjs'
+import type { Registry } from '../../token/registry.mjs'
+import type { ScopedContainer } from '../../container/scoped-container.mjs'
+import type { ClearAllOptions } from './invalidator.mjs'
+import type { Injectors } from '../../utils/index.mjs'
 
-import { defaultInjectors } from './injector.mjs'
+import { defaultInjectors } from '../../injectors.mjs'
 import { InstanceResolver } from './instance-resolver.mjs'
-import { globalRegistry } from './registry.mjs'
-import { ServiceInstantiator } from './service-instantiator.mjs'
-import { ServiceInvalidator } from './service-invalidator.mjs'
-import { ServiceLocatorEventBus } from './service-locator-event-bus.mjs'
-import { ServiceLocatorManager } from './service-locator-manager.mjs'
+import { globalRegistry } from '../../token/registry.mjs'
+import { Instantiator } from './instantiator.mjs'
+import { Invalidator } from './invalidator.mjs'
+import { LifecycleEventBus } from '../lifecycle/lifecycle-event-bus.mjs'
+import { HolderManager } from '../holder/holder-manager.mjs'
 import { TokenProcessor } from './token-processor.mjs'
 
+/**
+ * Core DI engine that coordinates service instantiation, resolution, and lifecycle.
+ *
+ * Acts as the central orchestrator for dependency injection operations,
+ * delegating to specialized components (InstanceResolver, Instantiator, Invalidator)
+ * for specific tasks.
+ */
 export class ServiceLocator {
-  private readonly eventBus: ServiceLocatorEventBus
-  private readonly manager: ServiceLocatorManager
-  private readonly serviceInstantiator: ServiceInstantiator
+  private readonly eventBus: LifecycleEventBus
+  private readonly manager: HolderManager
+  private readonly instantiator: Instantiator
   private readonly tokenProcessor: TokenProcessor
-  private readonly serviceInvalidator: ServiceInvalidator
+  private readonly invalidator: Invalidator
   private readonly instanceResolver: InstanceResolver
 
   constructor(
@@ -34,11 +41,11 @@ export class ServiceLocator {
     private readonly logger: Console | null = null,
     private readonly injectors: Injectors = defaultInjectors,
   ) {
-    this.eventBus = new ServiceLocatorEventBus(logger)
-    this.manager = new ServiceLocatorManager(logger)
-    this.serviceInstantiator = new ServiceInstantiator(injectors)
+    this.eventBus = new LifecycleEventBus(logger)
+    this.manager = new HolderManager(logger)
+    this.instantiator = new Instantiator(injectors)
     this.tokenProcessor = new TokenProcessor(logger)
-    this.serviceInvalidator = new ServiceInvalidator(
+    this.invalidator = new Invalidator(
       this.manager,
       this.eventBus,
       logger,
@@ -46,7 +53,7 @@ export class ServiceLocator {
     this.instanceResolver = new InstanceResolver(
       this.registry,
       this.manager,
-      this.serviceInstantiator,
+      this.instantiator,
       this.tokenProcessor,
       logger,
       this,
@@ -65,8 +72,13 @@ export class ServiceLocator {
     return this.manager
   }
 
+  getInvalidator() {
+    return this.invalidator
+  }
+
+  /** @deprecated Use getInvalidator() instead */
   getServiceInvalidator() {
-    return this.serviceInvalidator
+    return this.invalidator
   }
 
   getTokenProcessor() {
@@ -163,7 +175,7 @@ export class ServiceLocator {
   }
 
   invalidate(service: string, round = 1): Promise<any> {
-    return this.serviceInvalidator.invalidate(service, round)
+    return this.invalidator.invalidate(service, round)
   }
 
   /**
@@ -175,14 +187,14 @@ export class ServiceLocator {
    * @returns Promise that resolves when all services have been cleared
    */
   async clearAll(options: ClearAllOptions = {}): Promise<void> {
-    return this.serviceInvalidator.clearAll(options)
+    return this.invalidator.clearAll(options)
   }
 
   /**
    * Waits for all services to settle (either created, destroyed, or error state).
    */
   async ready(): Promise<void> {
-    return this.serviceInvalidator.ready()
+    return this.invalidator.ready()
   }
 
   /**

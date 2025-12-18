@@ -1,24 +1,26 @@
-import type { ServiceLocatorInstanceHolder } from './service-locator-instance-holder.mjs'
+import type { InstanceHolder } from './instance-holder.mjs'
 
-import { CircularDependencyDetector } from './circular-dependency-detector.mjs'
-import { InjectableScope, InjectableType } from './enums/index.mjs'
-import { DIError } from './errors/index.mjs'
-import { ServiceLocatorInstanceHolderStatus } from './service-locator-instance-holder.mjs'
+import { CircularDetector } from '../lifecycle/circular-detector.mjs'
+import { InjectableScope, InjectableType } from '../../enums/index.mjs'
+import { DIError } from '../../errors/index.mjs'
+import { InstanceStatus } from './instance-holder.mjs'
 
 /**
  * Result type for waitForHolderReady.
  * Returns either [undefined, holder] on success or [error] on failure.
  */
 export type HolderReadyResult<T> =
-  | [undefined, ServiceLocatorInstanceHolder<T>]
+  | [undefined, InstanceHolder<T>]
   | [DIError]
 
 /**
- * Abstract base class that provides common functionality for managing ServiceLocatorInstanceHolder objects.
- * This class contains shared patterns used by both RequestContextHolder and ServiceLocatorManager.
+ * Abstract base class providing common functionality for managing InstanceHolder objects.
+ *
+ * Provides shared patterns for holder storage, creation, and lifecycle management
+ * used by both singleton (HolderManager) and request-scoped (RequestContext) managers.
  */
-export abstract class BaseInstanceHolderManager {
-  protected readonly _holders: Map<string, ServiceLocatorInstanceHolder>
+export abstract class BaseHolderManager {
+  protected readonly _holders: Map<string, InstanceHolder>
 
   constructor(protected readonly logger: Console | null = null) {
     this._holders = new Map()
@@ -27,7 +29,7 @@ export abstract class BaseInstanceHolderManager {
   /**
    * Protected getter for accessing the holders map from subclasses.
    */
-  protected get holders(): Map<string, ServiceLocatorInstanceHolder> {
+  protected get holders(): Map<string, InstanceHolder> {
     return this._holders
   }
 
@@ -40,7 +42,7 @@ export abstract class BaseInstanceHolderManager {
   /**
    * Abstract method to set a holder by name. Each implementation may have different validation logic.
    */
-  abstract set(name: string, holder: ServiceLocatorInstanceHolder): void
+  abstract set(name: string, holder: InstanceHolder): void
 
   /**
    * Abstract method to check if a holder exists. Each implementation may have different validation logic.
@@ -63,10 +65,10 @@ export abstract class BaseInstanceHolderManager {
    */
   filter(
     predicate: (
-      value: ServiceLocatorInstanceHolder<any>,
+      value: InstanceHolder<any>,
       key: string,
     ) => boolean,
-  ): Map<string, ServiceLocatorInstanceHolder> {
+  ): Map<string, InstanceHolder> {
     return new Map(
       [...this._holders].filter(([key, value]) => predicate(value, key)),
     )
@@ -102,12 +104,12 @@ export abstract class BaseInstanceHolderManager {
     deps: Set<string> = new Set(),
   ): [
     ReturnType<typeof Promise.withResolvers<[undefined, Instance]>>,
-    ServiceLocatorInstanceHolder<Instance>,
+    InstanceHolder<Instance>,
   ] {
     const deferred = Promise.withResolvers<[undefined, Instance]>()
 
-    const holder: ServiceLocatorInstanceHolder<Instance> = {
-      status: ServiceLocatorInstanceHolderStatus.Creating,
+    const holder: InstanceHolder<Instance> = {
+      status: InstanceStatus.Creating,
       name,
       instance: null,
       creationPromise: deferred.promise,
@@ -139,9 +141,9 @@ export abstract class BaseInstanceHolderManager {
     type: InjectableType,
     scope: InjectableScope,
     deps: Set<string> = new Set(),
-  ): ServiceLocatorInstanceHolder<Instance> {
-    const holder: ServiceLocatorInstanceHolder<Instance> = {
-      status: ServiceLocatorInstanceHolderStatus.Created,
+  ): InstanceHolder<Instance> {
+    const holder: InstanceHolder<Instance> = {
+      status: InstanceStatus.Created,
       name,
       instance,
       creationPromise: null,
@@ -167,7 +169,7 @@ export abstract class BaseInstanceHolderManager {
   /**
    * Gets all holders currently managed.
    */
-  getAllHolders(): ServiceLocatorInstanceHolder[] {
+  getAllHolders(): InstanceHolder[] {
     return Array.from(this._holders.values())
   }
 
@@ -188,15 +190,15 @@ export abstract class BaseInstanceHolderManager {
    * @returns A promise that resolves with [undefined, holder] on success or [DIError] on failure
    */
   static async waitForHolderReady<T>(
-    holder: ServiceLocatorInstanceHolder<T>,
-    waiterHolder?: ServiceLocatorInstanceHolder,
-    getHolder?: (name: string) => ServiceLocatorInstanceHolder | undefined,
+    holder: InstanceHolder<T>,
+    waiterHolder?: InstanceHolder,
+    getHolder?: (name: string) => InstanceHolder | undefined,
   ): Promise<HolderReadyResult<T>> {
     switch (holder.status) {
-      case ServiceLocatorInstanceHolderStatus.Creating: {
+      case InstanceStatus.Creating: {
         // Check for circular dependency before waiting
         if (waiterHolder && getHolder) {
-          const cycle = CircularDependencyDetector.detectCycle(
+          const cycle = CircularDetector.detectCycle(
             waiterHolder.name,
             holder.name,
             getHolder,
@@ -218,20 +220,20 @@ export abstract class BaseInstanceHolderManager {
           }
         }
 
-        return BaseInstanceHolderManager.waitForHolderReady(
+        return BaseHolderManager.waitForHolderReady(
           holder,
           waiterHolder,
           getHolder,
         )
       }
 
-      case ServiceLocatorInstanceHolderStatus.Destroying:
+      case InstanceStatus.Destroying:
         return [DIError.instanceDestroying(holder.name)]
 
-      case ServiceLocatorInstanceHolderStatus.Error:
+      case InstanceStatus.Error:
         return [holder.instance as DIError]
 
-      case ServiceLocatorInstanceHolderStatus.Created:
+      case InstanceStatus.Created:
         return [undefined, holder]
 
       default:
@@ -239,3 +241,6 @@ export abstract class BaseInstanceHolderManager {
     }
   }
 }
+
+/** @deprecated Use BaseHolderManager instead */
+export const BaseInstanceHolderManager = BaseHolderManager

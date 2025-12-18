@@ -11,13 +11,13 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { Container } from '../container.mjs'
+import { Container } from '../container/container.mjs'
 import { Injectable } from '../decorators/injectable.decorator.mjs'
 import { InjectableScope } from '../enums/index.mjs'
-import { InjectionToken } from '../injection-token.mjs'
+import { InjectionToken } from '../token/injection-token.mjs'
 import type { OnServiceDestroy } from '../interfaces/on-service-destroy.interface.mjs'
 import type { OnServiceInit } from '../interfaces/on-service-init.interface.mjs'
-import { Registry } from '../registry.mjs'
+import { Registry } from '../token/registry.mjs'
 import { getInjectors } from '../utils/get-injectors.mjs'
 
 // ============================================================================

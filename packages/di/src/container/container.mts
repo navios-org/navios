@@ -5,32 +5,33 @@ import type {
   ClassTypeWithArgument,
   InjectionToken,
   InjectionTokenSchemaType,
-} from './injection-token.mjs'
-import type { IContainer } from './interfaces/container.interface.mjs'
-import type { Factorable } from './interfaces/factory.interface.mjs'
-import type { Registry } from './registry.mjs'
-import type { ServiceLocatorInstanceHolder } from './service-locator-instance-holder.mjs'
-import type { Injectors } from './utils/index.mjs'
-import type { Join, UnionToArray } from './utils/types.mjs'
+} from '../token/injection-token.mjs'
+import type { IContainer } from '../interfaces/container.interface.mjs'
+import type { Factorable } from '../interfaces/factory.interface.mjs'
+import type { Registry } from '../token/registry.mjs'
+import type { InstanceHolder } from '../internal/holder/instance-holder.mjs'
+import type { Injectors } from '../utils/index.mjs'
+import type { Join, UnionToArray } from '../utils/types.mjs'
 
-import { Injectable } from './decorators/injectable.decorator.mjs'
-import { InjectableScope, InjectableType } from './enums/index.mjs'
-import { DIError } from './errors/index.mjs'
+import { Injectable } from '../decorators/injectable.decorator.mjs'
+import { InjectableScope, InjectableType } from '../enums/index.mjs'
+import { DIError } from '../errors/index.mjs'
 import {
   BoundInjectionToken,
   FactoryInjectionToken,
-} from './injection-token.mjs'
-import { defaultInjectors } from './injector.mjs'
-import { globalRegistry } from './registry.mjs'
+} from '../token/injection-token.mjs'
+import { defaultInjectors } from '../injectors.mjs'
+import { globalRegistry } from '../token/registry.mjs'
 import { ScopedContainer } from './scoped-container.mjs'
-import { ServiceLocator } from './service-locator.mjs'
-import { getInjectableToken } from './utils/get-injectable-token.mjs'
+import { ServiceLocator } from '../internal/core/service-locator.mjs'
+import { getInjectableToken } from '../utils/get-injectable-token.mjs'
 
 /**
- * Container class that provides a simplified public API for dependency injection.
- * It wraps a ServiceLocator instance and provides convenient methods for getting instances.
+ * Main dependency injection container.
  *
- * For request-scoped services, use beginRequest() to create a ScopedContainer.
+ * Provides a simplified public API for dependency injection, wrapping
+ * a ServiceLocator instance. Handles singleton and transient services directly,
+ * while request-scoped services require using beginRequest() to create a ScopedContainer.
  */
 @Injectable()
 export class Container implements IContainer {
@@ -199,7 +200,7 @@ export class Container implements IContainer {
    */
   private getHolderByInstance(
     instance: unknown,
-  ): ServiceLocatorInstanceHolder | null {
+  ): InstanceHolder | null {
     const holderMap = Array.from(
       this.serviceLocator
         .getManager()

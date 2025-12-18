@@ -2,8 +2,8 @@ import { assertType, describe, test } from 'vitest'
 import { z } from 'zod/v4'
 
 import { Injectable } from '../decorators/index.mjs'
-import { InjectionToken } from '../injection-token.mjs'
-import { asyncInject } from '../injector.mjs'
+import { InjectionToken } from '../token/injection-token.mjs'
+import { asyncInject } from '../injectors.mjs'
 
 interface FooService {
   makeFoo(): string

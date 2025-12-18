@@ -1,14 +1,16 @@
-import type { ServiceLocatorInstanceHolder } from './service-locator-instance-holder.mjs'
+import type { InstanceHolder } from '../holder/instance-holder.mjs'
 
-import { BaseInstanceHolderManager } from './base-instance-holder-manager.mjs'
-import { InjectableScope, InjectableType } from './enums/index.mjs'
-import { InjectionToken } from './injection-token.mjs'
+import { BaseHolderManager } from '../holder/base-holder-manager.mjs'
+import { InjectableScope, InjectableType } from '../../enums/index.mjs'
+import { InjectionToken } from '../../token/injection-token.mjs'
 
 /**
- * Request context holder that manages pre-prepared instances for a specific request.
- * This allows for efficient instantiation of request-scoped services.
+ * Interface for request context that manages pre-prepared instances for a specific request.
+ *
+ * Provides isolated storage for request-scoped services, enabling efficient
+ * instantiation and cleanup within the lifecycle of a single request.
  */
-export interface RequestContextHolder {
+export interface RequestContext {
   /**
    * Unique identifier for this request context.
    */
@@ -17,7 +19,7 @@ export interface RequestContextHolder {
   /**
    * Instance holders for request-scoped services.
    */
-  readonly holders: Map<string, ServiceLocatorInstanceHolder>
+  readonly holders: Map<string, InstanceHolder>
 
   /**
    * Priority for resolution in FactoryContext.inject method.
@@ -41,7 +43,7 @@ export interface RequestContextHolder {
   addInstance(
     instanceName: string,
     instance: any,
-    holder: ServiceLocatorInstanceHolder,
+    holder: InstanceHolder,
   ): void
 
   /**
@@ -52,12 +54,12 @@ export interface RequestContextHolder {
   /**
    * Gets an instance holder from this context.
    */
-  get(instanceName: string): ServiceLocatorInstanceHolder | undefined
+  get(instanceName: string): InstanceHolder | undefined
 
   /**
    * Sets an instance holder by name.
    */
-  set(instanceName: string, holder: ServiceLocatorInstanceHolder): void
+  set(instanceName: string, holder: InstanceHolder): void
 
   /**
    * Checks if this context has a pre-prepared instance.
@@ -79,16 +81,16 @@ export interface RequestContextHolder {
    */
   setMetadata(key: string, value: any): void
 
-  // Methods inherited from BaseInstanceHolderManager
+  // Methods inherited from BaseHolderManager
   /**
    * Filters holders based on a predicate function.
    */
   filter(
     predicate: (
-      value: ServiceLocatorInstanceHolder<any>,
+      value: InstanceHolder<any>,
       key: string,
     ) => boolean,
-  ): Map<string, ServiceLocatorInstanceHolder>
+  ): Map<string, InstanceHolder>
 
   /**
    * Deletes a holder by name.
@@ -106,12 +108,18 @@ export interface RequestContextHolder {
   isEmpty(): boolean
 }
 
+/** @deprecated Use RequestContext instead */
+export type RequestContextHolder = RequestContext
+
 /**
- * Default implementation of RequestContextHolder.
+ * Default implementation of RequestContext.
+ *
+ * Extends BaseHolderManager to provide holder management functionality
+ * with request-specific metadata and lifecycle support.
  */
-export class DefaultRequestContextHolder
-  extends BaseInstanceHolderManager
-  implements RequestContextHolder
+export class DefaultRequestContext
+  extends BaseHolderManager
+  implements RequestContext
 {
   public readonly metadata = new Map<string, any>()
   public readonly createdAt = Date.now()
@@ -121,7 +129,7 @@ export class DefaultRequestContextHolder
     public readonly priority: number = 100,
     initialMetadata?: Record<string, any>,
   ) {
-    super(null) // RequestContextHolder doesn't need logging
+    super(null) // RequestContext doesn't need logging
     if (initialMetadata) {
       Object.entries(initialMetadata).forEach(([key, value]) => {
         this.metadata.set(key, value)
@@ -132,21 +140,21 @@ export class DefaultRequestContextHolder
   /**
    * Public getter for holders to maintain interface compatibility.
    */
-  get holders(): Map<string, ServiceLocatorInstanceHolder> {
+  get holders(): Map<string, InstanceHolder> {
     return this._holders
   }
 
   /**
-   * Gets a holder by name. For RequestContextHolder, this is a simple lookup.
+   * Gets a holder by name. For RequestContext, this is a simple lookup.
    */
-  get(name: string): ServiceLocatorInstanceHolder | undefined {
+  get(name: string): InstanceHolder | undefined {
     return this._holders.get(name)
   }
 
   /**
    * Sets a holder by name.
    */
-  set(name: string, holder: ServiceLocatorInstanceHolder): void {
+  set(name: string, holder: InstanceHolder): void {
     this._holders.set(name, holder)
   }
 
@@ -160,7 +168,7 @@ export class DefaultRequestContextHolder
   addInstance(
     instanceName: string | InjectionToken<any, undefined>,
     instance: any,
-    holder?: ServiceLocatorInstanceHolder,
+    holder?: InstanceHolder,
   ): void {
     if (instanceName instanceof InjectionToken) {
       const name = instanceName.toString()
@@ -194,13 +202,19 @@ export class DefaultRequestContextHolder
   }
 }
 
+/** @deprecated Use DefaultRequestContext instead */
+export const DefaultRequestContextHolder = DefaultRequestContext
+
 /**
- * Creates a new request context holder with the given parameters.
+ * Creates a new request context with the given parameters.
  */
-export function createRequestContextHolder(
+export function createRequestContext(
   requestId: string,
   priority: number = 100,
   initialMetadata?: Record<string, any>,
-): RequestContextHolder {
-  return new DefaultRequestContextHolder(requestId, priority, initialMetadata)
+): RequestContext {
+  return new DefaultRequestContext(requestId, priority, initialMetadata)
 }
+
+/** @deprecated Use createRequestContext instead */
+export const createRequestContextHolder = createRequestContext

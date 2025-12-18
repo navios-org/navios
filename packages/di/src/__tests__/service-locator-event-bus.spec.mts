@@ -1,9 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { ServiceLocatorEventBus } from '../service-locator-event-bus.mjs'
+import { LifecycleEventBus } from '../internal/lifecycle/lifecycle-event-bus.mjs'
 
-describe('ServiceLocatorEventBus', () => {
-  let eventBus: ServiceLocatorEventBus
+describe('LifecycleEventBus', () => {
+  let eventBus: LifecycleEventBus
   let mockLogger: Console
 
   beforeEach(() => {
@@ -11,12 +11,12 @@ describe('ServiceLocatorEventBus', () => {
       debug: vi.fn(),
       warn: vi.fn(),
     } as any as Console
-    eventBus = new ServiceLocatorEventBus(mockLogger)
+    eventBus = new LifecycleEventBus(mockLogger)
   })
 
   describe('constructor', () => {
     it('should create event bus without logger', () => {
-      const eventBusWithoutLogger = new ServiceLocatorEventBus()
+      const eventBusWithoutLogger = new LifecycleEventBus()
       expect(eventBusWithoutLogger).toBeDefined()
     })
 

@@ -2,21 +2,21 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { z } from 'zod/v4'
 
-import type { FactoryContext } from '../factory-context.mjs'
+import type { FactoryContext } from '../internal/context/factory-context.mjs'
 import type {
   Factorable,
   FactorableWithArgs,
 } from '../interfaces/factory.interface.mjs'
 
-import { Container } from '../container.mjs'
+import { Container } from '../container/container.mjs'
 import { Factory } from '../decorators/factory.decorator.mjs'
 import { Injectable } from '../decorators/injectable.decorator.mjs'
 import { InjectableScope } from '../enums/injectable-scope.enum.mjs'
 import { getInjectors } from '../index.mjs'
-import { InjectionToken } from '../injection-token.mjs'
-import { asyncInject, inject } from '../injector.mjs'
-import { Registry } from '../registry.mjs'
-import { ServiceLocator } from '../service-locator.mjs'
+import { InjectionToken } from '../token/injection-token.mjs'
+import { asyncInject, inject } from '../injectors.mjs'
+import { Registry } from '../token/registry.mjs'
+import { ServiceLocator } from '../internal/core/service-locator.mjs'
 
 describe('Container', () => {
   let container: Container

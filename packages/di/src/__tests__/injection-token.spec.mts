@@ -5,7 +5,7 @@ import type { Factorable, FactorableWithArgs } from '../interfaces/index.mjs'
 
 import { Factory, Injectable } from '../decorators/index.mjs'
 import { Container } from '../index.mjs'
-import { InjectionToken } from '../injection-token.mjs'
+import { InjectionToken } from '../token/injection-token.mjs'
 
 describe('InjectToken', () => {
   let container: Container

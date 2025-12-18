@@ -1,12 +1,17 @@
-/* eslint-disable @typescript-eslint/no-empty-object-type */
-import type { ServiceLocatorInstanceHolder } from './service-locator-instance-holder.mjs'
+import type { InstanceHolder } from './instance-holder.mjs'
 
-import { BaseInstanceHolderManager } from './base-instance-holder-manager.mjs'
-import { InjectableScope, InjectableType } from './enums/index.mjs'
-import { DIError, DIErrorCode } from './errors/index.mjs'
-import { ServiceLocatorInstanceHolderStatus } from './service-locator-instance-holder.mjs'
+import { BaseHolderManager } from './base-holder-manager.mjs'
+import { InjectableScope, InjectableType } from '../../enums/index.mjs'
+import { DIError, DIErrorCode } from '../../errors/index.mjs'
+import { InstanceStatus } from './instance-holder.mjs'
 
-export class ServiceLocatorManager extends BaseInstanceHolderManager {
+/**
+ * Manages the storage and retrieval of singleton instance holders.
+ *
+ * Provides CRUD operations and filtering for the holder map.
+ * Handles holder state validation (destroying, error states) on retrieval.
+ */
+export class HolderManager extends BaseHolderManager {
   constructor(logger: Console | null = null) {
     super(logger)
   }
@@ -14,19 +19,19 @@ export class ServiceLocatorManager extends BaseInstanceHolderManager {
   get(
     name: string,
   ):
-    | [DIError, ServiceLocatorInstanceHolder]
+    | [DIError, InstanceHolder]
     | [DIError]
-    | [undefined, ServiceLocatorInstanceHolder] {
+    | [undefined, InstanceHolder] {
     const holder = this._holders.get(name)
     if (holder) {
-      if (holder.status === ServiceLocatorInstanceHolderStatus.Destroying) {
+      if (holder.status === InstanceStatus.Destroying) {
         this.logger?.log(
-          `[ServiceLocatorManager]#getInstanceHolder() Instance ${holder.name} is destroying`,
+          `[HolderManager]#get() Instance ${holder.name} is destroying`,
         )
         return [DIError.instanceDestroying(holder.name), holder]
-      } else if (holder.status === ServiceLocatorInstanceHolderStatus.Error) {
+      } else if (holder.status === InstanceStatus.Error) {
         this.logger?.log(
-          `[ServiceLocatorManager]#getInstanceHolder() Instance ${holder.name} is in error state`,
+          `[HolderManager]#get() Instance ${holder.name} is in error state`,
         )
         return [holder.instance as DIError, holder]
       }
@@ -34,13 +39,13 @@ export class ServiceLocatorManager extends BaseInstanceHolderManager {
       return [undefined, holder]
     } else {
       this.logger?.log(
-        `[ServiceLocatorManager]#getInstanceHolder() Instance ${name} not found`,
+        `[HolderManager]#get() Instance ${name} not found`,
       )
       return [DIError.instanceNotFound(name)]
     }
   }
 
-  set(name: string, holder: ServiceLocatorInstanceHolder): void {
+  set(name: string, holder: InstanceHolder): void {
     this._holders.set(name, holder)
   }
 
@@ -55,12 +60,12 @@ export class ServiceLocatorManager extends BaseInstanceHolderManager {
     return [undefined, !!holder]
   }
 
-  // delete and filter methods are inherited from BaseInstanceHolderManager
+  // delete and filter methods are inherited from BaseHolderManager
 
-  // createCreatingHolder method is inherited from BaseInstanceHolderManager
+  // createCreatingHolder method is inherited from BaseHolderManager
 
   /**
-   * Creates a new holder with Created status and an actual instance.
+   * Creates a new holder with Created status and stores it.
    * This is useful for creating holders that already have their instance ready.
    * @param name The name of the instance
    * @param instance The actual instance to store
@@ -75,7 +80,7 @@ export class ServiceLocatorManager extends BaseInstanceHolderManager {
     type: InjectableType,
     scope: InjectableScope,
     deps: Set<string> = new Set(),
-  ): ServiceLocatorInstanceHolder<Instance> {
+  ): InstanceHolder<Instance> {
     const holder = this.createCreatedHolder(name, instance, type, scope, deps)
 
     this._holders.set(name, holder)
@@ -83,3 +88,6 @@ export class ServiceLocatorManager extends BaseInstanceHolderManager {
     return holder
   }
 }
+
+/** @deprecated Use HolderManager instead */
+export const ServiceLocatorManager = HolderManager

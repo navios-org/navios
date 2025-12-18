@@ -1,6 +1,6 @@
-import type { InjectableScope, InjectableType } from '../enums/index.mjs'
-import type { DIError } from '../errors/index.mjs'
-import type { ServiceLocatorInstanceHolder } from '../service-locator-instance-holder.mjs'
+import type { InjectableScope, InjectableType } from '../../enums/index.mjs'
+import type { DIError } from '../../errors/index.mjs'
+import type { InstanceHolder } from './instance-holder.mjs'
 
 /**
  * Result type for holder retrieval operations.
@@ -9,14 +9,16 @@ import type { ServiceLocatorInstanceHolder } from '../service-locator-instance-h
  * - null - No holder exists
  */
 export type HolderGetResult<T = unknown> =
-  | [undefined, ServiceLocatorInstanceHolder<T>]
-  | [DIError, ServiceLocatorInstanceHolder<T>?]
+  | [undefined, InstanceHolder<T>]
+  | [DIError, InstanceHolder<T>?]
   | null
 
 /**
  * Interface for abstracting holder storage operations.
- * This allows unified instance resolution logic regardless of where
+ *
+ * Enables unified instance resolution logic regardless of where
  * holders are stored (singleton manager, request context, etc.).
+ * This is the key abstraction for the Storage Strategy pattern.
  */
 export interface IHolderStorage {
   /**
@@ -45,7 +47,7 @@ export interface IHolderStorage {
    * @param instanceName The unique identifier for the instance
    * @param holder The holder to store
    */
-  set(instanceName: string, holder: ServiceLocatorInstanceHolder): void
+  set(instanceName: string, holder: InstanceHolder): void
 
   /**
    * Deletes a holder by instance name.
@@ -70,7 +72,7 @@ export interface IHolderStorage {
     deps: Set<string>,
   ): [
     ReturnType<typeof Promise.withResolvers<[undefined, T]>>,
-    ServiceLocatorInstanceHolder<T>,
+    InstanceHolder<T>,
   ]
 
   /**
@@ -93,7 +95,7 @@ export interface IHolderStorage {
    * @param callback Function called for each holder with (name, holder)
    */
   forEach(
-    callback: (name: string, holder: ServiceLocatorInstanceHolder) => void,
+    callback: (name: string, holder: InstanceHolder) => void,
   ): void
 
   /**
@@ -102,7 +104,7 @@ export interface IHolderStorage {
    * @param instance The instance to search for
    * @returns The holder if found, null otherwise
    */
-  findByInstance(instance: unknown): ServiceLocatorInstanceHolder | null
+  findByInstance(instance: unknown): InstanceHolder | null
 
   /**
    * Finds all instance names that depend on the given instance name.

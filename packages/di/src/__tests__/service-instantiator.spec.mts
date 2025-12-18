@@ -1,12 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { FactoryContext } from '../factory-context.mjs'
-import type { FactoryRecord } from '../registry.mjs'
+import type { FactoryContext } from '../internal/context/factory-context.mjs'
+import type { FactoryRecord } from '../token/registry.mjs'
 import type { Injectors } from '../utils/get-injectors.mjs'
 
 import { InjectableScope, InjectableType } from '../enums/index.mjs'
-import { InjectionToken } from '../injection-token.mjs'
-import { ServiceInstantiator } from '../service-instantiator.mjs'
+import { InjectionToken } from '../token/injection-token.mjs'
+import { Instantiator } from '../internal/core/instantiator.mjs'
 
 // Mock classes for testing
 class TestService {
@@ -36,8 +36,8 @@ class TestFactoryWithoutCreate {
   // Missing create method
 }
 
-describe('ServiceInstantiator', () => {
-  let instantiator: ServiceInstantiator
+describe('Instantiator', () => {
+  let instantiator: Instantiator
   let mockInjectors: Injectors
   let mockContext: FactoryContext
   let mockAddDestroyListener: ReturnType<typeof vi.fn>
@@ -60,7 +60,7 @@ describe('ServiceInstantiator', () => {
       addDestroyListener: mockAddDestroyListener,
     }
 
-    instantiator = new ServiceInstantiator(mockInjectors)
+    instantiator = new Instantiator(mockInjectors)
   })
 
   function createFactoryRecord<T>(

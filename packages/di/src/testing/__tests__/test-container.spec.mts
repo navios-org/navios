@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 
 import { Injectable } from '../../decorators/injectable.decorator.mjs'
-import { InjectionToken } from '../../injection-token.mjs'
-import { inject } from '../../injector.mjs'
+import { InjectionToken } from '../../token/injection-token.mjs'
+import { inject } from '../../injectors.mjs'
 import { TestContainer } from '../test-container.mjs'
 
 describe('TestContainer', () => {

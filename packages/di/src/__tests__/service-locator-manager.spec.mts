@@ -2,23 +2,23 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { InjectableScope, InjectableType } from '../enums/index.mjs'
 import { DIError } from '../errors/index.mjs'
-import { ServiceLocatorInstanceHolderStatus } from '../service-locator-instance-holder.mjs'
-import { ServiceLocatorManager } from '../service-locator-manager.mjs'
+import { InstanceStatus } from '../internal/holder/instance-holder.mjs'
+import { HolderManager } from '../internal/holder/holder-manager.mjs'
 
-describe('ServiceLocatorManager', () => {
-  let manager: ServiceLocatorManager
+describe('HolderManager', () => {
+  let manager: HolderManager
   let mockLogger: Console
 
   beforeEach(() => {
     mockLogger = {
       log: vi.fn(),
     } as any as Console
-    manager = new ServiceLocatorManager(mockLogger)
+    manager = new HolderManager(mockLogger)
   })
 
   describe('constructor', () => {
     it('should create manager without logger', () => {
-      const managerWithoutLogger = new ServiceLocatorManager()
+      const managerWithoutLogger = new HolderManager()
       expect(managerWithoutLogger).toBeDefined()
     })
 
@@ -62,7 +62,7 @@ describe('ServiceLocatorManager', () => {
       )
 
       // Manually set status to destroying
-      holder.status = ServiceLocatorInstanceHolderStatus.Destroying
+      holder.status = InstanceStatus.Destroying
 
       const result = manager.get('destroying-instance')
 
@@ -83,7 +83,7 @@ describe('ServiceLocatorManager', () => {
       )
 
       // Manually set status to error with an error instance
-      holder.status = ServiceLocatorInstanceHolderStatus.Error
+      holder.status = InstanceStatus.Error
       const errorInstance = DIError.instanceNotFound('error-instance')
       holder.instance = errorInstance
 
@@ -148,7 +148,7 @@ describe('ServiceLocatorManager', () => {
         InjectableScope.Singleton,
       )
 
-      holder.status = ServiceLocatorInstanceHolderStatus.Destroying
+      holder.status = InstanceStatus.Destroying
 
       const result = manager.has('destroying-instance')
 
@@ -230,7 +230,7 @@ describe('ServiceLocatorManager', () => {
 
       expect(deferred).toBeDefined()
       expect(deferred.promise).toBeInstanceOf(Promise)
-      expect(holder.status).toBe(ServiceLocatorInstanceHolderStatus.Creating)
+      expect(holder.status).toBe(InstanceStatus.Creating)
       expect(holder.name).toBe('test-instance')
       expect(holder.instance).toBeNull()
       expect(holder.creationPromise).toBe(deferred.promise)
@@ -265,7 +265,7 @@ describe('ServiceLocatorManager', () => {
         InjectableScope.Singleton,
       )
 
-      expect(holder.status).toBe(ServiceLocatorInstanceHolderStatus.Created)
+      expect(holder.status).toBe(InstanceStatus.Created)
       expect(holder.name).toBe('test-instance')
       expect(holder.instance).toBe(instance)
       expect(holder.creationPromise).toBeNull()

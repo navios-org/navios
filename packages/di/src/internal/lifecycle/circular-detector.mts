@@ -1,13 +1,13 @@
-import type { ServiceLocatorInstanceHolder } from './service-locator-instance-holder.mjs'
+import type { InstanceHolder } from '../holder/instance-holder.mjs'
 
 /**
  * Detects circular dependencies by analyzing the waitingFor relationships
  * between service holders.
  *
- * The detector uses BFS to traverse the waitingFor graph starting from a target holder
+ * Uses BFS to traverse the waitingFor graph starting from a target holder
  * and checks if following the chain leads back to the waiter, indicating a circular dependency.
  */
-export class CircularDependencyDetector {
+export class CircularDetector {
   /**
    * Detects if waiting for `targetName` from `waiterName` would create a cycle.
    *
@@ -22,7 +22,7 @@ export class CircularDependencyDetector {
   static detectCycle(
     waiterName: string,
     targetName: string,
-    getHolder: (name: string) => ServiceLocatorInstanceHolder | undefined,
+    getHolder: (name: string) => InstanceHolder | undefined,
   ): string[] | null {
     // Use BFS to find if there's a path from targetName back to waiterName
     const visited = new Set<string>()
@@ -75,3 +75,6 @@ export class CircularDependencyDetector {
     return cycle.join(' -> ')
   }
 }
+
+/** @deprecated Use CircularDetector instead */
+export const CircularDependencyDetector = CircularDetector

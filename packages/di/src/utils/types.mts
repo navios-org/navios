@@ -3,7 +3,7 @@ import type {
   ClassType,
   FactoryInjectionToken,
   InjectionToken,
-} from '../injection-token.mjs'
+} from '../token/injection-token.mjs'
 
 // Utility types for string manipulation and union handling
 export type Join<TElements, TSeparator extends string> =

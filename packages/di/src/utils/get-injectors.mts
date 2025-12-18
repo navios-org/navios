@@ -1,6 +1,6 @@
 import type { z, ZodObject, ZodType } from 'zod/v4'
 
-import type { FactoryContext } from '../factory-context.mjs'
+import type { FactoryContext } from '../internal/context/factory-context.mjs'
 import type {
   BoundInjectionToken,
   ClassType,
@@ -9,7 +9,7 @@ import type {
   FactoryInjectionToken,
   InjectionToken,
   InjectionTokenSchemaType,
-} from '../injection-token.mjs'
+} from '../token/injection-token.mjs'
 import type {
   Factorable,
   FactorableWithArgs,

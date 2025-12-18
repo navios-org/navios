@@ -4,8 +4,8 @@ import type { Factorable, FactorableWithArgs } from '../interfaces/index.mjs'
 
 import { Factory } from '../decorators/index.mjs'
 import { InjectableScope } from '../enums/index.mjs'
-import { InjectionToken } from '../injection-token.mjs'
-import { Registry } from '../registry.mjs'
+import { InjectionToken } from '../token/injection-token.mjs'
+import { Registry } from '../token/registry.mjs'
 
 // Test factory without arguments
 @Factory()

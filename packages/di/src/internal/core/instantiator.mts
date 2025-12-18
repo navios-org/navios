@@ -1,14 +1,17 @@
-import type { FactoryContext } from './factory-context.mjs'
-import type { FactoryRecord } from './registry.mjs'
-import type { Injectors } from './utils/get-injectors.mjs'
+import type { FactoryContext } from '../context/factory-context.mjs'
+import type { FactoryRecord } from '../../token/registry.mjs'
+import type { Injectors } from '../../utils/get-injectors.mjs'
 
-import { InjectableType } from './enums/index.mjs'
+import { InjectableType } from '../../enums/index.mjs'
 
 /**
- * ServiceInstantiator handles the instantiation of services based on registry records.
- * It replaces the hard-coded logic in Injectable and Factory decorators.
+ * Creates service instances from registry records.
+ *
+ * Handles both class-based (@Injectable) and factory-based (@Factory) services,
+ * managing the instantiation lifecycle including sync initialization retries
+ * and lifecycle hook invocation (onServiceInit, onServiceDestroy).
  */
-export class ServiceInstantiator {
+export class Instantiator {
   constructor(private readonly injectors: Injectors) {}
 
   /**
@@ -31,7 +34,7 @@ export class ServiceInstantiator {
           return this.instantiateFactory(ctx, record, args)
         default:
           throw new Error(
-            `[ServiceInstantiator] Unknown service type: ${record.type}`,
+            `[Instantiator] Unknown service type: ${record.type}`,
           )
       }
     } catch (error) {
@@ -64,7 +67,7 @@ export class ServiceInstantiator {
         const results = await Promise.allSettled(promises)
         if (results.some((result) => result.status === 'rejected')) {
           throw new Error(
-            `[ServiceInstantiator] Service ${record.target.name} cannot be instantiated.`,
+            `[Instantiator] Service ${record.target.name} cannot be instantiated.`,
           )
         }
         const newRes = tryLoad(injectState)
@@ -73,13 +76,13 @@ export class ServiceInstantiator {
       }
 
       if (promises.length > 0) {
-        console.error(`[ServiceInstantiator] ${record.target.name} has problem with it's definition.
+        console.error(`[Instantiator] ${record.target.name} has problem with it's definition.
 
        One or more of the dependencies are registered as a InjectableScope.Instance and are used with inject.
 
        Please use inject asyncInject of inject to load those dependencies.`)
         throw new Error(
-          `[ServiceInstantiator] Service ${record.target.name} cannot be instantiated.`,
+          `[Instantiator] Service ${record.target.name} cannot be instantiated.`,
         )
       }
 
@@ -124,7 +127,7 @@ export class ServiceInstantiator {
         const results = await Promise.allSettled(promises)
         if (results.some((result) => result.status === 'rejected')) {
           throw new Error(
-            `[ServiceInstantiator] Service ${record.target.name} cannot be instantiated.`,
+            `[Instantiator] Service ${record.target.name} cannot be instantiated.`,
           )
         }
         const newRes = tryLoad(injectState)
@@ -133,19 +136,19 @@ export class ServiceInstantiator {
       }
 
       if (promises.length > 0) {
-        console.error(`[ServiceInstantiator] ${record.target.name} has problem with it's definition.
+        console.error(`[Instantiator] ${record.target.name} has problem with it's definition.
 
        One or more of the dependencies are registered as a InjectableScope.Instance and are used with inject.
 
        Please use asyncInject instead of inject to load those dependencies.`)
         throw new Error(
-          `[ServiceInstantiator] Service ${record.target.name} cannot be instantiated.`,
+          `[Instantiator] Service ${record.target.name} cannot be instantiated.`,
         )
       }
 
       if (typeof builder.create !== 'function') {
         throw new Error(
-          `[ServiceInstantiator] Factory ${record.target.name} does not implement the create method.`,
+          `[Instantiator] Factory ${record.target.name} does not implement the create method.`,
         )
       }
 
@@ -156,3 +159,6 @@ export class ServiceInstantiator {
     }
   }
 }
+
+/** @deprecated Use Instantiator instead */
+export const ServiceInstantiator = Instantiator

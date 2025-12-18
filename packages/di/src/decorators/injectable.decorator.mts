@@ -11,12 +11,12 @@ import type {
   ClassTypeWithoutArguments,
   InjectionTokenSchemaType,
   OptionalInjectionTokenSchemaType,
-} from '../injection-token.mjs'
-import type { Registry } from '../registry.mjs'
+} from '../token/injection-token.mjs'
+import type { Registry } from '../token/registry.mjs'
 
 import { InjectableScope, InjectableType } from '../enums/index.mjs'
-import { InjectionToken } from '../injection-token.mjs'
-import { globalRegistry } from '../registry.mjs'
+import { InjectionToken } from '../token/injection-token.mjs'
+import { globalRegistry } from '../token/registry.mjs'
 import { InjectableTokenMeta } from '../symbols/index.mjs'
 
 export interface InjectableOptions {

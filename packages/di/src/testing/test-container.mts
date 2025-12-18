@@ -1,11 +1,11 @@
-import type { ClassType, InjectionToken } from '../injection-token.mjs'
-import type { Registry } from '../registry.mjs'
+import type { ClassType, InjectionToken } from '../token/injection-token.mjs'
+import type { Registry } from '../token/registry.mjs'
 import type { Injectors } from '../utils/index.mjs'
 
-import { Container } from '../container.mjs'
+import { Container } from '../container/container.mjs'
 import { Injectable } from '../decorators/injectable.decorator.mjs'
 import { InjectableScope, InjectableType } from '../enums/index.mjs'
-import { globalRegistry } from '../registry.mjs'
+import { globalRegistry } from '../token/registry.mjs'
 import { getInjectableToken } from '../utils/index.mjs'
 
 /**

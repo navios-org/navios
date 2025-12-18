@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 
 import { InjectableScope, InjectableType } from '../enums/index.mjs'
-import { InjectionToken } from '../injection-token.mjs'
-import { globalRegistry, Registry } from '../registry.mjs'
+import { InjectionToken } from '../token/injection-token.mjs'
+import { globalRegistry, Registry } from '../token/registry.mjs'
 
 class TestService {}
 class AnotherService {}

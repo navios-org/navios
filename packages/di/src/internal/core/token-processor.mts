@@ -1,24 +1,26 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 /* eslint-disable @typescript-eslint/no-empty-object-type */
 
-import type { FactoryContext } from './factory-context.mjs'
+import type { FactoryContext } from '../context/factory-context.mjs'
 import type {
   AnyInjectableType,
   InjectionTokenType,
-} from './injection-token.mjs'
-import type { IContainer } from './interfaces/container.interface.mjs'
+} from '../../token/injection-token.mjs'
+import type { IContainer } from '../../interfaces/container.interface.mjs'
 
-import { DIError } from './errors/index.mjs'
+import { DIError } from '../../errors/index.mjs'
 import {
   BoundInjectionToken,
   FactoryInjectionToken,
   InjectionToken,
-} from './injection-token.mjs'
-import { getInjectableToken } from './utils/index.mjs'
+} from '../../token/injection-token.mjs'
+import { getInjectableToken } from '../../utils/index.mjs'
 
 /**
- * TokenProcessor handles token validation, resolution, and instance name generation.
- * Extracted from ServiceLocator to improve separation of concerns.
+ * Handles token validation, normalization, and instance name generation.
+ *
+ * Provides utilities for resolving tokens to their underlying InjectionToken,
+ * validating arguments against schemas, and generating unique instance identifiers.
  */
 export class TokenProcessor {
   constructor(private readonly logger: Console | null = null) {}

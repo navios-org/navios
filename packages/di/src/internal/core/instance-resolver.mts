@@ -6,51 +6,51 @@ import type {
   AnyInjectableType,
   InjectionTokenSchemaType,
   InjectionTokenType,
-} from './injection-token.mjs'
-import type { FactoryContext } from './factory-context.mjs'
-import type { IContainer } from './interfaces/container.interface.mjs'
-import type { IHolderStorage } from './interfaces/holder-storage.interface.mjs'
-import type { Registry } from './registry.mjs'
-import type { ScopedContainer } from './scoped-container.mjs'
-import type { ServiceInstantiator } from './service-instantiator.mjs'
-import type { ServiceLocatorInstanceHolder } from './service-locator-instance-holder.mjs'
-import type { ServiceLocatorManager } from './service-locator-manager.mjs'
+} from '../../token/injection-token.mjs'
+import type { FactoryContext } from '../context/factory-context.mjs'
+import type { IContainer } from '../../interfaces/container.interface.mjs'
+import type { IHolderStorage } from '../holder/holder-storage.interface.mjs'
+import type { Registry } from '../../token/registry.mjs'
+import type { ScopedContainer } from '../../container/scoped-container.mjs'
+import type { Instantiator } from './instantiator.mjs'
+import type { InstanceHolder } from '../holder/instance-holder.mjs'
+import type { HolderManager } from '../holder/holder-manager.mjs'
 import type { ServiceLocator } from './service-locator.mjs'
 import type { TokenProcessor } from './token-processor.mjs'
 
-import { BaseInstanceHolderManager } from './base-instance-holder-manager.mjs'
-import { InjectableScope } from './enums/index.mjs'
-import { DIError, DIErrorCode } from './errors/index.mjs'
+import { BaseHolderManager } from '../holder/base-holder-manager.mjs'
+import { InjectableScope } from '../../enums/index.mjs'
+import { DIError, DIErrorCode } from '../../errors/index.mjs'
 import {
   BoundInjectionToken,
   FactoryInjectionToken,
   InjectionToken,
-} from './injection-token.mjs'
+} from '../../token/injection-token.mjs'
 import {
   getCurrentResolutionContext,
   withResolutionContext,
-} from './resolution-context.mjs'
-import { ServiceLocatorInstanceHolderStatus } from './service-locator-instance-holder.mjs'
-import { SingletonHolderStorage } from './singleton-holder-storage.mjs'
+} from '../context/resolution-context.mjs'
+import { InstanceStatus } from '../holder/instance-holder.mjs'
+import { SingletonStorage } from '../holder/singleton-storage.mjs'
 
 /**
- * InstanceResolver handles instance resolution, creation, and lifecycle management.
- * Extracted from ServiceLocator to improve separation of concerns.
+ * Resolves instances from tokens, handling caching, creation, and scope rules.
  *
- * Uses the Storage Strategy pattern to unify singleton and request-scoped resolution.
+ * Uses the Storage Strategy pattern for unified singleton/request-scoped handling.
+ * Coordinates with Instantiator for actual service creation.
  */
 export class InstanceResolver {
   private readonly singletonStorage: IHolderStorage
 
   constructor(
     private readonly registry: Registry,
-    private readonly manager: ServiceLocatorManager,
-    private readonly serviceInstantiator: ServiceInstantiator,
+    private readonly manager: HolderManager,
+    private readonly instantiator: Instantiator,
     private readonly tokenProcessor: TokenProcessor,
     private readonly logger: Console | null = null,
     private readonly serviceLocator: ServiceLocator,
   ) {
-    this.singletonStorage = new SingletonHolderStorage(manager)
+    this.singletonStorage = new SingletonStorage(manager)
   }
 
   // ============================================================================
@@ -135,7 +135,7 @@ export class InstanceResolver {
       return [err]
     }
 
-    const { instanceName, validatedArgs, realToken } = data
+    const { instanceName, validatedArgs, realToken } = data!
 
     // Step 2: Check for existing holder SYNCHRONOUSLY (no await between check and store)
     // This is critical for preventing race conditions with concurrent resolution
@@ -149,7 +149,7 @@ export class InstanceResolver {
         if (readyResult[0]) {
           return [readyResult[0]]
         }
-        return [undefined, readyResult[1].instance]
+        return [undefined, readyResult[1]!.instance]
       }
       // Handle error states (destroying, etc.)
       if (error) {
@@ -179,7 +179,7 @@ export class InstanceResolver {
       return [createError]
     }
 
-    return [undefined, holder.instance]
+    return [undefined, holder!.instance]
   }
 
   /**
@@ -189,7 +189,7 @@ export class InstanceResolver {
   private async handleStorageError(
     instanceName: string,
     error: DIError,
-    holder: ServiceLocatorInstanceHolder | undefined,
+    holder: InstanceHolder | undefined,
     storage: IHolderStorage,
   ): Promise<[undefined, any] | [DIError] | null> {
     switch (error.code) {
@@ -208,7 +208,7 @@ export class InstanceResolver {
           if (readyResult[0]) {
             return [readyResult[0]]
           }
-          return [undefined, readyResult[1].instance]
+          return [undefined, readyResult[1]!.instance]
         }
         return null // Proceed with creation
 
@@ -230,7 +230,7 @@ export class InstanceResolver {
     contextContainer: IContainer,
     storage: IHolderStorage,
     scopedContainer?: ScopedContainer,
-  ): Promise<[undefined, ServiceLocatorInstanceHolder<Instance>] | [DIError]> {
+  ): Promise<[undefined, InstanceHolder<Instance>] | [DIError]> {
     this.logger?.log(
       `[InstanceResolver]#createAndStoreInstance() Creating instance for ${instanceName}`,
     )
@@ -260,7 +260,7 @@ export class InstanceResolver {
     storage.set(instanceName, holder)
 
     // Create a getHolder function that looks up holders from both the manager and storage
-    const getHolder = (name: string): ServiceLocatorInstanceHolder | undefined => {
+    const getHolder = (name: string): InstanceHolder | undefined => {
       // First check the storage (which might be request-scoped)
       const storageResult = storage.get(name)
       if (storageResult !== null) {
@@ -275,9 +275,10 @@ export class InstanceResolver {
     // Start async instantiation within the resolution context
     // This allows circular dependency detection to track the waiter
     withResolutionContext(holder, getHolder, () => {
-      this.serviceInstantiator
+      this.instantiator
         .instantiateService(ctx, record, args)
-        .then(async ([error, instance]) => {
+        .then(async (result: [undefined, Instance] | [Error]) => {
+          const [error, instance] = result.length === 2 ? result : [result[0], undefined]
           await this.handleInstantiationResult(
             instanceName,
             holder,
@@ -289,7 +290,7 @@ export class InstanceResolver {
             scopedContainer,
           )
         })
-        .catch(async (error) => {
+        .catch(async (error: Error) => {
           await this.handleInstantiationError(
             instanceName,
             holder,
@@ -313,14 +314,14 @@ export class InstanceResolver {
     record: any,
     args: any,
     ctx: FactoryContext & { deps: Set<string>; getDestroyListeners: () => (() => void)[] },
-  ): Promise<[undefined, ServiceLocatorInstanceHolder<Instance>] | [DIError]> {
+  ): Promise<[undefined, InstanceHolder<Instance>] | [DIError]> {
     this.logger?.log(
       `[InstanceResolver]#createTransientInstance() Creating transient instance for ${instanceName}`,
     )
 
     // Create a temporary holder for resolution context (transient instances can still have deps)
-    const tempHolder: ServiceLocatorInstanceHolder<Instance> = {
-      status: ServiceLocatorInstanceHolderStatus.Creating,
+    const tempHolder: InstanceHolder<Instance> = {
+      status: InstanceStatus.Creating,
       name: instanceName,
       instance: null,
       creationPromise: null,
@@ -334,7 +335,7 @@ export class InstanceResolver {
     }
 
     // Create a getHolder function for resolution context
-    const getHolder = (name: string): ServiceLocatorInstanceHolder | undefined => {
+    const getHolder = (name: string): InstanceHolder | undefined => {
       const [, managerHolder] = this.manager.get(name)
       return managerHolder
     }
@@ -343,7 +344,7 @@ export class InstanceResolver {
     const [error, instance] = await withResolutionContext(
       tempHolder,
       getHolder,
-      () => this.serviceInstantiator.instantiateService(ctx, record, args),
+      () => this.instantiator.instantiateService(ctx, record, args),
     )
 
     if (error) {
@@ -351,8 +352,8 @@ export class InstanceResolver {
     }
 
     // Create a holder for the transient instance (not stored, just for return consistency)
-    const holder: ServiceLocatorInstanceHolder<Instance> = {
-      status: ServiceLocatorInstanceHolderStatus.Created,
+    const holder: InstanceHolder<Instance> = {
+      status: InstanceStatus.Created,
       name: instanceName,
       instance: instance as Instance,
       creationPromise: null,
@@ -464,16 +465,16 @@ export class InstanceResolver {
 
   /**
    * Waits for an instance holder to be ready and returns the appropriate result.
-   * Uses the shared utility from BaseInstanceHolderManager.
+   * Uses the shared utility from BaseHolderManager.
    * Passes the current resolution context for circular dependency detection.
    */
   private waitForInstanceReady<T>(
-    holder: ServiceLocatorInstanceHolder<T>,
-  ): Promise<[undefined, ServiceLocatorInstanceHolder<T>] | [DIError]> {
+    holder: InstanceHolder<T>,
+  ): Promise<[undefined, InstanceHolder<T>] | [DIError]> {
     // Get the current resolution context (if we're inside an instantiation)
     const ctx = getCurrentResolutionContext()
 
-    return BaseInstanceHolderManager.waitForHolderReady(
+    return BaseHolderManager.waitForHolderReady(
       holder,
       ctx?.waiterHolder,
       ctx?.getHolder,
@@ -485,7 +486,7 @@ export class InstanceResolver {
    */
   private async handleInstantiationResult(
     instanceName: string,
-    holder: ServiceLocatorInstanceHolder<any>,
+    holder: InstanceHolder<any>,
     ctx: FactoryContext & {
       deps: Set<string>
       getDestroyListeners: () => (() => void)[]
@@ -524,7 +525,7 @@ export class InstanceResolver {
    */
   private async handleInstantiationSuccess(
     instanceName: string,
-    holder: ServiceLocatorInstanceHolder<any>,
+    holder: InstanceHolder<any>,
     ctx: FactoryContext & {
       deps: Set<string>
       getDestroyListeners: () => (() => void)[]
@@ -534,7 +535,7 @@ export class InstanceResolver {
     scopedContainer?: ScopedContainer,
   ): Promise<void> {
     holder.instance = instance
-    holder.status = ServiceLocatorInstanceHolderStatus.Created
+    holder.status = InstanceStatus.Created
 
     // Set up dependency invalidation listeners
     if (ctx.deps.size > 0) {
@@ -544,7 +545,7 @@ export class InstanceResolver {
             this.logger?.log(
               `[InstanceResolver] Dependency ${dependency} destroyed, invalidating ${instanceName}`,
             )
-            this.serviceLocator.getServiceInvalidator().invalidate(instanceName)
+            this.serviceLocator.getInvalidator().invalidate(instanceName)
           }),
         )
 
@@ -576,7 +577,7 @@ export class InstanceResolver {
    */
   private async handleInstantiationError(
     instanceName: string,
-    holder: ServiceLocatorInstanceHolder<any>,
+    holder: InstanceHolder<any>,
     deferred: any,
     scope: InjectableScope,
     error: any,
@@ -586,7 +587,7 @@ export class InstanceResolver {
       error,
     )
 
-    holder.status = ServiceLocatorInstanceHolderStatus.Error
+    holder.status = InstanceStatus.Error
     holder.instance = error
     holder.creationPromise = null
 
@@ -594,7 +595,7 @@ export class InstanceResolver {
       this.logger?.log(
         `[InstanceResolver] Singleton ${instanceName} failed, will be invalidated`,
       )
-      this.serviceLocator.getServiceInvalidator().invalidate(instanceName)
+      this.serviceLocator.getInvalidator().invalidate(instanceName)
     }
 
     deferred.reject(error)

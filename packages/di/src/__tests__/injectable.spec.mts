@@ -9,7 +9,7 @@ import {
   InjectableScope,
   Registry,
 } from '../index.mjs'
-import { InjectionToken } from '../injection-token.mjs'
+import { InjectionToken } from '../token/injection-token.mjs'
 
 describe('Injectable decorator', () => {
   let container: Container

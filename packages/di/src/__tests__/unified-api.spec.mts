@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
 
 import { InjectableScope, InjectableType } from '../enums/index.mjs'
-import { DefaultRequestContextHolder } from '../request-context-holder.mjs'
-import { ServiceLocatorManager } from '../service-locator-manager.mjs'
+import { DefaultRequestContextHolder } from '../internal/context/request-context.mjs'
+import { ServiceLocatorManager } from '../internal/holder/holder-manager.mjs'
 
 describe('Unified API', () => {
   describe('Common methods between ServiceLocatorManager and RequestContextHolder', () => {

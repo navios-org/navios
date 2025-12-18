@@ -1,12 +1,12 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 
-import { Container } from '../container.mjs'
+import { Container } from '../container/container.mjs'
 import { Injectable } from '../decorators/injectable.decorator.mjs'
 import { InjectableScope } from '../enums/index.mjs'
 import { inject } from '../index.mjs'
-import { InjectionToken } from '../injection-token.mjs'
-import { Registry } from '../registry.mjs'
-import { ScopedContainer } from '../scoped-container.mjs'
+import { InjectionToken } from '../token/injection-token.mjs'
+import { Registry } from '../token/registry.mjs'
+import { ScopedContainer } from '../container/scoped-container.mjs'
 
 describe('Request Scope', () => {
   let container: Container

@@ -1,4 +1,4 @@
-import type { ClassType, InjectionToken } from '../injection-token.mjs'
+import type { ClassType, InjectionToken } from '../token/injection-token.mjs'
 
 import { InjectableTokenMeta } from '../symbols/index.mjs'
 
