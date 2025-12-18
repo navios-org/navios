@@ -5,7 +5,7 @@ import { createElement } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useService } from '../../hooks/use-service.mjs'
-import { useScope } from '../../hooks/use-scope.mjs'
+import { useScope, useScopeMetadata, useScopedContainer } from '../../hooks/use-scope.mjs'
 import { ContainerProvider } from '../container-provider.mjs'
 import { ScopeProvider } from '../scope-provider.mjs'
 
@@ -275,6 +275,89 @@ describe('ScopeProvider', () => {
       )
 
       expect(scopeValue).toBe('test-scope')
+    })
+
+    it('should provide metadata via useScopeMetadata', () => {
+      let userId: string | undefined
+      let role: string | undefined
+      let missing: string | undefined
+
+      function TestComponent() {
+        userId = useScopeMetadata<string>('userId')
+        role = useScopeMetadata<string>('role')
+        missing = useScopeMetadata<string>('nonexistent')
+        return createElement('div', { 'data-testid': 'test' }, 'Test')
+      }
+
+      render(
+        createWrapper(
+          createElement(
+            ScopeProvider,
+            // @ts-expect-error - props are not typed
+            {
+              scopeId: 'test-scope',
+              metadata: { userId: '123', role: 'admin' },
+            },
+            createElement(TestComponent),
+          ),
+        ),
+      )
+
+      expect(userId).toBe('123')
+      expect(role).toBe('admin')
+      expect(missing).toBeUndefined()
+    })
+
+    it('should return undefined for useScopeMetadata outside ScopeProvider', () => {
+      let userId: string | undefined = 'initial'
+
+      function TestComponent() {
+        userId = useScopeMetadata<string>('userId')
+        return createElement('div', { 'data-testid': 'test' }, 'Test')
+      }
+
+      render(createWrapper(createElement(TestComponent)))
+
+      expect(userId).toBeUndefined()
+    })
+  })
+
+  describe('useScopedContainer', () => {
+    it('should return null when not inside ScopeProvider', () => {
+      let scopedContainer: unknown = 'not-set'
+
+      function TestComponent() {
+        scopedContainer = useScopedContainer()
+        return createElement('div', { 'data-testid': 'test' }, 'Test')
+      }
+
+      render(createWrapper(createElement(TestComponent)))
+
+      expect(scopedContainer).toBeNull()
+    })
+
+    it('should return ScopedContainer when inside ScopeProvider', () => {
+      let scopedContainer: unknown = null
+
+      function TestComponent() {
+        scopedContainer = useScopedContainer()
+        return createElement('div', { 'data-testid': 'test' }, 'Test')
+      }
+
+      render(
+        createWrapper(
+          createElement(
+            ScopeProvider,
+            // @ts-expect-error - props are not typed
+            { scopeId: 'test-scope' },
+            createElement(TestComponent),
+          ),
+        ),
+      )
+
+      expect(scopedContainer).not.toBeNull()
+      expect(typeof (scopedContainer as any).getRequestId).toBe('function')
+      expect((scopedContainer as any).getRequestId()).toBe('test-scope')
     })
   })
 })

@@ -9,12 +9,11 @@ import type {
 } from '@navios/di'
 import type { z, ZodType } from 'zod/v4'
 
-import { useCallback, useContext, useEffect, useReducer, useRef, useState } from 'react'
+import { useCallback, useEffect, useReducer, useRef, useState } from 'react'
 
 import type { Join, UnionToArray } from '../types.mjs'
 
-import { ScopeContext } from '../providers/scope-provider.mjs'
-import { useContainer } from './use-container.mjs'
+import { useContainer, useRootContainer } from './use-container.mjs'
 
 type ServiceState<T> =
   | { status: 'idle' }
@@ -102,10 +101,28 @@ export function useService(
     | FactoryInjectionToken<any, any>,
   args?: unknown,
 ): UseServiceResult<any> {
+  // useContainer returns ScopedContainer if inside ScopeProvider, otherwise Container
+  // This automatically handles request-scoped services correctly
   const container = useContainer()
-  const serviceLocator = container.getServiceLocator()
-  const scopeId = useContext(ScopeContext)
-  const [state, dispatch] = useReducer(serviceReducer, { status: 'idle' })
+  const rootContainer = useRootContainer()
+  const serviceLocator = rootContainer.getServiceLocator()
+
+  // Try to get the instance synchronously first for better performance
+  // This avoids the async loading state when the instance is already cached
+  // We use a ref to track this so it doesn't cause effect re-runs
+  const initialSyncInstanceRef = useRef<any>(undefined)
+  const isFirstRenderRef = useRef(true)
+
+  if (isFirstRenderRef.current) {
+    initialSyncInstanceRef.current = container.tryGetSync(token, args)
+    isFirstRenderRef.current = false
+  }
+
+  const initialState: ServiceState<any> = initialSyncInstanceRef.current
+    ? { status: 'success', data: initialSyncInstanceRef.current }
+    : { status: 'idle' }
+
+  const [state, dispatch] = useReducer(serviceReducer, initialState)
   const instanceNameRef = useRef<string | null>(null)
   const [refetchCounter, setRefetchCounter] = useState(0)
 
@@ -136,15 +153,7 @@ export function useService(
     // Fetch the service and set up subscription
     const fetchAndSubscribe = async () => {
       try {
-        // Set the correct request context before getting the instance
-        // This ensures request-scoped services are resolved in the correct scope
-        if (scopeId) {
-          const requestContexts = serviceLocator.getRequestContexts()
-          if (requestContexts.has(scopeId)) {
-            container.setCurrentRequestContext(scopeId)
-          }
-        }
-
+        // The container (either ScopedContainer or Container) handles resolution correctly
         const instance = await container.get(
           // @ts-expect-error - token is valid
           token as AnyInjectableType,
@@ -177,14 +186,31 @@ export function useService(
       }
     }
 
-    dispatch({ type: 'loading' })
-    void fetchAndSubscribe()
+    // If we already have a sync instance from initial render, just set up subscription
+    // Otherwise, fetch async
+    const syncInstance = initialSyncInstanceRef.current
+    if (syncInstance && refetchCounter === 0) {
+      const instanceName = serviceLocator.getInstanceIdentifier(
+        token as AnyInjectableType,
+        args,
+      )
+      instanceNameRef.current = instanceName
+      unsubscribe = eventBus.on(instanceName, 'destroy', () => {
+        if (isMounted) {
+          dispatch({ type: 'loading' })
+          void fetchAndSubscribe()
+        }
+      })
+    } else {
+      dispatch({ type: 'loading' })
+      void fetchAndSubscribe()
+    }
 
     return () => {
       isMounted = false
       unsubscribe?.()
     }
-  }, [container, serviceLocator, token, args, scopeId, refetchCounter])
+  }, [container, serviceLocator, token, args, refetchCounter])
 
   const refetch = useCallback(() => {
     setRefetchCounter((c) => c + 1)

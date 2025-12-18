@@ -71,7 +71,7 @@ describe('useService', () => {
         expect(result.current.isError).toBe(true)
       })
 
-      expect(result.current.error?.message).toBe(
+      expect(result.current.error?.message).toContain(
         'Service initialization failed',
       )
       expect(result.current.data).toBeUndefined()

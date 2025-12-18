@@ -13,7 +13,7 @@ import { useCallback, useEffect, useReducer, useRef } from 'react'
 
 import type { Join, UnionToArray } from '../types.mjs'
 
-import { useContainer } from './use-container.mjs'
+import { useContainer, useRootContainer } from './use-container.mjs'
 
 type OptionalServiceState<T> =
   | { status: 'idle' }
@@ -152,9 +152,31 @@ export function useOptionalService(
     | FactoryInjectionToken<any, any>,
   args?: unknown,
 ): UseOptionalServiceResult<any> {
+  // useContainer returns ScopedContainer if inside ScopeProvider, otherwise Container
   const container = useContainer()
-  const serviceLocator = container.getServiceLocator()
-  const [state, dispatch] = useReducer(optionalServiceReducer, { status: 'idle' })
+  const rootContainer = useRootContainer()
+  const serviceLocator = rootContainer.getServiceLocator()
+
+  // Try to get the instance synchronously first for better performance
+  // This avoids the async loading state when the instance is already cached
+  // We use a ref to track this so it doesn't cause effect re-runs
+  const initialSyncInstanceRef = useRef<any>(undefined)
+  const isFirstRenderRef = useRef(true)
+
+  if (isFirstRenderRef.current) {
+    try {
+      initialSyncInstanceRef.current = container.tryGetSync(token, args)
+    } catch {
+      // Service not registered, leave as undefined
+    }
+    isFirstRenderRef.current = false
+  }
+
+  const initialState: OptionalServiceState<any> = initialSyncInstanceRef.current
+    ? { status: 'success', data: initialSyncInstanceRef.current }
+    : { status: 'idle' }
+
+  const [state, dispatch] = useReducer(optionalServiceReducer, initialState)
   const instanceNameRef = useRef<string | null>(null)
 
   if (process.env.NODE_ENV === 'development') {
@@ -178,25 +200,12 @@ export function useOptionalService(
   const fetchService = useCallback(async () => {
     dispatch({ type: 'loading' })
     try {
-      const [error, instance] = await serviceLocator.getInstance(
+      // Use the container (ScopedContainer or Container) for resolution
+      const instance = await container.get(
+        // @ts-expect-error - token is valid
         token as AnyInjectableType,
         args as any,
       )
-
-      if (error) {
-        // Check if error is a "not found" type error
-        const errorMessage = error.message?.toLowerCase() ?? ''
-        if (
-          errorMessage.includes('not found') ||
-          errorMessage.includes('not registered') ||
-          errorMessage.includes('no provider')
-        ) {
-          dispatch({ type: 'not-found' })
-        } else {
-          dispatch({ type: 'error', error: error as Error })
-        }
-        return
-      }
 
       // Get instance name for event subscription
       instanceNameRef.current = serviceLocator.getInstanceIdentifier(
@@ -218,34 +227,50 @@ export function useOptionalService(
         dispatch({ type: 'error', error: err })
       }
     }
-  }, [serviceLocator, token, args])
+  }, [container, serviceLocator, token, args])
 
   // Subscribe to invalidation events
   useEffect(() => {
     const eventBus = serviceLocator.getEventBus()
     let unsubscribe: (() => void) | undefined
 
-    // Fetch the service
-    void fetchService()
+    // If we already have a sync instance from initial render, just set up subscription
+    // Otherwise, fetch async
+    const syncInstance = initialSyncInstanceRef.current
+    if (syncInstance) {
+      instanceNameRef.current = serviceLocator.getInstanceIdentifier(
+        token as AnyInjectableType,
+        args,
+      )
+      unsubscribe = eventBus.on(instanceNameRef.current, 'destroy', () => {
+        void fetchService()
+      })
+    } else {
+      void fetchService()
 
-    // Set up subscription after we have the instance name
-    const setupSubscription = () => {
-      if (instanceNameRef.current) {
-        unsubscribe = eventBus.on(instanceNameRef.current, 'destroy', () => {
-          // Re-fetch when the service is invalidated
-          void fetchService()
-        })
+      // Set up subscription after we have the instance name
+      const setupSubscription = () => {
+        if (instanceNameRef.current) {
+          unsubscribe = eventBus.on(instanceNameRef.current, 'destroy', () => {
+            // Re-fetch when the service is invalidated
+            void fetchService()
+          })
+        }
+      }
+
+      // Wait a tick for the instance name to be set
+      const timeoutId = setTimeout(setupSubscription, 10)
+
+      return () => {
+        clearTimeout(timeoutId)
+        unsubscribe?.()
       }
     }
 
-    // Wait a tick for the instance name to be set
-    const timeoutId = setTimeout(setupSubscription, 10)
-
     return () => {
-      clearTimeout(timeoutId)
       unsubscribe?.()
     }
-  }, [fetchService, serviceLocator])
+  }, [fetchService, serviceLocator, token, args])
 
   return {
     data: state.status === 'success' ? state.data : undefined,

@@ -13,7 +13,7 @@ import { useCallback, useEffect, useRef, useSyncExternalStore } from 'react'
 
 import type { Join, UnionToArray } from '../types.mjs'
 
-import { useContainer } from './use-container.mjs'
+import { useContainer, useRootContainer } from './use-container.mjs'
 
 // Cache entry for suspense
 interface CacheEntry<T> {
@@ -45,6 +45,30 @@ function getCache(container: object): Map<string, CacheEntry<any>> {
     cacheMap.set(container, cache)
   }
   return cache
+}
+
+/**
+ * Sets up invalidation subscription for a cache entry if not already subscribed.
+ * When the service is destroyed, clears the cache and notifies subscribers.
+ */
+function setupInvalidationSubscription(
+  entry: CacheEntry<any>,
+  serviceLocator: ReturnType<
+    import('@navios/di').Container['getServiceLocator']
+  >,
+): void {
+  if (entry.unsubscribe || !entry.instanceName) return
+
+  const eventBus = serviceLocator.getEventBus()
+  entry.unsubscribe = eventBus.on(entry.instanceName, 'destroy', () => {
+    // Clear cache and notify subscribers to re-fetch
+    entry.result = undefined
+    entry.error = undefined
+    entry.status = 'pending'
+    entry.promise = null
+    // Notify all subscribers
+    entry.subscribers.forEach((callback) => callback())
+  })
 }
 
 // #1 Simple class
@@ -86,8 +110,10 @@ export function useSuspenseService(
     | FactoryInjectionToken<any, any>,
   args?: unknown,
 ): any {
+  // useContainer returns ScopedContainer if inside ScopeProvider, otherwise Container
   const container = useContainer()
-  const serviceLocator = container.getServiceLocator()
+  const rootContainer = useRootContainer()
+  const serviceLocator = rootContainer.getServiceLocator()
   const cache = getCache(container)
   const cacheKey = getCacheKey(token, args)
   const entryRef = useRef<CacheEntry<any> | null>(null)
@@ -111,14 +137,20 @@ export function useSuspenseService(
 
   // Initialize or get cache entry
   if (!cache.has(cacheKey)) {
+    // Try to get the instance synchronously first for better performance
+    // This avoids suspense when the instance is already cached
+    const syncInstance = container.tryGetSync(token, args)
+
     const entry: CacheEntry<any> = {
       promise: null,
-      result: undefined,
+      result: syncInstance ?? undefined,
       error: undefined,
-      status: 'pending',
+      status: syncInstance ? 'resolved' : 'pending',
       version: 0,
       subscribers: new Set(),
-      instanceName: null,
+      instanceName: syncInstance
+        ? serviceLocator.getInstanceIdentifier(token as AnyInjectableType, args)
+        : null,
       unsubscribe: undefined,
     }
     cache.set(cacheKey, entry)
@@ -144,22 +176,7 @@ export function useSuspenseService(
         )
 
         // Subscribe to invalidation events if not already subscribed
-        if (!currentEntry.unsubscribe && currentEntry.instanceName) {
-          const eventBus = serviceLocator.getEventBus()
-          currentEntry.unsubscribe = eventBus.on(
-            currentEntry.instanceName,
-            'destroy',
-            () => {
-              // Clear cache and notify subscribers to re-fetch
-              currentEntry.result = undefined
-              currentEntry.error = undefined
-              currentEntry.status = 'pending'
-              currentEntry.promise = null
-              // Notify all subscribers
-              currentEntry.subscribers.forEach((callback) => callback())
-            },
-          )
-        }
+        setupInvalidationSubscription(currentEntry, serviceLocator)
 
         // Notify subscribers
         currentEntry.subscribers.forEach((callback) => callback())
@@ -193,16 +210,18 @@ export function useSuspenseService(
   // Use sync external store to track cache state
   useSyncExternalStore(subscribe, getSnapshot, getSnapshot)
 
-  // Cleanup subscription on unmount
+  // Set up subscription for sync instances that don't have one yet
   useEffect(() => {
-    return () => {
-      // // If there are no subscribers, unsubscribe and delete the cache entry
-      // if (entry.subscribers.size === 0) {
-      //   entry.unsubscribe?.()
-      //   cache.delete(cacheKey)
-      // }
+    const currentEntry = entryRef.current
+    if (
+      currentEntry &&
+      currentEntry.status === 'resolved' &&
+      currentEntry.instanceName &&
+      !currentEntry.unsubscribe
+    ) {
+      setupInvalidationSubscription(currentEntry, serviceLocator)
     }
-  }, [])
+  }, [serviceLocator, entry])
 
   // Start fetching if not already
   if (entry.status === 'pending' && !entry.promise) {

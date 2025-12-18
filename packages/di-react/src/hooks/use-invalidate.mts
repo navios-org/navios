@@ -8,7 +8,7 @@ import type {
 
 import { useCallback } from 'react'
 
-import { useContainer } from './use-container.mjs'
+import { useContainer, useRootContainer } from './use-container.mjs'
 
 type InvalidatableToken =
   | ClassType
@@ -74,8 +74,8 @@ export function useInvalidate(
   token: InvalidatableToken,
   args?: unknown,
 ): () => Promise<void> {
-  const container = useContainer()
-  const serviceLocator = container.getServiceLocator()
+  const rootContainer = useRootContainer()
+  const serviceLocator = rootContainer.getServiceLocator()
 
   return useCallback(async () => {
     const instanceName = serviceLocator.getInstanceIdentifier(token, args)

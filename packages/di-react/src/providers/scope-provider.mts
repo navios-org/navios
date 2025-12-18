@@ -1,15 +1,10 @@
 import type { ReactNode } from 'react'
+import type { ScopedContainer } from '@navios/di'
 
-import { createContext, useEffect, useId, useRef } from 'react'
+import { useContext, useEffect, useId, useRef } from 'react'
 import { jsx } from 'react/jsx-runtime'
 
-import { useContainer } from '../hooks/use-container.mjs'
-
-/**
- * Context for the current scope ID.
- * This allows nested components to access the current request scope.
- */
-export const ScopeContext = createContext<string | null>(null)
+import { ContainerContext, ScopedContainerContext } from './context.mjs'
 
 export interface ScopeProviderProps {
   /**
@@ -46,8 +41,8 @@ export interface ScopeProviderProps {
  * ```tsx
  * // Each row gets its own RowStateService instance
  * {rows.map(row => (
- *   <ScopeProvider key={row.id} scopeId={row.id}>
- *     <TableRow data={row} />
+ *   <ScopeProvider key={row.id} scopeId={row.id} metadata={{ rowData: row }}>
+ *     <TableRow />
  *   </ScopeProvider>
  * ))}
  * ```
@@ -58,28 +53,45 @@ export function ScopeProvider({
   priority = 100,
   children,
 }: ScopeProviderProps) {
-  const container = useContainer()
+  const container = useContext(ContainerContext)
+  if (!container) {
+    throw new Error('ScopeProvider must be used within a ContainerProvider')
+  }
+
   const generatedId = useId()
   const effectiveScopeId = scopeId ?? generatedId
-  const isInitializedRef = useRef(false)
+  const scopedContainerRef = useRef<ScopedContainer | null>(null)
 
-  // Begin request context on first render only
+  // Create ScopedContainer on first render only
   // We use a ref to track initialization to handle React StrictMode double-renders
-  if (!isInitializedRef.current) {
-    // Check if context already exists (e.g., from StrictMode double render)
-    const existingContexts = container.getServiceLocator().getRequestContexts()
-    if (!existingContexts.has(effectiveScopeId)) {
-      container.beginRequest(effectiveScopeId, metadata, priority)
+  if (!scopedContainerRef.current) {
+    // Check if this request ID already exists (e.g., from StrictMode double render)
+    if (!container.hasActiveRequest(effectiveScopeId)) {
+      scopedContainerRef.current = container.beginRequest(
+        effectiveScopeId,
+        metadata,
+        priority,
+      )
     }
-    isInitializedRef.current = true
   }
 
   // End request context on unmount
   useEffect(() => {
+    const scopedContainer = scopedContainerRef.current
     return () => {
-      void container.endRequest(effectiveScopeId)
+      if (scopedContainer) {
+        void scopedContainer.endRequest()
+      }
     }
-  }, [container, effectiveScopeId])
+  }, [])
 
-  return jsx(ScopeContext.Provider, { value: effectiveScopeId, children })
+  // If we don't have a scoped container (shouldn't happen normally), don't render
+  if (!scopedContainerRef.current) {
+    return null
+  }
+
+  return jsx(ScopedContainerContext.Provider, {
+    value: scopedContainerRef.current,
+    children,
+  })
 }
