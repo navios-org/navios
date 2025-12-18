@@ -261,10 +261,11 @@ Some internal type definitions were improved for better TypeScript support, but 
 
 **Problem:** Services can't be resolved when using request contexts.
 
-**Solution:** Make sure you've set the current request context:
+**Solution:** Use a `ScopedContainer` for request-scoped services:
 
 ```typescript
-container.setCurrentRequestContext('your-request-id')
+const scoped = container.beginRequest('your-request-id')
+const service = await scoped.get(RequestService)
 ```
 
 ### Issue: Async dependencies not ready
@@ -285,14 +286,15 @@ private readonly service = asyncInject(AsyncService)
 
 **Problem:** Request contexts not being cleaned up.
 
-**Solution:** Always call `endRequest()`:
+**Solution:** Always call `endRequest()` on the ScopedContainer:
 
 ```typescript
+const scoped = container.beginRequest('req-123')
 try {
-  const context = container.beginRequest('req-123')
+  const service = await scoped.get(RequestService)
   // ... process request
 } finally {
-  await container.endRequest('req-123')
+  await scoped.endRequest()
 }
 ```
 

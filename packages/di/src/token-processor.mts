@@ -23,6 +23,57 @@ import { getInjectableToken } from './utils/index.mjs'
 export class TokenProcessor {
   constructor(private readonly logger: Console | null = null) {}
 
+  // ============================================================================
+  // TOKEN NORMALIZATION
+  // ============================================================================
+
+  /**
+   * Normalizes a token to an InjectionToken.
+   * Handles class constructors by getting their injectable token.
+   *
+   * @param token A class constructor, InjectionToken, BoundInjectionToken, or FactoryInjectionToken
+   * @returns The normalized InjectionTokenType
+   */
+  normalizeToken(token: AnyInjectableType): InjectionTokenType {
+    if (typeof token === 'function') {
+      return getInjectableToken(token)
+    }
+    return token as InjectionTokenType
+  }
+
+  /**
+   * Gets the underlying "real" token from wrapped tokens.
+   * For BoundInjectionToken and FactoryInjectionToken, returns the wrapped token.
+   * For other tokens, returns the token itself.
+   *
+   * @param token The token to unwrap
+   * @returns The underlying InjectionToken
+   */
+  getRealToken<T = unknown>(token: InjectionTokenType): InjectionToken<T> {
+    if (
+      token instanceof BoundInjectionToken ||
+      token instanceof FactoryInjectionToken
+    ) {
+      return token.token as InjectionToken<T>
+    }
+    return token as InjectionToken<T>
+  }
+
+  /**
+   * Convenience method that normalizes a token and then gets the real token.
+   * Useful for checking registry entries where you need the actual registered token.
+   *
+   * @param token Any injectable type
+   * @returns The underlying InjectionToken
+   */
+  getRegistryToken<T = unknown>(token: AnyInjectableType): InjectionToken<T> {
+    return this.getRealToken(this.normalizeToken(token))
+  }
+
+  // ============================================================================
+  // TOKEN VALIDATION
+  // ============================================================================
+
   /**
    * Validates and resolves token arguments, handling factory token resolution and validation.
    */

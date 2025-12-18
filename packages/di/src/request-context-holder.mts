@@ -55,6 +55,11 @@ export interface RequestContextHolder {
   get(instanceName: string): ServiceLocatorInstanceHolder | undefined
 
   /**
+   * Sets an instance holder by name.
+   */
+  set(instanceName: string, holder: ServiceLocatorInstanceHolder): void
+
+  /**
    * Checks if this context has a pre-prepared instance.
    */
   has(instanceName: string): boolean

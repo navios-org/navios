@@ -9,6 +9,7 @@ A `ScopedContainer` provides isolated request context management while sharing s
 ### Key Features
 
 - **Request isolation**: Each request has its own isolated container - no race conditions
+- **Concurrent resolution locking**: Multiple concurrent requests for the same service within a request context are properly synchronized - only one instance is created
 - **Automatic cleanup**: All request-scoped instances are automatically cleaned up when the request ends
 - **Seamless delegation**: Singleton and transient services are resolved through the parent container
 - **Metadata support**: Attach arbitrary metadata to request contexts
@@ -383,12 +384,60 @@ const scoped3 = container.beginRequest('req-123') // Works!
 - `addInstance(token, instance): void` - Adds a pre-prepared instance
 - `endRequest(): Promise<void>` - Ends the request and cleans up all request-scoped services
 
+## Concurrent Resolution Safety
+
+Request-scoped services have the same locking mechanism as singletons - when multiple concurrent operations request the same service simultaneously, only one instance is created. This prevents duplicate initialization which could cause issues with resources like database connections or sessions.
+
+```typescript
+@Injectable({ scope: InjectableScope.Request })
+class ExpensiveResource {
+  constructor() {
+    // Only called once per request, even with concurrent resolution
+    console.log('Creating expensive resource')
+  }
+
+  async onServiceInit() {
+    // Simulate expensive async initialization
+    await connectToDatabase()
+  }
+}
+
+// In a request handler with concurrent operations:
+const scoped = container.beginRequest('request-123')
+
+// These run concurrently, but only ONE instance is created
+const [resource1, resource2, resource3] = await Promise.all([
+  scoped.get(ExpensiveResource),
+  scoped.get(ExpensiveResource),
+  scoped.get(ExpensiveResource),
+])
+
+// resource1 === resource2 === resource3 (same instance)
+```
+
+The locking works by:
+1. When the first call starts creating a service, it stores a "creating" holder immediately (synchronously, before any async operations)
+2. Subsequent concurrent calls find this holder and wait for the creation to complete
+3. Once created, all waiting calls receive the same instance
+
+This is handled transparently - no special handling is needed in your code.
+
+### Storage Strategy Pattern
+
+Internally, both Singleton and Request-scoped services use the same unified resolution logic through the `IHolderStorage` interface. This ensures consistent behavior and eliminates code duplication:
+
+- `SingletonHolderStorage` - stores holders in the global ServiceLocatorManager
+- `RequestHolderStorage` - stores holders in the ScopedContainer's RequestContextHolder
+
+The storage strategy is automatically selected based on the service's scope.
+
 ## Performance Considerations
 
 - `ScopedContainer` instances are lightweight - create one per request
 - Request-scoped services are stored in a simple Map per request
 - Cleanup is asynchronous but fast - lifecycle hooks run in parallel
 - No global state to synchronize - each request is completely isolated
+- Concurrent resolution uses async/await locking - minimal overhead compared to creating duplicate instances
 
 ## Troubleshooting
 

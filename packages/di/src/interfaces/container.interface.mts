@@ -3,12 +3,13 @@ import type { z, ZodType } from 'zod/v4'
 import type {
   BoundInjectionToken,
   ClassType,
+  ClassTypeWithArgument,
   FactoryInjectionToken,
   InjectionToken,
   InjectionTokenSchemaType,
 } from '../injection-token.mjs'
-import type { Factorable } from './factory.interface.mjs'
 import type { Join, UnionToArray } from '../utils/types.mjs'
+import type { Factorable } from './factory.interface.mjs'
 
 /**
  * Interface for dependency injection containers.
@@ -25,6 +26,11 @@ export interface IContainer {
   ): InstanceType<T> extends Factorable<infer R>
     ? Promise<R>
     : Promise<InstanceType<T>>
+  // #1.1 Simple class with args
+  get<T extends ClassTypeWithArgument<R>, R>(
+    token: T,
+    args: R,
+  ): Promise<InstanceType<T>>
   // #2 Token with required Schema
   get<T, S extends InjectionTokenSchemaType>(
     token: InjectionToken<T, S>,

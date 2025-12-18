@@ -2,15 +2,14 @@
 /* eslint-disable @typescript-eslint/no-empty-object-type */
 import type { z, ZodObject, ZodOptional } from 'zod/v4'
 
-import type { FactoryContext } from './factory-context.mjs'
 import type {
   AnyInjectableType,
-  BaseInjectionTokenSchemaType,
   InjectionTokenSchemaType,
   InjectionTokenType,
-  OptionalInjectionTokenSchemaType,
 } from './injection-token.mjs'
+import type { FactoryContext } from './factory-context.mjs'
 import type { IContainer } from './interfaces/container.interface.mjs'
+import type { IHolderStorage } from './interfaces/holder-storage.interface.mjs'
 import type { Registry } from './registry.mjs'
 import type { ScopedContainer } from './scoped-container.mjs'
 import type { ServiceInstantiator } from './service-instantiator.mjs'
@@ -19,6 +18,7 @@ import type { ServiceLocatorManager } from './service-locator-manager.mjs'
 import type { ServiceLocator } from './service-locator.mjs'
 import type { TokenProcessor } from './token-processor.mjs'
 
+import { BaseInstanceHolderManager } from './base-instance-holder-manager.mjs'
 import { InjectableScope } from './enums/index.mjs'
 import { DIError, DIErrorCode } from './errors/index.mjs'
 import {
@@ -27,12 +27,17 @@ import {
   InjectionToken,
 } from './injection-token.mjs'
 import { ServiceLocatorInstanceHolderStatus } from './service-locator-instance-holder.mjs'
+import { SingletonHolderStorage } from './singleton-holder-storage.mjs'
 
 /**
  * InstanceResolver handles instance resolution, creation, and lifecycle management.
  * Extracted from ServiceLocator to improve separation of concerns.
+ *
+ * Uses the Storage Strategy pattern to unify singleton and request-scoped resolution.
  */
 export class InstanceResolver {
+  private readonly singletonStorage: IHolderStorage
+
   constructor(
     private readonly registry: Registry,
     private readonly manager: ServiceLocatorManager,
@@ -40,7 +45,13 @@ export class InstanceResolver {
     private readonly tokenProcessor: TokenProcessor,
     private readonly logger: Console | null = null,
     private readonly serviceLocator: ServiceLocator,
-  ) {}
+  ) {
+    this.singletonStorage = new SingletonHolderStorage(manager)
+  }
+
+  // ============================================================================
+  // PUBLIC RESOLUTION METHODS
+  // ============================================================================
 
   /**
    * Resolves an instance for the given token and arguments.
@@ -55,32 +66,12 @@ export class InstanceResolver {
     args: any,
     contextContainer: IContainer,
   ): Promise<[undefined, any] | [DIError]> {
-    const [err, data] = await this.resolveTokenAndPrepareInstanceName(
+    return this.resolveWithStorage(
       token,
       args,
       contextContainer,
+      this.singletonStorage,
     )
-    if (err) {
-      return [err]
-    }
-
-    const {
-      instanceName,
-      validatedArgs,
-      actualToken: _actualToken,
-      realToken,
-    } = data
-
-    const [error, holder] = await this.retrieveOrCreateInstanceByInstanceName(
-      instanceName,
-      realToken,
-      validatedArgs,
-      contextContainer,
-    )
-    if (error) {
-      return [error]
-    }
-    return [undefined, holder.instance]
   }
 
   /**
@@ -96,41 +87,242 @@ export class InstanceResolver {
     args: any,
     scopedContainer: ScopedContainer,
   ): Promise<[undefined, any] | [DIError]> {
-    const [err, data] = await this.resolveTokenAndPrepareInstanceName(
+    // Use the cached storage from ScopedContainer
+    return this.resolveWithStorage(
       token,
       args,
       scopedContainer,
+      scopedContainer.getHolderStorage(),
+      scopedContainer,
+    )
+  }
+
+  // ============================================================================
+  // UNIFIED RESOLUTION (Storage Strategy Pattern)
+  // ============================================================================
+
+  /**
+   * Unified resolution method that works with any IHolderStorage.
+   * This eliminates duplication between singleton and request-scoped resolution.
+   *
+   * IMPORTANT: The check-and-store logic is carefully designed to avoid race conditions.
+   * The storage check and holder creation must happen synchronously (no awaits between).
+   *
+   * @param token The injection token
+   * @param args Optional arguments
+   * @param contextContainer The container for FactoryContext
+   * @param storage The storage strategy to use
+   * @param scopedContainer Optional scoped container for request-scoped services
+   */
+  private async resolveWithStorage(
+    token: AnyInjectableType,
+    args: any,
+    contextContainer: IContainer,
+    storage: IHolderStorage,
+    scopedContainer?: ScopedContainer,
+  ): Promise<[undefined, any] | [DIError]> {
+    // Step 1: Resolve token and prepare instance name
+    const [err, data] = await this.resolveTokenAndPrepareInstanceName(
+      token,
+      args,
+      contextContainer,
     )
     if (err) {
       return [err]
     }
 
-    const {
-      instanceName,
-      validatedArgs,
-      realToken,
-    } = data
+    const { instanceName, validatedArgs, realToken } = data
 
-    // Check if we already have this instance in the scoped container
-    const existingHolder = scopedContainer.getRequestInstance(instanceName)
-    if (existingHolder) {
-      return this.waitForInstanceReady(existingHolder).then(result => {
-        if (result[0]) return result
-        return [undefined, result[1].instance]
-      })
+    // Step 2: Check for existing holder SYNCHRONOUSLY (no await between check and store)
+    // This is critical for preventing race conditions with concurrent resolution
+    const getResult = storage.get(instanceName)
+
+    if (getResult !== null) {
+      const [error, holder] = getResult
+      if (!error && holder) {
+        // Found existing holder - wait for it to be ready
+        const readyResult = await this.waitForInstanceReady(holder)
+        if (readyResult[0]) {
+          return [readyResult[0]]
+        }
+        return [undefined, readyResult[1].instance]
+      }
+      // Handle error states (destroying, etc.)
+      if (error) {
+        const handledResult = await this.handleStorageError(
+          instanceName,
+          error,
+          holder,
+          storage,
+        )
+        if (handledResult) {
+          return handledResult
+        }
+      }
     }
 
-    // Create new instance and store in scoped container
-    const [error, holder] = await this.createRequestScopedInstance(
+    // Step 3: Create new instance and store it
+    // NOTE: Holder is stored synchronously inside createAndStoreInstance before any await
+    const [createError, holder] = await this.createAndStoreInstance(
       instanceName,
       realToken,
       validatedArgs,
+      contextContainer,
+      storage,
       scopedContainer,
     )
-    if (error) {
-      return [error]
+    if (createError) {
+      return [createError]
     }
+
     return [undefined, holder.instance]
+  }
+
+  /**
+   * Handles storage error states (destroying, error, etc.).
+   * Returns a result if handled, null if should proceed with creation.
+   */
+  private async handleStorageError(
+    instanceName: string,
+    error: DIError,
+    holder: ServiceLocatorInstanceHolder | undefined,
+    storage: IHolderStorage,
+  ): Promise<[undefined, any] | [DIError] | null> {
+    switch (error.code) {
+      case DIErrorCode.InstanceDestroying:
+        // Wait for destruction then retry
+        this.logger?.log(
+          `[InstanceResolver] Instance ${instanceName} is being destroyed, waiting...`,
+        )
+        if (holder?.destroyPromise) {
+          await holder.destroyPromise
+        }
+        // Re-check after destruction
+        const newResult = storage.get(instanceName)
+        if (newResult !== null && !newResult[0]) {
+          const readyResult = await this.waitForInstanceReady(newResult[1]!)
+          if (readyResult[0]) {
+            return [readyResult[0]]
+          }
+          return [undefined, readyResult[1].instance]
+        }
+        return null // Proceed with creation
+
+      default:
+        return [error]
+    }
+  }
+
+  /**
+   * Creates a new instance and stores it using the provided storage strategy.
+   * This unified method replaces instantiateServiceFromRegistry and createRequestScopedInstance.
+   *
+   * For transient services, the instance is created but not stored (no caching).
+   */
+  private async createAndStoreInstance<Instance>(
+    instanceName: string,
+    realToken: InjectionToken<Instance, any>,
+    args: any,
+    contextContainer: IContainer,
+    storage: IHolderStorage,
+    scopedContainer?: ScopedContainer,
+  ): Promise<[undefined, ServiceLocatorInstanceHolder<Instance>] | [DIError]> {
+    this.logger?.log(
+      `[InstanceResolver]#createAndStoreInstance() Creating instance for ${instanceName}`,
+    )
+
+    if (!this.registry.has(realToken)) {
+      return [DIError.factoryNotFound(realToken.name.toString())]
+    }
+
+    const ctx = this.createFactoryContext(contextContainer)
+    const record = this.registry.get<Instance, any>(realToken)
+    const { scope, type } = record
+
+    // For transient services, don't use storage locking - create directly
+    if (scope === InjectableScope.Transient) {
+      return this.createTransientInstance(instanceName, record, args, ctx)
+    }
+
+    // Create holder in "Creating" state using registry scope, not storage scope
+    const [deferred, holder] = this.manager.createCreatingHolder<Instance>(
+      instanceName,
+      type,
+      scope,
+      ctx.deps,
+    )
+
+    // Store holder immediately (for lock mechanism)
+    storage.set(instanceName, holder)
+
+    // Start async instantiation
+    this.serviceInstantiator
+      .instantiateService(ctx, record, args)
+      .then(async ([error, instance]) => {
+        await this.handleInstantiationResult(
+          instanceName,
+          holder,
+          ctx,
+          deferred,
+          scope,
+          error,
+          instance,
+          scopedContainer,
+        )
+      })
+      .catch(async (error) => {
+        await this.handleInstantiationError(
+          instanceName,
+          holder,
+          deferred,
+          scope,
+          error,
+        )
+      })
+
+    // Wait for instance to be ready
+    return this.waitForInstanceReady(holder)
+  }
+
+  /**
+   * Creates a transient instance without storage or locking.
+   * Each call creates a new instance.
+   */
+  private async createTransientInstance<Instance>(
+    instanceName: string,
+    record: any,
+    args: any,
+    ctx: FactoryContext & { deps: Set<string>; getDestroyListeners: () => (() => void)[] },
+  ): Promise<[undefined, ServiceLocatorInstanceHolder<Instance>] | [DIError]> {
+    this.logger?.log(
+      `[InstanceResolver]#createTransientInstance() Creating transient instance for ${instanceName}`,
+    )
+
+    const [error, instance] = await this.serviceInstantiator.instantiateService(
+      ctx,
+      record,
+      args,
+    )
+
+    if (error) {
+      return [error as DIError]
+    }
+
+    // Create a holder for the transient instance (not stored, just for return consistency)
+    const holder: ServiceLocatorInstanceHolder<Instance> = {
+      status: ServiceLocatorInstanceHolderStatus.Created,
+      name: instanceName,
+      instance: instance as Instance,
+      creationPromise: null,
+      destroyPromise: null,
+      type: record.type,
+      scope: InjectableScope.Transient,
+      deps: ctx.deps,
+      destroyListeners: ctx.getDestroyListeners(),
+      createdAt: Date.now(),
+    }
+
+    return [undefined, holder]
   }
 
   /**
@@ -223,254 +415,18 @@ export class InstanceResolver {
     return [undefined, { instanceName, validatedArgs, actualToken, realToken }]
   }
 
-  /**
-   * Gets an instance by its instance name, handling all the logic after instance name creation.
-   */
-  private async retrieveOrCreateInstanceByInstanceName(
-    instanceName: string,
-    realToken: InjectionToken<any, any>,
-    realArgs: any,
-    contextContainer: IContainer,
-  ): Promise<[undefined, ServiceLocatorInstanceHolder<any>] | [DIError]> {
-    // Try to get existing instance
-    const existingHolder = await this.tryGetExistingInstance(instanceName)
-    if (existingHolder) {
-      return existingHolder
-    }
-
-    // No existing instance found, create a new one
-    const result = await this.createNewInstance(
-      instanceName,
-      realToken,
-      realArgs,
-      contextContainer,
-    )
-    if (result[0]) {
-      return [result[0]]
-    }
-
-    const [, holder] = result
-    return this.waitForInstanceReady(holder)
-  }
-
-  /**
-   * Attempts to retrieve an existing singleton instance.
-   * Returns null if no instance exists and a new one should be created.
-   */
-  private async tryGetExistingInstance(
-    instanceName: string,
-  ): Promise<
-    [undefined, ServiceLocatorInstanceHolder<any>] | [DIError] | null
-  > {
-    const [error, holder] = this.manager.get(instanceName)
-
-    if (!error) {
-      return this.waitForInstanceReady(holder)
-    }
-
-    // Handle recovery scenarios
-    switch (error.code) {
-      case DIErrorCode.InstanceDestroying:
-        this.logger?.log(
-          `[InstanceResolver] Instance ${instanceName} is being destroyed, waiting...`,
-        )
-        await holder?.destroyPromise
-        // Retry after destruction is complete
-        return this.tryGetExistingInstance(instanceName)
-
-      case DIErrorCode.InstanceNotFound:
-        return null // Instance doesn't exist, should create new one
-
-      default:
-        return [error]
-    }
-  }
+  // ============================================================================
+  // INSTANTIATION HANDLERS
+  // ============================================================================
 
   /**
    * Waits for an instance holder to be ready and returns the appropriate result.
+   * Uses the shared utility from BaseInstanceHolderManager.
    */
-  private async waitForInstanceReady<T>(
+  private waitForInstanceReady<T>(
     holder: ServiceLocatorInstanceHolder<T>,
   ): Promise<[undefined, ServiceLocatorInstanceHolder<T>] | [DIError]> {
-    switch (holder.status) {
-      case ServiceLocatorInstanceHolderStatus.Creating:
-        await holder.creationPromise
-        return this.waitForInstanceReady(holder)
-
-      case ServiceLocatorInstanceHolderStatus.Destroying:
-        return [DIError.instanceDestroying(holder.name)]
-
-      case ServiceLocatorInstanceHolderStatus.Error:
-        return [holder.instance as DIError]
-
-      case ServiceLocatorInstanceHolderStatus.Created:
-        return [undefined, holder]
-
-      default:
-        return [DIError.instanceNotFound('unknown')]
-    }
-  }
-
-  /**
-   * Creates a new instance for the given token and arguments.
-   */
-  private async createNewInstance<
-    Instance,
-    Schema extends InjectionTokenSchemaType | undefined,
-  >(
-    instanceName: string,
-    realToken: InjectionToken<Instance, Schema>,
-    args: Schema extends ZodObject
-      ? z.output<Schema>
-      : Schema extends ZodOptional<ZodObject>
-        ? z.output<Schema> | undefined
-        : undefined,
-    contextContainer: IContainer,
-  ): Promise<[undefined, ServiceLocatorInstanceHolder<Instance>] | [DIError]> {
-    this.logger?.log(
-      `[InstanceResolver]#createNewInstance() Creating instance for ${instanceName}`,
-    )
-    if (this.registry.has(realToken)) {
-      return this.instantiateServiceFromRegistry<Instance, Schema, any>(
-        instanceName,
-        realToken,
-        args,
-        contextContainer,
-      )
-    } else {
-      return [DIError.factoryNotFound(realToken.name.toString())]
-    }
-  }
-
-  /**
-   * Creates a request-scoped instance and stores it in the ScopedContainer.
-   */
-  private async createRequestScopedInstance<
-    Instance,
-    Schema extends InjectionTokenSchemaType | undefined,
-  >(
-    instanceName: string,
-    realToken: InjectionToken<Instance, Schema>,
-    args: Schema extends ZodObject
-      ? z.output<Schema>
-      : Schema extends ZodOptional<ZodObject>
-        ? z.output<Schema> | undefined
-        : undefined,
-    scopedContainer: ScopedContainer,
-  ): Promise<[undefined, ServiceLocatorInstanceHolder<Instance>] | [DIError]> {
-    this.logger?.log(
-      `[InstanceResolver]#createRequestScopedInstance() Creating request-scoped instance for ${instanceName}`,
-    )
-
-    if (!this.registry.has(realToken)) {
-      return [DIError.factoryNotFound(realToken.name.toString())]
-    }
-
-    const ctx = this.createFactoryContext(scopedContainer)
-    const record = this.registry.get<Instance, Schema>(realToken)
-    const { type } = record
-
-    // Use createCreatingHolder from manager (but we'll store in scoped container)
-    const [deferred, holder] = this.manager.createCreatingHolder<Instance>(
-      instanceName,
-      type,
-      InjectableScope.Request,
-      ctx.deps,
-    )
-
-    // Store in scoped container immediately
-    scopedContainer.storeRequestInstance(instanceName, null, holder)
-
-    // Start the instantiation process
-    this.serviceInstantiator
-      .instantiateService(ctx, record, args)
-      .then(async ([error, instance]) => {
-        await this.handleInstantiationResult(
-          instanceName,
-          holder,
-          ctx,
-          deferred,
-          InjectableScope.Request,
-          error,
-          instance,
-          scopedContainer,
-        )
-      })
-      .catch(async (error) => {
-        await this.handleInstantiationError(
-          instanceName,
-          holder,
-          deferred,
-          InjectableScope.Request,
-          error,
-        )
-      })
-
-    // Wait for the instance to be ready
-    const result = await this.waitForInstanceReady(holder)
-    return result
-  }
-
-  /**
-   * Instantiates a service from the registry using the service instantiator.
-   */
-  private instantiateServiceFromRegistry<
-    Instance,
-    Schema extends InjectionTokenSchemaType | undefined,
-    Args extends Schema extends BaseInjectionTokenSchemaType
-      ? z.output<Schema>
-      : Schema extends OptionalInjectionTokenSchemaType
-        ? z.output<Schema> | undefined
-        : undefined,
-  >(
-    instanceName: string,
-    token: InjectionToken<Instance, Schema>,
-    args: Args,
-    contextContainer: IContainer,
-  ): Promise<[undefined, ServiceLocatorInstanceHolder<Instance>]> {
-    this.logger?.log(
-      `[InstanceResolver]#instantiateServiceFromRegistry(): Creating instance for ${instanceName} from abstract factory`,
-    )
-    const ctx = this.createFactoryContext(contextContainer)
-    let record = this.registry.get<Instance, Schema>(token)
-    let { scope, type } = record
-
-    // Use createCreatingHolder from manager
-    const [deferred, holder] = this.manager.createCreatingHolder<Instance>(
-      instanceName,
-      type,
-      scope,
-      ctx.deps,
-    )
-
-    // Start the instantiation process
-    this.serviceInstantiator
-      .instantiateService(ctx, record, args)
-      .then(async ([error, instance]) => {
-        await this.handleInstantiationResult(
-          instanceName,
-          holder,
-          ctx,
-          deferred,
-          scope,
-          error,
-          instance,
-          undefined,
-        )
-      })
-      .catch(async (error) => {
-        await this.handleInstantiationError(
-          instanceName,
-          holder,
-          deferred,
-          scope,
-          error,
-        )
-      })
-
-    this.storeInstanceByScope(scope, instanceName, holder)
-    // @ts-expect-error TS2322 This is correct type
-    return [undefined, holder]
+    return BaseInstanceHolderManager.waitForHolderReady(holder)
   }
 
   /**
@@ -593,31 +549,9 @@ export class InstanceResolver {
     deferred.reject(error)
   }
 
-  /**
-   * Stores an instance holder based on its scope.
-   */
-  private storeInstanceByScope(
-    scope: InjectableScope,
-    instanceName: string,
-    holder: ServiceLocatorInstanceHolder<any>,
-  ): void {
-    switch (scope) {
-      case InjectableScope.Singleton:
-        this.logger?.debug?.(
-          `[InstanceResolver] Setting singleton instance for ${instanceName}`,
-        )
-        this.manager.set(instanceName, holder)
-        break
-
-      case InjectableScope.Transient:
-        // Transient instances are not stored anywhere
-        break
-
-      case InjectableScope.Request:
-        // Request instances are stored in ScopedContainer, not here
-        break
-    }
-  }
+  // ============================================================================
+  // FACTORY CONTEXT
+  // ============================================================================
 
   /**
    * Creates a factory context for dependency injection during service instantiation.

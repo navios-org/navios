@@ -100,7 +100,7 @@ describe('ServiceLocator', () => {
       await serviceLocator.clearAll()
 
       expect(mockLogger.log).toHaveBeenCalledWith(
-        '[ServiceInvalidator] No singleton services to clear',
+        '[ServiceInvalidator] No services to clear',
       )
     })
 
@@ -727,7 +727,9 @@ describe('ServiceLocator', () => {
       )
 
       expect(instance).toBeInstanceOf(DatabaseConfig)
+      // @ts-expect-error - instance is of type DatabaseConfig
       expect(instance.config).toEqual({ host: 'localhost', port: 5432 })
+      // @ts-expect-error - instance is of type DatabaseConfig
       expect(instance.getConnectionString()).toBe('localhost:5432')
     })
 

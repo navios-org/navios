@@ -1,27 +1,28 @@
 import type { z, ZodType } from 'zod/v4'
 
-import type { IContainer } from './interfaces/container.interface.mjs'
+import type { Container } from './container.mjs'
 import type {
   BoundInjectionToken,
   ClassType,
+  ClassTypeWithArgument,
   FactoryInjectionToken,
   InjectionToken,
   InjectionTokenSchemaType,
 } from './injection-token.mjs'
+import type { IContainer } from './interfaces/container.interface.mjs'
+import type { IHolderStorage } from './interfaces/holder-storage.interface.mjs'
 import type { Factorable } from './interfaces/factory.interface.mjs'
 import type { Registry } from './registry.mjs'
+import type { RequestContextHolder } from './request-context-holder.mjs'
 import type { ServiceLocatorInstanceHolder } from './service-locator-instance-holder.mjs'
 import type { Join, UnionToArray } from './utils/types.mjs'
 
-import type { Container } from './container.mjs'
-
+import { BaseInstanceHolderManager } from './base-instance-holder-manager.mjs'
 import { InjectableScope } from './enums/index.mjs'
 import { DIError } from './errors/index.mjs'
-import {
-  DefaultRequestContextHolder,
-  type RequestContextHolder,
-} from './request-context-holder.mjs'
-import { getInjectableToken } from './utils/get-injectable-token.mjs'
+import { DefaultRequestContextHolder } from './request-context-holder.mjs'
+import { RequestHolderStorage } from './request-holder-storage.mjs'
+import { ServiceLocatorInstanceHolderStatus } from './service-locator-instance-holder.mjs'
 
 /**
  * ScopedContainer provides request-scoped dependency injection.
@@ -34,6 +35,7 @@ import { getInjectableToken } from './utils/get-injectable-token.mjs'
  */
 export class ScopedContainer implements IContainer {
   private readonly requestContextHolder: RequestContextHolder
+  private readonly holderStorage: IHolderStorage
   private disposed = false
 
   constructor(
@@ -48,6 +50,11 @@ export class ScopedContainer implements IContainer {
       priority,
       metadata,
     )
+    // Create storage once and reuse for all resolutions
+    this.holderStorage = new RequestHolderStorage(
+      this.requestContextHolder,
+      this.parent.getServiceLocator().getManager(),
+    )
   }
 
   /**
@@ -55,6 +62,14 @@ export class ScopedContainer implements IContainer {
    */
   getRequestContextHolder(): RequestContextHolder {
     return this.requestContextHolder
+  }
+
+  /**
+   * Gets the holder storage for this scoped container.
+   * Used by InstanceResolver for request-scoped resolution.
+   */
+  getHolderStorage(): IHolderStorage {
+    return this.holderStorage
   }
 
   /**
@@ -103,6 +118,11 @@ export class ScopedContainer implements IContainer {
   ): InstanceType<T> extends Factorable<infer R>
     ? Promise<R>
     : Promise<InstanceType<T>>
+  // #1.1 Simple class with args
+  get<T extends ClassTypeWithArgument<R>, R>(
+    token: T,
+    args: R,
+  ): Promise<InstanceType<T>>
   // #2 Token with required Schema
   get<T, S extends InjectionTokenSchemaType>(
     token: InjectionToken<T, S>,
@@ -138,9 +158,9 @@ export class ScopedContainer implements IContainer {
       )
     }
 
-    // Get the actual injection token
-    const actualToken =
-      typeof token === 'function' ? getInjectableToken(token) : token
+    // Get the actual injection token using TokenProcessor for consistency
+    const tokenProcessor = this.parent.getServiceLocator().getTokenProcessor()
+    const actualToken = tokenProcessor.normalizeToken(token)
 
     // Check if this is a request-scoped service
     if (this.isRequestScoped(actualToken)) {
@@ -158,9 +178,15 @@ export class ScopedContainer implements IContainer {
    */
   async invalidate(service: unknown): Promise<void> {
     // Check if the service is in our request context
-    const holder = this.getRequestHolderByInstance(service)
+    const holder = this.holderStorage.findByInstance(service)
     if (holder) {
-      await this.invalidateRequestScoped(holder.name)
+      // Use the shared ServiceInvalidator with our request-scoped storage
+      await this.parent
+        .getServiceLocator()
+        .getServiceInvalidator()
+        .invalidateWithStorage(holder.name, this.holderStorage, 1, {
+          emitEvents: false, // Request-scoped services don't emit global events
+        })
       return
     }
 
@@ -221,20 +247,26 @@ export class ScopedContainer implements IContainer {
 
   /**
    * @internal
-   * Attempts to get an instance synchronously if it already exists.
+   * Attempts to get an instance synchronously if it already exists and is ready.
    * For request-scoped services, checks this container's context first.
    * For other services, delegates to the parent container.
+   *
+   * Returns null if the instance doesn't exist or is not yet ready (still creating).
    */
   tryGetSync<T>(token: any, args?: any): T | null {
-    const actualToken =
-      typeof token === 'function' ? getInjectableToken(token) : token
+    const tokenProcessor = this.parent.getServiceLocator().getTokenProcessor()
+    const actualToken = tokenProcessor.normalizeToken(token)
 
     // Check if this is a request-scoped service
     if (this.isRequestScoped(actualToken)) {
       const serviceLocator = this.parent.getServiceLocator()
       const instanceName = serviceLocator.getInstanceIdentifier(token, args)
       const holder = this.requestContextHolder.get(instanceName)
-      if (holder) {
+      // Only return if holder exists AND is in Created status
+      if (
+        holder &&
+        holder.status === ServiceLocatorInstanceHolderStatus.Created
+      ) {
         return holder.instance as T
       }
       return null
@@ -248,8 +280,9 @@ export class ScopedContainer implements IContainer {
    * Checks if a token is for a request-scoped service.
    */
   private isRequestScoped(token: any): boolean {
-    // Handle BoundInjectionToken and FactoryInjectionToken
-    const realToken = token.token ?? token
+    // Handle BoundInjectionToken and FactoryInjectionToken using TokenProcessor
+    const tokenProcessor = this.parent.getServiceLocator().getTokenProcessor()
+    const realToken = tokenProcessor.getRealToken(token)
 
     if (!this.registry.has(realToken)) {
       return false
@@ -261,73 +294,30 @@ export class ScopedContainer implements IContainer {
 
   /**
    * Resolves a request-scoped service from this container's context.
+   * Uses locking to prevent duplicate initialization during concurrent resolution.
    */
   private async resolveRequestScoped(token: any, args: unknown): Promise<any> {
     // Get the instance name
     const serviceLocator = this.parent.getServiceLocator()
     const instanceName = serviceLocator.getInstanceIdentifier(token, args)
 
-    // Check if we already have this instance
+    // Check if we already have this instance (or one is being created)
     const existingHolder = this.requestContextHolder.get(instanceName)
     if (existingHolder) {
-      return existingHolder.instance
+      // Wait for the holder to be ready if it's still being created
+      // This prevents race conditions where multiple concurrent calls
+      // might try to create the same service
+      const [error, readyHolder] =
+        await BaseInstanceHolderManager.waitForHolderReady(existingHolder)
+      if (error) {
+        throw error
+      }
+      return readyHolder.instance
     }
 
     // Create new instance using parent's resolution mechanism
     // but store it in our request context
     return this.parent.resolveForRequest(token, args, this)
-  }
-
-  /**
-   * Invalidates a request-scoped service by name.
-   * This also invalidates all services that depend on it (cascade invalidation).
-   */
-  private async invalidateRequestScoped(instanceName: string): Promise<void> {
-    const holder = this.requestContextHolder.get(instanceName)
-    if (!holder) {
-      return
-    }
-
-    // Find all services that depend on this one and invalidate them first
-    const dependents = this.findDependents(instanceName)
-    for (const dependentName of dependents) {
-      await this.invalidateRequestScoped(dependentName)
-    }
-
-    // Call destroy listeners
-    if (holder.destroyListeners.length > 0) {
-      await Promise.all(holder.destroyListeners.map((listener) => listener()))
-    }
-
-    // Remove from context
-    this.requestContextHolder.delete(instanceName)
-  }
-
-  /**
-   * Finds all services that depend on the given service.
-   */
-  private findDependents(instanceName: string): string[] {
-    const dependents: string[] = []
-    for (const [name, holder] of this.requestContextHolder.holders) {
-      if (holder.deps.has(instanceName)) {
-        dependents.push(name)
-      }
-    }
-    return dependents
-  }
-
-  /**
-   * Gets a request holder by instance (reverse lookup).
-   */
-  private getRequestHolderByInstance(
-    instance: unknown,
-  ): ServiceLocatorInstanceHolder | null {
-    for (const holder of this.requestContextHolder.holders.values()) {
-      if (holder.instance === instance) {
-        return holder
-      }
-    }
-    return null
   }
 
   /**
@@ -346,7 +336,9 @@ export class ScopedContainer implements IContainer {
    * Gets an existing instance from the request context.
    * Called by Container during resolution to check for existing instances.
    */
-  getRequestInstance(instanceName: string): ServiceLocatorInstanceHolder | undefined {
+  getRequestInstance(
+    instanceName: string,
+  ): ServiceLocatorInstanceHolder | undefined {
     return this.requestContextHolder.get(instanceName)
   }
 

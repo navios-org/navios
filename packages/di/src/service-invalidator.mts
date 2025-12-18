@@ -1,9 +1,11 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+import type { IHolderStorage } from './interfaces/holder-storage.interface.mjs'
 import type { ServiceLocatorEventBus } from './service-locator-event-bus.mjs'
 import type { ServiceLocatorInstanceHolder } from './service-locator-instance-holder.mjs'
 import type { ServiceLocatorManager } from './service-locator-manager.mjs'
 
 import { ServiceLocatorInstanceHolderStatus } from './service-locator-instance-holder.mjs'
+import { SingletonHolderStorage } from './singleton-holder-storage.mjs'
 
 export interface ClearAllOptions {
   /** Maximum number of invalidation rounds to prevent infinite loops (default: 10) */
@@ -12,50 +14,99 @@ export interface ClearAllOptions {
   waitForSettlement?: boolean
 }
 
+export interface InvalidationOptions {
+  /** Whether to emit events after invalidation (default: true for singletons) */
+  emitEvents?: boolean
+  /** Custom event emitter function */
+  onInvalidated?: (instanceName: string) => Promise<void>
+  /** Whether to cascade invalidation to dependents (default: true) */
+  cascade?: boolean
+}
+
 /**
  * ServiceInvalidator handles service invalidation, cleanup, and graceful clearing.
  * Extracted from ServiceLocator to improve separation of concerns.
  *
- * Note: Request-scoped service invalidation is handled by ScopedContainer directly.
- * This class only manages singleton and transient service invalidation.
+ * This class works with any IHolderStorage implementation, enabling unified
+ * invalidation logic for both singleton and request-scoped services.
  */
 export class ServiceInvalidator {
+  private readonly storage: IHolderStorage
+
   constructor(
-    private readonly manager: ServiceLocatorManager,
-    private readonly eventBus: ServiceLocatorEventBus,
+    manager: ServiceLocatorManager,
+    private readonly eventBus: ServiceLocatorEventBus | null,
     private readonly logger: Console | null = null,
-  ) {}
-
-  /**
-   * Invalidates a service and all its dependencies.
-   */
-  invalidate(service: string, round = 1): Promise<any> {
-    this.logger?.log(
-      `[ServiceInvalidator] Starting invalidation process for ${service}`,
-    )
-    const [, toInvalidate] = this.manager.get(service)
-
-    const promises = []
-    if (toInvalidate) {
-      promises.push(this.invalidateHolder(service, toInvalidate, round))
-    }
-
-    return Promise.all(promises)
+  ) {
+    this.storage = new SingletonHolderStorage(manager)
   }
 
   /**
-   * Gracefully clears all services in the ServiceLocator using invalidation logic.
+   * Invalidates a service and all its dependencies.
+   * Works with the configured storage (singleton by default).
+   */
+  invalidate(service: string, round = 1): Promise<any> {
+    return this.invalidateWithStorage(service, this.storage, round)
+  }
+
+  /**
+   * Invalidates a service using a specific storage.
+   * This allows request-scoped invalidation using a RequestHolderStorage.
+   *
+   * @param service The instance name to invalidate
+   * @param storage The storage to use for this invalidation
+   * @param round Current invalidation round (for recursion limiting)
+   * @param options Additional options for invalidation behavior
+   */
+  async invalidateWithStorage(
+    service: string,
+    storage: IHolderStorage,
+    round = 1,
+    options: InvalidationOptions = {},
+  ): Promise<void> {
+    const { cascade = true } = options
+
+    this.logger?.log(
+      `[ServiceInvalidator] Starting invalidation process for ${service}`,
+    )
+
+    const result = storage.get(service)
+    if (result === null) {
+      return
+    }
+
+    // Cascade invalidation: first invalidate all services that depend on this one
+    if (cascade) {
+      const dependents = storage.findDependents(service)
+      for (const dependentName of dependents) {
+        await this.invalidateWithStorage(dependentName, storage, round, options)
+      }
+    }
+
+    const [, holder] = result
+    if (holder) {
+      await this.invalidateHolderWithStorage(service, holder, storage, round, options)
+    }
+  }
+
+  /**
+   * Gracefully clears all services using invalidation logic.
    * This method respects service dependencies and ensures proper cleanup order.
    * Services that depend on others will be invalidated first, then their dependencies.
-   *
-   * Note: Request-scoped services are managed by ScopedContainer and are
-   * cleaned up when the request ends via ScopedContainer.endRequest().
    */
   async clearAll(options: ClearAllOptions = {}): Promise<void> {
-    const {
-      maxRounds = 10,
-      waitForSettlement = true,
-    } = options
+    return this.clearAllWithStorage(this.storage, options)
+  }
+
+  /**
+   * Gracefully clears all services in a specific storage.
+   * This allows clearing request-scoped services using a RequestHolderStorage.
+   */
+  async clearAllWithStorage(
+    storage: IHolderStorage,
+    options: ClearAllOptions = {},
+  ): Promise<void> {
+    const { maxRounds = 10, waitForSettlement = true } = options
 
     this.logger?.log(
       '[ServiceInvalidator] Starting graceful clearing of all services',
@@ -66,23 +117,24 @@ export class ServiceInvalidator {
       this.logger?.log(
         '[ServiceInvalidator] Waiting for all services to settle...',
       )
-      await this.ready()
+      await this.readyWithStorage(storage)
     }
 
     // Get all service names that need to be cleared
-    const allServiceNames = this.getAllServiceNames()
+    const allServiceNames = storage.getAllNames()
 
     if (allServiceNames.length === 0) {
-      this.logger?.log('[ServiceInvalidator] No singleton services to clear')
+      this.logger?.log('[ServiceInvalidator] No services to clear')
     } else {
       this.logger?.log(
         `[ServiceInvalidator] Found ${allServiceNames.length} services to clear: ${allServiceNames.join(', ')}`,
       )
 
       // Clear services using dependency-aware invalidation
-      await this.clearServicesWithDependencyAwareness(
+      await this.clearServicesWithDependencyAwarenessForStorage(
         allServiceNames,
         maxRounds,
+        storage,
       )
     }
 
@@ -93,30 +145,46 @@ export class ServiceInvalidator {
    * Waits for all services to settle (either created, destroyed, or error state).
    */
   async ready(): Promise<void> {
-    const holders = Array.from(this.manager.filter(() => true)).map(
-      ([, holder]) => holder,
-    )
+    return this.readyWithStorage(this.storage)
+  }
+
+  /**
+   * Waits for all services in a specific storage to settle.
+   */
+  async readyWithStorage(storage: IHolderStorage): Promise<void> {
+    const holders: ServiceLocatorInstanceHolder<any>[] = []
+    storage.forEach((_, holder) => holders.push(holder))
     await Promise.all(
       holders.map((holder) => this.waitForHolderToSettle(holder)),
     )
   }
 
+  // ============================================================================
+  // INTERNAL INVALIDATION HELPERS
+  // ============================================================================
+
   /**
-   * Invalidates a single holder based on its current status.
+   * Invalidates a single holder using a specific storage.
    */
-  private async invalidateHolder(
+  private async invalidateHolderWithStorage(
     key: string,
     holder: ServiceLocatorInstanceHolder<any>,
+    storage: IHolderStorage,
     round: number,
+    options: InvalidationOptions = {},
   ): Promise<void> {
+    const { emitEvents = true, onInvalidated } = options
+
     await this.invalidateHolderByStatus(holder, round, {
       context: key,
       onCreationError: () =>
         this.logger?.error(
           `[ServiceInvalidator] ${key} creation triggered too many invalidation rounds`,
         ),
-      onRecursiveInvalidate: () => this.invalidate(key, round + 1),
-      onDestroy: () => this.destroyHolder(key, holder),
+      onRecursiveInvalidate: () =>
+        this.invalidateWithStorage(key, storage, round + 1, options),
+      onDestroy: () =>
+        this.destroyHolderWithStorage(key, holder, storage, emitEvents, onInvalidated),
     })
   }
 
@@ -154,42 +222,34 @@ export class ServiceInvalidator {
   }
 
   /**
-   * Destroys a holder and cleans up its resources.
+   * Destroys a holder using a specific storage.
    */
-  private async destroyHolder(
+  private async destroyHolderWithStorage(
     key: string,
     holder: ServiceLocatorInstanceHolder<any>,
-  ): Promise<void> {
-    await this.destroyHolderWithCleanup(holder, {
-      context: key,
-      logMessage: `[ServiceInvalidator] Invalidating ${key} and notifying listeners`,
-      cleanup: () => this.manager.delete(key),
-      eventName: key,
-    })
-  }
-
-  /**
-   * Common destroy logic for holders with customizable cleanup.
-   */
-  private async destroyHolderWithCleanup(
-    holder: ServiceLocatorInstanceHolder<any>,
-    options: {
-      context: string
-      logMessage: string
-      cleanup: () => void
-      eventName: string
-    },
+    storage: IHolderStorage,
+    emitEvents: boolean,
+    onInvalidated?: (instanceName: string) => Promise<void>,
   ): Promise<void> {
     holder.status = ServiceLocatorInstanceHolderStatus.Destroying
-    this.logger?.log(options.logMessage)
+    this.logger?.log(`[ServiceInvalidator] Invalidating ${key} and notifying listeners`)
 
     holder.destroyPromise = Promise.all(
       holder.destroyListeners.map((listener) => listener()),
     ).then(async () => {
       holder.destroyListeners = []
       holder.deps.clear()
-      options.cleanup()
-      await this.emitInstanceEvent(options.eventName, 'destroy')
+      storage.delete(key)
+
+      // Emit events if enabled and event bus exists
+      if (emitEvents && this.eventBus) {
+        await this.emitInstanceEvent(key, 'destroy')
+      }
+
+      // Call custom callback if provided
+      if (onInvalidated) {
+        await onInvalidated(key)
+      }
     })
 
     await holder.destroyPromise
@@ -216,12 +276,12 @@ export class ServiceInvalidator {
   }
 
   /**
-   * Clears services with dependency awareness, ensuring proper cleanup order.
-   * Services with no dependencies are cleared first, then services that depend on them.
+   * Clears services with dependency awareness for a specific storage.
    */
-  private async clearServicesWithDependencyAwareness(
+  private async clearServicesWithDependencyAwarenessForStorage(
     serviceNames: string[],
     maxRounds: number,
+    storage: IHolderStorage,
   ): Promise<void> {
     const clearedServices = new Set<string>()
     let round = 1
@@ -232,9 +292,10 @@ export class ServiceInvalidator {
       )
 
       // Find services that can be cleared in this round
-      const servicesToClearThisRound = this.findServicesReadyForClearing(
+      const servicesToClearThisRound = this.findServicesReadyForClearingInStorage(
         serviceNames,
         clearedServices,
+        storage,
       )
 
       if (servicesToClearThisRound.length === 0) {
@@ -248,7 +309,7 @@ export class ServiceInvalidator {
           this.logger?.warn(
             `[ServiceInvalidator] No services ready for clearing, forcing cleanup of remaining: ${remainingServices.join(', ')}`,
           )
-          await this.forceClearServices(remainingServices)
+          await this.forceClearServicesInStorage(remainingServices, storage)
           remainingServices.forEach((name) => clearedServices.add(name))
         }
         break
@@ -258,7 +319,7 @@ export class ServiceInvalidator {
       const clearPromises = servicesToClearThisRound.map(
         async (serviceName) => {
           try {
-            await this.invalidate(serviceName, round)
+            await this.invalidateWithStorage(serviceName, storage, round)
             clearedServices.add(serviceName)
             this.logger?.log(
               `[ServiceInvalidator] Successfully cleared service: ${serviceName}`,
@@ -289,9 +350,10 @@ export class ServiceInvalidator {
    * Finds services that are ready to be cleared in the current round.
    * A service is ready if all its dependencies have already been cleared.
    */
-  private findServicesReadyForClearing(
+  private findServicesReadyForClearingInStorage(
     allServiceNames: string[],
     clearedServices: Set<string>,
+    storage: IHolderStorage,
   ): string[] {
     return allServiceNames.filter((serviceName) => {
       if (clearedServices.has(serviceName)) {
@@ -299,13 +361,14 @@ export class ServiceInvalidator {
       }
 
       // Check if this service has any dependencies that haven't been cleared yet
-      const [error, holder] = this.manager.get(serviceName)
-      if (error) {
+      const result = storage.get(serviceName)
+      if (result === null || result[0]) {
         return true // Service not found or in error state, can be cleared
       }
 
+      const [, holder] = result
       // Check if all dependencies have been cleared
-      const hasUnclearedDependencies = Array.from(holder.deps).some(
+      const hasUnclearedDependencies = Array.from(holder!.deps).some(
         (dep) => !clearedServices.has(dep),
       )
 
@@ -317,13 +380,17 @@ export class ServiceInvalidator {
    * Force clears services that couldn't be cleared through normal dependency resolution.
    * This handles edge cases like circular dependencies.
    */
-  private async forceClearServices(serviceNames: string[]): Promise<void> {
+  private async forceClearServicesInStorage(
+    serviceNames: string[],
+    storage: IHolderStorage,
+  ): Promise<void> {
     const promises = serviceNames.map(async (serviceName) => {
       try {
         // Directly destroy the holder without going through normal invalidation
-        const [error, holder] = this.manager.get(serviceName)
-        if (!error && holder) {
-          await this.destroyHolder(serviceName, holder)
+        const result = storage.get(serviceName)
+        if (result !== null && !result[0]) {
+          const [, holder] = result
+          await this.destroyHolderWithStorage(serviceName, holder!, storage, true)
         }
       } catch (error) {
         this.logger?.error(
@@ -337,19 +404,15 @@ export class ServiceInvalidator {
   }
 
   /**
-   * Gets all service names currently managed by the ServiceLocator.
-   */
-  private getAllServiceNames(): string[] {
-    return this.manager.getAllNames()
-  }
-
-  /**
    * Emits events to listeners for instance lifecycle events.
    */
   private emitInstanceEvent(
     name: string,
     event: 'create' | 'destroy' = 'create',
   ) {
+    if (!this.eventBus) {
+      return Promise.resolve()
+    }
     this.logger?.log(
       `[ServiceInvalidator]#emitInstanceEvent() Notifying listeners for ${name} with event ${event}`,
     )

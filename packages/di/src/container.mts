@@ -1,11 +1,12 @@
 import type { z, ZodType } from 'zod/v4'
 
-import type { IContainer } from './interfaces/container.interface.mjs'
 import type {
   ClassType,
+  ClassTypeWithArgument,
   InjectionToken,
   InjectionTokenSchemaType,
 } from './injection-token.mjs'
+import type { IContainer } from './interfaces/container.interface.mjs'
 import type { Factorable } from './interfaces/factory.interface.mjs'
 import type { Registry } from './registry.mjs'
 import type { ServiceLocatorInstanceHolder } from './service-locator-instance-holder.mjs'
@@ -71,6 +72,12 @@ export class Container implements IContainer {
   ): InstanceType<T> extends Factorable<infer R>
     ? Promise<R>
     : Promise<InstanceType<T>>
+  // #1.1 Simple class with args
+  get<T extends ClassTypeWithArgument<R>, R>(
+    token: T,
+    args: R,
+  ): Promise<InstanceType<T>>
+
   // #2 Token with required Schema
   get<T, S extends InjectionTokenSchemaType>(
     token: InjectionToken<T, S>,
@@ -101,14 +108,9 @@ export class Container implements IContainer {
     args?: unknown,
   ) {
     // Check if this is a request-scoped service
-    const actualToken =
-      typeof token === 'function' ? getInjectableToken(token) : token
-    // Get the underlying token (for BoundInjectionToken and FactoryInjectionToken)
-    const realToken =
-      actualToken instanceof BoundInjectionToken ||
-      actualToken instanceof FactoryInjectionToken
-        ? actualToken.token
-        : actualToken
+    // Use TokenProcessor for consistent token normalization
+    const tokenProcessor = this.serviceLocator.getTokenProcessor()
+    const realToken = tokenProcessor.getRegistryToken(token)
 
     if (this.registry.has(realToken)) {
       const record = this.registry.get(realToken)
@@ -272,7 +274,13 @@ export class Container implements IContainer {
 
     this.logger?.log(`[Container] Started request context: ${requestId}`)
 
-    return new ScopedContainer(this, this.registry, requestId, metadata, priority)
+    return new ScopedContainer(
+      this,
+      this.registry,
+      requestId,
+      metadata,
+      priority,
+    )
   }
 
   /**

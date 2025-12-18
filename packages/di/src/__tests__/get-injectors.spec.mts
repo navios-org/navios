@@ -59,7 +59,7 @@ describe('getInjectors', () => {
 
     const mockContext = {
       inject: injectors.asyncInject,
-      locator: {} as any,
+      container: {} as any,
       addDestroyListener: () => {},
     }
 

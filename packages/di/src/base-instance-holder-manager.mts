@@ -1,7 +1,16 @@
 import type { ServiceLocatorInstanceHolder } from './service-locator-instance-holder.mjs'
 
 import { InjectableScope, InjectableType } from './enums/index.mjs'
+import { DIError } from './errors/index.mjs'
 import { ServiceLocatorInstanceHolderStatus } from './service-locator-instance-holder.mjs'
+
+/**
+ * Result type for waitForHolderReady.
+ * Returns either [undefined, holder] on success or [error] on failure.
+ */
+export type HolderReadyResult<T> =
+  | [undefined, ServiceLocatorInstanceHolder<T>]
+  | [DIError]
 
 /**
  * Abstract base class that provides common functionality for managing ServiceLocatorInstanceHolder objects.
@@ -164,5 +173,34 @@ export abstract class BaseInstanceHolderManager {
    */
   isEmpty(): boolean {
     return this._holders.size === 0
+  }
+
+  /**
+   * Waits for a holder to be ready and returns the appropriate result.
+   * This is a shared utility used by both singleton and request-scoped resolution.
+   *
+   * @param holder The holder to wait for
+   * @returns A promise that resolves with [undefined, holder] on success or [DIError] on failure
+   */
+  static async waitForHolderReady<T>(
+    holder: ServiceLocatorInstanceHolder<T>,
+  ): Promise<HolderReadyResult<T>> {
+    switch (holder.status) {
+      case ServiceLocatorInstanceHolderStatus.Creating:
+        await holder.creationPromise
+        return BaseInstanceHolderManager.waitForHolderReady(holder)
+
+      case ServiceLocatorInstanceHolderStatus.Destroying:
+        return [DIError.instanceDestroying(holder.name)]
+
+      case ServiceLocatorInstanceHolderStatus.Error:
+        return [holder.instance as DIError]
+
+      case ServiceLocatorInstanceHolderStatus.Created:
+        return [undefined, holder]
+
+      default:
+        return [DIError.instanceNotFound('unknown')]
+    }
   }
 }

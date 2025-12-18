@@ -202,6 +202,84 @@ describe('Request Scope', () => {
   })
 
   describe('Request isolation (race condition prevention)', () => {
+    it('should prevent duplicate initialization during concurrent resolution within same request', async () => {
+      let initializationCount = 0
+
+      @Injectable({ registry, scope: InjectableScope.Request })
+      class RequestService {
+        public readonly instanceId: string
+
+        constructor() {
+          initializationCount++
+          this.instanceId = Math.random().toString(36)
+        }
+
+        async onServiceInit() {
+          // Simulate async initialization that takes time
+          await new Promise((resolve) => setTimeout(resolve, 50))
+        }
+      }
+
+      const scoped = container.beginRequest('test-request')
+
+      // Fire multiple concurrent resolution requests for the same service
+      const [instance1, instance2, instance3] = await Promise.all([
+        scoped.get(RequestService),
+        scoped.get(RequestService),
+        scoped.get(RequestService),
+      ])
+
+      // All instances should be the same (no duplicate initialization)
+      expect(instance1).toBe(instance2)
+      expect(instance2).toBe(instance3)
+      expect(initializationCount).toBe(1) // Only initialized once
+
+      await scoped.endRequest()
+    })
+
+    it('should return correct instance when waiting for in-progress creation', async () => {
+      let creationOrder: string[] = []
+
+      @Injectable({ registry, scope: InjectableScope.Request })
+      class SlowService {
+        public readonly id: string
+
+        constructor() {
+          this.id = Math.random().toString(36)
+        }
+
+        async onServiceInit() {
+          creationOrder.push('init-start')
+          // Simulate slow async initialization
+          await new Promise((resolve) => setTimeout(resolve, 100))
+          creationOrder.push('init-end')
+        }
+      }
+
+      const scoped = container.beginRequest('test-request')
+
+      // Start first resolution (will start creating)
+      const promise1 = scoped.get(SlowService)
+      creationOrder.push('promise1-started')
+
+      // Start second resolution while first is still in progress
+      await new Promise((resolve) => setTimeout(resolve, 10))
+      creationOrder.push('promise2-starting')
+      const promise2 = scoped.get(SlowService)
+
+      const [instance1, instance2] = await Promise.all([promise1, promise2])
+
+      // Both should be the same instance
+      expect(instance1).toBe(instance2)
+      expect(instance1.id).toBe(instance2.id)
+
+      // Verify the initialization only happened once
+      expect(creationOrder.filter((x) => x === 'init-start').length).toBe(1)
+      expect(creationOrder.filter((x) => x === 'init-end').length).toBe(1)
+
+      await scoped.endRequest()
+    })
+
     it('should isolate request contexts during concurrent async operations', async () => {
       @Injectable({ registry, scope: InjectableScope.Request })
       class RequestService {
