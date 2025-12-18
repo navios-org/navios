@@ -631,7 +631,7 @@ describe('Container', () => {
       await expect(container.get(token, { invalid: 'arg' })).rejects.toThrow()
     })
 
-    it.skip('should handle factory errors', async () => {
+    it('should handle factory errors', async () => {
       @Factory({ registry })
       class ErrorFactory implements Factorable<TestService> {
         async create() {
@@ -645,7 +645,7 @@ describe('Container', () => {
       await expect(container.get(ErrorFactory)).rejects.toThrow('Factory error')
     })
 
-    it.skip('should handle async factory errors', async () => {
+    it('should handle async factory errors', async () => {
       @Factory({ registry })
       class AsyncErrorFactory implements Factorable<TestService> {
         async create() {

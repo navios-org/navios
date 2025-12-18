@@ -2,7 +2,7 @@
 
 This guide helps you migrate between different versions of Navios DI.
 
-## Migrating to v0.5.x (Circular Dependency Detection & Browser Support)
+## Migrating to v0.6.0 (Circular Dependency Detection & Browser Support & ScopedContainer)
 
 ### New Features
 
