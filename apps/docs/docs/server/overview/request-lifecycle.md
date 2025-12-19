@@ -10,16 +10,30 @@ Understanding how requests flow through Navios helps you debug issues and implem
 ## Request Flow
 
 ```mermaid
-graph TD
-    A[Incoming Request] --> B[HTTP Adapter<br/>Fastify/Bun receives request]
-    B --> C[Route Matching<br/>Find matching endpoint]
-    C --> D[Module Guards<br/>Run module-level guards]
-    D --> E[Controller Init<br/>Resolve controller dependencies]
-    E --> F[Endpoint Guards<br/>Run endpoint-level guards]
-    F --> G[Validation<br/>Validate request against Zod schemas]
-    G --> H[Endpoint Method<br/>Execute handler logic]
-    H --> I[Response Validation<br/>Validate response against schema]
-    I --> J[HTTP Response<br/>Send response to client]
+flowchart LR
+    subgraph Input["① Receive"]
+        A[Request] --> B[Adapter]
+        B --> C[Route Match]
+    end
+
+    subgraph Auth["② Authorize"]
+        D[Module Guards]
+        D --> E[Endpoint Guards]
+    end
+
+    subgraph Process["③ Process"]
+        F[Validate Request]
+        F --> G[Handler]
+        G --> H[Validate Response]
+    end
+
+    subgraph Output["④ Respond"]
+        I[Response]
+    end
+
+    Input --> Auth
+    Auth --> Process
+    Process --> Output
 ```
 
 ## Phase Details

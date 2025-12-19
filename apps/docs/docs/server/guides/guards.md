@@ -1,11 +1,23 @@
 ---
-sidebar_position: 3
-title: Guards & Authentication
+sidebar_position: 4
+title: Guards
 ---
 
-# Guards & Authentication
+# Guards
 
 Guards implement authorization logic that runs before endpoint handlers. They control access to your API endpoints.
+
+## What are Guards?
+
+Guards are classes that implement the `CanActivate` interface. They receive the execution context and return a boolean indicating whether the request should proceed.
+
+**Key characteristics:**
+
+- Run before the endpoint handler executes
+- Can access request data (headers, params, body)
+- Return `true` to allow access, `false` to deny
+- Can throw exceptions for specific error responses
+- Can attach data to the request for use in handlers
 
 ## Creating a Guard
 
@@ -21,10 +33,9 @@ class AuthGuard implements CanActivate {
     const token = request.headers.authorization
 
     if (!token) {
-      return false
+      return false // Returns 403 Forbidden
     }
 
-    // Verify token and allow/deny access
     return true
   }
 }
@@ -38,7 +49,7 @@ Apply guards to all endpoints in a module:
 
 ```typescript
 @Module({
-  controllers: [UserController],
+  controllers: [UserController, ProfileController],
   guards: [AuthGuard],
 })
 class UserModule {}
@@ -46,7 +57,7 @@ class UserModule {}
 
 ### Endpoint-Level Guards
 
-Apply guards to specific endpoints:
+Apply guards to specific endpoints using `@UseGuards()`:
 
 ```typescript
 import { UseGuards } from '@navios/core'
@@ -55,31 +66,31 @@ import { UseGuards } from '@navios/core'
 class UserController {
   @Endpoint(getUser)
   async getUser(params: EndpointParams<typeof getUser>) {
-    // Public endpoint
+    // Public endpoint - no guard
   }
 
   @Endpoint(deleteUser)
   @UseGuards(AdminGuard)
   async deleteUser(params: EndpointParams<typeof deleteUser>) {
-    // Admin only
+    // Protected by AdminGuard
   }
 }
 ```
 
 ### Multiple Guards
 
-Apply multiple guards (all must pass):
+Apply multiple guards - all must pass:
 
 ```typescript
 @Module({
   controllers: [AdminController],
-  guards: [AuthGuard, AdminGuard, RateLimitGuard],
+  guards: [AuthGuard, AdminGuard],
 })
 class AdminModule {}
 
 // Or on endpoint
 @Endpoint(sensitiveAction)
-@UseGuards(AuthGuard, AdminGuard, AuditGuard)
+@UseGuards(AuthGuard, AdminGuard)
 async sensitiveAction() {}
 ```
 
@@ -91,7 +102,7 @@ async sensitiveAction() {}
 
 ## Accessing Request Data
 
-Use the execution context to access request data:
+Use the execution context to access request information:
 
 ```typescript
 @Injectable()
@@ -118,15 +129,13 @@ class AuthGuard implements CanActivate {
 
 ## Throwing Exceptions
 
-Throw HTTP exceptions to return specific error responses:
+Throw HTTP exceptions for specific error responses:
 
 ```typescript
 import { UnauthorizedException, ForbiddenException } from '@navios/core'
 
 @Injectable()
 class AuthGuard implements CanActivate {
-  private jwtService = inject(JwtService)
-
   async canActivate(context: AbstractExecutionContext): Promise<boolean> {
     const request = context.getRequest()
     const authHeader = request.headers.authorization
@@ -139,14 +148,7 @@ class AuthGuard implements CanActivate {
       throw new UnauthorizedException('Invalid authorization format')
     }
 
-    try {
-      const token = authHeader.slice(7)
-      const payload = await this.jwtService.verifyAsync(token)
-      request.user = payload
-      return true
-    } catch {
-      throw new UnauthorizedException('Invalid or expired token')
-    }
+    return true
   }
 }
 ```
@@ -159,32 +161,32 @@ Guards often attach data for use in handlers:
 @Injectable()
 class AuthGuard implements CanActivate {
   private userService = inject(UserService)
-  private jwtService = inject(JwtService)
 
   async canActivate(context: AbstractExecutionContext): Promise<boolean> {
     const request = context.getRequest()
-    const token = request.headers.authorization?.slice(7)
+    const userId = this.extractUserId(request)
 
-    if (!token) {
+    if (!userId) {
       throw new UnauthorizedException()
     }
 
-    const payload = await this.jwtService.verifyAsync<{ sub: string }>(token)
-    const user = await this.userService.findById(payload.sub)
-
+    const user = await this.userService.findById(userId)
     if (!user) {
       throw new UnauthorizedException('User not found')
     }
 
-    // Attach user to request for use in handlers
+    // Attach user to request
     request.user = user
     return true
   }
 }
+```
 
-// Access in controller
+Access in controller:
+
+```typescript
 @Controller()
-class UserController {
+class ProfileController {
   @Endpoint(getProfile)
   async getProfile(params: EndpointParams<typeof getProfile>) {
     const request = inject(Request)
@@ -193,71 +195,47 @@ class UserController {
 }
 ```
 
-## Role-Based Access Control
+## Common Guard Patterns
 
-Example of a role-based guard:
+### Simple Token Check
 
 ```typescript
 @Injectable()
-class RoleGuard implements CanActivate {
-  constructor(private allowedRoles: string[]) {}
+class ApiKeyGuard implements CanActivate {
+  private config = inject(ConfigService)
 
   async canActivate(context: AbstractExecutionContext): Promise<boolean> {
     const request = context.getRequest()
-    const user = request.user
+    const apiKey = request.headers['x-api-key']
+    const validKey = this.config.getOrThrow('API_KEY')
 
-    if (!user) {
-      throw new UnauthorizedException()
-    }
-
-    if (!this.allowedRoles.includes(user.role)) {
-      throw new ForbiddenException('Insufficient permissions')
+    if (apiKey !== validKey) {
+      throw new UnauthorizedException('Invalid API key')
     }
 
     return true
   }
 }
-
-// Usage with factory function
-function Roles(...roles: string[]) {
-  return UseGuards(new RoleGuard(roles))
-}
-
-@Controller()
-class AdminController {
-  @Endpoint(manageUsers)
-  @Roles('admin', 'superadmin')
-  async manageUsers() {}
-}
 ```
 
-## Rate Limiting Guard
-
-Example rate limiting implementation:
+### Role Check
 
 ```typescript
 @Injectable()
-class RateLimitGuard implements CanActivate {
-  private requests = new Map<string, { count: number; resetAt: number }>()
-
+class AdminGuard implements CanActivate {
   async canActivate(context: AbstractExecutionContext): Promise<boolean> {
     const request = context.getRequest()
-    const ip = request.ip
-    const now = Date.now()
+    const user = request.user // Set by AuthGuard
 
-    const record = this.requests.get(ip)
-
-    if (!record || now > record.resetAt) {
-      this.requests.set(ip, { count: 1, resetAt: now + 60000 })
-      return true
+    if (!user || user.role !== 'admin') {
+      throw new ForbiddenException('Admin access required')
     }
 
-    if (record.count >= 100) {
-      throw new HttpException(429, 'Too many requests')
-    }
-
-    record.count++
     return true
   }
 }
 ```
+
+## Next Steps
+
+For complete authentication implementations with JWT tokens, database user lookup, and refresh tokens, see the [Authentication recipe](/docs/server/recipes/authentication).

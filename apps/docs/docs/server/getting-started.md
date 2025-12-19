@@ -8,6 +8,17 @@ title: Getting Started
 
 Get up and running with Navios Server in minutes.
 
+## What is Navios Server?
+
+Navios Server is a framework for building type-safe HTTP servers with TypeScript. It combines:
+
+- **Type-safe API contracts** using `@navios/builder` with Zod schemas
+- **Dependency injection** for clean, testable code
+- **Modular architecture** with controllers, services, and modules
+- **Adapter-based design** supporting multiple HTTP runtimes
+
+The framework emphasizes type safety, validation, and developer experience while allowing you to choose the underlying HTTP server that best fits your needs.
+
 ## Choose Your Adapter
 
 Navios supports multiple adapters for different use cases:
@@ -55,7 +66,7 @@ bun add @navios/core @navios/adapter-bun @navios/builder zod
 
 ## Quick Start
 
-Create a simple HTTP server with a single endpoint:
+Navios Server follows a simple pattern: define your API endpoints with Builder, create controllers to handle them, organize controllers in modules, and bootstrap the application.
 
 ```typescript
 import { NaviosFactory, Module, Controller, Endpoint, EndpointParams } from '@navios/core'
@@ -122,16 +133,26 @@ curl http://localhost:3000/users/123
 # {"id":"123","name":"John Doe"}
 ```
 
+## How It Works
+
+1. **API Definition**: `builder()` creates a type-safe API definition. Endpoints are declared with schemas that define request/response shapes.
+
+2. **Controllers**: Controllers handle HTTP requests. The `@Endpoint()` decorator connects endpoint definitions to handler methods.
+
+3. **Modules**: Modules organize controllers and services. The root module bootstraps your application.
+
+4. **Type Safety**: TypeScript infers types from your schemas, ensuring requests and responses match your API contract.
+
 ## Next Steps
 
-- [Architecture](/docs/server/overview/architecture) - Understand modules, controllers, and endpoints
+- [Architecture](/docs/server/overview/overview) - Understand modules, controllers, and endpoints
 - [Controllers & Endpoints](/docs/server/guides/controllers) - Learn about routing and request handling
 - [Services & Dependency Injection](/docs/server/guides/services) - Create and use services with dependency injection
+- [Guards](/docs/server/guides/guards) - Implement authorization logic
+- [Configuration](/docs/server/guides/configuration) - Manage application configuration
 - [Testing](/docs/server/guides/testing) - Learn how to test your Navios application
-- [ConfigService](/docs/server/guides/config-service) - Manage application configuration
 - [Adapters](/docs/server/adapters/fastify) - Configure your HTTP runtime
-- [Best Practices](/docs/server/best-practices) - Follow best practices for building Navios applications
-- [Packages](/docs/packages) - Explore additional packages like JWT, Schedule, and more
+- [Best Practices](/docs/server/best-practices) - Project structure and guidelines
 
 ## Related Documentation
 

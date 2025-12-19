@@ -24,7 +24,7 @@ pnpm add @navios/commander @navios/di zod
 
 ### Decorator-Based Commands
 
-Commands are defined using the `@Command` decorator, similar to how controllers work in `@navios/core`:
+Commands are defined using the `@Command` decorator, similar to how controllers work in `@navios/core`. Commands implement the `CommandHandler` interface with an `execute` method.
 
 ```typescript
 @Command({ path: 'greet' })
@@ -37,7 +37,7 @@ export class GreetCommand implements CommandHandler {
 
 ### Modular Architecture
 
-Commands are organized into modules using the `@CliModule` decorator:
+Commands are organized into modules using the `@CliModule` decorator. Modules can import other modules to build complex CLI structures.
 
 ```typescript
 @CliModule({
@@ -49,7 +49,7 @@ export class AppModule {}
 
 ### Dependency Injection
 
-Full integration with `@navios/di` allows you to inject services into commands:
+Full integration with `@navios/di` allows you to inject services into commands. All DI features are available, including scopes, lifecycle hooks, and injection tokens.
 
 ```typescript
 @Command({ path: 'user:show' })
@@ -65,7 +65,7 @@ export class ShowUserCommand implements CommandHandler {
 
 ### Schema Validation
 
-Built-in support for Zod schemas to validate command options:
+Built-in support for Zod schemas to validate command options. Options are automatically validated and typed.
 
 ```typescript
 const optionsSchema = z.object({
@@ -115,76 +115,25 @@ Each command execution runs in its own request context, allowing for:
 - Execution context access
 - Isolated dependency resolution
 
-## Comparison with Other CLI Frameworks
-
-### vs Commander.js
-
-| Feature | Navios Commander | Commander.js |
-|---------|------------------|--------------|
-| Type Safety | Full TypeScript support | Limited |
-| Dependency Injection | Built-in with `@navios/di` | Manual |
-| Schema Validation | Zod integration | Manual validation |
-| Modular Architecture | Module-based | Programmatic |
-
-### vs NestJS CLI
-
-| Feature | Navios Commander | NestJS CLI |
-|---------|------------------|------------|
-| Framework | Standalone | Part of NestJS |
-| DI System | `@navios/di` | NestJS DI |
-| Decorators | ES Decorators | Legacy decorators |
-| Size | Lightweight | Full framework |
-
 ## Use Cases
 
 ### CLI Tools
 
-Build command-line tools with type-safe options and dependency injection:
-
-```typescript
-@Command({ path: 'build' })
-export class BuildCommand implements CommandHandler {
-  private builder = inject(BuilderService)
-
-  async execute(options) {
-    await this.builder.build(options.target)
-  }
-}
-```
+Build command-line tools with type-safe options and dependency injection.
 
 ### Development Scripts
 
-Create development scripts with validation and services:
-
-```typescript
-@Command({ path: 'db:migrate' })
-export class MigrateCommand implements CommandHandler {
-  private db = inject(DatabaseService)
-
-  async execute(options) {
-    await this.db.migrate(options.version)
-  }
-}
-```
+Create development scripts with validation and services.
 
 ### Automation Workflows
 
-Build automation workflows with programmatic command execution:
-
-```typescript
-const app = await CommanderFactory.create(AppModule)
-await app.init()
-
-await app.executeCommand('deploy', { environment: 'production' })
-await app.executeCommand('test', { coverage: true })
-```
+Build automation workflows with programmatic command execution.
 
 ## Integration with Navios Ecosystem
 
 ### With @navios/di
 
 Commander uses `@navios/di` for dependency injection. All DI features are available:
-
 - Service injection with `inject()`
 - Request-scoped services
 - Lifecycle hooks
@@ -194,31 +143,7 @@ Learn more about [dependency injection in commands](/docs/commander/guides/depen
 
 ### With @navios/core
 
-You can share services between your HTTP server and CLI commands:
-
-```typescript
-// Shared service
-@Injectable()
-class UserService {
-  async getUser(id: string) {
-    // Shared logic
-  }
-}
-
-// Use in HTTP controller
-@Controller('/users')
-export class UserController {
-  private userService = inject(UserService)
-  // ...
-}
-
-// Use in CLI command
-@Command({ path: 'user:show' })
-export class ShowUserCommand implements CommandHandler {
-  private userService = inject(UserService)
-  // ...
-}
-```
+You can share services between your HTTP server and CLI commands, allowing code reuse across different entry points.
 
 ## Next Steps
 
@@ -227,5 +152,3 @@ export class ShowUserCommand implements CommandHandler {
 - **[Modules Guide](/docs/commander/guides/modules)** - Organize commands into modules
 - **[Dependency Injection](/docs/commander/guides/dependency-injection)** - Use DI in commands
 - **[API Reference](/docs/commander/api-reference)** - Complete API documentation
-
-

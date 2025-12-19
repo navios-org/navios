@@ -6,18 +6,26 @@ sidebar_position: 1
 
 Get up and running with Navios Commander in minutes. This guide will walk you through installation, basic setup, and your first CLI command.
 
+## What is Navios Commander?
+
+Navios Commander is a framework for building type-safe CLI applications with TypeScript. It provides:
+
+- **Type-safe commands** with Zod schema validation
+- **Dependency injection** for clean, testable code
+- **Modular organization** with CLI modules
+- **Automatic help generation** from command metadata
+
+Commands are defined as classes with decorators, making them easy to organize, test, and extend.
+
 ## Installation
 
 Install Navios Commander using your preferred package manager:
 
 ```bash
-# npm
 npm install @navios/commander @navios/di zod
-
-# yarn
+# or
 yarn add @navios/commander @navios/di zod
-
-# pnpm
+# or
 pnpm add @navios/commander @navios/di zod
 ```
 
@@ -52,14 +60,15 @@ Navios Commander uses native ES decorators, not legacy decorators. Ensure `exper
 
 ## Your First Command
 
-Let's create a simple "greet" command that takes a name and optional greeting:
+Commands are classes decorated with `@Command` that implement the `CommandHandler` interface. They're organized into modules and executed by the CommanderFactory.
 
-### 1. Create a Command
+Here's a complete example:
 
 ```typescript
-import { Command, CommandHandler } from '@navios/commander'
+import { Command, CommandHandler, CliModule, CommanderFactory } from '@navios/commander'
 import { z } from 'zod'
 
+// 1. Define command options schema
 const greetOptionsSchema = z.object({
   name: z.string(),
   greeting: z.string().optional().default('Hello'),
@@ -67,6 +76,7 @@ const greetOptionsSchema = z.object({
 
 type GreetOptions = z.infer<typeof greetOptionsSchema>
 
+// 2. Create a command
 @Command({
   path: 'greet',
   optionsSchema: greetOptionsSchema,
@@ -76,141 +86,59 @@ export class GreetCommand implements CommandHandler<GreetOptions> {
     console.log(`${options.greeting}, ${options.name}!`)
   }
 }
-```
 
-### 2. Create a CLI Module
-
-Modules organize commands and can import other modules:
-
-```typescript
-import { CliModule } from '@navios/commander'
-import { GreetCommand } from './greet.command'
-
+// 3. Create a CLI module
 @CliModule({
   commands: [GreetCommand],
 })
 export class AppModule {}
-```
 
-### 3. Bootstrap the Application
-
-Use `CommanderFactory` to create and run your CLI application:
-
-```typescript
-import { CommanderFactory } from '@navios/commander'
-import { AppModule } from './app.module'
-
+// 4. Bootstrap and run
 async function bootstrap() {
   const app = await CommanderFactory.create(AppModule)
   await app.init()
-
-  // Run with command-line arguments
   await app.run(process.argv)
-
   await app.close()
 }
 
 bootstrap()
 ```
 
-### 4. Run Your CLI
+## How It Works
+
+1. **Command Definition**: The `@Command` decorator registers the command with a path and optional schema for validation.
+
+2. **Module Organization**: Commands are organized into modules using `@CliModule`. Modules can import other modules to build complex CLI structures.
+
+3. **Execution**: `CommanderFactory` creates the application, initializes modules, and executes commands based on command-line arguments.
+
+4. **Type Safety**: Zod schemas provide runtime validation and TypeScript type inference for command options.
+
+## Running Your CLI
 
 Build your TypeScript code and run it:
 
 ```bash
-# Build your project
 npm run build
-
-# Run the command
 node dist/cli.js greet --name World --greeting Hi
 # Output: Hi, World!
 ```
 
-## Understanding the Example
-
-### Command Registration
-
-The `@Command` decorator marks a class as a CLI command:
-
-```typescript
-@Command({
-  path: 'greet',                    // Command path
-  optionsSchema: greetOptionsSchema // Optional Zod schema for validation
-})
-export class GreetCommand implements CommandHandler<GreetOptions> {
-  // Command implementation
-}
-```
-
-### Command Handler
-
-Commands must implement the `CommandHandler` interface with an `execute` method:
-
-```typescript
-interface CommandHandler<TOptions> {
-  execute(options: TOptions): void | Promise<void>
-}
-```
-
-### Module Organization
-
-The `@CliModule` decorator organizes commands:
-
-```typescript
-@CliModule({
-  commands: [GreetCommand],  // Commands in this module
-  imports: [OtherModule]     // Optional: import other modules
-})
-export class AppModule {}
-```
-
-### Application Bootstrap
-
-The `CommanderFactory` creates and initializes your CLI application:
-
-```typescript
-const app = await CommanderFactory.create(AppModule)
-await app.init()              // Load modules and register commands
-await app.run(process.argv)   // Parse and execute commands
-await app.close()             // Clean up resources
-```
-
-## Command-Line Usage
-
-### Basic Command Execution
-
-```bash
-node dist/cli.js greet --name World
-# Output: Hello, World!
-```
-
-### With Options
-
-```bash
-node dist/cli.js greet --name World --greeting Hi
-# Output: Hi, World!
-```
-
-### Help Command
+The framework automatically generates help text:
 
 ```bash
 node dist/cli.js help
 # or
 node dist/cli.js --help
-# or
-node dist/cli.js -h
 ```
 
-## Adding Dependency Injection
+## Using Dependency Injection
 
-Commands can use dependency injection to access services:
+Commands can use dependency injection to access services. Simply inject services using the `inject()` function:
 
 ```typescript
-import { Command, CommandHandler } from '@navios/commander'
 import { inject, Injectable } from '@navios/di'
-import { z } from 'zod'
 
-// Service
 @Injectable()
 class UserService {
   async getUser(id: string) {
@@ -218,24 +146,13 @@ class UserService {
   }
 }
 
-// Command with injected service
-const userOptionsSchema = z.object({
-  userId: z.string(),
-})
-
-@Command({
-  path: 'user:show',
-  optionsSchema: userOptionsSchema,
-})
-export class ShowUserCommand implements CommandHandler<
-  z.infer<typeof userOptionsSchema>
-> {
+@Command({ path: 'user:show', optionsSchema: userOptionsSchema })
+export class ShowUserCommand implements CommandHandler<{ userId: string }> {
   private userService = inject(UserService)
 
   async execute(options: { userId: string }) {
     const user = await this.userService.getUser(options.userId)
     console.log(`User: ${user.name} (ID: ${user.id})`)
-    console.log(`Email: ${user.email}`)
   }
 }
 ```
@@ -252,58 +169,6 @@ Now that you have the basics down, explore these topics:
 - **[Validation](/docs/commander/guides/validation)** - Validate command options with Zod
 - **[Execution Context](/docs/commander/guides/execution-context)** - Access command execution information
 - **[Testing](/docs/commander/guides/testing)** - Test your commands
-
-## Common Patterns
-
-### Command with Multiple Options
-
-```typescript
-const createUserSchema = z.object({
-  name: z.string(),
-  email: z.string().email(),
-  age: z.number().min(18).optional(),
-  admin: z.boolean().default(false),
-})
-
-@Command({
-  path: 'user:create',
-  optionsSchema: createUserSchema,
-})
-export class CreateUserCommand implements CommandHandler<
-  z.infer<typeof createUserSchema>
-> {
-  async execute(options) {
-    console.log('Creating user:', options)
-    // Create user logic
-  }
-}
-```
-
-### Command Namespaces
-
-Use colons to create command namespaces:
-
-```typescript
-@Command({ path: 'user:create' })
-export class CreateUserCommand {}
-
-@Command({ path: 'user:delete' })
-export class DeleteUserCommand {}
-
-@Command({ path: 'user:list' })
-export class ListUsersCommand {}
-```
-
-### Command Without Options
-
-```typescript
-@Command({ path: 'version' })
-export class VersionCommand implements CommandHandler {
-  async execute() {
-    console.log('1.0.0')
-  }
-}
-```
 
 ## Troubleshooting
 
@@ -349,4 +214,3 @@ export class VersionCommand implements CommandHandler {
 - Review the [Recipes](/docs/commander/recipes) for common patterns
 - See the [Best Practices](/docs/commander/best-practices) for guidance
 - Visit the [GitHub repository](https://github.com/Arilas/navios) for issues and discussions
-

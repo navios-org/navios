@@ -58,10 +58,13 @@ Use the `@Factory` decorator with an `InjectionToken` to create the Prisma clien
 ```typescript
 // src/database/prisma.factory.ts
 import { Factory, InjectionToken } from '@navios/core'
-import { PrismaClient } from '@prisma/client'
-import { PrismaPg } from '@prisma/adapter-pg'
 
-export const PrismaService = InjectionToken.create<PrismaClient>(Symbol('PrismaClient'))
+import { PrismaPg } from '@prisma/adapter-pg'
+import { PrismaClient } from '@prisma/client'
+
+export const PrismaService = InjectionToken.create<PrismaClient>(
+  Symbol('PrismaClient'),
+)
 
 @Factory({
   token: PrismaService,
@@ -91,8 +94,9 @@ For better configuration management, use `ConfigService`:
 // src/database/prisma.factory.ts
 import { Factory, InjectionToken, provideConfig } from '@navios/core'
 import { inject } from '@navios/di'
-import { PrismaClient } from '@prisma/client'
+
 import { PrismaPg } from '@prisma/adapter-pg'
+import { PrismaClient } from '@prisma/client'
 
 // Define database config
 interface DatabaseConfig {
@@ -111,7 +115,9 @@ export const DatabaseConfigToken = provideConfig<DatabaseConfig>({
   }),
 })
 
-export const PrismaService = InjectionToken.create<PrismaClient>(Symbol('PrismaClient'))
+export const PrismaService = InjectionToken.create<PrismaClient>(
+  Symbol('PrismaClient'),
+)
 
 @Factory({
   token: PrismaService,
@@ -142,8 +148,9 @@ export class PrismaFactory {
 
 ```typescript
 // src/services/user.service.ts
-import { Injectable, inject } from '@navios/di'
 import { NotFoundException } from '@navios/core'
+import { inject, Injectable } from '@navios/di'
+
 import { PrismaService } from '../database/prisma.factory.js'
 
 @Injectable()
@@ -204,8 +211,15 @@ export class UserService {
 // src/controllers/user.controller.ts
 import { Controller, Endpoint, EndpointParams, HttpCode } from '@navios/core'
 import { inject } from '@navios/di'
+
+import {
+  createUser,
+  deleteUser,
+  getUser,
+  listUsers,
+  updateUser,
+} from '../api/users.js'
 import { UserService } from '../services/user.service.js'
-import { listUsers, getUser, createUser, updateUser, deleteUser } from '../api/users.js'
 
 @Controller()
 export class UserController {
@@ -248,6 +262,7 @@ export class UserController {
 ```typescript
 // src/api/users.ts
 import { builder } from '@navios/builder'
+
 import { z } from 'zod'
 
 const API = builder()
@@ -279,7 +294,7 @@ export const getUser = API.declareEndpoint({
 export const createUser = API.declareEndpoint({
   method: 'POST',
   url: '/users',
-  dataSchema: z.object({
+  requestSchema: z.object({
     email: z.string().email(),
     name: z.string().optional(),
   }),
@@ -289,7 +304,7 @@ export const createUser = API.declareEndpoint({
 export const updateUser = API.declareEndpoint({
   method: 'PUT',
   url: '/users/$userId',
-  dataSchema: z.object({
+  requestSchema: z.object({
     email: z.string().email().optional(),
     name: z.string().optional(),
   }),
@@ -324,7 +339,7 @@ export class OrderService {
 
       // Create order items
       await tx.orderItem.createMany({
-        data: items.map(item => ({
+        data: items.map((item) => ({
           orderId: order.id,
           productId: item.productId,
           quantity: item.quantity,
@@ -413,7 +428,9 @@ interface PaginatedResult<T> {
 export class UserService {
   private prisma = inject(PrismaService)
 
-  async findAllPaginated(params: PaginationParams): Promise<PaginatedResult<User>> {
+  async findAllPaginated(
+    params: PaginationParams,
+  ): Promise<PaginatedResult<User>> {
     const { page, limit } = params
     const skip = (page - 1) * limit
 

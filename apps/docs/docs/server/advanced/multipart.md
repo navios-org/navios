@@ -36,6 +36,7 @@ Use `declareMultipart` from `@navios/builder` to define multipart endpoints:
 
 ```typescript
 import { builder } from '@navios/builder'
+
 import { z } from 'zod'
 
 const API = builder()
@@ -86,10 +87,12 @@ Handle multiple file uploads:
 ```typescript
 const uploadMultiple = API.declareMultipart({
   url: '/files/batch',
-  responseSchema: z.array(z.object({
-    fileId: z.string(),
-    filename: z.string(),
-  })),
+  responseSchema: z.array(
+    z.object({
+      fileId: z.string(),
+      filename: z.string(),
+    }),
+  ),
 })
 
 @Controller()
@@ -116,7 +119,7 @@ Combine file uploads with form data:
 ```typescript
 const createPost = API.declareMultipart({
   url: '/posts',
-  dataSchema: z.object({
+  requestSchema: z.object({
     title: z.string(),
     content: z.string(),
   }),
@@ -159,7 +162,9 @@ class FileController {
     // Validate MIME type
     const allowedTypes = ['image/jpeg', 'image/png', 'image/webp']
     if (!allowedTypes.includes(file.mimetype)) {
-      throw new BadRequestException('Invalid file type. Allowed: JPEG, PNG, WebP')
+      throw new BadRequestException(
+        'Invalid file type. Allowed: JPEG, PNG, WebP',
+      )
     }
 
     // Validate size
@@ -206,12 +211,12 @@ These options apply to the Fastify adapter only:
 ```typescript
 app.enableMultipart({
   limits: {
-    fieldNameSize: 100,      // Max field name size
-    fieldSize: 1024 * 1024,  // Max field value size (1MB)
-    fields: 10,              // Max non-file fields
+    fieldNameSize: 100, // Max field name size
+    fieldSize: 1024 * 1024, // Max field value size (1MB)
+    fields: 10, // Max non-file fields
     fileSize: 10 * 1024 * 1024, // Max file size (10MB)
-    files: 5,                // Max number of files
-    headerPairs: 2000,       // Max header key-value pairs
+    files: 5, // Max number of files
+    headerPairs: 2000, // Max header key-value pairs
   },
 })
 ```

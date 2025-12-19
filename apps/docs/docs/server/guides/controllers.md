@@ -5,20 +5,38 @@ title: Controllers & Endpoints
 
 # Controllers & Endpoints
 
-Controllers handle incoming HTTP requests and endpoints define the routes and schemas for each operation.
+Controllers handle incoming HTTP requests. Endpoints define the routes and schemas for each operation.
+
+## What are Controllers?
+
+Controllers are classes that organize related HTTP handlers. They're decorated with `@Controller()` and contain endpoint methods.
+
+**Key characteristics:**
+
+- Group related endpoints together (e.g., all user operations)
+- Use dependency injection to access services
+- Handle HTTP concerns (status codes, headers)
+- Delegate business logic to services
 
 ## Defining Controllers
 
-Use the `@Controller()` decorator to define a controller:
-
 ```typescript
-import { Controller, Endpoint, EndpointParams } from '@navios/core'
+import { Controller, Endpoint, EndpointParams, HttpCode } from '@navios/core'
+import { inject } from '@navios/di'
 
 @Controller()
 class UserController {
+  private userService = inject(UserService)
+
   @Endpoint(getUser)
   async getUser(params: EndpointParams<typeof getUser>) {
-    return { id: params.urlParams.userId, name: 'John' }
+    return this.userService.findById(params.urlParams.userId)
+  }
+
+  @Endpoint(createUser)
+  @HttpCode(201)
+  async createUser(params: EndpointParams<typeof createUser>) {
+    return this.userService.create(params.data)
   }
 }
 ```
@@ -33,7 +51,6 @@ import { z } from 'zod'
 
 const API = builder()
 
-// GET endpoint
 export const getUser = API.declareEndpoint({
   method: 'GET',
   url: '/users/$userId',
@@ -43,11 +60,10 @@ export const getUser = API.declareEndpoint({
   }),
 })
 
-// POST endpoint
 export const createUser = API.declareEndpoint({
   method: 'POST',
   url: '/users',
-  dataSchema: z.object({
+  requestSchema: z.object({
     name: z.string(),
     email: z.string().email(),
   }),
@@ -59,9 +75,7 @@ export const createUser = API.declareEndpoint({
 })
 ```
 
-:::tip
-For comprehensive information about defining endpoints with Builder, including URL parameters, query parameters, and advanced features, see the [Builder documentation](/docs/builder/guides/defining-endpoints).
-:::
+For complete endpoint definition syntax including URL parameters, query parameters, headers, and advanced options, see the [Builder documentation](/docs/builder/guides/defining-endpoints).
 
 ## EndpointParams
 
@@ -69,105 +83,21 @@ The `EndpointParams` type provides typed access to all request data:
 
 ```typescript
 interface EndpointParams<T> {
-  urlParams: { ... }   // URL path parameters
+  urlParams: { ... }   // URL path parameters (e.g., /users/$userId)
   query: { ... }       // Query string parameters
   data: { ... }        // Request body
   headers: { ... }     // Request headers
 }
 ```
 
-Example usage:
+TypeScript infers the shape from your endpoint definition:
 
 ```typescript
 @Endpoint(updateUser)
 async updateUser(params: EndpointParams<typeof updateUser>) {
-  const { userId } = params.urlParams    // From URL: /users/$userId
-  const { name, email } = params.data    // From request body
-  const { page } = params.query          // From query string
-}
-```
-
-## HTTP Methods
-
-Navios supports all standard HTTP methods:
-
-```typescript
-// GET
-const listUsers = API.declareEndpoint({
-  method: 'GET',
-  url: '/users',
-  responseSchema: z.array(userSchema),
-})
-
-// POST
-const createUser = API.declareEndpoint({
-  method: 'POST',
-  url: '/users',
-  dataSchema: createUserSchema,
-  responseSchema: userSchema,
-})
-
-// PUT
-const updateUser = API.declareEndpoint({
-  method: 'PUT',
-  url: '/users/$userId',
-  dataSchema: updateUserSchema,
-  responseSchema: userSchema,
-})
-
-// PATCH
-const patchUser = API.declareEndpoint({
-  method: 'PATCH',
-  url: '/users/$userId',
-  dataSchema: patchUserSchema,
-  responseSchema: userSchema,
-})
-
-// DELETE
-const deleteUser = API.declareEndpoint({
-  method: 'DELETE',
-  url: '/users/$userId',
-  responseSchema: z.object({ success: z.boolean() }),
-})
-```
-
-## URL Parameters
-
-Define dynamic URL segments with the `$` prefix:
-
-```typescript
-const getOrder = API.declareEndpoint({
-  method: 'GET',
-  url: '/users/$userId/orders/$orderId',
-  responseSchema: orderSchema,
-})
-
-@Endpoint(getOrder)
-async getOrder(params: EndpointParams<typeof getOrder>) {
-  const { userId, orderId } = params.urlParams
-}
-```
-
-## Query Parameters
-
-Define query schemas for filtering and pagination:
-
-```typescript
-const listUsers = API.declareEndpoint({
-  method: 'GET',
-  url: '/users',
-  querySchema: z.object({
-    page: z.coerce.number().default(1),
-    limit: z.coerce.number().default(10),
-    sort: z.enum(['name', 'created']).default('created'),
-    search: z.string().optional(),
-  }),
-  responseSchema: z.array(userSchema),
-})
-
-@Endpoint(listUsers)
-async listUsers(params: EndpointParams<typeof listUsers>) {
-  const { page, limit, sort, search } = params.query
+  const { userId } = params.urlParams  // From URL
+  const { name, email } = params.data  // From body
+  const { page } = params.query        // From query string
 }
 ```
 
@@ -212,13 +142,13 @@ class ApiController {
 }
 ```
 
-## Dependency Injection in Controllers
+## Dependency Injection
 
-Use `inject()` to access services:
+Controllers typically inject services to handle business logic:
 
 ```typescript
-import { inject } from '@navios/di'
 import { Logger } from '@navios/core'
+import { inject } from '@navios/di'
 
 @Controller()
 class UserController {
@@ -233,44 +163,28 @@ class UserController {
 }
 ```
 
-:::tip
-For more details on using services and dependency injection, see the [Services & Dependency Injection guide](/docs/server/guides/services). For advanced DI topics, see the [DI documentation](/docs/di).
-:::
+For more on dependency injection, see the [Services guide](/docs/server/guides/services).
 
-## Multiple Endpoints per Controller
+## Best Practices
 
-Controllers can have multiple endpoints:
+**Keep controllers thin**: Delegate business logic to services. Controllers handle HTTP concerns only.
 
 ```typescript
-@Controller()
-class UserController {
-  private userService = inject(UserService)
+// Good - controller delegates to service
+@Endpoint(getUser)
+async getUser(params: EndpointParams<typeof getUser>) {
+  return this.userService.findById(params.urlParams.userId)
+}
 
-  @Endpoint(listUsers)
-  async listUsers(params: EndpointParams<typeof listUsers>) {
-    return this.userService.findAll(params.query)
-  }
-
-  @Endpoint(getUser)
-  async getUser(params: EndpointParams<typeof getUser>) {
-    return this.userService.findById(params.urlParams.userId)
-  }
-
-  @Endpoint(createUser)
-  @HttpCode(201)
-  async createUser(params: EndpointParams<typeof createUser>) {
-    return this.userService.create(params.data)
-  }
-
-  @Endpoint(updateUser)
-  async updateUser(params: EndpointParams<typeof updateUser>) {
-    return this.userService.update(params.urlParams.userId, params.data)
-  }
-
-  @Endpoint(deleteUser)
-  @HttpCode(204)
-  async deleteUser(params: EndpointParams<typeof deleteUser>) {
-    await this.userService.delete(params.urlParams.userId)
-  }
+// Avoid - business logic in controller
+@Endpoint(getUser)
+async getUser(params: EndpointParams<typeof getUser>) {
+  const user = await this.db.users.findUnique({ where: { id: params.urlParams.userId } })
+  if (!user) throw new NotFoundException()
+  return user
 }
 ```
+
+**Group related endpoints**: All user operations in `UserController`, all order operations in `OrderController`.
+
+**Use type-safe endpoints**: Always use Builder for endpoint definitions. It provides compile-time safety and runtime validation.

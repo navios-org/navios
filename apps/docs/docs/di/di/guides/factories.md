@@ -10,6 +10,12 @@ Factories provide a way to create instances using factory classes rather than di
 
 A factory is a class decorated with `@Factory()` that implements a `create()` method. When you request a factory from the container, you get the result of the `create()` method, not the factory instance itself.
 
+**Key characteristics:**
+- **Returns created objects**: The factory's `create()` method is called, and its return value is what you get
+- **Configuration-based**: Factories can accept configuration via injection tokens with schemas
+- **Dependency injection**: Factories can inject other services using `inject()` or `ctx.container`
+- **Lifecycle management**: Factories can register cleanup callbacks via `ctx.addDestroyListener`
+
 ## Basic Factory
 
 ```typescript
@@ -27,7 +33,7 @@ class DatabaseConnectionFactory {
   }
 }
 
-// Usage
+// Usage - returns the result of create(), not the factory
 const container = new Container()
 const connection = await container.get(DatabaseConnectionFactory)
 console.log(connection) // { host: 'localhost', port: 5432, connected: true, connect: [Function] }
@@ -35,28 +41,20 @@ console.log(connection) // { host: 'localhost', port: 5432, connected: true, con
 
 ## Factory vs Injectable
 
-### Injectable Service
+**Injectable services** return the service instance itself. **Factories** return the result of the `create()` method.
 
 ```typescript
-import { Injectable } from '@navios/di'
-
+// Injectable: Returns the service instance
 @Injectable()
 class EmailService {
   sendEmail(to: string, subject: string) {
     return `Email sent to ${to}: ${subject}`
   }
 }
-
-// Usage - returns the service instance
 const emailService = await container.get(EmailService)
 await emailService.sendEmail('user@example.com', 'Hello')
-```
 
-### Factory Service
-
-```typescript
-import { Factory } from '@navios/di'
-
+// Factory: Returns the result of create()
 @Factory()
 class EmailServiceFactory {
   create() {
@@ -67,26 +65,27 @@ class EmailServiceFactory {
     }
   }
 }
-
-// Usage - returns the result of create() method
 const emailService = await container.get(EmailServiceFactory)
 await emailService.sendEmail('user@example.com', 'Hello')
 ```
 
 ## Configuration-Based Service Selection
 
-One of the most common use cases for factories is selecting and returning different service implementations based on configuration. This pattern is ideal for scenarios like choosing between different AI providers, email service providers, payment processors, or storage backends.
+The most common use case for factories is selecting and returning different service implementations based on configuration. This pattern is ideal for scenarios like choosing between different AI providers, email service providers, payment processors, or storage backends.
 
-### AI Provider Example
+**How it works:**
+1. Define a configuration schema with Zod
+2. Create an injection token with the schema
+3. Define an interface for the service
+4. Create a factory that selects the implementation based on configuration
+5. Register provider implementations
 
 ```typescript
 import type { FactoryContext } from '@navios/di'
-
 import { Factory, InjectionToken } from '@navios/di'
-
 import { z } from 'zod'
 
-// Define the configuration schema
+// 1. Define configuration schema
 const aiConfigSchema = z.object({
   provider: z.enum(['openai', 'anthropic', 'google']),
   apiKey: z.string(),
@@ -95,19 +94,19 @@ const aiConfigSchema = z.object({
 
 type AIConfig = z.infer<typeof aiConfigSchema>
 
-// Define the service interface
+// 2. Define service interface
 interface AIService {
   generateText(prompt: string): Promise<string>
   getProvider(): string
 }
 
-// Create the injection token
+// 3. Create injection token
 const AI_SERVICE_TOKEN = InjectionToken.create<
   AIService,
   typeof aiConfigSchema
 >('AI_SERVICE', aiConfigSchema)
 
-// Factory that selects the provider based on configuration
+// 4. Create factory that selects provider
 @Factory({ token: AI_SERVICE_TOKEN })
 class AIServiceFactory {
   create(ctx: FactoryContext, config: AIConfig): AIService {
@@ -124,43 +123,14 @@ class AIServiceFactory {
   }
 }
 
-// Provider implementations
+// 5. Provider implementations
 class OpenAIService implements AIService {
   constructor(private config: AIConfig) {}
-
   async generateText(prompt: string): Promise<string> {
-    // OpenAI API call
     return `OpenAI response to: ${prompt}`
   }
-
   getProvider(): string {
     return 'openai'
-  }
-}
-
-class AnthropicService implements AIService {
-  constructor(private config: AIConfig) {}
-
-  async generateText(prompt: string): Promise<string> {
-    // Anthropic API call
-    return `Anthropic response to: ${prompt}`
-  }
-
-  getProvider(): string {
-    return 'anthropic'
-  }
-}
-
-class GoogleAIService implements AIService {
-  constructor(private config: AIConfig) {}
-
-  async generateText(prompt: string): Promise<string> {
-    // Google AI API call
-    return `Google AI response to: ${prompt}`
-  }
-
-  getProvider(): string {
-    return 'google'
   }
 }
 
@@ -170,124 +140,11 @@ const openAIService = await container.get(AI_SERVICE_TOKEN, {
   apiKey: process.env.OPENAI_API_KEY!,
   model: 'gpt-4',
 })
-
-const anthropicService = await container.get(AI_SERVICE_TOKEN, {
-  provider: 'anthropic',
-  apiKey: process.env.ANTHROPIC_API_KEY!,
-  model: 'claude-3',
-})
-
-await openAIService.generateText('Hello, world!')
-await anthropicService.generateText('Hello, world!')
-```
-
-### Email Service Provider Example
-
-```typescript
-import type { FactoryContext } from '@navios/di'
-
-import { Factory, InjectionToken } from '@navios/di'
-
-import { z } from 'zod'
-
-const emailConfigSchema = z.object({
-  provider: z.enum(['smtp', 'sendgrid', 'ses', 'mailgun']),
-  apiKey: z.string(),
-  fromEmail: z.string().email(),
-  region: z.string().optional(),
-})
-
-type EmailConfig = z.infer<typeof emailConfigSchema>
-
-interface EmailService {
-  sendEmail(
-    to: string,
-    subject: string,
-    body: string,
-  ): Promise<{ success: boolean; provider: string }>
-}
-
-const EMAIL_SERVICE_TOKEN = InjectionToken.create<
-  EmailService,
-  typeof emailConfigSchema
->('EMAIL_SERVICE', emailConfigSchema)
-
-@Factory({ token: EMAIL_SERVICE_TOKEN })
-class EmailServiceFactory {
-  create(ctx: FactoryContext, config: EmailConfig): EmailService {
-    switch (config.provider) {
-      case 'smtp':
-        return new SmtpEmailService(config)
-      case 'sendgrid':
-        return new SendGridEmailService(config)
-      case 'ses':
-        return new SesEmailService(config)
-      case 'mailgun':
-        return new MailgunEmailService(config)
-      default:
-        throw new Error(`Unsupported email provider: ${config.provider}`)
-    }
-  }
-}
-
-// Provider implementations
-class SmtpEmailService implements EmailService {
-  constructor(private config: EmailConfig) {}
-
-  async sendEmail(to: string, subject: string, body: string) {
-    // SMTP implementation
-    return { success: true, provider: 'smtp' }
-  }
-}
-
-class SendGridEmailService implements EmailService {
-  constructor(private config: EmailConfig) {}
-
-  async sendEmail(to: string, subject: string, body: string) {
-    // SendGrid API implementation
-    return { success: true, provider: 'sendgrid' }
-  }
-}
-
-class SesEmailService implements EmailService {
-  constructor(private config: EmailConfig) {}
-
-  async sendEmail(to: string, subject: string, body: string) {
-    // AWS SES implementation
-    return { success: true, provider: 'ses' }
-  }
-}
-
-class MailgunEmailService implements EmailService {
-  constructor(private config: EmailConfig) {}
-
-  async sendEmail(to: string, subject: string, body: string) {
-    // Mailgun API implementation
-    return { success: true, provider: 'mailgun' }
-  }
-}
-
-// Usage - select provider based on environment or user preference
-const emailService = await container.get(EMAIL_SERVICE_TOKEN, {
-  provider: process.env.EMAIL_PROVIDER as
-    | 'sendgrid'
-    | 'ses'
-    | 'smtp'
-    | 'mailgun',
-  apiKey: process.env.EMAIL_API_KEY!,
-  fromEmail: 'noreply@example.com',
-})
-
-await emailService.sendEmail(
-  'user@example.com',
-  'Welcome',
-  'Welcome to our service!',
-)
 ```
 
 ## Factory with Dependencies
 
-Factories can inject other services using the `inject` function:
+Factories can inject other services using the `inject()` function:
 
 ```typescript
 import { Factory, inject, Injectable } from '@navios/di'
@@ -305,16 +162,13 @@ class DatabaseConnectionFactory {
 
   create() {
     this.logger.log('Creating database connection...')
-
     return {
       host: 'localhost',
       port: 5432,
       connected: false,
       connect: async () => {
         this.logger.log('Connecting to database...')
-        await new Promise((resolve) => setTimeout(resolve, 100))
-        this.logger.log('Database connected successfully')
-        return { connected: true }
+        // Connection logic
       },
     }
   }
@@ -324,44 +178,6 @@ class DatabaseConnectionFactory {
 ## Factory Context
 
 Factories receive a `FactoryContext` that provides additional functionality:
-
-```typescript
-import { Factory, Injectable } from '@navios/di'
-
-@Injectable()
-class DatabaseService {
-  async query(sql: string) {
-    return `Query result: ${sql}`
-  }
-}
-
-@Factory()
-class UserRepositoryFactory {
-  create(ctx: FactoryContext) {
-    // Access the service container
-    const container = ctx.container
-
-    // Inject dependencies within the factory
-    const dbService = await container.get(DatabaseService)
-
-    return {
-      async getUser(id: string) {
-        const db = await dbService
-        return db.query(`SELECT * FROM users WHERE id = ${id}`)
-      },
-
-      async createUser(userData: any) {
-        const db = await dbService
-        return db.query(
-          `INSERT INTO users VALUES (${JSON.stringify(userData)})`,
-        )
-      },
-    }
-  }
-}
-```
-
-### Factory Context API
 
 ```typescript
 interface FactoryContext {
@@ -376,13 +192,33 @@ interface FactoryContext {
 }
 ```
 
-## Factory with Cleanup
-
-Use `addDestroyListener` to register cleanup callbacks:
+Use the context to access the container or register cleanup callbacks:
 
 ```typescript
-import { Factory } from '@navios/di'
+@Factory()
+class UserRepositoryFactory {
+  create(ctx: FactoryContext) {
+    // Access the service container
+    const container = ctx.container
 
+    // Inject dependencies within the factory
+    const dbService = await container.get(DatabaseService)
+
+    return {
+      async getUser(id: string) {
+        const db = await dbService
+        return db.query(`SELECT * FROM users WHERE id = ${id}`)
+      },
+    }
+  }
+}
+```
+
+## Factory with Cleanup
+
+Use `addDestroyListener` to register cleanup callbacks for resources:
+
+```typescript
 @Factory()
 class DatabaseConnectionFactory {
   create(ctx: FactoryContext) {
@@ -423,69 +259,7 @@ class RandomIdFactory {
 // Each call creates a new instance
 const id1 = await container.get(RandomIdFactory)
 const id2 = await container.get(RandomIdFactory)
-
-console.log(id1.id) // Different random ID
-console.log(id2.id) // Different random ID
-```
-
-## Additional Examples
-
-### Payment Processor Factory
-
-Another common use case for configuration-based selection:
-
-```typescript
-import type { FactoryContext } from '@navios/di'
-
-import { Factory, InjectionToken } from '@navios/di'
-
-import { z } from 'zod'
-
-const paymentConfigSchema = z.object({
-  provider: z.enum(['stripe', 'paypal', 'square']),
-  apiKey: z.string(),
-  environment: z.enum(['sandbox', 'production']).default('sandbox'),
-})
-
-type PaymentConfig = z.infer<typeof paymentConfigSchema>
-
-interface PaymentProcessor {
-  processPayment(
-    amount: number,
-    currency: string,
-  ): Promise<{ transactionId: string }>
-  refund(transactionId: string): Promise<{ success: boolean }>
-}
-
-const PAYMENT_PROCESSOR_TOKEN = InjectionToken.create<
-  PaymentProcessor,
-  typeof paymentConfigSchema
->('PAYMENT_PROCESSOR', paymentConfigSchema)
-
-@Factory({ token: PAYMENT_PROCESSOR_TOKEN })
-class PaymentProcessorFactory {
-  create(ctx: FactoryContext, config: PaymentConfig): PaymentProcessor {
-    switch (config.provider) {
-      case 'stripe':
-        return new StripePaymentProcessor(config)
-      case 'paypal':
-        return new PayPalPaymentProcessor(config)
-      case 'square':
-        return new SquarePaymentProcessor(config)
-      default:
-        throw new Error(`Unsupported payment provider: ${config.provider}`)
-    }
-  }
-}
-
-// Provider implementations would go here...
-
-// Usage
-const paymentProcessor = await container.get(PAYMENT_PROCESSOR_TOKEN, {
-  provider: 'stripe',
-  apiKey: process.env.STRIPE_API_KEY!,
-  environment: 'production',
-})
+console.log(id1.id !== id2.id) // true
 ```
 
 ## Best Practices
@@ -500,34 +274,11 @@ The most common use case for factories is selecting service implementations base
 - **Storage Backends**: S3, Azure Blob, Google Cloud Storage
 - **Database Drivers**: PostgreSQL, MySQL, MongoDB
 
-```typescript
-// ✅ Good: Factory selects implementation based on configuration
-const AI_SERVICE_TOKEN = InjectionToken.create<
-  AIService,
-  typeof aiConfigSchema
->('AI_SERVICE', aiConfigSchema)
-
-@Factory({ token: AI_SERVICE_TOKEN })
-class AIServiceFactory {
-  create(ctx: FactoryContext, config: AIConfig): AIService {
-    switch (config.provider) {
-      case 'openai':
-        return new OpenAIService(config)
-      case 'anthropic':
-        return new AnthropicService(config)
-      default:
-        throw new Error(`Unsupported provider: ${config.provider}`)
-    }
-  }
-}
-```
-
 ### 2. Define Clear Service Interfaces
 
 Always define interfaces for the services your factory returns to ensure type safety and consistency:
 
 ```typescript
-// ✅ Good: Clear interface definition
 interface EmailService {
   sendEmail(
     to: string,
@@ -547,7 +298,6 @@ const EMAIL_SERVICE_TOKEN = InjectionToken.create<
 Use transient scope when each factory call should create a new instance:
 
 ```typescript
-// ✅ Good: Transient factory for stateful objects
 @Factory({ scope: InjectableScope.Transient })
 class UserSessionFactory {
   create() {
@@ -555,7 +305,6 @@ class UserSessionFactory {
       userId: null,
       sessionId: Math.random().toString(36),
       loginTime: new Date(),
-      // ... stateful methods
     }
   }
 }
@@ -566,7 +315,6 @@ class UserSessionFactory {
 Always use Zod schemas to validate factory configuration:
 
 ```typescript
-// ✅ Good: Validated configuration
 const configSchema = z.object({
   provider: z.enum(['openai', 'anthropic']),
   apiKey: z.string().min(1),
@@ -584,7 +332,6 @@ const TOKEN = InjectionToken.create<Service, typeof configSchema>(
 Provide clear error messages when configuration is invalid:
 
 ```typescript
-// ✅ Good: Clear error handling
 @Factory({ token: SERVICE_TOKEN })
 class ServiceFactory {
   create(ctx: FactoryContext, config: Config): Service {
@@ -607,7 +354,6 @@ class ServiceFactory {
 ### Use Factories When:
 
 - **Selecting service implementations based on configuration** (most common use case)
-  - Different AI providers, email services, payment processors, etc.
 - You need to create multiple instances with different configurations
 - You want to return plain objects or functions instead of class instances
 - You need complex object creation logic that depends on runtime configuration

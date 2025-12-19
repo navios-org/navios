@@ -62,7 +62,7 @@ async streamEvents(params: StreamParams<typeof streamEvents>) {
 Implement real-time event streaming:
 
 ```typescript
-import { Controller, Stream, StreamParams, Reply } from '@navios/core'
+import { Controller, Reply, Stream, StreamParams } from '@navios/core'
 
 @Controller()
 class EventController {
@@ -72,7 +72,7 @@ class EventController {
     reply.raw.writeHead(200, {
       'Content-Type': 'text/event-stream',
       'Cache-Control': 'no-cache',
-      'Connection': 'keep-alive',
+      Connection: 'keep-alive',
     })
 
     // Send events
@@ -173,7 +173,7 @@ Stream progress updates:
 const processTask = API.declareStream({
   method: 'POST',
   url: '/tasks/process',
-  dataSchema: z.object({ taskId: z.string() }),
+  requestSchema: z.object({ taskId: z.string() }),
 })
 
 @Controller()

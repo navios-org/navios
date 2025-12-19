@@ -6,27 +6,35 @@ sidebar_position: 3
 
 Injection tokens provide a flexible way to identify and resolve dependencies in Navios DI. They allow you to decouple service implementations from their consumers, making your code more modular and testable.
 
-## Overview
+## What are Injection Tokens?
 
-Injection tokens serve as unique identifiers for services and can be used with:
+Injection tokens are unique identifiers for services that enable:
 
-- **Schemas**: Define the shape of configuration data
-- **Bound Values**: Pre-configure tokens with specific values
-- **Factories**: Provide default configuration values dynamically (doesn't create services by itself)
+- **Interface-based injection**: Inject services by interface rather than concrete class
+- **Multiple implementations**: Register different implementations for the same token
+- **Configuration-based services**: Define services that require configuration data
+- **Dynamic resolution**: Resolve services based on runtime configuration
+
+**Key benefits:**
+- **Decoupling**: Consumers don't depend on concrete implementations
+- **Flexibility**: Swap implementations without changing dependent code
+- **Testability**: Easy to mock services for testing
+- **Type safety**: Full TypeScript support with schema validation
 
 ## Basic Usage
 
 ### Creating Injection Tokens
 
+Injection tokens can be simple (without schema) or schema-based (with Zod validation):
+
 ```typescript
 import { InjectionToken } from '@navios/di'
-
-// Token with schema
 import { z } from 'zod'
 
 // Simple token without schema
 const USER_SERVICE_TOKEN = InjectionToken.create<UserService>('UserService')
 
+// Token with schema for configuration
 const configSchema = z.object({
   apiUrl: z.string(),
   timeout: z.number(),
@@ -39,6 +47,8 @@ const CONFIG_TOKEN = InjectionToken.create<Config, typeof configSchema>(
 ```
 
 ### Using Injection Tokens
+
+Register services with tokens and inject them:
 
 ```typescript
 import { Injectable } from '@navios/di'
@@ -59,9 +69,9 @@ console.log(userService.getUsers())
 
 ### Basic Injection Token
 
-```typescript
-import { Injectable, InjectionToken } from '@navios/di'
+Use basic tokens for interface-based injection:
 
+```typescript
 interface EmailService {
   sendEmail(to: string, subject: string): Promise<void>
 }
@@ -82,9 +92,10 @@ await emailService.sendEmail('user@example.com', 'Hello')
 
 ### Token with Schema
 
+Schema-based tokens validate configuration data:
+
 ```typescript
 import { Injectable, InjectionToken } from '@navios/di'
-
 import { z } from 'zod'
 
 const databaseConfigSchema = z.object({
@@ -117,30 +128,19 @@ const dbConfig = await container.get(DB_CONFIG_TOKEN, {
   username: 'postgres',
   password: 'password',
 })
-
-console.log(dbConfig.getConnectionString())
 ```
 
 ### Bound Injection Token
 
-Bound tokens allow you to pre-configure a token with specific values:
+Bound tokens pre-configure a token with specific values. Use them for environment-specific configuration:
 
 ```typescript
-import { InjectionToken } from '@navios/di'
-
-import { z } from 'zod'
-
-const configSchema = z.object({
-  apiUrl: z.string(),
-  timeout: z.number(),
-})
-
 const CONFIG_TOKEN = InjectionToken.create<Config, typeof configSchema>(
   'APP_CONFIG',
   configSchema,
 )
 
-// Create bound token with specific values
+// Create bound tokens with specific values
 const PRODUCTION_CONFIG = InjectionToken.bound(CONFIG_TOKEN, {
   apiUrl: 'https://api.production.com',
   timeout: 10000,
@@ -154,32 +154,13 @@ const DEVELOPMENT_CONFIG = InjectionToken.bound(CONFIG_TOKEN, {
 // Usage - no need to provide arguments
 const prodConfig = await container.get(PRODUCTION_CONFIG)
 const devConfig = await container.get(DEVELOPMENT_CONFIG)
-
-console.log(prodConfig.apiUrl) // 'https://api.production.com'
-console.log(devConfig.apiUrl) // 'https://api.dev.com'
 ```
 
 ### Factory Injection Token
 
-Factory tokens provide **default configuration values** to services or factories. They don't create services by themselves - the service must still be defined with `@Injectable` or `@Factory` decorators. The factory function is used to dynamically compute the configuration values that will be passed to the service or factory.
+Factory tokens provide **default configuration values** dynamically. They don't create services by themselves - the service must still be defined with `@Injectable` or `@Factory` decorators.
 
 ```typescript
-import { Factory, Injectable, InjectionToken } from '@navios/di'
-
-import { z } from 'zod'
-
-// Define the configuration schema
-const configSchema = z.object({
-  apiUrl: z.string(),
-  timeout: z.number(),
-})
-
-// Create the base token
-const CONFIG_TOKEN = InjectionToken.create<ConfigService, typeof configSchema>(
-  'APP_CONFIG',
-  configSchema,
-)
-
 // Define the service that will receive the configuration
 @Injectable({ token: CONFIG_TOKEN })
 class ConfigService {
@@ -188,14 +169,9 @@ class ConfigService {
   getApiUrl() {
     return this.config.apiUrl
   }
-
-  getTimeout() {
-    return this.config.timeout
-  }
 }
 
 // Create factory token that provides default configuration values
-// This doesn't create the service - it just provides the config values
 const DYNAMIC_CONFIG = InjectionToken.factory(CONFIG_TOKEN, async (ctx) => {
   const env = process.env.NODE_ENV || 'development'
 
@@ -241,15 +217,13 @@ const DYNAMIC_CONFIG = InjectionToken.factory(CONFIG_TOKEN, async (ctx) => {
 })
 ```
 
-**Remember**: Both bound and factory tokens only provide configuration values. The actual service must be defined with `@Injectable` or `@Factory` decorators.
-
 ## Advanced Patterns
 
 ### Multiple Implementations
 
-```typescript
-import { Injectable, InjectionToken } from '@navios/di'
+You can register multiple implementations for the same token. The last registered implementation will be used:
 
+```typescript
 interface PaymentProcessor {
   processPayment(amount: number): Promise<string>
 }
@@ -265,7 +239,7 @@ class StripePaymentProcessor implements PaymentProcessor {
   }
 }
 
-// PayPal implementation
+// PayPal implementation (will replace Stripe if registered after)
 @Injectable({ token: PAYMENT_PROCESSOR_TOKEN })
 class PayPalPaymentProcessor implements PaymentProcessor {
   async processPayment(amount: number) {
@@ -278,58 +252,12 @@ const paymentProcessor = await container.get(PAYMENT_PROCESSOR_TOKEN)
 await paymentProcessor.processPayment(100)
 ```
 
-### Token with Optional Schema
-
-```typescript
-import { Injectable, InjectionToken } from '@navios/di'
-
-import { z } from 'zod'
-
-const optionalConfigSchema = z.object({
-  apiUrl: z.string(),
-  timeout: z.number().optional(),
-  retries: z.number().optional(),
-})
-
-const OPTIONAL_CONFIG_TOKEN = InjectionToken.create<
-  OptionalConfigService,
-  typeof optionalConfigSchema
->('OPTIONAL_CONFIG', optionalConfigSchema)
-
-@Injectable({ token: OPTIONAL_CONFIG_TOKEN })
-class OptionalConfigService {
-  constructor(private config: z.infer<typeof optionalConfigSchema>) {}
-
-  getApiUrl() {
-    return this.config.apiUrl
-  }
-
-  getTimeout() {
-    return this.config.timeout ?? 5000
-  }
-
-  getRetries() {
-    return this.config.retries ?? 3
-  }
-}
-
-// Usage with partial configuration
-const config = await container.get(OPTIONAL_CONFIG_TOKEN, {
-  apiUrl: 'https://api.example.com',
-  // timeout and retries are optional
-})
-
-console.log(config.getTimeout()) // 5000 (default)
-console.log(config.getRetries()) // 3 (default)
-```
-
-## Using Schema-based Services as Dependencies
+### Injecting Schema-based Services
 
 You can inject schema-based services with bound arguments:
 
 ```typescript
 import { inject, Injectable } from '@navios/di'
-
 import { z } from 'zod'
 
 const dbConfigSchema = z.object({
@@ -358,6 +286,8 @@ class DatabaseService {
 
 ### 1. Use Descriptive Token Names
 
+Choose clear, descriptive names that indicate the token's purpose:
+
 ```typescript
 // ✅ Good: Descriptive names
 const USER_REPOSITORY_TOKEN =
@@ -366,10 +296,11 @@ const EMAIL_SERVICE_TOKEN = InjectionToken.create<EmailService>('EmailService')
 
 // ❌ Avoid: Generic names
 const SERVICE_TOKEN = InjectionToken.create<Service>('Service')
-const TOKEN_1 = InjectionToken.create<Service>('Token1')
 ```
 
 ### 2. Define Schemas for Configuration Tokens
+
+Always use Zod schemas for configuration tokens to ensure type safety and validation:
 
 ```typescript
 // ✅ Good: Define schema for configuration
@@ -387,8 +318,9 @@ const CONFIG_TOKEN = InjectionToken.create<Config, typeof configSchema>(
 
 ### 3. Use Bound Tokens for Environment-Specific Configuration
 
+Bound tokens are perfect for environment-specific static configuration:
+
 ```typescript
-// ✅ Good: Environment-specific bound tokens
 const PRODUCTION_CONFIG = InjectionToken.bound(CONFIG_TOKEN, {
   apiUrl: 'https://api.production.com',
   timeout: 10000,
@@ -404,22 +336,12 @@ const DEVELOPMENT_CONFIG = InjectionToken.bound(CONFIG_TOKEN, {
 
 ### 4. Use Factory Tokens for Dynamic Default Values
 
-Factory tokens are used to provide **default configuration values** to services or factories. They don't create services themselves - the service must be defined separately with `@Injectable` or `@Factory`.
+Factory tokens are ideal when configuration depends on runtime values:
 
 ```typescript
-// ✅ Good: Factory provides default config values
-// First, define the service that will receive the config
-@Injectable({ token: CONFIG_TOKEN })
-class ConfigService {
-  constructor(private config: z.infer<typeof configSchema>) {}
-  // ... service methods
-}
-
-// Then, create a factory token that provides default values
 const DYNAMIC_CONFIG = InjectionToken.factory(CONFIG_TOKEN, async () => {
   const env = process.env.NODE_ENV || 'development'
 
-  // Return default configuration values
   return {
     apiUrl:
       env === 'production' ? 'https://api.prod.com' : 'https://api.dev.com',
@@ -427,15 +349,13 @@ const DYNAMIC_CONFIG = InjectionToken.factory(CONFIG_TOKEN, async () => {
     retries: env === 'production' ? 5 : 3,
   }
 })
-
-// Usage - factory token provides default values to ConfigService
-const config = await container.get(DYNAMIC_CONFIG)
 ```
 
 ### 5. Group Related Tokens
 
+Organize related tokens together for better maintainability:
+
 ```typescript
-// ✅ Good: Group related tokens
 export const DATABASE_TOKENS = {
   CONFIG: InjectionToken.create<DatabaseConfig>('DatabaseConfig'),
   CONNECTION: InjectionToken.create<DatabaseConnection>('DatabaseConnection'),
@@ -469,7 +389,7 @@ static bound<T, S extends InjectionTokenSchemaType>(
 
 ### InjectionToken.factory
 
-Creates a factory token that provides **default configuration values** to a service or factory. The factory function dynamically computes the configuration values that will be passed to the service/factory. **Note**: This doesn't create the service itself - the service must be defined with `@Injectable` or `@Factory` decorators.
+Creates a factory token that provides **default configuration values** to a service or factory. The factory function dynamically computes the configuration values that will be passed to the service/factory.
 
 ```typescript
 static factory<T, S extends InjectionTokenSchemaType>(
@@ -478,7 +398,7 @@ static factory<T, S extends InjectionTokenSchemaType>(
 ): FactoryInjectionToken<T, S>
 ```
 
-**Usage**: The factory token provides default configuration values. When you request the factory token from the container, it resolves the configuration values and passes them to the service or factory registered with the base token.
+**Note**: This doesn't create the service itself - the service must be defined with `@Injectable` or `@Factory` decorators.
 
 ## Next Steps
 
