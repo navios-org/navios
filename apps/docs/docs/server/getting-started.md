@@ -126,5 +126,14 @@ curl http://localhost:3000/users/123
 
 - [Architecture](/docs/server/overview/architecture) - Understand modules, controllers, and endpoints
 - [Controllers & Endpoints](/docs/server/guides/controllers) - Learn about routing and request handling
+- [Services & Dependency Injection](/docs/server/guides/services) - Create and use services with dependency injection
+- [Testing](/docs/server/guides/testing) - Learn how to test your Navios application
+- [ConfigService](/docs/server/guides/config-service) - Manage application configuration
 - [Adapters](/docs/server/adapters/fastify) - Configure your HTTP runtime
+- [Best Practices](/docs/server/best-practices) - Follow best practices for building Navios applications
 - [Packages](/docs/packages) - Explore additional packages like JWT, Schedule, and more
+
+## Related Documentation
+
+- [Builder: Defining Endpoints](/docs/builder/guides/defining-endpoints) - Learn how to define type-safe endpoints
+- [DI: Getting Started](/docs/di/getting-started) - Learn about dependency injection

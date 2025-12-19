@@ -86,40 +86,14 @@ All data flows through Zod schemas:
 
 ## Architecture
 
-```
-┌─────────────────┐
-│   Your Code     │
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│  Endpoint Func   │  ← Typed function from declareEndpoint()
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│  Request Config  │  ← URL params, query params, body
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│  HTTP Client     │  ← @navios/http, axios, or custom
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│  API Response    │
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│  Zod Validation  │  ← Validates against responseSchema
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│  Typed Response  │  ← Fully typed and validated
-└─────────────────┘
+```mermaid
+graph TD
+    A[Your Code] --> B[Endpoint Func<br/>Typed function from declareEndpoint]
+    B --> C[Request Config<br/>URL params, query params, body]
+    C --> D[HTTP Client<br/>@navios/http, axios, or custom]
+    D --> E[API Response]
+    E --> F[Zod Validation<br/>Validates against responseSchema]
+    F --> G[Typed Response<br/>Fully typed and validated]
 ```
 
 ## Key Features

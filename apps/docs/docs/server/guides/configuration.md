@@ -7,9 +7,13 @@ title: Configuration
 
 Navios provides a configuration system for managing application settings with type-safe access.
 
+:::tip
+For comprehensive documentation on ConfigService, see the [ConfigService guide](/docs/server/guides/config-service).
+:::
+
 ## ConfigService
 
-The `ConfigService` provides access to configuration values with support for nested paths.
+The `ConfigService` provides access to configuration values with support for nested paths using dot notation.
 
 ### Methods
 
@@ -19,6 +23,8 @@ The `ConfigService` provides access to configuration values with support for nes
 | `getOrDefault(key, default)` | Get value or return default |
 | `getOrThrow(key, message?)` | Get value or throw exception |
 | `getConfig()` | Get entire config object |
+
+For detailed usage examples and best practices, see the [ConfigService guide](/docs/server/guides/config-service).
 
 ## Using provideConfig
 
@@ -204,3 +210,45 @@ class HealthController {
   }
 }
 ```
+
+## Logger Configuration
+
+Navios provides a comprehensive logging system. For detailed information about configuring and using the logger, see the [Logging guide](/docs/server/guides/logging).
+
+### Basic Logger Setup
+
+```typescript
+import { NaviosFactory } from '@navios/core'
+import { defineFastifyEnvironment } from '@navios/adapter-fastify'
+
+const app = await NaviosFactory.create(AppModule, {
+  adapter: defineFastifyEnvironment(),
+  logger: ['log', 'error', 'warn'], // Enable specific log levels
+})
+```
+
+### Custom Logger
+
+```typescript
+import { LoggerService } from '@navios/core'
+
+class CustomLogger implements LoggerService {
+  log(message: string) { /* ... */ }
+  error(message: string, stack?: string) { /* ... */ }
+  warn(message: string) { /* ... */ }
+}
+
+const app = await NaviosFactory.create(AppModule, {
+  adapter: defineFastifyEnvironment(),
+  logger: new CustomLogger(),
+})
+```
+
+For more details, see the [Logging guide](/docs/server/guides/logging).
+
+## Related Documentation
+
+- [ConfigService Guide](/docs/server/guides/config-service) - Comprehensive ConfigService documentation
+- [Logging Guide](/docs/server/guides/logging) - Logger system documentation
+- [Services & DI](/docs/server/guides/services) - Using services with dependency injection
+- [DI: Injection Tokens](/docs/di/guides/injection-tokens) - Advanced dependency injection patterns

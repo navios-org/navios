@@ -77,30 +77,12 @@ const updateUser = client.mutation({
 
 ## Architecture
 
-```
-┌─────────────────┐
-│  React Component│
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│  Query Hook     │  ← use() or useSuspense()
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│  TanStack Query │  ← Query cache & state
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│  Builder Client │  ← Type-safe API calls
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│  HTTP Client    │  ← Actual network request
-└─────────────────┘
+```mermaid
+graph TD
+    A[React Component] --> B[Query Hook<br/>use or useSuspense]
+    B --> C[TanStack Query<br/>Query cache & state]
+    C --> D[Builder Client<br/>Type-safe API calls]
+    D --> E[HTTP Client<br/>Actual network request]
 ```
 
 ## Quick Start

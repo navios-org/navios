@@ -59,6 +59,10 @@ export const createUser = API.declareEndpoint({
 })
 ```
 
+:::tip
+For comprehensive information about defining endpoints with Builder, including URL parameters, query parameters, and advanced features, see the [Builder documentation](/docs/builder/guides/defining-endpoints).
+:::
+
 ## EndpointParams
 
 The `EndpointParams` type provides typed access to all request data:
@@ -214,6 +218,7 @@ Use `inject()` to access services:
 
 ```typescript
 import { inject } from '@navios/di'
+import { Logger } from '@navios/core'
 
 @Controller()
 class UserController {
@@ -227,6 +232,10 @@ class UserController {
   }
 }
 ```
+
+:::tip
+For more details on using services and dependency injection, see the [Services & Dependency Injection guide](/docs/server/guides/services). For advanced DI topics, see the [DI documentation](/docs/di).
+:::
 
 ## Multiple Endpoints per Controller
 

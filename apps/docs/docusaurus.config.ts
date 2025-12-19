@@ -4,6 +4,14 @@ import type { Config } from '@docusaurus/types'
 import { themes as prismThemes } from 'prism-react-renderer'
 
 const config: Config = {
+  markdown: {
+    mermaid: true,
+    hooks: {
+      onBrokenMarkdownLinks: 'warn',
+    },
+  },
+  themes: ['@docusaurus/theme-mermaid'],
+
   title: 'Navios Framework',
   tagline: 'Type-safe, decorator-based framework for building modern APIs',
   favicon: 'img/favicon.ico',
@@ -19,7 +27,6 @@ const config: Config = {
   projectName: 'navios',
 
   onBrokenLinks: 'warn',
-  onBrokenMarkdownLinks: 'warn',
 
   i18n: {
     defaultLocale: 'en',
@@ -66,13 +73,23 @@ const config: Config = {
         editUrl: 'https://github.com/Arilas/navios/tree/main/apps/docs/',
       },
     ],
+    // [
+    //   '@docusaurus/plugin-content-docs',
+    //   {
+    //     id: 'packages',
+    //     path: 'docs/packages',
+    //     routeBasePath: 'docs/packages',
+    //     sidebarPath: './sidebars/packages.ts',
+    //     editUrl: 'https://github.com/Arilas/navios/tree/main/apps/docs/',
+    //   },
+    // ],
     [
       '@docusaurus/plugin-content-docs',
       {
-        id: 'packages',
-        path: 'docs/packages',
-        routeBasePath: 'docs/packages',
-        sidebarPath: './sidebars/packages.ts',
+        id: 'commander',
+        path: 'docs/commander',
+        routeBasePath: 'docs/commander',
+        sidebarPath: './sidebars/commander.ts',
         editUrl: 'https://github.com/Arilas/navios/tree/main/apps/docs/',
       },
     ],
@@ -84,6 +101,12 @@ const config: Config = {
       defaultMode: 'dark',
       disableSwitch: false,
       respectPrefersColorScheme: true,
+    },
+    mermaid: {
+      theme: {
+        light: 'default',
+        dark: 'dark',
+      },
     },
     navbar: {
       title: 'Navios',
@@ -113,12 +136,19 @@ const config: Config = {
           label: 'DI',
           docsPluginId: 'di',
         },
+        // {
+        //   type: 'docSidebar',
+        //   sidebarId: 'packagesSidebar',
+        //   position: 'left',
+        //   label: 'Packages',
+        //   docsPluginId: 'packages',
+        // },
         {
           type: 'docSidebar',
-          sidebarId: 'packagesSidebar',
+          sidebarId: 'commanderSidebar',
           position: 'left',
-          label: 'Packages',
-          docsPluginId: 'packages',
+          label: 'Commander',
+          docsPluginId: 'commander',
         },
         {
           href: 'https://github.com/Arilas/navios',
@@ -145,9 +175,13 @@ const config: Config = {
               label: 'DI',
               to: '/docs/di',
             },
+            // {
+            //   label: 'Packages',
+            //   to: '/docs/packages',
+            // },
             {
-              label: 'Packages',
-              to: '/docs/packages',
+              label: 'Commander',
+              to: '/docs/commander',
             },
           ],
         },

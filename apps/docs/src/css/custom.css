@@ -219,3 +219,48 @@
   background: linear-gradient(180deg, #0f172a 0%, #020617 100%);
   border-top: 1px solid rgba(255, 255, 255, 0.1);
 }
+
+/* Mermaid diagram styling for dark theme */
+[data-theme='dark'] .mermaid {
+  background-color: transparent;
+}
+
+[data-theme='dark'] .mermaid svg {
+  background-color: transparent !important;
+}
+
+[data-theme='dark'] .mermaid .node rect,
+[data-theme='dark'] .mermaid .node circle,
+[data-theme='dark'] .mermaid .node ellipse,
+[data-theme='dark'] .mermaid .node polygon {
+  fill: #1e293b !important;
+  stroke: #22d3ee !important;
+  color: #e2e8f0 !important;
+}
+
+[data-theme='dark'] .mermaid .nodeLabel {
+  color: #e2e8f0 !important;
+}
+
+[data-theme='dark'] .mermaid .edgeLabel {
+  background-color: #1e293b !important;
+  color: #e2e8f0 !important;
+}
+
+[data-theme='dark'] .mermaid .edgePath .path {
+  stroke: #22d3ee !important;
+}
+
+[data-theme='dark'] .mermaid .arrowheadPath {
+  fill: #22d3ee !important;
+  stroke: #22d3ee !important;
+}
+
+[data-theme='dark'] .mermaid .cluster rect {
+  fill: rgba(34, 211, 238, 0.1) !important;
+  stroke: #22d3ee !important;
+}
+
+[data-theme='dark'] .mermaid .cluster-label {
+  color: #e2e8f0 !important;
+}

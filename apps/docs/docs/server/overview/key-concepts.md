@@ -63,6 +63,10 @@ async createUser(params: EndpointParams<typeof createUser>) {
 }
 ```
 
+:::tip
+For comprehensive information about defining endpoints with Builder, see the [Builder documentation](/docs/builder/guides/defining-endpoints).
+:::
+
 ## URL Parameters
 
 Define dynamic URL segments with the `$` prefix:
@@ -157,6 +161,10 @@ class UserController {
 }
 ```
 
+:::tip
+For more details on using services and dependency injection, see the [Services & Dependency Injection guide](/docs/server/guides/services). For advanced DI topics, see the [DI documentation](/docs/di).
+:::
+
 ## Service Scopes
 
 Services can have different lifetimes:
@@ -173,6 +181,10 @@ class RequestContext {
   userId: string | null = null
 }
 ```
+
+:::tip
+For detailed information about service scopes and lifecycle management, see the [Services & Dependency Injection guide](/docs/server/guides/services) and [DI: Scopes documentation](/docs/di/guides/scopes).
+:::
 
 ## Injection Tokens
 
@@ -200,6 +212,10 @@ class ApiClient {
   private config = inject(ConfigToken)
 }
 ```
+
+:::tip
+For advanced dependency injection topics including injection tokens, factories, and lifecycle management, see the [DI documentation](/docs/di/guides/injection-tokens).
+:::
 
 ## Attributes
 

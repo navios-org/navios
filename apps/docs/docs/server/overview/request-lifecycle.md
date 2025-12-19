@@ -9,53 +9,17 @@ Understanding how requests flow through Navios helps you debug issues and implem
 
 ## Request Flow
 
-```
-Incoming Request
-       │
-       ▼
-┌─────────────────┐
-│  HTTP Adapter   │  (Fastify/Bun receives request)
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│  Route Matching │  (Find matching endpoint)
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│  Module Guards  │  (Run module-level guards)
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│ Controller Init │  (Resolve controller dependencies)
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│ Endpoint Guards │  (Run endpoint-level guards)
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│   Validation    │  (Validate request against Zod schemas)
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│ Endpoint Method │  (Execute handler logic)
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│ Response Validation │  (Validate response against schema)
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│  HTTP Response  │  (Send response to client)
-└─────────────────┘
+```mermaid
+graph TD
+    A[Incoming Request] --> B[HTTP Adapter<br/>Fastify/Bun receives request]
+    B --> C[Route Matching<br/>Find matching endpoint]
+    C --> D[Module Guards<br/>Run module-level guards]
+    D --> E[Controller Init<br/>Resolve controller dependencies]
+    E --> F[Endpoint Guards<br/>Run endpoint-level guards]
+    F --> G[Validation<br/>Validate request against Zod schemas]
+    G --> H[Endpoint Method<br/>Execute handler logic]
+    H --> I[Response Validation<br/>Validate response against schema]
+    I --> J[HTTP Response<br/>Send response to client]
 ```
 
 ## Phase Details
