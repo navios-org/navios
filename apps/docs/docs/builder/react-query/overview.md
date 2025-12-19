@@ -1,19 +1,70 @@
 ---
-sidebar_position: 1
+sidebar_position: 2
 ---
 
-# @navios/react-query
+# Overview
 
-A type-safe React Query integration library that bridges TanStack Query v5 with the `@navios/builder` API client. It provides a declarative, schema-validated approach to handling server state management in React applications.
+`@navios/react-query` is a type-safe React Query integration library that bridges TanStack Query v5 with the `@navios/builder` API client. It provides a declarative, schema-validated approach to handling server state management in React applications.
 
-**Package:** `@navios/react-query`
-**License:** MIT
+**Package:** `@navios/react-query`  
+**License:** MIT  
 **Peer Dependencies:** `@navios/builder`, `@tanstack/react-query` (^5.51.21), `zod` (^3.25.0 || ^4.0.0)
 
-## Installation
+## Why Use React Query Integration?
 
-```bash
-npm install @navios/react-query @navios/builder @tanstack/react-query zod
+### Type Safety
+
+End-to-end TypeScript support with automatic type inference:
+
+- Query parameters are typed from your endpoint definitions
+- Response data is typed from your Zod schemas
+- Mutation variables are type-checked
+- Query keys are automatically generated and typed
+
+### Automatic Query Key Management
+
+Builder automatically generates hierarchical query keys:
+
+```typescript
+const getUser = client.query({
+  method: 'GET',
+  url: '/users/$userId',
+  responseSchema: userSchema,
+  processResponse: (data) => data,
+})
+
+// Automatic key generation
+// Key: ['users', '123']
+const key = getUser.queryKey.dataTag({ urlParams: { userId: '123' } })
+```
+
+### Suspense Support
+
+First-class React Suspense support:
+
+```typescript
+function UserProfile({ userId }: { userId: string }) {
+  const user = getUser.useSuspense({ urlParams: { userId } })
+  // No loading/error checks needed!
+  return <div>{user.name}</div>
+}
+```
+
+### Optimistic Updates
+
+Built-in support for optimistic updates with automatic rollback:
+
+```typescript
+const updateUser = client.mutation({
+  // ...
+  onMutate: async (variables, context) => {
+    // Optimistically update UI
+    context.queryClient.setQueryData(/* ... */)
+  },
+  onError: (error, variables, context) => {
+    // Automatic rollback on error
+  },
+})
 ```
 
 ## Key Principles
@@ -24,10 +75,38 @@ npm install @navios/react-query @navios/builder @tanstack/react-query zod
 - **Smart Invalidation** - Hierarchical query key management
 - **Suspense Ready** - First-class React Suspense support
 
+## Architecture
+
+```
+┌─────────────────┐
+│  React Component│
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│  Query Hook     │  ← use() or useSuspense()
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│  TanStack Query │  ← Query cache & state
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│  Builder Client │  ← Type-safe API calls
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│  HTTP Client    │  ← Actual network request
+└─────────────────┘
+```
+
 ## Quick Start
 
 ```typescript
-// Setup client
+// 1. Setup API builder
 import { builder } from '@navios/builder'
 import { create } from '@navios/http'
 import { declareClient } from '@navios/react-query'
@@ -36,16 +115,17 @@ import { z } from 'zod'
 const api = builder()
 api.provideClient(create({ baseURL: 'https://api.example.com' }))
 
+// 2. Create React Query client
 const client = declareClient({ api })
 
-// Define schema
+// 3. Define schema
 const userSchema = z.object({
   id: z.string(),
   name: z.string(),
   email: z.string().email(),
 })
 
-// Create query
+// 4. Create query
 const getUser = client.query({
   method: 'GET',
   url: '/users/$userId',
@@ -53,18 +133,18 @@ const getUser = client.query({
   processResponse: (data) => data,
 })
 
-// Use in component
+// 5. Use in component
 function UserProfile({ userId }: { userId: string }) {
   const user = getUser.useSuspense({ urlParams: { userId } })
   return <div>{user.name}</div>
 }
 ```
 
-## Query API
+## Features
 
-### client.query()
+### Queries
 
-Creates a query with inline configuration:
+Type-safe queries with automatic cache management:
 
 ```typescript
 const getUser = client.query({
@@ -74,30 +154,16 @@ const getUser = client.query({
   processResponse: (data) => data,
 })
 
-// Usage
-const { data } = getUser.use({ urlParams: { userId: '123' } })
-const data = getUser.useSuspense({ urlParams: { userId: '123' } })
+// Standard hook
+const { data, isLoading, error } = getUser.use({ urlParams: { userId: '123' } })
+
+// Suspense hook
+const user = getUser.useSuspense({ urlParams: { userId: '123' } })
 ```
 
-### client.queryFromEndpoint()
+### Infinite Queries
 
-Creates a query from a pre-declared endpoint:
-
-```typescript
-// shared/endpoints/users.ts
-export const getUserEndpoint = API.declareEndpoint({
-  method: 'GET',
-  url: '/users/$userId',
-  responseSchema: userSchema,
-})
-
-// client/queries/users.ts
-const getUser = client.queryFromEndpoint(getUserEndpoint, {
-  processResponse: (data) => data,
-})
-```
-
-## Infinite Query API
+Paginated data with infinite scroll support:
 
 ```typescript
 const getUsers = client.infiniteQuery({
@@ -105,7 +171,6 @@ const getUsers = client.infiniteQuery({
   url: '/users',
   querySchema: z.object({
     cursor: z.string().optional(),
-    limit: z.number().optional(),
   }),
   responseSchema: z.object({
     users: z.array(userSchema),
@@ -115,87 +180,44 @@ const getUsers = client.infiniteQuery({
   getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
   initialPageParam: undefined,
 })
-
-// Usage
-const { data, fetchNextPage, hasNextPage } = getUsers.use({
-  params: { limit: 20 },
-})
 ```
 
-## Mutation API
+### Mutations
+
+Type-safe mutations with optimistic updates:
 
 ```typescript
 const createUser = client.mutation({
   method: 'POST',
   url: '/users',
-  requestSchema: z.object({
-    name: z.string(),
-    email: z.string().email(),
-  }),
+  requestSchema: userCreateSchema,
   responseSchema: userSchema,
   processResponse: (data) => data,
-  onSuccess: (data) => console.log('User created:', data),
-})
-
-// Usage
-const { mutate, isPending } = createUser()
-mutate({ data: { name: 'John', email: 'john@example.com' } })
-```
-
-### Scoped Mutations
-
-Enable `useKey` to track mutations per item:
-
-```typescript
-const updateUser = client.mutation({
-  method: 'PUT',
-  url: '/users/$userId',
-  requestSchema: userUpdateSchema,
-  responseSchema: userSchema,
-  useKey: true,
-  processResponse: (data) => data,
-})
-
-function UserCard({ userId }: { userId: string }) {
-  const { mutate, isPending } = updateUser({ urlParams: { userId } })
-  const isUpdating = updateUser.useIsMutating({ userId })
-
-  return (
-    <button onClick={() => mutate({ data: { name: 'New Name' } })}>
-      {isUpdating ? 'Saving...' : 'Update'}
-    </button>
-  )
-}
-```
-
-## Multipart Mutations
-
-```typescript
-const uploadFile = client.multipartMutation({
-  method: 'POST',
-  url: '/files',
-  requestSchema: z.object({
-    file: z.instanceof(File),
-    description: z.string().optional(),
-  }),
-  responseSchema: z.object({ fileId: z.string() }),
-  processResponse: (data) => data,
+  useContext: () => ({ queryClient: useQueryClient() }),
+  onSuccess: (data, variables, context) => {
+    context.queryClient.invalidateQueries({ queryKey: ['users'] })
+  },
 })
 ```
 
-## Query Key Management
+### Query Key Management
+
+Automatic query key generation and invalidation:
 
 ```typescript
-const getUser = client.query({ url: '/users/$userId', ... })
-
-// Full key with all parameters
-getUser.queryKey.dataTag({ urlParams: { userId: '123' } })
-
-// Partial key for filtering
-getUser.queryKey.filterKey({ urlParams: { userId: '123' } })
-
-// Invalidation
+// Invalidate specific query
 await getUser.invalidate(queryClient, { urlParams: { userId: '123' } })
+
+// Invalidate all matching queries
 await getUser.invalidateAll(queryClient, { urlParams: { userId: '123' } })
 ```
+
+## What's Next?
+
+- [Getting Started](/docs/builder/react-query/getting-started) - Installation and setup
+- [Queries](/docs/builder/react-query/guides/queries) - Learn about queries
+- [Mutations](/docs/builder/react-query/guides/mutations) - Learn about mutations
+- [Query Keys](/docs/builder/react-query/guides/query-keys) - Understand query key management
+- [Suspense](/docs/builder/react-query/guides/suspense) - Use Suspense for cleaner code
+- [Optimistic Updates](/docs/builder/react-query/guides/optimistic-updates) - Update UI optimistically
 
