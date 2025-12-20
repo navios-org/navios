@@ -1,0 +1,15 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "module": "Node18",
+    "outDir": "dist"
+  },
+  "references": [
+    { "path": "./tsconfig.lib.json" },
+    { "path": "../core" },
+    { "path": "../di" },
+    { "path": "../openapi" },
+    { "path": "../adapter-bun" },
+    { "path": "../builder" }
+  ]
+}

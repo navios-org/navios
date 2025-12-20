@@ -1,0 +1,11 @@
+import { defineProject } from 'vitest/config'
+
+export default defineProject({
+  test: {
+    typecheck: {
+      enabled: true,
+      tsconfig: './tsconfig.lib.json',
+    },
+    include: ['src/**/*.spec.mts', 'src/**/*.spec-d.mts'],
+  },
+})
