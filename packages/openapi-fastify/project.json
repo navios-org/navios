@@ -1,0 +1,66 @@
+{
+  "name": "@navios/openapi-fastify",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "packages/openapi-fastify/src",
+  "prefix": "openapi-fastify",
+  "tags": [],
+  "projectType": "library",
+  "targets": {
+    "check": {
+      "executor": "nx:run-commands",
+      "outputs": ["{projectRoot}/dist"],
+      "inputs": [
+        "^projectSources",
+        "projectSources",
+        "{projectRoot}/tsconfig.json",
+        "{projectRoot}/tsconfig.lib.json"
+      ],
+      "options": {
+        "command": ["tsc -b"],
+        "cwd": "packages/openapi-fastify"
+      }
+    },
+    "lint": {
+      "executor": "nx:run-commands",
+      "inputs": ["^projectSources", "project"],
+      "options": {
+        "command": "oxlint --fix",
+        "cwd": "packages/openapi-fastify"
+      }
+    },
+    "test:ci": {
+      "executor": "nx:run-commands",
+      "inputs": ["^projectSources", "project"],
+      "options": {
+        "command": "vitest run",
+        "cwd": "packages/openapi-fastify"
+      }
+    },
+    "build": {
+      "executor": "nx:run-commands",
+      "inputs": ["projectSources", "{projectRoot}/tsdown.config.mts"],
+      "outputs": ["{projectRoot}/lib"],
+      "dependsOn": ["check", "lint"],
+      "options": {
+        "command": "tsdown",
+        "cwd": "packages/openapi-fastify"
+      }
+    },
+    "publish": {
+      "executor": "nx:run-commands",
+      "dependsOn": ["build"],
+      "options": {
+        "command": "yarn npm publish --access public",
+        "cwd": "packages/openapi-fastify"
+      }
+    },
+    "publish:next": {
+      "executor": "nx:run-commands",
+      "dependsOn": ["build"],
+      "options": {
+        "command": "yarn npm publish --access public --tag next",
+        "cwd": "packages/openapi-fastify"
+      }
+    }
+  }
+}
