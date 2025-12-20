@@ -132,6 +132,21 @@ export class BunApplicationService implements BunApplicationServiceInterface {
   }
 
   /**
+   * Gets the current global prefix for all routes.
+   *
+   * @returns The global prefix string, or empty string if no prefix is set.
+   *
+   * @example
+   * ```ts
+   * app.setGlobalPrefix('/api/v1')
+   * console.log(app.getGlobalPrefix()) // '/api/v1'
+   * ```
+   */
+  getGlobalPrefix(): string {
+    return this.globalPrefix
+  }
+
+  /**
    * Gets the underlying Bun server instance.
    *
    * This allows direct access to the Bun server for advanced use cases,
