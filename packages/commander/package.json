@@ -1,6 +1,6 @@
 {
   "name": "@navios/commander",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "author": {
     "name": "Oleksandr Hanzha",
     "email": "alex@granted.name"
@@ -15,7 +15,7 @@
     "zod": "^4.0.0"
   },
   "typings": "./lib/index.d.mts",
-  "main": "./lib/index.js",
+  "main": "./lib/index.cjs",
   "module": "./lib/index.mjs",
   "exports": {
     ".": {
@@ -24,15 +24,15 @@
         "default": "./lib/index.mjs"
       },
       "require": {
-        "types": "./lib/index.d.ts",
-        "default": "./lib/index.js"
+        "types": "./lib/index.d.cts",
+        "default": "./lib/index.cjs"
       }
     }
   },
   "devDependencies": {
     "tsx": "^4.21.0",
     "typescript": "^5.9.3",
-    "zod": "^4.1.13"
+    "zod": "^4.2.1"
   },
   "dependencies": {
     "@navios/di": "workspace:^"

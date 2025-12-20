@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.1] - 2025-12-20
+
+### Fixed
+
+- Fixed package.json exports to use correct CommonJS file extensions (`.cjs` and `.d.cts`)
+
 ## [0.7.0] - 2025-12-18
 
 ### Added
@@ -29,4 +35,3 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added usage examples in JSDoc comments for all public APIs
 - Improved discoverability of API features through comprehensive documentation
 - Updated README to accurately reflect the ExecutionContext API
-
