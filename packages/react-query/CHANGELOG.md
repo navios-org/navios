@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.7.1] - 2025-12-20
+
+### Fixed
+
+- Fixed package.json exports to use correct CommonJS file extensions (`.cjs` and `.d.cts`)
+
 ## [0.7.0] - 2025-12-18
 
 ### Fixed
