@@ -1,13 +1,13 @@
 {
   "name": "@navios/http",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "author": {
     "name": "Oleksandr Hanzha",
     "email": "alex@granted.name"
   },
   "license": "MIT",
   "typings": "./lib/index.d.mts",
-  "main": "./lib/index.js",
+  "main": "./lib/index.cjs",
   "module": "./lib/index.mjs",
   "exports": {
     ".": {
@@ -16,8 +16,8 @@
         "default": "./lib/index.mjs"
       },
       "require": {
-        "types": "./lib/index.d.ts",
-        "default": "./lib/index.js"
+        "types": "./lib/index.d.cts",
+        "default": "./lib/index.cjs"
       }
     },
     "./testing": {
@@ -26,8 +26,8 @@
         "default": "./lib/testing/index.mjs"
       },
       "require": {
-        "types": "./lib/testing/index.d.ts",
-        "default": "./lib/testing/index.js"
+        "types": "./lib/testing/index.d.cts",
+        "default": "./lib/testing/index.cjs"
       }
     }
   },
