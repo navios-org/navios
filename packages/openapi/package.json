@@ -1,0 +1,44 @@
+{
+  "name": "@navios/openapi",
+  "version": "0.7.0",
+  "author": {
+    "name": "Oleksandr Hanzha",
+    "email": "alex@granted.name"
+  },
+  "repository": {
+    "directory": "packages/openapi",
+    "type": "git",
+    "url": "https://github.com/Arilas/navios.git"
+  },
+  "license": "MIT",
+  "peerDependencies": {
+    "@navios/core": "workspace:^",
+    "zod": "^3.25.0 || ^4.0.0"
+  },
+  "typings": "./lib/index.d.mts",
+  "main": "./lib/index.cjs",
+  "module": "./lib/index.mjs",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./lib/index.d.mts",
+        "default": "./lib/index.mjs"
+      },
+      "require": {
+        "types": "./lib/index.d.cts",
+        "default": "./lib/index.cjs"
+      }
+    }
+  },
+  "devDependencies": {
+    "@navios/builder": "workspace:^",
+    "@navios/core": "workspace:^",
+    "typescript": "^5.9.3",
+    "zod": "^4.2.1"
+  },
+  "dependencies": {
+    "@navios/di": "workspace:^",
+    "yaml": "^2.8.2",
+    "zod-openapi": "^5.4.5"
+  }
+}
