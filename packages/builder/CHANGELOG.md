@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.5.1] - 2025-12-20
+
+### Fixed
+
+- Fixed package.json exports to use correct CommonJS file extensions (`.cjs` and `.d.cts`)
+
+### Changed
+
+- Updated zod dev dependency from `^4.1.13` to `^4.2.1`
+
 ## [0.5.0] - 2025-12-18
 
 ### Changed
