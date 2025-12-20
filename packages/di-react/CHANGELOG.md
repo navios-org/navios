@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.1] - 2025-12-20
+
+### Fixed
+
+- Fixed package.json exports to use correct CommonJS file extensions (`.cjs` and `.d.cts`)
+
 ## [0.2.0] - 2025-01-XX
 
 ### Added
@@ -36,4 +42,3 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Synchronous instance resolution when available (optimization)
 - React Suspense integration for declarative loading states
 - Optional service loading for feature flags and plugins
-
