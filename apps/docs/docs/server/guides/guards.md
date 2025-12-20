@@ -238,4 +238,5 @@ class AdminGuard implements CanActivate {
 
 ## Next Steps
 
-For complete authentication implementations with JWT tokens, database user lookup, and refresh tokens, see the [Authentication recipe](/docs/server/recipes/authentication).
+- [Authentication Guide](/docs/server/guides/authentication) - Comprehensive guide covering JWT, OAuth, Passport, sessions, and more
+- [JWT Authentication Recipe](/docs/server/recipes/authentication) - Complete JWT implementation example

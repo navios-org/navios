@@ -10,7 +10,7 @@
     "@navios/builder": "workspace:*",
     "@navios/core": "workspace:*",
     "@navios/di": "workspace:*",
-    "zod": "^4.1.13"
+    "zod": "^4.2.1"
   },
   "devDependencies": {
     "tsx": "^4.21.0",

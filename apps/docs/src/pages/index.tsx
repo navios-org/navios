@@ -9,7 +9,8 @@ import CodeBlock from '@theme/CodeBlock'
 
 import styles from './index.module.css'
 
-const installCommand = 'npm install @navios/core @navios/adapter-fastify @navios/builder zod'
+const installCommand =
+  'npm install @navios/core @navios/adapter-fastify @navios/builder zod'
 
 function HomepageHeader() {
   const { siteConfig } = useDocusaurusContext()
@@ -251,14 +252,18 @@ function CodeExample(): ReactNode {
           Define Once, Use Everywhere
         </Heading>
         <p className={styles.sectionSubtitle}>
-          Create type-safe API definitions that work seamlessly on both client and server
+          Create type-safe API definitions that work seamlessly on both client
+          and server
         </p>
         <div className={styles.codeContainer}>
           <div className={styles.codeTabs}>
             {tabs.map((tab) => (
               <button
                 key={tab.key}
-                className={clsx(styles.codeTab, activeTab === tab.key && styles.codeTabActive)}
+                className={clsx(
+                  styles.codeTab,
+                  activeTab === tab.key && styles.codeTabActive,
+                )}
                 onClick={() => setActiveTab(tab.key)}
               >
                 {tab.label}
@@ -346,13 +351,33 @@ function ComparisonSection(): ReactNode {
 function EcosystemSection(): ReactNode {
   const ecosystem = {
     adapters: [
-      { name: 'Fastify', description: 'High-performance Node.js server', link: '/docs/server/adapters/fastify' },
-      { name: 'Bun', description: 'Native Bun HTTP server', link: '/docs/server/adapters/bun' },
+      {
+        name: 'Fastify',
+        description: 'High-performance Node.js server',
+        link: '/docs/server/adapters/fastify',
+      },
+      {
+        name: 'Bun',
+        description: 'Native Bun HTTP server',
+        link: '/docs/server/adapters/bun',
+      },
     ],
     recipes: [
-      { name: 'JWT Auth', description: 'JSON Web Token authentication', link: '/docs/server/recipes/jwt' },
-      { name: 'Scheduled Tasks', description: 'Cron-based job scheduling', link: '/docs/server/recipes/schedule' },
-      { name: 'Prisma ORM', description: 'Type-safe database access', link: '/docs/server/recipes/prisma' },
+      {
+        name: 'JWT Auth',
+        description: 'JSON Web Token authentication',
+        link: '/docs/server/recipes/authentication',
+      },
+      {
+        name: 'Scheduled Tasks',
+        description: 'Cron-based job scheduling',
+        link: '/docs/server/recipes/schedule',
+      },
+      {
+        name: 'Prisma ORM',
+        description: 'Type-safe database access',
+        link: '/docs/server/recipes/prisma',
+      },
     ],
   }
 
@@ -371,9 +396,15 @@ function EcosystemSection(): ReactNode {
               <Heading as="h3">Adapters</Heading>
               <div className={styles.ecosystemList}>
                 {ecosystem.adapters.map((item) => (
-                  <Link key={item.name} to={item.link} className={styles.ecosystemItem}>
+                  <Link
+                    key={item.name}
+                    to={item.link}
+                    className={styles.ecosystemItem}
+                  >
                     <span className={styles.ecosystemName}>{item.name}</span>
-                    <span className={styles.ecosystemDesc}>{item.description}</span>
+                    <span className={styles.ecosystemDesc}>
+                      {item.description}
+                    </span>
                   </Link>
                 ))}
               </div>
@@ -384,9 +415,15 @@ function EcosystemSection(): ReactNode {
               <Heading as="h3">Recipes</Heading>
               <div className={styles.ecosystemList}>
                 {ecosystem.recipes.map((item) => (
-                  <Link key={item.name} to={item.link} className={styles.ecosystemItem}>
+                  <Link
+                    key={item.name}
+                    to={item.link}
+                    className={styles.ecosystemItem}
+                  >
                     <span className={styles.ecosystemName}>{item.name}</span>
-                    <span className={styles.ecosystemDesc}>{item.description}</span>
+                    <span className={styles.ecosystemDesc}>
+                      {item.description}
+                    </span>
                   </Link>
                 ))}
               </div>
@@ -402,19 +439,22 @@ function PackagesSection(): ReactNode {
   const packages = [
     {
       name: '@navios/core',
-      description: 'HTTP server framework with decorators, modules, and controllers',
+      description:
+        'HTTP server framework with decorators, modules, and controllers',
       link: '/docs/server',
       npm: 'https://www.npmjs.com/package/@navios/core',
     },
     {
       name: '@navios/builder',
-      description: 'Type-safe API declarations shared between client and server',
+      description:
+        'Type-safe API declarations shared between client and server',
       link: '/docs/builder',
       npm: 'https://www.npmjs.com/package/@navios/builder',
     },
     {
       name: '@navios/di',
-      description: 'Lightweight dependency injection with hierarchical containers',
+      description:
+        'Lightweight dependency injection with hierarchical containers',
       link: '/docs/di',
       npm: 'https://www.npmjs.com/package/@navios/di',
     },

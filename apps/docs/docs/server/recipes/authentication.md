@@ -1,15 +1,17 @@
 ---
 sidebar_position: 2
-title: Authentication
+title: JWT Authentication
 ---
 
-# Authentication
+# JWT Authentication
 
-Complete authentication implementation with JWT tokens, user lookup, and role-based access control.
+Complete JWT-based authentication implementation with user registration, login, token refresh, and role-based access control.
+
+> **Note:** This recipe demonstrates JWT authentication specifically. For an overview of authentication strategies (JWT, OAuth, Passport, sessions, etc.), see the [Authentication guide](/docs/server/guides/authentication).
 
 ## Overview
 
-This recipe covers:
+This recipe provides a production-ready JWT authentication implementation:
 
 - JWT-based authentication with `@navios/jwt`
 - User registration and login endpoints
@@ -72,6 +74,7 @@ export const authConfig = new ConfigService<AuthConfig>({
 ```typescript
 // api/auth.endpoints.ts
 import { builder } from '@navios/builder'
+
 import { z } from 'zod'
 
 const authApi = builder()
@@ -138,9 +141,14 @@ export const profileEndpoint = authApi.declareEndpoint({
 
 ```typescript
 // modules/auth/auth.service.ts
-import { Injectable, ConflictException, UnauthorizedException } from '@navios/core'
+import {
+  ConflictException,
+  Injectable,
+  UnauthorizedException,
+} from '@navios/core'
 import { inject } from '@navios/di'
 import { JwtService } from '@navios/jwt'
+
 import * as bcrypt from 'bcrypt'
 
 import { DatabaseService } from '../database/database.service'
@@ -282,9 +290,9 @@ export class AuthService {
 ```typescript
 // modules/auth/auth.guard.ts
 import {
-  Injectable,
-  CanActivate,
   AbstractExecutionContext,
+  CanActivate,
+  Injectable,
   UnauthorizedException,
 } from '@navios/core'
 import { inject } from '@navios/di'
@@ -326,10 +334,10 @@ export class AuthGuard implements CanActivate {
 ```typescript
 // modules/auth/roles.guard.ts
 import {
-  Injectable,
-  CanActivate,
   AbstractExecutionContext,
+  CanActivate,
   ForbiddenException,
+  Injectable,
 } from '@navios/core'
 
 @Injectable()
@@ -372,10 +380,10 @@ import {
 import { inject } from '@navios/di'
 
 import {
-  registerEndpoint,
   loginEndpoint,
-  refreshEndpoint,
   profileEndpoint,
+  refreshEndpoint,
+  registerEndpoint,
 } from '../../api/auth.endpoints'
 import { AuthGuard } from './auth.guard'
 import { AuthService } from './auth.service'
@@ -515,8 +523,134 @@ curl -X POST http://localhost:3000/auth/refresh \
 - Hash passwords with bcrypt (cost factor 10+)
 - Validate all input with Zod schemas
 
+## JWT Package Reference
+
+The `@navios/jwt` package provides type-safe JWT token signing, verification, and decoding.
+
+**Package:** `@navios/jwt`  
+**License:** MIT  
+**Dependencies:** `jsonwebtoken` (^9.0.3)
+
+### Quick Start
+
+```typescript
+import { provideJwtService } from '@navios/jwt'
+
+const JwtService = provideJwtService({
+  secret: 'your-secret-key',
+  signOptions: {
+    expiresIn: '1h',
+  },
+})
+```
+
+### Configuration Options
+
+#### Basic Configuration
+
+```typescript
+const JwtService = provideJwtService({
+  secret: 'your-secret-key',
+  signOptions: {
+    expiresIn: '1h',
+    algorithm: 'HS256',
+  },
+})
+```
+
+#### Async Configuration
+
+```typescript
+const JwtService = provideJwtService(async () => {
+  const config = await inject(ConfigService)
+  return {
+    secret: config.jwt.secret,
+    signOptions: { expiresIn: config.jwt.expiresIn },
+  }
+})
+```
+
+#### Asymmetric Keys (RS256)
+
+```typescript
+import fs from 'fs'
+
+const JwtService = provideJwtService({
+  privateKey: fs.readFileSync('private.pem'),
+  publicKey: fs.readFileSync('public.pem'),
+  signOptions: { algorithm: 'RS256' },
+})
+```
+
+### Signing Tokens
+
+```typescript
+import { inject, Injectable } from '@navios/di'
+import { JwtService } from '@navios/jwt'
+
+@Injectable()
+class AuthService {
+  private jwtService = inject(JwtService)
+
+  async createToken(userId: string) {
+    return this.jwtService.signAsync({ sub: userId, role: 'admin' })
+  }
+}
+```
+
+### Verifying Tokens
+
+```typescript
+try {
+  const payload = await jwtService.verifyAsync<{ sub: string }>(token)
+  console.log(payload.sub)
+} catch (error) {
+  if (error instanceof TokenExpiredError) {
+    console.error('Token has expired')
+  }
+}
+```
+
+### Decoding Without Verification
+
+```typescript
+// Warning: This does NOT verify the signature
+const payload = jwtService.decode<{ sub: string }>(token)
+```
+
+### Error Handling
+
+```typescript
+import {
+  JsonWebTokenError,
+  NotBeforeError,
+  TokenExpiredError,
+} from '@navios/jwt'
+
+try {
+  const payload = await jwtService.verifyAsync(token)
+} catch (error) {
+  if (error instanceof TokenExpiredError) {
+    // Token has expired
+  } else if (error instanceof NotBeforeError) {
+    // Token not yet valid
+  } else if (error instanceof JsonWebTokenError) {
+    // Invalid token
+  }
+}
+```
+
+### Supported Algorithms
+
+| Type    | Algorithms          |
+| ------- | ------------------- |
+| HMAC    | HS256, HS384, HS512 |
+| RSA     | RS256, RS384, RS512 |
+| ECDSA   | ES256, ES384, ES512 |
+| RSA-PSS | PS256, PS384, PS512 |
+
 ## Related
 
+- [Authentication Guide](/docs/server/guides/authentication) - Authentication strategies and patterns
 - [Guards guide](/docs/server/guides/guards) - Guard concepts and basics
-- [JWT package](/docs/server/recipes/jwt) - JWT package reference
 - [Configuration](/docs/server/guides/configuration) - Managing secrets
