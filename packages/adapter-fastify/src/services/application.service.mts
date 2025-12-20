@@ -160,6 +160,21 @@ export class FastifyApplicationService implements FastifyApplicationServiceInter
   }
 
   /**
+   * Gets the current global prefix for all routes.
+   *
+   * @returns The global prefix string, or empty string if no prefix is set.
+   *
+   * @example
+   * ```ts
+   * app.setGlobalPrefix('/api/v1')
+   * console.log(app.getGlobalPrefix()) // '/api/v1'
+   * ```
+   */
+  getGlobalPrefix(): string {
+    return this.globalPrefix
+  }
+
+  /**
    * Gets the underlying Fastify server instance.
    *
    * This allows direct access to the Fastify instance for advanced use cases,
