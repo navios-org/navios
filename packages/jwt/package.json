@@ -1,7 +1,7 @@
 {
   "name": "@navios/jwt",
   "description": "JWT authentication and authorization for Navios",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "author": {
     "name": "Oleksandr Hanzha",
     "email": "alex@granted.name"
@@ -17,7 +17,7 @@
     "zod": "^3.25.0 || ^4.0.0"
   },
   "typings": "./lib/index.d.mts",
-  "main": "./lib/index.js",
+  "main": "./lib/index.cjs",
   "module": "./lib/index.mjs",
   "exports": {
     ".": {
@@ -26,15 +26,15 @@
         "default": "./lib/index.mjs"
       },
       "require": {
-        "types": "./lib/index.d.ts",
-        "default": "./lib/index.js"
+        "types": "./lib/index.d.cts",
+        "default": "./lib/index.cjs"
       }
     }
   },
   "devDependencies": {
     "@navios/core": "workspace:^",
     "@types/jsonwebtoken": "^9.0.10",
-    "zod": "^4.1.13"
+    "zod": "^4.2.1"
   },
   "dependencies": {
     "jsonwebtoken": "^9.0.3"
