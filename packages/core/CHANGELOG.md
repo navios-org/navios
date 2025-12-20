@@ -5,6 +5,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.1] - 2025-12-18
+
+### Added
+
+- **Plugin System**: New plugin architecture allowing third-party extensions to integrate with Navios applications
+  - `NaviosPlugin` interface for defining plugins with registration hooks
+  - `PluginContext` interface providing access to modules, server, container, and module loader
+  - `PluginDefinition` type for plugin factory functions
+  - `app.usePlugin()` method for registering plugins on NaviosApplication
+- **Module Extensions**: New `ModuleLoaderService.extendModules()` method allowing plugins to dynamically add modules or controllers to the application after initial module loading
+
+### Changed
+
+- Enhanced JSDoc documentation for `AbstractHttpAdapterInterface` with comprehensive type parameter documentation and method descriptions
+
+### Fixed
+
+- Fixed logger setup in `NaviosFactory` to properly handle early return when logger is disabled
+- Fixed package.json exports to use correct CommonJS file extensions (`.cjs` and `.d.cts`)
+
+---
+
 ## [0.7.0] - 2025-12-18
 
 ### Added
