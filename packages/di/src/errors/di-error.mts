@@ -7,7 +7,7 @@ export enum DIErrorCode {
   UnknownError = 'UnknownError',
 }
 
-export class DIError {
+export class DIError extends Error {
   public readonly context?: Record<string, unknown>
 
   constructor(
@@ -15,6 +15,7 @@ export class DIError {
     public readonly message: string,
     context?: Record<string, unknown>,
   ) {
+    super(message)
     this.context = context
   }
 
