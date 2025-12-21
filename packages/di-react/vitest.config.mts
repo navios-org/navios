@@ -6,4 +6,7 @@ export default defineProject({
     environment: 'jsdom',
     include: ['src/**/__tests__/**/*.spec.mts'],
   },
+  resolve: {
+    conditions: ['browser', 'development', 'import'],
+  },
 })
