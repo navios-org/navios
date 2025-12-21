@@ -49,6 +49,27 @@ export class Registry {
   delete(token: InjectionToken<any, any>) {
     this.factories.delete(token.id)
   }
+
+  /**
+   * Updates the scope of an already registered factory.
+   * This is useful when you need to dynamically change a service's scope
+   * (e.g., when a singleton controller has request-scoped dependencies).
+   *
+   * @param token The injection token to update
+   * @param scope The new scope to set
+   * @returns true if the scope was updated, false if the token was not found
+   */
+  updateScope(token: InjectionToken<any, any>, scope: InjectableScope): boolean {
+    const factory = this.factories.get(token.id)
+    if (factory) {
+      factory.scope = scope
+      return true
+    }
+    if (this.parent) {
+      return this.parent.updateScope(token, scope)
+    }
+    return false
+  }
 }
 
 export const globalRegistry = new Registry()

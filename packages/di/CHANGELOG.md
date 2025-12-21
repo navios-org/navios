@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.1] - 2025-12-21
+
+### Added
+
+- **Registry.updateScope**: New method to update the scope of an already registered factory
+  - This is useful when you need to dynamically change a service's scope
+  - For example, when a singleton controller has request-scoped dependencies
+
 ## [0.7.0] - 2025-12-21
 
 ### Added
