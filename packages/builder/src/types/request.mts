@@ -1,7 +1,11 @@
 import type { z, ZodObject } from 'zod/v4'
 
 import type { AbstractRequestConfig } from './common.mjs'
-import type { AnyEndpointConfig, AnyStreamConfig, BaseStreamConfig } from './config.mjs'
+import type {
+  AnyEndpointConfig,
+  AnyStreamConfig,
+  BaseStreamConfig,
+} from './config.mjs'
 
 export type ParsePathParams<
   T extends string,
@@ -14,15 +18,19 @@ export type ParsePathParams<
       : TPossiblyParam | TAcc
   : TAcc
 
-export type UrlParams<Url extends string> = {
-  [key in ParsePathParams<Url>]: string | number
+export type UrlParams<Url extends string, IsServer extends boolean = false> = {
+  [key in ParsePathParams<Url>]: IsServer extends true
+    ? string
+    : string | number
 }
 
 export type UrlHasParams<Url extends string> =
   ParsePathParams<Url> extends never ? false : true
 
-export interface NaviosZodRequestBase
-  extends Pick<AbstractRequestConfig, 'signal' | 'headers'> {
+export interface NaviosZodRequestBase extends Pick<
+  AbstractRequestConfig,
+  'signal' | 'headers'
+> {
   [key: string]: any
 }
 
@@ -56,7 +64,7 @@ export type EndpointFunctionArgs<
     : {}) &
   (UrlHasParams<Url> extends true
     ? {
-        urlParams: UrlParams<Url>
+        urlParams: UrlParams<Url, IsServer>
       }
     : {}) &
   (IsServer extends false ? NaviosZodRequestBase : {})

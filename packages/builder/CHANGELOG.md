@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.5.2] - 2025-12-21
+
+### Changed
+
+- **UrlParams Type Enhancement**: Added `IsServer` boolean type parameter to `UrlParams<Url, IsServer>`
+  - Server-side: URL params are always `string`
+  - Client-side: URL params can be `string | number`
+  - Backward compatible - uses type inference when not explicitly provided
+
 ## [0.5.1] - 2025-12-20
 
 ### Fixed
