@@ -29,3 +29,4 @@ tsconfig.vitest-temp.json
 .github/instructions/nx.instructions.md
 coverage
 bunPlugin.*
+bundle
