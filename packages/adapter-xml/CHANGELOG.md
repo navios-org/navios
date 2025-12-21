@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.0] - 2025-12-21
+
+### Added
+
+- **Static/Dynamic Handler Branching**: New handler result types for optimized request handling
+  - Always returns dynamic handler due to `renderToXml` requiring ScopedContainer
+  - Aligns with `@navios/core` 0.8.0 `HandlerResult` interface
+
+### Changed
+
+- **Handler Result Types**: `provideHandler()` now returns `Promise<HandlerResult>` instead of direct handler function
+- **Build Tooling**: Switched from `esbuild` to `@swc/core` for transpilation (bun-plugin)
+
+### Dependencies
+
+- Requires `@navios/core` ^0.8.0
+
 ## [0.7.1] - 2025-12-20
 
 ### Fixed

@@ -24,7 +24,6 @@ import {
   DangerouslyInsertRawXml,
   declareXmlStream,
   defineXmlEnvironment,
-  Fragment,
   XmlStream,
   createElement,
 } from '../../src/index.mjs'
@@ -362,8 +361,8 @@ describe('XML Stream with Bun adapter', () => {
       adapter: mergedEnv,
     })
     await server.init()
-    await server.listen({ port: 3002, host: 'localhost' })
-    serverUrl = server.getServer().url.href
+    await server.listen({ port: 3008, host: 'localhost' })
+    serverUrl = server.getServer().url.href.replace(/\/$/, '')
   })
 
   afterAll(async () => {

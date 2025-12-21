@@ -114,18 +114,29 @@ async function transpileFileForReal(
   codeTS: string,
 ): Promise<string> {
   // Use esbuild with JSX support
-  const esbuild = (await import('esbuild')).default
+  const esbuild = (await import('@swc/core')).default
 
   // Determine loader based on file extension and content
-  const hasJsx =
-    codeTS.includes('<') && (codeTS.includes('/>') || codeTS.includes('</'))
-  const loader = hasJsx ? 'tsx' : 'ts'
 
   const result = await esbuild.transform(codeTS, {
-    loader,
-    target: 'chrome110',
-    jsx: 'automatic',
-    jsxImportSource: '@navios/adapter-xml',
+    filename: name,
+    jsc: {
+      target: 'es2022',
+      parser: {
+        syntax: 'typescript',
+        decorators: true,
+        tsx: name.endsWith('.tsx'),
+      },
+      transform: {
+        decoratorVersion: '2022-03',
+        react: name.endsWith('.tsx')
+          ? {
+              importSource: '@navios/adapter-xml',
+              runtime: 'automatic',
+            }
+          : undefined,
+      },
+    },
   })
   return result.code
 }

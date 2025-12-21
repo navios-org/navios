@@ -2,10 +2,12 @@ import type {
   AbstractHttpHandlerAdapterInterface,
   ClassType,
   HandlerMetadata,
+  HandlerResult,
   ScopedContainer,
 } from '@navios/core'
 
 import {
+  InstanceResolverService,
   inject,
   Injectable,
   StreamAdapterToken,
@@ -45,6 +47,7 @@ import { renderToXml } from '../runtime/render-to-xml.mjs'
 export class XmlStreamAdapterService implements AbstractHttpHandlerAdapterInterface {
   /** Base stream adapter - we proxy hasSchema, prepareArguments, provideSchema to it */
   protected streamAdapter = inject(StreamAdapterToken)
+  protected instanceResolver = inject(InstanceResolverService)
 
   /**
    * Prepares argument getters for parsing request data.
@@ -115,56 +118,30 @@ export class XmlStreamAdapterService implements AbstractHttpHandlerAdapterInterf
    * @param handlerMetadata - The handler metadata with configuration and schemas.
    * @returns A function that handles incoming requests and sends XML responses.
    */
-  provideHandler(
+  async provideHandler(
     controller: ClassType,
     handlerMetadata: HandlerMetadata<BaseXmlStreamConfig>,
-  ): (context: ScopedContainer, request: any, reply: any) => Promise<any> {
+  ): Promise<HandlerResult> {
     const getters = this.prepareArguments(handlerMetadata)
     const config = handlerMetadata.config
-
-    const formatArguments = async (request: any) => {
-      const argument: Record<string, any> = {}
-      const promises: Promise<void>[] = []
-      for (const getter of getters) {
-        const res = getter(argument, request)
-        if (res instanceof Promise) {
-          promises.push(res)
-        }
-      }
-      await Promise.all(promises)
-      return argument
-    }
+    const hasArguments = getters.length > 0
 
     const contentType = config.contentType ?? 'application/xml'
 
-    return async (context: ScopedContainer, request: any, reply: any) => {
-      const controllerInstance = await context.get(controller)
-      const argument = await formatArguments(request)
+    // Cache method name for faster property access
+    const methodName = handlerMetadata.classMethod
 
-      // Call controller method - returns XmlNode (JSX), may contain async/class components
-      const xmlNode: AnyXmlNode =
-        await controllerInstance[handlerMetadata.classMethod](argument)
-
-      // Render JSX to XML string (async - resolves all async and class components)
-      const xml = await renderToXml(xmlNode, {
-        declaration: config.xmlDeclaration ?? true,
-        encoding: config.encoding ?? 'UTF-8',
-        container: context,
-      })
-
+    // Helper to send response based on environment
+    const sendResponse = (
+      xml: string,
+      reply: any,
+      headers: Record<string, string>,
+    ) => {
       // Environment detection: Bun doesn't have reply
       const isHttpStandardEnvironment = reply === undefined
 
       if (isHttpStandardEnvironment) {
         // Bun: return Response object
-        const headers: Record<string, string> = {
-          'Content-Type': contentType,
-        }
-        for (const [key, value] of Object.entries(handlerMetadata.headers)) {
-          if (value != null) {
-            headers[key] = String(value)
-          }
-        }
         return new Response(xml, {
           status: handlerMetadata.successStatusCode,
           headers,
@@ -177,6 +154,132 @@ export class XmlStreamAdapterService implements AbstractHttpHandlerAdapterInterf
           .headers(handlerMetadata.headers)
           .send(xml)
       }
+    }
+
+    // Pre-compute headers
+    const headersTemplate: Record<string, string> = {
+      'Content-Type': contentType,
+    }
+    for (const [key, value] of Object.entries(handlerMetadata.headers)) {
+      if (value != null) {
+        headersTemplate[key] = String(value)
+      }
+    }
+
+    // Resolve controller with automatic scope detection
+    const resolution = await this.instanceResolver.resolve(controller)
+
+    // XML adapter always returns dynamic handler because renderToXml needs ScopedContainer
+    // for resolving class components. Even if the controller is cached, we still need
+    // the scoped container for the XML rendering phase.
+
+    // Pre-compute render options
+    const renderOptions = {
+      declaration: config.xmlDeclaration ?? true,
+      encoding: config.encoding ?? 'UTF-8',
+    }
+
+    // Branch based on hasArguments to skip formatArguments entirely when not needed
+    if (hasArguments) {
+      // Detect if any getter is async at registration time
+      const hasAsyncGetters = getters.some(
+        (g) => g.constructor.name === 'AsyncFunction',
+      )
+
+      const formatArguments = hasAsyncGetters
+        ? async (request: any) => {
+            const argument: Record<string, any> = {}
+            const promises: Promise<void>[] = []
+            for (const getter of getters) {
+              const res = getter(argument, request)
+              if (res instanceof Promise) {
+                promises.push(res)
+              }
+            }
+            await Promise.all(promises)
+            return argument
+          }
+        : (request: any) => {
+            const argument: Record<string, any> = {}
+            for (const getter of getters) {
+              getter(argument, request)
+            }
+            return argument
+          }
+
+      if (resolution.cached) {
+        const cachedController = resolution.instance as any
+        // Pre-bind method for faster invocation
+        const boundMethod = cachedController[methodName].bind(cachedController)
+        return {
+          isStatic: false,
+          handler: async (
+            context: ScopedContainer,
+            request: any,
+            reply: any,
+          ) => {
+            const argument = await formatArguments(request)
+            const xmlNode: AnyXmlNode = await boundMethod(argument)
+            const xml = await renderToXml(xmlNode, {
+              ...renderOptions,
+              container: context,
+            })
+            return sendResponse(xml, reply, headersTemplate)
+          },
+        }
+      }
+
+      return {
+        isStatic: false,
+        handler: async (context: ScopedContainer, request: any, reply: any) => {
+          const controllerInstance = (await resolution.resolve(context)) as any
+          const argument = await formatArguments(request)
+          const xmlNode: AnyXmlNode =
+            await controllerInstance[methodName](argument)
+          const xml = await renderToXml(xmlNode, {
+            ...renderOptions,
+            container: context,
+          })
+          return sendResponse(xml, reply, headersTemplate)
+        },
+      }
+    }
+
+    // No arguments path - skip formatArguments entirely
+    const emptyArgs = Object.freeze({})
+    if (resolution.cached) {
+      const cachedController = resolution.instance as any
+      // Pre-bind method for faster invocation
+      const boundMethod = cachedController[methodName].bind(cachedController)
+      return {
+        isStatic: false,
+        handler: async (
+          context: ScopedContainer,
+          _request: any,
+          reply: any,
+        ) => {
+          const xmlNode: AnyXmlNode = await boundMethod(emptyArgs)
+          const xml = await renderToXml(xmlNode, {
+            ...renderOptions,
+            container: context,
+          })
+          return sendResponse(xml, reply, headersTemplate)
+        },
+      }
+    }
+
+    return {
+      isStatic: false,
+      handler: async (context: ScopedContainer, _request: any, reply: any) => {
+        const controllerInstance = (await resolution.resolve(context)) as any
+        const xmlNode: AnyXmlNode =
+          await controllerInstance[methodName](emptyArgs)
+        const xml = await renderToXml(xmlNode, {
+          ...renderOptions,
+          container: context,
+        })
+        return sendResponse(xml, reply, headersTemplate)
+      },
     }
   }
 }
