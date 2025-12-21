@@ -1,10 +1,10 @@
+import { TestContainer } from '@navios/di/testing'
+
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { z } from 'zod/v4'
 
-import { TestContainer } from '@navios/di'
-
-import { SchemaConverterService } from '../services/schema-converter.service.mjs'
 import { PathBuilderService } from '../services/path-builder.service.mjs'
+import { SchemaConverterService } from '../services/schema-converter.service.mjs'
 
 describe('OpenAPI Services', () => {
   let container: TestContainer
@@ -202,10 +202,9 @@ describe('OpenAPI Services', () => {
 
     it('should extract multiple params', async () => {
       const service = await container.get(PathBuilderService)
-      expect(service.extractUrlParamNames('/users/$userId/posts/$postId')).toEqual([
-        'userId',
-        'postId',
-      ])
+      expect(
+        service.extractUrlParamNames('/users/$userId/posts/$postId'),
+      ).toEqual(['userId', 'postId'])
     })
 
     it('should return empty array for no params', async () => {
