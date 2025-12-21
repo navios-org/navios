@@ -1,10 +1,27 @@
 import type { BaseEndpointConfig } from '@navios/builder'
-import type { ClassType, HandlerMetadata, ScopedContainer } from '@navios/core'
+import type {
+  ClassType,
+  HandlerMetadata,
+  NaviosApplicationOptions,
+  ScopedContainer,
+} from '@navios/core'
 import type { BunRequest } from 'bun'
 
-import { Injectable, InjectionToken } from '@navios/core'
+import {
+  Injectable,
+  InjectionToken,
+  NaviosOptionsToken,
+  optional,
+} from '@navios/core'
 
+import type { BunHandlerResult } from './handler-adapter.interface.mjs'
 import { BunStreamAdapterService } from './stream-adapter.service.mjs'
+
+const defaultOptions: NaviosApplicationOptions = {
+  adapter: [],
+  validateResponses: true,
+  enableRequestId: false,
+}
 
 /**
  * Injection token for the Bun endpoint adapter service.
@@ -50,6 +67,8 @@ export const BunEndpointAdapterToken =
   token: BunEndpointAdapterToken,
 })
 export class BunEndpointAdapterService extends BunStreamAdapterService {
+  private options = optional(NaviosOptionsToken) ?? defaultOptions
+
   /**
    * Checks if the handler has any validation schemas defined.
    *
@@ -60,7 +79,10 @@ export class BunEndpointAdapterService extends BunStreamAdapterService {
     handlerMetadata: HandlerMetadata<BaseEndpointConfig>,
   ): boolean {
     const config = handlerMetadata.config
-    return super.hasSchema(handlerMetadata) || !!config.responseSchema
+    return (
+      super.hasSchema(handlerMetadata) ||
+      (!!this.options.validateResponses && !!config.responseSchema)
+    )
   }
 
   /**
@@ -92,43 +114,124 @@ export class BunEndpointAdapterService extends BunStreamAdapterService {
    * @param handlerMetadata - The handler metadata with configuration and schemas.
    * @returns A function that handles incoming requests and returns responses.
    */
-  override provideHandler(
+  override async provideHandler(
     controller: ClassType,
     handlerMetadata: HandlerMetadata<BaseEndpointConfig>,
-  ): (context: ScopedContainer, request: BunRequest) => Promise<Response> {
+  ): Promise<BunHandlerResult> {
     const getters = this.prepareArguments(handlerMetadata)
-    const formatArguments = async (request: BunRequest) => {
-      const argument: Record<string, any> = {}
-      const promises: Promise<void>[] = []
-      for (const getter of getters) {
-        const res = getter(argument, request)
-        if (res instanceof Promise) {
-          promises.push(res)
-        }
-      }
-      await Promise.all(promises)
-      return argument
-    }
-    const responseSchema = handlerMetadata.config.responseSchema
-    const formatResponse = responseSchema
-      ? (result: any) => {
-          return responseSchema.parse(result)
-        }
-      : (result: any) => result
+    const hasArguments = getters.length > 0
 
-    return async (context: ScopedContainer, request: BunRequest) => {
-      const controllerInstance = await context.get(controller)
-      const argument = await formatArguments(request)
-      const result =
-        await controllerInstance[handlerMetadata.classMethod](argument)
-      const headers: Record<string, string> = {}
-      for (const [key, value] of Object.entries(handlerMetadata.headers)) {
-        headers[key] = String(value)
+    const responseSchema = handlerMetadata.config.responseSchema
+    const shouldValidate = this.options.validateResponses !== false
+    const formatResponse =
+      responseSchema && shouldValidate
+        ? (result: any) => responseSchema.parse(result)
+        : (result: any) => result
+
+    // Cache method name for faster property access
+    const methodName = handlerMetadata.classMethod
+
+    // Pre-compute headers
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    }
+    for (const [key, value] of Object.entries(handlerMetadata.headers)) {
+      headers[key] = String(value)
+    }
+
+    // Resolve controller with automatic scope detection
+    const resolution = await this.instanceResolver.resolve(controller)
+
+    // Pre-compute status code
+    const statusCode = handlerMetadata.successStatusCode
+
+    // Branch based on hasArguments to skip formatArguments entirely when not needed
+    if (hasArguments) {
+      // Detect if any getter is async at registration time
+      const hasAsyncGetters = getters.some(
+        (g) => g.constructor.name === 'AsyncFunction',
+      )
+
+      const formatArguments = hasAsyncGetters
+        ? async (request: BunRequest) => {
+            const argument: Record<string, any> = {}
+            const promises: Promise<void>[] = []
+            for (const getter of getters) {
+              const res = getter(argument, request)
+              if (res instanceof Promise) {
+                promises.push(res)
+              }
+            }
+            await Promise.all(promises)
+            return argument
+          }
+        : (request: BunRequest) => {
+            const argument: Record<string, any> = {}
+            for (const getter of getters) {
+              getter(argument, request)
+            }
+            return argument
+          }
+
+      if (resolution.cached) {
+        const cachedController = resolution.instance as any
+        // Pre-bind method for faster invocation
+        const boundMethod = cachedController[methodName].bind(cachedController)
+        return {
+          isStatic: true,
+          handler: async (request: BunRequest) => {
+            const argument = await formatArguments(request)
+            const result = await boundMethod(argument)
+            return new Response(JSON.stringify(formatResponse(result)), {
+              status: statusCode,
+              headers,
+            })
+          },
+        }
       }
-      return new Response(JSON.stringify(formatResponse(result)), {
-        status: handlerMetadata.successStatusCode,
-        headers: { 'Content-Type': 'application/json', ...headers },
-      })
+
+      return {
+        isStatic: false,
+        handler: async (scoped: ScopedContainer, request: BunRequest) => {
+          const controllerInstance = (await resolution.resolve(scoped)) as any
+          const argument = await formatArguments(request)
+          const result = await controllerInstance[methodName](argument)
+          return new Response(JSON.stringify(formatResponse(result)), {
+            status: statusCode,
+            headers,
+          })
+        },
+      }
+    }
+
+    // No arguments path - skip formatArguments entirely
+    const emptyArgs = Object.freeze({})
+    if (resolution.cached) {
+      const cachedController = resolution.instance as any
+      // Pre-bind method for faster invocation
+      const boundMethod = cachedController[methodName].bind(cachedController)
+      return {
+        isStatic: true,
+        handler: async (_request: BunRequest) => {
+          const result = await boundMethod(emptyArgs)
+          return new Response(JSON.stringify(formatResponse(result)), {
+            status: statusCode,
+            headers,
+          })
+        },
+      }
+    }
+
+    return {
+      isStatic: false,
+      handler: async (scoped: ScopedContainer, _request: BunRequest) => {
+        const controllerInstance = (await resolution.resolve(scoped)) as any
+        const result = await controllerInstance[methodName](emptyArgs)
+        return new Response(JSON.stringify(formatResponse(result)), {
+          status: statusCode,
+          headers,
+        })
+      },
     }
   }
 }

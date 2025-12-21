@@ -2,9 +2,17 @@ import type { BaseStreamConfig } from '@navios/builder'
 import type { ClassType, HandlerMetadata, ScopedContainer } from '@navios/core'
 import type { BunRequest } from 'bun'
 
-import { Injectable, InjectionToken } from '@navios/core'
+import {
+  InstanceResolverService,
+  inject,
+  Injectable,
+  InjectionToken,
+} from '@navios/core'
 
-import type { BunHandlerAdapterInterface } from './handler-adapter.interface.mjs'
+import type {
+  BunHandlerAdapterInterface,
+  BunHandlerResult,
+} from './handler-adapter.interface.mjs'
 
 /**
  * Injection token for the Bun stream adapter service.
@@ -45,6 +53,8 @@ export const BunStreamAdapterToken =
   token: BunStreamAdapterToken,
 })
 export class BunStreamAdapterService implements BunHandlerAdapterInterface {
+  protected instanceResolver = inject(InstanceResolverService)
+
   /**
    * Checks if the handler has any validation schemas defined.
    *
@@ -87,9 +97,11 @@ export class BunStreamAdapterService implements BunHandlerAdapterInterface {
         target.data = schema.parse(await request.json())
       })
     }
-    getters.push((target, request) => {
-      target.urlParams = request.params
-    })
+    if (config.url.includes('$')) {
+      getters.push((target, request) => {
+        target.urlParams = request.params
+      })
+    }
 
     return getters
   }
@@ -107,55 +119,126 @@ export class BunStreamAdapterService implements BunHandlerAdapterInterface {
    * @param handlerMetadata - The handler metadata with configuration and schemas.
    * @returns A function that handles incoming requests and returns responses.
    */
-  provideHandler(
+  async provideHandler(
     controller: ClassType,
     handlerMetadata: HandlerMetadata<BaseStreamConfig>,
-  ): (context: ScopedContainer, request: BunRequest) => Promise<Response> {
+  ): Promise<BunHandlerResult> {
     const getters = this.prepareArguments(handlerMetadata)
-    const formatArguments = async (request: BunRequest) => {
-      const argument: Record<string, any> = {}
-      const promises: Promise<void>[] = []
-      for (const getter of getters) {
-        const res = getter(argument, request)
-        if (res instanceof Promise) {
-          promises.push(res)
-        }
-      }
-      await Promise.all(promises)
-      return argument
+    const hasArguments = getters.length > 0
+
+    // Cache method name for faster property access
+    const methodName = handlerMetadata.classMethod
+
+    // Pre-compute headers
+    const headersTemplate: Record<string, string> = {}
+    for (const [key, value] of Object.entries(handlerMetadata.headers)) {
+      headersTemplate[key] = String(value)
     }
 
-    return async (context: ScopedContainer, request: BunRequest) => {
-      const controllerInstance = await context.get(controller)
-      const argument = await formatArguments(request)
-
-      // For stream, assume the handler returns a Response
-      const result = await controllerInstance[handlerMetadata.classMethod](
-        argument,
-        {
-          // Mock reply for stream
-          write: (_data: any) => {
-            // For Bun, perhaps accumulate or use Response with stream
-            // But for simplicity, ignore stream for now
-          },
-          end: () => {},
-        },
-      )
+    // Helper to handle stream response
+    const handleStreamResult = (result: any) => {
       if (result instanceof Response) {
-        for (const [key, value] of Object.entries(handlerMetadata.headers)) {
-          result.headers.set(key, String(value))
+        for (const [key, value] of Object.entries(headersTemplate)) {
+          result.headers.set(key, value)
         }
         return result
       }
-
-      const headers: Record<string, string> = {}
-      for (const [key, value] of Object.entries(handlerMetadata.headers)) {
-        headers[key] = String(value)
-      }
       return new Response(result, {
         status: handlerMetadata.successStatusCode,
-        headers,
+        headers: headersTemplate,
       })
+    }
+
+    // Resolve controller with automatic scope detection
+    const resolution = await this.instanceResolver.resolve(controller)
+
+    // Stream writer stub
+    const streamWriter = {
+      write: (_data: any) => {},
+      end: () => {},
+    }
+
+    // Branch based on hasArguments to skip formatArguments entirely when not needed
+    if (hasArguments) {
+      // Detect if any getter is async at registration time
+      const hasAsyncGetters = getters.some(
+        (g) => g.constructor.name === 'AsyncFunction',
+      )
+
+      const formatArguments = hasAsyncGetters
+        ? async (request: BunRequest) => {
+            const argument: Record<string, any> = {}
+            const promises: Promise<void>[] = []
+            for (const getter of getters) {
+              const res = getter(argument, request)
+              if (res instanceof Promise) {
+                promises.push(res)
+              }
+            }
+            await Promise.all(promises)
+            return argument
+          }
+        : (request: BunRequest) => {
+            const argument: Record<string, any> = {}
+            for (const getter of getters) {
+              getter(argument, request)
+            }
+            return argument
+          }
+
+      if (resolution.cached) {
+        const cachedController = resolution.instance as any
+        // Pre-bind method for faster invocation
+        const boundMethod = cachedController[methodName].bind(cachedController)
+        return {
+          isStatic: true,
+          handler: async (request: BunRequest) => {
+            const argument = await formatArguments(request)
+            const result = await boundMethod(argument, streamWriter)
+            return handleStreamResult(result)
+          },
+        }
+      }
+
+      return {
+        isStatic: false,
+        handler: async (scoped: ScopedContainer, request: BunRequest) => {
+          const controllerInstance = (await resolution.resolve(scoped)) as any
+          const argument = await formatArguments(request)
+          const result = await controllerInstance[methodName](
+            argument,
+            streamWriter,
+          )
+          return handleStreamResult(result)
+        },
+      }
+    }
+
+    // No arguments path - skip formatArguments entirely
+    const emptyArgs = Object.freeze({})
+    if (resolution.cached) {
+      const cachedController = resolution.instance as any
+      // Pre-bind method for faster invocation
+      const boundMethod = cachedController[methodName].bind(cachedController)
+      return {
+        isStatic: true,
+        handler: async (_request: BunRequest) => {
+          const result = await boundMethod(emptyArgs, streamWriter)
+          return handleStreamResult(result)
+        },
+      }
+    }
+
+    return {
+      isStatic: false,
+      handler: async (scoped: ScopedContainer, _request: BunRequest) => {
+        const controllerInstance = (await resolution.resolve(scoped)) as any
+        const result = await controllerInstance[methodName](
+          emptyArgs,
+          streamWriter,
+        )
+        return handleStreamResult(result)
+      },
     }
   }
 

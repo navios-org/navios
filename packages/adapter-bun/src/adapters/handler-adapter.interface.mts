@@ -7,6 +7,30 @@ import type {
 import type { BunRequest } from 'bun'
 
 /**
+ * Static handler result for Bun - handler can be called without a scoped container.
+ * Used when the controller and all its dependencies are singletons.
+ */
+export type BunStaticHandler = {
+  isStatic: true
+  handler: (request: BunRequest) => Promise<Response>
+}
+
+/**
+ * Dynamic handler result for Bun - handler requires a scoped container for resolution.
+ * Used when the controller or its dependencies need per-request resolution.
+ */
+export type BunDynamicHandler = {
+  isStatic: false
+  handler: (scoped: ScopedContainer, request: BunRequest) => Promise<Response>
+}
+
+/**
+ * Handler result returned by provideHandler for Bun adapters.
+ * Can be either static (pre-resolved) or dynamic (needs scoped container).
+ */
+export type BunHandlerResult = BunStaticHandler | BunDynamicHandler
+
+/**
  * Interface for Bun handler adapter services.
  *
  * This interface defines the contract for adapter services that handle
@@ -67,10 +91,10 @@ export interface BunHandlerAdapterInterface extends AbstractHttpHandlerAdapterIn
    *
    * @param controller - The controller class containing the handler method.
    * @param handlerMetadata - The handler metadata with configuration and schemas.
-   * @returns A function that handles incoming requests and returns responses.
+   * @returns A handler result that is either static or dynamic.
    */
   provideHandler: (
     controller: ClassType,
     handlerMetadata: HandlerMetadata<any>,
-  ) => (context: ScopedContainer, request: BunRequest) => Promise<Response>
+  ) => Promise<BunHandlerResult>
 }

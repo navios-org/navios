@@ -1,9 +1,9 @@
 import type {
+  CanActivate,
   ClassType,
   ControllerMetadata,
   HandlerMetadata,
   ModuleMetadata,
-  ScopedContainer,
 } from '@navios/core'
 import type { BunRequest } from 'bun'
 
@@ -11,16 +11,21 @@ import {
   Container,
   ExecutionContext,
   extractControllerMetadata,
+  generateRequestId,
   GuardRunnerService,
   HttpException,
   inject,
   Injectable,
   InjectionToken,
+  InstanceResolverService,
   Logger,
   runWithRequestId,
 } from '@navios/core'
 
-import type { BunHandlerAdapterInterface } from '../adapters/index.mjs'
+import type {
+  BunHandlerAdapterInterface,
+  BunHandlerResult,
+} from '../adapters/index.mjs'
 
 import { BunExecutionContext } from '../interfaces/index.mjs'
 import { BunRequestToken } from '../tokens/index.mjs'
@@ -58,6 +63,7 @@ export type BunRoutes = Record<
 export class BunControllerAdapterService {
   private guardRunner = inject(GuardRunnerService)
   private container = inject(Container)
+  private instanceResolver = inject(InstanceResolverService)
   private logger = inject(Logger, {
     context: BunControllerAdapterService.name,
   })
@@ -94,12 +100,25 @@ export class BunControllerAdapterService {
       const adapter = await this.container.get(
         adapterToken as InjectionToken<BunHandlerAdapterInterface>,
       )
+
+      // Pre-resolve guards (reversed order: module → controller → endpoint)
+      const guards = this.guardRunner.makeContext(
+        moduleMetadata,
+        controllerMetadata,
+        endpoint,
+      )
+      const guardResolution =
+        await this.instanceResolver.resolveMany<CanActivate>(
+          Array.from(guards).reverse() as ClassType[],
+        )
+
       const fullUrl = globalPrefix + url.replaceAll('$', ':')
       if (!routes[fullUrl]) {
         routes[fullUrl] = {}
       }
       routes[fullUrl][httpMethod] = this.wrapHandler(
-        adapter.provideHandler(controller, endpoint),
+        await adapter.provideHandler(controller, endpoint),
+        guardResolution,
         moduleMetadata,
         controllerMetadata,
         endpoint,
@@ -114,14 +133,13 @@ export class BunControllerAdapterService {
   /**
    * Wraps a route handler with request context, guards, and error handling.
    *
-   * This method creates a complete request handler that:
-   * 1. Creates a request-scoped container
-   * 2. Sets up execution context
-   * 3. Runs guards before executing the handler
-   * 4. Handles errors and converts them to appropriate HTTP responses
-   * 5. Cleans up request context after handling
+   * This method creates a complete request handler using one of three paths:
+   * 1. Static handler + no guards: Direct handler call (fastest)
+   * 2. Static handler + static guards: Call pre-resolved guards, then handler
+   * 3. Dynamic: Full flow with scoped container
    *
-   * @param handler - The base handler function from the adapter service.
+   * @param handlerResult - The handler result from the adapter service.
+   * @param guardResolution - Pre-resolved guards or resolver function.
    * @param moduleMetadata - Metadata about the module.
    * @param controllerMetadata - Metadata about the controller.
    * @param endpoint - Metadata about the endpoint handler.
@@ -129,14 +147,61 @@ export class BunControllerAdapterService {
    * @private
    */
   private wrapHandler(
-    handler: (
-      context: ScopedContainer,
-      request: BunRequest,
-    ) => Promise<Response>,
+    handlerResult: BunHandlerResult,
+    guardResolution: {
+      cached: boolean
+      instances: CanActivate[] | null
+      classTypes: ClassType[]
+    },
     moduleMetadata: ModuleMetadata,
     controllerMetadata: ControllerMetadata,
     endpoint: HandlerMetadata,
   ) {
+    const hasGuards = guardResolution.classTypes.length > 0
+
+    // Path 1: Static handler, no guards (fastest)
+    if (handlerResult.isStatic && !hasGuards) {
+      return async (request: BunRequest) => {
+        try {
+          return await runWithRequestId(generateRequestId(), async () => {
+            return await handlerResult.handler(request)
+          })
+        } catch (error) {
+          return this.handleError(error)
+        }
+      }
+    }
+
+    // Path 2: Static handler + static guards
+    if (handlerResult.isStatic && guardResolution.cached) {
+      return async (request: BunRequest) => {
+        const executionContext = new BunExecutionContext(
+          moduleMetadata,
+          controllerMetadata,
+          endpoint,
+          request,
+        )
+        try {
+          return await runWithRequestId(generateRequestId(), async () => {
+            const canActivate = await this.guardRunner.runGuardsStatic(
+              guardResolution.instances!,
+              executionContext,
+            )
+            if (!canActivate) {
+              return new Response('Forbidden', { status: 403 })
+            }
+            return await handlerResult.handler(request)
+          })
+        } catch (error) {
+          return this.handleError(error)
+        }
+      }
+    }
+
+    // Path 3: Dynamic (default) - need scoped container
+    // Get guard tokens for dynamic resolution
+    const guards = new Set(guardResolution.classTypes)
+
     return async (request: BunRequest) => {
       const executionContext = new BunExecutionContext(
         moduleMetadata,
@@ -144,22 +209,17 @@ export class BunControllerAdapterService {
         endpoint,
         request,
       )
-      const requestId = crypto.randomUUID()
+      const requestId = generateRequestId()
       const requestContainer = this.container.beginRequest(requestId)
       requestContainer.addInstance(BunRequestToken, request)
       requestContainer.addInstance(ExecutionContext, executionContext)
 
       try {
         return await runWithRequestId(requestId, async () => {
-          // Run guards
-          const guards = this.guardRunner.makeContext(
-            moduleMetadata,
-            controllerMetadata,
-            endpoint,
-          )
-          if (guards.size > 0) {
+          // Run guards if there are any
+          if (hasGuards) {
             const canActivate = await this.guardRunner.runGuards(
-              guards,
+              guards as any,
               executionContext,
               requestContainer,
             )
@@ -168,31 +228,15 @@ export class BunControllerAdapterService {
             }
           }
 
-          const response = await handler(requestContainer, request)
-          return response
+          // Handler is dynamic, needs scoped container
+          if (!handlerResult.isStatic) {
+            return await handlerResult.handler(requestContainer, request)
+          }
+          // Handler is static but guards are dynamic
+          return await handlerResult.handler(request)
         })
       } catch (error) {
-        // Handle errors
-        if (error instanceof HttpException) {
-          return new Response(JSON.stringify(error.response), {
-            status: error.statusCode,
-            headers: { 'Content-Type': 'application/json' },
-          })
-        } else {
-          const err = error as Error
-          this.logger.error(`Error: ${err.message}`, err)
-          return new Response(
-            JSON.stringify({
-              statusCode: 500,
-              message: err.message || 'Internal Server Error',
-              error: 'InternalServerError',
-            }),
-            {
-              status: 500,
-              headers: { 'Content-Type': 'application/json' },
-            },
-          )
-        }
+        return this.handleError(error)
       } finally {
         requestContainer.endRequest().catch((err: any) => {
           this.logger.error(
@@ -201,6 +245,33 @@ export class BunControllerAdapterService {
           )
         })
       }
+    }
+  }
+
+  /**
+   * Handles errors and converts them to appropriate HTTP responses.
+   * @private
+   */
+  private handleError(error: unknown): Response {
+    if (error instanceof HttpException) {
+      return new Response(JSON.stringify(error.response), {
+        status: error.statusCode,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    } else {
+      const err = error as Error
+      this.logger.error(`Error: ${err.message}`, err)
+      return new Response(
+        JSON.stringify({
+          statusCode: 500,
+          message: err.message || 'Internal Server Error',
+          error: 'InternalServerError',
+        }),
+        {
+          status: 500,
+          headers: { 'Content-Type': 'application/json' },
+        },
+      )
     }
   }
 }
