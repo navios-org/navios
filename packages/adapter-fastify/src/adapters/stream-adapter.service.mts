@@ -2,9 +2,17 @@ import type { BaseStreamConfig } from '@navios/builder'
 import type { ClassType, HandlerMetadata, ScopedContainer } from '@navios/core'
 import type { FastifyReply, FastifyRequest } from 'fastify'
 
-import { Injectable, InjectionToken } from '@navios/core'
+import {
+  InstanceResolverService,
+  inject,
+  Injectable,
+  InjectionToken,
+} from '@navios/core'
 
-import type { FastifyHandlerAdapterInterface } from './handler-adapter.interface.mjs'
+import type {
+  FastifyHandlerAdapterInterface,
+  FastifyHandlerResult,
+} from './handler-adapter.interface.mjs'
 
 /**
  * Injection token for the Fastify stream adapter service.
@@ -45,6 +53,8 @@ export const FastifyStreamAdapterToken =
   token: FastifyStreamAdapterToken,
 })
 export class FastifyStreamAdapterService implements FastifyHandlerAdapterInterface {
+  protected instanceResolver = inject(InstanceResolverService)
+
   /**
    * Checks if the handler has any validation schemas defined.
    *
@@ -103,37 +113,98 @@ export class FastifyStreamAdapterService implements FastifyHandlerAdapterInterfa
    * @param handlerMetadata - The handler metadata with configuration and schemas.
    * @returns A function that handles incoming requests and sends responses.
    */
-  provideHandler(
+  async provideHandler(
     controller: ClassType,
     handlerMetadata: HandlerMetadata<BaseStreamConfig>,
-  ): (
-    context: ScopedContainer,
-    request: FastifyRequest,
-    reply: FastifyReply,
-  ) => Promise<any> {
+  ): Promise<FastifyHandlerResult> {
     const getters = this.prepareArguments(handlerMetadata)
-    const formatArguments = async (request: FastifyRequest) => {
-      const argument: Record<string, any> = {}
-      const promises: Promise<void>[] = []
-      for (const getter of getters) {
-        const res = getter(argument, request)
-        if (res instanceof Promise) {
-          promises.push(res)
+    const hasArguments = getters.length > 0
+
+    // Cache method name for faster property access
+    const methodName = handlerMetadata.classMethod
+
+    // Resolve controller with automatic scope detection
+    const resolution = await this.instanceResolver.resolve(controller)
+
+    // Branch based on hasArguments to skip formatArguments entirely when not needed
+    if (hasArguments) {
+      // Detect if any getter is async at registration time
+      const hasAsyncGetters = getters.some(
+        (g) => g.constructor.name === 'AsyncFunction',
+      )
+
+      const formatArguments = hasAsyncGetters
+        ? async (request: FastifyRequest) => {
+            const argument: Record<string, any> = {}
+            const promises: Promise<void>[] = []
+            for (const getter of getters) {
+              const res = getter(argument, request)
+              if (res instanceof Promise) {
+                promises.push(res)
+              }
+            }
+            await Promise.all(promises)
+            return argument
+          }
+        : (request: FastifyRequest) => {
+            const argument: Record<string, any> = {}
+            for (const getter of getters) {
+              getter(argument, request)
+            }
+            return argument
+          }
+
+      if (resolution.cached) {
+        const cachedController = resolution.instance as any
+        // Pre-bind method for faster invocation
+        const boundMethod = cachedController[methodName].bind(cachedController)
+        return {
+          isStatic: true,
+          handler: async (request: FastifyRequest, reply: FastifyReply) => {
+            const argument = await formatArguments(request)
+            await boundMethod(argument, reply)
+          },
         }
       }
-      await Promise.all(promises)
-      return argument
+
+      return {
+        isStatic: false,
+        handler: async (
+          scoped: ScopedContainer,
+          request: FastifyRequest,
+          reply: FastifyReply,
+        ) => {
+          const controllerInstance = (await resolution.resolve(scoped)) as any
+          const argument = await formatArguments(request)
+          await controllerInstance[methodName](argument, reply)
+        },
+      }
     }
 
-    return async (
-      context: ScopedContainer,
-      request: FastifyRequest,
-      reply: FastifyReply,
-    ) => {
-      const controllerInstance = await context.get(controller)
-      const argument = await formatArguments(request)
+    // No arguments path - skip formatArguments entirely
+    const emptyArgs = Object.freeze({})
+    if (resolution.cached) {
+      const cachedController = resolution.instance as any
+      // Pre-bind method for faster invocation
+      const boundMethod = cachedController[methodName].bind(cachedController)
+      return {
+        isStatic: true,
+        handler: async (_request: FastifyRequest, reply: FastifyReply) => {
+          await boundMethod(emptyArgs, reply)
+        },
+      }
+    }
 
-      await controllerInstance[handlerMetadata.classMethod](argument, reply)
+    return {
+      isStatic: false,
+      handler: async (
+        scoped: ScopedContainer,
+        _request: FastifyRequest,
+        reply: FastifyReply,
+      ) => {
+        const controllerInstance = (await resolution.resolve(scoped)) as any
+        await controllerInstance[methodName](emptyArgs, reply)
+      },
     }
   }
 

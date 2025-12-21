@@ -7,6 +7,34 @@ import type {
 import type { FastifyReply, FastifyRequest } from 'fastify'
 
 /**
+ * Static handler result for Fastify - handler can be called without a scoped container.
+ * Used when the controller and all its dependencies are singletons.
+ */
+export type FastifyStaticHandler = {
+  isStatic: true
+  handler: (request: FastifyRequest, reply: FastifyReply) => Promise<any>
+}
+
+/**
+ * Dynamic handler result for Fastify - handler requires a scoped container for resolution.
+ * Used when the controller or its dependencies need per-request resolution.
+ */
+export type FastifyDynamicHandler = {
+  isStatic: false
+  handler: (
+    scoped: ScopedContainer,
+    request: FastifyRequest,
+    reply: FastifyReply,
+  ) => Promise<any>
+}
+
+/**
+ * Handler result returned by provideHandler for Fastify adapters.
+ * Can be either static (pre-resolved) or dynamic (needs scoped container).
+ */
+export type FastifyHandlerResult = FastifyStaticHandler | FastifyDynamicHandler
+
+/**
  * Interface for Fastify handler adapter services.
  *
  * This interface defines the contract for adapter services that handle
@@ -70,14 +98,10 @@ export interface FastifyHandlerAdapterInterface extends AbstractHttpHandlerAdapt
    *
    * @param controller - The controller class containing the handler method.
    * @param handlerMetadata - The handler metadata with configuration and schemas.
-   * @returns A function that handles incoming requests and sends responses.
+   * @returns A handler result that is either static or dynamic.
    */
   provideHandler: (
     controller: ClassType,
     handlerMetadata: HandlerMetadata<any>,
-  ) => (
-    context: ScopedContainer,
-    request: FastifyRequest,
-    reply: FastifyReply,
-  ) => Promise<any>
+  ) => Promise<FastifyHandlerResult>
 }

@@ -268,6 +268,18 @@ export class FastifyApplicationService implements FastifyApplicationServiceInter
       return reply.status(404).send(response)
     })
 
+    // Add request decoration for scoped container storage between hooks
+    this.server!.decorateRequest('scopedContainer', undefined)
+
+    // Global onResponse hook for non-blocking container cleanup
+    this.server!.addHook('onResponse', async (request) => {
+      if (request.scopedContainer) {
+        request.scopedContainer.endRequest().catch((err: any) => {
+          this.logger.error(`Error ending request context: ${err.message}`, err)
+        })
+      }
+    })
+
     // Add schema validator and serializer
     this.server!.setValidatorCompiler(validatorCompiler)
     this.server!.setSerializerCompiler(serializerCompiler)

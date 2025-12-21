@@ -5,6 +5,34 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.0] - 2025-12-21
+
+### Added
+
+- **Static/Dynamic Handler Branching**: New `FastifyStaticHandler` and `FastifyDynamicHandler` types for optimized request handling
+  - Static handlers for singleton controllers avoid per-request container creation
+  - Dynamic handlers maintain full scoped container support when needed
+- **Guard Pre-resolution**: Guards are now resolved at startup with fallback to dynamic resolution
+- **Request Decoration**: Uses Fastify's `decorateRequest` to store scoped container for handler access
+- **Lifecycle Hooks**: Added `onResponse` hook for non-blocking container cleanup
+
+### Changed
+
+- **Handler Result Types**: `provideHandler()` now returns `Promise<FastifyHandlerResult>` instead of direct handler function
+  - Aligns with `@navios/core` 0.8.0 `HandlerResult` interface
+- **Controller Pre-resolution**: Controllers are pre-resolved during initialization for static handler optimization
+- **Multi-hook Architecture**: Separate `preHandler` and `handler` functions for optimized guard execution
+
+### Performance
+
+- Static handler path eliminates unnecessary scoped container creation for singleton controllers
+- Pre-resolved guards reduce per-request resolution overhead
+- Non-blocking container cleanup via `onResponse` hook
+
+### Dependencies
+
+- Requires `@navios/core` ^0.8.0
+
 ## [0.7.1] - 2025-12-18
 
 ### Added

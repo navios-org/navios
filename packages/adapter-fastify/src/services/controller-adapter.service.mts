@@ -1,4 +1,5 @@
 import type {
+  CanActivate,
   ClassType,
   ControllerMetadata,
   HandlerMetadata,
@@ -17,14 +18,36 @@ import {
   inject,
   Injectable,
   InjectionToken,
+  InstanceResolverService,
   Logger,
   runWithRequestId,
 } from '@navios/core'
 
-import type { FastifyHandlerAdapterInterface } from '../adapters/index.mjs'
+import type {
+  FastifyDynamicHandler,
+  FastifyHandlerAdapterInterface,
+  FastifyHandlerResult,
+  FastifyStaticHandler,
+} from '../adapters/index.mjs'
 
 import { FastifyExecutionContext } from '../interfaces/index.mjs'
 import { FastifyReplyToken, FastifyRequestToken } from '../tokens/index.mjs'
+
+import '../types/fastify.mjs'
+
+type PreHandler = (
+  request: FastifyRequest,
+  reply: FastifyReply,
+) => Promise<void>
+type RouteHandler = (
+  request: FastifyRequest,
+  reply: FastifyReply,
+) => Promise<any>
+
+interface RouteHandlers {
+  preHandler?: PreHandler
+  handler: RouteHandler
+}
 
 /**
  * Service responsible for adapting Navios controllers to Fastify route handlers.
@@ -48,6 +71,7 @@ import { FastifyReplyToken, FastifyRequestToken } from '../tokens/index.mjs'
 export class FastifyControllerAdapterService {
   private guardRunner = inject(GuardRunnerService)
   private container = inject(Container)
+  private instanceResolver = inject(InstanceResolverService)
   private logger = inject(Logger, {
     context: FastifyControllerAdapterService.name,
   })
@@ -83,29 +107,42 @@ export class FastifyControllerAdapterService {
       const adapter = await this.container.get(
         adapterToken as InjectionToken<FastifyHandlerAdapterInterface>,
       )
+
+      // Pre-resolve guards (reversed order: module → controller → endpoint)
+      const guards = this.guardRunner.makeContext(
+        moduleMetadata,
+        controllerMetadata,
+        endpoint,
+      )
+      const guardResolution =
+        await this.instanceResolver.resolveMany<CanActivate>(
+          Array.from(guards).reverse() as ClassType[],
+        )
+
       const hasSchema = adapter.hasSchema?.(endpoint) ?? false
+      const handlerResult = await adapter.provideHandler(controller, endpoint)
+      const { preHandler, handler } = this.wrapHandler(
+        handlerResult,
+        guardResolution,
+        moduleMetadata,
+        controllerMetadata,
+        endpoint,
+      )
+
       if (hasSchema) {
         instance.withTypeProvider<ZodTypeProvider>().route({
           method: httpMethod,
           url: url.replaceAll('$', ':'),
           schema: adapter.provideSchema?.(endpoint) ?? {},
-          handler: this.wrapHandler(
-            adapter.provideHandler(controller, endpoint),
-            moduleMetadata,
-            controllerMetadata,
-            endpoint,
-          ),
+          preHandler,
+          handler,
         })
       } else {
         instance.route({
           method: httpMethod,
           url: url.replaceAll('$', ':'),
-          handler: this.wrapHandler(
-            adapter.provideHandler(controller, endpoint),
-            moduleMetadata,
-            controllerMetadata,
-            endpoint,
-          ),
+          preHandler,
+          handler,
         })
       }
 
@@ -116,89 +153,261 @@ export class FastifyControllerAdapterService {
   }
 
   /**
-   * Wraps a route handler with request context, guards, and error handling.
-   *
-   * This method creates a complete request handler that:
-   * 1. Creates a request-scoped container
-   * 2. Sets up execution context
-   * 3. Runs guards before executing the handler
-   * 4. Handles errors and converts them to appropriate HTTP responses
-   * 5. Cleans up request context after handling
-   *
-   * @param handler - The base handler function from the adapter service.
-   * @param moduleMetadata - Metadata about the module.
-   * @param controllerMetadata - Metadata about the controller.
-   * @param endpoint - Metadata about the endpoint handler.
-   * @returns A wrapped handler function that can be registered with Fastify.
+   * Creates a scoped container and attaches it to the request.
+   * Used when handler or guards need request-scoped resolution.
    * @private
    */
-  private wrapHandler(
-    handler: (
-      context: ScopedContainer,
-      request: FastifyRequest,
-      reply: FastifyReply,
-    ) => Promise<any>,
+  private createRequestContainer(
+    request: FastifyRequest,
+    reply: FastifyReply,
+  ): ScopedContainer {
+    const container = this.container.beginRequest(request.id)
+    request.scopedContainer = container
+    container.addInstance(FastifyRequestToken, request)
+    container.addInstance(FastifyReplyToken, reply)
+    return container
+  }
+
+  /**
+   * Creates execution context and optionally adds it to container.
+   * @private
+   */
+  private createExecutionContext(
+    request: FastifyRequest,
+    reply: FastifyReply,
     moduleMetadata: ModuleMetadata,
     controllerMetadata: ControllerMetadata,
     endpoint: HandlerMetadata,
-  ) {
-    return async (request: FastifyRequest, reply: FastifyReply) => {
-      const executionContext = new FastifyExecutionContext(
-        moduleMetadata,
-        controllerMetadata,
-        endpoint,
-        request,
-        reply,
-      )
-      const requestId = crypto.randomUUID()
-      const requestContainer = this.container.beginRequest(requestId)
-      requestContainer.addInstance(FastifyRequestToken, request)
-      requestContainer.addInstance(FastifyReplyToken, reply)
-      requestContainer.addInstance(ExecutionContext, executionContext)
+    container?: ScopedContainer,
+  ): FastifyExecutionContext {
+    const context = new FastifyExecutionContext(
+      moduleMetadata,
+      controllerMetadata,
+      endpoint,
+      request,
+      reply,
+    )
+    if (container) {
+      container.addInstance(ExecutionContext, context)
+    }
+    return context
+  }
+
+  /**
+   * Creates a static handler wrapper (no scoped container needed).
+   * @private
+   */
+  private makeStaticHandler(handlerResult: FastifyStaticHandler): RouteHandler {
+    return async (request, reply) => {
+      if (reply.sent) return
+      try {
+        return await runWithRequestId(request.id, () =>
+          handlerResult.handler(request, reply),
+        )
+      } catch (error) {
+        return this.handleError(error, reply)
+      }
+    }
+  }
+
+  /**
+   * Creates a dynamic handler wrapper (uses scoped container from request).
+   * @private
+   */
+  private makeDynamicHandler(
+    handlerResult: FastifyDynamicHandler,
+  ): RouteHandler {
+    return async (request, reply) => {
+      if (reply.sent) return
+      try {
+        return await runWithRequestId(request.id, () =>
+          handlerResult.handler(request.scopedContainer!, request, reply),
+        )
+      } catch (error) {
+        return this.handleError(error, reply)
+      }
+    }
+  }
+
+  /**
+   * Creates a preHandler that runs static guards.
+   * @private
+   */
+  private makeStaticGuardsPreHandler(
+    guardInstances: CanActivate[],
+    moduleMetadata: ModuleMetadata,
+    controllerMetadata: ControllerMetadata,
+    endpoint: HandlerMetadata,
+    setupContainer: boolean,
+  ): PreHandler {
+    return async (request, reply) => {
+      try {
+        if (setupContainer) {
+          this.createRequestContainer(request, reply)
+        }
+        await runWithRequestId(request.id, async () => {
+          const context = this.createExecutionContext(
+            request,
+            reply,
+            moduleMetadata,
+            controllerMetadata,
+            endpoint,
+            request.scopedContainer,
+          )
+          await this.guardRunner.runGuardsStatic(guardInstances, context)
+        })
+      } catch (error) {
+        return this.handleError(error, reply)
+      }
+    }
+  }
+
+  /**
+   * Creates a preHandler that runs dynamic guards (needs scoped container).
+   * If endContainerAfter=true, container is ended in finally block.
+   * @private
+   */
+  private makeDynamicGuardsPreHandler(
+    guards: Set<ClassType>,
+    moduleMetadata: ModuleMetadata,
+    controllerMetadata: ControllerMetadata,
+    endpoint: HandlerMetadata,
+  ): PreHandler {
+    return async (request, reply) => {
+      const container = this.createRequestContainer(request, reply)
 
       try {
-        return await runWithRequestId(requestId, async () => {
-          // Run guards
-          const guards = this.guardRunner.makeContext(
+        await runWithRequestId(request.id, async () => {
+          const context = this.createExecutionContext(
+            request,
+            reply,
+            moduleMetadata,
+            controllerMetadata,
+            endpoint,
+            container,
+          )
+          await this.guardRunner.runGuards(guards as any, context, container)
+        })
+      } catch (error) {
+        return this.handleError(error, reply)
+      }
+    }
+  }
+
+  /**
+   * Wraps a route handler with request context, guards, and error handling.
+   *
+   * This method creates route handlers using one of five paths:
+   * 1. Static handler + no guards: Direct handler call (fastest)
+   * 2. Static handler + static guards: preHandler runs guards, handler is direct
+   * 3. Static guards + dynamic handler: preHandler creates container and runs guards
+   * 4. Dynamic guards + static handler: preHandler creates container, runs guards, ends container
+   * 5. Dynamic guards + dynamic handler: preHandler creates container, runs guards, onResponse ends container
+   *
+   * @param handlerResult - The handler result from the adapter service.
+   * @param guardResolution - Pre-resolved guards or resolver function.
+   * @param moduleMetadata - Metadata about the module.
+   * @param controllerMetadata - Metadata about the controller.
+   * @param endpoint - Metadata about the endpoint handler.
+   * @returns Route handlers with optional preHandler.
+   * @private
+   */
+  private wrapHandler(
+    handlerResult: FastifyHandlerResult,
+    guardResolution: {
+      cached: boolean
+      instances: CanActivate[] | null
+      classTypes: ClassType[]
+    },
+    moduleMetadata: ModuleMetadata,
+    controllerMetadata: ControllerMetadata,
+    endpoint: HandlerMetadata,
+  ): RouteHandlers {
+    const hasGuards = guardResolution.classTypes.length > 0
+    const guardsAreStatic = guardResolution.cached
+    const handlerIsStatic = handlerResult.isStatic
+
+    // Path 1: No guards, static handler (fastest path)
+    if (!hasGuards && handlerIsStatic) {
+      return {
+        handler: this.makeStaticHandler(handlerResult),
+      }
+    }
+
+    // Path 2: Static guards, static handler
+    if (hasGuards && guardsAreStatic && handlerIsStatic) {
+      return {
+        preHandler: this.makeStaticGuardsPreHandler(
+          guardResolution.instances!,
+          moduleMetadata,
+          controllerMetadata,
+          endpoint,
+          false, // no container needed
+        ),
+        handler: this.makeStaticHandler(handlerResult),
+      }
+    }
+
+    // Path 3: Static guards, dynamic handler
+    if (hasGuards && guardsAreStatic && !handlerIsStatic) {
+      return {
+        preHandler: this.makeStaticGuardsPreHandler(
+          guardResolution.instances!,
+          moduleMetadata,
+          controllerMetadata,
+          endpoint,
+          true, // setup container for handler
+        ),
+        handler: this.makeDynamicHandler(handlerResult),
+      }
+    }
+
+    // Path 4: Dynamic guards, static handler
+    if (hasGuards && !guardsAreStatic && handlerIsStatic) {
+      return {
+        preHandler: this.makeDynamicGuardsPreHandler(
+          new Set(guardResolution.classTypes),
+          moduleMetadata,
+          controllerMetadata,
+          endpoint,
+        ),
+        handler: this.makeStaticHandler(handlerResult),
+      }
+    }
+
+    // Path 5: Dynamic guards + dynamic handler (or no guards + dynamic handler)
+    const guards = new Set(guardResolution.classTypes)
+    return {
+      preHandler: hasGuards
+        ? this.makeDynamicGuardsPreHandler(
+            guards,
             moduleMetadata,
             controllerMetadata,
             endpoint,
           )
-          if (guards.size > 0) {
-            const canActivate = await this.guardRunner.runGuards(
-              guards,
-              executionContext,
-              requestContainer,
-            )
-            if (!canActivate) {
-              return reply.status(403).send({ message: 'Forbidden' })
-            }
-          }
+        : async (request, reply) => {
+            // No guards, just setup container
+            this.createRequestContainer(request, reply)
+          },
+      handler: this.makeDynamicHandler(handlerResult as FastifyDynamicHandler),
+    }
+  }
 
-          const response = await handler(requestContainer, request, reply)
-          return response
-        })
-      } catch (error) {
-        // Handle errors
-        if (error instanceof HttpException) {
-          return reply.status(error.statusCode).send(error.response)
-        } else {
-          const err = error as Error
-          this.logger.error(`Error: ${err.message}`, err)
-          return reply.status(500).send({
-            statusCode: 500,
-            message: err.message || 'Internal Server Error',
-            error: 'InternalServerError',
-          })
-        }
-      } finally {
-        requestContainer.endRequest().catch((err: any) => {
-          this.logger.error(
-            `Error ending request context ${requestId}: ${err.message}`,
-            err,
-          )
-        })
-      }
+  /**
+   * Handles errors and converts them to appropriate HTTP responses.
+   * @private
+   */
+  private handleError(error: unknown, reply: FastifyReply) {
+    if (error instanceof HttpException) {
+      return reply.status(error.statusCode).send(error.response)
+    } else {
+      const err = error as Error
+      this.logger.error(`Error: ${err.message}`, err)
+      return reply.status(500).send({
+        statusCode: 500,
+        message: err.message || 'Internal Server Error',
+        error: 'InternalServerError',
+      })
     }
   }
 }

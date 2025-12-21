@@ -1,10 +1,28 @@
 import type { BaseEndpointConfig } from '@navios/builder'
-import type { ClassType, HandlerMetadata, ScopedContainer } from '@navios/core'
+import type {
+  ClassType,
+  HandlerMetadata,
+  NaviosApplicationOptions,
+  ScopedContainer,
+} from '@navios/core'
 import type { FastifyReply, FastifyRequest } from 'fastify'
 
-import { Injectable, InjectionToken } from '@navios/core'
+import {
+  Injectable,
+  InjectionToken,
+  NaviosOptionsToken,
+  optional,
+} from '@navios/core'
+
+import type { FastifyHandlerResult } from './handler-adapter.interface.mjs'
 
 import { FastifyStreamAdapterService } from './stream-adapter.service.mjs'
+
+const defaultOptions: NaviosApplicationOptions = {
+  adapter: [],
+  validateResponses: true,
+  enableRequestId: false,
+}
 
 /**
  * Injection token for the Fastify endpoint adapter service.
@@ -50,6 +68,8 @@ export const FastifyEndpointAdapterToken =
   token: FastifyEndpointAdapterToken,
 })
 export class FastifyEndpointAdapterService extends FastifyStreamAdapterService {
+  private options = optional(NaviosOptionsToken) ?? defaultOptions
+
   /**
    * Checks if the handler has any validation schemas defined.
    *
@@ -60,7 +80,10 @@ export class FastifyEndpointAdapterService extends FastifyStreamAdapterService {
     handlerMetadata: HandlerMetadata<BaseEndpointConfig>,
   ): boolean {
     const config = handlerMetadata.config
-    return super.hasSchema(handlerMetadata) || !!config.responseSchema
+    return (
+      super.hasSchema(handlerMetadata) ||
+      (!!this.options.validateResponses && !!config.responseSchema)
+    )
   }
 
   /**
@@ -77,7 +100,7 @@ export class FastifyEndpointAdapterService extends FastifyStreamAdapterService {
   ): Record<string, any> {
     const config = handlerMetadata.config
     const schema = super.provideSchema(handlerMetadata)
-    if (config.responseSchema) {
+    if (this.options.validateResponses && config.responseSchema) {
       schema.response = {
         200: config.responseSchema,
       }
@@ -99,47 +122,106 @@ export class FastifyEndpointAdapterService extends FastifyStreamAdapterService {
    * @param handlerMetadata - The handler metadata with configuration and schemas.
    * @returns A function that handles incoming requests and sends responses.
    */
-  override provideHandler(
+  override async provideHandler(
     controller: ClassType,
     handlerMetadata: HandlerMetadata<BaseEndpointConfig>,
-  ): (
-    context: ScopedContainer,
-    request: FastifyRequest,
-    reply: FastifyReply,
-  ) => Promise<any> {
+  ): Promise<FastifyHandlerResult> {
     const getters = this.prepareArguments(handlerMetadata)
-    const formatArguments = async (request: FastifyRequest) => {
-      const argument: Record<string, any> = {}
-      const promises: Promise<void>[] = []
-      for (const getter of getters) {
-        const res = getter(argument, request)
-        if (res instanceof Promise) {
-          promises.push(res)
+    const hasArguments = getters.length > 0
+
+    // Cache method name for faster property access
+    const methodName = handlerMetadata.classMethod
+
+    // Resolve controller with automatic scope detection
+    const resolution = await this.instanceResolver.resolve(controller)
+
+    // Pre-compute status code and headers
+    const statusCode = handlerMetadata.successStatusCode
+    const headers = handlerMetadata.headers
+
+    // Branch based on hasArguments to skip formatArguments entirely when not needed
+    if (hasArguments) {
+      // Detect if any getter is async at registration time
+      const hasAsyncGetters = getters.some(
+        (g) => g.constructor.name === 'AsyncFunction',
+      )
+
+      const formatArguments = hasAsyncGetters
+        ? async (request: FastifyRequest) => {
+            const argument: Record<string, any> = {}
+            const promises: Promise<void>[] = []
+            for (const getter of getters) {
+              const res = getter(argument, request)
+              if (res instanceof Promise) {
+                promises.push(res)
+              }
+            }
+            await Promise.all(promises)
+            return argument
+          }
+        : (request: FastifyRequest) => {
+            const argument: Record<string, any> = {}
+            for (const getter of getters) {
+              getter(argument, request)
+            }
+            return argument
+          }
+
+      if (resolution.cached) {
+        const cachedController = resolution.instance as any
+        // Pre-bind method for faster invocation
+        const boundMethod = cachedController[methodName].bind(cachedController)
+        return {
+          isStatic: true,
+          handler: async (request: FastifyRequest, reply: FastifyReply) => {
+            const argument = await formatArguments(request)
+            const result = await boundMethod(argument)
+            reply.status(statusCode).headers(headers).send(result)
+          },
         }
       }
-      await Promise.all(promises)
-      return argument
-    }
-    const responseSchema = handlerMetadata.config.responseSchema
-    const formatResponse = responseSchema
-      ? (result: any) => {
-          return responseSchema.parse(result)
-        }
-      : (result: any) => result
 
-    return async (
-      context: ScopedContainer,
-      request: FastifyRequest,
-      reply: FastifyReply,
-    ) => {
-      const controllerInstance = await context.get(controller)
-      const argument = await formatArguments(request)
-      const result =
-        await controllerInstance[handlerMetadata.classMethod](argument)
-      reply
-        .status(handlerMetadata.successStatusCode)
-        .headers(handlerMetadata.headers)
-        .send(formatResponse(result))
+      return {
+        isStatic: false,
+        handler: async (
+          scoped: ScopedContainer,
+          request: FastifyRequest,
+          reply: FastifyReply,
+        ) => {
+          const controllerInstance = (await resolution.resolve(scoped)) as any
+          const argument = await formatArguments(request)
+          const result = await controllerInstance[methodName](argument)
+          reply.status(statusCode).headers(headers).send(result)
+        },
+      }
+    }
+
+    // No arguments path - skip formatArguments entirely
+    const emptyArgs = Object.freeze({})
+    if (resolution.cached) {
+      const cachedController = resolution.instance as any
+      // Pre-bind method for faster invocation
+      const boundMethod = cachedController[methodName].bind(cachedController)
+      return {
+        isStatic: true,
+        handler: async (_request: FastifyRequest, reply: FastifyReply) => {
+          const result = await boundMethod(emptyArgs)
+          reply.status(statusCode).headers(headers).send(result)
+        },
+      }
+    }
+
+    return {
+      isStatic: false,
+      handler: async (
+        scoped: ScopedContainer,
+        _request: FastifyRequest,
+        reply: FastifyReply,
+      ) => {
+        const controllerInstance = (await resolution.resolve(scoped)) as any
+        const result = await controllerInstance[methodName](emptyArgs)
+        reply.status(statusCode).headers(headers).send(result)
+      },
     }
   }
 }
