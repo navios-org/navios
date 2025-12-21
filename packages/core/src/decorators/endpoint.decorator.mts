@@ -132,6 +132,51 @@ export function Endpoint<
   QuerySchema = undefined,
   ResponseSchema extends ZodType = ZodType,
   RequestSchema = ZodType,
+  Params = QuerySchema extends ZodType
+    ? RequestSchema extends ZodType
+      ? EndpointFunctionArgs<Url, QuerySchema, RequestSchema, true>
+      : EndpointFunctionArgs<Url, QuerySchema, undefined, true>
+    : RequestSchema extends ZodType
+      ? EndpointFunctionArgs<Url, undefined, RequestSchema, true>
+      : EndpointFunctionArgs<Url, undefined, undefined, true>,
+>(endpoint: {
+  config: BaseEndpointConfig<
+    Method,
+    Url,
+    QuerySchema,
+    ResponseSchema,
+    RequestSchema
+  >
+}): (
+  target: (
+    params: Params,
+  ) => Promise<z.input<ResponseSchema>> | z.input<ResponseSchema>,
+  context: ClassMethodDecoratorContext,
+) => void
+export function Endpoint<
+  Method extends HttpMethod = HttpMethod,
+  Url extends string = string,
+  QuerySchema = undefined,
+  ResponseSchema extends ZodType = ZodType,
+  RequestSchema = ZodType,
+>(endpoint: {
+  config: BaseEndpointConfig<
+    Method,
+    Url,
+    QuerySchema,
+    ResponseSchema,
+    RequestSchema
+  >
+}): (
+  target: () => Promise<z.input<ResponseSchema>> | z.input<ResponseSchema>,
+  context: ClassMethodDecoratorContext,
+) => void
+export function Endpoint<
+  Method extends HttpMethod = HttpMethod,
+  Url extends string = string,
+  QuerySchema = undefined,
+  ResponseSchema extends ZodType = ZodType,
+  RequestSchema = ZodType,
 >(endpoint: {
   config: BaseEndpointConfig<
     Method,
@@ -141,18 +186,21 @@ export function Endpoint<
     RequestSchema
   >
 }) {
-  return (
-    target: (
-      params: QuerySchema extends ZodType
-        ? RequestSchema extends ZodType
-          ? EndpointFunctionArgs<Url, QuerySchema, RequestSchema, true>
-          : EndpointFunctionArgs<Url, QuerySchema, undefined, true>
-        : RequestSchema extends ZodType
-          ? EndpointFunctionArgs<Url, undefined, RequestSchema, true>
-          : EndpointFunctionArgs<Url, undefined, undefined, true>,
-    ) => Promise<z.input<ResponseSchema>>,
-    context: ClassMethodDecoratorContext,
-  ) => {
+  type Params = QuerySchema extends ZodType
+    ? RequestSchema extends ZodType
+      ? EndpointFunctionArgs<Url, QuerySchema, RequestSchema, true>
+      : EndpointFunctionArgs<Url, QuerySchema, undefined, true>
+    : RequestSchema extends ZodType
+      ? EndpointFunctionArgs<Url, undefined, RequestSchema, true>
+      : EndpointFunctionArgs<Url, undefined, undefined, true>
+
+  type Handler =
+    | ((
+        params: Params,
+      ) => Promise<z.input<ResponseSchema>> | z.input<ResponseSchema>)
+    | (() => Promise<z.input<ResponseSchema>> | z.input<ResponseSchema>)
+
+  return (target: Handler, context: ClassMethodDecoratorContext) => {
     if (context.kind !== 'method') {
       throw new Error(
         '[Navios] Endpoint decorator can only be used on methods.',

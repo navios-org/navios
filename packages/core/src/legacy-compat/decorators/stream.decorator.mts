@@ -69,7 +69,7 @@ export function Stream<
     // @ts-expect-error - we don't need to type the value
     const result = originalDecorator(descriptor.value, context)
     if (result !== descriptor.value) {
-      descriptor.value = result
+      descriptor.value = result as any
     }
     return descriptor
   }

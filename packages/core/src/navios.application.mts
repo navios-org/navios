@@ -55,6 +55,20 @@ export interface NaviosApplicationOptions extends NaviosApplicationContextOption
    * ```
    */
   adapter: NaviosEnvironmentOptions | NaviosEnvironmentOptions[]
+
+  /**
+   * Whether to validate response schemas.
+   * When `false`, response schema validation is skipped for better performance.
+   * @default true
+   */
+  validateResponses?: boolean
+
+  /**
+   * Whether to enable request ID propagation via AsyncLocalStorage.
+   * When `true`, request IDs are available via `getRequestId()` throughout the request.
+   * @default false
+   */
+  enableRequestId?: boolean
 }
 
 /**

@@ -5,6 +5,37 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.0] - 2025-12-21
+
+### Added
+
+- **Handler Result Types**: New `HandlerResult`, `StaticHandler`, and `DynamicHandler` types for optimized handler dispatch
+  - Enables static/dynamic branching for performance optimization in adapters
+  - Pre-resolved controllers can use static handlers without per-request container creation
+- **Response Validation Control**: New `validateResponses?: boolean` option in `NaviosApplicationOptions`
+  - Allows disabling response validation for performance in production
+- **Request ID Control**: New `enableRequestId?: boolean` option for async local storage optimization
+  - Can be disabled when request ID tracking is not needed
+- **Static Guard Execution**: New `runGuardsStatic()` method in `GuardRunnerService`
+  - Allows running pre-resolved guard instances for improved performance
+- **Registry Support in Controllers**: `@Controller()` decorator now accepts optional `registry` parameter
+  - Enables custom registries for controller-level dependency overrides
+- **NaviosOptionsToken**: New injection token for accessing application options from services
+- **InstanceResolverService Export**: Now exported from `@navios/core/services`
+
+### Changed
+
+- **Handler Adapter Interface**: `provideHandler()` now returns `Promise<HandlerResult>` instead of direct handler function
+  - Enables adapters to distinguish between static and dynamic handlers
+- **Endpoint Decorator Flexibility**: Now supports optional parameters and no-parameter handlers
+- **Logger Cleanup**: Removed debug console.log statements
+
+### Performance
+
+- Static/dynamic handler branching eliminates unnecessary container creation for singleton controllers
+- Guards can be pre-resolved at startup for faster request handling
+- Response validation can be disabled for production performance
+
 ## [0.7.1] - 2025-12-18
 
 ### Added

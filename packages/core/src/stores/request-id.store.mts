@@ -1,5 +1,17 @@
 import { AsyncLocalStorage } from 'node:async_hooks'
 
+let requestCounter = 0
+
+/**
+ * Generates a simple incremental request ID.
+ * Much faster than crypto.randomUUID() and sufficient for request tracking.
+ *
+ * @returns A unique request ID string (e.g., "req-1", "req-2", ...)
+ */
+export function generateRequestId(): string {
+  return `req-${++requestCounter}`
+}
+
 /**
  * AsyncLocalStorage store for the current request ID.
  *
@@ -20,17 +32,44 @@ import { AsyncLocalStorage } from 'node:async_hooks'
  * const currentId = getRequestId()
  * ```
  */
-export const requestIdStore = new AsyncLocalStorage<string>()
+let requestIdStore: AsyncLocalStorage<string> | null = null
+
+function getRequestIdStore(): AsyncLocalStorage<string> {
+  if (!requestIdStore) {
+    requestIdStore = new AsyncLocalStorage<string>()
+  }
+  return requestIdStore!
+}
+/**
+ * Whether request ID propagation is enabled.
+ * When disabled, runWithRequestId is a pass-through for better performance.
+ */
+let requestIdEnabled = false
+
+/**
+ * Enables or disables request ID propagation.
+ * Called by NaviosFactory based on the enableRequestId option.
+ *
+ * @param enabled - Whether to enable request ID propagation
+ */
+export function setRequestIdEnabled(enabled: boolean): void {
+  requestIdEnabled = enabled
+}
 
 /**
  * Runs a function with a request ID in the async local storage context.
+ * If request ID propagation is disabled, the function is called directly
+ * without AsyncLocalStorage overhead.
  *
  * @param requestId - The request ID to set for this context
  * @param fn - The function to run within this context
  * @returns The return value of the function
  */
 export function runWithRequestId<R>(requestId: string, fn: () => R): R {
-  return requestIdStore.run(requestId, fn)
+  if (!requestIdEnabled) {
+    return fn()
+  }
+  return getRequestIdStore().run(requestId, fn)
 }
 
 /**
@@ -39,5 +78,8 @@ export function runWithRequestId<R>(requestId: string, fn: () => R): R {
  * @returns The current request ID, or undefined if not in a request context
  */
 export function getRequestId(): string | undefined {
-  return requestIdStore.getStore()
+  if (!requestIdEnabled) {
+    return undefined
+  }
+  return getRequestIdStore().getStore()
 }

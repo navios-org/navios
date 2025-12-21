@@ -60,8 +60,6 @@ export class LoggerInstance implements LoggerService {
     optionalParams = this.context
       ? optionalParams.concat(this.context)
       : optionalParams
-    console.log('log', message, optionalParams)
-    console.log('localInstance', this.localInstance)
     this.localInstance?.log(message, ...optionalParams)
   }
 

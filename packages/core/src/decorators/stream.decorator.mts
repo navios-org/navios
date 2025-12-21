@@ -11,9 +11,9 @@ import { StreamAdapterToken } from '../tokens/index.mjs'
 
 /**
  * Extracts the typed parameters for a stream endpoint handler function.
- * 
+ *
  * Similar to `EndpointParams`, but specifically for streaming endpoints.
- * 
+ *
  * @typeParam EndpointDeclaration - The stream endpoint declaration from @navios/builder
  */
 export type StreamParams<
@@ -46,20 +46,20 @@ export type StreamParams<
 
 /**
  * Decorator that marks a method as a streaming endpoint.
- * 
+ *
  * Use this decorator for endpoints that stream data (e.g., file downloads, SSE).
  * The endpoint must be defined using @navios/builder's `declareStream` method.
- * 
+ *
  * @param endpoint - The stream endpoint declaration from @navios/builder
  * @returns A method decorator
- * 
+ *
  * @example
  * ```typescript
  * const downloadFileEndpoint = api.declareStream({
  *   method: 'get',
  *   url: '/files/$fileId',
  * })
- * 
+ *
  * @Controller()
  * export class FileController {
  *   @Stream(downloadFileEndpoint)
@@ -75,27 +75,68 @@ export function Stream<
   Url extends string = string,
   QuerySchema = undefined,
   RequestSchema = ZodType,
+  Params = QuerySchema extends ZodObject
+    ? RequestSchema extends ZodType
+      ? EndpointFunctionArgs<Url, QuerySchema, RequestSchema, true>
+      : EndpointFunctionArgs<Url, QuerySchema, undefined, true>
+    : RequestSchema extends ZodType
+      ? EndpointFunctionArgs<Url, undefined, RequestSchema, true>
+      : EndpointFunctionArgs<Url, undefined, undefined, true>,
+>(endpoint: {
+  config: BaseStreamConfig<Method, Url, QuerySchema, RequestSchema>
+}): (
+  target: (params: Params, reply: any) => any,
+  context: ClassMethodDecoratorContext,
+) => void
+// Bun doesn't support reply parameter
+export function Stream<
+  Method extends HttpMethod = HttpMethod,
+  Url extends string = string,
+  QuerySchema = undefined,
+  RequestSchema = ZodType,
+  Params = QuerySchema extends ZodObject
+    ? RequestSchema extends ZodType
+      ? EndpointFunctionArgs<Url, QuerySchema, RequestSchema, true>
+      : EndpointFunctionArgs<Url, QuerySchema, undefined, true>
+    : RequestSchema extends ZodType
+      ? EndpointFunctionArgs<Url, undefined, RequestSchema, true>
+      : EndpointFunctionArgs<Url, undefined, undefined, true>,
+>(endpoint: {
+  config: BaseStreamConfig<Method, Url, QuerySchema, RequestSchema>
+}): (
+  target: (params: Params) => any,
+  context: ClassMethodDecoratorContext,
+) => void
+export function Stream<
+  Method extends HttpMethod = HttpMethod,
+  Url extends string = string,
+  QuerySchema = undefined,
+  RequestSchema = ZodType,
+>(endpoint: {
+  config: BaseStreamConfig<Method, Url, QuerySchema, RequestSchema>
+}): (target: () => any, context: ClassMethodDecoratorContext) => void
+export function Stream<
+  Method extends HttpMethod = HttpMethod,
+  Url extends string = string,
+  QuerySchema = undefined,
+  RequestSchema = ZodType,
 >(endpoint: {
   config: BaseStreamConfig<Method, Url, QuerySchema, RequestSchema>
 }) {
-  return (
-    target: (
-      params: QuerySchema extends ZodObject
-        ? RequestSchema extends ZodType
-          ? EndpointFunctionArgs<Url, QuerySchema, RequestSchema>
-          : EndpointFunctionArgs<Url, QuerySchema, undefined>
-        : RequestSchema extends ZodType
-          ? EndpointFunctionArgs<Url, undefined, RequestSchema>
-          : EndpointFunctionArgs<Url, undefined, undefined>,
-      reply: any,
-    ) => Promise<void>,
-    context: ClassMethodDecoratorContext,
-  ) => {
-    if (typeof target !== 'function') {
-      throw new Error(
-        '[Navios] Endpoint decorator can only be used on functions.',
-      )
-    }
+  type Params = QuerySchema extends ZodObject
+    ? RequestSchema extends ZodType
+      ? EndpointFunctionArgs<Url, QuerySchema, RequestSchema, true>
+      : EndpointFunctionArgs<Url, QuerySchema, undefined, true>
+    : RequestSchema extends ZodType
+      ? EndpointFunctionArgs<Url, undefined, RequestSchema, true>
+      : EndpointFunctionArgs<Url, undefined, undefined, true>
+
+  type Handler =
+    | ((params: Params, reply: any) => any)
+    | ((params: Params) => any)
+    | (() => any)
+
+  return (target: Handler, context: ClassMethodDecoratorContext) => {
     if (context.kind !== 'method') {
       throw new Error(
         '[Navios] Endpoint decorator can only be used on methods.',

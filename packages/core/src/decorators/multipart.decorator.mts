@@ -13,9 +13,9 @@ import { MultipartAdapterToken } from '../tokens/index.mjs'
 
 /**
  * Extracts the typed parameters for a multipart endpoint handler function.
- * 
+ *
  * Similar to `EndpointParams`, but specifically for multipart/form-data endpoints.
- * 
+ *
  * @typeParam EndpointDeclaration - The endpoint declaration from @navios/builder
  */
 export type MultipartParams<
@@ -48,7 +48,7 @@ export type MultipartParams<
 
 /**
  * Extracts the typed return value for a multipart endpoint handler function.
- * 
+ *
  * @typeParam EndpointDeclaration - The endpoint declaration from @navios/builder
  */
 export type MultipartResult<
@@ -64,13 +64,13 @@ export type MultipartResult<
 
 /**
  * Decorator that marks a method as a multipart/form-data endpoint.
- * 
+ *
  * Use this decorator for endpoints that handle file uploads or form data.
  * The endpoint must be defined using @navios/builder's `declareMultipart` method.
- * 
+ *
  * @param endpoint - The multipart endpoint declaration from @navios/builder
  * @returns A method decorator
- * 
+ *
  * @example
  * ```typescript
  * const uploadFileEndpoint = api.declareMultipart({
@@ -79,7 +79,7 @@ export type MultipartResult<
  *   requestSchema: z.object({ file: z.instanceof(File) }),
  *   responseSchema: z.object({ url: z.string() }),
  * })
- * 
+ *
  * @Controller()
  * export class FileController {
  *   @Multipart(uploadFileEndpoint)
@@ -97,6 +97,51 @@ export function Multipart<
   QuerySchema = undefined,
   ResponseSchema extends ZodType = ZodType,
   RequestSchema = ZodType,
+  Params = QuerySchema extends ZodObject
+    ? RequestSchema extends ZodType
+      ? EndpointFunctionArgs<Url, QuerySchema, RequestSchema, true>
+      : EndpointFunctionArgs<Url, QuerySchema, undefined, true>
+    : RequestSchema extends ZodType
+      ? EndpointFunctionArgs<Url, undefined, RequestSchema, true>
+      : EndpointFunctionArgs<Url, undefined, undefined, true>,
+>(endpoint: {
+  config: BaseEndpointConfig<
+    Method,
+    Url,
+    QuerySchema,
+    ResponseSchema,
+    RequestSchema
+  >
+}): (
+  target: (
+    params: Params,
+  ) => Promise<z.input<ResponseSchema>> | z.input<ResponseSchema>,
+  context: ClassMethodDecoratorContext,
+) => void
+export function Multipart<
+  Method extends HttpMethod = HttpMethod,
+  Url extends string = string,
+  QuerySchema = undefined,
+  ResponseSchema extends ZodType = ZodType,
+  RequestSchema = ZodType,
+>(endpoint: {
+  config: BaseEndpointConfig<
+    Method,
+    Url,
+    QuerySchema,
+    ResponseSchema,
+    RequestSchema
+  >
+}): (
+  target: () => Promise<z.input<ResponseSchema>> | z.input<ResponseSchema>,
+  context: ClassMethodDecoratorContext,
+) => void
+export function Multipart<
+  Method extends HttpMethod = HttpMethod,
+  Url extends string = string,
+  QuerySchema = undefined,
+  ResponseSchema extends ZodType = ZodType,
+  RequestSchema = ZodType,
 >(endpoint: {
   config: BaseEndpointConfig<
     Method,
@@ -106,23 +151,21 @@ export function Multipart<
     RequestSchema
   >
 }) {
-  return (
-    target: (
-      params: QuerySchema extends ZodObject
-        ? RequestSchema extends ZodType
-          ? EndpointFunctionArgs<Url, QuerySchema, RequestSchema>
-          : EndpointFunctionArgs<Url, QuerySchema, undefined>
-        : RequestSchema extends ZodType
-          ? EndpointFunctionArgs<Url, undefined, RequestSchema>
-          : EndpointFunctionArgs<Url, undefined, undefined>,
-    ) => Promise<z.input<ResponseSchema>>,
-    context: ClassMethodDecoratorContext,
-  ) => {
-    if (typeof target !== 'function') {
-      throw new Error(
-        '[Navios] Endpoint decorator can only be used on functions.',
-      )
-    }
+  type Params = QuerySchema extends ZodObject
+    ? RequestSchema extends ZodType
+      ? EndpointFunctionArgs<Url, QuerySchema, RequestSchema, true>
+      : EndpointFunctionArgs<Url, QuerySchema, undefined, true>
+    : RequestSchema extends ZodType
+      ? EndpointFunctionArgs<Url, undefined, RequestSchema, true>
+      : EndpointFunctionArgs<Url, undefined, undefined, true>
+
+  type Handler =
+    | ((
+        params: Params,
+      ) => Promise<z.input<ResponseSchema>> | z.input<ResponseSchema>)
+    | (() => Promise<z.input<ResponseSchema>> | z.input<ResponseSchema>)
+
+  return (target: Handler, context: ClassMethodDecoratorContext) => {
     if (context.kind !== 'method') {
       throw new Error(
         '[Navios] Endpoint decorator can only be used on methods.',

@@ -20,6 +20,11 @@ export class GuardRunnerService {
   private readonly logger = inject(Logger, {
     context: GuardRunnerService.name,
   })
+
+  /**
+   * Runs guards that need to be resolved from a scoped container.
+   * Use this when guards have request-scoped dependencies.
+   */
   async runGuards(
     allGuards: Set<
       | ClassTypeWithInstance<CanActivate>
@@ -28,16 +33,48 @@ export class GuardRunnerService {
     executionContext: AbstractExecutionContext,
     context: ScopedContainer,
   ) {
-    let canActivate = true
-    for (const guard of Array.from(allGuards).reverse()) {
-      const guardInstance = await context.get(
-        guard as InjectionToken<CanActivate, undefined>,
-      )
-      if (!guardInstance.canActivate) {
-        throw new Error(
-          `[Navios] Guard ${guard.name as string} does not implement canActivate()`,
+    // Reverse order: module guards run first, then controller, then endpoint
+    const guardsArray = Array.from(allGuards).reverse()
+
+    // Resolve all guards in parallel
+    const guardInstances = await Promise.all(
+      guardsArray.map(async (guard) => {
+        const guardInstance = await context.get(
+          guard as InjectionToken<CanActivate, undefined>,
         )
-      }
+        if (!guardInstance.canActivate) {
+          throw new Error(
+            `[Navios] Guard ${guard.name as string} does not implement canActivate()`,
+          )
+        }
+        return guardInstance
+      }),
+    )
+
+    return this.executeGuards(guardInstances, executionContext)
+  }
+
+  /**
+   * Runs pre-resolved guard instances.
+   * Use this when all guards are singletons and have been pre-resolved at startup.
+   */
+  async runGuardsStatic(
+    guardInstances: CanActivate[],
+    executionContext: AbstractExecutionContext,
+  ) {
+    return this.executeGuards(guardInstances, executionContext)
+  }
+
+  /**
+   * Shared guard execution logic.
+   * Iterates through guard instances and calls canActivate on each.
+   */
+  private async executeGuards(
+    guardInstances: CanActivate[],
+    executionContext: AbstractExecutionContext,
+  ): Promise<boolean> {
+    let canActivate = true
+    for (const guardInstance of guardInstances) {
       try {
         canActivate = await guardInstance.canActivate(executionContext)
         if (!canActivate) {

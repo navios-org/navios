@@ -36,7 +36,7 @@ describe('Controller decorator', () => {
     @Controller()
     class Test {
       @Endpoint(endpoint)
-      async getBar(params: EndpointParams<typeof endpoint>) {
+      async getBar() {
         return {
           foo: 'bar',
         }

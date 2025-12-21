@@ -1,6 +1,6 @@
 import type { ClassType } from '@navios/di'
 
-import { Injectable, InjectableScope, InjectionToken } from '@navios/di'
+import { Injectable, InjectionToken, Registry } from '@navios/di'
 
 import { getControllerMetadata } from '../metadata/index.mjs'
 
@@ -13,17 +13,22 @@ export interface ControllerOptions {
    * Guards are executed in reverse order (last guard first).
    */
   guards?: ClassType[] | Set<ClassType>
+  /**
+   * Registry to use for the controller.
+   * Registry is used to store the controller and its endpoints.
+   */
+  registry?: Registry
 }
 
 /**
  * Decorator that marks a class as a Navios controller.
- * 
+ *
  * Controllers handle HTTP requests and define endpoints.
  * They are request-scoped by default, meaning a new instance is created for each request.
- * 
+ *
  * @param options - Controller configuration options
  * @returns A class decorator
- * 
+ *
  * @example
  * ```typescript
  * @Controller({ guards: [AuthGuard] })
@@ -35,7 +40,7 @@ export interface ControllerOptions {
  * }
  * ```
  */
-export function Controller({ guards }: ControllerOptions = {}) {
+export function Controller({ guards, registry }: ControllerOptions = {}) {
   return function (target: ClassType, context: ClassDecoratorContext) {
     if (context.kind !== 'class') {
       throw new Error(
@@ -53,7 +58,7 @@ export function Controller({ guards }: ControllerOptions = {}) {
     }
     return Injectable({
       token,
-      scope: InjectableScope.Request,
+      registry,
     })(target, context)
   }
 }

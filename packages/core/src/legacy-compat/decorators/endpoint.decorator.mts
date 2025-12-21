@@ -92,7 +92,7 @@ export function Endpoint<
     // @ts-expect-error - we don't need to type the value
     const result = originalDecorator(typedDescriptor.value, context)
     if (result !== typedDescriptor.value) {
-      typedDescriptor.value = result
+      typedDescriptor.value = result as any
     }
     return typedDescriptor
   }

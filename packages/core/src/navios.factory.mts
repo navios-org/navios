@@ -15,6 +15,8 @@ import type {
 import { ConsoleLogger, isNil, LoggerOutput } from './logger/index.mjs'
 import { NaviosApplication } from './navios.application.mjs'
 import { NaviosEnvironment } from './navios.environment.mjs'
+import { setRequestIdEnabled } from './stores/index.mjs'
+import { NaviosOptionsToken } from './tokens/index.mjs'
 
 /**
  * Factory class for creating and configuring Navios applications.
@@ -82,6 +84,23 @@ export class NaviosFactory {
     },
   ) {
     const container = options.container ?? new Container()
+
+    // Set request ID flag early, before any adapters are registered
+    if (options.enableRequestId === true) {
+      setRequestIdEnabled(true)
+    }
+
+    // Store options in container for DI access by adapters
+    container
+      .getServiceLocator()
+      .getManager()
+      .storeCreatedHolder(
+        NaviosOptionsToken.toString(),
+        options,
+        InjectableType.Class,
+        InjectableScope.Singleton,
+      )
+
     await this.registerLoggerConfiguration(container, options)
     const adapters = Array.isArray(options.adapter)
       ? options.adapter
