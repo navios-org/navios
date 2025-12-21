@@ -106,6 +106,17 @@ export interface RequestContext {
    * Checks if this manager has any holders.
    */
   isEmpty(): boolean
+
+  /**
+   * Registers a holder's dependencies in the reverse index.
+   */
+  registerDependencies(holderName: string, deps: Set<string>): void
+
+  /**
+   * Gets all holder names that depend on the given instance name.
+   * O(1) lookup using the reverse dependency index.
+   */
+  getDependents(instanceName: string): string[]
 }
 
 /** @deprecated Use RequestContext instead */

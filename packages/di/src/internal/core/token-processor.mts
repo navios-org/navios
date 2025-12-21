@@ -17,12 +17,54 @@ import {
 import { getInjectableToken } from '../../utils/index.mjs'
 
 /**
+ * Simple LRU cache for instance name generation.
+ * Uses a Map which maintains insertion order for efficient LRU eviction.
+ */
+class InstanceNameCache {
+  private readonly cache = new Map<string, string>()
+  private readonly maxSize: number
+
+  constructor(maxSize = 1000) {
+    this.maxSize = maxSize
+  }
+
+  get(key: string): string | undefined {
+    const value = this.cache.get(key)
+    if (value !== undefined) {
+      // Move to end (most recently used)
+      this.cache.delete(key)
+      this.cache.set(key, value)
+    }
+    return value
+  }
+
+  set(key: string, value: string): void {
+    if (this.cache.has(key)) {
+      this.cache.delete(key)
+    } else if (this.cache.size >= this.maxSize) {
+      // Remove least recently used (first item)
+      const firstKey = this.cache.keys().next().value
+      if (firstKey !== undefined) {
+        this.cache.delete(firstKey)
+      }
+    }
+    this.cache.set(key, value)
+  }
+
+  clear(): void {
+    this.cache.clear()
+  }
+}
+
+/**
  * Handles token validation, normalization, and instance name generation.
  *
  * Provides utilities for resolving tokens to their underlying InjectionToken,
  * validating arguments against schemas, and generating unique instance identifiers.
  */
 export class TokenProcessor {
+  private readonly instanceNameCache = new InstanceNameCache()
+
   constructor(private readonly logger: Console | null = null) {}
 
   // ============================================================================
@@ -116,18 +158,35 @@ export class TokenProcessor {
 
   /**
    * Generates a unique instance name based on token and arguments.
+   * Results are cached using an LRU cache for performance.
    */
   generateInstanceName(token: InjectionTokenType, args: any): string {
     if (!args) {
       return token.toString()
     }
 
+    // Create a cache key from token id and args
+    const tokenStr = token.toString()
+    const cacheKey = `${tokenStr}:${JSON.stringify(args)}`
+
+    // Check cache first
+    const cached = this.instanceNameCache.get(cacheKey)
+    if (cached !== undefined) {
+      return cached
+    }
+
+    // Generate the instance name
     const formattedArgs = Object.entries(args)
       .sort(([keyA], [keyB]) => keyA.localeCompare(keyB))
       .map(([key, value]) => `${key}=${this.formatArgValue(value)}`)
       .join(',')
 
-    return `${token.toString()}:${formattedArgs.replaceAll(/"/g, '').replaceAll(/:/g, '=')}`
+    const result = `${tokenStr}:${formattedArgs.replaceAll(/"/g, '').replaceAll(/:/g, '=')}`
+
+    // Cache the result
+    this.instanceNameCache.set(cacheKey, result)
+
+    return result
   }
 
   /**

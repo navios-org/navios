@@ -5,6 +5,29 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.0] - 2025-12-21
+
+### Added
+
+- **LRU Cache for Instance Names**: Added `InstanceNameCache` with max 1000 entries for O(1) instance name lookups
+- **Reverse Dependency Index**: Implemented O(1) dependent lookups instead of O(n) iteration
+  - New `registerDependencies()` method for tracking dependencies during instance creation
+  - New `getDependents()` method for efficient dependent retrieval
+- **Performance Helper Methods**: New allocation-free iteration methods
+  - `forEachHolder()` for efficient iteration without creating intermediate arrays
+  - `findHolder()` for single-item searches without full iteration
+
+### Changed
+
+- **Production Mode Optimization**: Circular dependency detection is now skipped in production mode (`NODE_ENV=production`) for reduced overhead
+- **Dependency Invalidation Tracking**: Dependencies are now registered during instance creation for proper invalidation
+
+### Performance
+
+- Instance name generation is now cached (LRU, up to 1000 entries)
+- Dependent lookups reduced from O(n) to O(1) using reverse dependency index
+- Eliminates intermediate Map/Array allocations in various iteration methods
+
 ## [0.7.1] - 2025-12-21
 
 ### Added

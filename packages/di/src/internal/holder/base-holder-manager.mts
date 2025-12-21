@@ -19,9 +19,15 @@ export type HolderReadyResult<T> = [undefined, InstanceHolder<T>] | [DIError]
  */
 export abstract class BaseHolderManager {
   protected readonly _holders: Map<string, InstanceHolder>
+  /**
+   * Reverse dependency index: maps a dependency name to the set of holder names that depend on it.
+   * This allows O(1) lookup of dependents instead of O(n) iteration.
+   */
+  protected readonly _dependents: Map<string, Set<string>>
 
   constructor(protected readonly logger: Console | null = null) {
     this._holders = new Map()
+    this._dependents = new Map()
   }
 
   /**
@@ -48,32 +54,118 @@ export abstract class BaseHolderManager {
   abstract has(name: string): any
 
   /**
-   * Deletes a holder by name.
+   * Deletes a holder by name and cleans up the reverse dependency index.
    * @param name The name of the holder to delete
    * @returns true if the holder was deleted, false if it didn't exist
    */
   delete(name: string): boolean {
+    const holder = this._holders.get(name)
+    if (holder) {
+      // Remove this holder from the reverse index for all its dependencies
+      this.removeFromDependentsIndex(name, holder.deps)
+    }
     return this._holders.delete(name)
+  }
+
+  /**
+   * Registers a holder's dependencies in the reverse index.
+   * Call this after creating a holder with dependencies.
+   * @param holderName The name of the holder that has dependencies
+   * @param deps The set of dependency names
+   */
+  registerDependencies(holderName: string, deps: Set<string>): void {
+    for (const dep of deps) {
+      let dependents = this._dependents.get(dep)
+      if (!dependents) {
+        dependents = new Set()
+        this._dependents.set(dep, dependents)
+      }
+      dependents.add(holderName)
+    }
+  }
+
+  /**
+   * Removes a holder from the reverse dependency index.
+   * @param holderName The name of the holder to remove
+   * @param deps The set of dependency names to clean up
+   */
+  protected removeFromDependentsIndex(holderName: string, deps: Set<string>): void {
+    for (const dep of deps) {
+      const dependents = this._dependents.get(dep)
+      if (dependents) {
+        dependents.delete(holderName)
+        if (dependents.size === 0) {
+          this._dependents.delete(dep)
+        }
+      }
+    }
+  }
+
+  /**
+   * Gets all holder names that depend on the given instance name.
+   * O(1) lookup using the reverse dependency index.
+   * @param instanceName The instance name to find dependents for
+   * @returns Array of holder names that depend on this instance
+   */
+  getDependents(instanceName: string): string[] {
+    const dependents = this._dependents.get(instanceName)
+    return dependents ? Array.from(dependents) : []
   }
 
   /**
    * Filters holders based on a predicate function.
    * @param predicate Function to test each holder
    * @returns A new Map containing only the holders that match the predicate
+   * @deprecated Use forEachHolder() for iteration to avoid allocations
    */
   filter(
     predicate: (value: InstanceHolder<any>, key: string) => boolean,
   ): Map<string, InstanceHolder> {
-    return new Map(
-      [...this._holders].filter(([key, value]) => predicate(value, key)),
-    )
+    const result = new Map<string, InstanceHolder>()
+    for (const [key, value] of this._holders) {
+      if (predicate(value, key)) {
+        result.set(key, value)
+      }
+    }
+    return result
   }
 
   /**
-   * Clears all holders from this manager.
+   * Iterates over holders with a callback. More efficient than filter() as it
+   * avoids creating intermediate arrays and Maps.
+   * @param callback Function called for each holder with (holder, name)
+   */
+  forEachHolder(
+    callback: (holder: InstanceHolder<any>, name: string) => void,
+  ): void {
+    for (const [name, holder] of this._holders) {
+      callback(holder, name)
+    }
+  }
+
+  /**
+   * Finds the first holder matching a predicate. More efficient than filter()
+   * when only one result is needed.
+   * @param predicate Function to test each holder
+   * @returns The first matching holder or undefined
+   */
+  findHolder(
+    predicate: (holder: InstanceHolder<any>, name: string) => boolean,
+  ): InstanceHolder | undefined {
+    for (const [name, holder] of this._holders) {
+      if (predicate(holder, name)) {
+        return holder
+      }
+    }
+    return undefined
+  }
+
+  /**
+   * Clears all holders from this manager and the reverse dependency index.
    */
   clear(): void {
     this._holders.clear()
+    this._dependents.clear()
   }
 
   /**
@@ -202,16 +294,20 @@ export abstract class BaseHolderManager {
             return [DIError.circularDependency(cycle)]
           }
 
-          // Track the waiting relationship
-          waiterHolder.waitingFor.add(holder.name)
+          if (process.env.NODE_ENV !== 'production') {
+            // Track the waiting relationship
+            waiterHolder.waitingFor.add(holder.name)
+          }
         }
 
         try {
           await holder.creationPromise
         } finally {
-          // Clean up the waiting relationship
-          if (waiterHolder) {
-            waiterHolder.waitingFor.delete(holder.name)
+          if (process.env.NODE_ENV !== 'production') {
+            // Clean up the waiting relationship
+            if (waiterHolder) {
+              waiterHolder.waitingFor.delete(holder.name)
+            }
           }
         }
 

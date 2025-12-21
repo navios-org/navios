@@ -558,6 +558,17 @@ export class InstanceResolver {
     holder.instance = instance
     holder.status = InstanceStatus.Created
 
+    // Register dependencies in the reverse index for O(1) findDependents lookup
+    if (ctx.deps.size > 0) {
+      if (scopedContainer) {
+        // For request-scoped services, register in the request context
+        scopedContainer.getRequestContextHolder().registerDependencies(instanceName, ctx.deps)
+      } else {
+        // For singletons, register in the manager
+        this.manager.registerDependencies(instanceName, ctx.deps)
+      }
+    }
+
     // Set up dependency invalidation listeners
     if (ctx.deps.size > 0) {
       ctx.deps.forEach((dependency: string) => {

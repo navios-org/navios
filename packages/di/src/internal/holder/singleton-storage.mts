@@ -79,27 +79,14 @@ export class SingletonStorage implements IHolderStorage {
   forEach(
     callback: (name: string, holder: InstanceHolder) => void,
   ): void {
-    for (const [name, holder] of this.manager.filter(() => true)) {
-      callback(name, holder)
-    }
+    this.manager.forEachHolder((holder, name) => callback(name, holder))
   }
 
   findByInstance(instance: unknown): InstanceHolder | null {
-    for (const [, holder] of this.manager.filter(
-      (h) => h.instance === instance,
-    )) {
-      return holder
-    }
-    return null
+    return this.manager.findHolder((h) => h.instance === instance) ?? null
   }
 
   findDependents(instanceName: string): string[] {
-    const dependents: string[] = []
-    for (const [name, holder] of this.manager.filter(() => true)) {
-      if (holder.deps.has(instanceName)) {
-        dependents.push(name)
-      }
-    }
-    return dependents
+    return this.manager.getDependents(instanceName)
   }
 }
