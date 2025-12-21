@@ -57,6 +57,14 @@ class ServiceB {
 - **Transient** - New instance created for each injection
 - **Request** - One instance per request context
 
+### Does Navios DI work in the browser?
+
+Yes! Navios DI fully supports browser environments. Bundlers automatically use the browser-optimized build which uses `SyncLocalStorage` instead of `AsyncLocalStorage`. See the [Browser Support guide](/docs/di/di/guides/browser-support) for details.
+
+### Is circular dependency detection enabled in production?
+
+No, circular dependency detection is disabled in production (`NODE_ENV=production`) for performance. Always test with development mode to catch circular dependencies early.
+
 ### How do I use request-scoped services?
 
 Request-scoped services require a `ScopedContainer`:
@@ -80,6 +88,19 @@ const service = await container.get(MyService)
 ```
 
 ## Troubleshooting
+
+### Error: "AsyncLocalStorage is not defined"
+
+**Problem**: Your bundler is using the Node.js entry in a browser context.
+
+**Solution**: Ensure your bundler is configured to use the `browser` condition:
+
+```javascript
+// webpack
+resolve: {
+  conditionNames: ['browser', 'import', 'default']
+}
+```
 
 ### Error: "Service not registered"
 

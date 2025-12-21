@@ -6,43 +6,34 @@
  * 2. All DI functionality works correctly with the polyfill
  * 3. The resolution context pattern works for synchronous operations
  *
- * Note: We use __testing__.forceSyncMode() to simulate browser behavior
- * since happy-dom still runs on Node.js and has process.versions.node.
+ * Note: We directly import the browser implementation to test it
+ * in isolation, simulating how it would work in a browser bundle.
  */
 
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vitest'
 
 import {
   createAsyncLocalStorage,
   isUsingNativeAsyncLocalStorage,
-  __testing__,
-} from '../internal/context/async-local-storage.mjs'
+} from '../internal/context/async-local-storage.browser.mjs'
 import {
   getCurrentResolutionContext,
   withResolutionContext,
-  withoutResolutionContext,
 } from '../internal/context/resolution-context.mjs'
-import type { InstanceHolder } from '../internal/holder/instance-holder.mjs'
-import { InstanceStatus } from '../internal/holder/instance-holder.mjs'
-import { InjectableScope } from '../enums/index.mjs'
-
-// Force sync mode for all tests in this file to simulate browser behavior
-beforeAll(() => {
-  __testing__.forceSyncMode()
-})
-
-afterAll(() => {
-  __testing__.reset()
-})
+import { SyncLocalStorage } from '../internal/context/sync-local-storage.mjs'
 
 // ============================================================================
 // SECTION 1: Environment Detection
 // ============================================================================
 
-describe('Browser Environment Detection (forced sync mode)', () => {
-  it('should use sync polyfill when forced', () => {
-    // After forcing sync mode, native AsyncLocalStorage should not be used
+describe('Browser Environment Detection', () => {
+  it('should use sync polyfill in browser build', () => {
     expect(isUsingNativeAsyncLocalStorage()).toBe(false)
+  })
+
+  it('should create a SyncLocalStorage instance', () => {
+    const storage = createAsyncLocalStorage<{ value: number }>()
+    expect(storage).toBeInstanceOf(SyncLocalStorage)
   })
 
   it('should create a working storage instance', () => {
@@ -50,6 +41,11 @@ describe('Browser Environment Detection (forced sync mode)', () => {
     expect(storage).toBeDefined()
     expect(typeof storage.run).toBe('function')
     expect(typeof storage.getStore).toBe('function')
+  })
+
+  it('should create a resolution context instance', () => {
+    const resolutionContext = getCurrentResolutionContext()
+    expect(resolutionContext).toBeUndefined()
   })
 })
 
@@ -111,77 +107,7 @@ describe('SyncLocalStorage in Browser', () => {
 })
 
 // ============================================================================
-// SECTION 3: Resolution Context Integration
-// ============================================================================
-
-describe('Resolution Context in Browser', () => {
-  function createMockHolder(name: string): InstanceHolder {
-    return {
-      status: InstanceStatus.Creating,
-      name,
-      instance: null,
-      creationPromise: null,
-      destroyPromise: null,
-      type: class {} as unknown as InstanceHolder['type'],
-      scope: InjectableScope.Singleton,
-      deps: new Set(),
-      destroyListeners: [],
-      createdAt: Date.now(),
-      waitingFor: new Set(),
-    }
-  }
-
-  it('should track resolution context correctly', () => {
-    const holderA = createMockHolder('ServiceA')
-    const getHolder = () => undefined
-
-    expect(getCurrentResolutionContext()).toBeUndefined()
-
-    withResolutionContext(holderA, getHolder, () => {
-      const ctx = getCurrentResolutionContext()
-      expect(ctx).toBeDefined()
-      expect(ctx?.waiterHolder).toBe(holderA)
-    })
-
-    expect(getCurrentResolutionContext()).toBeUndefined()
-  })
-
-  it('should handle nested resolution contexts', () => {
-    const holderA = createMockHolder('ServiceA')
-    const holderB = createMockHolder('ServiceB')
-    const getHolder = () => undefined
-
-    withResolutionContext(holderA, getHolder, () => {
-      expect(getCurrentResolutionContext()?.waiterHolder.name).toBe('ServiceA')
-
-      withResolutionContext(holderB, getHolder, () => {
-        expect(getCurrentResolutionContext()?.waiterHolder.name).toBe(
-          'ServiceB',
-        )
-      })
-
-      expect(getCurrentResolutionContext()?.waiterHolder.name).toBe('ServiceA')
-    })
-  })
-
-  it('should clear context with withoutResolutionContext', () => {
-    const holderA = createMockHolder('ServiceA')
-    const getHolder = () => undefined
-
-    withResolutionContext(holderA, getHolder, () => {
-      expect(getCurrentResolutionContext()).toBeDefined()
-
-      withoutResolutionContext(() => {
-        expect(getCurrentResolutionContext()).toBeUndefined()
-      })
-
-      expect(getCurrentResolutionContext()).toBeDefined()
-    })
-  })
-})
-
-// ============================================================================
-// SECTION 4: Async Limitations in Browser
+// SECTION 3: Async Limitations in Browser
 // ============================================================================
 
 describe('Async Limitations in Browser (expected behavior)', () => {

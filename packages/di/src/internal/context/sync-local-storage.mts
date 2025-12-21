@@ -1,3 +1,5 @@
+import type { IAsyncLocalStorage } from './async-local-storage.types.mjs'
+
 /**
  * A synchronous-only polyfill for AsyncLocalStorage.
  *
@@ -12,7 +14,7 @@
  * 1. Constructors are typically synchronous
  * 2. Circular dependency detection mainly needs sync tracking
  */
-export class SyncLocalStorage<T> {
+export class SyncLocalStorage<T> implements IAsyncLocalStorage<T> {
   private stack: T[] = []
 
   /**

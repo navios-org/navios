@@ -5,6 +5,45 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.0] - 2025-12-21
+
+### Added
+
+- **Browser Build Improvements**: Dedicated browser entry point with optimized bundle
+  - Separate `lib/browser/index.mjs` build for browser environments
+  - Uses `SyncLocalStorage` (stack-based polyfill) instead of `AsyncLocalStorage`
+  - Bundlers automatically select the correct entry via `package.json` exports
+- **Production Mode Optimization**: Circular dependency detection is now disabled in production
+  - Set `NODE_ENV=production` to skip BFS traversal overhead
+  - Development mode retains full cycle detection with clear error messages
+- **Failed Service Retry**: Services can now be retried after initialization failures
+  - Failed holders are removed from storage to allow retry attempts
+  - Works with Factory, Injectable, and Request-scoped services
+- **Comprehensive Browser Test Suite**: Added extensive tests for browser environment
+  - Environment detection tests
+  - SyncLocalStorage behavior tests
+  - E2E scenarios for browser DI resolution
+  - Documents async limitations in browser environments
+
+### Changed
+
+- **Testing Exports Moved**: Testing utilities now require explicit import path
+  - Use `import { ... } from '@navios/di/testing'` instead of main export
+  - Reduces main bundle size for production builds
+- **Internal API Cleanup**: `resolutionContext` is no longer exported from main entry
+  - This was an internal implementation detail
+- **Build Configuration**: Updated tsdown config with module aliasing for browser builds
+  - Input option aliases `async-local-storage.mjs` to `async-local-storage.browser.mjs` for browser builds
+- **Test Infrastructure**: Multi-project vitest configuration
+  - Separate test projects for Node.js and browser environments
+  - Type checking runs as separate project
+
+### Fixed
+
+- Transient instances now use temporary holders for proper resolution context tracking
+- Improved cross-storage dependency tracking between Singleton and Request storage
+- Request-scoped dependency invalidation listeners properly cleanup on request end
+
 ## [0.6.1] - 2025-12-20
 
 ### Fixed

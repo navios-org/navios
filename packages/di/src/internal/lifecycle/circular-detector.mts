@@ -1,11 +1,19 @@
 import type { InstanceHolder } from '../holder/instance-holder.mjs'
 
 /**
+ * Whether we're running in production mode.
+ * In production, circular dependency detection is skipped for performance.
+ */
+const isProduction = process.env.NODE_ENV === 'production'
+
+/**
  * Detects circular dependencies by analyzing the waitingFor relationships
  * between service holders.
  *
  * Uses BFS to traverse the waitingFor graph starting from a target holder
  * and checks if following the chain leads back to the waiter, indicating a circular dependency.
+ *
+ * Note: In production (NODE_ENV === 'production'), detection is skipped for performance.
  */
 export class CircularDetector {
   /**
@@ -13,6 +21,8 @@ export class CircularDetector {
    *
    * This works by checking if `targetName` (or any holder in its waitingFor chain)
    * is currently waiting for `waiterName`. If so, waiting would create a deadlock.
+   *
+   * In production mode, this always returns null to skip the BFS traversal overhead.
    *
    * @param waiterName The name of the holder that wants to wait
    * @param targetName The name of the holder being waited on
@@ -24,6 +34,11 @@ export class CircularDetector {
     targetName: string,
     getHolder: (name: string) => InstanceHolder | undefined,
   ): string[] | null {
+    // Skip circular dependency detection in production for performance
+    if (isProduction) {
+      return null
+    }
+
     // Use BFS to find if there's a path from targetName back to waiterName
     const visited = new Set<string>()
     const queue: Array<{ name: string; path: string[] }> = [

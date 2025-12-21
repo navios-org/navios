@@ -6,9 +6,10 @@ sidebar_position: 1
 
 A powerful, type-safe dependency injection framework for TypeScript. It provides decorator-based service registration, multiple injection scopes, lifecycle management, and comprehensive async support.
 
-**Package:** `@navios/di`  
-**License:** MIT  
+**Package:** `@navios/di`
+**License:** MIT
 **Peer Dependencies:** `zod` (^3.25.0 || ^4.0.0)
+**Platforms:** Node.js, Bun, Deno, Browser
 
 ## Installation
 
@@ -152,3 +153,4 @@ class DatabaseService implements OnServiceInit, OnServiceDestroy {
 - **[Factories](/docs/di/di/guides/factories)** - Complex object creation
 - **[Scopes](/docs/di/di/guides/scopes)** - Service lifetime management
 - **[Lifecycle](/docs/di/di/guides/lifecycle)** - Initialization and cleanup hooks
+- **[Browser Support](/docs/di/di/guides/browser-support)** - Using DI in browser environments

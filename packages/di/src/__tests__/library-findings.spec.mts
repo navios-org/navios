@@ -10,10 +10,11 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type { OnServiceDestroy } from '../interfaces/on-service-destroy.interface.mjs'
+
 import { Container } from '../container/container.mjs'
 import { Injectable } from '../decorators/injectable.decorator.mjs'
 import { InjectableScope } from '../enums/index.mjs'
-import type { OnServiceDestroy } from '../interfaces/on-service-destroy.interface.mjs'
 import { Registry } from '../token/registry.mjs'
 import { getInjectors } from '../utils/get-injectors.mjs'
 
@@ -244,19 +245,17 @@ describe('FINDING #3: Error Recovery', () => {
   })
 
   /**
-   * DOCUMENTED BEHAVIOR: Container caches constructor errors
+   * DOCUMENTED BEHAVIOR: Container allows retry after constructor errors
    *
    * When a service constructor throws on first attempt, the container
-   * caches the error state and re-throws the same error on subsequent
-   * attempts. It does NOT retry the constructor.
+   * removes the failed holder from storage. This allows subsequent
+   * attempts to retry creating the service.
    *
-   * This is important to understand for services that might fail due to
-   * transient errors (network issues, resource unavailability, etc.).
-   *
-   * IMPLICATION: If you need retry logic for transient failures, implement
-   * it inside the service (e.g., in onServiceInit) or use a factory pattern.
+   * This is useful for services that might fail due to transient errors
+   * (network issues, resource unavailability, etc.) - they can be
+   * successfully created on retry once the transient issue is resolved.
    */
-  it('caches constructor errors and re-throws on retry (documented behavior)', async () => {
+  it('allows retry after constructor errors (documented behavior)', async () => {
     let attemptCount = 0
     const shouldFail = { value: true }
 
@@ -283,12 +282,11 @@ describe('FINDING #3: Error Recovery', () => {
     // Allow success on retry
     shouldFail.value = false
 
-    // Second attempt - container caches the error and re-throws
-    // The constructor is NOT called again
-    await expect(container.get(FlakeyService)).rejects.toThrow(
-      'Transient failure',
-    )
-    expect(attemptCount).toBe(1) // Still 1, constructor was not retried
+    // Second attempt - container allows retry by removing the error holder
+    // The constructor IS called again
+    const instance = await container.get(FlakeyService)
+    expect(instance.getValue()).toBe('success')
+    expect(attemptCount).toBe(2) // Constructor was retried
   })
 
   /**
@@ -502,15 +500,19 @@ describe('FINDING #5: Cross-Storage Dependency Invalidation', () => {
 
     // Check that the singleton's holder has the request service in deps
     const manager = container.getServiceLocator().getManager()
-    const singletonHolders = Array.from(manager.filter((h) => h.scope === InjectableScope.Singleton).values())
+    const singletonHolders = Array.from(
+      manager.filter((h) => h.scope === InjectableScope.Singleton).values(),
+    )
 
     // Find the SingletonWithDep holder
-    const singletonHolder = singletonHolders.find(h => h.name.includes('SingletonWithDep'))
+    const singletonHolder = singletonHolders.find((h) =>
+      h.name.includes('SingletonWithDep'),
+    )
 
     if (singletonHolder) {
       // The deps should contain the RequestService instance name
-      const hasRequestDep = Array.from(singletonHolder.deps).some(dep =>
-        dep.includes('RequestService')
+      const hasRequestDep = Array.from(singletonHolder.deps).some((dep) =>
+        dep.includes('RequestService'),
       )
       expect(hasRequestDep).toBe(true)
     }
@@ -547,7 +549,7 @@ describe('FINDING #5: Cross-Storage Dependency Invalidation', () => {
  *      invalidated when the request ends
  *
  * EDGE CASES (documented behavior):
- * 3. Error recovery behavior - constructor errors are cached
+ * 3. Error recovery behavior - constructor errors are cached - FIXED
  *    - Priority: Low
  *    - Impact: May prevent retry after transient failures
  *    - Documented: This is intentional, use onServiceInit for retry logic

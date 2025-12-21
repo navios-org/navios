@@ -36,7 +36,11 @@ export {
   type InjectionTokenSchemaType,
 } from './token/injection-token.mjs'
 
-export { Registry, globalRegistry, type FactoryRecord } from './token/registry.mjs'
+export {
+  Registry,
+  globalRegistry,
+  type FactoryRecord,
+} from './token/registry.mjs'
 
 // ============================================================================
 // PUBLIC API - Decorators
@@ -94,12 +98,6 @@ export {
 } from './injectors.mjs'
 
 // ============================================================================
-// PUBLIC API - Testing
-// ============================================================================
-
-export * from './testing/index.mjs'
-
-// ============================================================================
 // INTERNAL API (exported for advanced use cases)
 // ============================================================================
 
@@ -113,7 +111,6 @@ export {
 } from './internal/context/request-context.mjs'
 export {
   type ResolutionContextData,
-  resolutionContext,
   withResolutionContext,
   getCurrentResolutionContext,
   withoutResolutionContext,

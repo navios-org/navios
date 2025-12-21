@@ -33,7 +33,7 @@ export default defineConfig([
       ),
     ],
   },
-  // Browser build - uses dedicated entry that forces SyncLocalStorage
+  // Browser build - uses SyncLocalStorage and skips async_hooks entirely
   {
     entry: {
       'browser/index': 'src/browser.mts',
@@ -45,6 +45,17 @@ export default defineConfig([
     platform: 'browser',
     dts: true,
     target: 'es2022',
+    inputOptions(options) {
+      return {
+        ...options,
+        resolve: {
+          ...options.resolve,
+          alias: {
+            './async-local-storage.mjs': './async-local-storage.browser.mjs',
+          },
+        },
+      }
+    },
     plugins: [
       withFilter(
         swc.rolldown({

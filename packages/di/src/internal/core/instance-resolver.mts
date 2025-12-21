@@ -213,7 +213,14 @@ export class InstanceResolver {
         return null // Proceed with creation
 
       default:
-        return [error]
+        // For error states, remove the failed holder from storage so we can retry
+        if (holder) {
+          this.logger?.log(
+            `[InstanceResolver] Removing failed instance ${instanceName} from storage to allow retry`,
+          )
+          storage.delete(instanceName)
+        }
+        return null // Proceed with creation
     }
   }
 

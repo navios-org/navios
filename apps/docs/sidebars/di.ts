@@ -26,6 +26,7 @@ const sidebars: SidebarsConfig = {
             'di/guides/request-contexts',
             'di/guides/circular-dependencies',
             'di/guides/testing',
+            'di/guides/browser-support',
           ],
         },
         'di/api-reference',

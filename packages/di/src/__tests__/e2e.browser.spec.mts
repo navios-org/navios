@@ -1,33 +1,25 @@
 /**
  * E2E tests for @navios/di running with SyncLocalStorage (browser mode).
  *
- * This file runs all the same E2E tests but with the sync polyfill forced,
- * simulating browser environment behavior.
+ * This file tests the browser implementation by directly importing from
+ * the browser-specific async-local-storage module.
  *
  * The key difference: In browser mode, AsyncLocalStorage context does NOT
  * propagate across async boundaries. This affects circular dependency detection
  * for async operations, but synchronous DI operations should work identically.
  */
 
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { OnServiceDestroy } from '../interfaces/on-service-destroy.interface.mjs'
+import type { OnServiceInit } from '../interfaces/on-service-init.interface.mjs'
 
 import { Container } from '../container/container.mjs'
 import { Injectable } from '../decorators/injectable.decorator.mjs'
 import { InjectableScope } from '../enums/index.mjs'
-import type { OnServiceDestroy } from '../interfaces/on-service-destroy.interface.mjs'
-import type { OnServiceInit } from '../interfaces/on-service-init.interface.mjs'
+import { isUsingNativeAsyncLocalStorage } from '../internal/context/async-local-storage.browser.mjs'
 import { Registry } from '../token/registry.mjs'
 import { getInjectors } from '../utils/get-injectors.mjs'
-import { __testing__, isUsingNativeAsyncLocalStorage } from '../internal/context/async-local-storage.mjs'
-
-// Force sync mode for all tests in this file
-beforeAll(() => {
-  __testing__.forceSyncMode()
-})
-
-afterAll(() => {
-  __testing__.reset()
-})
 
 // ============================================================================
 // TEST UTILITIES

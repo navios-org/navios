@@ -1317,6 +1317,99 @@ describe('Container', () => {
         await expect(container.get(ServiceWithUnregistered)).rejects.toThrow()
       })
     })
+
+    describe('failed service retry', () => {
+      it('should allow retrying service creation after initialization failure', async () => {
+        let callCount = 0
+
+        @Factory({ registry })
+        class FailingFactory implements Factorable<TestService> {
+          async create() {
+            callCount++
+            if (callCount === 1) {
+              throw new Error('First attempt fails')
+            }
+            return new TestService()
+          }
+        }
+
+        @Injectable({ registry })
+        class TestService {
+          public value = 'success'
+        }
+
+        // First attempt should fail
+        await expect(container.get(FailingFactory)).rejects.toThrow(
+          'First attempt fails',
+        )
+
+        // Second attempt should succeed (service should be removed from storage after failure)
+        const instance = await container.get(FailingFactory)
+        expect(instance).toBeInstanceOf(TestService)
+        expect(instance.value).toBe('success')
+        expect(callCount).toBe(2)
+      })
+
+      it('should allow retrying injectable service creation after constructor throws', async () => {
+        let callCount = 0
+
+        @Injectable({ registry })
+        class FailingService {
+          public value: string
+
+          constructor() {
+            callCount++
+            if (callCount === 1) {
+              throw new Error('Constructor fails on first attempt')
+            }
+            this.value = 'success'
+          }
+        }
+
+        // First attempt should fail
+        await expect(container.get(FailingService)).rejects.toThrow(
+          'Constructor fails on first attempt',
+        )
+
+        // Second attempt should succeed
+        const instance = await container.get(FailingService)
+        expect(instance).toBeInstanceOf(FailingService)
+        expect(instance.value).toBe('success')
+        expect(callCount).toBe(2)
+      })
+
+      it('should allow retrying request-scoped service creation after failure', async () => {
+        let callCount = 0
+
+        @Injectable({ registry, scope: InjectableScope.Request })
+        class FailingRequestService {
+          public value: string
+
+          constructor() {
+            callCount++
+            if (callCount === 1) {
+              throw new Error('Request service fails on first attempt')
+            }
+            this.value = 'success'
+          }
+        }
+
+        const scoped = container.beginRequest('retry-test-request')
+
+        // First attempt should fail
+        await expect(scoped.get(FailingRequestService)).rejects.toThrow(
+          'Request service fails on first attempt',
+        )
+
+        // Second attempt should succeed within the same request
+        const instance = await scoped.get(FailingRequestService)
+        expect(instance).toBeInstanceOf(FailingRequestService)
+        expect(instance.value).toBe('success')
+        expect(callCount).toBe(2)
+
+        await scoped.endRequest()
+      })
+    })
   })
   describe('custom injectors', () => {
     it('should work with custom injectors', async () => {

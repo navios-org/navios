@@ -1,4 +1,5 @@
 import type { InstanceHolder } from '../holder/instance-holder.mjs'
+import type { IAsyncLocalStorage } from './async-local-storage.types.mjs'
 
 import { createAsyncLocalStorage } from './async-local-storage.mjs'
 
@@ -18,8 +19,20 @@ export interface ResolutionContextData {
  * This allows tracking which service is being instantiated even across
  * async boundaries (like when inject() is called inside a constructor).
  * Essential for circular dependency detection.
+ *
+ * The actual implementation varies by environment:
+ * - Production: No-op (returns undefined, run() just calls fn directly)
+ * - Development: Real AsyncLocalStorage with full async tracking
+ * - Browser: SyncLocalStorage for synchronous-only tracking
  */
-export const resolutionContext = createAsyncLocalStorage<ResolutionContextData>()
+let resolutionContext: IAsyncLocalStorage<ResolutionContextData> | null = null
+
+function getResolutionContext(): IAsyncLocalStorage<ResolutionContextData> {
+  if (!resolutionContext) {
+    resolutionContext = createAsyncLocalStorage<ResolutionContextData>()
+  }
+  return resolutionContext
+}
 
 /**
  * Runs a function within a resolution context.
@@ -36,7 +49,7 @@ export function withResolutionContext<T>(
   getHolder: (name: string) => InstanceHolder | undefined,
   fn: () => T,
 ): T {
-  return resolutionContext.run({ waiterHolder, getHolder }, fn)
+  return getResolutionContext().run({ waiterHolder, getHolder }, fn)
 }
 
 /**
@@ -45,8 +58,10 @@ export function withResolutionContext<T>(
  * Returns undefined if we're not inside a resolution context
  * (e.g., when resolving a top-level service that has no parent).
  */
-export function getCurrentResolutionContext(): ResolutionContextData | undefined {
-  return resolutionContext.getStore()
+export function getCurrentResolutionContext():
+  | ResolutionContextData
+  | undefined {
+  return getResolutionContext().getStore()
 }
 
 /**
@@ -59,5 +74,8 @@ export function getCurrentResolutionContext(): ResolutionContextData | undefined
  */
 export function withoutResolutionContext<T>(fn: () => T): T {
   // Run with undefined context to clear any current context
-  return resolutionContext.run(undefined as any, fn)
+  return getResolutionContext().run(
+    undefined as unknown as ResolutionContextData,
+    fn,
+  )
 }

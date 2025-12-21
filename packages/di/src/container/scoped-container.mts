@@ -302,15 +302,21 @@ export class ScopedContainer implements IContainer {
     // Check if we already have this instance (or one is being created)
     const existingHolder = this.requestContextHolder.get(instanceName)
     if (existingHolder) {
-      // Wait for the holder to be ready if it's still being created
-      // This prevents race conditions where multiple concurrent calls
-      // might try to create the same service
-      const [error, readyHolder] =
-        await BaseHolderManager.waitForHolderReady(existingHolder)
-      if (error) {
-        throw error
+      // If the holder is in error state, remove it so we can retry
+      if (existingHolder.status === InstanceStatus.Error) {
+        this.requestContextHolder.delete(instanceName)
+        // Fall through to create a new instance
+      } else {
+        // Wait for the holder to be ready if it's still being created
+        // This prevents race conditions where multiple concurrent calls
+        // might try to create the same service
+        const [error, readyHolder] =
+          await BaseHolderManager.waitForHolderReady(existingHolder)
+        if (error) {
+          throw error
+        }
+        return readyHolder.instance
       }
-      return readyHolder.instance
     }
 
     // Create new instance using parent's resolution mechanism

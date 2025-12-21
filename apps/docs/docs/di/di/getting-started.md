@@ -24,9 +24,13 @@ pnpm add @navios/di zod
 
 ## Prerequisites
 
-- **Node.js**: 18 or higher
-- **TypeScript**: 4.5 or higher
+- **Runtime**: Node.js 18+, Bun, Deno, or modern browsers
+- **TypeScript**: 5.0 or higher
 - **Modern TypeScript project**: ES2022+ target recommended
+
+:::tip Browser Support
+Navios DI works seamlessly in browser environments. Bundlers like Vite, webpack, and esbuild automatically use the optimized browser build. See the [Browser Support guide](/docs/di/di/guides/browser-support) for details.
+:::
 
 ## TypeScript Configuration
 
