@@ -4,8 +4,12 @@ import { render, screen, waitFor } from '@testing-library/react'
 import { createElement } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import {
+  useScope,
+  useScopedContainer,
+  useScopeMetadata,
+} from '../../hooks/use-scope.mjs'
 import { useService } from '../../hooks/use-service.mjs'
-import { useScope, useScopeMetadata, useScopedContainer } from '../../hooks/use-scope.mjs'
 import { ContainerProvider } from '../container-provider.mjs'
 import { ScopeProvider } from '../scope-provider.mjs'
 
@@ -267,7 +271,6 @@ describe('ScopeProvider', () => {
             {
               scopeId: 'test-scope',
               metadata: { userId: '123', role: 'admin' },
-              priority: 200,
             },
             createElement(TestComponent),
           ),

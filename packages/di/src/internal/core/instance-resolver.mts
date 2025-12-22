@@ -1,22 +1,15 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-/* eslint-disable @typescript-eslint/no-empty-object-type */
-import type { z, ZodObject, ZodOptional } from 'zod/v4'
-
 import type { ScopedContainer } from '../../container/scoped-container.mjs'
 import type { IContainer } from '../../interfaces/container.interface.mjs'
 import type {
   AnyInjectableType,
-  InjectionTokenSchemaType,
   InjectionTokenType,
 } from '../../token/injection-token.mjs'
 import type { Registry } from '../../token/registry.mjs'
-import type { FactoryContext } from '../context/factory-context.mjs'
-import type { HolderManager } from '../holder/holder-manager.mjs'
+import type { ServiceInitializationContext } from '../context/service-initialization-context.mjs'
 import type { IHolderStorage } from '../holder/holder-storage.interface.mjs'
 import type { InstanceHolder } from '../holder/instance-holder.mjs'
-import type { Instantiator } from './instantiator.mjs'
-import type { ServiceLocator } from './service-locator.mjs'
-import type { TokenProcessor } from './token-processor.mjs'
+import type { LifecycleEventBus } from '../lifecycle/lifecycle-event-bus.mjs'
 
 import { InjectableScope } from '../../enums/index.mjs'
 import { DIError, DIErrorCode } from '../../errors/index.mjs'
@@ -29,29 +22,33 @@ import {
   getCurrentResolutionContext,
   withResolutionContext,
 } from '../context/resolution-context.mjs'
-import { BaseHolderManager } from '../holder/base-holder-manager.mjs'
 import { InstanceStatus } from '../holder/instance-holder.mjs'
-import { SingletonStorage } from '../holder/singleton-storage.mjs'
+import { CircularDetector } from '../lifecycle/circular-detector.mjs'
+import { NameResolver } from './name-resolver.mjs'
+import { ScopeTracker } from './scope-tracker.mjs'
+import { ServiceInitializer } from './service-initializer.mjs'
+import { ServiceInvalidator } from './service-invalidator.mjs'
+import { TokenResolver } from './token-resolver.mjs'
 
 /**
  * Resolves instances from tokens, handling caching, creation, and scope rules.
  *
- * Uses the Storage Strategy pattern for unified singleton/request-scoped handling.
- * Coordinates with Instantiator for actual service creation.
+ * Uses unified storage for both singleton and request-scoped services.
+ * Coordinates with ServiceInitializer for actual service creation.
+ * Integrates ScopeTracker for automatic scope upgrades.
  */
 export class InstanceResolver {
-  private readonly singletonStorage: IHolderStorage
-
   constructor(
     private readonly registry: Registry,
-    private readonly manager: HolderManager,
-    private readonly instantiator: Instantiator,
-    private readonly tokenProcessor: TokenProcessor,
+    private readonly storage: IHolderStorage,
+    private readonly serviceInitializer: ServiceInitializer,
+    private readonly tokenResolver: TokenResolver,
+    private readonly nameResolver: NameResolver,
+    private readonly scopeTracker: ScopeTracker,
+    private readonly serviceInvalidator: ServiceInvalidator,
+    private readonly eventBus: LifecycleEventBus,
     private readonly logger: Console | null = null,
-    private readonly serviceLocator: ServiceLocator,
-  ) {
-    this.singletonStorage = new SingletonStorage(manager)
-  }
+  ) {}
 
   // ============================================================================
   // PUBLIC RESOLUTION METHODS
@@ -63,24 +60,31 @@ export class InstanceResolver {
    *
    * @param token The injection token
    * @param args Optional arguments
-   * @param contextContainer The container to use for creating FactoryContext
+   * @param contextContainer The container to use for creating context
+   * @param requestStorage Optional request storage (for scope upgrades)
+   * @param requestId Optional request ID (for scope upgrades)
    */
   async resolveInstance(
     token: AnyInjectableType,
     args: any,
     contextContainer: IContainer,
+    requestStorage?: IHolderStorage,
+    requestId?: string,
   ): Promise<[undefined, any] | [DIError]> {
     return this.resolveWithStorage(
       token,
       args,
       contextContainer,
-      this.singletonStorage,
+      this.storage,
+      undefined,
+      requestStorage,
+      requestId,
     )
   }
 
   /**
    * Resolves a request-scoped instance for a ScopedContainer.
-   * The service will be stored in the ScopedContainer's request context.
+   * The service will be stored in the ScopedContainer's request storage.
    *
    * @param token The injection token
    * @param args Optional arguments
@@ -91,13 +95,14 @@ export class InstanceResolver {
     args: any,
     scopedContainer: ScopedContainer,
   ): Promise<[undefined, any] | [DIError]> {
-    // Use the cached storage from ScopedContainer
     return this.resolveWithStorage(
       token,
       args,
+      scopedContainer.getParent(),
+      scopedContainer.getParent().getStorage(),
       scopedContainer,
-      scopedContainer.getHolderStorage(),
-      scopedContainer,
+      scopedContainer.getStorage(),
+      scopedContainer.getRequestId(),
     )
   }
 
@@ -114,9 +119,11 @@ export class InstanceResolver {
    *
    * @param token The injection token
    * @param args Optional arguments
-   * @param contextContainer The container for FactoryContext
+   * @param contextContainer The container for context
    * @param storage The storage strategy to use
    * @param scopedContainer Optional scoped container for request-scoped services
+   * @param requestStorage Optional request storage (for scope upgrades)
+   * @param requestId Optional request ID (for scope upgrades)
    */
   private async resolveWithStorage(
     token: AnyInjectableType,
@@ -124,28 +131,56 @@ export class InstanceResolver {
     contextContainer: IContainer,
     storage: IHolderStorage,
     scopedContainer?: ScopedContainer,
+    requestStorage?: IHolderStorage,
+    requestId?: string,
   ): Promise<[undefined, any] | [DIError]> {
     // Step 1: Resolve token and prepare instance name
     const [err, data] = await this.resolveTokenAndPrepareInstanceName(
       token,
       args,
       contextContainer,
+      requestId,
+      scopedContainer,
     )
     if (err) {
       return [err]
     }
 
-    const { instanceName, validatedArgs, realToken } = data!
+    const { instanceName, validatedArgs, realToken, scope } = data!
 
     // Step 2: Check for existing holder SYNCHRONOUSLY (no await between check and store)
     // This is critical for preventing race conditions with concurrent resolution
-    const getResult = storage.get(instanceName)
+    const getResult =
+      storage.get(instanceName) ?? requestStorage?.get(instanceName) ?? null
+
+    // Create getHolder function for circular dependency detection
+    const getHolder = (name: string): InstanceHolder | undefined => {
+      // Check both storages
+      const result = storage.get(name)
+      if (result && result[0] === undefined && result[1]) {
+        return result[1]
+      }
+      if (requestStorage) {
+        const reqResult = requestStorage.get(name)
+        if (reqResult && reqResult[0] === undefined && reqResult[1]) {
+          return reqResult[1]
+        }
+      }
+      return undefined
+    }
 
     if (getResult !== null) {
       const [error, holder] = getResult
       if (!error && holder) {
         // Found existing holder - wait for it to be ready
-        const readyResult = await this.waitForInstanceReady(holder)
+        // Try to get waiterHolder from resolution context if available
+        const resolutionCtx = getCurrentResolutionContext()
+        const waiterHolder = resolutionCtx?.waiterHolder
+        const readyResult = await this.waitForInstanceReady(
+          holder,
+          waiterHolder,
+          getHolder,
+        )
         if (readyResult[0]) {
           return [readyResult[0]]
         }
@@ -174,12 +209,95 @@ export class InstanceResolver {
       contextContainer,
       storage,
       scopedContainer,
+      requestStorage,
+      requestId,
+      scope,
     )
     if (createError) {
       return [createError]
     }
 
     return [undefined, holder!.instance]
+  }
+
+  /**
+   * Internal method to resolve token args and create instance name.
+   * Handles factory token resolution and validation.
+   */
+  private async resolveTokenAndPrepareInstanceName(
+    token: AnyInjectableType,
+    args: any,
+    contextContainer: IContainer,
+    requestId?: string,
+    scopedContainer?: ScopedContainer,
+  ): Promise<
+    | [
+        undefined,
+        {
+          instanceName: string
+          validatedArgs: any
+          actualToken: InjectionTokenType
+          realToken: InjectionToken<any, any>
+          scope: InjectableScope
+        },
+      ]
+    | [DIError]
+  > {
+    const [err, { actualToken, validatedArgs }] =
+      this.tokenResolver.validateAndResolveTokenArgs(token, args)
+    if (
+      err instanceof DIError &&
+      err.code === DIErrorCode.TokenValidationError
+    ) {
+      return [err]
+    } else if (
+      err instanceof DIError &&
+      err.code === DIErrorCode.FactoryTokenNotResolved &&
+      actualToken instanceof FactoryInjectionToken
+    ) {
+      this.logger?.log(
+        `[InstanceResolver]#resolveTokenAndPrepareInstanceName() Factory token not resolved, resolving it`,
+      )
+      // Create a simple factory context for resolving the factory token
+      const factoryCtx = {
+        inject: async (t: any, a?: any) =>
+          (scopedContainer ?? contextContainer).get(t, a),
+        container: scopedContainer ?? contextContainer,
+        addDestroyListener: () => {},
+      }
+      await actualToken.resolve(factoryCtx as any)
+      return this.resolveTokenAndPrepareInstanceName(
+        token,
+        undefined,
+        contextContainer,
+        requestId,
+        scopedContainer,
+      )
+    }
+
+    // Get the real token for registry lookup
+    const realToken =
+      actualToken instanceof BoundInjectionToken ||
+      actualToken instanceof FactoryInjectionToken
+        ? actualToken.token
+        : actualToken
+
+    // Get scope from registry
+    const record = this.registry.get(realToken)
+    const scope = record.scope
+
+    // Generate instance name with requestId if needed
+    const instanceName = this.nameResolver.generateInstanceName(
+      actualToken,
+      validatedArgs,
+      requestId,
+      scope,
+    )
+
+    return [
+      undefined,
+      { instanceName, validatedArgs, actualToken, realToken, scope },
+    ]
   }
 
   /**
@@ -204,7 +322,18 @@ export class InstanceResolver {
         // Re-check after destruction
         const newResult = storage.get(instanceName)
         if (newResult !== null && !newResult[0]) {
-          const readyResult = await this.waitForInstanceReady(newResult[1]!)
+          // Create getHolder for circular dependency detection
+          const getHolder = (name: string): InstanceHolder | undefined => {
+            const result = storage.get(name)
+            return result && result[0] === undefined && result[1]
+              ? result[1]
+              : undefined
+          }
+          const readyResult = await this.waitForInstanceReady(
+            newResult[1]!,
+            undefined,
+            getHolder,
+          )
           if (readyResult[0]) {
             return [readyResult[0]]
           }
@@ -237,6 +366,9 @@ export class InstanceResolver {
     contextContainer: IContainer,
     storage: IHolderStorage,
     scopedContainer?: ScopedContainer,
+    requestStorage?: IHolderStorage,
+    requestId?: string,
+    scope?: InjectableScope,
   ): Promise<[undefined, InstanceHolder<Instance>] | [DIError]> {
     this.logger?.log(
       `[InstanceResolver]#createAndStoreInstance() Creating instance for ${instanceName}`,
@@ -246,64 +378,117 @@ export class InstanceResolver {
       return [DIError.factoryNotFound(realToken.name.toString())]
     }
 
-    const ctx = this.createFactoryContext(contextContainer)
     const record = this.registry.get<Instance, any>(realToken)
-    const { scope, type } = record
+    const { type, scope: recordScope } = record
+    const serviceScope = scope || recordScope
 
     // For transient services, don't use storage locking - create directly
-    if (scope === InjectableScope.Transient) {
-      return this.createTransientInstance(instanceName, record, args, ctx)
+    if (serviceScope === InjectableScope.Transient) {
+      return this.createTransientInstance(
+        instanceName,
+        record,
+        args,
+        contextContainer,
+        scopedContainer,
+        requestStorage,
+        requestId,
+      )
+    }
+    if (serviceScope === InjectableScope.Request && !requestStorage) {
+      return [
+        DIError.initializationError(
+          `Request storage is required for request-scoped services`,
+          instanceName,
+        ),
+      ]
     }
 
-    // Create holder in "Creating" state using registry scope, not storage scope
-    const [deferred, holder] = this.manager.createCreatingHolder<Instance>(
+    let storageToUse: IHolderStorage
+    if (serviceScope === InjectableScope.Request) {
+      storageToUse = requestStorage!
+    } else {
+      storageToUse = storage
+    }
+
+    // Create holder in "Creating" state
+    const [deferred, holder] = storageToUse.createHolder<Instance>(
       instanceName,
       type,
-      scope,
-      ctx.deps,
+      new Set(),
+    )
+    // Store holder immediately (for lock mechanism)
+    storageToUse.set(instanceName, holder)
+
+    // Create context for service initialization
+    const ctx = this.createServiceInitializationContext(
+      scopedContainer ?? contextContainer,
+      instanceName,
+      serviceScope,
+      holder.deps,
+      realToken,
+      requestStorage,
+      requestId,
     )
 
-    // Store holder immediately (for lock mechanism)
-    storage.set(instanceName, holder)
+    holder.destroyListeners = ctx.getDestroyListeners()
 
-    // Create a getHolder function that looks up holders from both the manager and storage
+    // Create getHolder function for resolution context
     const getHolder = (name: string): InstanceHolder | undefined => {
-      // First check the storage (which might be request-scoped)
-      const storageResult = storage.get(name)
-      if (storageResult !== null) {
-        const [, storageHolder] = storageResult
-        if (storageHolder) return storageHolder
+      // Check both storages
+      const result = storage.get(name)
+      if (result && result[0] === undefined && result[1]) {
+        return result[1]
       }
-      // Fall back to the singleton manager
-      const [, managerHolder] = this.manager.get(name)
-      return managerHolder
+      if (requestStorage) {
+        const reqResult = requestStorage.get(name)
+        if (reqResult && reqResult[0] === undefined && reqResult[1]) {
+          return reqResult[1]
+        }
+      }
+      return undefined
     }
 
-    // Start async instantiation within the resolution context
-    // This allows circular dependency detection to track the waiter
+    // Start async instantiation within resolution context for circular dependency detection
     withResolutionContext(holder, getHolder, () => {
-      this.instantiator
+      this.serviceInitializer
         .instantiateService(ctx, record, args)
         .then(async (result: [undefined, Instance] | [DIError]) => {
           const [error, instance] =
             result.length === 2 ? result : [result[0], undefined]
+          const newScope = record.scope
+          const newName = this.nameResolver.generateInstanceName(
+            realToken,
+            args,
+            requestId,
+            newScope,
+          )
           await this.handleInstantiationResult(
-            instanceName,
+            newName,
             holder,
             ctx,
             deferred,
-            scope,
+            newScope,
             error,
             instance,
             scopedContainer,
+            requestStorage,
+            requestId,
           )
         })
         .catch(async (error: Error) => {
+          const newScope = record.scope
+          const newName = this.nameResolver.generateInstanceName(
+            realToken,
+            args,
+            requestId,
+            newScope,
+          )
+
           await this.handleInstantiationError(
-            instanceName,
+            newName,
             holder,
             deferred,
-            scope,
+            newScope,
             error,
           )
         })
@@ -316,7 +501,10 @@ export class InstanceResolver {
     })
 
     // Wait for instance to be ready
-    return this.waitForInstanceReady(holder)
+    // Use resolution context to get waiterHolder if available
+    const resolutionCtx = getCurrentResolutionContext()
+    const waiterHolder = resolutionCtx?.waiterHolder
+    return this.waitForInstanceReady(holder, waiterHolder, getHolder)
   }
 
   /**
@@ -327,49 +515,38 @@ export class InstanceResolver {
     instanceName: string,
     record: any,
     args: any,
-    ctx: FactoryContext & {
-      deps: Set<string>
-      getDestroyListeners: () => (() => void)[]
-    },
+    contextContainer: IContainer,
+    scopedContainer?: ScopedContainer,
+    requestStorage?: IHolderStorage,
+    requestId?: string,
   ): Promise<[undefined, InstanceHolder<Instance>] | [DIError]> {
     this.logger?.log(
       `[InstanceResolver]#createTransientInstance() Creating transient instance for ${instanceName}`,
     )
 
     // Create a temporary holder for resolution context (transient instances can still have deps)
-    const tempHolder: InstanceHolder<Instance> = {
-      status: InstanceStatus.Creating,
-      name: instanceName,
-      instance: null,
-      creationPromise: null,
-      destroyPromise: null,
-      type: record.type,
-      scope: InjectableScope.Transient,
-      deps: ctx.deps,
-      destroyListeners: [],
-      createdAt: Date.now(),
-      waitingFor: new Set(),
-    }
+    const ctx = this.createServiceInitializationContext(
+      scopedContainer ?? contextContainer,
+      instanceName,
+      InjectableScope.Transient,
+      new Set(),
+      record.originalToken,
+      requestStorage,
+      requestId,
+    )
 
-    // Create a getHolder function for resolution context
-    const getHolder = (name: string): InstanceHolder | undefined => {
-      const [, managerHolder] = this.manager.get(name)
-      return managerHolder
-    }
-
-    // Run instantiation within resolution context for cycle detection
-    const [error, instance] = await withResolutionContext(
-      tempHolder,
-      getHolder,
-      () => this.instantiator.instantiateService(ctx, record, args),
+    const [error, instance] = await this.serviceInitializer.instantiateService(
+      ctx,
+      record,
+      args,
     )
 
     if (error) {
-      return [error as DIError]
+      return [error]
     }
 
-    // Create a holder for the transient instance (not stored, just for return consistency)
-    const holder: InstanceHolder<Instance> = {
+    // Create a temporary holder for the result
+    const tempHolder: InstanceHolder<Instance> = {
       status: InstanceStatus.Created,
       name: instanceName,
       instance: instance as Instance,
@@ -377,168 +554,13 @@ export class InstanceResolver {
       destroyPromise: null,
       type: record.type,
       scope: InjectableScope.Transient,
-      deps: ctx.deps,
+      deps: ctx.dependencies,
       destroyListeners: ctx.getDestroyListeners(),
       createdAt: Date.now(),
       waitingFor: new Set(),
     }
 
-    return [undefined, holder]
-  }
-
-  /**
-   * Gets a synchronous instance (for sync operations).
-   */
-  getSyncInstance<
-    Instance,
-    Schema extends InjectionTokenSchemaType | undefined,
-  >(
-    token: AnyInjectableType,
-    args: Schema extends ZodObject
-      ? z.input<Schema>
-      : Schema extends ZodOptional<ZodObject>
-        ? z.input<Schema> | undefined
-        : undefined,
-    contextContainer: IContainer,
-  ): Instance | null {
-    const [err, { actualToken, validatedArgs }] =
-      this.tokenProcessor.validateAndResolveTokenArgs(token, args)
-    if (err) {
-      return null
-    }
-    const instanceName = this.tokenProcessor.generateInstanceName(
-      actualToken,
-      validatedArgs,
-    )
-
-    // Check if this is a ScopedContainer and the service is request-scoped
-    if ('getRequestInstance' in contextContainer) {
-      const scopedContainer = contextContainer as ScopedContainer
-      const requestHolder = scopedContainer.getRequestInstance(instanceName)
-      if (requestHolder) {
-        return requestHolder.instance as Instance
-      }
-    }
-
-    // Try singleton manager
-    const [error, holder] = this.manager.get(instanceName)
-    if (error) {
-      return null
-    }
-    return holder.instance as Instance
-  }
-
-  /**
-   * Internal method to resolve token args and create instance name.
-   * Handles factory token resolution and validation.
-   */
-  private async resolveTokenAndPrepareInstanceName(
-    token: AnyInjectableType,
-    args: any,
-    contextContainer: IContainer,
-  ): Promise<
-    | [
-        undefined,
-        {
-          instanceName: string
-          validatedArgs: any
-          actualToken: InjectionTokenType
-          realToken: InjectionToken<any, any>
-        },
-      ]
-    | [DIError]
-  > {
-    const [err, { actualToken, validatedArgs }] =
-      this.tokenProcessor.validateAndResolveTokenArgs(token, args)
-    if (err instanceof DIError && err.code === DIErrorCode.UnknownError) {
-      return [err]
-    } else if (
-      err instanceof DIError &&
-      err.code === DIErrorCode.FactoryTokenNotResolved &&
-      actualToken instanceof FactoryInjectionToken
-    ) {
-      this.logger?.log(
-        `[InstanceResolver]#resolveTokenAndPrepareInstanceName() Factory token not resolved, resolving it`,
-      )
-      await actualToken.resolve(this.createFactoryContext(contextContainer))
-      return this.resolveTokenAndPrepareInstanceName(
-        token,
-        undefined,
-        contextContainer,
-      )
-    }
-    const instanceName = this.tokenProcessor.generateInstanceName(
-      actualToken,
-      validatedArgs,
-    )
-    // Determine the real token (the actual InjectionToken that will be used for resolution)
-    const realToken =
-      actualToken instanceof BoundInjectionToken ||
-      actualToken instanceof FactoryInjectionToken
-        ? actualToken.token
-        : actualToken
-    return [undefined, { instanceName, validatedArgs, actualToken, realToken }]
-  }
-
-  // ============================================================================
-  // INSTANTIATION HANDLERS
-  // ============================================================================
-
-  /**
-   * Waits for an instance holder to be ready and returns the appropriate result.
-   * Uses the shared utility from BaseHolderManager.
-   * Passes the current resolution context for circular dependency detection.
-   */
-  private waitForInstanceReady<T>(
-    holder: InstanceHolder<T>,
-  ): Promise<[undefined, InstanceHolder<T>] | [DIError]> {
-    // Get the current resolution context (if we're inside an instantiation)
-    const ctx = getCurrentResolutionContext()
-
-    return BaseHolderManager.waitForHolderReady(
-      holder,
-      ctx?.waiterHolder,
-      ctx?.getHolder,
-    )
-  }
-
-  /**
-   * Handles the result of service instantiation.
-   */
-  private async handleInstantiationResult(
-    instanceName: string,
-    holder: InstanceHolder<any>,
-    ctx: FactoryContext & {
-      deps: Set<string>
-      getDestroyListeners: () => (() => void)[]
-    },
-    deferred: any,
-    scope: InjectableScope,
-    error: any,
-    instance: any,
-    scopedContainer?: ScopedContainer,
-  ): Promise<void> {
-    holder.destroyListeners = ctx.getDestroyListeners()
-    holder.creationPromise = null
-
-    if (error) {
-      await this.handleInstantiationError(
-        instanceName,
-        holder,
-        deferred,
-        scope,
-        error,
-      )
-    } else {
-      await this.handleInstantiationSuccess(
-        instanceName,
-        holder,
-        ctx,
-        deferred,
-        instance,
-        scopedContainer,
-      )
-    }
+    return [undefined, tempHolder]
   }
 
   /**
@@ -547,60 +569,30 @@ export class InstanceResolver {
   private async handleInstantiationSuccess(
     instanceName: string,
     holder: InstanceHolder<any>,
-    ctx: FactoryContext & {
-      deps: Set<string>
-      getDestroyListeners: () => (() => void)[]
-    },
+    ctx: ServiceInitializationContext,
     deferred: any,
     instance: any,
-    scopedContainer?: ScopedContainer,
+    _scopedContainer?: ScopedContainer,
+    requestStorage?: IHolderStorage,
+    _requestId?: string,
   ): Promise<void> {
     holder.instance = instance
     holder.status = InstanceStatus.Created
 
-    // Register dependencies in the reverse index for O(1) findDependents lookup
-    if (ctx.deps.size > 0) {
-      if (scopedContainer) {
-        // For request-scoped services, register in the request context
-        scopedContainer.getRequestContextHolder().registerDependencies(instanceName, ctx.deps)
-      } else {
-        // For singletons, register in the manager
-        this.manager.registerDependencies(instanceName, ctx.deps)
-      }
+    // Set up dependency subscriptions for event-based invalidation
+    // Determine which storage to use for subscriptions
+    const storageForSubscriptions = requestStorage || this.storage
+
+    // Set up subscriptions via ServiceInvalidator
+    if (ctx.dependencies.size > 0) {
+      this.serviceInvalidator.setupDependencySubscriptions(
+        instanceName,
+        ctx.dependencies,
+        storageForSubscriptions,
+        holder,
+      )
     }
 
-    // Set up dependency invalidation listeners
-    if (ctx.deps.size > 0) {
-      ctx.deps.forEach((dependency: string) => {
-        holder.destroyListeners.push(
-          this.serviceLocator.getEventBus().on(dependency, 'destroy', () => {
-            this.logger?.log(
-              `[InstanceResolver] Dependency ${dependency} destroyed, invalidating ${instanceName}`,
-            )
-            this.serviceLocator.getInvalidator().invalidate(instanceName)
-          }),
-        )
-
-        // For request-scoped services, also listen with prefixed event name
-        if (scopedContainer) {
-          const prefixedDependency =
-            scopedContainer.getPrefixedEventName(dependency)
-          holder.destroyListeners.push(
-            this.serviceLocator
-              .getEventBus()
-              .on(prefixedDependency, 'destroy', () => {
-                this.logger?.log(
-                  `[InstanceResolver] Request-scoped dependency ${dependency} destroyed, invalidating ${instanceName}`,
-                )
-                // For request-scoped, we need to invalidate within the scoped container
-                scopedContainer.invalidate(instance)
-              }),
-          )
-        }
-      })
-    }
-
-    // Note: Event emission would need access to the event bus
     this.logger?.log(
       `[InstanceResolver] Instance ${instanceName} created successfully`,
     )
@@ -617,43 +609,214 @@ export class InstanceResolver {
     scope: InjectableScope,
     error: any,
   ): Promise<void> {
+    holder.status = InstanceStatus.Error
+    holder.instance = error instanceof DIError ? error : DIError.unknown(error)
     this.logger?.error(
-      `[InstanceResolver] Error creating instance for ${instanceName}`,
+      `[InstanceResolver] Instance ${instanceName} creation failed:`,
       error,
     )
-
-    holder.status = InstanceStatus.Error
-    holder.instance = error
-    holder.creationPromise = null
-
-    if (scope === InjectableScope.Singleton) {
-      this.logger?.log(
-        `[InstanceResolver] Singleton ${instanceName} failed, will be invalidated`,
-      )
-      // Fire-and-forget invalidation - don't await as it could cause deadlocks
-      // Suppress any potential rejections since the primary error is already handled
-      this.serviceLocator
-        .getInvalidator()
-        .invalidate(instanceName)
-        .catch(() => {
-          // Suppress - primary error is communicated via deferred.reject()
-        })
-    }
-
-    deferred.reject(error)
+    deferred.reject(error instanceof DIError ? error : DIError.unknown(error))
   }
 
-  // ============================================================================
-  // FACTORY CONTEXT
-  // ============================================================================
+  /**
+   * Handles instantiation result (success or error).
+   */
+  private async handleInstantiationResult(
+    instanceName: string,
+    holder: InstanceHolder<any>,
+    ctx: ServiceInitializationContext,
+    deferred: any,
+    scope: InjectableScope,
+    error: any,
+    instance: any,
+    scopedContainer?: ScopedContainer,
+    requestStorage?: IHolderStorage,
+    requestId?: string,
+  ): Promise<void> {
+    if (error) {
+      await this.handleInstantiationError(
+        instanceName,
+        holder,
+        deferred,
+        scope,
+        error,
+      )
+    } else {
+      await this.handleInstantiationSuccess(
+        instanceName,
+        holder,
+        ctx,
+        deferred,
+        instance,
+        scopedContainer,
+        requestStorage,
+        requestId,
+      )
+    }
+  }
 
   /**
-   * Creates a factory context for dependency injection during service instantiation.
+   * Waits for an instance holder to be ready and returns the appropriate result.
+   *
+   * @param holder The holder to wait for
+   * @param waiterHolder Optional holder that is doing the waiting (for circular dependency detection)
+   * @param getHolder Optional function to retrieve holders by name (required if waiterHolder is provided)
    */
-  private createFactoryContext(contextContainer: IContainer): FactoryContext & {
-    getDestroyListeners: () => (() => void)[]
-    deps: Set<string>
-  } {
-    return this.tokenProcessor.createFactoryContext(contextContainer)
+  private async waitForInstanceReady<T>(
+    holder: InstanceHolder<T>,
+    waiterHolder?: InstanceHolder,
+    getHolder?: (name: string) => InstanceHolder | undefined,
+  ): Promise<[undefined, InstanceHolder<T>] | [DIError]> {
+    switch (holder.status) {
+      case InstanceStatus.Creating: {
+        // Check for circular dependency before waiting
+        if (waiterHolder && getHolder) {
+          const cycle = CircularDetector.detectCycle(
+            waiterHolder.name,
+            holder.name,
+            getHolder,
+          )
+          if (cycle) {
+            return [DIError.circularDependency(cycle)]
+          }
+
+          if (process.env.NODE_ENV !== 'production') {
+            // Track the waiting relationship
+            waiterHolder.waitingFor.add(holder.name)
+          }
+        }
+
+        try {
+          await holder.creationPromise
+        } finally {
+          if (process.env.NODE_ENV !== 'production') {
+            // Clean up the waiting relationship
+            if (waiterHolder) {
+              waiterHolder.waitingFor.delete(holder.name)
+            }
+          }
+        }
+
+        // Recursively check after creation completes
+        return this.waitForInstanceReady(holder, waiterHolder, getHolder)
+      }
+
+      case InstanceStatus.Destroying:
+        return [DIError.instanceDestroying(holder.name)]
+
+      case InstanceStatus.Error:
+        return [holder.instance as unknown as DIError]
+
+      case InstanceStatus.Created:
+        return [undefined, holder]
+
+      default:
+        // @ts-expect-error Maybe we will use this in the future
+        return [DIError.instanceNotFound(holder?.name ?? 'unknown')]
+    }
+  }
+
+  /**
+   * Creates a ServiceInitializationContext for service instantiation.
+   */
+  private createServiceInitializationContext(
+    container: IContainer,
+    serviceName: string,
+    scope: InjectableScope,
+    deps: Set<string>,
+    serviceToken: InjectionToken<any, any>,
+    requestStorage?: IHolderStorage,
+    requestId?: string,
+  ): ServiceInitializationContext {
+    const destroyListeners: Array<() => void> = []
+
+    return {
+      inject: async (token: any, args?: any) => {
+        // Track dependency and check for scope upgrade
+        const actualToken =
+          typeof token === 'function'
+            ? this.tokenResolver.normalizeToken(token)
+            : token
+        const realToken = this.tokenResolver.getRealToken(actualToken)
+        const depRecord = this.registry.get(realToken)
+        const depScope = depRecord.scope
+
+        // Generate dependency name - if dependency is Request-scoped and we have requestId, use it
+        const dependencyRequestId =
+          depScope === InjectableScope.Request ? requestId : undefined
+        const finalDepName = this.nameResolver.generateInstanceName(
+          actualToken,
+          args,
+          dependencyRequestId,
+          depScope,
+        )
+
+        // Check if current service needs scope upgrade
+        // If current service is Singleton and dependency is Request, upgrade current service
+        if (
+          scope === InjectableScope.Singleton &&
+          depScope === InjectableScope.Request &&
+          requestStorage &&
+          requestId
+        ) {
+          // Check and perform scope upgrade for current service
+          // Use the dependency name with requestId for the check
+          const [needsUpgrade, newServiceName] =
+            this.scopeTracker.checkAndUpgradeScope(
+              serviceName,
+              scope,
+              finalDepName,
+              depScope,
+              serviceToken,
+              this.storage,
+              requestStorage,
+              requestId,
+            )
+
+          if (needsUpgrade && newServiceName) {
+            // Service was upgraded - update the service name in context
+            // The holder will be moved to request storage by ScopeTracker
+            // For now, we continue with the current resolution
+            // Future resolutions will use the new name
+          }
+        }
+
+        // Track dependency
+        deps.add(finalDepName)
+
+        // Resolve dependency
+        // Resolution context is automatically used by the injectors system for circular dependency detection
+        return container.get(token, args)
+      },
+      container,
+      addDestroyListener: (listener: () => void) => {
+        destroyListeners.push(listener)
+      },
+      getDestroyListeners: () => destroyListeners,
+      serviceName,
+      dependencies: deps,
+      scope,
+      trackDependency: (name: string, depScope: InjectableScope) => {
+        deps.add(name)
+        // Check for scope upgrade
+        if (
+          scope === InjectableScope.Singleton &&
+          depScope === InjectableScope.Request &&
+          requestStorage &&
+          requestId
+        ) {
+          this.scopeTracker.checkAndUpgradeScope(
+            serviceName,
+            scope,
+            name,
+            depScope,
+            serviceToken,
+            this.storage,
+            requestStorage,
+            requestId,
+          )
+        }
+      },
+    }
   }
 }

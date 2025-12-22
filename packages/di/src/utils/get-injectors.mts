@@ -1,6 +1,10 @@
 import type { z, ZodObject, ZodType } from 'zod/v4'
 
-import type { FactoryContext } from '../internal/context/factory-context.mjs'
+import type {
+  Factorable,
+  FactorableWithArgs,
+} from '../interfaces/factory.interface.mjs'
+import type { ServiceInitializationContext } from '../internal/context/service-initialization-context.mjs'
 import type {
   BoundInjectionToken,
   ClassType,
@@ -11,18 +15,14 @@ import type {
   InjectionTokenSchemaType,
 } from '../token/injection-token.mjs'
 import type {
-  Factorable,
-  FactorableWithArgs,
-} from '../interfaces/factory.interface.mjs'
-import type {
   InjectRequest,
   InjectState,
   Join,
   UnionToArray,
 } from './types.mjs'
 
-import { InjectableTokenMeta } from '../symbols/index.mjs'
 import { withoutResolutionContext } from '../internal/context/resolution-context.mjs'
+import { InjectableTokenMeta } from '../symbols/index.mjs'
 
 export interface Injectors {
   // #1 Simple class
@@ -143,20 +143,22 @@ export interface Injectors {
     cb: () => any,
   ): (injectState?: InjectState) => [any, Promise<any>[], InjectState]
 
-  provideFactoryContext(context: FactoryContext | null): FactoryContext | null
+  provideFactoryContext(
+    context: ServiceInitializationContext | null,
+  ): ServiceInitializationContext | null
 }
 
 export function getInjectors() {
-  let currentFactoryContext: FactoryContext | null = null
+  let currentFactoryContext: ServiceInitializationContext | null = null
 
   function provideFactoryContext(
-    context: FactoryContext,
-  ): FactoryContext | null {
+    context: ServiceInitializationContext | null,
+  ): ServiceInitializationContext | null {
     const original = currentFactoryContext
     currentFactoryContext = context
     return original
   }
-  function getFactoryContext(): FactoryContext {
+  function getFactoryContext(): ServiceInitializationContext {
     if (!currentFactoryContext) {
       throw new Error(
         '[Injector] Trying to access injection context outside of a injectable context',
@@ -299,10 +301,8 @@ export function getInjectors() {
       )
     }
 
-    const instance = getFactoryContext().container.tryGetSync(
-      realToken,
-      args,
-    )
+    const ctx = getFactoryContext()
+    const instance = ctx.container.tryGetSync(realToken, args)
     if (!instance) {
       const request = getRequest(realToken, args)
       if (request.error) {
@@ -325,6 +325,17 @@ export function getInjectors() {
         },
       ) as unknown as T
     }
+
+    // Even when tryGetSync returns an existing instance, we still need to
+    // track the dependency for scope upgrade. This ensures that if a Singleton
+    // service depends on an already-created Request-scoped service, the
+    // Singleton will be properly upgraded to Request scope.
+    // The ctx.inject call handles dependency tracking and scope upgrades.
+    // We fire-and-forget this since we already have the instance.
+    ctx.inject(realToken, args).catch(() => {
+      // Ignore errors - we already have the instance
+    })
+
     return instance as unknown as T
   }
 

@@ -1,25 +1,27 @@
+import type { Factorable, FactorableWithArgs } from '../interfaces/index.mjs'
 import type {
   ClassTypeWithInstance,
   InjectionTokenSchemaType,
 } from '../token/injection-token.mjs'
-import type { Factorable, FactorableWithArgs } from '../interfaces/index.mjs'
 import type { Registry } from '../token/registry.mjs'
 
 import { InjectableScope, InjectableType } from '../enums/index.mjs'
+import { InjectableTokenMeta } from '../symbols/index.mjs'
 import { InjectionToken } from '../token/injection-token.mjs'
 import { globalRegistry } from '../token/registry.mjs'
-import { InjectableTokenMeta } from '../symbols/index.mjs'
 
 export interface FactoryOptions {
   scope?: InjectableScope
   token?: InjectionToken<any, any>
   registry?: Registry
+  priority?: number
 }
 
 // #1 Factory without arguments
 export function Factory<R>(options?: {
   scope?: InjectableScope
   registry?: Registry
+  priority?: number
 }): <T extends ClassTypeWithInstance<Factorable<R>>>(
   target: T,
   context?: ClassDecoratorContext,
@@ -30,24 +32,26 @@ export function Factory<R, S>(options: {
   scope?: InjectableScope
   token: InjectionToken<R, S>
   registry?: Registry
-}): R extends undefined // #2.1 Check that token has a type
-  ? never // #2.1.1 Token must have a type
-  : S extends InjectionTokenSchemaType // #2.2 Check that schema is an object or a record
-    ? <T extends ClassTypeWithInstance<FactorableWithArgs<R, S>>>( // #2.2.1 Token have a schema
+  priority?: number
+}): R extends undefined
+  ? never
+  : S extends InjectionTokenSchemaType
+    ? <T extends ClassTypeWithInstance<FactorableWithArgs<R, S>>>(
         target: T,
         context?: ClassDecoratorContext,
       ) => T
-    : S extends undefined // #2.3 For a factory without schema
-      ? <T extends ClassTypeWithInstance<Factorable<R>>>( // #2.3.1 Token without a schema
+    : S extends undefined
+      ? <T extends ClassTypeWithInstance<Factorable<R>>>(
           target: T,
           context?: ClassDecoratorContext,
         ) => T
-      : never // #2.4 Cannot use a token without a type and schema
+      : never
 
 export function Factory({
   scope = InjectableScope.Singleton,
   token,
   registry = globalRegistry,
+  priority = 0,
 }: FactoryOptions = {}) {
   return <
     T extends ClassTypeWithInstance<
@@ -62,14 +66,14 @@ export function Factory({
       (target instanceof Function && !context)
     ) {
       throw new Error(
-        '[ServiceLocator] @Factory decorator can only be used on classes.',
+        '[DI] @Factory decorator can only be used on classes.',
       )
     }
 
     let injectableToken: InjectionToken<any, any> =
       token ?? InjectionToken.create(target)
 
-    registry.set(injectableToken, scope, target, InjectableType.Factory)
+    registry.set(injectableToken, scope, target, InjectableType.Factory, priority)
 
     // @ts-expect-error
     target[InjectableTokenMeta] = injectableToken
@@ -77,3 +81,4 @@ export function Factory({
     return target
   }
 }
+

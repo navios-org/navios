@@ -1,16 +1,16 @@
 import type { ClassType } from '@navios/core'
 
-import { Injectable } from '@navios/core'
+import { globalRegistry, Injectable, Registry } from '@navios/core'
 
 import { getScheduleMetadata } from '../metadata/index.mjs'
 
 /**
  * Decorator that marks a class as schedulable and makes it injectable.
- * 
+ *
  * Classes decorated with `@Schedulable()` can contain methods decorated with `@Cron()`
  * that will be automatically scheduled and executed. This decorator also applies
  * the `@Injectable()` decorator, making the class available for dependency injection.
- * 
+ *
  * @example
  * ```typescript
  * @Schedulable()
@@ -20,16 +20,16 @@ import { getScheduleMetadata } from '../metadata/index.mjs'
  *     // This will run daily at midnight
  *   }
  * }
- * 
+ *
  * // Register the service
  * schedulerService.register(TaskService)
  * ```
- * 
+ *
  * @throws {Error} If applied to something other than a class
- * 
+ *
  * @public
  */
-export function Schedulable() {
+export function Schedulable({ registry }: { registry?: Registry } = {}) {
   return (target: ClassType, context: ClassDecoratorContext) => {
     if (context.kind !== 'class') {
       throw new Error(
@@ -39,6 +39,6 @@ export function Schedulable() {
     if (context.metadata) {
       getScheduleMetadata(target, context)
     }
-    return Injectable()(target, context)
+    return Injectable({ registry: registry ?? globalRegistry })(target, context)
   }
 }

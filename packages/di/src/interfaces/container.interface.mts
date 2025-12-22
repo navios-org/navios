@@ -80,3 +80,4 @@ export interface IContainer {
    */
   tryGetSync<T>(token: any, args?: any): T | null
 }
+

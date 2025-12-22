@@ -38,7 +38,6 @@ class Container implements IContainer {
 
   // Introspection
   isRegistered(token: any): boolean
-  getServiceLocator(): ServiceLocator
   getRegistry(): Registry
   tryGetSync<T>(token: any, args?: any): T | null
 
@@ -46,10 +45,20 @@ class Container implements IContainer {
   beginRequest(
     requestId: string,
     metadata?: Record<string, any>,
-    priority?: number,
   ): ScopedContainer
   getActiveRequestIds(): ReadonlySet<string>
   hasActiveRequest(requestId: string): boolean
+  removeRequestId(requestId: string): void
+
+  // Component Access (for advanced usage)
+  getStorage(): UnifiedStorage
+  getServiceInitializer(): ServiceInitializer
+  getServiceInvalidator(): ServiceInvalidator
+  getTokenResolver(): TokenResolver
+  getNameResolver(): NameResolver
+  getScopeTracker(): ScopeTracker
+  getEventBus(): LifecycleEventBus
+  getInstanceResolver(): InstanceResolver
 }
 ```
 
@@ -67,15 +76,26 @@ class Container implements IContainer {
 - `dispose()` - Clean up all resources
 - `clear()` - Clear all instances and bindings
 - `isRegistered(token: any)` - Check if a service is registered
-- `getServiceLocator()` - Get the underlying ServiceLocator instance
 - `getRegistry()` - Get the registry
 - `tryGetSync<T>(token, args?)` - Get instance synchronously if it exists
 
 **Request Context Management:**
 
-- `beginRequest(requestId, metadata?, priority?)` - Begin a new request context, returns `ScopedContainer`
+- `beginRequest(requestId, metadata?)` - Begin a new request context, returns `ScopedContainer`
 - `getActiveRequestIds()` - Get set of active request IDs
 - `hasActiveRequest(requestId)` - Check if a request is active
+- `removeRequestId(requestId)` - Remove a request ID from tracking
+
+**Component Access Methods (Advanced):**
+
+- `getStorage()` - Get the UnifiedStorage instance
+- `getServiceInitializer()` - Get the ServiceInitializer instance
+- `getServiceInvalidator()` - Get the ServiceInvalidator instance
+- `getTokenResolver()` - Get the TokenResolver instance
+- `getNameResolver()` - Get the NameResolver instance
+- `getScopeTracker()` - Get the ScopeTracker instance
+- `getEventBus()` - Get the LifecycleEventBus instance
+- `getInstanceResolver()` - Get the InstanceResolver instance
 
 ### ScopedContainer
 
@@ -102,7 +122,7 @@ class ScopedContainer implements IContainer {
   isRegistered(token: any): boolean
   getParent(): Container
   getRequestId(): string
-  getRequestContextHolder(): RequestContext
+  getStorage(): UnifiedStorage
   tryGetSync<T>(token: any, args?: any): T | null
 
   // Metadata
@@ -122,6 +142,50 @@ class ScopedContainer implements IContainer {
 - `getMetadata(key)` - Get request metadata
 - `setMetadata(key, value)` - Set request metadata
 - `addInstance(token, instance)` - Add pre-prepared instance to request context
+- `getStorage()` - Get the underlying UnifiedStorage instance
+
+## Registry
+
+The `Registry` stores service metadata and factory information.
+
+```typescript
+class Registry {
+  constructor(parent?: Registry)
+  
+  // Registration
+  set<Instance, Schema>(
+    token: InjectionToken<Instance, Schema>,
+    scope: InjectableScope,
+    target: ClassType,
+    type: InjectableType,
+    priority?: number
+  ): void
+  
+  // Lookup
+  get<Instance, Schema>(
+    token: InjectionToken<Instance, Schema>
+  ): FactoryRecord<Instance, Schema>
+  
+  getAll<Instance, Schema>(
+    token: InjectionToken<Instance, Schema>
+  ): FactoryRecord<Instance, Schema>[]  // Returns all registrations sorted by priority
+  
+  has(token: InjectionToken<any, any>): boolean
+  
+  // Management
+  delete(token: InjectionToken<any, any>): void
+  updateScope(token: InjectionToken<any, any>, scope: InjectableScope): boolean
+}
+```
+
+**Methods:**
+
+- `set(token, scope, target, type, priority?)` - Register a service factory
+- `get(token)` - Get the highest priority factory record for a token
+- `getAll(token)` - Get all factory records for a token (sorted by priority, highest first)
+- `has(token)` - Check if a token is registered
+- `delete(token)` - Remove all registrations for a token
+- `updateScope(token, scope)` - Update the scope of an already registered factory
 
 ## Injection Tokens
 
@@ -172,6 +236,7 @@ function Injectable(options?: {
   token?: InjectionToken<any, any>
   schema?: ZodSchema
   registry?: Registry
+  priority?: number
 }): ClassDecorator
 ```
 
@@ -181,6 +246,7 @@ function Injectable(options?: {
 - `token?: InjectionToken<any, any>` - Custom injection token
 - `schema?: ZodSchema` - Zod schema for constructor arguments
 - `registry?: Registry` - Custom registry
+- `priority?: number` - Priority level (higher wins when multiple registrations exist, default: 0)
 
 ### Factory
 
@@ -263,7 +329,6 @@ Context provided to factory methods.
 ```typescript
 interface FactoryContext {
   inject: typeof asyncInject
-  locator: ServiceLocator
   addDestroyListener: (listener: () => void | Promise<void>) => void
 }
 ```
@@ -350,10 +415,20 @@ class DIError extends Error {
 ```typescript
 enum DIErrorCode {
   FactoryNotFound = 'FACTORY_NOT_FOUND',
+  FactoryTokenNotResolved = 'FACTORY_TOKEN_NOT_RESOLVED',
   InstanceNotFound = 'INSTANCE_NOT_FOUND',
   InstanceDestroying = 'INSTANCE_DESTROYING',
   CircularDependency = 'CIRCULAR_DEPENDENCY',
   UnknownError = 'UNKNOWN_ERROR',
+  // New error codes
+  TokenValidationError = 'TOKEN_VALIDATION_ERROR',
+  TokenSchemaRequiredError = 'TOKEN_SCHEMA_REQUIRED_ERROR',
+  ClassNotInjectable = 'CLASS_NOT_INJECTABLE',
+  ScopeMismatchError = 'SCOPE_MISMATCH_ERROR',
+  PriorityConflictError = 'PRIORITY_CONFLICT_ERROR',
+  StorageError = 'STORAGE_ERROR',
+  InitializationError = 'INITIALIZATION_ERROR',
+  DependencyResolutionError = 'DEPENDENCY_RESOLUTION_ERROR',
 }
 ```
 
@@ -361,16 +436,68 @@ enum DIErrorCode {
 
 ### TestContainer
 
-Specialized container for testing.
+Specialized container for testing with enhanced utilities.
 
 ```typescript
 class TestContainer extends Container {
-  bind<T>(token: InjectionToken<T, any>): TestBindingBuilder<T>
-  bind<T>(token: ClassType): TestBindingBuilder<T>
-  bindValue<T>(token: InjectionToken<T, any>, value: T): TestContainer
-  bindClass<T>(token: InjectionToken<T, any>, target: ClassType): TestContainer
-  createChild(): TestContainer
+  // Binding API
+  bind<T>(token: InjectionToken<T, any> | ClassType): BindingBuilder<T>
+  
+  // Assertion helpers
+  expectResolved(token: AnyToken): void
+  expectNotResolved(token: AnyToken): void
+  expectSingleton(token: AnyToken): void
+  expectTransient(token: AnyToken): void
+  expectRequestScoped(token: AnyToken): void
+  expectInitialized(token: AnyToken): void
+  expectDestroyed(token: AnyToken): void
+  expectNotDestroyed(token: AnyToken): void
+  
+  // Method call tracking
+  recordMethodCall(token: AnyToken, method: string, args: any[], result?: any): void
+  expectCalled(token: AnyToken, method: string): void
+  expectCalledWith(token: AnyToken, method: string, args: any[]): void
+  expectCallCount(token: AnyToken, method: string, count: number): void
+  getMethodCalls(token: AnyToken): MethodCallRecord[]
+  getServiceStats(token: AnyToken): MockServiceStats
+  clearMethodCalls(): void
+  
+  // Dependency graph
+  getDependencyGraph(): DependencyGraph
+  getSimplifiedDependencyGraph(): DependencyGraph
+  
+  // Lifecycle
   clear(): Promise<void>
+}
+
+interface BindingBuilder<T> {
+  toValue(value: T): void
+  toClass<C extends new (...args: any[]) => T>(cls: C): void
+  toFactory(factory: () => T | Promise<T>): void
+}
+```
+
+### UnitTestContainer
+
+Strict isolated unit testing container with automatic method call tracking.
+
+```typescript
+class UnitTestContainer extends Container {
+  constructor(options?: {
+    providers?: ProviderConfig[]
+    allowUnregistered?: boolean
+    logger?: Console | null
+  })
+  
+  // Auto-tracking assertions (no manual recording needed)
+  expectCalled(token: AnyToken, method: string): void
+  expectCalledWith(token: AnyToken, method: string, args: any[]): void
+  expectNotCalled(token: AnyToken, method: string): void
+  expectAutoMocked(token: AnyToken): void
+  
+  // Auto-mocking
+  enableAutoMocking(): void
+  disableAutoMocking(): void
 }
 ```
 

@@ -19,28 +19,22 @@ const container = new Container()
 const service = await container.get(MyService)
 ```
 
-The Container wraps a `ServiceLocator` and provides convenient methods for:
+The Container provides a simplified API for:
 
 - Getting service instances
 - Invalidating services
 - Managing request contexts
 - Lifecycle management
 
-### ServiceLocator
-
-The `ServiceLocator` is the core DI engine that coordinates:
-
-- Service instantiation
-- Dependency resolution
-- Lifecycle management
-- Circular dependency detection
-
-It delegates to specialized components:
+The Container uses specialized components directly:
 
 - **InstanceResolver**: Resolves service instances
-- **Instantiator**: Creates service instances
-- **Invalidator**: Handles service invalidation
-- **TokenProcessor**: Processes injection tokens
+- **ServiceInitializer**: Creates service instances (formerly Instantiator)
+- **ServiceInvalidator**: Handles service invalidation (formerly Invalidator)
+- **TokenResolver**: Processes injection tokens (formerly TokenProcessor)
+- **NameResolver**: Generates deterministic instance names
+- **ScopeTracker**: Tracks and validates scope relationships
+- **UnifiedStorage**: Unified storage for all scopes (replaces SingletonStorage, RequestStorage, RequestContext)
 
 ### Registry
 
@@ -68,12 +62,16 @@ await scoped.endRequest()
 ```mermaid
 graph TD
     A[Application] --> B[Container]
-    B --> C[ServiceLocator]
-    C --> D[Registry]
-    C --> E[InstanceResolver]
-    C --> F[Instantiator]
-    C --> G[Invalidator]
+    B --> D[Registry]
+    B --> E[InstanceResolver]
+    B --> F[ServiceInitializer]
+    B --> G[ServiceInvalidator]
+    B --> I[TokenResolver]
+    B --> J[NameResolver]
+    B --> K[ScopeTracker]
+    B --> L[UnifiedStorage]
     B --> H[ScopedContainer<br/>Request-scoped service isolation]
+    H --> L
 ```
 
 ## Service Resolution Flow
@@ -94,9 +92,13 @@ When you request a service from the container, the following happens:
 
 Navios DI uses different storage strategies based on service scope:
 
-### Singleton Storage
+### Unified Storage
 
-Singleton services are stored in different instances in different containers:
+Navios DI uses a unified storage architecture (`UnifiedStorage`) that handles all scopes:
+
+- **Singleton**: Stored in the Container's UnifiedStorage instance
+- **Transient**: Not stored - a new instance is created for each request
+- **Request**: Stored in the ScopedContainer's UnifiedStorage instance
 
 ```typescript
 // Different containers store different singleton instances
@@ -106,32 +108,22 @@ const container2 = new Container()
 const service1 = await container1.get(SingletonService)
 const service2 = await container2.get(SingletonService)
 
-console.log(service1 !== service2) // false
-```
+console.log(service1 !== service2) // true (different containers)
 
-### Transient Storage
+// Transient services are not stored
+const service3 = await container.get(TransientService)
+const service4 = await container.get(TransientService)
 
-Transient services are not stored - a new instance is created for each request:
+console.log(service3 === service4) // false (new instance each time)
 
-```typescript
-const service1 = await container.get(TransientService)
-const service2 = await container.get(TransientService)
-
-console.log(service1 === service2) // false
-```
-
-### Request Storage
-
-Request-scoped services are stored in the `RequestContext` within a `ScopedContainer`:
-
-```typescript
+// Request-scoped services are stored per ScopedContainer
 const scoped1 = container.beginRequest('req-1')
 const scoped2 = container.beginRequest('req-2')
 
-const service1 = await scoped1.get(RequestService)
-const service2 = await scoped2.get(RequestService)
+const service5 = await scoped1.get(RequestService)
+const service6 = await scoped2.get(RequestService)
 
-console.log(service1 === service2) // false (different requests)
+console.log(service5 === service6) // false (different requests)
 ```
 
 ## Concurrent Resolution
@@ -292,7 +284,7 @@ Factories receive a `FactoryContext` with additional capabilities:
 @Factory()
 class MyFactory {
   create(ctx: FactoryContext) {
-    // Access to service locator
+    // Inject dependencies
     const service = await ctx.inject(OtherService)
 
     // Register cleanup callbacks

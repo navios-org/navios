@@ -1,5 +1,5 @@
-import type { ReactNode } from 'react'
 import type { ScopedContainer } from '@navios/di'
+import type { ReactNode } from 'react'
 
 import { useContext, useEffect, useId, useRef } from 'react'
 import { jsx } from 'react/jsx-runtime'
@@ -17,11 +17,6 @@ export interface ScopeProviderProps {
    * Can be used to pass data like user info, request headers, etc.
    */
   metadata?: Record<string, unknown>
-  /**
-   * Priority for service resolution. Higher priority scopes take precedence.
-   * @default 100
-   */
-  priority?: number
   children: ReactNode
 }
 
@@ -50,7 +45,6 @@ export interface ScopeProviderProps {
 export function ScopeProvider({
   scopeId,
   metadata,
-  priority = 100,
   children,
 }: ScopeProviderProps) {
   const container = useContext(ContainerContext)
@@ -70,7 +64,6 @@ export function ScopeProvider({
       scopedContainerRef.current = container.beginRequest(
         effectiveScopeId,
         metadata,
-        priority,
       )
     }
   }

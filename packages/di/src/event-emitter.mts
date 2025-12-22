@@ -2,7 +2,8 @@
 /* eslint-disable @typescript-eslint/no-empty-object-type */
 /* eslint-disable @typescript-eslint/no-unsafe-function-type */
 
-import { Injectable, InjectableScope } from './index.mjs'
+import { Injectable } from './decorators/index.mjs'
+import { InjectableScope } from './enums/index.mjs'
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 export type EventsConfig = {
@@ -17,33 +18,8 @@ export type EventsArgs<
   Name extends EventsNames<Events>,
 > = Events[Name] extends any[] ? Events[Name] : []
 
-export type ChannelEmitter<
-  Events extends EventsConfig,
-  Ns extends string,
-  E extends EventsNames<Events>,
-> = {
-  emit<Args extends EventsArgs<Events, E>>(
-    ns: Ns,
-    event: E,
-    ...args: Args
-  ): Promise<any>
-}
-
-export interface EventEmitterInterface<Events extends EventsConfig> {
-  on<E extends EventsNames<Events>, Args extends EventsArgs<Events, E>>(
-    event: E,
-    listener: (...args: Args) => void | Promise<void>,
-  ): () => void
-  emit<E extends EventsNames<Events>, Args extends EventsArgs<Events, E>>(
-    event: E,
-    ...args: Args
-  ): void | Promise<void>
-}
-
 @Injectable({ scope: InjectableScope.Transient })
-export class EventEmitter<Events extends EventsConfig = {}>
-  implements EventEmitterInterface<Events>
-{
+export class EventEmitter<Events extends EventsConfig = {}> {
   private listeners: Map<EventsNames<Events>, Set<Function>> = new Map()
 
   on<E extends EventsNames<Events>, Args extends EventsArgs<Events, E>>(

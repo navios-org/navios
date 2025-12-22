@@ -6,8 +6,11 @@ import type {
   FactoryInjectionToken,
   InjectionToken,
   InjectionTokenSchemaType,
+  ScopedContainer,
 } from '@navios/di'
 import type { z, ZodType } from 'zod/v4'
+
+import { InjectableScope } from '@navios/di'
 
 import { useCallback, useEffect, useReducer, useRef, useState } from 'react'
 
@@ -105,7 +108,6 @@ export function useService(
   // This automatically handles request-scoped services correctly
   const container = useContainer()
   const rootContainer = useRootContainer()
-  const serviceLocator = rootContainer.getServiceLocator()
 
   // Try to get the instance synchronously first for better performance
   // This avoids the async loading state when the instance is already cached
@@ -146,7 +148,7 @@ export function useService(
 
   // Subscribe to invalidation events
   useEffect(() => {
-    const eventBus = serviceLocator.getEventBus()
+    const eventBus = rootContainer.getEventBus()
     let unsubscribe: (() => void) | undefined
     let isMounted = true
 
@@ -163,10 +165,20 @@ export function useService(
         if (!isMounted) return
 
         // Get instance name for event subscription
-        const instanceName = serviceLocator.getInstanceIdentifier(
-          token as AnyInjectableType,
-          args,
-        )
+        const realToken = rootContainer
+          .getTokenResolver()
+          .getRealToken(rootContainer.getTokenResolver().normalizeToken(token))
+        const scope = rootContainer.getRegistry().get(realToken).scope
+        const instanceName = rootContainer
+          .getNameResolver()
+          .generateInstanceName(
+            realToken,
+            args,
+            scope === InjectableScope.Request
+              ? ((container as ScopedContainer).getRequestId() ?? undefined)
+              : undefined,
+            scope,
+          )
         instanceNameRef.current = instanceName
 
         dispatch({ type: 'success', data: instance })
@@ -190,10 +202,20 @@ export function useService(
     // Otherwise, fetch async
     const syncInstance = initialSyncInstanceRef.current
     if (syncInstance && refetchCounter === 0) {
-      const instanceName = serviceLocator.getInstanceIdentifier(
-        token as AnyInjectableType,
-        args,
-      )
+      const realToken = rootContainer
+        .getTokenResolver()
+        .getRealToken(rootContainer.getTokenResolver().normalizeToken(token))
+      const scope = rootContainer.getRegistry().get(realToken).scope
+      const instanceName = rootContainer
+        .getNameResolver()
+        .generateInstanceName(
+          realToken,
+          args,
+          scope === InjectableScope.Request
+            ? ((container as ScopedContainer).getRequestId() ?? undefined)
+            : undefined,
+          scope,
+        )
       instanceNameRef.current = instanceName
       unsubscribe = eventBus.on(instanceName, 'destroy', () => {
         if (isMounted) {
@@ -210,7 +232,7 @@ export function useService(
       isMounted = false
       unsubscribe?.()
     }
-  }, [container, serviceLocator, token, args, refetchCounter])
+  }, [container, rootContainer, token, args, refetchCounter])
 
   const refetch = useCallback(() => {
     setRefetchCounter((c) => c + 1)

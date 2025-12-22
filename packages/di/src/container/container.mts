@@ -1,41 +1,57 @@
 import type { z, ZodType } from 'zod/v4'
 
+import type { Factorable } from '../interfaces/factory.interface.mjs'
 import type {
   ClassType,
   ClassTypeWithArgument,
-  InjectionToken,
   InjectionTokenSchemaType,
 } from '../token/injection-token.mjs'
-import type { IContainer } from '../interfaces/container.interface.mjs'
-import type { Factorable } from '../interfaces/factory.interface.mjs'
 import type { Registry } from '../token/registry.mjs'
-import type { InstanceHolder } from '../internal/holder/instance-holder.mjs'
-import type { Injectors } from '../utils/index.mjs'
+import type { Injectors } from '../utils/get-injectors.mjs'
 import type { Join, UnionToArray } from '../utils/types.mjs'
 
 import { Injectable } from '../decorators/injectable.decorator.mjs'
 import { InjectableScope, InjectableType } from '../enums/index.mjs'
 import { DIError } from '../errors/index.mjs'
+import { InstanceResolver } from '../internal/core/instance-resolver.mjs'
+import { NameResolver } from '../internal/core/name-resolver.mjs'
+import { ScopeTracker } from '../internal/core/scope-tracker.mjs'
+import { ServiceInitializer } from '../internal/core/service-initializer.mjs'
+import { ServiceInvalidator } from '../internal/core/service-invalidator.mjs'
+import { TokenResolver } from '../internal/core/token-resolver.mjs'
+import { UnifiedStorage } from '../internal/holder/unified-storage.mjs'
+import { LifecycleEventBus } from '../internal/lifecycle/lifecycle-event-bus.mjs'
 import {
   BoundInjectionToken,
   FactoryInjectionToken,
+  InjectionToken,
 } from '../token/injection-token.mjs'
-import { defaultInjectors } from '../injectors.mjs'
 import { globalRegistry } from '../token/registry.mjs'
+import { defaultInjectors } from '../utils/default-injectors.mjs'
+import { getInjectableToken } from '../utils/index.mjs'
+import { AbstractContainer } from './abstract-container.mjs'
 import { ScopedContainer } from './scoped-container.mjs'
-import { ServiceLocator } from '../internal/core/service-locator.mjs'
-import { getInjectableToken } from '../utils/get-injectable-token.mjs'
 
 /**
  * Main dependency injection container.
  *
- * Provides a simplified public API for dependency injection, wrapping
- * a ServiceLocator instance. Handles singleton and transient services directly,
+ * Provides a simplified public API for dependency injection.
+ * Handles singleton and transient services directly,
  * while request-scoped services require using beginRequest() to create a ScopedContainer.
  */
 @Injectable()
-export class Container implements IContainer {
-  private readonly serviceLocator: ServiceLocator
+export class Container extends AbstractContainer {
+  protected readonly defaultScope = InjectableScope.Singleton
+  protected readonly requestId = undefined
+
+  private readonly storage: UnifiedStorage
+  private readonly serviceInitializer: ServiceInitializer
+  private readonly serviceInvalidator: ServiceInvalidator
+  private readonly tokenResolver: TokenResolver
+  private readonly nameResolver: NameResolver
+  private readonly scopeTracker: ScopeTracker
+  private readonly eventBus: LifecycleEventBus
+  private readonly instanceResolver: InstanceResolver
   private readonly activeRequestIds = new Set<string>()
 
   constructor(
@@ -43,27 +59,48 @@ export class Container implements IContainer {
     protected readonly logger: Console | null = null,
     protected readonly injectors: Injectors = defaultInjectors,
   ) {
-    this.serviceLocator = new ServiceLocator(registry, logger, injectors)
+    super()
+    // Initialize components
+    this.storage = new UnifiedStorage(InjectableScope.Singleton)
+    this.eventBus = new LifecycleEventBus(logger)
+    this.nameResolver = new NameResolver(logger)
+    this.tokenResolver = new TokenResolver(logger)
+    this.scopeTracker = new ScopeTracker(registry, this.nameResolver, logger)
+    this.serviceInitializer = new ServiceInitializer(injectors)
+    this.serviceInvalidator = new ServiceInvalidator(this.eventBus, logger)
+    this.instanceResolver = new InstanceResolver(
+      registry,
+      this.storage,
+      this.serviceInitializer,
+      this.tokenResolver,
+      this.nameResolver,
+      this.scopeTracker,
+      this.serviceInvalidator,
+      this.eventBus,
+      logger,
+    )
     this.registerSelf()
   }
 
   private registerSelf() {
     const token = getInjectableToken(Container)
-    const instanceName = this.serviceLocator.getInstanceIdentifier(token)
-    this.serviceLocator
-      .getManager()
-      .storeCreatedHolder(
-        instanceName,
-        this,
-        InjectableType.Class,
-        InjectableScope.Singleton,
-      )
+    this.registry.set(
+      token,
+      InjectableScope.Singleton,
+      Container,
+      InjectableType.Class,
+    )
+    const instanceName = this.nameResolver.generateInstanceName(
+      token,
+      undefined,
+      undefined,
+      InjectableScope.Singleton,
+    )
+    this.storage.storeInstance(instanceName, this)
   }
 
   /**
    * Gets an instance from the container.
-   * This method has the same type signature as the inject method from get-injectors.mts
-   *
    * NOTE: Request-scoped services cannot be resolved directly from Container.
    * Use beginRequest() to create a ScopedContainer for request-scoped services.
    */
@@ -78,7 +115,6 @@ export class Container implements IContainer {
     token: T,
     args: R,
   ): Promise<InstanceType<T>>
-
   // #2 Token with required Schema
   get<T, S extends InjectionTokenSchemaType>(
     token: InjectionToken<T, S>,
@@ -109,211 +145,147 @@ export class Container implements IContainer {
     args?: unknown,
   ) {
     // Check if this is a request-scoped service
-    // Use TokenProcessor for consistent token normalization
-    const tokenProcessor = this.serviceLocator.getTokenProcessor()
-    const realToken = tokenProcessor.getRegistryToken(token)
+    const realToken = this.tokenResolver.getRegistryToken(token)
 
     if (this.registry.has(realToken)) {
       const record = this.registry.get(realToken)
       if (record.scope === InjectableScope.Request) {
-        throw DIError.unknown(
-          `Cannot resolve request-scoped service "${String(realToken.name)}" from Container. ` +
-            `Use beginRequest() to create a ScopedContainer for request-scoped services.`,
+        throw DIError.scopeMismatchError(
+          realToken.name,
+          'ScopedContainer',
+          'Container',
         )
       }
     }
 
-    return this.serviceLocator.getOrThrowInstance(token, args as any, this)
-  }
-
-  /**
-   * Gets an instance with a specific container context.
-   * Used by ScopedContainer to delegate singleton/transient resolution
-   * while maintaining the correct container context for nested inject() calls.
-   *
-   * @internal
-   */
-  async getWithContext(
-    token:
-      | ClassType
-      | InjectionToken<any>
-      | BoundInjectionToken<any, any>
-      | FactoryInjectionToken<any, any>,
-    args: unknown,
-    contextContainer: IContainer,
-  ): Promise<any> {
-    return this.serviceLocator.getOrThrowInstance(
+    const [error, instance] = await this.instanceResolver.resolveInstance(
       token,
-      args as any,
-      contextContainer,
+      args,
+      this,
     )
+
+    if (error) {
+      throw error
+    }
+
+    return instance
   }
 
   /**
-   * Resolves a request-scoped service for a ScopedContainer.
-   * The service will be stored in the ScopedContainer's request context.
-   *
-   * @internal
-   */
-  async resolveForRequest(
-    token:
-      | ClassType
-      | InjectionToken<any>
-      | BoundInjectionToken<any, any>
-      | FactoryInjectionToken<any, any>,
-    args: unknown,
-    scopedContainer: ScopedContainer,
-  ): Promise<any> {
-    return this.serviceLocator.resolveRequestScoped(
-      token,
-      args as any,
-      scopedContainer,
-    )
-  }
-
-  /**
-   * Gets the underlying ServiceLocator instance for advanced usage
-   */
-  getServiceLocator(): ServiceLocator {
-    return this.serviceLocator
-  }
-
-  /**
-   * Gets the registry
-   */
-  getRegistry(): Registry {
-    return this.registry
-  }
-
-  /**
-   * Invalidates a service and its dependencies
+   * Invalidates a service and its dependencies.
    */
   async invalidate(service: unknown): Promise<void> {
-    const holder = this.getHolderByInstance(service)
-    if (holder) {
-      await this.serviceLocator.invalidate(holder.name)
+    // Find the service by instance
+    const holder = this.storage.findByInstance(service)
+    if (!holder) {
+      this.logger?.warn(
+        `[Container] Service instance not found for invalidation`,
+      )
+      return
     }
-  }
 
-  /**
-   * Gets a service holder by instance (reverse lookup)
-   */
-  private getHolderByInstance(
-    instance: unknown,
-  ): InstanceHolder | null {
-    const holderMap = Array.from(
-      this.serviceLocator
-        .getManager()
-        .filter((holder) => holder.instance === instance)
-        .values(),
+    await this.serviceInvalidator.invalidateWithStorage(
+      holder.name,
+      this.storage,
     )
-
-    return holderMap.length > 0 ? holderMap[0] : null
   }
 
   /**
-   * Checks if a service is registered in the container
-   */
-  isRegistered(token: any): boolean {
-    try {
-      return this.serviceLocator.getInstanceIdentifier(token) !== null
-    } catch {
-      return false
-    }
-  }
-
-  /**
-   * Disposes the container and cleans up all resources
+   * Disposes the container and cleans up all resources.
    */
   async dispose(): Promise<void> {
-    await this.serviceLocator.clearAll()
-  }
-
-  /**
-   * Waits for all pending operations to complete
-   */
-  async ready(): Promise<void> {
-    await this.serviceLocator.ready()
+    await this.serviceInvalidator.clearAllWithStorage(this.storage)
   }
 
   /**
    * @internal
    * Attempts to get an instance synchronously if it already exists.
-   * Returns null if the instance doesn't exist or is not ready.
+   * Overrides base class to support requestId parameter for ScopedContainer compatibility.
    */
-  tryGetSync<T>(token: any, args?: any): T | null {
-    return this.serviceLocator.getSyncInstance(token, args, this)
-  }
-
-  // ============================================================================
-  // REQUEST CONTEXT MANAGEMENT
-  // ============================================================================
-
-  /**
-   * Begins a new request context and returns a ScopedContainer.
-   *
-   * The ScopedContainer provides isolated request-scoped service resolution
-   * while delegating singleton and transient services to this Container.
-   *
-   * @param requestId Unique identifier for this request
-   * @param metadata Optional metadata for the request
-   * @param priority Priority for resolution (higher = more priority)
-   * @returns A ScopedContainer for this request
-   */
-  beginRequest(
-    requestId: string,
-    metadata?: Record<string, any>,
-    priority: number = 100,
-  ): ScopedContainer {
-    if (this.activeRequestIds.has(requestId)) {
-      throw DIError.unknown(
-        `Request context "${requestId}" already exists. Use a unique request ID.`,
-      )
-    }
-
-    this.activeRequestIds.add(requestId)
-
-    this.logger?.log(`[Container] Started request context: ${requestId}`)
-
-    return new ScopedContainer(
-      this,
-      this.registry,
-      requestId,
-      metadata,
-      priority,
+  override tryGetSync<T>(token: any, args?: any, requestId?: string): T | null {
+    return this.tryGetSyncFromStorage(
+      token,
+      args,
+      this.storage,
+      requestId ?? this.requestId,
     )
   }
 
   /**
-   * Removes a request ID from the active set.
-   * Called by ScopedContainer when the request ends.
-   *
-   * @internal
+   * Begins a new request context and returns a ScopedContainer.
    */
-  removeActiveRequest(requestId: string): void {
-    this.activeRequestIds.delete(requestId)
-    this.logger?.log(`[Container] Ended request context: ${requestId}`)
+  beginRequest(
+    requestId: string,
+    metadata?: Record<string, any>,
+  ): ScopedContainer {
+    if (this.activeRequestIds.has(requestId)) {
+      throw new Error(`Request with ID ${requestId} already exists`)
+    }
+
+    this.activeRequestIds.add(requestId)
+
+    return new ScopedContainer(this, this.registry, requestId, metadata)
   }
 
   /**
-   * Gets the set of active request IDs.
+   * Gets all active request IDs.
    */
   getActiveRequestIds(): ReadonlySet<string> {
     return this.activeRequestIds
   }
 
   /**
-   * Checks if a request ID is currently active.
+   * Checks if a request is active.
    */
   hasActiveRequest(requestId: string): boolean {
     return this.activeRequestIds.has(requestId)
   }
 
   /**
-   * Clears all instances and bindings from the container.
-   * This is useful for testing or resetting the container state.
+   * Removes a request ID from active requests.
+   * Called by ScopedContainer when request ends.
    */
-  clear(): Promise<void> {
-    return this.serviceLocator.clearAll()
+  removeRequestId(requestId: string): void {
+    this.activeRequestIds.delete(requestId)
+  }
+
+  // ============================================================================
+  // INTERNAL METHODS FOR COMPONENT ACCESS
+  // ============================================================================
+
+  getStorage(): UnifiedStorage {
+    return this.storage
+  }
+
+  getServiceInitializer(): ServiceInitializer {
+    return this.serviceInitializer
+  }
+
+  getServiceInvalidator(): ServiceInvalidator {
+    return this.serviceInvalidator
+  }
+
+  getTokenResolver(): TokenResolver {
+    return this.tokenResolver
+  }
+
+  getNameResolver(): NameResolver {
+    return this.nameResolver
+  }
+
+  getScopeTracker(): ScopeTracker {
+    return this.scopeTracker
+  }
+
+  getEventBus(): LifecycleEventBus {
+    return this.eventBus
+  }
+
+  getRegistry(): Registry {
+    return this.registry
+  }
+
+  getInstanceResolver(): InstanceResolver {
+    return this.instanceResolver
   }
 }

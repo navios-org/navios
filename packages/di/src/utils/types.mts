@@ -54,3 +54,4 @@ export interface InjectState {
   isFrozen: boolean
   requests: InjectRequest[]
 }
+

@@ -1,6 +1,6 @@
 {
   "name": "@navios/di",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "author": {
     "name": "Oleksandr Hanzha",
     "email": "alex@granted.name"
@@ -11,6 +11,7 @@
     "url": "https://github.com/Arilas/navios.git"
   },
   "license": "MIT",
+  "sideEffects": false,
   "peerDependencies": {
     "zod": "^3.25.0 || ^4.0.0"
   },

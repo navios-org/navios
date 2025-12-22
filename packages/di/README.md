@@ -10,10 +10,12 @@ A powerful, type-safe dependency injection library for TypeScript applications. 
 - **Factory Pattern**: Create instances using factory classes
 - **Injection Tokens**: Flexible token-based dependency resolution
 - **Scoped Instances**: Singleton, transient, and request scopes
+- **Priority System**: Register multiple services per token with priority levels
 - **Async/Sync Injection**: Both synchronous and asynchronous dependency resolution
 - **Container API**: Simple container-based API for dependency management
 - **Request Context**: Manage request-scoped services with automatic cleanup via ScopedContainer
 - **Circular Dependency Detection**: Automatic detection and helpful error messages for circular dependencies
+- **Enhanced Testing**: Comprehensive test utilities with assertion helpers and auto-tracking
 
 ## Installation
 
@@ -131,6 +133,13 @@ class RequestService {}
 // With custom injection token
 @Injectable({ token: MyToken })
 class TokenizedService {}
+
+// With priority (higher priority wins when multiple registrations exist)
+@Injectable({ priority: 100 })
+class DefaultService {}
+
+@Injectable({ priority: 200 }) // This wins
+class OverrideService {}
 
 // With schema for constructor arguments
 const configSchema = z.object({
@@ -426,6 +435,9 @@ import { Container, Registry } from '@navios/di'
 
 const customRegistry = new Registry()
 const container = new Container(customRegistry)
+
+// Get all registrations for a token (sorted by priority, highest first)
+const allRegistrations = customRegistry.getAll(MyToken)
 ```
 
 ### Error Handling
@@ -444,6 +456,13 @@ try {
       case DIErrorCode.InstanceDestroying:
         console.error('Service is being destroyed')
         break
+      case DIErrorCode.ScopeMismatchError:
+        console.error('Wrong container for scope')
+        break
+      case DIErrorCode.TokenValidationError:
+        console.error('Token validation failed')
+        break
+      // ... and more error codes
     }
   }
 }
@@ -469,11 +488,20 @@ const newService = await container.get(MyService)
 - `dispose(): Promise<void>` - Clean up all resources
 - `clear(): Promise<void>` - Clear all instances and bindings
 - `isRegistered(token: any): boolean` - Check if service is registered
-- `getServiceLocator(): ServiceLocator` - Get underlying service locator
 - `getRegistry(): Registry` - Get the registry
 - `beginRequest(requestId: string, metadata?, priority?): ScopedContainer` - Begin request context
 - `getActiveRequestIds(): ReadonlySet<string>` - Get active request IDs
 - `hasActiveRequest(requestId: string): boolean` - Check if request is active
+- `removeRequestId(requestId: string): void` - Remove a request ID from tracking
+- **Component Access Methods** (for advanced usage):
+  - `getStorage(): UnifiedStorage` - Get storage instance
+  - `getServiceInitializer(): ServiceInitializer` - Get service initializer
+  - `getServiceInvalidator(): ServiceInvalidator` - Get service invalidator
+  - `getTokenResolver(): TokenResolver` - Get token resolver
+  - `getNameResolver(): NameResolver` - Get name resolver
+  - `getScopeTracker(): ScopeTracker` - Get scope tracker
+  - `getEventBus(): LifecycleEventBus` - Get event bus
+  - `getInstanceResolver(): InstanceResolver` - Get instance resolver
 
 ### ScopedContainer
 
@@ -485,10 +513,9 @@ const newService = await container.get(MyService)
 - `isRegistered(token: any): boolean` - Check if service is registered
 - `getMetadata(key: string): any` - Get request metadata
 - `setMetadata(key: string, value: any): void` - Set request metadata
-- `addInstance(token: InjectionToken, instance: any): void` - Add pre-prepared instance
 - `getRequestId(): string` - Get the request ID
 - `getParent(): Container` - Get the parent container
-- `getRequestContextHolder(): RequestContext` - Get the underlying request context
+- `getStorage(): UnifiedStorage` - Get the underlying storage instance
 
 ### Injectable Decorator
 
@@ -498,6 +525,7 @@ const newService = await container.get(MyService)
   - `token?: InjectionToken` - Custom injection token
   - `schema?: ZodSchema` - Zod schema for constructor arguments
   - `registry?: Registry` - Custom registry
+  - `priority?: number` - Priority level (higher wins when multiple registrations exist, default: 0)
 - Note: Cannot use both `token` and `schema` options together
 
 ### Factory Decorator
@@ -528,23 +556,20 @@ const newService = await container.get(MyService)
 - `OnServiceInit` - Implement `onServiceInit(): Promise<void> | void`
 - `OnServiceDestroy` - Implement `onServiceDestroy(): Promise<void> | void`
 
-### RequestContext
+### Registry
 
-- `requestId: string` - Unique request identifier
-- `priority: number` - Priority for resolution
-- `metadata: Map<string, any>` - Request metadata
-- `createdAt: number` - Creation timestamp
-- `addInstance(token, instance): void` - Add pre-prepared instance
-- `get(instanceName): InstanceHolder | undefined` - Get instance holder
-- `set(instanceName, holder): void` - Set instance holder
-- `has(instanceName): boolean` - Check if instance exists
-- `clear(): void` - Clear all instances
-- `getMetadata(key): any` - Get metadata value
-- `setMetadata(key, value): void` - Set metadata value
+- `set(token, scope, target, type, priority?): void` - Register a service factory
+- `get(token): FactoryRecord` - Get the highest priority factory record for a token
+- `getAll(token): FactoryRecord[]` - Get all factory records for a token (sorted by priority, highest first)
+- `has(token): boolean` - Check if a token is registered
+- `delete(token): void` - Remove all registrations for a token
+- `updateScope(token, scope): boolean` - Update the scope of an already registered factory
 
 ## Testing
 
 ### TestContainer
+
+`TestContainer` extends `Container` with enhanced testing utilities, including fluent binding API, assertion helpers, method call tracking, and dependency graph inspection.
 
 ```typescript
 import { TestContainer } from '@navios/di/testing'
@@ -557,19 +582,89 @@ describe('UserService', () => {
   })
 
   afterEach(async () => {
-    await container.dispose()
+    await container.clear()
   })
 
   it('should create user', async () => {
-    // Bind mock
+    // Fluent binding API
     container.bind(DatabaseService).toValue({
       save: vi.fn().mockResolvedValue({ id: '1' }),
     })
+    
+    // Or bind to class
+    container.bind(UserService).toClass(MockUserService)
+    
+    // Or bind to factory
+    container.bind(ConfigToken).toFactory(() => ({ apiKey: 'test' }))
 
     const userService = await container.get(UserService)
     const user = await userService.create({ name: 'John' })
 
     expect(user.id).toBe('1')
+    
+    // Assertion helpers
+    container.expectResolved(UserService)
+    container.expectSingleton(UserService)
+    container.expectInitialized(UserService)
+    
+    // Method call tracking
+    container.recordMethodCall(UserService, 'create', [{ name: 'John' }], user)
+    container.expectCalled(UserService, 'create')
+    container.expectCalledWith(UserService, 'create', [{ name: 'John' }])
+    container.expectCallCount(UserService, 'create', 1)
+    
+    // Dependency graph inspection
+    const graph = container.getDependencyGraph()
+    console.log(graph)
+  })
+})
+```
+
+### UnitTestContainer
+
+`UnitTestContainer` provides strict isolated unit testing with automatic method call tracking via Proxy. Only services explicitly provided can be resolved.
+
+```typescript
+import { UnitTestContainer } from '@navios/di/testing'
+
+describe('UserService Unit Tests', () => {
+  let container: UnitTestContainer
+
+  beforeEach(() => {
+    container = new UnitTestContainer({
+      providers: [
+        { token: UserService, useClass: MockUserService },
+        { token: ConfigToken, useValue: { apiUrl: 'test' } },
+        { token: ApiClient, useFactory: () => new MockApiClient() },
+      ],
+    })
+  })
+
+  afterEach(async () => {
+    await container.dispose()
+  })
+
+  it('should track method calls automatically', async () => {
+    const service = await container.get(UserService)
+    await service.findUser('123')
+
+    // Auto-tracked assertions (no manual recording needed)
+    container.expectCalled(UserService, 'findUser')
+    container.expectCalledWith(UserService, 'findUser', ['123'])
+    container.expectNotCalled(UserService, 'deleteUser')
+  })
+
+  it('should throw on unregistered dependencies (strict mode)', async () => {
+    // Strict mode (default): unregistered dependencies throw
+    await expect(container.get(UnregisteredService)).rejects.toThrow(DIError)
+  })
+
+  it('should auto-mock unregistered dependencies', async () => {
+    // Enable auto-mocking mode
+    container.enableAutoMocking()
+    const mock = await container.get(UnregisteredService)
+    container.expectAutoMocked(UnregisteredService)
+    container.disableAutoMocking()
   })
 })
 ```
@@ -584,6 +679,9 @@ describe('UserService', () => {
 6. **Prefer singletons** - Unless you specifically need new instances each time
 7. **Use factories** - For complex object creation logic
 8. **Leverage ScopedContainer** - For request-scoped data and cleanup
+9. **Use priority system** - When you need multiple implementations of the same token, use priority to control which one wins
+10. **Use TestContainer for integration tests** - Provides comprehensive assertion helpers and dependency graph inspection
+11. **Use UnitTestContainer for unit tests** - Provides strict isolation and automatic method call tracking
 
 ## License
 

@@ -1,6 +1,6 @@
 import type { FactoryRecord } from '../../token/registry.mjs'
-import type { Injectors } from '../../utils/get-injectors.mjs'
-import type { FactoryContext } from '../context/factory-context.mjs'
+import type { Injectors } from '../../utils/index.mjs'
+import type { ServiceInitializationContext } from '../context/service-initialization-context.mjs'
 
 import { InjectableType } from '../../enums/index.mjs'
 import { DIError } from '../../errors/index.mjs'
@@ -9,10 +9,9 @@ import { DIError } from '../../errors/index.mjs'
  * Creates service instances from registry records.
  *
  * Handles both class-based (@Injectable) and factory-based (@Factory) services,
- * managing the instantiation lifecycle including sync initialization retries
- * and lifecycle hook invocation (onServiceInit, onServiceDestroy).
+ * managing the instantiation lifecycle including lifecycle hook invocation.
  */
-export class Instantiator {
+export class ServiceInitializer {
   constructor(private readonly injectors: Injectors) {}
 
   /**
@@ -23,7 +22,7 @@ export class Instantiator {
    * @returns Promise resolving to [undefined, instance] or [error]
    */
   async instantiateService<T>(
-    ctx: FactoryContext,
+    ctx: ServiceInitializationContext,
     record: FactoryRecord<T, any>,
     args: any = undefined,
   ): Promise<[undefined, T] | [DIError]> {
@@ -35,11 +34,15 @@ export class Instantiator {
           return this.instantiateFactory(ctx, record, args)
         default:
           throw DIError.unknown(
-            `[Instantiator] Unknown service type: ${record.type}`,
+            `[ServiceInitializer] Unknown service type: ${record.type}`,
           )
       }
     } catch (error) {
-      return [error instanceof DIError ? error : DIError.unknown(String(error))]
+      return [
+        error instanceof DIError
+          ? error
+          : DIError.initializationError(record.target.name, error as Error),
+      ]
     }
   }
 
@@ -51,13 +54,15 @@ export class Instantiator {
    * @returns Promise resolving to [undefined, instance] or [error]
    */
   private async instantiateClass<T>(
-    ctx: FactoryContext,
+    ctx: ServiceInitializationContext,
     record: FactoryRecord<T, any>,
     args: any,
   ): Promise<[undefined, T] | [DIError]> {
     try {
       const tryLoad = this.injectors.wrapSyncInit(() => {
-        const original = this.injectors.provideFactoryContext(ctx)
+        const original = this.injectors.provideFactoryContext(
+          ctx as ServiceInitializationContext,
+        )
         let result = new record.target(...(args ? [args] : []))
         this.injectors.provideFactoryContext(original)
         return result
@@ -67,8 +72,9 @@ export class Instantiator {
       if (promises.length > 0) {
         const results = await Promise.allSettled(promises)
         if (results.some((result) => result.status === 'rejected')) {
-          throw DIError.unknown(
-            `[Instantiator] Service ${record.target.name} cannot be instantiated.`,
+          throw DIError.initializationError(
+            record.target.name,
+            new Error('Service cannot be instantiated'),
           )
         }
         const newRes = tryLoad(injectState)
@@ -77,13 +83,16 @@ export class Instantiator {
       }
 
       if (promises.length > 0) {
-        console.error(`[Instantiator] ${record.target.name} has problem with it's definition.
+        console.error(
+          `[ServiceInitializer] ${record.target.name} has problem with it's definition.
 
-       One or more of the dependencies are registered as a InjectableScope.Instance and are used with inject.
+       One or more of the dependencies are registered as a InjectableScope.Transient and are used with inject.
 
-       Please use inject asyncInject of inject to load those dependencies.`)
-        throw DIError.unknown(
-          `[Instantiator] Service ${record.target.name} cannot be instantiated.`,
+       Please use asyncInject instead of inject to load those dependencies.`,
+        )
+        throw DIError.initializationError(
+          record.target.name,
+          new Error('Service cannot be instantiated'),
         )
       }
 
@@ -99,7 +108,11 @@ export class Instantiator {
 
       return [undefined, instance]
     } catch (error) {
-      return [error instanceof DIError ? error : DIError.unknown(String(error))]
+      return [
+        error instanceof DIError
+          ? error
+          : DIError.initializationError(record.target.name, error as Error),
+      ]
     }
   }
 
@@ -111,7 +124,7 @@ export class Instantiator {
    * @returns Promise resolving to [undefined, instance] or [error]
    */
   private async instantiateFactory<T>(
-    ctx: FactoryContext,
+    ctx: ServiceInitializationContext,
     record: FactoryRecord<T, any>,
     args: any,
   ): Promise<[undefined, T] | [DIError]> {
@@ -127,8 +140,9 @@ export class Instantiator {
       if (promises.length > 0) {
         const results = await Promise.allSettled(promises)
         if (results.some((result) => result.status === 'rejected')) {
-          throw DIError.unknown(
-            `[Instantiator] Service ${record.target.name} cannot be instantiated.`,
+          throw DIError.initializationError(
+            record.target.name,
+            new Error('Service cannot be instantiated'),
           )
         }
         const newRes = tryLoad(injectState)
@@ -137,26 +151,34 @@ export class Instantiator {
       }
 
       if (promises.length > 0) {
-        console.error(`[Instantiator] ${record.target.name} has problem with it's definition.
+        console.error(
+          `[ServiceInitializer] ${record.target.name} has problem with it's definition.
 
-       One or more of the dependencies are registered as a InjectableScope.Instance and are used with inject.
+       One or more of the dependencies are registered as a InjectableScope.Transient and are used with inject.
 
-       Please use asyncInject instead of inject to load those dependencies.`)
-        throw DIError.unknown(
-          `[Instantiator] Service ${record.target.name} cannot be instantiated.`,
+       Please use asyncInject instead of inject to load those dependencies.`,
+        )
+        throw DIError.initializationError(
+          record.target.name,
+          new Error('Service cannot be instantiated'),
         )
       }
 
       if (typeof builder.create !== 'function') {
-        throw DIError.unknown(
-          `[Instantiator] Factory ${record.target.name} does not implement the create method.`,
+        throw DIError.initializationError(
+          record.target.name,
+          new Error('Factory does not implement the create method'),
         )
       }
 
       const instance = await builder.create(ctx, args)
       return [undefined, instance]
     } catch (error) {
-      return [error instanceof DIError ? error : DIError.unknown(String(error))]
+      return [
+        error instanceof DIError
+          ? error
+          : DIError.initializationError(record.target.name, error as Error),
+      ]
     }
   }
 }

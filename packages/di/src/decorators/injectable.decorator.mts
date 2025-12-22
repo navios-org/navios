@@ -1,4 +1,4 @@
-import { z } from 'zod/v4'
+import type { z } from 'zod/v4'
 
 import type {
   BaseInjectionTokenSchemaType,
@@ -15,16 +15,18 @@ import type {
 import type { Registry } from '../token/registry.mjs'
 
 import { InjectableScope, InjectableType } from '../enums/index.mjs'
+import { InjectableTokenMeta } from '../symbols/index.mjs'
 import { InjectionToken } from '../token/injection-token.mjs'
 import { globalRegistry } from '../token/registry.mjs'
-import { InjectableTokenMeta } from '../symbols/index.mjs'
 
 export interface InjectableOptions {
   scope?: InjectableScope
   token?: InjectionToken<any, any>
   schema?: InjectionTokenSchemaType
   registry?: Registry
+  priority?: number
 }
+
 // #1 Simple constructorless class
 export function Injectable(): <T extends ClassTypeWithoutArguments>(
   target: T,
@@ -33,12 +35,14 @@ export function Injectable(): <T extends ClassTypeWithoutArguments>(
 export function Injectable(options: {
   scope?: InjectableScope
   registry: Registry
+  priority?: number
 }): <T extends ClassTypeWithoutArguments>(
   target: T,
   context?: ClassDecoratorContext,
 ) => T
 export function Injectable(options: {
   scope: InjectableScope
+  priority?: number
 }): <T extends ClassTypeWithoutArguments>(
   target: T,
   context?: ClassDecoratorContext,
@@ -48,6 +52,7 @@ export function Injectable<Schema extends InjectionTokenSchemaType>(options: {
   scope?: InjectableScope
   schema: Schema
   registry?: Registry
+  priority?: number
 }): <T extends ClassTypeWithArgument<z.output<Schema>>>(
   target: T,
   context?: ClassDecoratorContext,
@@ -58,24 +63,24 @@ export function Injectable<Type, Schema>(options: {
   scope?: InjectableScope
   token: InjectionToken<Type, Schema>
   registry?: Registry
-}): Schema extends BaseInjectionTokenSchemaType // #3.1 Check that schema is an object or a record
+  priority?: number
+}): Schema extends BaseInjectionTokenSchemaType
   ? Type extends undefined
-    ? <T extends ClassTypeWithArgument<z.output<Schema>>>( // #3.1.1 Typeless token
+    ? <T extends ClassTypeWithArgument<z.output<Schema>>>(
         target: T,
         context?: ClassDecoratorContext,
       ) => T
-    : <T extends ClassTypeWithInstanceAndArgument<Type, z.output<Schema>>>( // #3.1.2 Typed token
+    : <T extends ClassTypeWithInstanceAndArgument<Type, z.output<Schema>>>(
         target: T,
         context?: ClassDecoratorContext,
       ) => T
-  : Schema extends OptionalInjectionTokenSchemaType // #3.2 Check that schema is an optional object or a record
+  : Schema extends OptionalInjectionTokenSchemaType
     ? Type extends undefined
-      ? <T extends ClassTypeWithOptionalArgument<z.output<Schema>>>( // #3.2.1 Typeless token
+      ? <T extends ClassTypeWithOptionalArgument<z.output<Schema>>>(
           target: T,
           context?: ClassDecoratorContext,
         ) => T
       : <
-          // #3.2.2 Typed token
           T extends ClassTypeWithInstanceAndOptionalArgument<
             Type,
             z.output<Schema>
@@ -84,18 +89,19 @@ export function Injectable<Type, Schema>(options: {
           target: T,
           context?: ClassDecoratorContext,
         ) => T
-    : Schema extends undefined // #3.3 Check that schema is undefined
-      ? <R extends ClassTypeWithInstance<Type>>( // #3.3.1 Token must have a type
+    : Schema extends undefined
+      ? <R extends ClassTypeWithInstance<Type>>(
           target: R,
           context?: ClassDecoratorContext,
         ) => R
-      : never // #3.4 Cannot use a token without a type and schema
+      : never
 
 export function Injectable({
   scope = InjectableScope.Singleton,
   token,
   schema,
   registry = globalRegistry,
+  priority = 0,
 }: InjectableOptions = {}) {
   return <T extends ClassType>(
     target: T,
@@ -105,19 +111,17 @@ export function Injectable({
       (context && context.kind !== 'class') ||
       (target instanceof Function && !context)
     ) {
-      throw new Error(
-        '[ServiceLocator] @Injectable decorator can only be used on classes.',
-      )
+      throw new Error('[DI] @Injectable decorator can only be used on classes.')
     }
     if (schema && token) {
       throw new Error(
-        '[ServiceLocator] @Injectable decorator cannot have both a token and a schema',
+        '[DI] @Injectable decorator cannot have both a token and a schema',
       )
     }
     let injectableToken: InjectionToken<any, any> =
       token ?? InjectionToken.create(target, schema as InjectionTokenSchemaType)
 
-    registry.set(injectableToken, scope, target, InjectableType.Class)
+    registry.set(injectableToken, scope, target, InjectableType.Class, priority)
 
     // @ts-expect-error
     target[InjectableTokenMeta] = injectableToken

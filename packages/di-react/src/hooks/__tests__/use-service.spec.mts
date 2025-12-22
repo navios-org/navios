@@ -18,7 +18,7 @@ describe('useService', () => {
   })
 
   afterEach(async () => {
-    await container.clear()
+    await container.dispose()
   })
 
   const createWrapper = () => {

@@ -4,7 +4,7 @@ import type {
   InjectionToken,
 } from '@navios/di'
 
-import { Container, InjectableScope, InjectableType } from '@navios/di'
+import { Container } from '@navios/di'
 
 import type { NaviosModule } from './interfaces/index.mjs'
 import type {
@@ -91,15 +91,7 @@ export class NaviosFactory {
     }
 
     // Store options in container for DI access by adapters
-    container
-      .getServiceLocator()
-      .getManager()
-      .storeCreatedHolder(
-        NaviosOptionsToken.toString(),
-        options,
-        InjectableType.Class,
-        InjectableScope.Singleton,
-      )
+    container.addInstance(NaviosOptionsToken, options)
 
     await this.registerLoggerConfiguration(container, options)
     const adapters = Array.isArray(options.adapter)
@@ -128,28 +120,21 @@ export class NaviosFactory {
 
   private static async registerLoggerConfiguration(
     container: Container,
-    options: NaviosApplicationContextOptions,
+    options: NaviosApplicationOptions,
   ) {
     const { logger } = options
-    if (Array.isArray(logger) || isNil(logger)) {
+    if (Array.isArray(logger) || isNil(logger) || options.enableRequestId) {
       const loggerInstance = (await container.get(
         LoggerOutput,
       )) as ConsoleLogger
       loggerInstance?.setup({
-        logLevels: logger,
+        logLevels: Array.isArray(logger) ? logger : undefined,
+        requestId: options.enableRequestId ?? false,
       })
       return
     }
     if ((logger as boolean) !== true && !isNil(logger)) {
-      container
-        .getServiceLocator()
-        .getManager()
-        .storeCreatedHolder(
-          LoggerOutput.toString(),
-          logger,
-          InjectableType.Class,
-          InjectableScope.Singleton,
-        )
+      container.addInstance(LoggerOutput, logger)
     }
   }
 }

@@ -1,335 +1,483 @@
-import { beforeEach, describe, expect, it } from 'vitest'
+import { describe, expect, it, beforeEach } from 'vitest'
 
 import { InjectableScope, InjectableType } from '../enums/index.mjs'
 import { InjectionToken } from '../token/injection-token.mjs'
-import { globalRegistry, Registry } from '../token/registry.mjs'
-
-class TestService {}
-class AnotherService {}
+import { Registry, globalRegistry } from '../token/registry.mjs'
 
 describe('Registry', () => {
   let registry: Registry
-  let token1: InjectionToken<TestService, undefined>
-  let token2: InjectionToken<AnotherService, undefined>
 
   beforeEach(() => {
     registry = new Registry()
-    token1 = new InjectionToken<TestService, undefined>(
-      'TestService',
-      undefined,
-    )
-    token2 = new InjectionToken<AnotherService, undefined>(
-      'AnotherService',
-      undefined,
-    )
-  })
-
-  describe('constructor', () => {
-    it('should create registry without parent', () => {
-      const reg = new Registry()
-      expect(reg).toBeDefined()
-    })
-
-    it('should create registry with parent', () => {
-      const parentRegistry = new Registry()
-      const childRegistry = new Registry(parentRegistry)
-      expect(childRegistry).toBeDefined()
-    })
-  })
-
-  describe('set', () => {
-    it('should set factory record for token', () => {
-      registry.set(
-        token1,
-        InjectableScope.Singleton,
-        TestService,
-        InjectableType.Class,
-      )
-
-      expect(registry.has(token1)).toBe(true)
-    })
-
-    it('should set multiple factory records', () => {
-      registry.set(
-        token1,
-        InjectableScope.Singleton,
-        TestService,
-        InjectableType.Class,
-      )
-      registry.set(
-        token2,
-        InjectableScope.Transient,
-        AnotherService,
-        InjectableType.Factory,
-      )
-
-      expect(registry.has(token1)).toBe(true)
-      expect(registry.has(token2)).toBe(true)
-    })
-
-    it('should overwrite existing factory record', () => {
-      registry.set(
-        token1,
-        InjectableScope.Singleton,
-        TestService,
-        InjectableType.Class,
-      )
-      registry.set(
-        token1,
-        InjectableScope.Transient,
-        TestService,
-        InjectableType.Factory,
-      )
-
-      const record = registry.get(token1)
-      expect(record.scope).toBe(InjectableScope.Transient)
-      expect(record.type).toBe(InjectableType.Factory)
-    })
   })
 
   describe('has', () => {
     it('should return false for non-existent token', () => {
-      expect(registry.has(token1)).toBe(false)
+      const token = InjectionToken.create<string>('test')
+      expect(registry.has(token)).toBe(false)
     })
 
-    it('should return true for existing token', () => {
-      registry.set(
-        token1,
-        InjectableScope.Singleton,
-        TestService,
-        InjectableType.Class,
-      )
-      expect(registry.has(token1)).toBe(true)
+    it('should return true for registered token', () => {
+      const token = InjectionToken.create<string>('test')
+      registry.set(token, InjectableScope.Singleton, class Test {}, InjectableType.Class)
+
+      expect(registry.has(token)).toBe(true)
     })
 
-    it('should check parent registry when token not found locally', () => {
+    it('should check parent registry', () => {
       const parentRegistry = new Registry()
       const childRegistry = new Registry(parentRegistry)
+      const token = InjectionToken.create<string>('test')
 
       parentRegistry.set(
-        token1,
+        token,
         InjectableScope.Singleton,
-        TestService,
+        class Test {},
         InjectableType.Class,
       )
 
-      expect(childRegistry.has(token1)).toBe(true)
-    })
-
-    it('should return false when token not found in parent chain', () => {
-      const parentRegistry = new Registry()
-      const childRegistry = new Registry(parentRegistry)
-
-      expect(childRegistry.has(token1)).toBe(false)
-    })
-
-    it('should prioritize local registry over parent', () => {
-      const parentRegistry = new Registry()
-      const childRegistry = new Registry(parentRegistry)
-
-      parentRegistry.set(
-        token1,
-        InjectableScope.Singleton,
-        TestService,
-        InjectableType.Class,
-      )
-      childRegistry.set(
-        token1,
-        InjectableScope.Transient,
-        TestService,
-        InjectableType.Factory,
-      )
-
-      expect(childRegistry.has(token1)).toBe(true)
-      const record = childRegistry.get(token1)
-      expect(record.scope).toBe(InjectableScope.Transient) // From child registry
+      expect(childRegistry.has(token)).toBe(true)
     })
   })
 
   describe('get', () => {
-    it('should return factory record for existing token', () => {
+    it('should return factory record for registered token', () => {
+      const token = InjectionToken.create<string>('test')
+      class TestClass {}
+
       registry.set(
-        token1,
+        token,
         InjectableScope.Singleton,
-        TestService,
+        TestClass,
         InjectableType.Class,
+        10,
       )
 
-      const record = registry.get(token1)
+      const record = registry.get(token)
+
       expect(record.scope).toBe(InjectableScope.Singleton)
-      expect(record.target).toBe(TestService)
+      expect(record.target).toBe(TestClass)
       expect(record.type).toBe(InjectableType.Class)
-      expect(record.originalToken).toBe(token1)
+      expect(record.priority).toBe(10)
+      expect(record.originalToken).toBe(token)
     })
 
-    it('should throw error for non-existent token', () => {
-      expect(() => {
-        registry.get(token1)
-      }).toThrow(`[Registry] No factory found for ${token1.toString()}`)
+    it('should throw for non-existent token', () => {
+      const token = InjectionToken.create<string>('test')
+
+      expect(() => registry.get(token)).toThrow()
     })
 
-    it('should get from parent registry when not found locally', () => {
+    it('should get from parent registry', () => {
       const parentRegistry = new Registry()
       const childRegistry = new Registry(parentRegistry)
+      const token = InjectionToken.create<string>('test')
+      class TestClass {}
 
       parentRegistry.set(
-        token1,
+        token,
         InjectableScope.Singleton,
-        TestService,
+        TestClass,
         InjectableType.Class,
       )
 
-      const record = childRegistry.get(token1)
-      expect(record.scope).toBe(InjectableScope.Singleton)
-      expect(record.target).toBe(TestService)
+      const record = childRegistry.get(token)
+      expect(record.target).toBe(TestClass)
     })
 
-    it('should throw error when token not found in parent chain', () => {
+    it('should prefer child registry over parent', () => {
       const parentRegistry = new Registry()
       const childRegistry = new Registry(parentRegistry)
-
-      expect(() => {
-        childRegistry.get(token1)
-      }).toThrow(`[Registry] No factory found for ${token1.toString()}`)
-    })
-
-    it('should prioritize local registry over parent', () => {
-      const parentRegistry = new Registry()
-      const childRegistry = new Registry(parentRegistry)
+      const token = InjectionToken.create<string>('test')
+      class ParentClass {}
+      class ChildClass {}
 
       parentRegistry.set(
-        token1,
+        token,
         InjectableScope.Singleton,
-        TestService,
+        ParentClass,
         InjectableType.Class,
       )
       childRegistry.set(
-        token1,
-        InjectableScope.Transient,
-        AnotherService,
-        InjectableType.Factory,
+        token,
+        InjectableScope.Singleton,
+        ChildClass,
+        InjectableType.Class,
+        1, // Higher priority
       )
 
-      const record = childRegistry.get(token1)
-      expect(record.scope).toBe(InjectableScope.Transient)
-      expect(record.target).toBe(AnotherService)
-      expect(record.type).toBe(InjectableType.Factory)
+      const record = childRegistry.get(token)
+      expect(record.target).toBe(ChildClass)
+    })
+  })
+
+  describe('getAll', () => {
+    it('should return empty array for non-existent token', () => {
+      const token = InjectionToken.create<string>('test')
+
+      const records = registry.getAll(token)
+      expect(records).toEqual([])
+    })
+
+    it('should return all records sorted by priority (highest first)', () => {
+      const token = InjectionToken.create<string>('test')
+      class ClassA {}
+      class ClassB {}
+      class ClassC {}
+
+      registry.set(token, InjectableScope.Singleton, ClassA, InjectableType.Class, 5)
+      registry.set(token, InjectableScope.Singleton, ClassB, InjectableType.Class, 10)
+      registry.set(token, InjectableScope.Singleton, ClassC, InjectableType.Class, 1)
+
+      const records = registry.getAll(token)
+
+      expect(records).toHaveLength(3)
+      expect(records[0].target).toBe(ClassB) // priority 10
+      expect(records[1].target).toBe(ClassA) // priority 5
+      expect(records[2].target).toBe(ClassC) // priority 1
+    })
+
+    it('should get from parent if not in child', () => {
+      const parentRegistry = new Registry()
+      const childRegistry = new Registry(parentRegistry)
+      const token = InjectionToken.create<string>('test')
+      class TestClass {}
+
+      parentRegistry.set(
+        token,
+        InjectableScope.Singleton,
+        TestClass,
+        InjectableType.Class,
+      )
+
+      const records = childRegistry.getAll(token)
+      expect(records).toHaveLength(1)
+      expect(records[0].target).toBe(TestClass)
+    })
+  })
+
+  describe('set', () => {
+    it('should register factory with default priority 0', () => {
+      const token = InjectionToken.create<string>('test')
+      class TestClass {}
+
+      registry.set(token, InjectableScope.Singleton, TestClass, InjectableType.Class)
+
+      const record = registry.get(token)
+      expect(record.priority).toBe(0)
+    })
+
+    it('should register factory with custom priority', () => {
+      const token = InjectionToken.create<string>('test')
+      class TestClass {}
+
+      registry.set(
+        token,
+        InjectableScope.Singleton,
+        TestClass,
+        InjectableType.Class,
+        100,
+      )
+
+      const record = registry.get(token)
+      expect(record.priority).toBe(100)
+    })
+
+    it('should support multiple registrations for same token', () => {
+      const token = InjectionToken.create<string>('test')
+      class ClassA {}
+      class ClassB {}
+
+      registry.set(token, InjectableScope.Singleton, ClassA, InjectableType.Class, 0)
+      registry.set(token, InjectableScope.Singleton, ClassB, InjectableType.Class, 1)
+
+      const records = registry.getAll(token)
+      expect(records).toHaveLength(2)
+    })
+
+    it('should update highest priority cache when new registration is higher', () => {
+      const token = InjectionToken.create<string>('test')
+      class ClassA {}
+      class ClassB {}
+
+      registry.set(token, InjectableScope.Singleton, ClassA, InjectableType.Class, 5)
+      expect(registry.get(token).target).toBe(ClassA)
+
+      registry.set(token, InjectableScope.Singleton, ClassB, InjectableType.Class, 10)
+      expect(registry.get(token).target).toBe(ClassB)
+    })
+
+    it('should not update highest priority cache when new registration is lower', () => {
+      const token = InjectionToken.create<string>('test')
+      class ClassA {}
+      class ClassB {}
+
+      registry.set(token, InjectableScope.Singleton, ClassA, InjectableType.Class, 10)
+      registry.set(token, InjectableScope.Singleton, ClassB, InjectableType.Class, 5)
+
+      expect(registry.get(token).target).toBe(ClassA)
     })
   })
 
   describe('delete', () => {
-    it('should delete existing token', () => {
-      registry.set(
-        token1,
-        InjectableScope.Singleton,
-        TestService,
-        InjectableType.Class,
-      )
-      expect(registry.has(token1)).toBe(true)
+    it('should remove token registration', () => {
+      const token = InjectionToken.create<string>('test')
+      class TestClass {}
 
-      registry.delete(token1)
-      expect(registry.has(token1)).toBe(false)
+      registry.set(token, InjectableScope.Singleton, TestClass, InjectableType.Class)
+      expect(registry.has(token)).toBe(true)
+
+      registry.delete(token)
+      expect(registry.has(token)).toBe(false)
     })
 
-    it('should not affect parent registry when deleting from child', () => {
+    it('should handle deleting non-existent token', () => {
+      const token = InjectionToken.create<string>('test')
+
+      // Should not throw
+      registry.delete(token)
+    })
+
+    it('should remove highest priority and keep lower priority registrations', () => {
+      const token = InjectionToken.create<string>('test')
+      class ClassA {}
+      class ClassB {}
+
+      registry.set(token, InjectableScope.Singleton, ClassA, InjectableType.Class, 5)
+      registry.set(token, InjectableScope.Singleton, ClassB, InjectableType.Class, 10)
+
+      expect(registry.get(token).target).toBe(ClassB)
+      expect(registry.getAll(token)).toHaveLength(2)
+
+      // Delete removes highest priority and recalculates
+      registry.delete(token)
+
+      // Lower priority registration (ClassA) should remain
+      expect(registry.getAll(token)).toHaveLength(1)
+      expect(registry.get(token).target).toBe(ClassA)
+    })
+  })
+
+  describe('updateScope', () => {
+    it('should update scope of registered token', () => {
+      const token = InjectionToken.create<string>('test')
+      class TestClass {}
+
+      registry.set(token, InjectableScope.Singleton, TestClass, InjectableType.Class)
+      expect(registry.get(token).scope).toBe(InjectableScope.Singleton)
+
+      const result = registry.updateScope(token, InjectableScope.Request)
+
+      expect(result).toBe(true)
+      expect(registry.get(token).scope).toBe(InjectableScope.Request)
+    })
+
+    it('should return false for non-existent token', () => {
+      const token = InjectionToken.create<string>('test')
+
+      const result = registry.updateScope(token, InjectableScope.Request)
+
+      expect(result).toBe(false)
+    })
+
+    it('should update all records for the token', () => {
+      const token = InjectionToken.create<string>('test')
+      class ClassA {}
+      class ClassB {}
+
+      registry.set(token, InjectableScope.Singleton, ClassA, InjectableType.Class, 0)
+      registry.set(token, InjectableScope.Singleton, ClassB, InjectableType.Class, 1)
+
+      registry.updateScope(token, InjectableScope.Request)
+
+      const records = registry.getAll(token)
+      expect(records[0].scope).toBe(InjectableScope.Request)
+      expect(records[1].scope).toBe(InjectableScope.Request)
+    })
+
+    it('should delegate to parent if not found in child', () => {
       const parentRegistry = new Registry()
       const childRegistry = new Registry(parentRegistry)
+      const token = InjectionToken.create<string>('test')
+      class TestClass {}
 
       parentRegistry.set(
-        token1,
+        token,
         InjectableScope.Singleton,
-        TestService,
+        TestClass,
         InjectableType.Class,
       )
-      childRegistry.set(
-        token1,
-        InjectableScope.Transient,
-        AnotherService,
+
+      const result = childRegistry.updateScope(token, InjectableScope.Transient)
+
+      expect(result).toBe(true)
+      expect(parentRegistry.get(token).scope).toBe(InjectableScope.Transient)
+    })
+  })
+
+  describe('priority system', () => {
+    it('should respect priority when getting the active registration', () => {
+      const token = InjectionToken.create<string>('test')
+      class DefaultImpl {}
+      class OverrideImpl {}
+      class HighPriorityImpl {}
+
+      registry.set(
+        token,
+        InjectableScope.Singleton,
+        DefaultImpl,
+        InjectableType.Class,
+        0,
+      )
+      registry.set(
+        token,
+        InjectableScope.Singleton,
+        OverrideImpl,
+        InjectableType.Class,
+        1,
+      )
+      registry.set(
+        token,
+        InjectableScope.Singleton,
+        HighPriorityImpl,
+        InjectableType.Class,
+        100,
+      )
+
+      expect(registry.get(token).target).toBe(HighPriorityImpl)
+    })
+
+    it('should use first registration if priorities are equal', () => {
+      const token = InjectionToken.create<string>('test')
+      class FirstImpl {}
+      class SecondImpl {}
+
+      registry.set(
+        token,
+        InjectableScope.Singleton,
+        FirstImpl,
+        InjectableType.Class,
+        5,
+      )
+      registry.set(
+        token,
+        InjectableScope.Singleton,
+        SecondImpl,
+        InjectableType.Class,
+        5,
+      )
+
+      // With equal priority, the first one stays as highest
+      expect(registry.get(token).target).toBe(FirstImpl)
+    })
+
+    it('should support negative priorities', () => {
+      const token = InjectionToken.create<string>('test')
+      class LowPriority {}
+      class DefaultPriority {}
+
+      registry.set(
+        token,
+        InjectableScope.Singleton,
+        LowPriority,
+        InjectableType.Class,
+        -10,
+      )
+      registry.set(
+        token,
+        InjectableScope.Singleton,
+        DefaultPriority,
+        InjectableType.Class,
+        0,
+      )
+
+      expect(registry.get(token).target).toBe(DefaultPriority)
+    })
+  })
+
+  describe('factory types', () => {
+    it('should support Class type factories', () => {
+      const token = InjectionToken.create<string>('test')
+      class TestClass {}
+
+      registry.set(token, InjectableScope.Singleton, TestClass, InjectableType.Class)
+
+      expect(registry.get(token).type).toBe(InjectableType.Class)
+    })
+
+    it('should support Factory type factories', () => {
+      const token = InjectionToken.create<string>('test')
+      class TestFactory {
+        create() {
+          return 'test'
+        }
+      }
+
+      registry.set(
+        token,
+        InjectableScope.Singleton,
+        TestFactory,
         InjectableType.Factory,
       )
 
-      childRegistry.delete(token1)
-
-      // Child should no longer have it
-      expect(childRegistry.has(token1)).toBe(true) // Still true because it exists in parent
-      // But getting it should return parent's version
-      const record = childRegistry.get(token1)
-      expect(record.scope).toBe(InjectableScope.Singleton) // From parent
-    })
-
-    it('should handle delete for non-existent token gracefully', () => {
-      expect(() => {
-        registry.delete(token1)
-      }).not.toThrow()
+      expect(registry.get(token).type).toBe(InjectableType.Factory)
     })
   })
 
-  describe('complex parent-child scenarios', () => {
-    it('should handle deep hierarchy', () => {
-      const grandParent = new Registry()
-      const parent = new Registry(grandParent)
-      const child = new Registry(parent)
+  describe('globalRegistry', () => {
+    it('should be a singleton Registry instance', () => {
+      expect(globalRegistry).toBeInstanceOf(Registry)
+    })
 
-      grandParent.set(
-        token1,
+    it('should not have a parent', () => {
+      // We can verify this indirectly by checking that non-existent tokens
+      // throw without delegating to a parent
+      const token = InjectionToken.create<string>('non-existent-global-test')
+      expect(() => globalRegistry.get(token)).toThrow()
+    })
+  })
+
+  describe('parent-child relationship', () => {
+    it('should allow overriding parent registrations in child', () => {
+      const parent = new Registry()
+      const child = new Registry(parent)
+      const token = InjectionToken.create<string>('test')
+      class ParentImpl {}
+      class ChildImpl {}
+
+      parent.set(token, InjectableScope.Singleton, ParentImpl, InjectableType.Class)
+      child.set(
+        token,
+        InjectableScope.Request,
+        ChildImpl,
+        InjectableType.Class,
+        1,
+      )
+
+      // Child should return its own registration
+      expect(child.get(token).target).toBe(ChildImpl)
+      expect(child.get(token).scope).toBe(InjectableScope.Request)
+
+      // Parent should still have its original registration
+      expect(parent.get(token).target).toBe(ParentImpl)
+    })
+
+    it('should support multi-level hierarchy', () => {
+      const grandparent = new Registry()
+      const parent = new Registry(grandparent)
+      const child = new Registry(parent)
+      const token = InjectionToken.create<string>('test')
+      class TestClass {}
+
+      grandparent.set(
+        token,
         InjectableScope.Singleton,
-        TestService,
+        TestClass,
         InjectableType.Class,
       )
 
-      expect(child.has(token1)).toBe(true)
-      const record = child.get(token1)
-      expect(record.scope).toBe(InjectableScope.Singleton)
+      expect(child.has(token)).toBe(true)
+      expect(child.get(token).target).toBe(TestClass)
     })
-
-    it('should handle overriding at different levels', () => {
-      const grandParent = new Registry()
-      const parent = new Registry(grandParent)
-      const child = new Registry(parent)
-
-      grandParent.set(
-        token1,
-        InjectableScope.Singleton,
-        TestService,
-        InjectableType.Class,
-      )
-      parent.set(
-        token1,
-        InjectableScope.Transient,
-        AnotherService,
-        InjectableType.Factory,
-      )
-
-      const record = child.get(token1)
-      expect(record.scope).toBe(InjectableScope.Transient) // From parent, not grandparent
-      expect(record.target).toBe(AnotherService)
-    })
-  })
-})
-
-describe('globalRegistry', () => {
-  it('should be a Registry instance', () => {
-    expect(globalRegistry).toBeInstanceOf(Registry)
-  })
-
-  it('should be able to store and retrieve tokens', () => {
-    const token = new InjectionToken<TestService, undefined>(
-      'GlobalTest',
-      undefined,
-    )
-
-    globalRegistry.set(
-      token,
-      InjectableScope.Singleton,
-      TestService,
-      InjectableType.Class,
-    )
-    expect(globalRegistry.has(token)).toBe(true)
-
-    const record = globalRegistry.get(token)
-    expect(record.target).toBe(TestService)
-
-    // Clean up
-    globalRegistry.delete(token)
   })
 })

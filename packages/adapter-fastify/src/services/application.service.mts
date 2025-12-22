@@ -12,8 +12,6 @@ import {
   HttpException,
   inject,
   Injectable,
-  InjectableScope,
-  InjectableType,
   Logger,
 } from '@navios/core'
 
@@ -328,18 +326,7 @@ export class FastifyApplicationService implements FastifyApplicationServiceInter
    * @private
    */
   registerFastifyInstance(): void {
-    const instanceName = this.container
-      .getServiceLocator()
-      .getInstanceIdentifier(FastifyServerToken)
-    this.container
-      .getServiceLocator()
-      .getManager()
-      .storeCreatedHolder(
-        instanceName,
-        this.server!,
-        InjectableType.Class,
-        InjectableScope.Singleton,
-      )
+    this.container.addInstance(FastifyServerToken, this.server!)
   }
 
   /**

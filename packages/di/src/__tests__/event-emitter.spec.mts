@@ -1,163 +1,286 @@
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { Container } from '../container/container.mjs'
 import { EventEmitter } from '../event-emitter.mjs'
 
 describe('EventEmitter', () => {
-  it('should create an instance', () => {
-    const emitter = new EventEmitter()
-    expect(emitter).toBeDefined()
+  let container: Container
+
+  beforeEach(() => {
+    container = new Container()
   })
 
-  it('should add and trigger event listeners', async () => {
-    const emitter = new EventEmitter<{ test: [string] }>()
-    const mockListener = vi.fn()
-
-    emitter.on('test', mockListener)
-    await emitter.emit('test', 'hello')
-
-    expect(mockListener).toHaveBeenCalledWith('hello')
-    expect(mockListener).toHaveBeenCalledTimes(1)
-    emitter.off('test', mockListener)
+  afterEach(async () => {
+    await container.dispose()
   })
 
-  it('should support multiple listeners for the same event', async () => {
-    const emitter = new EventEmitter<{ test: [string] }>()
-    const mockListener1 = vi.fn()
-    const mockListener2 = vi.fn()
+  describe('basic operations', () => {
+    it('should be injectable as transient', async () => {
+      const emitter1 = await container.get(EventEmitter)
+      const emitter2 = await container.get(EventEmitter)
 
-    emitter.on('test', mockListener1)
-    emitter.on('test', mockListener2)
-    await emitter.emit('test', 'hello')
-
-    expect(mockListener1).toHaveBeenCalledWith('hello')
-    expect(mockListener2).toHaveBeenCalledWith('hello')
+      expect(emitter1).toBeInstanceOf(EventEmitter)
+      expect(emitter2).toBeInstanceOf(EventEmitter)
+      expect(emitter1).not.toBe(emitter2)
+    })
   })
 
-  it('should return unsubscribe function from on()', async () => {
-    const emitter = new EventEmitter<{ test: [string] }>()
-    const mockListener = vi.fn()
+  describe('on', () => {
+    it('should register event listener', async () => {
+      const emitter = await container.get(EventEmitter<{ test: [] }>)
+      const listener = vi.fn()
 
-    const unsubscribe = emitter.on('test', mockListener)
-    await emitter.emit('test', 'hello1')
+      emitter.on('test', listener)
+      await emitter.emit('test')
 
-    unsubscribe()
-    await emitter.emit('test', 'hello2')
+      expect(listener).toHaveBeenCalledTimes(1)
+    })
 
-    expect(mockListener).toHaveBeenCalledTimes(1)
-    expect(mockListener).toHaveBeenCalledWith('hello1')
+    it('should return unsubscribe function', async () => {
+      const emitter = await container.get(EventEmitter<{ test: [] }>)
+      const listener = vi.fn()
+
+      const unsubscribe = emitter.on('test', listener)
+      unsubscribe()
+
+      await emitter.emit('test')
+      expect(listener).not.toHaveBeenCalled()
+    })
+
+    it('should support multiple listeners for same event', async () => {
+      const emitter = await container.get(EventEmitter<{ test: [] }>)
+      const listener1 = vi.fn()
+      const listener2 = vi.fn()
+
+      emitter.on('test', listener1)
+      emitter.on('test', listener2)
+      await emitter.emit('test')
+
+      expect(listener1).toHaveBeenCalledTimes(1)
+      expect(listener2).toHaveBeenCalledTimes(1)
+    })
+
+    it('should support different event types', async () => {
+      const emitter = await container.get(
+        EventEmitter<{ eventA: []; eventB: [] }>,
+      )
+      const listenerA = vi.fn()
+      const listenerB = vi.fn()
+
+      emitter.on('eventA', listenerA)
+      emitter.on('eventB', listenerB)
+
+      await emitter.emit('eventA')
+
+      expect(listenerA).toHaveBeenCalledTimes(1)
+      expect(listenerB).not.toHaveBeenCalled()
+    })
   })
 
-  it('should support off() method to remove listeners', async () => {
-    const emitter = new EventEmitter<{ test: [string] }>()
-    const mockListener = vi.fn()
+  describe('off', () => {
+    it('should remove specific listener', async () => {
+      const emitter = await container.get(EventEmitter<{ test: [] }>)
+      const listener1 = vi.fn()
+      const listener2 = vi.fn()
 
-    emitter.on('test', mockListener)
-    await emitter.emit('test', 'hello1')
+      emitter.on('test', listener1)
+      emitter.on('test', listener2)
+      emitter.off('test', listener1)
 
-    emitter.off('test', mockListener)
-    await emitter.emit('test', 'hello2')
+      await emitter.emit('test')
 
-    expect(mockListener).toHaveBeenCalledTimes(1)
-    expect(mockListener).toHaveBeenCalledWith('hello1')
+      expect(listener1).not.toHaveBeenCalled()
+      expect(listener2).toHaveBeenCalledTimes(1)
+    })
+
+    it('should handle removing non-existent listener gracefully', async () => {
+      const emitter = await container.get(EventEmitter<{ test: [] }>)
+      const listener = vi.fn()
+
+      // Should not throw
+      emitter.off('test', listener)
+    })
+
+    it('should handle removing from non-existent event gracefully', async () => {
+      const emitter = await container.get(EventEmitter<{ test: [] }>)
+
+      // Should not throw
+      emitter.off('test', () => {})
+    })
+
+    it('should clean up empty event sets', async () => {
+      const emitter = await container.get(EventEmitter<{ test: [] }>)
+      const listener = vi.fn()
+
+      emitter.on('test', listener)
+      emitter.off('test', listener)
+
+      // After removing the last listener, the event should be cleaned up
+      // We can verify this by checking that emit doesn't call anything
+      await emitter.emit('test')
+      expect(listener).not.toHaveBeenCalled()
+    })
   })
 
-  it('should handle off() for non-existent event', () => {
-    const emitter = new EventEmitter<{ test: [string] }>()
-    const mockListener = vi.fn()
+  describe('once', () => {
+    it('should only trigger listener once', async () => {
+      const emitter = await container.get(EventEmitter<{ test: [] }>)
+      const listener = vi.fn()
 
-    expect(() => {
-      emitter.off('test', mockListener)
-    }).not.toThrow()
+      emitter.once('test', listener)
+
+      await emitter.emit('test')
+      await emitter.emit('test')
+      await emitter.emit('test')
+
+      expect(listener).toHaveBeenCalledTimes(1)
+    })
+
+    it('should return unsubscribe function', async () => {
+      const emitter = await container.get(EventEmitter<{ test: [] }>)
+      const listener = vi.fn()
+
+      const unsubscribe = emitter.once('test', listener)
+      unsubscribe()
+
+      await emitter.emit('test')
+      expect(listener).not.toHaveBeenCalled()
+    })
   })
 
-  it('should clean up empty listener sets after removing all listeners', async () => {
-    const emitter = new EventEmitter<{ test: [string] }>()
-    const mockListener1 = vi.fn()
-    const mockListener2 = vi.fn()
+  describe('emit', () => {
+    it('should pass arguments to listeners', async () => {
+      const emitter = await container.get(
+        EventEmitter<{ test: [string, number] }>,
+      )
+      const listener = vi.fn()
 
-    emitter.on('test', mockListener1)
-    emitter.on('test', mockListener2)
+      emitter.on('test', listener)
+      await emitter.emit('test', 'hello', 42)
 
-    emitter.off('test', mockListener1)
-    emitter.off('test', mockListener2)
+      expect(listener).toHaveBeenCalledWith('hello', 42)
+    })
 
-    // After removing all listeners, emitting should not call anything
-    await emitter.emit('test', 'hello')
+    it('should return undefined for non-existent event', async () => {
+      const emitter = await container.get(EventEmitter<{ test: [] }>)
 
-    expect(mockListener1).not.toHaveBeenCalled()
-    expect(mockListener2).not.toHaveBeenCalled()
+      const result = await emitter.emit('test')
+      expect(result).toBeUndefined()
+    })
+
+    it('should wait for async listeners', async () => {
+      const emitter = await container.get(EventEmitter<{ test: [] }>)
+      let completed = false
+
+      emitter.on('test', async () => {
+        await new Promise((resolve) => setTimeout(resolve, 10))
+        completed = true
+      })
+
+      await emitter.emit('test')
+      expect(completed).toBe(true)
+    })
+
+    it('should execute all listeners concurrently', async () => {
+      const emitter = await container.get(EventEmitter<{ test: [] }>)
+      const order: number[] = []
+
+      emitter.on('test', async () => {
+        await new Promise((resolve) => setTimeout(resolve, 30))
+        order.push(1)
+      })
+
+      emitter.on('test', async () => {
+        await new Promise((resolve) => setTimeout(resolve, 10))
+        order.push(2)
+      })
+
+      emitter.on('test', async () => {
+        order.push(3)
+      })
+
+      await emitter.emit('test')
+
+      // All should complete, but order depends on timing
+      expect(order).toHaveLength(3)
+      // The sync one should complete first
+      expect(order[0]).toBe(3)
+    })
+
+    it('should return array of results from Promise.all', async () => {
+      const emitter = await container.get(EventEmitter<{ test: [] }>)
+
+      // @ts-expect-error - not a documented feature
+      emitter.on('test', async () => 'result1')
+      // @ts-expect-error - not a documented feature
+      emitter.on('test', async () => 'result2')
+
+      const results = await emitter.emit('test')
+      expect(results).toEqual(['result1', 'result2'])
+    })
   })
 
-  it('should support once() method for one-time listeners', async () => {
-    const emitter = new EventEmitter<{ test: [string] }>()
-    const mockListener = vi.fn()
+  describe('type safety', () => {
+    it('should enforce correct event argument types', async () => {
+      type Events = {
+        userCreated: [string, number]
+        orderPlaced: [{ id: string; total: number }]
+        empty: []
+      }
 
-    emitter.once('test', mockListener)
-    await emitter.emit('test', 'hello1')
-    await emitter.emit('test', 'hello2')
+      const emitter = await container.get(EventEmitter<Events>)
+      const userListener = vi.fn()
+      const orderListener = vi.fn()
+      const emptyListener = vi.fn()
 
-    expect(mockListener).toHaveBeenCalledTimes(1)
-    expect(mockListener).toHaveBeenCalledWith('hello1')
+      emitter.on('userCreated', userListener)
+      emitter.on('orderPlaced', orderListener)
+      emitter.on('empty', emptyListener)
+
+      await emitter.emit('userCreated', 'user123', 25)
+      await emitter.emit('orderPlaced', { id: 'order1', total: 100 })
+      await emitter.emit('empty')
+
+      expect(userListener).toHaveBeenCalledWith('user123', 25)
+      expect(orderListener).toHaveBeenCalledWith({ id: 'order1', total: 100 })
+      expect(emptyListener).toHaveBeenCalledWith()
+    })
   })
 
-  it('should return unsubscribe function from once()', async () => {
-    const emitter = new EventEmitter<{ test: [string] }>()
-    const mockListener = vi.fn()
+  describe('error handling', () => {
+    it('should propagate errors from sync listeners', async () => {
+      const emitter = await container.get(EventEmitter<{ test: [] }>)
 
-    const unsubscribe = emitter.once('test', mockListener)
-    unsubscribe() // Remove before emitting
-    await emitter.emit('test', 'hello')
+      emitter.on('test', () => {
+        throw new Error('Sync error')
+      })
 
-    expect(mockListener).not.toHaveBeenCalled()
+      await expect(emitter.emit('test')).rejects.toThrow('Sync error')
+    })
+
+    it('should propagate errors from async listeners', async () => {
+      const emitter = await container.get(EventEmitter<{ test: [] }>)
+
+      emitter.on('test', async () => {
+        throw new Error('Async error')
+      })
+
+      await expect(emitter.emit('test')).rejects.toThrow('Async error')
+    })
   })
 
-  it('should handle emit() for non-existent event', async () => {
-    const emitter = new EventEmitter<{ test: [string] }>()
+  describe('memory management', () => {
+    it('should allow garbage collection after unsubscribe', async () => {
+      const emitter = await container.get(EventEmitter<{ test: [] }>)
 
-    const result = await emitter.emit('test', 'hello')
-    expect(result).toBeUndefined()
-  })
+      // Add and remove many listeners
+      for (let i = 0; i < 100; i++) {
+        const unsubscribe = emitter.on('test', () => {})
+        unsubscribe()
+      }
 
-  it('should handle multiple arguments in events', async () => {
-    const emitter = new EventEmitter<{ test: [string, number, boolean] }>()
-    const mockListener = vi.fn()
-
-    emitter.on('test', mockListener)
-    await emitter.emit('test', 'hello', 42, true)
-
-    expect(mockListener).toHaveBeenCalledWith('hello', 42, true)
-  })
-
-  it('should handle async listeners', async () => {
-    const emitter = new EventEmitter<{ test: [string] }>()
-    const mockAsyncListener = vi.fn().mockResolvedValue('async result')
-
-    emitter.on('test', mockAsyncListener)
-    const results = await emitter.emit('test', 'hello')
-
-    expect(mockAsyncListener).toHaveBeenCalledWith('hello')
-    expect(results).toEqual(['async result'])
-  })
-
-  it('should handle multiple async listeners and return all results', async () => {
-    const emitter = new EventEmitter<{ test: [string] }>()
-    const mockAsyncListener1 = vi.fn().mockResolvedValue('result1')
-    const mockAsyncListener2 = vi.fn().mockResolvedValue('result2')
-
-    emitter.on('test', mockAsyncListener1)
-    emitter.on('test', mockAsyncListener2)
-    const results = await emitter.emit('test', 'hello')
-
-    expect(results).toEqual(['result1', 'result2'])
-  })
-
-  it('should work with no-argument events', async () => {
-    const emitter = new EventEmitter<{ test: [] }>()
-    const mockListener = vi.fn()
-
-    emitter.on('test', mockListener)
-    await emitter.emit('test')
-
-    expect(mockListener).toHaveBeenCalledWith()
+      // The event should be cleaned up (empty listeners set removed)
+      await emitter.emit('test')
+    })
   })
 })

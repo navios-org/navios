@@ -23,6 +23,39 @@ export type InjectionTokenSchemaType =
   | BaseInjectionTokenSchemaType
   | OptionalInjectionTokenSchemaType
 
+/**
+ * Simple hash function for deterministic ID generation
+ */
+function simpleHash(str: string): string {
+  let hash = 0
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i)
+    hash = (hash << 5) - hash + char
+    hash = hash & hash // Convert to 32-bit integer
+  }
+  return Math.abs(hash).toString(36)
+}
+
+/**
+ * Generate deterministic ID from token name
+ */
+function generateTokenId(name: string | symbol | ClassType, customId?: string): string {
+  if (customId) {
+    return customId
+  }
+
+  let base: string
+  if (typeof name === 'function') {
+    base = `${name.name}_${name.toString()}`
+  } else if (typeof name === 'symbol') {
+    base = `symbol_${name.toString()}`
+  } else {
+    base = `token_${name}`
+  }
+
+  return `${base.split('_')[0]}_${simpleHash(base)}`
+}
+
 export class InjectionToken<
   // oxlint-disable-next-line no-unused-vars
   T,
@@ -38,13 +71,16 @@ export class InjectionToken<
           ? true
           : false,
 > {
-  public id = globalThis.crypto.randomUUID()
+  public readonly id: string
   private formattedName: string | null = null
 
   constructor(
     public readonly name: string | symbol | ClassType,
     public readonly schema: ZodObject | undefined,
-  ) {}
+    customId?: string,
+  ) {
+    this.id = generateTokenId(name, customId)
+  }
 
   static create<T extends ClassType>(
     name: T,
@@ -60,9 +96,9 @@ export class InjectionToken<
     name: string | any,
     schema: Schema,
   ): InjectionToken<T, Schema>
-  static create(name: string | symbol, schema?: unknown) {
+  static create(name: string | symbol, schema?: unknown, customId?: string) {
     // @ts-expect-error
-    return new InjectionToken(name, schema)
+    return new InjectionToken(name, schema, customId)
   }
 
   static bound<T, S extends InjectionTokenSchemaType>(
@@ -161,3 +197,4 @@ export type InjectionTokenType =
   | InjectionToken<any, any>
   | BoundInjectionToken<any, any>
   | FactoryInjectionToken<any, any>
+

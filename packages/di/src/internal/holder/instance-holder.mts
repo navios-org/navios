@@ -14,9 +14,6 @@ export enum InstanceStatus {
   Error = 'error',
 }
 
-/** Callback function for instance effects */
-export type InstanceEffect = () => void
-
 /** Callback function for instance destruction listeners */
 export type InstanceDestroyListener = () => void | Promise<void>
 
@@ -107,3 +104,4 @@ export type InstanceHolder<Instance = unknown> =
   | InstanceHolderCreated<Instance>
   | InstanceHolderDestroying<Instance>
   | InstanceHolderError
+

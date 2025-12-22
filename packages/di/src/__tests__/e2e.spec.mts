@@ -11,12 +11,11 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type { OnServiceDestroy, OnServiceInit } from '../index.mjs'
+
 import { Container } from '../container/container.mjs'
 import { Injectable } from '../decorators/injectable.decorator.mjs'
 import { InjectableScope } from '../enums/index.mjs'
-import { InjectionToken } from '../token/injection-token.mjs'
-import type { OnServiceDestroy } from '../interfaces/on-service-destroy.interface.mjs'
-import type { OnServiceInit } from '../interfaces/on-service-init.interface.mjs'
 import { Registry } from '../token/registry.mjs'
 import { getInjectors } from '../utils/get-injectors.mjs'
 
@@ -96,12 +95,16 @@ describe('E2E: Basic Setup', () => {
       expect(instance1.id).not.toBe(instance2.id)
     })
 
-it('should resolve services with constructor arguments via schema', async () => {
+    it('should resolve services with constructor arguments via schema', async () => {
       // Define schema first, then class, then token to avoid hoisting issues
       const { z } = await import('zod/v4')
       const configSchema = z.object({ port: z.number() })
 
-      @Injectable({ scope: InjectableScope.Singleton, registry, schema: configSchema })
+      @Injectable({
+        scope: InjectableScope.Singleton,
+        registry,
+        schema: configSchema,
+      })
       class ConfigService {
         constructor(public config: { port: number }) {}
       }
@@ -135,7 +138,7 @@ it('should resolve services with constructor arguments via schema', async () => 
       expect(db.connect()).toBe('connected')
     })
 
-it('should resolve deep dependency chains', async () => {
+    it('should resolve deep dependency chains', async () => {
       @Injectable({ scope: InjectableScope.Singleton, registry })
       class ServiceLevel1 {
         name = 'Level1'
@@ -415,7 +418,7 @@ describe('E2E: Concurrent Requests', () => {
       await Promise.all(requests)
 
       // Each request should have used the same counter instance (3 identical IDs)
-      for (const [requestId, ids] of Object.entries(instancesByRequest)) {
+      for (const [, ids] of Object.entries(instancesByRequest)) {
         expect(ids.length).toBe(3)
         expect(ids[0]).toBe(ids[1])
         expect(ids[1]).toBe(ids[2])
@@ -1001,13 +1004,11 @@ describe('E2E: Service Invalidation', () => {
 describe('E2E: Error Handling', () => {
   let registry: Registry
   let container: Container
-  let injectors: ReturnType<typeof getInjectors>
 
   beforeEach(() => {
     const setup = createTestSetup()
     registry = setup.registry
     container = setup.container
-    injectors = setup.injectors
   })
 
   afterEach(async () => {
@@ -1110,11 +1111,6 @@ describe('E2E: Advanced Scenarios', () => {
 
   describe('Metadata handling', () => {
     it('should pass metadata to request context', async () => {
-      @Injectable({ scope: InjectableScope.Request, registry })
-      class MetadataAwareService {
-        constructor() {}
-      }
-
       const metadata = { userId: '123', roles: ['admin'] }
       const scoped = container.beginRequest('request-1', metadata)
 
@@ -1125,11 +1121,6 @@ describe('E2E: Advanced Scenarios', () => {
     })
 
     it('should allow modifying metadata during request', async () => {
-      @Injectable({ scope: InjectableScope.Request, registry })
-      class RequestTracker {
-        startTime = Date.now()
-      }
-
       const scoped = container.beginRequest('request-1')
       scoped.setMetadata('stage', 'processing')
 

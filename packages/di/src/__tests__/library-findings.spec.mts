@@ -10,6 +10,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type { InstanceHolder } from '../index.mjs'
 import type { OnServiceDestroy } from '../interfaces/on-service-destroy.interface.mjs'
 
 import { Container } from '../container/container.mjs'
@@ -227,13 +228,11 @@ describe('FINDING #2: Request-Scoped Edge Cases (FIXED)', () => {
 describe('FINDING #3: Error Recovery', () => {
   let registry: Registry
   let container: Container
-  let injectors: ReturnType<typeof getInjectors>
 
   beforeEach(() => {
     const setup = createTestSetup()
     registry = setup.registry
     container = setup.container
-    injectors = setup.injectors
   })
 
   afterEach(async () => {
@@ -335,13 +334,11 @@ describe('FINDING #3: Error Recovery', () => {
 describe('FINDING #4: Concurrent Initialization', () => {
   let registry: Registry
   let container: Container
-  let injectors: ReturnType<typeof getInjectors>
 
   beforeEach(() => {
     const setup = createTestSetup()
     registry = setup.registry
     container = setup.container
-    injectors = setup.injectors
   })
 
   afterEach(async () => {
@@ -499,10 +496,13 @@ describe('FINDING #5: Cross-Storage Dependency Invalidation', () => {
     await singleton.getValue() // Force resolution
 
     // Check that the singleton's holder has the request service in deps
-    const manager = container.getServiceLocator().getManager()
-    const singletonHolders = Array.from(
-      manager.filter((h) => h.scope === InjectableScope.Singleton).values(),
-    )
+    const manager = container.getStorage()
+    const singletonHolders: InstanceHolder[] = []
+    manager.forEach((name, holder) => {
+      if (holder.scope === InjectableScope.Singleton) {
+        singletonHolders.push(holder)
+      }
+    })
 
     // Find the SingletonWithDep holder
     const singletonHolder = singletonHolders.find((h) =>

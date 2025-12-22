@@ -5,8 +5,6 @@ import type {
   PluginDefinition,
 } from '@navios/core'
 
-import { InjectableScope, InjectableType } from '@navios/core'
-
 import type { ScalarOptions, ScalarTheme } from './schemas/index.mjs'
 import type { BunOpenApiPluginOptions } from './tokens/openapi-options.token.mjs'
 
@@ -67,17 +65,7 @@ export class OpenApiBunPlugin implements NaviosPlugin<BunOpenApiPluginOptions> {
     context: PluginContext,
     options: BunOpenApiPluginOptions,
   ): void {
-    const locator = context.container.getServiceLocator()
-    const instanceName = locator.getInstanceIdentifier(OpenApiOptionsToken)
-
-    locator
-      .getManager()
-      .storeCreatedHolder(
-        instanceName,
-        options,
-        InjectableType.Class,
-        InjectableScope.Singleton,
-      )
+    context.container.addInstance(OpenApiOptionsToken, options)
   }
 
   /**

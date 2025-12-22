@@ -17,8 +17,7 @@ export type HolderGetResult<T = unknown> =
  * Interface for abstracting holder storage operations.
  *
  * Enables unified instance resolution logic regardless of where
- * holders are stored (singleton manager, request context, etc.).
- * This is the key abstraction for the Storage Strategy pattern.
+ * holders are stored. This is the key abstraction for the unified storage pattern.
  */
 export interface IHolderStorage {
   /**
@@ -94,9 +93,7 @@ export interface IHolderStorage {
    *
    * @param callback Function called for each holder with (name, holder)
    */
-  forEach(
-    callback: (name: string, holder: InstanceHolder) => void,
-  ): void
+  forEach(callback: (name: string, holder: InstanceHolder) => void): void
 
   /**
    * Finds a holder by its instance value (reverse lookup).
@@ -113,4 +110,13 @@ export interface IHolderStorage {
    * @returns Array of instance names that have this instance as a dependency
    */
   findDependents(instanceName: string): string[]
+
+  /**
+   * Updates dependency references when instance names change.
+   * Used during scope upgrades when instance names are regenerated with requestId.
+   *
+   * @param oldName The old instance name
+   * @param newName The new instance name
+   */
+  updateDependencyReference(oldName: string, newName: string): void
 }

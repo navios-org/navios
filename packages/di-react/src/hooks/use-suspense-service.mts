@@ -1,13 +1,15 @@
 import type {
-  AnyInjectableType,
   BoundInjectionToken,
   ClassType,
+  Container,
   Factorable,
   FactoryInjectionToken,
   InjectionToken,
   InjectionTokenSchemaType,
 } from '@navios/di'
 import type { z, ZodType } from 'zod/v4'
+
+import { InjectableScope, ScopedContainer } from '@navios/di'
 
 import { useCallback, useEffect, useRef, useSyncExternalStore } from 'react'
 
@@ -53,13 +55,11 @@ function getCache(container: object): Map<string, CacheEntry<any>> {
  */
 function setupInvalidationSubscription(
   entry: CacheEntry<any>,
-  serviceLocator: ReturnType<
-    import('@navios/di').Container['getServiceLocator']
-  >,
+  rootContainer: Container,
 ): void {
   if (entry.unsubscribe || !entry.instanceName) return
 
-  const eventBus = serviceLocator.getEventBus()
+  const eventBus = rootContainer.getEventBus()
   entry.unsubscribe = eventBus.on(entry.instanceName, 'destroy', () => {
     // Clear cache and notify subscribers to re-fetch
     entry.result = undefined
@@ -113,7 +113,6 @@ export function useSuspenseService(
   // useContainer returns ScopedContainer if inside ScopeProvider, otherwise Container
   const container = useContainer()
   const rootContainer = useRootContainer()
-  const serviceLocator = rootContainer.getServiceLocator()
   const cache = getCache(container)
   const cacheKey = getCacheKey(token, args)
   const entryRef = useRef<CacheEntry<any> | null>(null)
@@ -141,6 +140,20 @@ export function useSuspenseService(
     // This avoids suspense when the instance is already cached
     const syncInstance = container.tryGetSync(token, args)
 
+    const realToken = rootContainer
+      .getTokenResolver()
+      .getRealToken(rootContainer.getTokenResolver().normalizeToken(token))
+    const scope = rootContainer.getRegistry().get(realToken).scope
+    const instanceName = rootContainer
+      .getNameResolver()
+      .generateInstanceName(
+        realToken,
+        args,
+        scope === InjectableScope.Request
+          ? ((container as ScopedContainer).getRequestId() ?? undefined)
+          : undefined,
+        scope,
+      )
     const entry: CacheEntry<any> = {
       promise: null,
       result: syncInstance ?? undefined,
@@ -148,9 +161,7 @@ export function useSuspenseService(
       status: syncInstance ? 'resolved' : 'pending',
       version: 0,
       subscribers: new Set(),
-      instanceName: syncInstance
-        ? serviceLocator.getInstanceIdentifier(token as AnyInjectableType, args)
-        : null,
+      instanceName,
       unsubscribe: undefined,
     }
     cache.set(cacheKey, entry)
@@ -170,13 +181,9 @@ export function useSuspenseService(
       .then((instance: any) => {
         currentEntry.result = instance
         currentEntry.status = 'resolved'
-        currentEntry.instanceName = serviceLocator.getInstanceIdentifier(
-          token as AnyInjectableType,
-          args,
-        )
 
         // Subscribe to invalidation events if not already subscribed
-        setupInvalidationSubscription(currentEntry, serviceLocator)
+        setupInvalidationSubscription(currentEntry, rootContainer)
 
         // Notify subscribers
         currentEntry.subscribers.forEach((callback) => callback())
@@ -189,7 +196,7 @@ export function useSuspenseService(
       })
 
     return currentEntry.promise
-  }, [container, serviceLocator, token, args])
+  }, [container, rootContainer, token, args])
 
   // Subscribe to cache changes
   const subscribe = useCallback(
@@ -219,9 +226,9 @@ export function useSuspenseService(
       currentEntry.instanceName &&
       !currentEntry.unsubscribe
     ) {
-      setupInvalidationSubscription(currentEntry, serviceLocator)
+      setupInvalidationSubscription(currentEntry, rootContainer)
     }
-  }, [serviceLocator, entry])
+  }, [rootContainer, entry])
 
   // Start fetching if not already
   if (entry.status === 'pending' && !entry.promise) {

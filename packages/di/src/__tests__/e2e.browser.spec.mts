@@ -424,13 +424,11 @@ describe('E2E Browser: Concurrent Requests', () => {
 describe('E2E Browser: Service Lifecycle', () => {
   let registry: Registry
   let container: Container
-  let injectors: ReturnType<typeof getInjectors>
 
   beforeEach(() => {
     const setup = createTestSetup()
     registry = setup.registry
     container = setup.container
-    injectors = setup.injectors
   })
 
   afterEach(async () => {
@@ -654,13 +652,11 @@ describe('E2E Browser: Service Invalidation', () => {
 describe('E2E Browser: Error Handling', () => {
   let registry: Registry
   let container: Container
-  let injectors: ReturnType<typeof getInjectors>
 
   beforeEach(() => {
     const setup = createTestSetup()
     registry = setup.registry
     container = setup.container
-    injectors = setup.injectors
   })
 
   afterEach(async () => {

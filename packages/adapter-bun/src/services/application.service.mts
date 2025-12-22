@@ -1,14 +1,7 @@
 import type { ModuleMetadata } from '@navios/core'
 import type { Serve, Server } from 'bun'
 
-import {
-  Container,
-  inject,
-  Injectable,
-  InjectableScope,
-  InjectableType,
-  Logger,
-} from '@navios/core'
+import { Container, inject, Injectable, Logger } from '@navios/core'
 
 import type {
   BunApplicationOptions,
@@ -89,18 +82,7 @@ export class BunApplicationService implements BunApplicationServiceInterface {
    */
   async initServer(): Promise<void> {
     // Register server instance
-    const instanceName = this.container
-      .getServiceLocator()
-      .getInstanceIdentifier(BunServerToken)
-    this.container
-      .getServiceLocator()
-      .getManager()
-      .storeCreatedHolder(
-        instanceName,
-        this.server!,
-        InjectableType.Class,
-        InjectableScope.Singleton,
-      )
+    this.container.addInstance(BunServerToken, this.server!)
   }
 
   /**

@@ -7,10 +7,12 @@ export type FactoryRecord<Instance = any, Schema = any> = {
   originalToken: InjectionToken<Instance, Schema>
   target: ClassType
   type: InjectableType
+  priority: number
 }
 
 export class Registry {
-  private readonly factories = new Map<string, FactoryRecord>()
+  private readonly factories = new Map<string, FactoryRecord[]>()
+  private readonly highestPriority = new Map<string, FactoryRecord>()
 
   constructor(private readonly parent?: Registry) {}
 
@@ -27,7 +29,7 @@ export class Registry {
   get<Instance, Schema>(
     token: InjectionToken<Instance, Schema>,
   ): FactoryRecord<Instance, Schema> {
-    const factory = this.factories.get(token.id)
+    const factory = this.highestPriority.get(token.id)
     if (!factory) {
       if (this.parent) {
         return this.parent.get(token)
@@ -37,17 +39,70 @@ export class Registry {
     return factory
   }
 
+  getAll<Instance, Schema>(
+    token: InjectionToken<Instance, Schema>,
+  ): FactoryRecord<Instance, Schema>[] {
+    const records = this.factories.get(token.id)
+    if (!records || records.length === 0) {
+      if (this.parent) {
+        return this.parent.getAll(token)
+      }
+      return []
+    }
+    // Return sorted by priority (highest first)
+    return [...records].sort((a, b) => b.priority - a.priority)
+  }
+
   set<Instance, Schema>(
     token: InjectionToken<Instance, Schema>,
     scope: InjectableScope,
     target: ClassType,
     type: InjectableType,
+    priority: number = 0,
   ) {
-    this.factories.set(token.id, { scope, originalToken: token, target, type })
+    const record: FactoryRecord<Instance, Schema> = {
+      scope,
+      originalToken: token,
+      target,
+      type,
+      priority,
+    }
+
+    // Add to factories array
+    const existing = this.factories.get(token.id) || []
+    existing.push(record)
+    this.factories.set(token.id, existing)
+
+    // Update highest priority cache if needed
+    const currentHighest = this.highestPriority.get(token.id)
+    if (!currentHighest || priority > currentHighest.priority) {
+      this.highestPriority.set(token.id, record)
+    }
   }
 
   delete(token: InjectionToken<any, any>) {
-    this.factories.delete(token.id)
+    const records = this.factories.get(token.id)
+    if (records) {
+      const deletedHighest = this.highestPriority.get(token.id)
+      this.factories.delete(token.id)
+      this.highestPriority.delete(token.id)
+
+      // If we deleted the highest priority record, recalculate from remaining records
+      if (deletedHighest && records.length > 1) {
+        const remaining = records.filter(
+          (r) =>
+            r.originalToken.id !== deletedHighest.originalToken.id ||
+            r.priority !== deletedHighest.priority,
+        )
+        if (remaining.length > 0) {
+          const newHighest = remaining.reduce((max, current) =>
+            current.priority > max.priority ? current : max,
+          )
+          this.highestPriority.set(token.id, newHighest)
+          this.factories.set(token.id, remaining)
+        }
+      }
+    }
   }
 
   /**
@@ -59,10 +114,21 @@ export class Registry {
    * @param scope The new scope to set
    * @returns true if the scope was updated, false if the token was not found
    */
-  updateScope(token: InjectionToken<any, any>, scope: InjectableScope): boolean {
-    const factory = this.factories.get(token.id)
-    if (factory) {
-      factory.scope = scope
+  updateScope(
+    token: InjectionToken<any, any>,
+    scope: InjectableScope,
+  ): boolean {
+    const records = this.factories.get(token.id)
+    if (records && records.length > 0) {
+      // Update all records
+      records.forEach((record) => {
+        record.scope = scope
+      })
+      // Update highest priority cache if it exists
+      const highest = this.highestPriority.get(token.id)
+      if (highest) {
+        highest.scope = scope
+      }
       return true
     }
     if (this.parent) {
@@ -72,4 +138,4 @@ export class Registry {
   }
 }
 
-export const globalRegistry = new Registry()
+export const globalRegistry = /* #__PURE__ */ new Registry()

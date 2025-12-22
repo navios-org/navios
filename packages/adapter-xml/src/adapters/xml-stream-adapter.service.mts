@@ -7,11 +7,10 @@ import type {
 } from '@navios/core'
 
 import {
-  InstanceResolverService,
   inject,
   Injectable,
+  InstanceResolverService,
   StreamAdapterToken,
-  XmlStreamAdapterToken,
 } from '@navios/core'
 
 import type { BaseXmlStreamConfig } from '../types/config.mjs'
@@ -41,9 +40,7 @@ import { renderToXml } from '../runtime/render-to-xml.mjs'
  * // and is used by endpoints decorated with @XmlStream()
  * ```
  */
-@Injectable({
-  token: XmlStreamAdapterToken,
-})
+@Injectable()
 export class XmlStreamAdapterService implements AbstractHttpHandlerAdapterInterface {
   /** Base stream adapter - we proxy hasSchema, prepareArguments, provideSchema to it */
   protected streamAdapter = inject(StreamAdapterToken)

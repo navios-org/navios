@@ -1,2 +1,2 @@
-export * from './injectable-scope.enum.mjs'
-export * from './injectable-type.enum.mjs'
+export { InjectableScope } from './injectable-scope.enum.mjs'
+export { InjectableType } from './injectable-type.enum.mjs'

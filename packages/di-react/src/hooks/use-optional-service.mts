@@ -9,6 +9,8 @@ import type {
 } from '@navios/di'
 import type { z, ZodType } from 'zod/v4'
 
+import { InjectableScope, ScopedContainer } from '@navios/di'
+
 import { useCallback, useEffect, useReducer, useRef } from 'react'
 
 import type { Join, UnionToArray } from '../types.mjs'
@@ -155,7 +157,6 @@ export function useOptionalService(
   // useContainer returns ScopedContainer if inside ScopeProvider, otherwise Container
   const container = useContainer()
   const rootContainer = useRootContainer()
-  const serviceLocator = rootContainer.getServiceLocator()
 
   // Try to get the instance synchronously first for better performance
   // This avoids the async loading state when the instance is already cached
@@ -206,12 +207,23 @@ export function useOptionalService(
         token as AnyInjectableType,
         args as any,
       )
+      const realToken = rootContainer
+        .getTokenResolver()
+        .getRealToken(rootContainer.getTokenResolver().normalizeToken(token))
+      const scope = rootContainer.getRegistry().get(realToken).scope
+      const instanceName = rootContainer
+        .getNameResolver()
+        .generateInstanceName(
+          realToken,
+          args,
+          scope === InjectableScope.Request
+            ? ((container as ScopedContainer).getRequestId() ?? undefined)
+            : undefined,
+          scope,
+        )
 
       // Get instance name for event subscription
-      instanceNameRef.current = serviceLocator.getInstanceIdentifier(
-        token as AnyInjectableType,
-        args,
-      )
+      instanceNameRef.current = instanceName
       dispatch({ type: 'success', data: instance })
     } catch (error) {
       // Caught exceptions are treated as errors
@@ -227,21 +239,33 @@ export function useOptionalService(
         dispatch({ type: 'error', error: err })
       }
     }
-  }, [container, serviceLocator, token, args])
+  }, [container, rootContainer, token, args])
 
   // Subscribe to invalidation events
   useEffect(() => {
-    const eventBus = serviceLocator.getEventBus()
+    const eventBus = rootContainer.getEventBus()
     let unsubscribe: (() => void) | undefined
 
     // If we already have a sync instance from initial render, just set up subscription
     // Otherwise, fetch async
     const syncInstance = initialSyncInstanceRef.current
     if (syncInstance) {
-      instanceNameRef.current = serviceLocator.getInstanceIdentifier(
-        token as AnyInjectableType,
-        args,
-      )
+      const realToken = rootContainer
+        .getTokenResolver()
+        .getRealToken(rootContainer.getTokenResolver().normalizeToken(token))
+      const scope = rootContainer.getRegistry().get(realToken).scope
+      const instanceName = rootContainer
+        .getNameResolver()
+        .generateInstanceName(
+          realToken,
+          args,
+          scope === InjectableScope.Request
+            ? ((container as ScopedContainer).getRequestId() ?? undefined)
+            : undefined,
+          scope,
+        )
+
+      instanceNameRef.current = instanceName
       unsubscribe = eventBus.on(instanceNameRef.current, 'destroy', () => {
         void fetchService()
       })
@@ -270,7 +294,7 @@ export function useOptionalService(
     return () => {
       unsubscribe?.()
     }
-  }, [fetchService, serviceLocator, token, args])
+  }, [fetchService, rootContainer, token, args])
 
   return {
     data: state.status === 'success' ? state.data : undefined,

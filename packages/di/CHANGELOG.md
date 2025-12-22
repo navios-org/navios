@@ -5,6 +5,93 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.0] - 2025-12-21
+
+### Added
+
+- **Priority System for Multiple Registrations**: Services can now be registered with priority levels. Higher priority wins when multiple registrations exist for the same token
+  - New `priority` option in `@Injectable()` decorator
+  - `Registry.getAll(token)` method to retrieve all registrations sorted by priority
+  - `FactoryRecord` now includes `priority` field
+- **Unified Storage Architecture**: Replaced multiple storage classes with a single `UnifiedStorage` class
+  - Replaces `HolderManager`, `SingletonStorage`, `RequestStorage`, and `RequestContext`
+  - Simpler mental model: one storage class regardless of scope
+  - Reverse dependency index for O(1) dependent lookups (vs O(n) iteration)
+  - Consistent API across all scopes
+- **Enhanced Testing Utilities**: Significantly extended `TestContainer` with new assertion helpers
+  - Fluent binding API extended with `toFactory()` method
+  - Assertion helpers: `expectResolved()`, `expectNotResolved()`, `expectSingleton()`, `expectTransient()`, `expectRequestScoped()`
+  - Lifecycle assertions: `expectInitialized()`, `expectDestroyed()`, `expectNotDestroyed()`
+  - Method call tracking: `recordMethodCall()`, `expectCalled()`, `expectCalledWith()`, `expectCallCount()`, `getMethodCalls()`, `getServiceStats()`
+  - Dependency graph utilities: `getDependencyGraph()`, `getSimplifiedDependencyGraph()`
+- **New UnitTestContainer**: Strict isolated unit testing container with auto-tracking
+  - Automatic method call tracking via Proxy
+  - Strict mode (default): unregistered dependencies throw errors
+  - Auto-mocking mode: unregistered dependencies return mock proxies
+  - Simplified provider-based configuration
+- **Enhanced Error Messages**: Extended `DIErrorCode` enum with 8 new error types
+  - `TokenValidationError`: Zod schema validation failed
+  - `TokenSchemaRequiredError`: Schema args required but not provided
+  - `ClassNotInjectable`: Missing `@Injectable` decorator
+  - `ScopeMismatchError`: Wrong container for scope
+  - `PriorityConflictError`: Multiple same-priority registrations
+  - `StorageError`: Storage operation failed
+  - `InitializationError`: Service init failed
+  - `DependencyResolutionError`: Dependency chain error
+- **New Internal Components**:
+  - `NameResolver`: Generates deterministic instance names
+  - `ScopeTracker`: Tracks and validates scope relationships
+  - `AbstractContainer`: Base class for containers
+- **New Container Methods**: Direct access to internal components
+  - `getStorage()`: Returns `UnifiedStorage`
+  - `getServiceInitializer()`: Returns `ServiceInitializer`
+  - `getServiceInvalidator()`: Returns `ServiceInvalidator`
+  - `getTokenResolver()`: Returns `TokenResolver`
+  - `getNameResolver()`: Returns `NameResolver`
+  - `getScopeTracker()`: Returns `ScopeTracker`
+  - `getEventBus()`: Returns `LifecycleEventBus`
+  - `getInstanceResolver()`: Returns `InstanceResolver`
+
+### Changed
+
+- **BREAKING**: `ServiceLocator` wrapper class removed
+  - Container now uses components directly (no ServiceLocator wrapper)
+  - `container.getServiceLocator()` method removed
+  - Use direct component access methods instead (e.g., `container.getStorage()`)
+- **BREAKING**: Internal component renames
+  - `Instantiator` → `ServiceInitializer`
+  - `Invalidator` → `ServiceInvalidator`
+  - `TokenProcessor` → `TokenResolver`
+  - `HolderManager` → `UnifiedStorage`
+  - `SingletonStorage` → `UnifiedStorage` (same class, different instance)
+  - `RequestStorage` → `UnifiedStorage` (same class, different instance)
+  - `RequestContext` → merged into `UnifiedStorage`
+- **BREAKING**: `Container.removeActiveRequest()` renamed to `Container.removeRequestId()`
+- **Registry Changes**:
+  - `Registry.set()` now accepts optional `priority` parameter (5 params instead of 4)
+  - `Registry` stores `FactoryRecord[]` per token instead of single `FactoryRecord`
+  - `FactoryRecord` interface extended with `priority: number` field
+- **Scope Error Handling**: Request scope violations now throw dedicated `ScopeMismatchError` with structured context instead of generic errors
+- **Build Configuration**: Updated tsdown config with external dependencies
+  - Node build: external `node:async_hooks` and `zod`
+  - Browser build: external `zod`
+
+### Performance
+
+- **Reverse Dependency Index**: O(1) dependent lookup during invalidation (vs O(n) iteration)
+- **Priority Cache**: Registry maintains `highestPriority` Map for fast access to winning registration
+- **Unified Storage**: Single storage class eliminates wrapper overhead
+- **No ServiceLocator Wrapper**: Container directly uses components, reducing indirection
+
+### Migration
+
+- Replace `container.getServiceLocator()` with direct component access methods
+- Replace `container.removeActiveRequest()` with `container.removeRequestId()`
+- Update internal class references if you were using them directly
+- Consider using new testing utilities (`TestContainer` assertions, `UnitTestContainer`)
+- Use `priority` option for service registration if needed
+- Use `registry.getAll(token)` if you need all registrations, not just highest priority
+
 ## [0.8.0] - 2025-12-21
 
 ### Added

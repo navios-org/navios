@@ -34,7 +34,10 @@ class TestFactory3 implements Factorable<boolean> {
 
 // Test factory with token and schema
 const schema = z.object({ name: z.string() })
-const tokenWithSchema = InjectionToken.create('TestTokenWithSchema', schema)
+const tokenWithSchema = InjectionToken.create<{ name: string }, typeof schema>(
+  'TestTokenWithSchema',
+  schema,
+)
 @Factory({ token: tokenWithSchema })
 class TestFactory4
   implements FactorableWithArgs<{ name: string }, typeof schema>
@@ -53,7 +56,15 @@ class TestFactory5 implements Factorable<object> {
   }
 }
 
-// Type tests
+// Test factory with async create
+@Factory()
+class TestFactory6 implements Factorable<string[]> {
+  async create() {
+    return ['async', 'result']
+  }
+}
+
+// Type tests - verify return types
 const test1: string = new TestFactory1().create()
 const test2: number = new TestFactory2().create()
 const test3: boolean = new TestFactory3().create()
@@ -61,5 +72,6 @@ const test4: { name: string } = new TestFactory4().create(undefined, {
   name: 'test',
 })
 const test5: object = new TestFactory5().create()
+const test6: Promise<string[]> = new TestFactory6().create()
 
-export { test1, test2, test3, test4, test5 }
+export { test1, test2, test3, test4, test5, test6 }

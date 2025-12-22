@@ -1,4 +1,4 @@
-import { Container, Injectable, Registry } from '@navios/di'
+import { Container, globalRegistry, Injectable, Registry } from '@navios/di'
 
 import { renderHook } from '@testing-library/react'
 import { createElement } from 'react'
@@ -12,7 +12,7 @@ describe('useContainer', () => {
   let registry: Registry
 
   beforeEach(() => {
-    registry = new Registry()
+    registry = new Registry(globalRegistry)
     container = new Container(registry)
   })
 
@@ -46,6 +46,7 @@ describe('useContainer', () => {
 
     const { result } = renderHook(() => useContainer(), { wrapper })
 
+    // @ts-expect-error - token is valid
     const service = await result.current.get(TestService)
     expect(service.getValue()).toBe('test-value')
   })

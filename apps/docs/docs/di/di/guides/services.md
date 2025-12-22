@@ -150,6 +150,42 @@ const customRegistry = new Registry()
 class CustomService {}
 ```
 
+### Priority
+
+Services can be registered with priority levels. When multiple services are registered for the same token, the one with the highest priority wins:
+
+```typescript
+import { Injectable } from '@navios/di'
+
+// Default service (priority: 0)
+@Injectable({ priority: 100 })
+class DefaultUserService {
+  getUsers() {
+    return ['Alice', 'Bob']
+  }
+}
+
+// Override service (priority: 200 - wins)
+@Injectable({ priority: 200 })
+class OverrideUserService {
+  getUsers() {
+    return ['Charlie', 'David']
+  }
+}
+
+// When resolving, OverrideUserService will be returned
+const container = new Container()
+const service = await container.get(UserService) // Returns OverrideUserService
+```
+
+You can also retrieve all registrations using `registry.getAll(token)`:
+
+```typescript
+const registry = container.getRegistry()
+const allRegistrations = registry.getAll(UserService)
+// Returns both services, sorted by priority (highest first)
+```
+
 ## Injection Methods
 
 Navios DI provides three ways to inject dependencies:

@@ -1,4 +1,4 @@
-import { Container, Injectable } from '@navios/core'
+import { Container, globalRegistry, Injectable, Registry } from '@navios/core'
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -7,11 +7,13 @@ import { SchedulerService } from '../scheduler.service.mjs'
 
 describe('Schedule Module', () => {
   let container: Container
+  let registry: Registry
   let schedulerService: SchedulerService
 
   beforeEach(async () => {
     vi.useFakeTimers()
-    container = new Container()
+    registry = new Registry(globalRegistry)
+    container = new Container(registry)
     schedulerService = await container.get(SchedulerService)
   })
 
@@ -22,7 +24,7 @@ describe('Schedule Module', () => {
   })
 
   it('should register a schedulable service', () => {
-    @Schedulable()
+    @Schedulable({ registry })
     class TestService {
       @Cron('*/1 * * * * *')
       async testJob() {}
@@ -35,7 +37,7 @@ describe('Schedule Module', () => {
   })
 
   it('should throw an error when registering a non-schedulable service', () => {
-    @Injectable()
+    @Injectable({ registry })
     class NonSchedulableService {
       async testJob() {}
     }
@@ -46,7 +48,7 @@ describe('Schedule Module', () => {
   it('should execute a job at the scheduled time', async () => {
     const mockJob = vi.fn()
 
-    @Schedulable()
+    @Schedulable({ registry })
     class TestService {
       @Cron('*/1 * * * * *')
       async testJob() {
@@ -69,7 +71,7 @@ describe('Schedule Module', () => {
   it('should not execute jobs when they are stopped', async () => {
     const mockJob = vi.fn()
 
-    @Schedulable()
+    @Schedulable({ registry })
     class TestService {
       @Cron('*/1 * * * * *')
       async testJob() {
@@ -95,7 +97,7 @@ describe('Schedule Module', () => {
     const mockJob2 = vi.fn()
     vi.setSystemTime('2021-01-01T00:00:00.000Z')
 
-    @Schedulable()
+    @Schedulable({ registry })
     class TestService {
       @Cron('*/1 * * * * *')
       async job1() {
@@ -124,7 +126,7 @@ describe('Schedule Module', () => {
   it('should handle disabled jobs', async () => {
     const mockJob = vi.fn()
 
-    @Schedulable()
+    @Schedulable({ registry })
     class TestService {
       @Cron('*/1 * * * * *', { disabled: true })
       async testJob() {
@@ -144,7 +146,7 @@ describe('Schedule Module', () => {
   it('should handle errors in job execution without crashing', async () => {
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
 
-    @Schedulable()
+    @Schedulable({ registry })
     class TestService {
       @Cron('*/1 * * * * *')
       async testJob() {

@@ -43,10 +43,11 @@ Dependency Injection (DI) is a design pattern that helps manage dependencies bet
 
 | Component | Purpose |
 |-----------|---------|
-| `Registry` | Central storage for service metadata |
+| `Registry` | Central storage for service metadata with priority support |
 | `Container` | Main entry point for service resolution |
-| `ServiceLocator` | Coordinates dependency resolution |
-| `ServiceInstantiator` | Creates service instances |
+| `UnifiedStorage` | Unified storage for all service scopes |
+| `ServiceInitializer` | Creates service instances |
+| `InstanceResolver` | Resolves service instances and dependencies |
 | `InjectionToken` | Type-safe tokens for dynamic resolution |
 
 ## Quick Start

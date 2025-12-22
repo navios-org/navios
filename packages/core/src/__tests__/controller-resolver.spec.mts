@@ -1,9 +1,11 @@
 import {
   Container,
   getInjectableToken,
+  globalRegistry,
   inject,
   Injectable,
   InjectableScope,
+  Registry,
 } from '@navios/di'
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -11,16 +13,19 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { InstanceResolverService } from '../services/instance-resolver.service.mjs'
 
 function createTestSetup() {
-  const container = new Container()
+  const registry = new Registry(globalRegistry)
+  const container = new Container(registry)
 
-  return { container }
+  return { registry, container }
 }
 
 describe('InstanceResolverService', () => {
   let container: Container
+  let registry: Registry
 
   beforeEach(() => {
     const setup = createTestSetup()
+    registry = setup.registry
     container = setup.container
   })
 
@@ -30,12 +35,12 @@ describe('InstanceResolverService', () => {
 
   describe('resolve', () => {
     it('should cache singleton controller without request-scoped dependencies', async () => {
-      @Injectable()
+      @Injectable({ registry })
       class SimpleService {
         value = 'simple'
       }
 
-      @Injectable()
+      @Injectable({ registry })
       class SingletonController {
         private service = inject(SimpleService)
 
@@ -55,12 +60,12 @@ describe('InstanceResolverService', () => {
     })
 
     it('should not cache controller with request-scoped dependencies', async () => {
-      @Injectable({ scope: InjectableScope.Request })
+      @Injectable({ scope: InjectableScope.Request, registry })
       class RequestScopedService {
         id = Math.random().toString(36).substring(7)
       }
 
-      @Injectable()
+      @Injectable({ registry })
       class ControllerWithRequestDep {
         private service = inject(RequestScopedService)
 
@@ -78,12 +83,12 @@ describe('InstanceResolverService', () => {
     })
 
     it('should update controller scope to Request when it has request-scoped dependencies', async () => {
-      @Injectable({ scope: InjectableScope.Request })
+      @Injectable({ scope: InjectableScope.Request, registry })
       class RequestScopedService {
         id = Math.random().toString(36).substring(7)
       }
 
-      @Injectable()
+      @Injectable({ registry })
       class ControllerWithRequestDep {
         private service = inject(RequestScopedService)
 
@@ -105,12 +110,12 @@ describe('InstanceResolverService', () => {
     it('should resolve different instances per request when controller has request-scoped deps', async () => {
       let serviceInstanceCount = 0
 
-      @Injectable({ scope: InjectableScope.Request })
+      @Injectable({ scope: InjectableScope.Request, registry })
       class RequestScopedService {
         id = ++serviceInstanceCount
       }
 
-      @Injectable()
+      @Injectable({ registry })
       class ControllerWithRequestDep {
         private service = inject(RequestScopedService)
 
@@ -128,6 +133,7 @@ describe('InstanceResolverService', () => {
       const scoped1 = container.beginRequest('request-1')
       const controller1 = await resolution.resolve(scoped1)
       const id1 = (controller1 as ControllerWithRequestDep).getServiceId()
+      console.log('id1', id1)
 
       // Request 2
       const scoped2 = container.beginRequest('request-2')
@@ -145,7 +151,7 @@ describe('InstanceResolverService', () => {
     it('should handle parallel requests with isolated instances', async () => {
       let serviceInstanceCount = 0
 
-      @Injectable({ scope: InjectableScope.Request })
+      @Injectable({ scope: InjectableScope.Request, registry })
       class RequestTrackerService {
         id = ++serviceInstanceCount
         data: Record<string, any> = {}
@@ -159,7 +165,7 @@ describe('InstanceResolverService', () => {
         }
       }
 
-      @Injectable()
+      @Injectable({ registry })
       class ControllerWithTracker {
         private tracker = inject(RequestTrackerService)
 
@@ -206,7 +212,7 @@ describe('InstanceResolverService', () => {
     })
 
     it('should return same cached instance for singleton controllers', async () => {
-      @Injectable()
+      @Injectable({ registry })
       class SingletonController {
         id = Math.random()
       }

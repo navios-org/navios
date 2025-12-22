@@ -12,6 +12,7 @@ export default defineConfig([
     treeshake: true,
     sourcemap: true,
     platform: 'node',
+    external: ['node:async_hooks', 'zod'],
     dts: true,
     target: 'es2022',
     plugins: [
@@ -36,15 +37,24 @@ export default defineConfig([
   // Browser build - uses SyncLocalStorage and skips async_hooks entirely
   {
     entry: {
-      'browser/index': 'src/browser.mts',
+      index: 'src/index.mts',
     },
     outDir: 'lib',
     format: ['esm'],
     treeshake: true,
     sourcemap: true,
     platform: 'browser',
+    external: ['zod'],
     dts: true,
     target: 'es2022',
+    outputOptions(options) {
+      return {
+        ...options,
+        dir: 'lib/browser',
+        preserveModules: true,
+        preserveModulesRoot: 'src',
+      }
+    },
     inputOptions(options) {
       return {
         ...options,

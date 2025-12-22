@@ -5,3 +5,4 @@ export interface IAsyncLocalStorage<T> {
   run<R>(store: T, fn: () => R): R
   getStore(): T | undefined
 }
+

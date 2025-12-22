@@ -1,3 +1,5 @@
+import type { IAsyncLocalStorage } from './async-local-storage.types.mjs'
+
 import { AsyncLocalStorage } from 'node:async_hooks'
 
 /**
@@ -13,8 +15,6 @@ import { AsyncLocalStorage } from 'node:async_hooks'
  * Uses lazy initialization to avoid import overhead until first use,
  * and works with both ESM and CJS builds.
  */
-
-import type { IAsyncLocalStorage } from './async-local-storage.types.mjs'
 
 export type { IAsyncLocalStorage }
 
@@ -66,3 +66,4 @@ export function createAsyncLocalStorage<T>(): IAsyncLocalStorage<T> {
 export function isUsingNativeAsyncLocalStorage(): boolean {
   return getModule().isUsingNativeAsyncLocalStorage()
 }
+

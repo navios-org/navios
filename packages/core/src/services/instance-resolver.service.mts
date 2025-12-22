@@ -110,16 +110,13 @@ export class InstanceResolverService {
       // Class has request-scoped dependencies, update its scope to Request
       // so it will be resolved per-request from the scoped container
       const token = getInjectableToken(classType)
-      this.container
-        .getRegistry()
-        .updateScope(token, InjectableScope.Request)
+      this.container.getRegistry().updateScope(token, InjectableScope.Request)
     }
 
     return {
       cached: cachedInstance !== null,
       instance: cachedInstance,
-      resolve: (scoped: ScopedContainer) =>
-        scoped.get(classType) as Promise<T>,
+      resolve: (scoped: ScopedContainer) => scoped.get(classType) as Promise<T>,
     }
   }
 
@@ -133,7 +130,9 @@ export class InstanceResolverService {
    * @param classTypes - The classes to resolve
    * @returns A resolution result containing either all cached instances or resolver function
    */
-  async resolveMany<T>(classTypes: ClassType[]): Promise<MultiInstanceResolution<T>> {
+  async resolveMany<T>(
+    classTypes: ClassType[],
+  ): Promise<MultiInstanceResolution<T>> {
     if (classTypes.length === 0) {
       return {
         cached: true,
@@ -170,7 +169,9 @@ export class InstanceResolverService {
       instances: cachedInstances,
       classTypes,
       resolve: (scoped: ScopedContainer) =>
-        Promise.all(classTypes.map((classType) => scoped.get(classType) as Promise<T>)),
+        Promise.all(
+          classTypes.map((classType) => scoped.get(classType) as Promise<T>),
+        ),
     }
   }
 }

@@ -10,11 +10,11 @@ Navios DI provides a `TestContainer` class specifically designed for testing. It
 
 The `TestContainer` is a specialized container for testing that provides:
 
-- **Simplified binding methods**: Easy way to bind mocks and test values
-- **Value binding**: Bind tokens to specific values (useful for mocks)
-- **Class binding**: Bind tokens to class constructors
+- **Fluent binding API**: Easy way to bind mocks and test values with `toValue()`, `toClass()`, and `toFactory()`
+- **Assertion helpers**: Verify service resolution, scopes, and lifecycle states
+- **Method call tracking**: Track and assert on method calls
+- **Dependency graph inspection**: Analyze service dependencies
 - **Clear method**: Reset the container between tests
-- **Child containers**: Create isolated test containers
 
 ## Installation
 
@@ -60,6 +60,9 @@ container.bindValue(API_URL_TOKEN, 'https://test-api.com')
 // Or use the fluent API
 container.bind(API_URL_TOKEN).toValue('https://test-api.com')
 
+// Or use factory binding
+container.bind(ConfigToken).toFactory(() => ({ apiKey: 'test' }))
+
 // Retrieve the value
 const apiUrl = await container.get(API_URL_TOKEN)
 console.log(apiUrl) // 'https://test-api.com'
@@ -98,6 +101,11 @@ container.bind(HTTP_CLIENT_TOKEN).toClass(MockHttpClient)
 const httpClient = await container.get(HTTP_CLIENT_TOKEN)
 const response = await httpClient.get('https://api.example.com')
 console.log(response) // { data: 'mocked response' }
+
+// Assertion helpers
+container.expectResolved(HTTP_CLIENT_TOKEN)
+container.expectSingleton(HTTP_CLIENT_TOKEN)
+container.expectInitialized(HTTP_CLIENT_TOKEN)
 ```
 
 ## Testing Services
@@ -241,6 +249,124 @@ describe('UserService', () => {
 })
 ```
 
+## Assertion Helpers
+
+TestContainer provides comprehensive assertion helpers:
+
+```typescript
+describe('UserService', () => {
+  let container: TestContainer
+
+  beforeEach(() => {
+    container = new TestContainer()
+  })
+
+  it('should verify service resolution', async () => {
+    const service = await container.get(UserService)
+    
+    // Verify service was resolved
+    container.expectResolved(UserService)
+    container.expectNotResolved(NonExistentService)
+    
+    // Verify scope
+    container.expectSingleton(UserService)
+    container.expectTransient(TransientService)
+    
+    // Verify lifecycle
+    container.expectInitialized(UserService)
+    container.expectNotDestroyed(UserService)
+  })
+})
+```
+
+## Method Call Tracking
+
+Track and assert on method calls:
+
+```typescript
+it('should track method calls', async () => {
+  const service = await container.get(UserService)
+  await service.createUser({ name: 'John' })
+  
+  // Record method call
+  container.recordMethodCall(UserService, 'createUser', [{ name: 'John' }], { id: '1' })
+  
+  // Assert on calls
+  container.expectCalled(UserService, 'createUser')
+  container.expectCalledWith(UserService, 'createUser', [{ name: 'John' }])
+  container.expectCallCount(UserService, 'createUser', 1)
+  
+  // Get call history
+  const calls = container.getMethodCalls(UserService)
+  const stats = container.getServiceStats(UserService)
+})
+```
+
+## Dependency Graph Inspection
+
+Analyze service dependencies:
+
+```typescript
+it('should inspect dependency graph', async () => {
+  await container.get(UserService)
+  
+  const graph = container.getDependencyGraph()
+  const simplified = container.getSimplifiedDependencyGraph()
+  
+  console.log(graph) // Full dependency graph
+  console.log(simplified) // Simplified view
+})
+```
+
+## UnitTestContainer
+
+For strict isolated unit testing with automatic method call tracking:
+
+```typescript
+import { UnitTestContainer } from '@navios/di/testing'
+
+describe('UserService Unit Tests', () => {
+  let container: UnitTestContainer
+
+  beforeEach(() => {
+    container = new UnitTestContainer({
+      providers: [
+        { token: UserService, useClass: MockUserService },
+        { token: ConfigToken, useValue: { apiUrl: 'test' } },
+        { token: ApiClient, useFactory: () => new MockApiClient() },
+      ],
+    })
+  })
+
+  afterEach(async () => {
+    await container.dispose()
+  })
+
+  it('should track method calls automatically', async () => {
+    const service = await container.get(UserService)
+    await service.findUser('123')
+
+    // Auto-tracked assertions (no manual recording needed)
+    container.expectCalled(UserService, 'findUser')
+    container.expectCalledWith(UserService, 'findUser', ['123'])
+    container.expectNotCalled(UserService, 'deleteUser')
+  })
+
+  it('should throw on unregistered dependencies (strict mode)', async () => {
+    // Strict mode (default): unregistered dependencies throw
+    await expect(container.get(UnregisteredService)).rejects.toThrow()
+  })
+
+  it('should auto-mock unregistered dependencies', async () => {
+    // Enable auto-mocking mode
+    container.enableAutoMocking()
+    const mock = await container.get(UnregisteredService)
+    container.expectAutoMocked(UnregisteredService)
+    container.disableAutoMocking()
+  })
+})
+```
+
 ## Clearing the Container
 
 Use `clear()` to reset the container between tests:
@@ -253,34 +379,9 @@ describe('UserService', () => {
     container = new TestContainer()
   })
 
-  afterEach(() => {
+  afterEach(async () => {
     // Clear all instances and bindings
-    container.clear()
-  })
-})
-```
-
-## Child Containers
-
-Create isolated child containers for parallel test execution:
-
-```typescript
-describe('UserService', () => {
-  let parentContainer: TestContainer
-
-  beforeEach(() => {
-    parentContainer = new TestContainer()
-  })
-
-  it('should work in isolated container', async () => {
-    const childContainer = parentContainer.createChild()
-    
-    // Set up child container
-    childContainer.bindValue(API_URL_TOKEN, 'https://child-api.com')
-    
-    // Test in isolation
-    const service = await childContainer.get(UserService)
-    // ...
+    await container.clear()
   })
 })
 ```
@@ -357,35 +458,62 @@ container.bindValue(API_URL_TOKEN, 'https://test-api.com')
 
 ```typescript
 class TestContainer extends Container {
-  // Create a binding builder
-  bind<T>(token: InjectionToken<T, any>): TestBindingBuilder<T>
-  bind<T>(token: ClassType): TestBindingBuilder<T>
-
-  // Bind a value directly
-  bindValue<T>(token: InjectionToken<T, any>, value: T): TestContainer
-  bindValue<T>(token: ClassType, value: T): TestContainer
-
-  // Bind a class directly
-  bindClass<T>(token: InjectionToken<T, any>, target: ClassType): TestContainer
-  bindClass<T>(token: ClassType, target: ClassType): TestContainer
-
-  // Create an isolated child container
-  createChild(): TestContainer
-
-  // Clear all instances and bindings
+  // Binding API
+  bind<T>(token: InjectionToken<T, any> | ClassType): BindingBuilder<T>
+  
+  // Assertion helpers
+  expectResolved(token: AnyToken): void
+  expectNotResolved(token: AnyToken): void
+  expectSingleton(token: AnyToken): void
+  expectTransient(token: AnyToken): void
+  expectRequestScoped(token: AnyToken): void
+  expectInitialized(token: AnyToken): void
+  expectDestroyed(token: AnyToken): void
+  expectNotDestroyed(token: AnyToken): void
+  
+  // Method call tracking
+  recordMethodCall(token: AnyToken, method: string, args: any[], result?: any): void
+  expectCalled(token: AnyToken, method: string): void
+  expectCalledWith(token: AnyToken, method: string, args: any[]): void
+  expectCallCount(token: AnyToken, method: string, count: number): void
+  getMethodCalls(token: AnyToken): MethodCallRecord[]
+  getServiceStats(token: AnyToken): MockServiceStats
+  clearMethodCalls(): void
+  
+  // Dependency graph
+  getDependencyGraph(): DependencyGraph
+  getSimplifiedDependencyGraph(): DependencyGraph
+  
+  // Lifecycle
   clear(): Promise<void>
+}
+
+interface BindingBuilder<T> {
+  toValue(value: T): void
+  toClass<C extends new (...args: any[]) => T>(cls: C): void
+  toFactory(factory: () => T | Promise<T>): void
 }
 ```
 
-### TestBindingBuilder Methods
+### UnitTestContainer Methods
 
 ```typescript
-class TestBindingBuilder<T> {
-  // Bind to a specific value
-  toValue(value: T): TestContainer
-
-  // Bind to a class constructor
-  toClass(target: ClassType): TestContainer
+class UnitTestContainer extends Container {
+  constructor(options?: {
+    providers?: ProviderConfig[]
+    allowUnregistered?: boolean
+    logger?: Console | null
+  })
+  
+  // Auto-tracking assertions
+  expectCalled(token: AnyToken, method: string): void
+  expectCalledWith(token: AnyToken, method: string, args: any[]): void
+  expectNotCalled(token: AnyToken, method: string): void
+  expectAutoMocked(token: AnyToken): void
+  
+  // Auto-mocking
+  enableAutoMocking(): void
+  disableAutoMocking(): void
 }
 ```
 

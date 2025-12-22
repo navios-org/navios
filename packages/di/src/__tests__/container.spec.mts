@@ -2,26 +2,32 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { z } from 'zod/v4'
 
-import type {
-  Factorable,
-  FactorableWithArgs,
-} from '../interfaces/factory.interface.mjs'
-import type { FactoryContext } from '../internal/context/factory-context.mjs'
+import type { Factorable, FactorableWithArgs } from '../index.mjs'
+import type { ServiceInitializationContext } from '../internal/context/service-initialization-context.mjs'
 
-import { Container } from '../container/container.mjs'
-import { Factory } from '../decorators/factory.decorator.mjs'
-import { Injectable } from '../decorators/injectable.decorator.mjs'
-import { InjectableScope } from '../enums/injectable-scope.enum.mjs'
-import { getInjectors } from '../index.mjs'
-import { asyncInject, inject } from '../injectors.mjs'
-import { ServiceLocator } from '../internal/core/service-locator.mjs'
-import { InjectionToken } from '../token/injection-token.mjs'
-import { Registry } from '../token/registry.mjs'
+import {
+  asyncInject,
+  Container,
+  Factory,
+  getInjectableToken,
+  getInjectors,
+  inject,
+  Injectable,
+  InjectableScope,
+  InjectionToken,
+  Registry,
+} from '../index.mjs'
 
 describe('Container', () => {
   let container: Container
   let registry: Registry
-  let mockLogger: Console
+  let mockLogger: Console & {
+    log: ReturnType<typeof vi.fn>
+    error: ReturnType<typeof vi.fn>
+    warn: ReturnType<typeof vi.fn>
+    info: ReturnType<typeof vi.fn>
+    debug: ReturnType<typeof vi.fn>
+  }
 
   beforeEach(() => {
     registry = new Registry()
@@ -41,20 +47,9 @@ describe('Container', () => {
       expect(defaultContainer).toBeInstanceOf(Container)
     })
 
-    it('should create container with custom registry and logger', () => {
-      expect(container).toBeInstanceOf(Container)
-      expect(container.getServiceLocator()).toBeInstanceOf(ServiceLocator)
-    })
-
     it('should register itself in the container', async () => {
       const selfInstance = await container.get(Container)
       expect(selfInstance).toBe(container)
-    })
-
-    it('should return the same ServiceLocator instance', () => {
-      const serviceLocator1 = container.getServiceLocator()
-      const serviceLocator2 = container.getServiceLocator()
-      expect(serviceLocator1).toBe(serviceLocator2)
     })
   })
 
@@ -283,7 +278,7 @@ describe('Container', () => {
       it('should work with factory using context', async () => {
         @Factory({ registry })
         class ContextFactory implements Factorable<TestService> {
-          async create(ctx: FactoryContext) {
+          async create(ctx: ServiceInitializationContext) {
             const container = await ctx.inject(Container)
             return new TestService(container)
           }
@@ -642,6 +637,12 @@ describe('Container', () => {
       @Injectable({ registry })
       class TestService {}
 
+      try {
+        await container.get(ErrorFactory)
+      } catch (error) {
+        console.log(error)
+      }
+
       await expect(container.get(ErrorFactory)).rejects.toThrow('Factory error')
     })
 
@@ -959,11 +960,12 @@ describe('Container', () => {
 
       // Create 100 services
       for (let i = 0; i < 100; i++) {
-        @Injectable({ registry })
+        const token = InjectionToken.create<TestService>(`TestService${i}`)
+        @Injectable({ token, registry })
         class TestService {
           public id = i
         }
-        services.push(TestService)
+        services.push(token)
       }
 
       // Get all services
