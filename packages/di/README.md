@@ -488,6 +488,7 @@ const newService = await container.get(MyService)
 - `dispose(): Promise<void>` - Clean up all resources
 - `clear(): Promise<void>` - Clear all instances and bindings
 - `isRegistered(token: any): boolean` - Check if service is registered
+- `calculateInstanceName(token, args?): string | null` - Calculate the instance name for a token (returns null for unresolved factory tokens or validation errors)
 - `getRegistry(): Registry` - Get the registry
 - `beginRequest(requestId: string, metadata?, priority?): ScopedContainer` - Begin request context
 - `getActiveRequestIds(): ReadonlySet<string>` - Get active request IDs
@@ -511,6 +512,7 @@ const newService = await container.get(MyService)
 - `dispose(): Promise<void>` - Alias for endRequest()
 - `ready(): Promise<void>` - Wait for pending operations
 - `isRegistered(token: any): boolean` - Check if service is registered
+- `calculateInstanceName(token, args?): string | null` - Calculate the instance name for a token (returns null for unresolved factory tokens or validation errors)
 - `getMetadata(key: string): any` - Get request metadata
 - `setMetadata(key: string, value: any): void` - Set request metadata
 - `getRequestId(): string` - Get the request ID
