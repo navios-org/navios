@@ -194,9 +194,7 @@ export class Container extends AbstractContainer {
    * Disposes the container and cleans up all resources.
    */
   async dispose(): Promise<void> {
-    await this.serviceInvalidator.clearAllWithStorage(this.storage, {
-      maxRounds: 10,
-    })
+    await this.serviceInvalidator.clearAllWithStorage(this.storage)
   }
 
   /**
