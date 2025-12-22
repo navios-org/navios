@@ -1,21 +1,25 @@
 import type { z, ZodType } from 'zod/v4'
 
-import type { IContainer } from '../interfaces/container.interface.mjs'
 import type { Factorable } from '../interfaces/factory.interface.mjs'
 import type {
-  BoundInjectionToken,
   ClassType,
   ClassTypeWithArgument,
   FactoryInjectionToken,
-  InjectionToken,
   InjectionTokenSchemaType,
 } from '../token/injection-token.mjs'
 import type { Registry } from '../token/registry.mjs'
 import type { Join, UnionToArray } from '../utils/types.mjs'
+import type { NameResolver } from '../internal/core/name-resolver.mjs'
+import type { ServiceInvalidator } from '../internal/core/service-invalidator.mjs'
+import type { TokenResolver } from '../internal/core/token-resolver.mjs'
 
 import { InjectableScope } from '../enums/index.mjs'
-import { InstanceStatus } from '../internal/holder/instance-holder.mjs'
 import { UnifiedStorage } from '../internal/holder/unified-storage.mjs'
+import {
+  BoundInjectionToken,
+  InjectionToken,
+} from '../token/injection-token.mjs'
+import { AbstractContainer } from './abstract-container.mjs'
 import { Container } from './container.mjs'
 
 /**
@@ -26,7 +30,9 @@ import { Container } from './container.mjs'
  * This design eliminates race conditions that can occur with async operations
  * when multiple requests are processed concurrently.
  */
-export class ScopedContainer implements IContainer {
+export class ScopedContainer extends AbstractContainer {
+  protected readonly defaultScope = InjectableScope.Request
+
   private readonly storage: UnifiedStorage
   private disposed = false
   private readonly metadata: Record<string, any>
@@ -37,17 +43,39 @@ export class ScopedContainer implements IContainer {
     public readonly requestId: string,
     metadata?: Record<string, any>,
   ) {
+    super()
     // Create own unified storage for request-scoped services
     this.storage = new UnifiedStorage(InjectableScope.Request)
     this.metadata = metadata || {}
   }
 
-  /**
-   * Gets the storage for this scoped container.
-   */
+  // ============================================================================
+  // ABSTRACT METHOD IMPLEMENTATIONS - Delegate to parent
+  // ============================================================================
+
   getStorage(): UnifiedStorage {
     return this.storage
   }
+
+  protected getRegistry(): Registry {
+    return this.registry
+  }
+
+  protected getTokenResolver(): TokenResolver {
+    return this.parent.getTokenResolver()
+  }
+
+  protected getNameResolver(): NameResolver {
+    return this.parent.getNameResolver()
+  }
+
+  protected getServiceInvalidator(): ServiceInvalidator {
+    return this.parent.getServiceInvalidator()
+  }
+
+  // ============================================================================
+  // SCOPED CONTAINER SPECIFIC METHODS
+  // ============================================================================
 
   /**
    * Gets the request ID for this scoped container.
@@ -127,7 +155,7 @@ export class ScopedContainer implements IContainer {
     }
 
     // Check if this is a request-scoped service
-    const tokenResolver = this.parent.getTokenResolver()
+    const tokenResolver = this.getTokenResolver()
     const realToken = tokenResolver.getRegistryToken(token)
 
     if (this.registry.has(realToken)) {
@@ -169,16 +197,10 @@ export class ScopedContainer implements IContainer {
       return this.parent.invalidate(service)
     }
 
-    await this.parent
-      .getServiceInvalidator()
-      .invalidateWithStorage(holder.name, this.storage)
-  }
-
-  /**
-   * Checks if a service is registered in the container.
-   */
-  isRegistered(token: any): boolean {
-    return this.parent.isRegistered(token)
+    await this.getServiceInvalidator().invalidateWithStorage(
+      holder.name,
+      this.storage,
+    )
   }
 
   /**
@@ -190,45 +212,47 @@ export class ScopedContainer implements IContainer {
   }
 
   /**
-   * Waits for all pending operations to complete.
-   */
-  async ready(): Promise<void> {
-    await this.parent.getServiceInvalidator().readyWithStorage(this.storage)
-  }
-
-  /**
    * @internal
    * Attempts to get an instance synchronously if it already exists.
+   * Checks request storage first, then delegates to parent.
    */
-  tryGetSync<T>(token: any, args?: any): T | null {
-    // Check request storage first
-    const tokenResolver = this.parent.getTokenResolver()
+  override tryGetSync<T>(token: any, args?: any): T | null {
+    // Check request storage first for request-scoped services
+    const tokenResolver = this.getTokenResolver()
     const realToken = tokenResolver.getRegistryToken(token)
     const scope = this.registry.has(realToken)
       ? this.registry.get(realToken).scope
       : InjectableScope.Singleton
 
     if (scope === InjectableScope.Request) {
-      const instanceName = this.parent
-        .getNameResolver()
-        .generateInstanceName(
-          tokenResolver.normalizeToken(token),
-          args,
-          this.requestId,
-          scope,
-        )
-
-      const result = this.storage.get(instanceName)
-      if (result && result[0] === undefined && result[1]) {
-        const holder = result[1]
-        if (holder.status === InstanceStatus.Created) {
-          return holder.instance as T
-        }
+      const result = this.tryGetSyncFromStorage<T>(
+        token,
+        args,
+        this.storage,
+        this.requestId,
+      )
+      if (result !== null) {
+        return result
       }
     }
 
     // Delegate to parent for singleton/transient
     return this.parent.tryGetSync<T>(token, args, this.requestId)
+  }
+
+  /**
+   * Adds an instance to the container.
+   * Overrides base class to check disposed state.
+   */
+  override addInstance<T>(
+    token: ClassType | InjectionToken<T, any> | BoundInjectionToken<T, any>,
+    instance: T,
+  ): void {
+    if (this.disposed) {
+      throw new Error('ScopedContainer has been disposed')
+    }
+
+    super.addInstance(token, instance)
   }
 
   /**
@@ -242,7 +266,7 @@ export class ScopedContainer implements IContainer {
     this.disposed = true
 
     // Clear all request-scoped services
-    await this.parent.getServiceInvalidator().clearAllWithStorage(this.storage)
+    await this.getServiceInvalidator().clearAllWithStorage(this.storage)
 
     // Remove request ID from parent
     this.parent.removeRequestId(this.requestId)

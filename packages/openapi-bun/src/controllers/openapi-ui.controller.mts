@@ -1,5 +1,4 @@
-import type { StreamParams } from '@navios/core'
-import type { ClassType } from '@navios/di'
+import type { ClassType } from '@navios/core'
 
 import { builder } from '@navios/builder'
 import { Controller, inject, Stream } from '@navios/core'
@@ -35,10 +34,9 @@ export function createOpenApiUiController(
     private options = inject(OpenApiOptionsToken)
     private html: string | null = null
 
-    // @ts-expect-error - Stream decorator is not typed correctly
     @Stream(endpoint)
     @ApiStream({ contentType: 'text/html' })
-    async getUi(_params: StreamParams<typeof endpoint>) {
+    async getUi() {
       // Generate HTML on first request (lazy initialization)
       if (!this.html) {
         this.html = this.generateHtml()

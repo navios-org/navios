@@ -1,11 +1,9 @@
 import type { z, ZodType } from 'zod/v4'
 
-import type { IContainer } from '../interfaces/container.interface.mjs'
 import type { Factorable } from '../interfaces/factory.interface.mjs'
 import type {
   ClassType,
   ClassTypeWithArgument,
-  InjectionToken,
   InjectionTokenSchemaType,
 } from '../token/injection-token.mjs'
 import type { Registry } from '../token/registry.mjs'
@@ -21,16 +19,17 @@ import { ScopeTracker } from '../internal/core/scope-tracker.mjs'
 import { ServiceInitializer } from '../internal/core/service-initializer.mjs'
 import { ServiceInvalidator } from '../internal/core/service-invalidator.mjs'
 import { TokenResolver } from '../internal/core/token-resolver.mjs'
-import { InstanceStatus } from '../internal/holder/instance-holder.mjs'
 import { UnifiedStorage } from '../internal/holder/unified-storage.mjs'
 import { LifecycleEventBus } from '../internal/lifecycle/lifecycle-event-bus.mjs'
 import {
   BoundInjectionToken,
   FactoryInjectionToken,
+  InjectionToken,
 } from '../token/injection-token.mjs'
 import { globalRegistry } from '../token/registry.mjs'
 import { defaultInjectors } from '../utils/default-injectors.mjs'
 import { getInjectableToken } from '../utils/index.mjs'
+import { AbstractContainer } from './abstract-container.mjs'
 import { ScopedContainer } from './scoped-container.mjs'
 
 /**
@@ -41,7 +40,10 @@ import { ScopedContainer } from './scoped-container.mjs'
  * while request-scoped services require using beginRequest() to create a ScopedContainer.
  */
 @Injectable()
-export class Container implements IContainer {
+export class Container extends AbstractContainer {
+  protected readonly defaultScope = InjectableScope.Singleton
+  protected readonly requestId = undefined
+
   private readonly storage: UnifiedStorage
   private readonly serviceInitializer: ServiceInitializer
   private readonly serviceInvalidator: ServiceInvalidator
@@ -57,6 +59,7 @@ export class Container implements IContainer {
     protected readonly logger: Console | null = null,
     protected readonly injectors: Injectors = defaultInjectors,
   ) {
+    super()
     // Initialize components
     this.storage = new UnifiedStorage(InjectableScope.Singleton)
     this.eventBus = new LifecycleEventBus(logger)
@@ -188,14 +191,6 @@ export class Container implements IContainer {
   }
 
   /**
-   * Checks if a service is registered in the container.
-   */
-  isRegistered(token: any): boolean {
-    const realToken = this.tokenResolver.getRegistryToken(token)
-    return this.registry.has(realToken)
-  }
-
-  /**
    * Disposes the container and cleans up all resources.
    */
   async dispose(): Promise<void> {
@@ -205,42 +200,17 @@ export class Container implements IContainer {
   }
 
   /**
-   * Waits for all pending operations to complete.
-   */
-  async ready(): Promise<void> {
-    await this.serviceInvalidator.readyWithStorage(this.storage)
-  }
-
-  /**
    * @internal
    * Attempts to get an instance synchronously if it already exists.
+   * Overrides base class to support requestId parameter for ScopedContainer compatibility.
    */
-  tryGetSync<T>(token: any, args?: any, requestId?: string): T | null {
-    const realToken = this.tokenResolver.getRegistryToken(token)
-    const scope = this.registry.has(realToken)
-      ? this.registry.get(realToken).scope
-      : InjectableScope.Singleton
-
-    try {
-      const instanceName = this.nameResolver.generateInstanceName(
-        this.tokenResolver.normalizeToken(token),
-        args,
-        requestId,
-        scope,
-      )
-
-      const result = this.storage.get(instanceName)
-      if (result && result[0] === undefined && result[1]) {
-        const holder = result[1]
-        if (holder.status === InstanceStatus.Created) {
-          return holder.instance as T
-        }
-      }
-    } catch {
-      // Ignore error
-    }
-
-    return null
+  override tryGetSync<T>(token: any, args?: any, requestId?: string): T | null {
+    return this.tryGetSyncFromStorage(
+      token,
+      args,
+      this.storage,
+      requestId ?? this.requestId,
+    )
   }
 
   /**

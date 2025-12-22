@@ -15,11 +15,19 @@
         "cwd": "lab-packages/di-experimental"
       }
     },
+    "test:ci": {
+      "executor": "nx:run-commands",
+      "inputs": ["^projectSources", "project"],
+      "options": {
+        "command": "vitest run",
+        "cwd": "lab-packages/di-experimental"
+      }
+    },
     "build": {
       "executor": "nx:run-commands",
       "inputs": ["projectSources", "{projectRoot}/tsdown.config.mts"],
       "outputs": ["{projectRoot}/lib"],
-      "dependsOn": ["check"],
+      "dependsOn": ["check", "test:ci"],
       "options": {
         "command": "tsdown",
         "cwd": "lab-packages/di-experimental"
@@ -43,4 +51,3 @@
     }
   }
 }
-

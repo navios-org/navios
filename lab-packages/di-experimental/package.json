@@ -20,8 +20,19 @@
         "types": "./lib/index.d.cts",
         "default": "./lib/index.cjs"
       }
+    },
+    "./testing": {
+      "import": {
+        "types": "./lib/testing/index.d.mts",
+        "default": "./lib/testing/index.mjs"
+      },
+      "require": {
+        "types": "./lib/testing/index.d.cts",
+        "default": "./lib/testing/index.cjs"
+      }
     }
   },
+  "sideEffects": false,
   "peerDependencies": {
     "zod": "^3.25.0 || ^4.0.0"
   },
@@ -31,4 +42,3 @@
     "zod": "^4.2.1"
   }
 }
-

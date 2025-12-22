@@ -1,5 +1,4 @@
-import type { EndpointParams, EndpointResult } from '@navios/core'
-import type { ClassType } from '@navios/di'
+import type { ClassType, EndpointResult } from '@navios/core'
 
 import { builder } from '@navios/builder'
 import { Controller, Endpoint, inject } from '@navios/core'
@@ -37,9 +36,7 @@ export function createOpenApiJsonController(jsonPath: string): ClassType {
     private documentService = inject(OpenApiDocumentServiceToken)
 
     @Endpoint(endpoint)
-    async getJson(
-      _params: EndpointParams<typeof endpoint>,
-    ): EndpointResult<typeof endpoint> {
+    async getJson(): EndpointResult<typeof endpoint> {
       return this.documentService.getDocument() as unknown as Record<
         string,
         unknown

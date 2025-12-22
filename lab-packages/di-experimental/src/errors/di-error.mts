@@ -8,6 +8,8 @@ export enum DIErrorCode {
   InstanceDestroying = 'InstanceDestroying',
   CircularDependency = 'CircularDependency',
   TokenValidationError = 'TokenValidationError',
+  TokenSchemaRequiredError = 'TokenSchemaRequiredError',
+  ClassNotInjectable = 'ClassNotInjectable',
   ScopeMismatchError = 'ScopeMismatchError',
   PriorityConflictError = 'PriorityConflictError',
   StorageError = 'StorageError',
@@ -89,10 +91,25 @@ export class DIError extends Error {
     schema: InjectionTokenSchemaType | undefined,
     value: unknown,
   ): DIError {
+    return new DIError(DIErrorCode.TokenValidationError, message, {
+      schema,
+      value,
+    })
+  }
+
+  static tokenSchemaRequiredError(token: string | symbol | unknown): DIError {
     return new DIError(
-      DIErrorCode.TokenValidationError,
-      message,
-      { schema, value },
+      DIErrorCode.TokenSchemaRequiredError,
+      `Token ${token?.toString() ?? 'unknown'} requires schema arguments and cannot be used with addInstance. Use BoundInjectionToken or provide arguments when resolving.`,
+      { token },
+    )
+  }
+
+  static classNotInjectable(className: string): DIError {
+    return new DIError(
+      DIErrorCode.ClassNotInjectable,
+      `Class ${className} is not decorated with @Injectable.`,
+      { className },
     )
   }
 
@@ -124,11 +141,10 @@ export class DIError extends Error {
     operation: string,
     instanceName?: string,
   ): DIError {
-    return new DIError(
-      DIErrorCode.StorageError,
-      `Storage error: ${message}`,
-      { operation, instanceName },
-    )
+    return new DIError(DIErrorCode.StorageError, `Storage error: ${message}`, {
+      operation,
+      instanceName,
+    })
   }
 
   static initializationError(
@@ -154,4 +170,3 @@ export class DIError extends Error {
     )
   }
 }
-

@@ -1,11 +1,11 @@
 import type {
+  ClassType,
   NaviosPlugin,
   PluginContext,
   PluginDefinition,
 } from '@navios/core'
-import type { ClassType } from '@navios/di'
 
-import { InjectableScope, InjectableType } from '@navios/di'
+import { InjectableScope, InjectableType } from '@navios/core'
 
 import type { ScalarOptions, ScalarTheme } from './schemas/index.mjs'
 import type { BunOpenApiPluginOptions } from './tokens/openapi-options.token.mjs'

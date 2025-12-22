@@ -1,5 +1,3 @@
-import { z } from 'zod/v4'
-
 import type {
   BaseInjectionTokenSchemaType,
   ClassType,
@@ -14,10 +12,12 @@ import type {
 } from '../token/injection-token.mjs'
 import type { Registry } from '../token/registry.mjs'
 
+import { z } from 'zod/v4'
+
 import { InjectableScope, InjectableType } from '../enums/index.mjs'
+import { InjectableTokenMeta } from '../symbols/index.mjs'
 import { InjectionToken } from '../token/injection-token.mjs'
 import { globalRegistry } from '../token/registry.mjs'
-import { InjectableTokenMeta } from '../symbols/index.mjs'
 
 export interface InjectableOptions {
   scope?: InjectableScope

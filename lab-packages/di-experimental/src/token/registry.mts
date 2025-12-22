@@ -114,7 +114,10 @@ export class Registry {
    * @param scope The new scope to set
    * @returns true if the scope was updated, false if the token was not found
    */
-  updateScope(token: InjectionToken<any, any>, scope: InjectableScope): boolean {
+  updateScope(
+    token: InjectionToken<any, any>,
+    scope: InjectableScope,
+  ): boolean {
     const records = this.factories.get(token.id)
     if (records && records.length > 0) {
       // Update all records
@@ -135,5 +138,4 @@ export class Registry {
   }
 }
 
-export const globalRegistry = new Registry()
-
+export const globalRegistry = /* #__PURE__ */ new Registry()

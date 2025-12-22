@@ -1,2 +1,3 @@
-export const InjectableTokenMeta = Symbol.for('InjectableTokenMeta')
-
+export const InjectableTokenMeta = /* #__PURE__ */ Symbol.for(
+  'InjectableTokenMeta',
+)

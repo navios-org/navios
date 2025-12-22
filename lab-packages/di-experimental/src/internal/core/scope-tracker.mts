@@ -4,8 +4,8 @@ import type { IHolderStorage } from '../holder/holder-storage.interface.mjs'
 
 import { InjectableScope as Scope } from '../../enums/index.mjs'
 import { DIError } from '../../errors/index.mjs'
-import { Registry } from '../../token/registry.mjs'
 import { InstanceStatus } from '../holder/instance-holder.mjs'
+import { Registry } from '../../token/registry.mjs'
 import { NameResolver } from './name-resolver.mjs'
 
 /**

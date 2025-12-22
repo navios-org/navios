@@ -1,5 +1,4 @@
-import type { StreamParams } from '@navios/core'
-import type { ClassType } from '@navios/di'
+import type { ClassType } from '@navios/core'
 
 import { builder } from '@navios/builder'
 import { Controller, inject, Stream } from '@navios/core'
@@ -27,10 +26,9 @@ export function createOpenApiYamlController(yamlPath: string): ClassType {
   class OpenApiYamlController {
     private documentService = inject(OpenApiDocumentServiceToken)
 
-    // @ts-expect-error - Stream decorator is not typed correctly
     @Stream(endpoint)
     @ApiStream({ contentType: 'text/yaml' })
-    async getYaml(_params: StreamParams<typeof endpoint>) {
+    async getYaml() {
       const yaml = this.documentService.getYamlDocument()
 
       // Return a Response with proper content-type

@@ -1,3 +1,4 @@
+import type { OnServiceDestroy } from '../../interfaces/index.mjs'
 import type {
   HolderGetResult,
   IHolderStorage,
@@ -121,7 +122,12 @@ export class UnifiedStorage implements IHolderStorage {
       type: InjectableType.Class,
       scope: this.scope,
       deps: new Set(),
-      destroyListeners: [],
+      destroyListeners:
+        typeof instance === 'object' &&
+        instance !== null &&
+        'onServiceDestroy' in instance
+          ? [(instance as OnServiceDestroy).onServiceDestroy]
+          : [],
       createdAt: Date.now(),
       waitingFor: new Set(),
     })
