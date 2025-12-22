@@ -1,4 +1,4 @@
-import type { ClassType } from '@navios/core'
+import type { ClassType, Registry } from '@navios/core'
 import type { ZodObject } from 'zod'
 
 import { Injectable, InjectableScope, InjectionToken } from '@navios/core'
@@ -21,6 +21,16 @@ export interface CommandOptions {
    * If provided, options will be validated and parsed according to this schema.
    */
   optionsSchema?: ZodObject
+  /**
+   * Priority level for the command.
+   * Higher priority commands will be loaded first.
+   */
+  priority?: number
+  /**
+   * Registry to use for the command.
+   * Registry is used to store the command and its options schema.
+   */
+  registry?: Registry
 }
 
 /**
@@ -53,7 +63,12 @@ export interface CommandOptions {
  * }
  * ```
  */
-export function Command({ path, optionsSchema }: CommandOptions) {
+export function Command({
+  path,
+  optionsSchema,
+  priority,
+  registry,
+}: CommandOptions) {
   return function (target: ClassType, context: ClassDecoratorContext) {
     if (context.kind !== 'class') {
       throw new Error(
@@ -67,6 +82,8 @@ export function Command({ path, optionsSchema }: CommandOptions) {
     return Injectable({
       token,
       scope: InjectableScope.Singleton,
+      priority,
+      registry,
     })(target, context)
   }
 }

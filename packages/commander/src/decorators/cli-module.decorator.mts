@@ -1,4 +1,4 @@
-import type { ClassType } from '@navios/core'
+import type { ClassType, Registry } from '@navios/core'
 
 import { Injectable, InjectableScope, InjectionToken } from '@navios/core'
 
@@ -20,6 +20,16 @@ export interface CliModuleOptions {
    * Imported modules' commands will be available in this module.
    */
   imports?: ClassType[] | Set<ClassType>
+  /**
+   * Priority level for the module.
+   * Higher priority modules will be loaded first.
+   */
+  priority?: number
+  /**
+   * Registry to use for the module.
+   * Registry is used to store the module and its commands.
+   */
+  registry?: Registry
 }
 
 /**
@@ -45,7 +55,7 @@ export interface CliModuleOptions {
  * ```
  */
 export function CliModule(
-  { commands = [], imports = [] }: CliModuleOptions = {
+  { commands = [], imports = [], priority, registry }: CliModuleOptions = {
     commands: [],
     imports: [],
   },
@@ -69,6 +79,8 @@ export function CliModule(
     return Injectable({
       token,
       scope: InjectableScope.Singleton,
+      priority,
+      registry,
     })(target, context)
   }
 }

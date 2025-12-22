@@ -1,6 +1,6 @@
 import type { ClassTypeWithInstance, NaviosModule } from '@navios/core'
 
-import { Container, inject, Injectable } from '@navios/core'
+import { Container, getInjectableToken, inject, Injectable } from '@navios/core'
 
 import type { CommandHandler } from '../interfaces/index.mjs'
 import type { CliModuleMetadata, CommandMetadata } from '../metadata/index.mjs'
@@ -65,7 +65,8 @@ export class CliModuleLoaderService {
     if (parentMetadata) {
       this.mergeMetadata(metadata, parentMetadata)
     }
-    const moduleName = module.name
+    const moduleToken = getInjectableToken(module)
+    const moduleName = moduleToken.id
     if (this.modulesMetadata.has(moduleName)) {
       return
     }
