@@ -282,50 +282,6 @@ function Analytics() {
 }
 ```
 
-### useInvalidate
-
-Get a function to invalidate a service by its token. When called, this will destroy the current service instance and trigger re-fetch in all components using `useService`/`useSuspenseService` for that token.
-
-```tsx
-import { useService, useInvalidate } from '@navios/di-react'
-
-function UserProfile() {
-  const { data: user } = useService(UserService)
-  const invalidateUser = useInvalidate(UserService)
-
-  const handleRefresh = () => {
-    invalidateUser() // All components using UserService will re-fetch
-  }
-
-  return (
-    <div>
-      <span>{user?.name}</span>
-      <button onClick={handleRefresh}>Refresh</button>
-    </div>
-  )
-}
-```
-
-#### With Arguments
-
-```tsx
-import { useMemo } from 'react'
-import { useService, useInvalidate } from '@navios/di-react'
-
-function UserProfile({ userId }: { userId: string }) {
-  const args = useMemo(() => ({ userId }), [userId])
-  const { data: user } = useService(UserToken, args)
-  const invalidateUser = useInvalidate(UserToken, args)
-
-  return (
-    <div>
-      <span>{user?.name}</span>
-      <button onClick={() => invalidateUser()}>Refresh</button>
-    </div>
-  )
-}
-```
-
 ### useInvalidateInstance
 
 Invalidate a service instance directly without knowing its token.
@@ -441,7 +397,7 @@ function ChildComponent() {
 
 ## Service Invalidation
 
-Both `useService` and `useSuspenseService` automatically subscribe to service invalidation events via the DI container's event bus. When a service is invalidated (e.g., via `container.invalidate(service)` or `useInvalidate`), the hooks will automatically:
+Both `useService` and `useSuspenseService` automatically subscribe to service invalidation events via the DI container's event bus. When a service is invalidated (e.g., via `container.invalidate(service)` or `useInvalidateInstance`), the hooks will automatically:
 
 1. Clear the cached instance
 2. Re-fetch the service
@@ -456,11 +412,13 @@ This enables reactive updates when services change, making it easy to implement 
 ```tsx
 function UserList() {
   const { data: users } = useService(UserService)
-  const invalidateUsers = useInvalidate(UserService)
+  const invalidateInstance = useInvalidateInstance()
 
   const handleCreateUser = async () => {
     await createUser(newUser)
-    invalidateUsers() // Automatically refreshes all components using UserService
+    if (users) {
+      invalidateInstance(users) // Automatically refreshes all components using UserService
+    }
   }
 
   return (
@@ -640,18 +598,6 @@ interface UseOptionalServiceResult<T> {
 
 Loads a service that may not be registered. Returns `isNotFound: true` when the service doesn't exist instead of throwing an error.
 
-### useInvalidate
-
-```ts
-function useInvalidate<T>(token: ClassType): () => Promise<void>
-function useInvalidate<T, S>(
-  token: InjectionToken<T, S>,
-  args: S extends undefined ? never : unknown,
-): () => Promise<void>
-```
-
-Returns a function to invalidate a service by its token. When called, destroys the current service instance and triggers re-fetch in all components using `useService`/`useSuspenseService` for that token.
-
 ### useInvalidateInstance
 
 ```ts
@@ -739,17 +685,18 @@ Make sure you've wrapped your component with both `Suspense` and an error bounda
 
 ### Services not invalidating
 
-Ensure you're using the same token/args combination when invalidating:
+When using `useInvalidateInstance`, make sure you have a reference to the service instance:
 
 ```tsx
-// ✅ Good - same args
-const args = useMemo(() => ({ userId }), [userId])
-const { data } = useService(UserToken, args)
-const invalidate = useInvalidate(UserToken, args)
+// ✅ Good - invalidate the actual instance
+const { data: user } = useService(UserService)
+const invalidateInstance = useInvalidateInstance()
 
-// ❌ Bad - different args
-const { data } = useService(UserToken, { userId: '1' })
-const invalidate = useInvalidate(UserToken, { userId: '2' }) // Won't invalidate the first one
+const handleRefresh = () => {
+  if (user) {
+    invalidateInstance(user)
+  }
+}
 ```
 
 ## License

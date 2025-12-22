@@ -5,6 +5,51 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.0] - 2025-12-23
+
+### Breaking Changes
+
+- **BREAKING**: Removed `useInvalidate` hook
+  - This hook relied on the `ServiceLocator` API which was removed in `@navios/di` 0.9.0
+  - **Migration**: Use `useInvalidateInstance` instead, which invalidates by instance reference
+  - Alternative: Use `container.invalidate(instance)` directly via `useContainer()`
+
+  ```tsx
+  // Before (0.8.x)
+  const invalidateUser = useInvalidate(UserService)
+  invalidateUser()
+
+  // After (0.9.0) - Option 1: useInvalidateInstance
+  const { data: user } = useService(UserService)
+  const invalidateInstance = useInvalidateInstance()
+  invalidateInstance(user)
+
+  // After (0.9.0) - Option 2: Direct container access
+  const container = useContainer()
+  const { data: user } = useService(UserService)
+  await container.invalidate(user)
+  ```
+
+### Changed
+
+- **Simplified Instance Name Generation**: Refactored all hooks to use the new `container.calculateInstanceName()` method
+  - Removed direct access to internal DI components (`getTokenResolver()`, `getNameResolver()`)
+  - Cleaner, more maintainable code with less coupling to DI internals
+- **Improved Event Subscription Setup**: Fixed race conditions in invalidation subscription
+  - `useOptionalService`: Removed `setTimeout` hack, now properly awaits service fetch before subscribing
+  - `useService`: Simplified subscription logic with proper null checks
+  - `useSuspenseService`: Streamlined instance name calculation
+
+### Fixed
+
+- **Instance Name Generation**: Fixed edge cases where instance names could be incorrectly calculated
+  - Now properly handles cases where `calculateInstanceName` returns null
+  - Prevents potential subscription errors with undefined instance names
+
+### Dependencies
+
+- Updated to support `@navios/di` ^0.9.0 with new unified storage architecture
+
 ## [0.8.0] - 2025-12-21
 
 ### Dependencies
