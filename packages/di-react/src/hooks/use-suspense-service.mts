@@ -9,7 +9,6 @@ import type {
 } from '@navios/di'
 import type { z, ZodType } from 'zod/v4'
 
-import { InjectableScope, ScopedContainer } from '@navios/di'
 
 import { useCallback, useEffect, useRef, useSyncExternalStore } from 'react'
 
@@ -140,20 +139,7 @@ export function useSuspenseService(
     // This avoids suspense when the instance is already cached
     const syncInstance = container.tryGetSync(token, args)
 
-    const realToken = rootContainer
-      .getTokenResolver()
-      .getRealToken(rootContainer.getTokenResolver().normalizeToken(token))
-    const scope = rootContainer.getRegistry().get(realToken).scope
-    const instanceName = rootContainer
-      .getNameResolver()
-      .generateInstanceName(
-        realToken,
-        args,
-        scope === InjectableScope.Request
-          ? ((container as ScopedContainer).getRequestId() ?? undefined)
-          : undefined,
-        scope,
-      )
+    const instanceName = container.calculateInstanceName(token, args)
     const entry: CacheEntry<any> = {
       promise: null,
       result: syncInstance ?? undefined,

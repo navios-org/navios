@@ -6,11 +6,8 @@ import type {
   FactoryInjectionToken,
   InjectionToken,
   InjectionTokenSchemaType,
-  ScopedContainer,
 } from '@navios/di'
 import type { z, ZodType } from 'zod/v4'
-
-import { InjectableScope } from '@navios/di'
 
 import { useCallback, useEffect, useReducer, useRef, useState } from 'react'
 
@@ -165,32 +162,23 @@ export function useService(
         if (!isMounted) return
 
         // Get instance name for event subscription
-        const realToken = rootContainer
-          .getTokenResolver()
-          .getRealToken(rootContainer.getTokenResolver().normalizeToken(token))
-        const scope = rootContainer.getRegistry().get(realToken).scope
-        const instanceName = rootContainer
-          .getNameResolver()
-          .generateInstanceName(
-            realToken,
-            args,
-            scope === InjectableScope.Request
-              ? ((container as ScopedContainer).getRequestId() ?? undefined)
-              : undefined,
-            scope,
-          )
-        instanceNameRef.current = instanceName
+        const instanceName = container.calculateInstanceName(token, args)
+        if (instanceName) {
+          instanceNameRef.current = instanceName
+        }
 
         dispatch({ type: 'success', data: instance })
 
         // Set up subscription after we have the instance
-        unsubscribe = eventBus.on(instanceName, 'destroy', () => {
-          // Re-fetch when the service is invalidated
-          if (isMounted) {
-            dispatch({ type: 'loading' })
-            void fetchAndSubscribe()
-          }
-        })
+        if (instanceName) {
+          unsubscribe = eventBus.on(instanceName, 'destroy', () => {
+            // Re-fetch when the service is invalidated
+            if (isMounted) {
+              dispatch({ type: 'loading' })
+              void fetchAndSubscribe()
+            }
+          })
+        }
       } catch (error) {
         if (isMounted) {
           dispatch({ type: 'error', error: error as Error })
@@ -202,27 +190,16 @@ export function useService(
     // Otherwise, fetch async
     const syncInstance = initialSyncInstanceRef.current
     if (syncInstance && refetchCounter === 0) {
-      const realToken = rootContainer
-        .getTokenResolver()
-        .getRealToken(rootContainer.getTokenResolver().normalizeToken(token))
-      const scope = rootContainer.getRegistry().get(realToken).scope
-      const instanceName = rootContainer
-        .getNameResolver()
-        .generateInstanceName(
-          realToken,
-          args,
-          scope === InjectableScope.Request
-            ? ((container as ScopedContainer).getRequestId() ?? undefined)
-            : undefined,
-          scope,
-        )
-      instanceNameRef.current = instanceName
-      unsubscribe = eventBus.on(instanceName, 'destroy', () => {
-        if (isMounted) {
-          dispatch({ type: 'loading' })
-          void fetchAndSubscribe()
-        }
-      })
+      const instanceName = container.calculateInstanceName(token, args)
+      if (instanceName) {
+        instanceNameRef.current = instanceName
+        unsubscribe = eventBus.on(instanceName, 'destroy', () => {
+          if (isMounted) {
+            dispatch({ type: 'loading' })
+            void fetchAndSubscribe()
+          }
+        })
+      }
     } else {
       dispatch({ type: 'loading' })
       void fetchAndSubscribe()

@@ -63,6 +63,19 @@ export interface IContainer {
   isRegistered(token: any): boolean
 
   /**
+   * Adds an instance to the container.
+   * Accepts class types, InjectionTokens, and BoundInjectionTokens.
+   * Rejects InjectionTokens with required schemas (use BoundInjectionToken instead).
+   *
+   * @param token The class type, InjectionToken, or BoundInjectionToken to register the instance for
+   * @param instance The instance to store
+   */
+  addInstance<T>(
+    token: ClassType | InjectionToken<T, any> | BoundInjectionToken<T, any>,
+    instance: T,
+  ): void
+
+  /**
    * Disposes the container and cleans up all resources.
    */
   dispose(): Promise<void>
@@ -80,4 +93,3 @@ export interface IContainer {
    */
   tryGetSync<T>(token: any, args?: any): T | null
 }
-

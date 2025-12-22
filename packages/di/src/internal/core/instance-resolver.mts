@@ -276,12 +276,7 @@ export class InstanceResolver {
     }
 
     // Get the real token for registry lookup
-    const realToken =
-      actualToken instanceof BoundInjectionToken ||
-      actualToken instanceof FactoryInjectionToken
-        ? actualToken.token
-        : actualToken
-
+    const realToken = this.tokenResolver.getRealToken(actualToken)
     // Get scope from registry
     const record = this.registry.get(realToken)
     const scope = record.scope

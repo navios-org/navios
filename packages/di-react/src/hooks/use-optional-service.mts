@@ -9,8 +9,6 @@ import type {
 } from '@navios/di'
 import type { z, ZodType } from 'zod/v4'
 
-import { InjectableScope, ScopedContainer } from '@navios/di'
-
 import { useCallback, useEffect, useReducer, useRef } from 'react'
 
 import type { Join, UnionToArray } from '../types.mjs'
@@ -207,23 +205,11 @@ export function useOptionalService(
         token as AnyInjectableType,
         args as any,
       )
-      const realToken = rootContainer
-        .getTokenResolver()
-        .getRealToken(rootContainer.getTokenResolver().normalizeToken(token))
-      const scope = rootContainer.getRegistry().get(realToken).scope
-      const instanceName = rootContainer
-        .getNameResolver()
-        .generateInstanceName(
-          realToken,
-          args,
-          scope === InjectableScope.Request
-            ? ((container as ScopedContainer).getRequestId() ?? undefined)
-            : undefined,
-          scope,
-        )
-
       // Get instance name for event subscription
-      instanceNameRef.current = instanceName
+      const instanceName = container.calculateInstanceName(token, args)
+      if (instanceName) {
+        instanceNameRef.current = instanceName
+      }
       dispatch({ type: 'success', data: instance })
     } catch (error) {
       // Caught exceptions are treated as errors
@@ -239,7 +225,7 @@ export function useOptionalService(
         dispatch({ type: 'error', error: err })
       }
     }
-  }, [container, rootContainer, token, args])
+  }, [container, token, args])
 
   // Subscribe to invalidation events
   useEffect(() => {
@@ -250,43 +236,25 @@ export function useOptionalService(
     // Otherwise, fetch async
     const syncInstance = initialSyncInstanceRef.current
     if (syncInstance) {
-      const realToken = rootContainer
-        .getTokenResolver()
-        .getRealToken(rootContainer.getTokenResolver().normalizeToken(token))
-      const scope = rootContainer.getRegistry().get(realToken).scope
-      const instanceName = rootContainer
-        .getNameResolver()
-        .generateInstanceName(
-          realToken,
-          args,
-          scope === InjectableScope.Request
-            ? ((container as ScopedContainer).getRequestId() ?? undefined)
-            : undefined,
-          scope,
-        )
-
-      instanceNameRef.current = instanceName
-      unsubscribe = eventBus.on(instanceNameRef.current, 'destroy', () => {
-        void fetchService()
-      })
+      const instanceName = container.calculateInstanceName(token, args)
+      if (instanceName) {
+        instanceNameRef.current = instanceName
+        unsubscribe = eventBus.on(instanceName, 'destroy', () => {
+          // Re-fetch when the service is invalidated
+          void fetchService()
+        })
+      }
     } else {
-      void fetchService()
-
-      // Set up subscription after we have the instance name
-      const setupSubscription = () => {
+      void fetchService().then(() => {
         if (instanceNameRef.current) {
           unsubscribe = eventBus.on(instanceNameRef.current, 'destroy', () => {
             // Re-fetch when the service is invalidated
             void fetchService()
           })
         }
-      }
-
-      // Wait a tick for the instance name to be set
-      const timeoutId = setTimeout(setupSubscription, 10)
+      })
 
       return () => {
-        clearTimeout(timeoutId)
         unsubscribe?.()
       }
     }

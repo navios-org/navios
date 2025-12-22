@@ -2,25 +2,25 @@ import type { z, ZodType } from 'zod/v4'
 
 import type { IContainer } from '../interfaces/container.interface.mjs'
 import type { Factorable } from '../interfaces/factory.interface.mjs'
+import type { NameResolver } from '../internal/core/name-resolver.mjs'
+import type { ServiceInvalidator } from '../internal/core/service-invalidator.mjs'
+import type { TokenResolver } from '../internal/core/token-resolver.mjs'
 import type {
   ClassType,
   ClassTypeWithArgument,
-  FactoryInjectionToken,
   InjectionTokenSchemaType,
 } from '../token/injection-token.mjs'
 import type { Registry } from '../token/registry.mjs'
 import type { Join, UnionToArray } from '../utils/types.mjs'
-import type { NameResolver } from '../internal/core/name-resolver.mjs'
-import type { ServiceInvalidator } from '../internal/core/service-invalidator.mjs'
-import type { TokenResolver } from '../internal/core/token-resolver.mjs'
 
 import { InjectableScope, InjectableType } from '../enums/index.mjs'
-import { DIError } from '../errors/index.mjs'
+import { DIError, DIErrorCode } from '../errors/index.mjs'
 import { InstanceStatus } from '../internal/holder/instance-holder.mjs'
 import { UnifiedStorage } from '../internal/holder/unified-storage.mjs'
 import { StubFactoryClass } from '../internal/index.mjs'
 import {
   BoundInjectionToken,
+  FactoryInjectionToken,
   InjectionToken,
 } from '../token/injection-token.mjs'
 
@@ -118,6 +118,65 @@ export abstract class AbstractContainer implements IContainer {
   // ============================================================================
   // SHARED IMPLEMENTATIONS
   // ============================================================================
+
+  /**
+   * Calculates the instance name for a given token and optional arguments.
+   *
+   * @internal
+   * @param token The class type, InjectionToken, BoundInjectionToken, or FactoryInjectionToken
+   * @param args Optional arguments (ignored for BoundInjectionToken which uses its bound value)
+   * @returns The calculated instance name string, or null if the token is a FactoryInjectionToken that is not yet resolved
+   */
+  calculateInstanceName(
+    token:
+      | ClassType
+      | InjectionToken<any, any>
+      | BoundInjectionToken<any, any>
+      | FactoryInjectionToken<any, any>,
+    args?: unknown,
+  ): string | null {
+    const tokenResolver = this.getTokenResolver()
+
+    // Use validateAndResolveTokenArgs to handle token normalization and arg resolution
+    const [err, { actualToken, validatedArgs }] =
+      tokenResolver.validateAndResolveTokenArgs(token, args)
+
+    if (err) {
+      // Return null if factory token is not resolved
+      if (
+        err instanceof DIError &&
+        err.code === DIErrorCode.FactoryTokenNotResolved
+      ) {
+        return null
+      }
+
+      // Return null if validation fails (can't calculate name with invalid args)
+      if (
+        err instanceof DIError &&
+        err.code === DIErrorCode.TokenValidationError
+      ) {
+        return null
+      }
+    }
+
+    // Get the real token for registry lookup to determine scope
+    const realToken = this.getTokenResolver().getRealToken(actualToken)
+
+    const registry = this.getRegistry()
+
+    // Get scope from registry, or use default scope if not registered
+    const scope = registry.has(realToken)
+      ? registry.get(realToken).scope
+      : this.defaultScope
+
+    // Generate instance name using the name resolver with actual token and validated args
+    return this.getNameResolver().generateInstanceName(
+      actualToken,
+      validatedArgs,
+      scope === InjectableScope.Request ? this.requestId : undefined,
+      scope,
+    )
+  }
 
   /**
    * Checks if a service is registered in the container.

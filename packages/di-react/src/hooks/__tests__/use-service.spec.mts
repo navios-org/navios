@@ -79,7 +79,7 @@ describe('useService', () => {
       expect(result.current.isSuccess).toBe(false)
     })
 
-    it.skip('should refetch service when refetch is called', async () => {
+    it('should refetch service when refetch is called', async () => {
       let callCount = 0
 
       @Injectable({ registry })
