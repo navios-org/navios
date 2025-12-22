@@ -30,28 +30,29 @@ export default defineConfig({
 
 ## Testing Module
 
-The `createTestingModule` function sets up test environments with mock dependencies.
+The `TestingModule.create()` method sets up test environments with mock dependencies. It provides a fluent API for overriding providers and comprehensive assertion helpers.
 
 ### Basic Usage
 
 ```typescript
 import { defineFastifyEnvironment } from '@navios/adapter-fastify'
-import { createTestingModule } from '@navios/core/testing'
+import { TestingModule } from '@navios/core/testing'
 
 describe('AppModule', () => {
   it('should create application with mocked dependencies', async () => {
     const mockDatabase = { query: vi.fn().mockResolvedValue([]) }
 
-    const testingModule = createTestingModule(AppModule, {
+    const module = await TestingModule.create(AppModule, {
       adapter: defineFastifyEnvironment(),
     })
       .overrideProvider(DatabaseService)
       .useValue(mockDatabase)
+      .init()
 
-    const app = await testingModule.compile()
-    expect(app).toBeDefined()
+    const userService = await module.get(UserService)
+    expect(userService).toBeDefined()
 
-    await testingModule.close()
+    await module.close()
   })
 })
 ```
@@ -60,26 +61,110 @@ describe('AppModule', () => {
 
 | Method | Description |
 |--------|-------------|
+| `TestingModule.create(AppModule, options)` | Create a new testing module |
 | `overrideProvider(token).useValue(mock)` | Replace a service with a mock value |
 | `overrideProvider(token).useClass(MockClass)` | Replace with a mock class |
-| `compile()` | Compile and return the NaviosApplication |
-| `init()` | Compile and initialize (equivalent to compile + app.init) |
+| `compile()` | Compile the module (returns `this` for chaining) |
+| `init()` | Compile and initialize with request scope (returns `this` for chaining) |
+| `getApp()` | Get the compiled NaviosApplication |
+| `getContainer()` | Get the underlying TestContainer |
+| `getScopedContainer()` | Get the request-scoped container (after `init()`) |
 | `get(token)` | Get an instance from the container |
 | `close()` | Clean up resources |
 
+### Assertion Helpers
+
+TestingModule delegates assertion helpers from TestContainer:
+
+```typescript
+const module = await TestingModule.create(AppModule).init()
+
+// Service resolution assertions
+module.expectResolved(UserService)
+module.expectNotResolved(UnusedService)
+
+// Scope assertions
+module.expectSingleton(DatabaseService)
+module.expectTransient(RequestLogger)
+module.expectRequestScoped(SessionService)
+
+// Method call assertions (requires recordMethodCall)
+module.expectCalled(UserService, 'findById')
+module.expectCalledWith(UserService, 'findById', ['123'])
+module.expectCallCount(UserService, 'findById', 2)
+
+// Dependency graph for debugging
+const graph = module.getDependencyGraph()
+const simplified = module.getSimplifiedDependencyGraph()
+```
+
 ## Unit Testing
 
-### Testing Services
+### Using UnitTestingModule
+
+For isolated unit tests without full module loading, use `UnitTestingModule`. It automatically tracks all method calls via proxies:
+
+```typescript
+import { UnitTestingModule } from '@navios/core/testing'
+
+describe('UserService', () => {
+  it('should find user by id', async () => {
+    const mockDatabase = {
+      users: {
+        findUnique: vi.fn().mockResolvedValue({ id: '1', name: 'John' }),
+      },
+    }
+
+    const module = UnitTestingModule.create({
+      providers: [
+        { token: UserService, useClass: UserService },
+        { token: DatabaseService, useValue: mockDatabase },
+      ],
+    })
+
+    const userService = await module.get(UserService)
+    const result = await userService.findById('1')
+
+    expect(result).toEqual({ id: '1', name: 'John' })
+
+    // Method calls are automatically tracked
+    module.expectCalled(UserService, 'findById')
+    module.expectCalledWith(UserService, 'findById', ['1'])
+
+    await module.close()
+  })
+})
+```
+
+### UnitTestingModule API
+
+| Method | Description |
+|--------|-------------|
+| `UnitTestingModule.create(options)` | Create with provider configuration |
+| `get(token)` | Get an instance (wrapped in tracking proxy) |
+| `close()` | Dispose and clean up |
+| `enableAutoMocking()` | Auto-mock unregistered dependencies |
+| `disableAutoMocking()` | Strict mode (default) |
+| `expectCalled(token, method)` | Assert method was called |
+| `expectCalledWith(token, method, args)` | Assert method called with args |
+| `expectCallCount(token, method, count)` | Assert call count |
+| `expectInitialized(token)` | Assert onServiceInit was called |
+| `expectDestroyed(token)` | Assert onServiceDestroy was called |
+
+### Testing Services with TestContainer
+
+For more control, use `TestContainer` directly:
 
 ```typescript
 import { TestContainer } from '@navios/core/testing'
 
 describe('UserService', () => {
+  let container: TestContainer
   let userService: UserService
   let mockDatabase: vi.Mocked<DatabaseService>
 
-  beforeEach(() => {
-    const container = new TestContainer()
+  beforeEach(async () => {
+    container = new TestContainer()
     mockDatabase = {
       users: {
         findUnique: vi.fn(),
@@ -88,7 +173,11 @@ describe('UserService', () => {
     } as any
 
     container.bind(DatabaseService).toValue(mockDatabase)
-    userService = container.get(UserService)
+    userService = await container.get(UserService)
+  })
+
+  afterEach(async () => {
+    await container.dispose()
   })
 
   it('should return user when found', async () => {
@@ -114,18 +203,23 @@ describe('UserService', () => {
 import { TestContainer } from '@navios/core/testing'
 
 describe('UserController', () => {
+  let container: TestContainer
   let controller: UserController
   let userService: vi.Mocked<UserService>
 
   beforeEach(async () => {
+    container = new TestContainer()
     userService = {
       findById: vi.fn(),
       create: vi.fn(),
     } as any
 
-    const container = new TestContainer()
     container.bind(UserService).toValue(userService)
     controller = await container.get(UserController)
+  })
+
+  afterEach(async () => {
+    await container.dispose()
   })
 
   it('should return user when found', async () => {
@@ -148,14 +242,19 @@ describe('UserController', () => {
 
 ```typescript
 describe('AuthGuard', () => {
+  let container: TestContainer
   let guard: AuthGuard
   let jwtService: vi.Mocked<JwtService>
 
-  beforeEach(() => {
-    const container = new TestContainer()
+  beforeEach(async () => {
+    container = new TestContainer()
     jwtService = { verify: vi.fn() } as any
     container.bind(JwtService).toValue(jwtService)
-    guard = container.get(AuthGuard)
+    guard = await container.get(AuthGuard)
+  })
+
+  afterEach(async () => {
+    await container.dispose()
   })
 
   it('should return true for valid token', async () => {
@@ -187,24 +286,23 @@ describe('AuthGuard', () => {
 
 ```typescript
 import { defineFastifyEnvironment } from '@navios/adapter-fastify'
-import { createTestingModule } from '@navios/core/testing'
+import { TestingModule } from '@navios/core/testing'
 import * as request from 'supertest'
 
 describe('UserController (e2e)', () => {
-  let testingModule: ReturnType<typeof createTestingModule>
+  let module: TestingModule
   let httpServer: any
 
   beforeAll(async () => {
-    testingModule = createTestingModule(AppModule, {
+    module = await TestingModule.create(AppModule, {
       adapter: defineFastifyEnvironment(),
-    })
+    }).init()
 
-    const app = await testingModule.init()
-    httpServer = app.getServer()
+    httpServer = module.getApp().getServer()
   })
 
   afterAll(async () => {
-    await testingModule.close()
+    await module.close()
   })
 
   it('GET /users/:id - should return user', () => {
@@ -236,17 +334,26 @@ describe('UserController (e2e)', () => {
 
 ```typescript
 describe('Protected Endpoints', () => {
+  let module: TestingModule
   let httpServer: any
   let authToken: string
 
   beforeAll(async () => {
-    // ... setup testingModule
+    module = await TestingModule.create(AppModule, {
+      adapter: defineFastifyEnvironment(),
+    }).init()
+
+    httpServer = module.getApp().getServer()
 
     const loginResponse = await request(httpServer)
       .post('/auth/login')
       .send({ email: 'test@example.com', password: 'password' })
 
     authToken = loginResponse.body.token
+  })
+
+  afterAll(async () => {
+    await module.close()
   })
 
   it('should return profile with valid token', () => {
@@ -308,6 +415,8 @@ beforeEach(() => {
 
 **Test isolation**: Reset mocks between tests with `vi.clearAllMocks()`.
 
+**Always dispose containers**: Call `close()` or `dispose()` in `afterEach`/`afterAll` to prevent memory leaks.
+
 **Descriptive names**: Use clear test names that describe the expected behavior.
 
 **Test edge cases**: Test not just happy paths but error cases too.
@@ -326,5 +435,9 @@ it('should create user and send email and log event', async () => {
   // Too many responsibilities in one test
 })
 ```
+
+**Use UnitTestingModule for isolated tests**: When testing a single service without the full application context, prefer `UnitTestingModule` for faster, more focused tests.
+
+**Use TestingModule for integration tests**: When testing endpoints or multiple services together, use `TestingModule.create()` with the appropriate adapter.
 
 For advanced testing topics related to dependency injection, see the [DI documentation](/docs/di/guides/testing).

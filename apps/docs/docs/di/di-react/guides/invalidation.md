@@ -8,62 +8,15 @@ Both `useService` and `useSuspenseService` automatically subscribe to service in
 
 ## Automatic Invalidation
 
-When a service is invalidated (e.g., via `container.invalidate(service)` or `useInvalidate`), the hooks will automatically:
+When a service is invalidated (e.g., via `container.invalidate(service)` or `useInvalidateInstance`), the hooks will automatically:
 
 1. Clear the cached instance
 2. Re-fetch the service
 3. Update the component with the new instance
 
-## Using useInvalidate
-
-```tsx
-import { useService, useInvalidate } from '@navios/di-react'
-
-function UserList() {
-  const { data: users } = useService(UserService)
-  const invalidateUsers = useInvalidate(UserService)
-
-  const handleCreateUser = async () => {
-    await createUser(newUser)
-    invalidateUsers() // Automatically refreshes all components using UserService
-  }
-
-  return (
-    <div>
-      {users?.map((user) => (
-        <UserItem key={user.id} user={user} />
-      ))}
-      <button onClick={handleCreateUser}>Add User</button>
-    </div>
-  )
-}
-```
-
-## With Arguments
-
-When using injection tokens with arguments, make sure to use the same arguments when invalidating:
-
-```tsx
-import { useMemo } from 'react'
-import { useService, useInvalidate } from '@navios/di-react'
-
-function UserProfile({ userId }: { userId: string }) {
-  const args = useMemo(() => ({ userId }), [userId])
-  const { data: user } = useService(UserToken, args)
-  const invalidateUser = useInvalidate(UserToken, args)
-
-  return (
-    <div>
-      <span>{user?.name}</span>
-      <button onClick={() => invalidateUser()}>Refresh</button>
-    </div>
-  )
-}
-```
-
 ## Using useInvalidateInstance
 
-Invalidate a service instance directly:
+The `useInvalidateInstance` hook returns a function that invalidates a service by its instance reference:
 
 ```tsx
 import { useService, useInvalidateInstance } from '@navios/di-react'
@@ -74,7 +27,33 @@ function UserProfile() {
 
   const handleRefresh = () => {
     if (user) {
-      invalidateInstance(user)
+      invalidateInstance(user) // Triggers re-fetch in all components using this service
+    }
+  }
+
+  return (
+    <div>
+      <span>{user?.name}</span>
+      <button onClick={handleRefresh}>Refresh</button>
+    </div>
+  )
+}
+```
+
+## Using Container Directly
+
+You can also invalidate services directly via the container:
+
+```tsx
+import { useContainer, useService } from '@navios/di-react'
+
+function UserProfile() {
+  const container = useContainer()
+  const { data: user } = useService(UserService)
+
+  const handleRefresh = async () => {
+    if (user) {
+      await container.invalidate(user)
     }
   }
 
@@ -92,16 +71,20 @@ function UserProfile() {
 ```tsx
 function UserList() {
   const { data: users } = useService(UserService)
-  const invalidateUsers = useInvalidate(UserService)
+  const invalidateInstance = useInvalidateInstance()
 
   const handleDeleteUser = async (userId: string) => {
     await deleteUser(userId)
-    invalidateUsers() // All components using UserService will re-fetch
+    if (users) {
+      invalidateInstance(users) // All components using UserService will re-fetch
+    }
   }
 
   const handleUpdateUser = async (userId: string, updates: any) => {
     await updateUser(userId, updates)
-    invalidateUsers() // Refresh the list
+    if (users) {
+      invalidateInstance(users) // Refresh the list
+    }
   }
 
   return (
@@ -125,19 +108,38 @@ function UserList() {
 
 ```tsx
 // ✅ Good: Invalidate after mutations
+const { data: items } = useService(ItemService)
+const invalidateInstance = useInvalidateInstance()
+
 const handleCreate = async () => {
   await createItem(data)
-  invalidateItems() // Refresh the list
+  if (items) {
+    invalidateInstance(items) // Refresh the list
+  }
 }
 ```
 
-### 2. Use Same Args for Invalidation
+### 2. Check for Instance Before Invalidating
 
 ```tsx
-// ✅ Good: Same args for service and invalidation
-const args = useMemo(() => ({ userId }), [userId])
-const { data } = useService(UserToken, args)
-const invalidate = useInvalidate(UserToken, args)
+// ✅ Good: Check that instance exists
+const handleRefresh = () => {
+  if (user) {
+    invalidateInstance(user)
+  }
+}
+```
+
+### 3. Use refetch for Simple Cases
+
+If you just need to refresh a single component, you can use the `refetch` function from `useService`:
+
+```tsx
+const { data: user, refetch } = useService(UserService)
+
+const handleRefresh = () => {
+  refetch() // Only refreshes this component
+}
 ```
 
 ## Next Steps
