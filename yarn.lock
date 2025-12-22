@@ -5172,18 +5172,6 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@navios/di-experimental@workspace:lab-packages/di-experimental":
-  version: 0.0.0-use.local
-  resolution: "@navios/di-experimental@workspace:lab-packages/di-experimental"
-  dependencies:
-    tsx: "npm:^4.21.0"
-    typescript: "npm:^5.9.3"
-    zod: "npm:^4.2.1"
-  peerDependencies:
-    zod: ^3.25.0 || ^4.0.0
-  languageName: unknown
-  linkType: soft
-
 "@navios/di-react@workspace:packages/di-react":
   version: 0.0.0-use.local
   resolution: "@navios/di-react@workspace:packages/di-react"
