@@ -28,19 +28,6 @@ import {
   createElement,
 } from '../../src/index.mjs'
 
-// Helper to merge environments
-function mergeEnvironments(...envs: Array<{ httpTokens: Map<any, any> }>): {
-  httpTokens: Map<any, any>
-} {
-  const merged = new Map()
-  for (const env of envs) {
-    for (const [key, value] of env.httpTokens) {
-      merged.set(key, value)
-    }
-  }
-  return { httpTokens: merged }
-}
-
 describe('XML Stream with Fastify adapter', () => {
   let server: NaviosApplication
 
@@ -352,12 +339,8 @@ describe('XML Stream with Fastify adapter', () => {
   class AppModule {}
 
   beforeAll(async () => {
-    const fastifyEnv = defineFastifyEnvironment()
-    const xmlEnv = defineXmlEnvironment()
-    const mergedEnv = mergeEnvironments(fastifyEnv, xmlEnv)
-
     server = await NaviosFactory.create(AppModule, {
-      adapter: mergedEnv,
+      adapter: [defineFastifyEnvironment(), defineXmlEnvironment()],
     })
     await server.init()
   })

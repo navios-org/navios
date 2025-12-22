@@ -28,19 +28,6 @@ import {
   createElement,
 } from '../../src/index.mjs'
 
-// Helper to merge environments
-function mergeEnvironments(...envs: Array<{ httpTokens: Map<any, any> }>): {
-  httpTokens: Map<any, any>
-} {
-  const merged = new Map()
-  for (const env of envs) {
-    for (const [key, value] of env.httpTokens) {
-      merged.set(key, value)
-    }
-  }
-  return { httpTokens: merged }
-}
-
 describe('XML Stream with Bun adapter', () => {
   let server: NaviosApplication
   let serverUrl: string
@@ -353,12 +340,8 @@ describe('XML Stream with Bun adapter', () => {
   class AppModule {}
 
   beforeAll(async () => {
-    const bunEnv = defineBunEnvironment()
-    const xmlEnv = defineXmlEnvironment()
-    const mergedEnv = mergeEnvironments(bunEnv, xmlEnv)
-
     server = await NaviosFactory.create(AppModule, {
-      adapter: mergedEnv,
+      adapter: [defineBunEnvironment(), defineXmlEnvironment()],
     })
     await server.init()
     await server.listen({ port: 3008, host: 'localhost' })

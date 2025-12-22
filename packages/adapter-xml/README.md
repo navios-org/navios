@@ -49,15 +49,8 @@ import { NaviosFactory } from '@navios/core'
 import { AppModule } from './app.module.mjs'
 
 async function bootstrap() {
-  const fastifyEnv = defineFastifyEnvironment()
-  const xmlEnv = defineXmlEnvironment()
-
-  const mergedEnv = {
-    httpTokens: new Map([...fastifyEnv.httpTokens, ...xmlEnv.httpTokens]),
-  }
-
   const app = await NaviosFactory.create(AppModule, {
-    adapter: mergedEnv,
+    adapter: [defineFastifyEnvironment(), defineXmlEnvironment()],
   })
 
   await app.init()
@@ -271,7 +264,7 @@ class LatestPostsComponent implements XmlComponent {
 }
 
 // Usage in JSX
-<channel>
+;<channel>
   <LatestPostsComponent />
 </channel>
 ```
@@ -305,10 +298,7 @@ class DescriptionComponent implements XmlComponent {
 }
 
 // Usage with typed props
-<DescriptionComponent
-  content="<p>HTML content here</p>"
-  wrapInCData={true}
-/>
+;<DescriptionComponent content="<p>HTML content here</p>" wrapInCData={true} />
 ```
 
 #### Rendering with Container
