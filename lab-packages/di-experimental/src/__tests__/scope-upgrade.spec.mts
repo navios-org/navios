@@ -75,7 +75,7 @@ describe('Scope Upgrade: Simple Singleton -> Request', () => {
 
       // Resolve within request context
       const scoped = container.beginRequest('request-1')
-      const singleton = await scoped.get(SingletonWithRequestDep)
+      await scoped.get(SingletonWithRequestDep)
 
       // After resolution, the scope should be upgraded to Request
       expect(registry.get(token).scope).toBe(InjectableScope.Request)
@@ -282,7 +282,7 @@ describe('Scope Upgrade: Complex Chains', () => {
 
       // Resolve within request context
       const scoped = container.beginRequest('request-1')
-      const level1 = await scoped.get(SingletonLevel1)
+      await scoped.get(SingletonLevel1)
 
       // Both Singletons should be upgraded to Request scope
       expect(registry.get(token1).scope).toBe(InjectableScope.Request)
@@ -551,7 +551,7 @@ describe('Scope Upgrade: Transient Breaking Chain', () => {
 
       // Get singleton again (same instance)
       const singletonAgain = await scoped.get(SingletonTop)
-      const transient2 = singletonAgain.getTransient()
+      singletonAgain.getTransient()
 
       // Since injectors.inject() caches the reference, they should be the same
       // But if we resolve TransientMiddle directly, it should be different

@@ -110,6 +110,7 @@ describe('ResolutionContext', () => {
   describe('getCurrentResolutionContext', () => {
     it('should return context data inside withResolutionContext', () => {
       const holder = createMockHolder('TestService')
+      // oxlint-disable-next-line no-unused-vars
       const getHolder = (name: string) => undefined
 
       withResolutionContext(holder, getHolder, () => {

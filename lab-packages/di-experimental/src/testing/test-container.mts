@@ -1,8 +1,15 @@
-import type { BindingBuilder, DependencyGraph, DependencyNode, LifecycleRecord, MethodCallRecord, MockServiceStats, TestContainerOptions } from './types.mjs'
+import type {
+  BindingBuilder,
+  DependencyGraph,
+  DependencyNode,
+  LifecycleRecord,
+  MethodCallRecord,
+  MockServiceStats,
+  TestContainerOptions,
+} from './types.mjs'
 
 import { Container } from '../container/container.mjs'
 import { InjectableScope, InjectableType } from '../enums/index.mjs'
-import { InstanceStatus } from '../internal/holder/instance-holder.mjs'
 import { InjectionToken } from '../token/injection-token.mjs'
 import { globalRegistry, Registry } from '../token/registry.mjs'
 import { getInjectableToken } from '../utils/get-injectable-token.mjs'
@@ -61,7 +68,9 @@ export class TestContainer extends Container {
    */
   constructor(options: TestContainerOptions = {}) {
     const { parentRegistry = globalRegistry, logger = null } = options
-    const testRegistry = parentRegistry ? new Registry(parentRegistry) : new Registry()
+    const testRegistry = parentRegistry
+      ? new Registry(parentRegistry)
+      : new Registry()
     super(testRegistry, logger, defaultInjectors)
     this.testRegistry = testRegistry
   }
@@ -80,7 +89,9 @@ export class TestContainer extends Container {
    * container.bind(ConfigToken).toFactory(() => ({ apiKey: 'test' }))
    * ```
    */
-  bind<T>(token: InjectionToken<T, any> | (new (...args: any[]) => T)): BindingBuilder<T> {
+  bind<T>(
+    token: InjectionToken<T, any> | (new (...args: any[]) => T),
+  ): BindingBuilder<T> {
     const realToken = this.resolveToken(token)
     const tokenId = realToken.id
 
@@ -125,7 +136,9 @@ export class TestContainer extends Container {
     const found = names.some((name) => name.includes(realToken.id))
 
     if (!found) {
-      throw new Error(`Expected ${realToken.toString()} to be resolved, but it was not`)
+      throw new Error(
+        `Expected ${realToken.toString()} to be resolved, but it was not`,
+      )
     }
   }
 
@@ -139,7 +152,9 @@ export class TestContainer extends Container {
     const found = names.some((name) => name.includes(realToken.id))
 
     if (found) {
-      throw new Error(`Expected ${realToken.toString()} to NOT be resolved, but it was`)
+      throw new Error(
+        `Expected ${realToken.toString()} to NOT be resolved, but it was`,
+      )
     }
   }
 
@@ -151,7 +166,9 @@ export class TestContainer extends Container {
     const registry = this.getRegistry()
 
     if (!registry.has(realToken)) {
-      throw new Error(`Expected ${realToken.toString()} to be registered, but it was not`)
+      throw new Error(
+        `Expected ${realToken.toString()} to be registered, but it was not`,
+      )
     }
 
     const record = registry.get(realToken)
@@ -170,7 +187,9 @@ export class TestContainer extends Container {
     const registry = this.getRegistry()
 
     if (!registry.has(realToken)) {
-      throw new Error(`Expected ${realToken.toString()} to be registered, but it was not`)
+      throw new Error(
+        `Expected ${realToken.toString()} to be registered, but it was not`,
+      )
     }
 
     const record = registry.get(realToken)
@@ -189,7 +208,9 @@ export class TestContainer extends Container {
     const registry = this.getRegistry()
 
     if (!registry.has(realToken)) {
-      throw new Error(`Expected ${realToken.toString()} to be registered, but it was not`)
+      throw new Error(
+        `Expected ${realToken.toString()} to be registered, but it was not`,
+      )
     }
 
     const record = registry.get(realToken)
@@ -243,7 +264,9 @@ export class TestContainer extends Container {
     const initialized = events.some((e) => e.event === 'initialized')
 
     if (!initialized) {
-      throw new Error(`Expected ${realToken.toString()} to be initialized, but onServiceInit was not called`)
+      throw new Error(
+        `Expected ${realToken.toString()} to be initialized, but onServiceInit was not called`,
+      )
     }
   }
 
@@ -256,7 +279,9 @@ export class TestContainer extends Container {
     const destroyed = events.some((e) => e.event === 'destroyed')
 
     if (!destroyed) {
-      throw new Error(`Expected ${realToken.toString()} to be destroyed, but onServiceDestroy was not called`)
+      throw new Error(
+        `Expected ${realToken.toString()} to be destroyed, but onServiceDestroy was not called`,
+      )
     }
   }
 
@@ -269,7 +294,9 @@ export class TestContainer extends Container {
     const destroyed = events.some((e) => e.event === 'destroyed')
 
     if (destroyed) {
-      throw new Error(`Expected ${realToken.toString()} to NOT be destroyed, but onServiceDestroy was called`)
+      throw new Error(
+        `Expected ${realToken.toString()} to NOT be destroyed, but onServiceDestroy was called`,
+      )
     }
   }
 
@@ -281,7 +308,13 @@ export class TestContainer extends Container {
    * Records a method call for tracking.
    * Call this from your mock implementations.
    */
-  recordMethodCall(token: AnyToken, method: string, args: unknown[], result?: unknown, error?: Error): void {
+  recordMethodCall(
+    token: AnyToken,
+    method: string,
+    args: unknown[],
+    result?: unknown,
+    error?: Error,
+  ): void {
     const realToken = this.resolveToken(token)
     const calls = this.methodCalls.get(realToken.id) || []
     calls.push({
@@ -297,7 +330,11 @@ export class TestContainer extends Container {
   /**
    * Records a lifecycle event for tracking.
    */
-  recordLifecycleEvent(token: AnyToken, event: 'created' | 'initialized' | 'destroyed', instanceName: string): void {
+  recordLifecycleEvent(
+    token: AnyToken,
+    event: 'created' | 'initialized' | 'destroyed',
+    instanceName: string,
+  ): void {
     const realToken = this.resolveToken(token)
     const events = this.lifecycleEvents.get(realToken.id) || []
     events.push({
@@ -322,14 +359,20 @@ export class TestContainer extends Container {
     const found = calls.some((c) => c.method === method)
 
     if (!found) {
-      throw new Error(`Expected ${realToken.toString()}.${method}() to be called, but it was not`)
+      throw new Error(
+        `Expected ${realToken.toString()}.${method}() to be called, but it was not`,
+      )
     }
   }
 
   /**
    * Asserts that a method was called with specific arguments.
    */
-  expectCalledWith(token: AnyToken, method: string, expectedArgs: unknown[]): void {
+  expectCalledWith(
+    token: AnyToken,
+    method: string,
+    expectedArgs: unknown[],
+  ): void {
     const realToken = this.resolveToken(token)
     const calls = this.methodCalls.get(realToken.id) || []
     const found = calls.some(
@@ -463,13 +506,21 @@ export class TestContainer extends Container {
     return token
   }
 
-  private registerValueBinding<T>(token: InjectionToken<T, any>, value: T): void {
+  private registerValueBinding<T>(
+    token: InjectionToken<T, any>,
+    value: T,
+  ): void {
     // Create a simple class that returns the value
     const ValueHolder = class {
       static instance = value
     }
 
-    this.testRegistry.set(token, InjectableScope.Singleton, ValueHolder, InjectableType.Class)
+    this.testRegistry.set(
+      token,
+      InjectableScope.Singleton,
+      ValueHolder,
+      InjectableType.Class,
+    )
 
     // Store the instance directly
     const nameResolver = this.getNameResolver()
@@ -483,11 +534,22 @@ export class TestContainer extends Container {
     this.recordLifecycleEvent(token, 'created', instanceName)
   }
 
-  private registerClassBinding<T>(token: InjectionToken<T, any>, cls: new (...args: any[]) => T): void {
-    this.testRegistry.set(token, InjectableScope.Singleton, cls, InjectableType.Class)
+  private registerClassBinding<T>(
+    token: InjectionToken<T, any>,
+    cls: new (...args: any[]) => T,
+  ): void {
+    this.testRegistry.set(
+      token,
+      InjectableScope.Singleton,
+      cls,
+      InjectableType.Class,
+    )
   }
 
-  private registerFactoryBinding<T>(token: InjectionToken<T, any>, factory: () => T | Promise<T>): void {
+  private registerFactoryBinding<T>(
+    token: InjectionToken<T, any>,
+    factory: () => T | Promise<T>,
+  ): void {
     // Create a factory class wrapper
     const FactoryWrapper = class {
       static factory = factory
@@ -496,7 +558,12 @@ export class TestContainer extends Container {
       }
     }
 
-    this.testRegistry.set(token, InjectableScope.Singleton, FactoryWrapper, InjectableType.Factory)
+    this.testRegistry.set(
+      token,
+      InjectableScope.Singleton,
+      FactoryWrapper,
+      InjectableType.Factory,
+    )
   }
 
   private argsMatch(actual: unknown[], expected: unknown[]): boolean {

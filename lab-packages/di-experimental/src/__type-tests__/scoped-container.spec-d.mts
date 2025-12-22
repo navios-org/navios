@@ -4,8 +4,7 @@ import { z } from 'zod/v4'
 import type { Factorable } from '../interfaces/index.mjs'
 
 import { Container } from '../container/container.mjs'
-import { ScopedContainer } from '../container/scoped-container.mjs'
-import { Injectable, Factory } from '../decorators/index.mjs'
+import { Factory, Injectable } from '../decorators/index.mjs'
 import { InjectionToken } from '../token/injection-token.mjs'
 
 interface FooService {
@@ -151,10 +150,9 @@ describe('ScopedContainer.get', () => {
     const container = new Container()
     const scopedContainer = container.beginRequest('req-1')
 
-    const factoryToken = InjectionToken.factory(
-      typedObjectToken,
-      async () => ({ foo: 'bar' }),
-    )
+    const factoryToken = InjectionToken.factory(typedObjectToken, async () => ({
+      foo: 'bar',
+    }))
     const result = await scopedContainer.get(factoryToken)
     assertType<FooService>(result)
   })

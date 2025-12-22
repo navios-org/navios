@@ -1,10 +1,11 @@
-import { describe, expect, it, beforeEach } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
+
+import type { InstanceHolder } from '../internal/holder/instance-holder.mjs'
 
 import { InjectableScope, InjectableType } from '../enums/index.mjs'
 import { DIError, DIErrorCode } from '../errors/index.mjs'
-import { UnifiedStorage } from '../internal/holder/unified-storage.mjs'
 import { InstanceStatus } from '../internal/holder/instance-holder.mjs'
-import type { InstanceHolder } from '../internal/holder/instance-holder.mjs'
+import { UnifiedStorage } from '../internal/holder/unified-storage.mjs'
 
 describe('UnifiedStorage', () => {
   let storage: UnifiedStorage
@@ -335,7 +336,7 @@ describe('UnifiedStorage', () => {
       storage.storeInstance('b', { id: 2 })
 
       const visited: string[] = []
-      storage.forEach((name, holder) => {
+      storage.forEach((name) => {
         visited.push(name)
       })
 

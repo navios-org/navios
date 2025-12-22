@@ -1,6 +1,7 @@
-import { z } from 'zod/v4'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { z } from 'zod/v4'
 
+import { Injectable } from '../decorators/index.mjs'
 import { DIError, DIErrorCode } from '../errors/index.mjs'
 import { TokenResolver } from '../internal/core/token-resolver.mjs'
 import {
@@ -8,7 +9,6 @@ import {
   FactoryInjectionToken,
   InjectionToken,
 } from '../token/injection-token.mjs'
-import { Injectable } from '../decorators/index.mjs'
 import { getInjectableToken } from '../utils/index.mjs'
 
 describe('TokenResolver', () => {
@@ -126,7 +126,7 @@ describe('TokenResolver', () => {
       const token = InjectionToken.create<string, typeof schema>('test', schema)
       const args = { value: 123 } // Invalid: should be string
 
-      const [error, data] = resolver.validateAndResolveTokenArgs(token, args)
+      const [error] = resolver.validateAndResolveTokenArgs(token, args)
 
       expect(error).toBeInstanceOf(DIError)
       expect(error?.code).toBe(DIErrorCode.TokenValidationError)
@@ -151,7 +151,7 @@ describe('TokenResolver', () => {
         value: 'test',
       }))
 
-      const [error, data] = resolver.validateAndResolveTokenArgs(factory)
+      const [error] = resolver.validateAndResolveTokenArgs(factory)
 
       expect(error).toBeInstanceOf(DIError)
       expect(error?.code).toBe(DIErrorCode.FactoryTokenNotResolved)

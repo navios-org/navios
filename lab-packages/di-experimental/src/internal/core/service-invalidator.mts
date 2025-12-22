@@ -2,12 +2,9 @@ import type { IHolderStorage } from '../holder/holder-storage.interface.mjs'
 import type { InstanceHolder } from '../holder/instance-holder.mjs'
 import type { LifecycleEventBus } from '../lifecycle/lifecycle-event-bus.mjs'
 
-import { DIError } from '../../errors/index.mjs'
 import { InstanceStatus } from '../holder/instance-holder.mjs'
 
 export interface ClearAllOptions {
-  /** Maximum number of invalidation rounds to prevent infinite loops (default: 10) */
-  maxRounds?: number
   /** Whether to wait for all services to settle before starting (default: true) */
   waitForSettlement?: boolean
 }
@@ -119,7 +116,7 @@ export class ServiceInvalidator {
     storage: IHolderStorage,
     options: ClearAllOptions = {},
   ): Promise<void> {
-    const { maxRounds = 10, waitForSettlement = true } = options
+    const { waitForSettlement = true } = options
 
     this.logger?.log(
       '[ServiceInvalidator] Starting graceful clearing of all services',

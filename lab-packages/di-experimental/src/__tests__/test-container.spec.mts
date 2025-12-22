@@ -199,6 +199,7 @@ describe('TestContainer', () => {
       )
 
       class MockAction {
+        // oxlint-disable-next-line no-unused-vars
         action(s: string): void {}
       }
 

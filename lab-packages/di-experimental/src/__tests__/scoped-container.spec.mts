@@ -40,13 +40,11 @@ function createTestSetup() {
 describe('ScopedContainer: Basic Functionality', () => {
   let registry: Registry
   let container: Container
-  let injectors: ReturnType<typeof getInjectors>
 
   beforeEach(() => {
     const setup = createTestSetup()
     registry = setup.registry
     container = setup.container
-    injectors = setup.injectors
   })
 
   afterEach(async () => {
@@ -213,13 +211,11 @@ describe('ScopedContainer: Basic Functionality', () => {
 describe('ScopedContainer: addInstance Method', () => {
   let registry: Registry
   let container: Container
-  let injectors: ReturnType<typeof getInjectors>
 
   beforeEach(() => {
     const setup = createTestSetup()
     registry = setup.registry
     container = setup.container
-    injectors = setup.injectors
   })
 
   afterEach(async () => {
