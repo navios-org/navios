@@ -5,6 +5,53 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.0] - 2025-12-23
+
+### Added
+
+- **Priority and Scope Options in Decorators**: Extended decorator options to leverage new DI features
+  - `@Controller()` now accepts `priority?: number` and `scope?: InjectableScope` options
+  - `@Module()` now accepts `priority?: number` and `registry?: Registry` options
+- **New TestingModule API**: Completely refactored testing module with improved ergonomics
+  - New `TestingModule.create()` static method as the primary entry point
+  - Fluent API with `overrideProvider(token).useValue()` / `.useClass()` for mocking
+  - Automatic request scope creation on `init()` for proper request-scoped service resolution
+  - New `getScopedContainer()` method for accessing the request-scoped container
+  - Comprehensive assertion helpers delegated from `TestContainer`:
+    - `expectResolved()`, `expectNotResolved()` - service resolution tracking
+    - `expectSingleton()`, `expectTransient()`, `expectRequestScoped()` - scope assertions
+    - `expectCalled()`, `expectCalledWith()`, `expectCallCount()` - method call assertions
+    - `recordMethodCall()`, `getMethodCalls()` - manual call tracking
+    - `getDependencyGraph()`, `getSimplifiedDependencyGraph()` - debugging utilities
+- **New UnitTestingModule**: Lightweight testing module for isolated unit tests
+  - Does NOT load Navios modules or create an application
+  - Uses `UnitTestContainer` with strict mode by default
+  - Automatic method call tracking via Proxy
+  - Auto-mocking mode for unregistered dependencies
+  - Provider-based configuration: `UnitTestingModule.create({ providers: [...] })`
+  - Methods: `get()`, `close()`, `enableAutoMocking()`, `disableAutoMocking()`
+  - Lifecycle assertions: `expectInitialized()`, `expectDestroyed()`, `expectNotDestroyed()`
+
+### Changed
+
+- **Registry Support in NaviosFactory**: Factory now passes `options.registry` to Container constructor
+  - Allows custom registries to be used when creating applications
+- **NaviosApplication Options Simplified**: Merged `NaviosApplicationContextOptions` into `NaviosApplicationOptions`
+  - Added `registry?: Registry` option directly to application options
+- **NaviosEnvironment**: Changed `setupHttpEnvironment()` to merge tokens instead of replacing
+  - Allows multiple adapters to contribute HTTP tokens
+- **Module Loader Service**: Uses `getInjectableToken()` for more reliable module name resolution
+- **Legacy Decorators Type Fix**: Fixed URL parameter type inference in multipart and stream decorators
+  - URL parameters now correctly typed as `string` instead of `string | number`
+
+### Deprecated
+
+- `createTestingModule()` function is deprecated in favor of `TestingModule.create()`
+
+### Dependencies
+
+- Updated to `@navios/di` 0.9.0 with priority system, unified storage architecture, and enhanced testing utilities
+
 ## [0.8.0] - 2025-12-21
 
 ### Added

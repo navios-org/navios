@@ -138,9 +138,7 @@ describe('Legacy Decorators Type Safety', () => {
           // - request.urlParams.userId: string | number
           // - request.params.page: number
           // - request.params.limit: number
-          expectTypeOf(request.urlParams.userId).toEqualTypeOf<
-            string | number
-          >()
+          expectTypeOf(request.urlParams.userId).toEqualTypeOf<string>()
           expectTypeOf(request.params.page).toEqualTypeOf<number>()
           expectTypeOf(request.params.limit).toEqualTypeOf<number>()
           return {
@@ -270,9 +268,7 @@ describe('Legacy Decorators Type Safety', () => {
           // - request.urlParams.fileId: string | number
           // - request.params.page: number
           // - request.params.limit: number
-          expectTypeOf(request.urlParams.fileId).toEqualTypeOf<
-            string | number
-          >()
+          expectTypeOf(request.urlParams.fileId).toEqualTypeOf<string>()
           expectTypeOf(request.params.page).toEqualTypeOf<number>()
           expectTypeOf(request.params.limit).toEqualTypeOf<number>()
         }

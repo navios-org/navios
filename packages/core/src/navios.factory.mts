@@ -7,10 +7,7 @@ import type {
 import { Container } from '@navios/di'
 
 import type { NaviosModule } from './interfaces/index.mjs'
-import type {
-  NaviosApplicationContextOptions,
-  NaviosApplicationOptions,
-} from './navios.application.mjs'
+import type { NaviosApplicationOptions } from './navios.application.mjs'
 
 import { ConsoleLogger, isNil, LoggerOutput } from './logger/index.mjs'
 import { NaviosApplication } from './navios.application.mjs'
@@ -83,7 +80,7 @@ export class NaviosFactory {
       adapter: [],
     },
   ) {
-    const container = options.container ?? new Container()
+    const container = options.container ?? new Container(options.registry)
 
     // Set request ID flag early, before any adapters are registered
     if (options.enableRequestId === true) {

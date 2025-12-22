@@ -1,4 +1,4 @@
-import type { ClassType } from '@navios/di'
+import type { ClassType, InjectableScope } from '@navios/di'
 
 import { Injectable, InjectionToken, Registry } from '@navios/di'
 
@@ -18,6 +18,16 @@ export interface ControllerOptions {
    * Registry is used to store the controller and its endpoints.
    */
   registry?: Registry
+  /**
+   * Priority to use for the controller.
+   * Priority is used to sort the controller in the registry.
+   */
+  priority?: number
+  /**
+   * Scope to use for the controller.
+   * Scope is used to determine the scope of the controller.
+   */
+  scope?: InjectableScope
 }
 
 /**
@@ -40,7 +50,12 @@ export interface ControllerOptions {
  * }
  * ```
  */
-export function Controller({ guards, registry }: ControllerOptions = {}) {
+export function Controller({
+  guards,
+  registry,
+  priority,
+  scope,
+}: ControllerOptions = {}) {
   return function (target: ClassType, context: ClassDecoratorContext) {
     if (context.kind !== 'class') {
       throw new Error(
@@ -59,6 +74,8 @@ export function Controller({ guards, registry }: ControllerOptions = {}) {
     return Injectable({
       token,
       registry,
+      priority,
+      scope,
     })(target, context)
   }
 }

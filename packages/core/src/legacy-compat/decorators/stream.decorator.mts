@@ -21,11 +21,11 @@ type StreamMethodDescriptor<
   (
     params: QuerySchema extends ZodObject
       ? RequestSchema extends ZodType
-        ? EndpointFunctionArgs<Url, QuerySchema, RequestSchema>
-        : EndpointFunctionArgs<Url, QuerySchema, undefined>
+        ? EndpointFunctionArgs<Url, QuerySchema, RequestSchema, true>
+        : EndpointFunctionArgs<Url, QuerySchema, undefined, true>
       : RequestSchema extends ZodType
-        ? EndpointFunctionArgs<Url, undefined, RequestSchema>
-        : EndpointFunctionArgs<Url, undefined, undefined>,
+        ? EndpointFunctionArgs<Url, undefined, RequestSchema, true>
+        : EndpointFunctionArgs<Url, undefined, undefined, true>,
     reply: any,
   ) => Promise<void>
 >

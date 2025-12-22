@@ -17,7 +17,9 @@ export class NaviosEnvironment {
   setupHttpEnvironment(
     tokens: Map<InjectionToken<any, undefined>, AnyInjectableType>,
   ) {
-    this.httpTokens = tokens
+    for (const [token, value] of tokens) {
+      this.httpTokens.set(token, value)
+    }
   }
 
   getHttpToken(token: InjectionToken<any, undefined>) {

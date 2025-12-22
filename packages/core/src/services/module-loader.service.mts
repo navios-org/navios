@@ -1,6 +1,6 @@
 import type { ClassType, ClassTypeWithInstance } from '@navios/di'
 
-import { Container, inject, Injectable } from '@navios/di'
+import { Container, getInjectableToken, inject, Injectable } from '@navios/di'
 
 import type { NaviosModule } from '../interfaces/index.mjs'
 import type { ModuleMetadata } from '../metadata/index.mjs'
@@ -135,7 +135,8 @@ export class ModuleLoaderService {
     if (parentMetadata) {
       this.mergeMetadata(metadata, parentMetadata)
     }
-    const moduleName = module.name
+    const moduleToken = getInjectableToken(module)
+    const moduleName = moduleToken.id
     if (this.modulesMetadata.has(moduleName)) {
       return
     }

@@ -1,4 +1,4 @@
-import type { ClassTypeWithInstance } from '@navios/di'
+import type { ClassTypeWithInstance, Registry } from '@navios/di'
 
 import { Container, inject, Injectable } from '@navios/di'
 
@@ -19,9 +19,9 @@ import { ModuleLoaderService } from './services/index.mjs'
 
 /**
  * Options for configuring the Navios application context.
- * These options control dependency injection and logging behavior.
+ * These options control the application configuration.
  */
-export interface NaviosApplicationContextOptions {
+export interface NaviosApplicationOptions {
   /**
    * Specifies the logger to use. Pass `false` to turn off logging.
    *
@@ -32,17 +32,17 @@ export interface NaviosApplicationContextOptions {
   logger?: LoggerService | LogLevel[] | false
 
   /**
+   * Specifies a custom registry to use. Useful for testing.
+   * If not provided, a new Registry will be created.
+   */
+  registry?: Registry
+
+  /**
    * Specifies a custom container to use. Useful for testing.
    * If not provided, a new Container will be created.
    */
   container?: Container
-}
 
-/**
- * Complete options for creating a Navios application.
- * Extends NaviosApplicationContextOptions with adapter configuration.
- */
-export interface NaviosApplicationOptions extends NaviosApplicationContextOptions {
   /**
    * HTTP adapter environment(s) to use for the application.
    * Can be a single adapter or an array of adapters.
