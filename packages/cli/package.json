@@ -1,6 +1,6 @@
 {
   "name": "@navios/cli",
-  "version": "0.2.1",
+  "version": "0.2.3",
   "author": {
     "name": "Oleksandr Hanzha",
     "email": "alex@granted.name"
@@ -11,7 +11,8 @@
     "navios": "lib/bin.mjs"
   },
   "files": [
-    "dist"
+    "lib",
+    "schema.json"
   ],
   "type": "module",
   "dependencies": {
