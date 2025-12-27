@@ -1,14 +1,14 @@
 {
   "name": "@navios/cli",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "author": {
     "name": "Oleksandr Hanzha",
     "email": "alex@granted.name"
   },
   "description": "CLI tools for Navios projects",
-  "main": "./lib/index.js",
+  "main": "./lib/index.mjs",
   "bin": {
-    "navios": "lib/bin.js"
+    "navios": "lib/bin.mjs"
   },
   "files": [
     "dist"
