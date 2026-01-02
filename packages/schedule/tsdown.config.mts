@@ -3,7 +3,7 @@ import { defineConfig } from 'tsdown'
 import swc from 'unplugin-swc'
 
 export default defineConfig({
-  entry: ['src/index.mts'],
+  entry: ['src/index.mts', 'src/legacy-compat/index.mts'],
   outDir: 'lib',
   format: ['esm', 'cjs'],
   clean: true,
