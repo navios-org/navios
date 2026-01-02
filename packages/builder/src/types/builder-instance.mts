@@ -62,6 +62,22 @@ export interface BuilderInstance {
   declareEndpoint<
     Url extends string,
     Method extends 'POST' | 'PUT' | 'PATCH',
+    QuerySchema extends ZodObject,
+    ResponseSchema extends ZodType,
+  >(options: {
+    method: Method
+    url: Url
+    querySchema: QuerySchema
+    responseSchema: ResponseSchema
+  }): ((
+    params: Util_FlatObject<EndpointFunctionArgs<Url, QuerySchema>>,
+  ) => Promise<z.output<ResponseSchema>>) & {
+    config: BaseEndpointConfig<Method, Url, QuerySchema, ResponseSchema>
+  }
+
+  declareEndpoint<
+    Url extends string,
+    Method extends 'POST' | 'PUT' | 'PATCH',
     ResponseSchema extends ZodType,
   >(options: {
     method: Method

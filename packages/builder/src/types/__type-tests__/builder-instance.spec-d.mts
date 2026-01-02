@@ -69,7 +69,9 @@ describe('BuilderInstance', () => {
 
         // Requires urlParams in the call
         assertType<
-          (params: { urlParams: { userId: string | number } }) => Promise<ResponseType>
+          (params: {
+            urlParams: { userId: string | number }
+          }) => Promise<ResponseType>
         >(endpoint)
 
         // Has config property
@@ -92,9 +94,9 @@ describe('BuilderInstance', () => {
         })
 
         // Requires params in the call
-        assertType<
-          (params: { params: QueryType }) => Promise<ResponseType>
-        >(endpoint)
+        assertType<(params: { params: QueryType }) => Promise<ResponseType>>(
+          endpoint,
+        )
 
         // Has config property
         assertType<
@@ -164,7 +166,9 @@ describe('BuilderInstance', () => {
 
         // Requires urlParams
         assertType<
-          (params: { urlParams: { userId: string | number } }) => Promise<ResponseType>
+          (params: {
+            urlParams: { userId: string | number }
+          }) => Promise<ResponseType>
         >(endpoint)
 
         // Has config property
@@ -187,9 +191,9 @@ describe('BuilderInstance', () => {
         })
 
         // Requires params
-        assertType<
-          (params: { params: QueryType }) => Promise<ResponseType>
-        >(endpoint)
+        assertType<(params: { params: QueryType }) => Promise<ResponseType>>(
+          endpoint,
+        )
       })
 
       test('DELETE endpoint without params', () => {
@@ -244,9 +248,9 @@ describe('BuilderInstance', () => {
           responseSchema,
         })
 
-        assertType<
-          (params: { params: QueryType }) => Promise<ResponseType>
-        >(endpoint)
+        assertType<(params: { params: QueryType }) => Promise<ResponseType>>(
+          endpoint,
+        )
       })
     })
 
@@ -260,9 +264,9 @@ describe('BuilderInstance', () => {
         })
 
         // Requires data in the call
-        assertType<
-          (params: { data: RequestType }) => Promise<ResponseType>
-        >(endpoint)
+        assertType<(params: { data: RequestType }) => Promise<ResponseType>>(
+          endpoint,
+        )
 
         // Has config property
         assertType<
@@ -272,6 +276,40 @@ describe('BuilderInstance', () => {
             undefined,
             typeof responseSchema,
             typeof requestSchema
+          >
+        >(endpoint.config)
+      })
+
+      test('POST with simple definition', () => {
+        const endpoint = api.declareEndpoint({
+          method: 'POST',
+          url: '/users',
+          responseSchema,
+        })
+
+        assertType<(params: {}) => Promise<ResponseType>>(endpoint)
+        assertType<
+          BaseEndpointConfig<'POST', '/users', undefined, typeof responseSchema>
+        >(endpoint.config)
+      })
+
+      test('POST with query schema only', () => {
+        const endpoint = api.declareEndpoint({
+          method: 'POST',
+          url: '/users',
+          querySchema,
+          responseSchema,
+        })
+
+        assertType<(params: { params: QueryType }) => Promise<ResponseType>>(
+          endpoint,
+        )
+        assertType<
+          BaseEndpointConfig<
+            'POST',
+            '/users',
+            typeof querySchema,
+            typeof responseSchema
           >
         >(endpoint.config)
       })
@@ -434,9 +472,9 @@ describe('BuilderInstance', () => {
           responseSchema,
         })
 
-        assertType<
-          (params: { data: RequestType }) => Promise<ResponseType>
-        >(endpoint)
+        assertType<(params: { data: RequestType }) => Promise<ResponseType>>(
+          endpoint,
+        )
       })
     })
   })
@@ -607,9 +645,7 @@ describe('BuilderInstance', () => {
           querySchema,
         })
 
-        assertType<
-          (params: { params: QueryType }) => Promise<Blob>
-        >(stream)
+        assertType<(params: { params: QueryType }) => Promise<Blob>>(stream)
 
         assertType<BaseStreamConfig<'GET', '/export', typeof querySchema>>(
           stream.config,
@@ -640,9 +676,7 @@ describe('BuilderInstance', () => {
           requestSchema,
         })
 
-        assertType<
-          (params: { data: RequestType }) => Promise<Blob>
-        >(stream)
+        assertType<(params: { data: RequestType }) => Promise<Blob>>(stream)
 
         assertType<
           BaseStreamConfig<'POST', '/generate', undefined, typeof requestSchema>
@@ -673,10 +707,7 @@ describe('BuilderInstance', () => {
         })
 
         assertType<
-          (params: {
-            params: QueryType
-            data: RequestType
-          }) => Promise<Blob>
+          (params: { params: QueryType; data: RequestType }) => Promise<Blob>
         >(stream)
 
         assertType<
@@ -708,9 +739,7 @@ describe('BuilderInstance', () => {
           requestSchema,
         })
 
-        assertType<
-          (params: { data: RequestType }) => Promise<Blob>
-        >(stream)
+        assertType<(params: { data: RequestType }) => Promise<Blob>>(stream)
       })
     })
 
@@ -722,9 +751,7 @@ describe('BuilderInstance', () => {
           requestSchema,
         })
 
-        assertType<
-          (params: { data: RequestType }) => Promise<Blob>
-        >(stream)
+        assertType<(params: { data: RequestType }) => Promise<Blob>>(stream)
       })
     })
 
@@ -745,9 +772,7 @@ describe('BuilderInstance', () => {
           querySchema,
         })
 
-        assertType<
-          (params: { params: QueryType }) => Promise<Blob>
-        >(stream)
+        assertType<(params: { params: QueryType }) => Promise<Blob>>(stream)
       })
     })
 
@@ -876,8 +901,7 @@ describe('EndpointFunctionArgs type', () => {
       urlParams: { userId: '123' },
       params: { page: 1, limit: 10 },
     })
-  }
-  )
+  })
 
   test('with URL params and request schema', () => {
     type Args = EndpointFunctionArgs<

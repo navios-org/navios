@@ -1,4 +1,4 @@
-import type { z, ZodObject } from 'zod/v4'
+import type { z, ZodObject, ZodType } from 'zod/v4'
 
 import type { AbstractRequestConfig } from './common.mjs'
 import type {
@@ -39,7 +39,7 @@ export type NaviosZodRequest<Config extends BaseStreamConfig> = (UrlHasParams<
 > extends true
   ? { urlParams: UrlParams<Config['url']> }
   : {}) &
-  (Config['requestSchema'] extends ZodObject
+  (Config['requestSchema'] extends ZodType
     ? { data: z.input<Config['requestSchema']> }
     : {}) &
   (Config['querySchema'] extends ZodObject
@@ -57,7 +57,7 @@ export type EndpointFunctionArgs<
       params: z.infer<QuerySchema>
     }
   : {}) &
-  (RequestSchema extends ZodObject
+  (RequestSchema extends ZodType
     ? {
         data: z.infer<RequestSchema>
       }

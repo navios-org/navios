@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.5.3] - 2026-01-02
+
+### Added
+
+- **POST/PUT/PATCH with Query Schema**: Added new `declareEndpoint` overload that supports `querySchema` for POST, PUT, and PATCH methods without requiring a `requestSchema`
+
+### Changed
+
+- **Request Type Flexibility**: Extended `NaviosZodRequest` and `EndpointFunctionArgs` to accept `ZodType` instead of only `ZodObject` for request schemas, enabling more flexible request body types
+
 ## [0.5.2] - 2025-12-21
 
 ### Changed
