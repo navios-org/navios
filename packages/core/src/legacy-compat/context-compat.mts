@@ -30,6 +30,7 @@ function getConstructor(prototype: any): ClassType | null {
 
 /**
  * Creates a mock ClassDecoratorContext for legacy class decorators.
+ * @internal
  */
 export function createClassContext(target: ClassType): ClassDecoratorContext {
   // Get or create metadata storage for this class
@@ -53,6 +54,7 @@ export function createClassContext(target: ClassType): ClassDecoratorContext {
  *
  * Note: Method decorators need to share metadata with the class context
  * because endpoint metadata is stored at the class level.
+ * @internal
  */
 export function createMethodContext(
   target: any,

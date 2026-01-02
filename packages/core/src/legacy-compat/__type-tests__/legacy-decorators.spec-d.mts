@@ -13,10 +13,12 @@ import type {
 } from '../index.mjs'
 
 import {
+  AttributeFactory,
   Controller,
   Endpoint,
   Header,
   HttpCode,
+  Injectable,
   Module,
   Multipart,
   Stream,
@@ -259,10 +261,10 @@ describe('Legacy Decorators Type Safety', () => {
     test('should enforce correct parameter type', () => {
       @Controller()
       class FileController {
+        // @ts-expect-error - legacy decorator is not typed
         @Stream(downloadFileEndpoint)
         async downloadFile(
           request: StreamParams<typeof downloadFileEndpoint>,
-          reply: any,
         ): Promise<void> {
           // TypeScript should infer:
           // - request.urlParams.fileId: string | number
@@ -277,17 +279,20 @@ describe('Legacy Decorators Type Safety', () => {
       expectTypeOf(FileController).toBeConstructibleWith()
     })
 
-    test('should require reply parameter', () => {
+    test('should work without reply parameter (Bun compatibility)', () => {
       @Controller()
       class FileController {
-        // @ts-expect-error - missing reply parameter
+        // @ts-expect-error - legacy decorator is not typed
         @Stream(downloadFileEndpoint)
         async downloadFile(
           request: StreamParams<typeof downloadFileEndpoint>,
         ): Promise<void> {
-          // Stream methods must have reply parameter
+          // Stream methods can work without reply parameter (for Bun)
+          expectTypeOf(request.urlParams.fileId).toEqualTypeOf<string>()
         }
       }
+
+      expectTypeOf(FileController).toBeConstructibleWith()
     })
   })
 
@@ -369,6 +374,109 @@ describe('Legacy Decorators Type Safety', () => {
       }
 
       expectTypeOf(UserController).toBeConstructibleWith()
+    })
+  })
+
+  describe('Injectable decorator', () => {
+    test('should work with services', () => {
+      @Injectable()
+      class UserService {
+        getUser(id: string) {
+          return { id, name: 'John' }
+        }
+      }
+
+      expectTypeOf(UserService).toBeConstructibleWith()
+    })
+
+    test('should work with controller dependencies', () => {
+      @Injectable()
+      class UserService {
+        getUser(id: string) {
+          return { id, name: 'John' }
+        }
+      }
+
+      @Controller()
+      class UserController {
+        constructor(private readonly userService: UserService) {}
+
+        @Endpoint(getUserEndpoint)
+        async getUser(
+          request: EndpointParams<typeof getUserEndpoint>,
+        ): EndpointResult<typeof getUserEndpoint> {
+          return this.userService.getUser(request.urlParams.userId.toString())
+        }
+      }
+
+      expectTypeOf(UserController).toBeConstructibleWith(
+        {} as InstanceType<typeof UserService>,
+      )
+    })
+  })
+
+  describe('AttributeFactory', () => {
+    test('should create simple attribute for controllers', () => {
+      const Public = AttributeFactory.createAttribute(Symbol.for('Public'))
+
+      // Note: In legacy decorators, decorators are applied bottom-to-top
+      // So @Controller() must be at the bottom to run first
+      @Public()
+      @Controller()
+      class PublicController {
+        @Endpoint(getUserEndpoint)
+        async getUser(
+          request: EndpointParams<typeof getUserEndpoint>,
+        ): EndpointResult<typeof getUserEndpoint> {
+          return { id: '1', name: 'John' }
+        }
+      }
+
+      expectTypeOf(PublicController).toBeConstructibleWith()
+      expectTypeOf(Public.token).toEqualTypeOf<symbol>()
+    })
+
+    test('should create attribute with schema for endpoints', () => {
+      const RateLimit = AttributeFactory.createAttribute(
+        Symbol.for('RateLimit'),
+        z.object({ requests: z.number(), window: z.number() }),
+      )
+
+      @Controller()
+      class RateLimitedController {
+        // Note: For method decorators, @Endpoint must be at the bottom
+        // @ts-expect-error - legacy decorator is not typed correctly
+        @RateLimit({ requests: 100, window: 60000 })
+        @Endpoint(getUserEndpoint)
+        async getUser(
+          request: EndpointParams<typeof getUserEndpoint>,
+        ): EndpointResult<typeof getUserEndpoint> {
+          return { id: '1', name: 'John' }
+        }
+      }
+
+      expectTypeOf(RateLimitedController).toBeConstructibleWith()
+      expectTypeOf(RateLimit.token).toEqualTypeOf<symbol>()
+      expectTypeOf(RateLimit.schema).toBeObject()
+    })
+
+    test('should create attribute for modules', () => {
+      const ApiVersion = AttributeFactory.createAttribute(
+        Symbol.for('ApiVersion'),
+        z.string(),
+      )
+
+      @Controller()
+      class VersionedController {}
+
+      // Note: In legacy decorators, @Module must be at the bottom
+      @ApiVersion('v2')
+      @Module({
+        controllers: [VersionedController],
+      })
+      class VersionedModule {}
+
+      expectTypeOf(VersionedModule).toBeConstructibleWith()
     })
   })
 

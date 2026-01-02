@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.1] - 2026-01-02
+
+### Added
+
+- **Legacy-Compatible Injectable Decorator**: Added `Injectable` decorator to `@navios/core/legacy-compat` for use with TypeScript experimental decorators
+- **Legacy-Compatible AttributeFactory**: Added `LegacyAttributeFactory` (also exported as `AttributeFactory`) to `@navios/core/legacy-compat` for creating custom attribute decorators with legacy decorator support
+- **Context Compatibility Exports**: Exported `createClassContext` and `createMethodContext` utilities from `@navios/core/legacy-compat` for building custom legacy-compatible decorators
+
+### Changed
+
+- **AttributeFactory Navios-Managed Support**: Updated `AttributeFactory` to support classes with Navios-managed metadata (not just `@Controller` and `@Module`)
+- **Stream Decorator Bun Compatibility**: Updated `@Stream` decorator type to support handlers without `reply` parameter for Bun runtime compatibility
+
 ## [0.9.0] - 2025-12-23
 
 ### Added

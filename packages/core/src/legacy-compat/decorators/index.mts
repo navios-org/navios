@@ -6,4 +6,5 @@ export * from './header.decorator.mjs'
 export * from './http-code.decorator.mjs'
 export * from './multipart.decorator.mjs'
 export * from './stream.decorator.mjs'
+export * from './injectable.decorator.mjs'
 

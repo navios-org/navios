@@ -8,27 +8,34 @@ import type { ZodObject, ZodType } from 'zod/v4'
 import { Stream as OriginalStream } from '../../decorators/stream.decorator.mjs'
 import { createMethodContext } from '../context-compat.mjs'
 
+type StreamParams<
+  Url extends string,
+  QuerySchema,
+  RequestSchema,
+> = QuerySchema extends ZodObject
+  ? RequestSchema extends ZodType
+    ? EndpointFunctionArgs<Url, QuerySchema, RequestSchema, true>
+    : EndpointFunctionArgs<Url, QuerySchema, undefined, true>
+  : RequestSchema extends ZodType
+    ? EndpointFunctionArgs<Url, undefined, RequestSchema, true>
+    : EndpointFunctionArgs<Url, undefined, undefined, true>
+
 /**
  * Type helper to constrain a PropertyDescriptor's value to match a stream endpoint signature.
- * Note: In legacy decorators, type constraints are checked when the decorator is applied,
- * but may not be preserved perfectly when decorators are stacked.
+ * Supports both with and without reply parameter (Bun doesn't use reply parameter).
  */
 type StreamMethodDescriptor<
   Url extends string,
   QuerySchema,
   RequestSchema,
-> = TypedPropertyDescriptor<
-  (
-    params: QuerySchema extends ZodObject
-      ? RequestSchema extends ZodType
-        ? EndpointFunctionArgs<Url, QuerySchema, RequestSchema, true>
-        : EndpointFunctionArgs<Url, QuerySchema, undefined, true>
-      : RequestSchema extends ZodType
-        ? EndpointFunctionArgs<Url, undefined, RequestSchema, true>
-        : EndpointFunctionArgs<Url, undefined, undefined, true>,
-    reply: any,
-  ) => Promise<void>
->
+> =
+  | TypedPropertyDescriptor<
+      (params: StreamParams<Url, QuerySchema, RequestSchema>, reply: any) => any
+    >
+  | TypedPropertyDescriptor<
+      (params: StreamParams<Url, QuerySchema, RequestSchema>) => any
+    >
+  | TypedPropertyDescriptor<() => any>
 
 /**
  * Legacy-compatible Stream decorator.
