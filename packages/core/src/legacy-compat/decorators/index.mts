@@ -7,4 +7,5 @@ export * from './http-code.decorator.mjs'
 export * from './multipart.decorator.mjs'
 export * from './stream.decorator.mjs'
 export * from './injectable.decorator.mjs'
+export * from './factory.decorator.mjs'
 

@@ -37,6 +37,7 @@ export {
   Multipart,
   Stream,
   Injectable,
+  Factory,
 } from './decorators/index.mjs'
 
 // Export legacy-compatible AttributeFactory
