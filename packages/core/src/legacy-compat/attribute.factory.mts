@@ -1,5 +1,5 @@
-import type { ClassType } from '@navios/di'
 import type { z, ZodType } from 'zod/v4'
+import type { ClassType } from '@navios/di'
 
 import type {
   ControllerMetadata,
@@ -21,40 +21,26 @@ import {
 import { createClassContext, createMethodContext } from './context-compat.mjs'
 
 /**
- * Type for a legacy class attribute decorator without a value.
+ * Type for a legacy class/method attribute decorator without a value.
  *
  * Attributes are custom metadata decorators that can be applied to modules,
  * controllers, and endpoints.
  */
-export type LegacyClassAttribute = (() => <T extends ClassType>(
-  target: T,
-) => T) &
-  (() => <T extends object>(
-    target: T,
-    propertyKey: string | symbol,
-    descriptor: PropertyDescriptor,
-  ) => PropertyDescriptor) & {
-    token: symbol
-  }
+export type LegacyClassAttribute = {
+  (): ClassDecorator & MethodDecorator
+  token: symbol
+}
 
 /**
- * Type for a legacy class attribute decorator with a validated value.
+ * Type for a legacy class/method attribute decorator with a validated value.
  *
  * @typeParam S - The Zod schema type for validation
  */
-export type LegacyClassSchemaAttribute<S extends ZodType> = ((
-  value: z.input<S>,
-) => <T extends ClassType>(target: T) => T) &
-  ((
-    value: z.input<S>,
-  ) => <T extends object>(
-    target: T,
-    propertyKey: string | symbol,
-    descriptor: PropertyDescriptor,
-  ) => PropertyDescriptor) & {
-    token: symbol
-    schema: ZodType
-  }
+export type LegacyClassSchemaAttribute<S extends ZodType> = {
+  (value: z.input<S>): ClassDecorator & MethodDecorator
+  token: symbol
+  schema: ZodType
+}
 
 /**
  * Legacy-compatible factory for creating custom attribute decorators.

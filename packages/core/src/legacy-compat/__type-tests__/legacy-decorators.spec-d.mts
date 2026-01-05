@@ -445,7 +445,6 @@ describe('Legacy Decorators Type Safety', () => {
       @Controller()
       class RateLimitedController {
         // Note: For method decorators, @Endpoint must be at the bottom
-        // @ts-expect-error - legacy decorator is not typed correctly
         @RateLimit({ requests: 100, window: 60000 })
         @Endpoint(getUserEndpoint)
         async getUser(
