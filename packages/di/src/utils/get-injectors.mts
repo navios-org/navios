@@ -301,42 +301,46 @@ export function getInjectors() {
       )
     }
 
+    // Try to get cached instance synchronously (only on first run, not frozen replay)
     const ctx = getFactoryContext()
-    const instance = ctx.container.tryGetSync(realToken, args)
-    if (!instance) {
-      const request = getRequest(realToken, args)
-      if (request.error) {
-        throw request.error
-      } else if (request.result) {
-        return request.result
-      }
-      if (promiseCollector) {
-        promiseCollector(request.promise)
-      }
-      // Return a dynamic proxy that looks up the instance when accessed
-      return new Proxy(
-        {},
-        {
-          get() {
-            throw new Error(
-              `[Injector] Trying to access ${realToken.toString()} before it's initialized, please move the code to a onServiceInit method`,
-            )
-          },
-        },
-      ) as unknown as T
+    const cachedInstance = !injectState.isFrozen
+      ? ctx.container.tryGetSync(realToken, args)
+      : null
+
+    // getRequest handles both frozen replay and first run:
+    // - Frozen: validates token order and returns cached request
+    // - First run: creates new request with ctx.inject promise
+    const request = getRequest(realToken, args)
+
+    // If we have a cached instance, return it directly
+    if (cachedInstance) {
+      return cachedInstance as unknown as T
     }
 
-    // Even when tryGetSync returns an existing instance, we still need to
-    // track the dependency for scope upgrade. This ensures that if a Singleton
-    // service depends on an already-created Request-scoped service, the
-    // Singleton will be properly upgraded to Request scope.
-    // The ctx.inject call handles dependency tracking and scope upgrades.
-    // We fire-and-forget this since we already have the instance.
-    ctx.inject(realToken, args).catch(() => {
-      // Ignore errors - we already have the instance
-    })
+    // Check for errors or already-resolved results
+    if (request.error) {
+      throw request.error
+    }
+    if (request.result) {
+      return request.result as T
+    }
 
-    return instance as unknown as T
+    // Collect promise for awaiting (first run only, frozen state already has results)
+    if (promiseCollector && !injectState.isFrozen) {
+      promiseCollector(request.promise)
+    }
+
+    // Return a proxy that throws if accessed before initialization
+    return new Proxy(
+      {},
+      {
+        get() {
+          throw new Error(
+            `[Injector] Trying to access ${realToken.toString()} before it's initialized, please move the code to a onServiceInit method`,
+          )
+        },
+      },
+    ) as unknown as T
   }
 
   function optional<

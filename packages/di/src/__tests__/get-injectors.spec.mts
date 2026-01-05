@@ -279,3 +279,169 @@ describe('optional injection', () => {
     }
   })
 })
+
+describe('inject with pre-cached dependencies', () => {
+  let container: Container
+
+  beforeEach(() => {
+    container = new Container()
+  })
+
+  afterEach(async () => {
+    await container.dispose()
+  })
+
+  it('should handle inject when dependency is already instantiated', async () => {
+    @Injectable()
+    class DependencyA {
+      getValue() {
+        return 'A'
+      }
+    }
+
+    @Injectable()
+    class DependencyB {
+      getValue() {
+        return 'B'
+      }
+    }
+
+    @Injectable()
+    class MainService {
+      private depA = defaultInjectors.inject(DependencyA)
+      private depB = defaultInjectors.inject(DependencyB)
+
+      getValues() {
+        return this.depA.getValue() + this.depB.getValue()
+      }
+    }
+
+    // Pre-instantiate DependencyA before MainService is created
+    await container.get(DependencyA)
+
+    // Now get MainService - DependencyA is cached, DependencyB is not
+    const service = await container.get(MainService)
+    expect(service.getValues()).toBe('AB')
+  })
+
+  it('should handle inject when all dependencies are pre-cached', async () => {
+    @Injectable()
+    class DependencyA {
+      getValue() {
+        return 'A'
+      }
+    }
+
+    @Injectable()
+    class DependencyB {
+      getValue() {
+        return 'B'
+      }
+    }
+
+    @Injectable()
+    class MainService {
+      private depA = defaultInjectors.inject(DependencyA)
+      private depB = defaultInjectors.inject(DependencyB)
+
+      getValues() {
+        return this.depA.getValue() + this.depB.getValue()
+      }
+    }
+
+    // Pre-instantiate both dependencies
+    await container.get(DependencyA)
+    await container.get(DependencyB)
+
+    // Now get MainService - both dependencies are cached
+    const service = await container.get(MainService)
+    expect(service.getValues()).toBe('AB')
+  })
+
+  it('should handle mixed inject and asyncInject with pre-cached dependencies', async () => {
+    @Injectable()
+    class DependencyA {
+      getValue() {
+        return 'A'
+      }
+    }
+
+    @Injectable()
+    class DependencyB {
+      getValue() {
+        return 'B'
+      }
+    }
+
+    @Injectable()
+    class DependencyC {
+      getValue() {
+        return 'C'
+      }
+    }
+
+    @Injectable()
+    class MainService {
+      private depA = defaultInjectors.inject(DependencyA)
+      private depBPromise = defaultInjectors.asyncInject(DependencyB)
+      private depC = defaultInjectors.inject(DependencyC)
+
+      async getValues() {
+        const depB = await this.depBPromise
+        return this.depA.getValue() + depB.getValue() + this.depC.getValue()
+      }
+    }
+
+    // Pre-instantiate DependencyA and DependencyC (but not B)
+    await container.get(DependencyA)
+    await container.get(DependencyC)
+
+    // Now get MainService
+    const service = await container.get(MainService)
+    expect(await service.getValues()).toBe('ABC')
+  })
+
+  it('should maintain correct token order when some deps are cached and some trigger re-run', async () => {
+    // This test specifically targets the frozen state replay scenario:
+    // - First run: depA (cached, returns immediately), depB (not cached, creates promise)
+    // - promises.length > 0, so we await and do second run
+    // - Second run (frozen): must replay in same order as first run
+
+    @Injectable()
+    class DependencyA {
+      getValue() {
+        return 'A'
+      }
+    }
+
+    @Injectable()
+    class DependencyB {
+      getValue() {
+        return 'B'
+      }
+    }
+
+    @Injectable()
+    class MainService {
+      // depA will be cached (pre-instantiated)
+      private depA = defaultInjectors.inject(DependencyA)
+      // depB won't be cached, causing promises array to have entries
+      private depB = defaultInjectors.inject(DependencyB)
+
+      getValues() {
+        return this.depA.getValue() + this.depB.getValue()
+      }
+    }
+
+    // Pre-instantiate only DependencyA
+    await container.get(DependencyA)
+
+    // Now get MainService:
+    // - First constructor run: depA is cached (tryGetSync returns it), depB is not
+    // - depB's inject() creates a promise, so promises.length > 0
+    // - After awaiting, second run happens with frozen state
+    // - Both depA and depB must be in the requests array for frozen replay to work
+    const service = await container.get(MainService)
+    expect(service.getValues()).toBe('AB')
+  })
+})

@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.2] - 2026-01-05
+
+### Fixed
+
+- **Wrong Token Order with Pre-cached Dependencies**: Fixed a bug where `inject()` would throw "Wrong token order" error when some dependencies were already instantiated before the service constructor ran
+  - The frozen state replay now correctly tracks all injected tokens, including those resolved from cache
+  - Refactored `inject()` function to use a single `getRequest()` call path, eliminating duplicate logic and redundant `ctx.inject()` calls
+
 ## [0.9.1] - 2026-01-05
 
 ### Added
