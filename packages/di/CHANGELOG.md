@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.1] - 2026-01-05
+
+### Added
+
+- **BoundInjectionToken Support in Testing Containers**: `TestContainer` and `UnitTestContainer` now support `BoundInjectionToken` in providers
+  - Can override bound token values in tests using `useValue`, `useClass`, or `useFactory`
+  - Bound tokens can be registered without overrides (uses bound value)
+  - Proper token resolution for bound tokens in both containers
+
+### Changed
+
+- **Test Binding Priority**: Test bindings now use priority 1000 to ensure test overrides take precedence over production registrations
+- **Value Binding Implementation**: Changed from static instance to factory pattern for better consistency
+- **Token Resolution**: Enhanced token resolution in testing containers to properly handle `BoundInjectionToken` instances
+
 ## [0.9.0] - 2025-12-21
 
 ### Added

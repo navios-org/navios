@@ -10,12 +10,18 @@ import type {
 
 import { Container } from '../container/container.mjs'
 import { InjectableScope, InjectableType } from '../enums/index.mjs'
-import { InjectionToken } from '../token/injection-token.mjs'
+import {
+  BoundInjectionToken,
+  InjectionToken,
+} from '../token/injection-token.mjs'
 import { globalRegistry, Registry } from '../token/registry.mjs'
 import { getInjectableToken } from '../utils/get-injectable-token.mjs'
 import { defaultInjectors } from '../utils/index.mjs'
 
-type AnyToken = InjectionToken<any, any> | (new (...args: any[]) => any)
+type AnyToken =
+  | InjectionToken<any, any>
+  | BoundInjectionToken<any, any>
+  | (new (...args: any[]) => any)
 
 /**
  * TestContainer extends Container with testing utilities.
@@ -87,10 +93,14 @@ export class TestContainer extends Container {
    * container.bind(UserService).toValue(mockUserService)
    * container.bind(DatabaseToken).toClass(MockDatabase)
    * container.bind(ConfigToken).toFactory(() => ({ apiKey: 'test' }))
+   * container.bind(BOUND_CONFIG_TOKEN).toValue(overrideValue)
    * ```
    */
   bind<T>(
-    token: InjectionToken<T, any> | (new (...args: any[]) => T),
+    token:
+      | InjectionToken<T, any>
+      | BoundInjectionToken<T, any>
+      | (new (...args: any[]) => T),
   ): BindingBuilder<T> {
     const realToken = this.resolveToken(token)
     const tokenId = realToken.id
@@ -503,6 +513,9 @@ export class TestContainer extends Container {
     if (typeof token === 'function') {
       return getInjectableToken(token)
     }
+    if (token instanceof BoundInjectionToken) {
+      return token.token
+    }
     return token
   }
 
@@ -512,14 +525,17 @@ export class TestContainer extends Container {
   ): void {
     // Create a simple class that returns the value
     const ValueHolder = class {
-      static instance = value
+      create(): T {
+        return value
+      }
     }
 
     this.testRegistry.set(
       token,
       InjectableScope.Singleton,
       ValueHolder,
-      InjectableType.Class,
+      InjectableType.Factory,
+      1000, // Higher priority for test overrides
     )
 
     // Store the instance directly
@@ -543,6 +559,7 @@ export class TestContainer extends Container {
       InjectableScope.Singleton,
       cls,
       InjectableType.Class,
+      1000, // Higher priority for test overrides
     )
   }
 
@@ -563,6 +580,7 @@ export class TestContainer extends Container {
       InjectableScope.Singleton,
       FactoryWrapper,
       InjectableType.Factory,
+      1000, // Higher priority for test overrides
     )
   }
 

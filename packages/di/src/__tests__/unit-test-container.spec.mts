@@ -1,8 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { z } from 'zod'
 
 import { Injectable } from '../decorators/injectable.decorator.mjs'
-import { InjectionToken } from '../token/injection-token.mjs'
 import { UnitTestContainer } from '../testing/unit-test-container.mjs'
+import { InjectionToken } from '../token/injection-token.mjs'
 
 describe('UnitTestContainer', () => {
   describe('Strict Mode (default)', () => {
@@ -32,7 +33,9 @@ describe('UnitTestContainer', () => {
         providers: [],
       })
 
-      await expect(container.get(NotProvided)).rejects.toThrow(/not in the providers list/)
+      await expect(container.get(NotProvided)).rejects.toThrow(
+        /not in the providers list/,
+      )
 
       await container.dispose()
     })
@@ -81,6 +84,125 @@ describe('UnitTestContainer', () => {
 
       await container.dispose()
     })
+
+    it('should support bound tokens in providers with useValue override', async () => {
+      const configSchema = z.object({
+        apiUrl: z.string(),
+        timeout: z.number(),
+      })
+
+      const CONFIG_TOKEN = InjectionToken.create<
+        { apiUrl: string; timeout: number },
+        typeof configSchema
+      >('CONFIG', configSchema)
+
+      const BOUND_CONFIG = InjectionToken.bound(CONFIG_TOKEN, {
+        apiUrl: 'https://default.com',
+        timeout: 5000,
+      })
+
+      const container = new UnitTestContainer({
+        providers: [
+          {
+            token: BOUND_CONFIG,
+            useValue: { apiUrl: 'https://override.com', timeout: 10000 },
+          },
+        ],
+      })
+
+      const config = await container.get(BOUND_CONFIG)
+      expect(config.apiUrl).toBe('https://override.com')
+      expect(config.timeout).toBe(10000)
+
+      await container.dispose()
+    })
+
+    it('should support bound tokens in providers with useClass override', async () => {
+      const configSchema = z.object({
+        apiUrl: z.string(),
+      })
+
+      const CONFIG_TOKEN = InjectionToken.create<
+        { apiUrl: string },
+        typeof configSchema
+      >('CONFIG', configSchema)
+
+      const BOUND_CONFIG = InjectionToken.bound(CONFIG_TOKEN, {
+        apiUrl: 'https://default.com',
+      })
+
+      class TestConfig {
+        apiUrl: string
+        constructor() {
+          this.apiUrl = 'https://class-override.com'
+        }
+      }
+
+      const container = new UnitTestContainer({
+        providers: [{ token: BOUND_CONFIG, useClass: TestConfig }],
+      })
+
+      const config = await container.get(BOUND_CONFIG)
+      expect(config.apiUrl).toBe('https://class-override.com')
+
+      await container.dispose()
+    })
+
+    it('should support bound tokens in providers with useFactory override', async () => {
+      const configSchema = z.object({
+        apiUrl: z.string(),
+      })
+
+      const CONFIG_TOKEN = InjectionToken.create<
+        { apiUrl: string },
+        typeof configSchema
+      >('CONFIG', configSchema)
+
+      const BOUND_CONFIG = InjectionToken.bound(CONFIG_TOKEN, {
+        apiUrl: 'https://default.com',
+      })
+
+      const container = new UnitTestContainer({
+        providers: [
+          {
+            token: BOUND_CONFIG,
+            useFactory: () => ({ apiUrl: 'https://factory-override.com' }),
+          },
+        ],
+      })
+
+      const config = await container.get(BOUND_CONFIG)
+      expect(config.apiUrl).toBe('https://factory-override.com')
+
+      await container.dispose()
+    })
+
+    it('should support bound tokens in providers without override', async () => {
+      const configSchema = z.object({
+        apiUrl: z.string(),
+        timeout: z.number(),
+      })
+
+      const CONFIG_TOKEN = InjectionToken.create<
+        { apiUrl: string; timeout: number },
+        typeof configSchema
+      >('CONFIG', configSchema)
+
+      const BOUND_CONFIG = InjectionToken.bound(CONFIG_TOKEN, {
+        apiUrl: 'https://bound-value.com',
+        timeout: 3000,
+      })
+
+      const container = new UnitTestContainer({
+        providers: [{ token: BOUND_CONFIG }],
+      })
+
+      const config = await container.get(BOUND_CONFIG)
+      expect(config.apiUrl).toBe('https://bound-value.com')
+      expect(config.timeout).toBe(3000)
+
+      await container.dispose()
+    })
   })
 
   describe('Auto-Mock Mode', () => {
@@ -112,7 +234,7 @@ describe('UnitTestContainer', () => {
         allowUnregistered: true,
       })
 
-      const service = await container.get(AutoMocked) as any
+      const service = (await container.get(AutoMocked)) as any
 
       expect(() => service.doSomething()).toThrow(/auto-mocked service/)
 
@@ -279,7 +401,9 @@ describe('UnitTestContainer', () => {
         providers: [{ token: NotResolvedService }],
       })
 
-      expect(() => container.expectNotResolved(NotResolvedService)).not.toThrow()
+      expect(() =>
+        container.expectNotResolved(NotResolvedService),
+      ).not.toThrow()
 
       await container.dispose()
     })
