@@ -3,7 +3,7 @@ import { defineConfig } from 'tsdown'
 import swc from 'unplugin-swc'
 
 export default defineConfig({
-  entry: ['src/index.mts'],
+  entry: ['src/index.mts', 'src/legacy-compat/index.mts'],
   outDir: 'lib',
   format: ['esm', 'cjs'],
   clean: true,
@@ -11,7 +11,7 @@ export default defineConfig({
   treeshake: true,
   sourcemap: true,
   platform: 'node',
-  external: ['@navios/core', '@navios/di'],
+  external: ['@navios/core', '@navios/core/legacy-compat', '@navios/di'],
   dts: true,
   target: 'es2022',
   plugins: [

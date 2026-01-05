@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.1] - 2026-01-05
+
+### Added
+
+- **Legacy-Compatible Decorators**: Added `@navios/openapi/legacy-compat` export with legacy decorator versions of all OpenAPI decorators for TypeScript experimental decorators support:
+  - `ApiTag` - Group endpoints under tags
+  - `ApiOperation` - Full operation metadata
+  - `ApiSummary` - Quick summary shorthand
+  - `ApiDeprecated` - Mark endpoints as deprecated
+  - `ApiSecurity` - Specify security requirements
+  - `ApiExclude` - Exclude endpoints from documentation
+  - `ApiStream` - Specify stream content type and metadata
+- **Type Tests**: Added comprehensive type tests for legacy-compat decorators
+
+### Dependencies
+
+- Updated to support `@navios/core` ^0.9.3
+
 ## [0.9.0] - 2025-12-23
 
 ### Dependencies

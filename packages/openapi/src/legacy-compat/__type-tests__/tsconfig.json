@@ -1,0 +1,15 @@
+{
+  "extends": "../../../../../tsconfig.base.json",
+  "compilerOptions": {
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": false,
+    "outDir": "../../../dist/legacy-compat/__type-tests__"
+  },
+  "include": ["**/*.spec-d.mts"],
+  "exclude": [],
+  "references": [
+    {
+      "path": "../../../tsconfig.lib.json"
+    }
+  ]
+}
