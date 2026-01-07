@@ -4,81 +4,20 @@ sidebar_position: 2
 
 # Factories
 
-Factories provide a way to create instances using factory classes rather than direct instantiation. This is useful for complex object creation, configuration-based instantiation, and scenarios where you need to create multiple instances with different parameters.
+This guide covers advanced factory patterns and scenarios. For basic factory creation, see the [Getting Started guide](/docs/di/di/getting-started/factories).
 
-## What is a Factory?
+## Injection Token Relationship
 
-A factory is a class decorated with `@Factory()` that implements a `create()` method. When you request a factory from the container, you get the result of the `create()` method, not the factory instance itself.
+Like services, factories have Injection Tokens that identify them in the DI system. When you use `@Factory()`:
 
-**Key characteristics:**
-- **Returns created objects**: The factory's `create()` method is called, and its return value is what you get
-- **Configuration-based**: Factories can accept configuration via injection tokens with schemas
-- **Dependency injection**: Factories can inject other services using `inject()` or `ctx.container`
-- **Lifecycle management**: Factories can register cleanup callbacks via `ctx.addDestroyListener`
+- **Without a token**: The DI system automatically creates a token from the factory class
+- **With a token**: You provide your own token via the `token` option
 
-## Basic Factory
-
-```typescript
-import { Factory } from '@navios/di'
-
-@Factory()
-class DatabaseConnectionFactory {
-  create() {
-    return {
-      host: 'localhost',
-      port: 5432,
-      connected: true,
-      connect: () => console.log('Connected to database'),
-    }
-  }
-}
-
-// Usage - returns the result of create(), not the factory
-const container = new Container()
-const connection = await container.get(DatabaseConnectionFactory)
-console.log(connection) // { host: 'localhost', port: 5432, connected: true, connect: [Function] }
-```
-
-## Factory vs Injectable
-
-**Injectable services** return the service instance itself. **Factories** return the result of the `create()` method.
-
-```typescript
-// Injectable: Returns the service instance
-@Injectable()
-class EmailService {
-  sendEmail(to: string, subject: string) {
-    return `Email sent to ${to}: ${subject}`
-  }
-}
-const emailService = await container.get(EmailService)
-await emailService.sendEmail('user@example.com', 'Hello')
-
-// Factory: Returns the result of create()
-@Factory()
-class EmailServiceFactory {
-  create() {
-    return {
-      sendEmail: (to: string, subject: string) => {
-        return `Email sent to ${to}: ${subject}`
-      },
-    }
-  }
-}
-const emailService = await container.get(EmailServiceFactory)
-await emailService.sendEmail('user@example.com', 'Hello')
-```
+The token is what the Registry uses to store factory metadata and what the Container uses to resolve factories. This token-based system enables factory overrides, interface-based injection, and dynamic resolution.
 
 ## Configuration-Based Service Selection
 
 The most common use case for factories is selecting and returning different service implementations based on configuration. This pattern is ideal for scenarios like choosing between different AI providers, email service providers, payment processors, or storage backends.
-
-**How it works:**
-1. Define a configuration schema with Zod
-2. Create an injection token with the schema
-3. Define an interface for the service
-4. Create a factory that selects the implementation based on configuration
-5. Register provider implementations
 
 ```typescript
 import type { FactoryContext } from '@navios/di'
@@ -142,57 +81,18 @@ const openAIService = await container.get(AI_SERVICE_TOKEN, {
 })
 ```
 
-## Factory with Dependencies
+This pattern is ideal for:
+- **AI Providers**: OpenAI, Anthropic, Google AI
+- **Email Services**: SendGrid, SES, Mailgun, SMTP
+- **Payment Processors**: Stripe, PayPal, Square
+- **Storage Backends**: S3, Azure Blob, Google Cloud Storage
+- **Database Drivers**: PostgreSQL, MySQL, MongoDB
 
-Factories can inject other services using the `inject()` function:
+## Advanced Factory Context Usage
 
-```typescript
-import { Factory, inject, Injectable } from '@navios/di'
+The `FactoryContext` provides additional capabilities beyond basic dependency injection:
 
-@Injectable()
-class LoggerService {
-  log(message: string) {
-    console.log(`[LOG] ${message}`)
-  }
-}
-
-@Factory()
-class DatabaseConnectionFactory {
-  private readonly logger = inject(LoggerService)
-
-  create() {
-    this.logger.log('Creating database connection...')
-    return {
-      host: 'localhost',
-      port: 5432,
-      connected: false,
-      connect: async () => {
-        this.logger.log('Connecting to database...')
-        // Connection logic
-      },
-    }
-  }
-}
-```
-
-## Factory Context
-
-Factories receive a `FactoryContext` that provides additional functionality:
-
-```typescript
-interface FactoryContext {
-  // Inject dependencies asynchronously
-  inject: typeof asyncInject
-
-  // Access to the container from which the factory is being created
-  container: Container | ScopedContainer
-
-  // Register cleanup callback
-  addDestroyListener: (listener: () => void | Promise<void>) => void
-}
-```
-
-Use the context to access the container or register cleanup callbacks:
+### Accessing the Container
 
 ```typescript
 @Factory()
@@ -201,22 +101,18 @@ class UserRepositoryFactory {
     // Access the service container
     const container = ctx.container
 
-    // Inject dependencies within the factory
-    const dbService = await container.get(DatabaseService)
-
+    // Resolve dependencies dynamically
     return {
       async getUser(id: string) {
-        const db = await dbService
-        return db.query(`SELECT * FROM users WHERE id = ${id}`)
+        const dbService = await container.get(DatabaseService)
+        return dbService.query(`SELECT * FROM users WHERE id = ${id}`)
       },
     }
   }
 }
 ```
 
-## Factory with Cleanup
-
-Use `addDestroyListener` to register cleanup callbacks for resources:
+### Registering Cleanup Callbacks
 
 ```typescript
 @Factory()
@@ -239,42 +135,150 @@ class DatabaseConnectionFactory {
 }
 ```
 
-## Factory with Transient Scope
-
-Factories can be transient, creating a new instance each time:
+### Async Dependency Resolution
 
 ```typescript
-import { Factory, InjectableScope } from '@navios/di'
-
-@Factory({ scope: InjectableScope.Transient })
-class RandomIdFactory {
-  create() {
+@Factory()
+class ComplexServiceFactory {
+  create(ctx: FactoryContext) {
     return {
-      id: Math.random().toString(36).substr(2, 9),
-      createdAt: new Date(),
+      async initialize() {
+        // Resolve dependencies asynchronously
+        const service1 = await ctx.inject(Service1)
+        const service2 = await ctx.inject(Service2)
+        
+        // Use resolved services
+        await service1.setup()
+        await service2.configure()
+      },
     }
   }
 }
+```
 
-// Each call creates a new instance
-const id1 = await container.get(RandomIdFactory)
-const id2 = await container.get(RandomIdFactory)
-console.log(id1.id !== id2.id) // true
+## Factory with Multiple Dependencies
+
+Factories can inject multiple services:
+
+```typescript
+import { Factory, inject, Injectable } from '@navios/di'
+
+@Injectable()
+class LoggerService {
+  log(message: string) {
+    console.log(`[LOG] ${message}`)
+  }
+}
+
+@Injectable()
+class ConfigService {
+  getConfig() {
+    return { debug: true }
+  }
+}
+
+@Factory()
+class DatabaseConnectionFactory {
+  private readonly logger = inject(LoggerService)
+  private readonly config = inject(ConfigService)
+
+  create() {
+    const config = this.config.getConfig()
+    this.logger.log('Creating database connection...')
+    
+    return {
+      host: 'localhost',
+      port: 5432,
+      connected: false,
+      connect: async () => {
+        this.logger.log('Connecting to database...')
+        // Connection logic
+      },
+    }
+  }
+}
+```
+
+## Factory Override with Priority
+
+Like services, factories can use priority for overrides:
+
+```typescript
+import { Factory, InjectionToken } from '@navios/di'
+
+const SERVICE_TOKEN = InjectionToken.create<Service>('Service')
+
+// Default factory
+@Factory({ token: SERVICE_TOKEN, priority: 100 })
+class DefaultFactory {
+  create() {
+    return new DefaultService()
+  }
+}
+
+// Override factory (higher priority)
+@Factory({ token: SERVICE_TOKEN, priority: 200 })
+class OverrideFactory {
+  create() {
+    return new OverrideService()
+  }
+}
+```
+
+## Complex Factory Scenarios
+
+### Factory with Conditional Logic
+
+```typescript
+import type { FactoryContext } from '@navios/di'
+
+@Factory({ token: SERVICE_TOKEN })
+class ConditionalFactory {
+  create(ctx: FactoryContext, config: Config): Service {
+    if (config.environment === 'production') {
+      return new ProductionService(config)
+    } else if (config.environment === 'staging') {
+      return new StagingService(config)
+    } else {
+      return new DevelopmentService(config)
+    }
+  }
+}
+```
+
+### Factory with Resource Management
+
+```typescript
+@Factory()
+class ResourceFactory {
+  create(ctx: FactoryContext) {
+    const resources: Array<{ cleanup: () => Promise<void> }> = []
+
+    // Create resources
+    const resource1 = this.createResource1()
+    resources.push(resource1)
+
+    const resource2 = this.createResource2()
+    resources.push(resource2)
+
+    // Register cleanup
+    ctx.addDestroyListener(async () => {
+      for (const resource of resources.reverse()) {
+        await resource.cleanup()
+      }
+    })
+
+    return {
+      resource1,
+      resource2,
+    }
+  }
+}
 ```
 
 ## Best Practices
 
-### 1. Use Factories for Configuration-Based Service Selection
-
-The most common use case for factories is selecting service implementations based on configuration. This pattern is ideal for:
-
-- **AI Providers**: OpenAI, Anthropic, Google AI
-- **Email Services**: SendGrid, SES, Mailgun, SMTP
-- **Payment Processors**: Stripe, PayPal, Square
-- **Storage Backends**: S3, Azure Blob, Google Cloud Storage
-- **Database Drivers**: PostgreSQL, MySQL, MongoDB
-
-### 2. Define Clear Service Interfaces
+### 1. Define Clear Service Interfaces
 
 Always define interfaces for the services your factory returns to ensure type safety and consistency:
 
@@ -293,24 +297,11 @@ const EMAIL_SERVICE_TOKEN = InjectionToken.create<
 >('EMAIL_SERVICE', emailConfigSchema)
 ```
 
-### 3. Use Transient Scope for Stateful Objects
+### 2. Use Factories for Configuration-Based Selection
 
-Use transient scope when each factory call should create a new instance:
+The most common use case for factories is selecting service implementations based on configuration. This pattern is ideal for provider selection, environment-specific implementations, and feature flags.
 
-```typescript
-@Factory({ scope: InjectableScope.Transient })
-class UserSessionFactory {
-  create() {
-    return {
-      userId: null,
-      sessionId: Math.random().toString(36),
-      loginTime: new Date(),
-    }
-  }
-}
-```
-
-### 4. Validate Configuration with Zod Schemas
+### 3. Validate Configuration with Zod Schemas
 
 Always use Zod schemas to validate factory configuration:
 
@@ -327,7 +318,7 @@ const TOKEN = InjectionToken.create<Service, typeof configSchema>(
 )
 ```
 
-### 5. Handle Errors Gracefully
+### 4. Handle Errors Gracefully
 
 Provide clear error messages when configuration is invalid:
 
@@ -348,6 +339,14 @@ class ServiceFactory {
   }
 }
 ```
+
+### 5. Use Factory Context for Advanced Scenarios
+
+Leverage `FactoryContext` for:
+- Dynamic dependency resolution
+- Resource cleanup
+- Container access
+- Async operations
 
 ## When to Use Factories vs Services
 

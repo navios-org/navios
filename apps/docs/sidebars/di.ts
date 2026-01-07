@@ -8,11 +8,28 @@ const sidebars: SidebarsConfig = {
       label: 'DI Core',
       collapsed: false,
       items: [
-        'di/getting-started',
+        'di/overview',
         {
           type: 'category',
-          label: 'Overview',
-          items: ['di/overview/architecture', 'di/overview/key-concepts'],
+          label: 'Getting Started',
+          collapsed: false,
+          items: [
+            'di/getting-started/setup',
+            'di/getting-started/first-service',
+            'di/getting-started/injection-tokens',
+            'di/getting-started/bound-factory-tokens',
+            'di/getting-started/factories',
+            'di/getting-started/service-override',
+          ],
+        },
+        {
+          type: 'category',
+          label: 'Architecture',
+          collapsed: false,
+          items: [
+            'di/architecture/overview',
+            'di/architecture/core-concepts',
+          ],
         },
         {
           type: 'category',

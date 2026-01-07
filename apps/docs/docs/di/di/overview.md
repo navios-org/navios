@@ -21,6 +21,19 @@ yarn add @navios/di zod
 pnpm add @navios/di zod
 ```
 
+## Foundation: Injection Tokens
+
+**Navios DI is built on Injection Tokens.** Every service and factory has an Injection Token that identifies it in the DI system:
+
+- **Auto-created tokens**: When you use `@Injectable()` or `@Factory()` without a `token` option, the DI system automatically creates a token from the class
+- **Explicit tokens**: You can provide your own token using the `token` option
+
+The token is what the Registry uses to store service metadata and what the Container uses to resolve services. This token-based system enables:
+- Multiple services per token (with priority-based resolution)
+- Interface-based injection
+- Dynamic service resolution
+- Service overrides
+
 ## Core Concepts
 
 ### Dependency Injection Pattern
@@ -29,8 +42,8 @@ Dependency Injection (DI) is a design pattern that helps manage dependencies bet
 
 **The DI system follows a registration-resolution pattern:**
 
-1. **Registration** - Services are registered via decorators (`@Injectable`, `@Factory`)
-2. **Resolution** - Dependencies are resolved via injection functions (`inject`, `asyncInject`, `optional`)
+1. **Registration** - Services are registered via decorators (`@Injectable`, `@Factory`), each with an Injection Token
+2. **Resolution** - Dependencies are resolved via injection functions (`inject`, `asyncInject`, `optional`) using their tokens
 3. **Lifecycle** - Services have scoped lifetimes and lifecycle hooks
 
 **Benefits:**
@@ -43,115 +56,24 @@ Dependency Injection (DI) is a design pattern that helps manage dependencies bet
 
 | Component | Purpose |
 |-----------|---------|
-| `Registry` | Central storage for service metadata with priority support |
-| `Container` | Main entry point for service resolution |
+| `Registry` | Central storage for service metadata, organized by Injection Tokens, with priority support |
+| `Container` | Main entry point for service resolution by Injection Token |
 | `UnifiedStorage` | Unified storage for all service scopes |
 | `ServiceInitializer` | Creates service instances |
 | `InstanceResolver` | Resolves service instances and dependencies |
-| `InjectionToken` | Type-safe tokens for dynamic resolution |
+| `InjectionToken` | Type-safe tokens that identify services in the DI system |
 
-## Quick Start
+## Quick Overview
 
-```typescript
-import { Injectable, inject, Container } from '@navios/di'
-
-@Injectable()
-class ConfigService {
-  getApiUrl() {
-    return 'https://api.example.com'
-  }
-}
-
-@Injectable()
-class UserService {
-  private config = inject(ConfigService)
-
-  async getUsers() {
-    const url = this.config.getApiUrl()
-    // fetch users...
-  }
-}
-
-// Use the container
-const container = new Container()
-const userService = await container.get(UserService)
-await userService.getUsers()
-```
-
-## Injection Scopes
-
-Services can have different lifetimes:
-
-- **Singleton** (default): One instance shared across the entire application
-- **Transient**: New instance created for each injection
-- **Request**: One instance per request context (requires `ScopedContainer`)
-
-```typescript
-import { Injectable, InjectableScope } from '@navios/di'
-
-@Injectable() // Singleton (default)
-class ConfigService {}
-
-@Injectable({ scope: InjectableScope.Transient })
-class LogEntry {}
-
-@Injectable({ scope: InjectableScope.Request })
-class RequestContext {}
-```
-
-## Injection Functions
-
-Navios DI provides three ways to inject dependencies:
-
-- **`inject()`**: Synchronous injection for immediate access (supports all scopes)
-- **`asyncInject()`**: Asynchronous injection, useful for breaking circular dependencies
-- **`optional()`**: Optional injection that returns `null` if the service isn't available
-
-```typescript
-// Synchronous injection (most common)
-private readonly emailService = inject(EmailService)
-
-// Asynchronous injection (for circular dependencies)
-private readonly serviceB = asyncInject(ServiceB)
-// Later: const b = await this.serviceB
-
-// Optional injection
-private readonly analytics = optional(AnalyticsService)
-// Later: this.analytics?.track(event)
-```
-
-## Lifecycle Hooks
-
-Services can implement lifecycle hooks for initialization and cleanup:
-
-- **`OnServiceInit`**: Called after the service is instantiated and all dependencies are injected
-- **`OnServiceDestroy`**: Called when the service is being destroyed
-
-```typescript
-import { Injectable, OnServiceInit, OnServiceDestroy } from '@navios/di'
-
-@Injectable()
-class DatabaseService implements OnServiceInit, OnServiceDestroy {
-  async onServiceInit() {
-    await this.connect()
-    console.log('Database connected')
-  }
-
-  async onServiceDestroy() {
-    await this.disconnect()
-    console.log('Database disconnected')
-  }
-}
-```
-
-**Important**: Never access injected services in constructors. Services can be initialized multiple times during dependency resolution. Always use `onServiceInit()` for initialization logic that depends on other services.
+- **Services**: Classes decorated with `@Injectable()` that have Injection Tokens
+- **Factories**: Classes decorated with `@Factory()` that return created objects
+- **Scopes**: Singleton (default), Transient, or Request lifetime
+- **Priority**: Multiple services can register for the same token; highest priority wins
+- **Lifecycle**: `OnServiceInit` and `OnServiceDestroy` hooks for initialization and cleanup
 
 ## Next Steps
 
-- **[Getting Started](/docs/di/di/getting-started)** - Set up your first service
-- **[Services Guide](/docs/di/di/guides/services)** - Learn how to create and use services
-- **[Injection Tokens](/docs/di/di/guides/injection-tokens)** - Flexible dependency resolution
-- **[Factories](/docs/di/di/guides/factories)** - Complex object creation
-- **[Scopes](/docs/di/di/guides/scopes)** - Service lifetime management
-- **[Lifecycle](/docs/di/di/guides/lifecycle)** - Initialization and cleanup hooks
-- **[Browser Support](/docs/di/di/guides/browser-support)** - Using DI in browser environments
+- **[Getting Started](/docs/di/di/getting-started/setup)** - Set up your project and create your first service
+- **[Architecture](/docs/di/di/architecture/overview)** - Understand the DI system architecture
+- **[Core Concepts](/docs/di/di/architecture/core-concepts)** - Deep dive into core concepts
+- **[Guides](/docs/di/di/guides/services)** - Learn about specific topics

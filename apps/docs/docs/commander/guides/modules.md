@@ -56,6 +56,63 @@ import { UserModule } from './user.module'
 export class AppModule {}
 ```
 
+## Service Overrides
+
+Navios uses InjectionTokens for dependency injection, allowing you to override services using priority. The `overrides` option ensures that override service classes are imported so their `@Injectable` decorators execute and register with the DI system.
+
+### When to Use Overrides
+
+Use `overrides` when you have service implementations that override other services using the same InjectionToken with a higher priority. These override classes are not "used" in the module - they're imported purely for side effects (decorator execution).
+
+### Example: Overriding a Service
+
+```typescript
+// user.service.ts - Original service
+import { Injectable, InjectionToken } from '@navios/di'
+
+export const USER_SERVICE_TOKEN = InjectionToken.create<UserService>('UserService')
+
+@Injectable({ token: USER_SERVICE_TOKEN, priority: 100 })
+export class UserService {
+  getUsers() {
+    return ['Alice', 'Bob']
+  }
+}
+
+// user.service.override.ts - Override service with higher priority
+import { Injectable } from '@navios/di'
+import { USER_SERVICE_TOKEN } from './user.service'
+
+@Injectable({ token: USER_SERVICE_TOKEN, priority: 200 })
+export class OverrideUserService {
+  getUsers() {
+    return ['Charlie', 'David'] // Override implementation
+  }
+}
+
+// app.module.ts - Register the override
+import { CliModule } from '@navios/commander'
+import { OverrideUserService } from './user.service.override'
+
+@CliModule({
+  commands: [UserCommand],
+  overrides: [OverrideUserService], // Ensures override is registered
+})
+export class AppModule {}
+```
+
+When `UserService` is injected using `USER_SERVICE_TOKEN`, the DI system will resolve `OverrideUserService` because it has the higher priority (200 > 100).
+
+### Override Validation
+
+The framework automatically validates overrides during module loading:
+
+- **Warns** if an override class is not registered (missing `@Injectable` decorator)
+- **Warns** if an override doesn't have the highest priority (another service with higher priority is active)
+- **Logs debug message** when an override is successfully active
+
+This helps catch configuration errors early and ensures your overrides are working as expected.
+
 ## Organizing by Feature
 
 Group related commands into feature modules:
