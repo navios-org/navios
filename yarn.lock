@@ -12073,8 +12073,6 @@ __metadata:
     "@navios/di": "workspace:*"
     "@types/bun": "npm:^1.3.5"
     "@types/supertest": "npm:^6.0.3"
-    chalk: "npm:^5.4.1"
-    esbuild: "npm:^0.25.0"
     supertest: "npm:^7.1.4"
     typescript: "npm:^5.9.3"
     zod: "npm:^4.2.1"
