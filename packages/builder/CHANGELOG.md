@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.0.0-alpha.2] - 2026-01-07
+
+### Changed
+
+- **Server-Side Type Inference**: `RequestArgs` type now correctly uses `z.output` types for server-side handlers instead of `z.input`
+  - Server handlers receive parsed/transformed values from Zod schemas
+  - Client-side still uses `z.input` for raw input values
+  - Affects `urlParams`, `params` (query), and `data` (body) parameters
+- **RequestBase Exclusion for Server**: Server-side handlers no longer include `RequestBase` fields (like `signal`), as these are client-only concerns
+
 ## [1.0.0-alpha.1] - 2026-01-06
 
 ### Added

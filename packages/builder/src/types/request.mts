@@ -143,17 +143,27 @@ export type RequestArgs<
   UrlParamsSchema extends ZodObject | undefined = undefined,
   IsServer extends boolean = false,
 > = Simplify<
-  RequestBase &
+  (IsServer extends false ? RequestBase : {}) &
     // URL Parameters: Use UrlParamsSchema if provided, else default UrlParams type
     (UrlHasParams<Url> extends true
       ? UrlParamsSchema extends ZodObject
-        ? { urlParams: z.input<UrlParamsSchema> }
-        : { urlParams: UrlParams<Url, IsServer> }
+        ? IsServer extends true
+          ? { urlParams: z.output<UrlParamsSchema> }
+          : { urlParams: z.input<UrlParamsSchema> }
+        : { urlParams: Simplify<UrlParams<Url, IsServer>> }
       : {}) &
     // Query Parameters
-    (QuerySchema extends ZodObject ? { params: z.input<QuerySchema> } : {}) &
+    (QuerySchema extends ZodObject
+      ? IsServer extends true
+        ? { params: z.output<QuerySchema> }
+        : { params: z.input<QuerySchema> }
+      : {}) &
     // Request Body
-    (RequestSchema extends ZodType ? { data: z.input<RequestSchema> } : {})
+    (RequestSchema extends ZodType
+      ? IsServer extends true
+        ? { data: z.output<RequestSchema> }
+        : { data: z.input<RequestSchema> }
+      : {})
 >
 
 // =============================================================================
