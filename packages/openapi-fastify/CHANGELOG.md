@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.0-alpha.2] - 2026-01-07
+
+### Dependencies
+
+- Updated to support `@navios/core` ^1.0.0-alpha.2
+- Updated to support `@navios/adapter-fastify` ^1.0.0-alpha.2
+- Updated to support `@navios/openapi` ^1.0.0-alpha.2
+
 ## [0.9.0] - 2025-12-23
 
 ### Dependencies
