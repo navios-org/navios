@@ -14,6 +14,7 @@ export interface ModuleMetadata {
   guards: Set<
     ClassTypeWithInstance<CanActivate> | InjectionToken<CanActivate, undefined>
   >
+  overrides: Set<ClassType>
   customAttributes: Map<string | symbol, any>
 }
 
@@ -35,6 +36,7 @@ export function getModuleMetadata(
           | ClassTypeWithInstance<CanActivate>
           | InjectionToken<CanActivate, undefined>
         >(),
+        overrides: new Set<ClassType>(),
         customAttributes: new Map<string | symbol, any>(),
       }
       context.metadata[ModuleMetadataKey] = newMetadata

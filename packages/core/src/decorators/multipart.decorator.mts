@@ -1,9 +1,4 @@
-import type {
-  BaseEndpointConfig,
-  EndpointFunctionArgs,
-  HttpMethod,
-  Util_FlatObject,
-} from '@navios/builder'
+import type { EndpointOptions, RequestArgs } from '@navios/builder'
 import type { z, ZodObject, ZodType } from 'zod/v4'
 
 import { ZodDiscriminatedUnion } from 'zod/v4'
@@ -20,31 +15,41 @@ import { MultipartAdapterToken } from '../tokens/index.mjs'
  */
 export type MultipartParams<
   EndpointDeclaration extends {
-    config: BaseEndpointConfig<any, any, any, any, any>
+    config: EndpointOptions
   },
   Url extends string = EndpointDeclaration['config']['url'],
   QuerySchema = EndpointDeclaration['config']['querySchema'],
 > = QuerySchema extends ZodObject
   ? EndpointDeclaration['config']['requestSchema'] extends ZodType
-    ? Util_FlatObject<
-        EndpointFunctionArgs<
-          Url,
-          QuerySchema,
-          EndpointDeclaration['config']['requestSchema'],
-          true
-        >
+    ? RequestArgs<
+        Url,
+        QuerySchema,
+        EndpointDeclaration['config']['requestSchema'],
+        EndpointDeclaration['config']['urlParamsSchema'],
+        true
       >
-    : Util_FlatObject<EndpointFunctionArgs<Url, QuerySchema, undefined, true>>
+    : RequestArgs<
+        Url,
+        QuerySchema,
+        undefined,
+        EndpointDeclaration['config']['urlParamsSchema'],
+        true
+      >
   : EndpointDeclaration['config']['requestSchema'] extends ZodType
-    ? Util_FlatObject<
-        EndpointFunctionArgs<
-          Url,
-          undefined,
-          EndpointDeclaration['config']['requestSchema'],
-          true
-        >
+    ? RequestArgs<
+        Url,
+        undefined,
+        EndpointDeclaration['config']['requestSchema'],
+        EndpointDeclaration['config']['urlParamsSchema'],
+        true
       >
-    : Util_FlatObject<EndpointFunctionArgs<Url, undefined, undefined, true>>
+    : RequestArgs<
+        Url,
+        undefined,
+        undefined,
+        EndpointDeclaration['config']['urlParamsSchema'],
+        true
+      >
 
 /**
  * Extracts the typed return value for a multipart endpoint handler function.
@@ -53,7 +58,7 @@ export type MultipartParams<
  */
 export type MultipartResult<
   EndpointDeclaration extends {
-    config: BaseEndpointConfig<any, any, any, any, any>
+    config: EndpointOptions
   },
 > =
   EndpointDeclaration['config']['responseSchema'] extends ZodDiscriminatedUnion<
@@ -91,79 +96,50 @@ export type MultipartResult<
  * }
  * ```
  */
-export function Multipart<
-  Method extends HttpMethod = HttpMethod,
-  Url extends string = string,
-  QuerySchema = undefined,
-  ResponseSchema extends ZodType = ZodType,
-  RequestSchema = ZodType,
-  Params = QuerySchema extends ZodObject
-    ? RequestSchema extends ZodType
-      ? EndpointFunctionArgs<Url, QuerySchema, RequestSchema, true>
-      : EndpointFunctionArgs<Url, QuerySchema, undefined, true>
-    : RequestSchema extends ZodType
-      ? EndpointFunctionArgs<Url, undefined, RequestSchema, true>
-      : EndpointFunctionArgs<Url, undefined, undefined, true>,
->(endpoint: {
-  config: BaseEndpointConfig<
-    Method,
-    Url,
-    QuerySchema,
-    ResponseSchema,
-    RequestSchema
-  >
+export function Multipart<Config extends EndpointOptions>(endpoint: {
+  config: Config
 }): (
   target: (
-    params: Params,
-  ) => Promise<z.input<ResponseSchema>> | z.input<ResponseSchema>,
+    params: RequestArgs<
+      Config['url'],
+      Config['querySchema'],
+      Config['requestSchema'],
+      Config['urlParamsSchema'],
+      true
+    >,
+  ) =>
+    | Promise<z.input<Config['responseSchema']>>
+    | z.input<Config['responseSchema']>,
   context: ClassMethodDecoratorContext,
 ) => void
-export function Multipart<
-  Method extends HttpMethod = HttpMethod,
-  Url extends string = string,
-  QuerySchema = undefined,
-  ResponseSchema extends ZodType = ZodType,
-  RequestSchema = ZodType,
->(endpoint: {
-  config: BaseEndpointConfig<
-    Method,
-    Url,
-    QuerySchema,
-    ResponseSchema,
-    RequestSchema
-  >
+export function Multipart<Config extends EndpointOptions>(endpoint: {
+  config: Config
 }): (
-  target: () => Promise<z.input<ResponseSchema>> | z.input<ResponseSchema>,
+  target: () =>
+    | Promise<z.input<Config['responseSchema']>>
+    | z.input<Config['responseSchema']>,
   context: ClassMethodDecoratorContext,
 ) => void
-export function Multipart<
-  Method extends HttpMethod = HttpMethod,
-  Url extends string = string,
-  QuerySchema = undefined,
-  ResponseSchema extends ZodType = ZodType,
-  RequestSchema = ZodType,
->(endpoint: {
-  config: BaseEndpointConfig<
-    Method,
-    Url,
-    QuerySchema,
-    ResponseSchema,
-    RequestSchema
-  >
+export function Multipart<Config extends EndpointOptions>(endpoint: {
+  config: Config
 }) {
-  type Params = QuerySchema extends ZodObject
-    ? RequestSchema extends ZodType
-      ? EndpointFunctionArgs<Url, QuerySchema, RequestSchema, true>
-      : EndpointFunctionArgs<Url, QuerySchema, undefined, true>
-    : RequestSchema extends ZodType
-      ? EndpointFunctionArgs<Url, undefined, RequestSchema, true>
-      : EndpointFunctionArgs<Url, undefined, undefined, true>
+  type Params = RequestArgs<
+    Config['url'],
+    Config['querySchema'],
+    Config['requestSchema'],
+    Config['urlParamsSchema'],
+    true
+  >
 
   type Handler =
     | ((
         params: Params,
-      ) => Promise<z.input<ResponseSchema>> | z.input<ResponseSchema>)
-    | (() => Promise<z.input<ResponseSchema>> | z.input<ResponseSchema>)
+      ) =>
+        | Promise<z.input<Config['responseSchema']>>
+        | z.input<Config['responseSchema']>)
+    | (() =>
+        | Promise<z.input<Config['responseSchema']>>
+        | z.input<Config['responseSchema']>)
 
   return (target: Handler, context: ClassMethodDecoratorContext) => {
     if (context.kind !== 'method') {
@@ -173,7 +149,7 @@ export function Multipart<
     }
     const config = endpoint.config
     if (context.metadata) {
-      let endpointMetadata = getEndpointMetadata<BaseEndpointConfig>(
+      let endpointMetadata = getEndpointMetadata<EndpointOptions>(
         target,
         context,
       )
@@ -182,7 +158,6 @@ export function Multipart<
           `[Navios] Endpoint ${config.method} ${config.url} already exists. Please use a different method or url.`,
         )
       }
-      // @ts-expect-error We don't need to set correctly in the metadata
       endpointMetadata.config = config
       endpointMetadata.adapterToken = MultipartAdapterToken
       endpointMetadata.classMethod = target.name

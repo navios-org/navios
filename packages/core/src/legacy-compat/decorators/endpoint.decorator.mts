@@ -1,9 +1,9 @@
 import type {
-  BaseEndpointConfig,
-  EndpointFunctionArgs,
-  HttpMethod,
+  EndpointHandler,
+  EndpointOptions,
+  RequestArgs,
 } from '@navios/builder'
-import type { z, ZodType } from 'zod/v4'
+import type { z } from 'zod/v4'
 
 import { Endpoint as OriginalEndpoint } from '../../decorators/endpoint.decorator.mjs'
 import { createMethodContext } from '../context-compat.mjs'
@@ -13,22 +13,18 @@ import { createMethodContext } from '../context-compat.mjs'
  * Note: In legacy decorators, type constraints are checked when the decorator is applied,
  * but may not be preserved perfectly when decorators are stacked.
  */
-type EndpointMethodDescriptor<
-  Url extends string,
-  QuerySchema,
-  RequestSchema,
-  ResponseSchema extends ZodType,
-> = TypedPropertyDescriptor<
-  (
-    params: QuerySchema extends ZodType
-      ? RequestSchema extends ZodType
-        ? EndpointFunctionArgs<Url, QuerySchema, RequestSchema, true>
-        : EndpointFunctionArgs<Url, QuerySchema, undefined, true>
-      : RequestSchema extends ZodType
-        ? EndpointFunctionArgs<Url, undefined, RequestSchema, true>
-        : EndpointFunctionArgs<Url, undefined, undefined, true>,
-  ) => Promise<z.input<ResponseSchema>>
->
+type EndpointMethodDescriptor<Config extends EndpointOptions> =
+  TypedPropertyDescriptor<
+    (
+      params: RequestArgs<
+        Config['url'],
+        Config['querySchema'],
+        Config['requestSchema'],
+        Config['urlParamsSchema'],
+        true
+      >,
+    ) => Promise<z.input<Config['responseSchema']>>
+  >
 
 /**
  * Legacy-compatible Endpoint decorator.
@@ -50,30 +46,13 @@ type EndpointMethodDescriptor<
  * }
  * ```
  */
-export function Endpoint<
-  Method extends HttpMethod = HttpMethod,
-  Url extends string = string,
-  QuerySchema = undefined,
-  ResponseSchema extends ZodType = ZodType,
-  RequestSchema = ZodType,
->(endpoint: {
-  config: BaseEndpointConfig<
-    Method,
-    Url,
-    QuerySchema,
-    ResponseSchema,
-    RequestSchema
-  >
-}) {
+export function Endpoint<const Config extends EndpointOptions>(
+  endpoint: EndpointHandler<Config, false>,
+) {
   return function (
     target: any,
     propertyKey: string | symbol,
-    descriptor: EndpointMethodDescriptor<
-      Url,
-      QuerySchema,
-      RequestSchema,
-      ResponseSchema
-    >,
+    descriptor: EndpointMethodDescriptor<Config>,
   ): PropertyDescriptor | void {
     if (!descriptor) {
       throw new Error(
@@ -81,12 +60,7 @@ export function Endpoint<
       )
     }
     // Type check the descriptor value matches expected signature
-    const typedDescriptor = descriptor as EndpointMethodDescriptor<
-      Url,
-      QuerySchema,
-      RequestSchema,
-      ResponseSchema
-    >
+    const typedDescriptor = descriptor as EndpointMethodDescriptor<Config>
     const context = createMethodContext(target, propertyKey, typedDescriptor)
     const originalDecorator = OriginalEndpoint(endpoint)
     // @ts-expect-error - we don't need to type the value

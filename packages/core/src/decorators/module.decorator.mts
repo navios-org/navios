@@ -24,6 +24,13 @@ export interface ModuleOptions {
    */
   guards?: ClassType[] | Set<ClassType>
   /**
+   * Service override classes to import for side effects.
+   * These classes are imported to ensure their @Injectable decorators execute,
+   * allowing them to register with the DI system. Overrides should use the same
+   * InjectionToken as the original service with a higher priority.
+   */
+  overrides?: ClassType[] | Set<ClassType>
+  /**
    * Priority to use for the module.
    * Priority is used to sort the module in the registry.
    */
@@ -59,12 +66,14 @@ export function Module(
     controllers = [],
     imports = [],
     guards = [],
+    overrides = [],
     priority,
     registry,
   }: ModuleOptions = {
     controllers: [],
     imports: [],
     guards: [],
+    overrides: [],
   },
 ) {
   return (target: ClassType, context: ClassDecoratorContext) => {
@@ -82,6 +91,9 @@ export function Module(
     }
     for (const guard of Array.from(guards).reverse()) {
       moduleMetadata.guards.add(guard)
+    }
+    for (const override of overrides) {
+      moduleMetadata.overrides.add(override)
     }
 
     return Injectable({

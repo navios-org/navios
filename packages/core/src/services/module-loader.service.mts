@@ -117,6 +117,7 @@ export class ModuleLoaderService {
         controllers: new Set(controllers),
         imports: new Set(),
         guards: new Set(),
+        overrides: new Set(),
         customAttributes: new Map(),
       }
       this.modulesMetadata.set(moduleName, metadata)
@@ -147,6 +148,7 @@ export class ModuleLoaderService {
         this.traverseModules(importedModule, metadata),
       )
       await Promise.all(loadingPromises)
+      this.validateOverrides(metadata, moduleName)
       const instance = await this.container.get(module)
       if (instance.onModuleInit) {
         await instance.onModuleInit()
@@ -156,6 +158,67 @@ export class ModuleLoaderService {
     } catch (error) {
       this.logger.error(`Error loading module ${moduleName}`, error)
       throw error
+    }
+  }
+
+  private validateOverrides(
+    metadata: ModuleMetadata,
+    moduleName: string,
+  ): void {
+    if (!metadata.overrides || metadata.overrides.size === 0) {
+      return
+    }
+
+    const registry = this.container.getRegistry()
+
+    for (const overrideClass of metadata.overrides) {
+      try {
+        // Get the token for the override class
+        const overrideToken = getInjectableToken(overrideClass)
+
+        // Get all registrations for this token (sorted by priority, highest first)
+        const allRegistrations = registry.getAll(overrideToken)
+
+        if (allRegistrations.length === 0) {
+          this.logger.warn(
+            `[Navios] Override ${overrideClass.name} in module ${moduleName} is not registered. ` +
+              `Make sure it has @Injectable decorator.`,
+          )
+          continue
+        }
+
+        // Check if the override class has the highest priority
+        const highestPriorityRegistration = allRegistrations[0]
+        if (highestPriorityRegistration.target !== overrideClass) {
+          const overrideRegistration = allRegistrations.find(
+            (r) => r.target === overrideClass,
+          )
+
+          if (!overrideRegistration) {
+            this.logger.warn(
+              `[Navios] Override ${overrideClass.name} in module ${moduleName} is registered ` +
+                `but not found in registry for token ${overrideToken.toString()}.`,
+            )
+          } else {
+            this.logger.warn(
+              `[Navios] Override ${overrideClass.name} in module ${moduleName} is not active. ` +
+                `Current active service: ${highestPriorityRegistration.target.name} ` +
+                `(priority: ${highestPriorityRegistration.priority}). ` +
+                `Override priority: ${overrideRegistration.priority}. ` +
+                `Override needs higher priority to take effect.`,
+            )
+          }
+        } else {
+          this.logger.debug(
+            `[Navios] Override ${overrideClass.name} in module ${moduleName} is active ` +
+              `(priority: ${highestPriorityRegistration.priority})`,
+          )
+        }
+      } catch (error) {
+        this.logger.warn(
+          `[Navios] Failed to validate override ${overrideClass.name} in module ${moduleName}: ${error}`,
+        )
+      }
     }
   }
 

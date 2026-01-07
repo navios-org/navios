@@ -1,10 +1,9 @@
 import type {
-  BaseEndpointConfig,
-  EndpointFunctionArgs,
-  HttpMethod,
-  Util_FlatObject,
+  EndpointHandler,
+  EndpointOptions,
+  RequestArgs,
 } from '@navios/builder'
-import type { z, ZodType } from 'zod/v4'
+import type { z } from 'zod/v4'
 
 import { ZodDiscriminatedUnion } from 'zod/v4'
 
@@ -36,32 +35,15 @@ import { EndpointAdapterToken } from '../tokens/index.mjs'
  * ```
  */
 export type EndpointParams<
-  EndpointDeclaration extends {
-    config: BaseEndpointConfig<any, any, any, any, any>
-  },
-  Url extends string = EndpointDeclaration['config']['url'],
-  QuerySchema = EndpointDeclaration['config']['querySchema'],
-> = QuerySchema extends ZodType
-  ? EndpointDeclaration['config']['requestSchema'] extends ZodType
-    ? Util_FlatObject<
-        EndpointFunctionArgs<
-          Url,
-          QuerySchema,
-          EndpointDeclaration['config']['requestSchema'],
-          true
-        >
-      >
-    : Util_FlatObject<EndpointFunctionArgs<Url, QuerySchema, undefined, true>>
-  : EndpointDeclaration['config']['requestSchema'] extends ZodType
-    ? Util_FlatObject<
-        EndpointFunctionArgs<
-          Url,
-          undefined,
-          EndpointDeclaration['config']['requestSchema'],
-          true
-        >
-      >
-    : Util_FlatObject<EndpointFunctionArgs<Url, undefined, undefined, true>>
+  EndpointDeclaration extends EndpointHandler<Config, false>,
+  Config extends EndpointOptions = EndpointDeclaration['config'],
+> = RequestArgs<
+  Config['url'],
+  Config['querySchema'],
+  Config['requestSchema'],
+  Config['urlParamsSchema'],
+  true
+>
 
 /**
  * Extracts the typed return value for an endpoint handler function.
@@ -87,7 +69,7 @@ export type EndpointParams<
  */
 export type EndpointResult<
   EndpointDeclaration extends {
-    config: BaseEndpointConfig<any, any, any, any, any>
+    config: EndpointOptions
   },
 > =
   EndpointDeclaration['config']['responseSchema'] extends ZodDiscriminatedUnion<
@@ -126,79 +108,50 @@ export type EndpointResult<
  * }
  * ```
  */
-export function Endpoint<
-  Method extends HttpMethod = HttpMethod,
-  Url extends string = string,
-  QuerySchema = undefined,
-  ResponseSchema extends ZodType = ZodType,
-  RequestSchema = ZodType,
-  Params = QuerySchema extends ZodType
-    ? RequestSchema extends ZodType
-      ? EndpointFunctionArgs<Url, QuerySchema, RequestSchema, true>
-      : EndpointFunctionArgs<Url, QuerySchema, undefined, true>
-    : RequestSchema extends ZodType
-      ? EndpointFunctionArgs<Url, undefined, RequestSchema, true>
-      : EndpointFunctionArgs<Url, undefined, undefined, true>,
->(endpoint: {
-  config: BaseEndpointConfig<
-    Method,
-    Url,
-    QuerySchema,
-    ResponseSchema,
-    RequestSchema
-  >
-}): (
+export function Endpoint<const Config extends EndpointOptions>(
+  endpoint: EndpointHandler<Config, false>,
+): (
   target: (
-    params: Params,
-  ) => Promise<z.input<ResponseSchema>> | z.input<ResponseSchema>,
+    params: RequestArgs<
+      Config['url'],
+      Config['querySchema'],
+      Config['requestSchema'],
+      Config['urlParamsSchema'],
+      true
+    >,
+  ) =>
+    | Promise<z.input<Config['responseSchema']>>
+    | z.input<Config['responseSchema']>,
   context: ClassMethodDecoratorContext,
 ) => void
-export function Endpoint<
-  Method extends HttpMethod = HttpMethod,
-  Url extends string = string,
-  QuerySchema = undefined,
-  ResponseSchema extends ZodType = ZodType,
-  RequestSchema = ZodType,
->(endpoint: {
-  config: BaseEndpointConfig<
-    Method,
-    Url,
-    QuerySchema,
-    ResponseSchema,
-    RequestSchema
-  >
-}): (
-  target: () => Promise<z.input<ResponseSchema>> | z.input<ResponseSchema>,
+export function Endpoint<const Config extends EndpointOptions>(
+  endpoint: EndpointHandler<Config, false>,
+): (
+  target: () =>
+    | Promise<z.input<Config['responseSchema']>>
+    | z.input<Config['responseSchema']>,
   context: ClassMethodDecoratorContext,
 ) => void
-export function Endpoint<
-  Method extends HttpMethod = HttpMethod,
-  Url extends string = string,
-  QuerySchema = undefined,
-  ResponseSchema extends ZodType = ZodType,
-  RequestSchema = ZodType,
->(endpoint: {
-  config: BaseEndpointConfig<
-    Method,
-    Url,
-    QuerySchema,
-    ResponseSchema,
-    RequestSchema
+export function Endpoint<const Config extends EndpointOptions>(
+  endpoint: EndpointHandler<Config, false>,
+) {
+  type Params = RequestArgs<
+    Config['url'],
+    Config['querySchema'],
+    Config['requestSchema'],
+    Config['urlParamsSchema'],
+    true
   >
-}) {
-  type Params = QuerySchema extends ZodType
-    ? RequestSchema extends ZodType
-      ? EndpointFunctionArgs<Url, QuerySchema, RequestSchema, true>
-      : EndpointFunctionArgs<Url, QuerySchema, undefined, true>
-    : RequestSchema extends ZodType
-      ? EndpointFunctionArgs<Url, undefined, RequestSchema, true>
-      : EndpointFunctionArgs<Url, undefined, undefined, true>
 
   type Handler =
     | ((
         params: Params,
-      ) => Promise<z.input<ResponseSchema>> | z.input<ResponseSchema>)
-    | (() => Promise<z.input<ResponseSchema>> | z.input<ResponseSchema>)
+      ) =>
+        | Promise<z.input<Config['responseSchema']>>
+        | z.input<Config['responseSchema']>)
+    | (() =>
+        | Promise<z.input<Config['responseSchema']>>
+        | z.input<Config['responseSchema']>)
 
   return (target: Handler, context: ClassMethodDecoratorContext) => {
     if (context.kind !== 'method') {
@@ -208,7 +161,7 @@ export function Endpoint<
     }
     const config = endpoint.config
     if (context.metadata) {
-      let endpointMetadata = getEndpointMetadata<BaseEndpointConfig>(
+      let endpointMetadata = getEndpointMetadata<EndpointOptions>(
         target,
         context,
       )
@@ -217,7 +170,6 @@ export function Endpoint<
           `[Navios] Endpoint ${config.method} ${config.url} already exists. Please use a different method or url.`,
         )
       }
-      // @ts-expect-error We don't need to set correctly in the metadata
       endpointMetadata.config = config
       endpointMetadata.adapterToken = EndpointAdapterToken
       endpointMetadata.classMethod = target.name

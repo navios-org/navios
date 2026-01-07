@@ -77,7 +77,7 @@ The choice of adapter depends on your deployment environment and performance req
 
 ## Main Concepts
 
-- **Module**: A module is a collection of controllers, and other modules. It is used to group related functionality together and provide a clear structure for your API. It also can define some shared guards and attributes.
+- **Module**: A module is a collection of controllers, and other modules. It is used to group related functionality together and provide a clear structure for your API. It also can define some shared guards, attributes, and service overrides.
 - **Controller**: A controller is a class that defines a set of endpoints for a specific resource. It is used to handle incoming requests and return responses. Controllers can also define guards and attributes that apply to all endpoints in the controller.
 - **Endpoint**: An endpoint is a specific route in your API that handles a specific request. It used original endpoint definition from Navios Builder, and a set of request and response schemas. Endpoints can also define guards and attributes that apply to the endpoint.
 - **Service**: A service is a class that defines the business logic for a specific resource. It is used to separate the business logic from the controller and provide a clear structure for your API.
@@ -204,6 +204,8 @@ import { AuthController } from './auth.controller.mjs'
 
 @Module({
   controllers: [AuthController],
+  // Optional: overrides for service implementations with higher priority
+  // overrides: [OverrideService],
 })
 export class AppModule {}
 ```

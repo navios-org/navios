@@ -1,8 +1,7 @@
 import type {
-  BaseStreamConfig,
-  EndpointFunctionArgs,
-  HttpMethod,
-  Util_FlatObject,
+  BaseEndpointOptions,
+  RequestArgs,
+  StreamHandler,
 } from '@navios/builder'
 import type { ZodObject, ZodType } from 'zod/v4'
 
@@ -17,32 +16,41 @@ import { StreamAdapterToken } from '../tokens/index.mjs'
  * @typeParam EndpointDeclaration - The stream endpoint declaration from @navios/builder
  */
 export type StreamParams<
-  EndpointDeclaration extends {
-    config: BaseStreamConfig<any, any, any, any>
-  },
+  EndpointDeclaration extends StreamHandler<Config, false>,
+  Config extends BaseEndpointOptions = EndpointDeclaration['config'],
   Url extends string = EndpointDeclaration['config']['url'],
   QuerySchema = EndpointDeclaration['config']['querySchema'],
 > = QuerySchema extends ZodObject
   ? EndpointDeclaration['config']['requestSchema'] extends ZodType
-    ? Util_FlatObject<
-        EndpointFunctionArgs<
-          Url,
-          QuerySchema,
-          EndpointDeclaration['config']['requestSchema'],
-          true
-        >
+    ? RequestArgs<
+        Url,
+        QuerySchema,
+        EndpointDeclaration['config']['requestSchema'],
+        EndpointDeclaration['config']['urlParamsSchema'],
+        true
       >
-    : Util_FlatObject<EndpointFunctionArgs<Url, QuerySchema, undefined, true>>
+    : RequestArgs<
+        Url,
+        QuerySchema,
+        undefined,
+        EndpointDeclaration['config']['urlParamsSchema'],
+        true
+      >
   : EndpointDeclaration['config']['requestSchema'] extends ZodType
-    ? Util_FlatObject<
-        EndpointFunctionArgs<
-          Url,
-          undefined,
-          EndpointDeclaration['config']['requestSchema'],
-          true
-        >
+    ? RequestArgs<
+        Url,
+        undefined,
+        EndpointDeclaration['config']['requestSchema'],
+        EndpointDeclaration['config']['urlParamsSchema'],
+        true
       >
-    : Util_FlatObject<EndpointFunctionArgs<Url, undefined, undefined, true>>
+    : RequestArgs<
+        Url,
+        undefined,
+        undefined,
+        EndpointDeclaration['config']['urlParamsSchema'],
+        true
+      >
 
 /**
  * Decorator that marks a method as a streaming endpoint.
@@ -70,66 +78,49 @@ export type StreamParams<
  * }
  * ```
  */
-export function Stream<
-  Method extends HttpMethod = HttpMethod,
-  Url extends string = string,
-  QuerySchema = undefined,
-  RequestSchema = ZodType,
-  Params = QuerySchema extends ZodObject
-    ? RequestSchema extends ZodType
-      ? EndpointFunctionArgs<Url, QuerySchema, RequestSchema, true>
-      : EndpointFunctionArgs<Url, QuerySchema, undefined, true>
-    : RequestSchema extends ZodType
-      ? EndpointFunctionArgs<Url, undefined, RequestSchema, true>
-      : EndpointFunctionArgs<Url, undefined, undefined, true>,
->(endpoint: {
-  config: BaseStreamConfig<Method, Url, QuerySchema, RequestSchema>
+export function Stream<Config extends BaseEndpointOptions>(endpoint: {
+  config: Config
 }): (
-  target: (params: Params, reply: any) => any,
+  target: (
+    params: RequestArgs<
+      Config['url'],
+      Config['querySchema'],
+      Config['requestSchema'],
+      Config['urlParamsSchema'],
+      true
+    >,
+    reply: any,
+  ) => any,
   context: ClassMethodDecoratorContext,
 ) => void
 // Bun doesn't support reply parameter
-export function Stream<
-  Method extends HttpMethod = HttpMethod,
-  Url extends string = string,
-  QuerySchema = undefined,
-  RequestSchema = ZodType,
-  Params = QuerySchema extends ZodObject
-    ? RequestSchema extends ZodType
-      ? EndpointFunctionArgs<Url, QuerySchema, RequestSchema, true>
-      : EndpointFunctionArgs<Url, QuerySchema, undefined, true>
-    : RequestSchema extends ZodType
-      ? EndpointFunctionArgs<Url, undefined, RequestSchema, true>
-      : EndpointFunctionArgs<Url, undefined, undefined, true>,
->(endpoint: {
-  config: BaseStreamConfig<Method, Url, QuerySchema, RequestSchema>
+export function Stream<Config extends BaseEndpointOptions>(endpoint: {
+  config: Config
 }): (
-  target: (params: Params) => any,
+  target: (
+    params: RequestArgs<
+      Config['url'],
+      Config['querySchema'],
+      Config['requestSchema'],
+      Config['urlParamsSchema'],
+      true
+    >,
+  ) => any,
   context: ClassMethodDecoratorContext,
 ) => void
-export function Stream<
-  Method extends HttpMethod = HttpMethod,
-  Url extends string = string,
-  QuerySchema = undefined,
-  RequestSchema = ZodType,
->(endpoint: {
-  config: BaseStreamConfig<Method, Url, QuerySchema, RequestSchema>
+export function Stream<Config extends BaseEndpointOptions>(endpoint: {
+  config: Config
 }): (target: () => any, context: ClassMethodDecoratorContext) => void
-export function Stream<
-  Method extends HttpMethod = HttpMethod,
-  Url extends string = string,
-  QuerySchema = undefined,
-  RequestSchema = ZodType,
->(endpoint: {
-  config: BaseStreamConfig<Method, Url, QuerySchema, RequestSchema>
+export function Stream<Config extends BaseEndpointOptions>(endpoint: {
+  config: Config
 }) {
-  type Params = QuerySchema extends ZodObject
-    ? RequestSchema extends ZodType
-      ? EndpointFunctionArgs<Url, QuerySchema, RequestSchema, true>
-      : EndpointFunctionArgs<Url, QuerySchema, undefined, true>
-    : RequestSchema extends ZodType
-      ? EndpointFunctionArgs<Url, undefined, RequestSchema, true>
-      : EndpointFunctionArgs<Url, undefined, undefined, true>
+  type Params = RequestArgs<
+    Config['url'],
+    Config['querySchema'],
+    Config['requestSchema'],
+    Config['urlParamsSchema'],
+    true
+  >
 
   type Handler =
     | ((params: Params, reply: any) => any)
@@ -144,7 +135,7 @@ export function Stream<
     }
     const config = endpoint.config
     if (context.metadata) {
-      let endpointMetadata = getEndpointMetadata<BaseStreamConfig>(
+      let endpointMetadata = getEndpointMetadata<BaseEndpointOptions>(
         target,
         context,
       )
@@ -153,7 +144,6 @@ export function Stream<
           `[Navios] Endpoint ${config.method} ${config.url} already exists. Please use a different method or url.`,
         )
       }
-      // @ts-expect-error We don't need to set correctly in the metadata
       endpointMetadata.config = config
       endpointMetadata.adapterToken = StreamAdapterToken
       endpointMetadata.classMethod = target.name

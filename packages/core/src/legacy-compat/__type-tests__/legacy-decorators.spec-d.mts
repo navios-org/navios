@@ -261,7 +261,6 @@ describe('Legacy Decorators Type Safety', () => {
     test('should enforce correct parameter type', () => {
       @Controller()
       class FileController {
-        // @ts-expect-error - legacy decorator is not typed
         @Stream(downloadFileEndpoint)
         async downloadFile(
           request: StreamParams<typeof downloadFileEndpoint>,
@@ -282,7 +281,6 @@ describe('Legacy Decorators Type Safety', () => {
     test('should work without reply parameter (Bun compatibility)', () => {
       @Controller()
       class FileController {
-        // @ts-expect-error - legacy decorator is not typed
         @Stream(downloadFileEndpoint)
         async downloadFile(
           request: StreamParams<typeof downloadFileEndpoint>,

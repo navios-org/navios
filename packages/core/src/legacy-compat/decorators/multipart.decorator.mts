@@ -1,9 +1,9 @@
 import type {
-  BaseEndpointConfig,
-  EndpointFunctionArgs,
-  HttpMethod,
+  EndpointHandler,
+  EndpointOptions,
+  RequestArgs,
 } from '@navios/builder'
-import type { z, ZodObject, ZodType } from 'zod/v4'
+import type { z } from 'zod/v4'
 
 import { Multipart as OriginalMultipart } from '../../decorators/multipart.decorator.mjs'
 import { createMethodContext } from '../context-compat.mjs'
@@ -13,22 +13,18 @@ import { createMethodContext } from '../context-compat.mjs'
  * Note: In legacy decorators, type constraints are checked when the decorator is applied,
  * but may not be preserved perfectly when decorators are stacked.
  */
-type MultipartMethodDescriptor<
-  Url extends string,
-  QuerySchema,
-  RequestSchema,
-  ResponseSchema extends ZodType,
-> = TypedPropertyDescriptor<
-  (
-    params: QuerySchema extends ZodObject
-      ? RequestSchema extends ZodType
-        ? EndpointFunctionArgs<Url, QuerySchema, RequestSchema, true>
-        : EndpointFunctionArgs<Url, QuerySchema, undefined, true>
-      : RequestSchema extends ZodType
-        ? EndpointFunctionArgs<Url, undefined, RequestSchema, true>
-        : EndpointFunctionArgs<Url, undefined, undefined, true>,
-  ) => Promise<z.input<ResponseSchema>>
->
+type MultipartMethodDescriptor<Config extends EndpointOptions> =
+  TypedPropertyDescriptor<
+    (
+      params: RequestArgs<
+        Config['url'],
+        Config['querySchema'],
+        Config['requestSchema'],
+        Config['urlParamsSchema'],
+        true
+      >,
+    ) => Promise<z.input<Config['responseSchema']>>
+  >
 
 /**
  * Legacy-compatible Multipart decorator.
@@ -51,30 +47,13 @@ type MultipartMethodDescriptor<
  * }
  * ```
  */
-export function Multipart<
-  Method extends HttpMethod = HttpMethod,
-  Url extends string = string,
-  QuerySchema = undefined,
-  ResponseSchema extends ZodType = ZodType,
-  RequestSchema = ZodType,
->(endpoint: {
-  config: BaseEndpointConfig<
-    Method,
-    Url,
-    QuerySchema,
-    ResponseSchema,
-    RequestSchema
-  >
-}) {
+export function Multipart<const Config extends EndpointOptions>(
+  endpoint: EndpointHandler<Config, false>,
+) {
   return function <T extends object>(
     target: T,
     propertyKey: string | symbol,
-    descriptor: MultipartMethodDescriptor<
-      Url,
-      QuerySchema,
-      RequestSchema,
-      ResponseSchema
-    >,
+    descriptor: MultipartMethodDescriptor<Config>,
   ): PropertyDescriptor | void {
     if (!descriptor) {
       throw new Error(

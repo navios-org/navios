@@ -1,41 +1,42 @@
 import type {
-  BaseStreamConfig,
-  EndpointFunctionArgs,
-  HttpMethod,
+  BaseEndpointOptions,
+  RequestArgs,
+  StreamHandler,
 } from '@navios/builder'
-import type { ZodObject, ZodType } from 'zod/v4'
 
 import { Stream as OriginalStream } from '../../decorators/stream.decorator.mjs'
 import { createMethodContext } from '../context-compat.mjs'
 
-type StreamParams<
-  Url extends string,
-  QuerySchema,
-  RequestSchema,
-> = QuerySchema extends ZodObject
-  ? RequestSchema extends ZodType
-    ? EndpointFunctionArgs<Url, QuerySchema, RequestSchema, true>
-    : EndpointFunctionArgs<Url, QuerySchema, undefined, true>
-  : RequestSchema extends ZodType
-    ? EndpointFunctionArgs<Url, undefined, RequestSchema, true>
-    : EndpointFunctionArgs<Url, undefined, undefined, true>
-
 /**
  * Type helper to constrain a PropertyDescriptor's value to match a stream endpoint signature.
  * Supports both with and without reply parameter (Bun doesn't use reply parameter).
+ * Note: In legacy decorators, type constraints are checked when the decorator is applied,
+ * but may not be preserved perfectly when decorators are stacked.
  */
-type StreamMethodDescriptor<
-  Url extends string,
-  QuerySchema,
-  RequestSchema,
-> =
+type StreamMethodDescriptor<Config extends BaseEndpointOptions> =
   | TypedPropertyDescriptor<
-      (params: StreamParams<Url, QuerySchema, RequestSchema>, reply: any) => any
+      (
+        params: RequestArgs<
+          Config['url'],
+          Config['querySchema'],
+          Config['requestSchema'],
+          Config['urlParamsSchema'],
+          true
+        >,
+        reply: any,
+      ) => any
     >
   | TypedPropertyDescriptor<
-      (params: StreamParams<Url, QuerySchema, RequestSchema>) => any
+      (
+        params: RequestArgs<
+          Config['url'],
+          Config['querySchema'],
+          Config['requestSchema'],
+          Config['urlParamsSchema'],
+          true
+        >,
+      ) => any
     >
-  | TypedPropertyDescriptor<() => any>
 
 /**
  * Legacy-compatible Stream decorator.
@@ -58,26 +59,31 @@ type StreamMethodDescriptor<
  * }
  * ```
  */
-export function Stream<
-  Method extends HttpMethod = HttpMethod,
-  Url extends string = string,
-  QuerySchema = undefined,
-  RequestSchema = ZodType,
->(endpoint: {
-  config: BaseStreamConfig<Method, Url, QuerySchema, RequestSchema>
-}) {
-  return function <T extends object>(
-    target: T,
+export function Stream<const Config extends BaseEndpointOptions>(
+  endpoint: StreamHandler<Config, false>,
+) {
+  return function (
+    target: any,
     propertyKey: string | symbol,
-    descriptor: StreamMethodDescriptor<Url, QuerySchema, RequestSchema>,
-  ) {
-    const context = createMethodContext(target, propertyKey, descriptor)
-    const originalDecorator = OriginalStream(endpoint)
-    // @ts-expect-error - we don't need to type the value
-    const result = originalDecorator(descriptor.value, context)
-    if (result !== descriptor.value) {
-      descriptor.value = result as any
+    descriptor: StreamMethodDescriptor<Config>,
+  ): PropertyDescriptor | void {
+    if (!descriptor || !descriptor.value) {
+      throw new Error(
+        '[Navios] @Stream decorator requires a method descriptor. Make sure experimentalDecorators is enabled.',
+      )
     }
-    return descriptor
+    // Type check the descriptor value matches expected signature
+    const typedDescriptor = descriptor as StreamMethodDescriptor<Config>
+    const context = createMethodContext(target, propertyKey, typedDescriptor)
+    const originalDecorator = OriginalStream(endpoint)
+    // Stage3 decorator returns void in type signature but actually returns the function
+    // We know value is defined because we checked above
+    const result = originalDecorator(typedDescriptor.value!, context) as
+      | typeof typedDescriptor.value
+      | void
+    if (result && result !== typedDescriptor.value) {
+      typedDescriptor.value = result as any
+    }
+    return typedDescriptor
   }
 }
