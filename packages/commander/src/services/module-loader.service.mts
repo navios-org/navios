@@ -1,6 +1,12 @@
 import type { ClassTypeWithInstance, NaviosModule } from '@navios/core'
 
-import { Container, getInjectableToken, inject, Injectable } from '@navios/core'
+import {
+  Container,
+  getInjectableToken,
+  inject,
+  Injectable,
+  Logger,
+} from '@navios/core'
 
 import type { CommandHandler } from '../interfaces/index.mjs'
 import type { CliModuleMetadata, CommandMetadata } from '../metadata/index.mjs'
@@ -36,6 +42,9 @@ export interface CommandWithMetadata {
  */
 @Injectable()
 export class CliModuleLoaderService {
+  private logger = inject(Logger, {
+    context: CliModuleLoaderService.name,
+  })
   protected container = inject(Container)
   private modulesMetadata: Map<string, CliModuleMetadata> = new Map()
   private loadedModules: Map<string, any> = new Map()
@@ -86,11 +95,73 @@ export class CliModuleLoaderService {
       this.traverseModules(importedModule, metadata),
     )
     await Promise.all(loadingPromises)
+    this.validateOverrides(metadata, moduleName)
     const instance = await this.container.get(module)
     if (instance.onModuleInit) {
       await instance.onModuleInit()
     }
     this.loadedModules.set(moduleName, instance)
+  }
+
+  private validateOverrides(
+    metadata: CliModuleMetadata,
+    moduleName: string,
+  ): void {
+    if (!metadata.overrides || metadata.overrides.size === 0) {
+      return
+    }
+
+    const registry = this.container.getRegistry()
+
+    for (const overrideClass of metadata.overrides) {
+      try {
+        // Get the token for the override class
+        const overrideToken = getInjectableToken(overrideClass)
+
+        // Get all registrations for this token (sorted by priority, highest first)
+        const allRegistrations = registry.getAll(overrideToken)
+
+        if (allRegistrations.length === 0) {
+          this.logger.warn(
+            `[Navios Commander] Override ${overrideClass.name} in module ${moduleName} is not registered. ` +
+              `Make sure it has @Injectable decorator.`,
+          )
+          continue
+        }
+
+        // Check if the override class has the highest priority
+        const highestPriorityRegistration = allRegistrations[0]
+        if (highestPriorityRegistration.target !== overrideClass) {
+          const overrideRegistration = allRegistrations.find(
+            (r) => r.target === overrideClass,
+          )
+
+          if (!overrideRegistration) {
+            this.logger.warn(
+              `[Navios Commander] Override ${overrideClass.name} in module ${moduleName} is registered ` +
+                `but not found in registry for token ${overrideToken.toString()}.`,
+            )
+          } else {
+            this.logger.warn(
+              `[Navios Commander] Override ${overrideClass.name} in module ${moduleName} is not active. ` +
+                `Current active service: ${highestPriorityRegistration.target.name} ` +
+                `(priority: ${highestPriorityRegistration.priority}). ` +
+                `Override priority: ${overrideRegistration.priority}. ` +
+                `Override needs higher priority to take effect.`,
+            )
+          }
+        } else {
+          this.logger.debug(
+            `[Navios Commander] Override ${overrideClass.name} in module ${moduleName} is active ` +
+              `(priority: ${highestPriorityRegistration.priority})`,
+          )
+        }
+      } catch (error) {
+        this.logger.warn(
+          `[Navios Commander] Failed to validate override ${overrideClass.name} in module ${moduleName}: ${error}`,
+        )
+      }
+    }
   }
 
   private mergeMetadata(

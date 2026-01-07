@@ -55,6 +55,8 @@ import { GreetCommand } from './greet.command'
 
 @CliModule({
   commands: [GreetCommand],
+  // Optional: overrides for service implementations with higher priority
+  // overrides: [OverrideService],
 })
 export class AppModule {}
 ```
@@ -239,6 +241,7 @@ Defines a CLI module.
 
 - `commands?: ClassType[]` - Array of command classes
 - `imports?: ClassType[]` - Array of other modules to import
+- `overrides?: ClassType[]` - Array of service override classes to import for side effects (ensures `@Injectable` decorators execute)
 
 ### Interfaces
 

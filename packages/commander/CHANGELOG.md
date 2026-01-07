@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.0-alpha.2] - 2026-01-07
+
+### Added
+
+- **Module Overrides**: New `overrides` option in `@CliModule()` decorator for service override classes
+  - Service override classes are imported for side effects to ensure their `@Injectable` decorators execute
+  - Overrides should use the same `InjectionToken` as the original service with a higher priority
+  - `CliModuleLoaderService` validates overrides and logs warnings if override is not active or not registered
+  - Mirrors the same functionality as `@Module()` in `@navios/core`
+- **Logger Integration**: `CliModuleLoaderService` now uses the `Logger` service for consistent logging
+
+### Dependencies
+
+- Updated to support `@navios/core` ^1.0.0-alpha.2
+
 ## [0.9.0] - 2025-12-23
 
 ### Dependencies

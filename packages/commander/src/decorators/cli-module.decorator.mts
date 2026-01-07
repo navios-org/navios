@@ -21,6 +21,13 @@ export interface CliModuleOptions {
    */
   imports?: ClassType[] | Set<ClassType>
   /**
+   * Service override classes to import for side effects.
+   * These classes are imported to ensure their @Injectable decorators execute,
+   * allowing them to register with the DI system. Overrides should use the same
+   * InjectionToken as the original service with a higher priority.
+   */
+  overrides?: ClassType[] | Set<ClassType>
+  /**
    * Priority level for the module.
    * Higher priority modules will be loaded first.
    */
@@ -55,9 +62,16 @@ export interface CliModuleOptions {
  * ```
  */
 export function CliModule(
-  { commands = [], imports = [], priority, registry }: CliModuleOptions = {
+  {
+    commands = [],
+    imports = [],
+    overrides = [],
+    priority,
+    registry,
+  }: CliModuleOptions = {
     commands: [],
     imports: [],
+    overrides: [],
   },
 ) {
   return (target: ClassType, context: ClassDecoratorContext) => {
@@ -74,6 +88,9 @@ export function CliModule(
     }
     for (const importedModule of imports) {
       moduleMetadata.imports.add(importedModule)
+    }
+    for (const override of overrides) {
+      moduleMetadata.overrides.add(override)
     }
 
     return Injectable({

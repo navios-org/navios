@@ -21,6 +21,10 @@ export interface CliModuleMetadata {
    */
   imports: Set<ClassType>
   /**
+   * Set of service override classes imported for side effects.
+   */
+  overrides: Set<ClassType>
+  /**
    * Map of custom attributes that can be attached to the module.
    */
   customAttributes: Map<string | symbol, any>
@@ -48,6 +52,7 @@ export function getCliModuleMetadata(
       const newMetadata: CliModuleMetadata = {
         commands: new Set<ClassType>(),
         imports: new Set<ClassType>(),
+        overrides: new Set<ClassType>(),
         customAttributes: new Map<string | symbol, any>(),
       }
       context.metadata[CliModuleMetadataKey] = newMetadata
