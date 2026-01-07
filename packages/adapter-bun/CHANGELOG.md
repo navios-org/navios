@@ -5,6 +5,56 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.0-alpha.1] - 2026-01-07
+
+### Added
+
+- **CORS Support**: Full CORS (Cross-Origin Resource Sharing) implementation for the Bun adapter
+  - Support for all standard CORS options: `origin`, `methods`, `allowedHeaders`, `exposedHeaders`, `credentials`, `maxAge`, `cacheControl`
+  - Dynamic origin validation with support for:
+    - String origins (exact match)
+    - Boolean values (`true` for all origins, `false` to disable)
+    - RegExp patterns for flexible origin matching
+    - Arrays of origin patterns
+    - Function-based dynamic origin validation
+  - Automatic preflight (OPTIONS) request handling
+  - CORS headers applied to all responses including error responses and 404s
+  - Proper `Vary` header handling for cache compatibility
+  - Security validation (prevents wildcard origin with credentials)
+- **New CORS Utilities Module**: `src/utils/cors.util.mts` with comprehensive CORS utilities
+  - `calculateCorsHeaders()` - Calculates CORS headers for regular requests
+  - `calculatePreflightHeaders()` - Calculates headers for OPTIONS preflight requests
+  - `isPreflight()` - Detects preflight requests
+  - `applyCorsToResponse()` - Applies CORS headers to Response objects
+  - `BunCorsOptions` interface extending core CORS options with function-based origin support
+- **Enhanced Error Handling**: Improved 404 error responses with proper CORS header application
+- **Comprehensive CORS Testing**: Added extensive E2E test suite (`e2e/endpoints/cors.spec.mts`) covering:
+  - Origin validation (string, boolean, RegExp, array, function)
+  - Preflight request handling
+  - Credentials support
+  - Exposed headers
+  - Method restrictions
+  - Header restrictions
+  - Max age configuration
+  - Error response CORS headers
+
+### Changed
+
+- **Interface Updates**: `BunApplicationServiceInterface` now supports `BunCorsOptions` instead of `never` for CORS
+- **Application Service**: `BunApplicationService.enableCors()` now accepts and processes CORS options
+- **Controller Adapter**: All request handlers now apply CORS headers to responses
+- **Request Handling**: Fallback handler now properly handles CORS preflight requests and applies CORS to 404 responses
+- **Exports**: Added exports for interfaces and utilities in `src/index.mts`
+
+### Fixed
+
+- 404 responses now include proper CORS headers when CORS is enabled
+- Preflight OPTIONS requests are now handled correctly at the adapter level
+
+### Dependencies
+
+- Updated to support `@navios/core` ^0.9.0
+
 ## [0.9.0] - 2025-12-23
 
 ### Dependencies

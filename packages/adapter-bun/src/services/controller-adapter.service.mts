@@ -9,8 +9,10 @@ import type { BunRequest } from 'bun'
 
 import {
   Container,
+  ErrorResponseProducerService,
   ExecutionContext,
   extractControllerMetadata,
+  FrameworkError,
   generateRequestId,
   GuardRunnerService,
   HttpException,
@@ -22,7 +24,7 @@ import {
   runWithRequestId,
 } from '@navios/core'
 
-import { treeifyError, ZodError } from 'zod/v4'
+import { ZodError } from 'zod/v4'
 
 import type {
   BunHandlerAdapterInterface,
@@ -31,6 +33,10 @@ import type {
 
 import { BunExecutionContext, BunFakeReply } from '../interfaces/index.mjs'
 import { BunRequestToken } from '../tokens/index.mjs'
+import {
+  applyCorsToResponse,
+  type BunCorsOptions,
+} from '../utils/cors.util.mjs'
 
 /**
  * Type definition for Bun route mappings.
@@ -66,6 +72,7 @@ export class BunControllerAdapterService {
   private guardRunner = inject(GuardRunnerService)
   private container = inject(Container)
   private instanceResolver = inject(InstanceResolverService)
+  private errorProducer = inject(ErrorResponseProducerService)
   private logger = inject(Logger, {
     context: BunControllerAdapterService.name,
   })
@@ -81,6 +88,7 @@ export class BunControllerAdapterService {
    * @param routes - The routes object to populate with handlers.
    * @param moduleMetadata - Metadata about the module containing the controller.
    * @param globalPrefix - The global prefix to prepend to all routes.
+   * @param corsOptions - Optional CORS configuration to apply to responses.
    *
    * @throws {Error} If an endpoint is malformed (missing URL or adapter token).
    */
@@ -89,6 +97,7 @@ export class BunControllerAdapterService {
     routes: BunRoutes,
     moduleMetadata: ModuleMetadata,
     globalPrefix: string,
+    corsOptions: BunCorsOptions | null = null,
   ) {
     const controllerMetadata = extractControllerMetadata(controller)
     for (const endpoint of controllerMetadata.endpoints) {
@@ -124,6 +133,7 @@ export class BunControllerAdapterService {
         moduleMetadata,
         controllerMetadata,
         endpoint,
+        corsOptions,
       )
 
       this.logger.debug(
@@ -133,7 +143,7 @@ export class BunControllerAdapterService {
   }
 
   /**
-   * Wraps a route handler with request context, guards, and error handling.
+   * Wraps a route handler with request context, guards, error handling, and CORS.
    *
    * This method creates a complete request handler using one of three paths:
    * 1. Static handler + no guards: Direct handler call (fastest)
@@ -145,6 +155,7 @@ export class BunControllerAdapterService {
    * @param moduleMetadata - Metadata about the module.
    * @param controllerMetadata - Metadata about the controller.
    * @param endpoint - Metadata about the endpoint handler.
+   * @param corsOptions - Optional CORS configuration to apply to responses.
    * @returns A wrapped handler function that can be registered with Bun.
    * @private
    */
@@ -158,18 +169,22 @@ export class BunControllerAdapterService {
     moduleMetadata: ModuleMetadata,
     controllerMetadata: ControllerMetadata,
     endpoint: HandlerMetadata,
+    corsOptions: BunCorsOptions | null,
   ) {
     const hasGuards = guardResolution.classTypes.length > 0
 
     // Path 1: Static handler, no guards (fastest)
     if (handlerResult.isStatic && !hasGuards) {
       return async (request: BunRequest) => {
+        const origin = request.headers.get('Origin')
         try {
           return await runWithRequestId(generateRequestId(), async () => {
-            return await handlerResult.handler(request)
+            const response = await handlerResult.handler(request)
+            return applyCorsToResponse(response, origin, corsOptions)
           })
         } catch (error) {
-          return this.handleError(error)
+          const errorResponse = this.handleError(error)
+          return applyCorsToResponse(errorResponse, origin, corsOptions)
         }
       }
     }
@@ -177,6 +192,7 @@ export class BunControllerAdapterService {
     // Path 2: Static handler + static guards
     if (handlerResult.isStatic && guardResolution.cached) {
       return async (request: BunRequest) => {
+        const origin = request.headers.get('Origin')
         const fakeReply = new BunFakeReply()
         const executionContext = new BunExecutionContext(
           moduleMetadata,
@@ -194,14 +210,24 @@ export class BunControllerAdapterService {
             if (!canActivate) {
               // Check if guard set a custom response via the fake reply
               if (fakeReply.hasResponse()) {
-                return fakeReply.toResponse()
+                return applyCorsToResponse(
+                  fakeReply.toResponse(),
+                  origin,
+                  corsOptions,
+                )
               }
-              return new Response('Forbidden', { status: 403 })
+              return applyCorsToResponse(
+                new Response('Forbidden', { status: 403 }),
+                origin,
+                corsOptions,
+              )
             }
-            return await handlerResult.handler(request)
+            const response = await handlerResult.handler(request)
+            return applyCorsToResponse(response, origin, corsOptions)
           })
         } catch (error) {
-          return this.handleError(error)
+          const errorResponse = this.handleError(error)
+          return applyCorsToResponse(errorResponse, origin, corsOptions)
         }
       }
     }
@@ -211,6 +237,7 @@ export class BunControllerAdapterService {
     const guards = new Set(guardResolution.classTypes)
 
     return async (request: BunRequest) => {
+      const origin = request.headers.get('Origin')
       const fakeReply = new BunFakeReply()
       const executionContext = new BunExecutionContext(
         moduleMetadata,
@@ -236,21 +263,32 @@ export class BunControllerAdapterService {
             if (!canActivate) {
               // Check if guard set a custom response via the fake reply
               if (fakeReply.hasResponse()) {
-                return fakeReply.toResponse()
+                return applyCorsToResponse(
+                  fakeReply.toResponse(),
+                  origin,
+                  corsOptions,
+                )
               }
-              return new Response('Forbidden', { status: 403 })
+              return applyCorsToResponse(
+                new Response('Forbidden', { status: 403 }),
+                origin,
+                corsOptions,
+              )
             }
           }
 
           // Handler is dynamic, needs scoped container
           if (!handlerResult.isStatic) {
-            return await handlerResult.handler(requestContainer, request)
+            const response = await handlerResult.handler(requestContainer, request)
+            return applyCorsToResponse(response, origin, corsOptions)
           }
           // Handler is static but guards are dynamic
-          return await handlerResult.handler(request)
+          const response = await handlerResult.handler(request)
+          return applyCorsToResponse(response, origin, corsOptions)
         })
       } catch (error) {
-        return this.handleError(error)
+        const errorResponse = this.handleError(error)
+        return applyCorsToResponse(errorResponse, origin, corsOptions)
       } finally {
         requestContainer.endRequest().catch((err: any) => {
           this.logger.error(
@@ -264,33 +302,33 @@ export class BunControllerAdapterService {
 
   /**
    * Handles errors and converts them to appropriate HTTP responses.
+   * Uses ErrorResponseProducerService to produce RFC 7807 compliant responses.
    * @private
    */
   private handleError(error: unknown): Response {
+    let errorResponse
+
     if (error instanceof HttpException) {
+      // For HttpException, preserve original response format for backwards compatibility
       return new Response(JSON.stringify(error.response), {
         status: error.statusCode,
         headers: { 'Content-Type': 'application/json' },
       })
     } else if (error instanceof ZodError) {
-      return new Response(JSON.stringify(treeifyError(error)), {
-        status: 400,
-        headers: { 'Content-Type': 'application/json' },
-      })
+      errorResponse = this.errorProducer.respond(
+        FrameworkError.ValidationError,
+        error,
+      )
     } else {
+      // Log unexpected errors
       const err = error as Error
       this.logger.error(`Error: ${err.message}`, err)
-      return new Response(
-        JSON.stringify({
-          statusCode: 500,
-          message: err.message || 'Internal Server Error',
-          error: 'InternalServerError',
-        }),
-        {
-          status: 500,
-          headers: { 'Content-Type': 'application/json' },
-        },
-      )
+      errorResponse = this.errorProducer.handleUnknown(error)
     }
+
+    return new Response(JSON.stringify(errorResponse.payload), {
+      status: errorResponse.statusCode,
+      headers: errorResponse.headers,
+    })
   }
 }

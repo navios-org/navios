@@ -1,7 +1,14 @@
 import type { ModuleMetadata } from '@navios/core'
-import type { Serve, Server } from 'bun'
+import type { BunRequest, Serve, Server } from 'bun'
 
-import { Container, inject, Injectable, Logger } from '@navios/core'
+import {
+  Container,
+  ErrorResponseProducerService,
+  FrameworkError,
+  inject,
+  Injectable,
+  Logger,
+} from '@navios/core'
 
 import type {
   BunApplicationOptions,
@@ -10,6 +17,12 @@ import type {
 import type { BunRoutes } from './controller-adapter.service.mjs'
 
 import { BunApplicationServiceToken, BunServerToken } from '../tokens/index.mjs'
+import {
+  applyCorsToResponse,
+  type BunCorsOptions,
+  calculatePreflightHeaders,
+  isPreflight,
+} from '../utils/cors.util.mjs'
 import { BunControllerAdapterService } from './controller-adapter.service.mjs'
 
 /**
@@ -43,11 +56,13 @@ export class BunApplicationService implements BunApplicationServiceInterface {
     context: BunApplicationService.name,
   })
   protected container = inject(Container)
+  private errorProducer = inject(ErrorResponseProducerService)
   private server: Server<undefined> | null = null
   private controllerAdapter = inject(BunControllerAdapterService)
   private globalPrefix: string = ''
   private routes: BunRoutes = {}
   private serverOptions: Serve.Options<undefined, string> | null = null
+  private corsOptions: BunCorsOptions | null = null
 
   /**
    * Configures the Bun HTTP server with the provided options.
@@ -164,30 +179,85 @@ export class BunApplicationService implements BunApplicationServiceInterface {
           this.routes,
           moduleMetadata,
           this.globalPrefix,
+          this.corsOptions,
         )
       }
     }
   }
 
   /**
-   * Fallback request handler for unmatched routes.
+   * Fallback request handler for unmatched routes and CORS preflight.
    *
-   * @returns A 404 Not Found response.
+   * Handles:
+   * - CORS preflight (OPTIONS) requests
+   * - 404 responses for unmatched routes with CORS headers
+   *
+   * @param request - The incoming request
+   * @returns A Response with appropriate status and CORS headers
    * @private
    */
-  private async handleRequest(): Promise<Response> {
-    // This is a fallback if routes don't match
-    return new Response('Not Found', { status: 404 })
+  private async handleRequest(request: BunRequest): Promise<Response> {
+    const origin = request.headers.get('Origin')
+    const accessControlRequestMethod = request.headers.get(
+      'Access-Control-Request-Method',
+    )
+
+    // Handle CORS preflight requests
+    if (
+      this.corsOptions &&
+      isPreflight(request.method, origin, accessControlRequestMethod)
+    ) {
+      const requestHeaders = request.headers.get('Access-Control-Request-Headers')
+      const preflightHeaders = await calculatePreflightHeaders(
+        origin ?? undefined,
+        accessControlRequestMethod,
+        requestHeaders,
+        this.corsOptions,
+      )
+
+      if (preflightHeaders) {
+        return new Response(null, {
+          status: 204,
+          headers: preflightHeaders as HeadersInit,
+        })
+      }
+    }
+
+    // Build 404 response using ErrorResponseProducerService
+    const errorResponse = this.errorProducer.respond(
+      FrameworkError.NotFound,
+      null,
+      `Route [${request.method}] ${request.url} not found`,
+    )
+
+    const response = new Response(JSON.stringify(errorResponse.payload), {
+      status: errorResponse.statusCode,
+      headers: errorResponse.headers,
+    })
+
+    // Apply CORS headers to the error response
+    return applyCorsToResponse(response, origin, this.corsOptions)
   }
 
   /**
-   * Enables CORS support.
+   * Enables CORS (Cross-Origin Resource Sharing) support.
    *
-   * @param _options - CORS options (not currently supported in Bun adapter).
-   * @deprecated CORS support is not yet implemented in the Bun adapter.
+   * Configures CORS headers for all routes. The options are applied when
+   * handling requests.
+   *
+   * @param options - CORS configuration options.
+   *
+   * @example
+   * ```ts
+   * app.enableCors({
+   *   origin: true, // Allow all origins
+   *   methods: ['GET', 'POST', 'PUT', 'DELETE'],
+   *   credentials: true,
+   * })
+   * ```
    */
-  enableCors(): void {
-    // Ignore for now
+  enableCors(options: BunCorsOptions): void {
+    this.corsOptions = options
   }
 
   /**

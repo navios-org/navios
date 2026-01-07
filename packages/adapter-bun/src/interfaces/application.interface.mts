@@ -5,6 +5,8 @@ import type {
 } from '@navios/core'
 import type { Serve, Server } from 'bun'
 
+import type { BunCorsOptions } from '../utils/cors.util.mjs'
+
 /**
  * Configuration options for the Bun HTTP server.
  *
@@ -58,7 +60,7 @@ export type BunApplicationOptions = Serve.Options<undefined, string> & {
 export interface BunApplicationServiceInterface
   extends AbstractHttpAdapterInterface<
     Server<undefined>,
-    never, // No CORS support for now
+    BunCorsOptions,
     BunApplicationOptions,
     never // No multipart support for now
   > {
@@ -74,12 +76,23 @@ export interface BunApplicationServiceInterface
   setGlobalPrefix(prefix: string): void
 
   /**
-   * Enables CORS support (not currently implemented).
+   * Enables CORS (Cross-Origin Resource Sharing) support.
    *
-   * @param options - CORS options (not supported).
-   * @deprecated CORS support is not yet implemented in the Bun adapter.
+   * Configures CORS headers for all routes. The options are applied when
+   * handling requests.
+   *
+   * @param options - CORS configuration options.
+   *
+   * @example
+   * ```ts
+   * app.enableCors({
+   *   origin: true, // Allow all origins
+   *   methods: ['GET', 'POST', 'PUT', 'DELETE'],
+   *   credentials: true,
+   * })
+   * ```
    */
-  enableCors(options: never): void
+  enableCors(options: BunCorsOptions): void
 
   /**
    * Enables multipart form data support (handled automatically by Bun).
