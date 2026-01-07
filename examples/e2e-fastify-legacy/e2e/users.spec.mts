@@ -21,7 +21,9 @@ describe('Users API', () => {
 
   describe('GET /users', () => {
     it('should return paginated users list (public endpoint)', async () => {
-      const response = await request().get('/users').query({ page: 1, limit: 10 })
+      const response = await request()
+        .get('/users')
+        .query({ page: 1, limit: 10 })
 
       expect(response.status).toBe(200)
       expect(response.body).toHaveProperty('users')
@@ -157,7 +159,9 @@ describe('Users API', () => {
     })
 
     it('should reject without authorization', async () => {
-      const response = await request().put('/users/some-id').send({ name: 'Updated' })
+      const response = await request()
+        .put('/users/some-id')
+        .send({ name: 'Updated' })
 
       expect(response.status).toBe(401)
     })

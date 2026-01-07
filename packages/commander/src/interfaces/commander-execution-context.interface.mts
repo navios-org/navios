@@ -8,7 +8,7 @@ import type { CommandMetadata } from '../metadata/command.metadata.mjs'
  *
  * @example
  * ```typescript
- * import { inject, Injectable } from '@navios/di'
+ * import { inject, Injectable } from '@navios/core'
  * import { CommandExecutionContext } from '@navios/commander'
  *
  * @Injectable()

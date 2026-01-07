@@ -15,9 +15,6 @@
       "path": "../core"
     },
     {
-      "path": "../di"
-    },
-    {
       "path": "../builder"
     }
   ]

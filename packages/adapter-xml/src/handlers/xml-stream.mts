@@ -1,7 +1,6 @@
-import type { HttpMethod, RequestArgs, StreamHandler } from '@navios/builder'
-import type { ZodObject, ZodType } from 'zod/v4'
+import type { RequestArgs, StreamHandler } from '@navios/builder'
 
-import type { BaseXmlStreamConfig, XmlStreamConfig } from '../types/config.mjs'
+import type { XmlStreamConfig } from '../types/config.mjs'
 
 /**
  * Declares an XML Stream endpoint configuration for use with `@XmlStream` decorator.

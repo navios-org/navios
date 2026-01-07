@@ -522,7 +522,7 @@ describe('Error cases - should fail type checking', () => {
       assertType<number>(msg.timestamp)
 
       // @ts-expect-error - property doesn't exist
-      msg.nonExistent
+      void msg.nonExistent
     })
   })
 
@@ -540,7 +540,7 @@ describe('Error cases - should fail type checking', () => {
     assertType<Promise<RoomType>>(result)
 
     // @ts-expect-error - cannot access properties directly on Promise
-    result.roomId
+    void result.roomId
   })
 })
 

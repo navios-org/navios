@@ -35,6 +35,6 @@
     "zod": "^4.2.1"
   },
   "dependencies": {
-    "@navios/di": "workspace:^"
+    "@navios/core": "workspace:^"
   }
 }

@@ -47,7 +47,6 @@
     "zod": "^4.2.1"
   },
   "dependencies": {
-    "@navios/di": "workspace:^",
     "yaml": "^2.8.2",
     "zod-openapi": "^5.4.5"
   }

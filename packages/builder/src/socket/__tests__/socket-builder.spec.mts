@@ -1,4 +1,4 @@
-import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod/v4'
 
 import type { SocketClient } from '../types/socket-client.mjs'

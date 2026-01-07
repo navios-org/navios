@@ -13,7 +13,7 @@ const CommandExecutionContextInjectionToken =
  *
  * @example
  * ```typescript
- * import { inject, Injectable } from '@navios/di'
+ * import { inject, Injectable } from '@navios/core'
  * import { CommandExecutionContext } from '@navios/commander'
  *
  * @Injectable()

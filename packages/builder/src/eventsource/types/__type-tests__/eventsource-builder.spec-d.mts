@@ -32,7 +32,7 @@ const typingPayloadSchema = zod.object({
 })
 
 type MessagePayload = z.output<typeof messagePayloadSchema>
-type TypingPayload = z.output<typeof typingPayloadSchema>
+type _TypingPayload = z.output<typeof typingPayloadSchema>
 
 describe('EventSourceBuilderInstance', () => {
   describe('defineEvent() method', () => {
@@ -345,7 +345,7 @@ describe('Error cases - should fail type checking', () => {
       assertType<number>(msg.timestamp)
 
       // @ts-expect-error - property doesn't exist
-      msg.nonExistent
+      void msg.nonExistent
     })
   })
 
@@ -358,7 +358,7 @@ describe('Error cases - should fail type checking', () => {
     type Params = InferEventSourceConnectParams<Options>
 
     // @ts-expect-error - urlParams is required
-    const wrongParams: Params = {}
+    const _wrongParams: Params = {}
   })
 })
 

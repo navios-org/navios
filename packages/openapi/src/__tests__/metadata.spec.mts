@@ -1,7 +1,7 @@
 import type { HandlerMetadata } from '@navios/core'
 
 import { Controller, extractControllerMetadata } from '@navios/core'
-import { TestContainer } from '@navios/di/testing'
+import { TestContainer } from '@navios/core/testing'
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 

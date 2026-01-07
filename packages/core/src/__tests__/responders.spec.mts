@@ -9,10 +9,11 @@ import type { ErrorResponse } from '../responders/interfaces/error-response.inte
 import { NotFoundException } from '../exceptions/not-found.exception.mjs'
 import { FrameworkError } from '../responders/enums/framework-error.enum.mjs'
 import { ErrorResponseProducerService } from '../responders/services/error-response-producer.service.mjs'
-import { ForbiddenResponderService } from '../responders/services/forbidden-responder.service.mjs'
-import { InternalServerErrorResponderService } from '../responders/services/internal-server-error-responder.service.mjs'
-import { NotFoundResponderService } from '../responders/services/not-found-responder.service.mjs'
-import { ValidationErrorResponderService } from '../responders/services/validation-error-responder.service.mjs'
+// Import services for side-effects (registers @Injectable decorators)
+import '../responders/services/forbidden-responder.service.mjs'
+import '../responders/services/internal-server-error-responder.service.mjs'
+import '../responders/services/not-found-responder.service.mjs'
+import '../responders/services/validation-error-responder.service.mjs'
 import {
   ForbiddenResponderToken,
   InternalServerErrorResponderToken,
@@ -309,7 +310,7 @@ describe('Responders', () => {
         token: NotFoundResponderToken,
         priority: 0, // Higher than default -10
       })
-      class CustomNotFoundResponder implements ErrorResponder {
+      class _CustomNotFoundResponder implements ErrorResponder {
         getResponse(_error: unknown, description?: string): ErrorResponse {
           return {
             statusCode: 404,

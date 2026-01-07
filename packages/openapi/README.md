@@ -231,10 +231,9 @@ const userSchema = z
 ## Requirements
 
 - **Dependencies**:
-  - `@navios/core` - Core Navios framework
   - `zod` ^3.25.0 || ^4.0.0 - Schema validation
 - **Peer Dependencies**:
-  - `@navios/di` - Dependency injection (for service usage)
+  - `@navios/core` - Core Navios framework
 
 ## Provider Packages
 

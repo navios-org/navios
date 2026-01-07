@@ -231,7 +231,7 @@ Class components use the `@Component` decorator and implement the `XmlComponent`
 
 ```tsx
 import { Component, XmlComponent } from '@navios/adapter-xml'
-import { inject, Injectable } from '@navios/di'
+import { inject, Injectable } from '@navios/core'
 
 // Define a service
 @Injectable()
@@ -307,7 +307,7 @@ When using class components, pass a DI container to `renderToXml`:
 
 ```tsx
 import { renderToXml } from '@navios/adapter-xml'
-import { Container } from '@navios/di'
+import { Container } from '@navios/core'
 
 const container = new Container()
 container.beginRequest('request-id')

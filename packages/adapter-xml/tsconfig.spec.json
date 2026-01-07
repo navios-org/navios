@@ -20,6 +20,12 @@
   "references": [
     {
       "path": "./tsconfig.lib.json"
+    },
+    {
+      "path": "../adapter-fastify"
+    },
+    {
+      "path": "../adapter-bun"
     }
   ]
 }
