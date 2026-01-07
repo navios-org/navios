@@ -5,6 +5,8 @@ import type {
   ModuleMetadata,
 } from '@navios/core'
 
+import type { BunFakeReply } from './bun-fake-reply.interface.mjs'
+
 /**
  * Execution context for Bun adapter requests.
  *
@@ -34,6 +36,7 @@ export class BunExecutionContext implements AbstractExecutionContext {
     private readonly controller: ControllerMetadata,
     private readonly handler: HandlerMetadata,
     private readonly request: Request,
+    private readonly reply?: BunFakeReply,
   ) {}
 
   /**
@@ -79,14 +82,21 @@ export class BunExecutionContext implements AbstractExecutionContext {
   }
 
   /**
-   * Gets the reply object (not available in Bun adapter).
+   * Gets the reply object for this execution context.
    *
-   * Bun uses the standard Web API Response object instead of a custom reply interface.
-   * Use `getRequest()` and return a `Response` object from your handlers instead.
+   * In the Bun adapter, this returns a `BunFakeReply` object that collects
+   * response information from guards and middleware. The collected information
+   * can be used to construct a Response object after guards run.
    *
-   * @throws {Error} Always throws, as reply is not available in Bun adapter.
+   * @returns The BunFakeReply object if one was provided, otherwise throws.
+   * @throws {Error} If no reply was set in the execution context.
    */
-  getReply(): never {
-    throw new Error('[Navios] Reply is not available in Bun adapter.')
+  getReply(): BunFakeReply {
+    if (!this.reply) {
+      throw new Error(
+        '[Navios] Reply is not set. Make sure to set it before using it.',
+      )
+    }
+    return this.reply
   }
 }

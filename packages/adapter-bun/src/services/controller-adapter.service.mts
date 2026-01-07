@@ -22,12 +22,14 @@ import {
   runWithRequestId,
 } from '@navios/core'
 
+import { treeifyError, ZodError } from 'zod/v4'
+
 import type {
   BunHandlerAdapterInterface,
   BunHandlerResult,
 } from '../adapters/index.mjs'
 
-import { BunExecutionContext } from '../interfaces/index.mjs'
+import { BunExecutionContext, BunFakeReply } from '../interfaces/index.mjs'
 import { BunRequestToken } from '../tokens/index.mjs'
 
 /**
@@ -175,11 +177,13 @@ export class BunControllerAdapterService {
     // Path 2: Static handler + static guards
     if (handlerResult.isStatic && guardResolution.cached) {
       return async (request: BunRequest) => {
+        const fakeReply = new BunFakeReply()
         const executionContext = new BunExecutionContext(
           moduleMetadata,
           controllerMetadata,
           endpoint,
           request,
+          fakeReply,
         )
         try {
           return await runWithRequestId(generateRequestId(), async () => {
@@ -188,6 +192,10 @@ export class BunControllerAdapterService {
               executionContext,
             )
             if (!canActivate) {
+              // Check if guard set a custom response via the fake reply
+              if (fakeReply.hasResponse()) {
+                return fakeReply.toResponse()
+              }
               return new Response('Forbidden', { status: 403 })
             }
             return await handlerResult.handler(request)
@@ -203,11 +211,13 @@ export class BunControllerAdapterService {
     const guards = new Set(guardResolution.classTypes)
 
     return async (request: BunRequest) => {
+      const fakeReply = new BunFakeReply()
       const executionContext = new BunExecutionContext(
         moduleMetadata,
         controllerMetadata,
         endpoint,
         request,
+        fakeReply,
       )
       const requestId = generateRequestId()
       const requestContainer = this.container.beginRequest(requestId)
@@ -224,6 +234,10 @@ export class BunControllerAdapterService {
               requestContainer,
             )
             if (!canActivate) {
+              // Check if guard set a custom response via the fake reply
+              if (fakeReply.hasResponse()) {
+                return fakeReply.toResponse()
+              }
               return new Response('Forbidden', { status: 403 })
             }
           }
@@ -256,6 +270,11 @@ export class BunControllerAdapterService {
     if (error instanceof HttpException) {
       return new Response(JSON.stringify(error.response), {
         status: error.statusCode,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    } else if (error instanceof ZodError) {
+      return new Response(JSON.stringify(treeifyError(error)), {
+        status: 400,
         headers: { 'Content-Type': 'application/json' },
       })
     } else {
