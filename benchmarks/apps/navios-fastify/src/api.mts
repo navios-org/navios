@@ -2,18 +2,20 @@
  * API endpoint declarations for Navios benchmark app
  */
 import { builder } from '@navios/builder'
+
 import { z } from 'zod'
+
 import {
+  createUserSchema,
   healthResponseSchema,
   jsonResponseSchema,
-  userSchema,
-  userWithTimestampSchema,
-  createUserSchema,
+  largeDataResponseSchema,
+  postsResponseSchema,
   searchQuerySchema,
   searchResponseSchema,
-  postsResponseSchema,
   statsResponseSchema,
-  largeDataResponseSchema,
+  userSchema,
+  userWithTimestampSchema,
 } from '../../../shared/schemas.js'
 
 export const API = builder()
