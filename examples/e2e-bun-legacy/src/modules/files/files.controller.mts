@@ -12,7 +12,6 @@ import {
 } from '../../api/endpoints.mjs'
 import { Public } from '../../guards/public.attribute.mjs'
 import { UsersService } from '../users/users.service.mjs'
-
 import { FilesService } from './files.service.mjs'
 
 @Controller()
@@ -102,7 +101,9 @@ export class FilesController {
             message: `Event ${i}`,
             timestamp: new Date().toISOString(),
           }
-          controller.enqueue(encoder.encode(`data: ${JSON.stringify(event)}\n\n`))
+          controller.enqueue(
+            encoder.encode(`data: ${JSON.stringify(event)}\n\n`),
+          )
           await new Promise((resolve) => setTimeout(resolve, 10))
         }
         controller.close()
@@ -154,7 +155,11 @@ export class FilesController {
 
       const headers = Object.keys(data[0] as object)
       const rows = data.map((item) =>
-        headers.map((h) => JSON.stringify((item as Record<string, unknown>)[h] ?? '')).join(','),
+        headers
+          .map((h) =>
+            JSON.stringify((item as Record<string, unknown>)[h] ?? ''),
+          )
+          .join(','),
       )
       const csv = [headers.join(','), ...rows].join('\n')
 
