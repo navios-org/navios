@@ -1,80 +1,56 @@
-import type { EndpointFunctionArgs, HttpMethod, Util_FlatObject } from '@navios/builder'
-import type { ZodObject, ZodType } from 'zod/v4'
+import type {
+  BaseEndpointOptions,
+  RequestArgs,
+  Simplify,
+  StreamHandler,
+} from '@navios/builder'
 
 import { getEndpointMetadata, XmlStreamAdapterToken } from '@navios/core'
 
-import type { BaseXmlStreamConfig } from '../types/config.mjs'
+import type { BaseXmlStreamConfig } from '../index.mjs'
 
 /**
- * Type helper that extracts the parameter types for an XML Stream endpoint handler.
+ * Extracts the typed parameters for an XML stream endpoint handler function.
  *
- * This type automatically infers the correct parameter types based on the endpoint
- * configuration, including URL parameters, query parameters, and request body.
+ * Similar to `EndpointParams`, but specifically for XML streaming endpoints.
  *
- * @template EndpointDeclaration - The endpoint declaration type from `declareXmlStream`.
- * @template Url - The URL path pattern.
- * @template QuerySchema - The query parameter schema type.
- *
- * @example
- * ```typescript
- * const getFeed = declareXmlStream({
- *   method: 'GET',
- *   url: '/feed/:category',
- *   querySchema: z.object({ page: z.string() }),
- * })
- *
- * // XmlStreamParams<typeof getFeed> resolves to:
- * // { urlParams: { category: string }, query: { page: string } }
- * ```
+ * @typeParam EndpointDeclaration - The XML stream endpoint declaration from @navios/builder
  */
 export type XmlStreamParams<
-  EndpointDeclaration extends {
-    config: BaseXmlStreamConfig<any, any, any, any>
-  },
-  Url extends string = EndpointDeclaration['config']['url'],
-  QuerySchema = EndpointDeclaration['config']['querySchema'],
-> = QuerySchema extends ZodObject
-  ? EndpointDeclaration['config']['requestSchema'] extends ZodType
-    ? Util_FlatObject<EndpointFunctionArgs<Url, QuerySchema, EndpointDeclaration['config']['requestSchema'], true>>
-    : Util_FlatObject<EndpointFunctionArgs<Url, QuerySchema, undefined, true>>
-  : EndpointDeclaration['config']['requestSchema'] extends ZodType
-    ? Util_FlatObject<EndpointFunctionArgs<Url, undefined, EndpointDeclaration['config']['requestSchema'], true>>
-    : Util_FlatObject<EndpointFunctionArgs<Url, undefined, undefined, true>>
+  EndpointDeclaration extends StreamHandler<Config, false>,
+  Config extends BaseXmlStreamConfig = EndpointDeclaration['config'],
+> = Simplify<
+  RequestArgs<
+    Config['url'],
+    Config['querySchema'],
+    Config['requestSchema'],
+    Config['urlParamsSchema'],
+    true
+  >
+>
 
 /**
- * Decorator for XML Stream endpoints that return JSX-based XML responses.
+ * Decorator that marks a method as an XML streaming endpoint.
  *
- * This decorator marks controller methods that return JSX elements, which will be
- * automatically rendered to XML and sent with the appropriate Content-Type header.
- * The method can be async and can contain async components, class components, and
- * regular JSX elements.
+ * Use this decorator for endpoints that stream XML data (e.g., RSS feeds, sitemaps).
+ * The endpoint must be defined using @navios/builder's `declareXmlStream` method.
+ * The method returns JSX elements, which will be automatically rendered to XML.
  *
- * @template Method - The HTTP method (GET, POST, etc.).
- * @template Url - The URL path pattern (supports parameters like `/posts/:id`).
- * @template QuerySchema - Optional Zod schema for query parameter validation.
- * @template RequestSchema - Optional Zod schema for request body validation.
- *
- * @param endpoint - The endpoint declaration created with `declareXmlStream`.
- * @returns A method decorator function.
- *
- * @throws {Error} If used on a non-function or non-method.
- * @throws {Error} If the endpoint URL already exists.
+ * @param endpoint - The XML stream endpoint declaration from @navios/builder
+ * @returns A method decorator
  *
  * @example
  * ```typescript
- * import { XmlStream, declareXmlStream } from '@navios/adapter-xml'
- * import { Controller } from '@navios/core'
- *
- * const getRssFeed = declareXmlStream({
- *   method: 'GET',
+ * const getRssFeed = api.declareXmlStream({
+ *   method: 'get',
  *   url: '/feed.xml',
  *   contentType: 'application/rss+xml',
  * })
  *
- * @Controller('/api')
- * class FeedController {
+ * @Controller()
+ * export class FeedController {
  *   @XmlStream(getRssFeed)
- *   async getFeed() {
+ *   async getFeed(request: XmlStreamParams<typeof getRssFeed>) {
  *     return (
  *       <rss version="2.0">
  *         <channel>
@@ -85,58 +61,73 @@ export type XmlStreamParams<
  *   }
  * }
  * ```
- *
- * @example
- * ```typescript
- * // With query parameters
- * const getSitemap = declareXmlStream({
- *   method: 'GET',
- *   url: '/sitemap.xml',
- *   querySchema: z.object({ page: z.string().optional() }),
- * })
- *
- * @Controller()
- * class SitemapController {
- *   @XmlStream(getSitemap)
- *   async getSitemap(params: { query?: { page?: string } }) {
- *     const page = params.query?.page
- *     return <urlset>...</urlset>
- *   }
- * }
- * ```
  */
-export function XmlStream<
-  Method extends HttpMethod = HttpMethod,
-  Url extends string = string,
-  QuerySchema = undefined,
-  RequestSchema = ZodType,
->(endpoint: { config: BaseXmlStreamConfig<Method, Url, QuerySchema, RequestSchema> }) {
-  return (
-    target: (
-      params: QuerySchema extends ZodObject
-        ? RequestSchema extends ZodType
-          ? Util_FlatObject<EndpointFunctionArgs<Url, QuerySchema, RequestSchema, true>>
-          : Util_FlatObject<EndpointFunctionArgs<Url, QuerySchema, undefined, true>>
-        : RequestSchema extends ZodType
-          ? Util_FlatObject<EndpointFunctionArgs<Url, undefined, RequestSchema, true>>
-          : Util_FlatObject<EndpointFunctionArgs<Url, undefined, undefined, true>>,
-    ) => Promise<any>, // Returns XmlNode
-    context: ClassMethodDecoratorContext,
-  ) => {
-    if (typeof target !== 'function') {
-      throw new Error('[Navios] XmlStream decorator can only be used on functions.')
-    }
-    if (context.kind !== 'method') {
-      throw new Error('[Navios] XmlStream decorator can only be used on methods.')
-    }
+export function XmlStream<Config extends BaseEndpointOptions>(endpoint: {
+  config: Config
+}): (
+  target: (
+    params: RequestArgs<
+      Config['url'],
+      Config['querySchema'],
+      Config['requestSchema'],
+      Config['urlParamsSchema'],
+      true
+    >,
+    reply: any,
+  ) => any,
+  context: ClassMethodDecoratorContext,
+) => void
+// Bun doesn't support reply parameter
+export function XmlStream<Config extends BaseEndpointOptions>(endpoint: {
+  config: Config
+}): (
+  target: (
+    params: RequestArgs<
+      Config['url'],
+      Config['querySchema'],
+      Config['requestSchema'],
+      Config['urlParamsSchema'],
+      true
+    >,
+  ) => any,
+  context: ClassMethodDecoratorContext,
+) => void
+export function XmlStream<Config extends BaseEndpointOptions>(endpoint: {
+  config: Config
+}): (target: () => any, context: ClassMethodDecoratorContext) => void
+export function XmlStream<Config extends BaseEndpointOptions>(endpoint: {
+  config: Config
+}) {
+  type Params = RequestArgs<
+    Config['url'],
+    Config['querySchema'],
+    Config['requestSchema'],
+    Config['urlParamsSchema'],
+    true
+  >
 
+  type Handler =
+    | ((params: Params, reply: any) => any)
+    | ((params: Params) => any)
+    | (() => any)
+
+  return (target: Handler, context: ClassMethodDecoratorContext) => {
+    if (context.kind !== 'method') {
+      throw new Error(
+        '[Navios] Endpoint decorator can only be used on methods.',
+      )
+    }
     const config = endpoint.config
     if (context.metadata) {
-      const endpointMetadata = getEndpointMetadata<BaseXmlStreamConfig>(target, context)
+      let endpointMetadata = getEndpointMetadata<BaseEndpointOptions>(
+        target,
+        context,
+      )
       if (endpointMetadata.config && endpointMetadata.config.url) {
-        throw new Error(`[Navios] Endpoint ${config.method} ${config.url} already exists.`)
+        throw new Error(
+          `[Navios] Endpoint ${config.method} ${config.url} already exists. Please use a different method or url.`,
+        )
       }
-      // @ts-expect-error We don't need to set correctly in the metadata
       endpointMetadata.config = config
       endpointMetadata.adapterToken = XmlStreamAdapterToken
       endpointMetadata.classMethod = target.name

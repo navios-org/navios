@@ -5,6 +5,29 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.0-alpha.2] - 2026-01-07
+
+### Changed
+
+- **Simplified XmlStreamParams Type**: Refactored `XmlStreamParams<T>` type to use new `RequestArgs` and `Simplify` types from `@navios/builder`
+  - Cleaner type inference with support for `urlParamsSchema`
+  - Server-side handlers receive `z.output` types (parsed/transformed values)
+- **Updated XmlStream Decorator**: Completely refactored to use `BaseEndpointOptions` from `@navios/builder`
+  - Multiple overloads for handlers with/without parameters and reply object
+  - Better type inference for endpoint parameters
+  - Improved JSDoc documentation
+- **Updated declareXmlStream Function**: Now uses `StreamHandler` type from `@navios/builder`
+  - Returns properly typed handler with config attached
+  - Better integration with endpoint declaration patterns
+- **New XmlStreamConfig Interface**: Separated config types for better type composition
+  - `XmlStreamConfig` extends `BaseEndpointOptions` with XML-specific options
+  - `BaseXmlStreamConfig` for backward compatibility with explicit type parameters
+
+### Dependencies
+
+- Updated to support `@navios/core` ^1.0.0-alpha.2
+- Updated to support `@navios/builder` ^1.0.0-alpha.2
+
 ## [0.9.0] - 2025-12-23
 
 ### Dependencies

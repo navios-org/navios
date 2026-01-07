@@ -1,6 +1,7 @@
-import type { HttpMethod } from '@navios/builder'
+import type { HttpMethod, RequestArgs, StreamHandler } from '@navios/builder'
+import type { ZodObject, ZodType } from 'zod/v4'
 
-import type { BaseXmlStreamConfig } from '../types/config.mjs'
+import type { BaseXmlStreamConfig, XmlStreamConfig } from '../types/config.mjs'
 
 /**
  * Declares an XML Stream endpoint configuration for use with `@XmlStream` decorator.
@@ -41,13 +42,20 @@ import type { BaseXmlStreamConfig } from '../types/config.mjs'
  * })
  * ```
  */
-export function declareXmlStream<
-  Method extends HttpMethod,
-  Url extends string,
-  QuerySchema = undefined,
-  RequestSchema = undefined,
->(
-  config: BaseXmlStreamConfig<Method, Url, QuerySchema, RequestSchema>,
-): { config: BaseXmlStreamConfig<Method, Url, QuerySchema, RequestSchema> } {
-  return { config }
+export function declareXmlStream<const Config extends XmlStreamConfig>(
+  config: Config,
+): StreamHandler<Config, false> {
+  const handler = async (
+    _params: RequestArgs<
+      Config['url'],
+      Config['querySchema'],
+      Config['requestSchema'],
+      Config['urlParamsSchema'],
+      true
+    >,
+  ) => {
+    throw new Error('Not implemented')
+  }
+  handler.config = config
+  return handler as unknown as StreamHandler<Config, false>
 }
