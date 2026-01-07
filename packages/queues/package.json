@@ -1,0 +1,69 @@
+{
+  "name": "@navios/queues",
+  "version": "0.1.0",
+  "description": "Queue adapters for Navios - RabbitMQ, Kafka, and AWS SQS/SNS support",
+  "author": {
+    "name": "Oleksandr Hanzha",
+    "email": "alex@granted.name"
+  },
+  "repository": {
+    "directory": "packages/queues",
+    "type": "git",
+    "url": "https://github.com/Arilas/navios.git"
+  },
+  "license": "MIT",
+  "peerDependencies": {
+    "@navios/di": "workspace:^",
+    "zod": "^3.25.0 || ^4.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@aws-sdk/client-sns": {
+      "optional": true
+    },
+    "@aws-sdk/client-sqs": {
+      "optional": true
+    },
+    "amqp-connection-manager": {
+      "optional": true
+    },
+    "amqplib": {
+      "optional": true
+    },
+    "kafkajs": {
+      "optional": true
+    }
+  },
+  "optionalDependencies": {
+    "@aws-sdk/client-sns": "^3.700.0",
+    "@aws-sdk/client-sqs": "^3.700.0",
+    "amqp-connection-manager": "^5.0.0",
+    "amqplib": "^0.10.5",
+    "kafkajs": "^2.2.4"
+  },
+  "typings": "./lib/index.d.mts",
+  "main": "./lib/index.cjs",
+  "module": "./lib/index.mjs",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./lib/index.d.mts",
+        "default": "./lib/index.mjs"
+      },
+      "require": {
+        "types": "./lib/index.d.cts",
+        "default": "./lib/index.cjs"
+      }
+    }
+  },
+  "devDependencies": {
+    "@aws-sdk/client-sns": "^3.700.0",
+    "@aws-sdk/client-sqs": "^3.700.0",
+    "@navios/di": "workspace:^",
+    "@types/amqplib": "^0.10.6",
+    "amqp-connection-manager": "^5.0.0",
+    "amqplib": "^0.10.5",
+    "kafkajs": "^2.2.4",
+    "typescript": "^5.9.3",
+    "zod": "^4.2.1"
+  }
+}

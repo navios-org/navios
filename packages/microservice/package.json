@@ -1,0 +1,42 @@
+{
+  "name": "@navios/microservice",
+  "version": "0.1.0",
+  "author": {
+    "name": "Oleksandr Hanzha",
+    "email": "alex@granted.name"
+  },
+  "repository": {
+    "directory": "packages/microservice",
+    "type": "git",
+    "url": "https://github.com/Arilas/navios.git"
+  },
+  "license": "MIT",
+  "peerDependencies": {
+    "@navios/core": "workspace:^",
+    "@navios/di": "workspace:^",
+    "@navios/queues": "workspace:^",
+    "zod": "^3.25.0 || ^4.0.0"
+  },
+  "typings": "./lib/index.d.mts",
+  "main": "./lib/index.cjs",
+  "module": "./lib/index.mjs",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./lib/index.d.mts",
+        "default": "./lib/index.mjs"
+      },
+      "require": {
+        "types": "./lib/index.d.cts",
+        "default": "./lib/index.cjs"
+      }
+    }
+  },
+  "devDependencies": {
+    "@navios/core": "workspace:^",
+    "@navios/di": "workspace:^",
+    "@navios/queues": "workspace:^",
+    "typescript": "^5.9.3",
+    "zod": "^4.2.1"
+  }
+}
