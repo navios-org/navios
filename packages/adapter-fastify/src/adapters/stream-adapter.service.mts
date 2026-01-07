@@ -1,18 +1,31 @@
-import type { BaseStreamConfig } from '@navios/builder'
-import type { ClassType, HandlerMetadata, ScopedContainer } from '@navios/core'
+import type { BaseEndpointOptions } from '@navios/builder'
+import type {
+  ClassType,
+  HandlerMetadata,
+  NaviosApplicationOptions,
+  ScopedContainer,
+} from '@navios/core'
 import type { FastifyReply, FastifyRequest } from 'fastify'
 
 import {
-  InstanceResolverService,
   inject,
   Injectable,
   InjectionToken,
+  InstanceResolverService,
+  NaviosOptionsToken,
+  optional,
 } from '@navios/core'
 
 import type {
   FastifyHandlerAdapterInterface,
   FastifyHandlerResult,
 } from './handler-adapter.interface.mjs'
+
+const defaultOptions: NaviosApplicationOptions = {
+  adapter: [],
+  validateResponses: true,
+  enableRequestId: false,
+}
 
 /**
  * Injection token for the Fastify stream adapter service.
@@ -54,6 +67,7 @@ export const FastifyStreamAdapterToken =
 })
 export class FastifyStreamAdapterService implements FastifyHandlerAdapterInterface {
   protected instanceResolver = inject(InstanceResolverService)
+  protected options = optional(NaviosOptionsToken) ?? defaultOptions
 
   /**
    * Checks if the handler has any validation schemas defined.
@@ -61,9 +75,13 @@ export class FastifyStreamAdapterService implements FastifyHandlerAdapterInterfa
    * @param handlerMetadata - The handler metadata containing configuration.
    * @returns `true` if the handler has request or query schemas.
    */
-  hasSchema(handlerMetadata: HandlerMetadata<BaseStreamConfig>): boolean {
+  hasSchema(handlerMetadata: HandlerMetadata<BaseEndpointOptions>): boolean {
     const config = handlerMetadata.config
-    return !!config.requestSchema || !!config.querySchema
+    return (
+      !!config.requestSchema ||
+      !!config.querySchema ||
+      (!!this.options.validateResponses && !!config.errorSchema)
+    )
   }
 
   /**
@@ -76,7 +94,7 @@ export class FastifyStreamAdapterService implements FastifyHandlerAdapterInterfa
    * @param handlerMetadata - The handler metadata with schemas and configuration.
    * @returns An array of getter functions that populate request arguments.
    */
-  prepareArguments(handlerMetadata: HandlerMetadata<BaseStreamConfig>) {
+  prepareArguments(handlerMetadata: HandlerMetadata<BaseEndpointOptions>) {
     const config = handlerMetadata.config
     const getters: ((
       target: Record<string, any>,
@@ -115,7 +133,7 @@ export class FastifyStreamAdapterService implements FastifyHandlerAdapterInterfa
    */
   async provideHandler(
     controller: ClassType,
-    handlerMetadata: HandlerMetadata<BaseStreamConfig>,
+    handlerMetadata: HandlerMetadata<BaseEndpointOptions>,
   ): Promise<FastifyHandlerResult> {
     const getters = this.prepareArguments(handlerMetadata)
     const hasArguments = getters.length > 0
@@ -218,16 +236,21 @@ export class FastifyStreamAdapterService implements FastifyHandlerAdapterInterfa
    * @returns A Fastify route schema object.
    */
   provideSchema(
-    handlerMetadata: HandlerMetadata<BaseStreamConfig>,
+    handlerMetadata: HandlerMetadata<BaseEndpointOptions>,
   ): Record<string, any> {
     const schema: Record<string, any> = {}
-    const { querySchema, requestSchema } = handlerMetadata.config
+    const { querySchema, requestSchema, errorSchema } = handlerMetadata.config
 
     if (querySchema) {
       schema.querystring = querySchema
     }
     if (requestSchema) {
       schema.body = requestSchema
+    }
+    if (this.options.validateResponses && errorSchema) {
+      schema.response = {
+        ...errorSchema,
+      }
     }
 
     return schema

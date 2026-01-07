@@ -1,4 +1,4 @@
-import type { BaseEndpointConfig } from '@navios/builder'
+import type { EndpointOptions } from '@navios/builder'
 import type {
   ClassType,
   HandlerMetadata,
@@ -17,12 +17,6 @@ import {
 import type { FastifyHandlerResult } from './handler-adapter.interface.mjs'
 
 import { FastifyStreamAdapterService } from './stream-adapter.service.mjs'
-
-const defaultOptions: NaviosApplicationOptions = {
-  adapter: [],
-  validateResponses: true,
-  enableRequestId: false,
-}
 
 /**
  * Injection token for the Fastify endpoint adapter service.
@@ -68,8 +62,6 @@ export const FastifyEndpointAdapterToken =
   token: FastifyEndpointAdapterToken,
 })
 export class FastifyEndpointAdapterService extends FastifyStreamAdapterService {
-  private options = optional(NaviosOptionsToken) ?? defaultOptions
-
   /**
    * Checks if the handler has any validation schemas defined.
    *
@@ -77,7 +69,7 @@ export class FastifyEndpointAdapterService extends FastifyStreamAdapterService {
    * @returns `true` if the handler has request, query, or response schemas.
    */
   override hasSchema(
-    handlerMetadata: HandlerMetadata<BaseEndpointConfig>,
+    handlerMetadata: HandlerMetadata<EndpointOptions>,
   ): boolean {
     const config = handlerMetadata.config
     return (
@@ -96,12 +88,13 @@ export class FastifyEndpointAdapterService extends FastifyStreamAdapterService {
    * @returns A Fastify route schema object.
    */
   override provideSchema(
-    handlerMetadata: HandlerMetadata<BaseEndpointConfig>,
+    handlerMetadata: HandlerMetadata<EndpointOptions>,
   ): Record<string, any> {
     const config = handlerMetadata.config
     const schema = super.provideSchema(handlerMetadata)
     if (this.options.validateResponses && config.responseSchema) {
       schema.response = {
+        ...config.errorSchema,
         200: config.responseSchema,
       }
     }
@@ -124,7 +117,7 @@ export class FastifyEndpointAdapterService extends FastifyStreamAdapterService {
    */
   override async provideHandler(
     controller: ClassType,
-    handlerMetadata: HandlerMetadata<BaseEndpointConfig>,
+    handlerMetadata: HandlerMetadata<EndpointOptions>,
   ): Promise<FastifyHandlerResult> {
     const getters = this.prepareArguments(handlerMetadata)
     const hasArguments = getters.length > 0

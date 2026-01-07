@@ -1,5 +1,5 @@
 import type { MultipartFile, MultipartValue } from '@fastify/multipart'
-import type { BaseEndpointConfig } from '@navios/builder'
+import type { EndpointOptions } from '@navios/builder'
 import type { HandlerMetadata } from '@navios/core'
 import type { FastifyRequest } from 'fastify'
 import type { ZodRawShape } from 'zod/v4'
@@ -68,7 +68,7 @@ export class FastifyMultipartAdapterService extends FastifyEndpointAdapterServic
    * @returns An array of getter functions that populate request arguments.
    */
   prepareArguments(
-    handlerMetadata: HandlerMetadata<BaseEndpointConfig>,
+    handlerMetadata: HandlerMetadata<EndpointOptions>,
   ): ((target: Record<string, any>, request: FastifyRequest) => void)[] {
     const config = handlerMetadata.config
     const getters: ((
@@ -133,7 +133,11 @@ export class FastifyMultipartAdapterService extends FastifyEndpointAdapterServic
     } else {
       value = part.value
       if (isObject && typeof value === 'string') {
-        value = JSON.parse(value)
+        try {
+          value = JSON.parse(value)
+        } catch {
+          value = null
+        }
       }
     }
 
@@ -194,7 +198,7 @@ export class FastifyMultipartAdapterService extends FastifyEndpointAdapterServic
    * @returns A Fastify route schema object.
    */
   override provideSchema(
-    handlerMetadata: HandlerMetadata<BaseEndpointConfig>,
+    handlerMetadata: HandlerMetadata<EndpointOptions>,
   ): Record<string, any> {
     const schema: Record<string, any> = {}
     const { querySchema, responseSchema } = handlerMetadata.config
@@ -202,8 +206,9 @@ export class FastifyMultipartAdapterService extends FastifyEndpointAdapterServic
     if (querySchema) {
       schema.querystring = querySchema
     }
-    if (responseSchema) {
+    if (this.options.validateResponses && responseSchema) {
       schema.response = {
+        ...handlerMetadata.config.errorSchema,
         200: responseSchema,
       }
     }
