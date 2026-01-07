@@ -108,7 +108,7 @@ await fastifyInstance.register(require('@fastify/static'), {
 - **Plugin System**: Full support for Fastify plugins and hooks
 - **Schema Validation**: Built-in Zod schema validation with Fastify type provider
 - **Request/Response Lifecycle**: Complete control over request/response handling
-- **Error Handling**: Comprehensive error handling integration
+- **Error Handling**: Comprehensive error handling integration with RFC 7807 Problem Details format for standardized, machine-readable error responses
 - **CORS Support**: Native CORS support via @fastify/cors
 - **Multipart Support**: Native file upload support via @fastify/multipart
 - **WebSocket Support**: Via Fastify WebSocket plugins

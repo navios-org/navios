@@ -4,11 +4,15 @@ import type { ModuleMetadata } from '@navios/core'
 import type {
   FastifyInstance,
   FastifyListenOptions,
+  FastifyReply,
+  FastifyRequest,
   FastifyServerOptions,
 } from 'fastify'
 
 import {
   Container,
+  ErrorResponseProducerService,
+  FrameworkError,
   HttpException,
   inject,
   Injectable,
@@ -22,6 +26,7 @@ import {
   serializerCompiler,
   validatorCompiler,
 } from 'fastify-type-provider-zod'
+import { ZodError } from 'zod/v4'
 
 import type {
   FastifyApplicationOptions,
@@ -68,6 +73,7 @@ export class FastifyApplicationService implements FastifyApplicationServiceInter
     context: FastifyApplicationService.name,
   })
   protected container = inject(Container)
+  private errorProducer = inject(ErrorResponseProducerService)
   private server: FastifyInstance | null = null
   private controllerAdapter = inject(FastifyControllerAdapterService)
   private globalPrefix: string = ''
@@ -237,34 +243,51 @@ export class FastifyApplicationService implements FastifyApplicationServiceInter
    * @private
    */
   configureFastifyInstance(): void {
-    this.server!.setErrorHandler((error: any, request: any, reply: any) => {
-      if (error instanceof HttpException) {
-        return reply.status(error.statusCode).send(error.response)
-      } else {
-        const statusCode = error.statusCode || 500
-        const message = error.message || 'Internal Server Error'
-        const response = {
-          statusCode,
-          message,
-          error: error.name || 'InternalServerError',
+    this.server!.setErrorHandler(
+      (error: unknown, request: FastifyRequest, reply: FastifyReply) => {
+        if (error instanceof HttpException) {
+          // For HttpException, preserve original response format for backwards compatibility
+          return reply.status(error.statusCode).send(error.response)
+        } else if (error instanceof ZodError) {
+          const errorResponse = this.errorProducer.respond(
+            FrameworkError.ValidationError,
+            error,
+          )
+          return reply
+            .status(errorResponse.statusCode)
+            .type('application/problem+json')
+            .send(errorResponse.payload)
+        } else {
+          this.logger.error(
+            `Error occurred: ${error instanceof Error ? error.message : 'Unknown error'} on ${request.url}`,
+            error,
+          )
+          const errorResponse = this.errorProducer.respond(
+            FrameworkError.InternalServerError,
+            error,
+          )
+          return reply
+            .status(errorResponse.statusCode)
+            .type('application/problem+json')
+            .send(errorResponse.payload)
         }
-        this.logger.error(
-          `Error occurred: ${error.message} on ${request.url}`,
-          error,
-        )
-        return reply.status(statusCode).send(response)
-      }
-    })
+      },
+    )
 
-    this.server!.setNotFoundHandler((req: any, reply: any) => {
-      const response = {
-        statusCode: 404,
-        message: 'Not Found',
-        error: 'NotFound',
-      }
-      this.logger.error(`Route not found: [${req.method}] ${req.url}`)
-      return reply.status(404).send(response)
-    })
+    this.server!.setNotFoundHandler(
+      (req: FastifyRequest, reply: FastifyReply) => {
+        this.logger.warn(`Route not found: [${req.method}] ${req.url}`)
+        const errorResponse = this.errorProducer.respond(
+          FrameworkError.NotFound,
+          null,
+          `Route [${req.method}] ${req.url} not found`,
+        )
+        return reply
+          .status(errorResponse.statusCode)
+          .type('application/problem+json')
+          .send(errorResponse.payload)
+      },
+    )
 
     // Add request decoration for scoped container storage between hooks
     this.server!.decorateRequest('scopedContainer', undefined)

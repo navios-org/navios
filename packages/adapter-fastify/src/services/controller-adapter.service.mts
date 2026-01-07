@@ -11,8 +11,10 @@ import type { ZodTypeProvider } from 'fastify-type-provider-zod'
 
 import {
   Container,
+  ErrorResponseProducerService,
   ExecutionContext,
   extractControllerMetadata,
+  FrameworkError,
   GuardRunnerService,
   HttpException,
   inject,
@@ -22,6 +24,8 @@ import {
   Logger,
   runWithRequestId,
 } from '@navios/core'
+
+import { ZodError } from 'zod/v4'
 
 import type {
   FastifyDynamicHandler,
@@ -72,6 +76,7 @@ export class FastifyControllerAdapterService {
   private guardRunner = inject(GuardRunnerService)
   private container = inject(Container)
   private instanceResolver = inject(InstanceResolverService)
+  private errorProducer = inject(ErrorResponseProducerService)
   private logger = inject(Logger, {
     context: FastifyControllerAdapterService.name,
   })
@@ -395,19 +400,30 @@ export class FastifyControllerAdapterService {
 
   /**
    * Handles errors and converts them to appropriate HTTP responses.
+   * Uses ErrorResponseProducerService to produce RFC 7807 compliant responses.
    * @private
    */
   private handleError(error: unknown, reply: FastifyReply) {
+    let errorResponse
+
     if (error instanceof HttpException) {
+      // For HttpException, preserve original response format for backwards compatibility
       return reply.status(error.statusCode).send(error.response)
+    } else if (error instanceof ZodError) {
+      errorResponse = this.errorProducer.respond(
+        FrameworkError.ValidationError,
+        error,
+      )
     } else {
+      // Log unexpected errors
       const err = error as Error
       this.logger.error(`Error: ${err.message}`, err)
-      return reply.status(500).send({
-        statusCode: 500,
-        message: err.message || 'Internal Server Error',
-        error: 'InternalServerError',
-      })
+      errorResponse = this.errorProducer.handleUnknown(error)
     }
+
+    return reply
+      .status(errorResponse.statusCode)
+      .type('application/problem+json')
+      .send(errorResponse.payload)
   }
 }

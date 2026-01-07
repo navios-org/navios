@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.0-alpha.1] - 2026-01-22
+
+### Changed
+
+- **Error Response Format**: Updated to use RFC 7807 Problem Details format for framework-level errors
+  - Validation errors (ZodError) now return Problem Details with structured error information
+  - Not found routes return Problem Details format
+  - Unhandled errors return Problem Details format
+  - HttpException responses remain backward compatible (preserved original format)
+- **Error Handling**: Integrated with `@navios/core` 1.0.0-alpha.1 error responder system
+  - Uses `ErrorResponseProducerService` for standardized error responses
+  - All error responses include `Content-Type: application/problem+json` header
+
+### Dependencies
+
+- Updated to support `@navios/core` ^1.0.0-alpha.1
+
 ## [0.9.0] - 2025-12-23
 
 ### Dependencies
