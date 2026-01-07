@@ -9,7 +9,9 @@ Type-safe React Query integration for Navios API client with Zod schema validati
 - **React Query Integration** - Seamless integration with TanStack Query v5
 - **Declarative API** - Define endpoints once, use everywhere
 - **URL Parameters** - Built-in support for parameterized URLs (`/users/$userId`)
-- **Optimistic Updates** - First-class support via `onMutate` callback
+- **Optimistic Updates** - First-class helpers via `createOptimisticUpdate`
+- **SSR/RSC Support** - Built-in prefetch helpers for server-side rendering
+- **Error Schema Support** - Type-safe error handling with discriminated unions
 - **Stream Support** - Handle file downloads and blob responses
 
 ## Installation
@@ -514,6 +516,148 @@ function AvatarUpload({ userId }: { userId: string }) {
 }
 ```
 
+## SSR/RSC Prefetch Helpers
+
+For server-side rendering and React Server Components, use the prefetch helpers:
+
+```typescript
+import { createPrefetchHelper, prefetchAll } from '@navios/react-query'
+import { dehydrate, HydrationBoundary, QueryClient } from '@tanstack/react-query'
+
+// Create prefetch helper from your query
+const userPrefetch = createPrefetchHelper(getUser)
+
+// Server Component
+async function UserPage({ userId }: { userId: string }) {
+  const queryClient = new QueryClient()
+
+  await userPrefetch.prefetch(queryClient, { urlParams: { userId } })
+
+  return (
+    <HydrationBoundary state={dehydrate(queryClient)}>
+      <UserProfile userId={userId} />
+    </HydrationBoundary>
+  )
+}
+```
+
+### Batch Prefetching
+
+```typescript
+// Create multiple helpers at once
+const prefetchers = createPrefetchHelpers({
+  user: getUser,
+  posts: getUserPosts,
+})
+
+// Or prefetch different queries in parallel
+await prefetchAll(queryClient, [
+  { helper: userPrefetch, params: { urlParams: { userId } } },
+  { helper: postsPrefetch, params: { urlParams: { userId }, params: { limit: 10 } } },
+])
+```
+
+### Helper Methods
+
+- `prefetch(queryClient, params)` - Prefetch data on the server
+- `ensureData(queryClient, params)` - Ensure data exists, returns the data
+- `getQueryOptions(params)` - Get raw query options for customization
+- `prefetchMany(queryClient, paramsList)` - Prefetch multiple queries in parallel
+
+## Optimistic Update Helpers
+
+Simplify optimistic updates with the `createOptimisticUpdate` helper:
+
+```typescript
+import { createOptimisticUpdate } from '@navios/react-query'
+
+const updateUser = client.mutation({
+  method: 'PATCH',
+  url: '/users/$userId',
+  requestSchema: updateUserSchema,
+  responseSchema: userSchema,
+  processResponse: (data) => data,
+  useContext: () => ({ queryClient: useQueryClient() }),
+  ...createOptimisticUpdate({
+    queryKey: ['users', userId],
+    updateFn: (oldData, variables) => ({
+      ...oldData,
+      ...variables.data,
+    }),
+    rollbackOnError: true,    // default
+    invalidateOnSettled: true, // default
+  }),
+})
+```
+
+### Multi-Query Optimistic Updates
+
+When a mutation affects multiple cached queries:
+
+```typescript
+import { createMultiOptimisticUpdate } from '@navios/react-query'
+
+const updateUser = client.mutation({
+  // ...config
+  ...createMultiOptimisticUpdate([
+    {
+      queryKey: ['users', userId],
+      updateFn: (oldData, variables) => ({ ...oldData, ...variables.data }),
+    },
+    {
+      queryKey: ['users'],
+      updateFn: (oldList, variables) =>
+        (oldList ?? []).map((u) =>
+          u.id === userId ? { ...u, ...variables.data } : u
+        ),
+    },
+  ]),
+})
+```
+
+## Error Schema Support
+
+When using `useDiscriminatorResponse: true` mode, API errors are returned as data instead of being thrown. This enables type-safe error discrimination:
+
+```typescript
+const api = builder({ useDiscriminatorResponse: true })
+
+const getUser = client.query({
+  method: 'GET',
+  url: '/users/$userId',
+  responseSchema: userSchema,
+  errorSchema: {
+    400: z.object({ error: z.string(), code: z.number() }),
+    404: z.object({ notFound: z.literal(true) }),
+    500: z.object({ serverError: z.string() }),
+  },
+  processResponse: (data) => {
+    // data is typed as: User | { error: string, code: number } | { notFound: true } | { serverError: string }
+    if ('error' in data) {
+      return { ok: false as const, error: data.error }
+    }
+    if ('notFound' in data) {
+      return { ok: false as const, error: 'User not found' }
+    }
+    if ('serverError' in data) {
+      return { ok: false as const, error: data.serverError }
+    }
+    return { ok: true as const, user: data }
+  },
+})
+
+// In your component
+function UserProfile({ userId }: { userId: string }) {
+  const result = getUser.useSuspense({ urlParams: { userId } })
+
+  if (!result.ok) {
+    return <ErrorMessage error={result.error} />
+  }
+
+  return <div>{result.user.name}</div>
+}
+```
+
 ## API Reference
 
 ### `declareClient(options)`
@@ -594,11 +738,15 @@ The context passed to mutation callbacks includes:
 - `meta` - Mutation metadata
 - `onMutateResult` - Return value from `onMutate` (in `onSuccess`, `onError`, `onSettled`)
 
-## Migration from 0.5.x
+## Migration to 1.0.0
 
-See [CHANGELOG.md](./CHANGELOG.md) for migration guide from 0.5.x to 0.6.0.
+See [CHANGELOG.md](./CHANGELOG.md) for full migration guide.
 
-Key changes:
+### From 0.7.x
+
+- **Type file reorganization** - If importing internal types, update paths to use `client/types/*.mts`
+
+### From 0.5.x to 0.6.x
 
 - Mutation callbacks now receive `(data, variables, context)` instead of `(queryClient, data, variables)`
 - Use `useContext` hook to provide `queryClient` and other dependencies

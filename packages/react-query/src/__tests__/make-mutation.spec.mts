@@ -59,6 +59,7 @@ describe('makeMutation', () => {
     z.object({ success: z.literal(true), test: z.string() }),
     z.object({ success: z.literal(false), message: z.string() }),
   ])
+  type ResponseType = z.output<typeof responseSchema>
   const endpoint = api.declareEndpoint({
     method: 'POST',
     url: '/test/$testId/foo/$fooId' as const,
@@ -87,7 +88,7 @@ describe('makeMutation', () => {
 
   it('should just work', async () => {
     const mutation = makeMutation(endpoint, {
-      processResponse: (data) => {
+      processResponse: (data: ResponseType) => {
         if (!data.success) {
           throw new Error(data.message)
         }
@@ -138,7 +139,7 @@ describe('makeMutation', () => {
 
   it('should work with a key', async () => {
     const mutation = makeMutation(endpoint, {
-      processResponse: (data) => {
+      processResponse: (data: ResponseType) => {
         if (!data.success) {
           throw new Error(data.message)
         }
@@ -245,7 +246,7 @@ describe('makeMutation', () => {
       })
 
       const mutation = makeMutation(endpoint, {
-        processResponse: (data) => {
+        processResponse: (data: ResponseType) => {
           if (!data.success) throw new Error(data.message)
           return data
         },
@@ -280,7 +281,7 @@ describe('makeMutation', () => {
       const onSettled = vi.fn()
 
       const mutation = makeMutation(endpoint, {
-        processResponse: (data) => {
+        processResponse: (data: ResponseType) => {
           if (!data.success) throw new Error(data.message)
           return data
         },
@@ -323,7 +324,7 @@ describe('makeMutation', () => {
       const onSuccess = vi.fn()
 
       const mutation = makeMutation(endpoint, {
-        processResponse: (data) => {
+        processResponse: (data: ResponseType) => {
           if (!data.success) throw new Error(data.message)
           return data
         },

@@ -1,4 +1,9 @@
-import type { BuilderInstance } from '@navios/builder'
+import type {
+  BuilderInstance,
+  ErrorSchemaRecord,
+  InferErrorSchemaOutput,
+} from '@navios/builder'
+import type { z, ZodType } from 'zod/v4'
 
 /**
  * Splits a string by a delimiter into a tuple type.
@@ -21,11 +26,51 @@ export type ProcessResponseFunction<TData = unknown, TVariables = unknown> = (
 
 /**
  * Options for creating a client instance.
+ *
+ * @template UseDiscriminator - When `true`, errors are returned as union types.
+ *   When `false` (default), errors are thrown.
  */
-export type ClientOptions = {
-  api: BuilderInstance
+export type ClientOptions<UseDiscriminator extends boolean = false> = {
+  api: BuilderInstance<UseDiscriminator>
   defaults?: {
     keyPrefix?: string[]
     keySuffix?: string[]
   }
 }
+
+/**
+ * Infers the full response type from an endpoint configuration.
+ * Returns `ResponseType | ErrorTypes` if errorSchema exists,
+ * otherwise just `ResponseType`.
+ *
+ * @example
+ * ```ts
+ * type Response = InferEndpointResponse<{
+ *   responseSchema: z.ZodObject<{ data: z.ZodString }>,
+ *   errorSchema: { 400: z.ZodObject<{ error: z.ZodString }> }
+ * }>
+ * // Result: { data: string } | { error: string }
+ * ```
+ */
+export type InferEndpointResponse<
+  Config extends {
+    responseSchema: ZodType
+    errorSchema?: ErrorSchemaRecord
+  },
+> = Config['errorSchema'] extends ErrorSchemaRecord
+  ? z.output<Config['responseSchema']> | InferErrorSchemaOutput<Config['errorSchema']>
+  : z.output<Config['responseSchema']>
+
+/**
+ * Computes the Result type, applying processResponse transformation
+ * to the full response (including error union when present).
+ */
+export type ComputeResultType<
+  ResponseSchema extends ZodType,
+  ErrorSchema extends ErrorSchemaRecord | undefined,
+  ProcessedResult,
+> = ProcessedResult extends undefined
+  ? ErrorSchema extends ErrorSchemaRecord
+    ? z.output<ResponseSchema> | InferErrorSchemaOutput<ErrorSchema>
+    : z.output<ResponseSchema>
+  : ProcessedResult

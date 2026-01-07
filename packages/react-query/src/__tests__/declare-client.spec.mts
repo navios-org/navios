@@ -1,7 +1,6 @@
+import { builder } from '@navios/builder'
 import { create } from '@navios/http'
 import { makeNaviosFakeAdapter } from '@navios/http/testing'
-
-import { builder } from '@navios/builder'
 
 import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod/v4'

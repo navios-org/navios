@@ -66,8 +66,12 @@ export function makeInfiniteQueryOptions<
     : never => {
     // @ts-expect-error TS2322 We know that the processResponse is defined
     return infiniteQueryOptions({
+      // @ts-expect-error TS2345 We bind the url params only if the url has params
       queryKey: queryKey.dataTag(params),
-      queryFn: async ({ signal, pageParam }): Promise<ReturnType<Options['processResponse']>> => {
+      queryFn: async ({
+        signal,
+        pageParam,
+      }): Promise<ReturnType<Options['processResponse']>> => {
         let result
         try {
           result = await endpoint({
@@ -92,37 +96,76 @@ export function makeInfiniteQueryOptions<
       getPreviousPageParam: options.getPreviousPageParam,
       initialPageParam:
         options.initialPageParam ??
-        config.querySchema.parse('params' in params ? params.params : {}),
+        config.querySchema?.parse('params' in params ? params.params : {}) ??
+        ('params' in params ? params.params : {}),
       ...baseQuery,
     })
   }
+  /** The query key creator for this infinite query endpoint */
   res.queryKey = queryKey
 
+  /**
+   * React hook that executes the infinite query.
+   * Uses `useInfiniteQuery` from TanStack Query internally.
+   *
+   * @param params - URL parameters and initial query parameters
+   * @returns Infinite query result with pages, fetchNextPage, etc.
+   */
   res.use = (params: QueryArgs<Config['url'], Config['querySchema']>) => {
     return useInfiniteQuery(res(params))
   }
 
-  res.useSuspense = (params: QueryArgs<Config['url'], Config['querySchema']>) => {
+  /**
+   * React hook that executes the infinite query with Suspense support.
+   * Uses `useSuspenseInfiniteQuery` from TanStack Query internally.
+   * The component will suspend while loading and throw on error.
+   *
+   * @param params - URL parameters and initial query parameters
+   * @returns Infinite query result with pages guaranteed to be defined
+   */
+  res.useSuspense = (
+    params: QueryArgs<Config['url'], Config['querySchema']>,
+  ) => {
     return useSuspenseInfiniteQuery(res(params))
   }
 
+  /**
+   * Creates a function that invalidates this specific infinite query in the cache.
+   * Call the returned function to trigger the invalidation.
+   *
+   * @param queryClient - The TanStack Query client instance
+   * @param params - The exact parameters used for this query
+   * @returns A function that when called invalidates the query
+   */
   res.invalidate = (
     queryClient: QueryClient,
     params: QueryArgs<Config['url'], Config['querySchema']>,
   ) => {
-    return queryClient.invalidateQueries({
-      queryKey: res.queryKey.dataTag(params),
-    })
+    return () =>
+      queryClient.invalidateQueries({
+        // @ts-expect-error TS2345 We bind the url params only if the url has params
+        queryKey: res.queryKey.dataTag(params),
+      })
   }
 
+  /**
+   * Creates a function that invalidates all infinite queries matching the URL pattern.
+   * Useful for invalidating all queries for a resource regardless of query params.
+   *
+   * @param queryClient - The TanStack Query client instance
+   * @param params - URL parameters only (query params are ignored for matching)
+   * @returns A function that when called invalidates all matching queries
+   */
   res.invalidateAll = (
     queryClient: QueryClient,
     params: QueryArgs<Config['url'], Config['querySchema']>,
   ) => {
-    return queryClient.invalidateQueries({
-      queryKey: res.queryKey.filterKey(params),
-      exact: false,
-    })
+    return () =>
+      queryClient.invalidateQueries({
+        // @ts-expect-error TS2345 We bind the url params only if the url has params
+        queryKey: res.queryKey.filterKey(params),
+        exact: false,
+      })
   }
 
   return res

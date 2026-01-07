@@ -1,10 +1,15 @@
 import type {
   AnyEndpointConfig,
   BaseEndpointConfig,
+  EndpointOptions,
+  ErrorSchemaRecord,
   HttpMethod,
+  InferEndpointReturn,
+  InferErrorSchemaOutput,
+  RequestArgs,
+  Simplify,
   UrlHasParams,
   UrlParams,
-  Util_FlatObject,
 } from '@navios/builder'
 import type {
   DataTag,
@@ -18,30 +23,75 @@ import type { z, ZodObject, ZodType } from 'zod/v4'
 import type { Split } from '../common/types.mjs'
 
 /**
+ * Compute the response input type based on discriminator and error schema.
+ * When UseDiscriminator=true and errorSchema is present, errors are included as a union.
+ * When UseDiscriminator=false, only the success type is returned (errors are thrown).
+ *
+ * @template UseDiscriminator - Whether to include error types in the response union
+ * @template ResponseSchema - The success response schema
+ * @template ErrorSchema - The error schema record (optional)
+ */
+type ComputeResponseInput<
+  UseDiscriminator extends boolean,
+  ResponseSchema extends ZodType,
+  ErrorSchema extends ErrorSchemaRecord | undefined,
+> = UseDiscriminator extends true
+  ? ErrorSchema extends ErrorSchemaRecord
+    ? z.output<ResponseSchema> | InferErrorSchemaOutput<ErrorSchema>
+    : z.output<ResponseSchema>
+  : z.output<ResponseSchema>
+
+/**
+ * Helper type to extract the result type from processResponse.
+ */
+export type QueryResult<
+  Options extends EndpointOptions,
+  UseDiscriminator extends boolean = false,
+> = Options extends {
+  processResponse: (data: any) => infer Result
+}
+  ? Result
+  : InferEndpointReturn<Options, UseDiscriminator>
+
+/**
  * Arguments for query functions based on URL params and query schema.
+ * Uses RequestArgs from builder for consistency.
  */
 export type QueryArgs<
   Url extends string = string,
-  QuerySchema = ZodObject,
-  RequestSchema = undefined,
-> = (UrlHasParams<Url> extends true ? { urlParams: UrlParams<Url> } : {}) &
-  (QuerySchema extends ZodObject ? { params: z.input<QuerySchema> } : {}) &
-  (RequestSchema extends ZodType ? { data: z.input<RequestSchema> } : {})
+  QuerySchema extends ZodObject | undefined = undefined,
+  RequestSchema extends ZodType | undefined = undefined,
+> = RequestArgs<Url, QuerySchema, RequestSchema>
 
 /**
  * Arguments containing only URL params (for invalidateAll operations).
  */
 export type QueryUrlParamsArgs<Url extends string = string> =
-  UrlHasParams<Url> extends true ? { urlParams: UrlParams<Url> } : {} | undefined
+  UrlHasParams<Url> extends true
+    ? { urlParams: UrlParams<Url> }
+    : {} | undefined
 
 /**
  * Base parameters for query configuration.
+ *
+ * @template UseDiscriminator - When `true`, errors are returned as union types in processResponse.
+ *   When `false` (default), errors are thrown and not included in the response type.
  */
-export type QueryParams<Config extends AnyEndpointConfig, Res = any> = {
+export type QueryParams<
+  Config extends AnyEndpointConfig,
+  Res = any,
+  UseDiscriminator extends boolean = false,
+> = {
   keyPrefix?: string[]
   keySuffix?: string[]
   onFail?: (err: unknown) => void
-  processResponse: (data: z.output<Config['responseSchema']>) => Res
+  processResponse: (
+    data: ComputeResponseInput<
+      UseDiscriminator,
+      Config['responseSchema'],
+      Config['errorSchema']
+    >,
+  ) => Res
 }
 
 /**
@@ -88,31 +138,41 @@ export type QueryHelpers<
 > = {
   queryKey: QueryKeyCreatorResult<QuerySchema, Url, Result, IsInfinite>
   use: (
-    params: Util_FlatObject<QueryArgs<Url, QuerySchema, RequestSchema>>,
+    params: Simplify<QueryArgs<Url, QuerySchema, RequestSchema>>,
   ) => UseQueryResult<Result, Error>
   useSuspense: (
-    params: Util_FlatObject<QueryArgs<Url, QuerySchema, RequestSchema>>,
+    params: Simplify<QueryArgs<Url, QuerySchema, RequestSchema>>,
   ) => UseSuspenseQueryResult<Result, Error>
   invalidate: (
     queryClient: QueryClient,
-    params: Util_FlatObject<QueryArgs<Url, QuerySchema, RequestSchema>>,
+    params: Simplify<QueryArgs<Url, QuerySchema, RequestSchema>>,
   ) => () => Promise<void>
   invalidateAll: (
     queryClient: QueryClient,
-    params: Util_FlatObject<QueryUrlParamsArgs<Url>>,
+    params: Simplify<QueryUrlParamsArgs<Url>>,
   ) => () => Promise<void>
 }
 
 /**
  * Options for infinite query configuration.
+ *
+ * @template UseDiscriminator - When `true`, errors are returned as union types in processResponse.
+ *   When `false` (default), errors are thrown and not included in the response type.
  */
 export type InfiniteQueryOptions<
   Config extends BaseEndpointConfig<HttpMethod, string, ZodObject>,
   Res = any,
+  UseDiscriminator extends boolean = false,
 > = {
   keyPrefix?: string[]
   keySuffix?: string[]
-  processResponse: (data: z.infer<Config['responseSchema']>) => Res
+  processResponse: (
+    data: ComputeResponseInput<
+      UseDiscriminator,
+      Config['responseSchema'],
+      Config['errorSchema']
+    >,
+  ) => Res
   onFail?: (err: unknown) => void
   getNextPageParam: (
     lastPage: Res,
@@ -138,8 +198,8 @@ export type InfiniteQueryOptions<
 /** @deprecated Use QueryArgs instead */
 export type ClientQueryArgs<
   Url extends string = string,
-  QuerySchema = ZodObject,
-  RequestSchema = undefined,
+  QuerySchema extends ZodObject = ZodObject,
+  RequestSchema extends ZodType | undefined = undefined,
 > = QueryArgs<Url, QuerySchema, RequestSchema>
 
 /** @deprecated Use QueryUrlParamsArgs instead */

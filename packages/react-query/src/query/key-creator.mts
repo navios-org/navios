@@ -46,14 +46,18 @@ export function createQueryKey<
         params && 'querySchema' in config && 'params' in params
           ? config.querySchema?.parse(params.params)
           : []
+
+      // Use bindUrlParams to get the bound URL, then split it to get the parts
+      const boundUrl = bindUrlParams<Url>(
+        url,
+        params && 'urlParams' in params ? params : {},
+        config.urlParamsSchema,
+      )
+      const boundUrlParts = boundUrl.split('/').filter(Boolean)
+
       return [
         ...(options.keyPrefix ?? []),
-        ...urlParts.map((part) =>
-          part.startsWith('$')
-            ? // @ts-expect-error TS2339 We know that the urlParams are defined only if the url has params
-              params.urlParams[part.slice(1)].toString()
-            : part,
-        ),
+        ...boundUrlParts,
         ...(options.keySuffix ?? []),
         queryParams ?? [],
       ] as unknown as DataTag<
@@ -68,14 +72,17 @@ export function createQueryKey<
     },
     // @ts-expect-error We have correct types in return type
     filterKey: (params) => {
+      // Use bindUrlParams to get the bound URL, then split it to get the parts
+      const boundUrl = bindUrlParams<Url>(
+        url,
+        params && 'urlParams' in params ? params : {},
+        config.urlParamsSchema,
+      )
+      const boundUrlParts = boundUrl.split('/').filter(Boolean)
+
       return [
         ...(options.keyPrefix ?? []),
-        ...urlParts.map((part) =>
-          part.startsWith('$')
-            ? // @ts-expect-error TS2339 We know that the urlParams are defined only if the url has params
-              params.urlParams[part.slice(1)].toString()
-            : part,
-        ),
+        ...boundUrlParts,
         ...(options.keySuffix ?? []),
       ] as unknown as DataTag<
         Split<Url, '/'>,
@@ -89,7 +96,11 @@ export function createQueryKey<
     },
 
     bindToUrl: (params) => {
-      return bindUrlParams<Url>(url, params ?? ({} as never))
+      return bindUrlParams<Url>(
+        url,
+        params && 'urlParams' in params ? params : {},
+        config.urlParamsSchema,
+      )
     },
   }
 }

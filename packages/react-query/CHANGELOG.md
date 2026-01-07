@@ -1,6 +1,166 @@
 # Changelog
 
-## [0.7.1] - 2025-12-20
+## [1.0.0-alpha.1] - 2026-01-07
+
+### Highlights
+
+This is the first stable release of `@navios/react-query`. It includes major improvements to type safety, new helpers for common patterns like optimistic updates and SSR prefetching, and full support for discriminated union error handling.
+
+### Breaking Changes
+
+- **Type file reorganization** - Client types have been split into modular files for better maintainability:
+  - `client/types.mts` → Split into `client/types/query.mts`, `client/types/mutation.mts`, `client/types/infinite-query.mts`, `client/types/multipart-mutation.mts`, `client/types/from-endpoint.mts`, and `client/types/helpers.mts`
+  - If you were importing internal types directly, update your imports to use the new paths or the re-exported types from the main entry point.
+
+### Added
+
+#### Error Schema Support (Discriminated Union Mode)
+
+Full support for `errorSchema` in queries and mutations when using `useDiscriminatorResponse: true` mode. API error responses are now returned as data (not thrown) and can be discriminated by status code:
+
+```typescript
+const api = builder({ useDiscriminatorResponse: true })
+
+const getUser = client.query({
+  method: 'GET',
+  url: '/users/$userId',
+  responseSchema: userSchema,
+  errorSchema: {
+    400: z.object({ error: z.string(), code: z.number() }),
+    404: z.object({ notFound: z.literal(true) }),
+  },
+  processResponse: (data) => {
+    // data is typed as: User | { error: string, code: number } | { notFound: true }
+    if ('error' in data) {
+      return { ok: false, error: data.error }
+    }
+    if ('notFound' in data) {
+      return { ok: false, error: 'User not found' }
+    }
+    return { ok: true, user: data }
+  },
+})
+```
+
+#### SSR/RSC Prefetch Helpers
+
+New `createPrefetchHelper` and `createPrefetchHelpers` utilities for server-side rendering and React Server Components:
+
+```typescript
+import { createPrefetchHelper, prefetchAll } from '@navios/react-query'
+import { dehydrate, HydrationBoundary, QueryClient } from '@tanstack/react-query'
+
+// Create prefetch helper from query
+const userPrefetch = createPrefetchHelper(getUser)
+
+// Server Component
+async function UserPage({ userId }: { userId: string }) {
+  const queryClient = new QueryClient()
+
+  await userPrefetch.prefetch(queryClient, { urlParams: { userId } })
+
+  return (
+    <HydrationBoundary state={dehydrate(queryClient)}>
+      <UserProfile userId={userId} />
+    </HydrationBoundary>
+  )
+}
+```
+
+**Prefetch helper methods:**
+
+- `prefetch(queryClient, params)` - Prefetch data on the server
+- `ensureData(queryClient, params)` - Ensure data exists, returns the data
+- `getQueryOptions(params)` - Get raw query options for customization
+- `prefetchMany(queryClient, paramsList)` - Prefetch multiple queries in parallel
+
+**Batch prefetching:**
+
+```typescript
+// Create multiple prefetch helpers at once
+const prefetchers = createPrefetchHelpers({
+  user: getUser,
+  posts: getUserPosts,
+})
+
+// Or use prefetchAll for different queries
+await prefetchAll(queryClient, [
+  { helper: userPrefetch, params: { urlParams: { userId } } },
+  {
+    helper: postsPrefetch,
+    params: { urlParams: { userId }, params: { limit: 10 } },
+  },
+])
+```
+
+#### Optimistic Update Helpers
+
+New `createOptimisticUpdate` and `createMultiOptimisticUpdate` utilities for type-safe optimistic updates:
+
+```typescript
+import {
+  createMultiOptimisticUpdate,
+  createOptimisticUpdate,
+} from '@navios/react-query'
+
+const updateUser = client.mutation({
+  method: 'PATCH',
+  url: '/users/$userId',
+  requestSchema: updateUserSchema,
+  responseSchema: userSchema,
+  processResponse: (data) => data,
+  useContext: () => ({ queryClient: useQueryClient() }),
+  ...createOptimisticUpdate({
+    queryKey: ['users', userId],
+    updateFn: (oldData, variables) => ({
+      ...oldData,
+      ...variables.data,
+    }),
+    rollbackOnError: true, // default
+    invalidateOnSettled: true, // default
+  }),
+})
+```
+
+**Multi-query optimistic updates:**
+
+```typescript
+const updateUser = client.mutation({
+  // ...
+  ...createMultiOptimisticUpdate([
+    {
+      queryKey: ['users', userId],
+      updateFn: (oldData, variables) => ({ ...oldData, ...variables.data }),
+    },
+    {
+      queryKey: ['users'],
+      updateFn: (oldList, variables) =>
+        (oldList ?? []).map((u) =>
+          u.id === userId ? { ...u, ...variables.data } : u,
+        ),
+    },
+  ]),
+})
+```
+
+#### New Type Exports
+
+- `ComputeBaseResult<UseDiscriminator, Response, ErrorSchema>` - Compute result type based on discriminator mode
+- `PrefetchHelper<TParams, TData, TError>` - Type for prefetch helper instances
+- `QueryOptionsCreator<TParams, TData, TError>` - Type for query options creator functions
+- `OptimisticUpdateConfig<TData, TVariables, TQueryData>` - Configuration for optimistic updates
+- `OptimisticUpdateCallbacks<TData, TVariables, TQueryData>` - Return type from `createOptimisticUpdate`
+
+### Changed
+
+- **Improved type inference** - Better type inference for `processResponse` callbacks, especially when using `errorSchema`
+- **Modular type definitions** - Client types are now organized into separate files by concern:
+  - `types/query.mts` - Query-related types
+  - `types/mutation.mts` - Mutation-related types
+  - `types/infinite-query.mts` - Infinite query types
+  - `types/multipart-mutation.mts` - Multipart mutation types
+  - `types/from-endpoint.mts` - Types for `*FromEndpoint` methods
+  - `types/helpers.mts` - Helper types like `EndpointHelper`, `StreamHelper`, `ComputeBaseResult`
 
 ### Fixed
 
