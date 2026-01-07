@@ -1,4 +1,4 @@
-import type { BaseEndpointConfig } from '@navios/builder'
+import type { EndpointOptions } from '@navios/builder'
 import type {
   ClassType,
   HandlerMetadata,
@@ -15,6 +15,7 @@ import {
 } from '@navios/core'
 
 import type { BunHandlerResult } from './handler-adapter.interface.mjs'
+
 import { BunStreamAdapterService } from './stream-adapter.service.mjs'
 
 const defaultOptions: NaviosApplicationOptions = {
@@ -76,7 +77,7 @@ export class BunEndpointAdapterService extends BunStreamAdapterService {
    * @returns `true` if the handler has request, query, or response schemas.
    */
   override hasSchema(
-    handlerMetadata: HandlerMetadata<BaseEndpointConfig>,
+    handlerMetadata: HandlerMetadata<EndpointOptions>,
   ): boolean {
     const config = handlerMetadata.config
     return (
@@ -95,7 +96,7 @@ export class BunEndpointAdapterService extends BunStreamAdapterService {
    * @returns An empty schema object.
    */
   override provideSchema(
-    handlerMetadata: HandlerMetadata<BaseEndpointConfig>,
+    handlerMetadata: HandlerMetadata<EndpointOptions>,
   ): Record<string, any> {
     // For Bun, no schema
     return {}
@@ -116,7 +117,7 @@ export class BunEndpointAdapterService extends BunStreamAdapterService {
    */
   override async provideHandler(
     controller: ClassType,
-    handlerMetadata: HandlerMetadata<BaseEndpointConfig>,
+    handlerMetadata: HandlerMetadata<EndpointOptions>,
   ): Promise<BunHandlerResult> {
     const getters = this.prepareArguments(handlerMetadata)
     const hasArguments = getters.length > 0

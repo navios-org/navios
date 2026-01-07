@@ -1,12 +1,12 @@
-import type { BaseStreamConfig } from '@navios/builder'
+import type { BaseEndpointOptions } from '@navios/builder'
 import type { ClassType, HandlerMetadata, ScopedContainer } from '@navios/core'
 import type { BunRequest } from 'bun'
 
 import {
-  InstanceResolverService,
   inject,
   Injectable,
   InjectionToken,
+  InstanceResolverService,
 } from '@navios/core'
 
 import type {
@@ -61,7 +61,7 @@ export class BunStreamAdapterService implements BunHandlerAdapterInterface {
    * @param handlerMetadata - The handler metadata containing configuration.
    * @returns `true` if the handler has request or query schemas.
    */
-  hasSchema(handlerMetadata: HandlerMetadata<BaseStreamConfig>): boolean {
+  hasSchema(handlerMetadata: HandlerMetadata<BaseEndpointOptions>): boolean {
     const config = handlerMetadata.config
     return !!config.requestSchema || !!config.querySchema
   }
@@ -76,7 +76,7 @@ export class BunStreamAdapterService implements BunHandlerAdapterInterface {
    * @param handlerMetadata - The handler metadata with schemas and configuration.
    * @returns An array of getter functions that populate request arguments.
    */
-  prepareArguments(handlerMetadata: HandlerMetadata<BaseStreamConfig>) {
+  prepareArguments(handlerMetadata: HandlerMetadata<BaseEndpointOptions>) {
     const config = handlerMetadata.config
     const getters: ((
       target: Record<string, any>,
@@ -86,14 +86,12 @@ export class BunStreamAdapterService implements BunHandlerAdapterInterface {
       const schema = config.querySchema
       getters.push((target, request) => {
         const url = new URL(request.url)
-        // @ts-expect-error - schema is unknown type
         target.params = schema.parse(Object.fromEntries(url.searchParams))
       })
     }
     if (config.requestSchema) {
       const schema = config.requestSchema
       getters.push(async (target, request) => {
-        // @ts-expect-error - schema is unknown type
         target.data = schema.parse(await request.json())
       })
     }
@@ -121,7 +119,7 @@ export class BunStreamAdapterService implements BunHandlerAdapterInterface {
    */
   async provideHandler(
     controller: ClassType,
-    handlerMetadata: HandlerMetadata<BaseStreamConfig>,
+    handlerMetadata: HandlerMetadata<BaseEndpointOptions>,
   ): Promise<BunHandlerResult> {
     const getters = this.prepareArguments(handlerMetadata)
     const hasArguments = getters.length > 0
@@ -252,7 +250,7 @@ export class BunStreamAdapterService implements BunHandlerAdapterInterface {
    * @returns An empty schema object.
    */
   provideSchema(
-    _handlerMetadata: HandlerMetadata<BaseStreamConfig>,
+    _handlerMetadata: HandlerMetadata<BaseEndpointOptions>,
   ): Record<string, any> {
     // For Bun, no schema, return empty
     return {}

@@ -1,4 +1,4 @@
-import type { BaseEndpointConfig } from '@navios/builder'
+import type { EndpointOptions } from '@navios/builder'
 import type { HandlerMetadata } from '@navios/core'
 import type { BunRequest } from 'bun'
 
@@ -64,7 +64,7 @@ export class BunMultipartAdapterService extends BunEndpointAdapterService {
    * @returns An array of getter functions that populate request arguments.
    */
   override prepareArguments(
-    handlerMetadata: HandlerMetadata<BaseEndpointConfig>,
+    handlerMetadata: HandlerMetadata<EndpointOptions>,
   ): ((
     target: Record<string, any>,
     request: BunRequest,
@@ -80,7 +80,6 @@ export class BunMultipartAdapterService extends BunEndpointAdapterService {
       const schema = config.querySchema
       getters.push((target, request) => {
         const url = new URL(request.url)
-        // @ts-expect-error - schema is unknown type
         target.params = schema.parse(Object.fromEntries(url.searchParams))
       })
     }
@@ -130,7 +129,6 @@ export class BunMultipartAdapterService extends BunEndpointAdapterService {
         }
 
         // Parse with schema
-        // @ts-expect-error - schema is unknown type
         target.data = schema.parse(formDataObject)
       })
     }

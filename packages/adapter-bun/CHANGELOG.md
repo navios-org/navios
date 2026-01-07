@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.0-alpha.2] - 2026-01-07
+
+### Changed
+
+- **Updated Builder Types**: Adapter services now use `EndpointOptions` from `@navios/builder` instead of legacy `BaseEndpointConfig`
+  - `BunEndpointAdapterService.hasSchema()` - Updated type signature
+  - `BunEndpointAdapterService.provideSchema()` - Updated type signature
+  - `BunEndpointAdapterService.provideHandler()` - Updated type signature
+  - `BunMultipartAdapterService.prepareArguments()` - Updated type signature
+  - `BunStreamAdapterService` - Updated to use `BaseEndpointOptions`
+- **Removed TypeScript Suppression Comments**: Cleaned up `@ts-expect-error` comments in multipart adapter that are no longer needed
+
+### Dependencies
+
+- Updated to support `@navios/core` ^1.0.0-alpha.2
+- Updated to support `@navios/builder` ^1.0.0-alpha.2
+
 ## [1.0.0-alpha.1] - 2026-01-07
 
 ### Added
