@@ -30,7 +30,7 @@ Navios supports multiple adapters for different use cases:
 | **Runtime** | Node.js | Bun | Bun |
 | **Performance** | High | Very High | Very High |
 | **Plugin Ecosystem** | Extensive (@fastify/*) | Extensive (@fastify/*) | Limited |
-| **CORS Support** | ✅ Built-in | ✅ Built-in | ❌ Not yet |
+| **CORS Support** | ✅ Built-in | ✅ Built-in | ✅ Built-in |
 | **Multipart Uploads** | ✅ Via plugin | ✅ Via plugin | ✅ Native |
 | **Hot Reload** | ✅ Via @navios/cli | ✅ Native | ✅ Native |
 | **ES Decorators** | ✅ Native (Node 20+) | ⚠️ Requires plugin | ⚠️ Requires plugin |

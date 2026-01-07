@@ -79,6 +79,52 @@ Returns the underlying Bun server instance:
 const server = app.getServer()
 ```
 
+### enableCors(options)
+
+Enables CORS (Cross-Origin Resource Sharing) support:
+
+```typescript
+app.enableCors({
+  origin: true, // Allow all origins
+  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  exposedHeaders: ['X-Custom-Header'],
+  credentials: true,
+  maxAge: 86400, // 24 hours
+})
+```
+
+**CORS Options:**
+- `origin`: `string | boolean | RegExp | (string | boolean | RegExp)[] | function` - Configure allowed origins
+  - `true` - Allow all origins (reflects request origin)
+  - `false` - Disable CORS
+  - `string` - Single origin (e.g., `'https://example.com'`)
+  - `RegExp` - Pattern matching (e.g., `/^https:\/\/.*\.example\.com$/`)
+  - `string[]` - Array of allowed origins
+  - `function` - Dynamic origin validation callback
+- `methods`: `string[]` - Allowed HTTP methods (defaults to common methods)
+- `allowedHeaders`: `string[]` - Allowed request headers
+- `exposedHeaders`: `string[]` - Headers exposed to the client
+- `credentials`: `boolean` - Allow credentials (cookies, authorization headers)
+- `maxAge`: `number` - Preflight cache duration in seconds
+- `cacheControl`: `string | number` - Cache-Control header for preflight responses
+
+**Example with dynamic origin validation:**
+
+```typescript
+app.enableCors({
+  origin: (origin, callback) => {
+    // Custom validation logic
+    if (origin && origin.endsWith('.example.com')) {
+      callback(null, true)
+    } else {
+      callback(null, false)
+    }
+  },
+  credentials: true,
+})
+```
+
 ### dispose()
 
 Gracefully shuts down the server:
@@ -124,7 +170,21 @@ class StreamController {
 
 ### CORS
 
-CORS is not yet supported in the Bun adapter. This feature is planned for a future release.
+Full CORS support is now available in the Bun adapter. Use `enableCors()` to configure CORS headers for cross-origin requests:
+
+```typescript
+app.enableCors({
+  origin: true, // or specify origins
+  methods: ['GET', 'POST'],
+  credentials: true,
+})
+```
+
+The adapter automatically:
+- Handles preflight (OPTIONS) requests
+- Applies CORS headers to all responses (including errors and 404s)
+- Validates origin based on your configuration
+- Sets appropriate `Vary` headers for cache compatibility
 
 ## Performance
 

@@ -72,7 +72,11 @@ throw new HttpException(418, "I'm a teapot")
 
 ## Error Response Format
 
-Exceptions produce consistent JSON responses:
+Navios uses **RFC 7807 Problem Details** format for standardized error responses. This provides a consistent, machine-readable error format across all error types.
+
+### HttpException Responses
+
+`HttpException` and its subclasses (like `NotFoundException`, `BadRequestException`, etc.) maintain backward compatibility and return the original format:
 
 ```json
 {
@@ -82,9 +86,31 @@ Exceptions produce consistent JSON responses:
 }
 ```
 
+### RFC 7807 Problem Details
+
+For framework-level errors (validation errors, guard rejections, unhandled errors, not found routes), Navios returns RFC 7807 Problem Details:
+
+```json
+{
+  "type": "about:blank",
+  "title": "Not Found",
+  "status": 404,
+  "detail": "Route [GET] /api/users/999 not found"
+}
+```
+
+The response includes:
+- `type` - URI reference identifying the problem type (defaults to `"about:blank"`)
+- `title` - Short, human-readable summary of the problem
+- `status` - HTTP status code
+- `detail` - Human-readable explanation specific to this occurrence
+- `errors` - (Validation errors only) Structured validation error details
+
+All Problem Details responses include the `Content-Type: application/problem+json` header.
+
 ## Validation Errors
 
-Zod validation errors from endpoint schemas automatically return 400 Bad Request:
+Zod validation errors from endpoint schemas automatically return 400 Bad Request with RFC 7807 Problem Details format:
 
 ```typescript
 const createUser = API.declareEndpoint({
@@ -97,7 +123,35 @@ const createUser = API.declareEndpoint({
 })
 
 // Invalid request { name: "", email: "invalid" }
-// Returns: 400 Bad Request with validation details
+// Returns: 400 Bad Request with Problem Details
+```
+
+Validation error responses include structured error details:
+
+```json
+{
+  "type": "about:blank",
+  "title": "Validation Error",
+  "status": 400,
+  "detail": "Request validation failed",
+  "errors": {
+    "name": {
+      "code": "too_small",
+      "minimum": 1,
+      "type": "string",
+      "inclusive": true,
+      "exact": false,
+      "message": "String must contain at least 1 character(s)",
+      "path": ["name"]
+    },
+    "email": {
+      "code": "invalid_string",
+      "validation": "email",
+      "message": "Invalid email",
+      "path": ["email"]
+    }
+  }
+}
 ```
 
 ## Error Handling in Services
@@ -166,11 +220,94 @@ class PaymentService {
 
 ## Unhandled Errors
 
-Unhandled exceptions become 500 Internal Server Error. In development, stack traces may be shown. In production, internal details are hidden:
+Unhandled exceptions become 500 Internal Server Error with RFC 7807 Problem Details format:
 
 ```json
 {
-  "statusCode": 500,
-  "message": "Internal Server Error"
+  "type": "about:blank",
+  "title": "Internal Server Error",
+  "status": 500,
+  "detail": "An unexpected error occurred"
 }
 ```
+
+In development, error messages may include more detail. In production, internal details are hidden for security.
+
+## Custom Error Responders
+
+Navios provides a flexible error responder system that you can customize. All error responders implement the `ErrorResponder` interface and are registered with dependency injection.
+
+### Overriding Default Responders
+
+You can override any default responder by providing a custom implementation with higher priority:
+
+```typescript
+import {
+  Injectable,
+  NotFoundResponderToken,
+  type ErrorResponder,
+  type ErrorResponse,
+} from '@navios/core'
+
+@Injectable({
+  token: NotFoundResponderToken,
+  priority: 0, // Higher than default -10
+})
+export class CustomNotFoundResponder implements ErrorResponder {
+  getResponse(error: unknown, description?: string): ErrorResponse {
+    return {
+      statusCode: 404,
+      payload: {
+        type: 'https://api.myapp.com/errors/not-found',
+        title: 'Resource Not Found',
+        status: 404,
+        detail: description ?? 'The requested resource was not found',
+      },
+      headers: {
+        'Content-Type': 'application/problem+json',
+      },
+    }
+  }
+}
+```
+
+### Available Responder Tokens
+
+- `NotFoundResponderToken` - Handles 404 Not Found errors
+- `ForbiddenResponderToken` - Handles 403 Forbidden errors (guard rejections)
+- `InternalServerErrorResponderToken` - Handles 500 Internal Server errors
+- `ValidationErrorResponderToken` - Handles 400 Validation errors
+
+### Using ErrorResponseProducerService
+
+For custom error handling in adapters or services, you can use `ErrorResponseProducerService`:
+
+```typescript
+import {
+  Injectable,
+  ErrorResponseProducerService,
+  FrameworkError,
+} from '@navios/core'
+
+@Injectable()
+export class CustomService {
+  private errorProducer = inject(ErrorResponseProducerService)
+
+  handleError(error: unknown) {
+    if (error instanceof ZodError) {
+      return this.errorProducer.respond(
+        FrameworkError.ValidationError,
+        error,
+      )
+    }
+    return this.errorProducer.handleUnknown(error)
+  }
+}
+```
+
+The service provides convenience methods:
+- `notFound(error, description?)` - Produce 404 response
+- `forbidden(error, description?)` - Produce 403 response
+- `internalServerError(error, description?)` - Produce 500 response
+- `validationError(error, description?)` - Produce 400 response
+- `handleUnknown(error, description?)` - Fallback for unknown errors

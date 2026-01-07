@@ -116,6 +116,8 @@ Exceptions thrown at any phase are caught and converted to HTTP responses:
 | Validation Error | 400 |
 | Unhandled Error | 500 |
 
+**HttpException** responses maintain backward compatibility with the original format. Framework-level errors (validation errors, guard rejections, not found routes, unhandled errors) use **RFC 7807 Problem Details** format for standardized, machine-readable error responses.
+
 ```typescript
 import { NotFoundException } from '@navios/core'
 
