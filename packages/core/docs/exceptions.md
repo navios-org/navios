@@ -168,7 +168,9 @@ export class UserController {
 
 ## Exception Response Format
 
-By default, Navios returns exceptions in this format:
+### HttpException Response Format
+
+`HttpException` and its subclasses (like `NotFoundException`, `BadRequestException`, etc.) maintain backward compatibility and return the original format:
 
 ```json
 {
@@ -196,6 +198,40 @@ For exceptions with additional data:
   "path": "/users"
 }
 ```
+
+### RFC 7807 Problem Details Format
+
+Framework-level errors (validation errors, guard rejections, not found routes, unhandled errors) use **RFC 7807 Problem Details** format for standardized, machine-readable error responses:
+
+```json
+{
+  "type": "about:blank",
+  "title": "Not Found",
+  "status": 404,
+  "detail": "Route [GET] /api/users/999 not found"
+}
+```
+
+Validation errors include structured error details:
+
+```json
+{
+  "type": "about:blank",
+  "title": "Validation Error",
+  "status": 400,
+  "detail": "Request validation failed",
+  "errors": {
+    "email": {
+      "code": "invalid_string",
+      "validation": "email",
+      "message": "Invalid email",
+      "path": ["email"]
+    }
+  }
+}
+```
+
+All Problem Details responses include the `Content-Type: application/problem+json` header. For more information on customizing error responders, see the [Error Handling Guide](../../../apps/docs/docs/server/guides/error-handling.md).
 
 ## Best Practices
 

@@ -200,7 +200,7 @@ Choose the appropriate adapter based on your deployment environment and requirem
 
 ## Error Handling
 
-Both adapters provide consistent error handling through Navios's exception system:
+Both adapters provide consistent error handling through Navios's exception system. Framework-level errors (validation errors, guard rejections, not found routes, unhandled errors) use **RFC 7807 Problem Details** format for standardized, machine-readable error responses. HttpException responses maintain backward compatibility with the original format.
 
 ```ts
 import { BadRequestException, NotFoundException } from '@navios/core'
@@ -224,6 +224,8 @@ export class UserController {
   }
 }
 ```
+
+For more information on error handling, including custom error responders and RFC 7807 Problem Details, see the [Error Handling Guide](../../../apps/docs/docs/server/guides/error-handling.md).
 
 ## Configuration
 

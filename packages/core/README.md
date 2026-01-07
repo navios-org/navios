@@ -30,7 +30,7 @@ The adapter must be provided when creating your Navios application to define the
 - **Build with Navios Builder**: Navios Builder is a powerful HTTP client that simplifies API requests. By combining it with Navios, you can use the same API definition for both the client and server, ensuring consistency and reducing duplication.
 - **Declarative API**: The API is designed to be declarative, allowing you to define your API endpoints and their schemas in a clear and concise manner. This makes it easy to understand and maintain your API client.
 - **Customizable**: The package allows you to customize the behavior of the API client, such as using a custom client.
-- **Error Handling**: The package provides built-in error handling capabilities, allowing you to handle API errors gracefully and provide meaningful feedback to users.
+- **Error Handling**: The package provides built-in error handling capabilities with RFC 7807 Problem Details format for standardized error responses. Includes customizable error responders and comprehensive exception handling.
 
 ## Adapters
 

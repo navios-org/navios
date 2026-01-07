@@ -5,6 +5,41 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.0-alpha.1] - 2026-01-22
+
+### Added
+
+- **RFC 7807 Problem Details Error Responses**: New standardized error response system using RFC 7807 Problem Details format
+  - `ErrorResponseProducerService` - Central service for producing standardized error responses
+  - `FrameworkError` enum - Explicit error type specification (NotFound, Forbidden, InternalServerError, ValidationError)
+  - Customizable error responders with dependency injection support:
+    - `NotFoundResponderService` - Handles 404 Not Found errors
+    - `ForbiddenResponderService` - Handles 403 Forbidden errors (used by guards)
+    - `InternalServerErrorResponderService` - Handles 500 Internal Server errors
+    - `ValidationErrorResponderService` - Handles 400 Validation errors with structured Zod error details
+  - All responders registered with low priority (-10) for easy override
+  - `ErrorResponder` interface for custom responder implementations
+  - `ProblemDetails` interface following RFC 7807 specification
+  - `ErrorResponse` interface with status code, payload, and headers
+- **Guard Error Handling Enhancement**: `GuardRunnerService` now uses `ErrorResponseProducerService` for standardized error responses
+  - Guard rejections now return RFC 7807 compliant responses
+  - Guard execution errors produce standardized internal server error responses
+
+### Changed
+
+- **Error Response Format**: Error responses now use RFC 7807 Problem Details format instead of simple JSON
+  - Content-Type header set to `application/problem+json`
+  - Responses include `type`, `title`, `status`, and `detail` fields
+  - Validation errors include structured `errors` field with Zod validation details
+  - HttpException responses remain backward compatible (preserved original format)
+
+### Breaking Changes
+
+- **Error Response Format**: Non-HttpException errors now return RFC 7807 Problem Details format
+  - Previous format: `{ message: "..." }`
+  - New format: `{ type: "about:blank", title: "...", status: 404, detail: "..." }`
+  - HttpException responses are unchanged for backward compatibility
+
 ## [0.9.3] - 2026-01-05
 
 ### Fixed

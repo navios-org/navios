@@ -14,9 +14,12 @@ import type {
 
 import { HttpException } from '../exceptions/index.mjs'
 import { Logger } from '../logger/index.mjs'
+import { FrameworkError } from '../responders/enums/framework-error.enum.mjs'
+import { ErrorResponseProducerService } from '../responders/services/error-response-producer.service.mjs'
 
 @Injectable()
 export class GuardRunnerService {
+  private readonly errorProducer = inject(ErrorResponseProducerService)
   private readonly logger = inject(Logger, {
     context: GuardRunnerService.name,
   })
@@ -89,17 +92,27 @@ export class GuardRunnerService {
           return false
         } else {
           this.logger.error('Error running guard', error)
-          executionContext.getReply().status(500).send({
-            message: 'Internal server error',
-          })
+          const errorResponse = this.errorProducer.respond(
+            FrameworkError.InternalServerError,
+            error,
+          )
+          executionContext
+            .getReply()
+            .status(errorResponse.statusCode)
+            .send(errorResponse.payload)
           return false
         }
       }
     }
     if (!canActivate) {
-      executionContext.getReply().status(403).send({
-        message: 'Forbidden',
-      })
+      const errorResponse = this.errorProducer.respond(
+        FrameworkError.Forbidden,
+        null,
+      )
+      executionContext
+        .getReply()
+        .status(errorResponse.statusCode)
+        .send(errorResponse.payload)
       return false
     }
     return canActivate
