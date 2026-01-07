@@ -22,11 +22,9 @@ import {
 import cors from '@fastify/cors'
 import multipart from '@fastify/multipart'
 import { fastify } from 'fastify'
-import {
-  serializerCompiler,
-  validatorCompiler,
-} from 'fastify-type-provider-zod'
+import { serializerCompiler } from 'fastify-type-provider-zod'
 import { ZodError } from 'zod/v4'
+import { $ZodError } from 'zod/v4/core'
 
 import type {
   FastifyApplicationOptions,
@@ -36,6 +34,7 @@ import type {
 import { FastifyApplicationServiceToken } from '../tokens/index.mjs'
 import { FastifyServerToken } from '../tokens/server.token.mjs'
 import { FastifyControllerAdapterService } from './controller-adapter.service.mjs'
+import { FastifyValidatorCompilerService } from './fastify-validator-compiler.service.mjs'
 import { PinoWrapper } from './pino-wrapper.mjs'
 
 /**
@@ -74,6 +73,7 @@ export class FastifyApplicationService implements FastifyApplicationServiceInter
   })
   protected container = inject(Container)
   private errorProducer = inject(ErrorResponseProducerService)
+  private validatorCompiler = inject(FastifyValidatorCompilerService)
   private server: FastifyInstance | null = null
   private controllerAdapter = inject(FastifyControllerAdapterService)
   private globalPrefix: string = ''
@@ -248,7 +248,7 @@ export class FastifyApplicationService implements FastifyApplicationServiceInter
         if (error instanceof HttpException) {
           // For HttpException, preserve original response format for backwards compatibility
           return reply.status(error.statusCode).send(error.response)
-        } else if (error instanceof ZodError) {
+        } else if (error instanceof ZodError || error instanceof $ZodError) {
           const errorResponse = this.errorProducer.respond(
             FrameworkError.ValidationError,
             error,
@@ -302,7 +302,7 @@ export class FastifyApplicationService implements FastifyApplicationServiceInter
     })
 
     // Add schema validator and serializer
-    this.server!.setValidatorCompiler(validatorCompiler)
+    this.server!.setValidatorCompiler(this.validatorCompiler.errorCompiler)
     this.server!.setSerializerCompiler(serializerCompiler)
   }
 

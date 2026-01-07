@@ -50,7 +50,7 @@ describe('POST variants', () => {
   @Controller()
   class SomethingController {
     @Endpoint(simple)
-    async getSomething(req: EndpointParams<typeof simple>) {
+    async getSomething(_req: EndpointParams<typeof simple>) {
       return { message: 'Hello, world!' }
     }
 

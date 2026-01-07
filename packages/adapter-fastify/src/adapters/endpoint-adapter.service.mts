@@ -1,18 +1,8 @@
 import type { EndpointOptions } from '@navios/builder'
-import type {
-  ClassType,
-  HandlerMetadata,
-  NaviosApplicationOptions,
-  ScopedContainer,
-} from '@navios/core'
+import type { ClassType, HandlerMetadata, ScopedContainer } from '@navios/core'
 import type { FastifyReply, FastifyRequest } from 'fastify'
 
-import {
-  Injectable,
-  InjectionToken,
-  NaviosOptionsToken,
-  optional,
-} from '@navios/core'
+import { Injectable, InjectionToken } from '@navios/core'
 
 import type { FastifyHandlerResult } from './handler-adapter.interface.mjs'
 

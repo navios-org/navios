@@ -12,10 +12,10 @@
       "path": "./tsconfig.spec.json"
     },
     {
-      "path": "../core"
+      "path": "../builder"
     },
     {
-      "path": "../di"
+      "path": "../core"
     }
   ]
 }

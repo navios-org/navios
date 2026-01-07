@@ -12,8 +12,8 @@
   },
   "license": "MIT",
   "peerDependencies": {
+    "@navios/builder": "workspace:^",
     "@navios/core": "workspace:^",
-    "@navios/di": "workspace:^",
     "fastify": "^5.6.0"
   },
   "typings": "./lib/index.d.mts",
@@ -32,8 +32,8 @@
     }
   },
   "devDependencies": {
+    "@navios/builder": "workspace:^",
     "@navios/core": "workspace:^",
-    "@navios/di": "workspace:^",
     "@types/supertest": "^6.0.3",
     "supertest": "^7.1.4",
     "tsx": "^4.21.0",

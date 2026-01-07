@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **Custom Validator Compiler**: Added `FastifyValidatorCompilerService` to handle Zod v4 schema validation using `zod/v4/core` APIs
+  - Uses `safeParse` from `zod/v4/core` for schema validation
+  - Properly returns Zod errors for validation failures
+
+### Changed
+
+- **Zod v4 Core Support**: Updated error handling to support both `ZodError` and `$ZodError` from `zod/v4/core`
+- **Validator Compiler**: Replaced `fastify-type-provider-zod` validator compiler with custom `FastifyValidatorCompilerService`
+
+### Dependencies
+
+- Changed peer dependency from `@navios/di` to `@navios/builder`
+
 ## [1.0.0-alpha.2] - 2026-01-07
 
 ### Changed
