@@ -1,0 +1,24 @@
+{
+  "name": "e2e-fastify-stage3",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "yarn tsx src/bootstrap.mts",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@navios/adapter-fastify": "workspace:*",
+    "@navios/builder": "workspace:*",
+    "@navios/core": "workspace:*",
+    "@navios/di": "workspace:*",
+    "zod": "^4.2.1"
+  },
+  "devDependencies": {
+    "@types/supertest": "^6.0.3",
+    "supertest": "^7.1.4",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.16"
+  }
+}

@@ -14,13 +14,13 @@ log(`evaluating plugin module`)
 plugin({
   name: 'typescript-with-native-decorators',
   setup(build): void {
-    // 1. watch files manually since --watch is broken when using bun plugin 🥲
+    // 1. watch files manually since --watch is broken when using bun plugin
     const folderToWatch = import.meta.dir + '/src/'
     log(`manually watching ${folderToWatch}`)
     const watchFileSet = new Set<string | null>()
     fs.watch(folderToWatch, { recursive: true }, (event, filename) => {
       const needestart = watchFileSet.has(filename)
-      log(`file ${filename} changed (in set: ${watchFileSet.has(filename)})`) // ${[...watchFileSet.values()]}
+      log(`file ${filename} changed (in set: ${watchFileSet.has(filename)})`)
       if (needestart)
         void Bun.file(`./${RELOAD_HACK_FILENAME}`).write(
           `// '${Math.random()})\n`,
@@ -39,15 +39,11 @@ plugin({
           const startTranspiling = performance.now()
           let codeJS = await transpileFile(args.path, codeTs)
 
-          // 3. inject a dependency on a file that do NOT go though the plugin
-          // if (!codeJS.startsWith(`import '${RELOAD_HACK_FILENAME}'`))
-          //   codeJS = `import '${RELOAD_HACK_FILENAME}'\n${codeJS}`
-
           totalTimeSpentTranspiling += performance.now() - startTranspiling
           addToCache(codeTs, codeJS)
           return { loader: 'js', contents: codeJS }
         } catch (e) {
-          console.log(`[🔴] `, e)
+          console.log(`[error] `, e)
           return { contents: '', loader: 'js' }
         }
       },
@@ -74,6 +70,7 @@ export const getFromCache = (content: string): string | undefined => {
   }
   return
 }
+
 export function debounce<F extends (...args: any[]) => void>(
   func: F,
   waitFor: number,
@@ -91,7 +88,7 @@ export function debounce<F extends (...args: any[]) => void>(
 }
 
 const saveCacheImpl = debounce(() => {
-  log(`saving cache with ${cache.size} entries (spent ${totalTimeSpentTranspiling.toFixed(2)}ms transpiling)`) // prettier-ignore
+  log(`saving cache with ${cache.size} entries (spent ${totalTimeSpentTranspiling.toFixed(2)}ms transpiling)`)
   void Bun.file('./bunPlugin.cache').write(JSON.stringify([...cache.entries()]))
 }, 50)
 
@@ -100,29 +97,18 @@ export const addToCache = (codeTS: string, codeJS: string): void => {
   saveCacheImpl()
 }
 
-const MODE: 'esbuild' | 'typescript' = 'esbuild'
-
 async function transpileFile(name: string, codeTs: string): Promise<string> {
   // 1. try to return the cached version
-  const cache = getFromCache(codeTs)
-  if (cache) return cache
+  const cached = getFromCache(codeTs)
+  if (cached) return cached
 
   // or transpile a new
-  const codeJs = await transpileFileForReal(name, codeTs)
+  const codeJs = await transpileFileWithEsbuild(name, codeTs)
   addToCache(codeTs, codeJs)
   return codeJs
 }
 
-async function transpileFileForReal(
-  name: string,
-  codeTS: string,
-): Promise<string> {
-  if (MODE === 'esbuild') return transpileFileWithEsbuild(name, codeTS)
-  if (MODE === 'typescript') return transpileFileWithTypescript(name, codeTS)
-  throw new Error(`MODE ${MODE} is ont supported`)
-}
-
-// alt 2. esbuild ------------------------------------------------------------------------
+// Use esbuild to transpile TypeScript with decorators
 async function transpileFileWithEsbuild(
   name: string,
   file: string,
@@ -133,22 +119,4 @@ async function transpileFileWithEsbuild(
     target: 'chrome110',
   })
   return result.code
-}
-
-// alt 3. esbuild ------------------------------------------------------------------------
-async function transpileFileWithTypescript(
-  name: string,
-  file: string,
-): Promise<string> {
-  const typescript = (await import('typescript')).default
-  const codeJS = typescript.transpileModule(file, {
-    compilerOptions: {
-      module: typescript.ModuleKind.ESNext,
-      target: typescript.ScriptTarget.ESNext,
-      jsx: typescript.JsxEmit.React,
-      decorators: true,
-      importAttributes: true,
-    },
-  })
-  return codeJS.outputText
 }
