@@ -72,8 +72,7 @@ describe('bindUrlParams', () => {
 
   describe('error handling', () => {
     it('should throw when urlParams is missing', () => {
-      // @ts-expect-error We're testing a specific case
-      expect(() => bindUrlParams('/users/$id', {})).toThrow(
+      expect(() => bindUrlParams('/users/$id' as const, {})).toThrow(
         'Missing urlParams. Required parameters: id',
       )
     })

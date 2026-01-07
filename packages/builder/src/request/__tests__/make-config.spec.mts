@@ -335,7 +335,7 @@ describe('makeFormData', () => {
         {} as any,
       )
 
-      expect(formData.get('obj')).toBe('[object Object]')
+      expect(formData.get('obj')).toBe('{"serialized":true}')
     })
   })
 

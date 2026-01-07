@@ -1,6 +1,6 @@
 {
   "name": "@navios/builder",
-  "version": "0.5.3",
+  "version": "1.0.0-alpha.1",
   "author": {
     "name": "Oleksandr Hanzha",
     "email": "alex@granted.name"
@@ -26,6 +26,26 @@
       "require": {
         "types": "./lib/index.d.cts",
         "default": "./lib/index.cjs"
+      }
+    },
+    "./socket": {
+      "import": {
+        "types": "./lib/socket.d.mts",
+        "default": "./lib/socket.mjs"
+      },
+      "require": {
+        "types": "./lib/socket.d.cts",
+        "default": "./lib/socket.cjs"
+      }
+    },
+    "./eventsource": {
+      "import": {
+        "types": "./lib/eventsource.d.mts",
+        "default": "./lib/eventsource.mjs"
+      },
+      "require": {
+        "types": "./lib/eventsource.d.cts",
+        "default": "./lib/eventsource.cjs"
       }
     }
   },

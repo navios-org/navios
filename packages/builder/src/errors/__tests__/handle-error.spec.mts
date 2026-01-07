@@ -4,6 +4,7 @@ import { z, ZodError } from 'zod/v4'
 import type { AbstractResponse, BuilderConfig } from '../../types/index.mjs'
 
 import { handleError } from '../handle-error.mjs'
+import { UnknownResponseError } from '../unknown-response-error.mjs'
 
 describe('handleError', () => {
   const responseSchema = z.object({
@@ -82,7 +83,7 @@ describe('handleError', () => {
 
   describe('with useDiscriminatorResponse', () => {
     it('should parse error response data when response exists', () => {
-      const config: BuilderConfig = { useDiscriminatorResponse: true }
+      const config: BuilderConfig<true> = { useDiscriminatorResponse: true }
       const error = {
         response: {
           data: { success: false, message: 'Not found' },
@@ -98,7 +99,7 @@ describe('handleError', () => {
     })
 
     it('should throw when error has no response property', () => {
-      const config: BuilderConfig = { useDiscriminatorResponse: true }
+      const config: BuilderConfig<true> = { useDiscriminatorResponse: true }
       const error = new Error('Network error')
 
       expect(() =>
@@ -107,14 +108,14 @@ describe('handleError', () => {
     })
 
     it('should throw when error.response is falsy', () => {
-      const config: BuilderConfig = { useDiscriminatorResponse: true }
+      const config: BuilderConfig<true> = { useDiscriminatorResponse: true }
       const error = { response: null }
 
       expect(() => handleError(config, error, responseSchema)).toThrow()
     })
 
     it('should throw when no responseSchema is provided', () => {
-      const config: BuilderConfig = { useDiscriminatorResponse: true }
+      const config: BuilderConfig<true> = { useDiscriminatorResponse: true }
       const error = {
         response: {
           data: { success: false, message: 'Error' },
@@ -129,7 +130,7 @@ describe('handleError', () => {
 
     it('should call onZodError when response parsing fails', () => {
       const onZodError = vi.fn()
-      const config: BuilderConfig = {
+      const config: BuilderConfig<true> = {
         useDiscriminatorResponse: true,
         onZodError,
       }
@@ -152,7 +153,7 @@ describe('handleError', () => {
     })
 
     it('should rethrow ZodError when response parsing fails', () => {
-      const config: BuilderConfig = { useDiscriminatorResponse: true }
+      const config: BuilderConfig<true> = { useDiscriminatorResponse: true }
       const error = {
         response: {
           data: { wrong: 'shape' },
@@ -170,7 +171,7 @@ describe('handleError', () => {
 
   describe('edge cases', () => {
     it('should handle error that is not an object', () => {
-      const config: BuilderConfig = { useDiscriminatorResponse: true }
+      const config: BuilderConfig<true> = { useDiscriminatorResponse: true }
 
       expect(() => handleError(config, 'string error')).toThrow()
       expect(() => handleError(config, 123)).toThrow()
@@ -210,7 +211,7 @@ describe('handleError', () => {
         z.object({ status: z.literal('error'), error: z.string() }),
       ])
 
-      const config: BuilderConfig = { useDiscriminatorResponse: true }
+      const config: BuilderConfig<true> = { useDiscriminatorResponse: true }
       const error = {
         response: {
           data: { status: 'error', error: 'Something went wrong' },
@@ -226,6 +227,179 @@ describe('handleError', () => {
         status: 'error',
         error: 'Something went wrong',
       })
+    })
+  })
+
+  describe('with errorSchema', () => {
+    const error400Schema = z.object({ error: z.string(), field: z.string() })
+    const error404Schema = z.object({ notFound: z.literal(true) })
+
+    const errorSchema = {
+      400: error400Schema,
+      404: error404Schema,
+    }
+
+    it('should return parsed error when status code matches errorSchema', () => {
+      const config: BuilderConfig<true> = { useDiscriminatorResponse: true }
+      const error = {
+        response: {
+          data: { error: 'Invalid input', field: 'email' },
+          status: 400,
+          statusText: 'Bad Request',
+          headers: {},
+        } satisfies AbstractResponse<unknown>,
+      }
+
+      const result = handleError(config, error, undefined, errorSchema)
+
+      expect(result).toEqual({ error: 'Invalid input', field: 'email', __status: 400 })
+    })
+
+    it('should return parsed error for 404 status code', () => {
+      const config: BuilderConfig<true> = { useDiscriminatorResponse: true }
+      const error = {
+        response: {
+          data: { notFound: true },
+          status: 404,
+          statusText: 'Not Found',
+          headers: {},
+        } satisfies AbstractResponse<unknown>,
+      }
+
+      const result = handleError(config, error, undefined, errorSchema)
+
+      expect(result).toEqual({ notFound: true, __status: 404 })
+    })
+
+    it('should throw UnknownResponseError when status code does not match any errorSchema key', () => {
+      const config: BuilderConfig<true> = { useDiscriminatorResponse: true }
+      const error = {
+        response: {
+          data: { message: 'Server error' },
+          status: 500,
+          statusText: 'Internal Server Error',
+          headers: {},
+        } satisfies AbstractResponse<unknown>,
+      }
+
+      expect(() => handleError(config, error, undefined, errorSchema)).toThrow(
+        UnknownResponseError,
+      )
+    })
+
+    it('should include correct statusCode in UnknownResponseError', () => {
+      const config: BuilderConfig<true> = { useDiscriminatorResponse: true }
+      const response: AbstractResponse<unknown> = {
+        data: { message: 'Server error' },
+        status: 500,
+        statusText: 'Internal Server Error',
+        headers: {},
+      }
+      const error = { response }
+
+      try {
+        handleError(config, error, undefined, errorSchema)
+        throw new Error('Should have thrown')
+      } catch (e) {
+        expect(e).toBeInstanceOf(UnknownResponseError)
+        expect((e as UnknownResponseError).statusCode).toBe(500)
+        expect((e as UnknownResponseError).response).toBe(response)
+      }
+    })
+
+    it('should call onZodError when errorSchema parsing fails', () => {
+      const onZodError = vi.fn()
+      const config: BuilderConfig<true> = {
+        useDiscriminatorResponse: true,
+        onZodError,
+      }
+      const response: AbstractResponse<unknown> = {
+        data: { wrongShape: true },
+        status: 400,
+        statusText: 'Bad Request',
+        headers: {},
+      }
+      const originalError = { response }
+
+      expect(() =>
+        handleError(config, originalError, undefined, errorSchema),
+      ).toThrow(ZodError)
+
+      expect(onZodError).toHaveBeenCalledTimes(1)
+      expect(onZodError.mock.calls[0][0]).toBeInstanceOf(ZodError)
+      expect(onZodError.mock.calls[0][1]).toBe(response)
+      expect(onZodError.mock.calls[0][2]).toBe(originalError)
+    })
+
+    it('should still throw when useDiscriminatorResponse is false even with errorSchema', () => {
+      const config: BuilderConfig = { useDiscriminatorResponse: false }
+      const error = new Error('Network error')
+
+      expect(() =>
+        handleError(config, error, undefined, errorSchema),
+      ).toThrow('Network error')
+    })
+
+    it('should fall back to responseSchema when errorSchema is not provided', () => {
+      const config: BuilderConfig<true> = { useDiscriminatorResponse: true }
+      const error = {
+        response: {
+          data: { success: false, message: 'Error occurred' },
+          status: 400,
+          statusText: 'Bad Request',
+          headers: {},
+        },
+      }
+
+      const result = handleError(config, error, responseSchema, undefined)
+
+      expect(result).toEqual({ success: false, message: 'Error occurred' })
+    })
+
+    it('should prioritize errorSchema over responseSchema when both provided', () => {
+      const config: BuilderConfig<true> = { useDiscriminatorResponse: true }
+      const error = {
+        response: {
+          data: { error: 'Validation failed', field: 'username' },
+          status: 400,
+          statusText: 'Bad Request',
+          headers: {},
+        },
+      }
+
+      // Even though responseSchema is provided, errorSchema should be used
+      const result = handleError(config, error, responseSchema, errorSchema)
+
+      expect(result).toEqual({ error: 'Validation failed', field: 'username', __status: 400 })
+    })
+
+    it('should throw original error when error has no response and errorSchema is provided', () => {
+      const config: BuilderConfig<true> = { useDiscriminatorResponse: true }
+      const error = new Error('Network error')
+
+      expect(() =>
+        handleError(config, error, undefined, errorSchema),
+      ).toThrow('Network error')
+    })
+
+    it('should call onError before checking errorSchema', () => {
+      const onError = vi.fn()
+      const config: BuilderConfig<true> = {
+        useDiscriminatorResponse: true,
+        onError,
+      }
+      const error = {
+        response: {
+          data: { error: 'Bad request', field: 'email' },
+          status: 400,
+          statusText: 'Bad Request',
+          headers: {},
+        },
+      }
+
+      handleError(config, error, undefined, errorSchema)
+
+      expect(onError).toHaveBeenCalledWith(error)
     })
   })
 })

@@ -2,10 +2,23 @@ import type { ZodType } from 'zod/v4'
 
 import type {
   AbstractRequestConfig,
-  BaseStreamConfig,
+  ClientOptions,
+  EndpointOptions,
   HttpMethod,
-  NaviosZodRequest,
+  StreamOptions,
 } from '../types/index.mjs'
+
+/**
+ * Request type for config creation.
+ */
+export interface ConfigRequest {
+  urlParams?: Record<string, string | number>
+  params?: Record<string, unknown>
+  data?: unknown
+  signal?: AbortSignal | null
+  headers?: Record<string, string>
+  [key: string]: unknown
+}
 
 function parseWithSchema(schema: ZodType | undefined, value: unknown): unknown {
   return schema ? schema.parse(value) : value
@@ -19,6 +32,7 @@ function parseWithSchema(schema: ZodType | undefined, value: unknown): unknown {
  * - Validates and parses request body data using `requestSchema` (if provided)
  * - Converts request data to FormData if `isMultipart` is true
  * - Merges all request properties (headers, signal, etc.) into the final config
+ * - Merges clientOptions into the final config for per-endpoint customization
  *
  * @param request - The request parameters object
  * @param options - Endpoint configuration containing schemas
@@ -29,21 +43,47 @@ function parseWithSchema(schema: ZodType | undefined, value: unknown): unknown {
  *
  * @internal
  */
-export function makeConfig<Config extends BaseStreamConfig>(
-  request: NaviosZodRequest<Config>,
-  options: Config,
+export function makeConfig<Options extends EndpointOptions | StreamOptions>(
+  request: ConfigRequest,
+  options: Options,
   method: HttpMethod,
   finalUrlPart: string,
   isMultipart = false,
 ) {
-  return {
+  // Extract clientOptions from endpoint options
+  const clientOptions = (options as Options & { clientOptions?: ClientOptions })
+    .clientOptions
+
+  // Build base config from request, spreading clientOptions first so request can override
+  const baseConfig = {
+    ...clientOptions,
     ...request,
-    params: parseWithSchema(options.querySchema as ZodType | undefined, request.params ?? {}) as Record<string, unknown>,
+  }
+
+  // Merge headers from clientOptions and request
+  const mergedHeaders = {
+    ...clientOptions?.headers,
+    ...request.headers,
+  }
+
+  return {
+    ...baseConfig,
+    params: parseWithSchema(
+      options.querySchema as ZodType | undefined,
+      request.params ?? {},
+    ) as Record<string, unknown>,
     method,
     url: finalUrlPart,
     data: isMultipart
       ? makeFormData(request, options)
-      : parseWithSchema(options.requestSchema as ZodType | undefined, request.data),
+      : parseWithSchema(
+          options.requestSchema as ZodType | undefined,
+          request.data,
+        ),
+    // Only include headers if there are any
+    ...(Object.keys(mergedHeaders).length > 0
+      ? { headers: mergedHeaders }
+      : {}),
   } satisfies AbstractRequestConfig
 }
 
@@ -82,8 +122,15 @@ function serializeFormDataValue(value: unknown): string | File {
     if ('toISOString' in value && typeof value.toISOString === 'function') {
       return value.toISOString()
     }
+    if (typeof value === 'bigint') {
+      return String(value)
+    }
+    // For toJSON:
     if ('toJSON' in value && typeof value.toJSON === 'function') {
-      return String(value.toJSON())
+      const jsonValue = value.toJSON()
+      return typeof jsonValue === 'string'
+        ? jsonValue
+        : JSON.stringify(jsonValue)
     }
     return JSON.stringify(value)
   }
@@ -115,15 +162,19 @@ function serializeFormDataValue(value: unknown): string | File {
  *
  * @internal
  */
-export function makeFormData<Config extends BaseStreamConfig>(
-  request: NaviosZodRequest<Config>,
-  options: Config,
+export function makeFormData<Options extends EndpointOptions | StreamOptions>(
+  request: ConfigRequest,
+  options: Options,
 ) {
   const formData = new FormData()
   const validatedRequest = parseWithSchema(
     options.requestSchema as ZodType | undefined,
     request.data,
   ) as Record<string, unknown>
+  if (!validatedRequest || typeof validatedRequest !== 'object') {
+    return formData
+  }
+
   for (const key in validatedRequest) {
     const value = validatedRequest[key]
     if (value instanceof File) {

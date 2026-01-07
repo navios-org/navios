@@ -1,7 +1,11 @@
 import { defineConfig } from 'tsdown'
 
 export default defineConfig({
-  entry: ['src/index.mts'],
+  entry: {
+    index: 'src/index.mts',
+    socket: 'src/socket/index.mts',
+    eventsource: 'src/eventsource/index.mts',
+  },
   outDir: 'lib',
   format: ['esm', 'cjs'],
   clean: true,
