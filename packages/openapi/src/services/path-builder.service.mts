@@ -1,4 +1,8 @@
-import type { BaseEndpointConfig } from '@navios/builder'
+import type {
+  BaseEndpointOptions,
+  EndpointOptions,
+  ErrorSchemaRecord,
+} from '@navios/builder'
 import type { HandlerMetadata } from '@navios/core'
 import type { oas31 } from 'zod-openapi'
 
@@ -60,8 +64,8 @@ export class PathBuilderService {
       deprecated: openApiMetadata.deprecated || undefined,
       externalDocs: openApiMetadata.externalDocs,
       security: openApiMetadata.security,
-      parameters: this.buildParameters(config),
-      requestBody: this.buildRequestBody(config, handler),
+      parameters: this.buildParameters(config as EndpointOptions),
+      requestBody: this.buildRequestBody(config as EndpointOptions, handler),
       responses: this.buildResponses(endpoint),
     }
 
@@ -98,20 +102,23 @@ export class PathBuilderService {
    */
   getEndpointType(
     handler: HandlerMetadata<any>,
-  ): 'endpoint' | 'multipart' | 'stream' {
+  ): 'endpoint' | 'multipart' | 'stream' | 'unknown' {
+    if (handler.adapterToken === EndpointAdapterToken) {
+      return 'endpoint'
+    }
     if (handler.adapterToken === MultipartAdapterToken) {
       return 'multipart'
     }
     if (handler.adapterToken === StreamAdapterToken) {
       return 'stream'
     }
-    return 'endpoint'
+    return 'unknown'
   }
 
   /**
    * Builds OpenAPI parameters from endpoint config
    */
-  private buildParameters(config: BaseEndpointConfig): ParameterObject[] {
+  private buildParameters(config: EndpointOptions): ParameterObject[] {
     const params: ParameterObject[] = []
 
     // URL parameters (from $paramName in URL)
@@ -151,7 +158,7 @@ export class PathBuilderService {
    * Builds request body based on endpoint type
    */
   private buildRequestBody(
-    config: BaseEndpointConfig,
+    config: EndpointOptions,
     handler: HandlerMetadata<any>,
   ): RequestBodyObject | undefined {
     const type = this.getEndpointType(handler)
@@ -171,7 +178,7 @@ export class PathBuilderService {
    * Builds request body for JSON endpoints
    */
   private buildJsonRequestBody(
-    config: BaseEndpointConfig,
+    config: EndpointOptions,
   ): RequestBodyObject | undefined {
     if (!config.requestSchema) {
       return undefined
@@ -193,7 +200,7 @@ export class PathBuilderService {
    * Builds request body for multipart endpoints
    */
   private buildMultipartRequestBody(
-    config: BaseEndpointConfig,
+    config: EndpointOptions,
   ): RequestBodyObject {
     if (!config.requestSchema) {
       return {
@@ -206,7 +213,8 @@ export class PathBuilderService {
       }
     }
 
-    const schema = this.schemaConverter.convert(config.requestSchema).schema as SchemaObject
+    const schema = this.schemaConverter.convert(config.requestSchema)
+      .schema as SchemaObject
 
     // Transform schema properties to handle File types
     const properties = this.schemaConverter.transformFileProperties(
@@ -239,62 +247,112 @@ export class PathBuilderService {
         return this.buildStreamResponses(endpoint)
       case 'multipart':
       case 'endpoint':
+        return this.buildJsonResponses(config as EndpointOptions, handler)
+      case 'unknown':
+        return this.buildUnknownResponses(config)
       default:
-        return this.buildJsonResponses(config, handler)
+        return this.buildUnknownResponses(config)
     }
+  }
+
+  /**
+   * Builds error responses from errorSchema
+   *
+   * @param errorSchema - Optional record mapping status codes to Zod schemas
+   * @returns ResponsesObject with error responses, or empty object if no errorSchema
+   */
+  private buildErrorResponses(
+    errorSchema?: ErrorSchemaRecord,
+  ): ResponsesObject {
+    if (!errorSchema) {
+      return {}
+    }
+
+    const errorResponses: ResponsesObject = {}
+
+    for (const [statusCode, schema] of Object.entries(errorSchema)) {
+      const { schema: convertedSchema } = this.schemaConverter.convert(schema)
+      errorResponses[statusCode] = {
+        description: `Error response (${statusCode})`,
+        content: {
+          'application/json': {
+            schema: convertedSchema,
+          },
+        },
+      }
+    }
+
+    return errorResponses
   }
 
   /**
    * Builds responses for JSON endpoints
    */
   private buildJsonResponses(
-    config: BaseEndpointConfig,
+    config: EndpointOptions,
     handler: HandlerMetadata<any>,
   ): ResponsesObject {
     const successCode = handler.successStatusCode?.toString() ?? '200'
+    const responses: ResponsesObject = {}
 
+    // Build success response
     if (!config.responseSchema) {
-      return {
-        [successCode]: {
-          description: 'Successful response',
-        },
+      responses[successCode] = {
+        description: 'Successful response',
       }
-    }
-
-    const { schema } = this.schemaConverter.convert(config.responseSchema)
-
-    return {
-      [successCode]: {
+    } else {
+      const { schema } = this.schemaConverter.convert(config.responseSchema)
+      responses[successCode] = {
         description: 'Successful response',
         content: {
           'application/json': {
             schema,
           },
         },
-      },
+      }
     }
+
+    // Add error responses from errorSchema
+    Object.assign(responses, this.buildErrorResponses(config.errorSchema))
+
+    return responses
   }
 
   /**
    * Builds responses for stream endpoints
    */
   private buildStreamResponses(endpoint: DiscoveredEndpoint): ResponsesObject {
-    const { openApiMetadata, handler } = endpoint
+    const { config, openApiMetadata, handler } = endpoint
     const successCode = handler.successStatusCode?.toString() ?? '200'
 
     const contentType =
       openApiMetadata.stream?.contentType ?? 'application/octet-stream'
-    const description =
-      openApiMetadata.stream?.description ?? 'Stream response'
+    const description = openApiMetadata.stream?.description ?? 'Stream response'
 
     const content: ContentObject = this.getStreamContent(contentType)
 
-    return {
+    const responses: ResponsesObject = {
       [successCode]: {
         description,
         content,
       },
     }
+
+    // Add error responses from errorSchema
+    Object.assign(responses, this.buildErrorResponses(config.errorSchema))
+
+    return responses
+  }
+
+  /**
+   * Builds responses for unknown endpoint types.
+   * Unknown types have no success response but can have error responses.
+   */
+  private buildUnknownResponses(
+    config: EndpointOptions | BaseEndpointOptions,
+  ): ResponsesObject {
+    // Only include error responses, no success response
+    return this.buildErrorResponses(config.errorSchema)
   }
 
   /**

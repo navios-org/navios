@@ -5,6 +5,32 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.0-alpha.2] - 2026-01-07
+
+### Added
+
+- **Error Schema Support in OpenAPI**: New `buildErrorResponses()` method in `PathBuilderService`
+  - Automatically generates OpenAPI response schemas from `errorSchema` configuration
+  - Error responses are added alongside success responses in the generated specification
+  - Supports all endpoint types: standard endpoints, multipart, and streams
+
+### Changed
+
+- **Updated Builder Types**: Services now use `EndpointOptions` and `BaseEndpointOptions` from `@navios/builder`
+  - `EndpointScannerService.DiscoveredEndpoint.config` - Updated type to `EndpointOptions | BaseEndpointOptions`
+  - `PathBuilderService.buildParameters()` - Updated type signature
+  - `PathBuilderService.buildRequestBody()` - Updated type signature
+  - `PathBuilderService.buildJsonRequestBody()` - Updated type signature
+  - `PathBuilderService.buildMultipartRequestBody()` - Updated type signature
+- **Improved Endpoint Type Detection**: `getEndpointType()` now returns `'unknown'` for unrecognized adapter tokens instead of defaulting to `'endpoint'`
+  - Unknown endpoint types only generate error responses, not success responses
+- **New buildUnknownResponses Method**: Handles response generation for unknown endpoint types
+
+### Dependencies
+
+- Updated to support `@navios/core` ^1.0.0-alpha.2
+- Updated to support `@navios/builder` ^1.0.0-alpha.2
+
 ## [0.9.1] - 2026-01-05
 
 ### Added
