@@ -103,7 +103,7 @@ const getUser = API.declareEndpoint({
 
 // TypeScript knows the exact parameter names
 type Params = Parameters<typeof getUser>[0]['urlParams']
-// Params = { userId: string }
+// Params = { userId: string | number }
 ```
 
 ### Type Inference
@@ -123,6 +123,102 @@ const user = await getUser({
     userId: '123', // ✅ Autocomplete suggests 'userId'
     // ❌ TypeScript error if you use wrong name
   },
+})
+```
+
+## URL Parameter Schema Validation
+
+For runtime validation and custom types, use `urlParamsSchema`:
+
+```typescript
+const getUser = API.declareEndpoint({
+  method: 'GET',
+  url: '/users/$userId/posts/$postId',
+  responseSchema: postSchema,
+  urlParamsSchema: z.object({
+    userId: z.string().uuid(), // Must be a valid UUID
+    postId: z.coerce.number().int().positive(), // Coerced to positive integer
+  }),
+})
+
+// This validates at runtime
+await getUser({
+  urlParams: {
+    userId: '550e8400-e29b-41d4-a716-446655440000', // ✅ Valid UUID
+    postId: '42', // ✅ Coerced to number 42
+  },
+})
+
+// This throws a validation error at runtime
+await getUser({
+  urlParams: {
+    userId: 'not-a-uuid', // ❌ Throws ZodError
+    postId: '42',
+  },
+})
+```
+
+### Benefits of urlParamsSchema
+
+1. **Runtime Validation**: Catch invalid URL parameters before making the request
+2. **Type Coercion**: Use `z.coerce` to transform string values to other types
+3. **Custom Validation**: Apply any Zod validation (UUID, email, regex, etc.)
+4. **Better Types**: TypeScript infers types from the schema instead of defaulting to `string | number`
+
+### Schema Must Match URL Parameters
+
+The schema keys must match all `$paramName` patterns in the URL:
+
+```typescript
+// ✅ Correct - schema matches URL params
+const endpoint = API.declareEndpoint({
+  method: 'GET',
+  url: '/users/$userId/posts/$postId',
+  responseSchema: schema,
+  urlParamsSchema: z.object({
+    userId: z.string(),
+    postId: z.string(),
+  }),
+})
+
+// ❌ Wrong - missing postId in schema
+const endpoint = API.declareEndpoint({
+  method: 'GET',
+  url: '/users/$userId/posts/$postId',
+  responseSchema: schema,
+  urlParamsSchema: z.object({
+    userId: z.string(),
+    // postId is missing!
+  }),
+})
+```
+
+### Common urlParamsSchema Patterns
+
+```typescript
+// UUID validation
+urlParamsSchema: z.object({
+  id: z.string().uuid(),
+})
+
+// Numeric ID with coercion
+urlParamsSchema: z.object({
+  id: z.coerce.number().int().positive(),
+})
+
+// Slug validation
+urlParamsSchema: z.object({
+  slug: z.string().regex(/^[a-z0-9-]+$/),
+})
+
+// Date parameter
+urlParamsSchema: z.object({
+  date: z.string().date(), // YYYY-MM-DD format
+})
+
+// Enum validation
+urlParamsSchema: z.object({
+  status: z.enum(['active', 'inactive', 'pending']),
 })
 ```
 

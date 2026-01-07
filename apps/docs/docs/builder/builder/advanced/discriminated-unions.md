@@ -187,6 +187,73 @@ try {
 }
 ```
 
+## Error Schema vs Discriminated Unions
+
+Builder offers two approaches for handling error responses:
+
+### Discriminated Unions (In Response Body)
+
+Use when the API returns success and error in the same response format with a discriminator field:
+
+```typescript
+// API returns: { status: 'success', data: {...} } or { status: 'error', error: '...' }
+const responseSchema = z.discriminatedUnion('status', [
+  z.object({ status: z.literal('success'), data: userSchema }),
+  z.object({ status: z.literal('error'), error: z.string() }),
+])
+
+const getUser = API.declareEndpoint({
+  method: 'GET',
+  url: '/users/$userId',
+  responseSchema,
+})
+```
+
+### Error Schema (By HTTP Status Code)
+
+Use when the API returns different shapes based on HTTP status codes:
+
+```typescript
+import { isErrorStatus, isErrorResponse } from '@navios/builder'
+
+// API returns different shapes for different status codes
+const getUser = API.declareEndpoint({
+  method: 'GET',
+  url: '/users/$userId',
+  responseSchema: userSchema, // For 2xx responses
+  errorSchema: {
+    400: z.object({ error: z.string(), field: z.string() }),
+    404: z.object({ error: z.literal('Not Found') }),
+    500: z.object({ error: z.string() }),
+  },
+})
+
+const result = await getUser({ urlParams: { userId: '123' } })
+
+if (isErrorStatus(result, 404)) {
+  // result.__status === 404, typed as 404 error schema
+  console.log('Not found')
+} else if (isErrorResponse(result)) {
+  // Any error response
+  console.log('Error:', result.__status)
+} else {
+  // Success response
+  console.log('User:', result.name)
+}
+```
+
+### Key Differences
+
+| Feature | Discriminated Unions | Error Schema |
+|---------|---------------------|--------------|
+| Discrimination | By field value in response body | By HTTP status code |
+| `__status` property | Not added | Added to error responses |
+| Type guards | Standard TypeScript narrowing | `isErrorStatus()`, `isErrorResponse()` |
+| Unhandled errors | Covered by union | Throws `UnknownResponseError` |
+| Use case | Single response format | Different formats per status |
+
+See [Error Handling](/docs/builder/builder/guides/error-handling) for more details on `errorSchema`.
+
 ## Complex Examples
 
 ### Paginated Response with Error

@@ -56,6 +56,8 @@ Comprehensive error handling with:
 - Global error callbacks
 - Zod validation error callbacks
 - Discriminated union support for error responses
+- **Error schema** - Map HTTP status codes to Zod schemas
+- Type guards (`isErrorStatus`, `isErrorResponse`) for type-safe error discrimination
 - Custom error transformation
 
 ## Core Concepts
@@ -72,9 +74,11 @@ The builder creates a centralized API definition that:
 ### Type Safety
 
 - **URL Parameters**: Extracted from `$paramName` syntax and enforced at the type level
+- **URL Parameter Validation**: Optional `urlParamsSchema` for runtime validation with Zod
 - **Request Bodies**: Validated against Zod schemas before sending
 - **Response Data**: Validated and typed automatically
 - **Query Parameters**: Full Zod schema validation support
+- **Error Responses**: Type-safe error handling with `errorSchema`
 
 ### Schema Validation
 
@@ -116,6 +120,21 @@ await getUser({
 })
 ```
 
+### URL Parameter Validation
+
+Validate URL parameters at runtime with `urlParamsSchema`:
+
+```typescript
+const getUser = API.declareEndpoint({
+  method: 'GET',
+  url: '/users/$userId',
+  responseSchema: userSchema,
+  urlParamsSchema: z.object({
+    userId: z.string().uuid(), // Must be a valid UUID
+  }),
+})
+```
+
 ### Request/Response Validation
 
 ```typescript
@@ -153,6 +172,7 @@ const uploadFile = API.declareMultipart({ ... })
 
 ```typescript
 const API = builder({
+  useDiscriminatorResponse: true, // Enable error schema support
   onError: (error) => {
     // Global error handler
     logError(error)
@@ -160,6 +180,50 @@ const API = builder({
   onZodError: (zodError, response) => {
     // Zod validation errors
     logValidationError(zodError)
+  },
+})
+```
+
+### Error Schema
+
+Handle different error responses by HTTP status code:
+
+```typescript
+import { isErrorStatus, isErrorResponse } from '@navios/builder'
+
+const getUser = API.declareEndpoint({
+  method: 'GET',
+  url: '/users/$userId',
+  responseSchema: userSchema,
+  errorSchema: {
+    400: z.object({ error: z.string(), field: z.string() }),
+    404: z.object({ error: z.literal('Not Found') }),
+  },
+})
+
+const result = await getUser({ urlParams: { userId: '123' } })
+
+if (isErrorStatus(result, 404)) {
+  console.log('Not found')
+} else if (isErrorResponse(result)) {
+  console.log('Error:', result.__status)
+} else {
+  console.log('User:', result.name)
+}
+```
+
+### Per-Endpoint Configuration
+
+Configure timeout, headers, and transformation options per endpoint:
+
+```typescript
+const createUser = API.declareEndpoint({
+  method: 'POST',
+  url: '/users',
+  responseSchema: userSchema,
+  clientOptions: {
+    timeout: 30000,
+    headers: { 'X-Custom-Header': 'value' },
   },
 })
 ```

@@ -184,9 +184,90 @@ if (result.error) {
 }
 ```
 
+## Error Schema
+
+For APIs that return different error shapes based on HTTP status codes, use `errorSchema`:
+
+```typescript
+import { builder, isErrorStatus, isErrorResponse } from '@navios/builder'
+
+const API = builder({ useDiscriminatorResponse: true })
+
+const getUser = API.declareEndpoint({
+  method: 'GET',
+  url: '/users/$userId',
+  responseSchema: userSchema,
+  errorSchema: {
+    400: z.object({ error: z.string(), field: z.string() }),
+    404: z.object({ error: z.literal('Not Found') }),
+    500: z.object({ error: z.string() }),
+  },
+})
+
+// Usage - error responses are returned, not thrown
+const result = await getUser({ urlParams: { userId: '123' } })
+
+// Check for specific error status
+if (isErrorStatus(result, 404)) {
+  console.log('Not found') // result is typed as the 404 schema
+} else if (isErrorStatus(result, 400)) {
+  console.log('Invalid:', result.field) // result has { error, field, __status: 400 }
+} else if (isErrorResponse(result)) {
+  console.log('Error:', result.__status) // Any other error
+} else {
+  console.log('User:', result.name) // Success response
+}
+```
+
+### How errorSchema Works
+
+When `useDiscriminatorResponse` is `true` and `errorSchema` is defined:
+
+1. **Successful responses** (2xx) are validated against `responseSchema`
+2. **Error responses** matching a status code in `errorSchema` are:
+   - Validated against the corresponding schema
+   - Returned with a `__status` property containing the HTTP status code
+   - NOT thrown as errors
+3. **Unmatched error status codes** throw `UnknownResponseError`
+
+### Type Guards
+
+Builder provides type guards for type-safe error discrimination:
+
+```typescript
+import { isErrorStatus, isErrorResponse } from '@navios/builder'
+
+// Check for specific status code
+if (isErrorStatus(result, 404)) {
+  // result is narrowed to the 404 error schema type
+}
+
+// Check if result is any error (has __status)
+if (isErrorResponse(result)) {
+  console.log('Status:', result.__status)
+}
+```
+
+### UnknownResponseError
+
+When an error response's status code doesn't match any key in `errorSchema`:
+
+```typescript
+import { UnknownResponseError } from '@navios/builder'
+
+try {
+  const result = await getUser({ urlParams: { userId: '123' } })
+} catch (error) {
+  if (error instanceof UnknownResponseError) {
+    console.error('Unhandled status:', error.statusCode)
+    console.error('Response:', error.response.data)
+  }
+}
+```
+
 ## Discriminated Union Responses
 
-For APIs that return different shapes for success/error, use discriminated unions:
+For APIs that return different shapes for success/error in the same response body, use discriminated unions:
 
 ```typescript
 const API = builder({ useDiscriminatorResponse: true })

@@ -29,6 +29,8 @@ const sidebars: SidebarsConfig = {
           items: [
             'builder/advanced/streams',
             'builder/advanced/multipart',
+            'builder/advanced/websocket',
+            'builder/advanced/eventsource',
             'builder/advanced/discriminated-unions',
             'builder/advanced/custom-handlers',
           ],
@@ -66,6 +68,8 @@ const sidebars: SidebarsConfig = {
           collapsed: true,
           items: [
             'react-query/advanced/streams',
+            'react-query/advanced/ssr-prefetch',
+            'react-query/advanced/error-schemas',
             'react-query/advanced/query-client-config',
           ],
         },

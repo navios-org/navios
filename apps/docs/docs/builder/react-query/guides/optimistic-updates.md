@@ -6,15 +6,130 @@ sidebar_position: 10
 
 Optimistic updates allow you to update the UI immediately before the server responds, providing a better user experience. If the mutation fails, you can rollback the changes.
 
-## Basic Pattern
+## Using the Helper (Recommended)
 
-The optimistic update pattern involves:
+The `createOptimisticUpdate` helper simplifies the optimistic update pattern by handling the boilerplate:
+
+```typescript
+import { createOptimisticUpdate } from '@navios/react-query'
+
+const updateUser = client.mutation({
+  method: 'PUT',
+  url: '/users/$userId',
+  requestSchema: userUpdateSchema,
+  responseSchema: userSchema,
+  processResponse: (data) => data,
+  useContext: () => ({
+    queryClient: useQueryClient(),
+  }),
+  ...createOptimisticUpdate({
+    queryKey: ['users', userId],
+    updateFn: (oldData, variables) => ({
+      ...oldData,
+      ...variables.data,
+    }),
+  }),
+})
+```
+
+### Configuration Options
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `queryKey` | `readonly unknown[]` | Required | The query key to optimistically update |
+| `updateFn` | `(oldData, variables) => newData` | Required | Function to compute the new cache value |
+| `rollbackOnError` | `boolean` | `true` | Whether to rollback on error |
+| `invalidateOnSettled` | `boolean` | `true` | Whether to invalidate the query after mutation settles |
+
+### Multi-Query Updates
+
+When a mutation affects multiple cached queries, use `createMultiOptimisticUpdate`:
+
+```typescript
+import { createMultiOptimisticUpdate } from '@navios/react-query'
+
+const updateUser = client.mutation({
+  method: 'PUT',
+  url: '/users/$userId',
+  requestSchema: userUpdateSchema,
+  responseSchema: userSchema,
+  processResponse: (data) => data,
+  useContext: () => ({
+    queryClient: useQueryClient(),
+  }),
+  ...createMultiOptimisticUpdate([
+    {
+      // Update individual user cache
+      queryKey: ['users', userId],
+      updateFn: (oldData, variables) => ({
+        ...oldData,
+        ...variables.data,
+      }),
+    },
+    {
+      // Update user in the list
+      queryKey: ['users'],
+      updateFn: (oldList, variables) =>
+        (oldList ?? []).map((user) =>
+          user.id === userId ? { ...user, ...variables.data } : user
+        ),
+    },
+  ]),
+})
+```
+
+### Common Patterns with Helpers
+
+**Optimistic Delete:**
+
+```typescript
+const deleteTodo = client.mutation({
+  method: 'DELETE',
+  url: '/todos/$todoId',
+  responseSchema: z.object({ success: z.boolean() }),
+  processResponse: (data) => data,
+  useContext: () => ({ queryClient: useQueryClient() }),
+  ...createOptimisticUpdate({
+    queryKey: ['todos'],
+    updateFn: (oldData, variables) =>
+      (oldData ?? []).filter((t) => t.id !== variables.urlParams.todoId),
+  }),
+})
+```
+
+**Optimistic Add:**
+
+```typescript
+const addTodo = client.mutation({
+  method: 'POST',
+  url: '/todos',
+  requestSchema: createTodoSchema,
+  responseSchema: todoSchema,
+  processResponse: (data) => data,
+  useContext: () => ({ queryClient: useQueryClient() }),
+  ...createOptimisticUpdate({
+    queryKey: ['todos'],
+    updateFn: (oldData, variables) => [
+      ...(oldData ?? []),
+      { id: 'temp-' + Date.now(), ...variables.data, createdAt: new Date() },
+    ],
+  }),
+})
+```
+
+## Manual Pattern
+
+For more control, you can implement the pattern manually.
+
+### Pattern Overview
+
+The manual optimistic update pattern involves:
 
 1. **onMutate**: Cancel queries, snapshot previous value, optimistically update
 2. **onError**: Rollback to previous value
-3. **onSuccess**: Optionally refetch to ensure consistency
+3. **onSuccess/onSettled**: Refetch to ensure consistency
 
-## Basic Example
+### Manual Example
 
 ```typescript
 const updateUser = client.mutation({

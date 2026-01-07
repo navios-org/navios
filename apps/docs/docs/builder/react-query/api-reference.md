@@ -220,6 +220,77 @@ mutation.mutationKey(): MutationKey // When useKey is false
 mutation.mutationKey(urlParams: UrlParams): MutationKey // When useKey is true
 ```
 
+## Prefetch Helpers
+
+### createPrefetchHelper
+
+Creates a prefetch helper for SSR/RSC usage.
+
+```typescript
+function createPrefetchHelper<TParams, TData, TError>(
+  queryOptionsCreator: QueryOptionsCreator<TParams, TData, TError>
+): PrefetchHelper<TParams, TData, TError>
+```
+
+**Returns:** `PrefetchHelper` with methods:
+
+- `prefetch(queryClient, params)` - Prefetch data
+- `ensureData(queryClient, params)` - Ensure data exists, returns data
+- `getQueryOptions(params)` - Get raw query options
+- `prefetchMany(queryClient, paramsList)` - Prefetch multiple in parallel
+
+### createPrefetchHelpers
+
+Creates multiple prefetch helpers from a record of queries.
+
+```typescript
+function createPrefetchHelpers<T extends Record<string, QueryOptionsCreator<any, any, any>>>(
+  queries: T
+): { [K in keyof T]: PrefetchHelper<...> }
+```
+
+### prefetchAll
+
+Prefetch multiple queries from different helpers in parallel.
+
+```typescript
+function prefetchAll(
+  queryClient: QueryClient,
+  prefetches: Array<{ helper: PrefetchHelper<any, any, any>; params: unknown }>
+): Promise<void>
+```
+
+## Optimistic Update Helpers
+
+### createOptimisticUpdate
+
+Creates type-safe optimistic update callbacks.
+
+```typescript
+function createOptimisticUpdate<TData, TVariables, TQueryData>(
+  config: OptimisticUpdateConfig<TData, TVariables, TQueryData>
+): OptimisticUpdateCallbacks<TData, TVariables, TQueryData>
+```
+
+**Config Options:**
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `queryKey` | `readonly unknown[]` | Required | Query key to update |
+| `updateFn` | `(oldData, variables) => newData` | Required | Compute new cache value |
+| `rollbackOnError` | `boolean` | `true` | Rollback on error |
+| `invalidateOnSettled` | `boolean` | `true` | Invalidate after mutation |
+
+### createMultiOptimisticUpdate
+
+Creates optimistic update callbacks for multiple query keys.
+
+```typescript
+function createMultiOptimisticUpdate<TData, TVariables>(
+  configs: Array<OptimisticUpdateConfig<TData, TVariables, unknown>>
+): OptimisticUpdateCallbacks<TData, TVariables, Map<string, unknown>>
+```
+
 ## Types
 
 ### QueryConfig
@@ -231,6 +302,7 @@ interface QueryConfig {
   responseSchema: ZodType
   querySchema?: ZodType
   requestSchema?: ZodType
+  errorSchema?: ErrorSchemaRecord
   processResponse: (data: any) => any
 }
 ```
@@ -244,6 +316,7 @@ interface MutationConfig {
   requestSchema?: ZodType
   responseSchema?: ZodType
   querySchema?: ZodType
+  errorSchema?: ErrorSchemaRecord
   processResponse?: (data: any) => any
   useContext?: () => any
   onMutate?: (variables: any, context: any) => any
@@ -264,10 +337,58 @@ interface InfiniteQueryConfig extends QueryConfig {
 }
 ```
 
+### ErrorSchemaRecord
+
+```typescript
+type ErrorSchemaRecord = {
+  [statusCode: number]: ZodType
+}
+```
+
+### PrefetchHelper
+
+```typescript
+interface PrefetchHelper<TParams, TData, TError = Error> {
+  prefetch: (queryClient: QueryClient, params: TParams) => Promise<void>
+  ensureData: (queryClient: QueryClient, params: TParams) => Promise<TData>
+  getQueryOptions: (params: TParams) => FetchQueryOptions<TData, TError, TData, QueryKey>
+  prefetchMany: (queryClient: QueryClient, paramsList: TParams[]) => Promise<void>
+}
+```
+
+### OptimisticUpdateConfig
+
+```typescript
+interface OptimisticUpdateConfig<TData, TVariables, TQueryData> {
+  queryKey: readonly unknown[]
+  updateFn: (oldData: TQueryData | undefined, variables: TVariables) => TQueryData
+  rollbackOnError?: boolean
+  invalidateOnSettled?: boolean
+}
+```
+
+### ComputeBaseResult
+
+Helper type that computes result based on discriminator mode and error schema.
+
+```typescript
+type ComputeBaseResult<
+  UseDiscriminator extends boolean,
+  ResponseSchema extends ZodType,
+  ErrorSchema extends ErrorSchemaRecord | undefined,
+> = UseDiscriminator extends true
+  ? ErrorSchema extends ErrorSchemaRecord
+    ? z.output<ResponseSchema> | InferErrorSchemaOutput<ErrorSchema>
+    : z.output<ResponseSchema>
+  : z.output<ResponseSchema>
+```
+
 ## See Also
 
 - [Getting Started](/docs/builder/react-query/getting-started) - Quick start guide
 - [Queries](/docs/builder/react-query/guides/queries) - Query usage
 - [Mutations](/docs/builder/react-query/guides/mutations) - Mutation usage
+- [SSR & Prefetching](/docs/builder/react-query/advanced/ssr-prefetch) - Server-side rendering
+- [Error Schemas](/docs/builder/react-query/advanced/error-schemas) - Error handling with discriminator mode
 - [Best Practices](/docs/builder/react-query/best-practices) - Best practices and patterns
 

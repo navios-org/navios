@@ -56,6 +56,9 @@ declareEndpoint<Config>(options: BaseEndpointConfig): EndpointFunction
 - `responseSchema`: `ZodType` - **Required** - Schema for response validation
 - `requestSchema`: `ZodType` - **Optional** - Schema for request body (POST, PUT, PATCH)
 - `querySchema`: `ZodType` - **Optional** - Schema for query parameters
+- `errorSchema`: `ErrorSchemaRecord` - **Optional** - Map of HTTP status codes to Zod schemas for error responses
+- `urlParamsSchema`: `ZodObject` - **Optional** - Schema for runtime validation of URL parameters
+- `clientOptions`: `ClientOptions` - **Optional** - Per-endpoint client configuration (timeout, headers, etc.)
 
 **Returns:** A function that makes the HTTP request and returns validated response data.
 
@@ -85,6 +88,9 @@ declareStream<Config>(options: BaseStreamConfig): StreamFunction
 - `url`: `string` - Endpoint URL (supports `$paramName` syntax)
 - `requestSchema`: `ZodType` - **Optional** - Schema for request body
 - `querySchema`: `ZodType` - **Optional** - Schema for query parameters
+- `errorSchema`: `ErrorSchemaRecord` - **Optional** - Map of HTTP status codes to Zod schemas for error responses
+- `urlParamsSchema`: `ZodObject` - **Optional** - Schema for runtime validation of URL parameters
+- `clientOptions`: `ClientOptions` - **Optional** - Per-endpoint client configuration
 
 **Returns:** A function that makes the HTTP request and returns a `Blob`.
 
@@ -114,6 +120,9 @@ declareMultipart<Config>(options: BaseEndpointConfig): MultipartFunction
 - `responseSchema`: `ZodType` - **Required** - Schema for response validation
 - `requestSchema`: `ZodType` - **Optional** - Schema for request body (should include File instances)
 - `querySchema`: `ZodType` - **Optional** - Schema for query parameters
+- `errorSchema`: `ErrorSchemaRecord` - **Optional** - Map of HTTP status codes to Zod schemas for error responses
+- `urlParamsSchema`: `ZodObject` - **Optional** - Schema for runtime validation of URL parameters
+- `clientOptions`: `ClientOptions` - **Optional** - Per-endpoint client configuration
 
 **Returns:** A function that automatically converts the request data to `FormData` and makes the HTTP request.
 
@@ -261,6 +270,9 @@ interface BaseEndpointConfig {
   responseSchema: ZodType
   requestSchema?: ZodType
   querySchema?: ZodType
+  errorSchema?: ErrorSchemaRecord
+  urlParamsSchema?: ZodObject
+  clientOptions?: ClientOptions
 }
 ```
 
@@ -272,8 +284,39 @@ interface BaseStreamConfig {
   url: string
   requestSchema?: ZodType
   querySchema?: ZodType
+  errorSchema?: ErrorSchemaRecord
+  urlParamsSchema?: ZodObject
+  clientOptions?: ClientOptions
 }
 ```
+
+### ErrorSchemaRecord
+
+```typescript
+type ErrorSchemaRecord = Record<number, ZodType>
+```
+
+Maps HTTP status codes to Zod schemas for error responses. Used with `useDiscriminatorResponse: true`.
+
+### ClientOptions
+
+```typescript
+interface ClientOptions {
+  timeout?: number
+  headers?: Record<string, string>
+  transformRequest?: {
+    skipFields?: string[]
+    skipPaths?: string[]
+  }
+  transformResponse?: {
+    skipFields?: string[]
+    skipPaths?: string[]
+  }
+  [key: string]: unknown
+}
+```
+
+Per-endpoint configuration options passed through to the HTTP client.
 
 ### HttpMethod
 
@@ -329,6 +372,87 @@ try {
     console.error('Navios Error:', error.message)
     console.error('Original error:', error.cause)
   }
+}
+```
+
+### UnknownResponseError
+
+Thrown when an error response's status code doesn't match any schema in `errorSchema`.
+
+```typescript
+class UnknownResponseError extends Error {
+  response: AbstractResponse<unknown>
+  statusCode: number
+}
+```
+
+This error is thrown only when:
+- `useDiscriminatorResponse` is `true`
+- `errorSchema` is defined for the endpoint
+- The response status code is NOT found in `errorSchema` keys
+
+**Example:**
+
+```typescript
+import { UnknownResponseError } from '@navios/builder'
+
+try {
+  await getUser({ urlParams: { userId: '123' } })
+} catch (error) {
+  if (error instanceof UnknownResponseError) {
+    console.error('Unhandled status:', error.statusCode)
+    console.error('Response data:', error.response.data)
+  }
+}
+```
+
+## Type Guards
+
+### isErrorStatus
+
+Check if a result is an error response with a specific status code.
+
+```typescript
+function isErrorStatus<T, S extends number>(
+  result: T,
+  status: S
+): result is Extract<T, { __status: S }>
+```
+
+**Example:**
+
+```typescript
+import { isErrorStatus } from '@navios/builder'
+
+const result = await getUser({ urlParams: { userId: '123' } })
+
+if (isErrorStatus(result, 404)) {
+  // result is typed as the 404 error schema with __status: 404
+  console.log('Not found:', result.error)
+}
+```
+
+### isErrorResponse
+
+Check if a result is any error response (has `__status` property).
+
+```typescript
+function isErrorResponse<T>(
+  result: T
+): result is Extract<T, { __status: number }>
+```
+
+**Example:**
+
+```typescript
+import { isErrorResponse } from '@navios/builder'
+
+const result = await getUser({ urlParams: { userId: '123' } })
+
+if (isErrorResponse(result)) {
+  console.log('Error with status:', result.__status)
+} else {
+  console.log('Success:', result.name)
 }
 ```
 
