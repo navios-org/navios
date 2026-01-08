@@ -177,7 +177,7 @@ Navios DI React provides several hooks:
 - `useService` - Fetch a service with loading/error states
 - `useSuspenseService` - Fetch a service using React Suspense
 - `useOptionalService` - Fetch a service that may not be registered
-- `useInvalidate` - Get a function to invalidate a service
+- `useInvalidateInstance` - Get a function to invalidate a service instance
 - `useContainer` - Access the container directly
 
 ### Automatic Invalidation

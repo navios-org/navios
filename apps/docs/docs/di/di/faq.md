@@ -145,10 +145,26 @@ await scoped.get(RequestService)
 
 **Problem**: Decorators are not being recognized.
 
-**Solution**: 
+**Solution**:
 - Ensure `experimentalDecorators: false` in `tsconfig.json`
 - Make sure you're using TypeScript 5+
 - Check that your build tool supports ES decorators
+
+### Can I use Navios DI with experimental decorators?
+
+Yes! If you cannot use Stage 3 decorators, import from `@navios/di/legacy-compat`:
+
+```typescript
+import { Injectable, Factory } from '@navios/di/legacy-compat'
+import { inject, Container } from '@navios/di'
+```
+
+This is useful when:
+- Your project has `experimentalDecorators: true` and you can't change it
+- You're using Bun (which has limited Stage 3 decorator support)
+- Your bundler doesn't fully support Stage 3 decorators
+
+See [Setup - Alternative: Legacy Decorators](/docs/di/di/getting-started/setup#alternative-legacy-decorators) for configuration details.
 
 ### Service recreated on every access
 

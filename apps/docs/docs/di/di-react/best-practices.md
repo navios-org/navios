@@ -111,19 +111,26 @@ function UserProfile() {
 
 ```tsx
 // ✅ Good: Invalidate after mutations
+const { data: items } = useService(ItemService)
+const invalidateInstance = useInvalidateInstance()
+
 const handleCreate = async () => {
   await createItem(data)
-  invalidateItems() // Refresh the list
+  if (items) {
+    await invalidateInstance(items) // Refresh the list
+  }
 }
 ```
 
-### 2. Use Same Args for Invalidation
+### 2. Use refetch for Simple Refreshes
 
 ```tsx
-// ✅ Good: Same args for service and invalidation
-const args = useMemo(() => ({ userId }), [userId])
-const { data } = useService(UserToken, args)
-const invalidate = useInvalidate(UserToken, args)
+// ✅ Good: Use refetch for component-local refresh
+const { data, refetch } = useService(UserService)
+
+const handleRefresh = () => {
+  refetch() // Re-fetches the service
+}
 ```
 
 ## Performance

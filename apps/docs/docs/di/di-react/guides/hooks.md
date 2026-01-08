@@ -129,19 +129,21 @@ function Analytics() {
 }
 ```
 
-## useInvalidate
+## useInvalidateInstance
 
-Get a function to invalidate a service by its token. When called, this will destroy the current service instance and trigger re-fetch in all components using `useService`/`useSuspenseService` for that token.
+Get a function to invalidate a service instance. When called, this will destroy the current service instance and trigger re-fetch in all components using `useService`/`useSuspenseService` for that service.
 
 ```tsx
-import { useService, useInvalidate } from '@navios/di-react'
+import { useService, useInvalidateInstance } from '@navios/di-react'
 
 function UserProfile() {
   const { data: user } = useService(UserService)
-  const invalidateUser = useInvalidate(UserService)
+  const invalidateInstance = useInvalidateInstance()
 
-  const handleRefresh = () => {
-    invalidateUser() // All components using UserService will re-fetch
+  const handleRefresh = async () => {
+    if (user) {
+      await invalidateInstance(user) // All components using UserService will re-fetch
+    }
   }
 
   return (
@@ -153,40 +155,20 @@ function UserProfile() {
 }
 ```
 
-### With Arguments
+### With Injection Tokens
 
 ```tsx
 import { useMemo } from 'react'
-import { useService, useInvalidate } from '@navios/di-react'
+import { useService, useInvalidateInstance } from '@navios/di-react'
 
 function UserProfile({ userId }: { userId: string }) {
   const args = useMemo(() => ({ userId }), [userId])
   const { data: user } = useService(UserToken, args)
-  const invalidateUser = useInvalidate(UserToken, args)
-
-  return (
-    <div>
-      <span>{user?.name}</span>
-      <button onClick={() => invalidateUser()}>Refresh</button>
-    </div>
-  )
-}
-```
-
-## useInvalidateInstance
-
-Invalidate a service instance directly without knowing its token.
-
-```tsx
-import { useService, useInvalidateInstance } from '@navios/di-react'
-
-function UserProfile() {
-  const { data: user } = useService(UserService)
   const invalidateInstance = useInvalidateInstance()
 
-  const handleRefresh = () => {
+  const handleRefresh = async () => {
     if (user) {
-      invalidateInstance(user)
+      await invalidateInstance(user)
     }
   }
 

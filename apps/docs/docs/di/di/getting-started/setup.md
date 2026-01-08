@@ -51,6 +51,36 @@ Make sure your `tsconfig.json` has the correct settings for decorators:
 Navios DI uses native ES decorators, not legacy decorators. Ensure `experimentalDecorators` is set to `false` (or omitted).
 :::
 
+### Alternative: Legacy Decorators
+
+If you cannot disable `experimentalDecorators` (e.g., existing codebase, Bun, or certain bundler limitations), use the legacy-compatible decorators:
+
+```json title="tsconfig.json"
+{
+  "compilerOptions": {
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true
+  }
+}
+```
+
+```typescript
+// Import decorators from legacy-compat
+import { Injectable, Factory } from '@navios/di/legacy-compat'
+
+// Other imports remain the same
+import { inject, asyncInject, Container } from '@navios/di'
+
+@Injectable()
+class UserService {
+  // Works the same as Stage 3 decorators
+}
+```
+
+:::info
+The legacy decorators wrap Stage 3 decorators internally, so all features work identically. Only the TypeScript configuration differs.
+:::
+
 ## Troubleshooting
 
 ### Decorators Not Working

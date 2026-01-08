@@ -51,19 +51,32 @@ function MyComponent() {
 
 ### How do I invalidate a service?
 
-Use the `useInvalidate` hook:
+Use the `useInvalidateInstance` hook:
 
 ```tsx
-import { useInvalidate } from '@navios/di-react'
+import { useService, useInvalidateInstance } from '@navios/di-react'
 
 function MyComponent() {
-  const invalidate = useInvalidate(MyService)
+  const { data: service } = useService(MyService)
+  const invalidateInstance = useInvalidateInstance()
 
-  const handleRefresh = () => {
-    invalidate() // All components using MyService will re-fetch
+  const handleRefresh = async () => {
+    if (service) {
+      await invalidateInstance(service) // All components using MyService will re-fetch
+    }
   }
 
   return <button onClick={handleRefresh}>Refresh</button>
+}
+```
+
+Alternatively, use the `refetch` function from `useService` for component-local refresh:
+
+```tsx
+const { data, refetch } = useService(MyService)
+
+const handleRefresh = () => {
+  refetch()
 }
 ```
 
@@ -132,19 +145,31 @@ const { data } = useService(UserToken, { userId })
 
 ### Services Not Invalidating
 
-**Problem**: Using different args for service and invalidation.
+**Problem**: Invalidation not working as expected.
 
-**Solution**: Use the same args:
+**Solution**: Use `useInvalidateInstance` with the actual service instance:
 
 ```tsx
-// ✅ Good: Same args
-const args = useMemo(() => ({ userId }), [userId])
-const { data } = useService(UserToken, args)
-const invalidate = useInvalidate(UserToken, args)
+// ✅ Good: Invalidate the actual instance
+const { data: user } = useService(UserService)
+const invalidateInstance = useInvalidateInstance()
 
-// ❌ Bad: Different args
-const { data } = useService(UserToken, { userId: '1' })
-const invalidate = useInvalidate(UserToken, { userId: '2' })
+const handleRefresh = async () => {
+  if (user) {
+    await invalidateInstance(user)
+  }
+}
+```
+
+For simple refreshes within a component, use the `refetch` function:
+
+```tsx
+// ✅ Good: Use refetch for local refresh
+const { data, refetch } = useService(UserService)
+
+const handleRefresh = () => {
+  refetch()
+}
 ```
 
 ## Getting Help

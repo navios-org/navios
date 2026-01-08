@@ -9,22 +9,21 @@ This recipe demonstrates how to implement real-time updates using service invali
 ## Automatic Refresh on Invalidation
 
 ```tsx
-import { useService, useInvalidate } from '@navios/di-react'
+import { useService } from '@navios/di-react'
 
 function UserList() {
-  const { data: users } = useService(UserService)
-  const invalidateUsers = useInvalidate(UserService)
+  const { data: users, refetch } = useService(UserService)
 
   useEffect(() => {
     // Set up real-time subscription
     const subscription = subscribeToUserUpdates(() => {
-      invalidateUsers() // Refresh when updates occur
+      refetch() // Refresh when updates occur
     })
 
     return () => {
       subscription.unsubscribe()
     }
-  }, [invalidateUsers])
+  }, [refetch])
 
   return (
     <div>
@@ -39,19 +38,18 @@ function UserList() {
 ## Polling Pattern
 
 ```tsx
-import { useService, useInvalidate } from '@navios/di-react'
+import { useService } from '@navios/di-react'
 
 function UserList() {
-  const { data: users } = useService(UserService)
-  const invalidateUsers = useInvalidate(UserService)
+  const { data: users, refetch } = useService(UserService)
 
   useEffect(() => {
     const interval = setInterval(() => {
-      invalidateUsers() // Poll for updates
+      refetch() // Poll for updates
     }, 5000) // Poll every 5 seconds
 
     return () => clearInterval(interval)
-  }, [invalidateUsers])
+  }, [refetch])
 
   return (
     <div>

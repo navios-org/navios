@@ -157,20 +157,22 @@ function Analytics() {
 }
 ```
 
-### useInvalidate
+### useInvalidateInstance
 
-Returns a function to invalidate a service:
+Returns a function to invalidate a service instance:
 
 ```typescript
-import { useInvalidate } from '@navios/di-react'
+import { useService, useInvalidateInstance } from '@navios/di-react'
 
 function UserProfile() {
   const { data: user } = useService(UserService)
-  const invalidateUser = useInvalidate(UserService)
+  const invalidateInstance = useInvalidateInstance()
 
   const handleRefresh = async () => {
-    await invalidateUser()
-    // All components using UserService will re-fetch
+    if (user) {
+      await invalidateInstance(user)
+      // All components using UserService will re-fetch
+    }
   }
 
   return (
@@ -207,8 +209,13 @@ The hooks implement automatic invalidation:
 
 ```typescript
 // In one component
-const invalidateUser = useInvalidate(UserService)
-await invalidateUser()
+const { data: user } = useService(UserService)
+const invalidateInstance = useInvalidateInstance()
+
+// Invalidate the instance
+if (user) {
+  await invalidateInstance(user)
+}
 
 // All components using UserService automatically re-fetch
 const { data } = useService(UserService) // Gets fresh instance

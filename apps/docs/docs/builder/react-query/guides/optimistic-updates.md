@@ -6,7 +6,11 @@ sidebar_position: 10
 
 Optimistic updates allow you to update the UI immediately before the server responds, providing a better user experience. If the mutation fails, you can rollback the changes.
 
-## Using the Helper (Recommended)
+## Using the Helper
+
+:::warning Experimental API
+The `createOptimisticUpdate` and `createMultiOptimisticUpdate` helpers are **experimental** and may change in future versions. For production applications, we recommend using the [manual pattern](#manual-pattern) below until these helpers stabilize.
+:::
 
 The `createOptimisticUpdate` helper simplifies the optimistic update pattern by handling the boilerplate:
 
@@ -42,6 +46,10 @@ const updateUser = client.mutation({
 | `invalidateOnSettled` | `boolean` | `true` | Whether to invalidate the query after mutation settles |
 
 ### Multi-Query Updates
+
+:::warning Experimental API
+`createMultiOptimisticUpdate` is **experimental** and may change in future versions.
+:::
 
 When a mutation affects multiple cached queries, use `createMultiOptimisticUpdate`:
 
@@ -117,9 +125,9 @@ const addTodo = client.mutation({
 })
 ```
 
-## Manual Pattern
+## Manual Pattern (Recommended)
 
-For more control, you can implement the pattern manually.
+For production applications, we recommend implementing the optimistic update pattern manually. This gives you full control and doesn't depend on experimental APIs.
 
 ### Pattern Overview
 

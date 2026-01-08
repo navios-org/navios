@@ -9,7 +9,7 @@ This recipe demonstrates how to handle forms with dependency injection in React.
 ## Basic Form with Service
 
 ```tsx
-import { useService, useInvalidate } from '@navios/di-react'
+import { useService, useInvalidateInstance } from '@navios/di-react'
 import { Injectable } from '@navios/di'
 
 @Injectable()
@@ -21,8 +21,7 @@ class FormService {
 }
 
 function ContactForm() {
-  const { data: formService } = useService(FormService)
-  const invalidateForm = useInvalidate(FormService)
+  const { data: formService, refetch } = useService(FormService)
   const [formData, setFormData] = useState({ name: '', email: '' })
   const [isSubmitting, setIsSubmitting] = useState(false)
 
@@ -33,7 +32,7 @@ function ContactForm() {
     try {
       const result = await formService?.submitForm(formData)
       if (result?.success) {
-        invalidateForm() // Refresh form service
+        refetch() // Refresh form service
         setFormData({ name: '', email: '' }) // Reset form
       }
     } finally {

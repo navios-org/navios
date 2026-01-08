@@ -133,29 +133,38 @@ interface UseOptionalServiceResult<T> {
 
 **Returns:** An object with service data, loading/error states, and an `isNotFound` flag.
 
-### useInvalidate
-
-Get a function to invalidate a service by its token.
-
-```tsx
-function useInvalidate<T>(token: ClassType): () => Promise<void>
-function useInvalidate<T, S>(
-  token: InjectionToken<T, S>,
-  args: S extends undefined ? never : unknown,
-): () => Promise<void>
-```
-
-**Returns:** A function to invalidate a service. When called, destroys the current service instance and triggers re-fetch in all components using `useService`/`useSuspenseService` for that token.
-
 ### useInvalidateInstance
 
-Invalidate a service instance directly without knowing its token.
+Get a function to invalidate a service instance. When called, destroys the current service instance and triggers re-fetch in all components using `useService`/`useSuspenseService` for that service.
 
 ```tsx
 function useInvalidateInstance(): (instance: unknown) => Promise<void>
 ```
 
-**Returns:** A function to invalidate a service instance directly.
+**Returns:** A function that takes a service instance and invalidates it. Use this when you have the service instance and want to trigger a refresh.
+
+**Example:**
+
+```tsx
+function UserProfile() {
+  const { data: user } = useService(UserService)
+  const invalidateInstance = useInvalidateInstance()
+
+  const handleRefresh = async () => {
+    if (user) {
+      await invalidateInstance(user)
+      // All components using UserService will re-fetch
+    }
+  }
+
+  return (
+    <div>
+      <span>{user?.name}</span>
+      <button onClick={handleRefresh}>Refresh</button>
+    </div>
+  )
+}
+```
 
 ### useScope
 

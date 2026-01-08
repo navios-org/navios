@@ -63,15 +63,17 @@ function App() {
 ## With Invalidation
 
 ```tsx
-import { useService, useInvalidate } from '@navios/di-react'
+import { useService, useInvalidateInstance } from '@navios/di-react'
 
 function UserList() {
   const { data: users } = useService(UserService)
-  const invalidateUsers = useInvalidate(UserService)
+  const invalidateInstance = useInvalidateInstance()
 
   const handleCreateUser = async (userData: any) => {
     await createUser(userData)
-    invalidateUsers() // Automatically refreshes the list
+    if (users) {
+      await invalidateInstance(users) // Automatically refreshes the list
+    }
   }
 
   return (

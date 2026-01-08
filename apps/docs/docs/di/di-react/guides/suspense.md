@@ -85,10 +85,12 @@ function UserProfile({ userId }: { userId: string }) {
 ```tsx
 function UserProfile() {
   const user = useSuspenseService(UserService)
-  const invalidateUser = useInvalidate(UserService)
+  const invalidateInstance = useInvalidateInstance()
 
-  const handleRefresh = () => {
-    invalidateUser() // Component will re-render with fresh data
+  const handleRefresh = async () => {
+    if (user) {
+      await invalidateInstance(user) // Component will re-render with fresh data
+    }
   }
 
   return (
