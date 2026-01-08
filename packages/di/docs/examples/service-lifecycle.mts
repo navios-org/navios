@@ -218,7 +218,7 @@ class EmailService implements OnServiceInit, OnServiceDestroy {
     await new Promise((resolve) => setTimeout(resolve, 100))
   }
 
-  async sendEmail(to: string, subject: string, body: string) {
+  async sendEmail(to: string, subject: string, _body: string) {
     if (!this.initialized) {
       throw new Error('Email service not initialized')
     }

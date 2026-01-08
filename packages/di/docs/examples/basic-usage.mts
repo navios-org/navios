@@ -33,7 +33,7 @@ class UserService {
 class EmailService {
   private readonly logger = asyncInject(LoggerService)
 
-  async sendEmail(to: string, subject: string, body: string) {
+  async sendEmail(to: string, _subject: string, _body: string) {
     const logger = await this.logger
     logger.log(`Sending email to ${to}`)
 

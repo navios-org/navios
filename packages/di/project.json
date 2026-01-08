@@ -31,6 +31,14 @@
         "cwd": "packages/di"
       }
     },
+    "test:gc": {
+      "executor": "nx:run-commands",
+      "inputs": ["^projectSources", "project"],
+      "options": {
+        "command": "NODE_OPTIONS=--expose-gc vitest run src/__tests__/gc",
+        "cwd": "packages/di"
+      }
+    },
     "build": {
       "executor": "nx:run-commands",
       "inputs": ["projectSources", "{projectRoot}/tsdown.config.mts"],

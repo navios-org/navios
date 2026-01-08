@@ -111,7 +111,7 @@ class EmailServiceFactory
 class SmtpEmailService implements EmailService {
   constructor(private config: EmailConfig) {}
 
-  async sendEmail(to: string, subject: string, body: string) {
+  async sendEmail(to: string, subject: string, _body: string) {
     console.log(`SMTP email sent to ${to}: ${subject}`)
     return { success: true, provider: 'smtp' }
   }
@@ -120,7 +120,7 @@ class SmtpEmailService implements EmailService {
 class SendGridEmailService {
   constructor(private config: EmailConfig) {}
 
-  async sendEmail(to: string, subject: string, body: string) {
+  async sendEmail(to: string, subject: string, _body: string) {
     console.log(`SendGrid email sent to ${to}: ${subject}`)
     return { success: true, provider: 'sendgrid' }
   }
@@ -129,7 +129,7 @@ class SendGridEmailService {
 class SesEmailService {
   constructor(private config: EmailConfig) {}
 
-  async sendEmail(to: string, subject: string, body: string) {
+  async sendEmail(to: string, subject: string, _body: string) {
     console.log(`SES email sent to ${to}: ${subject}`)
     return { success: true, provider: 'ses' }
   }

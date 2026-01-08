@@ -125,7 +125,7 @@ class RequestHandler {
   private readonly userContext = inject(UserContext)
   private readonly orderService = inject(OrderService)
 
-  async handleRequest(userId: string, sessionId: string) {
+  async handleRequest(userId: string, _sessionId: string) {
     const logger = await this.logger
     logger.log(`Handling request for user ${userId}`)
 

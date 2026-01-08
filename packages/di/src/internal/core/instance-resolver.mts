@@ -14,7 +14,6 @@ import type { LifecycleEventBus } from '../lifecycle/lifecycle-event-bus.mjs'
 import { InjectableScope } from '../../enums/index.mjs'
 import { DIError, DIErrorCode } from '../../errors/index.mjs'
 import {
-  BoundInjectionToken,
   FactoryInjectionToken,
   InjectionToken,
 } from '../../token/injection-token.mjs'
