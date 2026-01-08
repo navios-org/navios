@@ -13,26 +13,10 @@ import type {
 } from '@tanstack/react-query'
 import type { z, ZodObject, ZodType } from 'zod/v4'
 
-import type { ProcessResponseFunction } from '../common/types.mjs'
-
-/**
- * Compute the response input type based on discriminator and error schema.
- * When UseDiscriminator=true and errorSchema is present, errors are included as a union.
- * When UseDiscriminator=false, only the success type is returned (errors are thrown).
- *
- * @template UseDiscriminator - Whether to include error types in the response union
- * @template ResponseSchema - The success response schema
- * @template ErrorSchema - The error schema record (optional)
- */
-type ComputeResponseInput<
-  UseDiscriminator extends boolean,
-  ResponseSchema extends ZodType,
-  ErrorSchema extends ErrorSchemaRecord | undefined,
-> = UseDiscriminator extends true
-  ? ErrorSchema extends ErrorSchemaRecord
-    ? z.output<ResponseSchema> | InferErrorSchemaOutput<ErrorSchema>
-    : z.output<ResponseSchema>
-  : z.output<ResponseSchema>
+import type {
+  ComputeResponseInput,
+  ProcessResponseFunction,
+} from '../common/types.mjs'
 
 /**
  * Arguments for mutation functions based on URL params, request schema, and query schema.

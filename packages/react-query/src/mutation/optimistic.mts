@@ -8,7 +8,7 @@ import type { QueryClient } from '@tanstack/react-query'
  * @template TQueryData - The query cache data type
  */
 export interface OptimisticUpdateConfig<
-  TData,
+  _TData,
   TVariables,
   TQueryData,
 > {
@@ -85,6 +85,9 @@ export interface OptimisticUpdateCallbacks<TData, TVariables, TQueryData> {
  * 1. onMutate: Cancel refetches, snapshot cache, apply optimistic update
  * 2. onError: Rollback cache to previous value on failure
  * 3. onSettled: Invalidate query to refetch fresh data
+ *
+ * @experimental This API is experimental and may change in future versions.
+ * Use with caution in production code.
  *
  * @param config - Configuration for the optimistic update
  * @returns Object containing onMutate, onError, and onSettled callbacks
@@ -205,6 +208,9 @@ export function createOptimisticUpdate<
  * Creates optimistic update callbacks that work with multiple query keys.
  *
  * Useful when a mutation affects multiple cached queries.
+ *
+ * @experimental This API is experimental and may change in future versions.
+ * Use with caution in production code.
  *
  * @param configs - Array of optimistic update configurations
  * @returns Combined callbacks that handle all specified queries

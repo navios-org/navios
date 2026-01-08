@@ -1,5 +1,4 @@
 import type {
-  BaseEndpointConfig,
   BaseEndpointOptions,
   EndpointOptions,
   InferEndpointParams,

@@ -1,6 +1,6 @@
 {
   "name": "@navios/react-query",
-  "version": "1.0.0-alpha.1",
+  "version": "1.0.0",
   "author": {
     "name": "Oleksandr Hanzha",
     "email": "alex@granted.name"

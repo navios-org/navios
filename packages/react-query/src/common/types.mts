@@ -25,6 +25,25 @@ export type ProcessResponseFunction<TData = unknown, TVariables = unknown> = (
 ) => Promise<TData> | TData
 
 /**
+ * Compute the response input type based on discriminator and error schema.
+ * When UseDiscriminator=true and errorSchema is present, errors are included as a union.
+ * When UseDiscriminator=false, only the success type is returned (errors are thrown).
+ *
+ * @template UseDiscriminator - Whether to include error types in the response union
+ * @template ResponseSchema - The success response schema
+ * @template ErrorSchema - The error schema record (optional)
+ */
+export type ComputeResponseInput<
+  UseDiscriminator extends boolean,
+  ResponseSchema extends ZodType,
+  ErrorSchema extends ErrorSchemaRecord | undefined,
+> = UseDiscriminator extends true
+  ? ErrorSchema extends ErrorSchemaRecord
+    ? z.output<ResponseSchema> | InferErrorSchemaOutput<ErrorSchema>
+    : z.output<ResponseSchema>
+  : z.output<ResponseSchema>
+
+/**
  * Options for creating a client instance.
  *
  * @template UseDiscriminator - When `true`, errors are returned as union types.

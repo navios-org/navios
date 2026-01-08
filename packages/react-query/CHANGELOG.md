@@ -1,10 +1,20 @@
 # Changelog
 
-## [1.0.0-alpha.1] - 2026-01-07
+## [1.0.0] - 2026-01-08
 
 ### Highlights
 
 This is the first stable release of `@navios/react-query`. It includes major improvements to type safety, new helpers for common patterns like optimistic updates and SSR prefetching, and full support for discriminated union error handling.
+
+### Changed
+
+- **Optimistic Update Helpers Marked Experimental**: `createOptimisticUpdate` and `createMultiOptimisticUpdate` are now marked as `@experimental`. These APIs may change in future versions - use manual optimistic update patterns for production code until these helpers stabilize.
+
+## [1.0.0-alpha.1] - 2026-01-07
+
+### Highlights
+
+This was a pre-release version of `@navios/react-query`.
 
 ### Breaking Changes
 

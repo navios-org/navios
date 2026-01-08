@@ -70,7 +70,7 @@ describe('ClientInstance<false> infiniteQuery() method', () => {
         url: '/users',
         querySchema,
         responseSchema,
-        getNextPageParam: (lastPage, allPages, lastPageParam, allPageParams) =>
+        getNextPageParam: (_lastPage, _allPages, _lastPageParam, _allPageParams) =>
           undefined,
       })
 
