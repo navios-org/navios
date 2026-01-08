@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.0-alpha.3] - 2026-01-08
+
+### Added
+
+- **Comprehensive Test Suite**: Added unit tests for hooks
+  - `use-scope.spec.mts` - Scope hook tests
+  - Extended `use-container.spec.mts` with additional test cases
+
+### Fixed
+
+- **Improved Warning Message**: Changed `useService` args instability warning from `console.log` to `console.warn`
+  - Better semantic meaning for warning messages
+  - Improved message formatting and readability
+
+### Dependencies
+
+- Updated to support `@navios/di` ^1.0.0-alpha.3
+
 ## [0.9.0] - 2025-12-23
 
 ### Breaking Changes

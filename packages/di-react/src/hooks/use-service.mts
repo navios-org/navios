@@ -130,13 +130,12 @@ export function useService(
     useEffect(() => {
       if (argsRef.current !== args) {
         if (JSON.stringify(argsRef.current) === JSON.stringify(args)) {
-          console.log(`WARNING: useService called with args that look the same but are different instances: ${JSON.stringify(argsRef.current)} !== ${JSON.stringify(args)}!
-          This is likely because you are using not memoized value that is not stable.
-          Please use a memoized value or use a different approach to pass the args.
-          Example:
-          const args = useMemo(() => ({ userId: '123' }), [])
-          return useService(UserToken, args)
-          `)
+          console.warn(`useService called with args that look the same but are different instances: ${JSON.stringify(argsRef.current)} !== ${JSON.stringify(args)}!
+This is likely because you are using a value that is not memoized.
+Please use a memoized value or use a different approach to pass the args.
+Example:
+  const args = useMemo(() => ({ userId: '123' }), [])
+  return useService(UserToken, args)`)
         }
         argsRef.current = args
       }
