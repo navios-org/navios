@@ -171,7 +171,7 @@ export const JwtServiceOptionsSchema = z.object({
         z.any(),
         z.union([SignOptionsSchema, VerifyOptionsSchema]).optional(),
       ],
-      output: z.union([SecretSchema, z.promise(SecretSchema)]),
+      output: SecretSchema,
     })
     .optional(),
 })

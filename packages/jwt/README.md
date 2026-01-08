@@ -152,7 +152,7 @@ const token = jwtService.sign(
   { expiresIn: '1h' }
 )
 
-// Asynchronous signing (for async key providers)
+// Asynchronous signing
 const token = await jwtService.signAsync(
   { userId: '123', role: 'admin' },
   { expiresIn: '1h' }
@@ -174,7 +174,7 @@ try {
   }
 }
 
-// Asynchronous verification (for async key providers)
+// Asynchronous verification
 try {
   const payload = await jwtService.verifyAsync<{ userId: string }>(token)
   console.log(payload.userId)
@@ -236,7 +236,7 @@ interface JwtServiceOptions {
     requestType: RequestType,
     token?: string,
     options?: SignOptions | VerifyOptions,
-  ) => Secret | Promise<Secret>
+  ) => Secret
 }
 ```
 
@@ -263,23 +263,21 @@ The library exports error classes from the underlying `jsonwebtoken` library:
 
 1. **Always use `verify()` or `verifyAsync()`** for production code. Never use `decode()` for security-sensitive operations.
 
-2. **Use async methods** when using `secretOrKeyProvider` that returns a Promise.
-
-3. **Specify allowed algorithms** in `verifyOptions` to prevent algorithm confusion attacks:
+2. **Specify allowed algorithms** in `verifyOptions` to prevent algorithm confusion attacks:
    ```typescript
    verifyOptions: {
      algorithms: ['HS256', 'RS256'], // Explicitly allow only these algorithms
    }
    ```
 
-4. **Set appropriate expiration times** based on your security requirements:
+3. **Set appropriate expiration times** based on your security requirements:
    ```typescript
    signOptions: {
      expiresIn: '15m', // Short-lived access tokens
    }
    ```
 
-5. **Use asymmetric keys** for distributed systems where public keys can be shared:
+4. **Use asymmetric keys** for distributed systems where public keys can be shared:
    ```typescript
    // Sign with private key
    privateKey: fs.readFileSync('private.pem')
