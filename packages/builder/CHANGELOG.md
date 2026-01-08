@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.0.0] - 2026-01-08
+
+### Fixed
+
+- **FormData BigInt Serialization**: Fixed `bigint` value serialization in `makeFormData` to properly convert to string alongside `number` and `boolean` types
+
 ## [1.0.0-alpha.2] - 2026-01-07
 
 ### Changed

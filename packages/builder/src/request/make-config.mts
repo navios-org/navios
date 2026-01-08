@@ -112,7 +112,11 @@ function serializeFormDataValue(value: unknown): string | File {
   if (typeof value === 'string') {
     return value
   }
-  if (typeof value === 'number' || typeof value === 'boolean') {
+  if (
+    typeof value === 'bigint' ||
+    typeof value === 'number' ||
+    typeof value === 'boolean'
+  ) {
     return String(value)
   }
   if (value instanceof Date) {
@@ -121,9 +125,6 @@ function serializeFormDataValue(value: unknown): string | File {
   if (typeof value === 'object') {
     if ('toISOString' in value && typeof value.toISOString === 'function') {
       return value.toISOString()
-    }
-    if (typeof value === 'bigint') {
-      return String(value)
     }
     // For toJSON:
     if ('toJSON' in value && typeof value.toJSON === 'function') {
