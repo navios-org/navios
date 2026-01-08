@@ -3,11 +3,11 @@ import type {
   ClassTypeWithInstance,
   InjectionToken,
 } from '@navios/di'
+import { createClassContext, createMethodContext } from '@navios/di/legacy-compat'
 
 import type { CanActivate } from '../../interfaces/index.mjs'
 
 import { UseGuards as OriginalUseGuards } from '../../decorators/use-guards.decorator.mjs'
-import { createClassContext, createMethodContext } from '../context-compat.mjs'
 
 /**
  * Legacy-compatible UseGuards decorator.

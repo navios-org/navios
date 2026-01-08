@@ -3,9 +3,9 @@ import type {
   RequestArgs,
   StreamHandler,
 } from '@navios/builder'
+import { createMethodContext } from '@navios/di/legacy-compat'
 
 import { Stream as OriginalStream } from '../../decorators/stream.decorator.mjs'
-import { createMethodContext } from '../context-compat.mjs'
 
 /**
  * Type helper to constrain a PropertyDescriptor's value to match a stream endpoint signature.

@@ -1,5 +1,6 @@
-import type { z, ZodType } from 'zod/v4'
 import type { ClassType } from '@navios/di'
+import { createClassContext, createMethodContext } from '@navios/di/legacy-compat'
+import type { z, ZodType } from 'zod/v4'
 
 import type {
   ControllerMetadata,
@@ -18,7 +19,6 @@ import {
   getManagedMetadata,
   hasManagedMetadata,
 } from '../metadata/navios-managed.metadata.mjs'
-import { createClassContext, createMethodContext } from './context-compat.mjs'
 
 /**
  * Type for a legacy class/method attribute decorator without a value.

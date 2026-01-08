@@ -6,6 +6,6 @@ export * from './header.decorator.mjs'
 export * from './http-code.decorator.mjs'
 export * from './multipart.decorator.mjs'
 export * from './stream.decorator.mjs'
-export * from './injectable.decorator.mjs'
-export * from './factory.decorator.mjs'
 
+// Re-export DI decorators from @navios/di/legacy-compat
+export { Injectable, Factory, type InjectableOptions, type FactoryOptions } from '@navios/di/legacy-compat'

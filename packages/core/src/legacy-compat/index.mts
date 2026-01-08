@@ -26,7 +26,7 @@ export type {
   StreamParams,
 } from '../decorators/index.mjs'
 
-// Export legacy-compatible decorators
+// Export legacy-compatible decorators (core-specific)
 export {
   Module,
   Controller,
@@ -36,9 +36,17 @@ export {
   HttpCode,
   Multipart,
   Stream,
+} from './decorators/index.mjs'
+
+// Re-export DI decorators and context utilities from @navios/di/legacy-compat
+export {
   Injectable,
   Factory,
-} from './decorators/index.mjs'
+  createClassContext,
+  createMethodContext,
+  type InjectableOptions,
+  type FactoryOptions,
+} from '@navios/di/legacy-compat'
 
 // Export legacy-compatible AttributeFactory
 export {
@@ -47,6 +55,3 @@ export {
   type LegacyClassAttribute,
   type LegacyClassSchemaAttribute,
 } from './attribute.factory.mjs'
-
-// Export context compatibility utilities
-export * from './context-compat.mjs'

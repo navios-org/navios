@@ -5,6 +5,42 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.0-alpha.3] - 2026-01-08
+
+### Added
+
+- **Abstract Handler Adapter Base Class**: New `AbstractHandlerAdapterService` base class for HTTP handler adapters
+  - Provides shared logic for controller resolution (singleton vs request-scoped)
+  - Automatic sync/async detection for argument formatting
+  - Standardized handler generation with static/dynamic branching
+  - Supports all adapter types: endpoint, stream, and multipart
+- **New Handler Adapter Types**: Exported types for adapter implementations
+  - `ArgumentGetterFn<TRequest>` - Function type for extracting data from requests
+  - `FormatArgumentsFn<TRequest>` - Function type for formatting arguments
+  - `AbstractStaticHandler<TRequest, TReply>` - Static handler type for singleton controllers
+  - `AbstractDynamicHandler<TRequest, TReply>` - Dynamic handler type for request-scoped controllers
+  - `AbstractHandlerResult<TRequest, TReply>` - Union type for handler results
+  - `HandlerContext<TConfig>` - Context passed to handler creation methods
+- **Enhanced Handler Adapter Interface**: Extended `AbstractHttpHandlerAdapterInterface` with new optional methods
+  - `buildFormatArguments()` - Builds optimized formatArguments function from getters
+  - `hasSchema()` - Checks if handler has validation schemas
+  - `provideSchema()` - Provides schema information for framework registration
+
+### Changed
+
+- **Legacy-Compat DI Re-exports**: `Injectable`, `Factory`, `createClassContext`, and `createMethodContext` are now re-exported from `@navios/di/legacy-compat` instead of being defined locally
+  - Removes code duplication between core and di packages
+  - Ensures consistent behavior across the framework
+
+### Removed
+
+- **Local DI Decorators**: Removed local `Injectable` and `Factory` decorator implementations from legacy-compat (now imported from `@navios/di/legacy-compat`)
+- **Context Compat Module**: Removed `context-compat.mts` module (functionality moved to `@navios/di`)
+
+### Dependencies
+
+- Updated to support `@navios/di` with legacy-compat exports
+
 ## [1.0.0-alpha.2] - 2026-01-07
 
 ### Added

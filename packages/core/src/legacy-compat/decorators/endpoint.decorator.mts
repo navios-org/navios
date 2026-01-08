@@ -3,10 +3,10 @@ import type {
   EndpointOptions,
   RequestArgs,
 } from '@navios/builder'
+import { createMethodContext } from '@navios/di/legacy-compat'
 import type { z } from 'zod/v4'
 
 import { Endpoint as OriginalEndpoint } from '../../decorators/endpoint.decorator.mjs'
-import { createMethodContext } from '../context-compat.mjs'
 
 /**
  * Type helper to constrain a PropertyDescriptor's value to match an endpoint signature.

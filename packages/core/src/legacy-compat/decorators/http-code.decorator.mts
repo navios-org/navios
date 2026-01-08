@@ -1,5 +1,6 @@
+import { createMethodContext } from '@navios/di/legacy-compat'
+
 import { HttpCode as OriginalHttpCode } from '../../decorators/http-code.decorator.mjs'
-import { createMethodContext } from '../context-compat.mjs'
 
 /**
  * Legacy-compatible HttpCode decorator.

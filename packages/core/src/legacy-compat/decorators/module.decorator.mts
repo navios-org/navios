@@ -1,7 +1,7 @@
 import type { ClassType } from '@navios/di'
+import { createClassContext } from '@navios/di/legacy-compat'
 
 import { Module as OriginalModule, type ModuleOptions } from '../../decorators/module.decorator.mjs'
-import { createClassContext } from '../context-compat.mjs'
 
 /**
  * Legacy-compatible Module decorator.

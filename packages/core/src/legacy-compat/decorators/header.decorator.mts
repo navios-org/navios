@@ -1,7 +1,8 @@
+import { createMethodContext } from '@navios/di/legacy-compat'
+
 import type { HttpHeader } from '../../interfaces/index.mjs'
 
 import { Header as OriginalHeader } from '../../decorators/header.decorator.mjs'
-import { createMethodContext } from '../context-compat.mjs'
 
 /**
  * Legacy-compatible Header decorator.
