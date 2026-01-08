@@ -339,7 +339,6 @@ describe.skipIf(!isGCAvailable)('GC: Circular Dependencies', () => {
   })
 
   describe('Mixed scope circular dependencies', () => {
-    // TODO: Circular deps between singleton and request scope cause issues with GC
     it('should handle circular deps between singleton and request scope', async () => {
       @Injectable({ registry })
       class SingletonService {

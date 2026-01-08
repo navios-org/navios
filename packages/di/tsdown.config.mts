@@ -5,7 +5,7 @@ import swc from 'unplugin-swc'
 export default defineConfig([
   // Node.js build (default)
   {
-    entry: ['src/index.mts', 'src/testing/index.mts'],
+    entry: ['src/index.mts', 'src/testing/index.mts', 'src/legacy-compat/index.mts'],
     outDir: 'lib',
     format: ['esm', 'cjs'],
     clean: true,

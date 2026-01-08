@@ -116,15 +116,6 @@ describe('Scope Upgrade: Simple Singleton -> Request', () => {
       await scoped2.endRequest()
     })
 
-    // TODO: BUG DISCOVERED - After scope upgrade, the holder is not properly
-    // stored in request storage, causing each resolution to create a new instance.
-    // The ScopeTracker.checkAndUpgradeScope() is called from ServiceInitializationContext
-    // which runs DURING the first instance creation. By that time, the holder is
-    // already in singleton storage and the upgrade logic in instance-resolver.mts
-    // doesn't properly move it to request storage for subsequent lookups.
-    //
-    // Fix: The InstanceResolver should check if the scope was upgraded during
-    // resolution and re-store the holder with the correct requestId-based name.
     it('should return same instance within the same request after upgrade', async () => {
       @Injectable({ scope: InjectableScope.Request, registry })
       class RequestService {
@@ -335,15 +326,6 @@ describe('Scope Upgrade: Complex Chains', () => {
   })
 
   describe('Multiple Singletons depending on same Request service', () => {
-    // TODO: BUG DISCOVERED - Each Singleton is resolved independently.
-    // The first one (SingletonA) gets resolved and upgraded during its injection.
-    // The second one (SingletonB) should also be upgraded but the upgrade
-    // only happens when the Singleton's inject() resolves the Request-scoped dependency.
-    //
-    // This test reveals that each Singleton is upgraded independently when
-    // it first depends on a Request-scoped service. The test below verifies
-    // the first Singleton is upgraded but expects both to be upgraded after
-    // resolving both. In reality, each upgrade happens during its own resolution.
     it('should upgrade all dependent Singletons', async () => {
       @Injectable({ scope: InjectableScope.Request, registry })
       class SharedRequestService {

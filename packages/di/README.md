@@ -685,6 +685,34 @@ describe('UserService Unit Tests', () => {
 10. **Use TestContainer for integration tests** - Provides comprehensive assertion helpers and dependency graph inspection
 11. **Use UnitTestContainer for unit tests** - Provides strict isolation and automatic method call tracking
 
+## Legacy Decorator Support
+
+If you cannot use Stage 3 (native ES) decorators—for example, when working with existing TypeScript projects that have `experimentalDecorators` enabled, certain bundler configurations, or Bun—you can use the legacy-compatible decorators:
+
+```typescript
+import { Injectable, Factory } from '@navios/di/legacy-compat'
+import { inject, asyncInject, Container } from '@navios/di'
+
+@Injectable()
+class UserService {
+  private readonly db = inject(DatabaseService)
+}
+
+const container = new Container()
+const userService = await container.get(UserService)
+```
+
+### TypeScript Configuration for Legacy Decorators
+
+```json
+{
+  "compilerOptions": {
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true
+  }
+}
+```
+
 ## License
 
 MIT
