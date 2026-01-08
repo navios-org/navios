@@ -61,6 +61,24 @@ export class XmlStreamAdapterService implements AbstractHttpHandlerAdapterInterf
   }
 
   /**
+   * Builds a formatArguments function from argument getters.
+   *
+   * Proxies to the base stream adapter to reuse the optimized formatArguments
+   * logic that handles sync/async detection and empty args optimization.
+   *
+   * @param getters - Array of argument getter functions
+   * @returns Function to format arguments from request
+   */
+  buildFormatArguments(
+    getters: ((
+      target: Record<string, any>,
+      request: any,
+    ) => void | Promise<void>)[],
+  ) {
+    return this.streamAdapter.buildFormatArguments?.(getters) ?? (() => ({}))
+  }
+
+  /**
    * Provides schema information for the handler.
    *
    * Proxies to the base stream adapter to reuse existing schema generation logic.
@@ -120,8 +138,8 @@ export class XmlStreamAdapterService implements AbstractHttpHandlerAdapterInterf
     handlerMetadata: HandlerMetadata<BaseXmlStreamConfig>,
   ): Promise<HandlerResult> {
     const getters = this.prepareArguments(handlerMetadata)
+    const formatArguments = this.buildFormatArguments(getters)
     const config = handlerMetadata.config
-    const hasArguments = getters.length > 0
 
     const contentType = config.contentType ?? 'application/xml'
 
@@ -176,86 +194,15 @@ export class XmlStreamAdapterService implements AbstractHttpHandlerAdapterInterf
       encoding: config.encoding ?? 'UTF-8',
     }
 
-    // Branch based on hasArguments to skip formatArguments entirely when not needed
-    if (hasArguments) {
-      // Detect if any getter is async at registration time
-      const hasAsyncGetters = getters.some(
-        (g) => g.constructor.name === 'AsyncFunction',
-      )
-
-      const formatArguments = hasAsyncGetters
-        ? async (request: any) => {
-            const argument: Record<string, any> = {}
-            const promises: Promise<void>[] = []
-            for (const getter of getters) {
-              const res = getter(argument, request)
-              if (res instanceof Promise) {
-                promises.push(res)
-              }
-            }
-            await Promise.all(promises)
-            return argument
-          }
-        : (request: any) => {
-            const argument: Record<string, any> = {}
-            for (const getter of getters) {
-              getter(argument, request)
-            }
-            return argument
-          }
-
-      if (resolution.cached) {
-        const cachedController = resolution.instance as any
-        // Pre-bind method for faster invocation
-        const boundMethod = cachedController[methodName].bind(cachedController)
-        return {
-          isStatic: false,
-          handler: async (
-            context: ScopedContainer,
-            request: any,
-            reply: any,
-          ) => {
-            const argument = await formatArguments(request)
-            const xmlNode: AnyXmlNode = await boundMethod(argument)
-            const xml = await renderToXml(xmlNode, {
-              ...renderOptions,
-              container: context,
-            })
-            return sendResponse(xml, reply, headersTemplate)
-          },
-        }
-      }
-
-      return {
-        isStatic: false,
-        handler: async (context: ScopedContainer, request: any, reply: any) => {
-          const controllerInstance = (await resolution.resolve(context)) as any
-          const argument = await formatArguments(request)
-          const xmlNode: AnyXmlNode =
-            await controllerInstance[methodName](argument)
-          const xml = await renderToXml(xmlNode, {
-            ...renderOptions,
-            container: context,
-          })
-          return sendResponse(xml, reply, headersTemplate)
-        },
-      }
-    }
-
-    // No arguments path - skip formatArguments entirely
-    const emptyArgs = Object.freeze({})
     if (resolution.cached) {
       const cachedController = resolution.instance as any
       // Pre-bind method for faster invocation
       const boundMethod = cachedController[methodName].bind(cachedController)
       return {
         isStatic: false,
-        handler: async (
-          context: ScopedContainer,
-          _request: any,
-          reply: any,
-        ) => {
-          const xmlNode: AnyXmlNode = await boundMethod(emptyArgs)
+        handler: async (context: ScopedContainer, request: any, reply: any) => {
+          const argument = await formatArguments(request)
+          const xmlNode: AnyXmlNode = await boundMethod(argument)
           const xml = await renderToXml(xmlNode, {
             ...renderOptions,
             container: context,
@@ -267,10 +214,11 @@ export class XmlStreamAdapterService implements AbstractHttpHandlerAdapterInterf
 
     return {
       isStatic: false,
-      handler: async (context: ScopedContainer, _request: any, reply: any) => {
+      handler: async (context: ScopedContainer, request: any, reply: any) => {
         const controllerInstance = (await resolution.resolve(context)) as any
+        const argument = await formatArguments(request)
         const xmlNode: AnyXmlNode =
-          await controllerInstance[methodName](emptyArgs)
+          await controllerInstance[methodName](argument)
         const xml = await renderToXml(xmlNode, {
           ...renderOptions,
           container: context,
