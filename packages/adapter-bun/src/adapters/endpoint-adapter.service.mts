@@ -1,28 +1,17 @@
 import type { EndpointOptions } from '@navios/builder'
 import type {
-  ClassType,
+  AbstractDynamicHandler,
+  AbstractStaticHandler,
+  FormatArgumentsFn,
+  HandlerContext,
   HandlerMetadata,
-  NaviosApplicationOptions,
-  ScopedContainer,
+  InstanceResolution,
 } from '@navios/core'
 import type { BunRequest } from 'bun'
 
-import {
-  Injectable,
-  InjectionToken,
-  NaviosOptionsToken,
-  optional,
-} from '@navios/core'
+import { Injectable, InjectionToken } from '@navios/core'
 
-import type { BunHandlerResult } from './handler-adapter.interface.mjs'
-
-import { BunStreamAdapterService } from './stream-adapter.service.mjs'
-
-const defaultOptions: NaviosApplicationOptions = {
-  adapter: [],
-  validateResponses: true,
-  enableRequestId: false,
-}
+import { AbstractBunHandlerAdapterService } from './abstract-bun-handler-adapter.service.mjs'
 
 /**
  * Injection token for the Bun endpoint adapter service.
@@ -38,13 +27,13 @@ export const BunEndpointAdapterToken =
 /**
  * Adapter service for handling standard REST endpoint requests in Bun.
  *
- * This service extends `BunStreamAdapterService` and provides specialized
+ * This service extends `AbstractBunHandlerAdapterService` and provides specialized
  * handling for REST endpoints with request/response schema validation.
  * It automatically parses request bodies, query parameters, and URL parameters,
  * validates them against Zod schemas, and formats responses according to
  * response schemas.
  *
- * @extends {BunStreamAdapterService}
+ * @extends {AbstractBunHandlerAdapterService<EndpointOptions>}
  *
  * @example
  * ```ts
@@ -67,9 +56,7 @@ export const BunEndpointAdapterToken =
 @Injectable({
   token: BunEndpointAdapterToken,
 })
-export class BunEndpointAdapterService extends BunStreamAdapterService {
-  private options = optional(NaviosOptionsToken) ?? defaultOptions
-
+export class BunEndpointAdapterService extends AbstractBunHandlerAdapterService<EndpointOptions> {
   /**
    * Checks if the handler has any validation schemas defined.
    *
@@ -92,108 +79,77 @@ export class BunEndpointAdapterService extends BunStreamAdapterService {
    * For Bun adapter, this returns an empty object as Bun doesn't require
    * schema registration like some other frameworks.
    *
-   * @param handlerMetadata - The handler metadata containing configuration.
+   * @param _handlerMetadata - The handler metadata containing configuration.
    * @returns An empty schema object.
    */
   override provideSchema(
-    handlerMetadata: HandlerMetadata<EndpointOptions>,
+    _handlerMetadata: HandlerMetadata<EndpointOptions>,
   ): Record<string, any> {
-    // For Bun, no schema
     return {}
   }
 
   /**
-   * Creates a request handler function for the endpoint.
-   *
-   * This method generates a handler that:
-   * 1. Parses and validates request data (body, query, URL params)
-   * 2. Invokes the controller method with validated arguments
-   * 3. Validates and formats the response according to the response schema
-   * 4. Returns a properly formatted HTTP response
-   *
-   * @param controller - The controller class containing the handler method.
-   * @param handlerMetadata - The handler metadata with configuration and schemas.
-   * @returns A function that handles incoming requests and returns responses.
+   * Builds response headers with Content-Type: application/json.
    */
-  override async provideHandler(
-    controller: ClassType,
-    handlerMetadata: HandlerMetadata<EndpointOptions>,
-  ): Promise<BunHandlerResult> {
-    const getters = this.prepareArguments(handlerMetadata)
-    const hasArguments = getters.length > 0
+  protected override buildHeaders(
+    context: HandlerContext<EndpointOptions>,
+  ): Record<string, string> {
+    const headers = super.buildHeaders(context)
+    headers['Content-Type'] = 'application/json'
+    return headers
+  }
 
-    const responseSchema = handlerMetadata.config.responseSchema
-    const shouldValidate = this.options.validateResponses !== false
-    const formatResponse =
-      responseSchema && shouldValidate
-        ? (result: any) => responseSchema.parse(result)
-        : (result: any) => result
+  /**
+   * Creates a static handler for singleton controllers.
+   *
+   * @param boundMethod - Pre-bound controller method
+   * @param formatArguments - Function to format request arguments
+   * @param context - Handler context with metadata
+   * @returns Static handler result
+   */
+  protected override createStaticHandler(
+    boundMethod: (...args: any[]) => Promise<any>,
+    formatArguments: FormatArgumentsFn<BunRequest>,
+    context: HandlerContext<EndpointOptions>,
+  ): AbstractStaticHandler<BunRequest, void> {
+    const headers = this.buildHeaders(context)
+    const formatResponse = this.buildResponseFormatter(context)
+    const { statusCode } = context
 
-    // Cache method name for faster property access
-    const methodName = handlerMetadata.classMethod
-
-    // Pre-compute headers
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
+    return {
+      isStatic: true,
+      handler: this.wrapWithErrorHandling(async (request: BunRequest) => {
+        const argument = await formatArguments(request)
+        const result = await boundMethod(argument)
+        return new Response(JSON.stringify(formatResponse(result)), {
+          status: statusCode,
+          headers,
+        })
+      }),
     }
-    for (const [key, value] of Object.entries(handlerMetadata.headers)) {
-      headers[key] = String(value)
-    }
+  }
 
-    // Resolve controller with automatic scope detection
-    const resolution = await this.instanceResolver.resolve(controller)
+  /**
+   * Creates a dynamic handler for request-scoped controllers.
+   *
+   * @param resolution - Instance resolution with resolve function
+   * @param formatArguments - Function to format request arguments
+   * @param context - Handler context with metadata
+   * @returns Dynamic handler result
+   */
+  protected override createDynamicHandler(
+    resolution: InstanceResolution,
+    formatArguments: FormatArgumentsFn<BunRequest>,
+    context: HandlerContext<EndpointOptions>,
+  ): AbstractDynamicHandler<BunRequest, void> {
+    const headers = this.buildHeaders(context)
+    const formatResponse = this.buildResponseFormatter(context)
+    const { statusCode, methodName } = context
 
-    // Pre-compute status code
-    const statusCode = handlerMetadata.successStatusCode
-
-    // Branch based on hasArguments to skip formatArguments entirely when not needed
-    if (hasArguments) {
-      // Detect if any getter is async at registration time
-      const hasAsyncGetters = getters.some(
-        (g) => g.constructor.name === 'AsyncFunction',
-      )
-
-      const formatArguments = hasAsyncGetters
-        ? async (request: BunRequest) => {
-            const argument: Record<string, any> = {}
-            const promises: Promise<void>[] = []
-            for (const getter of getters) {
-              const res = getter(argument, request)
-              if (res instanceof Promise) {
-                promises.push(res)
-              }
-            }
-            await Promise.all(promises)
-            return argument
-          }
-        : (request: BunRequest) => {
-            const argument: Record<string, any> = {}
-            for (const getter of getters) {
-              getter(argument, request)
-            }
-            return argument
-          }
-
-      if (resolution.cached) {
-        const cachedController = resolution.instance as any
-        // Pre-bind method for faster invocation
-        const boundMethod = cachedController[methodName].bind(cachedController)
-        return {
-          isStatic: true,
-          handler: async (request: BunRequest) => {
-            const argument = await formatArguments(request)
-            const result = await boundMethod(argument)
-            return new Response(JSON.stringify(formatResponse(result)), {
-              status: statusCode,
-              headers,
-            })
-          },
-        }
-      }
-
-      return {
-        isStatic: false,
-        handler: async (scoped: ScopedContainer, request: BunRequest) => {
+    return {
+      isStatic: false,
+      handler: this.wrapWithErrorHandling(
+        async (scoped, request: BunRequest) => {
           const controllerInstance = (await resolution.resolve(scoped)) as any
           const argument = await formatArguments(request)
           const result = await controllerInstance[methodName](argument)
@@ -202,37 +158,19 @@ export class BunEndpointAdapterService extends BunStreamAdapterService {
             headers,
           })
         },
-      }
+      ),
     }
+  }
 
-    // No arguments path - skip formatArguments entirely
-    const emptyArgs = Object.freeze({})
-    if (resolution.cached) {
-      const cachedController = resolution.instance as any
-      // Pre-bind method for faster invocation
-      const boundMethod = cachedController[methodName].bind(cachedController)
-      return {
-        isStatic: true,
-        handler: async (_request: BunRequest) => {
-          const result = await boundMethod(emptyArgs)
-          return new Response(JSON.stringify(formatResponse(result)), {
-            status: statusCode,
-            headers,
-          })
-        },
-      }
-    }
+  /**
+   * Builds a response formatter with optional schema validation.
+   */
+  protected buildResponseFormatter(context: HandlerContext<EndpointOptions>) {
+    const responseSchema = context.handlerMetadata.config.responseSchema
+    const shouldValidate = this.options.validateResponses !== false
 
-    return {
-      isStatic: false,
-      handler: async (scoped: ScopedContainer, _request: BunRequest) => {
-        const controllerInstance = (await resolution.resolve(scoped)) as any
-        const result = await controllerInstance[methodName](emptyArgs)
-        return new Response(JSON.stringify(formatResponse(result)), {
-          status: statusCode,
-          headers,
-        })
-      },
-    }
+    return responseSchema && shouldValidate
+      ? (result: any) => responseSchema.parse(result)
+      : (result: any) => result
   }
 }

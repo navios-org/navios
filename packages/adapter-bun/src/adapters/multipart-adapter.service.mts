@@ -1,5 +1,5 @@
 import type { EndpointOptions } from '@navios/builder'
-import type { HandlerMetadata } from '@navios/core'
+import type { ArgumentGetter, HandlerMetadata } from '@navios/core'
 import type { BunRequest } from 'bun'
 
 import { Injectable, InjectionToken } from '@navios/core'
@@ -49,7 +49,7 @@ export const BunMultipartAdapterToken =
 })
 export class BunMultipartAdapterService extends BunEndpointAdapterService {
   /**
-   * Prepares argument getters for parsing multipart form data.
+   * Creates argument getters for parsing multipart form data.
    *
    * This method creates an array of functions that extract and validate
    * data from multipart requests, including:
@@ -63,17 +63,11 @@ export class BunMultipartAdapterService extends BunEndpointAdapterService {
    * @param handlerMetadata - The handler metadata with schemas and configuration.
    * @returns An array of getter functions that populate request arguments.
    */
-  override prepareArguments(
+  protected override createArgumentGetters(
     handlerMetadata: HandlerMetadata<EndpointOptions>,
-  ): ((
-    target: Record<string, any>,
-    request: BunRequest,
-  ) => void | Promise<void>)[] {
+  ): ArgumentGetter<BunRequest>[] {
     const config = handlerMetadata.config
-    const getters: ((
-      target: Record<string, any>,
-      request: BunRequest,
-    ) => void | Promise<void>)[] = []
+    const getters: ArgumentGetter<BunRequest>[] = []
 
     // Handle query parameters
     if (config.querySchema) {
@@ -85,7 +79,7 @@ export class BunMultipartAdapterService extends BunEndpointAdapterService {
     }
 
     // Handle URL parameters
-    if (config.url.includes('$')) {
+    if (this.hasUrlParams(config)) {
       getters.push((target, request) => {
         target.urlParams = request.params
       })
@@ -96,43 +90,32 @@ export class BunMultipartAdapterService extends BunEndpointAdapterService {
       const schema = config.requestSchema
       getters.push(async (target, request) => {
         const formData = await request.formData()
-        const formDataObject: Record<string, any> = {}
-
-        // Convert FormData to object
-        for (const [key, value] of formData.entries()) {
-          // @ts-expect-error - File is not defined in the global scope
-          if (value instanceof File) {
-            // Handle file uploads
-            if (formDataObject[key]) {
-              // If key already exists, convert to array
-              if (Array.isArray(formDataObject[key])) {
-                formDataObject[key].push(value)
-              } else {
-                formDataObject[key] = [formDataObject[key], value]
-              }
-            } else {
-              formDataObject[key] = value
-            }
-          } else {
-            // Handle text fields
-            if (formDataObject[key]) {
-              // If key already exists, convert to array
-              if (Array.isArray(formDataObject[key])) {
-                formDataObject[key].push(value)
-              } else {
-                formDataObject[key] = [formDataObject[key], value]
-              }
-            } else {
-              formDataObject[key] = value
-            }
-          }
-        }
-
-        // Parse with schema
+        const formDataObject = this.parseFormData(formData)
         target.data = schema.parse(formDataObject)
       })
     }
 
     return getters
+  }
+
+  /**
+   * Parses FormData into a plain object with array support for multiple values.
+   */
+  private parseFormData(formData: FormData): Record<string, any> {
+    const result: Record<string, any> = {}
+
+    for (const [key, value] of formData.entries()) {
+      if (result[key]) {
+        if (Array.isArray(result[key])) {
+          result[key].push(value)
+        } else {
+          result[key] = [result[key], value]
+        }
+      } else {
+        result[key] = value
+      }
+    }
+
+    return result
   }
 }

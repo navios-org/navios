@@ -5,6 +5,34 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.0-alpha.3] - 2026-01-08
+
+### Added
+
+- **Abstract Base Class**: New `AbstractBunHandlerAdapterService` base class for Bun adapters
+  - Provides shared argument parsing logic (query, body, URL params)
+  - Extends `AbstractHandlerAdapterService` from `@navios/core`
+  - Reduces code duplication across endpoint, stream, and multipart adapters
+- **Comprehensive Test Suite**: Added unit tests for all adapter services
+  - `cors.util.spec.mts` - CORS utility tests
+  - `endpoint-adapter.service.spec.mts` - Endpoint adapter tests
+  - `multipart-adapter.service.spec.mts` - Multipart adapter tests
+  - `stream-adapter.service.spec.mts` - Stream adapter tests
+
+### Changed
+
+- **Refactored Adapter Architecture**: All adapter services now extend the new abstract base class
+  - `BunEndpointAdapterService` extends `AbstractBunHandlerAdapterService`
+  - `BunStreamAdapterService` extends `AbstractBunHandlerAdapterService`
+  - `BunMultipartAdapterService` extends `BunEndpointAdapterService`
+- **Simplified Handler Creation**: Handler creation logic moved to base class with template method pattern
+  - Concrete adapters implement `createStaticHandler()` and `createDynamicHandler()`
+  - Common logic (argument preparation, controller resolution) handled by base class
+
+### Dependencies
+
+- Updated to support `@navios/core` ^1.0.0-alpha.3
+
 ## [1.0.0-alpha.2] - 2026-01-07
 
 ### Changed

@@ -1,18 +1,16 @@
 import type { BaseEndpointOptions } from '@navios/builder'
-import type { ClassType, HandlerMetadata, ScopedContainer } from '@navios/core'
+import type {
+  AbstractDynamicHandler,
+  AbstractStaticHandler,
+  FormatArgumentsFn,
+  HandlerContext,
+  InstanceResolution,
+} from '@navios/core'
 import type { BunRequest } from 'bun'
 
-import {
-  inject,
-  Injectable,
-  InjectionToken,
-  InstanceResolverService,
-} from '@navios/core'
+import { Injectable, InjectionToken } from '@navios/core'
 
-import type {
-  BunHandlerAdapterInterface,
-  BunHandlerResult,
-} from './handler-adapter.interface.mjs'
+import { AbstractBunHandlerAdapterService } from './abstract-bun-handler-adapter.service.mjs'
 
 /**
  * Injection token for the Bun stream adapter service.
@@ -28,11 +26,11 @@ export const BunStreamAdapterToken =
 /**
  * Adapter service for handling streaming requests and responses in Bun.
  *
- * This service provides the base functionality for handling HTTP requests
- * with streaming capabilities. It handles request parsing, argument preparation,
- * and response formatting for stream-based endpoints.
+ * This service extends `AbstractBunHandlerAdapterService` and provides
+ * handling for stream-based endpoints. Handlers receive a streamWriter
+ * stub and can return Response objects directly for streaming.
  *
- * @implements {BunHandlerAdapterInterface}
+ * @extends {AbstractBunHandlerAdapterService<BaseEndpointOptions>}
  *
  * @example
  * ```ts
@@ -52,155 +50,66 @@ export const BunStreamAdapterToken =
 @Injectable({
   token: BunStreamAdapterToken,
 })
-export class BunStreamAdapterService implements BunHandlerAdapterInterface {
-  protected instanceResolver = inject(InstanceResolverService)
-
+export class BunStreamAdapterService extends AbstractBunHandlerAdapterService<BaseEndpointOptions> {
   /**
-   * Checks if the handler has any validation schemas defined.
+   * Creates a static handler for singleton controllers.
    *
-   * @param handlerMetadata - The handler metadata containing configuration.
-   * @returns `true` if the handler has request or query schemas.
+   * Passes a streamWriter stub as the second argument to the controller method.
+   *
+   * @param boundMethod - Pre-bound controller method
+   * @param formatArguments - Function to format request arguments
+   * @param context - Handler context with metadata
+   * @returns Static handler result
    */
-  hasSchema(handlerMetadata: HandlerMetadata<BaseEndpointOptions>): boolean {
-    const config = handlerMetadata.config
-    return !!config.requestSchema || !!config.querySchema
+  protected override createStaticHandler(
+    boundMethod: (...args: any[]) => Promise<any>,
+    formatArguments: FormatArgumentsFn<BunRequest>,
+    context: HandlerContext<BaseEndpointOptions>,
+  ): AbstractStaticHandler<BunRequest, void> {
+    const headersTemplate = this.buildHeaders(context)
+    const handleStreamResult = this.createStreamResultHandler(
+      context,
+      headersTemplate,
+    )
+    const streamWriter = this.createStreamWriter()
+
+    return {
+      isStatic: true,
+      handler: this.wrapWithErrorHandling(async (request: BunRequest) => {
+        const argument = await formatArguments(request)
+        const result = await boundMethod(argument, streamWriter)
+        return handleStreamResult(result)
+      }),
+    }
   }
 
   /**
-   * Prepares argument getters for parsing request data.
+   * Creates a dynamic handler for request-scoped controllers.
    *
-   * This method creates an array of functions that extract and validate
-   * data from the request (query parameters, request body, URL parameters).
-   * Each getter function populates a target object with validated data.
+   * Passes a streamWriter stub as the second argument to the controller method.
    *
-   * @param handlerMetadata - The handler metadata with schemas and configuration.
-   * @returns An array of getter functions that populate request arguments.
+   * @param resolution - Instance resolution with resolve function
+   * @param formatArguments - Function to format request arguments
+   * @param context - Handler context with metadata
+   * @returns Dynamic handler result
    */
-  prepareArguments(handlerMetadata: HandlerMetadata<BaseEndpointOptions>) {
-    const config = handlerMetadata.config
-    const getters: ((
-      target: Record<string, any>,
-      request: BunRequest,
-    ) => void | Promise<void>)[] = []
-    if (config.querySchema) {
-      const schema = config.querySchema
-      getters.push((target, request) => {
-        const url = new URL(request.url)
-        target.params = schema.parse(Object.fromEntries(url.searchParams))
-      })
-    }
-    if (config.requestSchema) {
-      const schema = config.requestSchema
-      getters.push(async (target, request) => {
-        target.data = schema.parse(await request.json())
-      })
-    }
-    if (config.url.includes('$')) {
-      getters.push((target, request) => {
-        target.urlParams = request.params
-      })
-    }
+  protected override createDynamicHandler(
+    resolution: InstanceResolution,
+    formatArguments: FormatArgumentsFn<BunRequest>,
+    context: HandlerContext<BaseEndpointOptions>,
+  ): AbstractDynamicHandler<BunRequest, void> {
+    const headersTemplate = this.buildHeaders(context)
+    const handleStreamResult = this.createStreamResultHandler(
+      context,
+      headersTemplate,
+    )
+    const streamWriter = this.createStreamWriter()
+    const { methodName } = context
 
-    return getters
-  }
-
-  /**
-   * Creates a request handler function for streaming endpoints.
-   *
-   * This method generates a handler that:
-   * 1. Parses and validates request data (body, query, URL params)
-   * 2. Invokes the controller method with validated arguments
-   * 3. Handles streaming responses (Response objects or raw data)
-   * 4. Returns a properly formatted HTTP response
-   *
-   * @param controller - The controller class containing the handler method.
-   * @param handlerMetadata - The handler metadata with configuration and schemas.
-   * @returns A function that handles incoming requests and returns responses.
-   */
-  async provideHandler(
-    controller: ClassType,
-    handlerMetadata: HandlerMetadata<BaseEndpointOptions>,
-  ): Promise<BunHandlerResult> {
-    const getters = this.prepareArguments(handlerMetadata)
-    const hasArguments = getters.length > 0
-
-    // Cache method name for faster property access
-    const methodName = handlerMetadata.classMethod
-
-    // Pre-compute headers
-    const headersTemplate: Record<string, string> = {}
-    for (const [key, value] of Object.entries(handlerMetadata.headers)) {
-      headersTemplate[key] = String(value)
-    }
-
-    // Helper to handle stream response
-    const handleStreamResult = (result: any) => {
-      if (result instanceof Response) {
-        for (const [key, value] of Object.entries(headersTemplate)) {
-          result.headers.set(key, value)
-        }
-        return result
-      }
-      return new Response(result, {
-        status: handlerMetadata.successStatusCode,
-        headers: headersTemplate,
-      })
-    }
-
-    // Resolve controller with automatic scope detection
-    const resolution = await this.instanceResolver.resolve(controller)
-
-    // Stream writer stub
-    const streamWriter = {
-      write: (_data: any) => {},
-      end: () => {},
-    }
-
-    // Branch based on hasArguments to skip formatArguments entirely when not needed
-    if (hasArguments) {
-      // Detect if any getter is async at registration time
-      const hasAsyncGetters = getters.some(
-        (g) => g.constructor.name === 'AsyncFunction',
-      )
-
-      const formatArguments = hasAsyncGetters
-        ? async (request: BunRequest) => {
-            const argument: Record<string, any> = {}
-            const promises: Promise<void>[] = []
-            for (const getter of getters) {
-              const res = getter(argument, request)
-              if (res instanceof Promise) {
-                promises.push(res)
-              }
-            }
-            await Promise.all(promises)
-            return argument
-          }
-        : (request: BunRequest) => {
-            const argument: Record<string, any> = {}
-            for (const getter of getters) {
-              getter(argument, request)
-            }
-            return argument
-          }
-
-      if (resolution.cached) {
-        const cachedController = resolution.instance as any
-        // Pre-bind method for faster invocation
-        const boundMethod = cachedController[methodName].bind(cachedController)
-        return {
-          isStatic: true,
-          handler: async (request: BunRequest) => {
-            const argument = await formatArguments(request)
-            const result = await boundMethod(argument, streamWriter)
-            return handleStreamResult(result)
-          },
-        }
-      }
-
-      return {
-        isStatic: false,
-        handler: async (scoped: ScopedContainer, request: BunRequest) => {
+    return {
+      isStatic: false,
+      handler: this.wrapWithErrorHandling(
+        async (scoped, request: BunRequest) => {
           const controllerInstance = (await resolution.resolve(scoped)) as any
           const argument = await formatArguments(request)
           const result = await controllerInstance[methodName](
@@ -209,50 +118,41 @@ export class BunStreamAdapterService implements BunHandlerAdapterInterface {
           )
           return handleStreamResult(result)
         },
-      }
-    }
-
-    // No arguments path - skip formatArguments entirely
-    const emptyArgs = Object.freeze({})
-    if (resolution.cached) {
-      const cachedController = resolution.instance as any
-      // Pre-bind method for faster invocation
-      const boundMethod = cachedController[methodName].bind(cachedController)
-      return {
-        isStatic: true,
-        handler: async (_request: BunRequest) => {
-          const result = await boundMethod(emptyArgs, streamWriter)
-          return handleStreamResult(result)
-        },
-      }
-    }
-
-    return {
-      isStatic: false,
-      handler: async (scoped: ScopedContainer, _request: BunRequest) => {
-        const controllerInstance = (await resolution.resolve(scoped)) as any
-        const result = await controllerInstance[methodName](
-          emptyArgs,
-          streamWriter,
-        )
-        return handleStreamResult(result)
-      },
+      ),
     }
   }
 
   /**
-   * Provides schema information for the handler.
-   *
-   * For Bun adapter, this returns an empty object as Bun doesn't require
-   * schema registration like some other frameworks.
-   *
-   * @param _handlerMetadata - The handler metadata containing configuration.
-   * @returns An empty schema object.
+   * Creates a stream writer stub for Bun.
    */
-  provideSchema(
-    _handlerMetadata: HandlerMetadata<BaseEndpointOptions>,
-  ): Record<string, any> {
-    // For Bun, no schema, return empty
-    return {}
+  protected createStreamWriter() {
+    return {
+      write: (_data: any) => {},
+      end: () => {},
+    }
+  }
+
+  /**
+   * Creates a handler for stream results.
+   *
+   * If the result is a Response, adds custom headers.
+   * Otherwise, wraps the result in a new Response.
+   */
+  protected createStreamResultHandler(
+    context: HandlerContext<BaseEndpointOptions>,
+    headersTemplate: Record<string, string>,
+  ) {
+    return (result: any) => {
+      if (result instanceof Response) {
+        for (const [key, value] of Object.entries(headersTemplate)) {
+          result.headers.set(key, value)
+        }
+        return result
+      }
+      return new Response(result, {
+        status: context.statusCode,
+        headers: headersTemplate,
+      })
+    }
   }
 }
