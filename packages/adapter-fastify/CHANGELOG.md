@@ -5,22 +5,40 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.0.0-alpha.3] - 2026-01-08
 
 ### Added
 
 - **Custom Validator Compiler**: Added `FastifyValidatorCompilerService` to handle Zod v4 schema validation using `zod/v4/core` APIs
   - Uses `safeParse` from `zod/v4/core` for schema validation
   - Properly returns Zod errors for validation failures
+- **Abstract Base Class**: New `AbstractFastifyHandlerAdapterService` base class for Fastify adapters
+  - Provides shared argument parsing logic (query, body, URL params)
+  - Extends `AbstractHandlerAdapterService` from `@navios/core`
+  - Reduces code duplication across endpoint, stream, and multipart adapters
+- **Comprehensive Test Suite**: Added unit tests for all services
+  - `application.service.spec.mts` - Application service tests
+  - `endpoint-adapter.service.spec.mts` - Endpoint adapter tests
+  - `multipart-adapter.service.spec.mts` - Multipart adapter tests
+  - `stream-adapter.service.spec.mts` - Stream adapter tests
+  - `validator-compiler.service.spec.mts` - Validator compiler tests
 
 ### Changed
 
 - **Zod v4 Core Support**: Updated error handling to support both `ZodError` and `$ZodError` from `zod/v4/core`
 - **Validator Compiler**: Replaced `fastify-type-provider-zod` validator compiler with custom `FastifyValidatorCompilerService`
+- **Refactored Adapter Architecture**: All adapter services now extend the new abstract base class
+  - `FastifyEndpointAdapterService` extends `FastifyStreamAdapterService`
+  - `FastifyStreamAdapterService` extends `AbstractFastifyHandlerAdapterService`
+  - `FastifyMultipartAdapterService` extends `FastifyEndpointAdapterService`
+- **Simplified Handler Creation**: Handler creation logic moved to base class with template method pattern
+  - Concrete adapters implement `createStaticHandler()` and `createDynamicHandler()`
+  - Common logic (argument preparation, controller resolution) handled by base class
 
 ### Dependencies
 
 - Changed peer dependency from `@navios/di` to `@navios/builder`
+- Updated to support `@navios/core` ^1.0.0-alpha.3
 
 ## [1.0.0-alpha.2] - 2026-01-07
 

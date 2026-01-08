@@ -1,6 +1,6 @@
 import type { MultipartFile, MultipartValue } from '@fastify/multipart'
 import type { EndpointOptions } from '@navios/builder'
-import type { HandlerMetadata } from '@navios/core'
+import type { ArgumentGetter, HandlerMetadata } from '@navios/core'
 import type { FastifyRequest } from 'fastify'
 import type { ZodRawShape } from 'zod/v4'
 
@@ -53,7 +53,7 @@ export const FastifyMultipartAdapterToken =
 })
 export class FastifyMultipartAdapterService extends FastifyEndpointAdapterService {
   /**
-   * Prepares argument getters for parsing multipart form data.
+   * Creates argument getters for parsing multipart form data.
    *
    * This method creates an array of functions that extract and validate
    * data from multipart requests, including:
@@ -67,27 +67,28 @@ export class FastifyMultipartAdapterService extends FastifyEndpointAdapterServic
    * @param handlerMetadata - The handler metadata with schemas and configuration.
    * @returns An array of getter functions that populate request arguments.
    */
-  prepareArguments(
+  protected override createArgumentGetters(
     handlerMetadata: HandlerMetadata<EndpointOptions>,
-  ): ((target: Record<string, any>, request: FastifyRequest) => void)[] {
+  ): ArgumentGetter<FastifyRequest>[] {
     const config = handlerMetadata.config
-    const getters: ((
-      target: Record<string, any>,
-      request: FastifyRequest,
-    ) => void | Promise<void>)[] = []
+    const getters: ArgumentGetter<FastifyRequest>[] = []
+
     if (config.querySchema) {
       getters.push((target, request) => {
         target.params = request.query
       })
     }
-    if (config.url.includes('$')) {
+
+    if (this.hasUrlParams(config)) {
       getters.push((target, request) => {
         target.urlParams = request.params
       })
     }
+
     const requestSchema = config.requestSchema as unknown as ZodObject
     const shape = requestSchema._zod.def.shape
     const structure = this.analyzeSchema(shape)
+
     getters.push(async (target, request) => {
       const req: Record<string, any> = {}
       for await (const part of request.parts()) {
@@ -97,6 +98,35 @@ export class FastifyMultipartAdapterService extends FastifyEndpointAdapterServic
     })
 
     return getters
+  }
+
+  /**
+   * Provides Fastify schema information for multipart handlers.
+   *
+   * Creates a Fastify route schema object that includes query string and
+   * response schemas. Note that multipart body schemas are handled separately
+   * during request parsing.
+   *
+   * @param handlerMetadata - The handler metadata containing configuration and schemas.
+   * @returns A Fastify route schema object.
+   */
+  override provideSchema(
+    handlerMetadata: HandlerMetadata<EndpointOptions>,
+  ): Record<string, any> {
+    const schema: Record<string, any> = {}
+    const { querySchema, responseSchema } = handlerMetadata.config
+
+    if (querySchema) {
+      schema.querystring = querySchema
+    }
+    if (this.options.validateResponses && responseSchema) {
+      schema.response = {
+        ...handlerMetadata.config.errorSchema,
+        200: responseSchema,
+      }
+    }
+
+    return schema
   }
 
   /**
@@ -185,34 +215,5 @@ export class FastifyMultipartAdapterService extends FastifyEndpointAdapterServic
         { isArray: boolean; isOptional: boolean; isObject: boolean }
       >,
     )
-  }
-
-  /**
-   * Provides Fastify schema information for multipart handlers.
-   *
-   * Creates a Fastify route schema object that includes query string and
-   * response schemas. Note that multipart body schemas are handled separately
-   * during request parsing.
-   *
-   * @param handlerMetadata - The handler metadata containing configuration and schemas.
-   * @returns A Fastify route schema object.
-   */
-  override provideSchema(
-    handlerMetadata: HandlerMetadata<EndpointOptions>,
-  ): Record<string, any> {
-    const schema: Record<string, any> = {}
-    const { querySchema, responseSchema } = handlerMetadata.config
-
-    if (querySchema) {
-      schema.querystring = querySchema
-    }
-    if (this.options.validateResponses && responseSchema) {
-      schema.response = {
-        ...handlerMetadata.config.errorSchema,
-        200: responseSchema,
-      }
-    }
-
-    return schema
   }
 }

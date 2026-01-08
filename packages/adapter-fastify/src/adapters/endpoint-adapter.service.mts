@@ -1,10 +1,15 @@
 import type { EndpointOptions } from '@navios/builder'
-import type { ClassType, HandlerMetadata, ScopedContainer } from '@navios/core'
+import type {
+  AbstractDynamicHandler,
+  AbstractStaticHandler,
+  FormatArgumentsFn,
+  HandlerContext,
+  HandlerMetadata,
+  InstanceResolution,
+} from '@navios/core'
 import type { FastifyReply, FastifyRequest } from 'fastify'
 
 import { Injectable, InjectionToken } from '@navios/core'
-
-import type { FastifyHandlerResult } from './handler-adapter.interface.mjs'
 
 import { FastifyStreamAdapterService } from './stream-adapter.service.mjs'
 
@@ -93,81 +98,65 @@ export class FastifyEndpointAdapterService extends FastifyStreamAdapterService {
   }
 
   /**
-   * Creates a request handler function for the endpoint.
+   * Creates a static handler for singleton controllers.
    *
-   * This method generates a handler that:
-   * 1. Parses and validates request data (body, query, URL params)
-   * 2. Invokes the controller method with validated arguments
-   * 3. Validates and formats the response according to the response schema
-   * 4. Sends the response using Fastify's reply object
+   * Invokes the controller method and sends the response with proper status and headers.
    *
-   * @param controller - The controller class containing the handler method.
-   * @param handlerMetadata - The handler metadata with configuration and schemas.
-   * @returns A function that handles incoming requests and sends responses.
+   * @param boundMethod - Pre-bound controller method
+   * @param formatArguments - Function to format request arguments
+   * @param context - Handler context with metadata
+   * @returns Static handler result
    */
-  override async provideHandler(
-    controller: ClassType,
-    handlerMetadata: HandlerMetadata<EndpointOptions>,
-  ): Promise<FastifyHandlerResult> {
-    const getters = this.prepareArguments(handlerMetadata)
-    const hasArguments = getters.length > 0
+  protected override createStaticHandler(
+    boundMethod: (...args: any[]) => Promise<any>,
+    formatArguments: FormatArgumentsFn<FastifyRequest>,
+    context: HandlerContext<EndpointOptions>,
+  ): AbstractStaticHandler<FastifyRequest, FastifyReply> {
+    const { statusCode, headers, hasArguments } = context
 
-    // Cache method name for faster property access
-    const methodName = handlerMetadata.classMethod
-
-    // Resolve controller with automatic scope detection
-    const resolution = await this.instanceResolver.resolve(controller)
-
-    // Pre-compute status code and headers
-    const statusCode = handlerMetadata.successStatusCode
-    const headers = handlerMetadata.headers
-
-    // Branch based on hasArguments to skip formatArguments entirely when not needed
     if (hasArguments) {
-      // Detect if any getter is async at registration time
-      const hasAsyncGetters = getters.some(
-        (g) => g.constructor.name === 'AsyncFunction',
-      )
-
-      const formatArguments = hasAsyncGetters
-        ? async (request: FastifyRequest) => {
-            const argument: Record<string, any> = {}
-            const promises: Promise<void>[] = []
-            for (const getter of getters) {
-              const res = getter(argument, request)
-              if (res instanceof Promise) {
-                promises.push(res)
-              }
-            }
-            await Promise.all(promises)
-            return argument
-          }
-        : (request: FastifyRequest) => {
-            const argument: Record<string, any> = {}
-            for (const getter of getters) {
-              getter(argument, request)
-            }
-            return argument
-          }
-
-      if (resolution.cached) {
-        const cachedController = resolution.instance as any
-        // Pre-bind method for faster invocation
-        const boundMethod = cachedController[methodName].bind(cachedController)
-        return {
-          isStatic: true,
-          handler: async (request: FastifyRequest, reply: FastifyReply) => {
-            const argument = await formatArguments(request)
-            const result = await boundMethod(argument)
-            reply.status(statusCode).headers(headers).send(result)
-          },
-        }
+      return {
+        isStatic: true,
+        handler: async (request: FastifyRequest, reply: FastifyReply) => {
+          const argument = await formatArguments(request)
+          const result = await boundMethod(argument)
+          reply.status(statusCode).headers(headers).send(result)
+        },
       }
+    }
 
+    const emptyArgs = Object.freeze({})
+    return {
+      isStatic: true,
+      handler: async (_request: FastifyRequest, reply: FastifyReply) => {
+        const result = await boundMethod(emptyArgs)
+        reply.status(statusCode).headers(headers).send(result)
+      },
+    }
+  }
+
+  /**
+   * Creates a dynamic handler for request-scoped controllers.
+   *
+   * Resolves the controller per-request and sends the response with proper status and headers.
+   *
+   * @param resolution - Instance resolution with resolve function
+   * @param formatArguments - Function to format request arguments
+   * @param context - Handler context with metadata
+   * @returns Dynamic handler result
+   */
+  protected override createDynamicHandler(
+    resolution: InstanceResolution,
+    formatArguments: FormatArgumentsFn<FastifyRequest>,
+    context: HandlerContext<EndpointOptions>,
+  ): AbstractDynamicHandler<FastifyRequest, FastifyReply> {
+    const { methodName, statusCode, headers, hasArguments } = context
+
+    if (hasArguments) {
       return {
         isStatic: false,
         handler: async (
-          scoped: ScopedContainer,
+          scoped,
           request: FastifyRequest,
           reply: FastifyReply,
         ) => {
@@ -179,25 +168,11 @@ export class FastifyEndpointAdapterService extends FastifyStreamAdapterService {
       }
     }
 
-    // No arguments path - skip formatArguments entirely
     const emptyArgs = Object.freeze({})
-    if (resolution.cached) {
-      const cachedController = resolution.instance as any
-      // Pre-bind method for faster invocation
-      const boundMethod = cachedController[methodName].bind(cachedController)
-      return {
-        isStatic: true,
-        handler: async (_request: FastifyRequest, reply: FastifyReply) => {
-          const result = await boundMethod(emptyArgs)
-          reply.status(statusCode).headers(headers).send(result)
-        },
-      }
-    }
-
     return {
       isStatic: false,
       handler: async (
-        scoped: ScopedContainer,
+        scoped,
         _request: FastifyRequest,
         reply: FastifyReply,
       ) => {
