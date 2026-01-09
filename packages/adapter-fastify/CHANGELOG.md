@@ -5,6 +5,37 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.0-alpha.4] - 2026-01-09
+
+### Added
+
+- **FastifyEnvironment Type**: New `FastifyEnvironment` interface for type-safe application configuration
+  - Provides typed access to Fastify-specific options throughout the application
+  - Includes types for `FastifyInstance`, `FastifyCorsOptions`, `FastifyMultipartOptions`, `FastifyListenOptions`, and `FastifyApplicationOptions`
+  - Use with `NaviosFactory.create<FastifyEnvironment>(...)` for full type safety
+- **AdapterToken Support**: Environment now registers adapter with `AdapterToken` for unified adapter access
+
+### Changed
+
+- **Environment Definition**: `defineFastifyEnvironment()` now returns `tokens` instead of `httpTokens`
+  - Aligns with new unified adapter architecture in `@navios/core`
+- **Application Service**: Implements new `AbstractAdapterInterface` lifecycle methods
+  - `setupAdapter()` replaces `setupHttpServer()`; merges with `configure()` options
+  - `configure()` method for pre-init configuration (called before `init()`)
+- **Interface Simplification**: `FastifyApplicationServiceInterface` now extends `AbstractHttpAdapterInterface<FastifyEnvironment>`
+  - Removed redundant method signatures inherited from base interface
+- **Documentation Updates**: Updated JSDoc examples to use new `configure()` + `init()` pattern
+
+### Breaking Changes
+
+- **Setup Method**: `setupHttpServer()` replaced with `configure()` + `init()`
+  - Before: `await app.setupHttpServer({ logger: true, trustProxy: true })`
+  - After: `app.configure({ logger: true, trustProxy: true }); await app.init()`
+
+### Dependencies
+
+- Updated to support `@navios/core` ^1.0.0-alpha.4
+
 ## [1.0.0-alpha.3] - 2026-01-08
 
 ### Added

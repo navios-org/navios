@@ -1,15 +1,5 @@
-import type { FastifyCorsOptions } from '@fastify/cors'
-import type { FastifyMultipartOptions } from '@fastify/multipart'
-import type {
-  AbstractHttpAdapterInterface,
-  LoggerService,
-  LogLevel,
-} from '@navios/core'
-import type {
-  FastifyInstance,
-  FastifyListenOptions,
-  FastifyServerOptions,
-} from 'fastify'
+import type { AbstractHttpAdapterInterface, LoggerService, LogLevel } from '@navios/core'
+import type { FastifyServerOptions } from 'fastify'
 
 /**
  * Configuration options for the Fastify HTTP server.
@@ -20,12 +10,13 @@ import type {
  *
  * @example
  * ```ts
- * await app.setupHttpServer({
+ * app.configure({
  *   logger: true,
  *   trustProxy: true,
  *   disableRequestLogging: false,
  *   requestIdHeader: 'x-request-id',
  * })
+ * await app.init()
  * ```
  *
  * @see {@link https://www.fastify.io/docs/latest/Reference/Server/} Fastify server options documentation
@@ -43,6 +34,9 @@ export interface FastifyApplicationOptions
   logger?: LoggerService | LogLevel[] | false
 }
 
+// Import after type definitions to avoid circular dependency
+import type { FastifyEnvironment } from './environment.interface.mjs'
+
 /**
  * Interface for the Fastify application service.
  *
@@ -59,8 +53,7 @@ export interface FastifyApplicationOptions
  *   adapter: defineFastifyEnvironment(),
  * })
  *
- * // All methods from this interface are available on the app instance
- * await app.setupHttpServer({ logger: true })
+ * app.configure({ logger: true })
  * app.enableCors({ origin: true })
  * app.enableMultipart({ limits: { fileSize: 10 * 1024 * 1024 } })
  * await app.init()
@@ -68,47 +61,6 @@ export interface FastifyApplicationOptions
  * ```
  */
 export interface FastifyApplicationServiceInterface
-  extends AbstractHttpAdapterInterface<
-    FastifyInstance,
-    FastifyCorsOptions,
-    FastifyApplicationOptions,
-    FastifyMultipartOptions
-  > {
-  setupHttpServer(options: FastifyApplicationOptions): Promise<void>
+  extends AbstractHttpAdapterInterface<FastifyEnvironment> {
   initServer(): Promise<void>
-  ready(): Promise<void>
-  getServer(): FastifyInstance
-  /**
-   * Sets a global prefix for all routes.
-   *
-   * @param prefix - The prefix to prepend to all routes.
-   */
-  setGlobalPrefix(prefix: string): void
-
-  /**
-   * Enables CORS (Cross-Origin Resource Sharing) support.
-   *
-   * @param options - CORS configuration options from `@fastify/cors`.
-   */
-  enableCors(options: FastifyCorsOptions): void
-
-  /**
-   * Enables multipart form data support for file uploads.
-   *
-   * @param options - Multipart configuration options from `@fastify/multipart`.
-   */
-  enableMultipart(options: FastifyMultipartOptions): void
-
-  /**
-   * Starts the HTTP server and begins listening for requests.
-   *
-   * @param options - Server listen options.
-   * @returns A promise that resolves to the server address.
-   */
-  listen(options: FastifyListenOptions): Promise<string>
-
-  /**
-   * Gracefully shuts down the server.
-   */
-  dispose(): Promise<void>
 }

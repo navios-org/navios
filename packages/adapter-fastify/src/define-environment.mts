@@ -1,6 +1,7 @@
 import type { AnyInjectableType } from '@navios/core'
 
 import {
+  AdapterToken,
   EndpointAdapterToken,
   HttpAdapterToken,
   InjectionToken,
@@ -29,7 +30,7 @@ import { FastifyReplyToken, FastifyRequestToken } from './tokens/index.mjs'
  * - Multipart adapter for file uploads and form data
  * - Request and Reply tokens for accessing Fastify request/reply objects
  *
- * @returns An object containing the HTTP token mappings for the Fastify adapter.
+ * @returns An object containing the token mappings for the Fastify adapter.
  * This object should be passed to `NaviosFactory.create()` as the `adapter` option.
  *
  * @example
@@ -65,17 +66,16 @@ import { FastifyReplyToken, FastifyRequestToken } from './tokens/index.mjs'
  * @see {@link FastifyMultipartAdapterService} The multipart adapter implementation
  */
 export function defineFastifyEnvironment() {
-  const httpTokens = new Map<InjectionToken<any, undefined>, AnyInjectableType>(
-    [
-      [EndpointAdapterToken, FastifyEndpointAdapterService],
-      [StreamAdapterToken, FastifyStreamAdapterService],
-      [MultipartAdapterToken, FastifyMultipartAdapterService],
-      [HttpAdapterToken, FastifyApplicationService],
-      [Request, FastifyRequestToken],
-      [Reply, FastifyReplyToken],
-    ],
-  )
+  const tokens = new Map<InjectionToken<any, undefined>, AnyInjectableType>([
+    [AdapterToken, FastifyApplicationService],
+    [HttpAdapterToken, FastifyApplicationService],
+    [EndpointAdapterToken, FastifyEndpointAdapterService],
+    [StreamAdapterToken, FastifyStreamAdapterService],
+    [MultipartAdapterToken, FastifyMultipartAdapterService],
+    [Request, FastifyRequestToken],
+    [Reply, FastifyReplyToken],
+  ])
   return {
-    httpTokens,
+    tokens,
   }
 }

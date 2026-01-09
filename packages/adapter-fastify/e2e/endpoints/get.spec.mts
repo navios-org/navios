@@ -17,9 +17,10 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { z } from 'zod/v4'
 
 import { defineFastifyEnvironment } from '../../src/index.mjs'
+import type { FastifyEnvironment } from '../../src/index.mjs'
 
 describe('GET variants', () => {
-  let server: NaviosApplication
+  let server: NaviosApplication<FastifyEnvironment>
 
   // Request scoped service to track request state
   @Injectable({
@@ -127,7 +128,7 @@ describe('GET variants', () => {
   class SomethingModule {}
 
   beforeAll(async () => {
-    server = await NaviosFactory.create(SomethingModule, {
+    server = await NaviosFactory.create<FastifyEnvironment>(SomethingModule, {
       adapter: defineFastifyEnvironment(),
     })
     await server.init()

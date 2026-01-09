@@ -50,7 +50,7 @@ import { PinoWrapper } from './pino-wrapper.mjs'
  *   adapter: defineFastifyEnvironment(),
  * })
  *
- * await app.setupHttpServer({
+ * app.configure({
  *   logger: true,
  *   trustProxy: true,
  * })
@@ -80,11 +80,12 @@ export class FastifyApplicationService implements FastifyApplicationServiceInter
 
   private corsOptions: FastifyCorsOptions | null = null
   private multipartOptions: FastifyMultipartOptions | true | null = null
+  private configureOptions: Partial<FastifyApplicationOptions> = {}
 
   /**
-   * Configures and initializes the Fastify HTTP server with the provided options.
+   * Sets up the Fastify HTTP adapter with the provided options.
    *
-   * This method should be called before `init()` to set up server configuration.
+   * This method is called during application initialization.
    * It creates the Fastify instance, configures logging, and prepares the server
    * for route registration.
    *
@@ -93,15 +94,17 @@ export class FastifyApplicationService implements FastifyApplicationServiceInter
    *
    * @example
    * ```ts
-   * await app.setupHttpServer({
+   * app.configure({
    *   logger: true,
    *   trustProxy: true,
    *   disableRequestLogging: false,
    * })
+   * await app.init()
    * ```
    */
-  async setupHttpServer(options: FastifyApplicationOptions): Promise<void> {
-    const { logger, ...fastifyOptions } = options
+  async setupAdapter(options: FastifyApplicationOptions): Promise<void> {
+    const mergedOptions = { ...options, ...this.configureOptions }
+    const { logger, ...fastifyOptions } = mergedOptions
     if (logger) {
       const serverOptions = fastifyOptions as FastifyServerOptions
       if (typeof logger === 'boolean') {
@@ -421,6 +424,25 @@ export class FastifyApplicationService implements FastifyApplicationServiceInter
     const res = await this.server!.listen(options)
     this.logger.debug(`Navios is listening on ${res}`)
     return res
+  }
+
+  /**
+   * Configures the adapter with additional options before initialization.
+   *
+   * Options set via configure() are merged with options passed to
+   * setupAdapter(), with configure() options taking precedence.
+   * Must be called before init().
+   *
+   * @param options - Partial Fastify server configuration options
+   *
+   * @example
+   * ```ts
+   * app.configure({ trustProxy: true, logger: true })
+   * await app.init()
+   * ```
+   */
+  configure(options: Partial<FastifyApplicationOptions>): void {
+    this.configureOptions = { ...this.configureOptions, ...options }
   }
 
   /**
