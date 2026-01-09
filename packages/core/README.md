@@ -169,14 +169,14 @@ Create your first Controller:
 ```ts
 import type { EndpointParams } from '@navios/core'
 
-import { Controller, Endpoint, syncInject } from '@navios/core'
+import { Controller, Endpoint, inject } from '@navios/core'
 
 import { AuthService } from './auth.service.mjs'
 
 @Controller()
 export class AuthController {
   // Inject the LoginService
-  loginService = syncInject(LoginService)
+  loginService = inject(LoginService)
 
   @Endpoint(login)
   async login(request: EndpointParams<typeof login>) {

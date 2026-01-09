@@ -175,13 +175,3 @@ export class InstanceResolverService {
     }
   }
 }
-
-/**
- * @deprecated Use InstanceResolverService instead
- */
-export const ControllerResolverService = InstanceResolverService
-
-/**
- * @deprecated Use InstanceResolution instead
- */
-export type ControllerResolution<T = any> = InstanceResolution<T>

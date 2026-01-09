@@ -21,7 +21,16 @@ No additional installation is required. The legacy-compat decorators are include
 To use legacy-compatible decorators, import them from the `legacy-compat` subpath:
 
 ```typescript
-import { Module, Controller, Endpoint, UseGuards, Header, HttpCode, Multipart, Stream } from '@navios/core/legacy-compat'
+import {
+  Controller,
+  Endpoint,
+  Header,
+  HttpCode,
+  Module,
+  Multipart,
+  Stream,
+  UseGuards,
+} from '@navios/core/legacy-compat'
 ```
 
 ## Available Decorators
@@ -65,12 +74,16 @@ export class UserController {
 Defines an HTTP endpoint with type-safe request/response schemas. Must be applied to methods.
 
 ```typescript
-import { Controller, Endpoint, type EndpointParams, type EndpointResult } from '@navios/core/legacy-compat'
+import type { EndpointParams, EndpointResult } from '@navios/core/legacy-compat'
+
+import { Controller, Endpoint } from '@navios/core/legacy-compat'
 
 @Controller()
 export class UserController {
   @Endpoint(getUserEndpoint)
-  async getUser(request: EndpointParams<typeof getUserEndpoint>): Promise<EndpointResult<typeof getUserEndpoint>> {
+  async getUser(
+    request: EndpointParams<typeof getUserEndpoint>,
+  ): Promise<EndpointResult<typeof getUserEndpoint>> {
     const { id } = request
     return { id, name: 'John Doe' }
   }
@@ -82,12 +95,19 @@ export class UserController {
 Defines a multipart/form-data endpoint for file uploads. Must be applied to methods.
 
 ```typescript
-import { Controller, Multipart, type MultipartParams, type MultipartResult } from '@navios/core/legacy-compat'
+import type {
+  MultipartParams,
+  MultipartResult,
+} from '@navios/core/legacy-compat'
+
+import { Controller, Multipart } from '@navios/core/legacy-compat'
 
 @Controller()
 export class FileController {
   @Multipart(uploadFileEndpoint)
-  async uploadFile(request: MultipartParams<typeof uploadFileEndpoint>): Promise<MultipartResult<typeof uploadFileEndpoint>> {
+  async uploadFile(
+    request: MultipartParams<typeof uploadFileEndpoint>,
+  ): Promise<MultipartResult<typeof uploadFileEndpoint>> {
     const { file } = request.data
     return { url: 'https://example.com/file.jpg' }
   }
@@ -99,12 +119,17 @@ export class FileController {
 Defines a streaming endpoint. Must be applied to methods.
 
 ```typescript
-import { Controller, Stream, type StreamParams } from '@navios/core/legacy-compat'
+import type { StreamParams } from '@navios/core/legacy-compat'
+
+import { Controller, Stream } from '@navios/core/legacy-compat'
 
 @Controller()
 export class FileController {
   @Stream(downloadFileEndpoint)
-  async downloadFile(request: StreamParams<typeof downloadFileEndpoint>, reply: any): Promise<void> {
+  async downloadFile(
+    request: StreamParams<typeof downloadFileEndpoint>,
+    reply: any,
+  ): Promise<void> {
     const { fileId } = request.urlParams
     // Stream file data to reply
   }
@@ -176,10 +201,10 @@ The legacy-compat module also exports type utilities for working with endpoints:
 
 ```typescript
 import type {
-  ModuleOptions,
   ControllerOptions,
   EndpointParams,
   EndpointResult,
+  ModuleOptions,
   MultipartParams,
   MultipartResult,
   StreamParams,
@@ -191,9 +216,18 @@ import type {
 Here's a complete example using legacy-compatible decorators:
 
 ```typescript
+import type { EndpointParams, EndpointResult } from '@navios/core/legacy-compat'
+
 import { builder } from '@navios/builder'
-import { Module, Controller, Endpoint, UseGuards, HttpCode, type EndpointParams, type EndpointResult } from '@navios/core/legacy-compat'
-import { Injectable, syncInject } from '@navios/core'
+import { inject, Injectable } from '@navios/core'
+import {
+  Controller,
+  Endpoint,
+  HttpCode,
+  Module,
+  UseGuards,
+} from '@navios/core/legacy-compat'
+
 import { z } from 'zod/v4'
 
 // Define API endpoints
@@ -239,17 +273,21 @@ export class UserService {
 @Controller()
 @UseGuards(AuthGuard)
 export class UserController {
-  userService = syncInject(UserService)
+  userService = inject(UserService)
 
   @Endpoint(getUserEndpoint)
-  async getUser(request: EndpointParams<typeof getUserEndpoint>): Promise<EndpointResult<typeof getUserEndpoint>> {
+  async getUser(
+    request: EndpointParams<typeof getUserEndpoint>,
+  ): Promise<EndpointResult<typeof getUserEndpoint>> {
     const { id } = request.urlParams
     return await this.userService.findById(id)
   }
 
   @Endpoint(createUserEndpoint)
   @HttpCode(201)
-  async createUser(request: EndpointParams<typeof createUserEndpoint>): Promise<EndpointResult<typeof createUserEndpoint>> {
+  async createUser(
+    request: EndpointParams<typeof createUserEndpoint>,
+  ): Promise<EndpointResult<typeof createUserEndpoint>> {
     const { name, email } = request.body
     return await this.userService.create({ name, email })
   }
@@ -270,10 +308,9 @@ If you're migrating from standard decorators to legacy-compatible decorators:
 
 ```typescript
 // Before
-import { Module, Controller, Endpoint } from '@navios/core'
-
+import { Controller, Endpoint, Module } from '@navios/core'
 // After
-import { Module, Controller, Endpoint } from '@navios/core/legacy-compat'
+import { Controller, Endpoint, Module } from '@navios/core/legacy-compat'
 ```
 
 2. Ensure your `tsconfig.json` has `experimentalDecorators` enabled:
@@ -317,4 +354,3 @@ The `emitDecoratorMetadata` option is optional but recommended for better runtim
 - Legacy-compatible decorators are fully compatible with all Navios features including guards, attributes, dependency injection, and adapters
 - You can mix legacy-compatible decorators with standard decorators in the same project, but it's recommended to use one approach consistently
 - The legacy-compat module is maintained alongside the standard decorators and receives the same updates and bug fixes
-

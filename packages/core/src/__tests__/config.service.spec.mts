@@ -28,7 +28,7 @@ describe('ConfigService', () => {
     expect(service.get('NODE_ENV')).toBe(env.NODE_ENV)
   })
 
-  it('should be possible to use inside service as a syncInject', async () => {
+  it('should be possible to use inside service as a inject', async () => {
     @Injectable()
     class TestService {
       public readonly configService = inject(EnvConfigProvider)

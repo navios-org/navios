@@ -117,19 +117,14 @@ Create a user controller (`controllers/user.controller.ts`):
 ```ts
 import type { EndpointParams } from '@navios/core'
 
-import {
-  Controller,
-  Endpoint,
-  NotFoundException,
-  syncInject,
-} from '@navios/core'
+import { Controller, Endpoint, inject, NotFoundException } from '@navios/core'
 
 import { createUserEndpoint, getUserEndpoint } from '../api/index.js'
 import { UserService } from '../services/user.service.js'
 
 @Controller()
 export class UserController {
-  private userService = syncInject(UserService)
+  private userService = inject(UserService)
 
   @Endpoint(createUserEndpoint)
   async createUser(request: EndpointParams<typeof createUserEndpoint>) {
