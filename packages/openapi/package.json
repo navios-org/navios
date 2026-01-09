@@ -44,7 +44,7 @@
     "@navios/builder": "workspace:^",
     "@navios/core": "workspace:^",
     "typescript": "^5.9.3",
-    "zod": "^4.2.1"
+    "zod": "^4.3.5"
   },
   "dependencies": {
     "yaml": "^2.8.2",

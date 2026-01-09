@@ -5522,7 +5522,7 @@ __metadata:
     "@types/bun": "npm:^1.3.5"
     "@types/node": "npm:^22.0.0"
     typescript: "npm:^5.9.3"
-    zod: "npm:^4.2.1"
+    zod: "npm:^4.3.5"
   languageName: unknown
   linkType: soft
 
@@ -5536,7 +5536,7 @@ __metadata:
     "@types/bun": "npm:^1.3.5"
     "@types/node": "npm:^22.0.0"
     typescript: "npm:^5.9.3"
-    zod: "npm:^4.2.1"
+    zod: "npm:^4.3.5"
   languageName: unknown
   linkType: soft
 
@@ -5550,7 +5550,7 @@ __metadata:
     "@types/node": "npm:^22.0.0"
     tsx: "npm:^4.21.0"
     typescript: "npm:^5.9.3"
-    zod: "npm:^4.2.1"
+    zod: "npm:^4.3.5"
   languageName: unknown
   linkType: soft
 
@@ -5569,7 +5569,7 @@ __metadata:
     rxjs: "npm:^7.8.2"
     tsx: "npm:^4.21.0"
     typescript: "npm:^5.9.3"
-    zod: "npm:^4.2.1"
+    zod: "npm:^4.3.5"
   languageName: unknown
   linkType: soft
 
@@ -5587,7 +5587,7 @@ __metadata:
     rxjs: "npm:^7.8.2"
     tsx: "npm:^4.21.0"
     typescript: "npm:^5.9.3"
-    zod: "npm:^4.2.1"
+    zod: "npm:^4.3.5"
   languageName: unknown
   linkType: soft
 
@@ -5624,7 +5624,7 @@ __metadata:
     supertest: "npm:^7.1.4"
     tsx: "npm:^4.21.0"
     typescript: "npm:^5.9.3"
-    zod: "npm:^4.2.1"
+    zod: "npm:^4.3.5"
   peerDependencies:
     "@navios/builder": "workspace:^"
     "@navios/core": "workspace:^"
@@ -5646,7 +5646,7 @@ __metadata:
     tsx: "npm:^4.21.0"
     typescript: "npm:^5.9.3"
     vitest: "npm:^4.0.16"
-    zod: "npm:^4.2.1"
+    zod: "npm:^4.3.5"
   peerDependencies:
     "@navios/builder": "workspace:^"
     "@navios/core": "workspace:^"
@@ -5682,7 +5682,7 @@ __metadata:
   dependencies:
     "@navios/http": "workspace:^"
     typescript: "npm:^5.9.3"
-    zod: "npm:^4.2.1"
+    zod: "npm:^4.3.5"
   peerDependencies:
     zod: ^3.25.0 || ^4.0.0
   languageName: unknown
@@ -5710,7 +5710,7 @@ __metadata:
     "@navios/core": "workspace:^"
     tsx: "npm:^4.21.0"
     typescript: "npm:^5.9.3"
-    zod: "npm:^4.2.1"
+    zod: "npm:^4.3.5"
   peerDependencies:
     zod: ^4.0.0
   languageName: unknown
@@ -5726,7 +5726,7 @@ __metadata:
     supertest: "npm:^7.1.4"
     tsx: "npm:^4.21.0"
     typescript: "npm:^5.9.3"
-    zod: "npm:^4.2.1"
+    zod: "npm:^4.3.5"
   peerDependencies:
     "@navios/builder": "workspace:^"
     zod: ^3.25.0 || ^4.0.0
@@ -5745,7 +5745,7 @@ __metadata:
     react: "npm:^19.2.3"
     react-dom: "npm:^19.2.3"
     typescript: "npm:^5.9.3"
-    zod: "npm:^4.2.1"
+    zod: "npm:^4.3.5"
   peerDependencies:
     "@navios/di": "workspace:^"
     react: ^18.0.0 || ^19.0.0
@@ -5758,7 +5758,7 @@ __metadata:
   dependencies:
     tsx: "npm:^4.21.0"
     typescript: "npm:^5.9.3"
-    zod: "npm:^4.2.1"
+    zod: "npm:^4.3.5"
   peerDependencies:
     zod: ^3.25.0 || ^4.0.0
   languageName: unknown
@@ -5798,7 +5798,7 @@ __metadata:
     "@navios/core": "workspace:^"
     "@types/jsonwebtoken": "npm:^9.0.10"
     jsonwebtoken: "npm:^9.0.3"
-    zod: "npm:^4.2.1"
+    zod: "npm:^4.3.5"
   peerDependencies:
     "@navios/core": "workspace:^"
     zod: ^3.25.0 || ^4.0.0
@@ -5813,7 +5813,7 @@ __metadata:
     "@navios/di": "workspace:^"
     "@navios/queues": "workspace:^"
     typescript: "npm:^5.9.3"
-    zod: "npm:^4.2.1"
+    zod: "npm:^4.3.5"
   peerDependencies:
     "@navios/core": "workspace:^"
     "@navios/di": "workspace:^"
@@ -5859,7 +5859,7 @@ __metadata:
     "@scalar/core": "npm:^0.3.28"
     typescript: "npm:^5.9.3"
     yaml: "npm:^2.8.2"
-    zod: "npm:^4.2.1"
+    zod: "npm:^4.3.5"
   peerDependencies:
     "@navios/adapter-bun": "workspace:^"
     "@navios/builder": "workspace:^"
@@ -5880,7 +5880,7 @@ __metadata:
     fastify: "npm:^5.6.2"
     typescript: "npm:^5.9.3"
     yaml: "npm:^2.8.2"
-    zod: "npm:^4.2.1"
+    zod: "npm:^4.3.5"
   peerDependencies:
     "@navios/adapter-fastify": "workspace:^"
     "@navios/core": "workspace:^"
@@ -5898,7 +5898,7 @@ __metadata:
     "@navios/core": "workspace:^"
     typescript: "npm:^5.9.3"
     yaml: "npm:^2.8.2"
-    zod: "npm:^4.2.1"
+    zod: "npm:^4.3.5"
     zod-openapi: "npm:^5.4.5"
   peerDependencies:
     "@navios/core": "workspace:^"
@@ -5926,7 +5926,7 @@ __metadata:
     amqplib: "npm:^0.10.5"
     kafkajs: "npm:^2.2.4"
     typescript: "npm:^5.9.3"
-    zod: "npm:^4.2.1"
+    zod: "npm:^4.3.5"
   peerDependencies:
     "@navios/di": "workspace:^"
     zod: ^3.25.0 || ^4.0.0
@@ -5964,7 +5964,7 @@ __metadata:
     "@tanstack/react-query": "npm:^5.90.12"
     react: "npm:^19.2.3"
     typescript: "npm:^5.9.3"
-    zod: "npm:^4.2.1"
+    zod: "npm:^4.3.5"
   peerDependencies:
     "@navios/builder": "workspace:^"
     "@tanstack/react-query": ^5.51.21
@@ -5979,7 +5979,7 @@ __metadata:
     "@navios/core": "workspace:^"
     cron: "npm:^4.4.0"
     typescript: "npm:^5.9.3"
-    zod: "npm:^4.2.1"
+    zod: "npm:^4.3.5"
   peerDependencies:
     "@navios/core": "workspace:^"
     zod: ^3.25.0 || ^4.0.0
@@ -9076,7 +9076,7 @@ __metadata:
     "@navios/di": "workspace:*"
     tsx: "npm:^4.21.0"
     typescript: "npm:^5.9.3"
-    zod: "npm:^4.2.1"
+    zod: "npm:^4.3.5"
   languageName: unknown
   linkType: soft
 
@@ -12073,7 +12073,7 @@ __metadata:
     "@types/supertest": "npm:^6.0.3"
     supertest: "npm:^7.1.4"
     typescript: "npm:^5.9.3"
-    zod: "npm:^4.2.1"
+    zod: "npm:^4.3.5"
   languageName: unknown
   linkType: soft
 
@@ -12091,7 +12091,7 @@ __metadata:
     esbuild: "npm:^0.25.0"
     supertest: "npm:^7.1.4"
     typescript: "npm:^5.9.3"
-    zod: "npm:^4.2.1"
+    zod: "npm:^4.3.5"
   languageName: unknown
   linkType: soft
 
@@ -12108,7 +12108,7 @@ __metadata:
     tsx: "npm:^4.21.0"
     typescript: "npm:^5.9.3"
     vitest: "npm:^4.0.16"
-    zod: "npm:^4.2.1"
+    zod: "npm:^4.3.5"
   languageName: unknown
   linkType: soft
 
@@ -12125,7 +12125,7 @@ __metadata:
     tsx: "npm:^4.21.0"
     typescript: "npm:^5.9.3"
     vitest: "npm:^4.0.16"
-    zod: "npm:^4.2.1"
+    zod: "npm:^4.3.5"
   languageName: unknown
   linkType: soft
 
@@ -17329,7 +17329,7 @@ __metadata:
     "@navios/openapi-fastify": "workspace:*"
     tsx: "npm:^4.21.0"
     typescript: "npm:^5.9.3"
-    zod: "npm:^4.2.1"
+    zod: "npm:^4.3.5"
   languageName: unknown
   linkType: soft
 
@@ -22725,10 +22725,17 @@ __metadata:
   languageName: node
   linkType: hard
 
-"zod@npm:^4.1.11, zod@npm:^4.1.8, zod@npm:^4.2.1":
+"zod@npm:^4.1.11, zod@npm:^4.1.8":
   version: 4.2.1
   resolution: "zod@npm:4.2.1"
   checksum: 10c0/ecb5219bddf76a42d092a843fb98ad4cb78f1e1077082772b03ef032ee5cbc80790a4051836b962d26fb4af854323bc784d628bd1b8d9898149eba7af21c5560
+  languageName: node
+  linkType: hard
+
+"zod@npm:^4.3.5":
+  version: 4.3.5
+  resolution: "zod@npm:4.3.5"
+  checksum: 10c0/5a2db7e59177a3d7e202543f5136cb87b97b047b77c8a3d824098d3fa8b80d3aa40a0a5f296965c3b82dfdccdd05dbbfacce91347f16a39c675680fd7b1ab109
   languageName: node
   linkType: hard
 

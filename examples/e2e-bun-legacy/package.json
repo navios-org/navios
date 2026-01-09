@@ -11,7 +11,7 @@
     "@navios/builder": "workspace:*",
     "@navios/core": "workspace:*",
     "@navios/di": "workspace:*",
-    "zod": "^4.2.1"
+    "zod": "^4.3.5"
   },
   "devDependencies": {
     "@types/bun": "^1.3.5",
