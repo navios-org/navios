@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.0] - 2026-01-09
+
+### Added
+
+- **Stable Release**: First stable release of @navios/adapter-xml
+  - Production-ready XML adapter for Navios framework
+  - Support for XML request/response handling
+  - JSX runtime support for XML generation
+
 ## [1.0.0-alpha.4] - 2026-01-09
 
 ### Changed
