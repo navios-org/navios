@@ -34,7 +34,7 @@
   "devDependencies": {
     "@navios/builder": "workspace:^",
     "@navios/http": "workspace:^",
-    "@tanstack/react-query": "^5.90.12",
+    "@tanstack/react-query": "^5.90.16",
     "react": "^19.2.3",
     "typescript": "^5.9.3",
     "zod": "^4.3.5"
