@@ -13,8 +13,9 @@ import { afterAll, beforeAll, describe, expect, it } from 'bun:test'
 import supertest from 'supertest'
 import { z } from 'zod/v4'
 
-import { defineBunEnvironment } from '../../src/index.mjs'
 import type { BunEnvironment } from '../../src/index.mjs'
+
+import { defineBunEnvironment } from '../../src/index.mjs'
 
 describe('POST variants', () => {
   let server: NaviosApplication<BunEnvironment>
@@ -82,7 +83,7 @@ describe('POST variants', () => {
       adapter: defineBunEnvironment(),
     })
     await server.init()
-    await server.listen({ port: 3000, hostname: 'localhost' })
+    await server.listen({ port: 4000, hostname: 'localhost' })
     realServer = server.getServer().url.href
   })
 
