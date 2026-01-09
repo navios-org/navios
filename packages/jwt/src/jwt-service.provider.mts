@@ -15,7 +15,7 @@ import { JwtServiceOptionsSchema } from './options/jwt-service.options.mjs'
  * both static configuration and async factory functions for dynamic configuration.
  *
  * @param config - Static JWT service configuration options
- * @returns A bound injection token that can be used with `inject()` or `syncInject()`
+ * @returns A bound injection token that can be used with `inject()` or `asyncInject()`
  *
  * @example
  * ```ts
