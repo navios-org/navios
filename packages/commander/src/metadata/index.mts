@@ -1,2 +1,2 @@
 export * from './command.metadata.mjs'
-export * from './cli-module.metadata.mjs'
+export * from './command-entry.metadata.mjs'

@@ -1,19 +1,20 @@
 # @navios/commander
 
-A CLI command framework built on `@navios/di` that provides a decorator-based approach to building command-line applications, similar to how `@navios/core` works for HTTP applications.
+A CLI command framework built on `@navios/core` that provides a decorator-based approach to building command-line applications. It uses the same patterns and architecture as Navios HTTP applications, making it easy to share code and services between your CLI tools and web servers.
 
 ## Installation
 
 ```bash
-npm install @navios/commander @navios/di zod
+npm install @navios/commander zod
 ```
 
 ## Features
 
 - **Decorator-based**: Use `@Command` and `@CliModule` decorators to define commands and modules
-- **Dependency Injection**: Full integration with `@navios/di`
+- **Dependency Injection**: Full DI support via `@navios/core` with request-scoped command execution
 - **Schema Validation**: Built-in support for Zod schemas to validate command options
 - **Modular Architecture**: Organize commands into modules with imports support
+- **Built-in Help**: Automatic `help` command and `--help` flag support with Zod meta descriptions
 
 ## Usage
 
@@ -27,14 +28,15 @@ import { Command, CommandHandler } from '@navios/commander'
 import { z } from 'zod'
 
 const greetOptionsSchema = z.object({
-  name: z.string(),
-  greeting: z.string().optional().default('Hello'),
+  name: z.string().meta({ description: 'Name of the person to greet' }),
+  greeting: z.string().optional().default('Hello').meta({ description: 'Greeting message' }),
 })
 
 type GreetOptions = z.infer<typeof greetOptionsSchema>
 
 @Command({
   path: 'greet',
+  description: 'Greet a user with a custom message',
   optionsSchema: greetOptionsSchema,
 })
 export class GreetCommand implements CommandHandler<GreetOptions> {
@@ -74,8 +76,9 @@ async function bootstrap() {
   const app = await CommanderFactory.create(AppModule)
   await app.init()
 
-  // Run with command-line arguments
-  await app.run(process.argv)
+  // Get the adapter and run with command-line arguments
+  const adapter = app.getAdapter()
+  await adapter.run(process.argv)
 
   await app.close()
 }
@@ -92,8 +95,13 @@ node dist/cli.js greet --name World --greeting Hi
 ### Advanced Example with Dependency Injection
 
 ```typescript
-import { CliModule, Command, CommandHandler } from '@navios/commander'
-import { inject, Injectable } from '@navios/di'
+import {
+  CliModule,
+  Command,
+  CommandHandler,
+  inject,
+  Injectable,
+} from '@navios/commander'
 
 import { z } from 'zod'
 
@@ -142,8 +150,13 @@ export class AppModule {}
 The `ExecutionContext` provides access to the current command execution information, including the module metadata, command metadata, command path, and options. This is useful for middleware, guards, or any service that needs context about the current command execution.
 
 ```typescript
-import { Command, CommandHandler, CommandExecutionContext } from '@navios/commander'
-import { inject, Injectable } from '@navios/di'
+import {
+  Command,
+  CommandExecutionContext,
+  CommandHandler,
+  inject,
+  Injectable,
+} from '@navios/commander'
 
 @Injectable()
 class CommandLogger {
@@ -180,7 +193,8 @@ The `ExecutionContext` provides the following methods:
 const app = await CommanderFactory.create(AppModule)
 await app.init()
 
-const commands = app.getAllCommands()
+const adapter = app.getAdapter()
+const commands = adapter.getAllCommands()
 console.log('Available commands:')
 commands.forEach(({ path }) => {
   console.log(`  - ${path}`)
@@ -203,7 +217,8 @@ async function bootstrap() {
   await app.init()
 
   // Execute a command programmatically
-  await app.executeCommand('greet', {
+  const adapter = app.getAdapter()
+  await adapter.executeCommand('greet', {
     name: 'World',
     greeting: 'Hi',
   })
@@ -231,6 +246,7 @@ Defines a CLI command.
 **Options:**
 
 - `path: string` - The command path (e.g., 'user:create', 'db:migrate')
+- `description?: string` - Optional description for help text
 - `optionsSchema?: ZodSchema` - Optional Zod schema for validating command options
 
 #### `@CliModule(options)`
@@ -275,18 +291,26 @@ Factory class for creating CLI applications.
 
 - `static async create(appModule, options?)` - Creates a new CommanderApplication
 
-#### `CommanderApplication`
+#### `NaviosApplication`
 
-Main application class.
+Main application class returned by `CommanderFactory.create()`.
 
 **Methods:**
 
 - `async init()` - Initializes the application
-- `async run(argv)` - Parses command-line arguments and executes the appropriate command (default usage)
-- `async executeCommand(path, options?)` - Executes a command programmatically with options (advanced usage)
-- `getAllCommands()` - Returns all registered commands
+- `getAdapter()` - Returns the CLI adapter for running commands
 - `getContainer()` - Returns the DI container
 - `async close()` - Closes the application
+
+#### `AbstractCliAdapterInterface`
+
+CLI adapter interface returned by `app.getAdapter()`.
+
+**Methods:**
+
+- `async run(argv)` - Parses command-line arguments and executes the appropriate command
+- `async executeCommand(path, options?)` - Executes a command programmatically with options
+- `getAllCommands()` - Returns all registered commands
 
 ## License
 

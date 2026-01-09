@@ -286,20 +286,20 @@ export class CliParserService {
 
   /**
    * Checks if a Zod schema represents a boolean type
-   * Unwraps ZodOptional and ZodDefault
+   * Unwraps ZodOptional and ZodDefault using Zod v4 API
    */
   private isSchemaBoolean(schema: ZodType): boolean {
     try {
       let currentSchema = schema
-      const typeName = currentSchema.def.type
+      let typeName = currentSchema.def.type
 
-      // Unwrap ZodOptional and ZodDefault
-      if (typeName === 'optional' || typeName === 'default') {
-        currentSchema = (currentSchema as any)?._def?.innerType || currentSchema
+      // Unwrap ZodOptional and ZodDefault using Zod v4's def.innerType
+      while (typeName === 'optional' || typeName === 'default') {
+        currentSchema = (currentSchema as any)?.def?.innerType || currentSchema
+        typeName = currentSchema.def.type
       }
 
-      const innerTypeName = currentSchema.def.type
-      return innerTypeName === 'boolean'
+      return typeName === 'boolean'
     } catch {
       return false
     }
@@ -307,36 +307,22 @@ export class CliParserService {
 
   /**
    * Checks if a Zod schema represents an array type
-   * Unwraps ZodOptional and ZodDefault
+   * Unwraps ZodOptional and ZodDefault using Zod v4 API
    */
   private isSchemaArray(schema: ZodType): boolean {
     try {
       let currentSchema = schema
-      const typeName = currentSchema.def.type
+      let typeName = currentSchema.def.type
 
-      // Unwrap ZodOptional and ZodDefault
-      if (typeName === 'optional' || typeName === 'default') {
-        currentSchema = (currentSchema as any)?._def?.innerType || currentSchema
+      // Unwrap ZodOptional and ZodDefault using Zod v4's def.innerType
+      while (typeName === 'optional' || typeName === 'default') {
+        currentSchema = (currentSchema as any)?.def?.innerType || currentSchema
+        typeName = currentSchema.def.type
       }
 
-      const innerTypeName = currentSchema.def.type
-      return innerTypeName === 'array'
+      return typeName === 'array'
     } catch {
       return false
     }
-  }
-
-  /**
-   * Formats help text listing all available commands.
-   *
-   * @param commands - Array of command objects with path and class
-   * @returns Formatted string listing all commands
-   */
-  formatCommandList(commands: Array<{ path: string; class: any }>): string {
-    const lines = ['Available commands:', '']
-    for (const { path } of commands) {
-      lines.push(`  ${path}`)
-    }
-    return lines.join('\n')
   }
 }

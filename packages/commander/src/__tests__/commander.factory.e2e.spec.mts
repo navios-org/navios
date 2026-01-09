@@ -32,7 +32,8 @@ describe('CommanderApplication E2E - run() with different argv', () => {
       const app = await CommanderFactory.create(TestModule)
       await app.init()
 
-      await app.run(['node', 'script.js', 'hello'])
+      const adapter = app.getAdapter()
+      await adapter.run(['node', 'script.js', 'hello'])
 
       expect(executeMock).toHaveBeenCalledTimes(1)
       await app.close()
@@ -42,7 +43,8 @@ describe('CommanderApplication E2E - run() with different argv', () => {
       const app = await CommanderFactory.create(TestModule)
       await app.init()
 
-      await app.run(['/usr/local/bin/node', '/path/to/script.js', 'hello'])
+      const adapter = app.getAdapter()
+      await adapter.run(['/usr/local/bin/node', '/path/to/script.js', 'hello'])
 
       expect(executeMock).toHaveBeenCalledTimes(1)
       await app.close()
@@ -78,7 +80,8 @@ describe('CommanderApplication E2E - run() with different argv', () => {
       const app = await CommanderFactory.create(TestModule)
       await app.init()
 
-      await app.run(['node', 'script.js', 'test', '--verbose'])
+      const adapter = app.getAdapter()
+      await adapter.run(['node', 'script.js', 'test', '--verbose'])
 
       expect(executeMock).toHaveBeenCalledWith({
         verbose: true,
@@ -92,7 +95,8 @@ describe('CommanderApplication E2E - run() with different argv', () => {
       const app = await CommanderFactory.create(TestModule)
       await app.init()
 
-      await app.run(['node', 'script.js', 'test', '--verbose', '--debug'])
+      const adapter = app.getAdapter()
+      await adapter.run(['node', 'script.js', 'test', '--verbose', '--debug'])
 
       expect(executeMock).toHaveBeenCalledWith({
         verbose: true,
@@ -108,9 +112,9 @@ describe('CommanderApplication E2E - run() with different argv', () => {
       })
 
       @Command({ path: 'deploy', optionsSchema })
-      class DeployCommand
-        implements CommandHandler<z.infer<typeof optionsSchema>>
-      {
+      class DeployCommand implements CommandHandler<
+        z.infer<typeof optionsSchema>
+      > {
         async execute(options: z.infer<typeof optionsSchema>) {
           executeMock(options)
         }
@@ -124,7 +128,8 @@ describe('CommanderApplication E2E - run() with different argv', () => {
       const app = await CommanderFactory.create(DeployModule)
       await app.init()
 
-      await app.run(['node', 'script.js', 'deploy', '--dry-run'])
+      const adapter = app.getAdapter()
+      await adapter.run(['node', 'script.js', 'deploy', '--dry-run'])
 
       expect(executeMock).toHaveBeenCalledWith({
         dryRun: true,
@@ -139,9 +144,9 @@ describe('CommanderApplication E2E - run() with different argv', () => {
       })
 
       @Command({ path: 'build', optionsSchema })
-      class BuildCommand
-        implements CommandHandler<z.infer<typeof optionsSchema>>
-      {
+      class BuildCommand implements CommandHandler<
+        z.infer<typeof optionsSchema>
+      > {
         async execute(options: z.infer<typeof optionsSchema>) {
           executeMock(options)
         }
@@ -155,7 +160,8 @@ describe('CommanderApplication E2E - run() with different argv', () => {
       const app = await CommanderFactory.create(BuildModule)
       await app.init()
 
-      await app.run(['node', 'script.js', 'build', '-v', '-d'])
+      const adapter = app.getAdapter()
+      await adapter.run(['node', 'script.js', 'build', '-v', '-d'])
 
       expect(executeMock).toHaveBeenCalledWith({
         v: true,
@@ -175,9 +181,9 @@ describe('CommanderApplication E2E - run() with different argv', () => {
     })
 
     @Command({ path: 'greet', optionsSchema })
-    class GreetCommand
-      implements CommandHandler<z.infer<typeof optionsSchema>>
-    {
+    class GreetCommand implements CommandHandler<
+      z.infer<typeof optionsSchema>
+    > {
       async execute(options: z.infer<typeof optionsSchema>) {
         executeMock(options)
       }
@@ -196,7 +202,8 @@ describe('CommanderApplication E2E - run() with different argv', () => {
       const app = await CommanderFactory.create(TestModule)
       await app.init()
 
-      await app.run(['node', 'script.js', 'greet', '--name', 'Alice'])
+      const adapter = app.getAdapter()
+      await adapter.run(['node', 'script.js', 'greet', '--name', 'Alice'])
 
       expect(executeMock).toHaveBeenCalledWith({
         name: 'Alice',
@@ -210,7 +217,8 @@ describe('CommanderApplication E2E - run() with different argv', () => {
       const app = await CommanderFactory.create(TestModule)
       await app.init()
 
-      await app.run([
+      const adapter = app.getAdapter()
+      await adapter.run([
         'node',
         'script.js',
         'greet',
@@ -234,7 +242,8 @@ describe('CommanderApplication E2E - run() with different argv', () => {
       const app = await CommanderFactory.create(TestModule)
       await app.init()
 
-      await app.run([
+      const adapter = app.getAdapter()
+      await adapter.run([
         'node',
         'script.js',
         'greet',
@@ -254,7 +263,8 @@ describe('CommanderApplication E2E - run() with different argv', () => {
       const app = await CommanderFactory.create(TestModule)
       await app.init()
 
-      await app.run([
+      const adapter = app.getAdapter()
+      await adapter.run([
         'node',
         'script.js',
         'greet',
@@ -283,9 +293,9 @@ describe('CommanderApplication E2E - run() with different argv', () => {
     })
 
     @Command({ path: 'serve', optionsSchema })
-    class ServeCommand
-      implements CommandHandler<z.infer<typeof optionsSchema>>
-    {
+    class ServeCommand implements CommandHandler<
+      z.infer<typeof optionsSchema>
+    > {
       async execute(options: z.infer<typeof optionsSchema>) {
         executeMock(options)
       }
@@ -304,7 +314,8 @@ describe('CommanderApplication E2E - run() with different argv', () => {
       const app = await CommanderFactory.create(TestModule)
       await app.init()
 
-      await app.run(['node', 'script.js', 'serve', '--port', '3000'])
+      const adapter = app.getAdapter()
+      await adapter.run(['node', 'script.js', 'serve', '--port', '3000'])
 
       expect(executeMock).toHaveBeenCalledWith({
         port: 3000,
@@ -318,7 +329,8 @@ describe('CommanderApplication E2E - run() with different argv', () => {
       const app = await CommanderFactory.create(TestModule)
       await app.init()
 
-      await app.run([
+      const adapter = app.getAdapter()
+      await adapter.run([
         'node',
         'script.js',
         'serve',
@@ -342,7 +354,8 @@ describe('CommanderApplication E2E - run() with different argv', () => {
       const app = await CommanderFactory.create(TestModule)
       await app.init()
 
-      await app.run(['node', 'script.js', 'serve', '--port=4000'])
+      const adapter = app.getAdapter()
+      await adapter.run(['node', 'script.js', 'serve', '--port=4000'])
 
       expect(executeMock).toHaveBeenCalledWith({
         port: 4000,
@@ -365,9 +378,9 @@ describe('CommanderApplication E2E - run() with different argv', () => {
     })
 
     @Command({ path: 'start', optionsSchema })
-    class StartCommand
-      implements CommandHandler<z.infer<typeof optionsSchema>>
-    {
+    class StartCommand implements CommandHandler<
+      z.infer<typeof optionsSchema>
+    > {
       async execute(options: z.infer<typeof optionsSchema>) {
         executeMock(options)
       }
@@ -386,7 +399,8 @@ describe('CommanderApplication E2E - run() with different argv', () => {
       const app = await CommanderFactory.create(TestModule)
       await app.init()
 
-      await app.run([
+      const adapter = app.getAdapter()
+      await adapter.run([
         'node',
         'script.js',
         'start',
@@ -413,7 +427,8 @@ describe('CommanderApplication E2E - run() with different argv', () => {
       const app = await CommanderFactory.create(TestModule)
       await app.init()
 
-      await app.run([
+      const adapter = app.getAdapter()
+      await adapter.run([
         'node',
         'script.js',
         'start',
@@ -476,7 +491,8 @@ describe('CommanderApplication E2E - run() with different argv', () => {
       const app = await CommanderFactory.create(TestModule)
       await app.init()
 
-      await app.run(['node', 'script.js', 'db', 'migrate'])
+      const adapter = app.getAdapter()
+      await adapter.run(['node', 'script.js', 'db', 'migrate'])
 
       expect(executeMock).toHaveBeenCalledWith('migrate')
       await app.close()
@@ -486,12 +502,13 @@ describe('CommanderApplication E2E - run() with different argv', () => {
       const app = await CommanderFactory.create(TestModule)
       await app.init()
 
-      await app.run(['node', 'script.js', 'db', 'seed'])
+      const adapter = app.getAdapter()
+      await adapter.run(['node', 'script.js', 'db', 'seed'])
       expect(executeMock).toHaveBeenCalledWith('seed')
 
       executeMock.mockClear()
 
-      await app.run(['node', 'script.js', 'db', 'rollback'])
+      await adapter.run(['node', 'script.js', 'db', 'rollback'])
       expect(executeMock).toHaveBeenCalledWith('rollback')
 
       await app.close()
@@ -503,9 +520,9 @@ describe('CommanderApplication E2E - run() with different argv', () => {
       })
 
       @Command({ path: 'db rollback', optionsSchema })
-      class DbRollbackWithOptionsCommand
-        implements CommandHandler<z.infer<typeof optionsSchema>>
-      {
+      class DbRollbackWithOptionsCommand implements CommandHandler<
+        z.infer<typeof optionsSchema>
+      > {
         async execute(options: z.infer<typeof optionsSchema>) {
           executeMock(options)
         }
@@ -519,7 +536,8 @@ describe('CommanderApplication E2E - run() with different argv', () => {
       const app = await CommanderFactory.create(RollbackModule)
       await app.init()
 
-      await app.run(['node', 'script.js', 'db', 'rollback', '--steps', '3'])
+      const adapter = app.getAdapter()
+      await adapter.run(['node', 'script.js', 'db', 'rollback', '--steps', '3'])
 
       expect(executeMock).toHaveBeenCalledWith({ steps: 3 })
       await app.close()
@@ -543,9 +561,10 @@ describe('CommanderApplication E2E - run() with different argv', () => {
       const app = await CommanderFactory.create(TestModule)
       await app.init()
 
-      await expect(app.run(['node', 'script.js', 'invalid'])).rejects.toThrow(
-        '[Navios Commander] Command not found: invalid',
-      )
+      const adapter = app.getAdapter()
+      await expect(
+        adapter.run(['node', 'script.js', 'invalid']),
+      ).rejects.toThrow('[Navios Commander] Command not found: invalid')
 
       await app.close()
     })
@@ -554,7 +573,8 @@ describe('CommanderApplication E2E - run() with different argv', () => {
       const app = await CommanderFactory.create(TestModule)
       await app.init()
 
-      await expect(app.run(['node', 'script.js'])).rejects.toThrow(
+      const adapter = app.getAdapter()
+      await expect(adapter.run(['node', 'script.js'])).rejects.toThrow(
         '[Navios Commander] No command provided',
       )
 
@@ -589,7 +609,8 @@ describe('CommanderApplication E2E - run() with different argv', () => {
       const app = await CommanderFactory.create(TestModule)
       await app.init()
 
-      await app.run(['node', 'script.js', 'copy', '--force'])
+      const adapter = app.getAdapter()
+      await adapter.run(['node', 'script.js', 'copy', '--force'])
 
       expect(executeMock).toHaveBeenCalledWith({
         force: true,
@@ -601,8 +622,9 @@ describe('CommanderApplication E2E - run() with different argv', () => {
       const app = await CommanderFactory.create(TestModule)
       await app.init()
 
+      const adapter = app.getAdapter()
       // Note: positionals are not extracted in this test, but the command should still execute
-      await app.run(['node', 'script.js', 'copy', '--force'])
+      await adapter.run(['node', 'script.js', 'copy', '--force'])
 
       expect(executeMock).toHaveBeenCalledWith({
         force: true,
@@ -626,9 +648,9 @@ describe('CommanderApplication E2E - run() with different argv', () => {
     })
 
     @Command({ path: 'app deploy', optionsSchema: deploySchema })
-    class DeployCommand
-      implements CommandHandler<z.infer<typeof deploySchema>>
-    {
+    class DeployCommand implements CommandHandler<
+      z.infer<typeof deploySchema>
+    > {
       async execute(options: z.infer<typeof deploySchema>) {
         executeMock(options)
       }
@@ -647,7 +669,8 @@ describe('CommanderApplication E2E - run() with different argv', () => {
       const app = await CommanderFactory.create(TestModule)
       await app.init()
 
-      await app.run([
+      const adapter = app.getAdapter()
+      await adapter.run([
         'node',
         'script.js',
         'app',
@@ -680,7 +703,8 @@ describe('CommanderApplication E2E - run() with different argv', () => {
       const app = await CommanderFactory.create(TestModule)
       await app.init()
 
-      await app.run([
+      const adapter = app.getAdapter()
+      await adapter.run([
         'node',
         'script.js',
         'app',
@@ -708,7 +732,8 @@ describe('CommanderApplication E2E - run() with different argv', () => {
       const app = await CommanderFactory.create(TestModule)
       await app.init()
 
-      await app.run([
+      const adapter = app.getAdapter()
+      await adapter.run([
         'node',
         'script.js',
         'app',
@@ -743,9 +768,9 @@ describe('CommanderApplication E2E - run() with different argv', () => {
     })
 
     @Command({ path: 'process', optionsSchema })
-    class ProcessCommand
-      implements CommandHandler<z.infer<typeof optionsSchema>>
-    {
+    class ProcessCommand implements CommandHandler<
+      z.infer<typeof optionsSchema>
+    > {
       async execute(options: z.infer<typeof optionsSchema>) {
         executeMock(options)
       }
@@ -764,7 +789,8 @@ describe('CommanderApplication E2E - run() with different argv', () => {
       const app = await CommanderFactory.create(TestModule)
       await app.init()
 
-      await app.run([
+      const adapter = app.getAdapter()
+      await adapter.run([
         'node',
         'script.js',
         'process',
@@ -784,7 +810,8 @@ describe('CommanderApplication E2E - run() with different argv', () => {
       const app = await CommanderFactory.create(TestModule)
       await app.init()
 
-      await app.run([
+      const adapter = app.getAdapter()
+      await adapter.run([
         'node',
         'script.js',
         'process',
@@ -801,9 +828,6 @@ describe('CommanderApplication E2E - run() with different argv', () => {
     })
 
     it('should handle JSON-like strings (auto-parsed)', async () => {
-      const app = await CommanderFactory.create(TestModule)
-      await app.init()
-
       // Note: The CLI parser automatically parses valid JSON strings
       // If you need to pass raw JSON as a string, wrap it in quotes
       const jsonSchema = z.object({
@@ -811,9 +835,9 @@ describe('CommanderApplication E2E - run() with different argv', () => {
       })
 
       @Command({ path: 'json-process', optionsSchema: jsonSchema })
-      class JsonProcessCommand
-        implements CommandHandler<z.infer<typeof jsonSchema>>
-      {
+      class JsonProcessCommand implements CommandHandler<
+        z.infer<typeof jsonSchema>
+      > {
         async execute(options: z.infer<typeof jsonSchema>) {
           executeMock(options)
         }
@@ -827,7 +851,8 @@ describe('CommanderApplication E2E - run() with different argv', () => {
       const jsonApp = await CommanderFactory.create(JsonModule)
       await jsonApp.init()
 
-      await jsonApp.run([
+      const adapter = jsonApp.getAdapter()
+      await adapter.run([
         'node',
         'script.js',
         'json-process',
@@ -845,7 +870,8 @@ describe('CommanderApplication E2E - run() with different argv', () => {
       const app = await CommanderFactory.create(TestModule)
       await app.init()
 
-      await app.run([
+      const adapter = app.getAdapter()
+      await adapter.run([
         'node',
         'script.js',
         'process',
@@ -876,9 +902,9 @@ describe('CommanderApplication E2E - run() with different argv', () => {
     })
 
     @Command({ path: 'welcome', optionsSchema })
-    class WelcomeCommand
-      implements CommandHandler<z.infer<typeof optionsSchema>>
-    {
+    class WelcomeCommand implements CommandHandler<
+      z.infer<typeof optionsSchema>
+    > {
       async execute(options: z.infer<typeof optionsSchema>) {
         executeMock(options)
       }
@@ -897,7 +923,8 @@ describe('CommanderApplication E2E - run() with different argv', () => {
       const app = await CommanderFactory.create(TestModule)
       await app.init()
 
-      await app.run(['node', 'script.js', 'welcome', '--name', 'Alice'])
+      const adapter = app.getAdapter()
+      await adapter.run(['node', 'script.js', 'welcome', '--name', 'Alice'])
 
       expect(executeMock).toHaveBeenCalledWith({
         name: 'Alice',
@@ -913,7 +940,8 @@ describe('CommanderApplication E2E - run() with different argv', () => {
       const app = await CommanderFactory.create(TestModule)
       await app.init()
 
-      await app.run([
+      const adapter = app.getAdapter()
+      await adapter.run([
         'node',
         'script.js',
         'welcome',
@@ -942,7 +970,8 @@ describe('CommanderApplication E2E - run() with different argv', () => {
       const app = await CommanderFactory.create(TestModule)
       await app.init()
 
-      await app.run([
+      const adapter = app.getAdapter()
+      await adapter.run([
         'node',
         'script.js',
         'welcome',
@@ -959,6 +988,167 @@ describe('CommanderApplication E2E - run() with different argv', () => {
         verbose: false,
         optional: undefined,
       })
+      await app.close()
+    })
+  })
+
+  describe('nested modules', () => {
+    const executeMock = vi.fn()
+
+    beforeEach(() => {
+      executeMock.mockClear()
+    })
+
+    it('should discover commands from imported modules', async () => {
+      @Command({ path: 'user:create' })
+      class UserCreateCommand implements CommandHandler {
+        async execute() {
+          executeMock('user:create')
+        }
+      }
+
+      @CliModule({
+        commands: [UserCreateCommand],
+      })
+      class UserModule {}
+
+      @Command({ path: 'admin:reset' })
+      class AdminResetCommand implements CommandHandler {
+        async execute() {
+          executeMock('admin:reset')
+        }
+      }
+
+      @CliModule({
+        commands: [AdminResetCommand],
+      })
+      class AdminModule {}
+
+      @CliModule({
+        imports: [UserModule, AdminModule],
+      })
+      class AppModule {}
+
+      const app = await CommanderFactory.create(AppModule)
+      await app.init()
+
+      const adapter = app.getAdapter()
+
+      await adapter.executeCommand('user:create', {})
+      expect(executeMock).toHaveBeenCalledWith('user:create')
+
+      executeMock.mockClear()
+
+      await adapter.executeCommand('admin:reset', {})
+      expect(executeMock).toHaveBeenCalledWith('admin:reset')
+
+      await app.close()
+    })
+  })
+
+  describe('executeCommand', () => {
+    const executeMock = vi.fn()
+
+    beforeEach(() => {
+      executeMock.mockClear()
+    })
+
+    it('should execute command programmatically', async () => {
+      @Command({ path: 'greet' })
+      class GreetCommand implements CommandHandler {
+        async execute(options: { name: string }) {
+          executeMock(options)
+        }
+      }
+
+      @CliModule({
+        commands: [GreetCommand],
+      })
+      class AppModule {}
+
+      const app = await CommanderFactory.create(AppModule)
+      await app.init()
+
+      const adapter = app.getAdapter()
+      await adapter.executeCommand('greet', { name: 'World' })
+
+      expect(executeMock).toHaveBeenCalledWith({ name: 'World' })
+      await app.close()
+    })
+
+    it('should validate options with Zod schema', async () => {
+      const optionsSchema = z.object({
+        name: z.string().min(1),
+        email: z.string().email(),
+      })
+
+      @Command({ path: 'create-user', optionsSchema })
+      class CreateUserCommand implements CommandHandler<
+        z.infer<typeof optionsSchema>
+      > {
+        async execute(options: z.infer<typeof optionsSchema>) {
+          executeMock(options)
+        }
+      }
+
+      @CliModule({
+        commands: [CreateUserCommand],
+      })
+      class AppModule {}
+
+      const app = await CommanderFactory.create(AppModule)
+      await app.init()
+
+      const adapter = app.getAdapter()
+
+      // Valid options
+      await adapter.executeCommand('create-user', {
+        name: 'John',
+        email: 'john@example.com',
+      })
+      expect(executeMock).toHaveBeenCalled()
+
+      // Invalid options
+      await expect(
+        adapter.executeCommand('create-user', {
+          name: '',
+          email: 'invalid',
+        }),
+      ).rejects.toThrow()
+
+      await app.close()
+    })
+  })
+
+  describe('getAllCommands', () => {
+    it('should return all registered commands', async () => {
+      @Command({ path: 'cmd1' })
+      class Command1 implements CommandHandler {
+        execute() {}
+      }
+
+      @Command({ path: 'cmd2' })
+      class Command2 implements CommandHandler {
+        execute() {}
+      }
+
+      @CliModule({
+        commands: [Command1, Command2],
+      })
+      class AppModule {}
+
+      const app = await CommanderFactory.create(AppModule)
+      await app.init()
+
+      const adapter = app.getAdapter()
+      const commands = adapter.getAllCommands()
+
+      // 3 commands: cmd1, cmd2, and the built-in help command
+      expect(commands).toHaveLength(3)
+      expect(commands.map((c) => c.path)).toEqual(
+        expect.arrayContaining(['cmd1', 'cmd2', 'help']),
+      )
+
       await app.close()
     })
   })

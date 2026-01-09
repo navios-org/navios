@@ -18,6 +18,10 @@ export interface CommandMetadata {
    */
   path: string
   /**
+   * Optional description of the command for help text.
+   */
+  description?: string
+  /**
    * Optional Zod schema for validating command options.
    */
   optionsSchema?: ZodObject
@@ -34,6 +38,7 @@ export interface CommandMetadata {
  * @param target - The command class
  * @param context - The decorator context
  * @param path - The command path
+ * @param description - Optional description for help text
  * @param optionsSchema - Optional Zod schema
  * @returns The command metadata
  */
@@ -41,6 +46,7 @@ export function getCommandMetadata(
   target: ClassType,
   context: ClassDecoratorContext,
   path: string,
+  description?: string,
   optionsSchema?: ZodObject,
 ): CommandMetadata {
   if (context.metadata) {
@@ -52,6 +58,7 @@ export function getCommandMetadata(
     } else {
       const newMetadata: CommandMetadata = {
         path,
+        description,
         optionsSchema,
         customAttributes: new Map<string | symbol, any>(),
       }

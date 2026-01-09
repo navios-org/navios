@@ -17,6 +17,11 @@ export interface CommandOptions {
    */
   path: string
   /**
+   * Optional description of the command for help text.
+   * Displayed when users run `help` or `--help`.
+   */
+  description?: string
+  /**
    * Optional Zod schema for validating command options.
    * If provided, options will be validated and parsed according to this schema.
    */
@@ -65,6 +70,7 @@ export interface CommandOptions {
  */
 export function Command({
   path,
+  description,
   optionsSchema,
   priority,
   registry,
@@ -77,7 +83,7 @@ export function Command({
     }
     const token = InjectionToken.create(target)
     if (context.metadata) {
-      getCommandMetadata(target, context, path, optionsSchema)
+      getCommandMetadata(target, context, path, description, optionsSchema)
     }
     return Injectable({
       token,

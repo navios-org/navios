@@ -1,8 +1,11 @@
 import type { ClassType, Registry } from '@navios/core'
 
-import { Injectable, InjectableScope, InjectionToken } from '@navios/core'
+import { Module, getModuleMetadata, getModuleCustomEntry } from '@navios/core'
 
-import { getCliModuleMetadata } from '../metadata/index.mjs'
+import {
+  CommandEntryKey,
+  type CommandEntryValue,
+} from '../metadata/command-entry.metadata.mjs'
 
 /**
  * Options for the `@CliModule` decorator.
@@ -16,10 +19,20 @@ export interface CliModuleOptions {
    */
   commands?: ClassType[] | Set<ClassType>
   /**
-   * Array or Set of other CLI modules to import.
-   * Imported modules' commands will be available in this module.
+   * Array or Set of controller classes for HTTP endpoints.
+   * Allows mixing HTTP and CLI functionality in the same module.
+   */
+  controllers?: ClassType[] | Set<ClassType>
+  /**
+   * Array or Set of other modules to import.
+   * Imported modules' commands and controllers will be available.
    */
   imports?: ClassType[] | Set<ClassType>
+  /**
+   * Guards to apply to all controllers in this module.
+   * Guards are executed in reverse order (last guard first).
+   */
+  guards?: ClassType[] | Set<ClassType>
   /**
    * Service override classes to import for side effects.
    * These classes are imported to ensure their @Injectable decorators execute,
@@ -42,7 +55,11 @@ export interface CliModuleOptions {
 /**
  * Decorator that marks a class as a CLI module.
  *
- * Modules organize commands and can import other modules to compose larger CLI applications.
+ * This decorator extends the standard @Module decorator, adding support for
+ * CLI commands while maintaining full compatibility with HTTP controllers.
+ * Modules organize commands and can import other modules to compose larger
+ * CLI applications.
+ *
  * The module can optionally implement `NaviosModule` interface for lifecycle hooks.
  *
  * @param options - Configuration options for the module
@@ -60,17 +77,32 @@ export interface CliModuleOptions {
  * })
  * export class AppModule {}
  * ```
+ *
+ * @example
+ * ```typescript
+ * // Mixed HTTP and CLI module
+ * @CliModule({
+ *   controllers: [HealthController],
+ *   commands: [MigrateCommand],
+ *   imports: [DatabaseModule],
+ * })
+ * export class AppModule {}
+ * ```
  */
 export function CliModule(
   {
     commands = [],
+    controllers = [],
     imports = [],
+    guards = [],
     overrides = [],
     priority,
     registry,
   }: CliModuleOptions = {
     commands: [],
+    controllers: [],
     imports: [],
+    guards: [],
     overrides: [],
   },
 ) {
@@ -80,24 +112,30 @@ export function CliModule(
         '[Navios Commander] @CliModule decorator can only be used on classes.',
       )
     }
-    // Register the module in the service locator
-    const token = InjectionToken.create(target)
-    const moduleMetadata = getCliModuleMetadata(target, context)
-    for (const command of commands) {
-      moduleMetadata.commands.add(command)
-    }
-    for (const importedModule of imports) {
-      moduleMetadata.imports.add(importedModule)
-    }
-    for (const override of overrides) {
-      moduleMetadata.overrides.add(override)
-    }
 
-    return Injectable({
-      token,
-      scope: InjectableScope.Singleton,
+    // Apply standard @Module decorator first
+    const result = Module({
+      controllers,
+      imports,
+      guards,
+      overrides,
       priority,
       registry,
     })(target, context)
+
+    // Get the module metadata that @Module just created
+    const metadata = getModuleMetadata(target, context)
+
+    // Store commands in customEntries
+    const commandSet = getModuleCustomEntry<CommandEntryValue>(
+      metadata,
+      CommandEntryKey,
+      () => new Set(),
+    )
+    for (const command of commands) {
+      commandSet.add(command)
+    }
+
+    return result
   }
 }
