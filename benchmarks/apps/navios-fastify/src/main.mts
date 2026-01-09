@@ -1,4 +1,9 @@
-import { defineFastifyEnvironment } from '@navios/adapter-fastify'
+import { hostname } from 'os'
+
+import {
+  defineFastifyEnvironment,
+  FastifyEnvironment,
+} from '@navios/adapter-fastify'
 import { NaviosFactory } from '@navios/core'
 
 import { AppModule } from './app.module.mjs'
@@ -6,7 +11,7 @@ import { AppModule } from './app.module.mjs'
 const PORT = Number(process.env.PORT) || 3001
 
 async function bootstrap() {
-  const app = await NaviosFactory.create(AppModule, {
+  const app = await NaviosFactory.create<FastifyEnvironment>(AppModule, {
     adapter: defineFastifyEnvironment(),
     // Minimal logging for benchmarks
     logger: process.env.NODE_ENV === 'production' ? [] : ['error'],

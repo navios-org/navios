@@ -1,4 +1,4 @@
-import { defineBunEnvironment } from '@navios/adapter-bun'
+import { BunEnvironment, defineBunEnvironment } from '@navios/adapter-bun'
 import { NaviosFactory } from '@navios/core'
 
 import { AppModule } from './app.module.mjs'
@@ -6,7 +6,7 @@ import { AppModule } from './app.module.mjs'
 const PORT = Number(process.env.PORT) || 3002
 
 async function bootstrap() {
-  const app = await NaviosFactory.create(AppModule, {
+  const app = await NaviosFactory.create<BunEnvironment>(AppModule, {
     adapter: defineBunEnvironment(),
     // Minimal logging for benchmarks
     logger: process.env.NODE_ENV === 'production' ? [] : ['error'],
@@ -14,7 +14,7 @@ async function bootstrap() {
   })
 
   await app.init()
-  await app.listen({ port: PORT, host: '0.0.0.0' })
+  await app.listen({ port: PORT, hostname: '0.0.0.0' })
 
   console.log(`Navios (Bun) listening on http://localhost:${PORT}`)
 }
