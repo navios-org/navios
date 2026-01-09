@@ -22,15 +22,15 @@ Commands are defined as classes with decorators, making them easy to organize, t
 Install Navios Commander using your preferred package manager:
 
 ```bash
-npm install @navios/commander @navios/di zod
+npm install @navios/commander zod
 # or
-yarn add @navios/commander @navios/di zod
+yarn add @navios/commander zod
 # or
-pnpm add @navios/commander @navios/di zod
+pnpm add @navios/commander zod
 ```
 
 :::info
-`@navios/di` and `zod` are peer dependencies required for dependency injection and schema validation. Make sure to install them alongside `@navios/commander`.
+`zod` is a peer dependency required for schema validation. `@navios/core` (which includes DI) is bundled with `@navios/commander`.
 :::
 
 ## Prerequisites
@@ -97,7 +97,10 @@ export class AppModule {}
 async function bootstrap() {
   const app = await CommanderFactory.create(AppModule)
   await app.init()
-  await app.run(process.argv)
+
+  const adapter = app.getAdapter()
+  await adapter.run(process.argv)
+
   await app.close()
 }
 
@@ -179,7 +182,7 @@ Now that you have the basics down, explore these topics:
 **Solution**:
 - Make sure the command is registered in a module
 - Verify the module is imported in your root module
-- Check that `app.init()` was called before `app.run()`
+- Check that `app.init()` was called before `adapter.run()`
 
 ### Options Not Validated
 

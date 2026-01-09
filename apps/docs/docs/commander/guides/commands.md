@@ -17,7 +17,10 @@ The simplest command has a path and an `execute` method:
 ```typescript
 import { Command, CommandHandler } from '@navios/commander'
 
-@Command({ path: 'greet' })
+@Command({
+  path: 'greet',
+  description: 'Greet the world',
+})
 export class GreetCommand implements CommandHandler {
   async execute() {
     console.log('Hello, World!')
@@ -34,14 +37,15 @@ import { Command, CommandHandler } from '@navios/commander'
 import { z } from 'zod'
 
 const greetOptionsSchema = z.object({
-  name: z.string(),
-  greeting: z.string().optional().default('Hello'),
+  name: z.string().meta({ description: 'Name of the person to greet' }),
+  greeting: z.string().optional().default('Hello').meta({ description: 'Greeting message' }),
 })
 
 type GreetOptions = z.infer<typeof greetOptionsSchema>
 
 @Command({
   path: 'greet',
+  description: 'Greet a user with a custom message',
   optionsSchema: greetOptionsSchema,
 })
 export class GreetCommand implements CommandHandler<GreetOptions> {

@@ -21,12 +21,13 @@ npm install @navios/core @navios/adapter-fastify @navios/builder zod
 
 ```typescript
 import { NaviosFactory } from '@navios/core'
-import { defineFastifyEnvironment } from '@navios/adapter-fastify'
+import { defineFastifyEnvironment, type FastifyEnvironment } from '@navios/adapter-fastify'
 
-const app = await NaviosFactory.create(AppModule, {
+const app = await NaviosFactory.create<FastifyEnvironment>(AppModule, {
   adapter: defineFastifyEnvironment(),
 })
 
+await app.init()
 await app.listen({ port: 3000 })
 ```
 
@@ -37,13 +38,15 @@ await app.listen({ port: 3000 })
 Creates the Fastify adapter environment configuration.
 
 ```typescript
-import { defineFastifyEnvironment } from '@navios/adapter-fastify'
+import { defineFastifyEnvironment, type FastifyEnvironment } from '@navios/adapter-fastify'
 
 const environment = defineFastifyEnvironment()
 
-const app = await NaviosFactory.create(AppModule, {
+const app = await NaviosFactory.create<FastifyEnvironment>(AppModule, {
   adapter: environment,
 })
+
+await app.init()
 ```
 
 ### Application Methods

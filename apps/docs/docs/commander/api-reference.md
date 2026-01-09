@@ -15,6 +15,7 @@ Decorator that marks a class as a CLI command.
 **Parameters:**
 
 - `options.path: string` - The command path (e.g., 'greet', 'user:create', 'db:migrate')
+- `options.description?: string` - Optional description for help text
 - `options.optionsSchema?: ZodObject` - Optional Zod schema for validating command options
 
 **Returns:** Class decorator function
@@ -24,6 +25,7 @@ Decorator that marks a class as a CLI command.
 ```typescript
 @Command({
   path: 'greet',
+  description: 'Greet a user with a custom message',
   optionsSchema: z.object({
     name: z.string(),
     greeting: z.string().optional().default('Hello'),
@@ -93,6 +95,7 @@ Options for the `@Command` decorator.
 ```typescript
 interface CommandOptions {
   path: string
+  description?: string
   optionsSchema?: ZodObject
 }
 ```
@@ -115,6 +118,7 @@ Metadata for a command.
 ```typescript
 interface CommandMetadata {
   path: string
+  description?: string
   optionsSchema?: ZodObject
 }
 ```
@@ -141,13 +145,16 @@ Creates a new `CommanderApplication` instance.
 ```typescript
 const app = await CommanderFactory.create(AppModule)
 await app.init()
-await app.run(process.argv)
+
+const adapter = app.getAdapter()
+await adapter.run(process.argv)
+
 await app.close()
 ```
 
-### `CommanderApplication`
+### `NaviosApplication`
 
-Main application class for managing CLI command execution.
+Main application class returned by `CommanderFactory.create()`.
 
 #### `init()`
 
@@ -161,74 +168,20 @@ Initializes the application by loading all modules and registering commands.
 
 ```typescript
 const app = await CommanderFactory.create(AppModule)
-await app.init() // Must be called before run() or executeCommand()
+await app.init() // Must be called before adapter.run()
 ```
 
-#### `run(argv?)`
+#### `getAdapter()`
 
-Runs the CLI application by parsing command-line arguments and executing the appropriate command.
+Gets the CLI adapter for running commands.
 
-**Parameters:**
-
-- `argv?: string[]` - Command-line arguments array (defaults to `process.argv`)
-
-**Returns:** `Promise<void>`
-
-**Throws:**
-- `Error` if the application is not initialized
-- `Error` if no command is provided
-- `Error` if the command is not found
-- `ZodError` if options validation fails
+**Returns:** `AbstractCliAdapterInterface`
 
 **Example:**
 
 ```typescript
-// Parse and execute from process.argv
-await app.run()
-
-// Or provide custom arguments
-await app.run(['node', 'cli.js', 'greet', '--name', 'World'])
-```
-
-#### `executeCommand(path, options?)`
-
-Executes a command programmatically with the provided options.
-
-**Parameters:**
-
-- `path: string` - The command path (e.g., 'greet', 'user:create')
-- `options?: any` - The command options object (will be validated if schema exists)
-
-**Returns:** `Promise<void>`
-
-**Throws:**
-- `Error` if the application is not initialized
-- `Error` if the command is not found
-- `Error` if the command does not implement the execute method
-- `ZodError` if options validation fails
-
-**Example:**
-
-```typescript
-await app.executeCommand('greet', {
-  name: 'World',
-  greeting: 'Hi',
-})
-```
-
-#### `getAllCommands()`
-
-Gets all registered commands with their paths and class references.
-
-**Returns:** `Array<{ path: string; class: ClassType }>`
-
-**Example:**
-
-```typescript
-const commands = app.getAllCommands()
-commands.forEach(({ path }) => {
-  console.log(`Available: ${path}`)
-})
+const adapter = app.getAdapter()
+await adapter.run(process.argv)
 ```
 
 #### `getContainer()`
@@ -253,8 +206,84 @@ Closes the application and cleans up resources.
 **Example:**
 
 ```typescript
-await app.run(process.argv)
+const adapter = app.getAdapter()
+await adapter.run(process.argv)
 await app.close()
+```
+
+### `AbstractCliAdapterInterface`
+
+CLI adapter interface returned by `app.getAdapter()`.
+
+#### `run(argv?)`
+
+Runs the CLI application by parsing command-line arguments and executing the appropriate command.
+
+**Parameters:**
+
+- `argv?: string[]` - Command-line arguments array (defaults to `process.argv`)
+
+**Returns:** `Promise<void>`
+
+**Throws:**
+- `Error` if the application is not initialized
+- `Error` if no command is provided
+- `Error` if the command is not found
+- `ZodError` if options validation fails
+
+**Example:**
+
+```typescript
+const adapter = app.getAdapter()
+
+// Parse and execute from process.argv
+await adapter.run()
+
+// Or provide custom arguments
+await adapter.run(['node', 'cli.js', 'greet', '--name', 'World'])
+```
+
+#### `executeCommand(path, options?)`
+
+Executes a command programmatically with the provided options.
+
+**Parameters:**
+
+- `path: string` - The command path (e.g., 'greet', 'user:create')
+- `options?: any` - The command options object (will be validated if schema exists)
+
+**Returns:** `Promise<void>`
+
+**Throws:**
+- `Error` if the application is not initialized
+- `Error` if the command is not found
+- `Error` if the command does not implement the execute method
+- `ZodError` if options validation fails
+
+**Example:**
+
+```typescript
+const adapter = app.getAdapter()
+await adapter.executeCommand('greet', {
+  name: 'World',
+  greeting: 'Hi',
+})
+```
+
+#### `getAllCommands()`
+
+Gets all registered commands with their paths and class references.
+
+**Returns:** `Array<{ path: string; class: ClassType }>`
+
+**Example:**
+
+```typescript
+const adapter = app.getAdapter()
+const commands = adapter.getAllCommands()
+commands.forEach(({ path }) => {
+  console.log(`Available: ${path}`)
+})
 ```
 
 ### `CommanderExecutionContext`
@@ -334,6 +363,7 @@ Type for command decorator options.
 ```typescript
 type CommandOptions = {
   path: string
+  description?: string
   optionsSchema?: ZodObject
 }
 ```
@@ -356,6 +386,7 @@ Type for command metadata.
 ```typescript
 type CommandMetadata = {
   path: string
+  description?: string
   optionsSchema?: ZodObject
 }
 ```

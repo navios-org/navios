@@ -275,6 +275,54 @@ const schema = z.object({
 })
 ```
 
+## Option Descriptions with Meta
+
+Zod v4 supports `.meta()` to add metadata to schema fields. Navios Commander uses this to display descriptions in help output:
+
+```typescript
+const schema = z.object({
+  name: z.string().meta({ description: 'User name to display' }),
+  verbose: z.boolean().default(false).meta({ description: 'Enable verbose output' }),
+  format: z.enum(['json', 'csv']).meta({ description: 'Output format' }),
+})
+
+@Command({
+  path: 'export',
+  description: 'Export data to file',
+  optionsSchema: schema,
+})
+export class ExportCommand implements CommandHandler<z.infer<typeof schema>> {
+  async execute(options) {
+    // ...
+  }
+}
+```
+
+Running `export --help` will display:
+
+```
+Usage: export [options]
+
+Export data to file
+
+Options:
+  --name                 <string> - User name to display
+  --verbose              <boolean> (default: false) - Enable verbose output
+  --format               <enum> - Output format
+```
+
+### Meta Placement
+
+The `.meta()` call should be placed last in the chain for best results:
+
+```typescript
+// ✅ Recommended: meta() at the end
+z.string().optional().default('World').meta({ description: 'Name to greet' })
+
+// ✅ Also works: meta() before wrappers (Commander traverses innerType)
+z.string().meta({ description: 'Name to greet' }).optional().default('World')
+```
+
 ## Transform and Preprocess
 
 ### Transform

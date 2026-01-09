@@ -70,7 +70,7 @@ Navios Server follows a simple pattern: define your API endpoints with Builder, 
 
 ```typescript
 import { NaviosFactory, Module, Controller, Endpoint, EndpointParams } from '@navios/core'
-import { defineFastifyEnvironment } from '@navios/adapter-fastify'
+import { defineFastifyEnvironment, type FastifyEnvironment } from '@navios/adapter-fastify'
 import { builder } from '@navios/builder'
 import { z } from 'zod'
 
@@ -108,11 +108,12 @@ class AppModule {}
 
 // 4. Bootstrap the application
 async function bootstrap() {
-  const app = await NaviosFactory.create(AppModule, {
+  const app = await NaviosFactory.create<FastifyEnvironment>(AppModule, {
     adapter: defineFastifyEnvironment(),
     logger: ['log', 'error', 'warn'],
   })
 
+  await app.init()
   await app.listen({ port: 3000 })
   console.log('Server running on http://localhost:3000')
 }

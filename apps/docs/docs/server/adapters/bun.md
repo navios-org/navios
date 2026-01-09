@@ -25,13 +25,14 @@ bun add @navios/core @navios/adapter-bun @navios/builder zod
 
 ```typescript
 import { NaviosFactory } from '@navios/core'
-import { defineBunEnvironment } from '@navios/adapter-bun'
+import { defineBunEnvironment, type BunEnvironment } from '@navios/adapter-bun'
 
-const app = await NaviosFactory.create(AppModule, {
+const app = await NaviosFactory.create<BunEnvironment>(AppModule, {
   adapter: defineBunEnvironment(),
 })
 
-await app.listen({ port: 3000 })
+await app.init()
+await app.listen({ port: 3000, hostname: 'localhost' })
 ```
 
 ## API Reference
@@ -41,13 +42,15 @@ await app.listen({ port: 3000 })
 Creates the Bun adapter environment configuration:
 
 ```typescript
-import { defineBunEnvironment } from '@navios/adapter-bun'
+import { defineBunEnvironment, type BunEnvironment } from '@navios/adapter-bun'
 
 const environment = defineBunEnvironment()
 
-const app = await NaviosFactory.create(AppModule, {
+const app = await NaviosFactory.create<BunEnvironment>(AppModule, {
   adapter: environment,
 })
+
+await app.init()
 ```
 
 ## Application Methods
@@ -200,7 +203,7 @@ Bun adapter leverages Bun's native HTTP server for maximum performance:
 
 ```typescript
 import { NaviosFactory, Module, Controller, Endpoint, EndpointParams } from '@navios/core'
-import { defineBunEnvironment } from '@navios/adapter-bun'
+import { defineBunEnvironment, type BunEnvironment } from '@navios/adapter-bun'
 import { builder } from '@navios/builder'
 import { z } from 'zod'
 
@@ -223,11 +226,12 @@ class HelloController {
 @Module({ controllers: [HelloController] })
 class AppModule {}
 
-const app = await NaviosFactory.create(AppModule, {
+const app = await NaviosFactory.create<BunEnvironment>(AppModule, {
   adapter: defineBunEnvironment(),
 })
 
-await app.listen({ port: 3000 })
+await app.init()
+await app.listen({ port: 3000, hostname: 'localhost' })
 console.log('Server running on http://localhost:3000')
 ```
 
