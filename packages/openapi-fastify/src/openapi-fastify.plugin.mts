@@ -4,7 +4,9 @@ import type {
   PluginDefinition,
 } from '@navios/core'
 import type { OpenApiGeneratorOptions } from '@navios/openapi'
-import type { FastifyInstance } from 'fastify'
+import type { FastifyReply, FastifyRequest } from 'fastify'
+
+import type { FastifyApplicationServiceInterface } from '@navios/adapter-fastify'
 
 import { OpenApiGeneratorService } from '@navios/openapi'
 
@@ -36,14 +38,15 @@ export interface FastifyOpenApiPluginOptions
  * - Serves the document as JSON and optionally YAML
  * - Provides Scalar UI for interactive documentation
  */
-export class OpenApiFastifyPlugin implements NaviosPlugin<FastifyOpenApiPluginOptions> {
+export class OpenApiFastifyPlugin implements NaviosPlugin<FastifyOpenApiPluginOptions, FastifyApplicationServiceInterface> {
   readonly name = 'openapi-fastify'
 
   async register(
-    context: PluginContext,
+    context: PluginContext<FastifyApplicationServiceInterface>,
     options: FastifyOpenApiPluginOptions,
   ): Promise<void> {
-    const fastify = context.server as FastifyInstance
+    const fastify = context.adapter.getServer()
+    const globalPrefix = context.adapter.getGlobalPrefix()
 
     // Parse and validate options with defaults
     const parsedOptions = fastifyOpenApiPluginOptionsSchema.parse(options)
@@ -57,20 +60,20 @@ export class OpenApiFastifyPlugin implements NaviosPlugin<FastifyOpenApiPluginOp
     // Apply global prefix to servers if not already set
     const documentWithServers = applyGlobalPrefix(
       document,
-      context.globalPrefix,
+      globalPrefix,
       options,
     )
 
     // Register JSON endpoint
     const jsonPath = parsedOptions.jsonPath
-    fastify.get(jsonPath, async (_request, reply) => {
+    fastify.get(jsonPath, async (_request: FastifyRequest, reply: FastifyReply) => {
       return reply.send(documentWithServers)
     })
 
     // Register YAML endpoint (disabled by default)
     if (!parsedOptions.disableYaml) {
       const yamlPath = parsedOptions.yamlPath
-      fastify.get(yamlPath, async (_request, reply) => {
+      fastify.get(yamlPath, async (_request: FastifyRequest, reply: FastifyReply) => {
         reply.type('text/yaml')
         return reply.send(yamlStringify(documentWithServers))
       })
@@ -84,7 +87,7 @@ export class OpenApiFastifyPlugin implements NaviosPlugin<FastifyOpenApiPluginOp
       // Generate HTML document using @scalar/core
       const html = this.generateScalarHtml(jsonPath, scalarOptions)
 
-      fastify.get(docsPath, async (_request, reply) => {
+      fastify.get(docsPath, async (_request: FastifyRequest, reply: FastifyReply) => {
         reply.type('text/html')
         return reply.send(html)
       })

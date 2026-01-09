@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.0-alpha.4] - 2026-01-09
+
+### Changed
+
+- **Plugin Type Parameter**: `OpenApiFastifyPlugin` now includes adapter type parameter
+  - Implements `NaviosPlugin<FastifyOpenApiPluginOptions, FastifyApplicationServiceInterface>`
+  - Plugin context typed for Fastify adapter access
+- **Plugin Context API**: Updated to use new `PluginContext<TAdapter>` pattern
+  - Uses `context.adapter.getServer()` instead of casting `context.server`
+  - Uses `context.adapter.getGlobalPrefix()` instead of `context.globalPrefix`
+- **Route Handler Types**: Added explicit `FastifyRequest` and `FastifyReply` type annotations
+
+### Dependencies
+
+- Updated to support `@navios/core` ^1.0.0-alpha.4
+- Updated to support `@navios/adapter-fastify` ^1.0.0-alpha.4
+- Updated to support `@navios/openapi` ^1.0.0-alpha.4
+
 ## [1.0.0-alpha.2] - 2026-01-07
 
 ### Dependencies
