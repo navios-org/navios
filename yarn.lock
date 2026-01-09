@@ -5921,7 +5921,7 @@ __metadata:
   resolution: "@navios-bench/native-bun@workspace:benchmarks/apps/native-bun"
   dependencies:
     "@types/bun": "npm:^1.3.5"
-    "@types/node": "npm:^22.0.0"
+    "@types/node": "npm:^25.0.3"
     typescript: "npm:^5.9.3"
     zod: "npm:^4.3.5"
   languageName: unknown
@@ -5935,7 +5935,7 @@ __metadata:
     "@navios/builder": "workspace:*"
     "@navios/core": "workspace:*"
     "@types/bun": "npm:^1.3.5"
-    "@types/node": "npm:^22.0.0"
+    "@types/node": "npm:^25.0.3"
     typescript: "npm:^5.9.3"
     zod: "npm:^4.3.5"
   languageName: unknown
@@ -5948,7 +5948,7 @@ __metadata:
     "@navios/adapter-fastify": "workspace:*"
     "@navios/builder": "workspace:*"
     "@navios/core": "workspace:*"
-    "@types/node": "npm:^22.0.0"
+    "@types/node": "npm:^25.0.3"
     tsx: "npm:^4.21.0"
     typescript: "npm:^5.9.3"
     zod: "npm:^4.3.5"
@@ -5963,7 +5963,7 @@ __metadata:
     "@nestjs/core": "npm:^11.1.11"
     "@nestjs/platform-express": "npm:^11.1.9"
     "@types/express": "npm:^5.0.6"
-    "@types/node": "npm:^22.0.0"
+    "@types/node": "npm:^25.0.3"
     class-transformer: "npm:^0.5.1"
     class-validator: "npm:^0.14.3"
     reflect-metadata: "npm:^0.2.2"
@@ -5981,7 +5981,7 @@ __metadata:
     "@nestjs/common": "npm:^11.1.9"
     "@nestjs/core": "npm:^11.1.11"
     "@nestjs/platform-fastify": "npm:^11.1.9"
-    "@types/node": "npm:^22.0.0"
+    "@types/node": "npm:^25.0.3"
     class-transformer: "npm:^0.5.1"
     class-validator: "npm:^0.14.3"
     reflect-metadata: "npm:^0.2.2"
@@ -6059,7 +6059,7 @@ __metadata:
   resolution: "@navios/benchmarks@workspace:benchmarks"
   dependencies:
     "@types/autocannon": "npm:^7.12.7"
-    "@types/node": "npm:^22.0.0"
+    "@types/node": "npm:^25.0.3"
     autocannon: "npm:^8.0.0"
     chalk: "npm:^5.6.2"
     cli-table3: "npm:^0.6.5"
@@ -6093,7 +6093,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@navios/cli@workspace:packages/cli"
   dependencies:
-    "@types/node": "npm:^24.10.4"
+    "@types/node": "npm:^25.0.3"
     clipanion: "npm:^4.0.0-rc.4"
     package-manager-detector: "npm:^1.6.0"
     tsx: "npm:^4.21.0"
@@ -6233,7 +6233,7 @@ __metadata:
     "@nx/vite": "npm:^21.5.2"
     "@nx/workspace": "npm:22.3.3"
     "@swc/core": "npm:^1.15.6"
-    "@types/node": "npm:24.10.4"
+    "@types/node": "npm:25.0.3"
     "@vitest/coverage-v8": "npm:^4.0.16"
     "@vitest/ui": "npm:4.0.16"
     happy-dom: "npm:^20.1.0"
@@ -9011,12 +9011,12 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@types/node@npm:24.10.4, @types/node@npm:^24.10.4":
-  version: 24.10.4
-  resolution: "@types/node@npm:24.10.4"
+"@types/node@npm:25.0.3, @types/node@npm:^25.0.3":
+  version: 25.0.3
+  resolution: "@types/node@npm:25.0.3"
   dependencies:
     undici-types: "npm:~7.16.0"
-  checksum: 10c0/069639cb7233ee747df1897b5e784f6b6c5da765c96c94773c580aac888fa1a585048d2a6e95eb8302d89c7a9df75801c8b5a0b7d0221d4249059cf09a5f4228
+  checksum: 10c0/b7568f0d765d9469621615e2bb257c7fd1953d95e9acbdb58dffb6627a2c4150d405a4600aa1ad8a40182a94fe5f903cafd3c0a2f5132814debd0e3bfd61f835
   languageName: node
   linkType: hard
 
@@ -9033,15 +9033,6 @@ __metadata:
   dependencies:
     undici-types: "npm:~6.21.0"
   checksum: 10c0/7599c24d80465c1aa6e29b53581fc20ad8862ff33e6eef31d05c1c706868476ee57319c89b802ea972dd4d64ce86d18020aa5344f851fb59b730ea509a63300f
-  languageName: node
-  linkType: hard
-
-"@types/node@npm:^22.0.0":
-  version: 22.19.3
-  resolution: "@types/node@npm:22.19.3"
-  dependencies:
-    undici-types: "npm:~6.21.0"
-  checksum: 10c0/a30a75d503da795ddbd5f8851014f3e91925c2a63fa3f14128d54c998f25d682dfba96dc9589c73cf478b87a16d88beb790b11697bb8cd5bee913079237a58f2
   languageName: node
   linkType: hard
 
