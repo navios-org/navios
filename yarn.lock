@@ -6236,7 +6236,7 @@ __metadata:
     "@types/node": "npm:24.10.4"
     "@vitest/coverage-v8": "npm:^4.0.16"
     "@vitest/ui": "npm:4.0.16"
-    happy-dom: "npm:^20.0.11"
+    happy-dom: "npm:^20.1.0"
     nx: "npm:21.5.2"
     oxlint: "npm:^1.34.0"
     prettier: "npm:^3.7.4"
@@ -9245,7 +9245,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@types/ws@npm:^8.5.10":
+"@types/ws@npm:^8.18.1, @types/ws@npm:^8.5.10":
   version: 8.18.1
   resolution: "@types/ws@npm:8.18.1"
   dependencies:
@@ -14345,14 +14345,16 @@ __metadata:
   languageName: node
   linkType: hard
 
-"happy-dom@npm:^20.0.11":
-  version: 20.0.11
-  resolution: "happy-dom@npm:20.0.11"
+"happy-dom@npm:^20.1.0":
+  version: 20.1.0
+  resolution: "happy-dom@npm:20.1.0"
   dependencies:
     "@types/node": "npm:^20.0.0"
     "@types/whatwg-mimetype": "npm:^3.0.2"
+    "@types/ws": "npm:^8.18.1"
     whatwg-mimetype: "npm:^3.0.0"
-  checksum: 10c0/818c44630fdb73258d12932646ab966190953820e5d8d032bc6ef51d00d6400097a91d28e212483216898c87d645e1728ae577951256ad989f75da6f9c1f8792
+    ws: "npm:^8.18.3"
+  checksum: 10c0/a55b5fe6de845124644bc51184c8e761e75936de50ba5f4093ff844802d2b13f700c71a5e8236cb78c2b23c1368125b98f38e3c99e472b6d6becec7ddb720c58
   languageName: node
   linkType: hard
 
