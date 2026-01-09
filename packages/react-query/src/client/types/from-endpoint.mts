@@ -318,27 +318,6 @@ export interface ClientFromEndpointMethods<
       ? MutationHelpers<Config['url'], Result>
       : {}) &
     (Config extends EndpointOptions
-      ? EndpointHelper<
-          {
-            method: Config['method']
-            url: Config['url']
-            responseSchema: Config['responseSchema']
-            querySchema: Config['querySchema']
-            requestSchema: Config['requestSchema']
-            errorSchema: Config['errorSchema']
-            urlParamsSchema: Config['urlParamsSchema']
-          },
-          UseDiscriminator
-        >
-      : StreamHelper<
-          {
-            method: Config['method']
-            url: Config['url']
-            querySchema: Config['querySchema']
-            requestSchema: Config['requestSchema']
-            errorSchema: Config['errorSchema']
-            urlParamsSchema: Config['urlParamsSchema']
-          },
-          UseDiscriminator
-        >)
+      ? EndpointHelper<Config, UseDiscriminator>
+      : StreamHelper<Config, UseDiscriminator>)
 }

@@ -1,4 +1,8 @@
-import type { EndpointHandler, ErrorSchemaRecord } from '@navios/builder'
+import type {
+  EndpointHandler,
+  ErrorSchemaRecord,
+  StreamHandler,
+} from '@navios/builder'
 import type { DataTag, UseSuspenseQueryOptions } from '@tanstack/react-query'
 import type { z } from 'zod/v4'
 
@@ -126,9 +130,23 @@ declare const endpointWithErrors: EndpointHandler<
   false
 >
 
-// NOTE: Stream endpoints are not tested here due to type compatibility issues
-// with mutationFromEndpoint. StreamHandler<Config> doesn't match the expected
-// EndpointOptions | BaseEndpointOptions constraint correctly.
+// Stream endpoints for testing
+declare const streamEndpoint: StreamHandler<
+  {
+    method: 'GET'
+    url: '/files/$fileId/download'
+  },
+  false
+>
+
+declare const streamEndpointWithRequest: StreamHandler<
+  {
+    method: 'POST'
+    url: '/files/generate'
+    requestSchema: typeof requestSchema
+  },
+  false
+>
 
 // Discriminator mode endpoints
 declare const endpointWithErrorsDiscriminator: EndpointHandler<
@@ -360,9 +378,39 @@ describe('ClientInstance<false> mutationFromEndpoint() method', () => {
     })
   })
 
-  // NOTE: Stream endpoints with mutationFromEndpoint are commented out due to type issues.
-  // The mutationFromEndpoint signature expects EndpointOptions | BaseEndpointOptions,
-  // but StreamHandler doesn't match correctly, resulting in `never` return type.
+  describe('stream endpoints', () => {
+    test('stream endpoint returns Blob', () => {
+      const mutation = client.mutationFromEndpoint(streamEndpoint)
+      const { mutate, data } = mutation()
+
+      // Should require urlParams for stream endpoint
+      mutate({ urlParams: { fileId: '123' } })
+
+      // Data should be Blob, not never
+      assertType<Blob | undefined>(data)
+    })
+
+    test('stream endpoint with request schema', () => {
+      const mutation = client.mutationFromEndpoint(streamEndpointWithRequest)
+      const { mutate, data } = mutation()
+
+      // Should require data for stream endpoint with requestSchema
+      mutate({ data: { name: 'test', email: 'test@test.com' } })
+
+      // Data should be Blob
+      assertType<Blob | undefined>(data)
+    })
+
+    test('stream endpoint with processResponse', () => {
+      client.mutationFromEndpoint(streamEndpoint, {
+        processResponse: (data) => {
+          // data should be Blob
+          assertType<Blob>(data)
+          return { url: URL.createObjectURL(data) }
+        },
+      })
+    })
+  })
 
   describe('callback options', () => {
     test('onMutate receives variables and context', () => {

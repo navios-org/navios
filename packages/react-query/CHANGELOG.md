@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.0.1] - 2026-01-09
+
+### Fixed
+
+- **Fixed `mutationFromEndpoint` with stream endpoints** - Stream endpoints created with `api.declareStream()` now work correctly with `mutationFromEndpoint`. Previously, passing a `StreamHandler` to `mutationFromEndpoint` resulted in a `never` return type due to incorrect type inference when accessing config properties. The fix simplifies the helper type resolution by passing the config directly to `EndpointHelper` and `StreamHelper` instead of reconstructing the object type.
+
+  ```typescript
+  const downloadFile = api.declareStream({
+    method: 'GET',
+    url: '/files/$fileId/download',
+  })
+
+  // Now works correctly - returns UseMutationResult<Blob, ...>
+  const useDownloadFile = client.mutationFromEndpoint(downloadFile)
+  ```
+
 ## [1.0.0] - 2026-01-08
 
 ### Highlights
