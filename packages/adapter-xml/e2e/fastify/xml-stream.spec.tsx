@@ -12,7 +12,10 @@ import {
   NaviosFactory,
   type EndpointParams,
 } from '@navios/core'
-import { defineFastifyEnvironment } from '@navios/adapter-fastify'
+import {
+  defineFastifyEnvironment,
+  type FastifyEnvironment,
+} from '@navios/adapter-fastify'
 
 import supertest from 'supertest'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
@@ -29,7 +32,7 @@ import {
 } from '../../src/index.mjs'
 
 describe('XML Stream with Fastify adapter', () => {
-  let server: NaviosApplication
+  let server: NaviosApplication<FastifyEnvironment>
 
   // Request scoped service for tracking
   @Injectable({
@@ -339,7 +342,7 @@ describe('XML Stream with Fastify adapter', () => {
   class AppModule {}
 
   beforeAll(async () => {
-    server = await NaviosFactory.create(AppModule, {
+    server = await NaviosFactory.create<FastifyEnvironment>(AppModule, {
       adapter: [defineFastifyEnvironment(), defineXmlEnvironment()],
     })
     await server.init()

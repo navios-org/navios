@@ -30,10 +30,8 @@ import { XmlStreamAdapterService } from './adapters/index.mjs'
  * ```
  */
 export function defineXmlEnvironment() {
-  const httpTokens = new Map<InjectionToken<any, undefined>, AnyInjectableType>(
-    [[XmlStreamAdapterToken, XmlStreamAdapterService]],
-  )
-  return {
-    httpTokens,
-  }
+  const tokens = new Map<InjectionToken<any, undefined>, AnyInjectableType>([
+    [XmlStreamAdapterToken, XmlStreamAdapterService],
+  ])
+  return { tokens }
 }

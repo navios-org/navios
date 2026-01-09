@@ -12,7 +12,7 @@ import {
   NaviosFactory,
   type EndpointParams,
 } from '@navios/core'
-import { defineBunEnvironment } from '@navios/adapter-bun'
+import { defineBunEnvironment, type BunEnvironment } from '@navios/adapter-bun'
 
 import supertest from 'supertest'
 import { afterAll, beforeAll, describe, expect, it } from 'bun:test'
@@ -29,7 +29,7 @@ import {
 } from '../../src/index.mjs'
 
 describe('XML Stream with Bun adapter', () => {
-  let server: NaviosApplication
+  let server: NaviosApplication<BunEnvironment>
   let serverUrl: string
 
   // Request scoped service for tracking
@@ -340,11 +340,11 @@ describe('XML Stream with Bun adapter', () => {
   class AppModule {}
 
   beforeAll(async () => {
-    server = await NaviosFactory.create(AppModule, {
+    server = await NaviosFactory.create<BunEnvironment>(AppModule, {
       adapter: [defineBunEnvironment(), defineXmlEnvironment()],
     })
     await server.init()
-    await server.listen({ port: 3008, host: 'localhost' })
+    await server.listen({ port: 3008, hostname: 'localhost' })
     serverUrl = server.getServer().url.href.replace(/\/$/, '')
   })
 

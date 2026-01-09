@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.0-alpha.4] - 2026-01-09
+
+### Changed
+
+- **Environment Definition**: `defineXmlEnvironment()` now returns `tokens` instead of `httpTokens`
+  - Aligns with new unified adapter architecture in `@navios/core`
+
+### Dependencies
+
+- Updated to support `@navios/core` ^1.0.0-alpha.4
+- Updated to support `@navios/adapter-bun` ^1.0.0-alpha.4
+- Updated to support `@navios/adapter-fastify` ^1.0.0-alpha.4
+
 ## [1.0.0-alpha.3] - 2026-01-08
 
 ### Added
