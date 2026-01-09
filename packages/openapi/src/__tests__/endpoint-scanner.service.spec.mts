@@ -106,6 +106,7 @@ describe('EndpointScannerService', () => {
         guards: new Set(),
         overrides: new Set(),
         customAttributes: new Map(),
+        customEntries: new Map(),
       }
 
       const modules = new Map([['TestModule', moduleMetadata]])
@@ -127,6 +128,7 @@ describe('EndpointScannerService', () => {
         guards: new Set(),
         overrides: new Set(),
         customAttributes: new Map(),
+        customEntries: new Map(),
       }
 
       const modules = new Map([['EmptyModule', moduleMetadata]])
@@ -145,6 +147,7 @@ describe('EndpointScannerService', () => {
         guards: new Set(),
         overrides: new Set(),
         customAttributes: new Map(),
+        customEntries: new Map(),
       }
 
       const modules = new Map([['NoControllerModule', moduleMetadata]])
@@ -176,6 +179,7 @@ describe('EndpointScannerService', () => {
         guards: new Set(),
         overrides: new Set(),
         customAttributes: new Map(),
+        customEntries: new Map(),
       }
 
       const modules = new Map([['TestModule', moduleMetadata]])
@@ -221,6 +225,7 @@ describe('EndpointScannerService', () => {
         guards: new Set(),
         overrides: new Set(),
         customAttributes: new Map(),
+        customEntries: new Map(),
       }
 
       const modules = new Map([['TestModule', moduleMetadata]])
@@ -274,6 +279,7 @@ describe('EndpointScannerService', () => {
         guards: new Set(),
         overrides: new Set(),
         customAttributes: new Map(),
+        customEntries: new Map(),
       }
 
       // Module 2
@@ -298,6 +304,7 @@ describe('EndpointScannerService', () => {
         guards: new Set(),
         overrides: new Set(),
         customAttributes: new Map(),
+        customEntries: new Map(),
       }
 
       const modules = new Map([
@@ -350,6 +357,7 @@ describe('EndpointScannerService', () => {
         guards: new Set(),
         overrides: new Set(),
         customAttributes: new Map(),
+        customEntries: new Map(),
       }
 
       const modules = new Map([['TestModule', moduleMetadata]])
