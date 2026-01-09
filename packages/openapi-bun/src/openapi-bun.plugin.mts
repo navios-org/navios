@@ -5,6 +5,8 @@ import type {
   PluginDefinition,
 } from '@navios/core'
 
+import type { BunApplicationServiceInterface } from '@navios/adapter-bun'
+
 import type { ScalarOptions, ScalarTheme } from './schemas/index.mjs'
 import type { BunOpenApiPluginOptions } from './tokens/openapi-options.token.mjs'
 
@@ -27,11 +29,11 @@ import { OpenApiOptionsToken } from './tokens/openapi-options.token.mjs'
  * this plugin uses the standard Navios controller pattern via
  * ModuleLoaderService.extendModules().
  */
-export class OpenApiBunPlugin implements NaviosPlugin<BunOpenApiPluginOptions> {
+export class OpenApiBunPlugin implements NaviosPlugin<BunOpenApiPluginOptions, BunApplicationServiceInterface> {
   readonly name = 'openapi-bun'
 
   async register(
-    context: PluginContext,
+    context: PluginContext<BunApplicationServiceInterface>,
     options: BunOpenApiPluginOptions,
   ): Promise<void> {
     // Parse and validate options with defaults
@@ -62,7 +64,7 @@ export class OpenApiBunPlugin implements NaviosPlugin<BunOpenApiPluginOptions> {
    * Registers the plugin options in the DI container.
    */
   private registerOptions(
-    context: PluginContext,
+    context: PluginContext<BunApplicationServiceInterface>,
     options: BunOpenApiPluginOptions,
   ): void {
     context.container.addInstance(OpenApiOptionsToken, options)
@@ -72,14 +74,15 @@ export class OpenApiBunPlugin implements NaviosPlugin<BunOpenApiPluginOptions> {
    * Registers and initializes the document service.
    */
   private async initializeDocumentService(
-    context: PluginContext,
+    context: PluginContext<BunApplicationServiceInterface>,
     _options: BunOpenApiPluginOptions,
   ): Promise<void> {
     // Get the document service from container (triggers DI registration)
     const documentService = await context.container.get(OpenApiDocumentService)
 
     // Initialize with modules and global prefix
-    documentService.initialize(context.modules, context.globalPrefix)
+    const globalPrefix = context.adapter.getGlobalPrefix()
+    documentService.initialize(context.modules, globalPrefix)
   }
 
   /**

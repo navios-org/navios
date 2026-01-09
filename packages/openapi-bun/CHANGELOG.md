@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.0-alpha.4] - 2026-01-09
+
+### Changed
+
+- **Plugin Type Parameter**: `OpenApiBunPlugin` now includes adapter type parameter
+  - Implements `NaviosPlugin<BunOpenApiPluginOptions, BunApplicationServiceInterface>`
+  - Plugin context typed for Bun adapter access
+- **Plugin Context API**: Updated to use new `PluginContext<TAdapter>` pattern
+  - Uses `context.adapter.getGlobalPrefix()` instead of `context.globalPrefix`
+
+### Dependencies
+
+- Updated to support `@navios/core` ^1.0.0-alpha.4
+- Updated to support `@navios/adapter-bun` ^1.0.0-alpha.4
+- Updated to support `@navios/openapi` ^1.0.0-alpha.4
+
 ## [1.0.0-alpha.2] - 2026-01-07
 
 ### Dependencies
