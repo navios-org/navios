@@ -14,10 +14,11 @@ import supertest from 'supertest'
 import { z } from 'zod/v4'
 
 import { defineBunEnvironment } from '../../src/index.mjs'
+import type { BunEnvironment } from '../../src/index.mjs'
 
 describe('CORS support', () => {
   describe('with origin: true (allow all)', () => {
-    let server: NaviosApplication
+    let server: NaviosApplication<BunEnvironment>
     let realServer: string
 
     const simple = builder().declareEndpoint({
@@ -58,7 +59,7 @@ describe('CORS support', () => {
     class CorsModule {}
 
     beforeAll(async () => {
-      server = await NaviosFactory.create(CorsModule, {
+      server = await NaviosFactory.create<BunEnvironment>(CorsModule, {
         adapter: defineBunEnvironment(),
       })
       server.enableCors({
@@ -70,7 +71,7 @@ describe('CORS support', () => {
         maxAge: 86400,
       })
       await server.init()
-      await server.listen({ port: 3010, host: 'localhost' })
+      await server.listen({ port: 3010, hostname: 'localhost' })
       realServer = server.getServer().url.href
     })
 
@@ -160,7 +161,7 @@ describe('CORS support', () => {
   })
 
   describe('with specific origin string', () => {
-    let server: NaviosApplication
+    let server: NaviosApplication<BunEnvironment>
     let realServer: string
 
     const simple = builder().declareEndpoint({
@@ -185,14 +186,14 @@ describe('CORS support', () => {
     class CorsModule {}
 
     beforeAll(async () => {
-      server = await NaviosFactory.create(CorsModule, {
+      server = await NaviosFactory.create<BunEnvironment>(CorsModule, {
         adapter: defineBunEnvironment(),
       })
       server.enableCors({
         origin: 'http://allowed-origin.com',
       })
       await server.init()
-      await server.listen({ port: 3011, host: 'localhost' })
+      await server.listen({ port: 3011, hostname: 'localhost' })
       realServer = server.getServer().url.href
     })
 
@@ -233,7 +234,7 @@ describe('CORS support', () => {
   })
 
   describe('with RegExp origin', () => {
-    let server: NaviosApplication
+    let server: NaviosApplication<BunEnvironment>
     let realServer: string
 
     const simple = builder().declareEndpoint({
@@ -258,14 +259,14 @@ describe('CORS support', () => {
     class CorsModule {}
 
     beforeAll(async () => {
-      server = await NaviosFactory.create(CorsModule, {
+      server = await NaviosFactory.create<BunEnvironment>(CorsModule, {
         adapter: defineBunEnvironment(),
       })
       server.enableCors({
         origin: /\.example\.com$/,
       })
       await server.init()
-      await server.listen({ port: 3012, host: 'localhost' })
+      await server.listen({ port: 3012, hostname: 'localhost' })
       realServer = server.getServer().url.href
     })
 
@@ -306,7 +307,7 @@ describe('CORS support', () => {
   })
 
   describe('with array of origins', () => {
-    let server: NaviosApplication
+    let server: NaviosApplication<BunEnvironment>
     let realServer: string
 
     const simple = builder().declareEndpoint({
@@ -331,14 +332,14 @@ describe('CORS support', () => {
     class CorsModule {}
 
     beforeAll(async () => {
-      server = await NaviosFactory.create(CorsModule, {
+      server = await NaviosFactory.create<BunEnvironment>(CorsModule, {
         adapter: defineBunEnvironment(),
       })
       server.enableCors({
         origin: ['http://app1.com', 'http://app2.com', /\.trusted\.com$/],
       })
       await server.init()
-      await server.listen({ port: 3013, host: 'localhost' })
+      await server.listen({ port: 3013, hostname: 'localhost' })
       realServer = server.getServer().url.href
     })
 
@@ -390,7 +391,7 @@ describe('CORS support', () => {
   })
 
   describe('with function-based origin validation', () => {
-    let server: NaviosApplication
+    let server: NaviosApplication<BunEnvironment>
     let realServer: string
 
     const simple = builder().declareEndpoint({
@@ -415,7 +416,7 @@ describe('CORS support', () => {
     class CorsModule {}
 
     beforeAll(async () => {
-      server = await NaviosFactory.create(CorsModule, {
+      server = await NaviosFactory.create<BunEnvironment>(CorsModule, {
         adapter: defineBunEnvironment(),
       })
       server.enableCors({
@@ -432,7 +433,7 @@ describe('CORS support', () => {
         },
       })
       await server.init()
-      await server.listen({ port: 3014, host: 'localhost' })
+      await server.listen({ port: 3014, hostname: 'localhost' })
       realServer = server.getServer().url.href
     })
 
@@ -474,7 +475,7 @@ describe('CORS support', () => {
   })
 
   describe('with origin: false (CORS disabled)', () => {
-    let server: NaviosApplication
+    let server: NaviosApplication<BunEnvironment>
     let realServer: string
 
     const simple = builder().declareEndpoint({
@@ -499,14 +500,14 @@ describe('CORS support', () => {
     class CorsModule {}
 
     beforeAll(async () => {
-      server = await NaviosFactory.create(CorsModule, {
+      server = await NaviosFactory.create<BunEnvironment>(CorsModule, {
         adapter: defineBunEnvironment(),
       })
       server.enableCors({
         origin: false,
       })
       await server.init()
-      await server.listen({ port: 3015, host: 'localhost' })
+      await server.listen({ port: 3015, hostname: 'localhost' })
       realServer = server.getServer().url.href
     })
 
@@ -525,7 +526,7 @@ describe('CORS support', () => {
   })
 
   describe('with wildcard origin', () => {
-    let server: NaviosApplication
+    let server: NaviosApplication<BunEnvironment>
     let realServer: string
 
     const simple = builder().declareEndpoint({
@@ -550,14 +551,14 @@ describe('CORS support', () => {
     class CorsModule {}
 
     beforeAll(async () => {
-      server = await NaviosFactory.create(CorsModule, {
+      server = await NaviosFactory.create<BunEnvironment>(CorsModule, {
         adapter: defineBunEnvironment(),
       })
       server.enableCors({
         origin: '*',
       })
       await server.init()
-      await server.listen({ port: 3016, host: 'localhost' })
+      await server.listen({ port: 3016, hostname: 'localhost' })
       realServer = server.getServer().url.href
     })
 
@@ -578,7 +579,7 @@ describe('CORS support', () => {
   })
 
   describe('without CORS enabled', () => {
-    let server: NaviosApplication
+    let server: NaviosApplication<BunEnvironment>
     let realServer: string
 
     const simple = builder().declareEndpoint({
@@ -603,12 +604,12 @@ describe('CORS support', () => {
     class CorsModule {}
 
     beforeAll(async () => {
-      server = await NaviosFactory.create(CorsModule, {
+      server = await NaviosFactory.create<BunEnvironment>(CorsModule, {
         adapter: defineBunEnvironment(),
       })
       // Note: enableCors is NOT called
       await server.init()
-      await server.listen({ port: 3017, host: 'localhost' })
+      await server.listen({ port: 3017, hostname: 'localhost' })
       realServer = server.getServer().url.href
     })
 

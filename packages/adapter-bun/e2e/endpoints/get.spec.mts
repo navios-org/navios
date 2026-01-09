@@ -17,9 +17,10 @@ import supertest from 'supertest'
 import { z } from 'zod/v4'
 
 import { defineBunEnvironment } from '../../src/index.mjs'
+import type { BunEnvironment } from '../../src/index.mjs'
 
 describe('GET variants', () => {
-  let server: NaviosApplication
+  let server: NaviosApplication<BunEnvironment>
   let realServer: string
 
   // Request scoped service to track request state
@@ -128,11 +129,11 @@ describe('GET variants', () => {
   class SomethingModule {}
 
   beforeAll(async () => {
-    server = await NaviosFactory.create(SomethingModule, {
+    server = await NaviosFactory.create<BunEnvironment>(SomethingModule, {
       adapter: defineBunEnvironment(),
     })
     await server.init()
-    await server.listen({ port: 3001, host: 'localhost' })
+    await server.listen({ port: 3001, hostname: 'localhost' })
     realServer = server.getServer().url.href
   })
 

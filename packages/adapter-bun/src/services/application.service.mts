@@ -14,12 +14,12 @@ import type {
   BunApplicationOptions,
   BunApplicationServiceInterface,
 } from '../interfaces/application.interface.mjs'
+import type { BunCorsOptions } from '../utils/cors.util.mjs'
 import type { BunRoutes } from './controller-adapter.service.mjs'
 
 import { BunApplicationServiceToken, BunServerToken } from '../tokens/index.mjs'
 import {
   applyCorsToResponse,
-  type BunCorsOptions,
   calculatePreflightHeaders,
   isPreflight,
 } from '../utils/cors.util.mjs'
@@ -38,10 +38,7 @@ import { BunControllerAdapterService } from './controller-adapter.service.mjs'
  *   adapter: defineBunEnvironment(),
  * })
  *
- * await app.setupHttpServer({
- *   development: true,
- * })
- *
+ * app.configure({ development: true })
  * await app.init()
  * await app.listen({ port: 3000, hostname: '0.0.0.0' })
  * ```
@@ -61,30 +58,27 @@ export class BunApplicationService implements BunApplicationServiceInterface {
   private controllerAdapter = inject(BunControllerAdapterService)
   private globalPrefix: string = ''
   private routes: BunRoutes = {}
-  private serverOptions: Serve.Options<undefined, string> | null = null
+  private serverOptions: BunApplicationOptions | null = null
   private corsOptions: BunCorsOptions | null = null
+  private configureOptions: Partial<BunApplicationOptions> = {}
 
   /**
-   * Configures the Bun HTTP server with the provided options.
-   *
-   * This method should be called before `init()` to set up server configuration.
-   * The options will be used when the server is started via `listen()`.
-   *
-   * @param options - Bun server configuration options including logger settings,
-   * development mode, TLS configuration, and other Bun-specific options.
-   *
-   * @example
-   * ```ts
-   * await app.setupHttpServer({
+   * app.configure({
    *   development: process.env.NODE_ENV === 'development',
    *   maxRequestBodySize: 1024 * 1024, // 1MB
    * })
+   * await app.init()
    * ```
    */
-  async setupHttpServer(options: BunApplicationOptions): Promise<void> {
+  async setupAdapter(options: unknown): Promise<void> {
+    // Merge configure options with passed options (configure takes precedence)
+    const mergedOptions = {
+      ...(options as BunApplicationOptions),
+      ...this.configureOptions,
+    } as BunApplicationOptions
     // Collect routes from modules
     // But modules are set in onModulesInit, so assume it's called before
-    this.serverOptions = options
+    this.serverOptions = mergedOptions
   }
 
   /**
@@ -207,7 +201,9 @@ export class BunApplicationService implements BunApplicationServiceInterface {
       this.corsOptions &&
       isPreflight(request.method, origin, accessControlRequestMethod)
     ) {
-      const requestHeaders = request.headers.get('Access-Control-Request-Headers')
+      const requestHeaders = request.headers.get(
+        'Access-Control-Request-Headers',
+      )
       const preflightHeaders = await calculatePreflightHeaders(
         origin ?? undefined,
         accessControlRequestMethod,
@@ -296,7 +292,7 @@ export class BunApplicationService implements BunApplicationServiceInterface {
     const hostname = options.hostname || 'localhost'
 
     this.server = Bun.serve({
-      ...this.serverOptions,
+      ...(this.serverOptions as Serve.Options<undefined, string>),
       routes: this.routes,
       port,
       hostname,
@@ -308,6 +304,28 @@ export class BunApplicationService implements BunApplicationServiceInterface {
       'Bootstrap',
     )
     return `${hostname}:${port}`
+  }
+
+  /**
+   * Configures the adapter with additional options before initialization.
+   *
+   * Options set via configure() are merged with options passed to
+   * setupAdapter(), with configure() options taking precedence.
+   * Must be called before init().
+   *
+   * @param options - Partial Bun server configuration options
+   *
+   * @example
+   * ```ts
+   * app.configure({ development: true })
+   * await app.init()
+   * ```
+   */
+  configure(options: Partial<BunApplicationOptions>): void {
+    this.configureOptions = {
+      ...this.configureOptions,
+      ...(options as Record<string, unknown>),
+    }
   }
 
   /**

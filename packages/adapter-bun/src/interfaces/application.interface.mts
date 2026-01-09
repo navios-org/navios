@@ -3,9 +3,10 @@ import type {
   LoggerService,
   LogLevel,
 } from '@navios/core'
-import type { Serve, Server } from 'bun'
+import type { Serve } from 'bun'
 
-import type { BunCorsOptions } from '../utils/cors.util.mjs'
+// Import after type definitions to avoid circular dependency
+import type { BunEnvironment } from './environment.interface.mjs'
 
 /**
  * Configuration options for the Bun HTTP server.
@@ -16,16 +17,18 @@ import type { BunCorsOptions } from '../utils/cors.util.mjs'
  *
  * @example
  * ```ts
- * await app.setupHttpServer({
+ * app.configure({
  *   development: process.env.NODE_ENV === 'development',
  *   maxRequestBodySize: 1024 * 1024, // 1MB
- *   logger: ['error', 'warn'],
  * })
  * ```
  *
  * @see {@link https://bun.sh/docs/api/http} Bun HTTP server documentation
  */
-export type BunApplicationOptions = Serve.Options<undefined, string> & {
+export type BunApplicationOptions = Omit<
+  Serve.Options<undefined, string>,
+  'port' | 'hostname' | 'routes' | 'fetch'
+> & {
   /**
    * Specifies the logger to use. Pass `false` to turn off logging.
    *
@@ -34,86 +37,6 @@ export type BunApplicationOptions = Serve.Options<undefined, string> & {
    * - `false`: Disable logging completely
    */
   logger?: LoggerService | LogLevel[] | false
-}
-
-/**
- * Interface for the Bun application service.
- *
- * This interface defines the contract for the Bun HTTP adapter service,
- * extending the base `AbstractHttpAdapterInterface` with Bun-specific
- * methods and types.
- *
- * @extends {AbstractHttpAdapterInterface}
- *
- * @example
- * ```ts
- * const app = await NaviosFactory.create(AppModule, {
- *   adapter: defineBunEnvironment(),
- * })
- *
- * // All methods from this interface are available on the app instance
- * await app.setupHttpServer({ development: true })
- * await app.init()
- * await app.listen({ port: 3000 })
- * ```
- */
-export interface BunApplicationServiceInterface
-  extends AbstractHttpAdapterInterface<
-    Server<undefined>,
-    BunCorsOptions,
-    BunApplicationOptions,
-    never // No multipart support for now
-  > {
-  setupHttpServer(options: BunApplicationOptions): Promise<void>
-  initServer(): Promise<void>
-  ready(): Promise<void>
-  getServer(): Server<undefined>
-  /**
-   * Sets a global prefix for all routes.
-   *
-   * @param prefix - The prefix to prepend to all routes.
-   */
-  setGlobalPrefix(prefix: string): void
-
-  /**
-   * Enables CORS (Cross-Origin Resource Sharing) support.
-   *
-   * Configures CORS headers for all routes. The options are applied when
-   * handling requests.
-   *
-   * @param options - CORS configuration options.
-   *
-   * @example
-   * ```ts
-   * app.enableCors({
-   *   origin: true, // Allow all origins
-   *   methods: ['GET', 'POST', 'PUT', 'DELETE'],
-   *   credentials: true,
-   * })
-   * ```
-   */
-  enableCors(options: BunCorsOptions): void
-
-  /**
-   * Enables multipart form data support (handled automatically by Bun).
-   *
-   * @param options - Multipart options (not supported).
-   * @deprecated Multipart support is handled automatically by Bun's native FormData support.
-   */
-  enableMultipart(options: never): void
-
-  /**
-   * Starts the HTTP server and begins listening for requests.
-   *
-   * @param options - Server listen options.
-   * @returns A promise that resolves to the server address.
-   */
-  listen(options: BunListenOptions): Promise<string>
-
-  /**
-   * Gracefully shuts down the server.
-   */
-  dispose(): Promise<void>
 }
 
 /**
@@ -146,4 +69,27 @@ export interface BunListenOptions {
    * @default 'localhost'
    */
   hostname?: string
+}
+
+/**
+ * Interface for the Bun application service.
+ *
+ * This interface defines the contract for the Bun HTTP adapter service,
+ * extending the base `AbstractHttpAdapterInterface` with Bun-specific
+ * methods and types.
+ *
+ * @extends {AbstractHttpAdapterInterface}
+ *
+ * @example
+ * ```ts
+ * const app = await NaviosFactory.create(AppModule, {
+ *   adapter: defineBunEnvironment(),
+ * })
+ *
+ * await app.init()
+ * await app.listen({ port: 3000 })
+ * ```
+ */
+export interface BunApplicationServiceInterface extends AbstractHttpAdapterInterface<BunEnvironment> {
+  initServer(): Promise<void>
 }

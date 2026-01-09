@@ -5,6 +5,42 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.0-alpha.4] - 2026-01-09
+
+### Added
+
+- **BunEnvironment Type**: New `BunEnvironment` interface for type-safe application configuration
+  - Provides typed access to Bun-specific options throughout the application
+  - Includes types for `Server`, `BunCorsOptions`, `BunListenOptions`, and `BunApplicationOptions`
+  - Use with `NaviosFactory.create<BunEnvironment>(...)` for full type safety
+- **AdapterToken Support**: Environment now registers adapter with `AdapterToken` for unified adapter access
+
+### Changed
+
+- **Environment Definition**: `defineBunEnvironment()` now returns `tokens` instead of `httpTokens`
+  - Aligns with new unified adapter architecture in `@navios/core`
+- **Application Service**: Implements new `AbstractAdapterInterface` lifecycle methods
+  - `setupAdapter()` replaces direct configuration; merges with `configure()` options
+  - `configure()` method for pre-init configuration (called before `init()`)
+- **Listen Options**: Changed `host` parameter to `hostname` in `BunListenOptions`
+  - Aligns with Bun's native `Serve.Options` type
+- **Interface Simplification**: `BunApplicationServiceInterface` now extends `AbstractHttpAdapterInterface<BunEnvironment>`
+  - Removed redundant method signatures inherited from base interface
+- **Documentation Updates**: Updated JSDoc examples to use new `configure()` + `init()` pattern
+
+### Breaking Changes
+
+- **Listen Options**: `host` renamed to `hostname`
+  - Before: `await server.listen({ port: 3000, host: 'localhost' })`
+  - After: `await server.listen({ port: 3000, hostname: 'localhost' })`
+- **Setup Method**: `setupHttpServer()` replaced with `configure()` + `init()`
+  - Before: `await app.setupHttpServer({ development: true })`
+  - After: `app.configure({ development: true }); await app.init()`
+
+### Dependencies
+
+- Updated to support `@navios/core` ^1.0.0-alpha.4
+
 ## [1.0.0-alpha.3] - 2026-01-08
 
 ### Added

@@ -1,6 +1,7 @@
 import type { AnyInjectableType } from '@navios/core'
 
 import {
+  AdapterToken,
   EndpointAdapterToken,
   HttpAdapterToken,
   InjectionToken,
@@ -28,7 +29,7 @@ import { BunRequestToken } from './tokens/index.mjs'
  * - Multipart adapter for file uploads and form data
  * - Request token for accessing the current Bun request
  *
- * @returns An object containing the HTTP token mappings for the Bun adapter.
+ * @returns An object containing the token mappings for the Bun adapter.
  * This object should be passed to `NaviosFactory.create()` as the `adapter` option.
  *
  * @example
@@ -48,9 +49,10 @@ import { BunRequestToken } from './tokens/index.mjs'
  *   adapter: defineBunEnvironment(),
  * })
  *
- * await app.setupHttpServer({
+ * app.configure({
  *   development: process.env.NODE_ENV === 'development',
  * })
+ * await app.init()
  * ```
  *
  * @see {@link BunApplicationService} The HTTP adapter service implementation
@@ -59,16 +61,15 @@ import { BunRequestToken } from './tokens/index.mjs'
  * @see {@link BunMultipartAdapterService} The multipart adapter implementation
  */
 export function defineBunEnvironment() {
-  const httpTokens = new Map<InjectionToken<any, undefined>, AnyInjectableType>(
-    [
-      [EndpointAdapterToken, BunEndpointAdapterService],
-      [StreamAdapterToken, BunStreamAdapterService],
-      [MultipartAdapterToken, BunMultipartAdapterService], // Use stream for multipart
-      [HttpAdapterToken, BunApplicationService],
-      [Request, BunRequestToken],
-    ],
-  )
+  const tokens = new Map<InjectionToken<any, undefined>, AnyInjectableType>([
+    [AdapterToken, BunApplicationService],
+    [HttpAdapterToken, BunApplicationService],
+    [EndpointAdapterToken, BunEndpointAdapterService],
+    [StreamAdapterToken, BunStreamAdapterService],
+    [MultipartAdapterToken, BunMultipartAdapterService],
+    [Request, BunRequestToken],
+  ])
   return {
-    httpTokens,
+    tokens,
   }
 }
