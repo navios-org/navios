@@ -32,23 +32,27 @@ npm install --save-dev @types/bcrypt
 
 ```
 src/
+├── config/
+│   └── auth.config.ts
 ├── api/
 │   └── auth.endpoints.ts
-├── modules/
-│   └── auth/
-│       ├── auth.module.ts
-│       ├── auth.controller.ts
-│       ├── auth.service.ts
-│       ├── auth.guard.ts
-│       └── roles.guard.ts
-└── main.ts
+└── modules/
+    └── auth/
+        ├── auth.module.ts
+        ├── auth.controller.ts
+        ├── auth.service.ts
+        ├── auth.guard.ts
+        ├── roles.attribute.ts
+        └── roles.guard.ts
 ```
 
 ## Configuration
 
+Create a configuration token using `provideConfig()`:
+
 ```typescript
 // config/auth.config.ts
-import { ConfigService } from '@navios/core'
+import { provideConfig } from '@navios/core'
 
 export interface AuthConfig {
   jwt: {
@@ -59,13 +63,15 @@ export interface AuthConfig {
   }
 }
 
-export const authConfig = new ConfigService<AuthConfig>({
-  jwt: {
-    secret: process.env.JWT_SECRET || 'your-secret-key',
-    expiresIn: '15m',
-    refreshSecret: process.env.JWT_REFRESH_SECRET || 'your-refresh-secret',
-    refreshExpiresIn: '7d',
-  },
+export const AuthConfigService = provideConfig<AuthConfig>({
+  load: () => ({
+    jwt: {
+      secret: process.env.JWT_SECRET || 'your-secret-key',
+      expiresIn: '15m',
+      refreshSecret: process.env.JWT_REFRESH_SECRET || 'your-refresh-secret',
+      refreshExpiresIn: '7d',
+    },
+  }),
 })
 ```
 
@@ -151,6 +157,7 @@ import { JwtService } from '@navios/jwt'
 
 import * as bcrypt from 'bcrypt'
 
+import { AuthConfigService } from '../../config/auth.config'
 import { DatabaseService } from '../database/database.service'
 
 interface JwtPayload {
@@ -163,18 +170,15 @@ interface JwtPayload {
 export class AuthService {
   private db = inject(DatabaseService)
   private jwt = inject(JwtService)
+  private config = inject(AuthConfigService)
 
   async register(email: string, password: string, name: string) {
-    // Check if user exists
     const existing = await this.db.users.findUnique({ where: { email } })
     if (existing) {
       throw new ConflictException('Email already registered')
     }
 
-    // Hash password
     const hashedPassword = await bcrypt.hash(password, 10)
-
-    // Create user
     const user = await this.db.users.create({
       data: {
         email,
@@ -192,32 +196,31 @@ export class AuthService {
   }
 
   async login(email: string, password: string) {
-    // Find user
     const user = await this.db.users.findUnique({ where: { email } })
     if (!user) {
       throw new UnauthorizedException('Invalid credentials')
     }
 
-    // Verify password
     const valid = await bcrypt.compare(password, user.password)
     if (!valid) {
       throw new UnauthorizedException('Invalid credentials')
     }
 
-    // Generate tokens
     const payload: JwtPayload = {
       sub: user.id,
       email: user.email,
       role: user.role,
     }
 
+    const expiresIn = this.config.getOrThrow('jwt.expiresIn')
     const accessToken = await this.jwt.signAsync(payload, {
-      expiresIn: '15m',
+      expiresIn,
     })
 
+    const refreshExpiresIn = this.config.getOrThrow('jwt.refreshExpiresIn')
     const refreshToken = await this.jwt.signAsync(
       { sub: user.id, type: 'refresh' },
-      { expiresIn: '7d' },
+      { expiresIn: refreshExpiresIn },
     )
 
     return {
@@ -256,13 +259,15 @@ export class AuthService {
         role: user.role,
       }
 
+      const expiresIn = this.config.getOrThrow('jwt.expiresIn')
       const accessToken = await this.jwt.signAsync(newPayload, {
-        expiresIn: '15m',
+        expiresIn,
       })
 
+      const refreshExpiresIn = this.config.getOrThrow('jwt.refreshExpiresIn')
       const newRefreshToken = await this.jwt.signAsync(
         { sub: user.id, type: 'refresh' },
-        { expiresIn: '7d' },
+        { expiresIn: refreshExpiresIn },
       )
 
       return { accessToken, refreshToken: newRefreshToken }
@@ -322,28 +327,53 @@ export class AuthGuard implements CanActivate {
       throw new UnauthorizedException('Invalid or expired token')
     }
 
-    // Attach user to request for use in handlers
     request.user = user
     return true
   }
 }
 ```
 
+## Roles Attribute
+
+Create a Roles attribute using `AttributeFactory.createAttribute`:
+
+```typescript
+// modules/auth/roles.attribute.ts
+import { AttributeFactory } from '@navios/core'
+
+import { z } from 'zod'
+
+const RolesSymbol = Symbol.for('Roles')
+const RolesSchema = z.object({
+  roles: z.array(z.string()),
+})
+
+export const Roles = AttributeFactory.createAttribute(RolesSymbol, RolesSchema)
+
+// Pre-bound role attributes for common use cases
+export const OnlyAdmins = Roles({ roles: ['admin', 'owner'] })
+export const OnlyOwners = Roles({ roles: ['owner'] })
+export const OnlyModerators = Roles({ roles: ['moderator', 'admin'] })
+```
+
 ## Roles Guard
+
+The guard reads the Roles attribute from the execution context:
 
 ```typescript
 // modules/auth/roles.guard.ts
 import {
   AbstractExecutionContext,
+  AttributeFactory,
   CanActivate,
   ForbiddenException,
   Injectable,
 } from '@navios/core'
 
+import { Roles } from './roles.attribute'
+
 @Injectable()
 export class RolesGuard implements CanActivate {
-  constructor(private allowedRoles: string[]) {}
-
   async canActivate(context: AbstractExecutionContext): Promise<boolean> {
     const request = context.getRequest()
     const user = request.user
@@ -352,17 +382,25 @@ export class RolesGuard implements CanActivate {
       throw new ForbiddenException('User not authenticated')
     }
 
-    if (!this.allowedRoles.includes(user.role)) {
+    // Read Roles attribute from handler, controller, or module metadata
+    const requiredRoles = AttributeFactory.getLast(Roles, [
+      context.getModule(),
+      context.getController(),
+      context.getHandler(),
+    ])
+
+    // If no roles are required, allow access
+    if (!requiredRoles) {
+      return true
+    }
+
+    // Check if user has any of the required roles
+    if (!requiredRoles.roles.includes(user.role)) {
       throw new ForbiddenException('Insufficient permissions')
     }
 
     return true
   }
-}
-
-// Helper function for creating role-specific guards
-export function Roles(...roles: string[]) {
-  return new RolesGuard(roles)
 }
 ```
 
@@ -415,7 +453,7 @@ export class AuthController {
   @Endpoint(profileEndpoint)
   @UseGuards(AuthGuard)
   async profile(params: EndpointParams<typeof profileEndpoint>) {
-    const request = inject(Request)
+    const request = params.request
     const user = request.user
 
     return {
@@ -430,20 +468,30 @@ export class AuthController {
 
 ## Auth Module
 
+Configure JWT service using the config token:
+
 ```typescript
 // modules/auth/auth.module.ts
 import { Module } from '@navios/core'
-import { JwtModule } from '@navios/jwt'
+import { inject } from '@navios/di'
+import { provideJwtService } from '@navios/jwt'
 
+import { AuthConfigService } from '../../config/auth.config'
 import { AuthController } from './auth.controller'
+
+const JwtService = provideJwtService(async () => {
+  const config = await inject(AuthConfigService)
+  return {
+    secret: config.getOrThrow('jwt.secret'),
+    signOptions: {
+      expiresIn: config.getOrThrow('jwt.expiresIn'),
+    },
+  }
+})
 
 @Module({
   controllers: [AuthController],
-  imports: [
-    JwtModule.register({
-      secret: process.env.JWT_SECRET || 'your-secret-key',
-    }),
-  ],
+  providers: [JwtService],
 })
 export class AuthModule {}
 ```
@@ -453,7 +501,6 @@ export class AuthModule {}
 ### Module-Level Protection
 
 ```typescript
-// All routes in this module require authentication
 @Module({
   controllers: [UserController, ProfileController],
   guards: [AuthGuard],
@@ -463,24 +510,40 @@ class UserModule {}
 
 ### Endpoint-Level Protection
 
+Use the `@Roles` decorator to specify required roles:
+
 ```typescript
-@Controller()
+import { OnlyAdmins, Roles } from './modules/auth/roles.attribute'
+
+@Controller({
+  guards: [AuthGuard, RolesGuard],
+})
+// Or apply guards to the endpoint level:
+// @UseGuards(AuthGuard, RolesGuard)
 class AdminController {
   @Endpoint(listUsers)
-  @UseGuards(AuthGuard, Roles('admin'))
+  @Roles({ roles: ['admin', 'owner'] })
   async listUsers() {
-    // Only admins can access
+    // Admins and owners can access
   }
 
   @Endpoint(deleteUser)
-  @UseGuards(AuthGuard, Roles('admin', 'superadmin'))
+  @OnlyAdmins
   async deleteUser(params: EndpointParams<typeof deleteUser>) {
-    // Admins and superadmins can access
+    // Admins and owners can access
+  }
+
+  @Endpoint(manageUsers)
+  @OnlyAdmins
+  async manageUsers() {
+    // Inline role specification
   }
 }
 ```
 
-## Usage Example
+You can use either inline role specification with `@Roles({ roles: [...] })` or pre-bound attributes like `@OnlyAdmins()` for cleaner, reusable role definitions.
+
+## Usage Examples
 
 ### Register
 
@@ -523,134 +586,9 @@ curl -X POST http://localhost:3000/auth/refresh \
 - Hash passwords with bcrypt (cost factor 10+)
 - Validate all input with Zod schemas
 
-## JWT Package Reference
-
-The `@navios/jwt` package provides type-safe JWT token signing, verification, and decoding.
-
-**Package:** `@navios/jwt`  
-**License:** MIT  
-**Dependencies:** `jsonwebtoken` (^9.0.3)
-
-### Quick Start
-
-```typescript
-import { provideJwtService } from '@navios/jwt'
-
-const JwtService = provideJwtService({
-  secret: 'your-secret-key',
-  signOptions: {
-    expiresIn: '1h',
-  },
-})
-```
-
-### Configuration Options
-
-#### Basic Configuration
-
-```typescript
-const JwtService = provideJwtService({
-  secret: 'your-secret-key',
-  signOptions: {
-    expiresIn: '1h',
-    algorithm: 'HS256',
-  },
-})
-```
-
-#### Async Configuration
-
-```typescript
-const JwtService = provideJwtService(async () => {
-  const config = await inject(ConfigService)
-  return {
-    secret: config.jwt.secret,
-    signOptions: { expiresIn: config.jwt.expiresIn },
-  }
-})
-```
-
-#### Asymmetric Keys (RS256)
-
-```typescript
-import fs from 'fs'
-
-const JwtService = provideJwtService({
-  privateKey: fs.readFileSync('private.pem'),
-  publicKey: fs.readFileSync('public.pem'),
-  signOptions: { algorithm: 'RS256' },
-})
-```
-
-### Signing Tokens
-
-```typescript
-import { inject, Injectable } from '@navios/di'
-import { JwtService } from '@navios/jwt'
-
-@Injectable()
-class AuthService {
-  private jwtService = inject(JwtService)
-
-  async createToken(userId: string) {
-    return this.jwtService.signAsync({ sub: userId, role: 'admin' })
-  }
-}
-```
-
-### Verifying Tokens
-
-```typescript
-try {
-  const payload = await jwtService.verifyAsync<{ sub: string }>(token)
-  console.log(payload.sub)
-} catch (error) {
-  if (error instanceof TokenExpiredError) {
-    console.error('Token has expired')
-  }
-}
-```
-
-### Decoding Without Verification
-
-```typescript
-// Warning: This does NOT verify the signature
-const payload = jwtService.decode<{ sub: string }>(token)
-```
-
-### Error Handling
-
-```typescript
-import {
-  JsonWebTokenError,
-  NotBeforeError,
-  TokenExpiredError,
-} from '@navios/jwt'
-
-try {
-  const payload = await jwtService.verifyAsync(token)
-} catch (error) {
-  if (error instanceof TokenExpiredError) {
-    // Token has expired
-  } else if (error instanceof NotBeforeError) {
-    // Token not yet valid
-  } else if (error instanceof JsonWebTokenError) {
-    // Invalid token
-  }
-}
-```
-
-### Supported Algorithms
-
-| Type    | Algorithms          |
-| ------- | ------------------- |
-| HMAC    | HS256, HS384, HS512 |
-| RSA     | RS256, RS384, RS512 |
-| ECDSA   | ES256, ES384, ES512 |
-| RSA-PSS | PS256, PS384, PS512 |
-
 ## Related
 
 - [Authentication Guide](/docs/server/guides/authentication) - Authentication strategies and patterns
 - [Guards guide](/docs/server/guides/guards) - Guard concepts and basics
-- [Configuration](/docs/server/guides/configuration) - Managing secrets
+- [Configuration](/docs/server/guides/configuration) - Managing configuration with ConfigService
+- [JWT Package Documentation](/packages/jwt) - Complete JWT service reference

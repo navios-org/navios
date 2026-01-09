@@ -113,9 +113,77 @@ export class UserModule {}
 - No `providers` array - services decorated with `@Injectable()` are auto-registered
 - No `exports` array - imported modules share their services automatically
 
-## Step 4: Migrate Controllers
+## Step 4: Migrate DTOs to Zod Schemas
 
-NestJS uses method decorators for HTTP verbs. Navios uses a Builder API for type-safe endpoint definitions.
+NestJS uses class-validator decorators. Navios uses Zod schemas defined in endpoints. You'll need to understand this before migrating controllers, as controllers use these schemas in their endpoint definitions.
+
+### Before (NestJS)
+
+```typescript title="create-user.dto.ts"
+import { IsEmail, IsString, MinLength } from 'class-validator'
+
+export class CreateUserDto {
+  @IsString()
+  @MinLength(2)
+  name: string
+
+  @IsEmail()
+  email: string
+}
+```
+
+### After (Navios)
+
+```typescript title="user.endpoints.ts"
+import { builder } from '@navios/builder'
+
+import { z } from 'zod'
+
+const API = builder()
+
+// Schema defined inline with endpoint
+export const createUser = API.declareEndpoint({
+  method: 'POST',
+  url: '/users',
+  requestSchema: z.object({
+    name: z.string().min(2),
+    email: z.string().email(),
+  }),
+  responseSchema: z.object({
+    id: z.string(),
+    name: z.string(),
+    email: z.string(),
+  }),
+})
+
+// Or extract for reuse
+const createUserSchema = z.object({
+  name: z.string().min(2),
+  email: z.string().email(),
+})
+
+const userSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  email: z.string(),
+})
+
+export const getUser = API.declareEndpoint({
+  method: 'GET',
+  url: '/users/$id',
+  responseSchema: userSchema,
+})
+```
+
+**Benefits:**
+
+- Request AND response validation (NestJS only validates requests)
+- Type inference from schemas - no manual type definitions
+- Schemas can be shared with frontend
+
+## Step 5: Migrate Controllers
+
+NestJS uses method decorators for HTTP verbs. Navios uses a Builder API for type-safe endpoint definitions. The endpoint definitions with Zod schemas (from Step 4) are used here.
 
 ### Before (NestJS)
 
@@ -144,41 +212,7 @@ export class UserController {
 
 ### After (Navios)
 
-First, define your API contract with Builder:
-
-```typescript title="user.endpoints.ts"
-import { builder } from '@navios/builder'
-
-import { z } from 'zod'
-
-const API = builder()
-
-export const getUser = API.declareEndpoint({
-  method: 'GET',
-  url: '/users/$id',
-  responseSchema: z.object({
-    id: z.string(),
-    name: z.string(),
-    email: z.string().email(),
-  }),
-})
-
-export const createUser = API.declareEndpoint({
-  method: 'POST',
-  url: '/users',
-  requestSchema: z.object({
-    name: z.string(),
-    email: z.string().email(),
-  }),
-  responseSchema: z.object({
-    id: z.string(),
-    name: z.string(),
-    email: z.string().email(),
-  }),
-})
-```
-
-Then create the controller:
+Use the endpoint definitions you created in Step 4 (with Zod schemas) in your controller:
 
 ```typescript title="user.controller.ts"
 import type { EndpointParams } from '@navios/core/legacy-compat'
@@ -211,9 +245,9 @@ export class UserController {
 - HTTP method and path defined in Builder, not decorators
 - Request/response schemas use Zod instead of class-validator DTOs
 - URL params accessed via `params.urlParams`, body via `params.data`
-- Constructor injection replaced with `syncInject()` property injection
+- Constructor injection replaced with `inject()` property injection
 
-## Step 5: Migrate Services
+## Step 6: Migrate Services
 
 NestJS services use constructor injection. Navios uses property injection with `inject()`.
 
@@ -292,7 +326,7 @@ private otherService = asyncInject(OtherService)
 private heavyService = asyncInject(HeavyAnalyticsService)
 ```
 
-## Step 6: Migrate Guards
+## Step 7: Migrate Guards
 
 NestJS guards implement `CanActivate` and use `ExecutionContext`. Navios guards are similar but use `AbstractExecutionContext`.
 
@@ -419,7 +453,7 @@ export class UserController {
 }
 ```
 
-## Step 7: Migrate the Bootstrap
+## Step 8: Migrate the Bootstrap
 
 ### Before (NestJS)
 
@@ -464,78 +498,18 @@ bootstrap()
 - Adapter explicitly defined (Fastify, Bun, etc.)
 - No global validation pipe needed - validation is built into endpoints
 
-## Step 8: Migrate DTOs to Zod Schemas
-
-NestJS uses class-validator decorators. Navios uses Zod schemas defined in endpoints.
-
-### Before (NestJS)
-
-```typescript title="create-user.dto.ts"
-import { IsEmail, IsString, MinLength } from 'class-validator'
-
-export class CreateUserDto {
-  @IsString()
-  @MinLength(2)
-  name: string
-
-  @IsEmail()
-  email: string
-}
-```
-
-### After (Navios)
-
-```typescript title="user.endpoints.ts"
-import { z } from 'zod'
-
-// Schema defined inline with endpoint
-export const createUser = API.declareEndpoint({
-  method: 'POST',
-  url: '/users',
-  requestSchema: z.object({
-    name: z.string().min(2),
-    email: z.string().email(),
-  }),
-  responseSchema: z.object({
-    id: z.string(),
-    name: z.string(),
-    email: z.string(),
-  }),
-})
-
-// Or extract for reuse
-const createUserSchema = z.object({
-  name: z.string().min(2),
-  email: z.string().email(),
-})
-
-export const createUser = API.declareEndpoint({
-  method: 'POST',
-  url: '/users',
-  requestSchema: createUserSchema,
-  responseSchema: userSchema,
-})
-```
-
-**Benefits:**
-
-- Request AND response validation (NestJS only validates requests)
-- Type inference from schemas - no manual type definitions
-- Schemas can be shared with frontend
-
 ## Migration Checklist
 
 Use this checklist to track your migration progress:
 
 - [ ] Install Navios dependencies
 - [ ] Configure `legacy-compat` imports (or switch to Stage 3)
-- [ ] Create endpoint definitions with Builder
 - [ ] Migrate modules (remove `providers`/`exports`)
+- [ ] Replace DTOs with Zod schemas and create endpoint definitions with Builder
 - [ ] Migrate controllers to use `@Endpoint()`
 - [ ] Migrate services to property injection
 - [ ] Migrate guards to `AbstractExecutionContext`
 - [ ] Update bootstrap file
-- [ ] Replace DTOs with Zod schemas
 - [ ] Update tests to use `createTestingModule`
 
 ## Common Migration Issues
@@ -561,7 +535,7 @@ NestJS decorators like `@Body()`, `@Param()`, `@Query()` are replaced by the `En
 | ----------------------- | -------------------------------------------------------------------------- |
 | `@Body() dto`           | `params.data`                                                              |
 | `@Param('id') id`       | `params.urlParams.id`                                                      |
-| `@Query('page') page`   | `params.params.page`                                                       |
+| `@Query('page') page`   | `params.query.page`                                                        |
 | `@Headers('auth') auth` | `private request = inject(FastifyRequest)` and `this.request.headers.auth` |
 
 For headers, inject the raw request:

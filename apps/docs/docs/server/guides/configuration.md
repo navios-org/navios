@@ -5,23 +5,30 @@ title: Configuration
 
 # Configuration
 
-Navios provides a type-safe configuration system for managing application settings.
+Navios provides a type-safe configuration system for managing application settings through dependency injection. This guide explains how to set up and use configuration in your application.
 
-## ConfigService
+## Overview
 
-The `ConfigService` provides access to configuration values with support for nested paths using dot notation.
+The configuration system in Navios is built around the `ConfigService` class, which provides type-safe access to configuration values using dot notation for nested paths.
 
-### Creating ConfigService
+To provide configuration to your services, you create an **injection token** using either `provideConfig()` or `InjectionToken.bound()`, which provides a configured `ConfigService` injection token. This token is then injected into your services where you need configuration access.
+
+## Creating a Configuration Token
+
+There are two ways to create a configuration token:
+
+### Using `provideConfig()`
+
+The `provideConfig()` function is a convenient shortcut for `InjectionToken.factory()` that creates a factory injection token. Use this when you need to load configuration dynamically or asynchronously.
 
 ```typescript
-import { ConfigService } from '@navios/core'
+import { provideConfig } from '@navios/core'
 
 interface AppConfig {
   port: number
   database: {
     host: string
     port: number
-    name: string
   }
   jwt: {
     secret: string
@@ -29,160 +36,193 @@ interface AppConfig {
   }
 }
 
-const config = new ConfigService<AppConfig>({
-  port: parseInt(process.env.PORT || '3000', 10),
-  database: {
-    host: process.env.DATABASE_HOST || 'localhost',
-    port: parseInt(process.env.DATABASE_PORT || '5432', 10),
-    name: process.env.DATABASE_NAME || 'myapp',
-  },
-  jwt: {
-    secret: process.env.JWT_SECRET || 'dev-secret',
-    expiresIn: process.env.JWT_EXPIRES_IN || '1h',
-  },
+// Create the injection token
+export const AppConfigService = provideConfig<AppConfig>({
+  load: () => ({
+    port: parseInt(process.env.PORT || '3000', 10),
+    database: {
+      host: process.env.DATABASE_HOST || 'localhost',
+      port: parseInt(process.env.DATABASE_PORT || '5432', 10),
+    },
+    jwt: {
+      secret: process.env.JWT_SECRET || 'dev-secret',
+      expiresIn: process.env.JWT_EXPIRES_IN || '1h',
+    },
+  }),
 })
 ```
 
-### API Methods
+:::info
+The `load` function can be async if you need to load configuration from external sources like files, databases, or secret vaults.
+:::
 
-| Method | Description |
-|--------|-------------|
-| `get(key)` | Get value by key, returns `null` if not found |
-| `getOrDefault(key, default)` | Get value or return default |
-| `getOrThrow(key, message?)` | Get value or throw exception |
-| `getConfig()` | Get entire config object |
+### Using `InjectionToken.bound()`
 
-### Using in Services
+```typescript
+interface AppConfig {
+  port: number
+  database: { host: string; port: number }
+}
+
+export const AppConfigService = InjectionToken.bound<ConfigService<AppConfig>>(
+  ConfigServiceToken,
+  {
+    port: parseInt(process.env.PORT || '3000', 10),
+    database: {
+      host: process.env.DATABASE_HOST || 'localhost',
+      port: parseInt(process.env.DATABASE_PORT || '5432', 10),
+    },
+  },
+)
+```
+
+**Note:** `provideConfig()` is generally preferred as it's more concise and supports async loading out of the box.
+
+## Using Configuration in Services
+
+Once you've created a configuration token, inject it into your services using the `inject()` function. **Important:** You must inject the token you created (e.g., `AppConfigService`), not `ConfigService` directly. Injecting `ConfigService` directly will result in an empty configuration.
 
 ```typescript
 import { inject, Injectable } from '@navios/di'
-import { ConfigService } from '@navios/core'
+
+import { AppConfigService } from './config/app.config'
 
 @Injectable()
 export class DatabaseService {
-  private config = inject(ConfigService)
+  private config = inject(AppConfigService)
 
   connect() {
-    // Returns null if not found
+    // Access configuration values using dot notation
     const host = this.config.get('database.host')
-
-    // Returns default if not found
     const port = this.config.getOrDefault('database.port', 5432)
-
-    // Throws if not found
-    const secret = this.config.getOrThrow('jwt.secret', 'JWT secret is required')
+    const secret = this.config.getOrThrow(
+      'jwt.secret',
+      'JWT secret is required',
+    )
   }
 }
 ```
 
-### Nested Path Access
+## Configuration API
 
-Access deeply nested values using dot notation:
+The `ConfigService` provides four methods for accessing configuration values:
+
+### `get(key)`
+
+Returns the configuration value at the given path, or `null` if not found. Use this when a value might be optional.
+
+```typescript
+const host = this.config.get('database.host') // string | null
+```
+
+### `getOrDefault(key, defaultValue)`
+
+Returns the configuration value, or the provided default if not found. Use this when you have a sensible fallback value.
+
+```typescript
+const port = this.config.getOrDefault('database.port', 5432) // number
+```
+
+### `getOrThrow(key, errorMessage?)`
+
+Returns the configuration value, or throws an error if not found. Use this for required configuration values to fail fast.
+
+```typescript
+const secret = this.config.getOrThrow('jwt.secret', 'JWT secret is required') // string
+```
+
+### `getConfig()`
+
+Returns the entire configuration object. Use this when you need access to the full configuration structure.
+
+```typescript
+const fullConfig = this.config.getConfig() // AppConfig
+```
+
+## Nested Path Access
+
+You can access deeply nested configuration values using dot notation. The TypeScript types are automatically inferred based on your configuration interface:
 
 ```typescript
 interface AppConfig {
   database: {
     connection: {
       host: string
-      pool: { min: number; max: number }
+      pool: {
+        min: number
+        max: number
+      }
     }
   }
 }
 
-@Injectable()
-export class DatabaseService {
-  private config = inject(ConfigService<AppConfig>)
-
-  setup() {
-    const host = this.config.getOrThrow('database.connection.host')
-    const minPool = this.config.getOrDefault('database.connection.pool.min', 2)
-  }
-}
-```
-
-## provideConfig
-
-For more control, use `provideConfig` with a `load` function:
-
-```typescript
-import { provideConfig } from '@navios/core'
-
-interface AppConfig {
-  port: number
-  database: { host: string; port: number }
-}
-
-const AppConfigToken = provideConfig<AppConfig>({
-  load: () => ({
-    port: parseInt(process.env.PORT || '3000'),
-    database: {
-      host: process.env.DATABASE_HOST || 'localhost',
-      port: parseInt(process.env.DATABASE_PORT || '5432'),
-    },
-  }),
-})
-
-// Inject using the token
-@Injectable()
-class DatabaseService {
-  private config = inject(AppConfigToken)
-
-  connect() {
-    const dbConfig = this.config.get('database')
-  }
-}
-```
-
-### Async Configuration
-
-The `load` function can be async for loading from external sources:
-
-```typescript
-const AppConfigToken = provideConfig<AppConfig>({
-  load: async () => {
-    const secrets = await loadSecretsFromVault()
-    return {
-      port: 3000,
-      database: {
-        host: secrets.DB_HOST,
-        port: secrets.DB_PORT,
-      },
-    }
-  },
-})
+// In your service
+const host = this.config.getOrThrow('database.connection.host') // string
+const minPool = this.config.getOrDefault('database.connection.pool.min', 2) // number
 ```
 
 ## Environment-Specific Configuration
 
-Load different configuration based on environment:
+You can load different configuration based on the environment by using conditional logic in your `load` function:
 
 ```typescript
-const environment = process.env.NODE_ENV || 'development'
+export const AppConfigService = provideConfig<AppConfig>({
+  load: () => {
+    const environment = process.env.NODE_ENV || 'development'
 
-const configs = {
-  development: {
-    debug: true,
-    database: { host: 'localhost', port: 5432 },
+    const configs = {
+      development: {
+        debug: true,
+        database: { host: 'localhost', port: 5432 },
+      },
+      production: {
+        debug: false,
+        database: {
+          host: process.env.DB_HOST!,
+          port: parseInt(process.env.DB_PORT || '5432', 10),
+        },
+      },
+    }
+
+    return configs[environment]
   },
-  production: {
-    debug: false,
-    database: {
-      host: process.env.DB_HOST!,
-      port: parseInt(process.env.DB_PORT || '5432'),
-    },
-  },
+})
+```
+
+## Using Configuration in Bootstrap
+
+In your bootstrap function, retrieve the configuration service using `app.get()` with the token you created. Make sure to call `app.init()` first:
+
+```typescript
+import { defineFastifyEnvironment } from '@navios/adapter-fastify'
+import { NaviosFactory, provideConfig } from '@navios/core'
+
+import { AppModule } from './app.module'
+import { AppConfigService } from './config/app.config'
+
+async function bootstrap() {
+  const app = await NaviosFactory.create(AppModule, {
+    adapter: defineFastifyEnvironment(),
+  })
+
+  await app.init()
+
+  // Get the config service using the token
+  const config = await app.get(AppConfigService)
+  const port = config.getOrThrow('port')
+  await app.listen({ port })
 }
 
-const config = new ConfigService(configs[environment])
+bootstrap()
 ```
 
 ## EnvConfigProvider
 
-For simple environment variable access without a typed config:
+For simple cases where you only need to access environment variables without a typed configuration structure, you can use the pre-configured `EnvConfigProvider`:
 
 ```typescript
 import { EnvConfigProvider } from '@navios/core'
-import { inject } from '@navios/di'
+import { inject, Injectable } from '@navios/di'
 
 @Injectable()
 class AppService {
@@ -198,67 +238,71 @@ class AppService {
 }
 ```
 
-## Registering ConfigService
+`EnvConfigProvider` is a `ConfigService<Record<string, string>>` that's pre-bound to `process.env`, so you can use it directly without creating your own token.
 
-Register your ConfigService in the application bootstrap:
+## Best Practices
+
+### Define Configuration Types
+
+Always use TypeScript interfaces for type safety. This enables autocomplete and compile-time type checking:
 
 ```typescript
-import { NaviosFactory } from '@navios/core'
-import { defineFastifyEnvironment } from '@navios/adapter-fastify'
-import { Container } from '@navios/di'
+// ✅ Good - full type safety
+interface AppConfig {
+  port: number
+  database: { host: string; port: number }
+}
+export const AppConfigService = provideConfig<AppConfig>({
+  load: () => ({ port: 3000, database: { host: 'localhost', port: 5432 } }),
+})
 
-async function bootstrap() {
-  const config = new ConfigService<AppConfig>({
+// ❌ Avoid - no type safety
+export const AppConfigService = provideConfig({
+  load: () => ({ port: 3000 }),
+})
+```
+
+### Use `getOrThrow` for Required Values
+
+Fail fast if required configuration is missing. This makes configuration errors obvious at startup rather than causing runtime failures later:
+
+```typescript
+// ✅ Good - fails immediately if missing
+const secret = config.getOrThrow('jwt.secret', 'JWT secret is required')
+
+// ❌ Avoid - silent failures that cause issues later
+const secret = config.get('jwt.secret') || 'default'
+```
+
+### Centralize Configuration
+
+Create a single configuration module that exports both your configuration interface and token. This makes it easy to find and maintain all configuration:
+
+```typescript
+// config/app.config.ts
+export interface AppConfig {
+  port: number
+  database: {
+    host: string
+    port: number
+  }
+  jwt: {
+    secret: string
+    expiresIn: string
+  }
+}
+
+export const AppConfigService = provideConfig<AppConfig>({
+  load: () => ({
     port: parseInt(process.env.PORT || '3000', 10),
     database: {
       host: process.env.DATABASE_HOST || 'localhost',
       port: parseInt(process.env.DATABASE_PORT || '5432', 10),
     },
-  })
-
-  const container = new Container()
-  container.bind(ConfigService).toValue(config)
-
-  const app = await NaviosFactory.create(AppModule, {
-    adapter: defineFastifyEnvironment(),
-    container,
-  })
-
-  const port = config.getOrThrow('port')
-  await app.listen({ port })
-}
-```
-
-## Best Practices
-
-**Define configuration types** - Always use TypeScript interfaces for type safety:
-
-```typescript
-// Good
-interface AppConfig { port: number; database: { host: string } }
-const config = new ConfigService<AppConfig>({ /* ... */ })
-
-// Avoid - no type safety
-const config = new ConfigService({ port: 3000 })
-```
-
-**Use getOrThrow for required values** - Fail fast if configuration is missing:
-
-```typescript
-// Good - fails immediately if missing
-const secret = config.getOrThrow('jwt.secret', 'JWT secret is required')
-
-// Avoid - silent failures
-const secret = config.get('jwt.secret') || 'default'
-```
-
-**Centralize configuration** - Create a single configuration module:
-
-```typescript
-// config/app.config.ts
-export interface AppConfig { /* ... */ }
-
-export function createAppConfig(): ConfigService<AppConfig> {
-  return new ConfigService<AppConfig>({ /* ... */ })
-}
+    jwt: {
+      secret: process.env.JWT_SECRET || 'dev-secret',
+      expiresIn: process.env.JWT_EXPIRES_IN || '1h',
+    },
+  }),
+})
 ```

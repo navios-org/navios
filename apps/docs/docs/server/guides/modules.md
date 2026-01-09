@@ -32,12 +32,12 @@ class UserModule {}
 
 ## Module Options
 
-| Option | Description |
-|--------|-------------|
-| `controllers` | Controllers that handle HTTP requests in this module |
-| `imports` | Other modules whose functionality this module needs |
-| `guards` | Guards applied to all controllers in this module |
-| `overrides` | Service override classes to import for side effects (see [Service Overrides](#service-overrides)) |
+| Option        | Description                                                                                       |
+| ------------- | ------------------------------------------------------------------------------------------------- |
+| `controllers` | Controllers that handle HTTP requests in this module                                              |
+| `imports`     | Other modules whose functionality this module needs                                               |
+| `guards`      | Guards applied to all controllers in this module                                                  |
+| `overrides`   | Service override classes to import for side effects (see [Service Overrides](#service-overrides)) |
 
 ## Root Module
 
@@ -51,7 +51,7 @@ Every Navios application has exactly one root module - the entry point that ties
 class AppModule {}
 
 // Bootstrap with root module
-const app = await NaviosFactory.create(AppModule, {
+const app = await NaviosFactory.create<FastifyEnvironment>(AppModule, {
   adapter: defineFastifyEnvironment(),
 })
 ```
@@ -85,28 +85,9 @@ class OrderModule {}
 
 This separation makes large applications manageable. Each team can own specific modules.
 
-## Importing Modules
-
-Modules can import other modules to access their services:
-
-```typescript
-@Module({
-  controllers: [AuthController],
-})
-class AuthModule {}
-
-@Module({
-  controllers: [UserController],
-  imports: [AuthModule], // Can now use AuthModule's services
-})
-class UserModule {}
-```
-
-When you import a module, services registered in that module become available to the importing module through dependency injection.
-
 ## Module Guards
 
-Apply guards to protect all controllers in a module:
+Apply guards to protect all controllers and other modules in a module:
 
 ```typescript
 @Module({
@@ -122,30 +103,6 @@ Guards run in array order. All module guards must pass before endpoint guards ar
 - Restricting access to admin-only sections
 - Rate limiting entire feature areas
 
-## Shared Modules
-
-Create modules that provide services without controllers:
-
-```typescript
-@Module({
-  controllers: [], // No controllers - this module provides services
-})
-class DatabaseModule {}
-
-// Multiple modules can import DatabaseModule
-@Module({
-  controllers: [UserController],
-  imports: [DatabaseModule],
-})
-class UserModule {}
-
-@Module({
-  controllers: [ProductController],
-  imports: [DatabaseModule],
-})
-class ProductModule {}
-```
-
 Services defined in `DatabaseModule` are shared across all importing modules.
 
 ## Service Overrides
@@ -159,10 +116,14 @@ Use `overrides` when you have service implementations that override other servic
 ### Example: Overriding a Service
 
 ```typescript
-// user.service.ts - Original service
-import { Injectable, InjectionToken } from '@navios/di'
+// user.service.override.ts - Override service with higher priority
+import { Injectable, Injectable, InjectionToken, Module } from '@navios/core'
 
-export const USER_SERVICE_TOKEN = InjectionToken.create<UserService>('UserService')
+import { USER_SERVICE_TOKEN } from './user.service'
+import { OverrideUserService } from './user.service.override'
+
+export const USER_SERVICE_TOKEN =
+  InjectionToken.create<UserService>('UserService')
 
 @Injectable({ token: USER_SERVICE_TOKEN, priority: 100 })
 export class UserService {
@@ -171,20 +132,12 @@ export class UserService {
   }
 }
 
-// user.service.override.ts - Override service with higher priority
-import { Injectable } from '@navios/di'
-import { USER_SERVICE_TOKEN } from './user.service'
-
 @Injectable({ token: USER_SERVICE_TOKEN, priority: 200 })
 export class OverrideUserService {
   getUsers() {
     return ['Charlie', 'David'] // Override implementation
   }
 }
-
-// app.module.ts - Register the override
-import { Module } from '@navios/core'
-import { OverrideUserService } from './user.service.override'
 
 @Module({
   controllers: [UserController],

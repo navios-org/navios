@@ -47,6 +47,7 @@ Endpoints are defined using `@navios/builder` and attached to methods with `@End
 
 ```typescript
 import { builder } from '@navios/builder'
+
 import { z } from 'zod'
 
 const API = builder()
@@ -86,7 +87,6 @@ interface EndpointParams<T> {
   urlParams: { ... }   // URL path parameters (e.g., /users/$userId)
   query: { ... }       // Query string parameters
   data: { ... }        // Request body
-  headers: { ... }     // Request headers
 }
 ```
 

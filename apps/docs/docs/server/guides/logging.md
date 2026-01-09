@@ -12,8 +12,8 @@ Navios provides a built-in logging system with configurable log levels and conte
 Configure logging when creating your application:
 
 ```typescript
-import { NaviosFactory } from '@navios/core'
 import { defineFastifyEnvironment } from '@navios/adapter-fastify'
+import { NaviosFactory } from '@navios/core'
 
 const app = await NaviosFactory.create(AppModule, {
   adapter: defineFastifyEnvironment(),
@@ -25,20 +25,21 @@ const app = await NaviosFactory.create(AppModule, {
 
 The `logger` option accepts:
 
-- **Array of log levels**: `['error', 'warn', 'log', 'debug', 'verbose']`
+- **Array of log levels**: `['error', 'warn', 'log', 'debug', 'verbose', 'fatal']`
+- **ConsoleLogger**: Use `ConsoleLogger.create()` for a customizable logger with JSON support
 - **Custom LoggerService**: Your own logger implementation
 - **`false`**: Disable logging
 
 ## Log Levels
 
-| Level | Description | Use Case |
-|-------|-------------|----------|
-| `fatal` | Critical errors | Unrecoverable errors |
-| `error` | Error messages | Exceptions, failures |
-| `warn` | Warnings | Deprecations, potential issues |
-| `log` | General info | Important events |
-| `debug` | Debug info | Detailed debugging |
-| `verbose` | Verbose output | Very detailed tracing |
+| Level     | Description     | Use Case                       |
+| --------- | --------------- | ------------------------------ |
+| `fatal`   | Critical errors | Unrecoverable errors           |
+| `error`   | Error messages  | Exceptions, failures           |
+| `warn`    | Warnings        | Deprecations, potential issues |
+| `log`     | General info    | Important events               |
+| `debug`   | Debug info      | Detailed debugging             |
+| `verbose` | Verbose output  | Very detailed tracing          |
 
 ```typescript
 // Production - errors and warnings only
@@ -53,8 +54,8 @@ logger: ['log', 'error', 'warn', 'debug', 'verbose', 'fatal']
 Inject the logger into services with a named context:
 
 ```typescript
-import { inject, Injectable } from '@navios/di'
 import { Logger } from '@navios/core'
+import { inject, Injectable } from '@navios/di'
 
 @Injectable()
 class UserService {
@@ -138,40 +139,111 @@ const app = await NaviosFactory.create(AppModule, {
 })
 ```
 
-## JSON Logger (Production)
+## ConsoleLogger
 
-For production, structured JSON logging works better with log aggregation services:
+For production environments, `ConsoleLogger` provides a highly customizable logger with built-in JSON support. Use `ConsoleLogger.create()` to create a configured logger instance.
+
+### Basic Usage
 
 ```typescript
-class JsonLogger implements LoggerService {
-  private output(level: string, message: any, context?: string, extra?: object) {
-    const logEntry = {
-      timestamp: new Date().toISOString(),
-      level,
-      message,
-      context,
-      ...extra,
-    }
-    console.log(JSON.stringify(logEntry))
-  }
+import { defineFastifyEnvironment } from '@navios/adapter-fastify'
+import { ConsoleLogger, NaviosFactory } from '@navios/core'
 
-  log(message: any) {
-    this.output('info', message)
-  }
+const app = await NaviosFactory.create(AppModule, {
+  adapter: defineFastifyEnvironment(),
+  logger: ConsoleLogger.create(),
+})
+```
 
-  error(message: any, stack?: string, context?: string) {
-    this.output('error', message, context, { stack })
-  }
+### JSON Logging for Production
 
-  warn(message: any, context?: string) {
-    this.output('warn', message, context)
-  }
+For production, enable JSON output which works better with log aggregation services like ELK, Datadog, or CloudWatch:
+
+```typescript
+const app = await NaviosFactory.create(AppModule, {
+  adapter: defineFastifyEnvironment(),
+  logger: ConsoleLogger.create({
+    json: true,
+    logLevels: ['log', 'error', 'warn', 'fatal'],
+  }),
+})
+```
+
+JSON output format:
+
+```json
+{
+  "timestamp": "2024-01-15T10:30:00.000Z",
+  "level": "log",
+  "message": "User logged in",
+  "context": "UserService"
 }
 ```
 
-Output:
-```json
-{"timestamp":"2024-01-15T10:30:00.000Z","level":"info","message":"User logged in","context":"UserService"}
+### Customization Options
+
+`ConsoleLogger` offers extensive customization options:
+
+```typescript
+const logger = ConsoleLogger.create({
+  // Log levels to enable
+  logLevels: ['log', 'error', 'warn', 'debug'],
+
+  // JSON output (recommended for production)
+  json: true,
+
+  // Display options (ignored when json is true)
+  showPid: true, // Show process ID
+  showTimestamp: true, // Show absolute timestamp
+  showTimeDiff: false, // Show time difference between logs
+  showLogLevel: true, // Show log level
+  showContext: true, // Show context name
+  showPrefix: true, // Show prefix/app name
+  prefix: 'MyApp', // Custom prefix
+
+  // Request ID tracking
+  requestId: true,
+
+  // Formatting options
+  colors: false, // Enable colors (default: true if json is false)
+  compact: true, // Single-line output
+  depth: 5, // Object inspection depth
+  maxArrayLength: 100, // Max array elements to show
+  maxStringLength: 10000, // Max string length
+})
+```
+
+### Common Configurations
+
+**Development:**
+
+```typescript
+logger: ConsoleLogger.create({
+  logLevels: ['log', 'error', 'warn', 'debug', 'verbose'],
+  colors: true,
+  showTimestamp: true,
+})
+```
+
+**Production:**
+
+```typescript
+logger: ConsoleLogger.create({
+  json: true,
+  logLevels: ['log', 'error', 'warn', 'fatal'],
+  requestId: true,
+})
+```
+
+**Minimal:**
+
+```typescript
+logger: ConsoleLogger.create({
+  showPid: false,
+  showPrefix: false,
+  showTimestamp: false,
+  showContext: false,
+})
 ```
 
 ## Best Practices
@@ -185,7 +257,7 @@ logger.warn('Rate limit approaching')
 logger.log('User created successfully')
 
 // Avoid - wrong level
-logger.error('User logged in')  // Should be log()
+logger.error('User logged in') // Should be log()
 ```
 
 **Always include context**: Makes tracing easier.

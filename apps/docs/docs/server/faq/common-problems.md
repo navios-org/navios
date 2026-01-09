@@ -29,6 +29,7 @@ Navios uses **TypeScript 5 native decorators** (ES decorators), not the legacy e
 ```
 
 Key settings for ESM projects:
+
 - `"module": "NodeNext"` - Enables ES modules with Node.js interop
 - `"moduleResolution": "NodeNext"` - Uses Node.js ESM resolution algorithm
 - `"verbatimModuleSyntax": true` - Enforces explicit `type` imports
@@ -60,7 +61,7 @@ If you cannot disable `experimentalDecorators`, you can use the legacy-compatibl
 
 ## ES Decorators Support in Bun
 
-Bun does not yet fully support ES decorators natively. To run Navios applications with Bun, you need to use a plugin that transpiles TypeScript files with proper decorator support.
+Bun supports **Legacy Decorators** natively (with `experimentalDecorators: true`). If you want to use **Stage 3 decorators** (TypeScript 5 native decorators) with Navios, you need to configure a plugin that transpiles TypeScript files with proper decorator support.
 
 ### Solution: Bun Plugin with TypeScript
 
@@ -108,133 +109,6 @@ preload = ["./bun-plugin.mts"]
 
 ```bash
 bun add -d typescript
-```
-
-### How It Works
-
-1. The plugin intercepts all `.ts` and `.tsx` file loads
-2. Uses TypeScript to transpile the code with proper ES decorator support
-3. Returns the transpiled JavaScript to Bun's runtime
-
-### Development Mode with File Watching
-
-Bun's `--watch` flag doesn't work correctly with plugins. Add manual file watching for hot reload during development:
-
-```typescript
-// bun-plugin.mts
-import fs from 'fs'
-
-import { plugin } from 'bun'
-
-const RELOAD_HACK_FILENAME = 'bunPlugin.reload.ts'
-
-plugin({
-  name: 'typescript-decorators',
-  setup(build) {
-    const filter = /\.m?(ts|tsx)$/
-    const watchFileSet = new Set<string | null>()
-
-    // Manual file watcher for dev mode
-    const folderToWatch = import.meta.dir + '/src/'
-    fs.watch(folderToWatch, { recursive: true }, (event, filename) => {
-      if (watchFileSet.has(filename)) {
-        // Trigger reload by writing to a hack file
-        void Bun.file(`./${RELOAD_HACK_FILENAME}`).write(
-          `// ${Math.random()}\n`
-        )
-      }
-    })
-
-    build.onLoad({ filter }, async (args) => {
-      // Track loaded files for watching
-      watchFileSet.add(args.path.replace(folderToWatch, ''))
-
-      const codeTs = await Bun.file(args.path).text()
-      const typescript = (await import('typescript')).default
-
-      const result = typescript.transpileModule(codeTs, {
-        compilerOptions: {
-          module: typescript.ModuleKind.ESNext,
-          target: typescript.ScriptTarget.ESNext,
-          jsx: typescript.JsxEmit.React,
-        },
-      })
-
-      return {
-        loader: 'js',
-        contents: result.outputText,
-      }
-    })
-  },
-})
-```
-
-Create the reload hack file:
-
-```typescript
-// bunPlugin.reload.ts
-// This file is auto-modified to trigger reloads
-```
-
-Run with watch mode:
-
-```bash
-bun --watch src/main.ts
-```
-
-### Performance Optimization
-
-Add caching to avoid re-transpiling unchanged files:
-
-```typescript
-// bun-plugin.mts
-import fs from 'fs'
-
-import { plugin } from 'bun'
-
-const RELOAD_HACK_FILENAME = 'bunPlugin.reload.ts'
-const cache = new Map<string, string>()
-
-plugin({
-  name: 'typescript-decorators',
-  setup(build) {
-    const filter = /\.m?(ts|tsx)$/
-    const watchFileSet = new Set<string | null>()
-
-    const folderToWatch = import.meta.dir + '/src/'
-    fs.watch(folderToWatch, { recursive: true }, (event, filename) => {
-      if (watchFileSet.has(filename)) {
-        void Bun.file(`./${RELOAD_HACK_FILENAME}`).write(
-          `// ${Math.random()}\n`
-        )
-      }
-    })
-
-    build.onLoad({ filter }, async (args) => {
-      watchFileSet.add(args.path.replace(folderToWatch, ''))
-
-      const codeTs = await Bun.file(args.path).text()
-
-      // Check cache
-      const cached = cache.get(codeTs)
-      if (cached) {
-        return { loader: 'js', contents: cached }
-      }
-
-      const typescript = (await import('typescript')).default
-      const result = typescript.transpileModule(codeTs, {
-        compilerOptions: {
-          module: typescript.ModuleKind.ESNext,
-          target: typescript.ScriptTarget.ESNext,
-          jsx: typescript.JsxEmit.React,
-        },
-      })
-
-      cache.set(codeTs, result.outputText)
-      return { loader: 'js', contents: result.outputText }
-    })
-  },
-})
 ```
 
 ### Alternative: Use Node.js

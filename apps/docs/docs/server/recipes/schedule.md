@@ -20,8 +20,8 @@ npm install @navios/schedule
 ## Quick Start
 
 ```typescript
-import { Schedulable, Cron, Schedule, SchedulerService } from '@navios/schedule'
-import { Module, OnModuleInit, inject } from '@navios/core'
+import { inject, Module, OnModuleInit } from '@navios/core'
+import { Cron, Schedulable, Schedule, SchedulerService } from '@navios/schedule'
 
 @Schedulable()
 class DataProcessingService {
@@ -80,14 +80,14 @@ class ReportService {
 
 ## Cron Expressions
 
-| Expression | Description |
-|------------|-------------|
-| `* * * * *` | Every minute |
-| `*/5 * * * *` | Every 5 minutes |
-| `0 * * * *` | Every hour |
-| `0 0 * * *` | Daily at midnight |
-| `0 9 * * 1-5` | Weekdays at 9 AM |
-| `0 0 1 * *` | First day of month |
+| Expression    | Description        |
+| ------------- | ------------------ |
+| `* * * * *`   | Every minute       |
+| `*/5 * * * *` | Every 5 minutes    |
+| `0 * * * *`   | Every hour         |
+| `0 0 * * *`   | Daily at midnight  |
+| `0 9 * * 1-5` | Weekdays at 9 AM   |
+| `0 0 1 * *`   | First day of month |
 
 ## Schedule Constants
 
@@ -117,6 +117,33 @@ class AppModule implements OnModuleInit {
   }
 }
 ```
+
+:::warning Service Instantiation Timing
+
+Registering a service with the scheduler does **not** automatically instantiate it. The service is only created when the cron job actually runs (when the cron time is met). This means:
+
+- Lifecycle hooks like `onServiceInit()` will **not** be executed during registration
+- `onServiceInit()` will only run when the first cron job execution occurs
+- If you need initialization logic to run immediately, do it by injecting the service inside module or manually instantiate the service
+
+```typescript
+@Schedulable()
+class DataProcessingService {
+  async onServiceInit() {
+    // This will NOT run when scheduler.register() is called
+    // It will only run when the first cron job executes
+    console.log('Service initialized')
+  }
+
+  @Cron(Schedule.EveryHour)
+  async processData() {
+    // Service is instantiated here (first time this runs)
+    // onServiceInit() is called before this method executes
+  }
+}
+```
+
+:::
 
 ### Control Jobs
 
