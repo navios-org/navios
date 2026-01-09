@@ -1,3 +1,4 @@
+export * from './adapter.token.mjs'
 export * from './endpoint-adapter.token.mjs'
 export * from './execution-context.token.mjs'
 export * from './http-adapter.token.mjs'

@@ -11,7 +11,7 @@ import { StreamAdapterToken } from '../tokens/index.mjs'
 export class StreamAdapterFactory {
   private readonly environment = inject(NaviosEnvironment)
   create(ctx: FactoryContext) {
-    const service = this.environment.getHttpToken(StreamAdapterToken)
+    const service = this.environment.getToken(StreamAdapterToken)
     if (!service) {
       throw new Error('StreamAdapterToken service not found in environment')
     }

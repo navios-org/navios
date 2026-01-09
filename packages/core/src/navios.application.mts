@@ -1,10 +1,26 @@
-import type { ClassTypeWithInstance, Registry } from '@navios/di'
+import type {
+  ClassType,
+  ClassTypeWithArgument,
+  ClassTypeWithInstance,
+  InjectionTokenSchemaType,
+  Registry,
+} from '@navios/di'
+import type { z } from 'zod/v4'
 
-import { Container, inject, Injectable } from '@navios/di'
+import {
+  BoundInjectionToken,
+  Container,
+  FactoryInjectionToken,
+  inject,
+  Injectable,
+  InjectionToken,
+} from '@navios/di'
 
 import type {
-  AbstractHttpAdapterInterface,
-  AbstractHttpListenOptions,
+  AbstractAdapterInterface,
+  AdapterEnvironment,
+  DefaultAdapterEnvironment,
+  HttpAdapterEnvironment,
   NaviosModule,
   PluginContext,
   PluginDefinition,
@@ -12,10 +28,11 @@ import type {
 import type { LoggerService, LogLevel } from './logger/index.mjs'
 import type { NaviosEnvironmentOptions } from './navios.environment.mjs'
 
-import { HttpAdapterToken } from './index.mjs'
 import { Logger } from './logger/index.mjs'
 import { NaviosEnvironment } from './navios.environment.mjs'
 import { ModuleLoaderService } from './services/index.mjs'
+import { AdapterToken } from './tokens/index.mjs'
+import { assertAdapterSupports } from './utils/index.mjs'
 
 /**
  * Options for configuring the Navios application context.
@@ -44,14 +61,14 @@ export interface NaviosApplicationOptions {
   container?: Container
 
   /**
-   * HTTP adapter environment(s) to use for the application.
+   * Adapter environment(s) to use for the application.
    * Can be a single adapter or an array of adapters.
    *
    * @example
    * ```typescript
    * adapter: defineFastifyEnvironment()
    * // or
-   * adapter: [defineFastifyEnvironment(), defineBunEnvironment()]
+   * adapter: [defineFastifyEnvironment()]
    * ```
    */
   adapter: NaviosEnvironmentOptions | NaviosEnvironmentOptions[]
@@ -75,7 +92,7 @@ export interface NaviosApplicationOptions {
  * Main application class for Navios.
  *
  * This class represents a Navios application instance and provides methods
- * for initializing, configuring, and managing the HTTP server.
+ * for initializing, configuring, and managing the application lifecycle.
  *
  * @example
  * ```typescript
@@ -90,10 +107,12 @@ export interface NaviosApplicationOptions {
  * ```
  */
 @Injectable()
-export class NaviosApplication {
+export class NaviosApplication<
+  Environment extends AdapterEnvironment = DefaultAdapterEnvironment,
+> {
   private environment = inject(NaviosEnvironment)
   private moduleLoader = inject(ModuleLoaderService)
-  private httpApplication: AbstractHttpAdapterInterface<any> | null = null
+  private adapter: Environment['adapter'] | null = null
   private logger = inject(Logger, {
     context: NaviosApplication.name,
   })
@@ -103,7 +122,7 @@ export class NaviosApplication {
   private options: NaviosApplicationOptions = {
     adapter: [],
   }
-  private plugins: PluginDefinition<any>[] = []
+  private plugins: PluginDefinition<any, any>[] = []
 
   /**
    * Indicates whether the application has been initialized.
@@ -127,8 +146,10 @@ export class NaviosApplication {
   ) {
     this.appModule = appModule
     this.options = options
-    if (this.environment.hasHttpSetup()) {
-      this.httpApplication = await this.container.get(HttpAdapterToken)
+    if (this.environment.hasAdapterSetup()) {
+      this.adapter = (await this.container.get(
+        AdapterToken,
+      )) as Environment['adapter']
     }
   }
 
@@ -139,6 +160,19 @@ export class NaviosApplication {
    */
   getContainer() {
     return this.container
+  }
+
+  /**
+   * Returns the current adapter instance.
+   *
+   * @returns The adapter instance
+   * @throws Error if adapter is not initialized
+   */
+  getAdapter(): Environment['adapter'] {
+    if (!this.adapter) {
+      throw new Error('Adapter not initialized')
+    }
+    return this.adapter
   }
 
   /**
@@ -159,7 +193,9 @@ export class NaviosApplication {
    * }))
    * ```
    */
-  usePlugin<TOptions>(definition: PluginDefinition<TOptions>): this {
+  usePlugin<TOptions, TAdapter extends AbstractAdapterInterface>(
+    definition: PluginDefinition<TOptions, TAdapter>,
+  ): this {
     this.plugins.push(definition)
     return this
   }
@@ -169,7 +205,7 @@ export class NaviosApplication {
    *
    * This method:
    * - Loads all modules and their dependencies
-   * - Sets up the HTTP server if an adapter is configured
+   * - Sets up the adapter if one is configured
    * - Calls onModuleInit hooks on all modules
    * - Initializes registered plugins
    * - Marks the application as initialized
@@ -192,13 +228,16 @@ export class NaviosApplication {
       throw new Error('App module is not set. Call setAppModule() first.')
     }
     await this.moduleLoader.loadModules(this.appModule)
-    if (this.environment.hasHttpSetup()) {
-      await this.httpApplication?.setupHttpServer(this.options)
+
+    if (this.environment.hasAdapterSetup() && this.adapter) {
+      await this.adapter.setupAdapter(this.options)
     }
+
     await this.initPlugins()
     await this.initModules()
-    if (this.environment.hasHttpSetup()) {
-      await this.httpApplication?.ready()
+
+    if (this.adapter) {
+      await this.adapter.ready()
     }
 
     this.isInitialized = true
@@ -207,23 +246,22 @@ export class NaviosApplication {
 
   private async initModules() {
     const modules = this.moduleLoader.getAllModules()
-    await this.httpApplication?.onModulesInit(modules)
+    if (this.adapter) {
+      await this.adapter.onModulesInit(modules)
+    }
   }
 
   private async initPlugins() {
     if (this.plugins.length === 0) return
 
-    let server: any = null
-    try {
-      server = this.httpApplication?.getServer() ?? null
-    } catch {
-      // ignore
+    if (!this.adapter) {
+      throw new Error('Cannot initialize plugins without an adapter')
     }
+
     const context: PluginContext = {
       modules: this.moduleLoader.getAllModules(),
-      server,
+      adapter: this.adapter,
       container: this.container,
-      globalPrefix: this.httpApplication?.getGlobalPrefix() ?? '',
       moduleLoader: this.moduleLoader,
     }
 
@@ -234,10 +272,78 @@ export class NaviosApplication {
   }
 
   /**
+   * Gets a service instance from the dependency injection container.
+   *
+   * This is a shorthand for `app.getContainer().get(token)`.
+   *
+   * @param token - The injection token or class to resolve
+   * @returns Promise resolving to the service instance
+   *
+   * @example
+   * ```typescript
+   * const userService = await app.get(UserService)
+   * const config = await app.get(ConfigToken)
+   * ```
+   */
+  get<T extends ClassType>(token: T): Promise<InstanceType<T>>
+  get<T extends ClassTypeWithArgument<R>, R>(
+    token: T,
+    args: R,
+  ): Promise<InstanceType<T>>
+  get<T, S extends InjectionTokenSchemaType>(
+    token: InjectionToken<T, S>,
+    args: z.input<S>,
+  ): Promise<T>
+  get<T, S extends InjectionTokenSchemaType, R extends boolean>(
+    token: InjectionToken<T, S, R>,
+  ): Promise<T>
+  get<T>(token: InjectionToken<T, undefined>): Promise<T>
+  get<T>(token: BoundInjectionToken<T, any>): Promise<T>
+  get<T>(token: FactoryInjectionToken<T, any>): Promise<T>
+  async get(
+    token:
+      | ClassType
+      | InjectionToken<any>
+      | BoundInjectionToken<any, any>
+      | FactoryInjectionToken<any, any>,
+    args?: unknown,
+  ): Promise<any> {
+    return this.container.get(token as any, args)
+  }
+
+  /**
+   * Configures the adapter with additional options before initialization.
+   *
+   * This method allows setting adapter-specific configuration options
+   * before the adapter is initialized. Must be called before `init()`.
+   *
+   * @param options - Adapter-specific configuration options
+   * @returns this for method chaining
+   * @throws Error if called after init() or if adapter doesn't support configure
+   *
+   * @example
+   * ```typescript
+   * // With Fastify adapter
+   * app.configure({ trustProxy: true, logger: true })
+   *
+   * // With Bun adapter
+   * app.configure({ development: true })
+   * ```
+   */
+  configure(options: Partial<Environment['options']>): this {
+    if (this.isInitialized) {
+      throw new Error('configure() must be called before init()')
+    }
+    assertAdapterSupports(this.adapter, 'configure')
+    this.adapter.configure(options)
+    return this
+  }
+
+  /**
    * Enables CORS (Cross-Origin Resource Sharing) for the application.
    *
    * @param options - CORS configuration options (adapter-specific)
-   * @throws Error if HTTP application is not set
+   * @throws Error if adapter doesn't support enableCors
    *
    * @example
    * ```typescript
@@ -248,18 +354,20 @@ export class NaviosApplication {
    * })
    * ```
    */
-  enableCors(options: any) {
-    if (!this.httpApplication) {
-      throw new Error('HTTP application is not set')
-    }
-    this.httpApplication.enableCors(options)
+  enableCors(
+    options: Environment extends HttpAdapterEnvironment
+      ? Environment['corsOptions']
+      : never,
+  ): void {
+    assertAdapterSupports(this.adapter, 'enableCors')
+    this.adapter.enableCors(options)
   }
 
   /**
    * Enables multipart/form-data support for file uploads.
    *
    * @param options - Multipart configuration options (adapter-specific)
-   * @throws Error if HTTP application is not set
+   * @throws Error if adapter doesn't support enableMultipart
    *
    * @example
    * ```typescript
@@ -270,18 +378,20 @@ export class NaviosApplication {
    * })
    * ```
    */
-  enableMultipart(options: any) {
-    if (!this.httpApplication) {
-      throw new Error('HTTP application is not set')
-    }
-    this.httpApplication.enableMultipart(options)
+  enableMultipart(
+    options: Environment extends HttpAdapterEnvironment
+      ? Environment['multipartOptions']
+      : never,
+  ): void {
+    assertAdapterSupports(this.adapter, 'enableMultipart')
+    this.adapter.enableMultipart(options)
   }
 
   /**
    * Sets a global prefix for all routes.
    *
    * @param prefix - The prefix to prepend to all route URLs (e.g., '/api')
-   * @throws Error if HTTP application is not set
+   * @throws Error if adapter doesn't support setGlobalPrefix
    *
    * @example
    * ```typescript
@@ -289,11 +399,9 @@ export class NaviosApplication {
    * // All routes will be prefixed with /api/v1
    * ```
    */
-  setGlobalPrefix(prefix: string) {
-    if (!this.httpApplication) {
-      throw new Error('HTTP application is not set')
-    }
-    this.httpApplication.setGlobalPrefix(prefix)
+  setGlobalPrefix(prefix: string): void {
+    assertAdapterSupports(this.adapter, 'setGlobalPrefix')
+    this.adapter.setGlobalPrefix(prefix)
   }
 
   /**
@@ -304,7 +412,7 @@ export class NaviosApplication {
    * - Bun adapter: Returns Bun.Server
    *
    * @returns The HTTP server instance
-   * @throws Error if HTTP application is not set
+   * @throws Error if adapter doesn't support getServer
    *
    * @example
    * ```typescript
@@ -312,40 +420,44 @@ export class NaviosApplication {
    * // Use adapter-specific server methods
    * ```
    */
-  getServer() {
-    if (!this.httpApplication) {
-      throw new Error('HTTP application is not set')
-    }
-    return this.httpApplication.getServer()
+  getServer(): Environment extends HttpAdapterEnvironment
+    ? Environment['server']
+    : never {
+    assertAdapterSupports(this.adapter, 'getServer')
+    return this.adapter.getServer() as Environment extends HttpAdapterEnvironment
+      ? Environment['server']
+      : never
   }
 
   /**
    * Starts the HTTP server and begins listening for requests.
    *
    * @param options - Listen options (port, host, etc.)
-   * @throws Error if HTTP application is not set
+   * @throws Error if adapter doesn't support listen
    *
    * @example
    * ```typescript
    * await app.listen({ port: 3000, host: '0.0.0.0' })
    * ```
    */
-  async listen(options: AbstractHttpListenOptions) {
-    if (!this.httpApplication) {
-      throw new Error('HTTP application is not set')
-    }
-    await this.httpApplication.listen(options)
+  async listen(
+    options: Environment extends HttpAdapterEnvironment
+      ? Environment['listenOptions']
+      : never,
+  ): Promise<string> {
+    assertAdapterSupports(this.adapter, 'listen')
+    return this.adapter.listen(options) as Promise<string>
   }
 
   /**
    * Disposes of application resources.
    *
-   * Cleans up the HTTP server and module loader.
+   * Cleans up the adapter and module loader.
    * This method is called automatically by `close()`.
    */
   async dispose() {
-    if (this.httpApplication) {
-      await this.httpApplication.dispose()
+    if (this.adapter) {
+      await this.adapter.dispose()
     }
     if (this.moduleLoader) {
       this.moduleLoader.dispose()

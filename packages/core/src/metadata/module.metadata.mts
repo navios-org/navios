@@ -16,6 +16,17 @@ export interface ModuleMetadata {
   >
   overrides: Set<ClassType>
   customAttributes: Map<string | symbol, any>
+  /**
+   * Extensible entries for adapter-specific data.
+   * Adapters can store custom metadata using symbol keys.
+   *
+   * @example
+   * ```typescript
+   * const CommandEntryKey = Symbol('CommandEntryKey')
+   * metadata.customEntries.set(CommandEntryKey, new Set([Command1, Command2]))
+   * ```
+   */
+  customEntries: Map<symbol, unknown>
 }
 
 export function getModuleMetadata(
@@ -38,6 +49,7 @@ export function getModuleMetadata(
         >(),
         overrides: new Set<ClassType>(),
         customAttributes: new Map<string | symbol, any>(),
+        customEntries: new Map<symbol, unknown>(),
       }
       context.metadata[ModuleMetadataKey] = newMetadata
       // @ts-expect-error We add a custom metadata key to the target
@@ -62,4 +74,35 @@ export function extractModuleMetadata(target: ClassType): ModuleMetadata {
 export function hasModuleMetadata(target: ClassType): boolean {
   // @ts-expect-error We add a custom metadata key to the target
   return !!target[ModuleMetadataKey]
+}
+
+/**
+ * Type-safe helper to get or create a custom entry in module metadata.
+ * Adapters use this to store their own metadata in modules.
+ *
+ * @param metadata - The module metadata object
+ * @param key - Symbol key for the custom entry
+ * @param defaultValue - Factory function to create default value if entry doesn't exist
+ * @returns The existing or newly created entry value
+ *
+ * @example
+ * ```typescript
+ * const CommandEntryKey = Symbol('CommandEntryKey')
+ * const commands = getModuleCustomEntry<Set<ClassType>>(
+ *   metadata,
+ *   CommandEntryKey,
+ *   () => new Set(),
+ * )
+ * commands.add(MyCommand)
+ * ```
+ */
+export function getModuleCustomEntry<T>(
+  metadata: ModuleMetadata,
+  key: symbol,
+  defaultValue: () => T,
+): T {
+  if (!metadata.customEntries.has(key)) {
+    metadata.customEntries.set(key, defaultValue())
+  }
+  return metadata.customEntries.get(key) as T
 }

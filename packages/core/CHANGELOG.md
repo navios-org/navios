@@ -5,6 +5,60 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.0-alpha.4] - 2026-01-09
+
+### Added
+
+- **Unified Adapter Architecture**: New abstract adapter system supporting multiple adapter types (HTTP, CLI, etc.)
+  - `AbstractAdapterInterface` - Base interface for all adapters with lifecycle methods (`setupAdapter`, `onModulesInit`, `ready`, `dispose`)
+  - `AdapterEnvironment` - Base interface for adapter environments with type-safe options
+  - `HttpAdapterEnvironment` - Extended environment interface for HTTP adapters with server, CORS, multipart, and listen options types
+  - `DefaultAdapterEnvironment` - Default environment with unknown types for generic usage
+  - `AdapterToken` - New injection token for accessing the current adapter instance
+  - `AdapterFactory` - Factory for creating adapter instances from environment definitions
+- **Type-Safe Application Generic**: `NaviosApplication<TEnvironment>` now accepts an environment type parameter
+  - All adapter-specific methods (`configure`, `enableCors`, `enableMultipart`, `listen`, `getServer`) are now properly typed based on the environment
+  - Environment types provide IntelliSense for adapter-specific options
+- **Enhanced Plugin System**: Plugins are now typed with adapter constraints
+  - `NaviosPlugin<TOptions, TAdapter>` - Second type parameter for adapter-specific plugins
+  - `PluginContext<TAdapter>` - Typed context with adapter access
+  - Plugins can access `context.adapter` instead of `context.server` for better type safety
+- **Module Custom Entries**: New `customEntries` property on `ModuleMetadata` for adapter-specific module data
+  - Allows adapters to store custom metadata on modules (e.g., commands for CLI adapter)
+- **Console Logger Tests**: Added comprehensive test suite for `ConsoleLoggerService`
+
+### Changed
+
+- **Renamed Environment Methods**: `getHttpToken` renamed to `getToken` for adapter-agnostic naming
+- **Renamed Environment Property**: `httpTokens` renamed to `tokens` in environment definitions
+- **Application Configuration**: New `configure()` method replaces `setupHttpServer()` for pre-init configuration
+  - Configuration options are merged with adapter defaults
+  - Must be called before `init()` for options to take effect
+- **Plugin Context**: `PluginContext.server` replaced with `PluginContext.adapter` for accessing the adapter instance
+  - Use `context.adapter.getServer()` for HTTP server access
+  - `context.globalPrefix` removed; use `context.adapter.getGlobalPrefix()` instead
+- **Abstract HTTP Adapter**: `AbstractHttpAdapterInterface` now extends `AbstractAdapterInterface`
+  - Added `configure(options)` method for pre-init configuration
+  - Method signatures updated for environment-based typing
+
+### Breaking Changes
+
+- **Environment Definition Format**: `httpTokens` property renamed to `tokens`
+  - Before: `{ httpTokens: new Map([...]) }`
+  - After: `{ tokens: new Map([...]) }`
+- **Plugin Context API**: `context.server` and `context.globalPrefix` removed
+  - Before: `const server = context.server`
+  - After: `const server = context.adapter.getServer()`
+  - Before: `const prefix = context.globalPrefix`
+  - After: `const prefix = context.adapter.getGlobalPrefix()`
+- **Application Setup**: `setupHttpServer()` replaced with `configure()`
+  - Before: `await app.setupHttpServer({ logger: true })`
+  - After: `app.configure({ logger: true }); await app.init()`
+
+### Dependencies
+
+- Updated to support unified adapter architecture across all packages
+
 ## [1.0.0-alpha.3] - 2026-01-08
 
 ### Added

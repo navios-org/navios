@@ -1,28 +1,24 @@
 import type { ModuleMetadata } from '../metadata/index.mjs'
-import type { AbstractHttpCorsOptions } from './abstract-http-cors-options.interface.mjs'
-import type { AbstractHttpListenOptions } from './abstract-http-listen-options.interface.mjs'
+import type { AbstractAdapterInterface } from './abstract-adapter.interface.mjs'
+import type { HttpAdapterEnvironment } from './adapter-environment.interface.mjs'
 
 /**
- * Abstract interface for HTTP adapters.
+ * Interface for HTTP adapters extending the base adapter interface.
  *
  * Adapters implement this interface to provide runtime-specific HTTP server
  * functionality (Fastify, Bun, etc.).
  *
- * @typeParam ServerInstance - The underlying server type (e.g., FastifyInstance)
- * @typeParam CorsOptions - CORS configuration options type
- * @typeParam Options - Server setup options type
- * @typeParam MultipartOptions - Multipart form handling options type
+ * @typeParam Environment - The adapter environment providing type-safe access to
+ *                          server instance, CORS options, listen options, etc.
  */
 export interface AbstractHttpAdapterInterface<
-  ServerInstance,
-  CorsOptions = AbstractHttpCorsOptions,
-  Options = {},
-  MultipartOptions = {},
-> {
+  Environment extends HttpAdapterEnvironment = HttpAdapterEnvironment,
+> extends AbstractAdapterInterface {
   /**
-   * Sets up the HTTP server with the provided options.
+   * Sets up the adapter with the provided options.
+   * Called during application initialization before modules are initialized.
    */
-  setupHttpServer(options: Options): Promise<void>
+  setupAdapter(options: Environment['options']): Promise<void>
 
   /**
    * Called after all modules are loaded to register routes.
@@ -35,9 +31,14 @@ export interface AbstractHttpAdapterInterface<
   ready(): Promise<void>
 
   /**
+   * Disposes of the server and cleans up resources.
+   */
+  dispose(): Promise<void>
+
+  /**
    * Returns the underlying HTTP server instance.
    */
-  getServer(): ServerInstance
+  getServer(): Environment['server']
 
   /**
    * Sets a global prefix for all routes.
@@ -53,20 +54,26 @@ export interface AbstractHttpAdapterInterface<
   /**
    * Enables CORS with the specified options.
    */
-  enableCors(options: CorsOptions): void
+  enableCors(options: Environment['corsOptions']): void
 
   /**
    * Enables multipart form data handling.
    */
-  enableMultipart(options: MultipartOptions): void
+  enableMultipart(options: Environment['multipartOptions']): void
 
   /**
    * Starts the server and listens for incoming requests.
    */
-  listen(options: AbstractHttpListenOptions): Promise<string>
+  listen(options: Environment['listenOptions']): Promise<string>
 
   /**
-   * Disposes of the server and cleans up resources.
+   * Configures the adapter with additional options before init.
+   *
+   * This method allows setting adapter-specific configuration options
+   * before the server is initialized. Options set via configure() are
+   * merged with options passed to setupAdapter().
+   *
+   * Must be called before setupAdapter().
    */
-  dispose(): Promise<void>
+  configure(options: Partial<Environment['options']>): void
 }

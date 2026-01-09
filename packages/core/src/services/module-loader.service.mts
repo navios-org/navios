@@ -119,6 +119,7 @@ export class ModuleLoaderService {
         guards: new Set(),
         overrides: new Set(),
         customAttributes: new Map(),
+        customEntries: new Map(),
       }
       this.modulesMetadata.set(moduleName, metadata)
 

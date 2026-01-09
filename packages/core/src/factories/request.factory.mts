@@ -12,7 +12,7 @@ import { Request } from '../tokens/index.mjs'
 export class RequestFactory {
   private readonly environment = inject(NaviosEnvironment)
   create(ctx: FactoryContext) {
-    const service = this.environment.getHttpToken(Request)
+    const service = this.environment.getToken(Request)
     if (!service) {
       throw new Error('RequestToken service not found in environment')
     }

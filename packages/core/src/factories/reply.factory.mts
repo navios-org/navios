@@ -12,7 +12,7 @@ import { Reply } from '../tokens/index.mjs'
 export class ReplyFactory {
   private readonly environment = inject(NaviosEnvironment)
   create(ctx: FactoryContext) {
-    const service = this.environment.getHttpToken(Reply)
+    const service = this.environment.getToken(Reply)
     if (!service) {
       throw new Error('ReplyToken service not found in environment')
     }

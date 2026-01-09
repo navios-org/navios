@@ -12,7 +12,7 @@ export class MultipartAdapterFactory {
   private readonly environment = inject(NaviosEnvironment)
 
   create(ctx: FactoryContext) {
-    const service = this.environment.getHttpToken(MultipartAdapterToken)
+    const service = this.environment.getToken(MultipartAdapterToken)
     if (!service) {
       throw new Error('MultipartAdapterToken service not found in environment')
     }

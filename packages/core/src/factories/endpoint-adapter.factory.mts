@@ -12,7 +12,7 @@ export class EndpointAdapterFactory {
   private readonly environment = inject(NaviosEnvironment)
 
   create(ctx: FactoryContext) {
-    const service = this.environment.getHttpToken(EndpointAdapterToken)
+    const service = this.environment.getToken(EndpointAdapterToken)
     if (!service) {
       throw new Error('EndpointAdapterToken service not found in environment')
     }

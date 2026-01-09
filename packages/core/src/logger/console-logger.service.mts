@@ -30,15 +30,46 @@ export interface ConsoleLoggerOptions {
    */
   logLevels?: LogLevel[]
   /**
-   * If enabled, will print timestamp (time difference) between current and previous log message.
+   * If enabled, will print timestamp difference between current and previous log message.
    * Note: This option is not used when `json` is enabled.
+   * @default false
    */
-  timestamp?: boolean
+  showTimeDiff?: boolean
   /**
    * A prefix to be used for each log message.
    * Note: This option is not used when `json` is enabled.
    */
   prefix?: string
+  /**
+   * If true, will print the process ID in the log message.
+   * Note: This option is not used when `json` is enabled.
+   * @default true
+   */
+  showPid?: boolean
+  /**
+   * If true, will print the log level in the log message.
+   * Note: This option is not used when `json` is enabled.
+   * @default true
+   */
+  showLogLevel?: boolean
+  /**
+   * If true, will print the prefix/app name in the log message.
+   * Note: This option is not used when `json` is enabled.
+   * @default true
+   */
+  showPrefix?: boolean
+  /**
+   * If true, will print the context in the log message.
+   * Note: This option is not used when `json` is enabled.
+   * @default true
+   */
+  showContext?: boolean
+  /**
+   * If true, will print the absolute timestamp in the log message.
+   * Note: This option is not used when `json` is enabled.
+   * @default true
+   */
+  showTimestamp?: boolean
   /**
    * If enabled, will add a request ID to the log message.
    */
@@ -129,6 +160,31 @@ const dateTimeFormatter = new Intl.DateTimeFormat(undefined, {
   token: LoggerOutput,
 })
 export class ConsoleLogger implements LoggerService {
+  /**
+   * Creates a new ConsoleLogger instance with the given options.
+   * This is a convenience method that instantiates and sets up the logger in one call.
+   */
+  static create(): ConsoleLogger
+  static create(context: string): ConsoleLogger
+  static create(options: ConsoleLoggerOptions): ConsoleLogger
+  static create(context: string, options: ConsoleLoggerOptions): ConsoleLogger
+  static create(
+    contextOrOptions?: string | ConsoleLoggerOptions,
+    options?: ConsoleLoggerOptions,
+  ): ConsoleLogger {
+    const logger = new ConsoleLogger()
+    if (contextOrOptions !== undefined) {
+      if (typeof contextOrOptions === 'string') {
+        logger.setup(contextOrOptions, options ?? {})
+      } else {
+        logger.setup(contextOrOptions)
+      }
+    } else {
+      logger.setup()
+    }
+    return logger
+  }
+
   /**
    * The options of the logger.
    */
@@ -412,11 +468,24 @@ export class ConsoleLogger implements LoggerService {
   }
 
   protected formatPid(pid: number) {
-    return `[${this.options.prefix}] ${pid} - `
+    const showPrefix = this.options.showPrefix ?? true
+    const showPid = this.options.showPid ?? true
+
+    if (!showPrefix && !showPid) {
+      return ''
+    }
+
+    const prefix = showPrefix ? `[${this.options.prefix}]` : ''
+    const pidPart = showPid ? `${pid}` : ''
+    const separator = showPrefix && showPid ? ' ' : ''
+    const suffix = showPrefix || showPid ? ' - ' : ''
+
+    return `${prefix}${separator}${pidPart}${suffix}`
   }
 
   protected formatContext(context: string): string {
-    if (!context) {
+    const showContext = this.options.showContext ?? true
+    if (!context || !showContext) {
       return ''
     }
 
@@ -434,9 +503,29 @@ export class ConsoleLogger implements LoggerService {
     requestId?: string,
   ) {
     const output = this.stringifyMessage(message, logLevel)
+    const showLogLevel = this.options.showLogLevel ?? true
+    const showTimestamp = this.options.showTimestamp ?? true
+
     pidMessage = this.colorize(pidMessage, logLevel)
-    formattedLogLevel = this.colorize(formattedLogLevel, logLevel)
-    return `${pidMessage}${this.getRequestId(requestId)}${this.getTimestamp()} ${formattedLogLevel} ${contextMessage}${output}${timestampDiff}\n`
+    formattedLogLevel = showLogLevel
+      ? this.colorize(formattedLogLevel, logLevel)
+      : ''
+
+    const timestamp = showTimestamp ? this.getTimestamp() : ''
+    const requestIdPart = this.getRequestId(requestId)
+
+    // Build the message parts, filtering out empty ones
+    const parts: string[] = []
+
+    if (pidMessage) parts.push(pidMessage.trimEnd())
+    if (requestIdPart) parts.push(requestIdPart.trimEnd())
+    if (timestamp) parts.push(timestamp)
+    if (formattedLogLevel) parts.push(formattedLogLevel)
+    if (contextMessage) parts.push(contextMessage.trimEnd())
+
+    const prefix = parts.length > 0 ? parts.join(' ') + ' ' : ''
+
+    return `${prefix}${output}${timestampDiff}\n`
   }
 
   protected getRequestId(requestId?: string) {
@@ -488,7 +577,8 @@ export class ConsoleLogger implements LoggerService {
   }
 
   protected updateAndGetTimestampDiff(): string {
-    const includeTimestamp = this.lastTimestampAt && this.options?.timestamp
+    const showTimeDiff = this.options?.showTimeDiff ?? false
+    const includeTimestamp = this.lastTimestampAt && showTimeDiff
     const result = includeTimestamp
       ? this.formatTimestampDiff(Date.now() - this.lastTimestampAt!)
       : ''

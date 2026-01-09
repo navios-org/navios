@@ -1,3 +1,4 @@
+export * from './adapter.factory.mjs'
 export * from './endpoint-adapter.factory.mjs'
 export * from './http-adapter.factory.mjs'
 export * from './multipart-adapter.factory.mjs'

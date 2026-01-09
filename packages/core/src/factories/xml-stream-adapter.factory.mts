@@ -11,7 +11,7 @@ import { XmlStreamAdapterToken } from '../tokens/index.mjs'
 export class XmlStreamAdapterFactory {
   private readonly environment = inject(NaviosEnvironment)
   create(ctx: FactoryContext) {
-    const service = this.environment.getHttpToken(XmlStreamAdapterToken)
+    const service = this.environment.getToken(XmlStreamAdapterToken)
     if (!service) {
       throw new Error('XmlStreamAdapterToken service not found in environment')
     }

@@ -6,7 +6,11 @@ import type {
 
 import { Container } from '@navios/di'
 
-import type { NaviosModule } from './interfaces/index.mjs'
+import type {
+  AdapterEnvironment,
+  DefaultAdapterEnvironment,
+  NaviosModule,
+} from './interfaces/index.mjs'
 import type { NaviosApplicationOptions } from './navios.application.mjs'
 
 import { ConsoleLogger, isNil, LoggerOutput } from './logger/index.mjs'
@@ -40,12 +44,16 @@ export class NaviosFactory {
   /**
    * Creates a new Navios application instance.
    *
-   * This method sets up the dependency injection container, registers the HTTP adapter,
+   * This method sets up the dependency injection container, registers the adapter,
    * configures logging, and initializes the application with the provided module.
+   *
+   * @typeParam Environment - Adapter environment interface for type-safe access
+   *   to adapter-specific features. When specified, methods like `getServer()`,
+   *   `enableCors()`, `listen()`, and `configure()` will have proper types.
    *
    * @param appModule - The root application module class decorated with @Module()
    * @param options - Configuration options for the application
-   * @param options.adapter - HTTP adapter environment (required for HTTP server functionality)
+   * @param options.adapter - Adapter environment (required for server functionality)
    * @param options.logger - Logger configuration. Can be:
    *   - A LoggerService instance for custom logging
    *   - An array of LogLevel strings to enable specific log levels
@@ -59,6 +67,15 @@ export class NaviosFactory {
    * const app = await NaviosFactory.create(AppModule, {
    *   adapter: defineFastifyEnvironment(),
    * })
+   *
+   * // Type-safe setup with Fastify environment
+   * import { FastifyEnvironment } from '@navios/adapter-fastify'
+   *
+   * const app = await NaviosFactory.create<FastifyEnvironment>(AppModule, {
+   *   adapter: defineFastifyEnvironment(),
+   * })
+   * app.configure({ trustProxy: true })
+   * const server = app.getServer() // FastifyInstance
    *
    * // With custom logger configuration
    * const app = await NaviosFactory.create(AppModule, {
@@ -74,12 +91,14 @@ export class NaviosFactory {
    * })
    * ```
    */
-  static async create(
+  static async create<
+    Environment extends AdapterEnvironment = DefaultAdapterEnvironment,
+  >(
     appModule: ClassTypeWithInstance<NaviosModule>,
     options: NaviosApplicationOptions = {
       adapter: [],
     },
-  ) {
+  ): Promise<NaviosApplication<Environment>> {
     const container = options.container ?? new Container(options.registry)
 
     // Set request ID flag early, before any adapters are registered
@@ -97,7 +116,9 @@ export class NaviosFactory {
     for (const adapter of adapters) {
       await this.registerEnvironment(container, adapter)
     }
-    const app = await container.get(NaviosApplication)
+    const app = (await container.get(
+      NaviosApplication,
+    )) as NaviosApplication<Environment>
     await app.setup(appModule, options)
     return app
   }
@@ -105,13 +126,13 @@ export class NaviosFactory {
   private static async registerEnvironment(
     container: Container,
     environment: {
-      httpTokens?: Map<InjectionToken<any, undefined>, AnyInjectableType>
+      tokens?: Map<InjectionToken<any, undefined>, AnyInjectableType>
     } = {},
   ) {
     const naviosEnvironment = await container.get(NaviosEnvironment)
-    const { httpTokens } = environment
-    if (httpTokens) {
-      naviosEnvironment.setupHttpEnvironment(httpTokens)
+    const { tokens } = environment
+    if (tokens) {
+      naviosEnvironment.setupEnvironment(tokens)
     }
   }
 

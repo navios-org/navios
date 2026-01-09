@@ -2,14 +2,34 @@ import type { Container } from '@navios/di'
 
 import type { ModuleMetadata } from '../metadata/index.mjs'
 import type { ModuleLoaderService } from '../services/module-loader.service.mjs'
+import type { AbstractAdapterInterface } from './abstract-adapter.interface.mjs'
 
 /**
  * Context provided to plugins during registration.
  *
  * This context gives plugins access to the application's modules,
- * server instance, DI container, and configuration.
+ * adapter instance, DI container, and module loader.
+ *
+ * @typeParam TAdapter - The adapter type, defaults to AbstractAdapterInterface
+ *
+ * @example
+ * ```typescript
+ * // Generic plugin that works with any adapter
+ * async register(context: PluginContext) {
+ *   const modules = context.modules
+ *   // ...
+ * }
+ *
+ * // Adapter-specific plugin with typed adapter
+ * async register(context: PluginContext<BunApplicationService>) {
+ *   const server = context.adapter.getServer() // Typed as Bun.Server
+ *   // ...
+ * }
+ * ```
  */
-export interface PluginContext {
+export interface PluginContext<
+  TAdapter extends AbstractAdapterInterface = AbstractAdapterInterface,
+> {
   /**
    * All loaded modules with their metadata.
    * Keys are module class names, values are their metadata.
@@ -17,21 +37,15 @@ export interface PluginContext {
   modules: Map<string, ModuleMetadata>
 
   /**
-   * The underlying HTTP server instance.
-   * Type depends on the adapter used (Fastify, Bun, etc.)
+   * The current adapter instance.
+   * Use type guards or cast to adapter-specific types for HTTP methods.
    */
-  server: any
+  adapter: TAdapter
 
   /**
    * The dependency injection container.
    */
   container: Container
-
-  /**
-   * Global route prefix (e.g., '/api/v1').
-   * Empty string if no prefix is set.
-   */
-  globalPrefix: string
 
   /**
    * Module loader service for extending the module tree.
@@ -47,9 +61,11 @@ export interface PluginContext {
  * after all modules are loaded but before the server starts listening.
  *
  * @typeParam TOptions - The type of options the plugin accepts
+ * @typeParam TAdapter - The adapter type the plugin requires
  *
  * @example
  * ```typescript
+ * // Generic plugin
  * const myPlugin: NaviosPlugin<{ enabled: boolean }> = {
  *   name: 'my-plugin',
  *   register: async (context, options) => {
@@ -58,9 +74,20 @@ export interface PluginContext {
  *     }
  *   },
  * }
+ *
+ * // Adapter-specific plugin
+ * const fastifyPlugin: NaviosPlugin<Options, FastifyApplicationService> = {
+ *   name: 'fastify-plugin',
+ *   register: async (context, options) => {
+ *     const fastify = context.adapter.getServer() // Typed!
+ *   },
+ * }
  * ```
  */
-export interface NaviosPlugin<TOptions = unknown> {
+export interface NaviosPlugin<
+  TOptions = unknown,
+  TAdapter extends AbstractAdapterInterface = AbstractAdapterInterface,
+> {
   /**
    * Plugin name for identification and logging.
    */
@@ -69,10 +96,13 @@ export interface NaviosPlugin<TOptions = unknown> {
   /**
    * Called after modules are loaded but before the server starts listening.
    *
-   * @param context - The plugin context with access to modules and server
+   * @param context - The plugin context with access to modules and adapter
    * @param options - Plugin-specific configuration options
    */
-  register(context: PluginContext, options: TOptions): Promise<void> | void
+  register(
+    context: PluginContext<TAdapter>,
+    options: TOptions,
+  ): Promise<void> | void
 }
 
 /**
@@ -81,6 +111,7 @@ export interface NaviosPlugin<TOptions = unknown> {
  * This is the type returned by plugin factory functions like `defineOpenApiPlugin()`.
  *
  * @typeParam TOptions - The type of options the plugin accepts
+ * @typeParam TAdapter - The adapter type the plugin requires
  *
  * @example
  * ```typescript
@@ -92,11 +123,14 @@ export interface NaviosPlugin<TOptions = unknown> {
  * }
  * ```
  */
-export interface PluginDefinition<TOptions = unknown> {
+export interface PluginDefinition<
+  TOptions = unknown,
+  TAdapter extends AbstractAdapterInterface = AbstractAdapterInterface,
+> {
   /**
    * The plugin instance.
    */
-  plugin: NaviosPlugin<TOptions>
+  plugin: NaviosPlugin<TOptions, TAdapter>
 
   /**
    * Options to pass to the plugin's register function.
