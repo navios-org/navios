@@ -6230,7 +6230,7 @@ __metadata:
     "@ianvs/prettier-plugin-sort-imports": "npm:^4.7.0"
     "@microsoft/api-extractor": "npm:^7.55.2"
     "@nx/js": "npm:21.5.2"
-    "@nx/vite": "npm:^21.5.2"
+    "@nx/vite": "npm:^22.3.3"
     "@nx/workspace": "npm:22.3.3"
     "@swc/core": "npm:^1.15.6"
     "@types/node": "npm:25.0.3"
@@ -6611,6 +6611,45 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@nx/js@npm:22.3.3":
+  version: 22.3.3
+  resolution: "@nx/js@npm:22.3.3"
+  dependencies:
+    "@babel/core": "npm:^7.23.2"
+    "@babel/plugin-proposal-decorators": "npm:^7.22.7"
+    "@babel/plugin-transform-class-properties": "npm:^7.22.5"
+    "@babel/plugin-transform-runtime": "npm:^7.23.2"
+    "@babel/preset-env": "npm:^7.23.2"
+    "@babel/preset-typescript": "npm:^7.22.5"
+    "@babel/runtime": "npm:^7.22.6"
+    "@nx/devkit": "npm:22.3.3"
+    "@nx/workspace": "npm:22.3.3"
+    "@zkochan/js-yaml": "npm:0.0.7"
+    babel-plugin-const-enum: "npm:^1.0.1"
+    babel-plugin-macros: "npm:^3.1.0"
+    babel-plugin-transform-typescript-metadata: "npm:^0.3.1"
+    chalk: "npm:^4.1.0"
+    columnify: "npm:^1.6.0"
+    detect-port: "npm:^1.5.1"
+    ignore: "npm:^5.0.4"
+    js-tokens: "npm:^4.0.0"
+    jsonc-parser: "npm:3.2.0"
+    npm-run-path: "npm:^4.0.1"
+    picocolors: "npm:^1.1.0"
+    picomatch: "npm:4.0.2"
+    semver: "npm:^7.6.3"
+    source-map-support: "npm:0.5.19"
+    tinyglobby: "npm:^0.2.12"
+    tslib: "npm:^2.3.0"
+  peerDependencies:
+    verdaccio: ^6.0.5
+  peerDependenciesMeta:
+    verdaccio:
+      optional: true
+  checksum: 10c0/96ebac870b84af7c9e30014120c08d7a43fadad6e7d1db0a4e8407b6409d0e7d8dfa7a9a270091637a9d58dfb2b995a63ff1fa803f88509770c6f9836fe06fe1
+  languageName: node
+  linkType: hard
+
 "@nx/nx-darwin-arm64@npm:21.5.2":
   version: 21.5.2
   resolution: "@nx/nx-darwin-arm64@npm:21.5.2"
@@ -6751,12 +6790,13 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@nx/vite@npm:^21.5.2":
-  version: 21.5.2
-  resolution: "@nx/vite@npm:21.5.2"
+"@nx/vite@npm:^22.3.3":
+  version: 22.3.3
+  resolution: "@nx/vite@npm:22.3.3"
   dependencies:
-    "@nx/devkit": "npm:21.5.2"
-    "@nx/js": "npm:21.5.2"
+    "@nx/devkit": "npm:22.3.3"
+    "@nx/js": "npm:22.3.3"
+    "@nx/vitest": "npm:22.3.3"
     "@phenomnomnominal/tsquery": "npm:~5.0.1"
     ajv: "npm:^8.0.0"
     enquirer: "npm:~2.3.6"
@@ -6766,8 +6806,29 @@ __metadata:
     tslib: "npm:^2.3.0"
   peerDependencies:
     vite: ^5.0.0 || ^6.0.0 || ^7.0.0
-    vitest: ^1.3.1 || ^2.0.0 || ^3.0.0
-  checksum: 10c0/924566e3a8d4331a25f23c0a0e91ba6326409dc5958d6c2432f704228f00a2f64595d4e7dfb25b8bdb97385e252b0fd8883b721584e047cf486831a19eb38958
+    vitest: ^1.3.1 || ^2.0.0 || ^3.0.0 || ^4.0.0
+  checksum: 10c0/fb6a076b80165821cca8ef8cc6c6e494bdbfbaa11d16e4ac7c7ee2773b08ea50fb2af4d93300230d3bde157dd7f92c73df2f759cb073c0437c8cc03b0677e3cc
+  languageName: node
+  linkType: hard
+
+"@nx/vitest@npm:22.3.3":
+  version: 22.3.3
+  resolution: "@nx/vitest@npm:22.3.3"
+  dependencies:
+    "@nx/devkit": "npm:22.3.3"
+    "@nx/js": "npm:22.3.3"
+    "@phenomnomnominal/tsquery": "npm:~5.0.1"
+    semver: "npm:^7.6.3"
+    tslib: "npm:^2.3.0"
+  peerDependencies:
+    vite: ^5.0.0 || ^6.0.0 || ^7.0.0
+    vitest: ^1.0.0 || ^2.0.0 || ^3.0.0 || ^4.0.0
+  peerDependenciesMeta:
+    vite:
+      optional: true
+    vitest:
+      optional: true
+  checksum: 10c0/20fe2a57e62473058bc5f03b3916baa5d7fae445bc0780b65431469ab22127cc98bb189daf01585a6bd0c141aedfc3aacc19a8ea4115076db1d95afd269a3fe5
   languageName: node
   linkType: hard
 
