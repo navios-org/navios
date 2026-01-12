@@ -6104,19 +6104,6 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@navios/commander@workspace:packages/commander":
-  version: 0.0.0-use.local
-  resolution: "@navios/commander@workspace:packages/commander"
-  dependencies:
-    "@navios/core": "workspace:^"
-    tsx: "npm:^4.21.0"
-    typescript: "npm:^5.9.3"
-    zod: "npm:^4.3.5"
-  peerDependencies:
-    zod: ^4.0.0
-  languageName: unknown
-  linkType: soft
-
 "@navios/core@workspace:*, @navios/core@workspace:^, @navios/core@workspace:packages/core":
   version: 0.0.0-use.local
   resolution: "@navios/core@workspace:packages/core"
