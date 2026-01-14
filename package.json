@@ -21,7 +21,7 @@
     "@vitest/coverage-v8": "^4.0.16",
     "@vitest/ui": "4.0.16",
     "happy-dom": "^20.1.0",
-    "nx": "21.5.2",
+    "nx": "22.3.3",
     "oxlint": "^1.38.0",
     "prettier": "^3.7.4",
     "tsdown": "^0.18.4",

@@ -6071,7 +6071,7 @@ __metadata:
     "@vitest/coverage-v8": "npm:^4.0.16"
     "@vitest/ui": "npm:4.0.16"
     happy-dom: "npm:^20.1.0"
-    nx: "npm:21.5.2"
+    nx: "npm:22.3.3"
     oxlint: "npm:^1.38.0"
     prettier: "npm:^3.7.4"
     tsdown: "npm:^0.18.4"
