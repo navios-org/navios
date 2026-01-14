@@ -1,4 +1,0 @@
-# preload = ["./bun-plugin.mts"]
-
-# [build]
-# preload = ["./bun-plugin.mts"]
