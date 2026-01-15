@@ -181,7 +181,7 @@ const config: Config = {
             // },
             {
               label: 'Commander',
-              to: '/docs/commander',
+              to: '/docs/commander/getting-started',
             },
           ],
         },
@@ -236,6 +236,30 @@ const config: Config = {
             {
               label: '@navios/react-query',
               href: 'https://www.npmjs.com/package/@navios/react-query',
+            },
+            {
+              label: '@navios/openapi',
+              href: 'https://www.npmjs.com/package/@navios/openapi',
+            },
+            {
+              label: '@navios/openapi-fastify',
+              href: 'https://www.npmjs.com/package/@navios/openapi-fastify',
+            },
+            {
+              label: '@navios/openapi-bun',
+              href: 'https://www.npmjs.com/package/@navios/openapi-bun',
+            },
+            {
+              label: '@navios/otel',
+              href: 'https://www.npmjs.com/package/@navios/otel',
+            },
+            {
+              label: '@navios/otel-fastify',
+              href: 'https://www.npmjs.com/package/@navios/otel-fastify',
+            },
+            {
+              label: '@navios/otel-bun',
+              href: 'https://www.npmjs.com/package/@navios/otel-bun',
             },
           ],
         },
