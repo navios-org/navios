@@ -1,0 +1,46 @@
+{
+  "name": "@navios/otel-bun",
+  "version": "1.0.0-alpha.1",
+  "description": "OpenTelemetry integration for Navios Bun adapter",
+  "author": {
+    "name": "Oleksandr Hanzha",
+    "email": "alex@granted.name"
+  },
+  "repository": {
+    "directory": "packages/otel-bun",
+    "type": "git",
+    "url": "https://github.com/Arilas/navios.git"
+  },
+  "license": "MIT",
+  "peerDependencies": {
+    "@navios/adapter-bun": "workspace:^",
+    "@navios/core": "workspace:^",
+    "@navios/di": "workspace:^",
+    "@navios/otel": "workspace:^",
+    "@opentelemetry/api": "^1.9.0"
+  },
+  "typings": "./lib/index.d.mts",
+  "main": "./lib/index.cjs",
+  "module": "./lib/index.mjs",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./lib/index.d.mts",
+        "default": "./lib/index.mjs"
+      },
+      "require": {
+        "types": "./lib/index.d.cts",
+        "default": "./lib/index.cjs"
+      }
+    }
+  },
+  "devDependencies": {
+    "@navios/adapter-bun": "workspace:^",
+    "@navios/core": "workspace:^",
+    "@navios/di": "workspace:^",
+    "@navios/otel": "workspace:^",
+    "@opentelemetry/api": "^1.9.0",
+    "@types/bun": "^1.2.9",
+    "typescript": "^5.9.3"
+  }
+}

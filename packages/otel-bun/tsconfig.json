@@ -1,0 +1,23 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "module": "Node18",
+    "outDir": "dist",
+    "types": ["bun"]
+  },
+  "include": ["src/**/*"],
+  "references": [
+    {
+      "path": "../core"
+    },
+    {
+      "path": "../di"
+    },
+    {
+      "path": "../otel"
+    },
+    {
+      "path": "../adapter-bun"
+    }
+  ]
+}

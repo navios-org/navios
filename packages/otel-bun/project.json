@@ -1,0 +1,53 @@
+{
+  "name": "@navios/otel-bun",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "packages/otel-bun/src",
+  "prefix": "otel-bun",
+  "tags": [],
+  "projectType": "library",
+  "targets": {
+    "check": {
+      "executor": "nx:run-commands",
+      "outputs": ["{projectRoot}/dist"],
+      "inputs": ["^projectSources", "projectSources"],
+      "options": {
+        "command": ["tsc -b"],
+        "cwd": "packages/otel-bun"
+      }
+    },
+    "test:ci": {
+      "executor": "nx:run-commands",
+      "inputs": ["^projectSources", "project"],
+      "options": {
+        "command": "bun test",
+        "cwd": "packages/otel-bun"
+      }
+    },
+    "build": {
+      "executor": "nx:run-commands",
+      "inputs": ["projectSources", "{projectRoot}/tsdown.config.mts"],
+      "outputs": ["{projectRoot}/lib"],
+      "dependsOn": ["check", "test:ci"],
+      "options": {
+        "command": "tsdown",
+        "cwd": "packages/otel-bun"
+      }
+    },
+    "publish": {
+      "executor": "nx:run-commands",
+      "dependsOn": ["build"],
+      "options": {
+        "command": "yarn npm publish --access public",
+        "cwd": "packages/otel-bun"
+      }
+    },
+    "publish:next": {
+      "executor": "nx:run-commands",
+      "dependsOn": ["build"],
+      "options": {
+        "command": "yarn npm publish --access public --tag next",
+        "cwd": "packages/otel-bun"
+      }
+    }
+  }
+}
