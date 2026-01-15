@@ -17,13 +17,16 @@ import type {
 import type { BunCorsOptions } from '../utils/cors.util.mjs'
 import type { BunRoutes } from './controller-adapter.service.mjs'
 
-import { BunApplicationServiceToken, BunServerToken } from '../tokens/index.mjs'
+import {
+  BunApplicationServiceToken,
+  BunControllerAdapterToken,
+  BunServerToken,
+} from '../tokens/index.mjs'
 import {
   applyCorsToResponse,
   calculatePreflightHeaders,
   isPreflight,
 } from '../utils/cors.util.mjs'
-import { BunControllerAdapterService } from './controller-adapter.service.mjs'
 
 /**
  * Bun HTTP adapter service implementation for Navios.
@@ -55,7 +58,7 @@ export class BunApplicationService implements BunApplicationServiceInterface {
   protected container = inject(Container)
   private errorProducer = inject(ErrorResponseProducerService)
   private server: Server<undefined> | null = null
-  private controllerAdapter = inject(BunControllerAdapterService)
+  private controllerAdapter = inject(BunControllerAdapterToken)
   private globalPrefix: string = ''
   private routes: BunRoutes = {}
   private serverOptions: BunApplicationOptions | null = null

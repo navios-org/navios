@@ -32,7 +32,10 @@ import type {
 } from '../adapters/index.mjs'
 
 import { BunExecutionContext, BunFakeReply } from '../interfaces/index.mjs'
-import { BunRequestToken } from '../tokens/index.mjs'
+import {
+  BunControllerAdapterToken,
+  BunRequestToken,
+} from '../tokens/index.mjs'
 import {
   applyCorsToResponse,
   type BunCorsOptions,
@@ -67,7 +70,7 @@ export type BunRoutes = Record<
  * class AppModule {}
  * ```
  */
-@Injectable()
+@Injectable({ token: BunControllerAdapterToken })
 export class BunControllerAdapterService {
   private guardRunner = inject(GuardRunnerService)
   private container = inject(Container)
