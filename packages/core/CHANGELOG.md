@@ -5,6 +5,50 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - 2026-01-15
+
+### Added
+
+- **Staged Plugin System**: New comprehensive plugin lifecycle with 10 stages for fine-grained control over application initialization
+  - `pre:modules-traverse` - Before module tree traversal (container only)
+  - `post:modules-traverse` - After module tree traversal (modules available)
+  - `pre:adapter-resolve` - Before adapter is resolved from container (ideal for DI modifications)
+  - `post:adapter-resolve` - After adapter is resolved
+  - `pre:adapter-setup` - Before adapter setup
+  - `post:adapter-setup` - After adapter setup
+  - `pre:modules-init` - Before route registration
+  - `post:modules-init` - After route registration (legacy plugin default)
+  - `pre:ready` - Before adapter signals ready
+  - `post:ready` - After adapter signals ready (app fully initialized)
+- **Stage-Specific Context Types**: Each stage provides appropriate context
+  - `ContainerOnlyContext` - Container access only (early stages)
+  - `ModulesLoadedContext` - Container + modules + moduleLoader (pre-adapter stages)
+  - `FullPluginContext<TAdapter>` - Full context with typed adapter (post-adapter stages)
+- **Plugin Factory Functions**: Convenient factory functions for creating staged plugins
+  - `definePreModulesTraversePlugin()` - Create pre:modules-traverse plugins
+  - `definePostModulesTraversePlugin()` - Create post:modules-traverse plugins
+  - `definePreAdapterResolvePlugin()` - Create pre:adapter-resolve plugins (ideal for instrumentation)
+  - `definePostAdapterResolvePlugin<TAdapter>()()` - Create post:adapter-resolve plugins
+  - `definePreAdapterSetupPlugin<TAdapter>()()` - Create pre:adapter-setup plugins
+  - `definePostAdapterSetupPlugin<TAdapter>()()` - Create post:adapter-setup plugins
+  - `definePreModulesInitPlugin<TAdapter>()()` - Create pre:modules-init plugins
+  - `definePostModulesInitPlugin<TAdapter>()()` - Create post:modules-init plugins
+  - `definePreReadyPlugin<TAdapter>()()` - Create pre:ready plugins
+  - `definePostReadyPlugin<TAdapter>()()` - Create post:ready plugins
+- **Plugin Stage Constants**: `PluginStages` object with all stage names as constants
+- **Stage Order Array**: `PLUGIN_STAGES_ORDER` array defining execution order
+
+### Changed
+
+- **Legacy Plugin Deprecation**: `NaviosPlugin` interface now deprecated in favor of staged plugins
+  - Legacy plugins automatically map to `post:modules-init` stage
+  - `PluginDefinition` type deprecated in favor of `StagedPluginDefinition`
+- **Plugin Context Types**: `PluginContext` type deprecated, use stage-specific context types instead
+
+### Dependencies
+
+- Updated internal plugin execution to support staged lifecycle
+
 ## [1.0.0] - 2026-01-09
 
 ### Added

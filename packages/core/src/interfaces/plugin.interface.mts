@@ -1,61 +1,17 @@
-import type { Container } from '@navios/di'
-
-import type { ModuleMetadata } from '../metadata/index.mjs'
-import type { ModuleLoaderService } from '../services/module-loader.service.mjs'
 import type { AbstractAdapterInterface } from './abstract-adapter.interface.mjs'
+import type { FullPluginContext, PluginContext } from './plugin-context.mjs'
+import type { PluginStage } from './plugin-stage.mjs'
+import type { StagedPluginDefinition } from './staged-plugin.interface.mjs'
+
+// Re-export context types for backward compatibility
+export type { PluginContext, FullPluginContext }
 
 /**
- * Context provided to plugins during registration.
+ * Base interface for Navios plugins (legacy).
  *
- * This context gives plugins access to the application's modules,
- * adapter instance, DI container, and module loader.
- *
- * @typeParam TAdapter - The adapter type, defaults to AbstractAdapterInterface
- *
- * @example
- * ```typescript
- * // Generic plugin that works with any adapter
- * async register(context: PluginContext) {
- *   const modules = context.modules
- *   // ...
- * }
- *
- * // Adapter-specific plugin with typed adapter
- * async register(context: PluginContext<BunApplicationService>) {
- *   const server = context.adapter.getServer() // Typed as Bun.Server
- *   // ...
- * }
- * ```
- */
-export interface PluginContext<
-  TAdapter extends AbstractAdapterInterface = AbstractAdapterInterface,
-> {
-  /**
-   * All loaded modules with their metadata.
-   * Keys are module class names, values are their metadata.
-   */
-  modules: Map<string, ModuleMetadata>
-
-  /**
-   * The current adapter instance.
-   * Use type guards or cast to adapter-specific types for HTTP methods.
-   */
-  adapter: TAdapter
-
-  /**
-   * The dependency injection container.
-   */
-  container: Container
-
-  /**
-   * Module loader service for extending the module tree.
-   * Use `moduleLoader.extendModules()` to add controllers dynamically.
-   */
-  moduleLoader: ModuleLoaderService
-}
-
-/**
- * Base interface for Navios plugins.
+ * @deprecated Use staged plugins with explicit stage property instead.
+ * This interface maps to the `post:modules-init` stage.
+ * See `StagedPlugin` for the new pattern.
  *
  * Plugins are registered using `app.usePlugin()` and are initialized
  * after all modules are loaded but before the server starts listening.
@@ -65,7 +21,7 @@ export interface PluginContext<
  *
  * @example
  * ```typescript
- * // Generic plugin
+ * // Legacy pattern (still works, maps to post:modules-init)
  * const myPlugin: NaviosPlugin<{ enabled: boolean }> = {
  *   name: 'my-plugin',
  *   register: async (context, options) => {
@@ -75,13 +31,15 @@ export interface PluginContext<
  *   },
  * }
  *
- * // Adapter-specific plugin
- * const fastifyPlugin: NaviosPlugin<Options, FastifyApplicationService> = {
- *   name: 'fastify-plugin',
- *   register: async (context, options) => {
- *     const fastify = context.adapter.getServer() // Typed!
+ * // New pattern (recommended)
+ * import { definePostModulesInitPlugin } from '@navios/core'
+ *
+ * export const defineMyPlugin = definePostModulesInitPlugin()({
+ *   name: 'my-plugin',
+ *   register: async (context, options: { enabled: boolean }) => {
+ *     // ...
  *   },
- * }
+ * })
  * ```
  */
 export interface NaviosPlugin<
@@ -98,6 +56,7 @@ export interface NaviosPlugin<
    *
    * @param context - The plugin context with access to modules and adapter
    * @param options - Plugin-specific configuration options
+   * @deprecated Use staged plugins with explicit stage property
    */
   register(
     context: PluginContext<TAdapter>,
@@ -108,19 +67,29 @@ export interface NaviosPlugin<
 /**
  * Plugin definition combining a plugin with its options.
  *
- * This is the type returned by plugin factory functions like `defineOpenApiPlugin()`.
+ * @deprecated Use `StagedPluginDefinition` for new plugins.
+ * This type is kept for backward compatibility with legacy plugins.
  *
  * @typeParam TOptions - The type of options the plugin accepts
  * @typeParam TAdapter - The adapter type the plugin requires
  *
  * @example
  * ```typescript
+ * // Legacy pattern
  * function defineMyPlugin(options: MyPluginOptions): PluginDefinition<MyPluginOptions> {
  *   return {
  *     plugin: myPlugin,
  *     options,
  *   }
  * }
+ *
+ * // New pattern (recommended)
+ * import { definePostModulesInitPlugin } from '@navios/core'
+ *
+ * export const defineMyPlugin = definePostModulesInitPlugin()({
+ *   name: 'my-plugin',
+ *   register: (context, options: MyPluginOptions) => { ... },
+ * })
  * ```
  */
 export interface PluginDefinition<
@@ -137,3 +106,14 @@ export interface PluginDefinition<
    */
   options: TOptions
 }
+
+/**
+ * Union of legacy and staged plugin definitions.
+ * Used internally by `usePlugin()` to accept both patterns.
+ */
+export type AnyPluginDefinition<
+  TOptions = unknown,
+  TAdapter extends AbstractAdapterInterface = AbstractAdapterInterface,
+> =
+  | PluginDefinition<TOptions, TAdapter>
+  | StagedPluginDefinition<PluginStage, TOptions, TAdapter>

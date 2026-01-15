@@ -19,15 +19,25 @@ import {
 import type {
   AbstractAdapterInterface,
   AdapterEnvironment,
+  AnyPluginDefinition,
+  ContainerOnlyContext,
   DefaultAdapterEnvironment,
+  FullPluginContext,
   HttpAdapterEnvironment,
+  ModulesLoadedContext,
   NaviosModule,
-  PluginContext,
-  PluginDefinition,
+  PluginStage,
 } from './interfaces/index.mjs'
 import type { LoggerService, LogLevel } from './logger/index.mjs'
 import type { NaviosEnvironmentOptions } from './navios.environment.mjs'
 
+import {
+  PLUGIN_STAGES_ORDER,
+  PluginStageBase,
+  PluginStages,
+  postStage,
+  preStage,
+} from './interfaces/index.mjs'
 import { Logger } from './logger/index.mjs'
 import { NaviosEnvironment } from './navios.environment.mjs'
 import { ModuleLoaderService } from './services/index.mjs'
@@ -122,7 +132,23 @@ export class NaviosApplication<
   private options: NaviosApplicationOptions = {
     adapter: [],
   }
-  private plugins: PluginDefinition<any, any>[] = []
+
+  /**
+   * Plugin storage organized by stage for efficient execution.
+   * Each stage has a Set of plugin definitions.
+   */
+  private plugins: Map<PluginStage, Set<AnyPluginDefinition>> = new Map(
+    PLUGIN_STAGES_ORDER.map((stage) => [stage, new Set()]),
+  )
+
+  /**
+   * Queue of adapter configuration methods to apply after adapter resolution.
+   * Allows calling methods like enableCors() before init().
+   */
+  private pendingAdapterCalls: Array<{
+    method: string
+    args: unknown[]
+  }> = []
 
   /**
    * Indicates whether the application has been initialized.
@@ -133,6 +159,9 @@ export class NaviosApplication<
   /**
    * Sets up the application with the provided module and options.
    * This is called automatically by NaviosFactory.create().
+   *
+   * Note: Adapter resolution has been moved to init() to allow
+   * plugins to modify the container/registry before adapter instantiation.
    *
    * @param appModule - The root application module
    * @param options - Application configuration options
@@ -146,11 +175,7 @@ export class NaviosApplication<
   ) {
     this.appModule = appModule
     this.options = options
-    if (this.environment.hasAdapterSetup()) {
-      this.adapter = (await this.container.get(
-        AdapterToken,
-      )) as Environment['adapter']
-    }
+    // Note: Adapter resolution moved to init() for plugin hooks
   }
 
   /**
@@ -176,39 +201,79 @@ export class NaviosApplication<
   }
 
   /**
-   * Registers a plugin to be initialized after modules are loaded.
+   * Registers one or more plugins for initialization during the application lifecycle.
    *
-   * Plugins are initialized in the order they are registered,
-   * after all modules are loaded but before the server starts listening.
+   * Plugins can target specific stages or use the legacy interface (defaults to post:modules-init).
+   * Plugins are executed in stage order, and within a stage in registration order.
    *
-   * @param definition - Plugin definition with options
+   * @param definitions - Single plugin definition or array of definitions
    * @returns this for method chaining
    *
    * @example
    * ```typescript
-   * import { defineOpenApiPlugin } from '@navios/openapi-fastify'
+   * // Single plugin (legacy or staged)
+   * app.usePlugin(defineOpenApiPlugin({ info: { title: 'My API', version: '1.0.0' } }))
    *
-   * app.usePlugin(defineOpenApiPlugin({
-   *   info: { title: 'My API', version: '1.0.0' },
-   * }))
+   * // Multiple plugins in one call
+   * app.usePlugin([
+   *   defineOtelPlugin({ serviceName: 'my-service' }),
+   *   defineOpenApiPlugin({ info: { title: 'My API', version: '1.0.0' } }),
+   * ])
+   *
+   * // Staged plugin with explicit stage
+   * app.usePlugin(definePreAdapterResolvePlugin({
+   *   name: 'early-setup',
+   *   register: (ctx) => { ... },
+   * })({}))
    * ```
    */
   usePlugin<TOptions, TAdapter extends AbstractAdapterInterface>(
-    definition: PluginDefinition<TOptions, TAdapter>,
+    definitions:
+      | AnyPluginDefinition<TOptions, TAdapter>
+      | AnyPluginDefinition<TOptions, TAdapter>[],
   ): this {
-    this.plugins.push(definition)
+    const definitionsArray = Array.isArray(definitions)
+      ? definitions
+      : [definitions]
+
+    for (const definition of definitionsArray) {
+      const stage = this.resolvePluginStage(definition)
+      const stageSet = this.plugins.get(stage)
+
+      if (!stageSet) {
+        throw new Error(`Unknown plugin stage: ${stage}`)
+      }
+
+      stageSet.add(definition as AnyPluginDefinition)
+      this.logger.debug(
+        `Registered plugin "${definition.plugin.name}" for stage: ${stage}`,
+      )
+    }
+
     return this
+  }
+
+  /**
+   * Resolves the stage for a plugin definition.
+   * Staged plugins use their explicit stage, legacy plugins default to post:modules-init.
+   */
+  private resolvePluginStage(definition: AnyPluginDefinition): PluginStage {
+    if ('stage' in definition.plugin) {
+      return definition.plugin.stage
+    }
+    // Legacy plugins default to post:modules-init for backward compatibility
+    return PluginStages.POST_MODULES_INIT
   }
 
   /**
    * Initializes the application.
    *
-   * This method:
-   * - Loads all modules and their dependencies
-   * - Sets up the adapter if one is configured
-   * - Calls onModuleInit hooks on all modules
-   * - Initializes registered plugins
-   * - Marks the application as initialized
+   * This method executes the following lifecycle stages:
+   * 1. pre:modules-traverse → Load modules → post:modules-traverse
+   * 2. pre:adapter-resolve → Resolve adapter → post:adapter-resolve
+   * 3. pre:adapter-setup → Setup adapter → post:adapter-setup
+   * 4. pre:modules-init → Initialize modules → post:modules-init
+   * 5. pre:ready → Ready signal → post:ready
    *
    * Must be called before `listen()`.
    *
@@ -227,21 +292,131 @@ export class NaviosApplication<
     if (!this.appModule) {
       throw new Error('App module is not set. Call setAppModule() first.')
     }
-    await this.moduleLoader.loadModules(this.appModule)
 
-    if (this.environment.hasAdapterSetup() && this.adapter) {
-      await this.adapter.setupAdapter(this.options)
+    // Stage 1: Load modules
+    await this.wrapStage(PluginStageBase.MODULES_TRAVERSE, () =>
+      this.moduleLoader.loadModules(this.appModule!),
+    )
+
+    // Stage 2: Resolve adapter (moved from setup())
+    // Note: If no adapter configured, adapter stages are silently skipped
+    if (this.environment.hasAdapterSetup()) {
+      await this.wrapStage(PluginStageBase.ADAPTER_RESOLVE, async () => {
+        this.adapter = (await this.container.get(
+          AdapterToken,
+        )) as Environment['adapter']
+        // Apply any configuration calls that were queued before adapter resolution
+        this.applyPendingAdapterCalls()
+      })
+
+      // Stage 3: Setup adapter
+      if (this.adapter) {
+        await this.wrapStage(PluginStageBase.ADAPTER_SETUP, () =>
+          this.adapter!.setupAdapter(this.options),
+        )
+      }
     }
 
-    await this.initPlugins()
-    await this.initModules()
+    // Stage 4: Initialize modules (always runs)
+    await this.wrapStage(PluginStageBase.MODULES_INIT, () => this.initModules())
 
+    // Stage 5: Ready signal
     if (this.adapter) {
-      await this.adapter.ready()
+      await this.wrapStage(PluginStageBase.READY, () => this.adapter!.ready())
     }
 
     this.isInitialized = true
     this.logger.debug('Navios application initialized')
+  }
+
+  /**
+   * Wraps an operation with pre/post plugin stage execution.
+   *
+   * @param baseName - The base stage name (e.g., 'modules-traverse')
+   * @param operation - The operation to execute between pre/post stages
+   */
+  private async wrapStage<T>(
+    baseName: PluginStageBase,
+    operation: () => Promise<T> | T,
+  ): Promise<T> {
+    await this.executePluginStage(preStage(baseName))
+    const result = await operation()
+    await this.executePluginStage(postStage(baseName))
+    return result
+  }
+
+  /**
+   * Executes all plugins registered for a specific stage.
+   *
+   * @param stage - The lifecycle stage to execute plugins for
+   */
+  private async executePluginStage(stage: PluginStage): Promise<void> {
+    const stagePlugins = this.plugins.get(stage)
+
+    if (!stagePlugins || stagePlugins.size === 0) {
+      return
+    }
+
+    const context = this.buildContextForStage(stage)
+
+    this.logger.debug(
+      `Executing ${stagePlugins.size} plugin(s) for stage: ${stage}`,
+    )
+
+    for (const { plugin, options } of stagePlugins) {
+      this.logger.debug(`Executing plugin: ${plugin.name} (stage: ${stage})`)
+
+      try {
+        await plugin.register(context as never, options)
+      } catch (error) {
+        this.logger.error(
+          `Plugin "${plugin.name}" failed at stage "${stage}"`,
+          error,
+        )
+        throw error
+      }
+    }
+  }
+
+  /**
+   * Builds the appropriate context object for a given stage.
+   *
+   * @param stage - The lifecycle stage
+   * @returns Context object with stage-appropriate properties
+   */
+  private buildContextForStage(
+    stage: PluginStage,
+  ): ContainerOnlyContext | ModulesLoadedContext | FullPluginContext {
+    const baseContext: ContainerOnlyContext = {
+      container: this.container,
+    }
+
+    if (stage === PluginStages.PRE_MODULES_TRAVERSE) {
+      return baseContext
+    }
+
+    const modulesContext: ModulesLoadedContext = {
+      ...baseContext,
+      modules: this.moduleLoader.getAllModules(),
+      moduleLoader: this.moduleLoader,
+    }
+
+    const isPreAdapterStage =
+      stage === PluginStages.POST_MODULES_TRAVERSE ||
+      stage === PluginStages.PRE_ADAPTER_RESOLVE
+
+    if (isPreAdapterStage) {
+      return modulesContext
+    }
+
+    if (!this.adapter) {
+      throw new Error(`Cannot execute stage "${stage}" without adapter`)
+    }
+
+    return {
+      ...modulesContext,
+      adapter: this.adapter,
+    } as FullPluginContext
   }
 
   private async initModules() {
@@ -251,24 +426,27 @@ export class NaviosApplication<
     }
   }
 
-  private async initPlugins() {
-    if (this.plugins.length === 0) return
-
-    if (!this.adapter) {
-      throw new Error('Cannot initialize plugins without an adapter')
+  /**
+   * Applies any pending adapter configuration calls that were queued
+   * before the adapter was resolved.
+   */
+  private applyPendingAdapterCalls(): void {
+    if (!this.adapter || this.pendingAdapterCalls.length === 0) {
+      return
     }
 
-    const context: PluginContext = {
-      modules: this.moduleLoader.getAllModules(),
-      adapter: this.adapter,
-      container: this.container,
-      moduleLoader: this.moduleLoader,
+    for (const { method, args } of this.pendingAdapterCalls) {
+      assertAdapterSupports(
+        this.adapter,
+        method as keyof AbstractAdapterInterface,
+      )
+      ;(this.adapter as Record<string, (...args: unknown[]) => unknown>)[method](
+        ...args,
+      )
     }
 
-    for (const { plugin, options } of this.plugins) {
-      this.logger.debug(`Initializing plugin: ${plugin.name}`)
-      await plugin.register(context, options)
-    }
+    // Clear the queue after applying
+    this.pendingAdapterCalls = []
   }
 
   /**
@@ -334,8 +512,12 @@ export class NaviosApplication<
     if (this.isInitialized) {
       throw new Error('configure() must be called before init()')
     }
-    assertAdapterSupports(this.adapter, 'configure')
-    this.adapter.configure(options)
+    if (this.adapter) {
+      assertAdapterSupports(this.adapter, 'configure')
+      this.adapter.configure(options)
+    } else {
+      this.pendingAdapterCalls.push({ method: 'configure', args: [options] })
+    }
     return this
   }
 
@@ -359,8 +541,12 @@ export class NaviosApplication<
       ? Environment['corsOptions']
       : never,
   ): void {
-    assertAdapterSupports(this.adapter, 'enableCors')
-    this.adapter.enableCors(options)
+    if (this.adapter) {
+      assertAdapterSupports(this.adapter, 'enableCors')
+      this.adapter.enableCors(options)
+    } else {
+      this.pendingAdapterCalls.push({ method: 'enableCors', args: [options] })
+    }
   }
 
   /**
@@ -383,8 +569,12 @@ export class NaviosApplication<
       ? Environment['multipartOptions']
       : never,
   ): void {
-    assertAdapterSupports(this.adapter, 'enableMultipart')
-    this.adapter.enableMultipart(options)
+    if (this.adapter) {
+      assertAdapterSupports(this.adapter, 'enableMultipart')
+      this.adapter.enableMultipart(options)
+    } else {
+      this.pendingAdapterCalls.push({ method: 'enableMultipart', args: [options] })
+    }
   }
 
   /**
@@ -400,8 +590,12 @@ export class NaviosApplication<
    * ```
    */
   setGlobalPrefix(prefix: string): void {
-    assertAdapterSupports(this.adapter, 'setGlobalPrefix')
-    this.adapter.setGlobalPrefix(prefix)
+    if (this.adapter) {
+      assertAdapterSupports(this.adapter, 'setGlobalPrefix')
+      this.adapter.setGlobalPrefix(prefix)
+    } else {
+      this.pendingAdapterCalls.push({ method: 'setGlobalPrefix', args: [prefix] })
+    }
   }
 
   /**

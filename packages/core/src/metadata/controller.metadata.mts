@@ -12,6 +12,10 @@ import { getAllEndpointMetadata } from './handler.metadata.mjs'
 export const ControllerMetadataKey = Symbol('ControllerMetadataKey')
 
 export interface ControllerMetadata {
+  /**
+   * The name of the controller class.
+   */
+  name: string
   endpoints: Set<HandlerMetadata>
   guards: Set<
     ClassTypeWithInstance<CanActivate> | InjectionToken<CanActivate, undefined>
@@ -23,29 +27,32 @@ export function getControllerMetadata(
   target: ClassType,
   context: ClassDecoratorContext,
 ): ControllerMetadata {
-  if (context.metadata) {
-    const metadata = context.metadata[ControllerMetadataKey] as
-      | ControllerMetadata
-      | undefined
-    if (metadata) {
-      return metadata
-    } else {
-      const endpointsMetadata = getAllEndpointMetadata(context)
-      const newMetadata: ControllerMetadata = {
-        endpoints: endpointsMetadata,
-        guards: new Set<
-          | ClassTypeWithInstance<CanActivate>
-          | InjectionToken<CanActivate, undefined>
-        >(),
-        customAttributes: new Map<string | symbol, any>(),
-      }
-      context.metadata[ControllerMetadataKey] = newMetadata
-      // @ts-expect-error We add a custom metadata key to the target
-      target[ControllerMetadataKey] = newMetadata
-      return newMetadata
-    }
+  if (!context.metadata) {
+    throw new Error('[Navios] Wrong environment.')
   }
-  throw new Error('[Navios] Wrong environment.')
+
+  const existingMetadata = context.metadata[ControllerMetadataKey] as
+    | ControllerMetadata
+    | undefined
+
+  if (existingMetadata) {
+    return existingMetadata
+  }
+
+  const newMetadata: ControllerMetadata = {
+    name: target.name,
+    endpoints: getAllEndpointMetadata(context),
+    guards: new Set<
+      ClassTypeWithInstance<CanActivate> | InjectionToken<CanActivate, undefined>
+    >(),
+    customAttributes: new Map<string | symbol, any>(),
+  }
+
+  context.metadata[ControllerMetadataKey] = newMetadata
+  // @ts-expect-error We add a custom metadata key to the target
+  target[ControllerMetadataKey] = newMetadata
+
+  return newMetadata
 }
 
 export function extractControllerMetadata(

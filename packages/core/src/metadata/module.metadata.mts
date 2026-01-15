@@ -6,9 +6,13 @@ import type {
 
 import type { CanActivate } from '../index.mjs'
 
-export const ModuleMetadataKey = Symbol('ControllerMetadataKey')
+export const ModuleMetadataKey = Symbol('ModuleMetadataKey')
 
 export interface ModuleMetadata {
+  /**
+   * The name of the module class.
+   */
+  name: string
   controllers: Set<ClassType>
   imports: Set<ClassType>
   guards: Set<
@@ -33,31 +37,35 @@ export function getModuleMetadata(
   target: ClassType,
   context: ClassDecoratorContext,
 ): ModuleMetadata {
-  if (context.metadata) {
-    const metadata = context.metadata[ModuleMetadataKey] as
-      | ModuleMetadata
-      | undefined
-    if (metadata) {
-      return metadata
-    } else {
-      const newMetadata: ModuleMetadata = {
-        controllers: new Set<ClassType>(),
-        imports: new Set<ClassType>(),
-        guards: new Set<
-          | ClassTypeWithInstance<CanActivate>
-          | InjectionToken<CanActivate, undefined>
-        >(),
-        overrides: new Set<ClassType>(),
-        customAttributes: new Map<string | symbol, any>(),
-        customEntries: new Map<symbol, unknown>(),
-      }
-      context.metadata[ModuleMetadataKey] = newMetadata
-      // @ts-expect-error We add a custom metadata key to the target
-      target[ModuleMetadataKey] = newMetadata
-      return newMetadata
-    }
+  if (!context.metadata) {
+    throw new Error('[Navios] Wrong environment.')
   }
-  throw new Error('[Navios] Wrong environment.')
+
+  const existingMetadata = context.metadata[ModuleMetadataKey] as
+    | ModuleMetadata
+    | undefined
+
+  if (existingMetadata) {
+    return existingMetadata
+  }
+
+  const newMetadata: ModuleMetadata = {
+    name: target.name,
+    controllers: new Set<ClassType>(),
+    imports: new Set<ClassType>(),
+    guards: new Set<
+      ClassTypeWithInstance<CanActivate> | InjectionToken<CanActivate, undefined>
+    >(),
+    overrides: new Set<ClassType>(),
+    customAttributes: new Map<string | symbol, any>(),
+    customEntries: new Map<symbol, unknown>(),
+  }
+
+  context.metadata[ModuleMetadataKey] = newMetadata
+  // @ts-expect-error We add a custom metadata key to the target
+  target[ModuleMetadataKey] = newMetadata
+
+  return newMetadata
 }
 
 export function extractModuleMetadata(target: ClassType): ModuleMetadata {

@@ -78,19 +78,21 @@ export class ModuleLoaderService {
 
     for (const extension of extensions) {
       if (extension.module) {
-        // Process a full module with its imports and controllers
         await this.traverseModules(extension.module)
-      } else if (extension.controllers && extension.moduleName) {
-        // Create synthetic module metadata for loose controllers
-        await this.registerControllers(
-          extension.controllers,
-          extension.moduleName,
-        )
-      } else if (extension.controllers) {
+        continue
+      }
+
+      if (!extension.controllers) {
+        continue
+      }
+
+      if (!extension.moduleName) {
         throw new Error(
           'moduleName is required when providing controllers without a module',
         )
       }
+
+      await this.registerControllers(extension.controllers, extension.moduleName)
     }
   }
 
@@ -114,6 +116,7 @@ export class ModuleLoaderService {
     } else {
       // Create new synthetic module metadata
       const metadata: ModuleMetadata = {
+        name: moduleName,
         controllers: new Set(controllers),
         imports: new Set(),
         guards: new Set(),
