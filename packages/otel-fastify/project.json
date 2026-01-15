@@ -1,0 +1,53 @@
+{
+  "name": "@navios/otel-fastify",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "packages/otel-fastify/src",
+  "prefix": "otel-fastify",
+  "tags": [],
+  "projectType": "library",
+  "targets": {
+    "check": {
+      "executor": "nx:run-commands",
+      "outputs": ["{projectRoot}/dist"],
+      "inputs": ["^projectSources", "projectSources"],
+      "options": {
+        "command": ["tsc -b"],
+        "cwd": "packages/otel-fastify"
+      }
+    },
+    "test:ci": {
+      "executor": "nx:run-commands",
+      "inputs": ["^projectSources", "project"],
+      "options": {
+        "command": "vitest run",
+        "cwd": "packages/otel-fastify"
+      }
+    },
+    "build": {
+      "executor": "nx:run-commands",
+      "inputs": ["projectSources", "{projectRoot}/tsdown.config.mts"],
+      "outputs": ["{projectRoot}/lib"],
+      "dependsOn": ["check", "test:ci"],
+      "options": {
+        "command": "tsdown",
+        "cwd": "packages/otel-fastify"
+      }
+    },
+    "publish": {
+      "executor": "nx:run-commands",
+      "dependsOn": ["build"],
+      "options": {
+        "command": "yarn npm publish --access public",
+        "cwd": "packages/otel-fastify"
+      }
+    },
+    "publish:next": {
+      "executor": "nx:run-commands",
+      "dependsOn": ["build"],
+      "options": {
+        "command": "yarn npm publish --access public --tag next",
+        "cwd": "packages/otel-fastify"
+      }
+    }
+  }
+}

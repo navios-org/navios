@@ -1,0 +1,47 @@
+{
+  "name": "@navios/otel-fastify",
+  "version": "1.0.0-alpha.1",
+  "description": "OpenTelemetry integration for Navios Fastify adapter",
+  "author": {
+    "name": "Oleksandr Hanzha",
+    "email": "alex@granted.name"
+  },
+  "repository": {
+    "directory": "packages/otel-fastify",
+    "type": "git",
+    "url": "https://github.com/Arilas/navios.git"
+  },
+  "license": "MIT",
+  "peerDependencies": {
+    "@navios/adapter-fastify": "workspace:^",
+    "@navios/core": "workspace:^",
+    "@navios/di": "workspace:^",
+    "@navios/otel": "workspace:^",
+    "@opentelemetry/api": "^1.9.0",
+    "fastify": "^5.0.0"
+  },
+  "typings": "./lib/index.d.mts",
+  "main": "./lib/index.cjs",
+  "module": "./lib/index.mjs",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./lib/index.d.mts",
+        "default": "./lib/index.mjs"
+      },
+      "require": {
+        "types": "./lib/index.d.cts",
+        "default": "./lib/index.cjs"
+      }
+    }
+  },
+  "devDependencies": {
+    "@navios/adapter-fastify": "workspace:^",
+    "@navios/core": "workspace:^",
+    "@navios/di": "workspace:^",
+    "@navios/otel": "workspace:^",
+    "@opentelemetry/api": "^1.9.0",
+    "fastify": "^5.0.0",
+    "typescript": "^5.9.3"
+  }
+}
