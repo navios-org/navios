@@ -29,7 +29,7 @@
     "tsup": "^8.5.1",
     "typescript": "^5.9.3",
     "unplugin-swc": "^1.5.9",
-    "vitest": "^4.0.16"
+    "vitest": "^4.0.17"
   },
   "resolutions": {
     "@microsoft/api-extractor": "patch:@microsoft/api-extractor@npm%3A7.52.11#~/.yarn/patches/@microsoft-api-extractor-npm-7.52.7-01efc6f1d0.patch"
