@@ -6122,7 +6122,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@navios/cli@workspace:packages/cli"
   dependencies:
-    "@types/node": "npm:^25.0.3"
+    "@types/node": "npm:^25.0.8"
     clipanion: "npm:^4.0.0-rc.4"
     package-manager-detector: "npm:^1.6.0"
     tsx: "npm:^4.21.0"
@@ -6249,7 +6249,7 @@ __metadata:
     "@nx/vite": "npm:^22.3.3"
     "@nx/workspace": "npm:22.3.3"
     "@swc/core": "npm:^1.15.8"
-    "@types/node": "npm:25.0.3"
+    "@types/node": "npm:25.0.8"
     "@vitest/coverage-v8": "npm:^4.0.16"
     "@vitest/ui": "npm:4.0.16"
     happy-dom: "npm:^20.1.0"
@@ -9291,16 +9291,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@types/node@npm:25.0.3, @types/node@npm:^25.0.3":
-  version: 25.0.3
-  resolution: "@types/node@npm:25.0.3"
-  dependencies:
-    undici-types: "npm:~7.16.0"
-  checksum: 10c0/b7568f0d765d9469621615e2bb257c7fd1953d95e9acbdb58dffb6627a2c4150d405a4600aa1ad8a40182a94fe5f903cafd3c0a2f5132814debd0e3bfd61f835
-  languageName: node
-  linkType: hard
-
-"@types/node@npm:>=13.7.0":
+"@types/node@npm:25.0.8, @types/node@npm:>=13.7.0, @types/node@npm:^25.0.8":
   version: 25.0.8
   resolution: "@types/node@npm:25.0.8"
   dependencies:
