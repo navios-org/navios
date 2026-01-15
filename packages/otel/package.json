@@ -1,0 +1,57 @@
+{
+  "name": "@navios/otel",
+  "version": "1.0.0-alpha.1",
+  "description": "OpenTelemetry integration for Navios framework",
+  "author": {
+    "name": "Oleksandr Hanzha",
+    "email": "alex@granted.name"
+  },
+  "repository": {
+    "directory": "packages/otel",
+    "type": "git",
+    "url": "https://github.com/Arilas/navios.git"
+  },
+  "license": "MIT",
+  "peerDependencies": {
+    "@navios/core": "workspace:^",
+    "@navios/di": "workspace:^",
+    "@opentelemetry/api": "^1.9.0"
+  },
+  "typings": "./lib/index.d.mts",
+  "main": "./lib/index.cjs",
+  "module": "./lib/index.mjs",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./lib/index.d.mts",
+        "default": "./lib/index.mjs"
+      },
+      "require": {
+        "types": "./lib/index.d.cts",
+        "default": "./lib/index.cjs"
+      }
+    },
+    "./legacy-compat": {
+      "import": {
+        "types": "./lib/legacy-compat/index.d.mts",
+        "default": "./lib/legacy-compat/index.mjs"
+      },
+      "require": {
+        "types": "./lib/legacy-compat/index.d.cts",
+        "default": "./lib/legacy-compat/index.cjs"
+      }
+    }
+  },
+  "devDependencies": {
+    "@navios/core": "workspace:^",
+    "@navios/di": "workspace:^",
+    "@opentelemetry/api": "^1.9.0",
+    "@opentelemetry/exporter-metrics-otlp-http": "^0.56.0",
+    "@opentelemetry/exporter-trace-otlp-http": "^0.56.0",
+    "@opentelemetry/resources": "^1.28.0",
+    "@opentelemetry/sdk-metrics": "^1.28.0",
+    "@opentelemetry/sdk-trace-node": "^1.28.0",
+    "@opentelemetry/semantic-conventions": "^1.28.0",
+    "typescript": "^5.9.3"
+  }
+}
