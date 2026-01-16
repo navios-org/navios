@@ -42,7 +42,7 @@
     "zod": "^4.3.5"
   },
   "dependencies": {
-    "@scalar/core": "^0.3.28",
+    "@scalar/core": "^0.3.31",
     "yaml": "^2.8.2"
   }
 }

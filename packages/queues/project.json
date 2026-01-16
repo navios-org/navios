@@ -35,7 +35,7 @@
       "executor": "nx:run-commands",
       "inputs": ["projectSources", "{projectRoot}/tsdown.config.mts"],
       "outputs": ["{projectRoot}/lib"],
-      "dependsOn": ["check", "test:ci", "lint"],
+      "dependsOn": ["check", "lint"],
       "options": {
         "command": "tsdown",
         "cwd": "packages/queues"

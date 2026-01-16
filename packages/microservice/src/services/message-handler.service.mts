@@ -1,4 +1,4 @@
-import type { ClassType, ScopedContainer } from '@navios/di'
+import type { ClassType, Container, ScopedContainer } from '@navios/di'
 
 import { inject, Injectable } from '@navios/di'
 import { AttributeFactory } from '@navios/core'
@@ -52,7 +52,7 @@ export class MessageHandlerService {
    */
   async discoverHandlers(
     rootModule: ClassType,
-    container: ScopedContainer,
+    container: ScopedContainer | Container,
   ): Promise<void> {
     // TODO: Implement handler discovery
     // - Extract module metadata

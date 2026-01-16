@@ -61,7 +61,6 @@ export function Message<
           `[Navios/Microservice] Message handler ${config.pattern} ${config.topic || config.queue} already exists. Please use a different message definition.`,
         )
       }
-      // @ts-expect-error We don't need to set correctly in the metadata
       handlerMetadata.config = config
       handlerMetadata.classMethod = target.name
     }
