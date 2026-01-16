@@ -1,6 +1,6 @@
 {
   "name": "@navios/otel-fastify",
-  "version": "1.0.0-alpha.1",
+  "version": "1.0.0-alpha.2",
   "description": "OpenTelemetry integration for Navios Fastify adapter",
   "author": {
     "name": "Oleksandr Hanzha",
@@ -41,7 +41,7 @@
     "@navios/di": "workspace:^",
     "@navios/otel": "workspace:^",
     "@opentelemetry/api": "^1.9.0",
-    "fastify": "^5.0.0",
+    "fastify": "^5.7.0",
     "typescript": "^5.9.3"
   }
 }
