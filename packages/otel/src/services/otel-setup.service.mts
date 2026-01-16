@@ -4,7 +4,10 @@ import type { MetricReader } from '@opentelemetry/sdk-metrics'
 
 import { Container, inject, Injectable, Logger } from '@navios/core'
 import { metrics, trace } from '@opentelemetry/api'
-import { Resource } from '@opentelemetry/resources'
+import {
+  resourceFromAttributes,
+  type Resource,
+} from '@opentelemetry/resources'
 import {
   ATTR_SERVICE_NAME,
   ATTR_SERVICE_VERSION,
@@ -177,7 +180,7 @@ export class OtelSetupService {
       }
     }
 
-    return new Resource(attributes)
+    return resourceFromAttributes(attributes)
   }
 
   /**
@@ -190,23 +193,23 @@ export class OtelSetupService {
     // Create span exporter
     const exporter = await this.createSpanExporter(config)
 
-    // Create tracer provider
+    // Build span processors array
+    const spanProcessors = exporter
+      ? [
+          // Use SimpleSpanProcessor for console (immediate output)
+          // Use BatchSpanProcessor for production exporters (better performance)
+          config.exporter === 'console'
+            ? new SimpleSpanProcessor(exporter)
+            : new BatchSpanProcessor(exporter),
+        ]
+      : []
+
+    // Create tracer provider with span processors
     this.tracerProvider = new NodeTracerProvider({
       resource,
       sampler: this.createSampler(config),
+      spanProcessors,
     })
-
-    // Add span processor
-    if (exporter) {
-      // Use SimpleSpanProcessor for console (immediate output)
-      // Use BatchSpanProcessor for production exporters (better performance)
-      const processor =
-        config.exporter === 'console'
-          ? new SimpleSpanProcessor(exporter)
-          : new BatchSpanProcessor(exporter)
-
-      this.tracerProvider.addSpanProcessor(processor)
-    }
 
     // Register provider globally
     this.tracerProvider.register()

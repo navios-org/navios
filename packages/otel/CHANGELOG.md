@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.0-alpha.2] - 2026-01-16
+
+### Changed
+
+- **BREAKING: OpenTelemetry SDK v2.x Compatibility**
+  - Replaced `new Resource()` with `resourceFromAttributes()` function
+  - Replaced deprecated `addSpanProcessor()` with `spanProcessors` constructor option in `NodeTracerProvider`
+  - Updated `@opentelemetry/resources` to `^2.4.0`
+  - Updated `@opentelemetry/sdk-metrics` to `^2.4.0`
+  - Updated `@opentelemetry/sdk-trace-node` to `^2.4.0`
+
+### Notes
+
+- This release requires OpenTelemetry JS SDK 2.x. If you are using SDK 1.x, please use `@navios/otel@1.0.0-alpha.1`.
+
 ## [1.0.0-alpha.1] - 2026-01-15
 
 ### Added
