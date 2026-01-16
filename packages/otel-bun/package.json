@@ -1,6 +1,6 @@
 {
   "name": "@navios/otel-bun",
-  "version": "1.0.0-alpha.1",
+  "version": "1.0.0-alpha.2",
   "description": "OpenTelemetry integration for Navios Bun adapter",
   "author": {
     "name": "Oleksandr Hanzha",
@@ -40,7 +40,7 @@
     "@navios/di": "workspace:^",
     "@navios/otel": "workspace:^",
     "@opentelemetry/api": "^1.9.0",
-    "@types/bun": "^1.2.9",
+    "@types/bun": "^1.3.6",
     "typescript": "^5.9.3"
   }
 }

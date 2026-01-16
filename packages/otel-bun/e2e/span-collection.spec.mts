@@ -17,7 +17,7 @@ import {
   SimpleSpanProcessor,
 } from '@opentelemetry/sdk-trace-node'
 import { ExportResultCode } from '@opentelemetry/core'
-import { Resource } from '@opentelemetry/resources'
+import { resourceFromAttributes } from '@opentelemetry/resources'
 import { ATTR_SERVICE_NAME } from '@opentelemetry/semantic-conventions'
 import { trace, context as otelContext } from '@opentelemetry/api'
 
@@ -134,11 +134,11 @@ describe('Span Collection Verification', () => {
 
     // Create and register tracer provider with our test exporter BEFORE creating the app
     tracerProvider = new NodeTracerProvider({
-      resource: new Resource({
+      resource: resourceFromAttributes({
         [ATTR_SERVICE_NAME]: 'span-collection-test',
       }),
+      spanProcessors: [new SimpleSpanProcessor(testExporter)],
     })
-    tracerProvider.addSpanProcessor(new SimpleSpanProcessor(testExporter))
     tracerProvider.register()
 
     server = await NaviosFactory.create<BunEnvironment>(TestModule, {
