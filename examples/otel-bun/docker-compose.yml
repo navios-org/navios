@@ -1,0 +1,79 @@
+version: '3.8'
+
+services:
+  # Jaeger - All-in-one container for traces
+  jaeger:
+    image: jaegertracing/all-in-one:1.54
+    container_name: otel-jaeger
+    environment:
+      - COLLECTOR_OTLP_ENABLED=true
+    ports:
+      # OTLP gRPC receiver
+      - "4317:4317"
+      # OTLP HTTP receiver
+      - "4318:4318"
+      # Jaeger UI
+      - "16686:16686"
+      # Jaeger thrift compact (for legacy clients)
+      - "6831:6831/udp"
+    restart: unless-stopped
+
+  # OpenTelemetry Collector - for advanced routing and processing
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.96.0
+    container_name: otel-collector
+    command: ["--config=/etc/otel-collector-config.yaml"]
+    volumes:
+      - ./otel-collector-config.yaml:/etc/otel-collector-config.yaml:ro
+    ports:
+      # OTLP gRPC receiver
+      - "4327:4317"
+      # OTLP HTTP receiver
+      - "4328:4318"
+      # Prometheus metrics endpoint
+      - "8889:8889"
+      # Health check
+      - "13133:13133"
+    depends_on:
+      - jaeger
+    restart: unless-stopped
+
+  # Prometheus - for metrics collection
+  prometheus:
+    image: prom/prometheus:v2.50.1
+    container_name: otel-prometheus
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    ports:
+      - "9090:9090"
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.enable-lifecycle'
+    restart: unless-stopped
+
+  # Grafana - for visualization (optional, provides dashboards)
+  grafana:
+    image: grafana/grafana:10.3.3
+    container_name: otel-grafana
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    ports:
+      - "3001:3000"
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+    depends_on:
+      - prometheus
+      - jaeger
+    restart: unless-stopped
+
+  # Loki - for logs collection
+  loki:
+    image: grafana/loki:2.9.4
+    container_name: otel-loki
+    ports:
+      - "3100:3100"
+    command: -config.file=/etc/loki/local-config.yaml
+    restart: unless-stopped

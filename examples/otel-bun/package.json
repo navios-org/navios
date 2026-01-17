@@ -1,0 +1,26 @@
+{
+  "name": "otel-bun",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "bun run src/bootstrap.mts",
+    "start:watch": "bun run --watch src/bootstrap.mts",
+    "docker:up": "docker-compose up -d",
+    "docker:down": "docker-compose down",
+    "docker:logs": "docker-compose logs -f"
+  },
+  "dependencies": {
+    "@navios/adapter-bun": "workspace:*",
+    "@navios/builder": "workspace:*",
+    "@navios/core": "workspace:*",
+    "@navios/di": "workspace:*",
+    "@navios/otel": "workspace:*",
+    "@navios/otel-bun": "workspace:*",
+    "@opentelemetry/api": "^1.9.0",
+    "zod": "^4.3.5"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.2.12",
+    "typescript": "^5.9.3"
+  }
+}
