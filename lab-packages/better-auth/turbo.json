@@ -1,0 +1,16 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "extends": ["//"],
+  "tasks": {
+    "build": {
+      "dependsOn": ["check"],
+      "inputs": [
+        "src/**/*.{ts,tsx,mts}",
+        "!src/**/*.spec.{ts,tsx,mts}",
+        "!src/**/*.spec-d.{ts,tsx,mts}",
+        "tsdown.config.mts"
+      ],
+      "outputs": ["lib/**"]
+    }
+  }
+}

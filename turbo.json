@@ -44,36 +44,6 @@
       "dependsOn": ["build"],
       "cache": false,
       "env": ["NPM_AUTH_TOKEN"]
-    },
-    "@navios/cli#build": {
-      "dependsOn": ["check", "lint"],
-      "inputs": [
-        "src/**/*.{ts,tsx,mts}",
-        "!src/**/*.spec.{ts,tsx,mts}",
-        "!src/**/*.spec-d.{ts,tsx,mts}",
-        "tsdown.config.mts"
-      ],
-      "outputs": ["lib/**"]
-    },
-    "@navios/queues-core#build": {
-      "dependsOn": ["check", "lint"],
-      "inputs": [
-        "src/**/*.{ts,tsx,mts}",
-        "!src/**/*.spec.{ts,tsx,mts}",
-        "!src/**/*.spec-d.{ts,tsx,mts}",
-        "tsdown.config.mts"
-      ],
-      "outputs": ["lib/**"]
-    },
-    "@navios/better-auth#build": {
-      "dependsOn": ["check"],
-      "inputs": [
-        "src/**/*.{ts,tsx,mts}",
-        "!src/**/*.spec.{ts,tsx,mts}",
-        "!src/**/*.spec-d.{ts,tsx,mts}",
-        "tsdown.config.mts"
-      ],
-      "outputs": ["lib/**"]
     }
   }
 }
