@@ -1,0 +1,9 @@
+# Environment file (use .env.* templates)
+.env
+
+# Node modules (managed at root level)
+node_modules/
+
+# Docker volumes
+grafana/data/
+prometheus/data/

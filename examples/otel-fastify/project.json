@@ -1,0 +1,7 @@
+{
+  "name": "otel-fastify",
+  "root": "examples/otel-fastify",
+  "sourceRoot": "examples/otel-fastify/src",
+  "projectType": "application",
+  "tags": ["example", "fastify", "otel", "legacy"]
+}

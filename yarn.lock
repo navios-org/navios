@@ -4535,7 +4535,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@navios/otel-fastify@workspace:packages/otel-fastify":
+"@navios/otel-fastify@workspace:*, @navios/otel-fastify@workspace:packages/otel-fastify":
   version: 0.0.0-use.local
   resolution: "@navios/otel-fastify@workspace:packages/otel-fastify"
   dependencies:
@@ -4556,7 +4556,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@navios/otel@workspace:^, @navios/otel@workspace:packages/otel":
+"@navios/otel@workspace:*, @navios/otel@workspace:^, @navios/otel@workspace:packages/otel":
   version: 0.0.0-use.local
   resolution: "@navios/otel@workspace:packages/otel"
   dependencies:
@@ -15423,6 +15423,24 @@ __metadata:
   checksum: 10c0/30d5f3218eb75b0a2028c5fb9aa88e83e38a2f1745ab56839abb06c3ba31bae35f768f4e72c4f9e04e2a66be6a898e9312e8cf85c9333e1e3613eabb8c7cdf57
   languageName: node
   linkType: hard
+
+"otel-fastify@workspace:examples/otel-fastify":
+  version: 0.0.0-use.local
+  resolution: "otel-fastify@workspace:examples/otel-fastify"
+  dependencies:
+    "@navios/adapter-fastify": "workspace:*"
+    "@navios/builder": "workspace:*"
+    "@navios/core": "workspace:*"
+    "@navios/di": "workspace:*"
+    "@navios/otel": "workspace:*"
+    "@navios/otel-fastify": "workspace:*"
+    "@opentelemetry/api": "npm:^1.9.0"
+    dotenv: "npm:^16.4.5"
+    tsx: "npm:^4.21.0"
+    typescript: "npm:^5.9.3"
+    zod: "npm:^4.3.5"
+  languageName: unknown
+  linkType: soft
 
 "oxlint@npm:^1.39.0":
   version: 1.39.0
