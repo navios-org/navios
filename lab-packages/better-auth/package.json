@@ -1,6 +1,12 @@
 {
   "name": "@navios/better-auth",
   "version": "0.0.1-alpha.0",
+  "scripts": {
+    "check": "tsc -b",
+    "build": "tsdown",
+    "publish": "yarn npm publish --access public",
+    "publish:next": "yarn npm publish --access public --tag next"
+  },
   "private": true,
   "author": {
     "name": "Oleksandr Hanzha",

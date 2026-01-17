@@ -1,6 +1,14 @@
 {
   "name": "@navios/adapter-fastify",
   "version": "1.0.0",
+  "scripts": {
+    "check": "tsc -b",
+    "lint": "oxlint --fix",
+    "test:ci": "vitest run",
+    "build": "tsdown",
+    "publish": "yarn npm publish --access public",
+    "publish:next": "yarn npm publish --access public --tag next"
+  },
   "author": {
     "name": "Oleksandr Hanzha",
     "email": "alex@granted.name"

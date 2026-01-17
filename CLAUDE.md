@@ -3,8 +3,9 @@
 ## Package Manager & Task Runner
 
 - **Use `yarn`** instead of `npm` for all package management commands
-- **Use `nx`** for running most commands (build, test, lint, etc.)
-  - Example: `yarn nx run @navios/core:build`, `yarn nx test @navios/core`
+- **Use `turbo`** for running most commands (build, test, lint, etc.)
+  - Example: `yarn turbo run build --filter=@navios/core`, `yarn turbo run test:ci --filter=@navios/core`
+  - Run all: `yarn build`, `yarn test:ci`, `yarn lint`
 
 ## File Conventions
 
@@ -17,7 +18,7 @@
 - No semicolons
 - Single quotes
 - Follow Prettier config
-- Run `yarn nx lint <project>` after making changes
+- Run `yarn turbo run lint --filter=<package>` after making changes
 
 ## DI System Testing Rules
 
