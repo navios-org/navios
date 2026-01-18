@@ -1,29 +1,20 @@
-import type { EndpointParams } from '@navios/core'
-import type { ReadableSpan, SpanExporter } from '@opentelemetry/sdk-trace-node'
-import type { ExportResult } from '@opentelemetry/core'
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'bun:test'
 
-import { builder } from '@navios/builder'
-import {
-  Controller,
-  Endpoint,
-  Module,
-  NaviosApplication,
-  NaviosFactory,
-} from '@navios/core'
 import { defineBunEnvironment } from '@navios/adapter-bun'
-import type { BunEnvironment } from '@navios/adapter-bun'
-import {
-  NodeTracerProvider,
-  SimpleSpanProcessor,
-} from '@opentelemetry/sdk-trace-node'
+import { builder } from '@navios/builder'
+import { Controller, Endpoint, Module, NaviosApplication, NaviosFactory } from '@navios/core'
+import { trace, context as otelContext } from '@opentelemetry/api'
 import { ExportResultCode } from '@opentelemetry/core'
 import { resourceFromAttributes } from '@opentelemetry/resources'
+import { NodeTracerProvider, SimpleSpanProcessor } from '@opentelemetry/sdk-trace-node'
 import { ATTR_SERVICE_NAME } from '@opentelemetry/semantic-conventions'
-import { trace, context as otelContext } from '@opentelemetry/api'
-
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'bun:test'
 import supertest from 'supertest'
 import { z } from 'zod/v4'
+
+import type { BunEnvironment } from '@navios/adapter-bun'
+import type { EndpointParams } from '@navios/core'
+import type { ExportResult } from '@opentelemetry/core'
+import type { ReadableSpan, SpanExporter } from '@opentelemetry/sdk-trace-node'
 
 import { defineOtelPlugin } from '../src/index.mjs'
 
@@ -34,10 +25,7 @@ import { defineOtelPlugin } from '../src/index.mjs'
 class TestSpanExporter implements SpanExporter {
   private spans: ReadableSpan[] = []
 
-  export(
-    spans: ReadableSpan[],
-    resultCallback: (result: ExportResult) => void,
-  ): void {
+  export(spans: ReadableSpan[], resultCallback: (result: ExportResult) => void): void {
     this.spans.push(...spans)
     resultCallback({ code: ExportResultCode.SUCCESS })
   }
@@ -186,9 +174,7 @@ describe('Span Collection Verification', () => {
       expect(spans.length).toBeGreaterThan(0)
 
       // Find the HTTP span
-      const httpSpan = spans.find((span) =>
-        span.name.startsWith('HTTP GET')
-      )
+      const httpSpan = spans.find((span) => span.name.startsWith('HTTP GET'))
       expect(httpSpan).toBeDefined()
 
       if (httpSpan) {
@@ -220,9 +206,7 @@ describe('Span Collection Verification', () => {
       expect(spans.length).toBeGreaterThan(0)
 
       // Find the HTTP span
-      const httpSpan = spans.find((span) =>
-        span.name.startsWith('HTTP POST')
-      )
+      const httpSpan = spans.find((span) => span.name.startsWith('HTTP POST'))
       expect(httpSpan).toBeDefined()
 
       if (httpSpan) {
@@ -249,9 +233,7 @@ describe('Span Collection Verification', () => {
       const spans = testExporter.getSpans()
 
       // Should not have any HTTP span for /health
-      const healthSpan = spans.find((span) =>
-        span.name.includes('/health')
-      )
+      const healthSpan = spans.find((span) => span.name.includes('/health'))
       expect(healthSpan).toBeUndefined()
     })
 
@@ -267,9 +249,7 @@ describe('Span Collection Verification', () => {
       const spans = testExporter.getSpans()
 
       // No span should be created for unknown routes
-      const notFoundSpan = spans.find((span) =>
-        span.name.includes('/nonexistent')
-      )
+      const notFoundSpan = spans.find((span) => span.name.includes('/nonexistent'))
       expect(notFoundSpan).toBeUndefined()
     })
   })
@@ -292,9 +272,7 @@ describe('Span Collection Verification', () => {
       const spans = testExporter.getSpans()
 
       // Should have at least 3 HTTP spans
-      const httpSpans = spans.filter((span) =>
-        span.name.startsWith('HTTP GET /users')
-      )
+      const httpSpans = spans.filter((span) => span.name.startsWith('HTTP GET /users'))
       expect(httpSpans.length).toBeGreaterThanOrEqual(3)
 
       // Each span should have a unique trace ID or span ID

@@ -1,19 +1,13 @@
-import type { EndpointParams } from '@navios/core'
-
-import { builder } from '@navios/builder'
-import {
-  Controller,
-  Endpoint,
-  Module,
-  NaviosApplication,
-  NaviosFactory,
-} from '@navios/core'
-import { BunControllerAdapterToken, defineBunEnvironment } from '@navios/adapter-bun'
-import type { BunEnvironment } from '@navios/adapter-bun'
-
 import { afterAll, beforeAll, describe, expect, it } from 'bun:test'
+
+import { BunControllerAdapterToken, defineBunEnvironment } from '@navios/adapter-bun'
+import { builder } from '@navios/builder'
+import { Controller, Endpoint, Module, NaviosApplication, NaviosFactory } from '@navios/core'
 import supertest from 'supertest'
 import { z } from 'zod/v4'
+
+import type { BunEnvironment } from '@navios/adapter-bun'
+import type { EndpointParams } from '@navios/core'
 
 import { defineOtelPlugin } from '../src/index.mjs'
 import { TracedBunControllerAdapterService } from '../src/overrides/index.mjs'
@@ -157,7 +151,7 @@ describe('OpenTelemetry Bun Integration', () => {
   describe('Concurrent request handling', () => {
     it('should handle multiple concurrent GET requests', async () => {
       const requests = Array.from({ length: 10 }, (_, i) =>
-        supertest(realServer).get(`/users/${i + 1}`)
+        supertest(realServer).get(`/users/${i + 1}`),
       )
 
       const responses = await Promise.all(requests)
@@ -172,9 +166,15 @@ describe('OpenTelemetry Bun Integration', () => {
       const requests = [
         supertest(realServer).get('/users/1'),
         supertest(realServer).get('/health'),
-        supertest(realServer).post('/echo').send({ message: 'test1' }).set('Content-Type', 'application/json'),
+        supertest(realServer)
+          .post('/echo')
+          .send({ message: 'test1' })
+          .set('Content-Type', 'application/json'),
         supertest(realServer).get('/users/2'),
-        supertest(realServer).post('/echo').send({ message: 'test2' }).set('Content-Type', 'application/json'),
+        supertest(realServer)
+          .post('/echo')
+          .send({ message: 'test2' })
+          .set('Content-Type', 'application/json'),
       ]
 
       const responses = await Promise.all(requests)

@@ -1,20 +1,10 @@
-import type {
-  CanActivate,
-  ControllerMetadata,
-  HandlerMetadata,
-  ModuleMetadata,
-} from '@navios/core'
-import type { ClassType } from '@navios/di'
-import type { BunStaticHandler } from '@navios/adapter-bun'
-import type { Span } from '@opentelemetry/api'
-import type { BunRequest } from 'bun'
-
 import {
   BunControllerAdapterService,
   type BunHandlerResult,
   type BunRoutes,
   type BunCorsOptions,
 } from '@navios/adapter-bun'
+import { BunExecutionContext, BunFakeReply, BunRequestToken } from '@navios/adapter-bun'
 import {
   Container,
   ErrorResponseProducerService,
@@ -30,21 +20,15 @@ import {
   Logger,
   runWithRequestId,
 } from '@navios/core'
-import {
-  runWithSpanContext,
-  SpanFactoryService,
-  TraceContextService,
-} from '@navios/otel'
-
+import { runWithSpanContext, SpanFactoryService, TraceContextService } from '@navios/otel'
 import { ZodError } from 'zod/v4'
 
+import type { BunStaticHandler } from '@navios/adapter-bun'
 import type { BunHandlerAdapterInterface } from '@navios/adapter-bun'
-
-import {
-  BunExecutionContext,
-  BunFakeReply,
-  BunRequestToken,
-} from '@navios/adapter-bun'
+import type { CanActivate, ControllerMetadata, HandlerMetadata, ModuleMetadata } from '@navios/core'
+import type { ClassType } from '@navios/di'
+import type { Span } from '@opentelemetry/api'
+import type { BunRequest } from 'bun'
 
 import { BunOtelOptionsToken } from '../tokens/index.mjs'
 
@@ -108,9 +92,7 @@ export class TracedBunControllerAdapterService extends BunControllerAdapterServi
       const { classMethod, url, httpMethod, adapterToken } = endpoint
 
       if (!url || !adapterToken) {
-        throw new Error(
-          `[Navios] Malformed Endpoint ${controller.name}:${classMethod}`,
-        )
+        throw new Error(`[Navios] Malformed Endpoint ${controller.name}:${classMethod}`)
       }
       const adapter = await this.tracedContainer.get(
         adapterToken as InjectionToken<BunHandlerAdapterInterface>,
@@ -122,10 +104,9 @@ export class TracedBunControllerAdapterService extends BunControllerAdapterServi
         controllerMetadata,
         endpoint,
       )
-      const guardResolution =
-        await this.tracedInstanceResolver.resolveMany<CanActivate>(
-          Array.from(guards).reverse() as ClassType[],
-        )
+      const guardResolution = await this.tracedInstanceResolver.resolveMany<CanActivate>(
+        Array.from(guards).reverse() as ClassType[],
+      )
 
       const fullUrl = globalPrefix + url.replaceAll('$', ':')
       if (!routes[fullUrl]) {
@@ -288,11 +269,7 @@ export class TracedBunControllerAdapterService extends BunControllerAdapterServi
               if (fakeReply.hasResponse()) {
                 return this.applyCors(fakeReply.toResponse(), origin, corsOptions)
               }
-              return this.applyCors(
-                new Response('Forbidden', { status: 403 }),
-                origin,
-                corsOptions,
-              )
+              return this.applyCors(new Response('Forbidden', { status: 403 }), origin, corsOptions)
             }
             const response = await handlerResult.handler(request)
             return this.applyCors(response, origin, corsOptions)
@@ -334,11 +311,7 @@ export class TracedBunControllerAdapterService extends BunControllerAdapterServi
               if (fakeReply.hasResponse()) {
                 return this.applyCors(fakeReply.toResponse(), origin, corsOptions)
               }
-              return this.applyCors(
-                new Response('Forbidden', { status: 403 }),
-                origin,
-                corsOptions,
-              )
+              return this.applyCors(new Response('Forbidden', { status: 403 }), origin, corsOptions)
             }
           }
 
@@ -354,10 +327,7 @@ export class TracedBunControllerAdapterService extends BunControllerAdapterServi
         return this.applyCors(errorResponse, origin, corsOptions)
       } finally {
         requestContainer.endRequest().catch((err: any) => {
-          this.tracedLogger.error(
-            `Error ending request context ${requestId}: ${err.message}`,
-            err,
-          )
+          this.tracedLogger.error(`Error ending request context ${requestId}: ${err.message}`, err)
         })
       }
     }
@@ -574,10 +544,7 @@ export class TracedBunControllerAdapterService extends BunControllerAdapterServi
       } finally {
         span.end()
         requestContainer.endRequest().catch((err: any) => {
-          this.tracedLogger.error(
-            `Error ending request context ${requestId}: ${err.message}`,
-            err,
-          )
+          this.tracedLogger.error(`Error ending request context ${requestId}: ${err.message}`, err)
         })
       }
     }
@@ -686,10 +653,7 @@ export class TracedBunControllerAdapterService extends BunControllerAdapterServi
         headers: { 'Content-Type': 'application/json' },
       })
     } else if (error instanceof ZodError) {
-      errorResponse = this.tracedErrorProducer.respond(
-        FrameworkError.ValidationError,
-        error,
-      )
+      errorResponse = this.tracedErrorProducer.respond(FrameworkError.ValidationError, error)
     } else {
       const err = error as Error
       this.tracedLogger.error(`Error: ${err.message}`, err)

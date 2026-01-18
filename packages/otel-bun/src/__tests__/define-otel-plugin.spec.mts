@@ -1,20 +1,19 @@
-import type { ModulesLoadedContext } from '@navios/core'
-
 import { BunControllerAdapterToken } from '@navios/adapter-bun'
 import { Container, Registry } from '@navios/di'
 import { InjectableScope, InjectableType } from '@navios/di'
-
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
-import type { BunOtelPluginOptions } from '../interfaces/index.mjs'
+import type { ModulesLoadedContext } from '@navios/core'
 
+import { TracedBunControllerAdapterService } from '../overrides/index.mjs'
 import {
   defineOtelPlugin,
   OtelBunPreAdapterPlugin,
   OtelBunPostModulesPlugin,
 } from '../plugin/define-otel-plugin.mjs'
-import { TracedBunControllerAdapterService } from '../overrides/index.mjs'
 import { BunOtelOptionsToken } from '../tokens/index.mjs'
+
+import type { BunOtelPluginOptions } from '../interfaces/index.mjs'
 
 describe('defineOtelPlugin', () => {
   let container: Container
@@ -36,7 +35,7 @@ describe('defineOtelPlugin', () => {
         exporter: 'console',
       })
 
-      expect(plugins).toHaveLength(2)
+      expect(plugins).toHaveLength(3)
       expect(Array.isArray(plugins)).toBe(true)
     })
 
@@ -46,7 +45,7 @@ describe('defineOtelPlugin', () => {
         exporter: 'console',
       })
 
-      const [preAdapterPlugin] = plugins
+      const [, preAdapterPlugin] = plugins
       expect(preAdapterPlugin.plugin.name).toBe('@navios/otel-bun:pre-adapter')
       expect(preAdapterPlugin.plugin.stage).toBe('pre:adapter-resolve')
     })
@@ -57,7 +56,7 @@ describe('defineOtelPlugin', () => {
         exporter: 'console',
       })
 
-      const [, postModulesPlugin] = plugins
+      const [, , postModulesPlugin] = plugins
       expect(postModulesPlugin.plugin.name).toBe('@navios/otel-bun:post-modules')
       expect(postModulesPlugin.plugin.stage).toBe('post:modules-init')
     })
@@ -78,8 +77,8 @@ describe('defineOtelPlugin', () => {
 
       const plugins = defineOtelPlugin(options)
 
-      expect(plugins[0].options).toBe(options)
       expect(plugins[1].options).toBe(options)
+      expect(plugins[2].options).toBe(options)
     })
   })
 
@@ -224,7 +223,7 @@ describe('defineOtelPlugin', () => {
       })
 
       // Type assertion to verify return type structure
-      const [preAdapter, postModules] = plugins
+      const [, preAdapter, postModules] = plugins
 
       // These should compile without errors
       const _preAdapterStage: 'pre:adapter-resolve' = preAdapter.plugin.stage
