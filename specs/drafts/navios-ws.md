@@ -28,6 +28,57 @@
 
 ## Proposed API
 
+### Provider Function
+
+The WebSocket service is configured using `provideWsService()` which returns an `InjectionToken`.
+
+```typescript
+import { provideWsService } from '@navios/ws'
+
+const WsToken = provideWsService({
+  // Heartbeat configuration
+  heartbeat: {
+    interval: 30000,
+    timeout: 5000,
+  },
+  // CORS for WebSocket handshake
+  cors: {
+    origin: 'https://myapp.com',
+  },
+})
+
+// Async configuration
+const WsToken = provideWsService(async () => {
+  const config = await loadConfig()
+  return {
+    heartbeat: config.ws.heartbeat,
+    cors: config.ws.cors,
+    adapter: config.redis.enabled
+      ? new RedisWsAdapter({ host: config.redis.host })
+      : undefined,
+  }
+})
+```
+
+### Module Registration
+
+```typescript
+import { Module } from '@navios/core'
+import { provideWsService } from '@navios/ws'
+
+const WsToken = provideWsService({
+  heartbeat: {
+    interval: 30000,
+    timeout: 5000,
+  },
+})
+
+@Module({
+  providers: [WsToken, ChatGateway],
+})
+class AppModule {}
+```
+
 ### Gateway Definition
 
 ```typescript
@@ -37,9 +88,9 @@ import {
   OnConnection,
   OnDisconnection,
   OnMessage,
-  WebSocketServer,
-  ConnectedSocket,
-  MessageBody,
+  WsServer,
+  WsClient,
+  WsMessageParams,
 } from '@navios/ws'
 
 @WebSocketGateway({
@@ -48,15 +99,12 @@ import {
 })
 @Injectable()
 class ChatGateway {
-  @WebSocketServer()
-  private server!: WsServer
-
+  // Inject the WebSocket server
+  private server = inject(WsServer)
   private userService = inject(UserService)
 
   @OnConnection()
-  async handleConnection(
-    @ConnectedSocket() client: WsClient
-  ) {
+  async handleConnection(client: WsClient) {
     console.log(`Client connected: ${client.id}`)
 
     // Authenticate and join rooms
@@ -68,85 +116,51 @@ class ChatGateway {
   }
 
   @OnDisconnection()
-  handleDisconnection(
-    @ConnectedSocket() client: WsClient
-  ) {
+  handleDisconnection(client: WsClient) {
     console.log(`Client disconnected: ${client.id}`)
   }
 
   @OnMessage('chat:message')
-  async handleMessage(
-    @ConnectedSocket() client: WsClient,
-    @MessageBody() data: ChatMessage
-  ) {
+  async handleMessage(params: WsMessageParams<ChatMessagePayload>) {
+    const { client, payload } = params
+
     // Broadcast to room
-    this.server.to(data.roomId).emit('chat:message', {
+    this.server.to(payload.roomId).emit('chat:message', {
       userId: client.data.user.id,
-      message: data.text,
+      message: payload.text,
       timestamp: Date.now(),
     })
   }
 
   @OnMessage('chat:join')
-  handleJoinRoom(
-    @ConnectedSocket() client: WsClient,
-    @MessageBody() data: { roomId: string }
-  ) {
-    client.join(`room:${data.roomId}`)
-    client.emit('chat:joined', { roomId: data.roomId })
+  handleJoinRoom(params: WsMessageParams<{ roomId: string }>) {
+    const { client, payload } = params
+    client.join(`room:${payload.roomId}`)
+    client.emit('chat:joined', { roomId: payload.roomId })
   }
 
   @OnMessage('chat:leave')
-  handleLeaveRoom(
-    @ConnectedSocket() client: WsClient,
-    @MessageBody() data: { roomId: string }
-  ) {
-    client.leave(`room:${data.roomId}`)
+  handleLeaveRoom(params: WsMessageParams<{ roomId: string }>) {
+    const { client, payload } = params
+    client.leave(`room:${payload.roomId}`)
   }
 
   @OnMessage('chat:typing')
-  handleTyping(
-    @ConnectedSocket() client: WsClient,
-    @MessageBody() data: { roomId: string }
-  ) {
+  handleTyping(params: WsMessageParams<{ roomId: string }>) {
+    const { client, payload } = params
     // Broadcast to others in room
-    client.to(`room:${data.roomId}`).emit('chat:typing', {
+    client.to(`room:${payload.roomId}`).emit('chat:typing', {
       userId: client.data.user.id,
     })
   }
 }
 ```
 
-### Module Setup
-
-```typescript
-import { Module } from '@navios/core'
-import { WsModule } from '@navios/ws'
-
-@Module({
-  imports: [
-    WsModule.register({
-      // Heartbeat configuration
-      heartbeat: {
-        interval: 30000,
-        timeout: 5000,
-      },
-      // CORS for WebSocket handshake
-      cors: {
-        origin: 'https://myapp.com',
-      },
-    }),
-  ],
-  providers: [ChatGateway],
-})
-class AppModule {}
-```
-
 ### Guards
 
 ```typescript
 import { Injectable, inject } from '@navios/di'
-import { WsGuard, WsExecutionContext } from '@navios/ws'
+import { WsGuard, WsExecutionContext, UseWsGuards } from '@navios/ws'
 
 @Injectable()
 class WsAuthGuard implements WsGuard {
@@ -172,6 +186,7 @@ class WsAuthGuard implements WsGuard {
 
 @WebSocketGateway({ path: '/ws' })
 @UseWsGuards(WsAuthGuard)
+@Injectable()
 class ProtectedGateway {
   // All handlers require authentication
 }
@@ -206,10 +221,10 @@ class NotificationService {
 ### Typed Messages with Builder
 
 ```typescript
-import { builder } from '@navios/builder'
+import { wsBuilder } from '@navios/ws'
 import { z } from 'zod'
 
-const WS = builder()
+const WS = wsBuilder()
 
 // Define typed WebSocket events
 export const chatMessage = WS.declareWsEvent({
@@ -234,15 +249,18 @@ export const chatTyping = WS.declareWsEvent({
 
 // Use in gateway
 @WebSocketGateway()
+@Injectable()
 class ChatGateway {
+  private server = inject(WsServer)
+
   @OnMessage(chatMessage)
   handleMessage(
-    @ConnectedSocket() client: WsClient,
-    @MessageBody() data: z.infer<typeof chatMessage.payloadSchema>
+    params: WsMessageParams<typeof chatMessage>
   ): z.infer<typeof chatMessage.responseSchema> {
+    const { client, payload } = params
     return {
       userId: client.data.user.id,
-      message: data.text,
+      message: payload.text,
       timestamp: Date.now(),
     }
   }
@@ -258,17 +276,15 @@ class ChatGateway {
 Support multiple WebSocket implementations:
 
 ```typescript
-// Fastify adapter (ws library)
-import { WsModule, FastifyWsAdapter } from '@navios/ws'
+import { provideWsService, FastifyWsAdapter, BunWsAdapter } from '@navios/ws'
 
-WsModule.register({
+// Fastify adapter (ws library)
+const WsToken = provideWsService({
   adapter: new FastifyWsAdapter(),
 })
 
 // Bun adapter (native WebSocket)
-import { WsModule, BunWsAdapter } from '@navios/ws'
-
-WsModule.register({
+const WsToken = provideWsService({
   adapter: new BunWsAdapter(),
 })
 ```
@@ -276,9 +292,9 @@ WsModule.register({
 ### Redis Adapter for Scaling
 
 ```typescript
-import { WsModule, RedisWsAdapter } from '@navios/ws'
+import { provideWsService, RedisWsAdapter } from '@navios/ws'
 
-WsModule.register({
+const WsToken = provideWsService({
   adapter: new RedisWsAdapter({
     host: 'localhost',
     port: 6379,
@@ -319,13 +335,13 @@ interface WsClient {
 
 Relationship with existing `@Stream()` decorator:
 
-- `@Stream()` - Server-sent events (SSE), one-way server → client
+- `@Stream()` - Server-sent events (SSE), one-way server -> client
 - `@navios/ws` - Full duplex WebSocket communication
 
 ```typescript
 // SSE for simple server push
 @Stream(notificationsStream)
-async *notifications(params: StreamParams) {
+async *notifications(params: StreamParams<typeof notificationsStream>) {
   for await (const notification of this.notificationService.subscribe()) {
     yield notification
   }
@@ -333,10 +349,12 @@ async *notifications(params: StreamParams) {
 
 // WebSocket for bidirectional
 @WebSocketGateway()
+@Injectable()
 class NotificationGateway {
   @OnMessage('subscribe')
-  handleSubscribe(@ConnectedSocket() client: WsClient) {
+  handleSubscribe(params: WsMessageParams<SubscribePayload>) {
     // Client can also send messages back
+    params.client.join(`notifications:${params.payload.channel}`)
   }
 }
 ```
@@ -373,8 +391,9 @@ class NotificationGateway {
 
 ## Implementation Priority
 
-- [ ] Basic gateway setup and connection handling
-- [ ] Message handlers with decorators
+- [ ] Basic gateway setup with `provideWsService()`
+- [ ] Connection handling with `@OnConnection`, `@OnDisconnection`
+- [ ] Message handlers with `@OnMessage`
 - [ ] Rooms (join/leave/broadcast)
 - [ ] Guards and authentication
 - [ ] Fastify adapter

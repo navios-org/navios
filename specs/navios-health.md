@@ -17,9 +17,9 @@
 ### Architecture Overview
 
 ```
-HealthModule
-├── HealthService (main service)
-│   ├── check(indicators) - Run health checks
+HealthService
+├── Core Operations
+│   ├── check(indicators?) - Run health checks
 │   ├── getStatus() - Get overall status
 │   └── isHealthy() - Quick health check
 │
@@ -47,7 +47,7 @@ HealthModule
 ### Key Principles
 
 - **Kubernetes Compatible** - Liveness and readiness probes
-- **DI Integration** - Injectable indicators via @navios/di
+- **DI Integration** - Injectable service via @navios/di
 - **Extensible** - Custom health indicators
 - **Graceful Degradation** - Partial health reporting
 - **Performance** - Caching and timeouts
@@ -56,98 +56,69 @@ HealthModule
 
 ## Setup
 
-### Basic Configuration
+### Provider Function
+
+The health service is configured using the `provideHealthService()` function which returns an `InjectionToken`.
 
 ```typescript
-import { Module } from '@navios/core'
-import { HealthModule } from '@navios/health'
+import { provideHealthService } from '@navios/health'
 
-@Module({
-  imports: [
-    HealthModule.register({
-      // Automatically expose /health, /health/live, /health/ready
-      endpoints: true,
+// Basic configuration
+const HealthToken = provideHealthService({
+  endpoints: true, // Auto-register /health, /health/live, /health/ready
+})
+
+// With indicators
+const HealthToken = provideHealthService({
+  endpoints: true,
+  indicators: [
+    new DiskHealthIndicator({
+      path: '/',
+      thresholdPercent: 10,
+    }),
+    new MemoryHealthIndicator({
+      heapThresholdPercent: 90,
     }),
   ],
 })
-class AppModule {}
+
+// Async configuration
+const HealthToken = provideHealthService(async () => {
+  const prisma = await getPrismaClient()
+  const redis = await getRedisClient()
+
+  return {
+    endpoints: true,
+    indicators: [
+      new DatabaseHealthIndicator({
+        name: 'database',
+        connection: prisma,
+      }),
+      new RedisHealthIndicator({
+        name: 'cache',
+        client: redis,
+      }),
+    ],
+  }
+})
 ```
 
-### With Built-in Indicators
+### Module Registration
 
 ```typescript
 import { Module } from '@navios/core'
-import {
-  HealthModule,
-  DiskHealthIndicator,
-  MemoryHealthIndicator,
-  HttpHealthIndicator,
-} from '@navios/health'
+import { provideHealthService, DiskHealthIndicator, MemoryHealthIndicator } from '@navios/health'
 
-@Module({
-  imports: [
-    HealthModule.register({
-      endpoints: true,
-      indicators: [
-        // Check disk space (fail if < 10% free)
-        new DiskHealthIndicator({
-          path: '/',
-          thresholdPercent: 10,
-        }),
-
-        // Check memory (fail if > 90% used)
-        new MemoryHealthIndicator({
-          heapThresholdPercent: 90,
-          rssThresholdPercent: 90,
-        }),
-
-        // Check external service
-        new HttpHealthIndicator({
-          name: 'api-gateway',
-          url: 'https://api.example.com/health',
-          timeout: 3000,
-        }),
-      ],
-    }),
+const HealthToken = provideHealthService({
+  endpoints: true,
+  indicators: [
+    new DiskHealthIndicator({ path: '/', thresholdPercent: 10 }),
+    new MemoryHealthIndicator({ heapThresholdPercent: 90 }),
   ],
 })
-class AppModule {}
-```
-
-### With Database Indicators
-
-```typescript
-import { Module } from '@navios/core'
-import {
-  HealthModule,
-  DatabaseHealthIndicator,
-  RedisHealthIndicator,
-} from '@navios/health'
-import { inject } from '@navios/di'
 
 @Module({
-  imports: [
-    HealthModule.registerAsync({
-      useFactory: async () => {
-        const prisma = await inject(PrismaClient)
-        const redis = await inject(RedisClient)
-
-        return {
-          endpoints: true,
-          indicators: [
-            new DatabaseHealthIndicator({
-              name: 'database',
-              connection: prisma,
-            }),
-            new RedisHealthIndicator({
-              name: 'cache',
-              client: redis,
-            }),
-          ],
-        }
-      },
-    }),
-  ],
+  providers: [HealthToken],
 })
 class AppModule {}
 ```
@@ -160,11 +131,11 @@ class AppModule {}
 
 When `endpoints: true`, the following endpoints are automatically registered:
 
-| Endpoint         | Purpose           | Response                    |
-| ---------------- | ----------------- | --------------------------- |
-| `GET /health`    | Overall health    | Full status with details    |
-| `GET /health/live` | Liveness probe  | Simple up/down              |
-| `GET /health/ready`| Readiness probe | Checks all indicators       |
+| Endpoint           | Purpose          | Response                    |
+| ------------------ | ---------------- | --------------------------- |
+| `GET /health`      | Overall health   | Full status with details    |
+| `GET /health/live` | Liveness probe   | Simple up/down              |
+| `GET /health/ready`| Readiness probe  | Checks all indicators       |
 
 ### Response Format
 
@@ -220,11 +191,11 @@ When `endpoints: true`, the following endpoints are automatically registered:
 ### Customizing Endpoints
 
 ```typescript
-HealthModule.register({
+const HealthToken = provideHealthService({
   endpoints: {
-    path: '/status',           // Base path
-    livePath: '/status/live',  // Liveness path
-    readyPath: '/status/ready',// Readiness path
+    path: '/status',            // Base path
+    livePath: '/status/live',   // Liveness path
+    readyPath: '/status/ready', // Readiness path
 
     // Require authentication for health details
     guards: [ApiKeyGuard],
@@ -241,24 +212,46 @@ HealthModule.register({
 import { Controller, Endpoint } from '@navios/core'
 import { inject } from '@navios/di'
 import { HealthService } from '@navios/health'
+import { builder } from '@navios/builder'
+import { z } from 'zod'
+
+const API = builder()
+
+const healthCheck = API.declareEndpoint({
+  method: 'GET',
+  path: '/health',
+  responseSchema: HealthResultSchema,
+})
+
+const livenessProbe = API.declareEndpoint({
+  method: 'GET',
+  path: '/health/live',
+  responseSchema: z.object({ status: z.string() }),
+})
+
+const readinessProbe = API.declareEndpoint({
+  method: 'GET',
+  path: '/health/ready',
+  responseSchema: HealthResultSchema,
+})
 
 @Controller()
 class HealthController {
   private health = inject(HealthService)
 
   @Endpoint(healthCheck)
-  async check() {
+  async check(params: EndpointParams<typeof healthCheck>) {
     return this.health.check()
   }
 
   @Endpoint(livenessProbe)
-  async live() {
+  async live(params: EndpointParams<typeof livenessProbe>) {
     // Simple check - is the process running?
     return { status: 'ok' }
   }
 
   @Endpoint(readinessProbe)
-  async ready() {
+  async ready(params: EndpointParams<typeof readinessProbe>) {
     const result = await this.health.check()
 
     if (result.status !== 'healthy') {
@@ -502,22 +495,21 @@ class QueueHealthIndicator implements HealthIndicator {
 ### Registering Custom Indicators
 
 ```typescript
-import { Module } from '@navios/core'
-import { HealthModule } from '@navios/health'
+import { provideHealthService } from '@navios/health'
+
+const HealthToken = provideHealthService({
+  endpoints: true,
+  indicators: [
+    new QueueHealthIndicator(queueClient),
+  ],
+  // Or register as providers for DI
+  indicatorProviders: [
+    CustomHealthIndicator,
+  ],
+})
 
 @Module({
-  imports: [
-    HealthModule.register({
-      endpoints: true,
-      indicators: [
-        new QueueHealthIndicator(queueClient),
-      ],
-      // Or register as providers for DI
-      indicatorProviders: [
-        CustomHealthIndicator,
-      ],
-    }),
-  ],
+  providers: [HealthToken, CustomHealthIndicator],
 })
 class AppModule {}
 ```
@@ -593,6 +585,15 @@ Remove a health indicator.
 this.health.unregisterIndicator('external-api')
 ```
 
+### setShuttingDown()
+
+Mark application as shutting down (readiness will fail).
+
+```typescript
+// In shutdown handler
+this.health.setShuttingDown()
+```
+
 ---
 
 ## Health Status Types
@@ -608,7 +609,7 @@ this.health.unregisterIndicator('external-api')
 ### Configuring Criticality
 
 ```typescript
-HealthModule.register({
+const HealthToken = provideHealthService({
   indicators: [
     // Critical - will cause unhealthy status
     new DatabaseHealthIndicator({
@@ -636,7 +637,7 @@ HealthModule.register({
 Prevent excessive health check calls.
 
 ```typescript
-HealthModule.register({
+const HealthToken = provideHealthService({
   cache: {
     ttl: 5000, // Cache results for 5 seconds
   },
@@ -648,7 +649,7 @@ HealthModule.register({
 Set maximum time for health checks.
 
 ```typescript
-HealthModule.register({
+const HealthToken = provideHealthService({
   timeout: 10000, // 10 second global timeout
 })
 ```
@@ -696,15 +697,14 @@ spec:
 ### Graceful Shutdown
 
 ```typescript
-import { Module, OnModuleDestroy } from '@navios/core'
+import { Injectable, inject } from '@navios/di'
 import { HealthService } from '@navios/health'
-import { inject } from '@navios/di'
 
-@Module({})
-class AppModule implements OnModuleDestroy {
+@Injectable()
+class ShutdownHandler {
   private health = inject(HealthService)
 
-  async onModuleDestroy() {
+  async onShutdown(): Promise<void> {
     // Mark as unhealthy during shutdown
     // Kubernetes will stop routing traffic
     this.health.setShuttingDown()
@@ -717,102 +717,72 @@ class AppModule implements OnModuleDestroy {
 
 ---
 
-## OpenAPI Integration
-
-Automatically document health endpoints.
-
-```typescript
-import { Module } from '@navios/core'
-import { HealthModule } from '@navios/health'
-import { OpenApiModule } from '@navios/openapi'
-
-@Module({
-  imports: [
-    OpenApiModule.register({ /* ... */ }),
-    HealthModule.register({
-      endpoints: true,
-      openapi: {
-        // Add to OpenAPI spec
-        enabled: true,
-        tags: ['Health'],
-      },
-    }),
-  ],
-})
-class AppModule {}
-```
-
----
-
 ## Complete Example
 
 ```typescript
-// health.config.ts
+// health.provider.ts
 import {
-  HealthModule,
+  provideHealthService,
   DiskHealthIndicator,
   MemoryHealthIndicator,
   HttpHealthIndicator,
   DatabaseHealthIndicator,
   RedisHealthIndicator,
 } from '@navios/health'
-import { inject } from '@navios/di'
 
-export const healthConfig = HealthModule.registerAsync({
-  useFactory: async () => {
-    const prisma = await inject(PrismaClient)
-    const redis = await inject(RedisClient)
-    const config = await inject(ConfigService)
+export const HealthToken = provideHealthService(async () => {
+  const prisma = await getPrismaClient()
+  const redis = await getRedisClient()
+  const config = await getConfig()
 
-    return {
-      endpoints: {
-        path: '/health',
-        hideDetails: config.isProduction,
-      },
-      cache: {
-        ttl: 5000,
-      },
-      timeout: 10000,
-      indicators: [
-        // System indicators
-        new DiskHealthIndicator({
-          name: 'disk',
-          path: '/',
-          thresholdPercent: 10,
-        }),
-        new MemoryHealthIndicator({
-          name: 'memory',
-          heapThresholdPercent: 90,
-        }),
+  return {
+    endpoints: {
+      path: '/health',
+      hideDetails: config.isProduction,
+    },
+    cache: {
+      ttl: 5000,
+    },
+    timeout: 10000,
+    indicators: [
+      // System indicators
+      new DiskHealthIndicator({
+        name: 'disk',
+        path: '/',
+        thresholdPercent: 10,
+      }),
+      new MemoryHealthIndicator({
+        name: 'memory',
+        heapThresholdPercent: 90,
+      }),
 
-        // Infrastructure indicators
-        new DatabaseHealthIndicator({
-          name: 'database',
-          connection: prisma,
-          critical: true,
-        }),
-        new RedisHealthIndicator({
-          name: 'cache',
-          client: redis,
-          critical: true,
-        }),
+      // Infrastructure indicators (critical)
+      new DatabaseHealthIndicator({
+        name: 'database',
+        connection: prisma,
+        critical: true,
+      }),
+      new RedisHealthIndicator({
+        name: 'cache',
+        client: redis,
+        critical: true,
+      }),
 
-        // External services (non-critical)
-        new HttpHealthIndicator({
-          name: 'payment-gateway',
-          url: config.paymentGateway.healthUrl,
-          timeout: 5000,
-          critical: false,
-        }),
-        new HttpHealthIndicator({
-          name: 'email-service',
-          url: config.emailService.healthUrl,
-          timeout: 5000,
-          critical: false,
-        }),
-      ],
-    }
-  },
+      // External services (non-critical)
+      new HttpHealthIndicator({
+        name: 'payment-gateway',
+        url: config.paymentGateway.healthUrl,
+        timeout: 5000,
+        critical: false,
+      }),
+      new HttpHealthIndicator({
+        name: 'email-service',
+        url: config.emailService.healthUrl,
+        timeout: 5000,
+        critical: false,
+      }),
+    ],
+  }
 })
 ```
 
@@ -829,7 +799,7 @@ class MonitoringService {
   private metrics = inject(MetricsService)
 
   @Cron(Schedule.EveryMinute)
-  async checkAndReport() {
+  async checkAndReport(): Promise<void> {
     const result = await this.health.check()
 
     // Record metrics
@@ -883,10 +853,10 @@ class QueueHealthIndicator {
 ```typescript
 // modules/app.module.ts
 import { Module } from '@navios/core'
+import { HealthToken } from './health.provider'
 
 @Module({
-  imports: [healthConfig],
-  providers: [MonitoringService, QueueHealthIndicator],
+  providers: [HealthToken, MonitoringService, QueueHealthIndicator],
 })
 class AppModule {}
 ```
@@ -895,11 +865,16 @@ class AppModule {}
 
 ## API Reference Summary
 
-### Module Exports
+### Provider Function
+
+| Export               | Type     | Description                      |
+| -------------------- | -------- | -------------------------------- |
+| `provideHealthService` | Function | Creates health service provider |
+
+### Service & Types
 
 | Export                       | Type       | Description                    |
 | ---------------------------- | ---------- | ------------------------------ |
-| `HealthModule`               | Module     | Health module configuration    |
 | `HealthService`              | Class      | Main health service            |
 | `HealthCheck`                | Decorator  | Mark method as health check    |
 | `DiskHealthIndicator`        | Class      | Disk space indicator           |

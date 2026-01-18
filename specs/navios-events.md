@@ -17,8 +17,8 @@
 ### Architecture Overview
 
 ```
-EventModule
-├── EventEmitter (main service)
+EventEmitter
+├── Core Operations
 │   ├── emit(event, payload) - Emit events
 │   ├── emitAsync(event, payload) - Emit and await handlers
 │   └── emitSeries(event, payload) - Emit sequentially
@@ -50,34 +50,47 @@ EventModule
 
 ## Setup
 
-### Basic Configuration
+### Provider Function
+
+The event service is configured using the `provideEventService()` function which returns an `InjectionToken`.
 
 ```typescript
-import { Module } from '@navios/core'
-import { EventModule } from '@navios/events'
+import { provideEventService } from '@navios/events'
 
-@Module({
-  imports: [EventModule.register()],
+// Basic configuration
+const EventToken = provideEventService()
+
+// With options
+const EventToken = provideEventService({
+  wildcard: true,           // Enable wildcard patterns
+  delimiter: '.',           // Event name delimiter
+  maxListeners: 100,        // Max listeners per event
+  ignoreErrors: false,      // Throw on handler errors
+  verboseMemoryLeak: true,  // Warn on potential leaks
 })
-class AppModule {}
+
+// Async configuration
+const EventToken = provideEventService(async () => {
+  const config = await loadConfig()
+  return {
+    wildcard: config.events.wildcard,
+    maxListeners: config.events.maxListeners,
+  }
+})
 ```
 
-### With Options
+### Module Registration
 
 ```typescript
 import { Module } from '@navios/core'
-import { EventModule } from '@navios/events'
+import { provideEventService } from '@navios/events'
+
+const EventToken = provideEventService({
+  wildcard: true,
+})
 
 @Module({
-  imports: [
-    EventModule.register({
-      wildcard: true,           // Enable wildcard patterns
-      delimiter: '.',           // Event name delimiter
-      maxListeners: 100,        // Max listeners per event
-      ignoreErrors: false,      // Throw on handler errors
-      verboseMemoryLeak: true,  // Warn on potential leaks
-    }),
-  ],
+  providers: [EventToken, EmailHandler, AnalyticsHandler],
 })
 class AppModule {}
 ```
@@ -427,63 +440,6 @@ class OrderHandlers {
 
 ---
 
-## Request-Scoped Events
-
-Events that are scoped to the current request context.
-
-### Configuration
-
-```typescript
-import { Module } from '@navios/core'
-import { EventModule } from '@navios/events'
-
-@Module({
-  imports: [
-    EventModule.register({
-      enableRequestScope: true,
-    }),
-  ],
-})
-class AppModule {}
-```
-
-### Usage
-
-```typescript
-import { Injectable, Scope } from '@navios/di'
-import { OnEvent, RequestEventEmitter } from '@navios/events'
-
-// Emit request-scoped events
-@Injectable({ scope: Scope.Request })
-class OrderController {
-  private events = inject(RequestEventEmitter)
-
-  @Endpoint(createOrder)
-  async create(params: EndpointParams<typeof createOrder>) {
-    const order = await this.orderService.create(params.data)
-
-    // Only handlers in this request scope will receive this event
-    this.events.emit(OrderEvents.Created, { order })
-
-    return order
-  }
-}
-
-// Listen to request-scoped events
-@Injectable({ scope: Scope.Request })
-class RequestAuditService {
-  private request = inject(Request)
-
-  @OnEvent(OrderEvents.Created, { scope: 'request' })
-  async auditOrderCreation(payload: OrderCreatedPayload) {
-    // Has access to request context
-    console.log(`User ${this.request.user.id} created order`)
-  }
-}
-```
-
----
-
 ## Error Handling
 
 ### Default Behavior
@@ -517,7 +473,7 @@ class RiskyHandler {
 }
 
 // Global configuration
-EventModule.register({
+const EventToken = provideEventService({
   ignoreErrors: true, // All handler errors are suppressed
   onError: (error, eventName, handler) => {
     // Custom error handling
@@ -587,8 +543,8 @@ class EventQueueBridge {
 
 ```typescript
 import { TestContainer } from '@navios/di/testing'
-import { EventEmitter, EventModule } from '@navios/events'
-import { describe, it, expect, vi } from 'vitest'
+import { provideEventService, EventEmitter } from '@navios/events'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 describe('UserService', () => {
   let container: TestContainer
@@ -596,7 +552,7 @@ describe('UserService', () => {
 
   beforeEach(() => {
     container = new TestContainer()
-    container.import(EventModule.register())
+    container.register(provideEventService())
     eventEmitter = container.get(EventEmitter)
   })
 
@@ -621,7 +577,7 @@ describe('UserService', () => {
 ```typescript
 import { TestContainer } from '@navios/di/testing'
 import { EventEmitter } from '@navios/events'
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 describe('EmailService', () => {
   let container: TestContainer
@@ -698,6 +654,18 @@ export namespace OrderEvents {
 ```
 
 ```typescript
+// events.provider.ts
+import { provideEventService } from '@navios/events'
+
+export const EventToken = provideEventService({
+  wildcard: true,
+  onError: (error, eventName) => {
+    console.error(`Event handler error [${eventName}]:`, error)
+  },
+})
+```
+
+```typescript
 // services/user.service.ts
 import { Injectable, inject } from '@navios/di'
 import { EventEmitter } from '@navios/events'
@@ -751,6 +719,7 @@ import { UserEvents, OrderEvents } from '../events'
 @Injectable()
 class EmailHandler {
   private mailer = inject(MailerService)
+  private userService = inject(UserService)
 
   @OnEvent(UserEvents.Created)
   async sendWelcomeEmail(payload: typeof UserEvents.Created.payload) {
@@ -825,25 +794,18 @@ class AuditHandler {
 ```typescript
 // modules/app.module.ts
 import { Module } from '@navios/core'
-import { EventModule } from '@navios/events'
+import { EventToken } from './events.provider'
 
 @Module({
-  imports: [
-    EventModule.register({
-      wildcard: true,
-      onError: (error, eventName) => {
-        console.error(`Event handler error [${eventName}]:`, error)
-      },
-    }),
-  ],
-  controllers: [UserController, OrderController],
   providers: [
+    EventToken,
     UserService,
     OrderService,
     EmailHandler,
     AnalyticsHandler,
     AuditHandler,
   ],
+  controllers: [UserController, OrderController],
 })
 class AppModule {}
 ```
@@ -852,13 +814,17 @@ class AppModule {}
 
 ## API Reference Summary
 
-### Module Exports
+### Provider Function
+
+| Export               | Type     | Description                     |
+| -------------------- | -------- | ------------------------------- |
+| `provideEventService`| Function | Creates event service provider  |
+
+### Service & Types
 
 | Export                | Type         | Description                     |
 | --------------------- | ------------ | ------------------------------- |
-| `EventModule`         | Module       | Event module configuration      |
 | `EventEmitter`        | Class        | Main event emitter service      |
-| `RequestEventEmitter` | Class        | Request-scoped event emitter    |
 | `EventToken`          | Class        | Type-safe event token factory   |
 | `OnEvent`             | Decorator    | Listen to single event          |
 | `OnEvents`            | Decorator    | Listen to multiple events       |
@@ -886,4 +852,3 @@ class AppModule {}
 | `maxListeners`      | `number`   | `10`    | Max listeners per event        |
 | `ignoreErrors`      | `boolean`  | `false` | Suppress handler errors        |
 | `onError`           | `Function` | -       | Global error handler           |
-| `enableRequestScope`| `boolean`  | `false` | Enable request-scoped events   |

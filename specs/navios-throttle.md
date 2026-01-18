@@ -18,8 +18,8 @@
 ### Architecture Overview
 
 ```
-ThrottleModule
-├── ThrottlerGuard (global rate limiting)
+ThrottleService
+├── ThrottlerGuard (rate limiting guard)
 │   ├── Checks rate limits before request processing
 │   ├── Returns 429 Too Many Requests when exceeded
 │   └── Adds rate limit headers to responses
@@ -36,8 +36,7 @@ ThrottleModule
 │
 └── Decorators
     ├── @Throttle() - Configure rate limits
-    ├── @SkipThrottle() - Bypass rate limiting
-    └── @ThrottleKey() - Custom key extraction
+    └── @SkipThrottle() - Bypass rate limiting
 ```
 
 ### Key Principles
@@ -52,114 +51,104 @@ ThrottleModule
 
 ## Setup
 
-### Basic Configuration
+### Provider Function
+
+The throttle service is configured using the `provideThrottleService()` function which returns an `InjectionToken`.
 
 ```typescript
-import { Module } from '@navios/core'
-import { ThrottleModule } from '@navios/throttle'
+import { provideThrottleService } from '@navios/throttle'
 
-@Module({
-  imports: [
-    ThrottleModule.register({
-      throttlers: [
-        {
-          name: 'default',
-          ttl: 60_000,    // Time window: 60 seconds
-          limit: 100,     // Max requests per window
-        },
-      ],
-    }),
+// Static configuration
+const ThrottleToken = provideThrottleService({
+  throttlers: [
+    {
+      name: 'default',
+      ttl: 60_000,    // Time window: 60 seconds
+      limit: 100,     // Max requests per window
+    },
   ],
 })
-class AppModule {}
+
+// Async configuration
+const ThrottleToken = provideThrottleService(async () => {
+  const config = await loadConfig()
+  return {
+    storage: new RedisThrottleStorage({
+      host: config.redis.host,
+      port: config.redis.port,
+    }),
+    throttlers: [
+      {
+        name: 'default',
+        ttl: config.rateLimit.ttl,
+        limit: config.rateLimit.limit,
+      },
+    ],
+  }
+})
 ```
 
 ### Multiple Rate Limits
 
 ```typescript
-import { Module } from '@navios/core'
-import { ThrottleModule } from '@navios/throttle'
+import { provideThrottleService } from '@navios/throttle'
 
-@Module({
-  imports: [
-    ThrottleModule.register({
-      throttlers: [
-        // Short-term: 10 requests per second
-        {
-          name: 'short',
-          ttl: 1_000,
-          limit: 10,
-        },
-        // Medium-term: 100 requests per minute
-        {
-          name: 'medium',
-          ttl: 60_000,
-          limit: 100,
-        },
-        // Long-term: 1000 requests per hour
-        {
-          name: 'long',
-          ttl: 3_600_000,
-          limit: 1000,
-        },
-      ],
-    }),
+const ThrottleToken = provideThrottleService({
+  throttlers: [
+    // Short-term: 10 requests per second
+    {
+      name: 'short',
+      ttl: 1_000,
+      limit: 10,
+    },
+    // Medium-term: 100 requests per minute
+    {
+      name: 'medium',
+      ttl: 60_000,
+      limit: 100,
+    },
+    // Long-term: 1000 requests per hour
+    {
+      name: 'long',
+      ttl: 3_600_000,
+      limit: 1000,
+    },
   ],
 })
-class AppModule {}
 ```
 
 ### Redis Storage (Distributed)
 
 ```typescript
-import { Module } from '@navios/core'
-import { ThrottleModule, RedisThrottleStorage } from '@navios/throttle'
+import { provideThrottleService, RedisThrottleStorage } from '@navios/throttle'
 
-@Module({
-  imports: [
-    ThrottleModule.register({
-      storage: new RedisThrottleStorage({
-        host: 'localhost',
-        port: 6379,
-        keyPrefix: 'throttle:',
-      }),
-      throttlers: [
-        { name: 'default', ttl: 60_000, limit: 100 },
-      ],
-    }),
+const ThrottleToken = provideThrottleService({
+  storage: new RedisThrottleStorage({
+    host: 'localhost',
+    port: 6379,
+    keyPrefix: 'throttle:',
+  }),
+  throttlers: [
+    { name: 'default', ttl: 60_000, limit: 100 },
   ],
 })
-class AppModule {}
 ```
 
-### Async Configuration
+### Module Registration
 
 ```typescript
 import { Module } from '@navios/core'
-import { ThrottleModule, RedisThrottleStorage } from '@navios/throttle'
-import { inject } from '@navios/di'
+import { provideThrottleService, ThrottlerGuard } from '@navios/throttle'
+
+const ThrottleToken = provideThrottleService({
+  throttlers: [
+    { name: 'default', ttl: 60_000, limit: 100 },
+  ],
+})
 
 @Module({
-  imports: [
-    ThrottleModule.registerAsync({
-      useFactory: async () => {
-        const config = await inject(ConfigService)
-        return {
-          storage: new RedisThrottleStorage({
-            host: config.redis.host,
-            port: config.redis.port,
-          }),
-          throttlers: [
-            {
-              name: 'default',
-              ttl: config.rateLimit.ttl,
-              limit: config.rateLimit.limit,
-            },
-          ],
-        }
-      },
-    }),
-  ],
+  providers: [ThrottleToken],
+  guards: [ThrottlerGuard],
 })
 class AppModule {}
 ```
@@ -181,12 +170,12 @@ import { Throttle } from '@navios/throttle'
 @Throttle({ limit: 50, ttl: 60_000 })
 class ApiController {
   @Endpoint(listItems)
-  async list() { }
+  async list(params: EndpointParams<typeof listItems>) { }
 
   // Endpoint-level override
   @Endpoint(createItem)
   @Throttle({ limit: 10, ttl: 60_000 })
-  async create() { }
+  async create(params: EndpointParams<typeof createItem>) { }
 
   // Multiple throttlers
   @Endpoint(heavyOperation)
@@ -194,7 +183,7 @@ class ApiController {
     { name: 'short', limit: 2, ttl: 1_000 },
     { name: 'long', limit: 20, ttl: 60_000 },
   ])
-  async heavy() { }
+  async heavy(params: EndpointParams<typeof heavyOperation>) { }
 }
 ```
 
@@ -221,14 +210,14 @@ class ApiController {
   // This endpoint is not rate limited
   @Endpoint(healthCheck)
   @SkipThrottle()
-  async health() {
+  async health(params: EndpointParams<typeof healthCheck>) {
     return { status: 'ok' }
   }
 
   // Skip only specific throttler
   @Endpoint(internalEndpoint)
   @SkipThrottle('long')
-  async internal() { }
+  async internal(params: EndpointParams<typeof internalEndpoint>) { }
 }
 
 // Skip all throttling for entire controller
@@ -236,40 +225,7 @@ class ApiController {
 @SkipThrottle()
 class InternalController {
   @Endpoint(metrics)
-  async metrics() { }
-}
-```
-
-### @ThrottleKey(extractor)
-
-Custom key extraction for rate limiting.
-
-```typescript
-import { Controller, Endpoint } from '@navios/core'
-import { Throttle, ThrottleKey } from '@navios/throttle'
-
-@Controller()
-class ApiController {
-  // Rate limit by API key instead of IP
-  @Endpoint(apiEndpoint)
-  @Throttle({ limit: 1000, ttl: 60_000 })
-  @ThrottleKey((context) => context.getRequest().headers['x-api-key'])
-  async byApiKey() { }
-
-  // Rate limit by user ID
-  @Endpoint(userEndpoint)
-  @Throttle({ limit: 100, ttl: 60_000 })
-  @ThrottleKey((context) => context.getRequest().user?.id)
-  async byUser() { }
-
-  // Composite key
-  @Endpoint(tenantEndpoint)
-  @Throttle({ limit: 500, ttl: 60_000 })
-  @ThrottleKey((context) => {
-    const req = context.getRequest()
-    return `${req.user?.tenantId}:${req.user?.id}`
-  })
-  async byTenantAndUser() { }
+  async metrics(params: EndpointParams<typeof metrics>) { }
 }
 ```
 
@@ -282,7 +238,7 @@ class ApiController {
 Simple counter that resets after the time window.
 
 ```typescript
-ThrottleModule.register({
+const ThrottleToken = provideThrottleService({
   throttlers: [
     {
       name: 'default',
@@ -304,7 +260,7 @@ ThrottleModule.register({
 More accurate rate limiting using a sliding time window.
 
 ```typescript
-ThrottleModule.register({
+const ThrottleToken = provideThrottleService({
   throttlers: [
     {
       name: 'default',
@@ -326,7 +282,7 @@ ThrottleModule.register({
 Allows controlled bursting while maintaining average rate.
 
 ```typescript
-ThrottleModule.register({
+const ThrottleToken = provideThrottleService({
   throttlers: [
     {
       name: 'default',
@@ -353,9 +309,9 @@ ThrottleModule.register({
 In-memory storage using LRU cache. Best for single-instance deployments.
 
 ```typescript
-import { ThrottleModule, MemoryThrottleStorage } from '@navios/throttle'
+import { provideThrottleService, MemoryThrottleStorage } from '@navios/throttle'
 
-ThrottleModule.register({
+const ThrottleToken = provideThrottleService({
   storage: new MemoryThrottleStorage({
     max: 10_000, // Max tracked keys
   }),
@@ -376,9 +332,9 @@ ThrottleModule.register({
 Redis-backed storage for distributed rate limiting.
 
 ```typescript
-import { ThrottleModule, RedisThrottleStorage } from '@navios/throttle'
+import { provideThrottleService, RedisThrottleStorage } from '@navios/throttle'
 
-ThrottleModule.register({
+const ThrottleToken = provideThrottleService({
   storage: new RedisThrottleStorage({
     host: 'localhost',
     port: 6379,
@@ -452,7 +408,7 @@ interface ThrottleStorage {
   get(key: string): Promise<ThrottleRecord | null>
 
   // Lifecycle
-  onModuleDestroy?(): Promise<void>
+  onServiceDestroy?(): Promise<void>
 }
 
 interface ThrottleRecord {
@@ -479,7 +435,7 @@ Retry-After: 45  (only when rate limited)
 ### Customizing Headers
 
 ```typescript
-ThrottleModule.register({
+const ThrottleToken = provideThrottleService({
   throttlers: [
     { name: 'default', ttl: 60_000, limit: 100 },
   ],
@@ -513,16 +469,16 @@ When rate limit is exceeded, a 429 response is returned:
 ### Custom Error Response
 
 ```typescript
-import { ThrottleModule, ThrottlerException } from '@navios/throttle'
+import { provideThrottleService, ThrottlerException } from '@navios/throttle'
 
-ThrottleModule.register({
+const ThrottleToken = provideThrottleService({
   throttlers: [
     { name: 'default', ttl: 60_000, limit: 100 },
   ],
   errorMessage: 'Rate limit exceeded. Please try again later.',
 
   // Or use a factory
-  errorFactory: (context, throttlerName, record) => {
+  errorFactory: (request, throttlerName, record) => {
     return new ThrottlerException({
       message: `Rate limit exceeded for ${throttlerName}`,
       retryAfter: record.timeToReset,
@@ -603,16 +559,15 @@ if (record) {
 ### IP-based with Proxy Support
 
 ```typescript
-ThrottleModule.register({
+const ThrottleToken = provideThrottleService({
   throttlers: [
     { name: 'default', ttl: 60_000, limit: 100 },
   ],
   // Trust X-Forwarded-For header
-  getTracker: (context) => {
-    const req = context.getRequest()
-    return req.headers['x-forwarded-for']?.split(',')[0]?.trim()
-      ?? req.headers['x-real-ip']
-      ?? req.ip
+  getTracker: (params) => {
+    return params.request.headers['x-forwarded-for']?.split(',')[0]?.trim()
+      ?? params.request.headers['x-real-ip']
+      ?? params.request.ip
   },
 })
 ```
@@ -627,58 +582,52 @@ import { Throttle } from '@navios/throttle'
 class ApiController {
   @Endpoint(apiCall)
   @Throttle({
-    limit: (context) => {
-      const user = context.getRequest().user
+    limit: (params) => {
+      const user = params.request.user
       if (user?.role === 'premium') return 1000
       if (user?.role === 'basic') return 100
       return 10 // anonymous
     },
     ttl: 60_000,
   })
-  async call() { }
+  async call(params: EndpointParams<typeof apiCall>) { }
 }
 ```
 
 ### Endpoint-Specific Throttling
 
 ```typescript
-import { Module } from '@navios/core'
-import { ThrottleModule } from '@navios/throttle'
+import { provideThrottleService, ThrottlerGuard, Throttle } from '@navios/throttle'
 
-@Module({
-  imports: [
-    ThrottleModule.register({
-      throttlers: [
-        // General API
-        { name: 'api', ttl: 60_000, limit: 100 },
-        // Authentication endpoints
-        { name: 'auth', ttl: 60_000, limit: 5 },
-        // File uploads
-        { name: 'upload', ttl: 3_600_000, limit: 10 },
-        // Search/expensive operations
-        { name: 'search', ttl: 60_000, limit: 20 },
-      ],
-    }),
+const ThrottleToken = provideThrottleService({
+  throttlers: [
+    // General API
+    { name: 'api', ttl: 60_000, limit: 100 },
+    // Authentication endpoints
+    { name: 'auth', ttl: 60_000, limit: 5 },
+    // File uploads
+    { name: 'upload', ttl: 3_600_000, limit: 10 },
+    // Search/expensive operations
+    { name: 'search', ttl: 60_000, limit: 20 },
   ],
 })
-class AppModule {}
 
 @Controller()
 class AuthController {
   @Endpoint(login)
   @Throttle({ name: 'auth' })
-  async login() { }
+  async login(params: EndpointParams<typeof login>) { }
 
   @Endpoint(register)
   @Throttle({ name: 'auth', limit: 3 }) // Even stricter
-  async register() { }
+  async register(params: EndpointParams<typeof register>) { }
 }
 
 @Controller()
 class UploadController {
   @Endpoint(uploadFile)
   @Throttle({ name: 'upload' })
-  async upload() { }
+  async upload(params: EndpointParams<typeof uploadFile>) { }
 }
 ```
 
@@ -686,11 +635,13 @@ class UploadController {
 
 ```typescript
 import { Module, Controller, UseGuards } from '@navios/core'
-import { ThrottlerGuard, Throttle } from '@navios/throttle'
+import { provideThrottleService, ThrottlerGuard, Throttle } from '@navios/throttle'
+
+const ThrottleToken = provideThrottleService({ /* ... */ })
 
 // Apply globally via module
 @Module({
-  imports: [ThrottleModule.register({ /* ... */ })],
+  providers: [ThrottleToken],
   guards: [ThrottlerGuard],
 })
 class AppModule {}
@@ -707,10 +658,10 @@ class ProtectedController { }
 ## Complete Example
 
 ```typescript
-// throttle.config.ts
-import { ThrottleModule, RedisThrottleStorage } from '@navios/throttle'
+// throttle.provider.ts
+import { provideThrottleService, RedisThrottleStorage } from '@navios/throttle'
 
-export const throttleConfig = ThrottleModule.register({
+export const ThrottleToken = provideThrottleService({
   storage: new RedisThrottleStorage({
     host: process.env.REDIS_HOST ?? 'localhost',
     port: 6379,
@@ -722,10 +673,9 @@ export const throttleConfig = ThrottleModule.register({
     { name: 'api', ttl: 1_000, limit: 10 },
     { name: 'heavy', ttl: 3_600_000, limit: 50 },
   ],
-  getTracker: (context) => {
-    const req = context.getRequest()
+  getTracker: (params) => {
     // Prefer user ID, fall back to IP
-    return req.user?.id ?? req.ip
+    return params.request.user?.id ?? params.request.ip
   },
 })
 ```
@@ -735,6 +685,32 @@ export const throttleConfig = ThrottleModule.register({
 import { Controller, Endpoint, UseGuards } from '@navios/core'
 import { inject } from '@navios/di'
 import { Throttle, SkipThrottle, ThrottlerGuard } from '@navios/throttle'
+import { builder } from '@navios/builder'
+import { z } from 'zod'
+
+const API = builder()
+
+const listData = API.declareEndpoint({
+  method: 'GET',
+  path: '/data',
+  querySchema: z.object({
+    page: z.coerce.number().default(1),
+  }),
+  responseSchema: z.array(DataSchema),
+})
+
+const createData = API.declareEndpoint({
+  method: 'POST',
+  path: '/data',
+  bodySchema: DataCreateSchema,
+  responseSchema: DataSchema,
+})
+
+const health = API.declareEndpoint({
+  method: 'GET',
+  path: '/health',
+  responseSchema: z.object({ status: z.string() }),
+})
 
 @Controller()
 @UseGuards(ThrottlerGuard)
@@ -747,29 +723,17 @@ class ApiController {
     return this.dataService.findAll(params.query)
   }
 
-  @Endpoint(getData)
-  async get(params: EndpointParams<typeof getData>) {
-    return this.dataService.findById(params.id)
-  }
-
   // More restrictive for mutations
   @Endpoint(createData)
   @Throttle({ limit: 20, ttl: 60_000 })
   async create(params: EndpointParams<typeof createData>) {
-    return this.dataService.create(params.data)
-  }
-
-  // Heavy operation with its own limit
-  @Endpoint(exportData)
-  @Throttle({ name: 'heavy' })
-  async export(params: EndpointParams<typeof exportData>) {
-    return this.dataService.export(params.query)
+    return this.dataService.create(params.body)
   }
 
   // Health check - no rate limiting
   @Endpoint(health)
   @SkipThrottle()
-  async health() {
+  async health(params: EndpointParams<typeof health>) {
     return { status: 'ok' }
   }
 }
@@ -778,7 +742,29 @@ class ApiController {
 ```typescript
 // controllers/auth.controller.ts
 import { Controller, Endpoint, UseGuards } from '@navios/core'
-import { Throttle, ThrottlerGuard, ThrottleKey } from '@navios/throttle'
+import { inject } from '@navios/di'
+import { Throttle, ThrottlerGuard } from '@navios/throttle'
+import { builder } from '@navios/builder'
+import { z } from 'zod'
+
+const API = builder()
+
+const login = API.declareEndpoint({
+  method: 'POST',
+  path: '/auth/login',
+  bodySchema: z.object({
+    email: z.string().email(),
+    password: z.string(),
+  }),
+  responseSchema: TokenResponseSchema,
+})
+
+const register = API.declareEndpoint({
+  method: 'POST',
+  path: '/auth/register',
+  bodySchema: RegisterSchema,
+  responseSchema: UserSchema,
+})
 
 @Controller()
 @UseGuards(ThrottlerGuard)
@@ -787,22 +773,14 @@ class AuthController {
   private authService = inject(AuthService)
 
   @Endpoint(login)
-  @ThrottleKey((ctx) => ctx.getRequest().body.email) // Rate limit by email
   async login(params: EndpointParams<typeof login>) {
-    return this.authService.login(params.data)
+    return this.authService.login(params.body)
   }
 
   @Endpoint(register)
   @Throttle({ limit: 3, ttl: 3_600_000 }) // 3 per hour
   async register(params: EndpointParams<typeof register>) {
-    return this.authService.register(params.data)
-  }
-
-  @Endpoint(forgotPassword)
-  @Throttle({ limit: 3, ttl: 3_600_000 })
-  @ThrottleKey((ctx) => ctx.getRequest().body.email)
-  async forgotPassword(params: EndpointParams<typeof forgotPassword>) {
-    return this.authService.sendResetEmail(params.data.email)
+    return this.authService.register(params.body)
   }
 }
 ```
@@ -812,9 +790,11 @@ class AuthController {
 import { Module } from '@navios/core'
 import { NaviosFactory } from '@navios/core'
 import { defineFastifyEnvironment } from '@navios/adapter-fastify'
+import { ThrottleToken } from './throttle.provider'
 
 @Module({
-  imports: [throttleConfig, ApiModule, AuthModule],
+  providers: [ThrottleToken],
+  controllers: [ApiController, AuthController],
 })
 class AppModule {}
 
@@ -833,18 +813,22 @@ bootstrap()
 
 ## API Reference Summary
 
-### Module Exports
+### Provider Function
+
+| Export                 | Type     | Description                      |
+| ---------------------- | -------- | -------------------------------- |
+| `provideThrottleService` | Function | Creates throttle service provider |
+
+### Service & Types
 
 | Export                  | Type      | Description                      |
 | ----------------------- | --------- | -------------------------------- |
-| `ThrottleModule`        | Module    | Throttle module configuration    |
 | `ThrottlerGuard`        | Guard     | Rate limiting guard              |
 | `ThrottlerService`      | Class     | Programmatic throttle control    |
 | `MemoryThrottleStorage` | Class     | In-memory storage                |
 | `RedisThrottleStorage`  | Class     | Redis storage                    |
 | `Throttle`              | Decorator | Configure rate limits            |
 | `SkipThrottle`          | Decorator | Bypass rate limiting             |
-| `ThrottleKey`           | Decorator | Custom key extraction            |
 | `ThrottlerException`    | Exception | Rate limit exceeded error        |
 
 ### ThrottlerService Methods

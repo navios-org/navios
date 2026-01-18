@@ -28,20 +28,47 @@
 
 ## Proposed API
 
-### Server Setup
+### Provider Function
+
+The gRPC service is configured using `provideGrpcService()` which returns an `InjectionToken`.
+
+```typescript
+import { provideGrpcService } from '@navios/grpc'
+
+const GrpcToken = provideGrpcService({
+  protoPath: './protos/service.proto',
+  package: 'myapp',
+  url: '0.0.0.0:5000',
+})
+
+// Async configuration
+const GrpcToken = provideGrpcService(async () => {
+  const config = await loadConfig()
+  return {
+    protoPath: config.grpc.protoPath,
+    package: config.grpc.package,
+    url: config.grpc.url,
+    credentials: config.grpc.useTls
+      ? grpc.credentials.createSsl()
+      : grpc.credentials.createInsecure(),
+  }
+})
+```
+
+### Module Registration
 
 ```typescript
 import { Module } from '@navios/core'
-import { GrpcModule } from '@navios/grpc'
+import { provideGrpcService } from '@navios/grpc'
+
+const GrpcToken = provideGrpcService({
+  protoPath: './protos/service.proto',
+  package: 'myapp',
+  url: '0.0.0.0:5000',
+})
 
 @Module({
-  imports: [
-    GrpcModule.register({
-      protoPath: './protos/service.proto',
-      package: 'myapp',
-      url: '0.0.0.0:5000',
-    }),
-  ],
+  providers: [GrpcToken, UserGrpcService],
 })
 class AppModule {}
 ```
@@ -68,7 +95,7 @@ class UserGrpcService {
   }
 
   @GrpcStreamMethod()
-  async listUsers(request: ListUsersRequest): AsyncIterable<User> {
+  async *listUsers(request: ListUsersRequest): AsyncIterable<User> {
     const users = await this.userService.findAll(request.filter)
     for (const user of users) {
       yield user
@@ -76,7 +103,7 @@ class UserGrpcService {
   }
 
   @GrpcStreamMethod('bidirectional')
-  async chat(
+  async *chat(
     messages: AsyncIterable<ChatMessage>
   ): AsyncIterable<ChatMessage> {
     for await (const message of messages) {
@@ -93,12 +120,17 @@ class UserGrpcService {
 
 ```typescript
 import { Injectable, inject } from '@navios/di'
-import { GrpcClient, InjectGrpcClient } from '@navios/grpc'
+import { GrpcClientFactory } from '@navios/grpc'
 
 @Injectable()
 class OrderService {
-  @InjectGrpcClient('UserService')
-  private userClient!: UserServiceClient
+  // Inject gRPC client using inject pattern
+  private grpcFactory = inject(GrpcClientFactory)
+
+  // Get typed client lazily
+  private get userClient() {
+    return this.grpcFactory.getClient<UserServiceClient>('UserService')
+  }
 
   async processOrder(userId: string, items: OrderItem[]) {
     // Type-safe gRPC call
@@ -110,6 +142,31 @@ class OrderService {
       console.log(user)
     }
   }
+}
+```
+
+### Client Provider
+
+```typescript
+import { provideGrpcClient } from '@navios/grpc'
+
+// Provide client for a specific service
+const UserClientToken = provideGrpcClient({
+  service: 'UserService',
+  package: 'myapp',
+  protoPath: './protos/user.proto',
+  url: 'user-service:5000',
+})
+
+@Module({
+  providers: [UserClientToken],
+})
+class AppModule {}
+
+// Usage
+@Injectable()
+class OrderService {
+  private userClient = inject(UserServiceClient)
 }
 ```
 
@@ -171,24 +228,35 @@ Two approaches under consideration:
 ### Interceptors
 
 ```typescript
-import { GrpcInterceptor, GrpcCallHandler } from '@navios/grpc'
+import { Injectable, inject } from '@navios/di'
+import { GrpcInterceptor, GrpcCallHandler, GrpcCall } from '@navios/grpc'
 
 @Injectable()
 class LoggingInterceptor implements GrpcInterceptor {
+  private logger = inject(Logger)
+
   async intercept(call: GrpcCall, next: GrpcCallHandler) {
     const start = Date.now()
-    console.log(`gRPC ${call.method} started`)
+    this.logger.log(`gRPC ${call.method} started`)
 
     try {
       const result = await next.handle(call)
-      console.log(`gRPC ${call.method} completed in ${Date.now() - start}ms`)
+      this.logger.log(`gRPC ${call.method} completed in ${Date.now() - start}ms`)
       return result
     } catch (error) {
-      console.error(`gRPC ${call.method} failed:`, error)
+      this.logger.error(`gRPC ${call.method} failed:`, error)
       throw error
     }
   }
 }
+
+// Register interceptor
+const GrpcToken = provideGrpcService({
+  protoPath: './protos/service.proto',
+  package: 'myapp',
+  url: '0.0.0.0:5000',
+  interceptors: [LoggingInterceptor],
+})
 ```
 
 ### Error Handling
@@ -198,6 +266,8 @@ import { GrpcException, GrpcStatus } from '@navios/grpc'
 
 @GrpcService('UserService')
 class UserGrpcService {
+  private userService = inject(UserService)
+
   @GrpcMethod()
   async getUser(request: GetUserRequest): Promise<User> {
     const user = await this.userService.findById(request.id)
@@ -246,10 +316,11 @@ class UserGrpcService {
 
 ## Implementation Priority
 
-- [ ] Basic server setup and service registration
+- [ ] Basic server setup with `provideGrpcService()`
+- [ ] Service registration with decorators
 - [ ] Unary RPC methods
 - [ ] Server streaming
-- [ ] Client generation
+- [ ] Client generation with `provideGrpcClient()`
 - [ ] Interceptors
 - [ ] Client streaming
 - [ ] Bidirectional streaming

@@ -23,8 +23,8 @@
 ### Architecture Overview
 
 ```
-MailModule
-├── MailService (main service)
+MailService
+├── Core Operations
 │   ├── send(message) - Send single email
 │   ├── sendMany(messages) - Send multiple emails
 │   ├── sendTemplate(template, data) - Send from template
@@ -48,168 +48,129 @@ MailModule
     ├── Attachments
     ├── Inline images
     ├── Queue integration
-    └── Preview mode (development)
+    └── Preview mode
 ```
 
 ### Key Principles
 
-- **Unified API** - Same interface across all providers
+- **Unified API** - Same interface across all email providers
 - **DI Integration** - Injectable service via @navios/di
 - **Template Support** - Multiple template engines
 - **Type-Safe** - Full TypeScript support
-- **Queue Integration** - Async email delivery via @navios/queues
+- **Queue Integration** - Async email sending
 
 ---
 
 ## Setup
 
-### Basic Configuration (SMTP)
+### Provider Function
+
+The mail service is configured using the `provideMailService()` function which returns an `InjectionToken`.
 
 ```typescript
-import { Module } from '@navios/core'
-import { MailModule, SmtpTransport } from '@navios/mail'
+import { provideMailService, SmtpTransport } from '@navios/mail'
 
-@Module({
-  imports: [
-    MailModule.register({
-      transport: new SmtpTransport({
-        host: 'smtp.example.com',
-        port: 587,
-        secure: false,
-        auth: {
-          user: 'user@example.com',
-          pass: 'password',
-        },
-      }),
-      defaults: {
-        from: '"My App" <noreply@example.com>',
-      },
-    }),
-  ],
+// Basic SMTP configuration
+const MailToken = provideMailService({
+  transport: new SmtpTransport({
+    host: 'smtp.example.com',
+    port: 587,
+    secure: false,
+    auth: {
+      user: process.env.SMTP_USER,
+      pass: process.env.SMTP_PASS,
+    },
+  }),
+  defaults: {
+    from: 'noreply@example.com',
+  },
 })
-class AppModule {}
+
+// Async configuration
+const MailToken = provideMailService(async () => {
+  const config = await loadConfig()
+  return {
+    transport: new SendGridTransport({
+      apiKey: config.sendgrid.apiKey,
+    }),
+    defaults: {
+      from: config.email.defaultFrom,
+    },
+  }
+})
 ```
 
 ### SendGrid Configuration
 
 ```typescript
-import { Module } from '@navios/core'
-import { MailModule, SendGridTransport } from '@navios/mail'
+import { provideMailService, SendGridTransport } from '@navios/mail'
 
-@Module({
-  imports: [
-    MailModule.register({
-      transport: new SendGridTransport({
-        apiKey: process.env.SENDGRID_API_KEY,
-      }),
-      defaults: {
-        from: 'noreply@example.com',
-      },
-    }),
-  ],
+const MailToken = provideMailService({
+  transport: new SendGridTransport({
+    apiKey: process.env.SENDGRID_API_KEY,
+  }),
+  defaults: {
+    from: {
+      email: 'hello@example.com',
+      name: 'My App',
+    },
+  },
 })
-class AppModule {}
 ```
 
 ### AWS SES Configuration
 
 ```typescript
-import { Module } from '@navios/core'
-import { MailModule, SESTransport } from '@navios/mail'
+import { provideMailService, SESTransport } from '@navios/mail'
 
-@Module({
-  imports: [
-    MailModule.register({
-      transport: new SESTransport({
-        region: 'us-east-1',
-        credentials: {
-          accessKeyId: process.env.AWS_ACCESS_KEY_ID,
-          secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
-        },
-      }),
-      defaults: {
-        from: 'noreply@example.com',
-      },
-    }),
-  ],
+const MailToken = provideMailService({
+  transport: new SESTransport({
+    region: 'us-east-1',
+    credentials: {
+      accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+      secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+    },
+  }),
+  defaults: {
+    from: 'noreply@example.com',
+  },
 })
-class AppModule {}
 ```
 
 ### Resend Configuration
 
 ```typescript
-import { Module } from '@navios/core'
-import { MailModule, ResendTransport } from '@navios/mail'
+import { provideMailService, ResendTransport } from '@navios/mail'
 
-@Module({
-  imports: [
-    MailModule.register({
-      transport: new ResendTransport({
-        apiKey: process.env.RESEND_API_KEY,
-      }),
-      defaults: {
-        from: 'My App <noreply@example.com>',
-      },
-    }),
-  ],
+const MailToken = provideMailService({
+  transport: new ResendTransport({
+    apiKey: process.env.RESEND_API_KEY,
+  }),
+  defaults: {
+    from: 'noreply@example.com',
+  },
 })
-class AppModule {}
 ```
 
-### With Templates
+### Module Registration
 
 ```typescript
 import { Module } from '@navios/core'
-import { MailModule, SmtpTransport, HandlebarsAdapter } from '@navios/mail'
+import { provideMailService, SmtpTransport } from '@navios/mail'
 
-@Module({
-  imports: [
-    MailModule.register({
-      transport: new SmtpTransport({
-        host: 'smtp.example.com',
-        port: 587,
-        auth: { user: 'user', pass: 'pass' },
-      }),
-      defaults: {
-        from: 'noreply@example.com',
-      },
-      template: {
-        adapter: new HandlebarsAdapter(),
-        dir: './templates/email',
-        options: {
-          strict: true,
-        },
-      },
-    }),
-  ],
+const MailToken = provideMailService({
+  transport: new SmtpTransport({
+    host: 'smtp.example.com',
+    port: 587,
+    auth: {
+      user: process.env.SMTP_USER,
+      pass: process.env.SMTP_PASS,
+    },
+  }),
 })
-class AppModule {}
-```
-
-### Async Configuration
-
-```typescript
-import { Module } from '@navios/core'
-import { MailModule, SendGridTransport } from '@navios/mail'
-import { inject } from '@navios/di'
 
 @Module({
-  imports: [
-    MailModule.registerAsync({
-      useFactory: async () => {
-        const config = await inject(ConfigService)
-        return {
-          transport: new SendGridTransport({
-            apiKey: config.sendgrid.apiKey,
-          }),
-          defaults: {
-            from: config.mail.from,
-          },
-        }
-      },
-    }),
-  ],
+  providers: [MailToken],
 })
 class AppModule {}
 ```
@@ -235,224 +196,198 @@ class NotificationService {
 Sends a single email.
 
 ```typescript
-// Basic email
+// Simple text email
 await this.mail.send({
   to: 'user@example.com',
-  subject: 'Welcome!',
-  text: 'Welcome to our app!',
+  subject: 'Hello',
+  text: 'Hello World!',
 })
 
 // HTML email
 await this.mail.send({
   to: 'user@example.com',
   subject: 'Welcome!',
-  html: '<h1>Welcome!</h1><p>Thanks for signing up.</p>',
+  html: '<h1>Welcome to our app!</h1>',
 })
 
-// Multiple recipients
+// Full options
 await this.mail.send({
+  from: 'custom@example.com',
   to: ['user1@example.com', 'user2@example.com'],
   cc: 'manager@example.com',
-  bcc: 'archive@example.com',
-  subject: 'Team Update',
-  html: '<p>Here is the weekly update...</p>',
-})
-
-// With attachments
-await this.mail.send({
-  to: 'user@example.com',
-  subject: 'Your Report',
-  html: '<p>Please find your report attached.</p>',
+  bcc: 'audit@example.com',
+  replyTo: 'support@example.com',
+  subject: 'Important Update',
+  text: 'Plain text version',
+  html: '<h1>HTML version</h1>',
   attachments: [
     {
       filename: 'report.pdf',
       content: pdfBuffer,
       contentType: 'application/pdf',
     },
-    {
-      filename: 'data.csv',
-      path: './exports/data.csv', // File path
-    },
-    {
-      filename: 'image.png',
-      content: imageBuffer,
-      cid: 'logo', // For inline images: <img src="cid:logo">
-    },
   ],
-})
-
-// With reply-to
-await this.mail.send({
-  to: 'user@example.com',
-  replyTo: 'support@example.com',
-  subject: 'Support Request Received',
-  text: 'We received your request...',
+  headers: {
+    'X-Custom-Header': 'value',
+  },
 })
 ```
 
 **Message Options:**
 
-| Property      | Type                      | Description                    |
-| ------------- | ------------------------- | ------------------------------ |
-| `to`          | `string \| string[]`      | Recipient(s)                   |
-| `cc`          | `string \| string[]`      | CC recipient(s)                |
-| `bcc`         | `string \| string[]`      | BCC recipient(s)               |
-| `from`        | `string`                  | Sender (overrides default)     |
-| `replyTo`     | `string`                  | Reply-to address               |
-| `subject`     | `string`                  | Email subject                  |
-| `text`        | `string`                  | Plain text body                |
-| `html`        | `string`                  | HTML body                      |
-| `attachments` | `Attachment[]`            | File attachments               |
-| `headers`     | `Record<string, string>`  | Custom headers                 |
-| `priority`    | `'high' \| 'normal' \| 'low'` | Email priority            |
+| Property      | Type                          | Description                    |
+| ------------- | ----------------------------- | ------------------------------ |
+| `from`        | `string \| Address`           | Sender address                 |
+| `to`          | `string \| Address \| Array`  | Recipient(s)                   |
+| `cc`          | `string \| Address \| Array`  | CC recipient(s)                |
+| `bcc`         | `string \| Address \| Array`  | BCC recipient(s)               |
+| `replyTo`     | `string \| Address`           | Reply-To address               |
+| `subject`     | `string`                      | Email subject                  |
+| `text`        | `string`                      | Plain text body                |
+| `html`        | `string`                      | HTML body                      |
+| `attachments` | `Attachment[]`                | File attachments               |
+| `headers`     | `Record<string, string>`      | Custom headers                 |
 
 **Returns:** `Promise<SendResult>`
 
 ### sendMany(messages)
 
-Sends multiple emails (batch send).
+Sends multiple emails (batched if supported by transport).
 
 ```typescript
-const results = await this.mail.sendMany([
-  {
-    to: 'user1@example.com',
-    subject: 'Your Order #1234',
-    html: '<p>Order confirmed!</p>',
-  },
-  {
-    to: 'user2@example.com',
-    subject: 'Your Order #5678',
-    html: '<p>Order confirmed!</p>',
-  },
+await this.mail.sendMany([
+  { to: 'user1@example.com', subject: 'Hello', text: 'Message 1' },
+  { to: 'user2@example.com', subject: 'Hello', text: 'Message 2' },
+  { to: 'user3@example.com', subject: 'Hello', text: 'Message 3' },
 ])
-
-// Check results
-for (const result of results) {
-  if (result.success) {
-    console.log(`Sent to ${result.to}`)
-  } else {
-    console.error(`Failed: ${result.error}`)
-  }
-}
 ```
 
 **Returns:** `Promise<SendResult[]>`
 
-### sendTemplate(template, context)
+### sendTemplate(options)
 
 Sends an email using a template.
 
 ```typescript
-// Using template file
+// With template name
 await this.mail.sendTemplate({
   to: 'user@example.com',
-  subject: 'Welcome, {{name}}!',
-  template: 'welcome', // templates/email/welcome.hbs
+  template: 'welcome',
   context: {
     name: 'John',
-    activationLink: 'https://example.com/activate/abc123',
+    activationLink: 'https://example.com/activate/123',
   },
 })
 
-// With layout
+// With inline template
 await this.mail.sendTemplate({
   to: 'user@example.com',
   subject: 'Order Confirmation',
-  template: 'order-confirmation',
-  layout: 'transactional', // templates/email/layouts/transactional.hbs
+  template: {
+    html: '<h1>Thank you, {{name}}!</h1><p>Order #{{orderId}}</p>',
+  },
   context: {
-    orderNumber: '12345',
-    items: [
-      { name: 'Product A', price: 29.99 },
-      { name: 'Product B', price: 49.99 },
-    ],
-    total: 79.98,
+    name: 'John',
+    orderId: '12345',
   },
 })
 ```
 
 **Template Options:**
 
-| Property   | Type     | Description                    |
-| ---------- | -------- | ------------------------------ |
-| `template` | `string` | Template name (without extension) |
-| `layout`   | `string` | Layout template name           |
-| `context`  | `object` | Template variables             |
+| Property   | Type                      | Description                    |
+| ---------- | ------------------------- | ------------------------------ |
+| `to`       | `string \| Address`       | Recipient                      |
+| `template` | `string \| TemplateInline`| Template name or inline        |
+| `context`  | `Record<string, unknown>` | Template variables             |
+| `subject`  | `string`                  | Subject (optional if in template) |
 
-### queue(message)
+**Returns:** `Promise<SendResult>`
 
-Queues an email for async delivery (requires @navios/queues).
+### queue(message, options?)
+
+Queues an email for asynchronous sending.
 
 ```typescript
-// Queue for later delivery
+// Queue for immediate async processing
 await this.mail.queue({
   to: 'user@example.com',
-  subject: 'Newsletter',
-  template: 'newsletter',
-  context: { /* ... */ },
+  subject: 'Welcome',
+  template: 'welcome',
+  context: { name: 'John' },
 })
 
-// With delay
-await this.mail.queue({
-  to: 'user@example.com',
-  subject: 'Reminder',
-  template: 'reminder',
-  context: { /* ... */ },
-}, {
-  delay: 3600_000, // Send in 1 hour
-})
-
-// With priority
-await this.mail.queue({
-  to: 'user@example.com',
-  subject: 'Password Reset',
-  template: 'password-reset',
-  context: { /* ... */ },
-}, {
-  priority: 'high',
-})
+// Queue with delay
+await this.mail.queue(
+  {
+    to: 'user@example.com',
+    subject: 'Follow-up',
+    template: 'followup',
+  },
+  { delay: 24 * 60 * 60 * 1000 } // Send after 24 hours
+)
 ```
+
+**Returns:** `Promise<string>` - Queue job ID
 
 ---
 
-## Template Adapters
+## Templates
 
-### HandlebarsAdapter
+### Template Configuration
 
-Handlebars template engine.
+Configure template engine in provider.
 
 ```typescript
-import { MailModule, HandlebarsAdapter } from '@navios/mail'
+import { provideMailService, SmtpTransport, HandlebarsAdapter } from '@navios/mail'
 
-MailModule.register({
-  transport: /* ... */,
+const MailToken = provideMailService({
+  transport: new SmtpTransport({ /* ... */ }),
   template: {
-    adapter: new HandlebarsAdapter({
-      // Register helpers
-      helpers: {
-        formatDate: (date: Date) => date.toLocaleDateString(),
-        formatCurrency: (amount: number) => `$${amount.toFixed(2)}`,
-      },
-      // Register partials directory
-      partialsDir: './templates/email/partials',
-    }),
+    adapter: new HandlebarsAdapter(),
     dir: './templates/email',
+    options: {
+      strict: true,
+    },
   },
 })
 ```
 
-**Template Example (`templates/email/welcome.hbs`):**
+### HandlebarsAdapter
+
+Uses Handlebars templates.
+
+```typescript
+import { HandlebarsAdapter } from '@navios/mail'
+
+new HandlebarsAdapter({
+  // Register custom helpers
+  helpers: {
+    uppercase: (str: string) => str.toUpperCase(),
+    formatDate: (date: Date) => date.toLocaleDateString(),
+  },
+  // Register partials
+  partials: {
+    header: '<header>{{> @partial-block }}</header>',
+    footer: '<footer>Copyright 2024</footer>',
+  },
+})
+```
+
+**Template Example (templates/email/welcome.hbs):**
 
 ```handlebars
+{{!-- welcome.hbs --}}
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Welcome</title>
+  <title>Welcome!</title>
 </head>
 <body>
+  {{> header}}
   <h1>Welcome, {{name}}!</h1>
-  <p>Thanks for joining us on {{formatDate createdAt}}.</p>
-  <a href="{{activationLink}}">Activate your account</a>
+  <p>Click below to activate your account:</p>
+  <a href="{{activationLink}}">Activate Account</a>
   {{> footer}}
 </body>
 </html>
@@ -460,33 +395,27 @@ MailModule.register({
 
 ### MjmlAdapter
 
-MJML for responsive emails.
+Uses MJML for responsive email templates.
 
 ```typescript
-import { MailModule, MjmlAdapter } from '@navios/mail'
+import { MjmlAdapter } from '@navios/mail'
 
-MailModule.register({
-  transport: /* ... */,
-  template: {
-    adapter: new MjmlAdapter({
-      validationLevel: 'soft',
-      minify: true,
-    }),
-    dir: './templates/email',
-  },
+new MjmlAdapter({
+  // MJML options
+  validationLevel: 'soft',
+  minify: true,
+  beautify: false,
 })
 ```
 
-**Template Example (`templates/email/welcome.mjml`):**
+**Template Example (templates/email/welcome.mjml):**
 
 ```xml
 <mjml>
   <mj-body>
     <mj-section>
       <mj-column>
-        <mj-text>
-          <h1>Welcome, {{name}}!</h1>
-        </mj-text>
+        <mj-text>Welcome, {{name}}!</mj-text>
         <mj-button href="{{activationLink}}">
           Activate Account
         </mj-button>
@@ -498,24 +427,20 @@ MailModule.register({
 
 ### ReactEmailAdapter
 
-React Email for component-based emails.
+Uses React Email for component-based templates.
 
 ```typescript
-import { MailModule, ReactEmailAdapter } from '@navios/mail'
+import { ReactEmailAdapter } from '@navios/mail'
 
-MailModule.register({
-  transport: /* ... */,
-  template: {
-    adapter: new ReactEmailAdapter(),
-    dir: './templates/email',
-  },
+new ReactEmailAdapter({
+  componentsDir: './emails',
 })
 ```
 
-**Template Example (`templates/email/welcome.tsx`):**
+**Template Example (emails/Welcome.tsx):**
 
 ```tsx
-import { Html, Head, Body, Container, Text, Button } from '@react-email/components'
+import { Html, Button, Text } from '@react-email/components'
 
 interface WelcomeEmailProps {
   name: string
@@ -525,39 +450,12 @@ interface WelcomeEmailProps {
 export default function WelcomeEmail({ name, activationLink }: WelcomeEmailProps) {
   return (
     <Html>
-      <Head />
-      <Body>
-        <Container>
-          <Text>Welcome, {name}!</Text>
-          <Button href={activationLink}>
-            Activate Account
-          </Button>
-        </Container>
-      </Body>
+      <Text>Welcome, {name}!</Text>
+      <Button href={activationLink}>
+        Activate Account
+      </Button>
     </Html>
   )
-}
-```
-
-### Custom Template Adapter
-
-Implement the `TemplateAdapter` interface.
-
-```typescript
-import { TemplateAdapter, TemplateOptions } from '@navios/mail'
-
-class CustomTemplateAdapter implements TemplateAdapter {
-  async compile(
-    template: string,
-    context: Record<string, unknown>,
-    options?: TemplateOptions
-  ): Promise<{ html: string; text?: string }> {
-    // Compile template with context
-    const html = /* your compilation logic */
-    const text = /* optional text version */
-
-    return { html, text }
-  }
 }
 ```
 
@@ -567,7 +465,7 @@ class CustomTemplateAdapter implements TemplateAdapter {
 
 ### SmtpTransport
 
-Standard SMTP via nodemailer.
+SMTP transport using nodemailer.
 
 ```typescript
 import { SmtpTransport } from '@navios/mail'
@@ -590,34 +488,21 @@ new SmtpTransport({
 
 ### SendGridTransport
 
-SendGrid API.
+SendGrid API transport.
 
 ```typescript
 import { SendGridTransport } from '@navios/mail'
 
 new SendGridTransport({
-  apiKey: 'SG.xxxxx',
-  // Optional: Use dynamic templates
-  templates: {
-    welcome: 'd-xxxxx', // SendGrid template ID
-    'password-reset': 'd-yyyyy',
-  },
-})
-
-// Using SendGrid dynamic templates
-await this.mail.send({
-  to: 'user@example.com',
-  templateId: 'd-xxxxx',
-  dynamicTemplateData: {
-    name: 'John',
-    activationLink: 'https://...',
-  },
+  apiKey: process.env.SENDGRID_API_KEY,
+  // Optional: Use dynamic template
+  dynamicTemplateId: 'd-xxxxxxxxxxxx',
 })
 ```
 
 ### SESTransport
 
-AWS Simple Email Service.
+AWS SES transport.
 
 ```typescript
 import { SESTransport } from '@navios/mail'
@@ -630,37 +515,33 @@ new SESTransport({
   },
   // Optional
   configurationSetName: 'my-config-set',
-  tags: [
-    { Name: 'app', Value: 'my-app' },
-  ],
+  rateLimit: 14, // SES default is 14/second
 })
 ```
 
 ### ResendTransport
 
-Resend API.
+Resend API transport.
 
 ```typescript
 import { ResendTransport } from '@navios/mail'
 
 new ResendTransport({
-  apiKey: 're_xxxxx',
+  apiKey: process.env.RESEND_API_KEY,
 })
 ```
 
 ### PostmarkTransport
 
-Postmark API.
+Postmark API transport.
 
 ```typescript
 import { PostmarkTransport } from '@navios/mail'
 
 new PostmarkTransport({
-  serverToken: 'xxxxx',
-  // Optional: Use Postmark templates
-  templates: {
-    welcome: 12345, // Postmark template ID
-  },
+  serverToken: process.env.POSTMARK_SERVER_TOKEN,
+  // Optional
+  messageStream: 'outbound',
 })
 ```
 
@@ -673,17 +554,11 @@ import { MailTransport, MailMessage, SendResult } from '@navios/mail'
 
 class CustomTransport implements MailTransport {
   async send(message: MailMessage): Promise<SendResult> {
-    // Send email via your provider
-    const response = await myProvider.send({
-      to: message.to,
-      subject: message.subject,
-      html: message.html,
-    })
-
+    // Implementation
     return {
-      success: true,
-      messageId: response.id,
-      to: message.to,
+      messageId: 'custom-id',
+      accepted: [message.to],
+      rejected: [],
     }
   }
 
@@ -691,285 +566,299 @@ class CustomTransport implements MailTransport {
     return Promise.all(messages.map(m => this.send(m)))
   }
 
-  // Lifecycle
-  async onModuleDestroy?(): Promise<void> {
-    // Cleanup connections
+  async verify(): Promise<boolean> {
+    // Test connection
+    return true
+  }
+
+  async onServiceDestroy(): Promise<void> {
+    // Cleanup
   }
 }
+```
+
+---
+
+## Attachments
+
+### File Attachments
+
+```typescript
+await this.mail.send({
+  to: 'user@example.com',
+  subject: 'Documents',
+  text: 'Please find attached documents.',
+  attachments: [
+    // From buffer
+    {
+      filename: 'report.pdf',
+      content: pdfBuffer,
+      contentType: 'application/pdf',
+    },
+    // From file path
+    {
+      filename: 'image.png',
+      path: './files/image.png',
+    },
+    // From URL
+    {
+      filename: 'logo.png',
+      path: 'https://example.com/logo.png',
+    },
+    // From stream
+    {
+      filename: 'data.csv',
+      content: csvStream,
+      contentType: 'text/csv',
+    },
+  ],
+})
+```
+
+### Inline Images
+
+```typescript
+await this.mail.send({
+  to: 'user@example.com',
+  subject: 'Newsletter',
+  html: '<img src="cid:logo" /><p>Welcome!</p>',
+  attachments: [
+    {
+      filename: 'logo.png',
+      path: './images/logo.png',
+      cid: 'logo', // Content-ID for inline reference
+    },
+  ],
+})
 ```
 
 ---
 
 ## Queue Integration
 
-Integrate with @navios/queues for async email delivery.
-
-### Configuration
+Integrate with @navios/queues for reliable email delivery.
 
 ```typescript
-import { Module } from '@navios/core'
-import { MailModule, SmtpTransport } from '@navios/mail'
-import { QueueModule } from '@navios/queues'
+import { provideMailService, SmtpTransport } from '@navios/mail'
 
-@Module({
-  imports: [
-    QueueModule.register({ /* ... */ }),
-    MailModule.register({
-      transport: new SmtpTransport({ /* ... */ }),
-      queue: {
-        name: 'emails', // Queue name
-        attempts: 3,    // Retry attempts
-        backoff: {
-          type: 'exponential',
-          delay: 1000,
-        },
-      },
-    }),
-  ],
+const MailToken = provideMailService({
+  transport: new SmtpTransport({ /* ... */ }),
+  queue: {
+    enabled: true,
+    name: 'email', // Queue name
+    attempts: 3,   // Retry attempts
+    backoff: {
+      type: 'exponential',
+      delay: 1000,
+    },
+  },
 })
-class AppModule {}
 ```
 
-### Usage
-
 ```typescript
-@Injectable()
-class NewsletterService {
-  private mail = inject(MailService)
+// All sends are automatically queued
+await this.mail.send({
+  to: 'user@example.com',
+  subject: 'Hello',
+  text: 'This will be queued and processed async',
+})
 
-  async sendNewsletter(subscribers: string[], content: NewsletterContent) {
-    // Queue all emails
-    for (const email of subscribers) {
-      await this.mail.queue({
-        to: email,
-        subject: content.subject,
-        template: 'newsletter',
-        context: content,
-      })
-    }
+// Or explicitly queue with options
+await this.mail.queue(
+  {
+    to: 'user@example.com',
+    template: 'digest',
+    context: { /* ... */ },
+  },
+  {
+    delay: 60_000, // Wait 1 minute
+    priority: 'high',
   }
-}
+)
 ```
 
 ---
 
-## Development Mode
+## Preview Mode
 
 Preview emails during development.
 
-### Preview Transport
-
 ```typescript
-import { Module } from '@navios/core'
-import { MailModule, PreviewTransport } from '@navios/mail'
+import { provideMailService, PreviewTransport } from '@navios/mail'
 
-@Module({
-  imports: [
-    MailModule.register({
-      transport: process.env.NODE_ENV === 'development'
-        ? new PreviewTransport({
-            dir: './email-previews', // Save emails as HTML files
-            open: true, // Auto-open in browser
-          })
-        : new SmtpTransport({ /* production config */ }),
-    }),
-  ],
-})
-class AppModule {}
-```
-
-### Console Transport
-
-Log emails to console (for testing).
-
-```typescript
-import { MailModule, ConsoleTransport } from '@navios/mail'
-
-MailModule.register({
-  transport: new ConsoleTransport({
-    colors: true,
-    includeHtml: false, // Just show subject and recipients
-  }),
+const MailToken = provideMailService({
+  transport: process.env.NODE_ENV === 'development'
+    ? new PreviewTransport({
+        dir: './email-previews',
+        open: true, // Auto-open in browser
+      })
+    : new SmtpTransport({ /* ... */ }),
 })
 ```
+
+The `PreviewTransport` saves emails as HTML files and optionally opens them in your browser.
 
 ---
 
 ## Complete Example
 
 ```typescript
-// mail.config.ts
-import { MailModule, SendGridTransport, HandlebarsAdapter } from '@navios/mail'
+// mail.provider.ts
+import { provideMailService, SmtpTransport, SendGridTransport, HandlebarsAdapter } from '@navios/mail'
 
-export const mailConfig = MailModule.register({
-  transport: new SendGridTransport({
-    apiKey: process.env.SENDGRID_API_KEY!,
-  }),
+export const MailToken = provideMailService({
+  transport: process.env.NODE_ENV === 'production'
+    ? new SendGridTransport({
+        apiKey: process.env.SENDGRID_API_KEY!,
+      })
+    : new SmtpTransport({
+        host: 'localhost',
+        port: 1025, // Mailhog for development
+      }),
   defaults: {
-    from: '"My App" <noreply@myapp.com>',
+    from: {
+      email: 'noreply@example.com',
+      name: 'My App',
+    },
   },
   template: {
-    adapter: new HandlebarsAdapter({
-      helpers: {
-        formatDate: (date: Date) => date.toLocaleDateString(),
-        formatCurrency: (n: number) => `$${n.toFixed(2)}`,
-      },
-    }),
+    adapter: new HandlebarsAdapter(),
     dir: './templates/email',
   },
   queue: {
-    name: 'emails',
+    enabled: process.env.NODE_ENV === 'production',
+    name: 'email',
     attempts: 3,
   },
 })
 ```
 
 ```typescript
-// services/email.service.ts
+// services/notification.service.ts
 import { Injectable, inject } from '@navios/di'
 import { MailService } from '@navios/mail'
 
 @Injectable()
-class EmailService {
+class NotificationService {
   private mail = inject(MailService)
+  private userService = inject(UserService)
 
-  async sendWelcome(user: User): Promise<void> {
+  async sendWelcomeEmail(userId: string): Promise<void> {
+    const user = await this.userService.findById(userId)
+
     await this.mail.sendTemplate({
       to: user.email,
-      subject: `Welcome to MyApp, ${user.name}!`,
       template: 'welcome',
       context: {
         name: user.name,
-        activationLink: `https://myapp.com/activate/${user.activationToken}`,
+        activationLink: `https://example.com/activate/${user.activationToken}`,
       },
     })
   }
 
-  async sendPasswordReset(user: User, token: string): Promise<void> {
+  async sendPasswordReset(email: string, token: string): Promise<void> {
     await this.mail.sendTemplate({
-      to: user.email,
-      subject: 'Reset Your Password',
+      to: email,
       template: 'password-reset',
       context: {
-        name: user.name,
-        resetLink: `https://myapp.com/reset-password/${token}`,
+        resetLink: `https://example.com/reset-password/${token}`,
         expiresIn: '1 hour',
       },
     })
   }
 
-  async sendOrderConfirmation(order: Order): Promise<void> {
+  async sendOrderConfirmation(orderId: string): Promise<void> {
+    const order = await this.orderService.findById(orderId)
+    const user = await this.userService.findById(order.userId)
+
     await this.mail.sendTemplate({
-      to: order.user.email,
-      subject: `Order Confirmation #${order.number}`,
+      to: user.email,
       template: 'order-confirmation',
       context: {
-        orderNumber: order.number,
+        orderNumber: order.id,
         items: order.items,
-        subtotal: order.subtotal,
-        tax: order.tax,
         total: order.total,
         shippingAddress: order.shippingAddress,
-        estimatedDelivery: order.estimatedDelivery,
       },
       attachments: [
         {
-          filename: `invoice-${order.number}.pdf`,
-          content: await this.generateInvoicePdf(order),
-          contentType: 'application/pdf',
+          filename: `invoice-${order.id}.pdf`,
+          content: await this.invoiceService.generatePdf(order),
         },
       ],
     })
   }
 
   async sendBulkNewsletter(
-    subscribers: string[],
-    newsletter: Newsletter
+    userIds: string[],
+    content: { subject: string; body: string }
   ): Promise<void> {
-    for (const email of subscribers) {
-      await this.mail.queue({
-        to: email,
-        subject: newsletter.subject,
-        template: 'newsletter',
-        context: {
-          content: newsletter.content,
-          unsubscribeLink: `https://myapp.com/unsubscribe/${email}`,
-        },
-      })
-    }
+    const users = await this.userService.findByIds(userIds)
+
+    const messages = users.map(user => ({
+      to: user.email,
+      subject: content.subject,
+      template: 'newsletter',
+      context: {
+        name: user.name,
+        content: content.body,
+        unsubscribeLink: `https://example.com/unsubscribe/${user.unsubscribeToken}`,
+      },
+    }))
+
+    await this.mail.sendMany(messages)
   }
 }
 ```
 
 ```typescript
-// templates/email/welcome.hbs
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <title>Welcome to MyApp</title>
-</head>
-<body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-  <div style="background: #4F46E5; color: white; padding: 20px; text-align: center;">
-    <h1>Welcome to MyApp!</h1>
-  </div>
-
-  <div style="padding: 20px;">
-    <p>Hi {{name}},</p>
-
-    <p>Thanks for signing up! We're excited to have you on board.</p>
-
-    <p>To get started, please activate your account:</p>
-
-    <div style="text-align: center; margin: 30px 0;">
-      <a href="{{activationLink}}"
-         style="background: #4F46E5; color: white; padding: 12px 24px;
-                text-decoration: none; border-radius: 6px;">
-        Activate Account
-      </a>
-    </div>
-
-    <p>If you didn't create this account, you can safely ignore this email.</p>
-
-    <p>Best regards,<br>The MyApp Team</p>
-  </div>
-
-  <div style="background: #f3f4f6; padding: 20px; text-align: center; font-size: 12px; color: #666;">
-    <p>&copy; {{currentYear}} MyApp. All rights reserved.</p>
-  </div>
-</body>
-</html>
-```
-
-```typescript
-// modules/app.module.ts
-import { Module, Controller, Endpoint } from '@navios/core'
+// controllers/auth.controller.ts
+import { Controller, Endpoint } from '@navios/core'
 import { inject } from '@navios/di'
+import { builder } from '@navios/builder'
+import { z } from 'zod'
+
+const API = builder()
+
+const requestPasswordReset = API.declareEndpoint({
+  method: 'POST',
+  path: '/auth/forgot-password',
+  bodySchema: z.object({
+    email: z.string().email(),
+  }),
+  responseSchema: z.object({
+    message: z.string(),
+  }),
+})
 
 @Controller()
 class AuthController {
   private authService = inject(AuthService)
-  private emailService = inject(EmailService)
+  private notificationService = inject(NotificationService)
 
-  @Endpoint(register)
-  async register(params: EndpointParams<typeof register>) {
-    const user = await this.authService.createUser(params.data)
-    await this.emailService.sendWelcome(user)
-    return { success: true }
-  }
+  @Endpoint(requestPasswordReset)
+  async forgotPassword(params: EndpointParams<typeof requestPasswordReset>) {
+    const token = await this.authService.createPasswordResetToken(params.body.email)
 
-  @Endpoint(forgotPassword)
-  async forgotPassword(params: EndpointParams<typeof forgotPassword>) {
-    const { user, token } = await this.authService.createResetToken(params.data.email)
-    await this.emailService.sendPasswordReset(user, token)
-    return { success: true }
+    if (token) {
+      // Don't await - send async to not leak timing information
+      this.notificationService.sendPasswordReset(params.body.email, token)
+    }
+
+    // Always return success to prevent email enumeration
+    return { message: 'If the email exists, a reset link will be sent.' }
   }
 }
+```
+
+```typescript
+// modules/app.module.ts
+import { Module } from '@navios/core'
+import { MailToken } from './mail.provider'
 
 @Module({
-  imports: [mailConfig],
+  providers: [MailToken, NotificationService],
   controllers: [AuthController],
-  providers: [EmailService],
 })
 class AppModule {}
 ```
@@ -978,22 +867,26 @@ class AppModule {}
 
 ## API Reference Summary
 
-### Module Exports
+### Provider Function
 
-| Export              | Type      | Description                      |
-| ------------------- | --------- | -------------------------------- |
-| `MailModule`        | Module    | Mail module configuration        |
-| `MailService`       | Class     | Main mail service                |
-| `SmtpTransport`     | Class     | SMTP transport                   |
-| `SendGridTransport` | Class     | SendGrid transport               |
-| `SESTransport`      | Class     | AWS SES transport                |
-| `ResendTransport`   | Class     | Resend transport                 |
-| `PostmarkTransport` | Class     | Postmark transport               |
-| `PreviewTransport`  | Class     | Development preview transport    |
-| `ConsoleTransport`  | Class     | Console logging transport        |
-| `HandlebarsAdapter` | Class     | Handlebars template adapter      |
-| `MjmlAdapter`       | Class     | MJML template adapter            |
-| `ReactEmailAdapter` | Class     | React Email adapter              |
+| Export             | Type     | Description                    |
+| ------------------ | -------- | ------------------------------ |
+| `provideMailService` | Function | Creates mail service provider |
+
+### Service & Types
+
+| Export              | Type      | Description                    |
+| ------------------- | --------- | ------------------------------ |
+| `MailService`       | Class     | Main mail service              |
+| `SmtpTransport`     | Class     | SMTP transport                 |
+| `SendGridTransport` | Class     | SendGrid transport             |
+| `SESTransport`      | Class     | AWS SES transport              |
+| `ResendTransport`   | Class     | Resend transport               |
+| `PostmarkTransport` | Class     | Postmark transport             |
+| `PreviewTransport`  | Class     | Development preview transport  |
+| `HandlebarsAdapter` | Class     | Handlebars template adapter    |
+| `MjmlAdapter`       | Class     | MJML template adapter          |
+| `ReactEmailAdapter` | Class     | React Email adapter            |
 
 ### MailService Methods
 
@@ -1002,22 +895,14 @@ class AppModule {}
 | `send`         | `Promise<SendResult>` | Send single email              |
 | `sendMany`     | `Promise<SendResult[]>`| Send multiple emails          |
 | `sendTemplate` | `Promise<SendResult>` | Send using template            |
-| `queue`        | `Promise<void>`       | Queue email for later          |
-
-### SendResult Type
-
-| Property    | Type      | Description                    |
-| ----------- | --------- | ------------------------------ |
-| `success`   | `boolean` | Whether send succeeded         |
-| `messageId` | `string`  | Provider message ID            |
-| `to`        | `string`  | Recipient address              |
-| `error`     | `Error`   | Error if failed                |
+| `queue`        | `Promise<string>`     | Queue email for later          |
+| `verify`       | `Promise<boolean>`    | Verify transport connection    |
 
 ### Configuration Options
 
 | Property    | Type              | Description                    |
 | ----------- | ----------------- | ------------------------------ |
 | `transport` | `MailTransport`   | Email transport                |
-| `defaults`  | `Partial<Message>`| Default message options        |
+| `defaults`  | `MailDefaults`    | Default mail options           |
 | `template`  | `TemplateConfig`  | Template configuration         |
-| `queue`     | `QueueConfig`     | Queue configuration            |
+| `queue`     | `QueueConfig`     | Queue integration config       |

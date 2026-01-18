@@ -21,8 +21,8 @@
 ### Architecture Overview
 
 ```
-StorageModule
-├── StorageService (main service)
+StorageService
+├── Core Operations
 │   ├── put(path, content) - Upload file
 │   ├── get(path) - Download file
 │   ├── delete(path) - Delete file
@@ -57,135 +57,130 @@ StorageModule
 
 ## Setup
 
-### Basic Configuration (Local Storage)
+### Provider Function
+
+The storage service is configured using the `provideStorageService()` function which returns an `InjectionToken`.
 
 ```typescript
-import { Module } from '@navios/core'
-import { StorageModule, LocalAdapter } from '@navios/storage'
+import { provideStorageService, LocalAdapter } from '@navios/storage'
 
-@Module({
-  imports: [
-    StorageModule.register({
-      default: 'local',
-      disks: {
-        local: {
-          adapter: new LocalAdapter({
-            root: './storage',
-            publicPath: '/files',
-          }),
-        },
-      },
-    }),
-  ],
+// Basic configuration (Local Storage)
+const StorageToken = provideStorageService({
+  default: 'local',
+  disks: {
+    local: {
+      adapter: new LocalAdapter({
+        root: './storage',
+        publicPath: '/files',
+      }),
+    },
+  },
 })
-class AppModule {}
+
+// Async configuration
+const StorageToken = provideStorageService(async () => {
+  const config = await loadConfig()
+  return {
+    default: config.storage.default,
+    disks: {
+      s3: {
+        adapter: new S3Adapter({
+          bucket: config.aws.s3Bucket,
+          region: config.aws.region,
+        }),
+      },
+    },
+  }
+})
 ```
 
 ### AWS S3 Configuration
 
 ```typescript
-import { Module } from '@navios/core'
-import { StorageModule, S3Adapter } from '@navios/storage'
+import { provideStorageService, S3Adapter } from '@navios/storage'
 
-@Module({
-  imports: [
-    StorageModule.register({
-      default: 's3',
-      disks: {
-        s3: {
-          adapter: new S3Adapter({
-            bucket: 'my-bucket',
-            region: 'us-east-1',
-            credentials: {
-              accessKeyId: process.env.AWS_ACCESS_KEY_ID,
-              secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
-            },
-            // Optional: Custom endpoint for S3-compatible services
-            endpoint: 'https://s3.custom-endpoint.com',
-          }),
+const StorageToken = provideStorageService({
+  default: 's3',
+  disks: {
+    s3: {
+      adapter: new S3Adapter({
+        bucket: 'my-bucket',
+        region: 'us-east-1',
+        credentials: {
+          accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+          secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
         },
-      },
-    }),
-  ],
+        // Optional: Custom endpoint for S3-compatible services
+        endpoint: 'https://s3.custom-endpoint.com',
+      }),
+    },
+  },
 })
-class AppModule {}
 ```
 
 ### Multi-Disk Configuration
 
 ```typescript
-import { Module } from '@navios/core'
-import { StorageModule, LocalAdapter, S3Adapter, GCSAdapter } from '@navios/storage'
+import { provideStorageService, LocalAdapter, S3Adapter, GCSAdapter, AzureAdapter } from '@navios/storage'
 
-@Module({
-  imports: [
-    StorageModule.register({
-      default: 'local',
-      disks: {
-        // Local disk for temporary files
-        local: {
-          adapter: new LocalAdapter({
-            root: './storage/temp',
-          }),
-        },
+const StorageToken = provideStorageService({
+  default: 'local',
+  disks: {
+    // Local disk for temporary files
+    local: {
+      adapter: new LocalAdapter({
+        root: './storage/temp',
+      }),
+    },
 
-        // S3 for user uploads
-        uploads: {
-          adapter: new S3Adapter({
-            bucket: 'user-uploads',
-            region: 'us-east-1',
-          }),
-        },
+    // S3 for user uploads
+    uploads: {
+      adapter: new S3Adapter({
+        bucket: 'user-uploads',
+        region: 'us-east-1',
+      }),
+    },
 
-        // GCS for backups
-        backups: {
-          adapter: new GCSAdapter({
-            bucket: 'app-backups',
-            projectId: 'my-project',
-            keyFilename: './gcs-key.json',
-          }),
-        },
+    // GCS for backups
+    backups: {
+      adapter: new GCSAdapter({
+        bucket: 'app-backups',
+        projectId: 'my-project',
+        keyFilename: './gcs-key.json',
+      }),
+    },
 
-        // Azure for media
-        media: {
-          adapter: new AzureAdapter({
-            connectionString: process.env.AZURE_STORAGE_CONNECTION_STRING,
-            container: 'media',
-          }),
-        },
-      },
-    }),
-  ],
+    // Azure for media
+    media: {
+      adapter: new AzureAdapter({
+        connectionString: process.env.AZURE_STORAGE_CONNECTION_STRING,
+        container: 'media',
+      }),
+    },
+  },
 })
-class AppModule {}
 ```
 
-### Async Configuration
+### Module Registration
 
 ```typescript
 import { Module } from '@navios/core'
-import { StorageModule, S3Adapter } from '@navios/storage'
-import { inject } from '@navios/di'
+import { provideStorageService, S3Adapter } from '@navios/storage'
+
+const StorageToken = provideStorageService({
+  default: 's3',
+  disks: {
+    s3: {
+      adapter: new S3Adapter({
+        bucket: 'my-bucket',
+        region: 'us-east-1',
+      }),
+    },
+  },
+})
 
 @Module({
-  imports: [
-    StorageModule.registerAsync({
-      useFactory: async () => {
-        const config = await inject(ConfigService)
-        return {
-          default: config.storage.default,
-          disks: {
-            s3: {
-              adapter: new S3Adapter({
-                bucket: config.aws.s3Bucket,
-                region: config.aws.region,
-              }),
-            },
-          },
-        }
-      },
-    }),
-  ],
+  providers: [StorageToken],
 })
 class AppModule {}
 ```
@@ -603,7 +598,7 @@ class CustomAdapter implements StorageAdapter {
   }
 
   // Lifecycle
-  async onModuleDestroy?(): Promise<void> {
+  async onServiceDestroy?(): Promise<void> {
     // Cleanup
   }
 }
@@ -619,6 +614,20 @@ Use with Navios `@Multipart()` decorator for file uploads.
 import { Controller, Multipart, MultipartFile } from '@navios/core'
 import { inject } from '@navios/di'
 import { StorageService } from '@navios/storage'
+import { builder } from '@navios/builder'
+import { z } from 'zod'
+
+const API = builder()
+
+const uploadFile = API.declareEndpoint({
+  method: 'POST',
+  path: '/upload',
+  responseSchema: z.object({
+    path: z.string(),
+    url: z.string(),
+    size: z.number(),
+  }),
+})
 
 @Controller()
 class UploadController {
@@ -641,7 +650,7 @@ class UploadController {
       contentType: file.mimetype,
       metadata: {
         originalName: file.filename,
-        uploadedBy: params.userId,
+        uploadedBy: params.request.user?.id,
       },
     })
 
@@ -687,6 +696,18 @@ class LargeUploadController {
 import { Controller, Endpoint, Stream } from '@navios/core'
 import { inject } from '@navios/di'
 import { StorageService } from '@navios/storage'
+import { builder } from '@navios/builder'
+import { z } from 'zod'
+
+const API = builder()
+
+const downloadFile = API.declareEndpoint({
+  method: 'GET',
+  path: '/files/:fileId/download',
+  paramsSchema: z.object({
+    fileId: z.string(),
+  }),
+})
 
 @Controller()
 class DownloadController {
@@ -716,6 +737,20 @@ class DownloadController {
 ### Redirect to Signed URL
 
 ```typescript
+const getDownloadUrl = API.declareEndpoint({
+  method: 'GET',
+  path: '/files/:fileId/url',
+  paramsSchema: z.object({
+    fileId: z.string(),
+  }),
+  querySchema: z.object({
+    filename: z.string().optional(),
+  }),
+  responseSchema: z.object({
+    url: z.string(),
+  }),
+})
+
 @Controller()
 class SecureDownloadController {
   private storage = inject(StorageService)
@@ -727,7 +762,7 @@ class SecureDownloadController {
     // Generate signed URL for direct download
     const url = await this.storage.signedUrl(path, {
       expiresIn: 300, // 5 minutes
-      responseContentDisposition: `attachment; filename="${params.filename}"`,
+      responseContentDisposition: `attachment; filename="${params.query.filename ?? params.fileId}"`,
     })
 
     return { url }
@@ -737,67 +772,13 @@ class SecureDownloadController {
 
 ---
 
-## Image Processing Integration
-
-Integrate with image processing libraries.
-
-```typescript
-import { Injectable, inject } from '@navios/di'
-import { StorageService } from '@navios/storage'
-import sharp from 'sharp'
-
-@Injectable()
-class ImageService {
-  private storage = inject(StorageService)
-
-  async uploadWithThumbnail(
-    file: Buffer,
-    filename: string
-  ): Promise<{ original: string; thumbnail: string }> {
-    // Upload original
-    const originalPath = `images/original/${filename}`
-    await this.storage.put(originalPath, file, {
-      contentType: 'image/jpeg',
-    })
-
-    // Create and upload thumbnail
-    const thumbnail = await sharp(file)
-      .resize(200, 200, { fit: 'cover' })
-      .jpeg({ quality: 80 })
-      .toBuffer()
-
-    const thumbnailPath = `images/thumbnails/${filename}`
-    await this.storage.put(thumbnailPath, thumbnail, {
-      contentType: 'image/jpeg',
-    })
-
-    return {
-      original: await this.storage.url(originalPath),
-      thumbnail: await this.storage.url(thumbnailPath),
-    }
-  }
-
-  async resizeAndReplace(path: string, width: number, height: number): Promise<void> {
-    const original = await this.storage.get(path)
-
-    const resized = await sharp(original)
-      .resize(width, height)
-      .toBuffer()
-
-    await this.storage.put(path, resized)
-  }
-}
-```
-
----
-
 ## Complete Example
 
 ```typescript
-// storage.config.ts
-import { StorageModule, LocalAdapter, S3Adapter } from '@navios/storage'
+// storage.provider.ts
+import { provideStorageService, LocalAdapter, S3Adapter } from '@navios/storage'
 
-export const storageConfig = StorageModule.register({
+export const StorageToken = provideStorageService({
   default: process.env.NODE_ENV === 'production' ? 's3' : 'local',
   disks: {
     local: {
@@ -899,11 +880,49 @@ class FileService {
 // controllers/file.controller.ts
 import { Controller, Endpoint, Multipart, Stream } from '@navios/core'
 import { inject } from '@navios/di'
+import { StorageService } from '@navios/storage'
+import { builder } from '@navios/builder'
+import { z } from 'zod'
+
+const API = builder()
+
+const uploadEndpoint = API.declareEndpoint({
+  method: 'POST',
+  path: '/files',
+  responseSchema: FileSchema,
+})
+
+const getDownloadUrl = API.declareEndpoint({
+  method: 'GET',
+  path: '/files/:fileId/url',
+  paramsSchema: z.object({ fileId: z.string() }),
+  responseSchema: z.object({ url: z.string() }),
+})
+
+const downloadDirect = API.declareEndpoint({
+  method: 'GET',
+  path: '/files/:fileId/download',
+  paramsSchema: z.object({ fileId: z.string() }),
+})
+
+const deleteFile = API.declareEndpoint({
+  method: 'DELETE',
+  path: '/files/:fileId',
+  paramsSchema: z.object({ fileId: z.string() }),
+  responseSchema: z.object({ success: z.boolean() }),
+})
+
+const listFiles = API.declareEndpoint({
+  method: 'GET',
+  path: '/files',
+  responseSchema: z.array(FileSchema),
+})
 
 @Controller()
 class FileController {
   private fileService = inject(FileService)
   private storage = inject(StorageService)
+  private db = inject(DatabaseService)
 
   @Multipart(uploadEndpoint, {
     limits: { fileSize: 50 * 1024 * 1024 }, // 50MB
@@ -913,7 +932,7 @@ class FileController {
     return this.fileService.upload(
       file.buffer,
       file.filename,
-      params.userId
+      params.request.user.id
     )
   }
 
@@ -922,7 +941,7 @@ class FileController {
     return {
       url: await this.fileService.getDownloadUrl(
         params.fileId,
-        params.userId
+        params.request.user.id
       ),
     }
   }
@@ -946,26 +965,43 @@ class FileController {
 
   @Endpoint(deleteFile)
   async delete(params: EndpointParams<typeof deleteFile>) {
-    await this.fileService.delete(params.fileId, params.userId)
+    await this.fileService.delete(params.fileId, params.request.user.id)
     return { success: true }
   }
 
   @Endpoint(listFiles)
   async list(params: EndpointParams<typeof listFiles>) {
-    return this.fileService.listUserFiles(params.userId)
+    return this.fileService.listUserFiles(params.request.user.id)
   }
 }
+```
+
+```typescript
+// modules/app.module.ts
+import { Module } from '@navios/core'
+import { StorageToken } from './storage.provider'
+
+@Module({
+  providers: [StorageToken, FileService],
+  controllers: [FileController],
+})
+class AppModule {}
 ```
 
 ---
 
 ## API Reference Summary
 
-### Module Exports
+### Provider Function
+
+| Export                 | Type     | Description                      |
+| ---------------------- | -------- | -------------------------------- |
+| `provideStorageService`| Function | Creates storage service provider |
+
+### Service & Types
 
 | Export           | Type    | Description                      |
 | ---------------- | ------- | -------------------------------- |
-| `StorageModule`  | Module  | Storage module configuration     |
 | `StorageService` | Class   | Main storage service             |
 | `LocalAdapter`   | Class   | Local filesystem adapter         |
 | `S3Adapter`      | Class   | AWS S3 adapter                   |

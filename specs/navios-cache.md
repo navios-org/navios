@@ -18,8 +18,8 @@
 ### Architecture Overview
 
 ```
-CacheModule
-├── CacheService (main service)
+CacheService
+├── Core Operations
 │   ├── get<T>(key) - Retrieve cached value
 │   ├── set(key, value, ttl?) - Store value
 │   ├── del(key) - Delete value
@@ -52,67 +52,64 @@ CacheModule
 
 ## Setup
 
-### Basic Configuration (In-Memory)
+### Provider Function
+
+The cache service is configured using the `provideCacheService()` function which returns an `InjectionToken`.
 
 ```typescript
-import { Module } from '@navios/core'
-import { CacheModule } from '@navios/cache'
+import { provideCacheService } from '@navios/cache'
 
-@Module({
-  imports: [
-    CacheModule.register({
-      ttl: 60_000, // Default TTL: 60 seconds
-      max: 1000,   // Max items in memory cache
-    }),
-  ],
+// Static configuration
+const CacheToken = provideCacheService({
+  ttl: 60_000, // Default TTL: 60 seconds
+  max: 1000,   // Max items in memory cache
 })
-class AppModule {}
+
+// Async configuration
+const CacheToken = provideCacheService(async () => {
+  const config = await loadConfig()
+  return {
+    adapter: new RedisAdapter({
+      host: config.redis.host,
+      port: config.redis.port,
+    }),
+    ttl: config.cache.defaultTtl,
+  }
+})
 ```
 
 ### Redis Configuration
 
 ```typescript
-import { Module } from '@navios/core'
-import { CacheModule, RedisAdapter } from '@navios/cache'
+import { provideCacheService, RedisAdapter } from '@navios/cache'
 
-@Module({
-  imports: [
-    CacheModule.register({
-      adapter: new RedisAdapter({
-        host: 'localhost',
-        port: 6379,
-        password: 'secret',
-        keyPrefix: 'app:cache:',
-      }),
-      ttl: 300_000, // 5 minutes
-    }),
-  ],
+const CacheToken = provideCacheService({
+  adapter: new RedisAdapter({
+    host: 'localhost',
+    port: 6379,
+    password: 'secret',
+    keyPrefix: 'app:cache:',
+  }),
+  ttl: 300_000, // 5 minutes
 })
-class AppModule {}
 ```
 
-### Async Configuration
+### Module Registration
 
 ```typescript
 import { Module } from '@navios/core'
-import { CacheModule, RedisAdapter } from '@navios/cache'
-import { inject } from '@navios/di'
+import { provideCacheService, RedisAdapter } from '@navios/cache'
+
+const CacheToken = provideCacheService({
+  adapter: new RedisAdapter({
+    host: 'localhost',
+    port: 6379,
+  }),
+  ttl: 60_000,
+})
 
 @Module({
-  imports: [
-    CacheModule.registerAsync({
-      useFactory: async () => {
-        const config = await inject(ConfigService)
-        return {
-          adapter: new RedisAdapter({
-            host: config.redis.host,
-            port: config.redis.port,
-          }),
-          ttl: config.cache.defaultTtl,
-        }
-      },
-    }),
-  ],
+  providers: [CacheToken],
 })
 class AppModule {}
 ```
@@ -409,9 +406,9 @@ class ProductService {
 In-memory cache using LRU eviction. Best for single-instance deployments or development.
 
 ```typescript
-import { CacheModule, MemoryAdapter } from '@navios/cache'
+import { provideCacheService, MemoryAdapter } from '@navios/cache'
 
-CacheModule.register({
+const CacheToken = provideCacheService({
   adapter: new MemoryAdapter({
     max: 1000,           // Max items (default: 1000)
     maxSize: 50_000_000, // Max size in bytes (default: 50MB)
@@ -433,9 +430,9 @@ CacheModule.register({
 Redis-backed cache for distributed deployments.
 
 ```typescript
-import { CacheModule, RedisAdapter } from '@navios/cache'
+import { provideCacheService, RedisAdapter } from '@navios/cache'
 
-CacheModule.register({
+const CacheToken = provideCacheService({
   adapter: new RedisAdapter({
     host: 'localhost',
     port: 6379,
@@ -478,20 +475,20 @@ CacheModule.register({
 Universal adapter supporting multiple backends via Keyv.
 
 ```typescript
-import { CacheModule, KeyvAdapter } from '@navios/cache'
+import { provideCacheService, KeyvAdapter } from '@navios/cache'
 
 // SQLite
-CacheModule.register({
+const CacheToken = provideCacheService({
   adapter: new KeyvAdapter('sqlite://cache.sqlite'),
 })
 
 // PostgreSQL
-CacheModule.register({
+const CacheToken = provideCacheService({
   adapter: new KeyvAdapter('postgresql://user:pass@localhost/db'),
 })
 
 // MongoDB
-CacheModule.register({
+const CacheToken = provideCacheService({
   adapter: new KeyvAdapter('mongodb://localhost:27017/cache'),
 })
 ```
@@ -560,7 +557,7 @@ interface CacheAdapter {
   delByTag?(tag: string): Promise<number>
 
   // Lifecycle
-  onModuleDestroy?(): Promise<void>
+  onServiceDestroy?(): Promise<void>
 }
 ```
 
@@ -571,33 +568,30 @@ interface CacheAdapter {
 Configure multiple named cache instances for different use cases.
 
 ```typescript
-import { Module } from '@navios/core'
-import { CacheModule, RedisAdapter, MemoryAdapter } from '@navios/cache'
+import { provideCacheService, RedisAdapter, MemoryAdapter } from '@navios/cache'
+
+// Default cache (memory, short TTL)
+const DefaultCacheToken = provideCacheService({
+  adapter: new MemoryAdapter({ max: 500 }),
+  ttl: 30_000,
+})
+
+// Session cache (Redis, longer TTL)
+const SessionCacheToken = provideCacheService({
+  name: 'sessions',
+  adapter: new RedisAdapter({ host: 'redis', keyPrefix: 'sess:' }),
+  ttl: 86_400_000, // 24 hours
+})
+
+// API response cache
+const ApiCacheToken = provideCacheService({
+  name: 'api',
+  adapter: new RedisAdapter({ host: 'redis', keyPrefix: 'api:' }),
+  ttl: 300_000, // 5 minutes
+})
 
 @Module({
-  imports: [
-    CacheModule.register({
-      stores: {
-        // Default cache (memory, short TTL)
-        default: {
-          adapter: new MemoryAdapter({ max: 500 }),
-          ttl: 30_000,
-        },
-
-        // Session cache (Redis, longer TTL)
-        sessions: {
-          adapter: new RedisAdapter({ host: 'redis', keyPrefix: 'sess:' }),
-          ttl: 86_400_000, // 24 hours
-        },
-
-        // API response cache
-        api: {
-          adapter: new RedisAdapter({ host: 'redis', keyPrefix: 'api:' }),
-          ttl: 300_000, // 5 minutes
-        },
-      },
-    }),
-  ],
+  providers: [DefaultCacheToken, SessionCacheToken, ApiCacheToken],
 })
 class AppModule {}
 ```
@@ -606,7 +600,7 @@ class AppModule {}
 
 ```typescript
 import { Injectable, inject } from '@navios/di'
-import { CacheService, InjectCache } from '@navios/cache'
+import { CacheService } from '@navios/cache'
 
 @Injectable()
 class SessionService {
@@ -618,11 +612,9 @@ class SessionService {
   }
 }
 
-// Or with decorator
 @Injectable()
 class ApiService {
-  @InjectCache('api')
-  private apiCache!: CacheService
+  private apiCache = inject(CacheService, { name: 'api' })
 
   @Cacheable({ key: 'external:$endpoint', cache: 'api' })
   async fetchExternal(endpoint: string) {
@@ -661,54 +653,25 @@ class CacheMonitor implements OnCacheHit, OnCacheMiss, OnCacheEvict {
 
 ---
 
-## Integration with Request Scope
-
-Cache can be scoped to requests for user-specific caching.
-
-```typescript
-import { Injectable, Scope } from '@navios/di'
-import { Cacheable } from '@navios/cache'
-import { Request } from '@navios/core'
-
-@Injectable({ scope: Scope.Request })
-class UserDataService {
-  private request = inject(Request)
-
-  @Cacheable({
-    key: (args) => `user:${this.request.user.id}:prefs`,
-    ttl: 300_000,
-  })
-  async getUserPreferences() {
-    return this.db.preferences.findFirst({
-      where: { userId: this.request.user.id },
-    })
-  }
-}
-```
-
----
-
 ## Complete Example
 
 ```typescript
-// cache.config.ts
-import { CacheModule, RedisAdapter, MemoryAdapter } from '@navios/cache'
+// cache.provider.ts
+import { provideCacheService, RedisAdapter, MemoryAdapter } from '@navios/cache'
 
-export const cacheConfig = CacheModule.register({
-  stores: {
-    default: {
-      adapter: new MemoryAdapter({ max: 1000 }),
-      ttl: 60_000,
-    },
-    persistent: {
-      adapter: new RedisAdapter({
-        host: process.env.REDIS_HOST,
-        port: 6379,
-        keyPrefix: 'app:',
-      }),
-      ttl: 3_600_000,
-    },
-  },
+export const DefaultCacheToken = provideCacheService({
+  adapter: new MemoryAdapter({ max: 1000 }),
+  ttl: 60_000,
+})
+
+export const PersistentCacheToken = provideCacheService({
+  name: 'persistent',
+  adapter: new RedisAdapter({
+    host: process.env.REDIS_HOST,
+    port: 6379,
+    keyPrefix: 'app:',
+  }),
+  ttl: 3_600_000,
 })
 ```
 
@@ -775,9 +738,32 @@ class ProductService {
 ```
 
 ```typescript
-// modules/products.module.ts
-import { Module, Controller, Endpoint } from '@navios/core'
+// controllers/product.controller.ts
+import { Controller, Endpoint } from '@navios/core'
 import { inject } from '@navios/di'
+import { builder } from '@navios/builder'
+import { z } from 'zod'
+
+const API = builder()
+
+const getProduct = API.declareEndpoint({
+  method: 'GET',
+  path: '/products/:id',
+  paramsSchema: z.object({
+    id: z.string(),
+  }),
+  responseSchema: ProductSchema,
+})
+
+const listProducts = API.declareEndpoint({
+  method: 'GET',
+  path: '/products',
+  querySchema: z.object({
+    categoryId: z.string(),
+    page: z.coerce.number().default(1),
+  }),
+  responseSchema: z.array(ProductSchema),
+})
 
 @Controller()
 class ProductController {
@@ -796,13 +782,19 @@ class ProductController {
   async list(params: EndpointParams<typeof listProducts>) {
     return this.productService.findByCategory({
       categoryId: params.query.categoryId,
-      page: params.query.page ?? 1,
+      page: params.query.page,
     })
   }
 }
+```
+
+```typescript
+// modules/products.module.ts
+import { Module } from '@navios/core'
+import { DefaultCacheToken, PersistentCacheToken } from './cache.provider'
 
 @Module({
-  imports: [cacheConfig],
+  providers: [DefaultCacheToken, PersistentCacheToken, ProductService],
   controllers: [ProductController],
 })
 class ProductsModule {}
@@ -812,11 +804,16 @@ class ProductsModule {}
 
 ## API Reference Summary
 
-### Module Exports
+### Provider Function
+
+| Export               | Type       | Description                        |
+| -------------------- | ---------- | ---------------------------------- |
+| `provideCacheService`| Function   | Creates cache service provider     |
+
+### Service & Types
 
 | Export           | Type        | Description                        |
 | ---------------- | ----------- | ---------------------------------- |
-| `CacheModule`    | Module      | Cache module with configuration    |
 | `CacheService`   | Class       | Main cache service                 |
 | `MemoryAdapter`  | Class       | In-memory cache adapter            |
 | `RedisAdapter`   | Class       | Redis cache adapter                |
@@ -825,7 +822,6 @@ class ProductsModule {}
 | `CacheEvict`     | Decorator   | Invalidate cache entries           |
 | `CachePut`       | Decorator   | Update cache unconditionally       |
 | `CacheTTL`       | Decorator   | Set TTL at class/method level      |
-| `InjectCache`    | Decorator   | Inject named cache                 |
 
 ### CacheService Methods
 
@@ -847,4 +843,4 @@ class ProductsModule {}
 | --------- | -------------- | --------------- | -------------------------- |
 | `adapter` | `CacheAdapter` | `MemoryAdapter` | Cache storage adapter      |
 | `ttl`     | `number`       | `0`             | Default TTL in ms          |
-| `stores`  | `object`       | -               | Named cache configurations |
+| `name`    | `string`       | `'default'`     | Cache instance name        |
