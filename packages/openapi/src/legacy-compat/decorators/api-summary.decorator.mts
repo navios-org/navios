@@ -28,7 +28,4 @@ const ApiSummarySchema = z.string()
  * }
  * ```
  */
-export const ApiSummary = LegacyAttributeFactory.createAttribute(
-  ApiSummaryToken,
-  ApiSummarySchema,
-)
+export const ApiSummary = LegacyAttributeFactory.createAttribute(ApiSummaryToken, ApiSummarySchema)

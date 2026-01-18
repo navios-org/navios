@@ -37,8 +37,4 @@ export type ApiSecurityRequirement = z.infer<typeof ApiSecuritySchema>
  * }
  * ```
  */
-export const ApiSecurity = AttributeFactory.createAttribute(
-  ApiSecurityToken,
-  ApiSecuritySchema,
-)
-
+export const ApiSecurity = AttributeFactory.createAttribute(ApiSecurityToken, ApiSecuritySchema)

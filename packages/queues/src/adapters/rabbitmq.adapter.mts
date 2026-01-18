@@ -20,9 +20,7 @@ interface PendingRequest {
  * Implements QueueClient interface for RabbitMQ message broker.
  * Uses amqp-connection-manager for automatic reconnection.
  */
-export class RabbitMQClient
-  implements QueueClient, OnServiceInit, OnServiceDestroy
-{
+export class RabbitMQClient implements QueueClient, OnServiceInit, OnServiceDestroy {
   private connection: AmqpConnectionManager | null = null
   private channel: ChannelWrapper | null = null
   private replyQueue: string | null = null
@@ -52,17 +50,15 @@ export class RabbitMQClient
     }
 
     // Build connection options
-    const connectionOptions: AmqpConnectionManagerOptions['connectionOptions'] =
-      {
-        timeout: this.config.connectionOptions?.timeout ?? 30000,
-        keepAlive: this.config.connectionOptions?.keepAlive ?? true,
-        keepAliveDelay: this.config.connectionOptions?.keepAliveDelay ?? 10000,
-        noDelay: this.config.connectionOptions?.noDelay ?? false,
-      }
+    const connectionOptions: AmqpConnectionManagerOptions['connectionOptions'] = {
+      timeout: this.config.connectionOptions?.timeout ?? 30000,
+      keepAlive: this.config.connectionOptions?.keepAlive ?? true,
+      keepAliveDelay: this.config.connectionOptions?.keepAliveDelay ?? 10000,
+      noDelay: this.config.connectionOptions?.noDelay ?? false,
+    }
 
     if (this.config.connectionOptions?.clientProperties) {
-      connectionOptions.clientProperties =
-        this.config.connectionOptions.clientProperties
+      connectionOptions.clientProperties = this.config.connectionOptions.clientProperties
     }
 
     if (tlsOptions) {
@@ -99,9 +95,7 @@ export class RabbitMQClient
     await this.disconnect()
   }
 
-  private async loadAmqplib(): Promise<
-    typeof import('amqp-connection-manager')
-  > {
+  private async loadAmqplib(): Promise<typeof import('amqp-connection-manager')> {
     try {
       return await import('amqp-connection-manager')
     } catch {
@@ -182,10 +176,7 @@ export class RabbitMQClient
     })
   }
 
-  async subscribe(
-    topic: string,
-    handler: (message: unknown) => Promise<void>,
-  ): Promise<void> {
+  async subscribe(topic: string, handler: (message: unknown) => Promise<void>): Promise<void> {
     if (!this.channel) {
       throw new Error('RabbitMQ channel not initialized')
     }
@@ -213,26 +204,20 @@ export class RabbitMQClient
             channel.ack(msg)
           } catch {
             // Retry logic
-            const retryCount = (msg.properties.headers?.['x-retry-count'] ??
-              0) as number
+            const retryCount = (msg.properties.headers?.['x-retry-count'] ?? 0) as number
             const maxRetries = this.config.retry?.maxRetries ?? 3
 
             if (retryCount < maxRetries) {
               // Requeue with incremented retry count
               channel.nack(msg, false, false)
-              await this.channel?.publish(
-                exchangeName,
-                topic,
-                JSON.parse(msg.content.toString()),
-                {
-                  persistent: true,
-                  contentType: 'application/json',
-                  headers: {
-                    ...msg.properties.headers,
-                    'x-retry-count': retryCount + 1,
-                  },
+              await this.channel?.publish(exchangeName, topic, JSON.parse(msg.content.toString()), {
+                persistent: true,
+                contentType: 'application/json',
+                headers: {
+                  ...msg.properties.headers,
+                  'x-retry-count': retryCount + 1,
                 },
-              )
+              })
             } else {
               // Send to DLQ or reject
               channel.nack(msg, false, false)
@@ -259,10 +244,7 @@ export class RabbitMQClient
     })
   }
 
-  async receive(
-    queue: string,
-    handler: (message: unknown) => Promise<void>,
-  ): Promise<void> {
+  async receive(queue: string, handler: (message: unknown) => Promise<void>): Promise<void> {
     if (!this.channel) {
       throw new Error('RabbitMQ channel not initialized')
     }
@@ -280,24 +262,19 @@ export class RabbitMQClient
             await handler(content)
             channel.ack(msg)
           } catch {
-            const retryCount = (msg.properties.headers?.['x-retry-count'] ??
-              0) as number
+            const retryCount = (msg.properties.headers?.['x-retry-count'] ?? 0) as number
             const maxRetries = this.config.retry?.maxRetries ?? 3
 
             if (retryCount < maxRetries) {
               channel.nack(msg, false, false)
-              await this.channel?.sendToQueue(
-                queue,
-                JSON.parse(msg.content.toString()),
-                {
-                  persistent: true,
-                  contentType: 'application/json',
-                  headers: {
-                    ...msg.properties.headers,
-                    'x-retry-count': retryCount + 1,
-                  },
+              await this.channel?.sendToQueue(queue, JSON.parse(msg.content.toString()), {
+                persistent: true,
+                contentType: 'application/json',
+                headers: {
+                  ...msg.properties.headers,
+                  'x-retry-count': retryCount + 1,
                 },
-              )
+              })
             } else {
               channel.nack(msg, false, false)
             }
@@ -387,10 +364,7 @@ export class RabbitMQClient
     })
   }
 
-  async reply(
-    topic: string,
-    handler: (message: unknown) => Promise<unknown>,
-  ): Promise<void> {
+  async reply(topic: string, handler: (message: unknown) => Promise<unknown>): Promise<void> {
     if (!this.channel) {
       throw new Error('RabbitMQ channel not initialized')
     }
@@ -417,14 +391,10 @@ export class RabbitMQClient
             const response = await handler(content)
 
             if (msg.properties.replyTo) {
-              channel.sendToQueue(
-                msg.properties.replyTo,
-                Buffer.from(JSON.stringify(response)),
-                {
-                  correlationId: msg.properties.correlationId,
-                  contentType: 'application/json',
-                },
-              )
+              channel.sendToQueue(msg.properties.replyTo, Buffer.from(JSON.stringify(response)), {
+                correlationId: msg.properties.correlationId,
+                contentType: 'application/json',
+              })
             }
 
             channel.ack(msg)
@@ -464,9 +434,6 @@ export class RabbitMQClient
   }
 
   private generateId(): string {
-    return (
-      Math.random().toString(36).substring(2, 15) +
-      Math.random().toString(36).substring(2, 15)
-    )
+    return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15)
   }
 }

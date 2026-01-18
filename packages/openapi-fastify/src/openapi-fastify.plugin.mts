@@ -1,26 +1,20 @@
-import type {
-  NaviosPlugin,
-  PluginContext,
-  PluginDefinition,
-} from '@navios/core'
+import { OpenApiGeneratorService } from '@navios/openapi'
+import { getHtmlDocument } from '@scalar/core/libs/html-rendering'
+import { stringify as yamlStringify } from 'yaml'
+
+import type { FastifyApplicationServiceInterface } from '@navios/adapter-fastify'
+import type { NaviosPlugin, PluginContext, PluginDefinition } from '@navios/core'
 import type { OpenApiGeneratorOptions } from '@navios/openapi'
 import type { FastifyReply, FastifyRequest } from 'fastify'
 
-import type { FastifyApplicationServiceInterface } from '@navios/adapter-fastify'
-
-import { OpenApiGeneratorService } from '@navios/openapi'
-
-import { getHtmlDocument } from '@scalar/core/libs/html-rendering'
-import { stringify as yamlStringify } from 'yaml'
+import { fastifyOpenApiPluginOptionsSchema } from './schemas/index.mjs'
+import { applyGlobalPrefix } from './utils/index.mjs'
 
 import type {
   FastifyOpenApiPluginOptionsBase,
   ScalarOptions,
   ScalarTheme,
 } from './schemas/index.mjs'
-
-import { fastifyOpenApiPluginOptionsSchema } from './schemas/index.mjs'
-import { applyGlobalPrefix } from './utils/index.mjs'
 
 /**
  * Combined options for the Fastify OpenAPI plugin.
@@ -38,7 +32,10 @@ export interface FastifyOpenApiPluginOptions
  * - Serves the document as JSON and optionally YAML
  * - Provides Scalar UI for interactive documentation
  */
-export class OpenApiFastifyPlugin implements NaviosPlugin<FastifyOpenApiPluginOptions, FastifyApplicationServiceInterface> {
+export class OpenApiFastifyPlugin implements NaviosPlugin<
+  FastifyOpenApiPluginOptions,
+  FastifyApplicationServiceInterface
+> {
   readonly name = 'openapi-fastify'
 
   async register(
@@ -58,11 +55,7 @@ export class OpenApiFastifyPlugin implements NaviosPlugin<FastifyOpenApiPluginOp
     const document = generator.generate(context.modules, options)
 
     // Apply global prefix to servers if not already set
-    const documentWithServers = applyGlobalPrefix(
-      document,
-      globalPrefix,
-      options,
-    )
+    const documentWithServers = applyGlobalPrefix(document, globalPrefix, options)
 
     // Register JSON endpoint
     const jsonPath = parsedOptions.jsonPath

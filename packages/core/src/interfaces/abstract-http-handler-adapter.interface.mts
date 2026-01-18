@@ -17,11 +17,7 @@ export type StaticHandler<TRequest = any, TReply = any> = {
  */
 export type DynamicHandler<TRequest = any, TReply = any> = {
   isStatic: false
-  handler: (
-    scoped: ScopedContainer,
-    request: TRequest,
-    reply: TReply,
-  ) => Promise<any>
+  handler: (scoped: ScopedContainer, request: TRequest, reply: TReply) => Promise<any>
 }
 
 /**
@@ -69,9 +65,7 @@ export interface AbstractHttpHandlerAdapterInterface<TRequest = any> {
    * @param handlerMetadata - The handler metadata with schemas and configuration.
    * @returns An array of getter functions that populate request arguments.
    */
-  prepareArguments?: (
-    handlerMetadata: HandlerMetadata<any>,
-  ) => ArgumentGetterFn<TRequest>[]
+  prepareArguments?: (handlerMetadata: HandlerMetadata<any>) => ArgumentGetterFn<TRequest>[]
 
   /**
    * Builds a formatArguments function from argument getters.
@@ -87,9 +81,7 @@ export interface AbstractHttpHandlerAdapterInterface<TRequest = any> {
    * @param getters - Array of argument getter functions
    * @returns Function to format arguments from request
    */
-  buildFormatArguments?: (
-    getters: ArgumentGetterFn<TRequest>[],
-  ) => FormatArgumentsFn<TRequest>
+  buildFormatArguments?: (getters: ArgumentGetterFn<TRequest>[]) => FormatArgumentsFn<TRequest>
 
   /**
    * Checks if the handler has any validation schemas defined.

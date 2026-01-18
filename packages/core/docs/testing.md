@@ -64,7 +64,8 @@ Creates a new testing module builder.
 const testingModule = createTestingModule(AppModule, {
   adapter: [], // Required: HTTP adapter configuration
   logger: false, // Optional: Disable logging for tests
-  overrides: [ // Optional: Initial overrides
+  overrides: [
+    // Optional: Initial overrides
     { token: SomeService, useValue: mockService },
   ],
 })
@@ -75,13 +76,9 @@ const testingModule = createTestingModule(AppModule, {
 Returns a builder for overriding a provider:
 
 ```typescript
-testingModule
-  .overrideProvider(DatabaseService)
-  .useValue(mockDatabaseService) // Use a mock value
+testingModule.overrideProvider(DatabaseService).useValue(mockDatabaseService) // Use a mock value
 
-testingModule
-  .overrideProvider(CacheService)
-  .useClass(MockCacheService) // Use a mock class
+testingModule.overrideProvider(CacheService).useClass(MockCacheService) // Use a mock class
 ```
 
 #### `.compile()`

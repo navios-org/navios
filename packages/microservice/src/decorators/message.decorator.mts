@@ -1,6 +1,5 @@
-import type { z, ZodType } from 'zod/v4'
-
 import type { BaseMessageConfig } from '@navios/queues'
+import type { z, ZodType } from 'zod/v4'
 
 import { getMessageHandlerMetadata } from '../metadata/message-handler.metadata.mjs'
 
@@ -36,26 +35,19 @@ export function Message<
   Pattern extends 'pubsub' | 'point-to-point' | 'request-reply' = any,
   PayloadSchema extends ZodType = ZodType,
   ResponseSchema extends ZodType = ZodType,
->(message: {
-  config: BaseMessageConfig<Pattern, PayloadSchema, ResponseSchema>
-}) {
+>(message: { config: BaseMessageConfig<Pattern, PayloadSchema, ResponseSchema> }) {
   return (
-    target: (
-      params: { payload: z.input<PayloadSchema> },
-    ) => Promise<z.input<ResponseSchema> | void> | z.input<ResponseSchema> | void,
+    target: (params: {
+      payload: z.input<PayloadSchema>
+    }) => Promise<z.input<ResponseSchema> | void> | z.input<ResponseSchema> | void,
     context: ClassMethodDecoratorContext,
   ) => {
     if (context.kind !== 'method') {
-      throw new Error(
-        '[Navios/Microservice] Message decorator can only be used on methods.',
-      )
+      throw new Error('[Navios/Microservice] Message decorator can only be used on methods.')
     }
     const config = message.config
     if (context.metadata) {
-      let handlerMetadata = getMessageHandlerMetadata<BaseMessageConfig>(
-        target,
-        context,
-      )
+      let handlerMetadata = getMessageHandlerMetadata<BaseMessageConfig>(target, context)
       if (handlerMetadata.config && handlerMetadata.config.pattern) {
         throw new Error(
           `[Navios/Microservice] Message handler ${config.pattern} ${config.topic || config.queue} already exists. Please use a different message definition.`,
@@ -67,4 +59,3 @@ export function Message<
     return target
   }
 }
-

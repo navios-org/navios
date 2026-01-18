@@ -11,4 +11,3 @@ export default defineConfig({
   dts: true,
   target: 'es2022',
 })
-

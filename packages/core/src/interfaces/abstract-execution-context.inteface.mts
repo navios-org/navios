@@ -1,16 +1,12 @@
-import type {
-  ControllerMetadata,
-  HandlerMetadata,
-  ModuleMetadata,
-} from '../metadata/index.mjs'
+import type { ControllerMetadata, HandlerMetadata, ModuleMetadata } from '../metadata/index.mjs'
 
 /**
  * Interface providing access to the execution context during request handling.
- * 
+ *
  * The execution context provides access to metadata and request/reply objects
  * for the current request. It is available in guards and can be injected into
  * services if needed.
- * 
+ *
  * @example
  * ```typescript
  * @Injectable()

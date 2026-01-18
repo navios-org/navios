@@ -1,6 +1,5 @@
 import { create } from '@navios/http'
 import { makeNaviosFakeAdapter } from '@navios/http/testing'
-
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod/v4'
 
@@ -9,11 +8,7 @@ import { builder } from '../builder.mjs'
 describe('navios builder', () => {
   it('should parse the response', async () => {
     const adapter = makeNaviosFakeAdapter()
-    adapter.mock(
-      '/api/test',
-      'GET',
-      () => new Response(JSON.stringify({ data: 'test' })),
-    )
+    adapter.mock('/api/test', 'GET', () => new Response(JSON.stringify({ data: 'test' })))
     const api = builder()
     const client = create({ baseURL: '/api', adapter: adapter.fetch })
     api.provideClient(client)
@@ -28,11 +23,7 @@ describe('navios builder', () => {
 
   it('should ask for a bind parameter', async () => {
     const adapter = makeNaviosFakeAdapter()
-    adapter.mock(
-      '/api/bar/test',
-      'GET',
-      () => new Response(JSON.stringify({ data: 'test' })),
-    )
+    adapter.mock('/api/bar/test', 'GET', () => new Response(JSON.stringify({ data: 'test' })))
     const api = builder()
     const client = create({ baseURL: '/api', adapter: adapter.fetch })
     api.provideClient(client)
@@ -51,11 +42,7 @@ describe('navios builder', () => {
 
   it('should work with union request schemas', async () => {
     const adapter = makeNaviosFakeAdapter()
-    adapter.mock(
-      '/api/bar/test',
-      'POST',
-      () => new Response(JSON.stringify({ data: 'test' })),
-    )
+    adapter.mock('/api/bar/test', 'POST', () => new Response(JSON.stringify({ data: 'test' })))
     const api = builder()
     const client = create({ baseURL: '/api', adapter: adapter.fetch })
     api.provideClient(client)

@@ -1,8 +1,9 @@
 import { Injectable } from '@navios/di'
 
+import { InternalServerErrorResponderToken } from '../tokens/responder.tokens.mjs'
+
 import type { ErrorResponder } from '../interfaces/error-responder.interface.mjs'
 import type { ErrorResponse } from '../interfaces/error-response.interface.mjs'
-import { InternalServerErrorResponderToken } from '../tokens/responder.tokens.mjs'
 
 /**
  * Default responder for internal server errors (HTTP 500).
@@ -38,8 +39,7 @@ import { InternalServerErrorResponderToken } from '../tokens/responder.tokens.mj
 })
 export class InternalServerErrorResponderService implements ErrorResponder {
   getResponse(error: unknown, description?: string): ErrorResponse {
-    const message =
-      error instanceof Error ? error.message : 'Internal Server Error'
+    const message = error instanceof Error ? error.message : 'Internal Server Error'
 
     return {
       statusCode: 500,

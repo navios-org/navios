@@ -3,12 +3,7 @@ import { defineConfig } from 'tsdown'
 import swc from 'unplugin-swc'
 
 export default defineConfig({
-  entry: [
-    'src/index.mts',
-    'src/jsx-runtime.mts',
-    'src/jsx-dev-runtime.mts',
-    'src/jsx.mts',
-  ],
+  entry: ['src/index.mts', 'src/jsx-runtime.mts', 'src/jsx-dev-runtime.mts', 'src/jsx.mts'],
   outDir: 'lib',
   format: ['esm', 'cjs'],
   clean: true,

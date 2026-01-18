@@ -1,14 +1,5 @@
-import type {
-  ClassType,
-  NaviosPlugin,
-  PluginContext,
-  PluginDefinition,
-} from '@navios/core'
-
 import type { BunApplicationServiceInterface } from '@navios/adapter-bun'
-
-import type { ScalarOptions, ScalarTheme } from './schemas/index.mjs'
-import type { BunOpenApiPluginOptions } from './tokens/openapi-options.token.mjs'
+import type { ClassType, NaviosPlugin, PluginContext, PluginDefinition } from '@navios/core'
 
 import { createOpenApiJsonController } from './controllers/openapi-json.controller.mjs'
 import { createOpenApiUiController } from './controllers/openapi-ui.controller.mjs'
@@ -16,6 +7,9 @@ import { createOpenApiYamlController } from './controllers/openapi-yaml.controll
 import { bunOpenApiPluginOptionsSchema } from './schemas/index.mjs'
 import { OpenApiDocumentService } from './services/openapi-document.service.mjs'
 import { OpenApiOptionsToken } from './tokens/openapi-options.token.mjs'
+
+import type { ScalarOptions, ScalarTheme } from './schemas/index.mjs'
+import type { BunOpenApiPluginOptions } from './tokens/openapi-options.token.mjs'
 
 /**
  * OpenAPI plugin for Bun adapter.
@@ -29,7 +23,10 @@ import { OpenApiOptionsToken } from './tokens/openapi-options.token.mjs'
  * this plugin uses the standard Navios controller pattern via
  * ModuleLoaderService.extendModules().
  */
-export class OpenApiBunPlugin implements NaviosPlugin<BunOpenApiPluginOptions, BunApplicationServiceInterface> {
+export class OpenApiBunPlugin implements NaviosPlugin<
+  BunOpenApiPluginOptions,
+  BunApplicationServiceInterface
+> {
   readonly name = 'openapi-bun'
 
   async register(
@@ -102,9 +99,7 @@ export class OpenApiBunPlugin implements NaviosPlugin<BunOpenApiPluginOptions, B
     }
 
     if (!options.disableScalar) {
-      controllers.push(
-        createOpenApiUiController(options.docsPath, options.jsonPath),
-      )
+      controllers.push(createOpenApiUiController(options.docsPath, options.jsonPath))
     }
 
     return controllers

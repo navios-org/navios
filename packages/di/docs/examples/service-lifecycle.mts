@@ -1,6 +1,6 @@
-import type { OnServiceDestroy, OnServiceInit } from '@navios/di'
-
 import { asyncInject, Container, inject, Injectable } from '@navios/di'
+
+import type { OnServiceDestroy, OnServiceInit } from '@navios/di'
 
 const container = new Container()
 /**
@@ -284,11 +284,7 @@ class UserService implements OnServiceInit, OnServiceDestroy {
     // Send welcome email
     try {
       const emailService = await this.email
-      await emailService.sendEmail(
-        email,
-        'Welcome!',
-        `Hello ${name}, welcome to our platform!`,
-      )
+      await emailService.sendEmail(email, 'Welcome!', `Hello ${name}, welcome to our platform!`)
     } catch (error) {
       console.error('Failed to send welcome email:', error)
     }
@@ -304,9 +300,7 @@ class UserService implements OnServiceInit, OnServiceDestroy {
     }
 
     // Query database
-    const result = await this.db.query(
-      `SELECT * FROM users WHERE email = '${email}'`,
-    )
+    const result = await this.db.query(`SELECT * FROM users WHERE email = '${email}'`)
     return result.rows[0] || null
   }
 }

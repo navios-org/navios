@@ -1,4 +1,4 @@
-import { defineBunEnvironment } from '@navios/adapter-bun'
+import { defineBunEnvironment, type BunEnvironment } from '@navios/adapter-bun'
 import { NaviosFactory } from '@navios/core'
 import { defineOtelPlugin } from '@navios/otel-bun'
 
@@ -13,7 +13,7 @@ async function bootstrap() {
   logOtelConfig(otelConfig)
 
   // Create the application
-  const app = await NaviosFactory.create(AppModule, {
+  const app = await NaviosFactory.create<BunEnvironment>(AppModule, {
     adapter: defineBunEnvironment(),
   })
 

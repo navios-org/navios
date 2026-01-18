@@ -1,15 +1,11 @@
-import type { BaseEndpointOptions } from '@navios/builder'
-import type {
-  HandlerMetadata,
-  InstanceResolution,
-  NaviosApplicationOptions,
-} from '@navios/core'
-
 import { NaviosOptionsToken } from '@navios/core'
 import { Injectable } from '@navios/di'
 import { TestContainer } from '@navios/di/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { z } from 'zod/v4'
+
+import type { BaseEndpointOptions } from '@navios/builder'
+import type { HandlerMetadata, InstanceResolution, NaviosApplicationOptions } from '@navios/core'
 
 import { BunStreamAdapterService } from '../adapters/stream-adapter.service.mjs'
 import { BunStreamAdapterToken } from '../adapters/stream-adapter.service.mjs'
@@ -22,9 +18,7 @@ const bindNaviosOptions = (
   container: TestContainer,
   options: Partial<NaviosApplicationOptions>,
 ) => {
-  container
-    .bind(NaviosOptionsToken)
-    .toValue(options as NaviosApplicationOptions)
+  container.bind(NaviosOptionsToken).toValue(options as NaviosApplicationOptions)
 }
 
 const createHandlerMetadata = (

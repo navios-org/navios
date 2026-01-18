@@ -1,5 +1,13 @@
 import type { Container, ScopedContainer } from '@navios/core'
 
+import {
+  AsyncComponent,
+  CDataSymbol,
+  ClassComponent,
+  Fragment,
+  RawXmlSymbol,
+} from '../types/xml-node.mjs'
+
 import type { XmlComponent } from '../types/component.mjs'
 import type {
   AnyXmlNode,
@@ -7,14 +15,6 @@ import type {
   CDataNode,
   ClassComponentNode,
   RawXmlNode,
-} from '../types/xml-node.mjs'
-
-import {
-  AsyncComponent,
-  CDataSymbol,
-  ClassComponent,
-  Fragment,
-  RawXmlSymbol,
 } from '../types/xml-node.mjs'
 
 /**
@@ -109,16 +109,8 @@ export class MissingContainerError extends Error {
  * const xml = await renderToXml(<MyClassComponent />, { container })
  * ```
  */
-export async function renderToXml(
-  node: AnyXmlNode,
-  options: RenderOptions = {},
-): Promise<string> {
-  const {
-    declaration = true,
-    encoding = 'UTF-8',
-    pretty = false,
-    container,
-  } = options
+export async function renderToXml(node: AnyXmlNode, options: RenderOptions = {}): Promise<string> {
+  const { declaration = true, encoding = 'UTF-8', pretty = false, container } = options
 
   let xml = ''
   if (declaration) {
@@ -147,10 +139,7 @@ async function renderNode(
 
     // Resolve the component instance from the container, passing props as schema args
     // This validates props via Zod schema if defined on the component
-    const instance = (await container.get(
-      node.componentClass as any,
-      node.props,
-    )) as XmlComponent
+    const instance = (await container.get(node.componentClass as any, node.props)) as XmlComponent
 
     // Call render() - no arguments, props are already in the instance
     const result = instance.render()
@@ -182,9 +171,7 @@ async function renderNode(
 
   if (type === Fragment) {
     const renderedChildren = await Promise.all(
-      children
-        .filter((c) => c != null)
-        .map((c) => renderNode(c, indent, container)),
+      children.filter((c) => c != null).map((c) => renderNode(c, indent, container)),
     )
     return renderedChildren.join('')
   }
@@ -205,19 +192,13 @@ async function renderNode(
 
   // Resolve all children (including async and class components) in parallel
   const resolvedChildren = await Promise.all(
-    children
-      .filter((c) => c != null)
-      .map((c) => renderNode(c, childIndent, container)),
+    children.filter((c) => c != null).map((c) => renderNode(c, childIndent, container)),
   )
   const childContent = resolvedChildren.join('')
 
   // Check if children are simple (text, numbers, CDATA, or raw XML)
   const hasOnlySimpleContent = children.every(
-    (c) =>
-      typeof c === 'string' ||
-      typeof c === 'number' ||
-      isCDataNode(c) ||
-      isRawXmlNode(c),
+    (c) => typeof c === 'string' || typeof c === 'number' || isCDataNode(c) || isRawXmlNode(c),
   )
   if (hasOnlySimpleContent) {
     return `${prefix}<${type}${attrs}>${childContent}</${type}>${newline}`
@@ -227,21 +208,11 @@ async function renderNode(
 }
 
 function isClassComponentNode(node: unknown): node is ClassComponentNode {
-  return (
-    node !== null &&
-    typeof node === 'object' &&
-    'type' in node &&
-    node.type === ClassComponent
-  )
+  return node !== null && typeof node === 'object' && 'type' in node && node.type === ClassComponent
 }
 
 function isAsyncNode(node: unknown): node is AsyncXmlNode {
-  return (
-    node !== null &&
-    typeof node === 'object' &&
-    'type' in node &&
-    node.type === AsyncComponent
-  )
+  return node !== null && typeof node === 'object' && 'type' in node && node.type === AsyncComponent
 }
 
 function isCDataNode(node: any): node is CDataNode {

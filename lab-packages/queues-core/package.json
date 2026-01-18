@@ -1,22 +1,15 @@
 {
   "name": "@navios/queues-core",
   "version": "0.0.1-alpha.0",
-  "scripts": {
-    "check": "tsc -b",
-    "lint": "oxlint --fix",
-    "build": "tsdown",
-    "publish": "yarn npm publish --access public",
-    "publish:next": "yarn npm publish --access public --tag next"
-  },
   "private": true,
+  "license": "MIT",
   "author": {
     "name": "Oleksandr Hanzha",
     "email": "alex@granted.name"
   },
-  "license": "MIT",
-  "typings": "./lib/index.d.mts",
   "main": "./lib/index.js",
   "module": "./lib/index.mjs",
+  "typings": "./lib/index.d.mts",
   "exports": {
     ".": {
       "import": {
@@ -28,6 +21,13 @@
         "default": "./lib/index.js"
       }
     }
+  },
+  "scripts": {
+    "check": "tsc -b",
+    "lint": "yarn run -T oxlint --fix && yarn run -T oxfmt",
+    "build": "tsdown",
+    "publish": "yarn npm publish --access public",
+    "publish:next": "yarn npm publish --access public --tag next"
   },
   "dependencies": {
     "@navios/di": "workspace:*"

@@ -78,10 +78,7 @@ export interface BunHandlerAdapterInterface extends AbstractHttpHandlerAdapterIn
    */
   prepareArguments?: (
     handlerMetadata: HandlerMetadata<any>,
-  ) => ((
-    target: Record<string, any>,
-    request: BunRequest,
-  ) => Promise<void> | void)[]
+  ) => ((target: Record<string, any>, request: BunRequest) => Promise<void> | void)[]
 
   /**
    * Creates a request handler function for the endpoint.

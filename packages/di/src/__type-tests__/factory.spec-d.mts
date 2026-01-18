@@ -1,11 +1,11 @@
 import { z } from 'zod/v4'
 
-import type { Factorable, FactorableWithArgs } from '../interfaces/index.mjs'
-
 import { Factory } from '../decorators/index.mjs'
 import { InjectableScope } from '../enums/index.mjs'
 import { InjectionToken } from '../token/injection-token.mjs'
 import { Registry } from '../token/registry.mjs'
+
+import type { Factorable, FactorableWithArgs } from '../interfaces/index.mjs'
 
 // Test factory without arguments
 @Factory()
@@ -39,9 +39,7 @@ const tokenWithSchema = InjectionToken.create<{ name: string }, typeof schema>(
   schema,
 )
 @Factory({ token: tokenWithSchema })
-class TestFactory4
-  implements FactorableWithArgs<{ name: string }, typeof schema>
-{
+class TestFactory4 implements FactorableWithArgs<{ name: string }, typeof schema> {
   create(ctx: any, args: z.output<typeof schema>) {
     return args
   }

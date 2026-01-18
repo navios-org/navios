@@ -1,3 +1,5 @@
+import { useCallback, useEffect, useReducer, useRef, useState } from 'react'
+
 import type {
   AnyInjectableType,
   BoundInjectionToken,
@@ -8,8 +10,6 @@ import type {
   InjectionTokenSchemaType,
 } from '@navios/di'
 import type { z, ZodType } from 'zod/v4'
-
-import { useCallback, useEffect, useReducer, useRef, useState } from 'react'
 
 import type { Join, UnionToArray } from '../types.mjs'
 
@@ -27,10 +27,7 @@ type ServiceAction<T> =
   | { type: 'error'; error: Error }
   | { type: 'reset' }
 
-function serviceReducer<T>(
-  state: ServiceState<T>,
-  action: ServiceAction<T>,
-): ServiceState<T> {
+function serviceReducer<T>(state: ServiceState<T>, action: ServiceAction<T>): ServiceState<T> {
   switch (action.type) {
     case 'loading':
       return { status: 'loading' }
@@ -57,9 +54,7 @@ export interface UseServiceResult<T> {
 // #1 Simple class
 export function useService<T extends ClassType>(
   token: T,
-): UseServiceResult<
-  InstanceType<T> extends Factorable<infer R> ? R : InstanceType<T>
->
+): UseServiceResult<InstanceType<T> extends Factorable<infer R> ? R : InstanceType<T>>
 
 // #2 Token with required Schema
 export function useService<T, S extends InjectionTokenSchemaType>(
@@ -68,11 +63,7 @@ export function useService<T, S extends InjectionTokenSchemaType>(
 ): UseServiceResult<T>
 
 // #3 Token with optional Schema
-export function useService<
-  T,
-  S extends InjectionTokenSchemaType,
-  R extends boolean,
->(
+export function useService<T, S extends InjectionTokenSchemaType, R extends boolean>(
   token: InjectionToken<T, S, R>,
 ): R extends false
   ? UseServiceResult<T>
@@ -81,17 +72,11 @@ export function useService<
     : 'Error: Your token requires args'
 
 // #4 Token with no Schema
-export function useService<T>(
-  token: InjectionToken<T, undefined>,
-): UseServiceResult<T>
+export function useService<T>(token: InjectionToken<T, undefined>): UseServiceResult<T>
 
-export function useService<T>(
-  token: BoundInjectionToken<T, any>,
-): UseServiceResult<T>
+export function useService<T>(token: BoundInjectionToken<T, any>): UseServiceResult<T>
 
-export function useService<T>(
-  token: FactoryInjectionToken<T, any>,
-): UseServiceResult<T>
+export function useService<T>(token: FactoryInjectionToken<T, any>): UseServiceResult<T>
 
 export function useService(
   token:

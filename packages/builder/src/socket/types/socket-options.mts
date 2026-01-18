@@ -24,11 +24,7 @@ import type { ZodType } from 'zod/v4'
  * })
  * ```
  */
-export type MessageFormatter = (
-  topic: string,
-  payload: unknown,
-  ackId?: string,
-) => unknown
+export type MessageFormatter = (topic: string, payload: unknown, ackId?: string) => unknown
 
 /**
  * Message parser function type.

@@ -1,6 +1,6 @@
-import type { AnyInjectableType } from '@navios/core'
-
 import { InjectionToken, XmlStreamAdapterToken } from '@navios/core'
+
+import type { AnyInjectableType } from '@navios/core'
 
 import { XmlStreamAdapterService } from './adapters/index.mjs'
 

@@ -32,10 +32,10 @@ const typelessOptionalObjectToken = InjectionToken.create(
   simpleOptionalObjectSchema,
 )
 
-const typedObjectToken = InjectionToken.create<
-  FooService,
-  typeof simpleObjectSchema
->(Symbol.for('Typed object token'), simpleObjectSchema)
+const typedObjectToken = InjectionToken.create<FooService, typeof simpleObjectSchema>(
+  Symbol.for('Typed object token'),
+  simpleObjectSchema,
+)
 const typedOptionalObjectToken = InjectionToken.create<
   FooService,
   typeof simpleOptionalObjectSchema

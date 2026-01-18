@@ -2,11 +2,11 @@ import { HttpException } from './http.exception.mjs'
 
 /**
  * Exception that represents a 500 Internal Server Error HTTP error.
- * 
+ *
  * Use this exception when an unexpected error occurs on the server.
  * Generally, you should let unhandled errors bubble up rather than catching
  * and rethrowing as InternalServerErrorException, as Navios will handle them appropriately.
- * 
+ *
  * @example
  * ```typescript
  * @Endpoint(processPaymentEndpoint)
@@ -23,7 +23,7 @@ import { HttpException } from './http.exception.mjs'
 export class InternalServerErrorException extends HttpException {
   /**
    * Creates a new InternalServerErrorException.
-   * 
+   *
    * @param message - Error message or response object
    * @param error - Optional underlying error for logging
    */

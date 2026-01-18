@@ -1,8 +1,8 @@
-import type { AnyXmlNode, AsyncXmlNode, ClassComponentNode, XmlNode } from '../types/xml-node.mjs'
-import type { ComponentClass } from '../types/component.mjs'
-
 import { isComponentClass } from '../decorators/component.decorator.mjs'
 import { AsyncComponent, ClassComponent, Fragment } from '../types/xml-node.mjs'
+
+import type { ComponentClass } from '../types/component.mjs'
+import type { AnyXmlNode, AsyncXmlNode, ClassComponentNode, XmlNode } from '../types/xml-node.mjs'
 
 type SyncComponent = (props: any) => XmlNode | AsyncXmlNode | ClassComponentNode
 type AsyncComponentFn = (props: any) => Promise<XmlNode | AsyncXmlNode | ClassComponentNode>

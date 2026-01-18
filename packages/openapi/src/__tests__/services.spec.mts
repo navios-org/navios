@@ -1,5 +1,4 @@
 import { TestContainer } from '@navios/core/testing'
-
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { z } from 'zod/v4'
 
@@ -190,9 +189,7 @@ describe('OpenAPI Services', () => {
 
     it('should handle params at the end', async () => {
       const service = await container.get(PathBuilderService)
-      expect(service.convertUrlParams('/files/$fileId/download')).toBe(
-        '/files/{fileId}/download',
-      )
+      expect(service.convertUrlParams('/files/$fileId/download')).toBe('/files/{fileId}/download')
     })
 
     it('should extract single param', async () => {
@@ -202,9 +199,10 @@ describe('OpenAPI Services', () => {
 
     it('should extract multiple params', async () => {
       const service = await container.get(PathBuilderService)
-      expect(
-        service.extractUrlParamNames('/users/$userId/posts/$postId'),
-      ).toEqual(['userId', 'postId'])
+      expect(service.extractUrlParamNames('/users/$userId/posts/$postId')).toEqual([
+        'userId',
+        'postId',
+      ])
     })
 
     it('should return empty array for no params', async () => {

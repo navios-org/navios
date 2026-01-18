@@ -1,8 +1,9 @@
 import { Injectable } from '@navios/di'
 
+import { ForbiddenResponderToken } from '../tokens/responder.tokens.mjs'
+
 import type { ErrorResponder } from '../interfaces/error-responder.interface.mjs'
 import type { ErrorResponse } from '../interfaces/error-response.interface.mjs'
-import { ForbiddenResponderToken } from '../tokens/responder.tokens.mjs'
 
 /**
  * Default responder for forbidden errors (HTTP 403).
@@ -45,12 +46,7 @@ export class ForbiddenResponderService implements ErrorResponder {
     }
 
     // Try to extract detail from error with a response property (like ForbiddenException)
-    if (
-      error &&
-      typeof error === 'object' &&
-      'response' in error &&
-      error.response
-    ) {
+    if (error && typeof error === 'object' && 'response' in error && error.response) {
       if (typeof error.response === 'string') {
         return this.createResponse(error.response)
       }

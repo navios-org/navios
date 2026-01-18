@@ -13,10 +13,9 @@ export type Unsubscribe = () => void
  * - If payloadSchema is provided: z.input<PayloadSchema>
  * - Otherwise: unknown
  */
-export type InferSendPayload<Options extends SendOptions> =
-  Options['payloadSchema'] extends ZodType
-    ? z.input<Options['payloadSchema']>
-    : unknown
+export type InferSendPayload<Options extends SendOptions> = Options['payloadSchema'] extends ZodType
+  ? z.input<Options['payloadSchema']>
+  : unknown
 
 /**
  * Type inference for send handler return type.
@@ -24,10 +23,9 @@ export type InferSendPayload<Options extends SendOptions> =
  * - If ackSchema is provided: Promise<z.output<AckSchema>>
  * - Otherwise: void
  */
-export type InferSendReturn<Options extends SendOptions> =
-  Options['ackSchema'] extends ZodType
-    ? Promise<z.output<Options['ackSchema']>>
-    : void
+export type InferSendReturn<Options extends SendOptions> = Options['ackSchema'] extends ZodType
+  ? Promise<z.output<Options['ackSchema']>>
+  : void
 
 /**
  * Type inference for subscribe handler callback parameter.
@@ -36,9 +34,7 @@ export type InferSendReturn<Options extends SendOptions> =
  * - Otherwise: unknown
  */
 export type InferSubscribePayload<Options extends SubscribeOptions> =
-  Options['payloadSchema'] extends ZodType
-    ? z.output<Options['payloadSchema']>
-    : unknown
+  Options['payloadSchema'] extends ZodType ? z.output<Options['payloadSchema']> : unknown
 
 /**
  * Send handler function type.

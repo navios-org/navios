@@ -1,12 +1,11 @@
 import { builder } from '@navios/builder'
-
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod/v4'
 
-import type { EndpointParams } from '../decorators/index.mjs'
-
 import { Controller, Endpoint } from '../decorators/index.mjs'
 import { extractControllerMetadata } from '../index.mjs'
+
+import type { EndpointParams } from '../decorators/index.mjs'
 
 describe('Controller decorator', () => {
   const api = builder({

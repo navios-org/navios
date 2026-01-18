@@ -1,16 +1,17 @@
-import type { ClassType } from '@navios/di'
 import { createClassContext } from '@navios/di/legacy-compat'
+
+import type { ClassType } from '@navios/di'
 
 import { Module as OriginalModule, type ModuleOptions } from '../../decorators/module.decorator.mjs'
 
 /**
  * Legacy-compatible Module decorator.
- * 
+ *
  * Works with TypeScript experimental decorators (legacy API).
- * 
+ *
  * @param options - Module configuration options
  * @returns A class decorator compatible with legacy decorator API
- * 
+ *
  * @example
  * ```typescript
  * @Module({
@@ -34,4 +35,3 @@ export function Module(
     return originalDecorator(target, context)
   }
 }
-

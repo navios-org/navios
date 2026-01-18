@@ -11,13 +11,13 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { OnServiceDestroy, OnServiceInit } from '../index.mjs'
-
 import { Container } from '../container/container.mjs'
 import { Injectable } from '../decorators/injectable.decorator.mjs'
 import { InjectableScope } from '../enums/index.mjs'
 import { Registry } from '../token/registry.mjs'
 import { getInjectors } from '../utils/get-injectors.mjs'
+
+import type { OnServiceDestroy, OnServiceInit } from '../index.mjs'
 
 // ============================================================================
 // TEST UTILITIES
@@ -425,9 +425,7 @@ describe('E2E: Concurrent Requests', () => {
       }
 
       // All requests should have different counter instances
-      const uniqueCounterIds = new Set(
-        Object.values(instancesByRequest).map((ids) => ids[0]),
-      )
+      const uniqueCounterIds = new Set(Object.values(instancesByRequest).map((ids) => ids[0]))
       expect(uniqueCounterIds.size).toBe(5)
     })
 
@@ -539,15 +537,13 @@ describe('E2E: Concurrent Requests', () => {
 
       // Run concurrent requests with different user IDs
       const results = await Promise.all(
-        ['user-A', 'user-B', 'user-C', 'user-D', 'user-E'].map(
-          async (userId, i) => {
-            const scoped = container.beginRequest(`request-${i}`)
-            const processor = await scoped.get(RequestProcessor)
-            const result = await processor.processForUser(userId)
-            await scoped.endRequest()
-            return { expected: userId, actual: result }
-          },
-        ),
+        ['user-A', 'user-B', 'user-C', 'user-D', 'user-E'].map(async (userId, i) => {
+          const scoped = container.beginRequest(`request-${i}`)
+          const processor = await scoped.get(RequestProcessor)
+          const result = await processor.processForUser(userId)
+          await scoped.endRequest()
+          return { expected: userId, actual: result }
+        }),
       )
 
       // Each request should have its own isolated session
@@ -1055,9 +1051,7 @@ describe('E2E: Error Handling', () => {
         }
       }
 
-      await expect(container.get(FailingInitService)).rejects.toThrow(
-        'Init failed!',
-      )
+      await expect(container.get(FailingInitService)).rejects.toThrow('Init failed!')
     })
 
     it('should propagate errors from async onServiceInit', async () => {
@@ -1069,9 +1063,7 @@ describe('E2E: Error Handling', () => {
         }
       }
 
-      await expect(container.get(AsyncFailingInitService)).rejects.toThrow(
-        'Async init failed!',
-      )
+      await expect(container.get(AsyncFailingInitService)).rejects.toThrow('Async init failed!')
     })
 
     it('should propagate constructor errors', async () => {
@@ -1082,9 +1074,7 @@ describe('E2E: Error Handling', () => {
         }
       }
 
-      await expect(container.get(FailingConstructorService)).rejects.toThrow(
-        'Constructor failed!',
-      )
+      await expect(container.get(FailingConstructorService)).rejects.toThrow('Constructor failed!')
     })
   })
 })

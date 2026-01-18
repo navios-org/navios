@@ -1,12 +1,3 @@
-import type {
-  CanActivate,
-  ClassType,
-  ControllerMetadata,
-  HandlerMetadata,
-  ModuleMetadata,
-} from '@navios/core'
-import type { BunRequest } from 'bun'
-
 import {
   Container,
   ErrorResponseProducerService,
@@ -23,23 +14,22 @@ import {
   Logger,
   runWithRequestId,
 } from '@navios/core'
-
 import { ZodError } from 'zod/v4'
 
 import type {
-  BunHandlerAdapterInterface,
-  BunHandlerResult,
-} from '../adapters/index.mjs'
+  CanActivate,
+  ClassType,
+  ControllerMetadata,
+  HandlerMetadata,
+  ModuleMetadata,
+} from '@navios/core'
+import type { BunRequest } from 'bun'
 
 import { BunExecutionContext, BunFakeReply } from '../interfaces/index.mjs'
-import {
-  BunControllerAdapterToken,
-  BunRequestToken,
-} from '../tokens/index.mjs'
-import {
-  applyCorsToResponse,
-  type BunCorsOptions,
-} from '../utils/cors.util.mjs'
+import { BunControllerAdapterToken, BunRequestToken } from '../tokens/index.mjs'
+import { applyCorsToResponse, type BunCorsOptions } from '../utils/cors.util.mjs'
+
+import type { BunHandlerAdapterInterface, BunHandlerResult } from '../adapters/index.mjs'
 
 /**
  * Type definition for Bun route mappings.
@@ -107,24 +97,17 @@ export class BunControllerAdapterService {
       const { classMethod, url, httpMethod, adapterToken } = endpoint
 
       if (!url || !adapterToken) {
-        throw new Error(
-          `[Navios] Malformed Endpoint ${controller.name}:${classMethod}`,
-        )
+        throw new Error(`[Navios] Malformed Endpoint ${controller.name}:${classMethod}`)
       }
       const adapter = await this.container.get(
         adapterToken as InjectionToken<BunHandlerAdapterInterface>,
       )
 
       // Pre-resolve guards (reversed order: module → controller → endpoint)
-      const guards = this.guardRunner.makeContext(
-        moduleMetadata,
-        controllerMetadata,
-        endpoint,
+      const guards = this.guardRunner.makeContext(moduleMetadata, controllerMetadata, endpoint)
+      const guardResolution = await this.instanceResolver.resolveMany<CanActivate>(
+        Array.from(guards).reverse() as ClassType[],
       )
-      const guardResolution =
-        await this.instanceResolver.resolveMany<CanActivate>(
-          Array.from(guards).reverse() as ClassType[],
-        )
 
       const fullUrl = globalPrefix + url.replaceAll('$', ':')
       if (!routes[fullUrl]) {
@@ -139,9 +122,7 @@ export class BunControllerAdapterService {
         corsOptions,
       )
 
-      this.logger.debug(
-        `Registered ${httpMethod} ${fullUrl} for ${controller.name}:${classMethod}`,
-      )
+      this.logger.debug(`Registered ${httpMethod} ${fullUrl} for ${controller.name}:${classMethod}`)
     }
   }
 
@@ -213,11 +194,7 @@ export class BunControllerAdapterService {
             if (!canActivate) {
               // Check if guard set a custom response via the fake reply
               if (fakeReply.hasResponse()) {
-                return applyCorsToResponse(
-                  fakeReply.toResponse(),
-                  origin,
-                  corsOptions,
-                )
+                return applyCorsToResponse(fakeReply.toResponse(), origin, corsOptions)
               }
               return applyCorsToResponse(
                 new Response('Forbidden', { status: 403 }),
@@ -266,11 +243,7 @@ export class BunControllerAdapterService {
             if (!canActivate) {
               // Check if guard set a custom response via the fake reply
               if (fakeReply.hasResponse()) {
-                return applyCorsToResponse(
-                  fakeReply.toResponse(),
-                  origin,
-                  corsOptions,
-                )
+                return applyCorsToResponse(fakeReply.toResponse(), origin, corsOptions)
               }
               return applyCorsToResponse(
                 new Response('Forbidden', { status: 403 }),
@@ -294,10 +267,7 @@ export class BunControllerAdapterService {
         return applyCorsToResponse(errorResponse, origin, corsOptions)
       } finally {
         requestContainer.endRequest().catch((err: any) => {
-          this.logger.error(
-            `Error ending request context ${requestId}: ${err.message}`,
-            err,
-          )
+          this.logger.error(`Error ending request context ${requestId}: ${err.message}`, err)
         })
       }
     }
@@ -318,10 +288,7 @@ export class BunControllerAdapterService {
         headers: { 'Content-Type': 'application/json' },
       })
     } else if (error instanceof ZodError) {
-      errorResponse = this.errorProducer.respond(
-        FrameworkError.ValidationError,
-        error,
-      )
+      errorResponse = this.errorProducer.respond(FrameworkError.ValidationError, error)
     } else {
       // Log unexpected errors
       const err = error as Error

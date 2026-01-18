@@ -232,14 +232,7 @@ export interface BaseEndpointConfig<
   RequestSchema = undefined,
   ErrorSchema extends ErrorSchemaRecord | undefined = undefined,
   UrlParamsSchema extends ZodObject | undefined = undefined,
-> extends BaseStreamConfig<
-  Method,
-  Url,
-  QuerySchema,
-  RequestSchema,
-  ErrorSchema,
-  UrlParamsSchema
-> {
+> extends BaseStreamConfig<Method, Url, QuerySchema, RequestSchema, ErrorSchema, UrlParamsSchema> {
   responseSchema: ResponseSchema
 }
 
@@ -251,12 +244,4 @@ export type AnyStreamConfig = BaseStreamConfig<any, any, any, any, any, any>
 /**
  * @deprecated Use EndpointOptions instead
  */
-export type AnyEndpointConfig = BaseEndpointConfig<
-  any,
-  any,
-  any,
-  any,
-  any,
-  any,
-  any
->
+export type AnyEndpointConfig = BaseEndpointConfig<any, any, any, any, any, any, any>

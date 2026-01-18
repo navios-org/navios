@@ -1,3 +1,5 @@
+import { PluginStages } from '../interfaces/plugin-stage.mjs'
+
 import type { AbstractAdapterInterface } from '../interfaces/abstract-adapter.interface.mjs'
 import type {
   ContainerOnlyContext,
@@ -6,8 +8,6 @@ import type {
 } from '../interfaces/plugin-context.mjs'
 import type { PluginStage } from '../interfaces/plugin-stage.mjs'
 import type { StagedPluginDefinition } from '../interfaces/staged-plugin.interface.mjs'
-
-import { PluginStages } from '../interfaces/plugin-stage.mjs'
 
 // ============ Plugin Config Type ============
 
@@ -22,26 +22,18 @@ interface PluginConfig<TContext, TOptions> {
  * Creates a curried plugin factory for a specific stage.
  * Returns a function that takes config and returns a function that takes options.
  */
-function createPluginFactory<TStage extends PluginStage, TContext>(
-  stage: TStage,
-) {
-  return <
-    TOptions,
-    TAdapter extends AbstractAdapterInterface = AbstractAdapterInterface,
-  >(
+function createPluginFactory<TStage extends PluginStage, TContext>(stage: TStage) {
+  return <TOptions, TAdapter extends AbstractAdapterInterface = AbstractAdapterInterface>(
     config: PluginConfig<TContext, TOptions>,
   ) =>
-  (options: TOptions): StagedPluginDefinition<TStage, TOptions, TAdapter> => ({
-    plugin: {
-      name: config.name,
-      stage,
-      register: config.register as (
-        context: never,
-        options: TOptions,
-      ) => Promise<void> | void,
-    },
-    options,
-  })
+    (options: TOptions): StagedPluginDefinition<TStage, TOptions, TAdapter> => ({
+      plugin: {
+        name: config.name,
+        stage,
+        register: config.register as (context: never, options: TOptions) => Promise<void> | void,
+      },
+      options,
+    })
 }
 
 // ============ Pre-Adapter Stages (No adapter in context) ============
@@ -222,9 +214,7 @@ export function definePostModulesInitPlugin<
 export function definePreReadyPlugin<
   TAdapter extends AbstractAdapterInterface = AbstractAdapterInterface,
 >() {
-  return createPluginFactory<'pre:ready', FullPluginContext<TAdapter>>(
-    PluginStages.PRE_READY,
-  )
+  return createPluginFactory<'pre:ready', FullPluginContext<TAdapter>>(PluginStages.PRE_READY)
 }
 
 /**
@@ -245,7 +235,5 @@ export function definePreReadyPlugin<
 export function definePostReadyPlugin<
   TAdapter extends AbstractAdapterInterface = AbstractAdapterInterface,
 >() {
-  return createPluginFactory<'post:ready', FullPluginContext<TAdapter>>(
-    PluginStages.POST_READY,
-  )
+  return createPluginFactory<'post:ready', FullPluginContext<TAdapter>>(PluginStages.POST_READY)
 }

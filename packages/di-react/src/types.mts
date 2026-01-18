@@ -11,10 +11,7 @@ export type Join<T extends any[], Delimiter extends string> = T extends []
     ? First extends string | number
       ? `${First}`
       : never
-    : T extends [
-          infer First extends string | number | symbol,
-          ...infer Rest extends any[],
-        ]
+    : T extends [infer First extends string | number | symbol, ...infer Rest extends any[]]
       ? First extends string | number
         ? `${First}${Delimiter}${Join<Rest, Delimiter>}`
         : never

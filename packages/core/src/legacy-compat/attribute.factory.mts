@@ -1,12 +1,7 @@
-import type { ClassType } from '@navios/di'
 import { createClassContext, createMethodContext } from '@navios/di/legacy-compat'
-import type { z, ZodType } from 'zod/v4'
 
-import type {
-  ControllerMetadata,
-  HandlerMetadata,
-  ModuleMetadata,
-} from '../metadata/index.mjs'
+import type { ClassType } from '@navios/di'
+import type { z, ZodType } from 'zod/v4'
 
 import {
   getControllerMetadata,
@@ -15,10 +10,9 @@ import {
   hasControllerMetadata,
   hasModuleMetadata,
 } from '../metadata/index.mjs'
-import {
-  getManagedMetadata,
-  hasManagedMetadata,
-} from '../metadata/navios-managed.metadata.mjs'
+import { getManagedMetadata, hasManagedMetadata } from '../metadata/navios-managed.metadata.mjs'
+
+import type { ControllerMetadata, HandlerMetadata, ModuleMetadata } from '../metadata/index.mjs'
 
 /**
  * Type for a legacy class/method attribute decorator without a value.
@@ -120,10 +114,7 @@ export class LegacyAttributeFactory {
    * async handler() { }
    * ```
    */
-  static createAttribute<T extends ZodType>(
-    token: symbol,
-    schema: T,
-  ): LegacyClassSchemaAttribute<T>
+  static createAttribute<T extends ZodType>(token: symbol, schema: T): LegacyClassSchemaAttribute<T>
 
   static createAttribute(token: symbol, schema?: ZodType) {
     const res = (value?: unknown) => {
@@ -139,8 +130,7 @@ export class LegacyAttributeFactory {
         propertyKey?: string | symbol,
         descriptor?: PropertyDescriptor,
       ): any {
-        const isMethodDecorator =
-          propertyKey !== undefined && descriptor !== undefined
+        const isMethodDecorator = propertyKey !== undefined && descriptor !== undefined
 
         if (isMethodDecorator) {
           // Method decorator - apply to endpoint
@@ -181,9 +171,7 @@ export class LegacyAttributeFactory {
                 : null
 
           if (!metadata) {
-            throw new Error(
-              '[Navios] Could not determine metadata for attribute target',
-            )
+            throw new Error('[Navios] Could not determine metadata for attribute target')
           }
 
           if (schema) {

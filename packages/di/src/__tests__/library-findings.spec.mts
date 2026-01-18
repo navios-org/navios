@@ -10,14 +10,14 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { InstanceHolder } from '../index.mjs'
-import type { OnServiceDestroy } from '../interfaces/on-service-destroy.interface.mjs'
-
 import { Container } from '../container/container.mjs'
 import { Injectable } from '../decorators/injectable.decorator.mjs'
 import { InjectableScope } from '../enums/index.mjs'
 import { Registry } from '../token/registry.mjs'
 import { getInjectors } from '../utils/get-injectors.mjs'
+
+import type { InstanceHolder } from '../index.mjs'
+import type { OnServiceDestroy } from '../interfaces/on-service-destroy.interface.mjs'
 
 function createTestSetup() {
   const registry = new Registry()
@@ -106,9 +106,7 @@ describe('FINDING #1: Circular Dependencies (FIXED)', () => {
       }
     }
 
-    await expect(container.get(SelfReferentialService)).rejects.toThrow(
-      /circular/i,
-    )
+    await expect(container.get(SelfReferentialService)).rejects.toThrow(/circular/i)
   }, 1000)
 
   /**
@@ -273,9 +271,7 @@ describe('FINDING #3: Error Recovery', () => {
     }
 
     // First attempt should fail
-    await expect(container.get(FlakeyService)).rejects.toThrow(
-      'Transient failure',
-    )
+    await expect(container.get(FlakeyService)).rejects.toThrow('Transient failure')
     expect(attemptCount).toBe(1)
 
     // Allow success on retry
@@ -307,9 +303,7 @@ describe('FINDING #3: Error Recovery', () => {
     }
 
     // First attempt should fail
-    await expect(container.get(FailingInitService)).rejects.toThrow(
-      'Init failed',
-    )
+    await expect(container.get(FailingInitService)).rejects.toThrow('Init failed')
 
     // Allow success on retry
     shouldFail.value = false
@@ -372,9 +366,7 @@ describe('FINDING #4: Concurrent Initialization', () => {
     }
 
     // Try to get the same service 10 times concurrently
-    const results = await Promise.all(
-      Array.from({ length: 10 }, () => container.get(SlowService)),
-    )
+    const results = await Promise.all(Array.from({ length: 10 }, () => container.get(SlowService)))
 
     // All results should be the same instance
     const uniqueInstances = new Set(results)
@@ -505,9 +497,7 @@ describe('FINDING #5: Cross-Storage Dependency Invalidation', () => {
     })
 
     // Find the SingletonWithDep holder
-    const singletonHolder = singletonHolders.find((h) =>
-      h.name.includes('SingletonWithDep'),
-    )
+    const singletonHolder = singletonHolders.find((h) => h.name.includes('SingletonWithDep'))
 
     if (singletonHolder) {
       // The deps should contain the RequestService instance name

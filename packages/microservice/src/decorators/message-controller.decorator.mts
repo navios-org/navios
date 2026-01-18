@@ -1,7 +1,7 @@
-import type { ClassType, InjectableScope } from '@navios/di'
-
-import { Injectable, InjectionToken, Registry } from '@navios/di'
 import { NaviosManagedMetadataKey } from '@navios/core'
+import { Injectable, InjectionToken, Registry } from '@navios/di'
+
+import type { ClassType, InjectableScope } from '@navios/di'
 
 import { getMessageControllerMetadata } from '../metadata/message-controller.metadata.mjs'
 
@@ -65,10 +65,7 @@ export function MessageController({
     }
     const token = InjectionToken.create(target)
     if (context.metadata) {
-      const messageControllerMetadata = getMessageControllerMetadata(
-        target,
-        context,
-      )
+      const messageControllerMetadata = getMessageControllerMetadata(target, context)
       if (guards) {
         for (const guard of Array.from(guards).reverse()) {
           messageControllerMetadata.guards.add(guard)
@@ -88,4 +85,3 @@ export function MessageController({
     })(target, context)
   }
 }
-

@@ -56,10 +56,7 @@ class AuthService {
 
   async login(userId: string, role: string) {
     // Sign a token
-    const token = this.jwtService.sign(
-      { userId, role },
-      { expiresIn: '1h' }
-    )
+    const token = this.jwtService.sign({ userId, role }, { expiresIn: '1h' })
     return { token }
   }
 
@@ -147,16 +144,10 @@ const JwtService = provideJwtService({
 
 ```typescript
 // Synchronous signing
-const token = jwtService.sign(
-  { userId: '123', role: 'admin' },
-  { expiresIn: '1h' }
-)
+const token = jwtService.sign({ userId: '123', role: 'admin' }, { expiresIn: '1h' })
 
 // Asynchronous signing
-const token = await jwtService.signAsync(
-  { userId: '123', role: 'admin' },
-  { expiresIn: '1h' }
-)
+const token = await jwtService.signAsync({ userId: '123', role: 'admin' }, { expiresIn: '1h' })
 ```
 
 ### Verifying Tokens
@@ -212,6 +203,7 @@ The main service class for JWT operations.
 Creates a JWT service provider for dependency injection.
 
 **Overloads:**
+
 - `provideJwtService(config: JwtServiceOptions)`: Static configuration
 - `provideJwtService(config: () => Promise<JwtServiceOptions>)`: Async factory configuration
 
@@ -264,6 +256,7 @@ The library exports error classes from the underlying `jsonwebtoken` library:
 1. **Always use `verify()` or `verifyAsync()`** for production code. Never use `decode()` for security-sensitive operations.
 
 2. **Specify allowed algorithms** in `verifyOptions` to prevent algorithm confusion attacks:
+
    ```typescript
    verifyOptions: {
      algorithms: ['HS256', 'RS256'], // Explicitly allow only these algorithms
@@ -271,6 +264,7 @@ The library exports error classes from the underlying `jsonwebtoken` library:
    ```
 
 3. **Set appropriate expiration times** based on your security requirements:
+
    ```typescript
    signOptions: {
      expiresIn: '15m', // Short-lived access tokens

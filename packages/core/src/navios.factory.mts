@@ -1,10 +1,12 @@
-import type {
-  AnyInjectableType,
-  ClassTypeWithInstance,
-  InjectionToken,
-} from '@navios/di'
-
 import { Container } from '@navios/di'
+
+import type { AnyInjectableType, ClassTypeWithInstance, InjectionToken } from '@navios/di'
+
+import { ConsoleLogger, isNil, LoggerOutput } from './logger/index.mjs'
+import { NaviosApplication } from './navios.application.mjs'
+import { NaviosEnvironment } from './navios.environment.mjs'
+import { setRequestIdEnabled } from './stores/index.mjs'
+import { NaviosOptionsToken } from './tokens/index.mjs'
 
 import type {
   AdapterEnvironment,
@@ -12,12 +14,6 @@ import type {
   NaviosModule,
 } from './interfaces/index.mjs'
 import type { NaviosApplicationOptions } from './navios.application.mjs'
-
-import { ConsoleLogger, isNil, LoggerOutput } from './logger/index.mjs'
-import { NaviosApplication } from './navios.application.mjs'
-import { NaviosEnvironment } from './navios.environment.mjs'
-import { setRequestIdEnabled } from './stores/index.mjs'
-import { NaviosOptionsToken } from './tokens/index.mjs'
 
 /**
  * Factory class for creating and configuring Navios applications.
@@ -91,9 +87,7 @@ export class NaviosFactory {
    * })
    * ```
    */
-  static async create<
-    Environment extends AdapterEnvironment = DefaultAdapterEnvironment,
-  >(
+  static async create<Environment extends AdapterEnvironment = DefaultAdapterEnvironment>(
     appModule: ClassTypeWithInstance<NaviosModule>,
     options: NaviosApplicationOptions = {
       adapter: [],
@@ -110,15 +104,11 @@ export class NaviosFactory {
     container.addInstance(NaviosOptionsToken, options)
 
     await this.registerLoggerConfiguration(container, options)
-    const adapters = Array.isArray(options.adapter)
-      ? options.adapter
-      : [options.adapter]
+    const adapters = Array.isArray(options.adapter) ? options.adapter : [options.adapter]
     for (const adapter of adapters) {
       await this.registerEnvironment(container, adapter)
     }
-    const app = (await container.get(
-      NaviosApplication,
-    )) as NaviosApplication<Environment>
+    const app = (await container.get(NaviosApplication)) as NaviosApplication<Environment>
     await app.setup(appModule, options)
     return app
   }
@@ -142,9 +132,7 @@ export class NaviosFactory {
   ) {
     const { logger } = options
     if (Array.isArray(logger) || isNil(logger) || options.enableRequestId) {
-      const loggerInstance = (await container.get(
-        LoggerOutput,
-      )) as ConsoleLogger
+      const loggerInstance = (await container.get(LoggerOutput)) as ConsoleLogger
       loggerInstance?.setup({
         logLevels: Array.isArray(logger) ? logger : undefined,
         requestId: options.enableRequestId ?? false,

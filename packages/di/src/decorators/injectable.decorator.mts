@@ -1,5 +1,10 @@
 import type { z } from 'zod/v4'
 
+import { InjectableScope, InjectableType } from '../enums/index.mjs'
+import { InjectableTokenMeta } from '../symbols/index.mjs'
+import { InjectionToken } from '../token/injection-token.mjs'
+import { globalRegistry } from '../token/registry.mjs'
+
 import type {
   BaseInjectionTokenSchemaType,
   ClassType,
@@ -13,11 +18,6 @@ import type {
   OptionalInjectionTokenSchemaType,
 } from '../token/injection-token.mjs'
 import type { Registry } from '../token/registry.mjs'
-
-import { InjectableScope, InjectableType } from '../enums/index.mjs'
-import { InjectableTokenMeta } from '../symbols/index.mjs'
-import { InjectionToken } from '../token/injection-token.mjs'
-import { globalRegistry } from '../token/registry.mjs'
 
 export interface InjectableOptions {
   scope?: InjectableScope
@@ -36,17 +36,11 @@ export function Injectable(options: {
   scope?: InjectableScope
   registry: Registry
   priority?: number
-}): <T extends ClassTypeWithoutArguments>(
-  target: T,
-  context?: ClassDecoratorContext,
-) => T
+}): <T extends ClassTypeWithoutArguments>(target: T, context?: ClassDecoratorContext) => T
 export function Injectable(options: {
   scope: InjectableScope
   priority?: number
-}): <T extends ClassTypeWithoutArguments>(
-  target: T,
-  context?: ClassDecoratorContext,
-) => T
+}): <T extends ClassTypeWithoutArguments>(target: T, context?: ClassDecoratorContext) => T
 // #2 Class with schema
 export function Injectable<Schema extends InjectionTokenSchemaType>(options: {
   scope?: InjectableScope
@@ -80,20 +74,12 @@ export function Injectable<Type, Schema>(options: {
           target: T,
           context?: ClassDecoratorContext,
         ) => T
-      : <
-          T extends ClassTypeWithInstanceAndOptionalArgument<
-            Type,
-            z.output<Schema>
-          >,
-        >(
+      : <T extends ClassTypeWithInstanceAndOptionalArgument<Type, z.output<Schema>>>(
           target: T,
           context?: ClassDecoratorContext,
         ) => T
     : Schema extends undefined
-      ? <R extends ClassTypeWithInstance<Type>>(
-          target: R,
-          context?: ClassDecoratorContext,
-        ) => R
+      ? <R extends ClassTypeWithInstance<Type>>(target: R, context?: ClassDecoratorContext) => R
       : never
 
 export function Injectable({
@@ -103,20 +89,12 @@ export function Injectable({
   registry = globalRegistry,
   priority = 0,
 }: InjectableOptions = {}) {
-  return <T extends ClassType>(
-    target: T,
-    context?: ClassDecoratorContext,
-  ): T => {
-    if (
-      (context && context.kind !== 'class') ||
-      (target instanceof Function && !context)
-    ) {
+  return <T extends ClassType>(target: T, context?: ClassDecoratorContext): T => {
+    if ((context && context.kind !== 'class') || (target instanceof Function && !context)) {
       throw new Error('[DI] @Injectable decorator can only be used on classes.')
     }
     if (schema && token) {
-      throw new Error(
-        '[DI] @Injectable decorator cannot have both a token and a schema',
-      )
+      throw new Error('[DI] @Injectable decorator cannot have both a token and a schema')
     }
     let injectableToken: InjectionToken<any, any> =
       token ?? InjectionToken.create(target, schema as InjectionTokenSchemaType)

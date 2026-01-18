@@ -36,7 +36,10 @@ export class SQSClient implements QueueClient, OnServiceInit, OnServiceDestroy {
   private topics = new Map<string, TopicInfo>()
   private replyQueueUrl: string | null = null
   private pendingRequests = new Map<string, PendingRequest>()
-  private pollingHandlers = new Map<string, { handler: (message: unknown) => Promise<void>; abortController: AbortController }>()
+  private pollingHandlers = new Map<
+    string,
+    { handler: (message: unknown) => Promise<void>; abortController: AbortController }
+  >()
 
   constructor(private config: SqsConfig) {}
 
@@ -103,9 +106,7 @@ export class SQSClient implements QueueClient, OnServiceInit, OnServiceDestroy {
     const { CreateQueueCommand, GetQueueAttributesCommand } = await this.loadSQS()
 
     const isFifo = this.config.fifo?.enabled ?? false
-    const actualQueueName = isFifo && !queueName.endsWith('.fifo')
-      ? `${queueName}.fifo`
-      : queueName
+    const actualQueueName = isFifo && !queueName.endsWith('.fifo') ? `${queueName}.fifo` : queueName
 
     const attributes: Record<string, string> = {
       VisibilityTimeout: String(this.config.visibilityTimeout ?? 30),
@@ -169,9 +170,7 @@ export class SQSClient implements QueueClient, OnServiceInit, OnServiceDestroy {
     const { CreateTopicCommand } = await this.loadSNS()
 
     const isFifo = this.config.fifo?.enabled ?? false
-    const actualTopicName = isFifo && !topicName.endsWith('.fifo')
-      ? `${topicName}.fifo`
-      : topicName
+    const actualTopicName = isFifo && !topicName.endsWith('.fifo') ? `${topicName}.fifo` : topicName
 
     const attributes: Record<string, string> = {}
     if (isFifo) {
@@ -218,10 +217,7 @@ export class SQSClient implements QueueClient, OnServiceInit, OnServiceDestroy {
     )
   }
 
-  async subscribe(
-    topic: string,
-    handler: (message: unknown) => Promise<void>,
-  ): Promise<void> {
+  async subscribe(topic: string, handler: (message: unknown) => Promise<void>): Promise<void> {
     if (!this.snsClient || !this.sqsClient) {
       throw new Error('SQS/SNS clients not initialized')
     }
@@ -312,10 +308,7 @@ export class SQSClient implements QueueClient, OnServiceInit, OnServiceDestroy {
     )
   }
 
-  async receive(
-    queue: string,
-    handler: (message: unknown) => Promise<void>,
-  ): Promise<void> {
+  async receive(queue: string, handler: (message: unknown) => Promise<void>): Promise<void> {
     const queueInfo = await this.ensureQueue(queue)
     await this.startPolling(queueInfo.url, handler)
   }
@@ -524,10 +517,7 @@ export class SQSClient implements QueueClient, OnServiceInit, OnServiceDestroy {
     }
   }
 
-  async reply(
-    topic: string,
-    handler: (message: unknown) => Promise<unknown>,
-  ): Promise<void> {
+  async reply(topic: string, handler: (message: unknown) => Promise<unknown>): Promise<void> {
     if (!this.sqsClient) {
       throw new Error('SQS client not initialized')
     }
@@ -644,7 +634,6 @@ export class SQSClient implements QueueClient, OnServiceInit, OnServiceDestroy {
   }
 
   private generateId(): string {
-    return Math.random().toString(36).substring(2, 15) +
-      Math.random().toString(36).substring(2, 15)
+    return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15)
   }
 }

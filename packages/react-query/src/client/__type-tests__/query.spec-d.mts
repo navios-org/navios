@@ -1,12 +1,9 @@
-import type { ErrorSchemaRecord } from '@navios/builder'
-import type {
-  DataTag,
-  UseSuspenseQueryOptions,
-} from '@tanstack/react-query'
-import type { z } from 'zod/v4'
-
 import { assertType, describe, test } from 'vitest'
 import { z as zod } from 'zod/v4'
+
+import type { ErrorSchemaRecord } from '@navios/builder'
+import type { DataTag, UseSuspenseQueryOptions } from '@tanstack/react-query'
+import type { z } from 'zod/v4'
 
 import type { Split } from '../../common/types.mjs'
 import type { QueryHelpers } from '../../query/types.mjs'
@@ -79,21 +76,13 @@ describe('ClientInstance<false> query() method', () => {
         >
       >(query)
 
-      assertType<QueryHelpers<'/users', undefined, ResponseType>['queryKey']>(
-        query.queryKey,
+      assertType<QueryHelpers<'/users', undefined, ResponseType>['queryKey']>(query.queryKey)
+      assertType<QueryHelpers<'/users', undefined, ResponseType>['use']>(query.use)
+      assertType<QueryHelpers<'/users', undefined, ResponseType>['useSuspense']>(query.useSuspense)
+      assertType<QueryHelpers<'/users', undefined, ResponseType>['invalidate']>(query.invalidate)
+      assertType<QueryHelpers<'/users', undefined, ResponseType>['invalidateAll']>(
+        query.invalidateAll,
       )
-      assertType<QueryHelpers<'/users', undefined, ResponseType>['use']>(
-        query.use,
-      )
-      assertType<
-        QueryHelpers<'/users', undefined, ResponseType>['useSuspense']
-      >(query.useSuspense)
-      assertType<
-        QueryHelpers<'/users', undefined, ResponseType>['invalidate']
-      >(query.invalidate)
-      assertType<
-        QueryHelpers<'/users', undefined, ResponseType>['invalidateAll']
-      >(query.invalidateAll)
     })
 
     test('GET query with single URL param', () => {
@@ -153,9 +142,9 @@ describe('ClientInstance<false> query() method', () => {
         >
       >(query)
 
-      assertType<
-        QueryHelpers<'/users', typeof querySchema, ResponseType>['queryKey']
-      >(query.queryKey)
+      assertType<QueryHelpers<'/users', typeof querySchema, ResponseType>['queryKey']>(
+        query.queryKey,
+      )
     })
 
     test('GET query with URL params and query schema', () => {
@@ -214,11 +203,7 @@ describe('ClientInstance<false> query() method', () => {
           { processed: boolean; user: ResponseType },
           Error,
           { processed: boolean; user: ResponseType },
-          DataTag<
-            Split<'/users', '/'>,
-            { processed: boolean; user: ResponseType },
-            Error
-          >
+          DataTag<Split<'/users', '/'>, { processed: boolean; user: ResponseType }, Error>
         >
       >(query)
     })

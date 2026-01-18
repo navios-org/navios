@@ -1,9 +1,6 @@
-import type {
-  BaseEndpointOptions,
-  RequestArgs,
-  StreamHandler,
-} from '@navios/builder'
 import { createMethodContext } from '@navios/di/legacy-compat'
+
+import type { BaseEndpointOptions, RequestArgs, StreamHandler } from '@navios/builder'
 
 import { Stream as OriginalStream } from '../../decorators/stream.decorator.mjs'
 

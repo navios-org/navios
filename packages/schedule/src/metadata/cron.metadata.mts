@@ -12,9 +12,7 @@ export function getAllCronMetadata(
   context: ClassMethodDecoratorContext | ClassDecoratorContext,
 ): Set<CronMetadata> {
   if (context.metadata) {
-    const metadata = context.metadata[CronMetadataKey] as
-      | Set<CronMetadata>
-      | undefined
+    const metadata = context.metadata[CronMetadataKey] as Set<CronMetadata> | undefined
     if (metadata) {
       return metadata
     } else {
@@ -32,9 +30,7 @@ export function getCronMetadata(
   if (context.metadata) {
     const metadata = getAllCronMetadata(context)
     if (metadata) {
-      const endpointMetadata = Array.from(metadata).find(
-        (item) => item.classMethod === target.name,
-      )
+      const endpointMetadata = Array.from(metadata).find((item) => item.classMethod === target.name)
       if (endpointMetadata) {
         return endpointMetadata
       } else {

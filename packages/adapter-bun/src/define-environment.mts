@@ -1,5 +1,3 @@
-import type { AnyInjectableType } from '@navios/core'
-
 import {
   AdapterToken,
   EndpointAdapterToken,
@@ -9,6 +7,8 @@ import {
   Request,
   StreamAdapterToken,
 } from '@navios/core'
+
+import type { AnyInjectableType } from '@navios/core'
 
 import {
   BunEndpointAdapterService,

@@ -1,15 +1,11 @@
 import type { ZodObject, ZodType } from 'zod/v4'
 
-import type {
-  BuilderContext,
-  EndpointOptions,
-  StreamOptions,
-} from '../types/index.mjs'
-import type { ErrorSchemaRecord } from '../types/error-schema.mjs'
-
 import { handleError } from '../errors/handle-error.mjs'
 import { bindUrlParams } from '../request/bind-url-params.mjs'
 import { makeConfig } from '../request/make-config.mjs'
+
+import type { ErrorSchemaRecord } from '../types/error-schema.mjs'
+import type { BuilderContext, EndpointOptions, StreamOptions } from '../types/index.mjs'
 
 /**
  * Base request type for handler functions.
@@ -48,9 +44,7 @@ export function createHandler<Options extends EndpointOptions | StreamOptions, T
 }: CreateHandlerOptions<Options>) {
   const { method, url } = options
 
-  const handler = async (
-    request: HandlerRequest = {} as HandlerRequest,
-  ): Promise<TResponse> => {
+  const handler = async (request: HandlerRequest = {} as HandlerRequest): Promise<TResponse> => {
     const client = getClient()
     const finalUrlPart = bindUrlParams<Options['url']>(url, request, urlParamsSchema)
     const finalRequest = transformRequest ? transformRequest(request) : request

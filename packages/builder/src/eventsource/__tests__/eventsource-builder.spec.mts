@@ -1,10 +1,10 @@
 import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod/v4'
 
-import type { EventSourceClient } from '../types/eventsource-client.mjs'
-
-import { eventSourceBuilder } from '../eventsource-builder.mjs'
 import { NaviosError } from '../../errors/index.mjs'
+import { eventSourceBuilder } from '../eventsource-builder.mjs'
+
+import type { EventSourceClient } from '../types/eventsource-client.mjs'
 
 describe('eventSourceBuilder', () => {
   const messageSchema = z.object({
@@ -153,9 +153,7 @@ describe('eventSourceBuilder', () => {
       const sse = eventSourceBuilder()
 
       expect(() => sse.getClient()).toThrow(NaviosError)
-      expect(() => sse.getClient()).toThrow(
-        '[Navios-EventSource]: Client was not provided',
-      )
+      expect(() => sse.getClient()).toThrow('[Navios-EventSource]: Client was not provided')
     })
   })
 

@@ -1,10 +1,10 @@
 import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod/v4'
 
-import type { SocketClient } from '../types/socket-client.mjs'
-
-import { socketBuilder } from '../socket-builder.mjs'
 import { NaviosError } from '../../errors/index.mjs'
+import { socketBuilder } from '../socket-builder.mjs'
+
+import type { SocketClient } from '../types/socket-client.mjs'
 
 describe('socketBuilder', () => {
   const payloadSchema = z.object({
@@ -60,7 +60,7 @@ describe('socketBuilder', () => {
   function simulateMessage(client: ReturnType<typeof createMockClient>, data: unknown) {
     const messageHandlers = client.handlers.get('message')
     if (messageHandlers) {
-      messageHandlers.forEach(handler => handler(data))
+      messageHandlers.forEach((handler) => handler(data))
     }
   }
 
@@ -69,7 +69,7 @@ describe('socketBuilder', () => {
     const ackTopic = `__navios_ack:${ackId}`
     const ackHandlers = client.handlers.get(ackTopic)
     if (ackHandlers) {
-      ackHandlers.forEach(handler => handler(data))
+      ackHandlers.forEach((handler) => handler(data))
     }
   }
 
@@ -194,10 +194,10 @@ describe('socketBuilder', () => {
 
       sendMessage({ text: 'Hello!' })
 
-      expect(client.emitMock).toHaveBeenCalledWith(
+      expect(client.emitMock).toHaveBeenCalledWith('chat.message', [
         'chat.message',
-        ['chat.message', { text: 'Hello!' }]
-      )
+        { text: 'Hello!' },
+      ])
     })
 
     it('should send message with custom format', () => {
@@ -214,10 +214,10 @@ describe('socketBuilder', () => {
 
       sendMessage({ text: 'Hello!' })
 
-      expect(client.emitMock).toHaveBeenCalledWith(
-        'chat.message',
-        { type: 'chat.message', data: { text: 'Hello!' } }
-      )
+      expect(client.emitMock).toHaveBeenCalledWith('chat.message', {
+        type: 'chat.message',
+        data: { text: 'Hello!' },
+      })
     })
 
     it('should validate payload before sending', () => {
@@ -488,7 +488,10 @@ describe('socketBuilder', () => {
       unsubscribe()
 
       // Second message should not be handled
-      simulateMessage(client, ['chat.message', { text: 'Goodbye', from: 'Alice', timestamp: 12346 }])
+      simulateMessage(client, [
+        'chat.message',
+        { text: 'Goodbye', from: 'Alice', timestamp: 12346 },
+      ])
       expect(handler).toHaveBeenCalledTimes(1)
     })
 

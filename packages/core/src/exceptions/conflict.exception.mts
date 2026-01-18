@@ -2,10 +2,10 @@ import { HttpException } from './http.exception.mjs'
 
 /**
  * Exception that represents a 409 Conflict HTTP error.
- * 
+ *
  * Use this exception when the request conflicts with the current state of the resource
  * (e.g., trying to create a resource that already exists).
- * 
+ *
  * @example
  * ```typescript
  * @Endpoint(createUserEndpoint)
@@ -21,7 +21,7 @@ import { HttpException } from './http.exception.mjs'
 export class ConflictException extends HttpException {
   /**
    * Creates a new ConflictException.
-   * 
+   *
    * @param message - Error message or response object
    * @param error - Optional underlying error for logging
    */

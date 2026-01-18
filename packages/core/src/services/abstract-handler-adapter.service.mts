@@ -1,21 +1,19 @@
-import type { ClassType, ScopedContainer } from '@navios/di'
-import type { BaseEndpointOptions } from '@navios/builder'
-
 import { inject, optional } from '@navios/di'
 
-import type { HandlerMetadata } from '../metadata/index.mjs'
+import type { BaseEndpointOptions } from '@navios/builder'
+import type { ClassType, ScopedContainer } from '@navios/di'
+
+import { NaviosOptionsToken } from '../tokens/index.mjs'
+
 import type {
   ArgumentGetterFn,
   FormatArgumentsFn as InterfaceFormatArgumentsFn,
   HttpHeader,
 } from '../interfaces/index.mjs'
+import type { HandlerMetadata } from '../metadata/index.mjs'
 import type { NaviosApplicationOptions } from '../navios.application.mjs'
 
-import { NaviosOptionsToken } from '../tokens/index.mjs'
-import {
-  InstanceResolverService,
-  type InstanceResolution,
-} from './instance-resolver.service.mjs'
+import { InstanceResolverService, type InstanceResolution } from './instance-resolver.service.mjs'
 
 // ============================================================================
 // Types
@@ -46,11 +44,7 @@ export type AbstractStaticHandler<TRequest, TReply = void> = {
  */
 export type AbstractDynamicHandler<TRequest, TReply = void> = {
   isStatic: false
-  handler: (
-    scoped: ScopedContainer,
-    request: TRequest,
-    reply: TReply,
-  ) => Promise<any>
+  handler: (scoped: ScopedContainer, request: TRequest, reply: TReply) => Promise<any>
 }
 
 /**
@@ -63,9 +57,7 @@ export type AbstractHandlerResult<TRequest, TReply = void> =
 /**
  * Context passed to handler creation methods.
  */
-export interface HandlerContext<
-  TConfig extends BaseEndpointOptions = BaseEndpointOptions,
-> {
+export interface HandlerContext<TConfig extends BaseEndpointOptions = BaseEndpointOptions> {
   methodName: string
   statusCode: number
   headers: Partial<Record<HttpHeader, number | string | string[] | undefined>>
@@ -189,9 +181,7 @@ export abstract class AbstractHandlerAdapterService<
    * @param handlerMetadata - Handler metadata with schemas and configuration
    * @returns Array of getter functions
    */
-  prepareArguments(
-    handlerMetadata: HandlerMetadata<TConfig>,
-  ): ArgumentGetter<TRequest>[] {
+  prepareArguments(handlerMetadata: HandlerMetadata<TConfig>): ArgumentGetter<TRequest>[] {
     return this.createArgumentGetters(handlerMetadata)
   }
 
@@ -218,9 +208,7 @@ export abstract class AbstractHandlerAdapterService<
    * @param handlerMetadata - Handler metadata with configuration
    * @returns Schema object for framework registration
    */
-  provideSchema(
-    _handlerMetadata: HandlerMetadata<TConfig>,
-  ): Record<string, any> {
+  provideSchema(_handlerMetadata: HandlerMetadata<TConfig>): Record<string, any> {
     return {}
   }
 
@@ -261,8 +249,7 @@ export abstract class AbstractHandlerAdapterService<
     // Create appropriate handler based on resolution
     if (resolution.cached) {
       const cachedController = resolution.instance as any
-      const boundMethod =
-        cachedController[context.methodName].bind(cachedController)
+      const boundMethod = cachedController[context.methodName].bind(cachedController)
       return this.createStaticHandler(boundMethod, formatArguments, context)
     }
 
@@ -287,18 +274,14 @@ export abstract class AbstractHandlerAdapterService<
    * @param getters - Array of argument getter functions
    * @returns Function to format arguments from request
    */
-  buildFormatArguments(
-    getters: ArgumentGetter<TRequest>[],
-  ): FormatArgumentsFn<TRequest> {
+  buildFormatArguments(getters: ArgumentGetter<TRequest>[]): FormatArgumentsFn<TRequest> {
     if (getters.length === 0) {
       const emptyArgs = Object.freeze({})
       return () => emptyArgs
     }
 
     // Detect if any getter is async at registration time
-    const hasAsyncGetters = getters.some(
-      (g) => g.constructor.name === 'AsyncFunction',
-    )
+    const hasAsyncGetters = getters.some((g) => g.constructor.name === 'AsyncFunction')
 
     if (hasAsyncGetters) {
       return async (request: TRequest) => {
@@ -347,9 +330,7 @@ export abstract class AbstractHandlerAdapterService<
    * @param fn - Handler function to wrap
    * @returns Wrapped function with error handling
    */
-  protected wrapWithErrorHandling<T extends (...args: any[]) => Promise<any>>(
-    fn: T,
-  ): T {
+  protected wrapWithErrorHandling<T extends (...args: any[]) => Promise<any>>(fn: T): T {
     return (async (...args: any[]) => {
       try {
         return await fn(...args)

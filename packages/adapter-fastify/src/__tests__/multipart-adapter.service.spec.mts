@@ -1,11 +1,11 @@
-import type { EndpointOptions } from '@navios/builder'
-import type { HandlerMetadata, NaviosApplicationOptions } from '@navios/core'
-
 import { NaviosOptionsToken } from '@navios/core'
 import { Injectable } from '@navios/di'
 import { TestContainer } from '@navios/di/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { z } from 'zod/v4'
+
+import type { EndpointOptions } from '@navios/builder'
+import type { HandlerMetadata, NaviosApplicationOptions } from '@navios/core'
 
 import { FastifyMultipartAdapterService } from '../adapters/multipart-adapter.service.mjs'
 import { FastifyMultipartAdapterToken } from '../adapters/multipart-adapter.service.mjs'
@@ -18,9 +18,7 @@ const bindNaviosOptions = (
   container: TestContainer,
   options: Partial<NaviosApplicationOptions>,
 ) => {
-  container
-    .bind(NaviosOptionsToken)
-    .toValue(options as NaviosApplicationOptions)
+  container.bind(NaviosOptionsToken).toValue(options as NaviosApplicationOptions)
 }
 
 const createHandlerMetadata = (
@@ -232,8 +230,16 @@ describe('FastifyMultipartAdapterService', () => {
       }
       const req: Record<string, any> = {}
 
-      await adapter.testPopulateRequest(structure, { type: 'field', fieldname: 'tags', value: 'tag1' }, req)
-      await adapter.testPopulateRequest(structure, { type: 'field', fieldname: 'tags', value: 'tag2' }, req)
+      await adapter.testPopulateRequest(
+        structure,
+        { type: 'field', fieldname: 'tags', value: 'tag1' },
+        req,
+      )
+      await adapter.testPopulateRequest(
+        structure,
+        { type: 'field', fieldname: 'tags', value: 'tag2' },
+        req,
+      )
 
       expect(req.tags).toEqual(['tag1', 'tag2'])
     })

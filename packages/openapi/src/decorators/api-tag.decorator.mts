@@ -48,4 +48,3 @@ const BaseApiTag = AttributeFactory.createAttribute(ApiTagToken, ApiTagSchema)
 export function ApiTag(name: string, description?: string) {
   return BaseApiTag({ name, description })
 }
-

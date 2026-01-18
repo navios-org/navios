@@ -1,25 +1,25 @@
 import { Container, inject, Injectable } from '@navios/di'
-
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { ZodError } from 'zod/v4'
-
-import type { ErrorResponder } from '../responders/interfaces/error-responder.interface.mjs'
-import type { ErrorResponse } from '../responders/interfaces/error-response.interface.mjs'
 
 import { NotFoundException } from '../exceptions/not-found.exception.mjs'
 import { FrameworkError } from '../responders/enums/framework-error.enum.mjs'
 import { ErrorResponseProducerService } from '../responders/services/error-response-producer.service.mjs'
-// Import services for side-effects (registers @Injectable decorators)
-import '../responders/services/forbidden-responder.service.mjs'
-import '../responders/services/internal-server-error-responder.service.mjs'
-import '../responders/services/not-found-responder.service.mjs'
-import '../responders/services/validation-error-responder.service.mjs'
 import {
   ForbiddenResponderToken,
   InternalServerErrorResponderToken,
   NotFoundResponderToken,
   ValidationErrorResponderToken,
 } from '../responders/tokens/responder.tokens.mjs'
+
+import type { ErrorResponder } from '../responders/interfaces/error-responder.interface.mjs'
+
+// Import services for side-effects (registers @Injectable decorators)
+import '../responders/services/forbidden-responder.service.mjs'
+import '../responders/services/internal-server-error-responder.service.mjs'
+import '../responders/services/not-found-responder.service.mjs'
+import '../responders/services/validation-error-responder.service.mjs'
+import type { ErrorResponse } from '../responders/interfaces/error-response.interface.mjs'
 
 describe('Responders', () => {
   let container: Container
@@ -123,10 +123,7 @@ describe('Responders', () => {
       const responder = await container.get(ForbiddenResponderToken)
       const error = new Error('Test error')
 
-      const response = responder.getResponse(
-        error,
-        'You do not have permission',
-      )
+      const response = responder.getResponse(error, 'You do not have permission')
 
       expect(response.payload.detail).toBe('You do not have permission')
     })
@@ -241,10 +238,7 @@ describe('Responders', () => {
         private producer = inject(ErrorResponseProducerService)
 
         produce() {
-          return this.producer.respond(
-            FrameworkError.ValidationError,
-            new ZodError([]),
-          )
+          return this.producer.respond(FrameworkError.ValidationError, new ZodError([]))
         }
       }
 
@@ -332,9 +326,7 @@ describe('Responders', () => {
       const response = responder.getResponse(null)
 
       expect(response.payload.title).toBe('Custom Not Found')
-      expect(response.payload.type).toBe(
-        'https://api.example.com/errors/not-found',
-      )
+      expect(response.payload.type).toBe('https://api.example.com/errors/not-found')
     })
   })
 })

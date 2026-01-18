@@ -1,11 +1,8 @@
-import type { Container, ScopedContainer } from '@navios/di'
-
 import { useContext } from 'react'
 
-import {
-  ContainerContext,
-  ScopedContainerContext,
-} from '../providers/context.mjs'
+import type { Container, ScopedContainer } from '@navios/di'
+
+import { ContainerContext, ScopedContainerContext } from '../providers/context.mjs'
 
 /**
  * Hook to get the current container (ScopedContainer if inside ScopeProvider, otherwise Container).

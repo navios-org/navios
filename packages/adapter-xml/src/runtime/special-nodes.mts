@@ -1,5 +1,6 @@
-import type { CDataNode, RawXmlNode } from '../types/xml-node.mjs'
 import { CDataSymbol, RawXmlSymbol } from '../types/xml-node.mjs'
+
+import type { CDataNode, RawXmlNode } from '../types/xml-node.mjs'
 
 /**
  * CDATA component - wraps content in <![CDATA[...]]>

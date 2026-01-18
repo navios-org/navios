@@ -6,17 +6,10 @@ import type {
   UrlHasParams,
   UrlParams,
 } from '@navios/builder'
-import type {
-  DataTag,
-  MutationFunctionContext,
-  UseMutationOptions,
-} from '@tanstack/react-query'
+import type { DataTag, MutationFunctionContext, UseMutationOptions } from '@tanstack/react-query'
 import type { z, ZodObject, ZodType } from 'zod/v4'
 
-import type {
-  ComputeResponseInput,
-  ProcessResponseFunction,
-} from '../common/types.mjs'
+import type { ComputeResponseInput, ProcessResponseFunction } from '../common/types.mjs'
 
 /**
  * Arguments for mutation functions based on URL params, request schema, and query schema.
@@ -41,9 +34,7 @@ export type MutationHelpers<Url extends string, Result = unknown> =
          * Generates a mutation key for the given URL parameters.
          * Useful for tracking mutations or invalidating related queries.
          */
-        mutationKey: (params: {
-          urlParams: UrlParams<Url>
-        }) => DataTag<[Url], Result, Error>
+        mutationKey: (params: { urlParams: UrlParams<Url> }) => DataTag<[Url], Result, Error>
         /**
          * Returns true if a mutation with the given URL parameters is currently in progress.
          * Requires `useKey: true` to be set when creating the mutation.
@@ -96,13 +87,7 @@ export interface MutationParams<
     TError,
     TVariables
   >,
-  | 'mutationKey'
-  | 'mutationFn'
-  | 'onMutate'
-  | 'onSuccess'
-  | 'onError'
-  | 'onSettled'
-  | 'scope'
+  'mutationKey' | 'mutationFn' | 'onMutate' | 'onSuccess' | 'onError' | 'onSettled' | 'scope'
 > {
   processResponse?: ProcessResponseFunction<
     TData,
@@ -116,14 +101,12 @@ export interface MutationParams<
   onSuccess?: (
     data: TData,
     variables: TVariables,
-    context: TContext &
-      MutationFunctionContext & { onMutateResult: TOnMutateResult | undefined },
+    context: TContext & MutationFunctionContext & { onMutateResult: TOnMutateResult | undefined },
   ) => void | Promise<void>
   onError?: (
     err: TError,
     variables: TVariables,
-    context: TContext &
-      MutationFunctionContext & { onMutateResult: TOnMutateResult | undefined },
+    context: TContext & MutationFunctionContext & { onMutateResult: TOnMutateResult | undefined },
   ) => void | Promise<void>
   onMutate?: (
     variables: TVariables,
@@ -133,8 +116,7 @@ export interface MutationParams<
     data: TData | undefined,
     error: TError | null,
     variables: TVariables,
-    context: TContext &
-      MutationFunctionContext & { onMutateResult: TOnMutateResult | undefined },
+    context: TContext & MutationFunctionContext & { onMutateResult: TOnMutateResult | undefined },
   ) => void | Promise<void>
 
   /**

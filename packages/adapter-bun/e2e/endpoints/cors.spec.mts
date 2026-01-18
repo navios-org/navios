@@ -1,19 +1,14 @@
-import type { EndpointParams } from '@navios/core'
+import { afterAll, beforeAll, describe, expect, it } from 'bun:test'
 
 import { builder } from '@navios/builder'
-import {
-  Controller,
-  Endpoint,
-  Module,
-  NaviosApplication,
-  NaviosFactory,
-} from '@navios/core'
-
-import { afterAll, beforeAll, describe, expect, it } from 'bun:test'
+import { Controller, Endpoint, Module, NaviosApplication, NaviosFactory } from '@navios/core'
 import supertest from 'supertest'
 import { z } from 'zod/v4'
 
+import type { EndpointParams } from '@navios/core'
+
 import { defineBunEnvironment } from '../../src/index.mjs'
+
 import type { BunEnvironment } from '../../src/index.mjs'
 
 describe('CORS support', () => {
@@ -86,13 +81,9 @@ describe('CORS support', () => {
 
       expect(response.status).toBe(200)
       expect(response.body.message).toBe('Hello, CORS!')
-      expect(response.headers['access-control-allow-origin']).toBe(
-        'http://example.com',
-      )
+      expect(response.headers['access-control-allow-origin']).toBe('http://example.com')
       expect(response.headers['access-control-allow-credentials']).toBe('true')
-      expect(response.headers['access-control-expose-headers']).toBe(
-        'X-Custom-Header',
-      )
+      expect(response.headers['access-control-expose-headers']).toBe('X-Custom-Header')
       expect(response.headers['vary']).toBe('Origin')
     })
 
@@ -104,15 +95,9 @@ describe('CORS support', () => {
         .set('Access-Control-Request-Headers', 'Content-Type')
 
       expect(response.status).toBe(204)
-      expect(response.headers['access-control-allow-origin']).toBe(
-        'http://example.com',
-      )
-      expect(response.headers['access-control-allow-methods']).toBe(
-        'GET, POST, PUT, DELETE',
-      )
-      expect(response.headers['access-control-allow-headers']).toBe(
-        'Content-Type, Authorization',
-      )
+      expect(response.headers['access-control-allow-origin']).toBe('http://example.com')
+      expect(response.headers['access-control-allow-methods']).toBe('GET, POST, PUT, DELETE')
+      expect(response.headers['access-control-allow-headers']).toBe('Content-Type, Authorization')
       expect(response.headers['access-control-allow-credentials']).toBe('true')
       expect(response.headers['access-control-max-age']).toBe('86400')
     })
@@ -125,12 +110,8 @@ describe('CORS support', () => {
         .set('Access-Control-Request-Headers', 'Content-Type')
 
       expect(response.status).toBe(204)
-      expect(response.headers['access-control-allow-origin']).toBe(
-        'http://example.com',
-      )
-      expect(response.headers['access-control-allow-methods']).toBe(
-        'GET, POST, PUT, DELETE',
-      )
+      expect(response.headers['access-control-allow-origin']).toBe('http://example.com')
+      expect(response.headers['access-control-allow-methods']).toBe('GET, POST, PUT, DELETE')
     })
 
     it('should apply CORS headers to POST response', async () => {
@@ -142,9 +123,7 @@ describe('CORS support', () => {
 
       expect(response.status).toBe(200)
       expect(response.body.received).toBe('test')
-      expect(response.headers['access-control-allow-origin']).toBe(
-        'http://example.com',
-      )
+      expect(response.headers['access-control-allow-origin']).toBe('http://example.com')
       expect(response.headers['access-control-allow-credentials']).toBe('true')
     })
 
@@ -154,9 +133,7 @@ describe('CORS support', () => {
         .set('Origin', 'http://example.com')
 
       expect(response.status).toBe(404)
-      expect(response.headers['access-control-allow-origin']).toBe(
-        'http://example.com',
-      )
+      expect(response.headers['access-control-allow-origin']).toBe('http://example.com')
     })
   })
 
@@ -207,9 +184,7 @@ describe('CORS support', () => {
         .set('Origin', 'http://allowed-origin.com')
 
       expect(response.status).toBe(200)
-      expect(response.headers['access-control-allow-origin']).toBe(
-        'http://allowed-origin.com',
-      )
+      expect(response.headers['access-control-allow-origin']).toBe('http://allowed-origin.com')
     })
 
     it('should NOT return CORS headers for non-matching origin', async () => {
@@ -280,9 +255,7 @@ describe('CORS support', () => {
         .set('Origin', 'http://app.example.com')
 
       expect(response.status).toBe(200)
-      expect(response.headers['access-control-allow-origin']).toBe(
-        'http://app.example.com',
-      )
+      expect(response.headers['access-control-allow-origin']).toBe('http://app.example.com')
     })
 
     it('should allow subdomain matching RegExp', async () => {
@@ -291,9 +264,7 @@ describe('CORS support', () => {
         .set('Origin', 'http://api.staging.example.com')
 
       expect(response.status).toBe(200)
-      expect(response.headers['access-control-allow-origin']).toBe(
-        'http://api.staging.example.com',
-      )
+      expect(response.headers['access-control-allow-origin']).toBe('http://api.staging.example.com')
     })
 
     it('should reject origin not matching RegExp', async () => {
@@ -348,25 +319,17 @@ describe('CORS support', () => {
     })
 
     it('should allow first origin in array', async () => {
-      const response = await supertest(realServer)
-        .get('/simple')
-        .set('Origin', 'http://app1.com')
+      const response = await supertest(realServer).get('/simple').set('Origin', 'http://app1.com')
 
       expect(response.status).toBe(200)
-      expect(response.headers['access-control-allow-origin']).toBe(
-        'http://app1.com',
-      )
+      expect(response.headers['access-control-allow-origin']).toBe('http://app1.com')
     })
 
     it('should allow second origin in array', async () => {
-      const response = await supertest(realServer)
-        .get('/simple')
-        .set('Origin', 'http://app2.com')
+      const response = await supertest(realServer).get('/simple').set('Origin', 'http://app2.com')
 
       expect(response.status).toBe(200)
-      expect(response.headers['access-control-allow-origin']).toBe(
-        'http://app2.com',
-      )
+      expect(response.headers['access-control-allow-origin']).toBe('http://app2.com')
     })
 
     it('should allow RegExp origin in array', async () => {
@@ -375,9 +338,7 @@ describe('CORS support', () => {
         .set('Origin', 'http://api.trusted.com')
 
       expect(response.status).toBe(200)
-      expect(response.headers['access-control-allow-origin']).toBe(
-        'http://api.trusted.com',
-      )
+      expect(response.headers['access-control-allow-origin']).toBe('http://api.trusted.com')
     })
 
     it('should reject origin not in array', async () => {
@@ -447,9 +408,7 @@ describe('CORS support', () => {
         .set('Origin', 'http://allowed-app.com')
 
       expect(response.status).toBe(200)
-      expect(response.headers['access-control-allow-origin']).toBe(
-        'http://allowed-app.com',
-      )
+      expect(response.headers['access-control-allow-origin']).toBe('http://allowed-app.com')
     })
 
     it('should reject origin when function returns false', async () => {
@@ -468,9 +427,7 @@ describe('CORS support', () => {
         .set('Access-Control-Request-Method', 'GET')
 
       expect(response.status).toBe(204)
-      expect(response.headers['access-control-allow-origin']).toBe(
-        'http://allowed-site.com',
-      )
+      expect(response.headers['access-control-allow-origin']).toBe('http://allowed-site.com')
     })
   })
 

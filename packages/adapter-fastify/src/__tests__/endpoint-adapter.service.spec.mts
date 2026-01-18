@@ -1,3 +1,9 @@
+import { NaviosOptionsToken } from '@navios/core'
+import { Injectable } from '@navios/di'
+import { TestContainer } from '@navios/di/testing'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { z } from 'zod/v4'
+
 import type { EndpointOptions } from '@navios/builder'
 import type {
   HandlerContext,
@@ -5,13 +11,6 @@ import type {
   InstanceResolution,
   NaviosApplicationOptions,
 } from '@navios/core'
-
-import { NaviosOptionsToken } from '@navios/core'
-import { Injectable } from '@navios/di'
-import { TestContainer } from '@navios/di/testing'
-
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { z } from 'zod/v4'
 
 import { FastifyEndpointAdapterService } from '../adapters/endpoint-adapter.service.mjs'
 
@@ -23,9 +22,7 @@ const bindNaviosOptions = (
   container: TestContainer,
   options: Partial<NaviosApplicationOptions>,
 ) => {
-  container
-    .bind(NaviosOptionsToken)
-    .toValue(options as NaviosApplicationOptions)
+  container.bind(NaviosOptionsToken).toValue(options as NaviosApplicationOptions)
 }
 
 // Mock types for Fastify
@@ -41,9 +38,7 @@ interface MockFastifyReply {
   send: ReturnType<typeof vi.fn>
 }
 
-const createMockRequest = (
-  overrides: Partial<MockFastifyRequest> = {},
-): MockFastifyRequest => ({
+const createMockRequest = (overrides: Partial<MockFastifyRequest> = {}): MockFastifyRequest => ({
   query: {},
   params: {},
   body: {},
@@ -259,9 +254,7 @@ describe('FastifyEndpointAdapterService', () => {
 
       const adapter = await container.get(TestFastifyEndpointAdapter)
       const boundMethod = vi.fn().mockResolvedValue({ id: '123' })
-      const formatArguments = vi
-        .fn()
-        .mockResolvedValue({ data: { name: 'test' } })
+      const formatArguments = vi.fn().mockResolvedValue({ data: { name: 'test' } })
       const handlerMetadata = createHandlerMetadata({
         method: 'GET',
         url: '/test',
@@ -271,11 +264,7 @@ describe('FastifyEndpointAdapterService', () => {
         hasArguments: true,
       })
 
-      const result = adapter.testCreateStaticHandler(
-        boundMethod,
-        formatArguments,
-        context,
-      )
+      const result = adapter.testCreateStaticHandler(boundMethod, formatArguments, context)
 
       expect(result.isStatic).toBe(true)
       expect(typeof result.handler).toBe('function')
@@ -308,11 +297,7 @@ describe('FastifyEndpointAdapterService', () => {
         hasArguments: false,
       })
 
-      const result = adapter.testCreateStaticHandler(
-        boundMethod,
-        formatArguments,
-        context,
-      )
+      const result = adapter.testCreateStaticHandler(boundMethod, formatArguments, context)
 
       expect(result.isStatic).toBe(true)
 
@@ -341,9 +326,7 @@ describe('FastifyEndpointAdapterService', () => {
         instance: null,
         resolve: vi.fn().mockResolvedValue(mockController),
       }
-      const formatArguments = vi
-        .fn()
-        .mockResolvedValue({ data: { name: 'test' } })
+      const formatArguments = vi.fn().mockResolvedValue({ data: { name: 'test' } })
       const handlerMetadata = createHandlerMetadata(
         {
           method: 'GET',
@@ -356,11 +339,7 @@ describe('FastifyEndpointAdapterService', () => {
         hasArguments: true,
       })
 
-      const result = adapter.testCreateDynamicHandler(
-        resolution,
-        formatArguments,
-        context,
-      )
+      const result = adapter.testCreateDynamicHandler(resolution, formatArguments, context)
 
       expect(result.isStatic).toBe(false)
       expect(typeof result.handler).toBe('function')
@@ -407,11 +386,7 @@ describe('FastifyEndpointAdapterService', () => {
         hasArguments: false,
       })
 
-      const result = adapter.testCreateDynamicHandler(
-        resolution,
-        formatArguments,
-        context,
-      )
+      const result = adapter.testCreateDynamicHandler(resolution, formatArguments, context)
 
       expect(result.isStatic).toBe(false)
 
@@ -423,9 +398,7 @@ describe('FastifyEndpointAdapterService', () => {
 
       expect(resolution.resolve).toHaveBeenCalledWith(scopedContainer)
       expect(formatArguments).not.toHaveBeenCalled()
-      expect(mockController.noArgsMethod).toHaveBeenCalledWith(
-        expect.any(Object),
-      )
+      expect(mockController.noArgsMethod).toHaveBeenCalledWith(expect.any(Object))
       expect(reply.status).toHaveBeenCalledWith(204)
       expect(reply.send).toHaveBeenCalledWith({ status: 'ok' })
     })

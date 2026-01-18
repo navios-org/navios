@@ -1,10 +1,8 @@
-import type { PreparedRequestConfig } from '../../types.mjs'
-
 import { RequestsWithoutBody } from '../../constants/index.mjs'
 
-export function bodyRequestInterceptor(
-  config: PreparedRequestConfig<any, any>,
-) {
+import type { PreparedRequestConfig } from '../../types.mjs'
+
+export function bodyRequestInterceptor(config: PreparedRequestConfig<any, any>) {
   // @ts-expect-error TS2345. We check for a certain methods
   if (config.body || RequestsWithoutBody.includes(config.method)) {
     return config

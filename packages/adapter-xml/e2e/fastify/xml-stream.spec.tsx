@@ -1,5 +1,4 @@
-import type { XmlComponent, XmlStreamParams } from '../../src/index.mjs'
-
+import { defineFastifyEnvironment, type FastifyEnvironment } from '@navios/adapter-fastify'
 import { builder } from '@navios/builder'
 import {
   Controller,
@@ -12,11 +11,6 @@ import {
   NaviosFactory,
   type EndpointParams,
 } from '@navios/core'
-import {
-  defineFastifyEnvironment,
-  type FastifyEnvironment,
-} from '@navios/adapter-fastify'
-
 import supertest from 'supertest'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { z } from 'zod/v4'
@@ -30,6 +24,8 @@ import {
   XmlStream,
   createElement,
 } from '../../src/index.mjs'
+
+import type { XmlComponent, XmlStreamParams } from '../../src/index.mjs'
 
 describe('XML Stream with Fastify adapter', () => {
   let server: NaviosApplication<FastifyEnvironment>
@@ -316,9 +312,7 @@ describe('XML Stream with Fastify adapter', () => {
       return (
         <root>
           <cdata-example>
-            <CData>
-              {'This is <raw> HTML & XML content that should not be escaped'}
-            </CData>
+            <CData>{'This is <raw> HTML & XML content that should not be escaped'}</CData>
           </cdata-example>
           <raw-xml-example>
             <DangerouslyInsertRawXml>
@@ -354,9 +348,7 @@ describe('XML Stream with Fastify adapter', () => {
 
   describe('Basic XML endpoints', () => {
     it('should return RSS feed with correct content type', async () => {
-      const response = await supertest(server.getServer().server).get(
-        '/feed.xml',
-      )
+      const response = await supertest(server.getServer().server).get('/feed.xml')
 
       expect(response.status).toBe(200)
       expect(response.headers['content-type']).toContain('application/rss+xml')
@@ -368,15 +360,11 @@ describe('XML Stream with Fastify adapter', () => {
     })
 
     it('should return Atom feed with query params', async () => {
-      const response = await supertest(server.getServer().server).get(
-        '/atom.xml?limit=2',
-      )
+      const response = await supertest(server.getServer().server).get('/atom.xml?limit=2')
 
       expect(response.status).toBe(200)
       expect(response.headers['content-type']).toContain('application/atom+xml')
-      expect(response.text).toContain(
-        '<feed xmlns="http://www.w3.org/2005/Atom">',
-      )
+      expect(response.text).toContain('<feed xmlns="http://www.w3.org/2005/Atom">')
 
       // Count entries - should be limited to 2
       const entryCount = (response.text.match(/<entry>/g) || []).length
@@ -384,9 +372,7 @@ describe('XML Stream with Fastify adapter', () => {
     })
 
     it('should return sitemap XML', async () => {
-      const response = await supertest(server.getServer().server).get(
-        '/sitemap.xml',
-      )
+      const response = await supertest(server.getServer().server).get('/sitemap.xml')
 
       expect(response.status).toBe(200)
       expect(response.headers['content-type']).toContain('application/xml')
@@ -400,9 +386,7 @@ describe('XML Stream with Fastify adapter', () => {
 
   describe('URL parameters', () => {
     it('should handle URL parameters in XML endpoint', async () => {
-      const response = await supertest(server.getServer().server).get(
-        '/items/1',
-      )
+      const response = await supertest(server.getServer().server).get('/items/1')
 
       expect(response.status).toBe(200)
       expect(response.text).toContain('<item id="1">')
@@ -410,9 +394,7 @@ describe('XML Stream with Fastify adapter', () => {
     })
 
     it('should handle non-existent item', async () => {
-      const response = await supertest(server.getServer().server).get(
-        '/items/999',
-      )
+      const response = await supertest(server.getServer().server).get('/items/999')
 
       expect(response.status).toBe(200)
       expect(response.text).toContain('<error>')
@@ -442,18 +424,12 @@ describe('XML Stream with Fastify adapter', () => {
 
   describe('Async components', () => {
     it('should resolve async components in XML', async () => {
-      const response = await supertest(server.getServer().server).get(
-        '/async.xml',
-      )
+      const response = await supertest(server.getServer().server).get('/async.xml')
 
       expect(response.status).toBe(200)
       expect(response.text).toContain('<sync>Immediate content</sync>')
-      expect(response.text).toContain(
-        '<async-data>Loaded after 10ms</async-data>',
-      )
-      expect(response.text).toContain(
-        '<async-data>Loaded after 5ms</async-data>',
-      )
+      expect(response.text).toContain('<async-data>Loaded after 10ms</async-data>')
+      expect(response.text).toContain('<async-data>Loaded after 5ms</async-data>')
     })
   })
 
@@ -495,9 +471,7 @@ describe('XML Stream with Fastify adapter', () => {
 
   describe('Special XML content', () => {
     it('should handle CDATA and raw XML correctly', async () => {
-      const response = await supertest(server.getServer().server).get(
-        '/special.xml',
-      )
+      const response = await supertest(server.getServer().server).get('/special.xml')
 
       expect(response.status).toBe(200)
 
@@ -507,44 +481,30 @@ describe('XML Stream with Fastify adapter', () => {
       )
 
       // Raw XML should be inserted without escaping
-      expect(response.text).toContain(
-        '<nested><element attr="value">text</element></nested>',
-      )
+      expect(response.text).toContain('<nested><element attr="value">text</element></nested>')
 
       // Regular content should be escaped
-      expect(response.text).toContain(
-        '&lt;this&gt; &amp; "that" should be escaped',
-      )
+      expect(response.text).toContain('&lt;this&gt; &amp; "that" should be escaped')
     })
   })
 
   describe('Mixed endpoints', () => {
     it('should work alongside regular JSON endpoints', async () => {
-      const xmlResponse = await supertest(server.getServer().server).get(
-        '/feed.xml',
-      )
-      const jsonResponse = await supertest(server.getServer().server).get(
-        '/api/data',
-      )
+      const xmlResponse = await supertest(server.getServer().server).get('/feed.xml')
+      const jsonResponse = await supertest(server.getServer().server).get('/api/data')
 
       expect(xmlResponse.status).toBe(200)
-      expect(xmlResponse.headers['content-type']).toContain(
-        'application/rss+xml',
-      )
+      expect(xmlResponse.headers['content-type']).toContain('application/rss+xml')
 
       expect(jsonResponse.status).toBe(200)
-      expect(jsonResponse.body.message).toBe(
-        'JSON endpoint works alongside XML',
-      )
+      expect(jsonResponse.body.message).toBe('JSON endpoint works alongside XML')
     })
   })
 
   describe('Fragment support', () => {
     it('should correctly render fragments within XML', async () => {
       // The RSS feed uses fragments implicitly with array mapping
-      const response = await supertest(server.getServer().server).get(
-        '/feed.xml',
-      )
+      const response = await supertest(server.getServer().server).get('/feed.xml')
 
       expect(response.status).toBe(200)
       // Multiple items should be rendered without extra wrapper

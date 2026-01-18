@@ -391,9 +391,7 @@ import { inject, Injectable } from '@navios/di'
 
 @Injectable()
 class SafeService {
-  private readonly optionalService = asyncInject(OptionalService).catch(
-    () => null,
-  )
+  private readonly optionalService = asyncInject(OptionalService).catch(() => null)
 
   async doSomething() {
     try {
@@ -479,8 +477,7 @@ interface PaymentProcessor {
   processPayment(amount: number): Promise<string>
 }
 
-const PAYMENT_PROCESSOR_TOKEN =
-  InjectionToken.create<PaymentProcessor>('PaymentProcessor')
+const PAYMENT_PROCESSOR_TOKEN = InjectionToken.create<PaymentProcessor>('PaymentProcessor')
 
 @Injectable({ token: PAYMENT_PROCESSOR_TOKEN })
 class StripePaymentProcessor implements PaymentProcessor {

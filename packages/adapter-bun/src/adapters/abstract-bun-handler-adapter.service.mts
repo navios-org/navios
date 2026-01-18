@@ -1,12 +1,12 @@
-import type { BaseEndpointOptions } from '@navios/builder'
-import type { HandlerMetadata } from '@navios/core'
-import type { BunRequest } from 'bun'
-
 import {
   AbstractHandlerAdapterService,
   type ArgumentGetter,
   type HandlerContext,
 } from '@navios/core'
+
+import type { BaseEndpointOptions } from '@navios/builder'
+import type { HandlerMetadata } from '@navios/core'
+import type { BunRequest } from 'bun'
 
 /**
  * Abstract base class for Bun handler adapters.
@@ -66,9 +66,7 @@ export abstract class AbstractBunHandlerAdapterService<
    * Builds response headers from context.
    * Can be overridden by concrete adapters to add Content-Type, etc.
    */
-  protected buildHeaders(
-    context: HandlerContext<TConfig>,
-  ): Record<string, string> {
+  protected buildHeaders(context: HandlerContext<TConfig>): Record<string, string> {
     const headers: Record<string, string> = {}
     for (const [key, value] of Object.entries(context.headers)) {
       headers[key] = String(value)

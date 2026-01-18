@@ -58,10 +58,7 @@ export interface NaviosPlugin<
    * @param options - Plugin-specific configuration options
    * @deprecated Use staged plugins with explicit stage property
    */
-  register(
-    context: PluginContext<TAdapter>,
-    options: TOptions,
-  ): Promise<void> | void
+  register(context: PluginContext<TAdapter>, options: TOptions): Promise<void> | void
 }
 
 /**
@@ -114,6 +111,4 @@ export interface PluginDefinition<
 export type AnyPluginDefinition<
   TOptions = unknown,
   TAdapter extends AbstractAdapterInterface = AbstractAdapterInterface,
-> =
-  | PluginDefinition<TOptions, TAdapter>
-  | StagedPluginDefinition<PluginStage, TOptions, TAdapter>
+> = PluginDefinition<TOptions, TAdapter> | StagedPluginDefinition<PluginStage, TOptions, TAdapter>

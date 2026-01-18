@@ -1,3 +1,5 @@
+import { Injectable, InjectionToken } from '@navios/core'
+
 import type { BaseEndpointOptions } from '@navios/builder'
 import type {
   AbstractDynamicHandler,
@@ -8,8 +10,6 @@ import type {
 } from '@navios/core'
 import type { BunRequest } from 'bun'
 
-import { Injectable, InjectionToken } from '@navios/core'
-
 import { AbstractBunHandlerAdapterService } from './abstract-bun-handler-adapter.service.mjs'
 
 /**
@@ -18,10 +18,9 @@ import { AbstractBunHandlerAdapterService } from './abstract-bun-handler-adapter
  * This token is used to inject the `BunStreamAdapterService` instance
  * into the dependency injection container.
  */
-export const BunStreamAdapterToken =
-  InjectionToken.create<BunStreamAdapterService>(
-    Symbol.for('BunStreamAdapterService'),
-  )
+export const BunStreamAdapterToken = InjectionToken.create<BunStreamAdapterService>(
+  Symbol.for('BunStreamAdapterService'),
+)
 
 /**
  * Adapter service for handling streaming requests and responses in Bun.
@@ -67,10 +66,7 @@ export class BunStreamAdapterService extends AbstractBunHandlerAdapterService<Ba
     context: HandlerContext<BaseEndpointOptions>,
   ): AbstractStaticHandler<BunRequest, void> {
     const headersTemplate = this.buildHeaders(context)
-    const handleStreamResult = this.createStreamResultHandler(
-      context,
-      headersTemplate,
-    )
+    const handleStreamResult = this.createStreamResultHandler(context, headersTemplate)
     const streamWriter = this.createStreamWriter()
 
     return {
@@ -99,26 +95,18 @@ export class BunStreamAdapterService extends AbstractBunHandlerAdapterService<Ba
     context: HandlerContext<BaseEndpointOptions>,
   ): AbstractDynamicHandler<BunRequest, void> {
     const headersTemplate = this.buildHeaders(context)
-    const handleStreamResult = this.createStreamResultHandler(
-      context,
-      headersTemplate,
-    )
+    const handleStreamResult = this.createStreamResultHandler(context, headersTemplate)
     const streamWriter = this.createStreamWriter()
     const { methodName } = context
 
     return {
       isStatic: false,
-      handler: this.wrapWithErrorHandling(
-        async (scoped, request: BunRequest) => {
-          const controllerInstance = (await resolution.resolve(scoped)) as any
-          const argument = await formatArguments(request)
-          const result = await controllerInstance[methodName](
-            argument,
-            streamWriter,
-          )
-          return handleStreamResult(result)
-        },
-      ),
+      handler: this.wrapWithErrorHandling(async (scoped, request: BunRequest) => {
+        const controllerInstance = (await resolution.resolve(scoped)) as any
+        const argument = await formatArguments(request)
+        const result = await controllerInstance[methodName](argument, streamWriter)
+        return handleStreamResult(result)
+      }),
     }
   }
 

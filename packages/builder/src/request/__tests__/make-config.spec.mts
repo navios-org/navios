@@ -222,10 +222,7 @@ describe('makeConfig', () => {
 describe('makeFormData', () => {
   describe('basic types', () => {
     it('should handle string values', () => {
-      const formData = makeFormData(
-        { data: { name: 'John' } } as any,
-        {} as any,
-      )
+      const formData = makeFormData({ data: { name: 'John' } } as any, {} as any)
 
       expect(formData.get('name')).toBe('John')
     })
@@ -237,10 +234,7 @@ describe('makeFormData', () => {
     })
 
     it('should handle boolean values', () => {
-      const formData = makeFormData(
-        { data: { active: true, disabled: false } } as any,
-        {} as any,
-      )
+      const formData = makeFormData({ data: { active: true, disabled: false } } as any, {} as any)
 
       expect(formData.get('active')).toBe('true')
       expect(formData.get('disabled')).toBe('false')
@@ -253,10 +247,7 @@ describe('makeFormData', () => {
     })
 
     it('should handle undefined values as empty string', () => {
-      const formData = makeFormData(
-        { data: { value: undefined } } as any,
-        {} as any,
-      )
+      const formData = makeFormData({ data: { value: undefined } } as any, {} as any)
 
       expect(formData.get('value')).toBe('')
     })
@@ -277,10 +268,7 @@ describe('makeFormData', () => {
       const file1 = new File(['content1'], 'file1.txt', { type: 'text/plain' })
       const file2 = new File(['content2'], 'file2.txt', { type: 'text/plain' })
 
-      const formData = makeFormData(
-        { data: { files: [file1, file2] } } as any,
-        {} as any,
-      )
+      const formData = makeFormData({ data: { files: [file1, file2] } } as any, {} as any)
 
       const files = formData.getAll('files') as File[]
       expect(files).toHaveLength(2)
@@ -293,10 +281,7 @@ describe('makeFormData', () => {
     it('should convert Date to ISO string', () => {
       const date = new Date('2024-01-15T12:00:00.000Z')
 
-      const formData = makeFormData(
-        { data: { createdAt: date } } as any,
-        {} as any,
-      )
+      const formData = makeFormData({ data: { createdAt: date } } as any, {} as any)
 
       expect(formData.get('createdAt')).toBe('2024-01-15T12:00:00.000Z')
     })
@@ -317,10 +302,7 @@ describe('makeFormData', () => {
         toISOString: () => '2024-custom-date',
       }
 
-      const formData = makeFormData(
-        { data: { date: customDate } } as any,
-        {} as any,
-      )
+      const formData = makeFormData({ data: { date: customDate } } as any, {} as any)
 
       expect(formData.get('date')).toBe('2024-custom-date')
     })
@@ -330,10 +312,7 @@ describe('makeFormData', () => {
         toJSON: () => ({ serialized: true }),
       }
 
-      const formData = makeFormData(
-        { data: { obj: customObject } } as any,
-        {} as any,
-      )
+      const formData = makeFormData({ data: { obj: customObject } } as any, {} as any)
 
       expect(formData.get('obj')).toBe('{"serialized":true}')
     })
@@ -341,20 +320,14 @@ describe('makeFormData', () => {
 
   describe('array handling', () => {
     it('should handle array of strings', () => {
-      const formData = makeFormData(
-        { data: { tags: ['a', 'b', 'c'] } } as any,
-        {} as any,
-      )
+      const formData = makeFormData({ data: { tags: ['a', 'b', 'c'] } } as any, {} as any)
 
       const tags = formData.getAll('tags')
       expect(tags).toEqual(['a', 'b', 'c'])
     })
 
     it('should handle array of numbers', () => {
-      const formData = makeFormData(
-        { data: { ids: [1, 2, 3] } } as any,
-        {} as any,
-      )
+      const formData = makeFormData({ data: { ids: [1, 2, 3] } } as any, {} as any)
 
       const ids = formData.getAll('ids')
       expect(ids).toEqual(['1', '2', '3'])
@@ -363,10 +336,7 @@ describe('makeFormData', () => {
     it('should handle mixed array with files and other types', () => {
       const file = new File(['content'], 'test.txt', { type: 'text/plain' })
 
-      const formData = makeFormData(
-        { data: { items: [file, 'text', 123] } } as any,
-        {} as any,
-      )
+      const formData = makeFormData({ data: { items: [file, 'text', 123] } } as any, {} as any)
 
       const items = formData.getAll('items')
       expect(items).toHaveLength(3)
@@ -397,10 +367,7 @@ describe('makeFormData', () => {
         name: z.string().transform((s) => s.toUpperCase()),
       })
 
-      const formData = makeFormData(
-        { data: { name: 'test' } } as any,
-        { requestSchema } as any,
-      )
+      const formData = makeFormData({ data: { name: 'test' } } as any, { requestSchema } as any)
 
       expect(formData.get('name')).toBe('TEST')
     })

@@ -1,6 +1,6 @@
-import type { ScopedContainer } from '@navios/di'
-
 import { useContext } from 'react'
+
+import type { ScopedContainer } from '@navios/di'
 
 import { ScopedContainerContext } from '../providers/context.mjs'
 

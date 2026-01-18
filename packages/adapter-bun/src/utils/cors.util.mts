@@ -13,18 +13,12 @@ export type OriginFunction = (
  * Extended CORS options for the Bun adapter.
  * Extends the core AbstractHttpCorsOptions with support for function-based origin.
  */
-export interface BunCorsOptions
-  extends Omit<AbstractHttpCorsOptions, 'origin' | 'logLevel'> {
+export interface BunCorsOptions extends Omit<AbstractHttpCorsOptions, 'origin' | 'logLevel'> {
   /**
    * Configures the Access-Control-Allow-Origin CORS header.
    * Can be a string, boolean, RegExp, array of these, or a function for dynamic validation.
    */
-  origin?:
-    | string
-    | boolean
-    | RegExp
-    | (string | boolean | RegExp)[]
-    | OriginFunction
+  origin?: string | boolean | RegExp | (string | boolean | RegExp)[] | OriginFunction
 }
 
 /**
@@ -169,9 +163,7 @@ export async function calculateCorsHeaders(
 
   // Exposed headers (for actual requests)
   if (options.exposedHeaders) {
-    headers['Access-Control-Expose-Headers'] = normalizeToString(
-      options.exposedHeaders,
-    )
+    headers['Access-Control-Expose-Headers'] = normalizeToString(options.exposedHeaders)
   }
 
   return headers
@@ -208,9 +200,7 @@ export async function calculatePreflightHeaders(
 
   // Allowed headers - reflect request headers if not specified
   if (options.allowedHeaders) {
-    headers['Access-Control-Allow-Headers'] = normalizeToString(
-      options.allowedHeaders,
-    )
+    headers['Access-Control-Allow-Headers'] = normalizeToString(options.allowedHeaders)
   } else if (requestHeaders) {
     // Reflect the requested headers
     headers['Access-Control-Allow-Headers'] = requestHeaders
@@ -250,9 +240,7 @@ export function isPreflight(
   origin: string | null,
   accessControlRequestMethod: string | null,
 ): boolean {
-  return (
-    method === 'OPTIONS' && !!origin && accessControlRequestMethod !== null
-  )
+  return method === 'OPTIONS' && !!origin && accessControlRequestMethod !== null
 }
 
 /**
@@ -272,10 +260,7 @@ export async function applyCorsToResponse(
     return response
   }
 
-  const corsHeaders = await calculateCorsHeaders(
-    requestOrigin ?? undefined,
-    options,
-  )
+  const corsHeaders = await calculateCorsHeaders(requestOrigin ?? undefined, options)
 
   if (!corsHeaders) {
     return response

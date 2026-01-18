@@ -12,10 +12,10 @@ export const LOG_LEVELS = [
 
 /**
  * Log level type.
- * 
+ *
  * Represents the severity level of a log message.
  * Levels are: 'verbose', 'debug', 'log', 'warn', 'error', 'fatal'
- * 
+ *
  * @publicApi
  */
 export type LogLevel = (typeof LOG_LEVELS)[number]

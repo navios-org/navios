@@ -5,9 +5,9 @@
   "scripts": {
     "start": "bun run src/bootstrap.mts",
     "start:watch": "bun run --watch src/bootstrap.mts",
-    "docker:up": "docker-compose up -d",
-    "docker:down": "docker-compose down",
-    "docker:logs": "docker-compose logs -f"
+    "docker:up": "docker compose up -d",
+    "docker:down": "docker compose down",
+    "docker:logs": "docker compose logs -f"
   },
   "dependencies": {
     "@navios/adapter-bun": "workspace:*",

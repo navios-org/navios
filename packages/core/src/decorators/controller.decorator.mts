@@ -1,6 +1,6 @@
-import type { ClassType, InjectableScope } from '@navios/di'
-
 import { Injectable, InjectionToken, Registry } from '@navios/di'
+
+import type { ClassType, InjectableScope } from '@navios/di'
 
 import { getControllerMetadata } from '../metadata/index.mjs'
 
@@ -50,17 +50,10 @@ export interface ControllerOptions {
  * }
  * ```
  */
-export function Controller({
-  guards,
-  registry,
-  priority,
-  scope,
-}: ControllerOptions = {}) {
+export function Controller({ guards, registry, priority, scope }: ControllerOptions = {}) {
   return function (target: ClassType, context: ClassDecoratorContext) {
     if (context.kind !== 'class') {
-      throw new Error(
-        '[Navios] @Controller decorator can only be used on classes.',
-      )
+      throw new Error('[Navios] @Controller decorator can only be used on classes.')
     }
     const token = InjectionToken.create(target)
     if (context.metadata) {

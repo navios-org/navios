@@ -35,9 +35,7 @@ describe('Concurrent Operations', () => {
       }
 
       // Start multiple concurrent resolutions
-      const promises = Array.from({ length: 10 }, () =>
-        container.get(SlowService),
-      )
+      const promises = Array.from({ length: 10 }, () => container.get(SlowService))
 
       const instances = await Promise.all(promises)
 
@@ -58,9 +56,7 @@ describe('Concurrent Operations', () => {
       }
 
       // Fire many concurrent requests
-      const promises = Array.from({ length: 100 }, () =>
-        container.get(RaceService),
-      )
+      const promises = Array.from({ length: 100 }, () => container.get(RaceService))
 
       const instances = await Promise.all(promises)
 
@@ -80,9 +76,7 @@ describe('Concurrent Operations', () => {
         id = ++instanceCount
       }
 
-      const promises = Array.from({ length: 10 }, () =>
-        container.get(TransientService),
-      )
+      const promises = Array.from({ length: 10 }, () => container.get(TransientService))
 
       const instances = await Promise.all(promises)
 
@@ -125,9 +119,7 @@ describe('Concurrent Operations', () => {
       const scopedContainer = container.beginRequest('test-request')
 
       // Multiple concurrent requests within same scoped container
-      const promises = Array.from({ length: 10 }, () =>
-        scopedContainer.get(RequestService),
-      )
+      const promises = Array.from({ length: 10 }, () => scopedContainer.get(RequestService))
 
       const instances = await Promise.all(promises)
 
@@ -167,9 +159,7 @@ describe('Concurrent Operations', () => {
       }
 
       // Resolve ServiceC concurrently multiple times
-      const promises = Array.from({ length: 20 }, () =>
-        container.get(ServiceC),
-      )
+      const promises = Array.from({ length: 20 }, () => container.get(ServiceC))
 
       const instances = await Promise.all(promises)
 
@@ -203,9 +193,7 @@ describe('Concurrent Operations', () => {
         }
       }
 
-      const promises = Array.from({ length: 5 }, () =>
-        container.get(DependentService),
-      )
+      const promises = Array.from({ length: 5 }, () => container.get(DependentService))
 
       const instances = await Promise.all(promises)
 
@@ -286,9 +274,7 @@ describe('Concurrent Operations', () => {
       }
 
       // Get transient services concurrently
-      const promises = Array.from({ length: 10 }, () =>
-        container.get(TransientService),
-      )
+      const promises = Array.from({ length: 10 }, () => container.get(TransientService))
 
       const instances = await Promise.all(promises)
 
@@ -298,9 +284,7 @@ describe('Concurrent Operations', () => {
 
       // But they should all share the same singleton
       const singletonId = instances[0].getSingletonId()
-      expect(instances.every((i) => i.getSingletonId() === singletonId)).toBe(
-        true,
-      )
+      expect(instances.every((i) => i.getSingletonId() === singletonId)).toBe(true)
     })
   })
 
@@ -312,9 +296,7 @@ describe('Concurrent Operations', () => {
       }
 
       // Fire 200 concurrent requests
-      const promises = Array.from({ length: 200 }, () =>
-        container.get(StressService),
-      )
+      const promises = Array.from({ length: 200 }, () => container.get(StressService))
 
       const instances = await Promise.all(promises)
 

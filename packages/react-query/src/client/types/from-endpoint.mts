@@ -20,11 +20,8 @@ import type { z, ZodObject, ZodType } from 'zod/v4'
 import type { Split } from '../../common/types.mjs'
 import type { MutationHelpers } from '../../mutation/types.mjs'
 import type { QueryHelpers } from '../../query/types.mjs'
-import type {
-  ComputeBaseResult,
-  EndpointHelper,
-  StreamHelper,
-} from './helpers.mjs'
+
+import type { ComputeBaseResult, EndpointHelper, StreamHelper } from './helpers.mjs'
 
 /**
  * Helper type to extract useKey from mutation options
@@ -41,9 +38,7 @@ type ExtractUseKey<Options> = Options extends { useKey: infer U }
  * @template UseDiscriminator - When `true`, errors are returned as union types.
  *   When `false` (default), errors are thrown and not included in TData.
  */
-export interface ClientFromEndpointMethods<
-  UseDiscriminator extends boolean = false,
-> {
+export interface ClientFromEndpointMethods<UseDiscriminator extends boolean = false> {
   /**
    * Creates a type-safe query from an existing endpoint with automatic type inference.
    *
@@ -85,14 +80,10 @@ export interface ClientFromEndpointMethods<
   >) &
     QueryHelpers<
       Config['url'],
-      Config['querySchema'] extends ZodObject
-        ? Config['querySchema']
-        : undefined,
+      Config['querySchema'] extends ZodObject ? Config['querySchema'] : undefined,
       Result,
       false,
-      Config['requestSchema'] extends ZodType
-        ? Config['requestSchema']
-        : undefined
+      Config['requestSchema'] extends ZodType ? Config['requestSchema'] : undefined
     >
 
   /**
@@ -158,9 +149,7 @@ export interface ClientFromEndpointMethods<
       Config['querySchema'],
       PageResult,
       true,
-      Config['requestSchema'] extends ZodType
-        ? Config['requestSchema']
-        : undefined
+      Config['requestSchema'] extends ZodType ? Config['requestSchema'] : undefined
     >
 
   /**
@@ -186,18 +175,10 @@ export interface ClientFromEndpointMethods<
   mutationFromEndpoint<
     const Config extends EndpointOptions | BaseEndpointOptions,
     TBaseResult = Config extends EndpointOptions
-      ? ComputeBaseResult<
-          UseDiscriminator,
-          Config['responseSchema'],
-          Config['errorSchema']
-        >
+      ? ComputeBaseResult<UseDiscriminator, Config['responseSchema'], Config['errorSchema']>
       : Blob,
     Result = Config extends EndpointOptions
-      ? ComputeBaseResult<
-          UseDiscriminator,
-          Config['responseSchema'],
-          Config['errorSchema']
-        >
+      ? ComputeBaseResult<UseDiscriminator, Config['responseSchema'], Config['errorSchema']>
       : Blob,
     OnMutateResult = unknown,
     Context = unknown,
@@ -211,15 +192,9 @@ export interface ClientFromEndpointMethods<
         variables: Simplify<
           RequestArgs<
             Config['url'],
-            Config['querySchema'] extends ZodObject
-              ? Config['querySchema']
-              : undefined,
-            Config['requestSchema'] extends ZodType
-              ? Config['requestSchema']
-              : undefined,
-            Config['urlParamsSchema'] extends ZodObject
-              ? Config['urlParamsSchema']
-              : undefined
+            Config['querySchema'] extends ZodObject ? Config['querySchema'] : undefined,
+            Config['requestSchema'] extends ZodType ? Config['requestSchema'] : undefined,
+            Config['urlParamsSchema'] extends ZodObject ? Config['urlParamsSchema'] : undefined
           >
         >,
         context: Context & MutationFunctionContext,
@@ -229,15 +204,9 @@ export interface ClientFromEndpointMethods<
         variables: Simplify<
           RequestArgs<
             Config['url'],
-            Config['querySchema'] extends ZodObject
-              ? Config['querySchema']
-              : undefined,
-            Config['requestSchema'] extends ZodType
-              ? Config['requestSchema']
-              : undefined,
-            Config['urlParamsSchema'] extends ZodObject
-              ? Config['urlParamsSchema']
-              : undefined
+            Config['querySchema'] extends ZodObject ? Config['querySchema'] : undefined,
+            Config['requestSchema'] extends ZodType ? Config['requestSchema'] : undefined,
+            Config['urlParamsSchema'] extends ZodObject ? Config['urlParamsSchema'] : undefined
           >
         >,
         context: Context &
@@ -250,15 +219,9 @@ export interface ClientFromEndpointMethods<
         variables: Simplify<
           RequestArgs<
             Config['url'],
-            Config['querySchema'] extends ZodObject
-              ? Config['querySchema']
-              : undefined,
-            Config['requestSchema'] extends ZodType
-              ? Config['requestSchema']
-              : undefined,
-            Config['urlParamsSchema'] extends ZodObject
-              ? Config['urlParamsSchema']
-              : undefined
+            Config['querySchema'] extends ZodObject ? Config['querySchema'] : undefined,
+            Config['requestSchema'] extends ZodType ? Config['requestSchema'] : undefined,
+            Config['urlParamsSchema'] extends ZodObject ? Config['urlParamsSchema'] : undefined
           >
         >,
         context: Context &
@@ -272,15 +235,9 @@ export interface ClientFromEndpointMethods<
         variables: Simplify<
           RequestArgs<
             Config['url'],
-            Config['querySchema'] extends ZodObject
-              ? Config['querySchema']
-              : undefined,
-            Config['requestSchema'] extends ZodType
-              ? Config['requestSchema']
-              : undefined,
-            Config['urlParamsSchema'] extends ZodObject
-              ? Config['urlParamsSchema']
-              : undefined
+            Config['querySchema'] extends ZodObject ? Config['querySchema'] : undefined,
+            Config['requestSchema'] extends ZodType ? Config['requestSchema'] : undefined,
+            Config['urlParamsSchema'] extends ZodObject ? Config['urlParamsSchema'] : undefined
           >
         >,
         context: Context &
@@ -301,15 +258,9 @@ export interface ClientFromEndpointMethods<
     Simplify<
       RequestArgs<
         Config['url'],
-        Config['querySchema'] extends ZodObject
-          ? Config['querySchema']
-          : undefined,
-        Config['requestSchema'] extends ZodType
-          ? Config['requestSchema']
-          : undefined,
-        Config['urlParamsSchema'] extends ZodObject
-          ? Config['urlParamsSchema']
-          : undefined
+        Config['querySchema'] extends ZodObject ? Config['querySchema'] : undefined,
+        Config['requestSchema'] extends ZodType ? Config['requestSchema'] : undefined,
+        Config['urlParamsSchema'] extends ZodObject ? Config['urlParamsSchema'] : undefined
       >
     >,
     OnMutateResult

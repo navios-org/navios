@@ -1,12 +1,11 @@
+import { Injectable, InjectionToken } from '@navios/core'
+import { ZodArray, ZodObject, ZodOptional } from 'zod/v4'
+
 import type { MultipartFile, MultipartValue } from '@fastify/multipart'
 import type { EndpointOptions } from '@navios/builder'
 import type { ArgumentGetter, HandlerMetadata } from '@navios/core'
 import type { FastifyRequest } from 'fastify'
 import type { ZodRawShape } from 'zod/v4'
-
-import { Injectable, InjectionToken } from '@navios/core'
-
-import { ZodArray, ZodObject, ZodOptional } from 'zod/v4'
 
 import { FastifyEndpointAdapterService } from './endpoint-adapter.service.mjs'
 
@@ -16,10 +15,9 @@ import { FastifyEndpointAdapterService } from './endpoint-adapter.service.mjs'
  * This token is used to inject the `FastifyMultipartAdapterService` instance
  * into the dependency injection container.
  */
-export const FastifyMultipartAdapterToken =
-  InjectionToken.create<FastifyMultipartAdapterService>(
-    Symbol.for('FastifyMultipartAdapterService'),
-  )
+export const FastifyMultipartAdapterToken = InjectionToken.create<FastifyMultipartAdapterService>(
+  Symbol.for('FastifyMultipartAdapterService'),
+)
 
 /**
  * Adapter service for handling multipart/form-data requests in Fastify.
@@ -110,9 +108,7 @@ export class FastifyMultipartAdapterService extends FastifyEndpointAdapterServic
    * @param handlerMetadata - The handler metadata containing configuration and schemas.
    * @returns A Fastify route schema object.
    */
-  override provideSchema(
-    handlerMetadata: HandlerMetadata<EndpointOptions>,
-  ): Record<string, any> {
+  override provideSchema(handlerMetadata: HandlerMetadata<EndpointOptions>): Record<string, any> {
     const schema: Record<string, any> = {}
     const { querySchema, responseSchema } = handlerMetadata.config
 
@@ -153,13 +149,9 @@ export class FastifyMultipartAdapterService extends FastifyEndpointAdapterServic
     }
     let value
     if (part.type === 'file') {
-      value = new File(
-        [(await part.toBuffer()) as unknown as ArrayBuffer],
-        part.filename,
-        {
-          type: part.mimetype,
-        },
-      )
+      value = new File([(await part.toBuffer()) as unknown as ArrayBuffer], part.filename, {
+        type: part.mimetype,
+      })
     } else {
       value = part.value
       if (isObject && typeof value === 'string') {
@@ -210,10 +202,7 @@ export class FastifyMultipartAdapterService extends FastifyEndpointAdapterServic
           },
         }
       },
-      {} as Record<
-        string,
-        { isArray: boolean; isOptional: boolean; isObject: boolean }
-      >,
+      {} as Record<string, { isArray: boolean; isOptional: boolean; isObject: boolean }>,
     )
   }
 }

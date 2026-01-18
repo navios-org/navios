@@ -1,8 +1,4 @@
-import type {
-  BaseEndpointOptions,
-  RequestArgs,
-  StreamHandler,
-} from '@navios/builder'
+import type { BaseEndpointOptions, RequestArgs, StreamHandler } from '@navios/builder'
 import type { ZodObject, ZodType } from 'zod/v4'
 
 import { getEndpointMetadata } from '../metadata/index.mjs'
@@ -44,13 +40,7 @@ export type StreamParams<
         EndpointDeclaration['config']['urlParamsSchema'],
         true
       >
-    : RequestArgs<
-        Url,
-        undefined,
-        undefined,
-        EndpointDeclaration['config']['urlParamsSchema'],
-        true
-      >
+    : RequestArgs<Url, undefined, undefined, EndpointDeclaration['config']['urlParamsSchema'], true>
 
 /**
  * Decorator that marks a method as a streaming endpoint.
@@ -111,9 +101,7 @@ export function Stream<Config extends BaseEndpointOptions>(endpoint: {
 export function Stream<Config extends BaseEndpointOptions>(endpoint: {
   config: Config
 }): (target: () => any, context: ClassMethodDecoratorContext) => void
-export function Stream<Config extends BaseEndpointOptions>(endpoint: {
-  config: Config
-}) {
+export function Stream<Config extends BaseEndpointOptions>(endpoint: { config: Config }) {
   type Params = RequestArgs<
     Config['url'],
     Config['querySchema'],
@@ -122,23 +110,15 @@ export function Stream<Config extends BaseEndpointOptions>(endpoint: {
     true
   >
 
-  type Handler =
-    | ((params: Params, reply: any) => any)
-    | ((params: Params) => any)
-    | (() => any)
+  type Handler = ((params: Params, reply: any) => any) | ((params: Params) => any) | (() => any)
 
   return (target: Handler, context: ClassMethodDecoratorContext) => {
     if (context.kind !== 'method') {
-      throw new Error(
-        '[Navios] Endpoint decorator can only be used on methods.',
-      )
+      throw new Error('[Navios] Endpoint decorator can only be used on methods.')
     }
     const config = endpoint.config
     if (context.metadata) {
-      let endpointMetadata = getEndpointMetadata<BaseEndpointOptions>(
-        target,
-        context,
-      )
+      let endpointMetadata = getEndpointMetadata<BaseEndpointOptions>(target, context)
       if (endpointMetadata.config && endpointMetadata.config.url) {
         throw new Error(
           `[Navios] Endpoint ${config.method} ${config.url} already exists. Please use a different method or url.`,

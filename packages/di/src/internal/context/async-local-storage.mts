@@ -1,6 +1,6 @@
-import type { IAsyncLocalStorage } from './async-local-storage.types.mjs'
-
 import { AsyncLocalStorage } from 'node:async_hooks'
+
+import type { IAsyncLocalStorage } from './async-local-storage.types.mjs'
 
 /**
  * Cross-platform AsyncLocalStorage switcher.
@@ -44,14 +44,14 @@ function getModule() {
     }
 
     loadedModule = {
-      createAsyncLocalStorage: <T,>() => new NoopLocalStorage<T>(),
+      createAsyncLocalStorage: <T>() => new NoopLocalStorage<T>(),
       isUsingNativeAsyncLocalStorage: () => false,
     }
   } else {
     // In development, use native AsyncLocalStorage
 
     loadedModule = {
-      createAsyncLocalStorage: <T,>() => new AsyncLocalStorage<T>(),
+      createAsyncLocalStorage: <T>() => new AsyncLocalStorage<T>(),
       isUsingNativeAsyncLocalStorage: () => true,
     }
   }
@@ -66,4 +66,3 @@ export function createAsyncLocalStorage<T>(): IAsyncLocalStorage<T> {
 export function isUsingNativeAsyncLocalStorage(): boolean {
   return getModule().isUsingNativeAsyncLocalStorage()
 }
-

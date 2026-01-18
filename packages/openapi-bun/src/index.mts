@@ -19,10 +19,7 @@ export {
 export { OpenApiOptionsToken } from './tokens/index.mjs'
 
 // Services (for advanced use cases)
-export {
-  OpenApiDocumentService,
-  OpenApiDocumentServiceToken,
-} from './services/index.mjs'
+export { OpenApiDocumentService, OpenApiDocumentServiceToken } from './services/index.mjs'
 
 // Controller factories (for custom setups)
 export { createOpenApiJsonController } from './controllers/openapi-json.controller.mjs'

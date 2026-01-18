@@ -1,6 +1,6 @@
-import type { ClassType, InjectionToken } from './injection-token.mjs'
-
 import { InjectableScope, InjectableType } from '../enums/index.mjs'
+
+import type { ClassType, InjectionToken } from './injection-token.mjs'
 
 export type FactoryRecord<Instance = any, Schema = any> = {
   scope: InjectableScope
@@ -26,9 +26,7 @@ export class Registry {
     return false
   }
 
-  get<Instance, Schema>(
-    token: InjectionToken<Instance, Schema>,
-  ): FactoryRecord<Instance, Schema> {
+  get<Instance, Schema>(token: InjectionToken<Instance, Schema>): FactoryRecord<Instance, Schema> {
     const factory = this.highestPriority.get(token.id)
     if (!factory) {
       if (this.parent) {
@@ -114,10 +112,7 @@ export class Registry {
    * @param scope The new scope to set
    * @returns true if the scope was updated, false if the token was not found
    */
-  updateScope(
-    token: InjectionToken<any, any>,
-    scope: InjectableScope,
-  ): boolean {
+  updateScope(token: InjectionToken<any, any>, scope: InjectableScope): boolean {
     const records = this.factories.get(token.id)
     if (records && records.length > 0) {
       // Update all records

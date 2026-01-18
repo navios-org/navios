@@ -20,9 +20,7 @@ export interface HandlerMetadata<Config = null> {
   headers: Partial<Record<HttpHeader, number | string | string[] | undefined>>
   httpMethod: HttpMethod
   config: Config
-  guards: Set<
-    ClassTypeWithInstance<CanActivate> | InjectionToken<CanActivate, undefined>
-  >
+  guards: Set<ClassTypeWithInstance<CanActivate> | InjectionToken<CanActivate, undefined>>
   customAttributes: Map<string | symbol, any>
 }
 
@@ -30,9 +28,7 @@ export function getAllEndpointMetadata(
   context: ClassMethodDecoratorContext | ClassDecoratorContext,
 ): Set<HandlerMetadata<any>> {
   if (context.metadata) {
-    const metadata = context.metadata[EndpointMetadataKey] as
-      | Set<HandlerMetadata>
-      | undefined
+    const metadata = context.metadata[EndpointMetadataKey] as Set<HandlerMetadata> | undefined
     if (metadata) {
       return metadata
     } else {
@@ -50,9 +46,7 @@ export function getEndpointMetadata<Config = any>(
   if (context.metadata) {
     const metadata = getAllEndpointMetadata(context)
     if (metadata) {
-      const endpointMetadata = Array.from(metadata).find(
-        (item) => item.classMethod === target.name,
-      )
+      const endpointMetadata = Array.from(metadata).find((item) => item.classMethod === target.name)
       if (endpointMetadata) {
         return endpointMetadata
       } else {
@@ -66,8 +60,7 @@ export function getEndpointMetadata<Config = any>(
           // @ts-expect-error We are using a generic type here
           config: null,
           guards: new Set<
-            | ClassTypeWithInstance<CanActivate>
-            | InjectionToken<CanActivate, undefined>
+            ClassTypeWithInstance<CanActivate> | InjectionToken<CanActivate, undefined>
           >(),
           customAttributes: new Map<string | symbol, any>(),
         }

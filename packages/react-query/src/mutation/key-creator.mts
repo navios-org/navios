@@ -1,13 +1,9 @@
-import type {
-  AnyEndpointConfig,
-  UrlHasParams,
-  UrlParams,
-} from '@navios/builder'
+import type { AnyEndpointConfig, UrlHasParams, UrlParams } from '@navios/builder'
 import type { DataTag } from '@tanstack/react-query'
 
-import type { QueryParams } from '../query/types.mjs'
-
 import { createQueryKey } from '../query/key-creator.mjs'
+
+import type { QueryParams } from '../query/types.mjs'
 
 /**
  * Creates a mutation key generator for a given endpoint configuration.

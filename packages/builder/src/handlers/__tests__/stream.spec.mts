@@ -1,9 +1,9 @@
 import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod/v4'
 
-import type { AbstractResponse, BuilderContext, Client } from '../../types/index.mjs'
-
 import { createStream } from '../stream.mjs'
+
+import type { AbstractResponse, BuilderContext, Client } from '../../types/index.mjs'
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 

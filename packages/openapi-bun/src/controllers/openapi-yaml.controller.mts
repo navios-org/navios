@@ -1,8 +1,8 @@
-import type { ClassType } from '@navios/core'
-
 import { builder } from '@navios/builder'
 import { Controller, inject, Stream } from '@navios/core'
 import { ApiExclude, ApiStream } from '@navios/openapi'
+
+import type { ClassType } from '@navios/core'
 
 import { OpenApiDocumentServiceToken } from '../services/openapi-document.service.mjs'
 

@@ -2,18 +2,9 @@
  * Evaluates to `true` if `T` is `any`. `false` otherwise.
  * (c) https://stackoverflow.com/a/68633327/5290447
  */
-type IsAny<T> = unknown extends T
-  ? [keyof T] extends [never]
-    ? false
-    : true
-  : false
+type IsAny<T> = unknown extends T ? ([keyof T] extends [never] ? false : true) : false
 
-type ExcludedParts =
-  | 'services'
-  | 'mailer'
-  | 'aws'
-  | 'computedTimeRates'
-  | 'aiModelsRates'
+type ExcludedParts = 'services' | 'mailer' | 'aws' | 'computedTimeRates' | 'aiModelsRates'
 type ExcludedKeys = 'computedTimeRates' | 'aiModelsRates' | 'aiModel'
 
 export type PathImpl<T, Key extends keyof T> = Key extends string
@@ -44,10 +35,7 @@ export type Path<T> = keyof T extends string
     : keyof T
   : never
 
-export type PathValue<
-  T,
-  P extends Path<T>,
-> = P extends `${infer Key}.${infer Rest}`
+export type PathValue<T, P extends Path<T>> = P extends `${infer Key}.${infer Rest}`
   ? Key extends keyof T
     ? Rest extends Path<T[Key]>
       ? PathValue<T[Key], Rest>

@@ -51,9 +51,7 @@ export type InferErrorSchemaOutput<T extends ErrorSchemaRecord> = {
  * ```
  */
 export type InferErrorSchemaOutputWithStatus<T extends ErrorSchemaRecord> = {
-  [K in keyof T]: T[K] extends ZodType
-    ? z.output<T[K]> & { readonly __status: K }
-    : never
+  [K in keyof T]: T[K] extends ZodType ? z.output<T[K]> & { readonly __status: K } : never
 }[keyof T]
 
 /**
@@ -108,9 +106,7 @@ export function isErrorStatus<T, S extends number>(
  * }
  * ```
  */
-export function isErrorResponse<T>(
-  result: T,
-): result is Extract<T, { __status: number }> {
+export function isErrorResponse<T>(result: T): result is Extract<T, { __status: number }> {
   return (
     typeof result === 'object' &&
     result !== null &&

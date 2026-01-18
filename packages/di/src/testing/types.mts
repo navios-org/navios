@@ -1,7 +1,4 @@
-import type {
-  BoundInjectionToken,
-  InjectionToken,
-} from '../token/injection-token.mjs'
+import type { BoundInjectionToken, InjectionToken } from '../token/injection-token.mjs'
 import type { Registry } from '../token/registry.mjs'
 
 /**
@@ -76,10 +73,7 @@ export interface BindingBuilder<T> {
  * Provider configuration for UnitTestContainer.
  */
 export interface ProviderConfig<T = any> {
-  token:
-    | InjectionToken<T, any>
-    | BoundInjectionToken<T, any>
-    | (new (...args: any[]) => T)
+  token: InjectionToken<T, any> | BoundInjectionToken<T, any> | (new (...args: any[]) => T)
   useValue?: T
   useClass?: new (...args: any[]) => T
   useFactory?: () => T | Promise<T>

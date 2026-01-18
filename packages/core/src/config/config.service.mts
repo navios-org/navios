@@ -1,12 +1,11 @@
 import { NaviosError } from '@navios/builder'
 import { inject, Injectable, InjectionToken } from '@navios/di'
-
 import { z } from 'zod/v4'
+
+import { Logger } from '../logger/index.mjs'
 
 import type { ConfigServiceInterface as IConfigService } from './config-service.interface.mjs'
 import type { Path, PathValue } from './types.mjs'
-
-import { Logger } from '../logger/index.mjs'
 
 /**
  * Schema for validating configuration service options.
@@ -103,11 +102,7 @@ export class ConfigService<
       let value: any = this.config
 
       for (const part of parts) {
-        if (
-          value === null ||
-          value === undefined ||
-          typeof value !== 'object'
-        ) {
+        if (value === null || value === undefined || typeof value !== 'object') {
           return null
         }
         value = value[part]
@@ -115,10 +110,7 @@ export class ConfigService<
 
       return (value as PathValue<Config, Key>) ?? null
     } catch (error) {
-      this.logger.debug?.(
-        `Failed to get config value for key ${String(key)}`,
-        error,
-      )
+      this.logger.debug?.(`Failed to get config value for key ${String(key)}`, error)
       return null
     }
   }
@@ -157,16 +149,11 @@ export class ConfigService<
    * const apiKey = config.getOrThrow('api.key', 'API key is required') // string
    * ```
    */
-  getOrThrow<Key extends Path<Config>>(
-    key: Key,
-    errorMessage?: string,
-  ): PathValue<Config, Key> {
+  getOrThrow<Key extends Path<Config>>(key: Key, errorMessage?: string): PathValue<Config, Key> {
     const value = this.get(key)
 
     if (value === null) {
-      const message =
-        errorMessage ||
-        `Configuration value for key "${String(key)}" is not defined`
+      const message = errorMessage || `Configuration value for key "${String(key)}" is not defined`
       this.logger.error(message)
       throw new NaviosError(message)
     }

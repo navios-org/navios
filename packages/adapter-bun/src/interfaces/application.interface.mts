@@ -1,8 +1,4 @@
-import type {
-  AbstractHttpAdapterInterface,
-  LoggerService,
-  LogLevel,
-} from '@navios/core'
+import type { AbstractHttpAdapterInterface, LoggerService, LogLevel } from '@navios/core'
 import type { Serve } from 'bun'
 
 // Import after type definitions to avoid circular dependency

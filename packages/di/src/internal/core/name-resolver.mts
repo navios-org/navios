@@ -1,6 +1,6 @@
-import type { InjectionTokenType } from '../../token/injection-token.mjs'
-
 import { InjectableScope } from '../../enums/index.mjs'
+
+import type { InjectionTokenType } from '../../token/injection-token.mjs'
 
 /**
  * Simple LRU cache for instance name generation.
@@ -93,9 +93,7 @@ export class NameResolver {
 
     // For request-scoped services, requestId is required
     if (isRequest && !requestId) {
-      throw new Error(
-        `[NameResolver] requestId is required for request-scoped services`,
-      )
+      throw new Error(`[NameResolver] requestId is required for request-scoped services`)
     }
 
     // Build cache key
@@ -139,10 +137,7 @@ export class NameResolver {
    * @param requestId The request ID to add
    * @returns The upgraded instance name with requestId
    */
-  upgradeInstanceNameToRequest(
-    existingName: string,
-    requestId: string,
-  ): string {
+  upgradeInstanceNameToRequest(existingName: string, requestId: string): string {
     // Check if requestId is already in the name
     if (existingName.includes(`:requestId=${requestId}`)) {
       return existingName

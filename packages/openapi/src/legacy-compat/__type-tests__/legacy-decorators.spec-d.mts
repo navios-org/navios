@@ -1,11 +1,10 @@
-// oxlint-disable no-unused-vars
-import type { EndpointParams, EndpointResult } from '@navios/core/legacy-compat'
-
 import { builder } from '@navios/builder'
 import { Controller, Endpoint } from '@navios/core/legacy-compat'
-
 import { describe, expectTypeOf, test } from 'vitest'
 import { z } from 'zod/v4'
+
+// oxlint-disable no-unused-vars
+import type { EndpointParams, EndpointResult } from '@navios/core/legacy-compat'
 
 import {
   ApiDeprecated,

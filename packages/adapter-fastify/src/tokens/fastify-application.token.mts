@@ -22,6 +22,4 @@ import type { FastifyApplicationServiceInterface } from '../interfaces/applicati
  * ```
  */
 export const FastifyApplicationServiceToken =
-  InjectionToken.create<FastifyApplicationServiceInterface>(
-    'FastifyApplicationService',
-  )
+  InjectionToken.create<FastifyApplicationServiceInterface>('FastifyApplicationService')

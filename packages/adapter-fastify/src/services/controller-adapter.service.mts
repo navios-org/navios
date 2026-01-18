@@ -1,14 +1,3 @@
-import type {
-  CanActivate,
-  ClassType,
-  ControllerMetadata,
-  HandlerMetadata,
-  ModuleMetadata,
-  ScopedContainer,
-} from '@navios/core'
-import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify'
-import type { ZodTypeProvider } from 'fastify-type-provider-zod'
-
 import {
   Container,
   ErrorResponseProducerService,
@@ -24,8 +13,21 @@ import {
   Logger,
   runWithRequestId,
 } from '@navios/core'
-
 import { ZodError } from 'zod/v4'
+
+import type {
+  CanActivate,
+  ClassType,
+  ControllerMetadata,
+  HandlerMetadata,
+  ModuleMetadata,
+  ScopedContainer,
+} from '@navios/core'
+import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify'
+import type { ZodTypeProvider } from 'fastify-type-provider-zod'
+
+import { FastifyExecutionContext } from '../interfaces/index.mjs'
+import { FastifyReplyToken, FastifyRequestToken } from '../tokens/index.mjs'
 
 import type {
   FastifyDynamicHandler,
@@ -34,19 +36,10 @@ import type {
   FastifyStaticHandler,
 } from '../adapters/index.mjs'
 
-import { FastifyExecutionContext } from '../interfaces/index.mjs'
-import { FastifyReplyToken, FastifyRequestToken } from '../tokens/index.mjs'
-
 import '../types/fastify.mjs'
 
-type PreHandler = (
-  request: FastifyRequest,
-  reply: FastifyReply,
-) => Promise<void>
-type RouteHandler = (
-  request: FastifyRequest,
-  reply: FastifyReply,
-) => Promise<any>
+type PreHandler = (request: FastifyRequest, reply: FastifyReply) => Promise<void>
+type RouteHandler = (request: FastifyRequest, reply: FastifyReply) => Promise<any>
 
 interface RouteHandlers {
   preHandler?: PreHandler
@@ -105,24 +98,17 @@ export class FastifyControllerAdapterService {
       const { classMethod, url, httpMethod, adapterToken } = endpoint
 
       if (!url || !adapterToken) {
-        throw new Error(
-          `[Navios] Malformed Endpoint ${controller.name}:${classMethod}`,
-        )
+        throw new Error(`[Navios] Malformed Endpoint ${controller.name}:${classMethod}`)
       }
       const adapter = await this.container.get(
         adapterToken as InjectionToken<FastifyHandlerAdapterInterface>,
       )
 
       // Pre-resolve guards (reversed order: module → controller → endpoint)
-      const guards = this.guardRunner.makeContext(
-        moduleMetadata,
-        controllerMetadata,
-        endpoint,
+      const guards = this.guardRunner.makeContext(moduleMetadata, controllerMetadata, endpoint)
+      const guardResolution = await this.instanceResolver.resolveMany<CanActivate>(
+        Array.from(guards).reverse() as ClassType[],
       )
-      const guardResolution =
-        await this.instanceResolver.resolveMany<CanActivate>(
-          Array.from(guards).reverse() as ClassType[],
-        )
 
       const hasSchema = adapter.hasSchema?.(endpoint) ?? false
       const handlerResult = await adapter.provideHandler(controller, endpoint)
@@ -151,9 +137,7 @@ export class FastifyControllerAdapterService {
         })
       }
 
-      this.logger.debug(
-        `Registered ${httpMethod} ${url} for ${controller.name}:${classMethod}`,
-      )
+      this.logger.debug(`Registered ${httpMethod} ${url} for ${controller.name}:${classMethod}`)
     }
   }
 
@@ -162,10 +146,7 @@ export class FastifyControllerAdapterService {
    * Used when handler or guards need request-scoped resolution.
    * @private
    */
-  private createRequestContainer(
-    request: FastifyRequest,
-    reply: FastifyReply,
-  ): ScopedContainer {
+  private createRequestContainer(request: FastifyRequest, reply: FastifyReply): ScopedContainer {
     const container = this.container.beginRequest(request.id)
     request.scopedContainer = container
     container.addInstance(FastifyRequestToken, request)
@@ -206,9 +187,7 @@ export class FastifyControllerAdapterService {
     return async (request, reply) => {
       if (reply.sent) return
       try {
-        return await runWithRequestId(request.id, () =>
-          handlerResult.handler(request, reply),
-        )
+        return await runWithRequestId(request.id, () => handlerResult.handler(request, reply))
       } catch (error) {
         return this.handleError(error, reply)
       }
@@ -219,9 +198,7 @@ export class FastifyControllerAdapterService {
    * Creates a dynamic handler wrapper (uses scoped container from request).
    * @private
    */
-  private makeDynamicHandler(
-    handlerResult: FastifyDynamicHandler,
-  ): RouteHandler {
+  private makeDynamicHandler(handlerResult: FastifyDynamicHandler): RouteHandler {
     return async (request, reply) => {
       if (reply.sent) return
       try {
@@ -384,12 +361,7 @@ export class FastifyControllerAdapterService {
     const guards = new Set(guardResolution.classTypes)
     return {
       preHandler: hasGuards
-        ? this.makeDynamicGuardsPreHandler(
-            guards,
-            moduleMetadata,
-            controllerMetadata,
-            endpoint,
-          )
+        ? this.makeDynamicGuardsPreHandler(guards, moduleMetadata, controllerMetadata, endpoint)
         : async (request, reply) => {
             // No guards, just setup container
             this.createRequestContainer(request, reply)
@@ -410,10 +382,7 @@ export class FastifyControllerAdapterService {
       // For HttpException, preserve original response format for backwards compatibility
       return reply.status(error.statusCode).send(error.response)
     } else if (error instanceof ZodError) {
-      errorResponse = this.errorProducer.respond(
-        FrameworkError.ValidationError,
-        error,
-      )
+      errorResponse = this.errorProducer.respond(FrameworkError.ValidationError, error)
     } else {
       // Log unexpected errors
       const err = error as Error

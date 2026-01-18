@@ -1,8 +1,9 @@
 import { Injectable } from '@navios/di'
 
+import { NotFoundResponderToken } from '../tokens/responder.tokens.mjs'
+
 import type { ErrorResponder } from '../interfaces/error-responder.interface.mjs'
 import type { ErrorResponse } from '../interfaces/error-response.interface.mjs'
-import { NotFoundResponderToken } from '../tokens/responder.tokens.mjs'
 
 /**
  * Default responder for not found errors (HTTP 404).
@@ -44,12 +45,7 @@ export class NotFoundResponderService implements ErrorResponder {
     }
 
     // Try to extract detail from error with a response property (like NotFoundException)
-    if (
-      error &&
-      typeof error === 'object' &&
-      'response' in error &&
-      error.response
-    ) {
+    if (error && typeof error === 'object' && 'response' in error && error.response) {
       if (typeof error.response === 'string') {
         return this.createResponse(error.response)
       }

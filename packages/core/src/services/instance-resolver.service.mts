@@ -1,12 +1,6 @@
-import type { ClassType, ScopedContainer } from '@navios/di'
+import { Container, getInjectableToken, inject, Injectable, InjectableScope } from '@navios/di'
 
-import {
-  Container,
-  getInjectableToken,
-  inject,
-  Injectable,
-  InjectableScope,
-} from '@navios/di'
+import type { ClassType, ScopedContainer } from '@navios/di'
 
 /**
  * Result of instance resolution attempt.
@@ -130,9 +124,7 @@ export class InstanceResolverService {
    * @param classTypes - The classes to resolve
    * @returns A resolution result containing either all cached instances or resolver function
    */
-  async resolveMany<T>(
-    classTypes: ClassType[],
-  ): Promise<MultiInstanceResolution<T>> {
+  async resolveMany<T>(classTypes: ClassType[]): Promise<MultiInstanceResolution<T>> {
     if (classTypes.length === 0) {
       return {
         cached: true,
@@ -151,27 +143,21 @@ export class InstanceResolverService {
         } catch {
           // Class has request-scoped dependencies, update its scope to Request
           const token = getInjectableToken(classType)
-          this.container
-            .getRegistry()
-            .updateScope(token, InjectableScope.Request)
+          this.container.getRegistry().updateScope(token, InjectableScope.Request)
           return { success: false, instance: null }
         }
       }),
     )
 
     const allCached = results.every((r) => r.success)
-    const cachedInstances = allCached
-      ? results.map((r) => r.instance as T)
-      : null
+    const cachedInstances = allCached ? results.map((r) => r.instance as T) : null
 
     return {
       cached: allCached,
       instances: cachedInstances,
       classTypes,
       resolve: (scoped: ScopedContainer) =>
-        Promise.all(
-          classTypes.map((classType) => scoped.get(classType) as Promise<T>),
-        ),
+        Promise.all(classTypes.map((classType) => scoped.get(classType) as Promise<T>)),
     }
   }
 }

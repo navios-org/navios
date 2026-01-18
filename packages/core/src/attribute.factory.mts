@@ -1,12 +1,6 @@
 import type { ClassType } from '@navios/di'
 import type { z, ZodType } from 'zod/v4'
 
-import type {
-  ControllerMetadata,
-  HandlerMetadata,
-  ModuleMetadata,
-} from './metadata/index.mjs'
-
 import {
   getControllerMetadata,
   getEndpointMetadata,
@@ -14,14 +8,13 @@ import {
   hasControllerMetadata,
   hasModuleMetadata,
 } from './metadata/index.mjs'
-import {
-  getManagedMetadata,
-  hasManagedMetadata,
-} from './metadata/navios-managed.metadata.mjs'
+import { getManagedMetadata, hasManagedMetadata } from './metadata/navios-managed.metadata.mjs'
+
+import type { ControllerMetadata, HandlerMetadata, ModuleMetadata } from './metadata/index.mjs'
 
 /**
  * Type for a class attribute decorator without a value.
- * 
+ *
  * Attributes are custom metadata decorators that can be applied to modules,
  * controllers, and endpoints.
  */
@@ -34,41 +27,38 @@ export type ClassAttribute = (() => <T>(
 
 /**
  * Type for a class attribute decorator with a validated value.
- * 
+ *
  * @typeParam T - The Zod schema type for validation
  */
 export type ClassSchemaAttribute<T extends ZodType> = ((
   value: z.input<T>,
-) => <T>(
-  target: T,
-  context: ClassDecoratorContext | ClassMethodDecoratorContext,
-) => T) & {
+) => <T>(target: T, context: ClassDecoratorContext | ClassMethodDecoratorContext) => T) & {
   token: symbol
   schema: ZodType
 }
 
 /**
  * Factory for creating custom attribute decorators.
- * 
+ *
  * Attributes allow you to add custom metadata to modules, controllers, and endpoints.
  * This is useful for cross-cutting concerns like rate limiting, caching, API versioning, etc.
- * 
+ *
  * @example
  * ```typescript
  * // Create a simple boolean attribute
  * const Public = AttributeFactory.createAttribute(Symbol.for('Public'))
- * 
+ *
  * // Use it as a decorator
  * @Controller()
  * @Public()
  * export class PublicController { }
- * 
+ *
  * // Check if attribute exists
  * if (AttributeFactory.has(Public, controllerMetadata)) {
  *   // Skip authentication
  * }
  * ```
- * 
+ *
  * @example
  * ```typescript
  * // Create an attribute with a validated value
@@ -76,12 +66,12 @@ export type ClassSchemaAttribute<T extends ZodType> = ((
  *   Symbol.for('RateLimit'),
  *   z.object({ requests: z.number(), window: z.number() })
  * )
- * 
+ *
  * // Use it with a value
  * @Endpoint(apiEndpoint)
  * @RateLimit({ requests: 100, window: 60000 })
  * async handler() { }
- * 
+ *
  * // Get the value
  * const limit = AttributeFactory.get(RateLimit, endpointMetadata)
  * // limit is typed as { requests: number, window: number } | null
@@ -90,14 +80,14 @@ export type ClassSchemaAttribute<T extends ZodType> = ((
 export class AttributeFactory {
   /**
    * Creates a simple attribute decorator without a value.
-   * 
+   *
    * @param token - A unique symbol to identify this attribute
    * @returns A decorator function that can be applied to classes or methods
-   * 
+   *
    * @example
    * ```typescript
    * const Public = AttributeFactory.createAttribute(Symbol.for('Public'))
-   * 
+   *
    * @Public()
    * @Controller()
    * export class PublicController { }
@@ -106,45 +96,34 @@ export class AttributeFactory {
   static createAttribute(token: symbol): ClassAttribute
   /**
    * Creates an attribute decorator with a validated value.
-   * 
+   *
    * @param token - A unique symbol to identify this attribute
    * @param schema - A Zod schema to validate the attribute value
    * @returns A decorator function that accepts a value and can be applied to classes or methods
-   * 
+   *
    * @example
    * ```typescript
    * const RateLimit = AttributeFactory.createAttribute(
    *   Symbol.for('RateLimit'),
    *   z.object({ requests: z.number(), window: z.number() })
    * )
-   * 
+   *
    * @RateLimit({ requests: 100, window: 60000 })
    * @Endpoint(apiEndpoint)
    * async handler() { }
    * ```
    */
-  static createAttribute<T extends ZodType>(
-    token: symbol,
-    schema: T,
-  ): ClassSchemaAttribute<T>
+  static createAttribute<T extends ZodType>(token: symbol, schema: T): ClassSchemaAttribute<T>
   static createAttribute(token: symbol, schema?: ZodType) {
     const res =
       (value?: unknown) =>
-      (
-        target: any,
-        context: ClassDecoratorContext | ClassMethodDecoratorContext,
-      ) => {
+      (target: any, context: ClassDecoratorContext | ClassMethodDecoratorContext) => {
         if (context.kind !== 'class' && context.kind !== 'method') {
-          throw new Error(
-            '[Navios] Attribute can only be applied to classes or methods',
-          )
+          throw new Error('[Navios] Attribute can only be applied to classes or methods')
         }
-        const isController =
-          context.kind === 'class' && hasControllerMetadata(target as ClassType)
-        const isModule =
-          context.kind === 'class' && hasModuleMetadata(target as ClassType)
-        const isManaged =
-          context.kind === 'class' && hasManagedMetadata(target as ClassType)
+        const isController = context.kind === 'class' && hasControllerMetadata(target as ClassType)
+        const isModule = context.kind === 'class' && hasModuleMetadata(target as ClassType)
+        const isManaged = context.kind === 'class' && hasManagedMetadata(target as ClassType)
         if (context.kind === 'class' && !isController && !isModule && !isManaged) {
           throw new Error(
             '[Navios] Attribute can only be applied to classes with @Controller, @Module, or other Navios-managed decorators',
@@ -160,11 +139,9 @@ export class AttributeFactory {
                   ? getManagedMetadata(target as any)!
                   : null
             : getEndpointMetadata(target, context)
-        
+
         if (!metadata) {
-          throw new Error(
-            '[Navios] Could not determine metadata for attribute target',
-          )
+          throw new Error('[Navios] Could not determine metadata for attribute target')
         }
         if (schema) {
           const validatedValue = schema.safeParse(value)
@@ -188,19 +165,19 @@ export class AttributeFactory {
 
   /**
    * Gets the value of an attribute from metadata.
-   * 
+   *
    * Returns `null` if the attribute is not present.
    * For simple attributes (without values), returns `true` if present.
-   * 
+   *
    * @param attribute - The attribute decorator
    * @param target - The metadata object (module, controller, or handler)
    * @returns The attribute value, `true` for simple attributes, or `null` if not found
-   * 
+   *
    * @example
    * ```typescript
    * const isPublic = AttributeFactory.get(Public, controllerMetadata)
    * // isPublic is true | null
-   * 
+   *
    * const rateLimit = AttributeFactory.get(RateLimit, endpointMetadata)
    * // rateLimit is { requests: number, window: number } | null
    * ```
@@ -222,13 +199,13 @@ export class AttributeFactory {
 
   /**
    * Gets all values of an attribute from metadata (useful when an attribute can appear multiple times).
-   * 
+   *
    * Returns `null` if the attribute is not present.
-   * 
+   *
    * @param attribute - The attribute decorator
    * @param target - The metadata object (module, controller, or handler)
    * @returns An array of attribute values, or `null` if not found
-   * 
+   *
    * @example
    * ```typescript
    * const tags = AttributeFactory.getAll(Tag, endpointMetadata)
@@ -255,14 +232,14 @@ export class AttributeFactory {
 
   /**
    * Gets the last value of an attribute from an array of metadata objects.
-   * 
+   *
    * Searches from the end of the array backwards, useful for finding the most
    * specific attribute value (e.g., endpoint-level overrides module-level).
-   * 
+   *
    * @param attribute - The attribute decorator
    * @param target - An array of metadata objects (typically [module, controller, handler])
    * @returns The last attribute value found, or `null` if not found
-   * 
+   *
    * @example
    * ```typescript
    * // Check attribute hierarchy: endpoint -> controller -> module
@@ -296,11 +273,11 @@ export class AttributeFactory {
 
   /**
    * Checks if an attribute is present on the metadata object.
-   * 
+   *
    * @param attribute - The attribute decorator
    * @param target - The metadata object (module, controller, or handler)
    * @returns `true` if the attribute is present, `false` otherwise
-   * 
+   *
    * @example
    * ```typescript
    * if (AttributeFactory.has(Public, controllerMetadata)) {

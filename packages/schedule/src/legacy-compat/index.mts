@@ -19,7 +19,12 @@
  */
 
 // Export legacy-compatible decorators
-export { Cron, Schedulable, type CronOptions, type SchedulableOptions } from './decorators/index.mjs'
+export {
+  Cron,
+  Schedulable,
+  type CronOptions,
+  type SchedulableOptions,
+} from './decorators/index.mjs'
 
 // Re-export Schedule constants for convenience
 export { Schedule } from '../cron.constants.mjs'

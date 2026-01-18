@@ -1,15 +1,11 @@
 import { inject, Injectable, InjectionToken } from '@navios/di'
-
 import { z } from 'zod/v4'
-
-import type { QueueClient } from '../interfaces/queue-client.mjs'
-import type {
-  BaseMessageConfig,
-  MessageDefinition,
-} from '../types/message-config.mjs'
 
 import { QueueClientToken } from '../tokens/queue-client.token.mjs'
 import { pubsubMessageConfigSchema } from '../types/message-config.mjs'
+
+import type { QueueClient } from '../interfaces/queue-client.mjs'
+import type { BaseMessageConfig, MessageDefinition } from '../types/message-config.mjs'
 
 export const queuePublisherOptionsSchema = z.object({
   messageDef: pubsubMessageConfigSchema,
@@ -46,18 +42,12 @@ export const QueuePublisherToken = InjectionToken.create<
  */
 @Injectable({ token: QueuePublisherToken })
 export class QueuePublisher<
-  MessageDef extends MessageDefinition<
-    'pubsub',
-    BaseMessageConfig<'pubsub', any>['payloadSchema']
-  >,
+  MessageDef extends MessageDefinition<'pubsub', BaseMessageConfig<'pubsub', any>['payloadSchema']>,
 > {
   private queueClient: QueueClient
   private messageDef: MessageDef
 
-  constructor({
-    messageDef,
-    name,
-  }: z.infer<typeof queuePublisherOptionsSchema>) {
+  constructor({ messageDef, name }: z.infer<typeof queuePublisherOptionsSchema>) {
     this.queueClient = inject(QueueClientToken, { name })
     // @ts-expect-error - messageDef is a pubsub message definition
     this.messageDef = messageDef
@@ -69,9 +59,7 @@ export class QueuePublisher<
    *
    * @param payload - Message payload (validated against payloadSchema)
    */
-  async publish(
-    payload: z.input<MessageDef['config']['payloadSchema']>,
-  ): Promise<void> {
+  async publish(payload: z.input<MessageDef['config']['payloadSchema']>): Promise<void> {
     // Validate payload against schema
     const validatedPayload = this.messageDef.config.payloadSchema.parse(payload)
 

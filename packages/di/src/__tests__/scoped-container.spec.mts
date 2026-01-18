@@ -188,18 +188,14 @@ describe('ScopedContainer: Basic Functionality', () => {
       const scoped = container.beginRequest('request-1')
       await scoped.endRequest()
 
-      await expect(scoped.get(Container)).rejects.toThrow(
-        'ScopedContainer has been disposed',
-      )
+      await expect(scoped.get(Container)).rejects.toThrow('ScopedContainer has been disposed')
     })
 
     it('should support dispose alias', async () => {
       const scoped = container.beginRequest('request-1')
       await scoped.dispose()
 
-      await expect(scoped.get(Container)).rejects.toThrow(
-        'ScopedContainer has been disposed',
-      )
+      await expect(scoped.get(Container)).rejects.toThrow('ScopedContainer has been disposed')
     })
   })
 })
@@ -230,9 +226,7 @@ describe('ScopedContainer: addInstance Method', () => {
 
       const scoped = container.beginRequest('request-1')
       const instance = new UnregisteredService()
-      expect(() => scoped.addInstance(UnregisteredService, instance)).toThrow(
-        DIError,
-      )
+      expect(() => scoped.addInstance(UnregisteredService, instance)).toThrow(DIError)
 
       scoped.endRequest()
     })
@@ -383,10 +377,7 @@ describe('ScopedContainer: addInstance Method', () => {
         id: z.string(),
       })
 
-      const token = InjectionToken.create<TestService, typeof schema>(
-        'TestService',
-        schema,
-      )
+      const token = InjectionToken.create<TestService, typeof schema>('TestService', schema)
 
       const boundToken1 = InjectionToken.bound(token, { id: '1' })
       const boundToken2 = InjectionToken.bound(token, { id: '2' })
@@ -528,10 +519,7 @@ describe('ScopedContainer: Complex Scenarios', () => {
         value: string
       }
       const boundToken = InjectionToken.bound(
-        InjectionToken.create<BoundService, typeof schema>(
-          'BoundService',
-          schema,
-        ),
+        InjectionToken.create<BoundService, typeof schema>('BoundService', schema),
         { id: '123' },
       )
 

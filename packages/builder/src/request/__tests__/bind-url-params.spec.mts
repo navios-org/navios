@@ -45,12 +45,9 @@ describe('bindUrlParams', () => {
     })
 
     it('should handle three URL params', () => {
-      const url = bindUrlParams(
-        '/users/$userId/posts/$postId/comments/$commentId',
-        {
-          urlParams: { userId: '1', postId: '2', commentId: '3' },
-        },
-      )
+      const url = bindUrlParams('/users/$userId/posts/$postId/comments/$commentId', {
+        urlParams: { userId: '1', postId: '2', commentId: '3' },
+      })
 
       expect(url).toBe('/users/1/posts/2/comments/3')
     })
@@ -78,9 +75,9 @@ describe('bindUrlParams', () => {
     })
 
     it('should throw when urlParams is undefined', () => {
-      expect(() =>
-        bindUrlParams('/users/$id', { urlParams: undefined } as any),
-      ).toThrow('Missing urlParams. Required parameters: id')
+      expect(() => bindUrlParams('/users/$id', { urlParams: undefined } as any)).toThrow(
+        'Missing urlParams. Required parameters: id',
+      )
     })
 
     it('should throw when a required param is missing', () => {

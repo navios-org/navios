@@ -10,6 +10,7 @@ import type { ZodObject, ZodType } from 'zod/v4'
 
 import type { Split } from '../../common/types.mjs'
 import type { QueryHelpers } from '../../query/types.mjs'
+
 import type { ComputeBaseResult, EndpointHelper } from './helpers.mjs'
 
 /**
@@ -31,9 +32,7 @@ type BuildEndpointOptions<
 } & (QuerySchema extends undefined ? {} : { querySchema: QuerySchema }) &
   (RequestSchema extends undefined ? {} : { requestSchema: RequestSchema }) &
   (ErrorSchema extends undefined ? {} : { errorSchema: ErrorSchema }) &
-  (UrlParamsSchema extends undefined
-    ? {}
-    : { urlParamsSchema: UrlParamsSchema })
+  (UrlParamsSchema extends undefined ? {} : { urlParamsSchema: UrlParamsSchema })
 
 /**
  * Extended endpoint options interface for query that includes processResponse.
@@ -92,11 +91,7 @@ export interface ClientQueryMethods<UseDiscriminator extends boolean = false> {
     const ResponseSchema extends ZodType = ZodType,
     const ErrorSchema extends ErrorSchemaRecord | undefined = undefined,
     const UrlParamsSchema extends ZodObject | undefined = undefined,
-    const TBaseResult = ComputeBaseResult<
-      UseDiscriminator,
-      ResponseSchema,
-      ErrorSchema
-    >,
+    const TBaseResult = ComputeBaseResult<UseDiscriminator, ResponseSchema, ErrorSchema>,
     const Result = TBaseResult,
     const Options extends EndpointOptions = BuildEndpointOptions<
       Method,
@@ -121,12 +116,7 @@ export interface ClientQueryMethods<UseDiscriminator extends boolean = false> {
     >,
   ): ((
     params: Simplify<InferEndpointParams<Options>>,
-  ) => UseSuspenseQueryOptions<
-    Result,
-    Error,
-    Result,
-    DataTag<Split<Url, '/'>, Result, Error>
-  >) &
+  ) => UseSuspenseQueryOptions<Result, Error, Result, DataTag<Split<Url, '/'>, Result, Error>>) &
     QueryHelpers<Url, QuerySchema, Result, false, RequestSchema> &
     EndpointHelper<Options, UseDiscriminator>
 }

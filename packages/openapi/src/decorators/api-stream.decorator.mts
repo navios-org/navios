@@ -48,8 +48,4 @@ export type ApiStreamOptions = z.infer<typeof ApiStreamSchema>
  * }
  * ```
  */
-export const ApiStream = AttributeFactory.createAttribute(
-  ApiStreamToken,
-  ApiStreamSchema,
-)
-
+export const ApiStream = AttributeFactory.createAttribute(ApiStreamToken, ApiStreamSchema)

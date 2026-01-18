@@ -1,7 +1,6 @@
 import { builder } from '@navios/builder'
 import { create } from '@navios/http'
 import { makeNaviosFakeAdapter } from '@navios/http/testing'
-
 import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod/v4'
 
@@ -25,24 +24,12 @@ vi.mock('@tanstack/react-query', async (importReal) => {
           const onMutateResult = await req.onMutate?.(data, mockMutationContext)
           const res = await req.mutationFn(data)
           await req.onSuccess?.(res, data, onMutateResult, mockMutationContext)
-          await req.onSettled?.(
-            res,
-            null,
-            data,
-            onMutateResult,
-            mockMutationContext,
-          )
+          await req.onSettled?.(res, null, data, onMutateResult, mockMutationContext)
           return res
         } catch (err) {
           const onMutateResult = undefined
           await req.onError?.(err, data, onMutateResult, mockMutationContext)
-          await req.onSettled?.(
-            undefined,
-            err,
-            data,
-            onMutateResult,
-            mockMutationContext,
-          )
+          await req.onSettled?.(undefined, err, data, onMutateResult, mockMutationContext)
           throw err
         }
       },
@@ -403,14 +390,11 @@ describe('declareClient', () => {
     const onSettled = vi.fn()
 
     adapter.mock('/lifecycle-test', 'POST', () => {
-      return new Response(
-        JSON.stringify({ success: true }),
-        {
-          status: 200,
-          statusText: 'OK',
-          headers: { 'content-type': 'application/json' },
-        },
-      )
+      return new Response(JSON.stringify({ success: true }), {
+        status: 200,
+        statusText: 'OK',
+        headers: { 'content-type': 'application/json' },
+      })
     })
 
     const mutation = client.mutation({

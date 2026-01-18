@@ -1,6 +1,6 @@
-import type { FactoryContext, InjectionToken } from '@navios/di'
-
 import { Factory, inject } from '@navios/di'
+
+import type { FactoryContext, InjectionToken } from '@navios/di'
 
 import { NaviosEnvironment } from '../navios.environment.mjs'
 import { MultipartAdapterToken } from '../tokens/index.mjs'

@@ -1,16 +1,15 @@
-import type { ModuleMetadata } from '@navios/core'
-
 import { Logger } from '@navios/core'
 import { TestContainer } from '@navios/di/testing'
-
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { DiscoveredEndpoint } from '../services/endpoint-scanner.service.mjs'
-import type { OpenApiGeneratorOptions } from '../services/openapi-generator.service.mjs'
+import type { ModuleMetadata } from '@navios/core'
 
 import { EndpointScannerService } from '../services/endpoint-scanner.service.mjs'
 import { OpenApiGeneratorService } from '../services/openapi-generator.service.mjs'
 import { PathBuilderService } from '../services/path-builder.service.mjs'
+
+import type { DiscoveredEndpoint } from '../services/endpoint-scanner.service.mjs'
+import type { OpenApiGeneratorOptions } from '../services/openapi-generator.service.mjs'
 
 // Mock logger
 const mockLogger = {
@@ -186,12 +185,8 @@ describe('OpenApiGeneratorService', () => {
       expect(document.components?.securitySchemes).toBeDefined()
       const bearerAuth = document.components?.securitySchemes?.bearerAuth
       const apiKey = document.components?.securitySchemes?.apiKey
-      expect(
-        bearerAuth && 'type' in bearerAuth ? bearerAuth.type : undefined,
-      ).toBe('http')
-      expect(apiKey && 'type' in apiKey ? apiKey.type : undefined).toBe(
-        'apiKey',
-      )
+      expect(bearerAuth && 'type' in bearerAuth ? bearerAuth.type : undefined).toBe('http')
+      expect(apiKey && 'type' in apiKey ? apiKey.type : undefined).toBe('apiKey')
     })
 
     it('should include global security requirements', async () => {
@@ -383,9 +378,7 @@ describe('OpenApiGeneratorService', () => {
 
       generator.generate(modules, options)
 
-      expect(mockLogger.debug).toHaveBeenCalledWith(
-        'Generating OpenAPI document',
-      )
+      expect(mockLogger.debug).toHaveBeenCalledWith('Generating OpenAPI document')
       expect(mockLogger.debug).toHaveBeenCalledWith(
         expect.stringContaining('Generated OpenAPI document'),
       )

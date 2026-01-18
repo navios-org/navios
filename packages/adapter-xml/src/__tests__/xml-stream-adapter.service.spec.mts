@@ -1,14 +1,13 @@
-import type { HandlerMetadata } from '@navios/core'
-
 import { InstanceResolverService, StreamAdapterToken } from '@navios/core'
 import { TestContainer } from '@navios/di/testing'
-
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { z } from 'zod/v4'
 
-import type { BaseXmlStreamConfig } from '../types/config.mjs'
+import type { HandlerMetadata } from '@navios/core'
 
 import { XmlStreamAdapterService } from '../adapters/xml-stream-adapter.service.mjs'
+
+import type { BaseXmlStreamConfig } from '../types/config.mjs'
 
 const createHandlerMetadata = (
   config: Partial<BaseXmlStreamConfig>,
@@ -29,9 +28,7 @@ const createHandlerMetadata = (
 vi.mock('../runtime/render-to-xml.mjs', () => ({
   renderToXml: vi
     .fn()
-    .mockResolvedValue(
-      '<?xml version="1.0" encoding="UTF-8"?><root>content</root>',
-    ),
+    .mockResolvedValue('<?xml version="1.0" encoding="UTF-8"?><root>content</root>'),
 }))
 
 // Mock stream adapter factory
@@ -40,9 +37,7 @@ const createMockStreamAdapter = () => ({
   buildFormatArguments: vi.fn().mockReturnValue(async () => ({})),
   provideSchema: vi.fn().mockReturnValue({}),
   hasSchema: vi.fn().mockReturnValue(false),
-  provideHandler: vi
-    .fn()
-    .mockResolvedValue({ isStatic: false, handler: vi.fn() }),
+  provideHandler: vi.fn().mockResolvedValue({ isStatic: false, handler: vi.fn() }),
 })
 
 // Mock instance resolver factory
@@ -65,9 +60,7 @@ describe('XmlStreamAdapterService', () => {
     container = new TestContainer()
     mockStreamAdapter = createMockStreamAdapter()
     mockController = {
-      testMethod: vi
-        .fn()
-        .mockResolvedValue({ type: 'element', tag: 'root', children: [] }),
+      testMethod: vi.fn().mockResolvedValue({ type: 'element', tag: 'root', children: [] }),
     }
     vi.clearAllMocks()
   })
@@ -93,9 +86,7 @@ describe('XmlStreamAdapterService', () => {
 
       const result = adapter.prepareArguments(handlerMetadata)
 
-      expect(mockStreamAdapter.prepareArguments).toHaveBeenCalledWith(
-        handlerMetadata,
-      )
+      expect(mockStreamAdapter.prepareArguments).toHaveBeenCalledWith(handlerMetadata)
       expect(result).toHaveLength(1)
     })
 
@@ -136,9 +127,7 @@ describe('XmlStreamAdapterService', () => {
 
       const result = adapter.buildFormatArguments(getters as any)
 
-      expect(mockStreamAdapter.buildFormatArguments).toHaveBeenCalledWith(
-        getters,
-      )
+      expect(mockStreamAdapter.buildFormatArguments).toHaveBeenCalledWith(getters)
       expect(result).toBe(formatFn)
     })
 
@@ -176,9 +165,7 @@ describe('XmlStreamAdapterService', () => {
 
       const result = adapter.provideSchema(handlerMetadata)
 
-      expect(mockStreamAdapter.provideSchema).toHaveBeenCalledWith(
-        handlerMetadata,
-      )
+      expect(mockStreamAdapter.provideSchema).toHaveBeenCalledWith(handlerMetadata)
       expect(result).toBe(expectedSchema)
     })
 
@@ -187,9 +174,7 @@ describe('XmlStreamAdapterService', () => {
         prepareArguments: vi.fn(),
         provideHandler: vi.fn(),
       }
-      container
-        .bind(StreamAdapterToken)
-        .toValue(adapterWithoutProvideSchema as any)
+      container.bind(StreamAdapterToken).toValue(adapterWithoutProvideSchema as any)
       container
         .bind(InstanceResolverService)
         .toValue(createMockInstanceResolver(mockController) as any)
@@ -288,10 +273,7 @@ describe('XmlStreamAdapterService', () => {
         data: 'test',
       }))
 
-      const result = await adapter.provideHandler(
-        TestController,
-        handlerMetadata,
-      )
+      const result = await adapter.provideHandler(TestController, handlerMetadata)
 
       expect(result.isStatic).toBe(false)
       expect(typeof result.handler).toBe('function')
@@ -314,10 +296,7 @@ describe('XmlStreamAdapterService', () => {
 
       mockStreamAdapter.buildFormatArguments.mockReturnValue(async () => ({}))
 
-      const result = await adapter.provideHandler(
-        TestController,
-        handlerMetadata,
-      )
+      const result = await adapter.provideHandler(TestController, handlerMetadata)
 
       expect(result.isStatic).toBe(false)
       expect(typeof result.handler).toBe('function')
@@ -341,10 +320,7 @@ describe('XmlStreamAdapterService', () => {
 
       mockStreamAdapter.buildFormatArguments.mockReturnValue(async () => ({}))
 
-      const result = await adapter.provideHandler(
-        TestController,
-        handlerMetadata,
-      )
+      const result = await adapter.provideHandler(TestController, handlerMetadata)
 
       // Handler should be created successfully
       expect(result.isStatic).toBe(false)
@@ -369,10 +345,7 @@ describe('XmlStreamAdapterService', () => {
 
       mockStreamAdapter.buildFormatArguments.mockReturnValue(async () => ({}))
 
-      const result = await adapter.provideHandler(
-        TestController,
-        handlerMetadata,
-      )
+      const result = await adapter.provideHandler(TestController, handlerMetadata)
 
       expect(result.isStatic).toBe(false)
     })
@@ -394,19 +367,12 @@ describe('XmlStreamAdapterService', () => {
 
       mockStreamAdapter.buildFormatArguments.mockReturnValue(async () => ({}))
 
-      const result = await adapter.provideHandler(
-        TestController,
-        handlerMetadata,
-      )
+      const result = await adapter.provideHandler(TestController, handlerMetadata)
 
       // Call handler with no reply (Bun style)
       const mockContext = {}
       const mockRequest = {}
-      const response = await result.handler(
-        mockContext as any,
-        mockRequest,
-        undefined,
-      )
+      const response = await result.handler(mockContext as any, mockRequest, undefined)
 
       // Should return a Response object
       expect(response).toBeInstanceOf(Response)
@@ -430,10 +396,7 @@ describe('XmlStreamAdapterService', () => {
 
       mockStreamAdapter.buildFormatArguments.mockReturnValue(async () => ({}))
 
-      const result = await adapter.provideHandler(
-        TestController,
-        handlerMetadata,
-      )
+      const result = await adapter.provideHandler(TestController, handlerMetadata)
 
       // Create mock Fastify reply
       const mockReply = {
@@ -448,10 +411,7 @@ describe('XmlStreamAdapterService', () => {
       await result.handler(mockContext as any, mockRequest, mockReply)
 
       expect(mockReply.status).toHaveBeenCalledWith(200)
-      expect(mockReply.header).toHaveBeenCalledWith(
-        'Content-Type',
-        'application/xml',
-      )
+      expect(mockReply.header).toHaveBeenCalledWith('Content-Type', 'application/xml')
       expect(mockReply.send).toHaveBeenCalled()
     })
   })

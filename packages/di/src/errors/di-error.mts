@@ -33,11 +33,7 @@ export class DIError extends Error {
 
   // Static factory methods for common error types
   static factoryNotFound(name: string): DIError {
-    return new DIError(
-      DIErrorCode.FactoryNotFound,
-      `Factory ${name} not found`,
-      { name },
-    )
+    return new DIError(DIErrorCode.FactoryNotFound, `Factory ${name} not found`, { name })
   }
 
   static factoryTokenNotResolved(token: string | symbol | unknown): DIError {
@@ -49,25 +45,14 @@ export class DIError extends Error {
   }
 
   static instanceNotFound(name: string): DIError {
-    return new DIError(
-      DIErrorCode.InstanceNotFound,
-      `Instance ${name} not found`,
-      { name },
-    )
+    return new DIError(DIErrorCode.InstanceNotFound, `Instance ${name} not found`, { name })
   }
 
   static instanceDestroying(name: string): DIError {
-    return new DIError(
-      DIErrorCode.InstanceDestroying,
-      `Instance ${name} destroying`,
-      { name },
-    )
+    return new DIError(DIErrorCode.InstanceDestroying, `Instance ${name} destroying`, { name })
   }
 
-  static unknown(
-    message: string | Error,
-    context?: Record<string, unknown>,
-  ): DIError {
+  static unknown(message: string | Error, context?: Record<string, unknown>): DIError {
     if (message instanceof Error) {
       return new DIError(DIErrorCode.UnknownError, message.message, {
         ...context,
@@ -136,21 +121,14 @@ export class DIError extends Error {
     )
   }
 
-  static storageError(
-    message: string,
-    operation: string,
-    instanceName?: string,
-  ): DIError {
+  static storageError(message: string, operation: string, instanceName?: string): DIError {
     return new DIError(DIErrorCode.StorageError, `Storage error: ${message}`, {
       operation,
       instanceName,
     })
   }
 
-  static initializationError(
-    serviceName: string,
-    error: Error | string,
-  ): DIError {
+  static initializationError(serviceName: string, error: Error | string): DIError {
     return new DIError(
       DIErrorCode.InitializationError,
       `Service ${serviceName} initialization failed: ${error instanceof Error ? error.message : error}`,

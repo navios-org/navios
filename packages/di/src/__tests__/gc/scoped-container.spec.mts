@@ -9,14 +9,15 @@
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
-import type { ScopedContainer } from '../../container/scoped-container.mjs'
-import type { OnServiceDestroy } from '../../interfaces/on-service-destroy.interface.mjs'
-
 import { Container } from '../../container/container.mjs'
 import { Injectable } from '../../decorators/injectable.decorator.mjs'
 import { InjectableScope } from '../../enums/injectable-scope.enum.mjs'
 import { Registry } from '../../token/registry.mjs'
 import { inject } from '../../utils/index.mjs'
+
+import type { ScopedContainer } from '../../container/scoped-container.mjs'
+import type { OnServiceDestroy } from '../../interfaces/on-service-destroy.interface.mjs'
+
 import {
   createGCTracker,
   forceGC,
@@ -43,10 +44,7 @@ describe.skipIf(!isGCAvailable)('GC: Scoped Container', () => {
       @Injectable({ registry, scope: InjectableScope.Request })
       class RequestService {
         public readonly id = Math.random()
-        public readonly data = Array.from(
-          { length: 1000 },
-          () => 'request-scoped',
-        )
+        public readonly data = Array.from({ length: 1000 }, () => 'request-scoped')
       }
 
       const scoped = container.beginRequest('test-request-1')
@@ -113,9 +111,7 @@ describe.skipIf(!isGCAvailable)('GC: Scoped Container', () => {
       }
 
       const scoped = container.beginRequest('test-request-3')
-      let instance: RequestServiceWithDestroy | null = await scoped.get(
-        RequestServiceWithDestroy,
-      )
+      let instance: RequestServiceWithDestroy | null = await scoped.get(RequestServiceWithDestroy)
       const instanceId = instance.id
       const tracker = createGCTracker(instance)
 
@@ -140,8 +136,7 @@ describe.skipIf(!isGCAvailable)('GC: Scoped Container', () => {
       }
 
       const scoped = container.beginRequest('test-request-4')
-      let instance: AsyncDestroyService | null =
-        await scoped.get(AsyncDestroyService)
+      let instance: AsyncDestroyService | null = await scoped.get(AsyncDestroyService)
       const tracker = createGCTracker(instance)
 
       await scoped.endRequest()
@@ -157,8 +152,7 @@ describe.skipIf(!isGCAvailable)('GC: Scoped Container', () => {
       @Injectable({ registry, scope: InjectableScope.Request })
       class RequestService {}
 
-      let scoped: ScopedContainer | null =
-        container.beginRequest('test-gc-scoped')
+      let scoped: ScopedContainer | null = container.beginRequest('test-gc-scoped')
       await scoped.get(RequestService)
 
       const scopedTracker = createGCTracker(scoped)
@@ -190,8 +184,7 @@ describe.skipIf(!isGCAvailable)('GC: Scoped Container', () => {
 
       // Create request scope and get request-scoped service
       const scoped = container.beginRequest('test-mixed-1')
-      let requestInstance: RequestService | null =
-        await scoped.get(RequestService)
+      let requestInstance: RequestService | null = await scoped.get(RequestService)
       const requestTracker = createGCTracker(requestInstance)
 
       // Request service should reference same singleton

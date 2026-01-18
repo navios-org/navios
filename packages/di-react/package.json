@@ -1,31 +1,19 @@
 {
   "name": "@navios/di-react",
   "version": "1.0.0-alpha.3",
-  "scripts": {
-    "check": "tsc -b",
-    "lint": "oxlint --fix",
-    "test:ci": "vitest run",
-    "build": "tsdown",
-    "publish": "yarn npm publish --access public",
-    "publish:next": "yarn npm publish --access public --tag next"
-  },
+  "license": "MIT",
   "author": {
     "name": "Oleksandr Hanzha",
     "email": "alex@granted.name"
   },
   "repository": {
-    "directory": "packages/di-react",
     "type": "git",
-    "url": "https://github.com/Arilas/navios.git"
+    "url": "https://github.com/Arilas/navios.git",
+    "directory": "packages/di-react"
   },
-  "license": "MIT",
-  "peerDependencies": {
-    "@navios/di": "workspace:^",
-    "react": "^18.0.0 || ^19.0.0"
-  },
-  "typings": "./lib/index.d.mts",
   "main": "./lib/index.cjs",
   "module": "./lib/index.mjs",
+  "typings": "./lib/index.d.mts",
   "exports": {
     ".": {
       "import": {
@@ -38,6 +26,14 @@
       }
     }
   },
+  "scripts": {
+    "check": "tsc -b",
+    "lint": "yarn run -T oxlint --fix && yarn run -T oxfmt",
+    "test:ci": "vitest run",
+    "build": "tsdown",
+    "publish": "yarn npm publish --access public",
+    "publish:next": "yarn npm publish --access public --tag next"
+  },
   "devDependencies": {
     "@navios/di": "workspace:^",
     "@testing-library/dom": "^10.4.1",
@@ -48,5 +44,9 @@
     "react-dom": "^19.2.3",
     "typescript": "^5.9.3",
     "zod": "^4.3.5"
+  },
+  "peerDependencies": {
+    "@navios/di": "workspace:^",
+    "react": "^18.0.0 || ^19.0.0"
   }
 }

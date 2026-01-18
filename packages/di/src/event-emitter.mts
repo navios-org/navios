@@ -9,10 +9,7 @@ import { InjectableScope } from './enums/index.mjs'
 export type EventsConfig = {
   [event: string]: any[]
 }
-export type EventsNames<Events extends EventsConfig> = Exclude<
-  keyof Events,
-  symbol | number
->
+export type EventsNames<Events extends EventsConfig> = Exclude<keyof Events, symbol | number>
 export type EventsArgs<
   Events extends EventsConfig,
   Name extends EventsNames<Events>,
@@ -72,10 +69,6 @@ export class EventEmitter<Events extends EventsConfig = {}> {
       return
     }
 
-    return Promise.all(
-      Array.from(this.listeners.get(event)!).map((listener) =>
-        listener(...args),
-      ),
-    )
+    return Promise.all(Array.from(this.listeners.get(event)!).map((listener) => listener(...args)))
   }
 }

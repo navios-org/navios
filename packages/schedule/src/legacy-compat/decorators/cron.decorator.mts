@@ -1,11 +1,8 @@
-import type { CronJobParams } from 'cron'
-
 import { createMethodContext } from '@navios/core/legacy-compat'
 
-import {
-  Cron as OriginalCron,
-  type CronOptions,
-} from '../../decorators/cron.decorator.mjs'
+import type { CronJobParams } from 'cron'
+
+import { Cron as OriginalCron, type CronOptions } from '../../decorators/cron.decorator.mjs'
 
 export type { CronOptions }
 

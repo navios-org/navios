@@ -1,9 +1,10 @@
 import { Injectable } from '@navios/di'
 import { treeifyError, ZodError } from 'zod/v4'
 
+import { ValidationErrorResponderToken } from '../tokens/responder.tokens.mjs'
+
 import type { ErrorResponder } from '../interfaces/error-responder.interface.mjs'
 import type { ErrorResponse } from '../interfaces/error-response.interface.mjs'
-import { ValidationErrorResponderToken } from '../tokens/responder.tokens.mjs'
 
 /**
  * Default responder for validation errors (HTTP 400).
@@ -66,9 +67,7 @@ export class ValidationErrorResponderService implements ErrorResponder {
         type: 'about:blank',
         title: 'Validation Error',
         status: 400,
-        detail:
-          description ??
-          (error instanceof Error ? error.message : 'Validation failed'),
+        detail: description ?? (error instanceof Error ? error.message : 'Validation failed'),
       },
       headers: {
         'Content-Type': 'application/problem+json',

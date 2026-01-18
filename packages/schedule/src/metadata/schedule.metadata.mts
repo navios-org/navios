@@ -1,8 +1,8 @@
 import type { ClassType } from '@navios/core'
 
-import type { CronMetadata } from './cron.metadata.mjs'
-
 import { getAllCronMetadata } from './cron.metadata.mjs'
+
+import type { CronMetadata } from './cron.metadata.mjs'
 
 export const ScheduleMetadataKey = Symbol('ControllerMetadataKey')
 
@@ -16,9 +16,7 @@ export function getScheduleMetadata(
   context: ClassDecoratorContext,
 ): ScheduleMetadata {
   if (context.metadata) {
-    const metadata = context.metadata[ScheduleMetadataKey] as
-      | ScheduleMetadata
-      | undefined
+    const metadata = context.metadata[ScheduleMetadataKey] as ScheduleMetadata | undefined
     if (metadata) {
       return metadata
     } else {

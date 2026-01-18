@@ -1,16 +1,13 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { z } from 'zod/v4'
 
-import type { MockClient } from './mock-client.mjs'
-
 import { builder } from '../../builder.mjs'
 import { UnknownResponseError } from '../../errors/unknown-response-error.mjs'
 import { isErrorResponse, isErrorStatus } from '../../types/error-schema.mjs'
-import {
-  createMockClient,
-  errorResponse,
-  successResponse,
-} from './mock-client.mjs'
+
+import { createMockClient, errorResponse, successResponse } from './mock-client.mjs'
+
+import type { MockClient } from './mock-client.mjs'
 
 describe('Error Scenarios', () => {
   describe('without discriminator mode', () => {
@@ -30,11 +27,7 @@ describe('Error Scenarios', () => {
         responseSchema: z.object({ id: z.string() }),
       })
 
-      mockClient.mockResponse(
-        'GET',
-        '/users/123',
-        errorResponse({ error: 'User not found' }, 404),
-      )
+      mockClient.mockResponse('GET', '/users/123', errorResponse({ error: 'User not found' }, 404))
 
       await expect(getUser({ urlParams: { userId: '123' } })).rejects.toThrow()
     })
@@ -64,9 +57,7 @@ describe('Error Scenarios', () => {
         responseSchema: z.object({ id: z.string() }),
       })
 
-      await expect(getUser({ urlParams: { userId: '123' } })).rejects.toThrow(
-        'Network failure',
-      )
+      await expect(getUser({ urlParams: { userId: '123' } })).rejects.toThrow('Network failure')
     })
 
     it('should throw on response schema validation failure', async () => {
@@ -80,11 +71,7 @@ describe('Error Scenarios', () => {
       })
 
       // Response missing required 'name' field
-      mockClient.mockResponse(
-        'GET',
-        '/users/123',
-        successResponse({ id: '123' }),
-      )
+      mockClient.mockResponse('GET', '/users/123', successResponse({ id: '123' }))
 
       await expect(getUser({ urlParams: { userId: '123' } })).rejects.toThrow()
     })
@@ -169,9 +156,7 @@ describe('Error Scenarios', () => {
         errorResponse({ error: 'Internal server error' }, 500),
       )
 
-      await expect(getUser({ urlParams: { userId: '123' } })).rejects.toThrow(
-        UnknownResponseError,
-      )
+      await expect(getUser({ urlParams: { userId: '123' } })).rejects.toThrow(UnknownResponseError)
     })
 
     it('should return success response when request succeeds', async () => {
@@ -335,9 +320,7 @@ describe('Error Scenarios', () => {
         }),
       })
 
-      await expect(
-        getUser({ urlParams: { userId: 'not-a-uuid' } }),
-      ).rejects.toThrow()
+      await expect(getUser({ urlParams: { userId: 'not-a-uuid' } })).rejects.toThrow()
     })
 
     it('should pass validation when urlParamsSchema matches', async () => {
@@ -378,9 +361,7 @@ describe('Error Scenarios', () => {
 
       await search({ urlParams: { query: 'hello world & foo=bar' } })
 
-      expect(mockClient.getLastCall()?.url).toBe(
-        '/search/hello%20world%20%26%20foo%3Dbar',
-      )
+      expect(mockClient.getLastCall()?.url).toBe('/search/hello%20world%20%26%20foo%3Dbar')
     })
   })
 
@@ -407,9 +388,7 @@ describe('Error Scenarios', () => {
         responseSchema: z.array(z.object({ id: z.string() })),
       })
 
-      await expect(
-        searchUsers({ params: { page: 0, limit: 10 } }),
-      ).rejects.toThrow()
+      await expect(searchUsers({ params: { page: 0, limit: 10 } })).rejects.toThrow()
     })
 
     it('should transform query params using schema', async () => {
@@ -458,9 +437,7 @@ describe('Error Scenarios', () => {
         responseSchema: z.object({ id: z.string() }),
       })
 
-      await expect(
-        createUser({ data: { name: 'A', email: 'invalid' } }),
-      ).rejects.toThrow()
+      await expect(createUser({ data: { name: 'A', email: 'invalid' } })).rejects.toThrow()
     })
 
     it('should transform request body using schema', async () => {
@@ -498,11 +475,7 @@ describe('Error Scenarios', () => {
     })
 
     it('should pass clientOptions to request', async () => {
-      mockClient.mockResponse(
-        'GET',
-        '/users/123',
-        successResponse({ id: '123' }),
-      )
+      mockClient.mockResponse('GET', '/users/123', successResponse({ id: '123' }))
 
       const getUser = api.declareEndpoint({
         method: 'GET',
@@ -522,11 +495,7 @@ describe('Error Scenarios', () => {
     })
 
     it('should merge clientOptions headers with request headers', async () => {
-      mockClient.mockResponse(
-        'GET',
-        '/users/123',
-        successResponse({ id: '123' }),
-      )
+      mockClient.mockResponse('GET', '/users/123', successResponse({ id: '123' }))
 
       const getUser = api.declareEndpoint({
         method: 'GET',
@@ -550,11 +519,7 @@ describe('Error Scenarios', () => {
     })
 
     it('should allow request headers to override clientOptions headers', async () => {
-      mockClient.mockResponse(
-        'GET',
-        '/users/123',
-        successResponse({ id: '123' }),
-      )
+      mockClient.mockResponse('GET', '/users/123', successResponse({ id: '123' }))
 
       const getUser = api.declareEndpoint({
         method: 'GET',

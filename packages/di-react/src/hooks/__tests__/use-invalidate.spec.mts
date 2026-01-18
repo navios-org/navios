@@ -1,5 +1,4 @@
 import { Container, Injectable, Registry } from '@navios/di'
-
 import { act, render, screen, waitFor } from '@testing-library/react'
 import { createElement } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -38,8 +37,7 @@ describe('useInvalidateInstance', () => {
       }
     }
 
-    let invalidateInstanceFn: ((instance: unknown) => Promise<void>) | null =
-      null
+    let invalidateInstanceFn: ((instance: unknown) => Promise<void>) | null = null
     let currentInstance: CounterService | undefined
 
     function TestComponent() {
@@ -52,11 +50,7 @@ describe('useInvalidateInstance', () => {
         return createElement('div', { 'data-testid': 'loading' }, 'Loading...')
       }
 
-      return createElement(
-        'div',
-        { 'data-testid': 'counter' },
-        String(data!.id),
-      )
+      return createElement('div', { 'data-testid': 'counter' }, String(data!.id))
     }
 
     render(createWrapper(createElement(TestComponent)))

@@ -1,8 +1,8 @@
+import { Injectable, InjectionToken } from '@navios/core'
+
 import type { EndpointOptions } from '@navios/builder'
 import type { ArgumentGetter, HandlerMetadata } from '@navios/core'
 import type { BunRequest } from 'bun'
-
-import { Injectable, InjectionToken } from '@navios/core'
 
 import { BunEndpointAdapterService } from './endpoint-adapter.service.mjs'
 
@@ -12,10 +12,9 @@ import { BunEndpointAdapterService } from './endpoint-adapter.service.mjs'
  * This token is used to inject the `BunMultipartAdapterService` instance
  * into the dependency injection container.
  */
-export const BunMultipartAdapterToken =
-  InjectionToken.create<BunMultipartAdapterService>(
-    Symbol.for('BunMultipartAdapterService'),
-  )
+export const BunMultipartAdapterToken = InjectionToken.create<BunMultipartAdapterService>(
+  Symbol.for('BunMultipartAdapterService'),
+)
 
 /**
  * Adapter service for handling multipart/form-data requests in Bun.

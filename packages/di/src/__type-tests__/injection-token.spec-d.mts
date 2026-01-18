@@ -40,9 +40,7 @@ test('InjectionToken.create with class and schema', () => {
   }
 
   const token = InjectionToken.create(MyService, simpleObjectSchema)
-  expectTypeOf(token).toMatchTypeOf<
-    InjectionToken<MyService, typeof simpleObjectSchema, true>
-  >()
+  expectTypeOf(token).toMatchTypeOf<InjectionToken<MyService, typeof simpleObjectSchema, true>>()
 })
 
 test('InjectionToken.create with class and optional schema', () => {
@@ -74,9 +72,7 @@ test('InjectionToken.create with string name and schema', () => {
     'FooService',
     simpleObjectSchema,
   )
-  expectTypeOf(token).toMatchTypeOf<
-    InjectionToken<FooService, typeof simpleObjectSchema>
-  >()
+  expectTypeOf(token).toMatchTypeOf<InjectionToken<FooService, typeof simpleObjectSchema>>()
 })
 
 test('InjectionToken.bound creates BoundInjectionToken', () => {
@@ -137,9 +133,7 @@ test('InjectionToken.refineType changes BoundInjectionToken type', () => {
   )
   const boundToken = InjectionToken.bound(token, { foo: 'bar' })
   const refinedToken = InjectionToken.refineType<RefinedService>(boundToken)
-  expectTypeOf(refinedToken).toMatchTypeOf<
-    BoundInjectionToken<RefinedService, any>
-  >()
+  expectTypeOf(refinedToken).toMatchTypeOf<BoundInjectionToken<RefinedService, any>>()
 })
 
 test('BoundInjectionToken has value property with correct type', () => {

@@ -1,9 +1,9 @@
+import { assertType, describe, test } from 'vitest'
+import { z as zod } from 'zod/v4'
+
 import type { ErrorSchemaRecord } from '@navios/builder'
 import type { UseMutationResult } from '@tanstack/react-query'
 import type { z } from 'zod/v4'
-
-import { assertType, describe, test } from 'vitest'
-import { z as zod } from 'zod/v4'
 
 import type { MutationHelpers } from '../../mutation/types.mjs'
 import type { ClientInstance, EndpointHelper } from '../types.mjs'
@@ -67,9 +67,7 @@ describe('ClientInstance<false> mutation() method', () => {
         responseSchema,
       })
 
-      assertType<
-        () => UseMutationResult<ResponseType, Error, { data: RequestType }>
-      >(mutation)
+      assertType<() => UseMutationResult<ResponseType, Error, { data: RequestType }>>(mutation)
     })
 
     test('POST mutation with processResponse', () => {
@@ -81,9 +79,7 @@ describe('ClientInstance<false> mutation() method', () => {
         processResponse: (data) => data,
       })
 
-      assertType<
-        () => UseMutationResult<ResponseType, Error, { data: RequestType }>
-      >(mutation)
+      assertType<() => UseMutationResult<ResponseType, Error, { data: RequestType }>>(mutation)
     })
 
     test('POST mutation with URL params', () => {
@@ -133,11 +129,7 @@ describe('ClientInstance<false> mutation() method', () => {
       })
 
       assertType<
-        () => UseMutationResult<
-          ResponseType,
-          Error,
-          { data: RequestType; params: QueryType }
-        >
+        () => UseMutationResult<ResponseType, Error, { data: RequestType; params: QueryType }>
       >(mutation)
     })
 
@@ -173,11 +165,7 @@ describe('ClientInstance<false> mutation() method', () => {
       })
 
       assertType<
-        () => UseMutationResult<
-          { processed: boolean; name: string },
-          Error,
-          { data: RequestType }
-        >
+        () => UseMutationResult<{ processed: boolean; name: string }, Error, { data: RequestType }>
       >(mutation)
     })
   })
@@ -234,11 +222,7 @@ describe('ClientInstance<false> mutation() method', () => {
       })
 
       assertType<
-        () => UseMutationResult<
-          ResponseType,
-          Error,
-          { urlParams: { userId: string | number } }
-        >
+        () => UseMutationResult<ResponseType, Error, { urlParams: { userId: string | number } }>
       >(mutation)
     })
 
@@ -250,9 +234,7 @@ describe('ClientInstance<false> mutation() method', () => {
         responseSchema,
       })
 
-      assertType<
-        () => UseMutationResult<ResponseType, Error, { params: QueryType }>
-      >(mutation)
+      assertType<() => UseMutationResult<ResponseType, Error, { params: QueryType }>>(mutation)
     })
 
     test('DELETE mutation with URL params and query schema', () => {
@@ -306,9 +288,9 @@ describe('ClientInstance<false> mutation() method', () => {
       assertType<MutationHelpers<'/users/$userId', ResponseType>['mutationKey']>(
         mutation.mutationKey,
       )
-      assertType<
-        MutationHelpers<'/users/$userId', ResponseType>['useIsMutating']
-      >(mutation.useIsMutating)
+      assertType<MutationHelpers<'/users/$userId', ResponseType>['useIsMutating']>(
+        mutation.useIsMutating,
+      )
     })
 
     test('DELETE mutation with useKey and URL params', () => {
@@ -322,11 +304,7 @@ describe('ClientInstance<false> mutation() method', () => {
       assertType<
         (params: {
           urlParams: { userId: string | number }
-        }) => UseMutationResult<
-          ResponseType,
-          Error,
-          { urlParams: { userId: string | number } }
-        >
+        }) => UseMutationResult<ResponseType, Error, { urlParams: { userId: string | number } }>
       >(mutation)
     })
 
@@ -358,9 +336,7 @@ describe('ClientInstance<false> mutation() method', () => {
         responseSchema,
       })
 
-      assertType<(params: {}) => UseMutationResult<ResponseType, Error, {}>>(
-        mutation,
-      )
+      assertType<(params: {}) => UseMutationResult<ResponseType, Error, {}>>(mutation)
     })
   })
 
@@ -448,14 +424,9 @@ describe('ClientInstance<false> mutation() method', () => {
         errorSchema,
       })
 
-      assertType<
-        () => UseMutationResult<
-          ResponseType,
-          Error,
-          { data: RequestType },
-          unknown
-        >
-      >(mutation)
+      assertType<() => UseMutationResult<ResponseType, Error, { data: RequestType }, unknown>>(
+        mutation,
+      )
     })
 
     test('processResponse receives only success type', () => {
@@ -516,12 +487,7 @@ describe('ClientInstance<true> mutation() method (discriminator mode)', () => {
       })
 
       assertType<
-        () => UseMutationResult<
-          ResponseWithErrors,
-          Error,
-          { data: RequestType },
-          unknown
-        >
+        () => UseMutationResult<ResponseWithErrors, Error, { data: RequestType }, unknown>
       >(mutation)
     })
 
@@ -579,14 +545,9 @@ describe('ClientInstance<true> mutation() method (discriminator mode)', () => {
         responseSchema,
       })
 
-      assertType<
-        () => UseMutationResult<
-          ResponseType,
-          Error,
-          { data: RequestType },
-          unknown
-        >
-      >(mutation)
+      assertType<() => UseMutationResult<ResponseType, Error, { data: RequestType }, unknown>>(
+        mutation,
+      )
     })
   })
 })

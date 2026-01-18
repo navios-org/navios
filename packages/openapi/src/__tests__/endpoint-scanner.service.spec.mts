@@ -1,14 +1,9 @@
-import type { BaseEndpointOptions } from '@navios/builder'
-import type {
-  ControllerMetadata,
-  HandlerMetadata,
-  ModuleMetadata,
-} from '@navios/core'
-
 import { Logger } from '@navios/core'
 import { TestContainer } from '@navios/di/testing'
-
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { BaseEndpointOptions } from '@navios/builder'
+import type { ControllerMetadata, HandlerMetadata, ModuleMetadata } from '@navios/core'
 
 import { EndpointScannerService } from '../services/endpoint-scanner.service.mjs'
 import { MetadataExtractorService } from '../services/metadata-extractor.service.mjs'
@@ -64,9 +59,7 @@ describe('EndpointScannerService', () => {
     container = new TestContainer()
     // Bind required dependencies
     container.bind(Logger).toValue(mockLogger as any)
-    container
-      .bind(MetadataExtractorService)
-      .toValue(mockMetadataExtractor as any)
+    container.bind(MetadataExtractorService).toValue(mockMetadataExtractor as any)
     vi.clearAllMocks()
   })
 
@@ -233,19 +226,14 @@ describe('EndpointScannerService', () => {
       const endpoints = scanner.scan(modules)
 
       expect(endpoints).toHaveLength(0)
-      expect(mockLogger.debug).toHaveBeenCalledWith(
-        expect.stringContaining('Skipping excluded'),
-      )
+      expect(mockLogger.debug).toHaveBeenCalledWith(expect.stringContaining('Skipping excluded'))
     })
 
     it('should scan multiple modules and controllers', async () => {
       const scanner = await container.get(EndpointScannerService)
 
       // Module 1, Controller 1
-      const handler1 = createHandlerMetadata(
-        { method: 'GET', url: '/users' },
-        'getUsers',
-      )
+      const handler1 = createHandlerMetadata({ method: 'GET', url: '/users' }, 'getUsers')
 
       const controllerMeta1: ControllerMetadata = {
         endpoints: new Set([handler1]),
@@ -258,10 +246,7 @@ describe('EndpointScannerService', () => {
       }
 
       // Module 1, Controller 2
-      const handler2 = createHandlerMetadata(
-        { method: 'POST', url: '/posts' },
-        'createPost',
-      )
+      const handler2 = createHandlerMetadata({ method: 'POST', url: '/posts' }, 'createPost')
 
       const controllerMeta2: ControllerMetadata = {
         endpoints: new Set([handler2]),
@@ -283,10 +268,7 @@ describe('EndpointScannerService', () => {
       }
 
       // Module 2
-      const handler3 = createHandlerMetadata(
-        { method: 'GET', url: '/orders' },
-        'getOrders',
-      )
+      const handler3 = createHandlerMetadata({ method: 'GET', url: '/orders' }, 'getOrders')
 
       const controllerMeta3: ControllerMetadata = {
         endpoints: new Set([handler3]),
@@ -336,10 +318,7 @@ describe('EndpointScannerService', () => {
 
       const scanner = await container.get(EndpointScannerService)
 
-      const handler = createHandlerMetadata(
-        { method: 'GET', url: '/users' },
-        'getUsers',
-      )
+      const handler = createHandlerMetadata({ method: 'GET', url: '/users' }, 'getUsers')
 
       const controllerMeta: ControllerMetadata = {
         endpoints: new Set([handler]),

@@ -416,6 +416,7 @@ const [resource1, resource2, resource3] = await Promise.all([
 ```
 
 The locking works by:
+
 1. When the first call starts creating a service, it stores a "creating" holder immediately (synchronously, before any async operations)
 2. Subsequent concurrent calls find this holder and wait for the creation to complete
 3. Once created, all waiting calls receive the same instance

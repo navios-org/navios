@@ -11,17 +11,11 @@ import type { AbstractAdapterInterface } from '../interfaces/index.mjs'
  * }
  * ```
  */
-export function adapterSupports<
-  TAdapter extends AbstractAdapterInterface,
-  TMethod extends string,
->(
+export function adapterSupports<TAdapter extends AbstractAdapterInterface, TMethod extends string>(
   adapter: TAdapter | null,
   method: TMethod,
 ): adapter is TAdapter & Record<TMethod, (...args: unknown[]) => unknown> {
-  return (
-    adapter !== null &&
-    typeof (adapter as Record<string, unknown>)[method] === 'function'
-  )
+  return adapter !== null && typeof (adapter as Record<string, unknown>)[method] === 'function'
 }
 
 /**

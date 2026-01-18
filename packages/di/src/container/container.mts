@@ -1,15 +1,5 @@
 import type { z, ZodType } from 'zod/v4'
 
-import type { Factorable } from '../interfaces/factory.interface.mjs'
-import type {
-  ClassType,
-  ClassTypeWithArgument,
-  InjectionTokenSchemaType,
-} from '../token/injection-token.mjs'
-import type { Registry } from '../token/registry.mjs'
-import type { Injectors } from '../utils/get-injectors.mjs'
-import type { Join, UnionToArray } from '../utils/types.mjs'
-
 import { Injectable } from '../decorators/injectable.decorator.mjs'
 import { InjectableScope, InjectableType } from '../enums/index.mjs'
 import { DIError } from '../errors/index.mjs'
@@ -29,6 +19,17 @@ import {
 import { globalRegistry } from '../token/registry.mjs'
 import { defaultInjectors } from '../utils/default-injectors.mjs'
 import { getInjectableToken } from '../utils/index.mjs'
+
+import type { Factorable } from '../interfaces/factory.interface.mjs'
+import type {
+  ClassType,
+  ClassTypeWithArgument,
+  InjectionTokenSchemaType,
+} from '../token/injection-token.mjs'
+import type { Registry } from '../token/registry.mjs'
+import type { Injectors } from '../utils/get-injectors.mjs'
+import type { Join, UnionToArray } from '../utils/types.mjs'
+
 import { AbstractContainer } from './abstract-container.mjs'
 import { ScopedContainer } from './scoped-container.mjs'
 
@@ -84,12 +85,7 @@ export class Container extends AbstractContainer {
 
   private registerSelf() {
     const token = getInjectableToken(Container)
-    this.registry.set(
-      token,
-      InjectableScope.Singleton,
-      Container,
-      InjectableType.Class,
-    )
+    this.registry.set(token, InjectableScope.Singleton, Container, InjectableType.Class)
     const instanceName = this.nameResolver.generateInstanceName(
       token,
       undefined,
@@ -107,14 +103,9 @@ export class Container extends AbstractContainer {
   // #1 Simple class
   get<T extends ClassType>(
     token: T,
-  ): InstanceType<T> extends Factorable<infer R>
-    ? Promise<R>
-    : Promise<InstanceType<T>>
+  ): InstanceType<T> extends Factorable<infer R> ? Promise<R> : Promise<InstanceType<T>>
   // #1.1 Simple class with args
-  get<T extends ClassTypeWithArgument<R>, R>(
-    token: T,
-    args: R,
-  ): Promise<InstanceType<T>>
+  get<T extends ClassTypeWithArgument<R>, R>(token: T, args: R): Promise<InstanceType<T>>
   // #2 Token with required Schema
   get<T, S extends InjectionTokenSchemaType>(
     token: InjectionToken<T, S>,
@@ -126,10 +117,7 @@ export class Container extends AbstractContainer {
   ): R extends false
     ? Promise<T>
     : S extends ZodType<infer Type>
-      ? `Error: Your token requires args: ${Join<
-          UnionToArray<keyof Type>,
-          ', '
-        >}`
+      ? `Error: Your token requires args: ${Join<UnionToArray<keyof Type>, ', '>}`
       : 'Error: Your token requires args'
   // #4 Token with no Schema
   get<T>(token: InjectionToken<T, undefined>): Promise<T>
@@ -150,19 +138,11 @@ export class Container extends AbstractContainer {
     if (this.registry.has(realToken)) {
       const record = this.registry.get(realToken)
       if (record.scope === InjectableScope.Request) {
-        throw DIError.scopeMismatchError(
-          realToken.name,
-          'ScopedContainer',
-          'Container',
-        )
+        throw DIError.scopeMismatchError(realToken.name, 'ScopedContainer', 'Container')
       }
     }
 
-    const [error, instance] = await this.instanceResolver.resolveInstance(
-      token,
-      args,
-      this,
-    )
+    const [error, instance] = await this.instanceResolver.resolveInstance(token, args, this)
 
     if (error) {
       throw error
@@ -178,16 +158,11 @@ export class Container extends AbstractContainer {
     // Find the service by instance
     const holder = this.storage.findByInstance(service)
     if (!holder) {
-      this.logger?.warn(
-        `[Container] Service instance not found for invalidation`,
-      )
+      this.logger?.warn(`[Container] Service instance not found for invalidation`)
       return
     }
 
-    await this.serviceInvalidator.invalidateWithStorage(
-      holder.name,
-      this.storage,
-    )
+    await this.serviceInvalidator.invalidateWithStorage(holder.name, this.storage)
   }
 
   /**
@@ -203,21 +178,13 @@ export class Container extends AbstractContainer {
    * Overrides base class to support requestId parameter for ScopedContainer compatibility.
    */
   override tryGetSync<T>(token: any, args?: any, requestId?: string): T | null {
-    return this.tryGetSyncFromStorage(
-      token,
-      args,
-      this.storage,
-      requestId ?? this.requestId,
-    )
+    return this.tryGetSyncFromStorage(token, args, this.storage, requestId ?? this.requestId)
   }
 
   /**
    * Begins a new request context and returns a ScopedContainer.
    */
-  beginRequest(
-    requestId: string,
-    metadata?: Record<string, any>,
-  ): ScopedContainer {
+  beginRequest(requestId: string, metadata?: Record<string, any>): ScopedContainer {
     if (this.activeRequestIds.has(requestId)) {
       throw new Error(`Request with ID ${requestId} already exists`)
     }

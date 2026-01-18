@@ -95,10 +95,7 @@ export class UserController {
 Defines a multipart/form-data endpoint for file uploads. Must be applied to methods.
 
 ```typescript
-import type {
-  MultipartParams,
-  MultipartResult,
-} from '@navios/core/legacy-compat'
+import type { MultipartParams, MultipartResult } from '@navios/core/legacy-compat'
 
 import { Controller, Multipart } from '@navios/core/legacy-compat'
 
@@ -220,13 +217,7 @@ import type { EndpointParams, EndpointResult } from '@navios/core/legacy-compat'
 
 import { builder } from '@navios/builder'
 import { inject, Injectable } from '@navios/core'
-import {
-  Controller,
-  Endpoint,
-  HttpCode,
-  Module,
-  UseGuards,
-} from '@navios/core/legacy-compat'
+import { Controller, Endpoint, HttpCode, Module, UseGuards } from '@navios/core/legacy-compat'
 
 import { z } from 'zod/v4'
 

@@ -14,9 +14,7 @@ export type EventUnsubscribe = () => void
  * Otherwise, defaults to unknown.
  */
 export type InferEventPayload<Options extends EventOptions> =
-  Options['payloadSchema'] extends ZodType
-    ? z.output<Options['payloadSchema']>
-    : unknown
+  Options['payloadSchema'] extends ZodType ? z.output<Options['payloadSchema']> : unknown
 
 /**
  * The handler function type returned by defineEvent.

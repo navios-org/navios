@@ -109,6 +109,7 @@ await app.listen({ port: 3000 })
 ```
 
 CORS options support:
+
 - **origin**: `string | boolean | RegExp | (string | boolean | RegExp)[] | function` - Configure allowed origins
 - **methods**: `string[]` - Allowed HTTP methods (defaults to common methods)
 - **allowedHeaders**: `string[]` - Allowed request headers

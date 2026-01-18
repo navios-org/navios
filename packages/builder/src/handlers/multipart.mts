@@ -1,9 +1,6 @@
 import type { z } from 'zod/v4'
 
-import type {
-  ErrorSchemaRecord,
-  InferErrorSchemaOutput,
-} from '../types/error-schema.mjs'
+import type { ErrorSchemaRecord, InferErrorSchemaOutput } from '../types/error-schema.mjs'
 import type { BuilderContext, EndpointOptions } from '../types/index.mjs'
 
 import { createHandler } from './create-handler.mjs'
@@ -14,9 +11,7 @@ import { createHandler } from './create-handler.mjs'
  */
 type MultipartReturnType<Config extends EndpointOptions> =
   Config['errorSchema'] extends ErrorSchemaRecord
-    ?
-        | z.output<Config['responseSchema']>
-        | InferErrorSchemaOutput<Config['errorSchema']>
+    ? z.output<Config['responseSchema']> | InferErrorSchemaOutput<Config['errorSchema']>
     : z.output<Config['responseSchema']>
 
 /**

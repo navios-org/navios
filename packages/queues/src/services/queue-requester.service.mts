@@ -1,15 +1,11 @@
 import { inject, Injectable, InjectionToken } from '@navios/di'
-
 import { z } from 'zod/v4'
-
-import type { QueueClient } from '../interfaces/queue-client.mjs'
-import type {
-  BaseMessageConfig,
-  MessageDefinition,
-} from '../types/message-config.mjs'
 
 import { QueueClientToken } from '../tokens/queue-client.token.mjs'
 import { requestReplyMessageConfigSchema } from '../types/message-config.mjs'
+
+import type { QueueClient } from '../interfaces/queue-client.mjs'
+import type { BaseMessageConfig, MessageDefinition } from '../types/message-config.mjs'
 
 export const queueRequesterOptionsSchema = z.object({
   messageDef: requestReplyMessageConfigSchema,
@@ -57,10 +53,7 @@ export class QueueRequester<
   private queueClient: QueueClient
   private messageDef: MessageDef
 
-  constructor({
-    messageDef,
-    name,
-  }: z.infer<typeof queueRequesterOptionsSchema>) {
+  constructor({ messageDef, name }: z.infer<typeof queueRequesterOptionsSchema>) {
     this.queueClient = inject(QueueClientToken, { name })
     // @ts-expect-error - messageDef is a request reply message definition
     this.messageDef = messageDef
@@ -83,25 +76,19 @@ export class QueueRequester<
     // Get topic from message definition
     const topic = this.messageDef.config.topic
     if (!topic) {
-      throw new Error(
-        '[Navios/Queues] Topic is required for request/reply messages',
-      )
+      throw new Error('[Navios/Queues] Topic is required for request/reply messages')
     }
 
     // Get response schema
     const responseSchema = this.messageDef.config.responseSchema
     if (!responseSchema) {
-      throw new Error(
-        '[Navios/Queues] ResponseSchema is required for request/reply messages',
-      )
+      throw new Error('[Navios/Queues] ResponseSchema is required for request/reply messages')
     }
 
     // Send request and wait for response
     const response = await this.queueClient.request(topic, validatedPayload)
 
     // Validate and return response
-    return responseSchema.parse(response) as z.output<
-      MessageDef['config']['responseSchema']
-    >
+    return responseSchema.parse(response) as z.output<MessageDef['config']['responseSchema']>
   }
 }

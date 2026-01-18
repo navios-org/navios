@@ -1,8 +1,4 @@
-import type {
-  FetchQueryOptions,
-  QueryClient,
-  QueryKey,
-} from '@tanstack/react-query'
+import type { FetchQueryOptions, QueryClient, QueryKey } from '@tanstack/react-query'
 
 /**
  * Type for a query options creator function that returns TanStack Query options.
@@ -83,9 +79,7 @@ export interface PrefetchHelper<TParams, TData, TError = Error> {
    * })
    * ```
    */
-  getQueryOptions: (
-    params: TParams,
-  ) => FetchQueryOptions<TData, TError, TData, QueryKey>
+  getQueryOptions: (params: TParams) => FetchQueryOptions<TData, TError, TData, QueryKey>
 
   /**
    * Prefetch multiple queries in parallel.
@@ -104,10 +98,7 @@ export interface PrefetchHelper<TParams, TData, TError = Error> {
    * ])
    * ```
    */
-  prefetchMany: (
-    queryClient: QueryClient,
-    paramsList: TParams[],
-  ) => Promise<void>
+  prefetchMany: (queryClient: QueryClient, paramsList: TParams[]) => Promise<void>
 }
 
 /**
@@ -252,25 +243,15 @@ export function createPrefetchHelper<TParams, TData, TError = Error>(
  * }
  * ```
  */
-export function createPrefetchHelpers<
-  T extends Record<string, QueryOptionsCreator<any, any, any>>,
->(
+export function createPrefetchHelpers<T extends Record<string, QueryOptionsCreator<any, any, any>>>(
   queries: T,
 ): {
-  [K in keyof T]: T[K] extends QueryOptionsCreator<
-    infer TParams,
-    infer TData,
-    infer TError
-  >
+  [K in keyof T]: T[K] extends QueryOptionsCreator<infer TParams, infer TData, infer TError>
     ? PrefetchHelper<TParams, TData, TError>
     : never
 } {
   const result = {} as {
-    [K in keyof T]: T[K] extends QueryOptionsCreator<
-      infer TParams,
-      infer TData,
-      infer TError
-    >
+    [K in keyof T]: T[K] extends QueryOptionsCreator<infer TParams, infer TData, infer TError>
       ? PrefetchHelper<TParams, TData, TError>
       : never
   }
@@ -318,9 +299,5 @@ export async function prefetchAll(
     params: unknown
   }>,
 ): Promise<void> {
-  await Promise.all(
-    prefetches.map(({ helper, params }) =>
-      helper.prefetch(queryClient, params),
-    ),
-  )
+  await Promise.all(prefetches.map(({ helper, params }) => helper.prefetch(queryClient, params)))
 }

@@ -1,15 +1,11 @@
 import { inject, Injectable, InjectionToken } from '@navios/di'
-
 import { z } from 'zod/v4'
-
-import type { QueueClient } from '../interfaces/queue-client.mjs'
-import type {
-  BaseMessageConfig,
-  MessageDefinition,
-} from '../types/message-config.mjs'
 
 import { QueueClientToken } from '../tokens/queue-client.token.mjs'
 import { pointToPointMessageConfigSchema } from '../types/message-config.mjs'
+
+import type { QueueClient } from '../interfaces/queue-client.mjs'
+import type { BaseMessageConfig, MessageDefinition } from '../types/message-config.mjs'
 
 export const queueSenderOptionsSchema = z.object({
   messageDef: pointToPointMessageConfigSchema,
@@ -66,18 +62,14 @@ export class QueueSender<
    *
    * @param payload - Message payload (validated against payloadSchema)
    */
-  async send(
-    payload: z.input<MessageDef['config']['payloadSchema']>,
-  ): Promise<void> {
+  async send(payload: z.input<MessageDef['config']['payloadSchema']>): Promise<void> {
     // Validate payload against schema
     const validatedPayload = this.messageDef.config.payloadSchema.parse(payload)
 
     // Get queue from message definition
     const queue = this.messageDef.config.queue
     if (!queue) {
-      throw new Error(
-        '[Navios/Queues] Queue is required for point-to-point messages',
-      )
+      throw new Error('[Navios/Queues] Queue is required for point-to-point messages')
     }
 
     // Send to queue

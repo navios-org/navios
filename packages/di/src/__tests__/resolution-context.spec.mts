@@ -1,7 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
 
-import type { InstanceHolder } from '../internal/holder/instance-holder.mjs'
-
 import { InjectableScope, InjectableType } from '../enums/index.mjs'
 import {
   getCurrentResolutionContext,
@@ -9,6 +7,8 @@ import {
   withResolutionContext,
 } from '../internal/context/resolution-context.mjs'
 import { InstanceStatus } from '../internal/holder/instance-holder.mjs'
+
+import type { InstanceHolder } from '../internal/holder/instance-holder.mjs'
 
 function createMockHolder(name: string): InstanceHolder {
   return {

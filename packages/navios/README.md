@@ -12,6 +12,7 @@ Drop-in minimalistic `axios` replacement based on a native `fetch`. A lightweigh
 - It's not supporting Next.JS caching mechanism, because it's not using `fetch`
 
 `@navios/http` solves these issues by:
+
 - Being lightweight and focused
 - Using native `fetch` API everywhere for consistency
 - Supporting Next.JS caching and React Server Components
@@ -88,7 +89,7 @@ import { z } from 'zod'
 const client = create({
   baseURL: 'https://api.example.com',
   headers: {
-    'Authorization': 'Bearer token',
+    Authorization: 'Bearer token',
   },
 })
 

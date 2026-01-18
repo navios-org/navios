@@ -1,32 +1,20 @@
 {
   "name": "@navios/jwt",
-  "scripts": {
-    "check": "tsc -b",
-    "lint": "oxlint --fix",
-    "test:ci": "vitest run",
-    "build": "tsdown",
-    "publish": "yarn npm publish --access public",
-    "publish:next": "yarn npm publish --access public --tag next"
-  },
-  "description": "JWT authentication and authorization for Navios",
   "version": "1.0.0",
+  "description": "JWT authentication and authorization for Navios",
+  "license": "MIT",
   "author": {
     "name": "Oleksandr Hanzha",
     "email": "alex@granted.name"
   },
   "repository": {
-    "directory": "packages/jwt",
     "type": "git",
-    "url": "https://github.com/Arilas/navios.git"
+    "url": "https://github.com/Arilas/navios.git",
+    "directory": "packages/jwt"
   },
-  "license": "MIT",
-  "peerDependencies": {
-    "@navios/core": "workspace:^",
-    "zod": "^3.25.0 || ^4.0.0"
-  },
-  "typings": "./lib/index.d.mts",
   "main": "./lib/index.cjs",
   "module": "./lib/index.mjs",
+  "typings": "./lib/index.d.mts",
   "exports": {
     ".": {
       "import": {
@@ -39,12 +27,24 @@
       }
     }
   },
+  "scripts": {
+    "check": "tsc -b",
+    "lint": "yarn run -T oxlint --fix && yarn run -T oxfmt",
+    "test:ci": "vitest run",
+    "build": "tsdown",
+    "publish": "yarn npm publish --access public",
+    "publish:next": "yarn npm publish --access public --tag next"
+  },
+  "dependencies": {
+    "jsonwebtoken": "^9.0.3"
+  },
   "devDependencies": {
     "@navios/core": "workspace:^",
     "@types/jsonwebtoken": "^9.0.10",
     "zod": "^4.3.5"
   },
-  "dependencies": {
-    "jsonwebtoken": "^9.0.3"
+  "peerDependencies": {
+    "@navios/core": "workspace:^",
+    "zod": "^3.25.0 || ^4.0.0"
   }
 }

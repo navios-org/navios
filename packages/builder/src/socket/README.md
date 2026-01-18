@@ -341,10 +341,10 @@ send({}) // Throws: [Navios-Socket]: Client was not provided
 
 ## Comparison with HTTP Builder
 
-| Feature | HTTP Builder | Socket Builder |
-|---------|--------------|----------------|
-| Import | `@navios/builder` | `@navios/builder/socket` |
-| Client | `provideClient(axios)` | `provideClient(io())` |
-| Define | `declareEndpoint()` | `defineSend()` / `defineSubscribe()` |
-| Return | `Promise<Response>` | `void` or `Promise<Ack>` / `Unsubscribe` |
-| Pattern | Request-Response | Pub-Sub + Request-Response |
+| Feature | HTTP Builder           | Socket Builder                           |
+| ------- | ---------------------- | ---------------------------------------- |
+| Import  | `@navios/builder`      | `@navios/builder/socket`                 |
+| Client  | `provideClient(axios)` | `provideClient(io())`                    |
+| Define  | `declareEndpoint()`    | `defineSend()` / `defineSubscribe()`     |
+| Return  | `Promise<Response>`    | `void` or `Promise<Ack>` / `Unsubscribe` |
+| Pattern | Request-Response       | Pub-Sub + Request-Response               |

@@ -1,9 +1,9 @@
+import { InjectableType } from '../../enums/index.mjs'
+import { DIError } from '../../errors/index.mjs'
+
 import type { FactoryRecord } from '../../token/registry.mjs'
 import type { Injectors } from '../../utils/index.mjs'
 import type { ServiceInitializationContext } from '../context/service-initialization-context.mjs'
-
-import { InjectableType } from '../../enums/index.mjs'
-import { DIError } from '../../errors/index.mjs'
 
 /**
  * Creates service instances from registry records.
@@ -33,9 +33,7 @@ export class ServiceInitializer {
         case InjectableType.Factory:
           return this.instantiateFactory(ctx, record, args)
         default:
-          throw DIError.unknown(
-            `[ServiceInitializer] Unknown service type: ${record.type}`,
-          )
+          throw DIError.unknown(`[ServiceInitializer] Unknown service type: ${record.type}`)
       }
     } catch (error) {
       return [
@@ -60,9 +58,7 @@ export class ServiceInitializer {
   ): Promise<[undefined, T] | [DIError]> {
     try {
       const tryLoad = this.injectors.wrapSyncInit(() => {
-        const original = this.injectors.provideFactoryContext(
-          ctx as ServiceInitializationContext,
-        )
+        const original = this.injectors.provideFactoryContext(ctx as ServiceInitializationContext)
         let result = new record.target(...(args ? [args] : []))
         this.injectors.provideFactoryContext(original)
         return result

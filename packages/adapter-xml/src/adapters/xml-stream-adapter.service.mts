@@ -1,3 +1,5 @@
+import { inject, Injectable, InstanceResolverService, StreamAdapterToken } from '@navios/core'
+
 import type {
   AbstractHttpHandlerAdapterInterface,
   ClassType,
@@ -6,17 +8,10 @@ import type {
   ScopedContainer,
 } from '@navios/core'
 
-import {
-  inject,
-  Injectable,
-  InstanceResolverService,
-  StreamAdapterToken,
-} from '@navios/core'
+import { renderToXml } from '../runtime/render-to-xml.mjs'
 
 import type { BaseXmlStreamConfig } from '../types/config.mjs'
 import type { AnyXmlNode } from '../types/xml-node.mjs'
-
-import { renderToXml } from '../runtime/render-to-xml.mjs'
 
 /**
  * Adapter service for handling XML Stream endpoints in Navios.
@@ -70,10 +65,7 @@ export class XmlStreamAdapterService implements AbstractHttpHandlerAdapterInterf
    * @returns Function to format arguments from request
    */
   buildFormatArguments(
-    getters: ((
-      target: Record<string, any>,
-      request: any,
-    ) => void | Promise<void>)[],
+    getters: ((target: Record<string, any>, request: any) => void | Promise<void>)[],
   ) {
     return this.streamAdapter.buildFormatArguments?.(getters) ?? (() => ({}))
   }
@@ -87,9 +79,7 @@ export class XmlStreamAdapterService implements AbstractHttpHandlerAdapterInterf
    * @param handlerMetadata - The handler metadata containing configuration and schemas.
    * @returns Schema information (Fastify route schema or empty object for Bun).
    */
-  provideSchema(
-    handlerMetadata: HandlerMetadata<BaseXmlStreamConfig>,
-  ): Record<string, any> {
+  provideSchema(handlerMetadata: HandlerMetadata<BaseXmlStreamConfig>): Record<string, any> {
     if (
       'provideSchema' in this.streamAdapter &&
       typeof this.streamAdapter.provideSchema === 'function'
@@ -108,10 +98,7 @@ export class XmlStreamAdapterService implements AbstractHttpHandlerAdapterInterf
    * @returns `true` if the handler has any schemas (query or request).
    */
   hasSchema(handlerMetadata: HandlerMetadata<any>): boolean {
-    if (
-      'hasSchema' in this.streamAdapter &&
-      typeof this.streamAdapter.hasSchema === 'function'
-    ) {
+    if ('hasSchema' in this.streamAdapter && typeof this.streamAdapter.hasSchema === 'function') {
       return this.streamAdapter.hasSchema(handlerMetadata)
     }
     return false
@@ -147,11 +134,7 @@ export class XmlStreamAdapterService implements AbstractHttpHandlerAdapterInterf
     const methodName = handlerMetadata.classMethod
 
     // Helper to send response based on environment
-    const sendResponse = (
-      xml: string,
-      reply: any,
-      headers: Record<string, string>,
-    ) => {
+    const sendResponse = (xml: string, reply: any, headers: Record<string, string>) => {
       // Environment detection: Bun doesn't have reply
       const isHttpStandardEnvironment = reply === undefined
 
@@ -217,8 +200,7 @@ export class XmlStreamAdapterService implements AbstractHttpHandlerAdapterInterf
       handler: async (context: ScopedContainer, request: any, reply: any) => {
         const controllerInstance = (await resolution.resolve(context)) as any
         const argument = await formatArguments(request)
-        const xmlNode: AnyXmlNode =
-          await controllerInstance[methodName](argument)
+        const xmlNode: AnyXmlNode = await controllerInstance[methodName](argument)
         const xml = await renderToXml(xmlNode, {
           ...renderOptions,
           container: context,

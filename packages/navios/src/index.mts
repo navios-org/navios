@@ -1,6 +1,6 @@
-import type { NaviosStatic } from './types.mjs'
-
 import { create } from './createNavios.mjs'
+
+import type { NaviosStatic } from './types.mjs'
 
 const navios = create()
 
@@ -17,15 +17,7 @@ export const del = navios.delete
 const defaultHandler: NaviosStatic = navios.request
 
 defaultHandler.create = create
-for (const method of [
-  'get',
-  'post',
-  'head',
-  'options',
-  'put',
-  'patch',
-  'delete',
-]) {
+for (const method of ['get', 'post', 'head', 'options', 'put', 'patch', 'delete']) {
   // @ts-ignore
   defaultHandler[method] = navios[method]
 }

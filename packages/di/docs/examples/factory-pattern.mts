@@ -1,15 +1,7 @@
-import type { Factorable, FactorableWithArgs, FactoryContext } from '@navios/di'
-
-import {
-  Container,
-  Factory,
-  inject,
-  Injectable,
-  InjectableScope,
-  InjectionToken,
-} from '@navios/di'
-
+import { Container, Factory, inject, Injectable, InjectableScope, InjectionToken } from '@navios/di'
 import { z } from 'zod'
+
+import type { Factorable, FactorableWithArgs, FactoryContext } from '@navios/di'
 
 const container = new Container()
 
@@ -84,15 +76,13 @@ interface EmailService {
   ): Promise<{ success: boolean; provider: string }>
 }
 
-const EMAIL_CONFIG_TOKEN = InjectionToken.create<
-  EmailService,
-  typeof emailConfigSchema
->('EMAIL_CONFIG', emailConfigSchema)
+const EMAIL_CONFIG_TOKEN = InjectionToken.create<EmailService, typeof emailConfigSchema>(
+  'EMAIL_CONFIG',
+  emailConfigSchema,
+)
 
 @Factory({ token: EMAIL_CONFIG_TOKEN })
-class EmailServiceFactory
-  implements FactorableWithArgs<EmailService, typeof emailConfigSchema>
-{
+class EmailServiceFactory implements FactorableWithArgs<EmailService, typeof emailConfigSchema> {
   create(ctx: FactoryContext, config: z.infer<typeof emailConfigSchema>) {
     switch (config.provider) {
       case 'smtp':
@@ -144,10 +134,7 @@ interface UserSession {
   isActive: boolean
   login(userId: string): void
   logout(): void
-  getSessionInfo(): Pick<
-    UserSession,
-    'sessionId' | 'userId' | 'loginTime' | 'isActive'
-  >
+  getSessionInfo(): Pick<UserSession, 'sessionId' | 'userId' | 'loginTime' | 'isActive'>
 }
 
 @Factory({ scope: InjectableScope.Transient })
@@ -261,11 +248,7 @@ async function demonstrateFactoryWithConfiguration() {
   })
 
   await smtpEmail.sendEmail('user@example.com', 'Test', 'Hello from SMTP')
-  await sendgridEmail.sendEmail(
-    'user@example.com',
-    'Test',
-    'Hello from SendGrid',
-  )
+  await sendgridEmail.sendEmail('user@example.com', 'Test', 'Hello from SendGrid')
 }
 
 async function demonstrateTransientFactory() {

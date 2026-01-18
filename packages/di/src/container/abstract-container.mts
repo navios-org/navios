@@ -1,5 +1,16 @@
 import type { z, ZodType } from 'zod/v4'
 
+import { InjectableScope, InjectableType } from '../enums/index.mjs'
+import { DIError, DIErrorCode } from '../errors/index.mjs'
+import { InstanceStatus } from '../internal/holder/instance-holder.mjs'
+import { UnifiedStorage } from '../internal/holder/unified-storage.mjs'
+import { StubFactoryClass } from '../internal/index.mjs'
+import {
+  BoundInjectionToken,
+  FactoryInjectionToken,
+  InjectionToken,
+} from '../token/injection-token.mjs'
+
 import type { IContainer } from '../interfaces/container.interface.mjs'
 import type { Factorable } from '../interfaces/factory.interface.mjs'
 import type { NameResolver } from '../internal/core/name-resolver.mjs'
@@ -12,17 +23,6 @@ import type {
 } from '../token/injection-token.mjs'
 import type { Registry } from '../token/registry.mjs'
 import type { Join, UnionToArray } from '../utils/types.mjs'
-
-import { InjectableScope, InjectableType } from '../enums/index.mjs'
-import { DIError, DIErrorCode } from '../errors/index.mjs'
-import { InstanceStatus } from '../internal/holder/instance-holder.mjs'
-import { UnifiedStorage } from '../internal/holder/unified-storage.mjs'
-import { StubFactoryClass } from '../internal/index.mjs'
-import {
-  BoundInjectionToken,
-  FactoryInjectionToken,
-  InjectionToken,
-} from '../token/injection-token.mjs'
 
 /**
  * Abstract base class for dependency injection containers.
@@ -76,14 +76,9 @@ export abstract class AbstractContainer implements IContainer {
   // #1 Simple class
   abstract get<T extends ClassType>(
     token: T,
-  ): InstanceType<T> extends Factorable<infer R>
-    ? Promise<R>
-    : Promise<InstanceType<T>>
+  ): InstanceType<T> extends Factorable<infer R> ? Promise<R> : Promise<InstanceType<T>>
   // #1.1 Simple class with args
-  abstract get<T extends ClassTypeWithArgument<R>, R>(
-    token: T,
-    args: R,
-  ): Promise<InstanceType<T>>
+  abstract get<T extends ClassTypeWithArgument<R>, R>(token: T, args: R): Promise<InstanceType<T>>
   // #2 Token with required Schema
   abstract get<T, S extends InjectionTokenSchemaType>(
     token: InjectionToken<T, S>,
@@ -95,10 +90,7 @@ export abstract class AbstractContainer implements IContainer {
   ): R extends false
     ? Promise<T>
     : S extends ZodType<infer Type>
-      ? `Error: Your token requires args: ${Join<
-          UnionToArray<keyof Type>,
-          ', '
-        >}`
+      ? `Error: Your token requires args: ${Join<UnionToArray<keyof Type>, ', '>}`
       : 'Error: Your token requires args'
   // #4 Token with no Schema
   abstract get<T>(token: InjectionToken<T, undefined>): Promise<T>
@@ -138,23 +130,19 @@ export abstract class AbstractContainer implements IContainer {
     const tokenResolver = this.getTokenResolver()
 
     // Use validateAndResolveTokenArgs to handle token normalization and arg resolution
-    const [err, { actualToken, validatedArgs }] =
-      tokenResolver.validateAndResolveTokenArgs(token, args)
+    const [err, { actualToken, validatedArgs }] = tokenResolver.validateAndResolveTokenArgs(
+      token,
+      args,
+    )
 
     if (err) {
       // Return null if factory token is not resolved
-      if (
-        err instanceof DIError &&
-        err.code === DIErrorCode.FactoryTokenNotResolved
-      ) {
+      if (err instanceof DIError && err.code === DIErrorCode.FactoryTokenNotResolved) {
         return null
       }
 
       // Return null if validation fails (can't calculate name with invalid args)
-      if (
-        err instanceof DIError &&
-        err.code === DIErrorCode.TokenValidationError
-      ) {
+      if (err instanceof DIError && err.code === DIErrorCode.TokenValidationError) {
         return null
       }
     }
@@ -165,9 +153,7 @@ export abstract class AbstractContainer implements IContainer {
     const registry = this.getRegistry()
 
     // Get scope from registry, or use default scope if not registered
-    const scope = registry.has(realToken)
-      ? registry.get(realToken).scope
-      : this.defaultScope
+    const scope = registry.has(realToken) ? registry.get(realToken).scope : this.defaultScope
 
     // Generate instance name using the name resolver with actual token and validated args
     return this.getNameResolver().generateInstanceName(
@@ -198,12 +184,7 @@ export abstract class AbstractContainer implements IContainer {
    * Attempts to get an instance synchronously if it already exists.
    */
   tryGetSync<T>(token: any, args?: any): T | null {
-    return this.tryGetSyncFromStorage(
-      token,
-      args,
-      this.getStorage(),
-      this.requestId,
-    )
+    return this.tryGetSyncFromStorage(token, args, this.getStorage(), this.requestId)
   }
 
   /**
@@ -257,13 +238,7 @@ export abstract class AbstractContainer implements IContainer {
     token: ClassType | InjectionToken<T, any> | BoundInjectionToken<T, any>,
     instance: T,
   ): void {
-    this.addInstanceToStorage(
-      token,
-      instance,
-      this.getStorage(),
-      this.defaultScope,
-      this.requestId,
-    )
+    this.addInstanceToStorage(token, instance, this.getStorage(), this.defaultScope, this.requestId)
   }
 
   /**
@@ -314,9 +289,7 @@ export abstract class AbstractContainer implements IContainer {
     // Generate instance name with the given scope
     const instanceName = this.getNameResolver().generateInstanceName(
       normalizedToken,
-      normalizedToken instanceof BoundInjectionToken
-        ? normalizedToken.value
-        : undefined,
+      normalizedToken instanceof BoundInjectionToken ? normalizedToken.value : undefined,
       requestId,
       scope,
     )

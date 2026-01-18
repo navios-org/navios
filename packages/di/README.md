@@ -592,10 +592,10 @@ describe('UserService', () => {
     container.bind(DatabaseService).toValue({
       save: vi.fn().mockResolvedValue({ id: '1' }),
     })
-    
+
     // Or bind to class
     container.bind(UserService).toClass(MockUserService)
-    
+
     // Or bind to factory
     container.bind(ConfigToken).toFactory(() => ({ apiKey: 'test' }))
 
@@ -603,18 +603,18 @@ describe('UserService', () => {
     const user = await userService.create({ name: 'John' })
 
     expect(user.id).toBe('1')
-    
+
     // Assertion helpers
     container.expectResolved(UserService)
     container.expectSingleton(UserService)
     container.expectInitialized(UserService)
-    
+
     // Method call tracking
     container.recordMethodCall(UserService, 'create', [{ name: 'John' }], user)
     container.expectCalled(UserService, 'create')
     container.expectCalledWith(UserService, 'create', [{ name: 'John' }])
     container.expectCallCount(UserService, 'create', 1)
-    
+
     // Dependency graph inspection
     const graph = container.getDependencyGraph()
     console.log(graph)

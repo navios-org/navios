@@ -1,8 +1,12 @@
 import type { ZodType } from 'zod/v4'
 
 import type { SocketClient } from '../types/socket-client.mjs'
-import type { MessageParser, SocketBuilderConfig, SubscribeOptions } from '../types/socket-options.mjs'
 import type { SubscribeHandler, Unsubscribe } from '../types/socket-handlers.mjs'
+import type {
+  MessageParser,
+  SocketBuilderConfig,
+  SubscribeOptions,
+} from '../types/socket-options.mjs'
 
 /**
  * Default message parser for Socket.IO array format.

@@ -1,6 +1,6 @@
-import type { Server } from 'bun'
-
 import { InjectionToken } from '@navios/core'
+
+import type { Server } from 'bun'
 
 /**
  * Injection token for the Bun server instance.
@@ -22,5 +22,4 @@ import { InjectionToken } from '@navios/core'
  * }
  * ```
  */
-export const BunServerToken =
-  InjectionToken.create<Server<undefined>>('BunServerToken')
+export const BunServerToken = InjectionToken.create<Server<undefined>>('BunServerToken')

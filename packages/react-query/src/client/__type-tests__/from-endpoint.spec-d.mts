@@ -1,13 +1,9 @@
-import type {
-  EndpointHandler,
-  ErrorSchemaRecord,
-  StreamHandler,
-} from '@navios/builder'
-import type { DataTag, UseSuspenseQueryOptions } from '@tanstack/react-query'
-import type { z } from 'zod/v4'
-
 import { assertType, describe, test } from 'vitest'
 import { z as zod } from 'zod/v4'
+
+import type { EndpointHandler, ErrorSchemaRecord, StreamHandler } from '@navios/builder'
+import type { DataTag, UseSuspenseQueryOptions } from '@tanstack/react-query'
+import type { z } from 'zod/v4'
 
 import type { Split } from '../../index.mjs'
 import type { QueryHelpers } from '../../query/types.mjs'
@@ -235,23 +231,17 @@ describe('ClientInstance<false> queryFromEndpoint() method', () => {
       const query = client.queryFromEndpoint(getEndpoint)
 
       // QueryHelpers are attached regardless of the params issue
-      assertType<QueryHelpers<'/users', undefined, ResponseType>['queryKey']>(
-        query.queryKey,
-      )
-      assertType<QueryHelpers<'/users', undefined, ResponseType>['use']>(
-        query.use,
-      )
-      assertType<
-        QueryHelpers<'/users', undefined, ResponseType>['useSuspense']
-      >(query.useSuspense)
+      assertType<QueryHelpers<'/users', undefined, ResponseType>['queryKey']>(query.queryKey)
+      assertType<QueryHelpers<'/users', undefined, ResponseType>['use']>(query.use)
+      assertType<QueryHelpers<'/users', undefined, ResponseType>['useSuspense']>(query.useSuspense)
     })
 
     test('queryFromEndpoint with query schema has typed QueryHelpers', () => {
       const query = client.queryFromEndpoint(getEndpointWithQuery)
 
-      assertType<
-        QueryHelpers<'/users', typeof querySchema, ResponseType>['queryKey']
-      >(query.queryKey)
+      assertType<QueryHelpers<'/users', typeof querySchema, ResponseType>['queryKey']>(
+        query.queryKey,
+      )
     })
   })
 
@@ -279,26 +269,16 @@ describe('ClientInstance<false> infiniteQueryFromEndpoint() method', () => {
         getNextPageParam: () => undefined,
       })
 
-      assertType<
-        QueryHelpers<
-          '/users',
-          typeof querySchema,
-          ResponseType,
-          true
-        >['queryKey']
-      >(query.queryKey)
+      assertType<QueryHelpers<'/users', typeof querySchema, ResponseType, true>['queryKey']>(
+        query.queryKey,
+      )
     })
   })
 
   describe('pagination callbacks', () => {
     test('getNextPageParam receives correct types', () => {
       client.infiniteQueryFromEndpoint(getEndpointWithQuery, {
-        getNextPageParam: (
-          lastPage,
-          allPages,
-          lastPageParam,
-          allPageParams,
-        ) => {
+        getNextPageParam: (lastPage, allPages, lastPageParam, allPageParams) => {
           assertType<ResponseType>(lastPage)
           assertType<ResponseType[]>(allPages)
           assertType<z.infer<typeof querySchema> | undefined>(lastPageParam)
@@ -311,12 +291,7 @@ describe('ClientInstance<false> infiniteQueryFromEndpoint() method', () => {
     test('getPreviousPageParam receives correct types', () => {
       client.infiniteQueryFromEndpoint(getEndpointWithQuery, {
         getNextPageParam: () => undefined,
-        getPreviousPageParam: (
-          firstPage,
-          allPages,
-          lastPageParam,
-          allPageParams,
-        ) => {
+        getPreviousPageParam: (firstPage, allPages, lastPageParam, allPageParams) => {
           assertType<ResponseType>(firstPage)
           assertType<ResponseType[]>(allPages)
           assertType<z.infer<typeof querySchema> | undefined>(lastPageParam)
@@ -477,29 +452,23 @@ describe('ClientInstance<false> mutationFromEndpoint() method', () => {
 describe('ClientInstance<true> fromEndpoint methods (discriminator mode)', () => {
   describe('queryFromEndpoint with errorSchema includes union', () => {
     test('processResponse receives union type', () => {
-      clientWithDiscriminator.queryFromEndpoint(
-        endpointWithErrorsDiscriminator,
-        {
-          processResponse: (data) => {
-            assertType<ResponseWithErrors>(data)
-            return data
-          },
+      clientWithDiscriminator.queryFromEndpoint(endpointWithErrorsDiscriminator, {
+        processResponse: (data) => {
+          assertType<ResponseWithErrors>(data)
+          return data
         },
-      )
+      })
     })
   })
 
   describe('infiniteQueryFromEndpoint with errorSchema', () => {
     test('getNextPageParam receives union type', () => {
-      clientWithDiscriminator.infiniteQueryFromEndpoint(
-        infiniteEndpointWithErrors,
-        {
-          getNextPageParam: (lastPage) => {
-            assertType<ResponseWithErrors>(lastPage)
-            return undefined
-          },
+      clientWithDiscriminator.infiniteQueryFromEndpoint(infiniteEndpointWithErrors, {
+        getNextPageParam: (lastPage) => {
+          assertType<ResponseWithErrors>(lastPage)
+          return undefined
         },
-      )
+      })
     })
   })
 

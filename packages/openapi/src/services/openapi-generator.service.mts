@@ -1,12 +1,12 @@
+import { inject, Injectable, Logger } from '@navios/core'
+
 import type { ModuleMetadata } from '@navios/core'
 import type { oas31 } from 'zod-openapi'
 
-import { inject, Injectable, Logger } from '@navios/core'
-
-import type { DiscoveredEndpoint } from './endpoint-scanner.service.mjs'
-
 import { EndpointScannerService } from './endpoint-scanner.service.mjs'
 import { PathBuilderService } from './path-builder.service.mjs'
+
+import type { DiscoveredEndpoint } from './endpoint-scanner.service.mjs'
 
 type OpenAPIObject = oas31.OpenAPIObject
 type PathsObject = oas31.PathsObject
@@ -97,10 +97,7 @@ export class OpenApiGeneratorService {
    * @param options - OpenAPI generation options
    * @returns Complete OpenAPI document
    */
-  generate(
-    modules: Map<string, ModuleMetadata>,
-    options: OpenApiGeneratorOptions,
-  ): OpenAPIObject {
+  generate(modules: Map<string, ModuleMetadata>, options: OpenApiGeneratorOptions): OpenAPIObject {
     this.logger.debug('Generating OpenAPI document')
 
     // Discover all endpoints
@@ -146,9 +143,7 @@ export class OpenApiGeneratorService {
       }
     }
 
-    this.logger.debug(
-      `Generated OpenAPI document with ${Object.keys(paths).length} paths`,
-    )
+    this.logger.debug(`Generated OpenAPI document with ${Object.keys(paths).length} paths`)
 
     return document
   }
@@ -194,10 +189,7 @@ export class OpenApiGeneratorService {
   /**
    * Merges discovered tags with configured tags
    */
-  private mergeTags(
-    discoveredTags: Set<string>,
-    configuredTags?: TagObject[],
-  ): TagObject[] {
+  private mergeTags(discoveredTags: Set<string>, configuredTags?: TagObject[]): TagObject[] {
     const tagMap = new Map<string, TagObject>()
 
     // Add configured tags first (they have descriptions)

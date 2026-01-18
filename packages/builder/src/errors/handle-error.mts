@@ -1,9 +1,10 @@
-import type { ZodType } from 'zod/v4'
-
 import { ZodError } from 'zod/v4'
 
-import type { AbstractResponse, BuilderConfig } from '../types/index.mjs'
+import type { ZodType } from 'zod/v4'
+
 import type { ErrorSchemaRecord } from '../types/error-schema.mjs'
+import type { AbstractResponse, BuilderConfig } from '../types/index.mjs'
+
 import { UnknownResponseError } from './unknown-response-error.mjs'
 
 /**
@@ -56,12 +57,7 @@ export function handleError(
   }
 
   // Check if error has a response
-  if (
-    typeof error !== 'object' ||
-    !error ||
-    !('response' in error) ||
-    !error.response
-  ) {
+  if (typeof error !== 'object' || !error || !('response' in error) || !error.response) {
     throw error
   }
 

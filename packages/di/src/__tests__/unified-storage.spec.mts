@@ -1,11 +1,11 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 
-import type { InstanceHolder } from '../internal/holder/instance-holder.mjs'
-
 import { InjectableScope, InjectableType } from '../enums/index.mjs'
 import { DIError, DIErrorCode } from '../errors/index.mjs'
 import { InstanceStatus } from '../internal/holder/instance-holder.mjs'
 import { UnifiedStorage } from '../internal/holder/unified-storage.mjs'
+
+import type { InstanceHolder } from '../internal/holder/instance-holder.mjs'
 
 describe('UnifiedStorage', () => {
   let storage: UnifiedStorage
@@ -245,22 +245,14 @@ describe('UnifiedStorage', () => {
 
     it('should use storage scope for holder', () => {
       const requestStorage = new UnifiedStorage(InjectableScope.Request)
-      const [, holder] = requestStorage.createHolder(
-        'test',
-        InjectableType.Class,
-        new Set(),
-      )
+      const [, holder] = requestStorage.createHolder('test', InjectableType.Class, new Set())
 
       expect(holder.scope).toBe(InjectableScope.Request)
     })
 
     it('should include provided dependencies', () => {
       const deps = new Set(['dep1', 'dep2'])
-      const [, holder] = storage.createHolder(
-        'test',
-        InjectableType.Class,
-        deps,
-      )
+      const [, holder] = storage.createHolder('test', InjectableType.Class, deps)
 
       expect(holder.deps).toBe(deps)
     })

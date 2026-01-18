@@ -1,6 +1,6 @@
-import type { ClassType, Registry } from '@navios/core'
-
 import { createClassContext } from '@navios/core/legacy-compat'
+
+import type { ClassType, Registry } from '@navios/core'
 
 import { Schedulable as OriginalSchedulable } from '../../decorators/schedulable.decorator.mjs'
 

@@ -1,8 +1,8 @@
 import type { z, ZodObject } from 'zod/v4'
 
-import type { EventSourceClient } from '../types/eventsource-client.mjs'
-import type { Simplify, UrlHasParams, UrlParams } from '../../types/request.mjs'
 import type { HasProperty, SafeGet } from '../../types/builder-instance.mjs'
+import type { Simplify, UrlHasParams, UrlParams } from '../../types/request.mjs'
+import type { EventSourceClient } from '../types/eventsource-client.mjs'
 
 /**
  * Connection state for the EventSource handle.
@@ -69,10 +69,10 @@ export type InferEventSourceConnectParams<Options extends DeclareEventSourceOpti
       ? { urlParams: z.input<SafeGet<Options, 'urlParamsSchema'> & ZodObject> }
       : { urlParams: UrlParams<Options['url']> }
     : {}) &
-  // Query Parameters
-  (HasProperty<Options, 'querySchema'> extends true
-    ? { params: z.input<SafeGet<Options, 'querySchema'> & ZodObject> }
-    : {})
+    // Query Parameters
+    (HasProperty<Options, 'querySchema'> extends true
+      ? { params: z.input<SafeGet<Options, 'querySchema'> & ZodObject> }
+      : {})
 >
 
 /**

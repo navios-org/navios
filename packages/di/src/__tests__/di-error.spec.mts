@@ -1,9 +1,10 @@
-import { z } from 'zod/v4'
 import { describe, expect, it } from 'vitest'
+import { z } from 'zod/v4'
 
-import { DIError, DIErrorCode } from '../errors/index.mjs'
 import { InjectableScope, InjectableType } from '../enums/index.mjs'
+import { DIError, DIErrorCode } from '../errors/index.mjs'
 import { InjectionToken } from '../token/injection-token.mjs'
+
 import type { FactoryRecord } from '../token/registry.mjs'
 
 describe('DIError', () => {
@@ -19,11 +20,7 @@ describe('DIError', () => {
 
     it('should create error with context', () => {
       const context = { key: 'value', num: 42 }
-      const error = new DIError(
-        DIErrorCode.InstanceNotFound,
-        'Test message',
-        context,
-      )
+      const error = new DIError(DIErrorCode.InstanceNotFound, 'Test message', context)
 
       expect(error.context).toEqual(context)
     })
@@ -137,9 +134,7 @@ describe('DIError', () => {
       const cycle = ['ServiceA', 'ServiceA']
       const error = DIError.circularDependency(cycle)
 
-      expect(error.message).toBe(
-        'Circular dependency detected: ServiceA -> ServiceA',
-      )
+      expect(error.message).toBe('Circular dependency detected: ServiceA -> ServiceA')
     })
   })
 
@@ -147,11 +142,7 @@ describe('DIError', () => {
     it('should create TokenValidationError', () => {
       const schema = z.object({ name: z.string() })
       const value = { name: 123 }
-      const error = DIError.tokenValidationError(
-        'Validation failed',
-        schema,
-        value,
-      )
+      const error = DIError.tokenValidationError('Validation failed', schema, value)
 
       expect(error.code).toBe(DIErrorCode.TokenValidationError)
       expect(error.message).toBe('Validation failed')
@@ -160,11 +151,7 @@ describe('DIError', () => {
     })
 
     it('should handle undefined schema', () => {
-      const error = DIError.tokenValidationError(
-        'Validation failed',
-        undefined,
-        null,
-      )
+      const error = DIError.tokenValidationError('Validation failed', undefined, null)
 
       expect(error.context?.schema).toBeUndefined()
     })
@@ -199,25 +186,17 @@ describe('DIError', () => {
       const error = DIError.classNotInjectable('MyClass')
 
       expect(error.code).toBe(DIErrorCode.ClassNotInjectable)
-      expect(error.message).toBe(
-        'Class MyClass is not decorated with @Injectable.',
-      )
+      expect(error.message).toBe('Class MyClass is not decorated with @Injectable.')
       expect(error.context).toEqual({ className: 'MyClass' })
     })
   })
 
   describe('scopeMismatchError', () => {
     it('should create ScopeMismatchError', () => {
-      const error = DIError.scopeMismatchError(
-        'TestToken',
-        'Singleton',
-        'Request',
-      )
+      const error = DIError.scopeMismatchError('TestToken', 'Singleton', 'Request')
 
       expect(error.code).toBe(DIErrorCode.ScopeMismatchError)
-      expect(error.message).toBe(
-        'Scope mismatch for TestToken: expected Singleton, got Request',
-      )
+      expect(error.message).toBe('Scope mismatch for TestToken: expected Singleton, got Request')
       expect(error.context).toEqual({
         token: 'TestToken',
         expectedScope: 'Singleton',
@@ -279,32 +258,21 @@ describe('DIError', () => {
       const error = DIError.initializationError('MyService', originalError)
 
       expect(error.code).toBe(DIErrorCode.InitializationError)
-      expect(error.message).toBe(
-        'Service MyService initialization failed: Constructor failed',
-      )
+      expect(error.message).toBe('Service MyService initialization failed: Constructor failed')
       expect(error.context?.error).toBe(originalError)
     })
 
     it('should create InitializationError from string', () => {
-      const error = DIError.initializationError(
-        'MyService',
-        'Missing dependency',
-      )
+      const error = DIError.initializationError('MyService', 'Missing dependency')
 
-      expect(error.message).toBe(
-        'Service MyService initialization failed: Missing dependency',
-      )
+      expect(error.message).toBe('Service MyService initialization failed: Missing dependency')
     })
   })
 
   describe('dependencyResolutionError', () => {
     it('should create DependencyResolutionError from Error', () => {
       const originalError = new Error('Not found')
-      const error = DIError.dependencyResolutionError(
-        'MyService',
-        'DatabaseService',
-        originalError,
-      )
+      const error = DIError.dependencyResolutionError('MyService', 'DatabaseService', originalError)
 
       expect(error.code).toBe(DIErrorCode.DependencyResolutionError)
       expect(error.message).toBe(
@@ -342,9 +310,7 @@ describe('DIError', () => {
       expect(DIErrorCode.PriorityConflictError).toBe('PriorityConflictError')
       expect(DIErrorCode.StorageError).toBe('StorageError')
       expect(DIErrorCode.InitializationError).toBe('InitializationError')
-      expect(DIErrorCode.DependencyResolutionError).toBe(
-        'DependencyResolutionError',
-      )
+      expect(DIErrorCode.DependencyResolutionError).toBe('DependencyResolutionError')
       expect(DIErrorCode.UnknownError).toBe('UnknownError')
     })
   })

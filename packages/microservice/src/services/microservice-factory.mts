@@ -1,8 +1,7 @@
-import type { ClassType } from '@navios/di'
-
 import { Container } from '@navios/di'
 
 import type { NaviosModule } from '@navios/core'
+import type { ClassType } from '@navios/di'
 
 import { MessageHandlerService } from './message-handler.service.mjs'
 
@@ -62,4 +61,3 @@ export class MicroserviceFactory {
     }
   }
 }
-

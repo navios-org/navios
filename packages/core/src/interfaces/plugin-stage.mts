@@ -9,8 +9,7 @@ export const PluginStageBase = {
   READY: 'ready',
 } as const
 
-export type PluginStageBase =
-  (typeof PluginStageBase)[keyof typeof PluginStageBase]
+export type PluginStageBase = (typeof PluginStageBase)[keyof typeof PluginStageBase]
 
 /**
  * Full stage names with pre:/post: prefix
@@ -20,14 +19,12 @@ export type PluginStage = `pre:${PluginStageBase}` | `post:${PluginStageBase}`
 /**
  * Helper to create pre stage name from base
  */
-export const preStage = <T extends PluginStageBase>(base: T): `pre:${T}` =>
-  `pre:${base}`
+export const preStage = <T extends PluginStageBase>(base: T): `pre:${T}` => `pre:${base}`
 
 /**
  * Helper to create post stage name from base
  */
-export const postStage = <T extends PluginStageBase>(base: T): `post:${T}` =>
-  `post:${base}`
+export const postStage = <T extends PluginStageBase>(base: T): `post:${T}` => `post:${base}`
 
 /**
  * All stages as constants for direct access

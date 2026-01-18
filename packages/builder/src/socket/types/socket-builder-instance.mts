@@ -1,6 +1,6 @@
 import type { SocketClient } from './socket-client.mjs'
-import type { SendOptions, SubscribeOptions } from './socket-options.mjs'
 import type { SendHandler, SubscribeHandler } from './socket-handlers.mjs'
+import type { SendOptions, SubscribeOptions } from './socket-options.mjs'
 
 /**
  * Socket builder instance interface.
@@ -98,9 +98,7 @@ export interface SocketBuilderInstance {
    * console.log(room.roomId) // Fully typed!
    * ```
    */
-  defineSend<const Options extends SendOptions>(
-    options: Options,
-  ): SendHandler<Options>
+  defineSend<const Options extends SendOptions>(options: Options): SendHandler<Options>
 
   /**
    * Define a typed subscribe function for a specific topic.

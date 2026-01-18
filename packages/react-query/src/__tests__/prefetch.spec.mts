@@ -1,11 +1,7 @@
 import { QueryClient } from '@tanstack/react-query'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import {
-  createPrefetchHelper,
-  createPrefetchHelpers,
-  prefetchAll,
-} from '../query/prefetch.mjs'
+import { createPrefetchHelper, createPrefetchHelpers, prefetchAll } from '../query/prefetch.mjs'
 
 describe('createPrefetchHelper', () => {
   let queryClient: QueryClient
@@ -132,11 +128,7 @@ describe('createPrefetchHelper', () => {
       }))
 
       const helper = createPrefetchHelper(mockQueryOptions)
-      await helper.prefetchMany(queryClient, [
-        { userId: '1' },
-        { userId: '2' },
-        { userId: '3' },
-      ])
+      await helper.prefetchMany(queryClient, [{ userId: '1' }, { userId: '2' }, { userId: '3' }])
 
       expect(queryClient.getQueryData(['users', '1'])).toEqual({
         id: '1',
@@ -273,10 +265,7 @@ describe('prefetchAll', () => {
   })
 
   it('should handle errors in individual prefetches', async () => {
-    const errorHelper = createPrefetchHelper<
-      Record<string, never>,
-      { error: boolean }
-    >(
+    const errorHelper = createPrefetchHelper<Record<string, never>, { error: boolean }>(
       vi.fn(() => ({
         queryKey: ['error'] as const,
         queryFn: async (): Promise<{ error: boolean }> => {
@@ -285,10 +274,7 @@ describe('prefetchAll', () => {
       })),
     )
 
-    const successHelper = createPrefetchHelper<
-      Record<string, never>,
-      { success: boolean }
-    >(
+    const successHelper = createPrefetchHelper<Record<string, never>, { success: boolean }>(
       vi.fn(() => ({
         queryKey: ['success'] as const,
         queryFn: async () => ({ success: true }),

@@ -1,10 +1,10 @@
 /**
  * Base exception class for all HTTP exceptions in Navios.
- * 
+ *
  * All HTTP exception classes extend this base class. When thrown from an endpoint handler,
  * Navios will automatically convert it to an appropriate HTTP response with the specified
  * status code and response body.
- * 
+ *
  * @example
  * ```typescript
  * @Endpoint(getUserEndpoint)
@@ -20,7 +20,7 @@
 export class HttpException {
   /**
    * Creates a new HttpException instance.
-   * 
+   *
    * @param statusCode - HTTP status code (e.g., 400, 404, 500)
    * @param response - Response body (string or object)
    * @param error - Optional underlying error for logging/debugging

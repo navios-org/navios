@@ -1,3 +1,5 @@
+import { useIsMutating, useMutation } from '@tanstack/react-query'
+
 import type {
   AnyEndpointConfig,
   BaseEndpointConfig,
@@ -14,19 +16,16 @@ import type {
 } from '@tanstack/react-query'
 import type { z, ZodObject, ZodType } from 'zod/v4'
 
-import { useIsMutating, useMutation } from '@tanstack/react-query'
-
 import type { ProcessResponseFunction } from '../common/types.mjs'
-import type { MutationHelpers } from './types.mjs'
 
 import { createMutationKey } from './key-creator.mjs'
+
+import type { MutationHelpers } from './types.mjs'
 
 /**
  * Helper type for endpoint with config property
  */
-type EndpointWithConfig<Config extends AnyEndpointConfig> = ((
-  params: any,
-) => Promise<any>) & {
+type EndpointWithConfig<Config extends AnyEndpointConfig> = ((params: any) => Promise<any>) & {
   config: Config
 }
 
@@ -54,27 +53,19 @@ type MakeMutationParams<
   UseKey extends boolean,
 > = Omit<
   UseMutationOptions<TData, Error, TVariables>,
-  | 'mutationKey'
-  | 'mutationFn'
-  | 'onMutate'
-  | 'onSuccess'
-  | 'onError'
-  | 'onSettled'
-  | 'scope'
+  'mutationKey' | 'mutationFn' | 'onMutate' | 'onSuccess' | 'onError' | 'onSettled' | 'scope'
 > & {
   processResponse?: ProcessResponseFunction<TData, ResponseInput<ResponseSchema, ErrorSchema>>
   useContext?: () => TContext
   onSuccess?: (
     data: TData,
     variables: TVariables,
-    context: TContext &
-      MutationFunctionContext & { onMutateResult: TOnMutateResult | undefined },
+    context: TContext & MutationFunctionContext & { onMutateResult: TOnMutateResult | undefined },
   ) => void | Promise<void>
   onError?: (
     err: unknown,
     variables: TVariables,
-    context: TContext &
-      MutationFunctionContext & { onMutateResult: TOnMutateResult | undefined },
+    context: TContext & MutationFunctionContext & { onMutateResult: TOnMutateResult | undefined },
   ) => void | Promise<void>
   onMutate?: (
     variables: TVariables,
@@ -84,8 +75,7 @@ type MakeMutationParams<
     data: TData | undefined,
     error: Error | null,
     variables: TVariables,
-    context: TContext &
-      MutationFunctionContext & { onMutateResult: TOnMutateResult | undefined },
+    context: TContext & MutationFunctionContext & { onMutateResult: TOnMutateResult | undefined },
   ) => void | Promise<void>
   useKey?: UseKey
   keyPrefix?: UseKey extends true
@@ -180,10 +170,7 @@ export function makeMutation<
   MutationHelpers<Url, TData>
 
 // Implementation
-export function makeMutation(
-  endpoint: EndpointWithConfig<AnyEndpointConfig>,
-  options: any,
-): any {
+export function makeMutation(endpoint: EndpointWithConfig<AnyEndpointConfig>, options: any): any {
   const config = endpoint.config
 
   const mutationKey = createMutationKey(config, {
@@ -220,12 +207,7 @@ export function makeMutation(
         return processResponse ? processResponse(response) : response
       },
       onSuccess: onSuccess
-        ? (
-            data: any,
-            variables: any,
-            onMutateResult: any,
-            context: MutationFunctionContext,
-          ) => {
+        ? (data: any, variables: any, onMutateResult: any, context: MutationFunctionContext) => {
             return onSuccess?.(data, variables, {
               ...ownContext,
               ...context,
@@ -234,12 +216,7 @@ export function makeMutation(
           }
         : undefined,
       onError: onError
-        ? (
-            err: Error,
-            variables: any,
-            onMutateResult: any,
-            context: MutationFunctionContext,
-          ) => {
+        ? (err: Error, variables: any, onMutateResult: any, context: MutationFunctionContext) => {
             return onError?.(err, variables, {
               onMutateResult,
               ...ownContext,
@@ -274,9 +251,7 @@ export function makeMutation(
   }
   result.useIsMutating = (keyParams: any): boolean => {
     if (!options.useKey) {
-      throw new Error(
-        'useIsMutating can only be used when useKey is set to true',
-      )
+      throw new Error('useIsMutating can only be used when useKey is set to true')
     }
     const isMutating = useIsMutating({
       mutationKey: mutationKey(keyParams),

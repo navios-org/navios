@@ -74,9 +74,7 @@ export class BunExecutionContext implements AbstractExecutionContext {
    */
   getRequest(): Request {
     if (!this.request) {
-      throw new Error(
-        '[Navios] Request is not set. Make sure to set it before using it.',
-      )
+      throw new Error('[Navios] Request is not set. Make sure to set it before using it.')
     }
     return this.request
   }
@@ -93,9 +91,7 @@ export class BunExecutionContext implements AbstractExecutionContext {
    */
   getReply(): BunFakeReply {
     if (!this.reply) {
-      throw new Error(
-        '[Navios] Reply is not set. Make sure to set it before using it.',
-      )
+      throw new Error('[Navios] Reply is not set. Make sure to set it before using it.')
     }
     return this.reply
   }

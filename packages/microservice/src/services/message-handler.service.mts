@@ -1,21 +1,10 @@
-import type { ClassType, Container, ScopedContainer } from '@navios/di'
-
-import { inject, Injectable } from '@navios/di'
 import { AttributeFactory } from '@navios/core'
-
-import type { QueueClient } from '@navios/queues'
+import { inject, Injectable } from '@navios/di'
 import { QueueClientToken } from '@navios/queues'
 
-import type { MessageExecutionContext } from '../interfaces/message-execution-context.mjs'
-import type {
-  MessageControllerMetadata,
-  MessageHandlerMetadata,
-  MessageModuleMetadata,
-} from '../metadata/index.mjs'
-import {
-  extractMessageControllerMetadata,
-  extractMessageModuleMetadata,
-} from '../metadata/index.mjs'
+import type { ClassType, Container, ScopedContainer } from '@navios/di'
+import type { QueueClient } from '@navios/queues'
+
 import {
   Ack,
   NoAck,
@@ -30,6 +19,17 @@ import {
   BatchProcessing,
   Priority,
 } from '../attributes/index.mjs'
+import {
+  extractMessageControllerMetadata,
+  extractMessageModuleMetadata,
+} from '../metadata/index.mjs'
+
+import type { MessageExecutionContext } from '../interfaces/message-execution-context.mjs'
+import type {
+  MessageControllerMetadata,
+  MessageHandlerMetadata,
+  MessageModuleMetadata,
+} from '../metadata/index.mjs'
 
 /**
  * Service that handles message processing, including:
@@ -125,4 +125,3 @@ export class MessageHandlerService {
     }
   }
 }
-

@@ -1,19 +1,13 @@
-import type { EndpointParams } from '@navios/core'
-
 import { builder } from '@navios/builder'
-import {
-  Controller,
-  Endpoint,
-  Module,
-  NaviosApplication,
-  NaviosFactory,
-} from '@navios/core'
-
+import { Controller, Endpoint, Module, NaviosApplication, NaviosFactory } from '@navios/core'
 import supertest from 'supertest'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { z } from 'zod/v4'
 
+import type { EndpointParams } from '@navios/core'
+
 import { defineFastifyEnvironment } from '../../src/index.mjs'
+
 import type { FastifyEnvironment } from '../../src/index.mjs'
 
 describe('POST variants', () => {
@@ -61,9 +55,7 @@ describe('POST variants', () => {
     }
 
     @Endpoint(withRequestAndQueryParams)
-    async getWithQueryParams(
-      req: EndpointParams<typeof withRequestAndQueryParams>,
-    ) {
+    async getWithQueryParams(req: EndpointParams<typeof withRequestAndQueryParams>) {
       return {
         foo: req.data.foo as string,
         bar: req.params.bar as string,
@@ -94,9 +86,7 @@ describe('POST variants', () => {
   })
 
   it('should return 200 with url params', async () => {
-    const response = await supertest(server.getServer().server).post(
-      '/with-url-params/123',
-    )
+    const response = await supertest(server.getServer().server).post('/with-url-params/123')
     expect(response.status).toBe(200)
     expect(response.body.id).toBe('123')
   })

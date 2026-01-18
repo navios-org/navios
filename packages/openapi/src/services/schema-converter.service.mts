@@ -1,8 +1,8 @@
-import type { ZodType } from 'zod/v4'
-import type { oas31 } from 'zod-openapi'
-
 import { Injectable } from '@navios/core'
 import { createSchema } from 'zod-openapi'
+
+import type { oas31 } from 'zod-openapi'
+import type { ZodType } from 'zod/v4'
 
 type SchemaObject = oas31.SchemaObject
 type ReferenceObject = oas31.ReferenceObject
@@ -64,9 +64,7 @@ export class SchemaConverterService {
    * @param properties - Schema properties object
    * @returns Transformed properties with file types as binary
    */
-  transformFileProperties(
-    properties: Record<string, SchemaObject>,
-  ): Record<string, SchemaObject> {
+  transformFileProperties(properties: Record<string, SchemaObject>): Record<string, SchemaObject> {
     const result: Record<string, SchemaObject> = {}
 
     for (const [key, prop] of Object.entries(properties)) {

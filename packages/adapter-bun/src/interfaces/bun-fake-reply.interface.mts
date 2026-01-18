@@ -97,8 +97,7 @@ export class BunFakeReply {
       headers['Content-Type'] = 'application/json'
     }
 
-    const body =
-      typeof this._body === 'string' ? this._body : JSON.stringify(this._body)
+    const body = typeof this._body === 'string' ? this._body : JSON.stringify(this._body)
 
     return new Response(body, {
       status: this._statusCode,

@@ -40,10 +40,7 @@ const CacheOptionsSchema = z.object({
   tags: z.array(z.string()).optional(),
 })
 
-export const Cache = AttributeFactory.createAttribute(
-  Symbol('Cache'),
-  CacheOptionsSchema,
-)
+export const Cache = AttributeFactory.createAttribute(Symbol('Cache'), CacheOptionsSchema)
 
 // Usage with typed data
 @Controller()
@@ -69,10 +66,7 @@ const RoleSchema = z.object({
   requireAll: z.boolean().default(false),
 })
 
-export const RequireRoles = AttributeFactory.createAttribute(
-  Symbol('RequireRoles'),
-  RoleSchema,
-)
+export const RequireRoles = AttributeFactory.createAttribute(Symbol('RequireRoles'), RoleSchema)
 
 @RequireRoles({ roles: ['admin', 'moderator'] })
 @Controller()
@@ -92,10 +86,7 @@ const RateLimitSchema = z.object({
   message: z.string().optional(),
 })
 
-export const RateLimit = AttributeFactory.createAttribute(
-  Symbol('RateLimit'),
-  RateLimitSchema,
-)
+export const RateLimit = AttributeFactory.createAttribute(Symbol('RateLimit'), RateLimitSchema)
 
 @Controller()
 export class ApiController {
@@ -130,11 +121,7 @@ AttributeFactory.getAll(attribute, metadata)
 
 // Get the last/most specific attribute from an array of metadata objects
 // Searches from right to left (most specific to least specific)
-AttributeFactory.getLast(attribute, [
-  moduleMetadata,
-  controllerMetadata,
-  handlerMetadata,
-])
+AttributeFactory.getLast(attribute, [moduleMetadata, controllerMetadata, handlerMetadata])
 // Returns: attribute value from the most specific level or null
 ```
 
@@ -306,10 +293,7 @@ const CacheSchema = z.object({
   invalidateOn: z.array(z.string()).optional(),
 })
 
-export const Cache = AttributeFactory.createAttribute(
-  Symbol('Cache'),
-  CacheSchema,
-)
+export const Cache = AttributeFactory.createAttribute(Symbol('Cache'), CacheSchema)
 
 @Controller()
 export class UserController {
@@ -346,18 +330,13 @@ export const Public = AttributeFactory.createAttribute(PublicSymbol)
 const RolesSchema = z.object({
   roles: z.array(z.enum(['VIEWER', 'USER', 'ADMIN', 'OWNER'])),
 })
-export const Roles = AttributeFactory.createAttribute(
-  Symbol.for('Roles'),
-  RolesSchema,
-)
+export const Roles = AttributeFactory.createAttribute(Symbol.for('Roles'), RolesSchema)
 
 @Injectable()
 export class SmartAuthGuard implements CanActivate {
   private logger = inject(Logger, { context: 'SmartAuthGuard' })
 
-  async canActivate(
-    executionContext: AbstractExecutionContext,
-  ): Promise<boolean> {
+  async canActivate(executionContext: AbstractExecutionContext): Promise<boolean> {
     // Check if endpoint is public (searches handler -> controller -> module)
     const isPublic = AttributeFactory.getLast(Public, [
       executionContext.getModule(),
@@ -428,9 +407,7 @@ export class UserController {
 ```typescript
 @Injectable()
 export class ConfigurableGuard implements CanActivate {
-  async canActivate(
-    executionContext: AbstractExecutionContext,
-  ): Promise<boolean> {
+  async canActivate(executionContext: AbstractExecutionContext): Promise<boolean> {
     const handler = executionContext.getHandler()
     const controller = executionContext.getController()
     const module = executionContext.getModule()
@@ -441,11 +418,7 @@ export class ConfigurableGuard implements CanActivate {
     const cacheConfig = AttributeFactory.get(Cache, handler)
 
     // Use getLast for fallback chain
-    const authConfig = AttributeFactory.getLast(AuthConfig, [
-      module,
-      controller,
-      handler,
-    ])
+    const authConfig = AttributeFactory.getLast(AuthConfig, [module, controller, handler])
 
     // Implement your logic based on multiple attributes
     if (isPublic) return true
@@ -524,9 +497,7 @@ import { AttributeFactory, inject, Injectable } from '@navios/di'
 export class RoleGuard implements CanActivate {
   private authService = inject(AuthService)
 
-  async canActivate(
-    executionContext: AbstractExecutionContext,
-  ): Promise<boolean> {
+  async canActivate(executionContext: AbstractExecutionContext): Promise<boolean> {
     // Use getLast to get the most specific role requirement
     const requiredRoles = AttributeFactory.getLast(RequireRoles, [
       executionContext.getModule(),
@@ -560,9 +531,7 @@ export class RoleGuard implements CanActivate {
 
 ```typescript
 // Create multiple attributes that work together
-export const Authenticated = AttributeFactory.createAttribute(
-  Symbol('Authenticated'),
-)
+export const Authenticated = AttributeFactory.createAttribute(Symbol('Authenticated'))
 
 export const RequireOwnership = AttributeFactory.createAttribute(
   Symbol('RequireOwnership'),
@@ -577,13 +546,7 @@ export class PostController {
   @Authenticated()
   @RequireOwnership({ resourceParam: 'id', userProperty: 'authorId' })
   @Endpoint(updatePostEndpoint)
-  async updatePost({
-    params,
-    body,
-  }: {
-    params: { id: string }
-    body: UpdatePostDto
-  }) {
+  async updatePost({ params, body }: { params: { id: string }; body: UpdatePostDto }) {
     // User must be authenticated and own the post
     return this.postService.update(params.id, body)
   }
@@ -625,9 +588,7 @@ export class UserController {
 
 ```typescript
 // ✅ Good - Clear intent
-export const RequireAdminRole = AttributeFactory.createAttribute(
-  Symbol('RequireAdminRole'),
-)
+export const RequireAdminRole = AttributeFactory.createAttribute(Symbol('RequireAdminRole'))
 
 // ❌ Avoid - Unclear purpose
 export const Admin = AttributeFactory.createAttribute(Symbol('Admin'))
@@ -642,10 +603,7 @@ const RateLimitSchema = z.object({
   windowMs: z.number().min(1000),
 })
 
-export const RateLimit = AttributeFactory.createAttribute(
-  Symbol('RateLimit'),
-  RateLimitSchema,
-)
+export const RateLimit = AttributeFactory.createAttribute(Symbol('RateLimit'), RateLimitSchema)
 ```
 
 ### 3. Document Attribute Behavior
@@ -658,25 +616,16 @@ export const RateLimit = AttributeFactory.createAttribute(
  * @param key - Cache key template (supports {param} placeholders)
  * @param tags - Cache tags for invalidation
  */
-export const Cache = AttributeFactory.createAttribute(
-  Symbol('Cache'),
-  CacheSchema,
-)
+export const Cache = AttributeFactory.createAttribute(Symbol('Cache'), CacheSchema)
 ```
 
 ### 4. Keep Attributes Focused
 
 ```typescript
 // ✅ Good - Single responsibility
-export const RateLimit = AttributeFactory.createAttribute(
-  Symbol('RateLimit'),
-  RateLimitSchema,
-)
+export const RateLimit = AttributeFactory.createAttribute(Symbol('RateLimit'), RateLimitSchema)
 
-export const Cache = AttributeFactory.createAttribute(
-  Symbol('Cache'),
-  CacheSchema,
-)
+export const Cache = AttributeFactory.createAttribute(Symbol('Cache'), CacheSchema)
 
 // ❌ Avoid - Multiple responsibilities
 export const RateLimitAndCache = AttributeFactory.createAttribute(

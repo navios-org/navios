@@ -12,14 +12,15 @@
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
-import type { OnServiceDestroy } from '../../interfaces/on-service-destroy.interface.mjs'
-
 import { Container } from '../../container/container.mjs'
 import { Injectable } from '../../decorators/injectable.decorator.mjs'
 import { InjectableScope } from '../../enums/injectable-scope.enum.mjs'
 import { InjectionToken } from '../../index.mjs'
 import { Registry } from '../../token/registry.mjs'
 import { asyncInject } from '../../utils/index.mjs'
+
+import type { OnServiceDestroy } from '../../interfaces/on-service-destroy.interface.mjs'
+
 import {
   createGCTracker,
   forceGC,
@@ -364,8 +365,7 @@ describe.skipIf(!isGCAvailable)('GC: Circular Dependencies', () => {
 
       const scoped = container.beginRequest('mixed-circular')
 
-      let singleton: SingletonService | null =
-        await scoped.get(SingletonService)
+      let singleton: SingletonService | null = await scoped.get(SingletonService)
       let request: RequestService | null = await scoped.get(RequestService)
 
       const singletonTracker = createGCTracker(singleton)
@@ -456,9 +456,7 @@ describe.skipIf(!isGCAvailable)('GC: Circular Dependencies', () => {
       const baselineMemory = getHeapUsed()
 
       // Resolve all services
-      let instances: object[] = await Promise.all(
-        services.map((S) => container.get(S)),
-      )
+      let instances: object[] = await Promise.all(services.map((S) => container.get(S)))
 
       forceGC()
       // Get the memory after the services are allocated

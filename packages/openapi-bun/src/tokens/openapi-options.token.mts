@@ -1,6 +1,6 @@
-import type { OpenApiGeneratorOptions } from '@navios/openapi'
-
 import { InjectionToken } from '@navios/core'
+
+import type { OpenApiGeneratorOptions } from '@navios/openapi'
 
 import type { BunOpenApiPluginOptionsBase } from '../schemas/index.mjs'
 
@@ -25,7 +25,6 @@ export interface BunOpenApiPluginOptions
  * }
  * ```
  */
-export const OpenApiOptionsToken =
-  InjectionToken.create<BunOpenApiPluginOptions>(
-    Symbol.for('BunOpenApiPluginOptions'),
-  )
+export const OpenApiOptionsToken = InjectionToken.create<BunOpenApiPluginOptions>(
+  Symbol.for('BunOpenApiPluginOptions'),
+)

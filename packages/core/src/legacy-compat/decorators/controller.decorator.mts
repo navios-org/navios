@@ -1,9 +1,10 @@
-import type { ClassType } from '@navios/di'
 import { createClassContext } from '@navios/di/legacy-compat'
 
-import type { ControllerOptions } from '../../decorators/controller.decorator.mjs'
+import type { ClassType } from '@navios/di'
 
 import { Controller as OriginalController } from '../../decorators/controller.decorator.mjs'
+
+import type { ControllerOptions } from '../../decorators/controller.decorator.mjs'
 
 /**
  * Legacy-compatible Controller decorator.

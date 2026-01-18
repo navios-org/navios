@@ -33,9 +33,7 @@ describe('UnitTestContainer', () => {
         providers: [],
       })
 
-      await expect(container.get(NotProvided)).rejects.toThrow(
-        /not in the providers list/,
-      )
+      await expect(container.get(NotProvided)).rejects.toThrow(/not in the providers list/)
 
       await container.dispose()
     })
@@ -122,10 +120,10 @@ describe('UnitTestContainer', () => {
         apiUrl: z.string(),
       })
 
-      const CONFIG_TOKEN = InjectionToken.create<
-        { apiUrl: string },
-        typeof configSchema
-      >('CONFIG', configSchema)
+      const CONFIG_TOKEN = InjectionToken.create<{ apiUrl: string }, typeof configSchema>(
+        'CONFIG',
+        configSchema,
+      )
 
       const BOUND_CONFIG = InjectionToken.bound(CONFIG_TOKEN, {
         apiUrl: 'https://default.com',
@@ -153,10 +151,10 @@ describe('UnitTestContainer', () => {
         apiUrl: z.string(),
       })
 
-      const CONFIG_TOKEN = InjectionToken.create<
-        { apiUrl: string },
-        typeof configSchema
-      >('CONFIG', configSchema)
+      const CONFIG_TOKEN = InjectionToken.create<{ apiUrl: string }, typeof configSchema>(
+        'CONFIG',
+        configSchema,
+      )
 
       const BOUND_CONFIG = InjectionToken.bound(CONFIG_TOKEN, {
         apiUrl: 'https://default.com',
@@ -401,9 +399,7 @@ describe('UnitTestContainer', () => {
         providers: [{ token: NotResolvedService }],
       })
 
-      expect(() =>
-        container.expectNotResolved(NotResolvedService),
-      ).not.toThrow()
+      expect(() => container.expectNotResolved(NotResolvedService)).not.toThrow()
 
       await container.dispose()
     })

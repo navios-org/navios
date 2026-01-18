@@ -11,13 +11,7 @@ export default defineConfig({
   treeshake: true,
   sourcemap: true,
   platform: 'node',
-  external: [
-    '@navios/core',
-    '@navios/openapi',
-    '@navios/adapter-bun',
-    '@navios/builder',
-    'zod',
-  ],
+  external: ['@navios/core', '@navios/openapi', '@navios/adapter-bun', '@navios/builder', 'zod'],
   dts: true,
   target: 'es2022',
   plugins: [

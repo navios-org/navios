@@ -1,11 +1,12 @@
+import { InjectableScope as Scope } from '../../enums/index.mjs'
+import { DIError } from '../../errors/index.mjs'
+import { Registry } from '../../token/registry.mjs'
+import { InstanceStatus } from '../holder/instance-holder.mjs'
+
 import type { InjectableScope } from '../../enums/index.mjs'
 import type { InjectionToken } from '../../token/injection-token.mjs'
 import type { IHolderStorage } from '../holder/holder-storage.interface.mjs'
 
-import { InjectableScope as Scope } from '../../enums/index.mjs'
-import { DIError } from '../../errors/index.mjs'
-import { InstanceStatus } from '../holder/instance-holder.mjs'
-import { Registry } from '../../token/registry.mjs'
 import { NameResolver } from './name-resolver.mjs'
 
 /**
@@ -46,10 +47,7 @@ export class ScopeTracker {
     requestId?: string,
   ): [boolean, string?] {
     // Only upgrade if current service is Singleton and dependency is Request
-    if (
-      currentServiceScope !== Scope.Singleton ||
-      dependencyScope !== Scope.Request
-    ) {
+    if (currentServiceScope !== Scope.Singleton || dependencyScope !== Scope.Request) {
       return [false]
     }
 
@@ -79,10 +77,7 @@ export class ScopeTracker {
         return [true, newName]
       }
     } catch (error) {
-      this.logger?.error(
-        `[ScopeTracker] Error upgrading scope for ${currentServiceName}:`,
-        error,
-      )
+      this.logger?.error(`[ScopeTracker] Error upgrading scope for ${currentServiceName}:`, error)
     }
 
     return [false]
@@ -121,18 +116,10 @@ export class ScopeTracker {
       return [
         false,
         undefined,
-        DIError.storageError(
-          'Scope upgrade failed',
-          'upgradeScopeToRequest',
-          serviceName,
-        ),
+        DIError.storageError('Scope upgrade failed', 'upgradeScopeToRequest', serviceName),
       ]
     } catch (error) {
-      return [
-        false,
-        undefined,
-        error instanceof DIError ? error : DIError.unknown(error as Error),
-      ]
+      return [false, undefined, error instanceof DIError ? error : DIError.unknown(error as Error)]
     }
   }
 
@@ -149,17 +136,12 @@ export class ScopeTracker {
   ): [boolean, string?] {
     // 1. Upgrade existing instance name to include requestId
     // This preserves any args hash that might be in the original name
-    const newName = this.nameResolver.upgradeInstanceNameToRequest(
-      serviceName,
-      requestId,
-    )
+    const newName = this.nameResolver.upgradeInstanceNameToRequest(serviceName, requestId)
 
     // 2. Update Registry scope to Request (synchronous)
     const updated = this.registry.updateScope(token, Scope.Request)
     if (!updated) {
-      this.logger?.warn(
-        `[ScopeTracker] Could not update scope in registry for ${serviceName}`,
-      )
+      this.logger?.warn(`[ScopeTracker] Could not update scope in registry for ${serviceName}`)
       return [false]
     }
 
@@ -192,12 +174,7 @@ export class ScopeTracker {
       // Remove from singleton storage
       singletonStorage.delete(serviceName)
       // Update parent dependencies
-      this.updateParentDependencies(
-        serviceName,
-        newName,
-        singletonStorage,
-        requestStorage,
-      )
+      this.updateParentDependencies(serviceName, newName, singletonStorage, requestStorage)
       return [true, newName]
     }
 
@@ -207,12 +184,7 @@ export class ScopeTracker {
     singletonStorage.delete(serviceName)
 
     // 6. Update all parent dependencies
-    this.updateParentDependencies(
-      serviceName,
-      newName,
-      singletonStorage,
-      requestStorage,
-    )
+    this.updateParentDependencies(serviceName, newName, singletonStorage, requestStorage)
 
     return [true, newName]
   }

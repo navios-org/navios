@@ -1,12 +1,8 @@
 import { ErrorResponseProducerService } from '@navios/core'
 import { TestContainer } from '@navios/core/testing'
-
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import {
-  FastifyControllerAdapterService,
-  FastifyValidatorCompilerService,
-} from '../index.mjs'
+import { FastifyControllerAdapterService, FastifyValidatorCompilerService } from '../index.mjs'
 import { FastifyApplicationServiceToken } from '../tokens/index.mjs'
 
 // Mock services
@@ -72,14 +68,10 @@ describe('FastifyApplicationService', () => {
   beforeEach(() => {
     container = new TestContainer()
     container.bind(ErrorResponseProducerService).toValue(mockErrorProducer)
-    container
-      .bind(FastifyValidatorCompilerService)
-      .toValue(mockValidatorCompiler)
+    container.bind(FastifyValidatorCompilerService).toValue(mockValidatorCompiler)
     container
       .bind(FastifyControllerAdapterService)
-      .toValue(
-        mockControllerAdapter as unknown as FastifyControllerAdapterService,
-      )
+      .toValue(mockControllerAdapter as unknown as FastifyControllerAdapterService)
     vi.clearAllMocks()
   })
 

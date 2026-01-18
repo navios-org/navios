@@ -10,11 +10,7 @@ The main entry point for dependency injection.
 
 ```typescript
 class Container implements IContainer {
-  constructor(
-    registry?: Registry,
-    logger?: Console | null,
-    injectors?: Injectors
-  )
+  constructor(registry?: Registry, logger?: Console | null, injectors?: Injectors)
 
   // Service resolution
   get<T>(token: T): Promise<InstanceType<T>>
@@ -91,7 +87,7 @@ class ScopedContainer implements IContainer {
   // Lifecycle
   invalidate(service: unknown): Promise<void>
   endRequest(): Promise<void>
-  dispose(): Promise<void>  // Alias for endRequest()
+  dispose(): Promise<void> // Alias for endRequest()
   ready(): Promise<void>
 
   // Introspection
@@ -144,9 +140,7 @@ class InjectionToken<
 
   constructor(name: string | symbol | ClassType, schema: ZodObject | undefined)
 
-  static create<T extends ClassType>(
-    name: T,
-  ): InjectionToken<InstanceType<T>, undefined>
+  static create<T extends ClassType>(name: T): InjectionToken<InstanceType<T>, undefined>
   static create<T extends ClassType, Schema extends InjectionTokenSchemaType>(
     name: T,
     schema: Schema,
@@ -167,9 +161,7 @@ class InjectionToken<
     token: InjectionToken<T, S>,
     factory: () => Promise<z.input<S>>,
   ): FactoryInjectionToken<T, S>
-  static refineType<T>(
-    token: BoundInjectionToken<any, any>,
-  ): BoundInjectionToken<T, any>
+  static refineType<T>(token: BoundInjectionToken<any, any>): BoundInjectionToken<T, any>
 
   toString(): string
 }
@@ -224,10 +216,7 @@ class FactoryInjectionToken<T, S extends InjectionTokenSchemaType> {
 Mark a class as injectable service.
 
 ```typescript
-function Injectable(): <T extends ClassType>(
-  target: T,
-  context?: ClassDecoratorContext,
-) => T
+function Injectable(): <T extends ClassType>(target: T, context?: ClassDecoratorContext) => T
 function Injectable(options: {
   scope?: InjectableScope
   registry: Registry
@@ -255,20 +244,12 @@ function Injectable<Type, Schema>(options: {
           target: T,
           context?: ClassDecoratorContext,
         ) => T
-      : <
-          T extends ClassTypeWithInstanceAndOptionalArgument<
-            Type,
-            z.output<Schema>
-          >,
-        >(
+      : <T extends ClassTypeWithInstanceAndOptionalArgument<Type, z.output<Schema>>>(
           target: T,
           context?: ClassDecoratorContext,
         ) => T
     : Schema extends undefined
-      ? <R extends ClassTypeWithInstance<Type>>(
-          target: R,
-          context?: ClassDecoratorContext,
-        ) => R
+      ? <R extends ClassTypeWithInstance<Type>>(target: R, context?: ClassDecoratorContext) => R
       : never
 ```
 
@@ -395,11 +376,7 @@ interface RequestContext {
   readonly createdAt: number
 
   addInstance(token: InjectionToken<any, undefined>, instance: any): void
-  addInstance(
-    instanceName: string,
-    instance: any,
-    holder: InstanceHolder,
-  ): void
+  addInstance(instanceName: string, instance: any, holder: InstanceHolder): void
   get(instanceName: string): InstanceHolder | undefined
   set(instanceName: string, holder: InstanceHolder): void
   has(instanceName: string): boolean
@@ -455,8 +432,8 @@ interface InstanceHolder<T = unknown> {
   status: InstanceStatus
   type: InjectableType
   scope: InjectableScope
-  deps: Set<string>           // Services this holder depends on
-  waitingFor: Set<string>     // Services this holder is waiting for (cycle detection)
+  deps: Set<string> // Services this holder depends on
+  waitingFor: Set<string> // Services this holder is waiting for (cycle detection)
   destroyListeners: InstanceDestroyListener[]
   createdAt: number
   creationPromise: Promise<[undefined, T]> | null
@@ -488,9 +465,7 @@ Asynchronous dependency injection.
 ```typescript
 function asyncInject<T extends ClassType>(
   token: T,
-): InstanceType<T> extends Factorable<infer R>
-  ? Promise<R>
-  : Promise<InstanceType<T>>
+): InstanceType<T> extends Factorable<infer R> ? Promise<R> : Promise<InstanceType<T>>
 function asyncInject<T, S extends InjectionTokenSchemaType>(
   token: InjectionToken<T, S>,
   args: z.input<S>,
@@ -536,9 +511,7 @@ function inject<T>(token: FactoryInjectionToken<T, any>): T
 Optional dependency injection (returns null if not registered).
 
 ```typescript
-function optional<T extends ClassType>(
-  token: T,
-): InstanceType<T> | null
+function optional<T extends ClassType>(token: T): InstanceType<T> | null
 function optional<T>(token: InjectionToken<T, any>): T | null
 ```
 
@@ -566,7 +539,7 @@ Runs a function within a resolution context for cycle detection.
 function withResolutionContext<T>(
   waiterHolder: InstanceHolder,
   getHolder: (name: string) => InstanceHolder | undefined,
-  fn: () => T
+  fn: () => T,
 ): T
 ```
 
@@ -646,9 +619,7 @@ type ClassTypeWithInstanceAndOptionalArgument<T, Arg> = new (arg?: Arg) => T
 Schema type for injection tokens.
 
 ```typescript
-type InjectionTokenSchemaType =
-  | BaseInjectionTokenSchemaType
-  | OptionalInjectionTokenSchemaType
+type InjectionTokenSchemaType = BaseInjectionTokenSchemaType | OptionalInjectionTokenSchemaType
 ```
 
 ### BaseInjectionTokenSchemaType
@@ -664,9 +635,7 @@ type BaseInjectionTokenSchemaType = ZodObject | ZodRecord
 Optional schema type.
 
 ```typescript
-type OptionalInjectionTokenSchemaType =
-  | ZodOptional<ZodObject>
-  | ZodOptional<ZodRecord>
+type OptionalInjectionTokenSchemaType = ZodOptional<ZodObject> | ZodOptional<ZodRecord>
 ```
 
 ### AnyInjectableType
@@ -703,6 +672,7 @@ type InjectionTokenType =
 | Request   | ✅ Supported | ✅ Supported | ✅ Supported |
 
 **Notes:**
+
 - `inject()` works with all scopes but returns a proxy for dependencies not yet initialized
 - `asyncInject()` is recommended for circular dependencies as it runs outside the resolution context
 - `optional()` returns `null` if the service is not registered
@@ -819,10 +789,7 @@ const configSchema = z.object({
   timeout: z.number(),
 })
 
-const CONFIG_TOKEN = InjectionToken.create<Config, typeof configSchema>(
-  'APP_CONFIG',
-  configSchema,
-)
+const CONFIG_TOKEN = InjectionToken.create<Config, typeof configSchema>('APP_CONFIG', configSchema)
 
 @Injectable({ token: CONFIG_TOKEN })
 class ConfigService {
@@ -942,7 +909,7 @@ import { asyncInject, inject, Injectable } from '@navios/di'
 // Use asyncInject to break circular dependencies
 @Injectable()
 class ServiceA {
-  private serviceB = asyncInject(ServiceB)  // Break cycle here
+  private serviceB = asyncInject(ServiceB) // Break cycle here
 
   async doSomething() {
     const b = await this.serviceB
@@ -952,7 +919,7 @@ class ServiceA {
 
 @Injectable()
 class ServiceB {
-  private serviceA = inject(ServiceA)  // This side can use inject
+  private serviceA = inject(ServiceA) // This side can use inject
 
   process() {
     return 'processed'

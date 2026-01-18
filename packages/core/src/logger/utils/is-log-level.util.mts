@@ -1,6 +1,6 @@
-import type { LogLevel } from '../log-levels.mjs'
-
 import { LOG_LEVELS } from '../log-levels.mjs'
+
+import type { LogLevel } from '../log-levels.mjs'
 
 /**
  * @publicApi

@@ -93,11 +93,7 @@ export class UserController {
 Create domain-specific exceptions by extending HTTP exceptions:
 
 ```typescript
-import {
-  BadRequestException,
-  ConflictException,
-  NotFoundException,
-} from '@navios/core'
+import { BadRequestException, ConflictException, NotFoundException } from '@navios/core'
 
 // Domain-specific exceptions
 export class UserNotFoundException extends NotFoundException {

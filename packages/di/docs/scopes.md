@@ -415,6 +415,7 @@ class ConsumerService {
 ```
 
 **Important Notes:**
+
 - When using `inject` with Transient services, the dependency won't be immediately available during constructor execution
 - Access the service only in async methods or after the service initialization completes
 - For synchronous access during construction, use `asyncInject` and await it explicitly
@@ -502,9 +503,7 @@ class RequestHandler {
   private readonly context = inject(RequestContext)
 
   async handleRequest() {
-    console.log(
-      `Handling request ${this.context.getRequestId()} from ${this.context.getIp()}`,
-    )
+    console.log(`Handling request ${this.context.getRequestId()} from ${this.context.getIp()}`)
 
     // Process request...
 
@@ -564,9 +563,7 @@ class UserService {
   async authenticateUser(userId: string) {
     this.logger.log(`Authenticating user ${userId}`)
 
-    this.logger.log(
-      `Created session ${this.session.getSessionId()} for user ${userId}`,
-    )
+    this.logger.log(`Created session ${this.session.getSessionId()} for user ${userId}`)
 
     return {
       userId,

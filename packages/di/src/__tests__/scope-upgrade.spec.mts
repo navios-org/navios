@@ -175,12 +175,7 @@ describe('Scope Upgrade: Simple Singleton -> Request', () => {
       // Before resolution
       const instanceNameBefore = container
         .getNameResolver()
-        .generateInstanceName(
-          token,
-          undefined,
-          undefined,
-          InjectableScope.Singleton,
-        )
+        .generateInstanceName(token, undefined, undefined, InjectableScope.Singleton)
 
       // Resolve
       await scoped.get(SingletonWithRequestDep)
@@ -192,12 +187,7 @@ describe('Scope Upgrade: Simple Singleton -> Request', () => {
       // It should be in request storage with new name
       const instanceNameAfter = container
         .getNameResolver()
-        .generateInstanceName(
-          token,
-          undefined,
-          'request-1',
-          InjectableScope.Request,
-        )
+        .generateInstanceName(token, undefined, 'request-1', InjectableScope.Request)
       const requestResult = requestStorage.get(instanceNameAfter)
       expect(requestResult).not.toBeNull()
 
@@ -715,19 +705,11 @@ describe('Scope Upgrade: Edge Cases', () => {
       ])
 
       // After upgrade, each request should have its own instance
-      const ids = [
-        instance1.instanceId,
-        instance2.instanceId,
-        instance3.instanceId,
-      ]
+      const ids = [instance1.instanceId, instance2.instanceId, instance3.instanceId]
       const uniqueIds = new Set(ids)
       expect(uniqueIds.size).toBe(3)
 
-      await Promise.all([
-        scoped1.endRequest(),
-        scoped2.endRequest(),
-        scoped3.endRequest(),
-      ])
+      await Promise.all([scoped1.endRequest(), scoped2.endRequest(), scoped3.endRequest()])
     })
   })
 

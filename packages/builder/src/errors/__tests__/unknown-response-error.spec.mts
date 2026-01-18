@@ -1,14 +1,11 @@
 import { describe, expect, it } from 'vitest'
 
-import type { AbstractResponse } from '../../types/index.mjs'
-
 import { UnknownResponseError } from '../unknown-response-error.mjs'
 
+import type { AbstractResponse } from '../../types/index.mjs'
+
 describe('UnknownResponseError', () => {
-  const createResponse = (
-    status: number,
-    data: unknown = {},
-  ): AbstractResponse<unknown> => ({
+  const createResponse = (status: number, data: unknown = {}): AbstractResponse<unknown> => ({
     data,
     status,
     statusText: 'Error',

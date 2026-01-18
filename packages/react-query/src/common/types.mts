@@ -1,8 +1,4 @@
-import type {
-  BuilderInstance,
-  ErrorSchemaRecord,
-  InferErrorSchemaOutput,
-} from '@navios/builder'
+import type { BuilderInstance, ErrorSchemaRecord, InferErrorSchemaOutput } from '@navios/builder'
 import type { z, ZodType } from 'zod/v4'
 
 /**

@@ -1,3 +1,10 @@
+import { Container } from '../container/container.mjs'
+import { InjectableScope, InjectableType } from '../enums/index.mjs'
+import { BoundInjectionToken, InjectionToken } from '../token/injection-token.mjs'
+import { globalRegistry, Registry } from '../token/registry.mjs'
+import { getInjectableToken } from '../utils/get-injectable-token.mjs'
+import { defaultInjectors } from '../utils/index.mjs'
+
 import type {
   BindingBuilder,
   DependencyGraph,
@@ -7,16 +14,6 @@ import type {
   MockServiceStats,
   TestContainerOptions,
 } from './types.mjs'
-
-import { Container } from '../container/container.mjs'
-import { InjectableScope, InjectableType } from '../enums/index.mjs'
-import {
-  BoundInjectionToken,
-  InjectionToken,
-} from '../token/injection-token.mjs'
-import { globalRegistry, Registry } from '../token/registry.mjs'
-import { getInjectableToken } from '../utils/get-injectable-token.mjs'
-import { defaultInjectors } from '../utils/index.mjs'
 
 type AnyToken =
   | InjectionToken<any, any>
@@ -74,9 +71,7 @@ export class TestContainer extends Container {
    */
   constructor(options: TestContainerOptions = {}) {
     const { parentRegistry = globalRegistry, logger = null } = options
-    const testRegistry = parentRegistry
-      ? new Registry(parentRegistry)
-      : new Registry()
+    const testRegistry = parentRegistry ? new Registry(parentRegistry) : new Registry()
     super(testRegistry, logger, defaultInjectors)
     this.testRegistry = testRegistry
   }
@@ -97,10 +92,7 @@ export class TestContainer extends Container {
    * ```
    */
   bind<T>(
-    token:
-      | InjectionToken<T, any>
-      | BoundInjectionToken<T, any>
-      | (new (...args: any[]) => T),
+    token: InjectionToken<T, any> | BoundInjectionToken<T, any> | (new (...args: any[]) => T),
   ): BindingBuilder<T> {
     const realToken = this.resolveToken(token)
     const tokenId = realToken.id
@@ -146,9 +138,7 @@ export class TestContainer extends Container {
     const found = names.some((name) => name.includes(realToken.id))
 
     if (!found) {
-      throw new Error(
-        `Expected ${realToken.toString()} to be resolved, but it was not`,
-      )
+      throw new Error(`Expected ${realToken.toString()} to be resolved, but it was not`)
     }
   }
 
@@ -162,9 +152,7 @@ export class TestContainer extends Container {
     const found = names.some((name) => name.includes(realToken.id))
 
     if (found) {
-      throw new Error(
-        `Expected ${realToken.toString()} to NOT be resolved, but it was`,
-      )
+      throw new Error(`Expected ${realToken.toString()} to NOT be resolved, but it was`)
     }
   }
 
@@ -176,9 +164,7 @@ export class TestContainer extends Container {
     const registry = this.getRegistry()
 
     if (!registry.has(realToken)) {
-      throw new Error(
-        `Expected ${realToken.toString()} to be registered, but it was not`,
-      )
+      throw new Error(`Expected ${realToken.toString()} to be registered, but it was not`)
     }
 
     const record = registry.get(realToken)
@@ -197,9 +183,7 @@ export class TestContainer extends Container {
     const registry = this.getRegistry()
 
     if (!registry.has(realToken)) {
-      throw new Error(
-        `Expected ${realToken.toString()} to be registered, but it was not`,
-      )
+      throw new Error(`Expected ${realToken.toString()} to be registered, but it was not`)
     }
 
     const record = registry.get(realToken)
@@ -218,9 +202,7 @@ export class TestContainer extends Container {
     const registry = this.getRegistry()
 
     if (!registry.has(realToken)) {
-      throw new Error(
-        `Expected ${realToken.toString()} to be registered, but it was not`,
-      )
+      throw new Error(`Expected ${realToken.toString()} to be registered, but it was not`)
     }
 
     const record = registry.get(realToken)
@@ -369,25 +351,17 @@ export class TestContainer extends Container {
     const found = calls.some((c) => c.method === method)
 
     if (!found) {
-      throw new Error(
-        `Expected ${realToken.toString()}.${method}() to be called, but it was not`,
-      )
+      throw new Error(`Expected ${realToken.toString()}.${method}() to be called, but it was not`)
     }
   }
 
   /**
    * Asserts that a method was called with specific arguments.
    */
-  expectCalledWith(
-    token: AnyToken,
-    method: string,
-    expectedArgs: unknown[],
-  ): void {
+  expectCalledWith(token: AnyToken, method: string, expectedArgs: unknown[]): void {
     const realToken = this.resolveToken(token)
     const calls = this.methodCalls.get(realToken.id) || []
-    const found = calls.some(
-      (c) => c.method === method && this.argsMatch(c.args, expectedArgs),
-    )
+    const found = calls.some((c) => c.method === method && this.argsMatch(c.args, expectedArgs))
 
     if (!found) {
       throw new Error(
@@ -519,10 +493,7 @@ export class TestContainer extends Container {
     return token
   }
 
-  private registerValueBinding<T>(
-    token: InjectionToken<T, any>,
-    value: T,
-  ): void {
+  private registerValueBinding<T>(token: InjectionToken<T, any>, value: T): void {
     // Create a simple class that returns the value
     const ValueHolder = class {
       create(): T {

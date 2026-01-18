@@ -1,31 +1,19 @@
 {
   "name": "@navios/adapter-bun",
   "version": "1.1.0",
-  "scripts": {
-    "check": "tsc -b",
-    "lint": "oxlint --fix",
-    "test:ci": "vitest run",
-    "build": "tsdown",
-    "publish": "yarn npm publish --access public",
-    "publish:next": "yarn npm publish --access public --tag next"
-  },
+  "license": "MIT",
   "author": {
     "name": "Oleksandr Hanzha",
     "email": "alex@granted.name"
   },
   "repository": {
-    "directory": "packages/adapter-bun",
     "type": "git",
-    "url": "https://github.com/Arilas/navios.git"
+    "url": "https://github.com/Arilas/navios.git",
+    "directory": "packages/adapter-bun"
   },
-  "license": "MIT",
-  "peerDependencies": {
-    "@navios/builder": "workspace:^",
-    "@navios/core": "workspace:^"
-  },
-  "typings": "./lib/index.d.mts",
   "main": "./lib/index.cjs",
   "module": "./lib/index.mjs",
+  "typings": "./lib/index.d.mts",
   "exports": {
     ".": {
       "import": {
@@ -38,6 +26,14 @@
       }
     }
   },
+  "scripts": {
+    "check": "tsc -b",
+    "lint": "yarn run -T oxlint --fix && yarn run -T oxfmt",
+    "test:ci": "bun test",
+    "build": "tsdown",
+    "publish": "yarn npm publish --access public",
+    "publish:next": "yarn npm publish --access public --tag next"
+  },
   "devDependencies": {
     "@navios/builder": "workspace:^",
     "@navios/core": "workspace:^",
@@ -46,5 +42,9 @@
     "supertest": "^7.2.2",
     "tsx": "^4.21.0",
     "typescript": "^5.9.3"
+  },
+  "peerDependencies": {
+    "@navios/builder": "workspace:^",
+    "@navios/core": "workspace:^"
   }
 }

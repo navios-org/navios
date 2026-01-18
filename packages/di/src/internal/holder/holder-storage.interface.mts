@@ -1,5 +1,6 @@
 import type { InjectableScope, InjectableType } from '../../enums/index.mjs'
 import type { DIError } from '../../errors/index.mjs'
+
 import type { InstanceHolder } from './instance-holder.mjs'
 
 /**
@@ -69,10 +70,7 @@ export interface IHolderStorage {
     instanceName: string,
     type: InjectableType,
     deps: Set<string>,
-  ): [
-    ReturnType<typeof Promise.withResolvers<[undefined, T]>>,
-    InstanceHolder<T>,
-  ]
+  ): [ReturnType<typeof Promise.withResolvers<[undefined, T]>>, InstanceHolder<T>]
 
   /**
    * Checks if this storage should be used for the given scope.

@@ -1,5 +1,4 @@
 import { Container, Injectable, InjectionToken, Registry } from '@navios/di'
-
 import { act, render, screen, waitFor } from '@testing-library/react'
 import { createElement, Suspense, useMemo } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -35,11 +34,7 @@ describe('useSuspenseService', () => {
 
       function TestComponent() {
         const service = useSuspenseService(TestService)
-        return createElement(
-          'div',
-          { 'data-testid': 'result' },
-          service.getValue(),
-        )
+        return createElement('div', { 'data-testid': 'result' }, service.getValue())
       }
 
       render(
@@ -47,11 +42,7 @@ describe('useSuspenseService', () => {
           createElement(
             Suspense,
             {
-              fallback: createElement(
-                'div',
-                { 'data-testid': 'loading' },
-                'Loading...',
-              ),
+              fallback: createElement('div', { 'data-testid': 'loading' }, 'Loading...'),
             },
             createElement(TestComponent),
           ),
@@ -95,11 +86,7 @@ describe('useSuspenseService', () => {
           createElement(
             Suspense,
             {
-              fallback: createElement(
-                'div',
-                { 'data-testid': 'loading' },
-                'Loading...',
-              ),
+              fallback: createElement('div', { 'data-testid': 'loading' }, 'Loading...'),
             },
             createElement(TestComponent),
           ),
@@ -110,9 +97,7 @@ describe('useSuspenseService', () => {
         expect(screen.getByTestId('url')).toBeDefined()
       })
 
-      expect(screen.getByTestId('url').textContent).toBe(
-        'https://api.example.com',
-      )
+      expect(screen.getByTestId('url').textContent).toBe('https://api.example.com')
     })
 
     it('should load service with injection token and args', async () => {
@@ -144,11 +129,7 @@ describe('useSuspenseService', () => {
           createElement(
             Suspense,
             {
-              fallback: createElement(
-                'div',
-                { 'data-testid': 'loading' },
-                'Loading...',
-              ),
+              fallback: createElement('div', { 'data-testid': 'loading' }, 'Loading...'),
             },
             createElement(TestComponent),
           ),
@@ -179,11 +160,7 @@ describe('useSuspenseService', () => {
 
       function TestComponent() {
         const service = useSuspenseService(CachedService)
-        return createElement(
-          'div',
-          { 'data-testid': 'id' },
-          String(service.instanceId),
-        )
+        return createElement('div', { 'data-testid': 'id' }, String(service.instanceId))
       }
 
       const { rerender } = render(
@@ -241,9 +218,7 @@ describe('useSuspenseService', () => {
 
       function TestComponent() {
         const service = useSuspenseService(InvalidatableService)
-        return createElement('div', { 'data-testid': 'instance-id' }, [
-          String(service.getId()),
-        ])
+        return createElement('div', { 'data-testid': 'instance-id' }, [String(service.getId())])
       }
 
       render(
@@ -251,11 +226,7 @@ describe('useSuspenseService', () => {
           createElement(
             Suspense,
             {
-              fallback: createElement(
-                'div',
-                { 'data-testid': 'loading' },
-                'Loading...',
-              ),
+              fallback: createElement('div', { 'data-testid': 'loading' }, 'Loading...'),
             },
             createElement(TestComponent),
           ),

@@ -1,6 +1,6 @@
-import type { ClassType, Registry } from '@navios/di'
-
 import { Injectable, InjectableScope, InjectionToken } from '@navios/di'
+
+import type { ClassType, Registry } from '@navios/di'
 
 import { getModuleMetadata } from '../metadata/index.mjs'
 

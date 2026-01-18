@@ -1,16 +1,7 @@
 // oxlint-disable no-unused-vars
 import { builder } from '@navios/builder'
-
 import { describe, expectTypeOf, test } from 'vitest'
 import { z } from 'zod/v4'
-
-import type {
-  EndpointParams,
-  EndpointResult,
-  MultipartParams,
-  MultipartResult,
-  StreamParams,
-} from '../index.mjs'
 
 import {
   AttributeFactory,
@@ -23,6 +14,14 @@ import {
   Multipart,
   Stream,
   UseGuards,
+} from '../index.mjs'
+
+import type {
+  EndpointParams,
+  EndpointResult,
+  MultipartParams,
+  MultipartResult,
+  StreamParams,
 } from '../index.mjs'
 
 // Create a test API builder
@@ -176,9 +175,7 @@ describe('Legacy Decorators Type Safety', () => {
       class UserController {
         // @ts-expect-error - wrong parameter type
         @Endpoint(getUserEndpoint)
-        async getUser(request: {
-          wrong: string
-        }): EndpointResult<typeof getUserEndpoint> {
+        async getUser(request: { wrong: string }): EndpointResult<typeof getUserEndpoint> {
           return { id: '1', name: 'John' }
         }
       }
@@ -248,9 +245,7 @@ describe('Legacy Decorators Type Safety', () => {
       class FileController {
         // @ts-expect-error - wrong parameter type
         @Multipart(uploadFileEndpoint)
-        async uploadFile(request: {
-          wrong: string
-        }): MultipartResult<typeof uploadFileEndpoint> {
+        async uploadFile(request: { wrong: string }): MultipartResult<typeof uploadFileEndpoint> {
           return { id: '1', name: 'test.jpg' }
         }
       }
@@ -262,9 +257,7 @@ describe('Legacy Decorators Type Safety', () => {
       @Controller()
       class FileController {
         @Stream(downloadFileEndpoint)
-        async downloadFile(
-          request: StreamParams<typeof downloadFileEndpoint>,
-        ): Promise<void> {
+        async downloadFile(request: StreamParams<typeof downloadFileEndpoint>): Promise<void> {
           // TypeScript should infer:
           // - request.urlParams.fileId: string | number
           // - request.params.page: number
@@ -282,9 +275,7 @@ describe('Legacy Decorators Type Safety', () => {
       @Controller()
       class FileController {
         @Stream(downloadFileEndpoint)
-        async downloadFile(
-          request: StreamParams<typeof downloadFileEndpoint>,
-        ): Promise<void> {
+        async downloadFile(request: StreamParams<typeof downloadFileEndpoint>): Promise<void> {
           // Stream methods can work without reply parameter (for Bun)
           expectTypeOf(request.urlParams.fileId).toEqualTypeOf<string>()
         }
@@ -407,9 +398,7 @@ describe('Legacy Decorators Type Safety', () => {
         }
       }
 
-      expectTypeOf(UserController).toBeConstructibleWith(
-        {} as InstanceType<typeof UserService>,
-      )
+      expectTypeOf(UserController).toBeConstructibleWith({} as InstanceType<typeof UserService>)
     })
   })
 
@@ -458,10 +447,7 @@ describe('Legacy Decorators Type Safety', () => {
     })
 
     test('should create attribute for modules', () => {
-      const ApiVersion = AttributeFactory.createAttribute(
-        Symbol.for('ApiVersion'),
-        z.string(),
-      )
+      const ApiVersion = AttributeFactory.createAttribute(Symbol.for('ApiVersion'), z.string())
 
       @Controller()
       class VersionedController {}

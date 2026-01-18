@@ -1,8 +1,3 @@
-import type {
-  AnyInjectableType,
-  InjectionTokenType,
-} from '../../token/injection-token.mjs'
-
 import { DIError } from '../../errors/index.mjs'
 import {
   BoundInjectionToken,
@@ -10,6 +5,8 @@ import {
   InjectionToken,
 } from '../../token/injection-token.mjs'
 import { getInjectableToken } from '../../utils/index.mjs'
+
+import type { AnyInjectableType, InjectionTokenType } from '../../token/injection-token.mjs'
 
 /**
  * Handles token validation and resolution.
@@ -47,10 +44,7 @@ export class TokenResolver {
    * @returns The underlying InjectionToken
    */
   getRealToken<T = unknown>(token: InjectionTokenType): InjectionToken<T> {
-    if (
-      token instanceof BoundInjectionToken ||
-      token instanceof FactoryInjectionToken
-    ) {
+    if (token instanceof BoundInjectionToken || token instanceof FactoryInjectionToken) {
       return token.token as InjectionToken<T>
     }
     return token as InjectionToken<T>
@@ -81,10 +75,7 @@ export class TokenResolver {
   validateAndResolveTokenArgs(
     token: AnyInjectableType,
     args?: any,
-  ): [
-    DIError | undefined,
-    { actualToken: InjectionTokenType; validatedArgs?: any },
-  ] {
+  ): [DIError | undefined, { actualToken: InjectionTokenType; validatedArgs?: any }] {
     let actualToken = token as InjectionToken<any, any>
     if (typeof token === 'function') {
       actualToken = getInjectableToken(token)

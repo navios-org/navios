@@ -58,11 +58,7 @@ class UserRegistrationService {
     const user = this.userService.createUser(name, email)
 
     // Send welcome email
-    await this.emailService.sendEmail(
-      email,
-      'Welcome!',
-      `Hello ${name}, welcome to our platform!`,
-    )
+    await this.emailService.sendEmail(email, 'Welcome!', `Hello ${name}, welcome to our platform!`)
 
     this.logger.log(`User registration completed for ${name}`)
 
@@ -81,10 +77,7 @@ async function main() {
   const registrationService = await container.get(UserRegistrationService)
 
   // Register a user
-  const user = await registrationService.registerUser(
-    'Alice',
-    'alice@example.com',
-  )
+  const user = await registrationService.registerUser('Alice', 'alice@example.com')
 
   console.log('\nRegistered user:', user)
 }

@@ -1,9 +1,9 @@
+import { assertType, describe, test } from 'vitest'
+import { z as zod } from 'zod/v4'
+
 import type { ErrorSchemaRecord } from '@navios/builder'
 import type { UseMutationResult } from '@tanstack/react-query'
 import type { z } from 'zod/v4'
-
-import { assertType, describe, test } from 'vitest'
-import { z as zod } from 'zod/v4'
 
 import type { MutationHelpers } from '../../mutation/types.mjs'
 import type { ClientInstance, EndpointHelper } from '../types.mjs'
@@ -68,9 +68,7 @@ describe('ClientInstance<false> multipartMutation() method', () => {
         processResponse: (data) => data,
       })
 
-      assertType<
-        () => UseMutationResult<ResponseType, Error, { data: RequestType }>
-      >(mutation)
+      assertType<() => UseMutationResult<ResponseType, Error, { data: RequestType }>>(mutation)
     })
 
     test('POST multipart mutation with URL params', () => {
@@ -123,11 +121,7 @@ describe('ClientInstance<false> multipartMutation() method', () => {
       })
 
       assertType<
-        () => UseMutationResult<
-          ResponseType,
-          Error,
-          { data: RequestType; params: QueryType }
-        >
+        () => UseMutationResult<ResponseType, Error, { data: RequestType; params: QueryType }>
       >(mutation)
     })
 
@@ -167,11 +161,7 @@ describe('ClientInstance<false> multipartMutation() method', () => {
       })
 
       assertType<
-        () => UseMutationResult<
-          { uploaded: boolean; fileId: string },
-          Error,
-          { data: RequestType }
-        >
+        () => UseMutationResult<{ uploaded: boolean; fileId: string }, Error, { data: RequestType }>
       >(mutation)
     })
   })
@@ -248,12 +238,12 @@ describe('ClientInstance<false> multipartMutation() method', () => {
         processResponse: (data) => data,
       })
 
-      assertType<
-        MutationHelpers<'/users/$userId/avatar', ResponseType>['mutationKey']
-      >(mutation.mutationKey)
-      assertType<
-        MutationHelpers<'/users/$userId/avatar', ResponseType>['useIsMutating']
-      >(mutation.useIsMutating)
+      assertType<MutationHelpers<'/users/$userId/avatar', ResponseType>['mutationKey']>(
+        mutation.mutationKey,
+      )
+      assertType<MutationHelpers<'/users/$userId/avatar', ResponseType>['useIsMutating']>(
+        mutation.useIsMutating,
+      )
     })
 
     test('multipart mutation with useKey and querySchema', () => {
@@ -268,9 +258,7 @@ describe('ClientInstance<false> multipartMutation() method', () => {
       })
 
       assertType<
-        (params: {
-          urlParams: { userId: string | number }
-        }) => UseMutationResult<
+        (params: { urlParams: { userId: string | number } }) => UseMutationResult<
           ResponseType,
           Error,
           {
@@ -292,13 +280,9 @@ describe('ClientInstance<false> multipartMutation() method', () => {
         processResponse: (data) => data,
       })
 
-      assertType<
-        (params: {}) => UseMutationResult<
-          ResponseType,
-          Error,
-          { data: RequestType }
-        >
-      >(mutation)
+      assertType<(params: {}) => UseMutationResult<ResponseType, Error, { data: RequestType }>>(
+        mutation,
+      )
     })
   })
 
@@ -390,9 +374,7 @@ describe('ClientInstance<false> multipartMutation() method', () => {
         processResponse: (data) => data,
       })
 
-      assertType<
-        () => UseMutationResult<ResponseType, Error, { data: RequestType }>
-      >(mutation)
+      assertType<() => UseMutationResult<ResponseType, Error, { data: RequestType }>>(mutation)
     })
 
     test('processResponse receives only success type', () => {
@@ -421,12 +403,7 @@ describe('ClientInstance<false> multipartMutation() method', () => {
       })
 
       assertType<
-        EndpointHelper<
-          'POST',
-          '/upload',
-          typeof requestSchema,
-          typeof responseSchema
-        >['endpoint']
+        EndpointHelper<'POST', '/upload', typeof requestSchema, typeof responseSchema>['endpoint']
       >(mutation.endpoint)
     })
 
@@ -469,13 +446,9 @@ describe('ClientInstance<true> multipartMutation() method (discriminator mode)',
         processResponse: (data) => data,
       })
 
-      assertType<
-        () => UseMutationResult<
-          ResponseWithErrors,
-          Error,
-          { data: RequestType }
-        >
-      >(mutation)
+      assertType<() => UseMutationResult<ResponseWithErrors, Error, { data: RequestType }>>(
+        mutation,
+      )
     })
 
     test('processResponse receives union type', () => {
@@ -493,9 +466,7 @@ describe('ClientInstance<true> multipartMutation() method (discriminator mode)',
     })
 
     test('processResponse can transform union type', () => {
-      type ExpectedResult =
-        | { ok: false; error: ErrorUnion }
-        | { ok: true; data: ResponseType }
+      type ExpectedResult = { ok: false; error: ErrorUnion } | { ok: true; data: ResponseType }
 
       const mutation = clientWithDiscriminator.multipartMutation({
         method: 'POST',
@@ -512,9 +483,7 @@ describe('ClientInstance<true> multipartMutation() method (discriminator mode)',
         },
       })
 
-      assertType<
-        () => UseMutationResult<ExpectedResult, Error, { data: RequestType }>
-      >(mutation)
+      assertType<() => UseMutationResult<ExpectedResult, Error, { data: RequestType }>>(mutation)
     })
 
     test('onSuccess receives union type', () => {
@@ -542,9 +511,7 @@ describe('ClientInstance<true> multipartMutation() method (discriminator mode)',
         processResponse: (data) => data,
       })
 
-      assertType<
-        () => UseMutationResult<ResponseType, Error, { data: RequestType }>
-      >(mutation)
+      assertType<() => UseMutationResult<ResponseType, Error, { data: RequestType }>>(mutation)
     })
   })
 })

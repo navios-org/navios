@@ -2,10 +2,7 @@ import type { z, ZodObject, ZodType } from 'zod/v4'
 
 import type { Client } from './common.mjs'
 import type { BaseEndpointOptions, EndpointOptions } from './config.mjs'
-import type {
-  ErrorSchemaRecord,
-  InferErrorSchemaOutputWithStatus,
-} from './error-schema.mjs'
+import type { ErrorSchemaRecord, InferErrorSchemaOutputWithStatus } from './error-schema.mjs'
 import type { Simplify, UrlHasParams, UrlParams } from './request.mjs'
 
 // =============================================================================
@@ -139,9 +136,7 @@ export type InferEndpointReturn<
   UseDiscriminator extends boolean,
 > = UseDiscriminator extends true
   ? Options['errorSchema'] extends ErrorSchemaRecord
-    ?
-        | z.output<Options['responseSchema']>
-        | InferErrorSchemaOutputWithStatus<Options['errorSchema']>
+    ? z.output<Options['responseSchema']> | InferErrorSchemaOutputWithStatus<Options['errorSchema']>
     : z.output<Options['responseSchema']>
   : z.output<Options['responseSchema']>
 
@@ -173,10 +168,7 @@ export type InferStreamReturn<
  * const config = getUser.config // Access the original config
  * ```
  */
-export type EndpointHandler<
-  Options extends EndpointOptions,
-  UseDiscriminator extends boolean,
-> = ((
+export type EndpointHandler<Options extends EndpointOptions, UseDiscriminator extends boolean> = ((
   params: InferEndpointParams<Options>,
 ) => Promise<InferEndpointReturn<Options, UseDiscriminator>>) & {
   config: Options
@@ -326,9 +318,7 @@ export type EndpointParams<T> = T extends (params: infer P) => any ? P : never
  * type Result = EndpointResult<typeof getUser>
  * ```
  */
-export type EndpointResult<T> = T extends (params: any) => Promise<infer R>
-  ? R
-  : never
+export type EndpointResult<T> = T extends (params: any) => Promise<infer R> ? R : never
 
 /**
  * Extracts the config type from an endpoint declaration.

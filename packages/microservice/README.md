@@ -17,4 +17,3 @@ yarn add @navios/microservice @navios/core @navios/queues @navios/di zod
 ## License
 
 MIT
-

@@ -1,11 +1,11 @@
 import { assertType, describe, test } from 'vitest'
 import { z } from 'zod/v4'
 
-import type { Factorable } from '../interfaces/index.mjs'
-
 import { Container } from '../container/container.mjs'
 import { Factory, Injectable } from '../decorators/index.mjs'
 import { InjectionToken } from '../token/injection-token.mjs'
+
+import type { Factorable } from '../interfaces/index.mjs'
 
 interface FooService {
   makeFoo(): string
@@ -29,10 +29,10 @@ const typelessOptionalObjectToken = InjectionToken.create(
   simpleOptionalObjectSchema,
 )
 
-const typedObjectToken = InjectionToken.create<
-  FooService,
-  typeof simpleObjectSchema
->(Symbol.for('Typed object token'), simpleObjectSchema)
+const typedObjectToken = InjectionToken.create<FooService, typeof simpleObjectSchema>(
+  Symbol.for('Typed object token'),
+  simpleObjectSchema,
+)
 const typedOptionalObjectToken = InjectionToken.create<
   FooService,
   typeof simpleOptionalObjectSchema
