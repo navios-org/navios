@@ -1,0 +1,49 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "tasks": {
+    "check": {
+      "dependsOn": ["^build"],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "src/**/*.{ts,tsx,mts}",
+        "tsconfig.json",
+        "tsconfig.lib.json"
+      ],
+      "outputs": ["dist/**"]
+    },
+    "lint": {
+      "inputs": ["$TURBO_DEFAULT$", "src/**/*.{ts,tsx,mts}"]
+    },
+    "test:ci": {
+      "dependsOn": ["^build"],
+      "inputs": ["$TURBO_DEFAULT$", "src/**/*.{ts,tsx,mts}"]
+    },
+    "test": {
+      "inputs": ["$TURBO_DEFAULT$", "src/**/*.{ts,tsx,mts}"]
+    },
+    "test:gc": {
+      "dependsOn": ["^build"],
+      "inputs": ["$TURBO_DEFAULT$", "src/**/*.{ts,tsx,mts}"]
+    },
+    "build": {
+      "dependsOn": ["check", "test:ci", "lint"],
+      "inputs": [
+        "src/**/*.{ts,tsx,mts}",
+        "!src/**/*.spec.{ts,tsx,mts}",
+        "!src/**/*.spec-d.{ts,tsx,mts}",
+        "tsdown.config.mts"
+      ],
+      "outputs": ["lib/**"]
+    },
+    "publish": {
+      "dependsOn": ["build"],
+      "cache": false,
+      "env": ["NPM_AUTH_TOKEN"]
+    },
+    "publish:next": {
+      "dependsOn": ["build"],
+      "cache": false,
+      "env": ["NPM_AUTH_TOKEN"]
+    }
+  }
+}

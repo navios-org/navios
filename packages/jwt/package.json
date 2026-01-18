@@ -1,5 +1,13 @@
 {
   "name": "@navios/jwt",
+  "scripts": {
+    "check": "tsc -b",
+    "lint": "oxlint --fix",
+    "test:ci": "vitest run",
+    "build": "tsdown",
+    "publish": "yarn npm publish --access public",
+    "publish:next": "yarn npm publish --access public --tag next"
+  },
   "description": "JWT authentication and authorization for Navios",
   "version": "1.0.0",
   "author": {

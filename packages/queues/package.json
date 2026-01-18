@@ -1,6 +1,14 @@
 {
   "name": "@navios/queues",
   "version": "0.1.0",
+  "scripts": {
+    "check": "tsc -b",
+    "lint": "oxlint --fix",
+    "test:ci": "vitest run",
+    "build": "tsdown",
+    "publish": "yarn npm publish --access public",
+    "publish:next": "yarn npm publish --access public --tag next"
+  },
   "description": "Queue adapters for Navios - RabbitMQ, Kafka, and AWS SQS/SNS support",
   "author": {
     "name": "Oleksandr Hanzha",
@@ -34,8 +42,8 @@
     }
   },
   "optionalDependencies": {
-    "@aws-sdk/client-sns": "^3.970.0",
-    "@aws-sdk/client-sqs": "^3.970.0",
+    "@aws-sdk/client-sns": "^3.971.0",
+    "@aws-sdk/client-sqs": "^3.971.0",
     "amqp-connection-manager": "^5.0.0",
     "amqplib": "^0.10.9",
     "kafkajs": "^2.2.4"
@@ -56,8 +64,8 @@
     }
   },
   "devDependencies": {
-    "@aws-sdk/client-sns": "^3.970.0",
-    "@aws-sdk/client-sqs": "^3.970.0",
+    "@aws-sdk/client-sns": "^3.971.0",
+    "@aws-sdk/client-sqs": "^3.971.0",
     "@navios/di": "workspace:^",
     "@types/amqplib": "^0.10.8",
     "amqp-connection-manager": "^5.0.0",

@@ -1,6 +1,14 @@
 {
   "name": "@navios/otel",
   "version": "1.0.0-alpha.2",
+  "scripts": {
+    "check": "tsc -b",
+    "lint": "oxlint --fix",
+    "test:ci": "vitest run",
+    "build": "tsdown",
+    "publish": "yarn npm publish --access public",
+    "publish:next": "yarn npm publish --access public --tag next"
+  },
   "description": "OpenTelemetry integration for Navios framework",
   "author": {
     "name": "Oleksandr Hanzha",
@@ -51,7 +59,7 @@
     "@opentelemetry/resources": "^2.4.0",
     "@opentelemetry/sdk-metrics": "^2.4.0",
     "@opentelemetry/sdk-trace-node": "^2.4.0",
-    "@opentelemetry/semantic-conventions": "^1.38.0",
+    "@opentelemetry/semantic-conventions": "^1.39.0",
     "typescript": "^5.9.3"
   }
 }

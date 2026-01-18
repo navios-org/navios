@@ -1,6 +1,14 @@
 {
   "name": "@navios/openapi-fastify",
   "version": "1.0.0",
+  "scripts": {
+    "check": "tsc -b",
+    "lint": "oxlint --fix",
+    "test:ci": "vitest run",
+    "build": "tsdown",
+    "publish": "yarn npm publish --access public",
+    "publish:next": "yarn npm publish --access public --tag next"
+  },
   "author": {
     "name": "Oleksandr Hanzha",
     "email": "alex@granted.name"
@@ -37,12 +45,12 @@
     "@navios/adapter-fastify": "workspace:^",
     "@navios/core": "workspace:^",
     "@navios/openapi": "workspace:^",
-    "fastify": "^5.7.0",
+    "fastify": "^5.7.1",
     "typescript": "^5.9.3",
     "zod": "^4.3.5"
   },
   "dependencies": {
-    "@scalar/core": "^0.3.31",
+    "@scalar/core": "^0.3.32",
     "yaml": "^2.8.2"
   }
 }

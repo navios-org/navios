@@ -16,13 +16,8 @@ DS_Store
 .DS_Store
 
 tmp
-.nx/cache
-.angular
-.nx
+.turbo
 tsconfig.tsbuildinfo
-
-.cursor/rules/nx-rules.mdc
-.github/instructions/nx.instructions.md
 tsconfig.vitest-temp.json
 
 .cursor/rules/nx-rules.mdc
