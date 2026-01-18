@@ -1,33 +1,20 @@
 {
   "name": "@navios/otel",
-  "version": "1.0.0-alpha.2",
-  "scripts": {
-    "check": "tsc -b",
-    "lint": "oxlint --fix",
-    "test:ci": "vitest run",
-    "build": "tsdown",
-    "publish": "yarn npm publish --access public",
-    "publish:next": "yarn npm publish --access public --tag next"
-  },
+  "version": "1.0.0-alpha.3",
   "description": "OpenTelemetry integration for Navios framework",
+  "license": "MIT",
   "author": {
     "name": "Oleksandr Hanzha",
     "email": "alex@granted.name"
   },
   "repository": {
-    "directory": "packages/otel",
     "type": "git",
-    "url": "https://github.com/Arilas/navios.git"
+    "url": "https://github.com/Arilas/navios.git",
+    "directory": "packages/otel"
   },
-  "license": "MIT",
-  "peerDependencies": {
-    "@navios/core": "workspace:^",
-    "@navios/di": "workspace:^",
-    "@opentelemetry/api": "^1.9.0"
-  },
-  "typings": "./lib/index.d.mts",
   "main": "./lib/index.cjs",
   "module": "./lib/index.mjs",
+  "typings": "./lib/index.d.mts",
   "exports": {
     ".": {
       "import": {
@@ -50,6 +37,14 @@
       }
     }
   },
+  "scripts": {
+    "check": "tsc -b",
+    "lint": "yarn run -T oxlint --fix && yarn run -T oxfmt",
+    "test:ci": "vitest run",
+    "build": "tsdown",
+    "publish": "yarn npm publish --access public",
+    "publish:next": "yarn npm publish --access public --tag next"
+  },
   "devDependencies": {
     "@navios/core": "workspace:^",
     "@navios/di": "workspace:^",
@@ -61,5 +56,10 @@
     "@opentelemetry/sdk-trace-node": "^2.4.0",
     "@opentelemetry/semantic-conventions": "^1.39.0",
     "typescript": "^5.9.3"
+  },
+  "peerDependencies": {
+    "@navios/core": "workspace:^",
+    "@navios/di": "workspace:^",
+    "@opentelemetry/api": "^1.9.0"
   }
 }

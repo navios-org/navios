@@ -1,8 +1,15 @@
 // Decorators
 export {
-  getTracedMetadata,
-  hasTracedMetadata,
+  // Decorators
+  Traceable,
   Traced,
+  // Metadata helpers
+  TracedMetadataKey,
+  getTracedMetadata,
+  extractTracedMetadata,
+  hasTracedMetadata,
+  getTraceableServices,
+  // Deprecated - use TracedMetadataKey
   TRACED_METADATA_KEY,
 } from './decorators/index.mjs'
 export type {
@@ -10,6 +17,9 @@ export type {
   MethodTracedMetadata,
   TracedMetadata,
 } from './decorators/index.mjs'
+
+// Factories
+export { createTracedWrapperFactory } from './factories/index.mjs'
 
 // Interfaces
 export type {
@@ -22,16 +32,18 @@ export type {
   TracedOptions,
 } from './interfaces/index.mjs'
 
+// Plugins
+export { defineOtelTracingPlugin } from './plugins/index.mjs'
+export type { OtelTracingPluginOptions } from './plugins/index.mjs'
+
 // Services
 export {
   OtelSetupService,
   SpanFactoryService,
   TraceContextService,
+  TracedProxyFactory,
 } from './services/index.mjs'
-export type {
-  ChildSpanOptions,
-  HttpSpanOptions,
-} from './services/index.mjs'
+export type { ChildSpanOptions, HttpSpanOptions } from './services/index.mjs'
 
 // Stores
 export {

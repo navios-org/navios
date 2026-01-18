@@ -28,11 +28,7 @@ export type {
 } from '../decorators/index.mjs'
 
 // Re-export metadata utilities from main module
-export {
-  getTracedMetadata,
-  hasTracedMetadata,
-  TRACED_METADATA_KEY,
-} from '../decorators/index.mjs'
+export { getTracedMetadata, hasTracedMetadata, TRACED_METADATA_KEY } from '../decorators/index.mjs'
 
 // Export legacy-compatible decorators
-export { Traced } from './decorators/index.mjs'
+export * from './decorators/index.mjs'

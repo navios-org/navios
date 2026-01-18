@@ -1,20 +1,15 @@
-import type { Meter, Tracer } from '@opentelemetry/api'
-import type { SpanExporter } from '@opentelemetry/sdk-trace-node'
-import type { MetricReader } from '@opentelemetry/sdk-metrics'
-
 import { Container, inject, Injectable, Logger } from '@navios/core'
 import { metrics, trace } from '@opentelemetry/api'
-import {
-  resourceFromAttributes,
-  type Resource,
-} from '@opentelemetry/resources'
-import {
-  ATTR_SERVICE_NAME,
-  ATTR_SERVICE_VERSION,
-} from '@opentelemetry/semantic-conventions'
+import { resourceFromAttributes, type Resource } from '@opentelemetry/resources'
+import { ATTR_SERVICE_NAME, ATTR_SERVICE_VERSION } from '@opentelemetry/semantic-conventions'
+
+import type { Meter, Tracer } from '@opentelemetry/api'
+import type { MetricReader } from '@opentelemetry/sdk-metrics'
+import type { SpanExporter } from '@opentelemetry/sdk-trace-node'
 
 // Deployment environment attribute
 const ATTR_DEPLOYMENT_ENVIRONMENT = 'deployment.environment'
+import { MeterProvider, PeriodicExportingMetricReader } from '@opentelemetry/sdk-metrics'
 import {
   AlwaysOffSampler,
   AlwaysOnSampler,
@@ -24,14 +19,10 @@ import {
   SimpleSpanProcessor,
   TraceIdRatioBasedSampler,
 } from '@opentelemetry/sdk-trace-node'
-import {
-  MeterProvider,
-  PeriodicExportingMetricReader,
-} from '@opentelemetry/sdk-metrics'
-
-import type { OtelConfig, ResolvedOtelConfig } from '../interfaces/index.mjs'
 
 import { MeterToken, OtelConfigToken, TracerToken } from '../tokens/index.mjs'
+
+import type { OtelConfig, ResolvedOtelConfig } from '../interfaces/index.mjs'
 
 /**
  * Resolves configuration with defaults applied.
@@ -116,9 +107,7 @@ export class OtelSetupService {
     }
 
     this.initialized = true
-    this.logger.debug(
-      `OpenTelemetry initialized for service: ${resolvedConfig.serviceName}`,
-    )
+    this.logger.debug(`OpenTelemetry initialized for service: ${resolvedConfig.serviceName}`)
   }
 
   /**
@@ -186,10 +175,7 @@ export class OtelSetupService {
   /**
    * Initializes the TracerProvider and registers the tracer.
    */
-  private async initializeTracing(
-    config: ResolvedOtelConfig,
-    resource: Resource,
-  ): Promise<void> {
+  private async initializeTracing(config: ResolvedOtelConfig, resource: Resource): Promise<void> {
     // Create span exporter
     const exporter = await this.createSpanExporter(config)
 
@@ -222,9 +208,7 @@ export class OtelSetupService {
   /**
    * Creates a span exporter based on configuration.
    */
-  private async createSpanExporter(
-    config: ResolvedOtelConfig,
-  ): Promise<SpanExporter | null> {
+  private async createSpanExporter(config: ResolvedOtelConfig): Promise<SpanExporter | null> {
     switch (config.exporter) {
       case 'console':
         return new ConsoleSpanExporter()
@@ -232,9 +216,7 @@ export class OtelSetupService {
       case 'otlp': {
         // Dynamically import OTLP exporter to keep it optional
         try {
-          const { OTLPTraceExporter } = await import(
-            '@opentelemetry/exporter-trace-otlp-http'
-          )
+          const { OTLPTraceExporter } = await import('@opentelemetry/exporter-trace-otlp-http')
           return new OTLPTraceExporter({
             url: config.exporterOptions?.endpoint,
             headers: config.exporterOptions?.headers,
@@ -244,9 +226,7 @@ export class OtelSetupService {
             'Failed to load @opentelemetry/exporter-trace-otlp-http. ' +
               'Please install it as a dependency.',
           )
-          throw new Error(
-            '@opentelemetry/exporter-trace-otlp-http is required for OTLP exporter',
-          )
+          throw new Error('@opentelemetry/exporter-trace-otlp-http is required for OTLP exporter')
         }
       }
 
@@ -276,18 +256,13 @@ export class OtelSetupService {
   /**
    * Initializes the MeterProvider and registers the meter.
    */
-  private async initializeMetrics(
-    config: ResolvedOtelConfig,
-    resource: Resource,
-  ): Promise<void> {
+  private async initializeMetrics(config: ResolvedOtelConfig, resource: Resource): Promise<void> {
     const readers: MetricReader[] = []
 
     // Create metric reader based on exporter type
     if (config.exporter === 'otlp') {
       try {
-        const { OTLPMetricExporter } = await import(
-          '@opentelemetry/exporter-metrics-otlp-http'
-        )
+        const { OTLPMetricExporter } = await import('@opentelemetry/exporter-metrics-otlp-http')
         const metricExporter = new OTLPMetricExporter({
           url: config.exporterOptions?.endpoint?.replace('/traces', '/metrics'),
           headers: config.exporterOptions?.headers,
@@ -306,9 +281,7 @@ export class OtelSetupService {
       }
     } else if (config.exporter === 'console') {
       // For console exporter, use periodic console metric reader
-      const { ConsoleMetricExporter } = await import(
-        '@opentelemetry/sdk-metrics'
-      )
+      const { ConsoleMetricExporter } = await import('@opentelemetry/sdk-metrics')
       readers.push(
         new PeriodicExportingMetricReader({
           exporter: new ConsoleMetricExporter(),

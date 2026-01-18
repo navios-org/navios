@@ -1,6 +1,6 @@
-import type { Baggage, Span } from '@opentelemetry/api'
-
 import { AsyncLocalStorage } from 'node:async_hooks'
+
+import type { Baggage, Span } from '@opentelemetry/api'
 
 /**
  * Context stored in AsyncLocalStorage for span propagation.

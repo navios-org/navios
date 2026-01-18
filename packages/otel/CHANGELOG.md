@@ -5,6 +5,48 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.0-alpha.3] - 2026-01-18
+
+### Added
+
+- **Automatic Service Tracing via Plugin**
+  - New `defineOtelTracingPlugin` plugin that automatically wraps `@Traced`/`@Traceable` decorated services with tracing proxies
+  - Services are wrapped at the DI level with higher priority, ensuring all consumers get traced instances
+  - Supports parameterized services by preserving token schemas
+
+- **@Traceable Decorator**
+  - New class decorator to mark services for tracing proxy wrapping without tracing all methods
+  - Use with method-level `@Traced` for selective tracing
+  - Example: `@Traceable({ name: 'order-service' })` marks the class for wrapping
+
+- **Enhanced @Traced Decorator**
+  - Now fully functional with automatic span creation
+  - Class-level: traces all public methods automatically
+  - Method-level: traces specific methods only (requires `@Traceable` or `@Traced` on class)
+  - Supports custom span names and attributes
+  - Properly handles sync and async methods with error recording
+
+- **TracedProxyFactory Service**
+  - Internal service for creating Proxy wrappers around traced services
+  - Performance optimizations: pre-wraps explicitly traced methods, lazy-wraps class-level methods with caching
+  - Pre-computes span names and attributes for minimal per-call overhead
+
+- **Metadata Helpers**
+  - `getTracedMetadata(context, target?)` - get/create metadata during decoration
+  - `extractTracedMetadata(target)` - extract metadata from decorated class at runtime
+  - `hasTracedMetadata(target)` - check if class has traced metadata
+  - `getTraceableServices()` - get all registered traceable service classes
+  - `TracedMetadataKey` symbol for metadata storage
+
+- **Legacy Decorator Support**
+  - `@Traceable` decorator available via `@navios/otel/legacy-compat`
+  - Legacy `@Traced` method decorator now delegates to Stage 3 decorator via `createMethodContext`
+
+### Changed
+
+- `@Traced` decorator now uses `context.metadata` pattern (Stage 3 decorators) for metadata storage
+- Deprecated `TRACED_METADATA_KEY` in favor of `TracedMetadataKey`
+
 ## [1.0.0-alpha.2] - 2026-01-16
 
 ### Changed

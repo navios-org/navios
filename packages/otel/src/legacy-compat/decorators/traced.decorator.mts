@@ -1,13 +1,33 @@
-import type { ClassType } from '@navios/di'
 import { createClassContext, createMethodContext } from '@navios/di/legacy-compat'
 
-import type { TracedOptions } from '../../interfaces/index.mjs'
+import type { ClassType } from '@navios/di'
 
 import {
   Traced as OriginalTraced,
+  Traceable as OriginalTraceable,
   TRACED_METADATA_KEY,
+  TracedMetadataKey,
+  getTraceableServices,
+  extractTracedMetadata,
+  hasTracedMetadata,
   type ClassTracedMetadata,
+  type MethodTracedMetadata,
+  type TracedMetadata,
 } from '../../decorators/traced.decorator.mjs'
+
+import type { TracedOptions } from '../../interfaces/index.mjs'
+
+// Re-export metadata helpers and types (they work the same for both APIs)
+export {
+  TRACED_METADATA_KEY,
+  TracedMetadataKey,
+  getTraceableServices,
+  extractTracedMetadata,
+  hasTracedMetadata,
+  type ClassTracedMetadata,
+  type MethodTracedMetadata,
+  type TracedMetadata,
+}
 
 /**
  * Legacy-compatible Traced decorator for class-level tracing.
@@ -68,32 +88,63 @@ export function Traced(options: TracedOptions = {}) {
 
     // Legacy method decorator: target is prototype, propertyKey is method name
     if (descriptor !== undefined) {
-      const methodName = String(propertyKeyOrContext)
-      const constructor = (target as any).constructor as ClassType
-
-      // Get or create class metadata
-      let classMetadata: ClassTracedMetadata = (constructor as any)[TRACED_METADATA_KEY]
-      if (!classMetadata) {
-        classMetadata = {
-          enabled: false, // Only methods are traced, not the whole class
-          methods: new Map(),
-        }
-        ;(constructor as any)[TRACED_METADATA_KEY] = classMetadata
+      const context = createMethodContext(target, propertyKeyOrContext, descriptor)
+      const originalDecorator = OriginalTraced(options)
+      const result = originalDecorator(descriptor.value, context)
+      if (result !== descriptor.value) {
+        descriptor.value = result
       }
-
-      // Add method metadata
-      classMetadata.methods.set(methodName, {
-        methodName,
-        name: options.name,
-        attributes: options.attributes,
-        enabled: true,
-      })
-
       return descriptor
     }
 
-    throw new Error(
-      '[Navios] @Traced decorator can only be used on classes or methods.',
-    )
+    throw new Error('[Navios] @Traced decorator can only be used on classes or methods.')
+  }
+}
+
+/**
+ * Legacy-compatible Traceable decorator for class-level tracing setup.
+ *
+ * Works with TypeScript experimental decorators (legacy API).
+ *
+ * Use `@Traceable` when you want to:
+ * - Mark a class for tracing proxy wrapping
+ * - Only trace specific methods decorated with `@Traced`
+ *
+ * @param options - Tracing options (name, attributes)
+ * @returns A decorator compatible with legacy decorator API
+ *
+ * @example
+ * ```typescript
+ * @Injectable()
+ * @Traceable({ name: 'order-service' })
+ * class OrderService {
+ *   @Traced({ name: 'process-order' })
+ *   async processOrder(orderId: string) {
+ *     // Traced as "process-order"
+ *   }
+ *
+ *   async getOrder(orderId: string) {
+ *     // NOT traced
+ *   }
+ * }
+ * ```
+ */
+export function Traceable(options: TracedOptions = {}) {
+  return function (target: ClassType, contextOrUndefined?: ClassDecoratorContext): any {
+    // Stage 3 decorator: target is class, contextOrUndefined is context
+    if (
+      contextOrUndefined &&
+      typeof contextOrUndefined === 'object' &&
+      'kind' in contextOrUndefined
+    ) {
+      // This is a Stage 3 decorator call, delegate to original
+      const originalDecorator = OriginalTraceable(options)
+      return originalDecorator(target, contextOrUndefined)
+    }
+
+    // Legacy class decorator: target is class, no context
+    const context = createClassContext(target)
+    const originalDecorator = OriginalTraceable(options)
+    return originalDecorator(target, context)
   }
 }

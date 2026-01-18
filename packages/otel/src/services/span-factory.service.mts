@@ -1,12 +1,12 @@
-import type { AttributeValue, Context, Span, SpanOptions } from '@opentelemetry/api'
-
 import { Container, inject, Injectable } from '@navios/core'
 import { context as otelContext, SpanKind, SpanStatusCode, trace } from '@opentelemetry/api'
 
-import type { ResolvedOtelConfig } from '../interfaces/index.mjs'
+import type { AttributeValue, Context, Span, SpanOptions } from '@opentelemetry/api'
 
-import { OtelConfigToken } from '../tokens/index.mjs'
 import { getCurrentSpan } from '../stores/index.mjs'
+import { OtelConfigToken } from '../tokens/index.mjs'
+
+import type { ResolvedOtelConfig } from '../interfaces/index.mjs'
 
 /**
  * Options for creating an HTTP span.
@@ -186,9 +186,7 @@ export class SpanFactoryService {
    */
   createChildSpan(options: ChildSpanOptions): Span {
     const parentSpan = getCurrentSpan()
-    const parentContext = parentSpan
-      ? trace.setSpan(otelContext.active(), parentSpan)
-      : undefined
+    const parentContext = parentSpan ? trace.setSpan(otelContext.active(), parentSpan) : undefined
 
     const spanOptions: SpanOptions = {
       kind: SpanKind.INTERNAL,
@@ -250,11 +248,7 @@ export class SpanFactoryService {
    * @param statusCode - HTTP status code
    * @param contentLength - Optional response content length
    */
-  setHttpResponse(
-    span: Span,
-    statusCode: number,
-    contentLength?: number,
-  ): void {
+  setHttpResponse(span: Span, statusCode: number, contentLength?: number): void {
     span.setAttribute('http.status_code', statusCode)
 
     if (contentLength !== undefined) {
