@@ -193,11 +193,11 @@ class AppModule {}
 
 ```typescript
 import { Injectable, inject } from '@navios/di'
-import { StorageService } from '@navios/storage'
+import { StorageToken } from './storage.provider.js'
 
 @Injectable()
 class FileService {
-  private storage = inject(StorageService)
+  private storage = inject(StorageToken)
 }
 ```
 

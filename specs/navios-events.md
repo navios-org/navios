@@ -2,12 +2,12 @@
 
 ## Overview
 
-`@navios/events` is a type-safe event emitter library for the Navios framework. It provides decorator-based event handling with seamless integration into Navios's dependency injection system for building loosely coupled, event-driven applications.
+`@navios/events` is a type-safe event system for the Navios framework. It provides a builder-based API for defining events with Zod schema validation, decorator-based event handling, and seamless integration with Navios's dependency injection system. The system supports both local and distributed event processing through adapter-based architecture.
 
 **Package:** `@navios/events`
 **Version:** 0.1.0
 **License:** MIT
-**Dependencies:** None
+**Dependencies:** `zod`
 **Peer Dependencies:** `@navios/core`, `@navios/di`
 
 ---
@@ -17,207 +17,371 @@
 ### Architecture Overview
 
 ```
-EventEmitter
-├── Core Operations
-│   ├── emit(event, payload) - Emit events
-│   ├── emitAsync(event, payload) - Emit and await handlers
-│   └── emitSeries(event, payload) - Emit sequentially
-│
-├── Event Listeners
-│   ├── @OnEvent() - Listen to events
-│   ├── @OnEvents() - Listen to multiple events
-│   └── @OnceEvent() - Listen once then remove
-│
-├── Event Tokens (type-safe event definitions)
-│   └── EventToken.create<PayloadType>('event.name')
-│
-└── Features
-    ├── Wildcards - 'user.*', '**'
-    ├── Priority - Handler execution order
-    ├── Async - Parallel and series execution
-    └── Request-scoped - Events within request context
+EventBuilder
+├── defineEvent({ event, payloadSchema? }) - Define single event
+└── anyOf([...events]) - Create event namespace
+
+EventManager (from provideEventManager)
+├── emit(event(payload)) - Emit events
+├── register(Service) - Register event handlers
+├── Adapter Support
+│   ├── In-Memory (default)
+│   ├── Redis
+│   └── Keyv
+└── Callbacks
+    ├── onError - Error handling
+    └── onMessage - Metrics/monitoring
 ```
 
 ### Key Principles
 
-- **Type-Safe** - Full TypeScript support with typed event payloads
-- **Decorator-Based** - Clean API using TypeScript decorators
-- **DI Integration** - Event handlers are injectable services
-- **Async Support** - Parallel and sequential event processing
-- **Wildcard Patterns** - Flexible event matching
+- **Builder-Based** - Events defined using `eventBuilder()` with `defineEvent` and `anyOf`
+- **Type-Safe** - Full TypeScript support with inferred types from Zod schemas
+- **Schema Validation** - Automatic payload validation on emit using Zod
+- **Decorator-Based** - Clean API using `@OnEvent` and `@OnEvents` decorators
+- **DI Integration** - Event handlers are injectable services registered with EventManager
+- **Distributed** - Support for distributed events across instances via adapters
 
 ---
 
-## Setup
+## Event Builder API
 
-### Provider Function
+### Creating Events
 
-The event service is configured using the `provideEventService()` function which returns an `InjectionToken`.
+Events are created using the `eventBuilder()` function, which returns an object with methods to define events.
 
 ```typescript
-import { provideEventService } from '@navios/events'
+import { eventBuilder } from '@navios/events'
+import { z } from 'zod'
 
-// Basic configuration
-const EventToken = provideEventService()
+const builder = eventBuilder()
 
-// With options
-const EventToken = provideEventService({
-  wildcard: true,           // Enable wildcard patterns
-  delimiter: '.',           // Event name delimiter
-  maxListeners: 100,        // Max listeners per event
-  ignoreErrors: false,      // Throw on handler errors
-  verboseMemoryLeak: true,  // Warn on potential leaks
+// Define event with Zod schema
+export const userCreated = builder.defineEvent({
+  event: 'user.created',
+  payloadSchema: z.object({
+    userId: z.string(),
+    email: z.string().email(),
+    name: z.string(),
+    createdAt: z.date(),
+  }),
 })
 
-// Async configuration
-const EventToken = provideEventService(async () => {
-  const config = await loadConfig()
-  return {
-    wildcard: config.events.wildcard,
-    maxListeners: config.events.maxListeners,
-  }
+// Define event without schema (payload type inferred from usage)
+export const systemStarted = builder.defineEvent({
+  event: 'system.started',
+})
+
+// Define event with complex schema
+export const orderCompleted = builder.defineEvent({
+  event: 'order.completed',
+  payloadSchema: z.object({
+    orderId: z.string(),
+    userId: z.string(),
+    items: z.array(
+      z.object({
+        productId: z.string(),
+        quantity: z.number().int().positive(),
+        price: z.number().positive(),
+      }),
+    ),
+    total: z.number().positive(),
+    completedAt: z.date(),
+  }),
 })
 ```
 
-### Module Registration
+### Creating Event Namespaces
+
+Use `anyOf()` to create an event namespace from multiple events. This is useful for handlers that listen to multiple related events.
 
 ```typescript
-import { Module } from '@navios/core'
-import { provideEventService } from '@navios/events'
+import { eventBuilder } from '@navios/events'
+import { z } from 'zod'
 
-const EventToken = provideEventService({
-  wildcard: true,
+const builder = eventBuilder()
+
+// Define individual events
+export const userCreated = builder.defineEvent({
+  event: 'user.created',
+  payloadSchema: z.object({
+    userId: z.string(),
+    email: z.string(),
+  }),
 })
 
-@Module({
-  providers: [EventToken, EmailHandler, AnalyticsHandler],
+export const userUpdated = builder.defineEvent({
+  event: 'user.updated',
+  payloadSchema: z.object({
+    userId: z.string(),
+    changes: z.record(z.unknown()),
+  }),
 })
-class AppModule {}
-```
 
----
+export const userDeleted = builder.defineEvent({
+  event: 'user.deleted',
+  payloadSchema: z.object({
+    userId: z.string(),
+  }),
+})
 
-## Event Tokens
-
-Type-safe event definitions using `EventToken`.
-
-### Creating Event Tokens
-
-```typescript
-import { EventToken } from '@navios/events'
-
-// Define event tokens with typed payloads
-export const UserCreatedEvent = EventToken.create<{
-  userId: string
-  email: string
-  createdAt: Date
-}>('user.created')
-
-export const UserUpdatedEvent = EventToken.create<{
-  userId: string
-  changes: Record<string, unknown>
-}>('user.updated')
-
-export const UserDeletedEvent = EventToken.create<{
-  userId: string
-}>('user.deleted')
-
-// Events without payload
-export const SystemStartedEvent = EventToken.create<void>('system.started')
-
-// Events with complex payloads
-export const OrderCompletedEvent = EventToken.create<{
-  orderId: string
-  userId: string
-  items: Array<{ productId: string; quantity: number }>
-  total: number
-}>('order.completed')
+// Create namespace from multiple events
+export const userEvents = builder.anyOf([
+  userCreated,
+  userUpdated,
+  userDeleted,
+])
 ```
 
 ### Organizing Events
 
 ```typescript
 // events/user.events.ts
-import { EventToken } from '@navios/events'
+import { eventBuilder } from '@navios/events'
+import { z } from 'zod'
 
-export namespace UserEvents {
-  export const Created = EventToken.create<UserCreatedPayload>('user.created')
-  export const Updated = EventToken.create<UserUpdatedPayload>('user.updated')
-  export const Deleted = EventToken.create<UserDeletedPayload>('user.deleted')
-  export const LoggedIn = EventToken.create<UserLoggedInPayload>('user.logged-in')
-  export const LoggedOut = EventToken.create<UserLoggedOutPayload>('user.logged-out')
-}
+const userBuilder = eventBuilder()
+
+export const userCreated = userBuilder.defineEvent({
+  event: 'user.created',
+  payloadSchema: z.object({
+    userId: z.string(),
+    email: z.string().email(),
+    name: z.string(),
+  }),
+})
+
+export const userUpdated = userBuilder.defineEvent({
+  event: 'user.updated',
+  payloadSchema: z.object({
+    userId: z.string(),
+    changes: z.record(z.unknown()),
+  }),
+})
+
+export const userDeleted = userBuilder.defineEvent({
+  event: 'user.deleted',
+  payloadSchema: z.object({
+    userId: z.string(),
+  }),
+})
+
+export const userEvents = userBuilder.anyOf([
+  userCreated,
+  userUpdated,
+  userDeleted,
+])
 
 // events/order.events.ts
-export namespace OrderEvents {
-  export const Created = EventToken.create<OrderCreatedPayload>('order.created')
-  export const Paid = EventToken.create<OrderPaidPayload>('order.paid')
-  export const Shipped = EventToken.create<OrderShippedPayload>('order.shipped')
-  export const Completed = EventToken.create<OrderCompletedPayload>('order.completed')
-  export const Cancelled = EventToken.create<OrderCancelledPayload>('order.cancelled')
+import { eventBuilder } from '@navios/events'
+import { z } from 'zod'
+
+const orderBuilder = eventBuilder()
+
+export const orderCreated = orderBuilder.defineEvent({
+  event: 'order.created',
+  payloadSchema: z.object({
+    orderId: z.string(),
+    userId: z.string(),
+    items: z.array(
+      z.object({
+        productId: z.string(),
+        quantity: z.number(),
+      }),
+    ),
+  }),
+})
+
+export const orderCompleted = orderBuilder.defineEvent({
+  event: 'order.completed',
+  payloadSchema: z.object({
+    orderId: z.string(),
+    userId: z.string(),
+    total: z.number(),
+  }),
+})
+
+export const orderEvents = orderBuilder.anyOf([
+  orderCreated,
+  orderCompleted,
+])
+```
+
+---
+
+## Event Manager Setup
+
+### Provider Function
+
+The event system is configured using the `provideEventManager()` function which returns an `InjectionToken`.
+
+```typescript
+import { provideEventManager } from '@navios/events'
+
+// Basic configuration (in-memory adapter)
+const MyEventManager = provideEventManager()
+
+// With error handling and metrics
+const MyEventManager = provideEventManager({
+  onError: (error, eventName, handler) => {
+    console.error(`Handler error for ${eventName}:`, error)
+    // Send to error tracking service
+    sentry.captureException(error, {
+      tags: { event: eventName },
+    })
+  },
+  onMessage: (eventName, payload) => {
+    // Track metrics
+    metrics.increment('events.emitted', { event: eventName })
+  },
+})
+
+// With Redis adapter for distributed events
+import { createRedisAdapter } from '@navios/events/adapters/redis'
+
+const MyEventManager = provideEventManager({
+  adapter: createRedisAdapter({
+    url: process.env.REDIS_URL,
+  }),
+  onError: (error, eventName) => {
+    logger.error(`Event error [${eventName}]:`, error)
+  },
+  onMessage: (eventName, payload) => {
+    metrics.track('event', { name: eventName })
+  },
+})
+
+// With Keyv adapter
+import { createKeyvAdapter } from '@navios/events/adapters/keyv'
+import Keyv from 'keyv'
+
+const MyEventManager = provideEventManager({
+  adapter: createKeyvAdapter(
+    new Keyv(process.env.DATABASE_URL),
+  ),
+  onError: (error, eventName) => {
+    console.error(`Error:`, error)
+  },
+  onMessage: (eventName) => {
+    console.log(`Event emitted: ${eventName}`)
+  },
+})
+```
+
+### Module Registration
+
+The EventManager token must be provided in the module's providers array, and services with event handlers must be registered in `onModuleInit`.
+
+```typescript
+import { Module, NaviosModule } from '@navios/core'
+import { Injectable, inject } from '@navios/di'
+import { provideEventManager } from '@navios/events'
+
+const MyEventManager = provideEventManager({
+  onError: (error, eventName) => {
+    console.error(`Event error:`, error)
+  },
+  onMessage: (eventName) => {
+    console.log(`Event: ${eventName}`)
+  },
+})
+
+@Module()
+export class AppModule implements NaviosModule {
+  private eventManager = inject(MyEventManager)
+
+  async onModuleInit() {
+    // Register services with event handlers
+    // This scans for @OnEvent/@OnEvents decorators
+    this.eventManager.register(EmailHandler)
+    this.eventManager.register(AnalyticsHandler)
+  }
 }
 ```
 
 ---
 
-## Event Emitter API
+## Event Emission
 
 ### Injection
 
 ```typescript
 import { Injectable, inject } from '@navios/di'
-import { EventEmitter } from '@navios/events'
 
 @Injectable()
 class UserService {
-  private events = inject(EventEmitter)
+  private eventEmitter = inject(MyEventManager)
 }
 ```
 
-### emit(event, payload)
+### emit(event(payload))
 
-Emits an event to all listeners (fire and forget).
+Emits an event. The event is a function that takes the payload and returns an event object. Payload validation happens automatically if a schema was provided.
 
 ```typescript
-import { UserEvents } from './events/user.events'
+import { Injectable, inject } from '@navios/di'
+import { userCreated } from './events/user.events'
 
 @Injectable()
 class UserService {
-  private events = inject(EventEmitter)
   private db = inject(DatabaseService)
+  private eventEmitter = inject(MyEventManager)
 
   async createUser(data: CreateUserDto): Promise<User> {
     const user = await this.db.users.create({ data })
 
-    // Fire and forget - doesn't wait for handlers
-    this.events.emit(UserEvents.Created, {
-      userId: user.id,
-      email: user.email,
-      createdAt: user.createdAt,
-    })
+    // Emit event - payload is validated against schema
+    // userCreated(payload) returns { event: 'user.created', payload: {...} }
+    this.eventEmitter.emit(
+      userCreated({
+        userId: user.id,
+        email: user.email,
+        name: user.name,
+        createdAt: user.createdAt,
+      }),
+    )
 
     return user
   }
 }
 ```
 
-**Parameters:**
+**Event Function Signature:**
+- Events created with `defineEvent` are functions that accept the payload
+- Returns an object: `{ event: string, payload: T }` where `T` is inferred from the schema
+- If `payloadSchema` is provided, validation occurs on emit and throws `ZodError` on failure
+- TypeScript ensures payload matches the inferred schema type at compile time
 
-| Parameter | Type         | Description          |
-| --------- | ------------ | -------------------- |
-| `event`   | `EventToken` | The event token      |
-| `payload` | `T`          | Event payload (typed)|
+**Validation Errors:**
+If payload validation fails, a `ZodError` is thrown immediately before the event is emitted:
 
-**Returns:** `void`
+```typescript
+try {
+  this.eventEmitter.emit(
+    userCreated({
+      userId: user.id,
+      email: 'invalid-email', // Fails validation
+      name: user.name,
+    }),
+  )
+} catch (error) {
+  if (error instanceof ZodError) {
+    // Handle validation error
+    console.error('Invalid event payload:', error.errors)
+  }
+}
+```
 
-### emitAsync(event, payload)
+**Returns:** `void` (fire and forget - handlers execute asynchronously)
+
+### emitAsync(event(payload))
 
 Emits an event and waits for all handlers to complete (parallel execution).
 
 ```typescript
 @Injectable()
 class OrderService {
-  private events = inject(EventEmitter)
+  private eventEmitter = inject(MyEventManager)
 
   async completeOrder(orderId: string): Promise<Order> {
     const order = await this.db.orders.update({
@@ -226,214 +390,328 @@ class OrderService {
     })
 
     // Wait for all handlers to complete
-    await this.events.emitAsync(OrderEvents.Completed, {
-      orderId: order.id,
-      userId: order.userId,
-      items: order.items,
-      total: order.total,
-    })
+    await this.eventEmitter.emitAsync(
+      orderCompleted({
+        orderId: order.id,
+        userId: order.userId,
+        total: order.total,
+      }),
+    )
 
     return order
   }
 }
 ```
 
-**Returns:** `Promise<void>` - Resolves when all handlers complete
+**Returns:** `Promise<void>` - Resolves when all handlers complete (or reject if any handler throws and errors aren't suppressed)
 
-### emitSeries(event, payload)
+**Handler Execution:**
+- Handlers execute in parallel by default
+- Execution order is determined by `priority` option (higher priority first)
+- If a handler throws and `suppressErrors` is `false`, the promise rejects
+- If `suppressErrors` is `true` or `onError` handles it, the promise resolves even if handlers fail
 
-Emits an event and executes handlers sequentially.
+### Events Without Payloads
 
-```typescript
-@Injectable()
-class PaymentService {
-  private events = inject(EventEmitter)
-
-  async processPayment(paymentId: string): Promise<void> {
-    // Handlers run one after another in priority order
-    await this.events.emitSeries(PaymentEvents.Processing, {
-      paymentId,
-    })
-  }
-}
-```
-
-**Returns:** `Promise<void>` - Resolves when handlers complete in series
-
-### emitWithResult<R>(event, payload)
-
-Emits an event and collects results from handlers.
+For events without payloads, define them without a schema:
 
 ```typescript
-@Injectable()
-class ValidationService {
-  private events = inject(EventEmitter)
+const systemStarted = builder.defineEvent({
+  event: 'system.started',
+})
 
-  async validateOrder(order: Order): Promise<ValidationResult[]> {
-    // Collect validation results from all handlers
-    const results = await this.events.emitWithResult<ValidationResult>(
-      OrderEvents.Validating,
-      { order }
-    )
+// Emit without payload
+this.eventEmitter.emit(systemStarted())
 
-    return results.filter(r => !r.valid)
-  }
+// Handler receives empty payload
+@OnEvent(systemStarted)
+async onSystemStart(args: EventParams<typeof systemStarted>) {
+  // args.payload is void or undefined
+  console.log('System started:', args.event)
 }
 ```
-
-**Returns:** `Promise<R[]>` - Array of handler return values
 
 ---
 
 ## Event Listeners
 
-### @OnEvent(event, options?)
+### @OnEvent(event)
 
-Listens to a specific event.
+Listens to a specific event. The handler receives typed parameters via `EventParams<typeof event>`.
 
 ```typescript
-import { Injectable } from '@navios/di'
-import { OnEvent } from '@navios/events'
-import { UserEvents } from './events/user.events'
+import { Injectable, inject } from '@navios/di'
+import { OnEvent, EventParams } from '@navios/events'
+import { userCreated } from './events/user.events'
 
 @Injectable()
-class EmailService {
+class EmailHandler {
   private mailer = inject(MailerService)
 
-  @OnEvent(UserEvents.Created)
-  async sendWelcomeEmail(payload: typeof UserEvents.Created.payload) {
+  @OnEvent(userCreated)
+  async sendWelcomeEmail(args: EventParams<typeof userCreated>) {
+    // args.payload is typed based on the event's schema
+    // args.event contains the event name
     await this.mailer.send({
-      to: payload.email,
+      to: args.payload.email,
       template: 'welcome',
-      data: { userId: payload.userId },
+      data: {
+        userId: args.payload.userId,
+        name: args.payload.name,
+      },
     })
   }
 }
 
 @Injectable()
-class AnalyticsService {
+class AnalyticsHandler {
   private analytics = inject(AnalyticsClient)
 
-  @OnEvent(UserEvents.Created)
-  async trackUserCreation(payload: typeof UserEvents.Created.payload) {
+  @OnEvent(userCreated)
+  async trackUserCreation(args: EventParams<typeof userCreated>) {
     await this.analytics.track('user_created', {
-      userId: payload.userId,
-      timestamp: payload.createdAt,
+      userId: args.payload.userId,
+      timestamp: args.payload.createdAt,
     })
   }
+}
+```
+
+**EventParams Type:**
+```typescript
+type EventParams<Event> = {
+  payload: InferPayload<Event>  // Inferred from Zod schema
+  event: string                  // Event name
+}
+```
+
+### @OnEvents(eventNamespace)
+
+Listens to multiple events using an event namespace created with `anyOf()`. The handler receives a discriminated union via `NamespaceParams<typeof eventNamespace>`.
+
+```typescript
+import { Injectable, inject } from '@navios/di'
+import { OnEvents, NamespaceParams } from '@navios/events'
+import { userEvents } from './events/user.events'
+
+@Injectable()
+class AuditHandler {
+  private auditLog = inject(AuditLogService)
+
+  @OnEvents(userEvents)
+  async logUserChange(args: NamespaceParams<typeof userEvents>) {
+    // args is a discriminated union based on event name
+    if (args.event === 'user.created') {
+      // TypeScript knows args.payload is UserCreatedPayload here
+      await this.auditLog.record({
+        event: args.event,
+        userId: args.payload.userId,
+        email: args.payload.email,
+        timestamp: new Date(),
+      })
+    } else if (args.event === 'user.updated') {
+      // TypeScript knows args.payload is UserUpdatedPayload here
+      await this.auditLog.record({
+        event: args.event,
+        userId: args.payload.userId,
+        changes: args.payload.changes,
+        timestamp: new Date(),
+      })
+    } else if (args.event === 'user.deleted') {
+      // TypeScript knows args.payload is UserDeletedPayload here
+      await this.auditLog.record({
+        event: args.event,
+        userId: args.payload.userId,
+        timestamp: new Date(),
+      })
+    }
+  }
+}
+```
+
+**NamespaceParams Type:**
+```typescript
+// For namespace created from [event1, event2, event3]
+type NamespaceParams<Namespace> =
+  | { payload: Payload1, event: 'event1.name' }
+  | { payload: Payload2, event: 'event2.name' }
+  | { payload: Payload3, event: 'event3.name' }
+```
+
+### Handler Options
+
+```typescript
+@OnEvent(userCreated, {
+  priority: 100,        // Higher priority runs first (default: 0)
+  suppressErrors: false, // Don't throw on handler error (default: false)
+})
+async handleUserCreated(args: EventParams<typeof userCreated>) {
+  // Handler implementation
 }
 ```
 
 **Options:**
 
-| Property      | Type      | Default | Description                    |
-| ------------- | --------- | ------- | ------------------------------ |
-| `priority`    | `number`  | `0`     | Handler priority (higher first)|
-| `async`       | `boolean` | `true`  | Run handler asynchronously     |
-| `suppressErrors` | `boolean` | `false` | Don't throw on handler error |
+| Property        | Type      | Default | Description                    |
+| --------------- | --------- | ------- | ------------------------------ |
+| `priority`      | `number`  | `0`     | Handler priority (higher first)|
+| `suppressErrors`| `boolean` | `false` | Don't throw on handler error   |
 
-### @OnEvents(events, options?)
+---
 
-Listens to multiple events with a single handler.
+## Service Registration
+
+Services with `@OnEvent` or `@OnEvents` decorators must be registered with the EventManager in a module's `onModuleInit` lifecycle hook.
 
 ```typescript
-import { Injectable } from '@navios/di'
-import { OnEvents } from '@navios/events'
-import { UserEvents } from './events/user.events'
+import { Module, NaviosModule } from '@navios/core'
+import { Injectable, inject } from '@navios/di'
+import { provideEventManager } from '@navios/events'
 
-@Injectable()
-class AuditService {
-  private auditLog = inject(AuditLogService)
+const MyEventManager = provideEventManager({
+  onError: (error, eventName) => {
+    console.error(`Error in ${eventName}:`, error)
+  },
+})
 
-  @OnEvents([
-    UserEvents.Created,
-    UserEvents.Updated,
-    UserEvents.Deleted,
-  ])
-  async logUserChange(
-    payload: unknown,
-    eventName: string
-  ) {
-    await this.auditLog.record({
-      event: eventName,
-      data: payload,
-      timestamp: new Date(),
-    })
+@Module()
+export class AppModule implements NaviosModule {
+  private eventManager = inject(MyEventManager)
+
+  async onModuleInit() {
+    // Register all services with event handlers
+    this.eventManager.register(EmailHandler)
+    this.eventManager.register(AnalyticsHandler)
+    this.eventManager.register(AuditHandler)
   }
 }
 ```
 
-### @OnceEvent(event)
+**How Registration Works:**
+- EventManager scans the service class for `@OnEvent` and `@OnEvents` decorators
+- Extracts metadata about which events each method listens to
+- Stores handler information to call when events are emitted
+- Handlers are called with the service instance from the DI container
+- If a service is registered multiple times, it's a no-op (idempotent)
+- Services must be `@Injectable()` and available in the DI container
 
-Listens to an event only once, then automatically removes the listener.
+**Handler Lifecycle:**
+- Handlers are called asynchronously when events are emitted
+- Each handler receives a fresh service instance from the DI container (respects service scope)
+- Handlers are executed in priority order (higher priority first)
+- Multiple handlers for the same event execute in parallel
+- Handler errors are caught and passed to `onError` callback (unless `suppressErrors: true`)
+
+---
+
+## Adapter System
+
+The EventManager supports different adapters for event distribution. By default, events are processed in-memory. For distributed systems with multiple instances, use Redis or Keyv adapters.
+
+**Adapter Interface:**
+All adapters must implement the following interface:
 
 ```typescript
-import { Injectable } from '@navios/di'
-import { OnceEvent } from '@navios/events'
+interface EventAdapter {
+  /**
+   * Publish an event to the adapter
+   */
+  publish(eventName: string, payload: unknown): Promise<void>
 
-@Injectable()
-class SetupService {
-  @OnceEvent(SystemEvents.Started)
-  async runInitialSetup() {
-    // This will only run once, on the first system start
-    await this.performOneTimeSetup()
-  }
+  /**
+   * Subscribe to events matching a pattern
+   */
+  subscribe(
+    pattern: string | string[],
+    handler: (eventName: string, payload: unknown) => void | Promise<void>,
+  ): Promise<() => void> // Returns unsubscribe function
+
+  /**
+   * Dispose of the adapter (cleanup connections, etc.)
+   */
+  dispose(): Promise<void>
 }
 ```
 
-### Wildcard Patterns
+### In-Memory Adapter (Default)
 
-Listen to multiple events using glob patterns.
+Events are processed locally within the same process. No adapter configuration needed.
 
 ```typescript
-import { Injectable } from '@navios/di'
-import { OnEvent } from '@navios/events'
-
-@Injectable()
-class NotificationService {
-  // Listen to all user events
-  @OnEvent('user.*')
-  async onAnyUserEvent(payload: unknown, eventName: string) {
-    console.log(`User event: ${eventName}`, payload)
-  }
-
-  // Listen to all events
-  @OnEvent('**')
-  async onAnyEvent(payload: unknown, eventName: string) {
-    console.log(`Event: ${eventName}`)
-  }
-
-  // Listen to specific pattern
-  @OnEvent('order.*.completed')
-  async onOrderCompletion(payload: unknown) {
-    // Matches: order.standard.completed, order.express.completed, etc.
-  }
-}
+const MyEventManager = provideEventManager({
+  // No adapter = in-memory
+  onError: (error, eventName) => {
+    console.error(`Error:`, error)
+  },
+})
 ```
 
-### Handler Priority
+### Redis Adapter
 
-Control the order of handler execution.
+For distributed event processing across multiple instances.
 
 ```typescript
-@Injectable()
-class OrderHandlers {
-  // Runs first (highest priority)
-  @OnEvent(OrderEvents.Created, { priority: 100 })
-  async validateOrder(payload: OrderCreatedPayload) {
-    // Validation runs before other handlers
-  }
+import { createRedisAdapter } from '@navios/events/adapters/redis'
 
-  // Runs second
-  @OnEvent(OrderEvents.Created, { priority: 50 })
-  async reserveInventory(payload: OrderCreatedPayload) {
-    // Reserve items after validation
-  }
+const MyEventManager = provideEventManager({
+  adapter: createRedisAdapter({
+    url: process.env.REDIS_URL,
+    // Optional: channel prefix
+    channelPrefix: 'navios:events:',
+  }),
+  onError: (error, eventName) => {
+    logger.error(`Event error:`, error)
+  },
+  onMessage: (eventName, payload) => {
+    metrics.track('event', { name: eventName })
+  },
+})
+```
 
-  // Runs last (default priority)
-  @OnEvent(OrderEvents.Created)
-  async sendConfirmation(payload: OrderCreatedPayload) {
-    // Send email after everything else
+### Keyv Adapter
+
+For distributed events using any Keyv-compatible storage.
+
+```typescript
+import { createKeyvAdapter } from '@navios/events/adapters/keyv'
+import Keyv from 'keyv'
+
+const keyv = new Keyv(process.env.DATABASE_URL)
+
+const MyEventManager = provideEventManager({
+  adapter: createKeyvAdapter(keyv, {
+    // Optional: namespace for events
+    namespace: 'navios:events',
+  }),
+  onError: (error, eventName) => {
+    console.error(`Error:`, error)
+  },
+})
+```
+
+### Local Event Emitter
+
+For events that should only be processed locally (not distributed), create a separate EventManager without an adapter.
+
+```typescript
+// Distributed events
+const DistributedEventManager = provideEventManager({
+  adapter: createRedisAdapter({ url: process.env.REDIS_URL }),
+})
+
+// Local-only events
+const LocalEventManager = provideEventManager({
+  // No adapter = in-memory only
+})
+
+@Module()
+export class AppModule implements NaviosModule {
+  private distributedEvents = inject(DistributedEventManager)
+  private localEvents = inject(LocalEventManager)
+
+  async onModuleInit() {
+    this.distributedEvents.register(UserService)
+    this.localEvents.register(LocalEventHandler)
   }
 }
 ```
@@ -444,95 +722,57 @@ class OrderHandlers {
 
 ### Default Behavior
 
-By default, errors in event handlers are thrown and can crash the application.
+By default, errors in event handlers are caught and passed to the `onError` callback if provided. If no `onError` is configured, errors are logged to console.
 
 ```typescript
 @Injectable()
 class RiskyHandler {
-  @OnEvent(SomeEvent)
-  async handle(payload: SomePayload) {
+  @OnEvent(someEvent)
+  async handle(args: EventParams<typeof someEvent>) {
     throw new Error('Handler failed')
-    // This will propagate to the emitter
+    // Error is caught and passed to onError callback
   }
 }
 ```
 
 ### Suppress Errors
 
-Prevent handler errors from propagating.
+Prevent handler errors from being logged or tracked.
 
 ```typescript
-// Per-handler
 @Injectable()
 class RiskyHandler {
-  @OnEvent(SomeEvent, { suppressErrors: true })
-  async handle(payload: SomePayload) {
+  @OnEvent(someEvent, { suppressErrors: true })
+  async handle(args: EventParams<typeof someEvent>) {
     throw new Error('Handler failed')
-    // Error is logged but doesn't propagate
+    // Error is silently ignored
   }
 }
+```
 
-// Global configuration
-const EventToken = provideEventService({
-  ignoreErrors: true, // All handler errors are suppressed
+### Global Error Handling
+
+Configure error handling at the EventManager level.
+
+```typescript
+const MyEventManager = provideEventManager({
   onError: (error, eventName, handler) => {
     // Custom error handling
-    logger.error(`Handler error for ${eventName}`, error)
-    sentry.captureException(error)
+    logger.error(`Handler error for ${eventName}`, {
+      error: error.message,
+      handler: handler.name,
+      stack: error.stack,
+    })
+
+    // Send to error tracking
+    sentry.captureException(error, {
+      tags: {
+        event: eventName,
+        handler: handler.name,
+      },
+    })
   },
 })
-```
-
-### Error Events
-
-Listen to handler errors.
-
-```typescript
-import { Injectable } from '@navios/di'
-import { OnEvent, EventError } from '@navios/events'
-
-@Injectable()
-class ErrorHandler {
-  @OnEvent(EventError)
-  async handleEventError(payload: {
-    error: Error
-    eventName: string
-    originalPayload: unknown
-  }) {
-    await this.alerting.send({
-      type: 'event_handler_error',
-      error: payload.error.message,
-      event: payload.eventName,
-    })
-  }
-}
-```
-
----
-
-## Integration with Queues
-
-Connect events to message queues for distributed processing.
-
-```typescript
-import { Injectable, inject } from '@navios/di'
-import { OnEvent } from '@navios/events'
-import { QueueService } from '@navios/queues'
-
-@Injectable()
-class EventQueueBridge {
-  private queue = inject(QueueService)
-
-  // Forward events to queue for async processing
-  @OnEvent('order.*')
-  async forwardToQueue(payload: unknown, eventName: string) {
-    await this.queue.send('events', {
-      event: eventName,
-      payload,
-      timestamp: Date.now(),
-    })
-  }
-}
 ```
 
 ---
@@ -543,30 +783,38 @@ class EventQueueBridge {
 
 ```typescript
 import { TestContainer } from '@navios/di/testing'
-import { provideEventService, EventEmitter } from '@navios/events'
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { provideEventManager } from '@navios/events'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
 describe('UserService', () => {
   let container: TestContainer
   let eventEmitter: EventEmitter
 
-  beforeEach(() => {
+  beforeEach(async () => {
     container = new TestContainer()
-    container.register(provideEventService())
-    eventEmitter = container.get(EventEmitter)
+
+    const MyEventManager = provideEventManager()
+
+    eventEmitter = await container.get(MyEventManager)
   })
 
-  it('should emit UserCreated event', async () => {
+  afterEach(async () => {
+    await container.dispose()
+  })
+
+  it('should emit userCreated event', async () => {
     const emitSpy = vi.spyOn(eventEmitter, 'emit')
 
     const userService = await container.get(UserService)
     await userService.createUser({ email: 'test@example.com' })
 
     expect(emitSpy).toHaveBeenCalledWith(
-      UserEvents.Created,
       expect.objectContaining({
-        email: 'test@example.com',
-      })
+        event: 'user.created',
+        payload: expect.objectContaining({
+          email: 'test@example.com',
+        }),
+      }),
     )
   })
 })
@@ -576,38 +824,48 @@ describe('UserService', () => {
 
 ```typescript
 import { TestContainer } from '@navios/di/testing'
-import { EventEmitter } from '@navios/events'
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { provideEventManager } from '@navios/events'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
-describe('EmailService', () => {
+describe('EmailHandler', () => {
   let container: TestContainer
   let eventEmitter: EventEmitter
   let mailerMock: { send: ReturnType<typeof vi.fn> }
 
-  beforeEach(() => {
+  beforeEach(async () => {
     container = new TestContainer()
 
     mailerMock = { send: vi.fn() }
     container.bind(MailerService).toValue(mailerMock)
 
-    // Register the handler
-    container.get(EmailService)
+    const MyEventManager = provideEventManager()
 
-    eventEmitter = container.get(EventEmitter)
+    // Register handler
+    const eventManager = container.get(MyEventManager)
+    eventManager.register(EmailHandler)
+
+    eventEmitter = await container.get(MyEventManager)
   })
 
-  it('should send welcome email on UserCreated', async () => {
-    await eventEmitter.emitAsync(UserEvents.Created, {
-      userId: '123',
-      email: 'test@example.com',
-      createdAt: new Date(),
-    })
+  afterEach(async () => {
+    await container.dispose()
+  })
+
+  it('should send welcome email on userCreated', async () => {
+    await eventEmitter.emitAsync(
+      userCreated({
+        userId: '123',
+        email: 'test@example.com',
+        name: 'Test User',
+        createdAt: new Date(),
+      }),
+    )
 
     expect(mailerMock.send).toHaveBeenCalledWith(
       expect.objectContaining({
         to: 'test@example.com',
         template: 'welcome',
-      })
+      }),
     )
   })
 })
@@ -618,49 +876,82 @@ describe('EmailService', () => {
 ## Complete Example
 
 ```typescript
-// events/index.ts
-import { EventToken } from '@navios/events'
+// events/user.events.ts
+import { eventBuilder } from '@navios/events'
+import { z } from 'zod'
 
-export namespace UserEvents {
-  export const Created = EventToken.create<{
-    userId: string
-    email: string
-    name: string
-  }>('user.created')
+const builder = eventBuilder()
 
-  export const Updated = EventToken.create<{
-    userId: string
-    changes: Partial<User>
-  }>('user.updated')
+export const userCreated = builder.defineEvent({
+  event: 'user.created',
+  payloadSchema: z.object({
+    userId: z.string(),
+    email: z.string().email(),
+    name: z.string(),
+  }),
+})
 
-  export const Deleted = EventToken.create<{
-    userId: string
-  }>('user.deleted')
-}
+export const userUpdated = builder.defineEvent({
+  event: 'user.updated',
+  payloadSchema: z.object({
+    userId: z.string(),
+    changes: z.record(z.unknown()),
+  }),
+})
 
-export namespace OrderEvents {
-  export const Created = EventToken.create<{
-    orderId: string
-    userId: string
-    items: OrderItem[]
-  }>('order.created')
+export const userDeleted = builder.defineEvent({
+  event: 'user.deleted',
+  payloadSchema: z.object({
+    userId: z.string(),
+  }),
+})
 
-  export const Completed = EventToken.create<{
-    orderId: string
-    userId: string
-    total: number
-  }>('order.completed')
-}
+export const userEvents = builder.anyOf([
+  userCreated,
+  userUpdated,
+  userDeleted,
+])
+
+// events/order.events.ts
+import { eventBuilder } from '@navios/events'
+import { z } from 'zod'
+
+const builder = eventBuilder()
+
+export const orderCreated = builder.defineEvent({
+  event: 'order.created',
+  payloadSchema: z.object({
+    orderId: z.string(),
+    userId: z.string(),
+    items: z.array(
+      z.object({
+        productId: z.string(),
+        quantity: z.number(),
+      }),
+    ),
+  }),
+})
+
+export const orderCompleted = builder.defineEvent({
+  event: 'order.completed',
+  payloadSchema: z.object({
+    orderId: z.string(),
+    userId: z.string(),
+    total: z.number(),
+  }),
+})
 ```
 
 ```typescript
 // events.provider.ts
-import { provideEventService } from '@navios/events'
+import { provideEventManager } from '@navios/events'
 
-export const EventToken = provideEventService({
-  wildcard: true,
+export const MyEventManager = provideEventManager({
   onError: (error, eventName) => {
     console.error(`Event handler error [${eventName}]:`, error)
+  },
+  onMessage: (eventName, payload) => {
+    console.log(`Event emitted: ${eventName}`)
   },
 })
 ```
@@ -668,22 +959,24 @@ export const EventToken = provideEventService({
 ```typescript
 // services/user.service.ts
 import { Injectable, inject } from '@navios/di'
-import { EventEmitter } from '@navios/events'
-import { UserEvents } from '../events'
+import { userCreated, userUpdated, userDeleted } from '../events/user.events'
+import { MyEventManager } from '../events.provider'
 
 @Injectable()
 class UserService {
   private db = inject(DatabaseService)
-  private events = inject(EventEmitter)
+  private eventEmitter = inject(MyEventManager)
 
   async createUser(data: CreateUserDto): Promise<User> {
     const user = await this.db.users.create({ data })
 
-    this.events.emit(UserEvents.Created, {
-      userId: user.id,
-      email: user.email,
-      name: user.name,
-    })
+    this.eventEmitter.emit(
+      userCreated({
+        userId: user.id,
+        email: user.email,
+        name: user.name,
+      }),
+    )
 
     return user
   }
@@ -694,10 +987,12 @@ class UserService {
       data,
     })
 
-    this.events.emit(UserEvents.Updated, {
-      userId: user.id,
-      changes: data,
-    })
+    this.eventEmitter.emit(
+      userUpdated({
+        userId: user.id,
+        changes: data,
+      }),
+    )
 
     return user
   }
@@ -705,7 +1000,9 @@ class UserService {
   async deleteUser(userId: string): Promise<void> {
     await this.db.users.delete({ where: { id: userId } })
 
-    this.events.emit(UserEvents.Deleted, { userId })
+    this.eventEmitter.emit(
+      userDeleted({ userId }),
+    )
   }
 }
 ```
@@ -713,33 +1010,36 @@ class UserService {
 ```typescript
 // handlers/email.handler.ts
 import { Injectable, inject } from '@navios/di'
-import { OnEvent } from '@navios/events'
-import { UserEvents, OrderEvents } from '../events'
+import { OnEvent, EventParams } from '@navios/events'
+import { userCreated, orderCompleted } from '../events'
 
 @Injectable()
 class EmailHandler {
   private mailer = inject(MailerService)
   private userService = inject(UserService)
 
-  @OnEvent(UserEvents.Created)
-  async sendWelcomeEmail(payload: typeof UserEvents.Created.payload) {
+  @OnEvent(userCreated)
+  async sendWelcomeEmail(args: EventParams<typeof userCreated>) {
     await this.mailer.send({
-      to: payload.email,
+      to: args.payload.email,
       template: 'welcome',
-      data: { name: payload.name },
+      data: {
+        userId: args.payload.userId,
+        name: args.payload.name,
+      },
     })
   }
 
-  @OnEvent(OrderEvents.Completed)
-  async sendOrderConfirmation(payload: typeof OrderEvents.Completed.payload) {
-    const user = await this.userService.findById(payload.userId)
+  @OnEvent(orderCompleted)
+  async sendOrderConfirmation(args: EventParams<typeof orderCompleted>) {
+    const user = await this.userService.findById(args.payload.userId)
 
     await this.mailer.send({
       to: user.email,
       template: 'order-confirmation',
       data: {
-        orderId: payload.orderId,
-        total: payload.total,
+        orderId: args.payload.orderId,
+        total: args.payload.total,
       },
     })
   }
@@ -749,23 +1049,18 @@ class EmailHandler {
 ```typescript
 // handlers/analytics.handler.ts
 import { Injectable, inject } from '@navios/di'
-import { OnEvent, OnEvents } from '@navios/events'
-import { UserEvents, OrderEvents } from '../events'
+import { OnEvent, EventParams } from '@navios/events'
+import { userCreated } from '../events'
 
 @Injectable()
 class AnalyticsHandler {
   private analytics = inject(AnalyticsService)
 
-  @OnEvent(UserEvents.Created)
-  async trackUserCreation(payload: typeof UserEvents.Created.payload) {
+  @OnEvent(userCreated)
+  async trackUserCreation(args: EventParams<typeof userCreated>) {
     await this.analytics.track('user_signup', {
-      userId: payload.userId,
+      userId: args.payload.userId,
     })
-  }
-
-  @OnEvents([OrderEvents.Created, OrderEvents.Completed])
-  async trackOrderEvent(payload: unknown, eventName: string) {
-    await this.analytics.track(eventName, payload)
   }
 }
 ```
@@ -773,82 +1068,301 @@ class AnalyticsHandler {
 ```typescript
 // handlers/audit.handler.ts
 import { Injectable, inject } from '@navios/di'
-import { OnEvent } from '@navios/events'
+import { OnEvents, NamespaceParams } from '@navios/events'
+import { userEvents } from '../events'
 
 @Injectable()
 class AuditHandler {
   private auditLog = inject(AuditLogService)
 
-  // Listen to all events using wildcard
-  @OnEvent('**')
-  async logAllEvents(payload: unknown, eventName: string) {
-    await this.auditLog.record({
-      event: eventName,
-      data: payload,
-      timestamp: new Date(),
-    })
+  @OnEvents(userEvents)
+  async logUserChange(args: NamespaceParams<typeof userEvents>) {
+    if (args.event === 'user.created') {
+      await this.auditLog.record({
+        event: args.event,
+        userId: args.payload.userId,
+        email: args.payload.email,
+        timestamp: new Date(),
+      })
+    } else if (args.event === 'user.updated') {
+      await this.auditLog.record({
+        event: args.event,
+        userId: args.payload.userId,
+        changes: args.payload.changes,
+        timestamp: new Date(),
+      })
+    } else if (args.event === 'user.deleted') {
+      await this.auditLog.record({
+        event: args.event,
+        userId: args.payload.userId,
+        timestamp: new Date(),
+      })
+    }
   }
 }
 ```
 
 ```typescript
 // modules/app.module.ts
-import { Module } from '@navios/core'
-import { EventToken } from './events.provider'
+import { Module, NaviosModule } from '@navios/core'
+import { Injectable, inject } from '@navios/di'
+import { MyEventManager } from './events.provider'
 
 @Module({
-  providers: [
-    EventToken,
-    UserService,
-    OrderService,
-    EmailHandler,
-    AnalyticsHandler,
-    AuditHandler,
-  ],
   controllers: [UserController, OrderController],
 })
-class AppModule {}
+export class AppModule implements NaviosModule {
+  private eventManager = inject(MyEventManager)
+
+  async onModuleInit() {
+    // Register all services with event handlers
+    this.eventManager.register(EmailHandler)
+    this.eventManager.register(AnalyticsHandler)
+    this.eventManager.register(AuditHandler)
+  }
+}
 ```
+
+---
+
+## Best Practices
+
+### Event Naming
+
+Use dot-separated, hierarchical names for events:
+
+```typescript
+// ✅ Good
+'user.created'
+'user.updated'
+'order.payment.completed'
+'order.shipping.failed'
+
+// ❌ Avoid
+'userCreated'
+'USER_CREATED'
+'user/created'
+```
+
+### Schema Design
+
+Always define schemas for events to ensure type safety and runtime validation:
+
+```typescript
+// ✅ Good - explicit schema
+export const userCreated = builder.defineEvent({
+  event: 'user.created',
+  payloadSchema: z.object({
+    userId: z.string().uuid(),
+    email: z.string().email(),
+    name: z.string().min(1),
+  }),
+})
+
+// ⚠️ Acceptable - no schema (types inferred from usage)
+export const systemStarted = builder.defineEvent({
+  event: 'system.started',
+})
+```
+
+### Error Handling
+
+Always provide an `onError` callback for production applications:
+
+```typescript
+const MyEventManager = provideEventManager({
+  onError: (error, eventName, handler) => {
+    // Log error
+    logger.error(`Handler error [${eventName}]`, {
+      error: error.message,
+      handler: handler.name,
+      stack: error.stack,
+    })
+
+    // Send to error tracking
+    sentry.captureException(error, {
+      tags: { event: eventName, handler: handler.name },
+    })
+
+    // Alert on critical errors
+    if (error instanceof CriticalError) {
+      alerting.send({ severity: 'critical', event: eventName })
+    }
+  },
+})
+```
+
+### Handler Organization
+
+Group related handlers in the same service:
+
+```typescript
+// ✅ Good - related handlers together
+@Injectable()
+class UserEventHandler {
+  @OnEvent(userCreated)
+  async sendWelcomeEmail(args: EventParams<typeof userCreated>) { }
+
+  @OnEvent(userUpdated)
+  async syncToCache(args: EventParams<typeof userUpdated>) { }
+
+  @OnEvents(userEvents)
+  async auditLog(args: NamespaceParams<typeof userEvents>) { }
+}
+
+// ❌ Avoid - unrelated handlers mixed
+@Injectable()
+class MixedHandler {
+  @OnEvent(userCreated)
+  async handleUser() { }
+
+  @OnEvent(orderCompleted)
+  async handleOrder() { }
+}
+```
+
+### Local vs Distributed Events
+
+Use local events for internal, process-specific events. Use distributed events for cross-instance communication:
+
+```typescript
+// Local events - fast, no network overhead
+const LocalEventManager = provideEventManager()
+
+// Distributed events - for multi-instance deployments
+const DistributedEventManager = provideEventManager({
+  adapter: createRedisAdapter({ url: process.env.REDIS_URL }),
+})
+```
+
+### Module Registration
+
+Register all event handlers in the module's `onModuleInit`:
+
+```typescript
+@Module()
+export class AppModule implements NaviosModule {
+  private eventManager = inject(MyEventManager)
+
+  async onModuleInit() {
+    // Register all handlers at once
+    this.eventManager.register(EmailHandler)
+    this.eventManager.register(AnalyticsHandler)
+    this.eventManager.register(AuditHandler)
+  }
+}
+```
+
+---
+
+## Troubleshooting
+
+### Handlers Not Executing
+
+**Problem:** Event handlers are not being called when events are emitted.
+
+**Solutions:**
+1. Ensure the service is registered with `eventManager.register(Service)`
+2. Verify the service is `@Injectable()` and in the DI container
+3. Check that the event name matches exactly (case-sensitive)
+4. Ensure registration happens in `onModuleInit` (after DI container is ready)
+
+### Type Errors with EventParams
+
+**Problem:** TypeScript errors when using `EventParams<typeof event>`.
+
+**Solutions:**
+1. Ensure the event was created with `defineEvent` from the same builder
+2. Check that the event has a schema if you're accessing `payload` properties
+3. For events without schemas, `payload` may be `void` or `unknown`
+
+### Validation Errors
+
+**Problem:** Events fail to emit with Zod validation errors.
+
+**Solutions:**
+1. Check that payload matches the schema exactly
+2. Ensure date objects are actually `Date` instances, not strings
+3. Use `.passthrough()` or `.strict()` on schemas if needed
+4. Wrap emit in try-catch to handle validation errors gracefully
+
+### Handler Execution Order
+
+**Problem:** Handlers execute in unexpected order.
+
+**Solutions:**
+1. Use `priority` option to control execution order
+2. Higher priority handlers execute first
+3. Handlers with same priority execute in parallel (order not guaranteed)
+4. Use `emitAsync` to wait for handlers to complete
+
+### Memory Leaks
+
+**Problem:** Event handlers accumulate over time.
+
+**Solutions:**
+1. Ensure services are properly disposed when modules are destroyed
+2. Use `unregister()` if dynamically adding/removing handlers
+3. Check for circular references in event handlers
+4. Monitor handler count with adapter metrics
 
 ---
 
 ## API Reference Summary
 
+### Builder Function
+
+| Export        | Type     | Description                    |
+| ------------- | -------- | ------------------------------ |
+| `eventBuilder`| Function | Creates event builder instance |
+
+### Builder Methods
+
+| Method        | Return           | Description                    |
+| ------------- | ---------------- | ------------------------------ |
+| `defineEvent` | `Event`          | Define a single event           |
+| `anyOf`       | `EventNamespace` | Create namespace from events    |
+
 ### Provider Function
 
-| Export               | Type     | Description                     |
-| -------------------- | -------- | ------------------------------- |
-| `provideEventService`| Function | Creates event service provider  |
-
-### Service & Types
-
-| Export                | Type         | Description                     |
-| --------------------- | ------------ | ------------------------------- |
-| `EventEmitter`        | Class        | Main event emitter service      |
-| `EventToken`          | Class        | Type-safe event token factory   |
-| `OnEvent`             | Decorator    | Listen to single event          |
-| `OnEvents`            | Decorator    | Listen to multiple events       |
-| `OnceEvent`           | Decorator    | Listen once then remove         |
-| `EventError`          | EventToken   | Built-in error event            |
-
-### EventEmitter Methods
-
-| Method           | Return              | Description                    |
-| ---------------- | ------------------- | ------------------------------ |
-| `emit`           | `void`              | Fire and forget emission       |
-| `emitAsync`      | `Promise<void>`     | Wait for all handlers          |
-| `emitSeries`     | `Promise<void>`     | Execute handlers sequentially  |
-| `emitWithResult` | `Promise<R[]>`      | Collect handler results        |
-| `addListener`    | `void`              | Programmatically add listener  |
-| `removeListener` | `void`              | Remove a listener              |
-| `listenerCount`  | `number`            | Count listeners for event      |
+| Export              | Type     | Description                    |
+| ------------------- | -------- | ------------------------------ |
+| `provideEventManager`| Function | Creates event manager provider |
 
 ### Configuration Options
 
-| Property            | Type       | Default | Description                    |
-| ------------------- | ---------- | ------- | ------------------------------ |
-| `wildcard`          | `boolean`  | `false` | Enable wildcard patterns       |
-| `delimiter`         | `string`   | `'.'`   | Event name delimiter           |
-| `maxListeners`      | `number`   | `10`    | Max listeners per event        |
-| `ignoreErrors`      | `boolean`  | `false` | Suppress handler errors        |
-| `onError`           | `Function` | -       | Global error handler           |
+| Property   | Type       | Default | Description                    |
+| ---------- | ---------- | ------- | ------------------------------ |
+| `adapter`   | `Adapter`  | In-Memory | Event distribution adapter    |
+| `onError`   | `Function` | -       | Error handler callback          |
+| `onMessage` | `Function` | -       | Message callback for metrics   |
+
+### Decorators
+
+| Export    | Type      | Description                    |
+| --------- | --------- | ------------------------------ |
+| `@OnEvent`| Decorator | Listen to single event          |
+| `@OnEvents`| Decorator | Listen to event namespace       |
+
+### Type Helpers
+
+| Export          | Type      | Description                    |
+| --------------- | --------- | ------------------------------ |
+| `EventParams`   | Type      | Parameters for @OnEvent handler|
+| `NamespaceParams`| Type     | Parameters for @OnEvents handler|
+
+### EventManager Methods
+
+| Method      | Return            | Description                    |
+| ----------- | ----------------- | ------------------------------ |
+| `emit`      | `void`            | Emit an event (fire and forget)|
+| `emitAsync` | `Promise<void>`  | Emit and await all handlers    |
+| `register`  | `void`            | Register service with handlers |
+| `unregister`| `void`            | Unregister a service           |
+
+### Adapter Functions
+
+| Export            | Type     | Description                    |
+| ----------------- | -------- | ------------------------------ |
+| `createRedisAdapter`| Function | Create Redis adapter          |
+| `createKeyvAdapter`| Function | Create Keyv adapter           |

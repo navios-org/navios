@@ -152,29 +152,6 @@ const MailToken = provideMailService({
 })
 ```
 
-### Module Registration
-
-```typescript
-import { Module } from '@navios/core'
-import { provideMailService, SmtpTransport } from '@navios/mail'
-
-const MailToken = provideMailService({
-  transport: new SmtpTransport({
-    host: 'smtp.example.com',
-    port: 587,
-    auth: {
-      user: process.env.SMTP_USER,
-      pass: process.env.SMTP_PASS,
-    },
-  }),
-})
-
-@Module({
-  providers: [MailToken],
-})
-class AppModule {}
-```
-
 ---
 
 ## MailService API
@@ -183,7 +160,7 @@ class AppModule {}
 
 ```typescript
 import { Injectable, inject } from '@navios/di'
-import { MailService } from '@navios/mail'
+import { MailService } from './mail.provider.js'
 
 @Injectable()
 class NotificationService {

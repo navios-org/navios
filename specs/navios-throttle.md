@@ -147,7 +147,6 @@ const ThrottleToken = provideThrottleService({
 })
 
 @Module({
-  providers: [ThrottleToken],
   guards: [ThrottlerGuard],
 })
 class AppModule {}

@@ -103,26 +103,6 @@ const HealthToken = provideHealthService(async () => {
 })
 ```
 
-### Module Registration
-
-```typescript
-import { Module } from '@navios/core'
-import { provideHealthService, DiskHealthIndicator, MemoryHealthIndicator } from '@navios/health'
-
-const HealthToken = provideHealthService({
-  endpoints: true,
-  indicators: [
-    new DiskHealthIndicator({ path: '/', thresholdPercent: 10 }),
-    new MemoryHealthIndicator({ heapThresholdPercent: 90 }),
-  ],
-})
-
-@Module({
-  providers: [HealthToken],
-})
-class AppModule {}
-```
-
 ---
 
 ## Health Endpoints

@@ -214,12 +214,11 @@ bootstrap()
 ### Basic Controller
 
 ```typescript
-import { Injectable, inject } from '@navios/di'
+import { inject } from '@navios/di'
 import { MessageController, Message, MessageParams } from '@navios/microservice'
 import { UserCreatedMessage, OrderPlacedMessage } from './messages'
 
 @MessageController()
-@Injectable()
 class NotificationController {
   private emailService = inject(EmailService)
   private pushService = inject(PushService)
@@ -248,7 +247,6 @@ class NotificationController {
 
 ```typescript
 @MessageController()
-@Injectable()
 class UserController {
   private userService = inject(UserService)
 
@@ -836,7 +834,7 @@ export const SendNotificationMessage = messages.declarePointToPoint({
 
 ```typescript
 // controllers/order.controller.ts
-import { Injectable, inject } from '@navios/di'
+import { inject } from '@navios/di'
 import {
   MessageController,
   Message,
@@ -853,7 +851,6 @@ import {
 } from '../messages/order.messages'
 
 @MessageController()
-@Injectable()
 class OrderController {
   private db = inject(DatabaseService)
 

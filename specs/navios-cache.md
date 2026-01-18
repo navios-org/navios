@@ -34,6 +34,7 @@ CacheService
 │   └── Custom adapters via CacheAdapter interface
 │
 └── Decorators
+    ├── @CacheableService() - Mark service for cache processing
     ├── @Cacheable() - Cache method results
     ├── @CacheEvict() - Invalidate cache entries
     ├── @CachePut() - Update cache without checking
@@ -51,6 +52,43 @@ CacheService
 ---
 
 ## Setup
+
+### Plugin Registration
+
+The cache functionality is enabled by registering the cache plugin using `app.usePlugin()`. The plugin enables decorator-based caching and can optionally provide default cache options.
+
+```typescript
+import { NaviosFactory } from '@navios/core'
+import { defineCache, provideCacheService, RedisAdapter } from '@navios/cache'
+
+// Create cache token with default options
+const DefaultCacheToken = provideCacheService({
+  adapter: new RedisAdapter({
+    host: 'localhost',
+    port: 6379,
+  }),
+  ttl: 60_000,
+})
+
+// Register cache plugin with default options token
+const app = await NaviosFactory.create(AppModule, {
+  adapter: defineBunEnvironment(),
+})
+
+app.usePlugin(defineCache({
+  defaultOptionsToken: DefaultCacheToken, // Optional: provides default options for decorators
+  monitor: CacheMonitor, // Optional: cache event monitor implementation
+}))
+
+await app.listen({ port: 3000 })
+```
+
+**Plugin Options:**
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `defaultOptionsToken` | `InjectionToken<CacheService>` | Optional cache service token that provides default options for decorators |
+| `monitor` | `ClassType<CacheMonitor>` | Optional cache monitor class that implements cache event interfaces |
 
 ### Provider Function
 
@@ -92,26 +130,6 @@ const CacheToken = provideCacheService({
   }),
   ttl: 300_000, // 5 minutes
 })
-```
-
-### Module Registration
-
-```typescript
-import { Module } from '@navios/core'
-import { provideCacheService, RedisAdapter } from '@navios/cache'
-
-const CacheToken = provideCacheService({
-  adapter: new RedisAdapter({
-    host: 'localhost',
-    port: 6379,
-  }),
-  ttl: 60_000,
-})
-
-@Module({
-  providers: [CacheToken],
-})
-class AppModule {}
 ```
 
 ---
@@ -283,22 +301,38 @@ await this.cache.mset([
 
 ### @Cacheable(options?)
 
-Caches the return value of a method.
+Caches the return value of a method. Options can be provided directly or via a cache service token.
 
 ```typescript
 import { Injectable } from '@navios/di'
-import { Cacheable } from '@navios/cache'
+import { Cacheable, provideCacheService } from '@navios/cache'
+
+// Create cache service token with default options
+const UserCacheToken = provideCacheService({
+  ttl: 60_000,
+  tags: ['users'],
+})
 
 @Injectable()
 class UserService {
+  // Using direct options
   @Cacheable({ key: 'user:$userId', ttl: 60_000 })
   async findById(userId: string): Promise<User> {
     return this.db.users.findUnique({ where: { id: userId } })
   }
 
+  // Using cache service token for options
+  @Cacheable({
+    key: 'user:$userId',
+    optionsToken: UserCacheToken,
+  })
+  async findByIdWithToken(userId: string): Promise<User> {
+    return this.db.users.findUnique({ where: { id: userId } })
+  }
+
+  // Using key helper and tags
   @Cacheable({
     key: (args) => `users:list:${args.page}:${args.limit}`,
-    ttl: 30_000,
     tags: ['users'],
   })
   async findAll(args: { page: number; limit: number }): Promise<User[]> {
@@ -312,13 +346,20 @@ class UserService {
 
 **Options:**
 
-| Property    | Type                           | Description                      |
-| ----------- | ------------------------------ | -------------------------------- |
-| `key`       | `string \| (args) => string`   | Cache key or key generator       |
-| `ttl`       | `number`                       | TTL in milliseconds              |
-| `tags`      | `string[] \| (args) => string[]` | Cache tags for invalidation    |
-| `condition` | `(args, result) => boolean`    | Condition to cache result        |
-| `unless`    | `(args, result) => boolean`    | Condition to skip caching        |
+| Property      | Type                           | Description                      |
+| ------------- | ------------------------------ | -------------------------------- |
+| `key`         | `string \| (args) => string`   | Cache key or key generator (required) |
+| `optionsToken` | `InjectionToken<CacheService>` | Optional cache service token providing default options |
+| `ttl`         | `number`                       | TTL in milliseconds (optional if provided by token) |
+| `tags`        | `string[] \| (args) => string[]` | Cache tags for invalidation (optional) |
+| `condition`   | `(args, result) => boolean`    | Condition to cache result (optional) |
+| `unless`      | `(args, result) => boolean`    | Condition to skip caching (optional) |
+
+**Options Resolution Order:**
+
+1. Direct options provided to decorator (highest priority)
+2. Options from `optionsToken` cache service token
+3. Options from `defaultOptionsToken` in plugin configuration (lowest priority)
 
 **Key Interpolation:**
 
@@ -332,23 +373,65 @@ async findById(userId: string) { }
 async findByTenant(tenantId: string, page: number) { }
 ```
 
-### @CacheEvict(options)
+### @CacheableService()
 
-Invalidates cache entries when method is called.
+Marks a service class to enable cache decorator processing. This decorator must be applied to any service that uses `@Cacheable`, `@CacheEvict`, or `@CachePut` decorators.
 
 ```typescript
+import { Injectable } from '@navios/di'
+import { CacheableService, Cacheable, CacheEvict, CachePut } from '@navios/cache'
+
 @Injectable()
+@CacheableService() // Required: marks this service for cache decorator processing
 class UserService {
+  @Cacheable({ key: 'user:$userId' })
+  async findById(userId: string): Promise<User> {
+    return this.db.users.findUnique({ where: { id: userId } })
+  }
+
   @CacheEvict({ key: 'user:$userId' })
   async updateUser(userId: string, data: UpdateUserDto): Promise<User> {
     return this.db.users.update({ where: { id: userId }, data })
   }
 
+  @CachePut({ key: 'user:$userId' })
+  async refreshUser(userId: string): Promise<User> {
+    return this.db.users.findUnique({ where: { id: userId } })
+  }
+}
+```
+
+**Note:** The `@CacheableService()` decorator is required for the cache plugin to process cache decorators on the service. Without it, `@Cacheable`, `@CacheEvict`, and `@CachePut` decorators will not be processed.
+
+### @CacheEvict(options)
+
+Invalidates cache entries when method is called.
+
+```typescript
+import { Injectable } from '@navios/di'
+import { CacheableService, CacheEvict, provideCacheService } from '@navios/cache'
+
+// Create cache service token
+const UserCacheToken = provideCacheService({
+  ttl: 60_000,
+})
+
+@Injectable()
+@CacheableService() // Required: marks service for cache processing
+class UserService {
+  // Evicts specific key
+  @CacheEvict({ key: 'user:$userId' })
+  async updateUser(userId: string, data: UpdateUserDto): Promise<User> {
+    return this.db.users.update({ where: { id: userId }, data })
+  }
+
+  // Evicts by tags
   @CacheEvict({ tags: ['users'] })
   async bulkUpdate(data: BulkUpdateDto): Promise<void> {
     await this.db.users.updateMany(data)
   }
 
+  // Clears all entries
   @CacheEvict({ allEntries: true })
   async clearAllUsers(): Promise<void> {
     // Clears entire cache
@@ -358,27 +441,58 @@ class UserService {
 
 **Options:**
 
-| Property      | Type                         | Description                    |
-| ------------- | ---------------------------- | ------------------------------ |
-| `key`         | `string \| (args) => string` | Cache key to invalidate        |
-| `tags`        | `string[]`                   | Tags to invalidate             |
-| `allEntries`  | `boolean`                    | Clear all cache entries        |
-| `beforeInvocation` | `boolean`               | Evict before method executes   |
+| Property         | Type                         | Description                    |
+| ---------------- | ---------------------------- | ------------------------------ |
+| `optionsToken`   | `InjectionToken<CacheService>` | Optional cache service token providing default options |
+| `key`            | `string \| (args) => string` | Cache key to invalidate        |
+| `tags`           | `string[]`                   | Tags to invalidate             |
+| `allEntries`     | `boolean`                    | Clear all cache entries        |
+| `beforeInvocation` | `boolean`                 | Evict before method executes   |
 
 ### @CachePut(options)
 
-Always executes the method and updates the cache (doesn't check cache first).
+Always executes the method and updates the cache (doesn't check cache first). Options can be provided directly or via a cache service token.
 
 ```typescript
+import { Injectable } from '@navios/di'
+import { CachePut, provideCacheService } from '@navios/cache'
+
+// Create cache service token
+const UserCacheToken = provideCacheService({
+  ttl: 300_000,
+  tags: ['users'],
+})
+
 @Injectable()
 class UserService {
-  @CachePut({ key: 'user:$userId' })
+  // Using direct options
+  @CachePut({ key: 'user:$userId', ttl: 60_000 })
   async refreshUser(userId: string): Promise<User> {
     // Always fetches fresh data and updates cache
     return this.db.users.findUnique({ where: { id: userId } })
   }
+
+  // Using cache service token
+  @CachePut({
+    key: 'user:$userId',
+    optionsToken: UserCacheToken,
+  })
+  async refreshUserWithToken(userId: string): Promise<User> {
+    return this.db.users.findUnique({ where: { id: userId } })
+  }
 }
 ```
+
+**Options:**
+
+| Property      | Type                           | Description                      |
+| ------------- | ------------------------------ | -------------------------------- |
+| `key`         | `string \| (args) => string`   | Cache key or key generator (required) |
+| `optionsToken` | `InjectionToken<CacheService>` | Optional cache service token providing default options |
+| `ttl`         | `number`                       | TTL in milliseconds (optional if provided by token) |
+| `tags`        | `string[] \| (args) => string[]` | Cache tags for invalidation (optional) |
+| `condition`   | `(args, result) => boolean`    | Condition to cache result (optional) |
+| `unless`      | `(args, result) => boolean`    | Condition to skip caching (optional) |
 
 ### @CacheTTL(ttl)
 
@@ -589,11 +703,6 @@ const ApiCacheToken = provideCacheService({
   adapter: new RedisAdapter({ host: 'redis', keyPrefix: 'api:' }),
   ttl: 300_000, // 5 minutes
 })
-
-@Module({
-  providers: [DefaultCacheToken, SessionCacheToken, ApiCacheToken],
-})
-class AppModule {}
 ```
 
 ### Using Named Caches
@@ -627,11 +736,11 @@ class ApiService {
 
 ## Cache Events
 
-Subscribe to cache events for monitoring and debugging.
+Subscribe to cache events for monitoring and debugging by implementing a cache monitor and passing it to the plugin.
 
 ```typescript
 import { Injectable, inject } from '@navios/di'
-import { CacheService, OnCacheHit, OnCacheMiss, OnCacheEvict } from '@navios/cache'
+import { OnCacheHit, OnCacheMiss, OnCacheEvict } from '@navios/cache'
 
 @Injectable()
 class CacheMonitor implements OnCacheHit, OnCacheMiss, OnCacheEvict {
@@ -650,6 +759,34 @@ class CacheMonitor implements OnCacheHit, OnCacheMiss, OnCacheEvict {
   }
 }
 ```
+
+**Registering the Monitor:**
+
+Pass the monitor class to the cache plugin:
+
+```typescript
+import { NaviosFactory } from '@navios/core'
+import { defineCache } from '@navios/cache'
+import { CacheMonitor } from './monitors/cache.monitor'
+
+const app = await NaviosFactory.create(AppModule, {
+  adapter: defineBunEnvironment(),
+})
+
+app.usePlugin(defineCache({
+  monitor: CacheMonitor, // Register cache monitor
+}))
+
+await app.listen({ port: 3000 })
+```
+
+**Cache Event Interfaces:**
+
+| Interface | Method | Description |
+|-----------|--------|-------------|
+| `OnCacheHit` | `onCacheHit(key: string, value: unknown): void` | Called when a cache hit occurs |
+| `OnCacheMiss` | `onCacheMiss(key: string): void` | Called when a cache miss occurs |
+| `OnCacheEvict` | `onCacheEvict(key: string): void` | Called when a cache entry is evicted |
 
 ---
 
@@ -673,27 +810,40 @@ export const PersistentCacheToken = provideCacheService({
   }),
   ttl: 3_600_000,
 })
+
+// Default cache options token for decorators
+export const DefaultCacheOptionsToken = provideCacheService({
+  ttl: 300_000, // 5 minutes default
+})
 ```
 
 ```typescript
 // services/product.service.ts
 import { Injectable, inject } from '@navios/di'
-import { Cacheable, CacheEvict, CacheService } from '@navios/cache'
+import { CacheableService, Cacheable, CacheEvict, CachePut, CacheService, provideCacheService } from '@navios/cache'
+
+// Create cache service token for products
+const ProductCacheToken = provideCacheService({
+  ttl: 300_000,
+  tags: ['products'],
+})
 
 @Injectable()
+@CacheableService() // Required: marks service for cache decorator processing
 class ProductService {
   private db = inject(DatabaseService)
   private cache = inject(CacheService)
 
+  // Using cache service token
   @Cacheable({
     key: 'product:$id',
-    ttl: 300_000,
-    tags: ['products'],
+    optionsToken: ProductCacheToken,
   })
   async findById(id: string): Promise<Product | null> {
     return this.db.products.findUnique({ where: { id } })
   }
 
+  // Using direct options with key helper
   @Cacheable({
     key: (args) => `products:category:${args.categoryId}:${args.page}`,
     ttl: 60_000,
@@ -707,6 +857,7 @@ class ProductService {
     })
   }
 
+  // Evict cache
   @CacheEvict({
     key: 'product:$id',
     tags: ['products'],
@@ -718,6 +869,15 @@ class ProductService {
   @CacheEvict({ tags: ['products'] })
   async bulkImport(products: CreateProductDto[]): Promise<void> {
     await this.db.products.createMany({ data: products })
+  }
+
+  // Using CachePut
+  @CachePut({
+    key: 'product:$id',
+    optionsToken: ProductCacheToken,
+  })
+  async refreshProduct(id: string): Promise<Product> {
+    return this.db.products.findUnique({ where: { id } })
   }
 
   // Manual cache control
@@ -735,6 +895,51 @@ class ProductService {
     )
   }
 }
+```
+
+```typescript
+// monitors/cache.monitor.ts
+import { Injectable, inject } from '@navios/di'
+import { OnCacheHit, OnCacheMiss, OnCacheEvict } from '@navios/cache'
+
+@Injectable()
+export class CacheMonitor implements OnCacheHit, OnCacheMiss, OnCacheEvict {
+  private metrics = inject(MetricsService)
+
+  onCacheHit(key: string, value: unknown): void {
+    this.metrics.increment('cache.hit', { key })
+  }
+
+  onCacheMiss(key: string): void {
+    this.metrics.increment('cache.miss', { key })
+  }
+
+  onCacheEvict(key: string): void {
+    this.metrics.increment('cache.evict', { key })
+  }
+}
+```
+
+```typescript
+// main.ts
+import { NaviosFactory } from '@navios/core'
+import { defineBunEnvironment } from '@navios/adapter-bun'
+import { defineCache } from '@navios/cache'
+import { DefaultCacheToken, DefaultCacheOptionsToken } from './cache.provider'
+import { CacheMonitor } from './monitors/cache.monitor'
+import { AppModule } from './app.module'
+
+const app = await NaviosFactory.create(AppModule, {
+  adapter: defineBunEnvironment(),
+})
+
+// Register cache plugin with default options and monitor
+app.usePlugin(defineCache({
+  defaultOptionsToken: DefaultCacheOptionsToken,
+  monitor: CacheMonitor,
+}))
+
+await app.listen({ port: 3000 })
 ```
 
 ```typescript
@@ -791,10 +996,8 @@ class ProductController {
 ```typescript
 // modules/products.module.ts
 import { Module } from '@navios/core'
-import { DefaultCacheToken, PersistentCacheToken } from './cache.provider'
 
 @Module({
-  providers: [DefaultCacheToken, PersistentCacheToken, ProductService],
   controllers: [ProductController],
 })
 class ProductsModule {}
@@ -804,11 +1007,12 @@ class ProductsModule {}
 
 ## API Reference Summary
 
-### Provider Function
+### Provider Functions
 
 | Export               | Type       | Description                        |
 | -------------------- | ---------- | ---------------------------------- |
 | `provideCacheService`| Function   | Creates cache service provider     |
+| `defineCache`        | Function   | Creates cache plugin definition    |
 
 ### Service & Types
 
@@ -818,6 +1022,7 @@ class ProductsModule {}
 | `MemoryAdapter`  | Class       | In-memory cache adapter            |
 | `RedisAdapter`   | Class       | Redis cache adapter                |
 | `KeyvAdapter`    | Class       | Keyv universal adapter             |
+| `CacheableService` | Decorator   | Mark service for cache processing  |
 | `Cacheable`      | Decorator   | Cache method results               |
 | `CacheEvict`     | Decorator   | Invalidate cache entries           |
 | `CachePut`       | Decorator   | Update cache unconditionally       |

@@ -55,24 +55,6 @@ const GrpcToken = provideGrpcService(async () => {
 })
 ```
 
-### Module Registration
-
-```typescript
-import { Module } from '@navios/core'
-import { provideGrpcService } from '@navios/grpc'
-
-const GrpcToken = provideGrpcService({
-  protoPath: './protos/service.proto',
-  package: 'myapp',
-  url: '0.0.0.0:5000',
-})
-
-@Module({
-  providers: [GrpcToken, UserGrpcService],
-})
-class AppModule {}
-```
-
 ### Service Definition
 
 ```typescript
