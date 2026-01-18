@@ -44,14 +44,16 @@ function getModule() {
     }
 
     loadedModule = {
-      createAsyncLocalStorage: <T>() => new NoopLocalStorage<T>(),
+      // prettier-ignore
+      createAsyncLocalStorage: <T,>() => new NoopLocalStorage<T>(),
       isUsingNativeAsyncLocalStorage: () => false,
     }
   } else {
     // In development, use native AsyncLocalStorage
 
     loadedModule = {
-      createAsyncLocalStorage: <T>() => new AsyncLocalStorage<T>(),
+      // prettier-ignore
+      createAsyncLocalStorage: <T,>() => new AsyncLocalStorage<T>(),
       isUsingNativeAsyncLocalStorage: () => true,
     }
   }
