@@ -1,15 +1,14 @@
-import type { FastifyReply, FastifyRequest } from 'fastify'
-import type { Span } from '@opentelemetry/api'
-
-import type { ResolvedOtelConfig, SpanFactoryService, TraceContextService } from '@navios/otel'
-
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { FastifyOtelPluginOptions } from '../interfaces/index.mjs'
+import type { ResolvedOtelConfig, SpanFactoryService, TraceContextService } from '@navios/otel'
+import type { Span } from '@opentelemetry/api'
+import type { FastifyReply, FastifyRequest } from 'fastify'
 
+import { createOnErrorHook } from '../hooks/on-error.hook.mjs'
 import { createOnRequestHook } from '../hooks/on-request.hook.mjs'
 import { createOnResponseHook } from '../hooks/on-response.hook.mjs'
-import { createOnErrorHook } from '../hooks/on-error.hook.mjs'
+
+import type { FastifyOtelPluginOptions } from '../interfaces/index.mjs'
 
 describe('onRequest hook', () => {
   let mockTraceContext: TraceContextService

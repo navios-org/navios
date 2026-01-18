@@ -1,20 +1,13 @@
-import type { EndpointParams } from '@navios/core'
-
-import { builder } from '@navios/builder'
-import {
-  Controller,
-  Endpoint,
-  Module,
-  NaviosApplication,
-  NaviosFactory,
-} from '@navios/core'
 import { defineFastifyEnvironment } from '@navios/adapter-fastify'
-import type { FastifyEnvironment } from '@navios/adapter-fastify'
+import { builder } from '@navios/builder'
+import { Controller, Endpoint, Module, NaviosApplication, NaviosFactory } from '@navios/core'
 import { trace, context as otelContext } from '@opentelemetry/api'
-
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import supertest from 'supertest'
+import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { z } from 'zod/v4'
+
+import type { FastifyEnvironment } from '@navios/adapter-fastify'
+import type { EndpointParams } from '@navios/core'
 
 import { defineOtelPlugin } from '../src/index.mjs'
 
@@ -89,15 +82,17 @@ describe('OpenTelemetry Fastify Integration', () => {
     })
 
     // Register OTel plugin
-    server.usePlugin(defineOtelPlugin({
-      serviceName: 'test-otel-fastify',
-      exporter: 'none', // Don't export, just verify tracing setup
-      autoInstrument: {
-        http: true,
-        handlers: true,
-      },
-      ignoreRoutes: ['/health'],
-    }))
+    server.usePlugin(
+      defineOtelPlugin({
+        serviceName: 'test-otel-fastify',
+        exporter: 'none', // Don't export, just verify tracing setup
+        autoInstrument: {
+          http: true,
+          handlers: true,
+        },
+        ignoreRoutes: ['/health'],
+      }),
+    )
 
     await server.init()
   })

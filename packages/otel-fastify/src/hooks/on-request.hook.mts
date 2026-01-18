@@ -1,7 +1,6 @@
-import type { FastifyReply, FastifyRequest } from 'fastify'
-import type { Span } from '@opentelemetry/api'
-
 import type { ResolvedOtelConfig, SpanFactoryService, TraceContextService } from '@navios/otel'
+import type { Span } from '@opentelemetry/api'
+import type { FastifyReply, FastifyRequest } from 'fastify'
 
 import type { FastifyOtelPluginOptions } from '../interfaces/index.mjs'
 
@@ -52,10 +51,7 @@ export function createOnRequestHook(
   config: ResolvedOtelConfig,
   options: FastifyOtelPluginOptions,
 ) {
-  return async function onRequest(
-    request: FastifyRequest,
-    _reply: FastifyReply,
-  ): Promise<void> {
+  return async function onRequest(request: FastifyRequest, _reply: FastifyReply): Promise<void> {
     // Check if this route should be ignored
     if (shouldIgnoreRoute(request.url, options.ignoreRoutes)) {
       return
@@ -67,9 +63,7 @@ export function createOnRequestHook(
     }
 
     // Extract parent context from incoming headers
-    const parentContext = traceContext.extractFromHeaders(
-      request.headers as Record<string, string>,
-    )
+    const parentContext = traceContext.extractFromHeaders(request.headers as Record<string, string>)
 
     // Get route pattern if available
     const route = request.routeOptions?.url
