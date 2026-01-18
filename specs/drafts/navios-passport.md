@@ -4,7 +4,7 @@
 
 ## Overview
 
-`@navios/passport` provides integration with [Passport.js](http://www.passportjs.org/) - the most popular authentication middleware for Node.js. It brings Passport's extensive strategy ecosystem to Navios with full DI support.
+`@navios/passport` provides integration with [Passport.js](http://www.passportjs.org/) - the most popular authentication middleware for Node.js. It brings Passport's extensive strategy ecosystem to Navios with full DI support and contract-first API definitions.
 
 **Package:** `@navios/passport`
 **Version:** 0.1.0 (planned)
@@ -29,9 +29,9 @@ This integration brings Passport's ecosystem to Navios with modern DI patterns.
 
 ## Key Features (Planned)
 
-- **Strategy registration** - Register strategies via DI
+- **providePassportStrategy()** - Register strategies via DI token pattern
 - **Guard integration** - Use strategies in `@UseGuards()`
-- **Session support** - Optional session-based auth
+- **Contract-first** - Define auth endpoints with builder
 - **Multi-strategy** - Support multiple auth methods
 - **Type safety** - Typed user objects and strategies
 
@@ -39,204 +39,365 @@ This integration brings Passport's ecosystem to Navios with modern DI patterns.
 
 ## Proposed API
 
-### Basic Setup
+### Strategy Configuration with providePassportStrategy
 
 ```typescript
-import { Module } from '@navios/core'
-import { PassportModule } from '@navios/passport'
+import { InjectionToken } from '@navios/di'
+import { z } from 'zod'
 
-@Module({
-  imports: [
-    PassportModule.register(),
-  ],
+// Base strategy options schema
+const PassportStrategyOptionsSchema = z.object({
+  name: z.string(),
+  strategyOptions: z.record(z.unknown()),
 })
-class AppModule {}
+
+// Create a strategy provider
+export function providePassportStrategy<T extends passport.Strategy>(
+  name: string,
+  strategyClass: new (...args: any[]) => T,
+  options: StrategyOptions
+): BoundInjectionToken<PassportStrategyInstance>
+
+export function providePassportStrategy<T extends passport.Strategy>(
+  name: string,
+  strategyClass: new (...args: any[]) => T,
+  options: () => Promise<StrategyOptions>
+): FactoryInjectionToken<PassportStrategyInstance>
 ```
 
-### With JWT Strategy
+### JWT Strategy
 
 ```typescript
-import { Module } from '@navios/core'
-import { PassportModule, PassportStrategy } from '@navios/passport'
+import { providePassportStrategy } from '@navios/passport'
 import { Strategy as JwtStrategy, ExtractJwt } from 'passport-jwt'
-import { Injectable, inject } from '@navios/di'
+import { inject } from '@navios/di'
 
-// Define the strategy as a provider
-@Injectable()
-class JwtAuthStrategy extends PassportStrategy(JwtStrategy, 'jwt') {
-  private userService = inject(UserService)
+export const JwtAuth = providePassportStrategy(
+  'jwt',
+  JwtStrategy,
+  async () => {
+    const config = await inject(ConfigService)
+    const userService = await inject(UserService)
 
-  constructor() {
-    super({
+    return {
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
-      secretOrKey: process.env.JWT_SECRET,
-      ignoreExpiration: false,
-    })
-  }
-
-  async validate(payload: JwtPayload): Promise<User> {
-    const user = await this.userService.findById(payload.sub)
-    if (!user) {
-      throw new UnauthorizedException('User not found')
+      secretOrKey: config.jwt.secret,
+      validate: async (payload: { sub: string }) => {
+        const user = await userService.findById(payload.sub)
+        if (!user) {
+          throw new UnauthorizedException('User not found')
+        }
+        return user
+      },
     }
-    return user
   }
-}
-
-@Module({
-  imports: [PassportModule.register()],
-  providers: [JwtAuthStrategy],
-})
-class AuthModule {}
+)
 ```
 
-### With Local Strategy (Username/Password)
+### Local Strategy (Username/Password)
 
 ```typescript
-import { Injectable, inject } from '@navios/di'
-import { PassportStrategy } from '@navios/passport'
+import { providePassportStrategy } from '@navios/passport'
 import { Strategy as LocalStrategy } from 'passport-local'
+import { inject } from '@navios/di'
 
-@Injectable()
-class LocalAuthStrategy extends PassportStrategy(LocalStrategy, 'local') {
-  private authService = inject(AuthService)
+export const LocalAuth = providePassportStrategy(
+  'local',
+  LocalStrategy,
+  async () => {
+    const authService = await inject(AuthService)
 
-  constructor() {
-    super({
+    return {
       usernameField: 'email',
       passwordField: 'password',
-    })
-  }
-
-  async validate(email: string, password: string): Promise<User> {
-    const user = await this.authService.validateUser(email, password)
-    if (!user) {
-      throw new UnauthorizedException('Invalid credentials')
+      validate: async (email: string, password: string) => {
+        const user = await authService.validateUser(email, password)
+        if (!user) {
+          throw new UnauthorizedException('Invalid credentials')
+        }
+        return user
+      },
     }
-    return user
   }
-}
+)
 ```
 
-### With OAuth Strategy
+### OAuth Strategy (Google)
 
 ```typescript
-import { Injectable, inject } from '@navios/di'
-import { PassportStrategy } from '@navios/passport'
-import { Strategy as GoogleStrategy, Profile } from 'passport-google-oauth20'
+import { providePassportStrategy } from '@navios/passport'
+import { Strategy as GoogleStrategy } from 'passport-google-oauth20'
+import { inject } from '@navios/di'
 
-@Injectable()
-class GoogleAuthStrategy extends PassportStrategy(GoogleStrategy, 'google') {
-  private userService = inject(UserService)
+export const GoogleAuth = providePassportStrategy(
+  'google',
+  GoogleStrategy,
+  async () => {
+    const config = await inject(ConfigService)
+    const userService = await inject(UserService)
 
-  constructor() {
-    super({
-      clientID: process.env.GOOGLE_CLIENT_ID,
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+    return {
+      clientID: config.oauth.google.clientId,
+      clientSecret: config.oauth.google.clientSecret,
       callbackURL: '/auth/google/callback',
       scope: ['email', 'profile'],
-    })
-  }
+      validate: async (accessToken: string, refreshToken: string, profile: Profile) => {
+        const { emails, displayName, photos } = profile
 
-  async validate(
-    accessToken: string,
-    refreshToken: string,
-    profile: Profile
-  ): Promise<User> {
-    const { emails, displayName, photos } = profile
+        let user = await userService.findByEmail(emails[0].value)
 
-    // Find or create user
-    let user = await this.userService.findByEmail(emails[0].value)
+        if (!user) {
+          user = await userService.create({
+            email: emails[0].value,
+            name: displayName,
+            avatar: photos?.[0]?.value,
+            provider: 'google',
+            providerId: profile.id,
+          })
+        }
 
-    if (!user) {
-      user = await this.userService.create({
-        email: emails[0].value,
-        name: displayName,
-        avatar: photos?.[0]?.value,
-        provider: 'google',
-        providerId: profile.id,
-      })
+        return user
+      },
     }
-
-    return user
   }
-}
+)
+```
+
+---
+
+## Auth Endpoints (Contract-First)
+
+Define auth endpoints using the builder pattern.
+
+```typescript
+import { builder } from '@navios/builder'
+import { z } from 'zod'
+
+const api = builder()
+
+const userSchema = z.object({
+  id: z.string(),
+  email: z.string(),
+  name: z.string().nullable(),
+})
+
+// Login endpoint
+export const loginEndpoint = api.declareEndpoint({
+  method: 'POST',
+  url: '/auth/login',
+  requestSchema: z.object({
+    email: z.string().email(),
+    password: z.string(),
+  }),
+  responseSchema: z.object({
+    user: userSchema,
+    token: z.string(),
+  }),
+})
+
+// Register endpoint
+export const registerEndpoint = api.declareEndpoint({
+  method: 'POST',
+  url: '/auth/register',
+  requestSchema: z.object({
+    email: z.string().email(),
+    password: z.string().min(8),
+    name: z.string().optional(),
+  }),
+  responseSchema: z.object({
+    user: userSchema,
+    token: z.string(),
+  }),
+})
+
+// Get profile endpoint
+export const getProfileEndpoint = api.declareEndpoint({
+  method: 'GET',
+  url: '/auth/profile',
+  responseSchema: userSchema,
+})
+
+// OAuth initiate endpoint
+export const googleAuthEndpoint = api.declareEndpoint({
+  method: 'GET',
+  url: '/auth/google',
+  responseSchema: z.object({
+    redirectUrl: z.string(),
+  }),
+})
+
+// OAuth callback endpoint
+export const googleCallbackEndpoint = api.declareEndpoint({
+  method: 'GET',
+  url: '/auth/google/callback',
+  querySchema: z.object({
+    code: z.string(),
+    state: z.string().optional(),
+  }),
+  responseSchema: z.object({
+    user: userSchema,
+    token: z.string(),
+  }),
+})
 ```
 
 ---
 
 ## Guards
 
-### AuthGuard
-
-Use registered strategies in guards.
+### Creating Auth Guards
 
 ```typescript
-import { Controller, Endpoint, UseGuards } from '@navios/core'
-import { AuthGuard, CurrentUser } from '@navios/passport'
+import { Injectable, inject } from '@navios/di'
+import { CanActivate, AbstractExecutionContext, AttributeFactory } from '@navios/core'
+import { PassportService } from '@navios/passport'
+
+// Attribute to specify which strategy to use
+export const UseStrategy = AttributeFactory.create<string | string[]>('UseStrategy')
+
+// Attribute to mark endpoint as public
+export const Public = AttributeFactory.create<boolean>('Public')
+
+@Injectable()
+class PassportGuard implements CanActivate {
+  private passport = inject(PassportService)
+
+  async canActivate(context: AbstractExecutionContext): Promise<boolean> {
+    // Check if endpoint is marked public
+    const isPublic = context.getAttribute(Public)
+    if (isPublic) {
+      return true
+    }
+
+    const request = context.getRequest()
+    const strategies = context.getAttribute(UseStrategy) ?? ['jwt']
+    const strategyList = Array.isArray(strategies) ? strategies : [strategies]
+
+    // Try each strategy until one succeeds
+    for (const strategyName of strategyList) {
+      try {
+        const user = await this.passport.authenticate(strategyName, request)
+        if (user) {
+          request.user = user
+          return true
+        }
+      } catch {
+        continue
+      }
+    }
+
+    return false
+  }
+}
+```
+
+### Using Guards in Controllers
+
+```typescript
+import { Controller, Endpoint, EndpointParams, UseGuards } from '@navios/core'
+import { Injectable, inject } from '@navios/di'
 
 @Controller()
+@UseGuards(PassportGuard)
+@Injectable()
 class ProfileController {
-  // Use JWT strategy
-  @Endpoint(getProfile)
-  @UseGuards(AuthGuard('jwt'))
-  async getProfile(@CurrentUser() user: User) {
+  private userService = inject(UserService)
+
+  @Endpoint(getProfileEndpoint)
+  @UseStrategy('jwt')
+  async getProfile(params: EndpointParams<typeof getProfileEndpoint>) {
+    // Access user from request (set by guard)
+    const user = params.request.user
     return user
   }
 
-  // Use multiple strategies (try JWT, then API key)
-  @Endpoint(getData)
-  @UseGuards(AuthGuard(['jwt', 'api-key']))
-  async getData(@CurrentUser() user: User) {
+  @Endpoint(updateProfileEndpoint)
+  @UseStrategy('jwt')
+  async updateProfile(params: EndpointParams<typeof updateProfileEndpoint>) {
+    const user = params.request.user
+    return this.userService.update(user.id, params.data)
+  }
+}
+```
+
+### Multi-Strategy Guard
+
+```typescript
+@Controller()
+@UseGuards(PassportGuard)
+@Injectable()
+class ApiController {
+  @Endpoint(getDataEndpoint)
+  @UseStrategy(['jwt', 'api-key']) // Try JWT first, then API key
+  async getData(params: EndpointParams<typeof getDataEndpoint>) {
+    const user = params.request.user
     return this.dataService.getForUser(user.id)
   }
 }
 ```
 
-### Login Endpoint
+---
+
+## Auth Controller
 
 ```typescript
-import { Controller, Endpoint, UseGuards } from '@navios/core'
-import { AuthGuard } from '@navios/passport'
+import { Controller, Endpoint, EndpointParams, UseGuards } from '@navios/core'
+import { Injectable, inject } from '@navios/di'
+import { PassportService } from '@navios/passport'
+import * as endpoints from './auth.endpoints'
 
 @Controller()
+@Injectable()
 class AuthController {
+  private passport = inject(PassportService)
   private authService = inject(AuthService)
 
-  @Endpoint(login)
-  @UseGuards(AuthGuard('local'))
-  async login(@CurrentUser() user: User) {
-    // User is already validated by LocalStrategy
+  @Endpoint(endpoints.loginEndpoint)
+  async login(params: EndpointParams<typeof endpoints.loginEndpoint>) {
+    // Authenticate with local strategy
+    const user = await this.passport.authenticate('local', params.request, {
+      body: params.data,
+    })
+
+    if (!user) {
+      throw new UnauthorizedException('Invalid credentials')
+    }
+
     const token = await this.authService.generateToken(user)
-    return { token, user }
-  }
-}
-```
-
-### OAuth Flow
-
-```typescript
-import { Controller, Endpoint, UseGuards, Redirect } from '@navios/core'
-import { AuthGuard } from '@navios/passport'
-
-@Controller()
-class OAuthController {
-  private authService = inject(AuthService)
-
-  // Initiate OAuth flow
-  @Endpoint(googleAuth)
-  @UseGuards(AuthGuard('google'))
-  async googleAuth() {
-    // Passport redirects to Google
+    return { user, token }
   }
 
-  // Handle callback
-  @Endpoint(googleCallback)
-  @UseGuards(AuthGuard('google'))
-  @Redirect()
-  async googleCallback(@CurrentUser() user: User) {
+  @Endpoint(endpoints.registerEndpoint)
+  async register(params: EndpointParams<typeof endpoints.registerEndpoint>) {
+    const user = await this.authService.register(params.data)
     const token = await this.authService.generateToken(user)
-    return `/auth/success?token=${token}`
+    return { user, token }
+  }
+
+  @Endpoint(endpoints.getProfileEndpoint)
+  @UseGuards(PassportGuard)
+  @UseStrategy('jwt')
+  async getProfile(params: EndpointParams<typeof endpoints.getProfileEndpoint>) {
+    return params.request.user
+  }
+
+  @Endpoint(endpoints.googleAuthEndpoint)
+  async googleAuth(params: EndpointParams<typeof endpoints.googleAuthEndpoint>) {
+    const redirectUrl = await this.passport.getAuthorizationUrl('google')
+    return { redirectUrl }
+  }
+
+  @Endpoint(endpoints.googleCallbackEndpoint)
+  async googleCallback(params: EndpointParams<typeof endpoints.googleCallbackEndpoint>) {
+    const { code, state } = params.query
+
+    const user = await this.passport.handleOAuthCallback('google', {
+      code,
+      state,
+    })
+
+    const token = await this.authService.generateToken(user)
+    return { user, token }
   }
 }
 ```
@@ -245,477 +406,387 @@ class OAuthController {
 
 ## Custom Strategies
 
-Create custom authentication strategies.
-
 ### API Key Strategy
 
 ```typescript
-import { Injectable, inject } from '@navios/di'
-import { PassportStrategy } from '@navios/passport'
+import { providePassportStrategy } from '@navios/passport'
 import { Strategy as CustomStrategy } from 'passport-custom'
+import { inject } from '@navios/di'
 
-@Injectable()
-class ApiKeyStrategy extends PassportStrategy(CustomStrategy, 'api-key') {
-  private apiKeyService = inject(ApiKeyService)
+export const ApiKeyAuth = providePassportStrategy(
+  'api-key',
+  CustomStrategy,
+  async () => {
+    const apiKeyService = await inject(ApiKeyService)
 
-  constructor() {
-    super()
-  }
+    return {
+      validate: async (request: Request) => {
+        const apiKey = request.headers['x-api-key']
 
-  async validate(request: Request): Promise<User> {
-    const apiKey = request.headers['x-api-key']
+        if (!apiKey) {
+          throw new UnauthorizedException('API key required')
+        }
 
-    if (!apiKey) {
-      throw new UnauthorizedException('API key required')
+        const keyRecord = await apiKeyService.validate(apiKey)
+
+        if (!keyRecord) {
+          throw new UnauthorizedException('Invalid API key')
+        }
+
+        return keyRecord.user
+      },
     }
-
-    const keyRecord = await this.apiKeyService.validate(apiKey)
-
-    if (!keyRecord) {
-      throw new UnauthorizedException('Invalid API key')
-    }
-
-    return keyRecord.user
   }
-}
+)
 ```
 
 ### LDAP Strategy
 
 ```typescript
-import { Injectable, inject } from '@navios/di'
-import { PassportStrategy } from '@navios/passport'
+import { providePassportStrategy } from '@navios/passport'
 import { Strategy as LdapStrategy } from 'passport-ldapauth'
+import { inject } from '@navios/di'
 
-@Injectable()
-class LdapAuthStrategy extends PassportStrategy(LdapStrategy, 'ldap') {
-  private userService = inject(UserService)
+export const LdapAuth = providePassportStrategy(
+  'ldap',
+  LdapStrategy,
+  async () => {
+    const config = await inject(ConfigService)
+    const userService = await inject(UserService)
 
-  constructor() {
-    super({
+    return {
       server: {
-        url: process.env.LDAP_URL,
-        bindDN: process.env.LDAP_BIND_DN,
-        bindCredentials: process.env.LDAP_BIND_PASSWORD,
-        searchBase: 'dc=example,dc=com',
+        url: config.ldap.url,
+        bindDN: config.ldap.bindDN,
+        bindCredentials: config.ldap.bindPassword,
+        searchBase: config.ldap.searchBase,
         searchFilter: '(uid={{username}})',
       },
-    })
-  }
+      validate: async (ldapUser: LdapUser) => {
+        let user = await userService.findByEmail(ldapUser.mail)
 
-  async validate(ldapUser: LdapUser): Promise<User> {
-    // Map LDAP user to application user
-    let user = await this.userService.findByEmail(ldapUser.mail)
+        if (!user) {
+          user = await userService.create({
+            email: ldapUser.mail,
+            name: ldapUser.cn,
+            externalId: ldapUser.uid,
+            provider: 'ldap',
+          })
+        }
 
-    if (!user) {
-      user = await this.userService.create({
-        email: ldapUser.mail,
-        name: ldapUser.cn,
-        externalId: ldapUser.uid,
-        provider: 'ldap',
-      })
+        return user
+      },
     }
-
-    return user
   }
-}
+)
 ```
 
 ### SAML Strategy
 
 ```typescript
+import { providePassportStrategy } from '@navios/passport'
+import { Strategy as SamlStrategy } from '@node-saml/passport-saml'
+import { inject } from '@navios/di'
+
+export const SamlAuth = providePassportStrategy(
+  'saml',
+  SamlStrategy,
+  async () => {
+    const config = await inject(ConfigService)
+    const userService = await inject(UserService)
+
+    return {
+      entryPoint: config.saml.entryPoint,
+      issuer: config.saml.issuer,
+      cert: config.saml.cert,
+      callbackUrl: '/auth/saml/callback',
+      validate: async (profile: SamlProfile) => {
+        const email = profile.nameID
+        let user = await userService.findByEmail(email)
+
+        if (!user) {
+          user = await userService.create({
+            email,
+            name: profile.displayName,
+            provider: 'saml',
+            providerId: profile.nameID,
+          })
+        }
+
+        return user
+      },
+    }
+  }
+)
+```
+
+---
+
+## PassportService API
+
+### Injection
+
+```typescript
 import { Injectable, inject } from '@navios/di'
-import { PassportStrategy } from '@navios/passport'
-import { Strategy as SamlStrategy, Profile } from '@node-saml/passport-saml'
+import { PassportService } from '@navios/passport'
 
 @Injectable()
-class SamlAuthStrategy extends PassportStrategy(SamlStrategy, 'saml') {
-  private userService = inject(UserService)
+class AuthService {
+  private passport = inject(PassportService)
+}
+```
 
-  constructor() {
-    super({
-      entryPoint: process.env.SAML_ENTRY_POINT,
-      issuer: process.env.SAML_ISSUER,
-      cert: process.env.SAML_CERT,
-      callbackUrl: '/auth/saml/callback',
-    })
-  }
+### authenticate(strategy, request, options?)
 
-  async validate(profile: Profile): Promise<User> {
-    const email = profile.nameID
-    let user = await this.userService.findByEmail(email)
+Authenticate a request using a strategy.
+
+```typescript
+const user = await this.passport.authenticate('jwt', request)
+
+// With additional options
+const user = await this.passport.authenticate('local', request, {
+  body: { email, password },
+})
+```
+
+### getAuthorizationUrl(strategy, options?)
+
+Get OAuth authorization URL.
+
+```typescript
+const url = await this.passport.getAuthorizationUrl('google', {
+  state: 'custom-state',
+  scope: ['email', 'profile'],
+})
+```
+
+### handleOAuthCallback(strategy, params)
+
+Handle OAuth callback.
+
+```typescript
+const user = await this.passport.handleOAuthCallback('google', {
+  code: authCode,
+  state: stateParam,
+})
+```
+
+---
+
+## Role-Based Access
+
+```typescript
+import { Injectable, inject } from '@navios/di'
+import { CanActivate, AbstractExecutionContext, AttributeFactory } from '@navios/core'
+
+// Create role attribute
+export const RequireRole = AttributeFactory.create<string[]>('RequireRole')
+
+@Injectable()
+class RoleGuard implements CanActivate {
+  async canActivate(context: AbstractExecutionContext): Promise<boolean> {
+    const request = context.getRequest()
+    const user = request.user
 
     if (!user) {
-      user = await this.userService.create({
-        email,
-        name: profile.displayName,
-        provider: 'saml',
-        providerId: profile.nameID,
-      })
+      return false
     }
 
-    return user
+    const requiredRoles = context.getAttribute(RequireRole)
+    if (!requiredRoles || requiredRoles.length === 0) {
+      return true
+    }
+
+    return requiredRoles.includes(user.role)
   }
 }
-```
 
----
-
-## Session Support
-
-Optional session-based authentication.
-
-### Configuration
-
-```typescript
-import { Module } from '@navios/core'
-import { PassportModule } from '@navios/passport'
-
-@Module({
-  imports: [
-    PassportModule.register({
-      session: true,
-      serializeUser: (user: User) => user.id,
-      deserializeUser: async (id: string) => {
-        return userService.findById(id)
-      },
-    }),
-  ],
-})
-class AppModule {}
-```
-
-### Session Guard
-
-```typescript
-import { Controller, Endpoint, UseGuards } from '@navios/core'
-import { SessionGuard, CurrentUser } from '@navios/passport'
-
+// Usage
 @Controller()
-@UseGuards(SessionGuard)
-class DashboardController {
-  @Endpoint(getDashboard)
-  async getDashboard(@CurrentUser() user: User) {
-    return this.dashboardService.getForUser(user.id)
+@UseGuards(PassportGuard, RoleGuard)
+@UseStrategy('jwt')
+@Injectable()
+class AdminController {
+  @Endpoint(adminOnlyEndpoint)
+  @RequireRole(['admin'])
+  async adminOnly(params: EndpointParams<typeof adminOnlyEndpoint>) {
+    return { message: 'Admin access granted' }
+  }
+
+  @Endpoint(moderatorEndpoint)
+  @RequireRole(['admin', 'moderator'])
+  async moderatorAccess(params: EndpointParams<typeof moderatorEndpoint>) {
+    return { message: 'Moderator access granted' }
   }
 }
 ```
-
-### Login with Session
-
-```typescript
-@Controller()
-class AuthController {
-  @Endpoint(login)
-  @UseGuards(AuthGuard('local'))
-  async login(
-    @CurrentUser() user: User,
-    @Session() session: SessionData
-  ) {
-    // User is stored in session automatically
-    return { message: 'Logged in', user }
-  }
-
-  @Endpoint(logout)
-  async logout(@Session() session: SessionData) {
-    session.destroy()
-    return { message: 'Logged out' }
-  }
-}
-```
-
----
-
-## Multiple Strategies
-
-Support multiple authentication methods.
-
-```typescript
-import { Module } from '@navios/core'
-import { PassportModule } from '@navios/passport'
-
-@Module({
-  imports: [PassportModule.register()],
-  providers: [
-    JwtAuthStrategy,
-    LocalAuthStrategy,
-    GoogleAuthStrategy,
-    ApiKeyStrategy,
-  ],
-})
-class AuthModule {}
-
-// Use in controllers
-@Controller()
-class ApiController {
-  // Try JWT first, then API key
-  @Endpoint(getData)
-  @UseGuards(AuthGuard(['jwt', 'api-key']))
-  async getData(@CurrentUser() user: User) {
-    return this.dataService.get()
-  }
-}
-```
-
----
-
-## Decorators
-
-### Parameter Decorators
-
-```typescript
-import {
-  CurrentUser,
-  AuthInfo,
-  IsAuthenticated,
-} from '@navios/passport'
-
-@Controller()
-class MyController {
-  @Endpoint(myEndpoint)
-  async handler(
-    @CurrentUser() user: User,          // Authenticated user
-    @AuthInfo() info: AuthInfo,         // Strategy info
-    @IsAuthenticated() isAuth: boolean, // Auth status
-  ) {
-    // ...
-  }
-}
-```
-
-### Method Decorators
-
-```typescript
-import { Public, Roles, Permissions } from '@navios/passport'
-
-@Controller()
-@UseGuards(AuthGuard('jwt'))
-class ResourceController {
-  @Endpoint(publicData)
-  @Public() // Skip auth for this endpoint
-  async getPublicData() {}
-
-  @Endpoint(adminData)
-  @Roles('admin')
-  async getAdminData() {}
-
-  @Endpoint(writeData)
-  @Permissions('data:write')
-  async writeData() {}
-}
-```
-
----
-
-## Adapter Integration
-
-### Fastify Adapter
-
-```typescript
-import { NaviosFactory } from '@navios/core'
-import { defineFastifyEnvironment } from '@navios/adapter-fastify'
-import { PassportModule, fastifyPassport } from '@navios/passport'
-import fastifySession from '@fastify/session'
-import fastifyCookie from '@fastify/cookie'
-
-@Module({
-  imports: [PassportModule.register({ session: true })],
-})
-class AppModule {}
-
-async function bootstrap() {
-  const app = await NaviosFactory.create(AppModule, {
-    adapter: defineFastifyEnvironment({
-      plugins: [
-        fastifyCookie,
-        [fastifySession, { secret: 'session-secret' }],
-        fastifyPassport.initialize(),
-        fastifyPassport.session(),
-      ],
-    }),
-  })
-
-  await app.listen({ port: 3000 })
-}
-```
-
-### Bun Adapter
-
-```typescript
-import { NaviosFactory } from '@navios/core'
-import { defineBunEnvironment } from '@navios/adapter-bun'
-import { PassportModule, bunPassport } from '@navios/passport'
-
-@Module({
-  imports: [PassportModule.register()],
-})
-class AppModule {}
-
-async function bootstrap() {
-  const app = await NaviosFactory.create(AppModule, {
-    adapter: defineBunEnvironment({
-      middleware: [bunPassport()],
-    }),
-  })
-
-  await app.listen({ port: 3000 })
-}
-```
-
----
-
-## Common Strategies
-
-Popular strategies with Navios integration examples.
-
-### OAuth Providers
-
-| Strategy | Package | Use Case |
-|----------|---------|----------|
-| Google | `passport-google-oauth20` | Google OAuth 2.0 |
-| GitHub | `passport-github2` | GitHub OAuth |
-| Facebook | `passport-facebook` | Facebook Login |
-| Twitter | `passport-twitter` | Twitter OAuth |
-| Microsoft | `passport-azure-ad` | Azure AD / Microsoft |
-| Apple | `passport-apple` | Sign in with Apple |
-| LinkedIn | `passport-linkedin-oauth2` | LinkedIn OAuth |
-| Discord | `passport-discord` | Discord OAuth |
-
-### Enterprise
-
-| Strategy | Package | Use Case |
-|----------|---------|----------|
-| SAML | `@node-saml/passport-saml` | SAML 2.0 SSO |
-| LDAP | `passport-ldapauth` | LDAP/Active Directory |
-| OAuth2 | `passport-oauth2` | Generic OAuth 2.0 |
-| OIDC | `passport-openidconnect` | OpenID Connect |
-
-### API Authentication
-
-| Strategy | Package | Use Case |
-|----------|---------|----------|
-| JWT | `passport-jwt` | JWT Bearer tokens |
-| API Key | `passport-headerapikey` | API key auth |
-| Basic | `passport-http` | HTTP Basic auth |
-| Bearer | `passport-http-bearer` | Bearer tokens |
-| Custom | `passport-custom` | Custom logic |
 
 ---
 
 ## Complete Example
 
 ```typescript
-// strategies/jwt.strategy.ts
-import { Injectable, inject } from '@navios/di'
-import { PassportStrategy, UnauthorizedException } from '@navios/passport'
-import { Strategy, ExtractJwt } from 'passport-jwt'
-
-@Injectable()
-export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
-  private userService = inject(UserService)
-
-  constructor() {
-    super({
-      jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
-      secretOrKey: process.env.JWT_SECRET,
-    })
-  }
-
-  async validate(payload: { sub: string }): Promise<User> {
-    const user = await this.userService.findById(payload.sub)
-    if (!user) throw new UnauthorizedException()
-    return user
-  }
-}
-```
-
-```typescript
-// strategies/local.strategy.ts
-import { Injectable, inject } from '@navios/di'
-import { PassportStrategy, UnauthorizedException } from '@navios/passport'
-import { Strategy } from 'passport-local'
-
-@Injectable()
-export class LocalStrategy extends PassportStrategy(Strategy, 'local') {
-  private authService = inject(AuthService)
-
-  constructor() {
-    super({ usernameField: 'email' })
-  }
-
-  async validate(email: string, password: string): Promise<User> {
-    const user = await this.authService.validateUser(email, password)
-    if (!user) throw new UnauthorizedException('Invalid credentials')
-    return user
-  }
-}
-```
-
-```typescript
-// controllers/auth.controller.ts
-import { Controller, Endpoint, UseGuards } from '@navios/core'
-import { AuthGuard, CurrentUser, Public } from '@navios/passport'
+// auth/strategies.ts
+import { providePassportStrategy } from '@navios/passport'
+import { Strategy as JwtStrategy, ExtractJwt } from 'passport-jwt'
+import { Strategy as LocalStrategy } from 'passport-local'
 import { inject } from '@navios/di'
 
+export const JwtAuth = providePassportStrategy('jwt', JwtStrategy, async () => {
+  const config = await inject(ConfigService)
+  const userService = await inject(UserService)
+
+  return {
+    jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
+    secretOrKey: config.jwt.secret,
+    validate: async (payload: { sub: string }) => {
+      const user = await userService.findById(payload.sub)
+      if (!user) throw new UnauthorizedException()
+      return user
+    },
+  }
+})
+
+export const LocalAuth = providePassportStrategy('local', LocalStrategy, async () => {
+  const authService = await inject(AuthService)
+
+  return {
+    usernameField: 'email',
+    validate: async (email: string, password: string) => {
+      const user = await authService.validateUser(email, password)
+      if (!user) throw new UnauthorizedException('Invalid credentials')
+      return user
+    },
+  }
+})
+```
+
+```typescript
+// auth/auth.guard.ts
+import { Injectable, inject } from '@navios/di'
+import { CanActivate, AbstractExecutionContext, AttributeFactory } from '@navios/core'
+import { PassportService } from '@navios/passport'
+
+export const UseStrategy = AttributeFactory.create<string | string[]>('UseStrategy')
+export const Public = AttributeFactory.create<boolean>('Public')
+
+@Injectable()
+export class AuthGuard implements CanActivate {
+  private passport = inject(PassportService)
+
+  async canActivate(context: AbstractExecutionContext): Promise<boolean> {
+    if (context.getAttribute(Public)) {
+      return true
+    }
+
+    const request = context.getRequest()
+    const strategies = context.getAttribute(UseStrategy) ?? ['jwt']
+    const strategyList = Array.isArray(strategies) ? strategies : [strategies]
+
+    for (const strategyName of strategyList) {
+      try {
+        const user = await this.passport.authenticate(strategyName, request)
+        if (user) {
+          request.user = user
+          return true
+        }
+      } catch {
+        continue
+      }
+    }
+
+    return false
+  }
+}
+```
+
+```typescript
+// auth/auth.controller.ts
+import { Controller, Endpoint, EndpointParams, UseGuards } from '@navios/core'
+import { Injectable, inject } from '@navios/di'
+import { PassportService } from '@navios/passport'
+import { AuthGuard, UseStrategy, Public } from './auth.guard'
+import * as endpoints from './auth.endpoints'
+
 @Controller()
-class AuthController {
+@Injectable()
+export class AuthController {
+  private passport = inject(PassportService)
   private authService = inject(AuthService)
 
-  @Endpoint(login)
+  @Endpoint(endpoints.login)
   @Public()
-  @UseGuards(AuthGuard('local'))
-  async login(@CurrentUser() user: User) {
+  async login(params: EndpointParams<typeof endpoints.login>) {
+    const user = await this.passport.authenticate('local', params.request, {
+      body: params.data,
+    })
+
+    if (!user) {
+      throw new UnauthorizedException('Invalid credentials')
+    }
+
     return this.authService.login(user)
   }
 
-  @Endpoint(register)
+  @Endpoint(endpoints.register)
   @Public()
-  async register(params: EndpointParams<typeof register>) {
+  async register(params: EndpointParams<typeof endpoints.register>) {
     return this.authService.register(params.data)
   }
 
-  @Endpoint(getProfile)
-  @UseGuards(AuthGuard('jwt'))
-  async getProfile(@CurrentUser() user: User) {
-    return user
+  @Endpoint(endpoints.getProfile)
+  @UseGuards(AuthGuard)
+  @UseStrategy('jwt')
+  async getProfile(params: EndpointParams<typeof endpoints.getProfile>) {
+    return params.request.user
   }
 
-  @Endpoint(refreshToken)
-  @UseGuards(AuthGuard('jwt-refresh'))
-  async refreshToken(@CurrentUser() user: User) {
-    return this.authService.refreshTokens(user)
+  @Endpoint(endpoints.refreshToken)
+  @UseGuards(AuthGuard)
+  @UseStrategy('jwt-refresh')
+  async refreshToken(params: EndpointParams<typeof endpoints.refreshToken>) {
+    return this.authService.refreshTokens(params.request.user)
   }
 }
 ```
 
 ```typescript
-// modules/auth.module.ts
+// auth/auth.module.ts
 import { Module } from '@navios/core'
-import { PassportModule } from '@navios/passport'
+import { AuthController } from './auth.controller'
+import { AuthGuard } from './auth.guard'
 
 @Module({
-  imports: [PassportModule.register()],
   controllers: [AuthController],
-  providers: [
-    JwtStrategy,
-    LocalStrategy,
-    GoogleStrategy,
-    AuthService,
-  ],
+  providers: [AuthGuard],
 })
 export class AuthModule {}
 ```
 
 ---
 
+## Common Strategies
+
+| Strategy | Package | Use Case |
+|----------|---------|----------|
+| JWT | `passport-jwt` | JWT Bearer tokens |
+| Local | `passport-local` | Username/password |
+| Google | `passport-google-oauth20` | Google OAuth 2.0 |
+| GitHub | `passport-github2` | GitHub OAuth |
+| SAML | `@node-saml/passport-saml` | SAML 2.0 SSO |
+| LDAP | `passport-ldapauth` | LDAP/Active Directory |
+| API Key | `passport-headerapikey` | API key auth |
+| Custom | `passport-custom` | Custom logic |
+
+---
+
 ## Open Questions
 
-1. **Session store**: Integration with Redis for distributed sessions?
+1. **Session support**: How to integrate sessions with request-scoped DI?
 2. **Refresh tokens**: Built-in refresh token rotation?
-3. **MFA**: Integration with 2FA strategies?
-4. **Rate limiting**: Use `@navios/throttle` for login attempts?
-5. **Adapter parity**: Ensure feature parity across Fastify/Bun?
-6. **Type inference**: Better types for strategy options?
+3. **Rate limiting**: Use `@navios/throttle` for login attempts?
+4. **Adapter parity**: Ensure feature parity across Fastify/Bun?
+5. **Type inference**: Better types for strategy validate functions?
 
 ---
 
@@ -734,20 +805,3 @@ Strategy-specific packages are optional peer dependencies.
 - `@navios/jwt` - Direct JWT handling without Passport
 - `@navios/better-auth` - Modern alternative to Passport
 - `@navios/throttle` - Rate limiting for auth endpoints
-- `@navios/session` - Session management (planned)
-
----
-
-## Implementation Priority
-
-- [ ] Core PassportStrategy mixin
-- [ ] AuthGuard implementation
-- [ ] CurrentUser decorator
-- [ ] JWT strategy example
-- [ ] Local strategy example
-- [ ] Fastify adapter integration
-- [ ] Bun adapter integration
-- [ ] OAuth strategies support
-- [ ] Session support
-- [ ] Multi-strategy guards
-- [ ] SAML/LDAP enterprise strategies
