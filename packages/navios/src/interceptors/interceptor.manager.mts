@@ -21,22 +21,12 @@ export const defaultInterceptors = {
 
 export function createInterceptorManager() {
   let id = 0
-  const initRequestInterceptors: Map<
-    number,
-    (config: PreparedRequestConfig<any, any>) => any
-  > = new Map()
-  const successResponseInterceptors: Map<
-    number,
-    (response: NaviosResponse<any>) => any
-  > = new Map()
-  const rejectedRequestInterceptors: Map<
-    number,
-    (response: NaviosInternalError) => any
-  > = new Map()
-  const rejectedResponseInterceptors: Map<
-    number,
-    (response: NaviosInternalError) => any
-  > = new Map()
+  const initRequestInterceptors: Map<number, (config: PreparedRequestConfig<any, any>) => any> =
+    new Map()
+  const successResponseInterceptors: Map<number, (response: NaviosResponse<any>) => any> = new Map()
+  const rejectedRequestInterceptors: Map<number, (response: NaviosInternalError) => any> = new Map()
+  const rejectedResponseInterceptors: Map<number, (response: NaviosInternalError) => any> =
+    new Map()
 
   function useRequestInterceptor(
     handler: null | ((onInit: PreparedRequestConfig<any, any>) => any),
@@ -65,15 +55,11 @@ export function createInterceptorManager() {
     }
     return id
   }
-  defaultInterceptors.request.init.forEach((interceptor) =>
-    useRequestInterceptor(interceptor),
-  )
+  defaultInterceptors.request.init.forEach((interceptor) => useRequestInterceptor(interceptor))
   defaultInterceptors.request.rejected.forEach((interceptor) =>
     useRequestInterceptor(null, interceptor),
   )
-  defaultInterceptors.response.success.forEach((interceptor) =>
-    useResponseInterceptor(interceptor),
-  )
+  defaultInterceptors.response.success.forEach((interceptor) => useResponseInterceptor(interceptor))
   defaultInterceptors.response.rejected.forEach((interceptor) =>
     useResponseInterceptor(null, interceptor),
   )

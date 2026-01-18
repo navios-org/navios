@@ -1,19 +1,16 @@
-import type { FactoryContext, OnServiceDestroy, OnServiceInit } from '@navios/di'
-import type { z } from 'zod/v4'
-
 import { Factory, inject } from '@navios/di'
 
-import type { QueueClient } from '../interfaces/queue-client.mjs'
-import type { AbstractQueueConfig } from '../types/queue-config.mjs'
+import type { FactoryContext, OnServiceDestroy, OnServiceInit } from '@navios/di'
+import type { z } from 'zod/v4'
 
 import { KafkaClient } from '../adapters/kafka.adapter.mjs'
 import { RabbitMQClient } from '../adapters/rabbitmq.adapter.mjs'
 import { SQSClient } from '../adapters/sqs.adapter.mjs'
-import {
-  queueClientOptionsSchema,
-  QueueClientToken,
-} from '../tokens/queue-client.token.mjs'
+import { queueClientOptionsSchema, QueueClientToken } from '../tokens/queue-client.token.mjs'
 import { QueueConfigServiceToken } from '../tokens/queue-config-service.token.mjs'
+
+import type { QueueClient } from '../interfaces/queue-client.mjs'
+import type { AbstractQueueConfig } from '../types/queue-config.mjs'
 
 type QueueClientWithLifecycle = QueueClient & OnServiceInit & OnServiceDestroy
 

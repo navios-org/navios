@@ -1,3 +1,5 @@
+import { Injectable, InjectionToken } from '@navios/core'
+
 import type { BaseEndpointOptions } from '@navios/builder'
 import type {
   AbstractDynamicHandler,
@@ -8,8 +10,6 @@ import type {
 } from '@navios/core'
 import type { FastifyReply, FastifyRequest } from 'fastify'
 
-import { Injectable, InjectionToken } from '@navios/core'
-
 import { AbstractFastifyHandlerAdapterService } from './abstract-fastify-handler-adapter.service.mjs'
 
 /**
@@ -18,10 +18,9 @@ import { AbstractFastifyHandlerAdapterService } from './abstract-fastify-handler
  * This token is used to inject the `FastifyStreamAdapterService` instance
  * into the dependency injection container.
  */
-export const FastifyStreamAdapterToken =
-  InjectionToken.create<FastifyStreamAdapterService>(
-    Symbol.for('FastifyStreamAdapterService'),
-  )
+export const FastifyStreamAdapterToken = InjectionToken.create<FastifyStreamAdapterService>(
+  Symbol.for('FastifyStreamAdapterService'),
+)
 
 /**
  * Adapter service for handling streaming requests and responses in Fastify.
@@ -106,11 +105,7 @@ export class FastifyStreamAdapterService extends AbstractFastifyHandlerAdapterSe
     if (hasArguments) {
       return {
         isStatic: false,
-        handler: async (
-          scoped,
-          request: FastifyRequest,
-          reply: FastifyReply,
-        ) => {
+        handler: async (scoped, request: FastifyRequest, reply: FastifyReply) => {
           const controllerInstance = (await resolution.resolve(scoped)) as any
           const argument = await formatArguments(request)
           await controllerInstance[methodName](argument, reply)
@@ -121,11 +116,7 @@ export class FastifyStreamAdapterService extends AbstractFastifyHandlerAdapterSe
     const emptyArgs = Object.freeze({})
     return {
       isStatic: false,
-      handler: async (
-        scoped,
-        _request: FastifyRequest,
-        reply: FastifyReply,
-      ) => {
+      handler: async (scoped, _request: FastifyRequest, reply: FastifyReply) => {
         const controllerInstance = (await resolution.resolve(scoped)) as any
         await controllerInstance[methodName](emptyArgs, reply)
       },

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { z } from 'zod/v4'
 
 import { renderToXml } from '../runtime/render-to-xml.mjs'
+
 import { defineTag } from './define-tag.mjs'
 
 describe('defineTag', () => {
@@ -218,7 +219,9 @@ describe('defineTag', () => {
       })
 
       const xml = await renderToXml(node, { declaration: false })
-      expect(xml).toBe('<atom:link href="https://example.com/feed" rel="self" type="application/rss+xml"/>')
+      expect(xml).toBe(
+        '<atom:link href="https://example.com/feed" rel="self" type="application/rss+xml"/>',
+      )
     })
 
     it('should compose multiple defined tags', async () => {

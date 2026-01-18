@@ -1,13 +1,10 @@
 import type { InspectOptions } from 'util'
-
 import { inspect } from 'util'
 
 import { Injectable } from '@navios/di'
 
-import type { LogLevel } from './log-levels.mjs'
-import type { LoggerService } from './logger-service.interface.mjs'
-
 import { getRequestId } from '../stores/request-id.store.mjs'
+
 import { LoggerOutput } from './logger.tokens.mjs'
 import {
   clc,
@@ -18,6 +15,9 @@ import {
   isUndefined,
   yellow,
 } from './utils/index.mjs'
+
+import type { LogLevel } from './log-levels.mjs'
+import type { LoggerService } from './logger-service.interface.mjs'
 
 const DEFAULT_DEPTH = 5
 
@@ -135,14 +135,7 @@ export interface ConsoleLoggerOptions {
   breakLength?: number
 }
 
-const DEFAULT_LOG_LEVELS: LogLevel[] = [
-  'log',
-  'error',
-  'warn',
-  'debug',
-  'verbose',
-  'fatal',
-]
+const DEFAULT_LOG_LEVELS: LogLevel[] = ['log', 'error', 'warn', 'debug', 'verbose', 'fatal']
 
 const dateTimeFormatter = new Intl.DateTimeFormat(undefined, {
   year: 'numeric',
@@ -210,10 +203,7 @@ export class ConsoleLogger implements LoggerService {
   setup(context: string): void
   setup(options: ConsoleLoggerOptions): void
   setup(context: string, options: ConsoleLoggerOptions): void
-  setup(
-    contextOrOptions?: string | ConsoleLoggerOptions,
-    options?: ConsoleLoggerOptions,
-  ) {
+  setup(contextOrOptions?: string | ConsoleLoggerOptions, options?: ConsoleLoggerOptions) {
     // eslint-disable-next-line prefer-const
     let [context, opts] = isString(contextOrOptions)
       ? [contextOrOptions, options]
@@ -245,10 +235,7 @@ export class ConsoleLogger implements LoggerService {
     if (!this.isLevelEnabled('log')) {
       return
     }
-    const { messages, context } = this.getContextAndMessagesToPrint([
-      message,
-      ...optionalParams,
-    ])
+    const { messages, context } = this.getContextAndMessagesToPrint([message, ...optionalParams])
     this.printMessages(messages, context, 'log')
   }
 
@@ -263,8 +250,10 @@ export class ConsoleLogger implements LoggerService {
     if (!this.isLevelEnabled('error')) {
       return
     }
-    const { messages, context, stack } =
-      this.getContextAndStackAndMessagesToPrint([message, ...optionalParams])
+    const { messages, context, stack } = this.getContextAndStackAndMessagesToPrint([
+      message,
+      ...optionalParams,
+    ])
 
     this.printMessages(messages, context, 'error', undefined, 'stderr', stack)
     this.printStackTrace(stack!)
@@ -280,10 +269,7 @@ export class ConsoleLogger implements LoggerService {
     if (!this.isLevelEnabled('warn')) {
       return
     }
-    const { messages, context } = this.getContextAndMessagesToPrint([
-      message,
-      ...optionalParams,
-    ])
+    const { messages, context } = this.getContextAndMessagesToPrint([message, ...optionalParams])
     this.printMessages(messages, context, 'warn')
   }
 
@@ -297,10 +283,7 @@ export class ConsoleLogger implements LoggerService {
     if (!this.isLevelEnabled('debug')) {
       return
     }
-    const { messages, context } = this.getContextAndMessagesToPrint([
-      message,
-      ...optionalParams,
-    ])
+    const { messages, context } = this.getContextAndMessagesToPrint([message, ...optionalParams])
     this.printMessages(messages, context, 'debug')
   }
 
@@ -314,10 +297,7 @@ export class ConsoleLogger implements LoggerService {
     if (!this.isLevelEnabled('verbose')) {
       return
     }
-    const { messages, context } = this.getContextAndMessagesToPrint([
-      message,
-      ...optionalParams,
-    ])
+    const { messages, context } = this.getContextAndMessagesToPrint([message, ...optionalParams])
     this.printMessages(messages, context, 'verbose')
   }
 
@@ -331,10 +311,7 @@ export class ConsoleLogger implements LoggerService {
     if (!this.isLevelEnabled('fatal')) {
       return
     }
-    const { messages, context } = this.getContextAndMessagesToPrint([
-      message,
-      ...optionalParams,
-    ])
+    const { messages, context } = this.getContextAndMessagesToPrint([message, ...optionalParams])
     this.printMessages(messages, context, 'fatal')
   }
 
@@ -507,9 +484,7 @@ export class ConsoleLogger implements LoggerService {
     const showTimestamp = this.options.showTimestamp ?? true
 
     pidMessage = this.colorize(pidMessage, logLevel)
-    formattedLogLevel = showLogLevel
-      ? this.colorize(formattedLogLevel, logLevel)
-      : ''
+    formattedLogLevel = showLogLevel ? this.colorize(formattedLogLevel, logLevel) : ''
 
     const timestamp = showTimestamp ? this.getTimestamp() : ''
     const requestIdPart = this.getRequestId(requestId)
@@ -631,11 +606,7 @@ export class ConsoleLogger implements LoggerService {
       return value.toString()
     }
 
-    if (
-      value instanceof Map ||
-      value instanceof Set ||
-      value instanceof Error
-    ) {
+    if (value instanceof Map || value instanceof Set || value instanceof Error) {
       return `${inspect(value, this.inspectOptions)}`
     }
     return value

@@ -1,5 +1,4 @@
 import { Container, Injectable, InjectionToken, Registry } from '@navios/di'
-
 import { render, screen, waitFor } from '@testing-library/react'
 import { createElement, useMemo } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -63,10 +62,10 @@ describe('useOptionalService', () => {
 
     it('should load service with injection token and args', async () => {
       const UserSchema = z.object({ userId: z.string() })
-      const UserToken = InjectionToken.create<
-        { userId: string; name: string },
-        typeof UserSchema
-      >('User', UserSchema)
+      const UserToken = InjectionToken.create<{ userId: string; name: string }, typeof UserSchema>(
+        'User',
+        UserSchema,
+      )
 
       @Injectable({ registry, token: UserToken })
       class _UserService {
@@ -150,8 +149,7 @@ describe('useOptionalService', () => {
       const UnregisteredToken = InjectionToken.create<{ value: string }>('Unregistered')
 
       function TestComponent() {
-        const { isSuccess, isNotFound, isError, isLoading } =
-          useOptionalService(UnregisteredToken)
+        const { isSuccess, isNotFound, isError, isLoading } = useOptionalService(UnregisteredToken)
 
         if (isLoading) {
           return createElement('div', { 'data-testid': 'loading' }, 'Loading...')

@@ -1,9 +1,10 @@
+import { bindUrlParams } from '@navios/builder'
+
 import type { AnyEndpointConfig, UrlHasParams } from '@navios/builder'
 import type { DataTag, InfiniteData } from '@tanstack/react-query'
 
-import { bindUrlParams } from '@navios/builder'
-
 import type { Split } from '../common/types.mjs'
+
 import type { QueryKeyCreatorResult, QueryParams } from './types.mjs'
 
 /**
@@ -30,9 +31,7 @@ export function createQueryKey<
 ): QueryKeyCreatorResult<
   Config['querySchema'],
   Url,
-  Options['processResponse'] extends (...args: any[]) => infer Result
-    ? Result
-    : never,
+  Options['processResponse'] extends (...args: any[]) => infer Result ? Result : never,
   IsInfinite,
   HasParams
 > {

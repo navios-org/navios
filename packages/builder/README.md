@@ -367,10 +367,7 @@ For detailed documentation, see the [WebSocket Guide](/docs/builder/builder/adva
 ### Quick Start
 
 ```ts
-import {
-  declareEventSource,
-  eventSourceBuilder,
-} from '@navios/builder/eventsource'
+import { declareEventSource, eventSourceBuilder } from '@navios/builder/eventsource'
 
 import { z } from 'zod'
 

@@ -9,13 +9,14 @@
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
-import type { OnServiceDestroy } from '../../interfaces/on-service-destroy.interface.mjs'
-
 import { Container } from '../../container/container.mjs'
 import { Injectable } from '../../decorators/injectable.decorator.mjs'
 import { InjectableScope } from '../../enums/injectable-scope.enum.mjs'
 import { Registry } from '../../token/registry.mjs'
 import { inject } from '../../utils/index.mjs'
+
+import type { OnServiceDestroy } from '../../interfaces/on-service-destroy.interface.mjs'
+
 import {
   createGCTracker,
   forceGC,
@@ -45,8 +46,7 @@ describe.skipIf(!isGCAvailable)('GC: Transient Services', () => {
         public readonly data = Array.from({ length: 1000 }, () => 'transient')
       }
 
-      let instance: TransientService | null =
-        await container.get(TransientService)
+      let instance: TransientService | null = await container.get(TransientService)
       const tracker = createGCTracker(instance)
 
       expect(tracker().collected).toBe(false)
@@ -62,18 +62,12 @@ describe.skipIf(!isGCAvailable)('GC: Transient Services', () => {
       @Injectable({ registry, scope: InjectableScope.Transient })
       class TransientService {
         public readonly id = Math.random()
-        public readonly data = Array.from(
-          { length: 500 },
-          () => 'multi-transient',
-        )
+        public readonly data = Array.from({ length: 500 }, () => 'multi-transient')
       }
 
-      let instance1: TransientService | null =
-        await container.get(TransientService)
-      let instance2: TransientService | null =
-        await container.get(TransientService)
-      let instance3: TransientService | null =
-        await container.get(TransientService)
+      let instance1: TransientService | null = await container.get(TransientService)
+      let instance2: TransientService | null = await container.get(TransientService)
+      let instance3: TransientService | null = await container.get(TransientService)
 
       expect(instance1).not.toBe(instance2)
       expect(instance2).not.toBe(instance3)
@@ -114,8 +108,7 @@ describe.skipIf(!isGCAvailable)('GC: Transient Services', () => {
         }
       }
 
-      let instance: TransientWithDestroy | null =
-        await container.get(TransientWithDestroy)
+      let instance: TransientWithDestroy | null = await container.get(TransientWithDestroy)
       const tracker = createGCTracker(instance)
 
       instance = null
@@ -143,9 +136,8 @@ describe.skipIf(!isGCAvailable)('GC: Transient Services', () => {
       }
 
       const singletonRef = await container.get(SingletonDep)
-      let transient: TransientWithSingletonDep | null = await container.get(
-        TransientWithSingletonDep,
-      )
+      let transient: TransientWithSingletonDep | null =
+        await container.get(TransientWithSingletonDep)
 
       expect(transient.dep).toBe(singletonRef)
 
@@ -234,36 +226,33 @@ describe.skipIf(!isGCAvailable)('GC: Transient Services', () => {
       }
     })
 
-    it.todo(
-      'should not accumulate memory with repeated transient creations',
-      async () => {
-        const ALLOCATION_SIZE = 1024 * 50 // 50KB per instance
-        const ITERATIONS = 50
+    it.todo('should not accumulate memory with repeated transient creations', async () => {
+      const ALLOCATION_SIZE = 1024 * 50 // 50KB per instance
+      const ITERATIONS = 50
 
-        @Injectable({ registry, scope: InjectableScope.Transient })
-        class TransientService {
-          public readonly data = new Uint8Array(ALLOCATION_SIZE)
-        }
+      @Injectable({ registry, scope: InjectableScope.Transient })
+      class TransientService {
+        public readonly data = new Uint8Array(ALLOCATION_SIZE)
+      }
 
-        forceGC()
-        const baselineMemory = getHeapUsed()
+      forceGC()
+      const baselineMemory = getHeapUsed()
 
-        // Repeatedly create and discard transient instances
-        for (let i = 0; i < ITERATIONS; i++) {
-          const instance = await container.get(TransientService)
-          // instance goes out of scope immediately
-          void instance
-        }
+      // Repeatedly create and discard transient instances
+      for (let i = 0; i < ITERATIONS; i++) {
+        const instance = await container.get(TransientService)
+        // instance goes out of scope immediately
+        void instance
+      }
 
-        forceGC()
-        const finalMemory = getHeapUsed()
-        const memoryGrowth = finalMemory - baselineMemory
+      forceGC()
+      const finalMemory = getHeapUsed()
+      const memoryGrowth = finalMemory - baselineMemory
 
-        // Memory growth should be minimal (less than 2 instances worth)
-        // since transients are not cached
-        expect(memoryGrowth).toBeLessThan(ALLOCATION_SIZE * 2)
-      },
-    )
+      // Memory growth should be minimal (less than 2 instances worth)
+      // since transients are not cached
+      expect(memoryGrowth).toBeLessThan(ALLOCATION_SIZE * 2)
+    })
   })
 
   describe('Transient services in mixed scope scenarios', () => {

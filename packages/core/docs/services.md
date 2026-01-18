@@ -159,8 +159,7 @@ export interface DatabaseInterface {
   createUser(data: CreateUserDto): Promise<User>
 }
 
-export const DATABASE_TOKEN =
-  InjectionToken.create<DatabaseInterface>('DATABASE')
+export const DATABASE_TOKEN = InjectionToken.create<DatabaseInterface>('DATABASE')
 ```
 
 ### Using Tokens in Services
@@ -191,8 +190,7 @@ export interface UserRepository {
   delete(id: string): Promise<void>
 }
 
-export const USER_REPOSITORY_TOKEN =
-  InjectionToken.create<UserRepository>('USER_REPOSITORY')
+export const USER_REPOSITORY_TOKEN = InjectionToken.create<UserRepository>('USER_REPOSITORY')
 
 @Injectable()
 export class DatabaseUserRepository implements UserRepository {

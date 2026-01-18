@@ -50,7 +50,4 @@ export type ApiStreamOptions = z.infer<typeof ApiStreamSchema>
  * }
  * ```
  */
-export const ApiStream = LegacyAttributeFactory.createAttribute(
-  ApiStreamToken,
-  ApiStreamSchema,
-)
+export const ApiStream = LegacyAttributeFactory.createAttribute(ApiStreamToken, ApiStreamSchema)

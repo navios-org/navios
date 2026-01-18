@@ -87,11 +87,11 @@ Navios DI follows a modern, decorator-based architecture:
 
 ## Platform Support
 
-| Platform | AsyncLocalStorage | Notes                              |
-| -------- | ----------------- | ---------------------------------- |
-| Node.js  | Native            | Full async tracking support        |
-| Bun      | Native            | Full async tracking support        |
-| Deno     | Native            | Via Node compatibility layer       |
+| Platform | AsyncLocalStorage | Notes                                 |
+| -------- | ----------------- | ------------------------------------- |
+| Node.js  | Native            | Full async tracking support           |
+| Bun      | Native            | Full async tracking support           |
+| Deno     | Native            | Via Node compatibility layer          |
 | Browser  | Polyfill          | Sync-only tracking (SyncLocalStorage) |
 
 ## Examples
@@ -126,10 +126,7 @@ const configSchema = z.object({
   timeout: z.number(),
 })
 
-const CONFIG_TOKEN = InjectionToken.create<Config, typeof configSchema>(
-  'APP_CONFIG',
-  configSchema,
-)
+const CONFIG_TOKEN = InjectionToken.create<Config, typeof configSchema>('APP_CONFIG', configSchema)
 
 @Injectable({ token: CONFIG_TOKEN })
 class ConfigService {
@@ -168,7 +165,7 @@ class DatabaseService implements OnServiceInit, OnServiceDestroy {
 // Use asyncInject to break circular dependencies
 @Injectable()
 class ServiceA {
-  private serviceB = asyncInject(ServiceB)  // Use asyncInject to break cycle
+  private serviceB = asyncInject(ServiceB) // Use asyncInject to break cycle
 
   async doSomething() {
     const b = await this.serviceB
@@ -178,7 +175,7 @@ class ServiceA {
 
 @Injectable()
 class ServiceB {
-  private serviceA = inject(ServiceA)  // This side can use inject()
+  private serviceA = inject(ServiceA) // This side can use inject()
 
   process() {
     return 'processed'

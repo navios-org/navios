@@ -1,3 +1,19 @@
+import cors from '@fastify/cors'
+import multipart from '@fastify/multipart'
+import {
+  Container,
+  ErrorResponseProducerService,
+  FrameworkError,
+  HttpException,
+  inject,
+  Injectable,
+  Logger,
+} from '@navios/core'
+import { fastify } from 'fastify'
+import { serializerCompiler } from 'fastify-type-provider-zod'
+import { ZodError } from 'zod/v4'
+import { $ZodError } from 'zod/v4/core'
+
 import type { FastifyCorsOptions } from '@fastify/cors'
 import type { FastifyMultipartOptions } from '@fastify/multipart'
 import type { ModuleMetadata } from '@navios/core'
@@ -9,30 +25,14 @@ import type {
   FastifyServerOptions,
 } from 'fastify'
 
-import {
-  Container,
-  ErrorResponseProducerService,
-  FrameworkError,
-  HttpException,
-  inject,
-  Injectable,
-  Logger,
-} from '@navios/core'
-
-import cors from '@fastify/cors'
-import multipart from '@fastify/multipart'
-import { fastify } from 'fastify'
-import { serializerCompiler } from 'fastify-type-provider-zod'
-import { ZodError } from 'zod/v4'
-import { $ZodError } from 'zod/v4/core'
+import { FastifyApplicationServiceToken } from '../tokens/index.mjs'
+import { FastifyServerToken } from '../tokens/server.token.mjs'
 
 import type {
   FastifyApplicationOptions,
   FastifyApplicationServiceInterface,
 } from '../interfaces/application.interface.mjs'
 
-import { FastifyApplicationServiceToken } from '../tokens/index.mjs'
-import { FastifyServerToken } from '../tokens/server.token.mjs'
 import { FastifyControllerAdapterService } from './controller-adapter.service.mjs'
 import { FastifyValidatorCompilerService } from './fastify-validator-compiler.service.mjs'
 import { PinoWrapper } from './pino-wrapper.mjs'
@@ -208,21 +208,14 @@ export class FastifyApplicationService implements FastifyApplicationServiceInter
   async onModulesInit(modules: Map<string, ModuleMetadata>): Promise<void> {
     const promises: PromiseLike<any>[] = []
     for (const [_moduleName, moduleMetadata] of modules) {
-      if (
-        !moduleMetadata.controllers ||
-        moduleMetadata.controllers.size === 0
-      ) {
+      if (!moduleMetadata.controllers || moduleMetadata.controllers.size === 0) {
         continue
       }
       promises.push(
         this.server!.register(
           async (instance, _opts) => {
             for (const controller of moduleMetadata.controllers) {
-              await this.controllerAdapter.setupController(
-                controller,
-                instance,
-                moduleMetadata,
-              )
+              await this.controllerAdapter.setupController(controller, instance, moduleMetadata)
             }
           },
           {
@@ -246,51 +239,41 @@ export class FastifyApplicationService implements FastifyApplicationServiceInter
    * @private
    */
   configureFastifyInstance(): void {
-    this.server!.setErrorHandler(
-      (error: unknown, request: FastifyRequest, reply: FastifyReply) => {
-        if (error instanceof HttpException) {
-          // For HttpException, preserve original response format for backwards compatibility
-          return reply.status(error.statusCode).send(error.response)
-        } else if (error instanceof ZodError || error instanceof $ZodError) {
-          const errorResponse = this.errorProducer.respond(
-            FrameworkError.ValidationError,
-            error,
-          )
-          return reply
-            .status(errorResponse.statusCode)
-            .type('application/problem+json')
-            .send(errorResponse.payload)
-        } else {
-          this.logger.error(
-            `Error occurred: ${error instanceof Error ? error.message : 'Unknown error'} on ${request.url}`,
-            error,
-          )
-          const errorResponse = this.errorProducer.respond(
-            FrameworkError.InternalServerError,
-            error,
-          )
-          return reply
-            .status(errorResponse.statusCode)
-            .type('application/problem+json')
-            .send(errorResponse.payload)
-        }
-      },
-    )
-
-    this.server!.setNotFoundHandler(
-      (req: FastifyRequest, reply: FastifyReply) => {
-        this.logger.warn(`Route not found: [${req.method}] ${req.url}`)
-        const errorResponse = this.errorProducer.respond(
-          FrameworkError.NotFound,
-          null,
-          `Route [${req.method}] ${req.url} not found`,
-        )
+    this.server!.setErrorHandler((error: unknown, request: FastifyRequest, reply: FastifyReply) => {
+      if (error instanceof HttpException) {
+        // For HttpException, preserve original response format for backwards compatibility
+        return reply.status(error.statusCode).send(error.response)
+      } else if (error instanceof ZodError || error instanceof $ZodError) {
+        const errorResponse = this.errorProducer.respond(FrameworkError.ValidationError, error)
         return reply
           .status(errorResponse.statusCode)
           .type('application/problem+json')
           .send(errorResponse.payload)
-      },
-    )
+      } else {
+        this.logger.error(
+          `Error occurred: ${error instanceof Error ? error.message : 'Unknown error'} on ${request.url}`,
+          error,
+        )
+        const errorResponse = this.errorProducer.respond(FrameworkError.InternalServerError, error)
+        return reply
+          .status(errorResponse.statusCode)
+          .type('application/problem+json')
+          .send(errorResponse.payload)
+      }
+    })
+
+    this.server!.setNotFoundHandler((req: FastifyRequest, reply: FastifyReply) => {
+      this.logger.warn(`Route not found: [${req.method}] ${req.url}`)
+      const errorResponse = this.errorProducer.respond(
+        FrameworkError.NotFound,
+        null,
+        `Route [${req.method}] ${req.url} not found`,
+      )
+      return reply
+        .status(errorResponse.statusCode)
+        .type('application/problem+json')
+        .send(errorResponse.payload)
+    })
 
     // Add request decoration for scoped container storage between hooks
     this.server!.decorateRequest('scopedContainer', undefined)
@@ -333,14 +316,9 @@ export class FastifyApplicationService implements FastifyApplicationServiceInter
    * @param options - Multipart configuration options or `true` for defaults.
    * @private
    */
-  async configureMultipart(
-    options: FastifyMultipartOptions | true,
-  ): Promise<void> {
+  async configureMultipart(options: FastifyMultipartOptions | true): Promise<void> {
     if (options) {
-      await this.server!.register(
-        multipart,
-        typeof options === 'object' ? options : {},
-      )
+      await this.server!.register(multipart, typeof options === 'object' ? options : {})
     }
   }
 

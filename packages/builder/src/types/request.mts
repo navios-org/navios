@@ -1,11 +1,7 @@
 import type { z, ZodObject, ZodType } from 'zod/v4'
 
 import type { AbstractRequestConfig } from './common.mjs'
-import type {
-  AnyEndpointConfig,
-  AnyStreamConfig,
-  BaseStreamConfig,
-} from './config.mjs'
+import type { AnyEndpointConfig, AnyStreamConfig, BaseStreamConfig } from './config.mjs'
 
 // =============================================================================
 // URL Parameter Parsing Types
@@ -42,8 +38,7 @@ export type ParsePathParams<
  * type NoParams = UrlHasParams<'/users'>          // false
  * ```
  */
-export type UrlHasParams<Url extends string> =
-  ParsePathParams<Url> extends never ? false : true
+export type UrlHasParams<Url extends string> = ParsePathParams<Url> extends never ? false : true
 
 /**
  * Creates an object type for URL parameters with their expected types.
@@ -58,9 +53,7 @@ export type UrlHasParams<Url extends string> =
  * ```
  */
 export type UrlParams<Url extends string, IsServer extends boolean = false> = {
-  [key in ParsePathParams<Url>]: IsServer extends true
-    ? string
-    : string | number
+  [key in ParsePathParams<Url>]: IsServer extends true ? string : string | number
 }
 
 // =============================================================================
@@ -93,18 +86,12 @@ export type Util_FlatObject<T> = T extends object
  * Base request options available on all endpoint calls.
  * Includes signal for cancellation and custom headers.
  */
-export interface RequestBase extends Pick<
-  AbstractRequestConfig,
-  'signal' | 'headers'
-> {}
+export interface RequestBase extends Pick<AbstractRequestConfig, 'signal' | 'headers'> {}
 
 /**
  * @deprecated Use RequestBase instead
  */
-export interface NaviosZodRequestBase extends Pick<
-  AbstractRequestConfig,
-  'signal' | 'headers'
-> {
+export interface NaviosZodRequestBase extends Pick<AbstractRequestConfig, 'signal' | 'headers'> {
   [key: string]: any
 }
 
@@ -178,12 +165,8 @@ export type NaviosZodRequest<Config extends BaseStreamConfig> = (UrlHasParams<
 > extends true
   ? { urlParams: UrlParams<Config['url']> }
   : {}) &
-  (Config['requestSchema'] extends ZodType
-    ? { data: z.input<Config['requestSchema']> }
-    : {}) &
-  (Config['querySchema'] extends ZodObject
-    ? { params: z.input<Config['querySchema']> }
-    : {}) &
+  (Config['requestSchema'] extends ZodType ? { data: z.input<Config['requestSchema']> } : {}) &
+  (Config['querySchema'] extends ZodObject ? { params: z.input<Config['querySchema']> } : {}) &
   NaviosZodRequestBase
 
 /**
@@ -215,9 +198,7 @@ export type EndpointFunctionArgs<
 // Abstract Endpoint Types
 // =============================================================================
 
-export type AbstractStream<Config extends AnyStreamConfig> = ((
-  params: any,
-) => Promise<Blob>) & {
+export type AbstractStream<Config extends AnyStreamConfig> = ((params: any) => Promise<Blob>) & {
   config: Config
 }
 

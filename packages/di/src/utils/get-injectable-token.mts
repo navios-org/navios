@@ -1,13 +1,11 @@
-import type { ClassType, InjectionToken } from '../token/injection-token.mjs'
-
 import { DIError } from '../errors/di-error.mjs'
 import { InjectableTokenMeta } from '../symbols/index.mjs'
 
+import type { ClassType, InjectionToken } from '../token/injection-token.mjs'
+
 export function getInjectableToken<R>(
   target: ClassType,
-): R extends { create(...args: any[]): infer V }
-  ? InjectionToken<V>
-  : InjectionToken<R> {
+): R extends { create(...args: any[]): infer V } ? InjectionToken<V> : InjectionToken<R> {
   // @ts-expect-error We inject the token into the class itself
   const token = target[InjectableTokenMeta] as InjectionToken<any, any>
   if (!token) {

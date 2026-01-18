@@ -1,3 +1,5 @@
+import { useCallback, useEffect, useReducer, useRef } from 'react'
+
 import type {
   AnyInjectableType,
   BoundInjectionToken,
@@ -8,8 +10,6 @@ import type {
   InjectionTokenSchemaType,
 } from '@navios/di'
 import type { z, ZodType } from 'zod/v4'
-
-import { useCallback, useEffect, useReducer, useRef } from 'react'
 
 import type { Join, UnionToArray } from '../types.mjs'
 
@@ -83,9 +83,7 @@ export interface UseOptionalServiceResult<T> {
 // #1 Simple class
 export function useOptionalService<T extends ClassType>(
   token: T,
-): UseOptionalServiceResult<
-  InstanceType<T> extends Factorable<infer R> ? R : InstanceType<T>
->
+): UseOptionalServiceResult<InstanceType<T> extends Factorable<infer R> ? R : InstanceType<T>>
 
 // #2 Token with required Schema
 export function useOptionalService<T, S extends InjectionTokenSchemaType>(
@@ -94,11 +92,7 @@ export function useOptionalService<T, S extends InjectionTokenSchemaType>(
 ): UseOptionalServiceResult<T>
 
 // #3 Token with optional Schema
-export function useOptionalService<
-  T,
-  S extends InjectionTokenSchemaType,
-  R extends boolean,
->(
+export function useOptionalService<T, S extends InjectionTokenSchemaType, R extends boolean>(
   token: InjectionToken<T, S, R>,
 ): R extends false
   ? UseOptionalServiceResult<T>

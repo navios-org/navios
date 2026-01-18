@@ -12,6 +12,4 @@ export const clc = {
   magentaBright: colorIfAllowed((text: string) => `\x1B[95m${text}\x1B[39m`),
   cyanBright: colorIfAllowed((text: string) => `\x1B[96m${text}\x1B[39m`),
 }
-export const yellow = colorIfAllowed(
-  (text: string) => `\x1B[38;5;3m${text}\x1B[39m`,
-)
+export const yellow = colorIfAllowed((text: string) => `\x1B[38;5;3m${text}\x1B[39m`)

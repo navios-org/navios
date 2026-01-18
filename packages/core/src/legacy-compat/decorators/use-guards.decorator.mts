@@ -1,13 +1,10 @@
-import type {
-  ClassType,
-  ClassTypeWithInstance,
-  InjectionToken,
-} from '@navios/di'
 import { createClassContext, createMethodContext } from '@navios/di/legacy-compat'
 
-import type { CanActivate } from '../../interfaces/index.mjs'
+import type { ClassType, ClassTypeWithInstance, InjectionToken } from '@navios/di'
 
 import { UseGuards as OriginalUseGuards } from '../../decorators/use-guards.decorator.mjs'
+
+import type { CanActivate } from '../../interfaces/index.mjs'
 
 /**
  * Legacy-compatible UseGuards decorator.
@@ -35,10 +32,7 @@ import { UseGuards as OriginalUseGuards } from '../../decorators/use-guards.deco
  * ```
  */
 export function UseGuards(
-  ...guards: (
-    | ClassTypeWithInstance<CanActivate>
-    | InjectionToken<CanActivate, undefined>
-  )[]
+  ...guards: (ClassTypeWithInstance<CanActivate> | InjectionToken<CanActivate, undefined>)[]
 ) {
   // Create the decorator function
   // Note: TypeScript's legacy decorator system has strict type checking for decorators
@@ -51,11 +45,7 @@ export function UseGuards(
     // Determine if this is a class or method decorator
     if (propertyKey !== undefined && descriptor !== undefined) {
       // Method decorator
-      const context = createMethodContext(
-        target as Function,
-        propertyKey,
-        descriptor,
-      )
+      const context = createMethodContext(target as Function, propertyKey, descriptor)
       const originalDecorator = OriginalUseGuards(...guards)
       const result = originalDecorator(descriptor.value, context)
       if (result !== descriptor.value) {

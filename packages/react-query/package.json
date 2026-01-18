@@ -1,32 +1,19 @@
 {
   "name": "@navios/react-query",
   "version": "1.0.1",
-  "scripts": {
-    "check": "tsc -b",
-    "lint": "oxlint --fix",
-    "test:ci": "vitest run",
-    "build": "tsdown",
-    "publish": "yarn npm publish --access public",
-    "publish:next": "yarn npm publish --access public --tag next"
-  },
+  "license": "MIT",
   "author": {
     "name": "Oleksandr Hanzha",
     "email": "alex@granted.name"
   },
   "repository": {
-    "directory": "packages/react-query",
     "type": "git",
-    "url": "https://github.com/Arilas/navios.git"
+    "url": "https://github.com/Arilas/navios.git",
+    "directory": "packages/react-query"
   },
-  "license": "MIT",
-  "peerDependencies": {
-    "@navios/builder": "workspace:^",
-    "@tanstack/react-query": "^5.51.21",
-    "zod": "^3.25.0 || ^4.0.0"
-  },
-  "typings": "./lib/index.d.mts",
   "main": "./lib/index.cjs",
   "module": "./lib/index.mjs",
+  "typings": "./lib/index.d.mts",
   "exports": {
     ".": {
       "import": {
@@ -39,6 +26,14 @@
       }
     }
   },
+  "scripts": {
+    "check": "tsc -b",
+    "lint": "yarn run -T oxlint --fix && yarn run -T oxfmt",
+    "test:ci": "vitest run",
+    "build": "tsdown",
+    "publish": "yarn npm publish --access public",
+    "publish:next": "yarn npm publish --access public --tag next"
+  },
   "devDependencies": {
     "@navios/builder": "workspace:^",
     "@navios/http": "workspace:^",
@@ -46,5 +41,10 @@
     "react": "^19.2.3",
     "typescript": "^5.9.3",
     "zod": "^4.3.5"
+  },
+  "peerDependencies": {
+    "@navios/builder": "workspace:^",
+    "@tanstack/react-query": "^5.51.21",
+    "zod": "^3.25.0 || ^4.0.0"
   }
 }

@@ -23,5 +23,4 @@ import type { ResolvedOtelConfig } from '../interfaces/index.mjs'
  * }
  * ```
  */
-export const OtelConfigToken =
-  InjectionToken.create<ResolvedOtelConfig>('OtelConfig')
+export const OtelConfigToken = InjectionToken.create<ResolvedOtelConfig>('OtelConfig')

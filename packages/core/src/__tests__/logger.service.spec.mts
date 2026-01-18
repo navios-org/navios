@@ -1,11 +1,10 @@
 import { Container } from '@navios/di'
-
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-
-import type { LoggerService } from '../index.mjs'
 
 import { LoggerInstance } from '../logger/logger.service.mjs'
 import { LoggerOutput } from '../logger/logger.tokens.mjs'
+
+import type { LoggerService } from '../index.mjs'
 
 describe('LoggerInstance', () => {
   let container: Container

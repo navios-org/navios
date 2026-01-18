@@ -45,9 +45,7 @@ import { Injectable } from '@navios/di'
 
 @Injectable()
 export class AuthGuard implements CanActivate {
-  async canActivate(
-    executionContext: AbstractExecutionContext,
-  ): Promise<boolean> {
+  async canActivate(executionContext: AbstractExecutionContext): Promise<boolean> {
     const request = executionContext.getRequest()
     const authHeader = request.headers?.authorization
 
@@ -80,9 +78,7 @@ export class JwtAuthGuard implements CanActivate {
   private userService = inject(UserService)
   private logger = inject(Logger, { context: 'JwtAuthGuard' })
 
-  async canActivate(
-    executionContext: AbstractExecutionContext,
-  ): Promise<boolean> {
+  async canActivate(executionContext: AbstractExecutionContext): Promise<boolean> {
     try {
       const request = executionContext.getRequest()
       const token = this.extractTokenFromHeader(request.headers)
@@ -109,9 +105,7 @@ export class JwtAuthGuard implements CanActivate {
     }
   }
 
-  private extractTokenFromHeader(
-    headers: Record<string, string>,
-  ): string | null {
+  private extractTokenFromHeader(headers: Record<string, string>): string | null {
     const authHeader = headers?.authorization
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       return null
@@ -221,9 +215,7 @@ export class ApiKeyGuard implements CanActivate {
   private configService = inject(ConfigService)
   private logger = inject(Logger, { context: 'ApiKeyGuard' })
 
-  async canActivate(
-    executionContext: AbstractExecutionContext,
-  ): Promise<boolean> {
+  async canActivate(executionContext: AbstractExecutionContext): Promise<boolean> {
     const request = executionContext.getRequest()
     const apiKey = request.headers?.['x-api-key']
 
@@ -267,9 +259,7 @@ export class ConditionalAuthGuard implements CanActivate {
   private configService = inject(ConfigService)
   private authGuard = inject(AuthGuard)
 
-  async canActivate(
-    executionContext: AbstractExecutionContext,
-  ): Promise<boolean> {
+  async canActivate(executionContext: AbstractExecutionContext): Promise<boolean> {
     const authRequired = this.configService.get<boolean>('AUTH_REQUIRED')
 
     if (!authRequired) {
@@ -304,9 +294,7 @@ export const Roles = AttributeFactory.createAttribute(RolesSymbol, RolesSchema)
 export class AuthGuard implements CanActivate {
   private logger = inject(Logger, { context: 'AuthGuard' })
 
-  async canActivate(
-    executionContext: AbstractExecutionContext,
-  ): Promise<boolean> {
+  async canActivate(executionContext: AbstractExecutionContext): Promise<boolean> {
     // Check if endpoint is marked as public using AttributeFactory.getLast
     // This checks module, controller, and handler metadata in hierarchy order
     const isPublic = AttributeFactory.getLast(Public, [
@@ -365,9 +353,7 @@ You can also check attributes individually:
 ```typescript
 @Injectable()
 export class RoleBasedGuard implements CanActivate {
-  async canActivate(
-    executionContext: AbstractExecutionContext,
-  ): Promise<boolean> {
+  async canActivate(executionContext: AbstractExecutionContext): Promise<boolean> {
     const handlerMetadata = executionContext.getHandler()
     const controllerMetadata = executionContext.getController()
     const moduleMetadata = executionContext.getModule()
@@ -393,10 +379,7 @@ export class RoleBasedGuard implements CanActivate {
     return true // No role restrictions
   }
 
-  private checkRoles(
-    requiredRoles: string[],
-    executionContext: AbstractExecutionContext,
-  ): boolean {
+  private checkRoles(requiredRoles: string[], executionContext: AbstractExecutionContext): boolean {
     const request = executionContext.getRequest()
     const user = request.user
     return user && requiredRoles.some((role) => user.roles.includes(role))
@@ -418,9 +401,7 @@ export class SafeAuthGuard implements CanActivate {
   private jwtService = inject(JwtService)
   private logger = inject(Logger, { context: 'SafeAuthGuard' })
 
-  async canActivate(
-    executionContext: AbstractExecutionContext,
-  ): Promise<boolean> {
+  async canActivate(executionContext: AbstractExecutionContext): Promise<boolean> {
     try {
       const request = executionContext.getRequest()
       const token = this.extractToken(request.headers)
@@ -531,9 +512,7 @@ Log important security events for monitoring:
 export class AuthGuard implements CanActivate {
   private logger = inject(Logger, { context: 'AuthGuard' })
 
-  async canActivate(
-    executionContext: AbstractExecutionContext,
-  ): Promise<boolean> {
+  async canActivate(executionContext: AbstractExecutionContext): Promise<boolean> {
     const request = executionContext.getRequest()
     const result = await this.validateToken(request.headers?.authorization)
 

@@ -394,9 +394,7 @@ describe('TestingModule', () => {
       expect(() =>
         testingModule!.expectCalledWith(MockService, 'doSomething', ['test']),
       ).not.toThrow()
-      expect(() =>
-        testingModule!.expectCallCount(MockService, 'doSomething', 1),
-      ).not.toThrow()
+      expect(() => testingModule!.expectCallCount(MockService, 'doSomething', 1)).not.toThrow()
     })
 
     it('should get method calls for custom assertions', async () => {

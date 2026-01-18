@@ -11,15 +11,15 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { OnServiceDestroy } from '../interfaces/on-service-destroy.interface.mjs'
-import type { OnServiceInit } from '../interfaces/on-service-init.interface.mjs'
-
 import { Container } from '../container/container.mjs'
 import { Injectable } from '../decorators/injectable.decorator.mjs'
 import { InjectableScope } from '../enums/index.mjs'
 import { isUsingNativeAsyncLocalStorage } from '../internal/context/async-local-storage.browser.mjs'
 import { Registry } from '../token/registry.mjs'
 import { getInjectors } from '../utils/get-injectors.mjs'
+
+import type { OnServiceDestroy } from '../interfaces/on-service-destroy.interface.mjs'
+import type { OnServiceInit } from '../interfaces/on-service-init.interface.mjs'
 
 // ============================================================================
 // TEST UTILITIES
@@ -693,9 +693,7 @@ describe('E2E Browser: Error Handling', () => {
         }
       }
 
-      await expect(container.get(FailingInitService)).rejects.toThrow(
-        'Init failed!',
-      )
+      await expect(container.get(FailingInitService)).rejects.toThrow('Init failed!')
     })
 
     it('should propagate constructor errors', async () => {
@@ -706,9 +704,7 @@ describe('E2E Browser: Error Handling', () => {
         }
       }
 
-      await expect(container.get(FailingConstructorService)).rejects.toThrow(
-        'Constructor failed!',
-      )
+      await expect(container.get(FailingConstructorService)).rejects.toThrow('Constructor failed!')
     })
   })
 })

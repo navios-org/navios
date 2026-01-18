@@ -46,10 +46,7 @@ export interface StagedPlugin<
    * @param context - Stage-appropriate context
    * @param options - Plugin-specific configuration options
    */
-  register(
-    context: ContextForStage<S, TAdapter>,
-    options: TOptions,
-  ): Promise<void> | void
+  register(context: ContextForStage<S, TAdapter>, options: TOptions): Promise<void> | void
 }
 
 // ============ Convenience Type Aliases for Each Stage ============
@@ -58,8 +55,11 @@ export interface StagedPlugin<
  * Plugin that runs before module tree traversal.
  * Context: container only
  */
-export interface PreModulesTraversePlugin<TOptions = unknown>
-  extends StagedPlugin<'pre:modules-traverse', TOptions, never> {
+export interface PreModulesTraversePlugin<TOptions = unknown> extends StagedPlugin<
+  'pre:modules-traverse',
+  TOptions,
+  never
+> {
   register(context: ContainerOnlyContext, options: TOptions): Promise<void> | void
 }
 
@@ -67,8 +67,11 @@ export interface PreModulesTraversePlugin<TOptions = unknown>
  * Plugin that runs after module tree traversal.
  * Context: container + modules + moduleLoader
  */
-export interface PostModulesTraversePlugin<TOptions = unknown>
-  extends StagedPlugin<'post:modules-traverse', TOptions, never> {
+export interface PostModulesTraversePlugin<TOptions = unknown> extends StagedPlugin<
+  'post:modules-traverse',
+  TOptions,
+  never
+> {
   register(context: ModulesLoadedContext, options: TOptions): Promise<void> | void
 }
 
@@ -78,8 +81,11 @@ export interface PostModulesTraversePlugin<TOptions = unknown>
  *
  * Use this stage to modify registry/bindings before adapter instantiation.
  */
-export interface PreAdapterResolvePlugin<TOptions = unknown>
-  extends StagedPlugin<'pre:adapter-resolve', TOptions, never> {
+export interface PreAdapterResolvePlugin<TOptions = unknown> extends StagedPlugin<
+  'pre:adapter-resolve',
+  TOptions,
+  never
+> {
   register(context: ModulesLoadedContext, options: TOptions): Promise<void> | void
 }
 
@@ -91,10 +97,7 @@ export interface PostAdapterResolvePlugin<
   TOptions = unknown,
   TAdapter extends AbstractAdapterInterface = AbstractAdapterInterface,
 > extends StagedPlugin<'post:adapter-resolve', TOptions, TAdapter> {
-  register(
-    context: FullPluginContext<TAdapter>,
-    options: TOptions,
-  ): Promise<void> | void
+  register(context: FullPluginContext<TAdapter>, options: TOptions): Promise<void> | void
 }
 
 /**
@@ -105,10 +108,7 @@ export interface PreAdapterSetupPlugin<
   TOptions = unknown,
   TAdapter extends AbstractAdapterInterface = AbstractAdapterInterface,
 > extends StagedPlugin<'pre:adapter-setup', TOptions, TAdapter> {
-  register(
-    context: FullPluginContext<TAdapter>,
-    options: TOptions,
-  ): Promise<void> | void
+  register(context: FullPluginContext<TAdapter>, options: TOptions): Promise<void> | void
 }
 
 /**
@@ -119,10 +119,7 @@ export interface PostAdapterSetupPlugin<
   TOptions = unknown,
   TAdapter extends AbstractAdapterInterface = AbstractAdapterInterface,
 > extends StagedPlugin<'post:adapter-setup', TOptions, TAdapter> {
-  register(
-    context: FullPluginContext<TAdapter>,
-    options: TOptions,
-  ): Promise<void> | void
+  register(context: FullPluginContext<TAdapter>, options: TOptions): Promise<void> | void
 }
 
 /**
@@ -133,10 +130,7 @@ export interface PreModulesInitPlugin<
   TOptions = unknown,
   TAdapter extends AbstractAdapterInterface = AbstractAdapterInterface,
 > extends StagedPlugin<'pre:modules-init', TOptions, TAdapter> {
-  register(
-    context: FullPluginContext<TAdapter>,
-    options: TOptions,
-  ): Promise<void> | void
+  register(context: FullPluginContext<TAdapter>, options: TOptions): Promise<void> | void
 }
 
 /**
@@ -149,10 +143,7 @@ export interface PostModulesInitPlugin<
   TOptions = unknown,
   TAdapter extends AbstractAdapterInterface = AbstractAdapterInterface,
 > extends StagedPlugin<'post:modules-init', TOptions, TAdapter> {
-  register(
-    context: FullPluginContext<TAdapter>,
-    options: TOptions,
-  ): Promise<void> | void
+  register(context: FullPluginContext<TAdapter>, options: TOptions): Promise<void> | void
 }
 
 /**
@@ -163,10 +154,7 @@ export interface PreReadyPlugin<
   TOptions = unknown,
   TAdapter extends AbstractAdapterInterface = AbstractAdapterInterface,
 > extends StagedPlugin<'pre:ready', TOptions, TAdapter> {
-  register(
-    context: FullPluginContext<TAdapter>,
-    options: TOptions,
-  ): Promise<void> | void
+  register(context: FullPluginContext<TAdapter>, options: TOptions): Promise<void> | void
 }
 
 /**
@@ -177,10 +165,7 @@ export interface PostReadyPlugin<
   TOptions = unknown,
   TAdapter extends AbstractAdapterInterface = AbstractAdapterInterface,
 > extends StagedPlugin<'post:ready', TOptions, TAdapter> {
-  register(
-    context: FullPluginContext<TAdapter>,
-    options: TOptions,
-  ): Promise<void> | void
+  register(context: FullPluginContext<TAdapter>, options: TOptions): Promise<void> | void
 }
 
 // ============ Plugin Definition Types ============

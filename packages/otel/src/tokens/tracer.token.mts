@@ -1,6 +1,6 @@
-import type { Tracer } from '@opentelemetry/api'
-
 import { InjectionToken } from '@navios/di'
+
+import type { Tracer } from '@opentelemetry/api'
 
 /**
  * Injection token for the OpenTelemetry Tracer instance.

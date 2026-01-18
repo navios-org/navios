@@ -10,23 +10,18 @@ import type {
   HttpMethod,
   StreamHandler,
 } from '@navios/builder'
-import type {
-  InfiniteData,
-  MutationFunctionContext,
-} from '@tanstack/react-query'
+import type { InfiniteData, MutationFunctionContext } from '@tanstack/react-query'
 import type { z, ZodObject, ZodType } from 'zod/v4'
-
-import type {
-  ClientOptions,
-  ProcessResponseFunction,
-} from '../common/types.mjs'
-import type { MutationArgs } from '../mutation/types.mjs'
-import type { ClientInstance } from './types.mjs'
-import type { ComputeBaseResult } from './types/helpers.mjs'
 
 import { makeMutation } from '../mutation/make-hook.mjs'
 import { makeInfiniteQueryOptions } from '../query/make-infinite-options.mjs'
 import { makeQueryOptions } from '../query/make-options.mjs'
+
+import type { ClientOptions, ProcessResponseFunction } from '../common/types.mjs'
+import type { MutationArgs } from '../mutation/types.mjs'
+
+import type { ClientInstance } from './types.mjs'
+import type { ComputeBaseResult } from './types/helpers.mjs'
 
 /**
  * Configuration for declaring a query endpoint.
@@ -46,9 +41,7 @@ export interface QueryConfig<
   responseSchema: Response
   errorSchema?: ErrorSchema
   requestSchema?: RequestSchema
-  processResponse?: (
-    data: ComputeBaseResult<true, Response, ErrorSchema>,
-  ) => Result
+  processResponse?: (data: ComputeBaseResult<true, Response, ErrorSchema>) => Result
 }
 
 /**
@@ -70,9 +63,7 @@ export type InfiniteQueryConfig<
   responseSchema: Response
   errorSchema?: ErrorSchema
   requestSchema?: RequestSchema
-  processResponse?: (
-    data: ComputeBaseResult<true, Response, ErrorSchema>,
-  ) => PageResult
+  processResponse?: (data: ComputeBaseResult<true, Response, ErrorSchema>) => PageResult
   select?: (data: InfiniteData<PageResult>) => Result
   getNextPageParam: (
     lastPage: PageResult,
@@ -93,15 +84,9 @@ export type InfiniteQueryConfig<
  * Configuration for declaring a mutation endpoint.
  */
 export interface MutationConfig<
-  Method extends 'POST' | 'PUT' | 'PATCH' | 'DELETE' =
-    | 'POST'
-    | 'PUT'
-    | 'PATCH'
-    | 'DELETE',
+  Method extends 'POST' | 'PUT' | 'PATCH' | 'DELETE' = 'POST' | 'PUT' | 'PATCH' | 'DELETE',
   Url extends string = string,
-  RequestSchema extends ZodType | undefined = Method extends 'DELETE'
-    ? undefined
-    : ZodType,
+  RequestSchema extends ZodType | undefined = Method extends 'DELETE' ? undefined : ZodType,
   QuerySchema extends ZodObject | undefined = undefined,
   Response extends ZodType = ZodType,
   ErrorSchema extends ErrorSchemaRecord | undefined = undefined,
@@ -122,14 +107,12 @@ export interface MutationConfig<
   onSuccess?: (
     data: Result,
     variables: MutationArgs<Url, RequestSchema, QuerySchema>,
-    context: Context &
-      MutationFunctionContext & { onMutateResult: TOnMutateResult | undefined },
+    context: Context & MutationFunctionContext & { onMutateResult: TOnMutateResult | undefined },
   ) => void | Promise<void>
   onError?: (
     err: unknown,
     variables: MutationArgs<Url, RequestSchema, QuerySchema>,
-    context: Context &
-      MutationFunctionContext & { onMutateResult: TOnMutateResult | undefined },
+    context: Context & MutationFunctionContext & { onMutateResult: TOnMutateResult | undefined },
   ) => void | Promise<void>
   onMutate?: (
     variables: MutationArgs<Url, RequestSchema, QuerySchema>,
@@ -139,8 +122,7 @@ export interface MutationConfig<
     data: Result | undefined,
     error: Error | null,
     variables: MutationArgs<Url, RequestSchema, QuerySchema>,
-    context: Context &
-      MutationFunctionContext & { onMutateResult: TOnMutateResult | undefined },
+    context: Context & MutationFunctionContext & { onMutateResult: TOnMutateResult | undefined },
   ) => void | Promise<void>
   useKey?: UseKey
   meta?: Record<string, unknown>
@@ -198,9 +180,7 @@ export function declareClient<UseDiscriminator extends boolean = false>({
       | AbstractEndpoint<AnyEndpointConfig>
       | EndpointHandler<EndpointOptions, UseDiscriminator>,
     options?: {
-      processResponse?: (
-        data: z.output<AnyEndpointConfig['responseSchema']>,
-      ) => unknown
+      processResponse?: (data: z.output<AnyEndpointConfig['responseSchema']>) => unknown
     },
   ) {
     return makeQueryOptions(endpoint as any, {
@@ -236,9 +216,7 @@ export function declareClient<UseDiscriminator extends boolean = false>({
       | AbstractEndpoint<AnyEndpointConfig>
       | EndpointHandler<EndpointOptions, UseDiscriminator>,
     options: {
-      processResponse?: (
-        data: z.output<AnyEndpointConfig['responseSchema']>,
-      ) => unknown
+      processResponse?: (data: z.output<AnyEndpointConfig['responseSchema']>) => unknown
       getNextPageParam: (
         lastPage: z.infer<AnyEndpointConfig['responseSchema']>,
         allPages: z.infer<AnyEndpointConfig['responseSchema']>[],

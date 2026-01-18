@@ -1,6 +1,5 @@
-import type { FastifyError, FastifyReply, FastifyRequest } from 'fastify'
-
 import type { SpanFactoryService } from '@navios/otel'
+import type { FastifyError, FastifyReply, FastifyRequest } from 'fastify'
 
 /**
  * Creates the onError hook for recording errors on spans.

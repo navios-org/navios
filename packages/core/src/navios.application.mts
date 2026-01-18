@@ -1,3 +1,12 @@
+import {
+  BoundInjectionToken,
+  Container,
+  FactoryInjectionToken,
+  inject,
+  Injectable,
+  InjectionToken,
+} from '@navios/di'
+
 import type {
   ClassType,
   ClassTypeWithArgument,
@@ -8,13 +17,17 @@ import type {
 import type { z } from 'zod/v4'
 
 import {
-  BoundInjectionToken,
-  Container,
-  FactoryInjectionToken,
-  inject,
-  Injectable,
-  InjectionToken,
-} from '@navios/di'
+  PLUGIN_STAGES_ORDER,
+  PluginStageBase,
+  PluginStages,
+  postStage,
+  preStage,
+} from './interfaces/index.mjs'
+import { Logger } from './logger/index.mjs'
+import { NaviosEnvironment } from './navios.environment.mjs'
+import { ModuleLoaderService } from './services/index.mjs'
+import { AdapterToken } from './tokens/index.mjs'
+import { assertAdapterSupports } from './utils/index.mjs'
 
 import type {
   AbstractAdapterInterface,
@@ -30,19 +43,6 @@ import type {
 } from './interfaces/index.mjs'
 import type { LoggerService, LogLevel } from './logger/index.mjs'
 import type { NaviosEnvironmentOptions } from './navios.environment.mjs'
-
-import {
-  PLUGIN_STAGES_ORDER,
-  PluginStageBase,
-  PluginStages,
-  postStage,
-  preStage,
-} from './interfaces/index.mjs'
-import { Logger } from './logger/index.mjs'
-import { NaviosEnvironment } from './navios.environment.mjs'
-import { ModuleLoaderService } from './services/index.mjs'
-import { AdapterToken } from './tokens/index.mjs'
-import { assertAdapterSupports } from './utils/index.mjs'
 
 /**
  * Options for configuring the Navios application context.
@@ -117,9 +117,7 @@ export interface NaviosApplicationOptions {
  * ```
  */
 @Injectable()
-export class NaviosApplication<
-  Environment extends AdapterEnvironment = DefaultAdapterEnvironment,
-> {
+export class NaviosApplication<Environment extends AdapterEnvironment = DefaultAdapterEnvironment> {
   private environment = inject(NaviosEnvironment)
   private moduleLoader = inject(ModuleLoaderService)
   private adapter: Environment['adapter'] | null = null
@@ -232,9 +230,7 @@ export class NaviosApplication<
       | AnyPluginDefinition<TOptions, TAdapter>
       | AnyPluginDefinition<TOptions, TAdapter>[],
   ): this {
-    const definitionsArray = Array.isArray(definitions)
-      ? definitions
-      : [definitions]
+    const definitionsArray = Array.isArray(definitions) ? definitions : [definitions]
 
     for (const definition of definitionsArray) {
       const stage = this.resolvePluginStage(definition)
@@ -245,9 +241,7 @@ export class NaviosApplication<
       }
 
       stageSet.add(definition as AnyPluginDefinition)
-      this.logger.debug(
-        `Registered plugin "${definition.plugin.name}" for stage: ${stage}`,
-      )
+      this.logger.debug(`Registered plugin "${definition.plugin.name}" for stage: ${stage}`)
     }
 
     return this
@@ -302,9 +296,7 @@ export class NaviosApplication<
     // Note: If no adapter configured, adapter stages are silently skipped
     if (this.environment.hasAdapterSetup()) {
       await this.wrapStage(PluginStageBase.ADAPTER_RESOLVE, async () => {
-        this.adapter = (await this.container.get(
-          AdapterToken,
-        )) as Environment['adapter']
+        this.adapter = (await this.container.get(AdapterToken)) as Environment['adapter']
         // Apply any configuration calls that were queued before adapter resolution
         this.applyPendingAdapterCalls()
       })
@@ -359,9 +351,7 @@ export class NaviosApplication<
 
     const context = this.buildContextForStage(stage)
 
-    this.logger.debug(
-      `Executing ${stagePlugins.size} plugin(s) for stage: ${stage}`,
-    )
+    this.logger.debug(`Executing ${stagePlugins.size} plugin(s) for stage: ${stage}`)
 
     for (const { plugin, options } of stagePlugins) {
       this.logger.debug(`Executing plugin: ${plugin.name} (stage: ${stage})`)
@@ -369,10 +359,7 @@ export class NaviosApplication<
       try {
         await plugin.register(context as never, options)
       } catch (error) {
-        this.logger.error(
-          `Plugin "${plugin.name}" failed at stage "${stage}"`,
-          error,
-        )
+        this.logger.error(`Plugin "${plugin.name}" failed at stage "${stage}"`, error)
         throw error
       }
     }
@@ -402,8 +389,7 @@ export class NaviosApplication<
     }
 
     const isPreAdapterStage =
-      stage === PluginStages.POST_MODULES_TRAVERSE ||
-      stage === PluginStages.PRE_ADAPTER_RESOLVE
+      stage === PluginStages.POST_MODULES_TRAVERSE || stage === PluginStages.PRE_ADAPTER_RESOLVE
 
     if (isPreAdapterStage) {
       return modulesContext
@@ -436,13 +422,8 @@ export class NaviosApplication<
     }
 
     for (const { method, args } of this.pendingAdapterCalls) {
-      assertAdapterSupports(
-        this.adapter,
-        method as keyof AbstractAdapterInterface,
-      )
-      ;(this.adapter as Record<string, (...args: unknown[]) => unknown>)[method](
-        ...args,
-      )
+      assertAdapterSupports(this.adapter, method as keyof AbstractAdapterInterface)
+      ;(this.adapter as Record<string, (...args: unknown[]) => unknown>)[method](...args)
     }
 
     // Clear the queue after applying
@@ -464,10 +445,7 @@ export class NaviosApplication<
    * ```
    */
   get<T extends ClassType>(token: T): Promise<InstanceType<T>>
-  get<T extends ClassTypeWithArgument<R>, R>(
-    token: T,
-    args: R,
-  ): Promise<InstanceType<T>>
+  get<T extends ClassTypeWithArgument<R>, R>(token: T, args: R): Promise<InstanceType<T>>
   get<T, S extends InjectionTokenSchemaType>(
     token: InjectionToken<T, S>,
     args: z.input<S>,
@@ -537,9 +515,7 @@ export class NaviosApplication<
    * ```
    */
   enableCors(
-    options: Environment extends HttpAdapterEnvironment
-      ? Environment['corsOptions']
-      : never,
+    options: Environment extends HttpAdapterEnvironment ? Environment['corsOptions'] : never,
   ): void {
     if (this.adapter) {
       assertAdapterSupports(this.adapter, 'enableCors')
@@ -565,9 +541,7 @@ export class NaviosApplication<
    * ```
    */
   enableMultipart(
-    options: Environment extends HttpAdapterEnvironment
-      ? Environment['multipartOptions']
-      : never,
+    options: Environment extends HttpAdapterEnvironment ? Environment['multipartOptions'] : never,
   ): void {
     if (this.adapter) {
       assertAdapterSupports(this.adapter, 'enableMultipart')
@@ -614,9 +588,7 @@ export class NaviosApplication<
    * // Use adapter-specific server methods
    * ```
    */
-  getServer(): Environment extends HttpAdapterEnvironment
-    ? Environment['server']
-    : never {
+  getServer(): Environment extends HttpAdapterEnvironment ? Environment['server'] : never {
     assertAdapterSupports(this.adapter, 'getServer')
     return this.adapter.getServer() as Environment extends HttpAdapterEnvironment
       ? Environment['server']
@@ -635,9 +607,7 @@ export class NaviosApplication<
    * ```
    */
   async listen(
-    options: Environment extends HttpAdapterEnvironment
-      ? Environment['listenOptions']
-      : never,
+    options: Environment extends HttpAdapterEnvironment ? Environment['listenOptions'] : never,
   ): Promise<string> {
     assertAdapterSupports(this.adapter, 'listen')
     return this.adapter.listen(options) as Promise<string>

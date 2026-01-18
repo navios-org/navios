@@ -22,26 +22,28 @@ const app = await NaviosFactory.create(BunApplicationService, {
   module: AppModule,
 })
 
-app.usePlugin(defineOtelPlugin({
-  serviceName: 'my-bun-api',
-  serviceVersion: '1.0.0',
-  environment: 'production',
+app.usePlugin(
+  defineOtelPlugin({
+    serviceName: 'my-bun-api',
+    serviceVersion: '1.0.0',
+    environment: 'production',
 
-  // Exporter configuration
-  exporter: 'otlp',
-  exporterOptions: {
-    endpoint: 'http://localhost:4318/v1/traces',
-  },
+    // Exporter configuration
+    exporter: 'otlp',
+    exporterOptions: {
+      endpoint: 'http://localhost:4318/v1/traces',
+    },
 
-  // Auto-instrumentation
-  autoInstrument: {
-    http: true,
-    handlers: true,
-  },
+    // Auto-instrumentation
+    autoInstrument: {
+      http: true,
+      handlers: true,
+    },
 
-  // Ignore certain routes
-  ignoreRoutes: ['/health', '/metrics'],
-}))
+    // Ignore certain routes
+    ignoreRoutes: ['/health', '/metrics'],
+  }),
+)
 
 await app.listen({ port: 3000 })
 ```
@@ -106,18 +108,18 @@ class MyService {
 
 ## Configuration Options
 
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `serviceName` | `string` | **required** | Name of the service |
-| `serviceVersion` | `string` | `undefined` | Version of the service |
-| `environment` | `string` | `undefined` | Deployment environment |
-| `exporter` | `'otlp' \| 'console' \| 'none'` | **required** | Export destination |
-| `exporterOptions` | `object` | `undefined` | Exporter-specific options |
-| `autoInstrument.http` | `boolean` | `true` | Trace HTTP requests |
-| `autoInstrument.handlers` | `boolean` | `true` | Trace handlers |
-| `ignoreRoutes` | `string[]` | `[]` | Routes to skip |
-| `includeNaviosAttributes` | `boolean` | `false` | Add navios.* attributes |
-| `sampling.ratio` | `number` | `1.0` | Sample ratio (0-1) |
+| Option                    | Type                            | Default      | Description               |
+| ------------------------- | ------------------------------- | ------------ | ------------------------- |
+| `serviceName`             | `string`                        | **required** | Name of the service       |
+| `serviceVersion`          | `string`                        | `undefined`  | Version of the service    |
+| `environment`             | `string`                        | `undefined`  | Deployment environment    |
+| `exporter`                | `'otlp' \| 'console' \| 'none'` | **required** | Export destination        |
+| `exporterOptions`         | `object`                        | `undefined`  | Exporter-specific options |
+| `autoInstrument.http`     | `boolean`                       | `true`       | Trace HTTP requests       |
+| `autoInstrument.handlers` | `boolean`                       | `true`       | Trace handlers            |
+| `ignoreRoutes`            | `string[]`                      | `[]`         | Routes to skip            |
+| `includeNaviosAttributes` | `boolean`                       | `false`      | Add navios.\* attributes  |
+| `sampling.ratio`          | `number`                        | `1.0`        | Sample ratio (0-1)        |
 
 ## License
 

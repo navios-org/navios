@@ -1,31 +1,19 @@
 {
   "name": "@navios/adapter-xml",
   "version": "1.0.0",
-  "scripts": {
-    "check": "tsc -b",
-    "lint": "oxlint --fix",
-    "test:ci": "vitest run",
-    "build": "tsdown",
-    "publish": "yarn npm publish --access public",
-    "publish:next": "yarn npm publish --access public --tag next"
-  },
+  "license": "MIT",
   "author": {
     "name": "Oleksandr Hanzha",
     "email": "alex@granted.name"
   },
   "repository": {
-    "directory": "packages/adapter-xml",
     "type": "git",
-    "url": "https://github.com/Arilas/navios.git"
+    "url": "https://github.com/Arilas/navios.git",
+    "directory": "packages/adapter-xml"
   },
-  "license": "MIT",
-  "peerDependencies": {
-    "@navios/builder": "workspace:^",
-    "@navios/core": "workspace:^"
-  },
-  "typings": "./lib/index.d.mts",
   "main": "./lib/index.cjs",
   "module": "./lib/index.mjs",
+  "typings": "./lib/index.d.mts",
   "exports": {
     ".": {
       "import": {
@@ -68,6 +56,17 @@
       }
     }
   },
+  "scripts": {
+    "check": "tsc -b",
+    "lint": "yarn run -T oxlint --fix && yarn run -T oxfmt",
+    "test:ci": "vitest run",
+    "build": "tsdown",
+    "publish": "yarn npm publish --access public",
+    "publish:next": "yarn npm publish --access public --tag next"
+  },
+  "dependencies": {
+    "zod": "^4.3.5"
+  },
   "devDependencies": {
     "@navios/adapter-bun": "workspace:^",
     "@navios/adapter-fastify": "workspace:^",
@@ -80,7 +79,8 @@
     "typescript": "^5.9.3",
     "vitest": "^4.0.17"
   },
-  "dependencies": {
-    "zod": "^4.3.5"
+  "peerDependencies": {
+    "@navios/builder": "workspace:^",
+    "@navios/core": "workspace:^"
   }
 }

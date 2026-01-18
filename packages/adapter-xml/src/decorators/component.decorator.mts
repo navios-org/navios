@@ -1,6 +1,3 @@
-import type { Registry } from '@navios/core'
-import type { z, ZodObject, ZodRawShape } from 'zod/v4'
-
 import {
   globalRegistry,
   InjectableScope,
@@ -8,6 +5,9 @@ import {
   InjectableType,
   InjectionToken,
 } from '@navios/core'
+
+import type { Registry } from '@navios/core'
+import type { z, ZodObject, ZodRawShape } from 'zod/v4'
 
 import type { ComponentClass, XmlComponent } from '../types/component.mjs'
 
@@ -93,17 +93,9 @@ export function Component(
 ) {
   const { schema, registry = globalRegistry } = options
 
-  return <T extends ComponentClass>(
-    target: T,
-    context?: ClassDecoratorContext,
-  ): T => {
-    if (
-      (context && context.kind !== 'class') ||
-      (target instanceof Function && !context)
-    ) {
-      throw new Error(
-        '[@navios/adapter-xml] @Component decorator can only be used on classes.',
-      )
+  return <T extends ComponentClass>(target: T, context?: ClassDecoratorContext): T => {
+    if ((context && context.kind !== 'class') || (target instanceof Function && !context)) {
+      throw new Error('[@navios/adapter-xml] @Component decorator can only be used on classes.')
     }
 
     // Verify the class has a render method
@@ -119,12 +111,7 @@ export function Component(
       : InjectionToken.create(target)
 
     // Register with Request scope - each render gets fresh instances
-    registry.set(
-      injectableToken,
-      InjectableScope.Request,
-      target,
-      InjectableType.Class,
-    )
+    registry.set(injectableToken, InjectableScope.Request, target, InjectableType.Class)
 
     // Store token metadata on the class (same pattern as @Injectable)
     // @ts-expect-error - Adding metadata to class

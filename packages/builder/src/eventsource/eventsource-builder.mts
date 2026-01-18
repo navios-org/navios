@@ -2,10 +2,10 @@ import type { ZodType } from 'zod/v4'
 
 import { NaviosError } from '../errors/index.mjs'
 
-import type { EventSourceClient } from './types/eventsource-client.mjs'
-import type { EventSourceBuilderConfig, EventOptions } from './types/eventsource-options.mjs'
-import type { EventHandler, EventUnsubscribe } from './types/eventsource-handlers.mjs'
 import type { EventSourceBuilderInstance } from './types/eventsource-builder-instance.mjs'
+import type { EventSourceClient } from './types/eventsource-client.mjs'
+import type { EventHandler, EventUnsubscribe } from './types/eventsource-handlers.mjs'
+import type { EventSourceBuilderConfig, EventOptions } from './types/eventsource-options.mjs'
 
 /**
  * Creates an EventSource builder instance for declarative SSE event handling.
@@ -145,9 +145,7 @@ export function eventSourceBuilder(
   ): EventHandler<Options> {
     const { eventName, payloadSchema } = options
 
-    const handlerFn = (
-      handler: (payload: unknown) => void,
-    ): EventUnsubscribe => {
+    const handlerFn = (handler: (payload: unknown) => void): EventUnsubscribe => {
       // Get or create handler set for this event
       let handlers = eventHandlers.get(eventName)
       if (!handlers) {

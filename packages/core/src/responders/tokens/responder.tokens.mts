@@ -19,8 +19,9 @@ import type { ErrorResponder } from '../interfaces/error-responder.interface.mjs
  * }
  * ```
  */
-export const InternalServerErrorResponderToken =
-  InjectionToken.create<ErrorResponder>('InternalServerErrorResponder')
+export const InternalServerErrorResponderToken = InjectionToken.create<ErrorResponder>(
+  'InternalServerErrorResponder',
+)
 
 /**
  * Injection token for the Not Found responder.
@@ -39,8 +40,7 @@ export const InternalServerErrorResponderToken =
  * }
  * ```
  */
-export const NotFoundResponderToken =
-  InjectionToken.create<ErrorResponder>('NotFoundResponder')
+export const NotFoundResponderToken = InjectionToken.create<ErrorResponder>('NotFoundResponder')
 
 /**
  * Injection token for the Validation Error responder.
@@ -60,8 +60,9 @@ export const NotFoundResponderToken =
  * }
  * ```
  */
-export const ValidationErrorResponderToken =
-  InjectionToken.create<ErrorResponder>('ValidationErrorResponder')
+export const ValidationErrorResponderToken = InjectionToken.create<ErrorResponder>(
+  'ValidationErrorResponder',
+)
 
 /**
  * Injection token for the Forbidden responder.
@@ -80,5 +81,4 @@ export const ValidationErrorResponderToken =
  * }
  * ```
  */
-export const ForbiddenResponderToken =
-  InjectionToken.create<ErrorResponder>('ForbiddenResponder')
+export const ForbiddenResponderToken = InjectionToken.create<ErrorResponder>('ForbiddenResponder')

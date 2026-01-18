@@ -101,11 +101,7 @@ function Table({ rows }) {
   return (
     <table>
       {rows.map((row) => (
-        <ScopeProvider
-          key={row.id}
-          scopeId={row.id}
-          metadata={{ rowData: row }}
-        >
+        <ScopeProvider key={row.id} scopeId={row.id} metadata={{ rowData: row }}>
           <TableRow />
         </ScopeProvider>
       ))}
@@ -186,10 +182,10 @@ import { useMemo } from 'react'
 import { z } from 'zod'
 
 const UserSchema = z.object({ userId: z.string() })
-const UserToken = InjectionToken.create<
-  { userId: string; name: string },
-  typeof UserSchema
->('User', UserSchema)
+const UserToken = InjectionToken.create<{ userId: string; name: string }, typeof UserSchema>(
+  'User',
+  UserSchema,
+)
 
 function UserProfile({ userId }: { userId: string }) {
   // Important: Memoize args to avoid unnecessary re-fetches
@@ -266,11 +262,7 @@ This is useful for:
 import { useOptionalService } from '@navios/di-react'
 
 function Analytics() {
-  const {
-    data: analytics,
-    isNotFound,
-    isLoading,
-  } = useOptionalService(AnalyticsService)
+  const { data: analytics, isNotFound, isLoading } = useOptionalService(AnalyticsService)
 
   if (isLoading) return null
   if (isNotFound) {
@@ -538,10 +530,7 @@ Returns the root `Container` regardless of whether you're inside a `ScopeProvide
 
 ```ts
 function useService<T>(token: ClassType): UseServiceResult<InstanceType<T>>
-function useService<T, S>(
-  token: InjectionToken<T, S>,
-  args: z.input<S>,
-): UseServiceResult<T>
+function useService<T, S>(token: InjectionToken<T, S>, args: z.input<S>): UseServiceResult<T>
 function useService<T>(token: InjectionToken<T, undefined>): UseServiceResult<T>
 // ... other overloads
 
@@ -561,10 +550,7 @@ Fetches a service asynchronously and subscribes to invalidation events. When the
 
 ```ts
 function useSuspenseService<T>(token: ClassType): InstanceType<T>
-function useSuspenseService<T, S>(
-  token: InjectionToken<T, S>,
-  args: z.input<S>,
-): T
+function useSuspenseService<T, S>(token: InjectionToken<T, S>, args: z.input<S>): T
 function useSuspenseService<T>(token: InjectionToken<T, undefined>): T
 // ... other overloads
 ```
@@ -576,9 +562,7 @@ Fetches a service using React Suspense. Throws a promise during loading and the 
 ### useOptionalService
 
 ```ts
-function useOptionalService<T>(
-  token: ClassType,
-): UseOptionalServiceResult<InstanceType<T>>
+function useOptionalService<T>(token: ClassType): UseOptionalServiceResult<InstanceType<T>>
 function useOptionalService<T, S>(
   token: InjectionToken<T, S>,
   args: z.input<S>,

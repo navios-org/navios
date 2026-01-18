@@ -1,10 +1,9 @@
 import { TestContainer } from '@navios/di/testing'
-
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
-import type { BunOtelPluginOptions } from '../interfaces/index.mjs'
-
 import { BunOtelOptionsToken } from '../tokens/index.mjs'
+
+import type { BunOtelPluginOptions } from '../interfaces/index.mjs'
 
 /**
  * Since TracedBunControllerAdapterService has many dependencies,
@@ -17,10 +16,7 @@ describe('TracedBunControllerAdapterService', () => {
      * Tests the route matching logic that determines if a route should be traced.
      * This mirrors the shouldTraceRoute method in TracedBunControllerAdapterService.
      */
-    function shouldTraceRoute(
-      route: string,
-      ignoreRoutes: string[] = [],
-    ): boolean {
+    function shouldTraceRoute(route: string, ignoreRoutes: string[] = []): boolean {
       return !ignoreRoutes.some((pattern) => {
         if (pattern.includes('*')) {
           const regex = new RegExp('^' + pattern.replace(/\*/g, '.*') + '$')
@@ -57,12 +53,8 @@ describe('TracedBunControllerAdapterService', () => {
     it('should support multiple wildcards', () => {
       const ignoreRoutes = ['/api/*/internal/*']
 
-      expect(shouldTraceRoute('/api/v1/internal/health', ignoreRoutes)).toBe(
-        false,
-      )
-      expect(shouldTraceRoute('/api/v2/internal/metrics', ignoreRoutes)).toBe(
-        false,
-      )
+      expect(shouldTraceRoute('/api/v1/internal/health', ignoreRoutes)).toBe(false)
+      expect(shouldTraceRoute('/api/v2/internal/metrics', ignoreRoutes)).toBe(false)
       expect(shouldTraceRoute('/api/v1/users', ignoreRoutes)).toBe(true)
     })
 
@@ -115,11 +107,7 @@ describe('TracedBunControllerAdapterService', () => {
       container.bind(BunOtelOptionsToken).toValue(options)
 
       const storedOptions = await container.get(BunOtelOptionsToken)
-      expect(storedOptions.ignoreRoutes).toEqual([
-        '/health',
-        '/metrics',
-        '/internal/*',
-      ])
+      expect(storedOptions.ignoreRoutes).toEqual(['/health', '/metrics', '/internal/*'])
     })
 
     it('should default to empty ignoreRoutes when not provided', async () => {

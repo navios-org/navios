@@ -64,7 +64,7 @@ async function bootstrap() {
 
   await app.init()
   await app.listen({ port: 3000 })
-  
+
   console.log('API docs available at http://localhost:3000/docs')
 }
 
@@ -76,13 +76,7 @@ bootstrap()
 ```ts
 import { defineBunEnvironment } from '@navios/adapter-bun'
 import { builder } from '@navios/builder'
-import {
-  Controller,
-  Endpoint,
-  EndpointParams,
-  Module,
-  NaviosFactory,
-} from '@navios/core'
+import { Controller, Endpoint, EndpointParams, Module, NaviosFactory } from '@navios/core'
 import { defineOpenApiPlugin } from '@navios/openapi-bun'
 import { ApiOperation, ApiTag } from '@navios/openapi'
 import { z } from 'zod'
@@ -204,12 +198,12 @@ app.usePlugin(
 
 ### Path Configuration
 
-| Option     | Default         | Description                |
-| ---------- | --------------- | -------------------------- |
-| `jsonPath` | `/openapi.json` | Path to serve OpenAPI JSON |
-| `yamlPath` | `/openapi.yaml` | Path to serve OpenAPI YAML |
-| `docsPath` | `/docs`         | Path to serve Scalar UI    |
-| `disableYaml` | `false`      | Disable YAML endpoint      |
+| Option        | Default         | Description                |
+| ------------- | --------------- | -------------------------- |
+| `jsonPath`    | `/openapi.json` | Path to serve OpenAPI JSON |
+| `yamlPath`    | `/openapi.yaml` | Path to serve OpenAPI YAML |
+| `docsPath`    | `/docs`         | Path to serve Scalar UI    |
+| `disableYaml` | `false`         | Disable YAML endpoint      |
 
 ### Scalar Themes
 
@@ -274,13 +268,12 @@ For complete documentation on using OpenAPI with Navios, see:
 
 ## Comparison with Fastify Provider
 
-| Feature     | Bun Provider    | Fastify Provider |
-| ----------- | --------------- | ---------------- |
-| Runtime     | Bun             | Node.js          |
-| Performance | Very High       | High             |
-| UI          | Scalar          | Scalar           |
-| Setup       | Simple          | Simple           |
-| Themes      | 5 themes        | 5 themes         |
+| Feature     | Bun Provider | Fastify Provider |
+| ----------- | ------------ | ---------------- |
+| Runtime     | Bun          | Node.js          |
+| Performance | Very High    | High             |
+| UI          | Scalar       | Scalar           |
+| Setup       | Simple       | Simple           |
+| Themes      | 5 themes     | 5 themes         |
 
 Both providers offer the same features and API - choose based on your runtime environment.
-

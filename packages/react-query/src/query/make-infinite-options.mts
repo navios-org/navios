@@ -1,8 +1,10 @@
-import type {
-  AbstractEndpoint,
-  AnyEndpointConfig,
-  UrlParams,
-} from '@navios/builder'
+import {
+  infiniteQueryOptions,
+  useInfiniteQuery,
+  useSuspenseInfiniteQuery,
+} from '@tanstack/react-query'
+
+import type { AbstractEndpoint, AnyEndpointConfig, UrlParams } from '@navios/builder'
 import type {
   InfiniteData,
   QueryClient,
@@ -11,15 +13,9 @@ import type {
 } from '@tanstack/react-query'
 import type { z } from 'zod/v4'
 
-import {
-  infiniteQueryOptions,
-  useInfiniteQuery,
-  useSuspenseInfiniteQuery,
-} from '@tanstack/react-query'
+import { createQueryKey } from './key-creator.mjs'
 
 import type { InfiniteQueryOptions, QueryArgs } from './types.mjs'
-
-import { createQueryKey } from './key-creator.mjs'
 
 /**
  * Creates infinite query options for a given endpoint.
@@ -44,11 +40,7 @@ export function makeInfiniteQueryOptions<
     | 'placeholderData'
     | 'throwOnError'
   >,
->(
-  endpoint: AbstractEndpoint<Config>,
-  options: Options,
-  baseQuery: BaseQuery = {} as BaseQuery,
-) {
+>(endpoint: AbstractEndpoint<Config>, options: Options, baseQuery: BaseQuery = {} as BaseQuery) {
   const config = endpoint.config
   const queryKey = createQueryKey(config, options, true)
 
@@ -59,19 +51,14 @@ export function makeInfiniteQueryOptions<
     ? UseSuspenseInfiniteQueryOptions<
         Result,
         Error,
-        BaseQuery['select'] extends (...args: any[]) => infer T
-          ? T
-          : InfiniteData<Result>
+        BaseQuery['select'] extends (...args: any[]) => infer T ? T : InfiniteData<Result>
       >
     : never => {
     // @ts-expect-error TS2322 We know that the processResponse is defined
     return infiniteQueryOptions({
       // @ts-expect-error TS2345 We bind the url params only if the url has params
       queryKey: queryKey.dataTag(params),
-      queryFn: async ({
-        signal,
-        pageParam,
-      }): Promise<ReturnType<Options['processResponse']>> => {
+      queryFn: async ({ signal, pageParam }): Promise<ReturnType<Options['processResponse']>> => {
         let result
         try {
           result = await endpoint({
@@ -123,9 +110,7 @@ export function makeInfiniteQueryOptions<
    * @param params - URL parameters and initial query parameters
    * @returns Infinite query result with pages guaranteed to be defined
    */
-  res.useSuspense = (
-    params: QueryArgs<Config['url'], Config['querySchema']>,
-  ) => {
+  res.useSuspense = (params: QueryArgs<Config['url'], Config['querySchema']>) => {
     return useSuspenseInfiniteQuery(res(params))
   }
 

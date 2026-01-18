@@ -1,10 +1,10 @@
 import { describe, expect, it, vi } from 'vitest'
 import { z, ZodError } from 'zod/v4'
 
-import type { AbstractResponse, BuilderConfig } from '../../types/index.mjs'
-
 import { handleError } from '../handle-error.mjs'
 import { UnknownResponseError } from '../unknown-response-error.mjs'
+
+import type { AbstractResponse, BuilderConfig } from '../../types/index.mjs'
 
 describe('handleError', () => {
   const responseSchema = z.object({
@@ -102,9 +102,7 @@ describe('handleError', () => {
       const config: BuilderConfig<true> = { useDiscriminatorResponse: true }
       const error = new Error('Network error')
 
-      expect(() =>
-        handleError(config, error, responseSchema),
-      ).toThrow('Network error')
+      expect(() => handleError(config, error, responseSchema)).toThrow('Network error')
     })
 
     it('should throw when error.response is falsy', () => {
@@ -142,9 +140,7 @@ describe('handleError', () => {
       }
       const originalError = { response }
 
-      expect(() =>
-        handleError(config, originalError, responseSchema),
-      ).toThrow(ZodError)
+      expect(() => handleError(config, originalError, responseSchema)).toThrow(ZodError)
 
       expect(onZodError).toHaveBeenCalledTimes(1)
       expect(onZodError.mock.calls[0][0]).toBeInstanceOf(ZodError)
@@ -163,9 +159,7 @@ describe('handleError', () => {
         },
       }
 
-      expect(() =>
-        handleError(config, error, responseSchema),
-      ).toThrow(ZodError)
+      expect(() => handleError(config, error, responseSchema)).toThrow(ZodError)
     })
   })
 
@@ -282,9 +276,7 @@ describe('handleError', () => {
         } satisfies AbstractResponse<unknown>,
       }
 
-      expect(() => handleError(config, error, undefined, errorSchema)).toThrow(
-        UnknownResponseError,
-      )
+      expect(() => handleError(config, error, undefined, errorSchema)).toThrow(UnknownResponseError)
     })
 
     it('should include correct statusCode in UnknownResponseError', () => {
@@ -321,9 +313,7 @@ describe('handleError', () => {
       }
       const originalError = { response }
 
-      expect(() =>
-        handleError(config, originalError, undefined, errorSchema),
-      ).toThrow(ZodError)
+      expect(() => handleError(config, originalError, undefined, errorSchema)).toThrow(ZodError)
 
       expect(onZodError).toHaveBeenCalledTimes(1)
       expect(onZodError.mock.calls[0][0]).toBeInstanceOf(ZodError)
@@ -335,9 +325,7 @@ describe('handleError', () => {
       const config: BuilderConfig = { useDiscriminatorResponse: false }
       const error = new Error('Network error')
 
-      expect(() =>
-        handleError(config, error, undefined, errorSchema),
-      ).toThrow('Network error')
+      expect(() => handleError(config, error, undefined, errorSchema)).toThrow('Network error')
     })
 
     it('should fall back to responseSchema when errorSchema is not provided', () => {
@@ -377,9 +365,7 @@ describe('handleError', () => {
       const config: BuilderConfig<true> = { useDiscriminatorResponse: true }
       const error = new Error('Network error')
 
-      expect(() =>
-        handleError(config, error, undefined, errorSchema),
-      ).toThrow('Network error')
+      expect(() => handleError(config, error, undefined, errorSchema)).toThrow('Network error')
     })
 
     it('should call onError before checking errorSchema', () => {

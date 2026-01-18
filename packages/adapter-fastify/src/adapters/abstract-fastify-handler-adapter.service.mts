@@ -1,11 +1,8 @@
+import { AbstractHandlerAdapterService, type ArgumentGetter } from '@navios/core'
+
 import type { BaseEndpointOptions } from '@navios/builder'
 import type { HandlerMetadata } from '@navios/core'
 import type { FastifyReply, FastifyRequest } from 'fastify'
-
-import {
-  AbstractHandlerAdapterService,
-  type ArgumentGetter,
-} from '@navios/core'
 
 /**
  * Abstract base class for Fastify handler adapters.
@@ -82,9 +79,7 @@ export abstract class AbstractFastifyHandlerAdapterService<
    * @param handlerMetadata - The handler metadata containing configuration and schemas.
    * @returns A Fastify route schema object.
    */
-  override provideSchema(
-    handlerMetadata: HandlerMetadata<TConfig>,
-  ): Record<string, any> {
+  override provideSchema(handlerMetadata: HandlerMetadata<TConfig>): Record<string, any> {
     const schema: Record<string, any> = {}
     const { querySchema, requestSchema, errorSchema } = handlerMetadata.config
 

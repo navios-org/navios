@@ -1,10 +1,10 @@
-import type { EndpointOptions } from '@navios/builder'
-import type { HandlerMetadata, NaviosApplicationOptions } from '@navios/core'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'bun:test'
 
 import { NaviosOptionsToken } from '@navios/core'
 import { TestContainer } from '@navios/di/testing'
 
-import { afterEach, beforeEach, describe, expect, it, vi } from 'bun:test'
+import type { EndpointOptions } from '@navios/builder'
+import type { HandlerMetadata, NaviosApplicationOptions } from '@navios/core'
 
 import {
   BunMultipartAdapterService,
@@ -18,9 +18,7 @@ const bindNaviosOptions = (
   container: TestContainer,
   options: Partial<NaviosApplicationOptions>,
 ) => {
-  container
-    .bind(NaviosOptionsToken)
-    .toValue(options as NaviosApplicationOptions)
+  container.bind(NaviosOptionsToken).toValue(options as NaviosApplicationOptions)
 }
 
 const createHandlerMetadata = (
@@ -70,18 +68,13 @@ describe('BunMultipartAdapterService', () => {
         parse: vi.fn().mockReturnValue({}),
       } as any,
       requestSchema: {
-        parse: vi
-          .fn()
-          .mockReturnValue({ file: 'mock-file', text: 'mock-text' }),
+        parse: vi.fn().mockReturnValue({ file: 'mock-file', text: 'mock-text' }),
       } as any,
     } as EndpointOptions)
 
     // Mock BunRequest with formData method
     const mockFormData = new FormData()
-    mockFormData.append(
-      'file',
-      new File(['content'], 'test.txt', { type: 'text/plain' }),
-    )
+    mockFormData.append('file', new File(['content'], 'test.txt', { type: 'text/plain' }))
     mockFormData.append('text', 'hello world')
 
     const mockRequest = {
@@ -100,9 +93,7 @@ describe('BunMultipartAdapterService', () => {
     await formDataGetter(target, mockRequest)
 
     expect(target.data).toEqual({ file: 'mock-file', text: 'mock-text' })
-    expect(
-      mockHandlerMetadata.config.requestSchema?.parse,
-    ).toHaveBeenCalledWith({
+    expect(mockHandlerMetadata.config.requestSchema?.parse).toHaveBeenCalledWith({
       file: expect.any(File),
       text: 'hello world',
     })
@@ -139,9 +130,7 @@ describe('BunMultipartAdapterService', () => {
     await formDataGetter(target, mockRequest)
 
     expect(target.data).toEqual({ files: ['file1', 'file2'] })
-    expect(
-      mockHandlerMetadata.config.requestSchema?.parse,
-    ).toHaveBeenCalledWith({
+    expect(mockHandlerMetadata.config.requestSchema?.parse).toHaveBeenCalledWith({
       files: [expect.any(File), expect.any(File)],
     })
   })

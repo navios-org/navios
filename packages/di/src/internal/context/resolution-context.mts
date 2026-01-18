@@ -1,7 +1,8 @@
 import type { InstanceHolder } from '../holder/instance-holder.mjs'
-import type { IAsyncLocalStorage } from './async-local-storage.types.mjs'
 
 import { createAsyncLocalStorage } from './async-local-storage.mjs'
+
+import type { IAsyncLocalStorage } from './async-local-storage.types.mjs'
 
 /**
  * Data stored in the resolution context during service instantiation.
@@ -58,9 +59,7 @@ export function withResolutionContext<T>(
  * Returns undefined if we're not inside a resolution context
  * (e.g., when resolving a top-level service that has no parent).
  */
-export function getCurrentResolutionContext():
-  | ResolutionContextData
-  | undefined {
+export function getCurrentResolutionContext(): ResolutionContextData | undefined {
   return getResolutionContext().getStore()
 }
 
@@ -74,9 +73,5 @@ export function getCurrentResolutionContext():
  */
 export function withoutResolutionContext<T>(fn: () => T): T {
   // Run with undefined context to clear any current context
-  return getResolutionContext().run(
-    undefined as unknown as ResolutionContextData,
-    fn,
-  )
+  return getResolutionContext().run(undefined as unknown as ResolutionContextData, fn)
 }
-

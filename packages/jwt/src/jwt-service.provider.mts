@@ -1,11 +1,11 @@
-import type { BoundInjectionToken, FactoryInjectionToken } from '@navios/core'
-
 import { InjectionToken } from '@navios/core'
 
-import type { JwtServiceOptions } from './options/jwt-service.options.mjs'
+import type { BoundInjectionToken, FactoryInjectionToken } from '@navios/core'
 
 import { JwtService, JwtServiceToken } from './jwt.service.mjs'
 import { JwtServiceOptionsSchema } from './options/jwt-service.options.mjs'
+
+import type { JwtServiceOptions } from './options/jwt-service.options.mjs'
 
 /**
  * Creates a JWT service provider for dependency injection.

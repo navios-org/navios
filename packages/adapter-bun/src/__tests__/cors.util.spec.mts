@@ -213,64 +213,49 @@ describe('CORS Utilities', () => {
 
   describe('calculatePreflightHeaders', () => {
     it('should include base CORS headers', async () => {
-      const result = await calculatePreflightHeaders(
-        'http://example.com',
-        'POST',
-        null,
-        { origin: true },
-      )
+      const result = await calculatePreflightHeaders('http://example.com', 'POST', null, {
+        origin: true,
+      })
       expect(result).toMatchObject({
         'Access-Control-Allow-Origin': 'http://example.com',
       })
     })
 
     it('should return null when origin not allowed', async () => {
-      const result = await calculatePreflightHeaders(
-        'http://example.com',
-        'POST',
-        null,
-        { origin: false },
-      )
+      const result = await calculatePreflightHeaders('http://example.com', 'POST', null, {
+        origin: false,
+      })
       expect(result).toBeNull()
     })
 
     it('should include default allowed methods', async () => {
-      const result = await calculatePreflightHeaders(
-        'http://example.com',
-        'POST',
-        null,
-        { origin: true },
-      )
+      const result = await calculatePreflightHeaders('http://example.com', 'POST', null, {
+        origin: true,
+      })
       expect(result!['Access-Control-Allow-Methods']).toBe('GET,HEAD,PUT,PATCH,POST,DELETE')
     })
 
     it('should include custom methods', async () => {
-      const result = await calculatePreflightHeaders(
-        'http://example.com',
-        'POST',
-        null,
-        { origin: true, methods: ['GET', 'POST'] },
-      )
+      const result = await calculatePreflightHeaders('http://example.com', 'POST', null, {
+        origin: true,
+        methods: ['GET', 'POST'],
+      })
       expect(result!['Access-Control-Allow-Methods']).toBe('GET, POST')
     })
 
     it('should include custom methods as string', async () => {
-      const result = await calculatePreflightHeaders(
-        'http://example.com',
-        'POST',
-        null,
-        { origin: true, methods: 'GET,POST' },
-      )
+      const result = await calculatePreflightHeaders('http://example.com', 'POST', null, {
+        origin: true,
+        methods: 'GET,POST',
+      })
       expect(result!['Access-Control-Allow-Methods']).toBe('GET,POST')
     })
 
     it('should include allowed headers', async () => {
-      const result = await calculatePreflightHeaders(
-        'http://example.com',
-        'POST',
-        null,
-        { origin: true, allowedHeaders: ['Content-Type', 'Authorization'] },
-      )
+      const result = await calculatePreflightHeaders('http://example.com', 'POST', null, {
+        origin: true,
+        allowedHeaders: ['Content-Type', 'Authorization'],
+      })
       expect(result!['Access-Control-Allow-Headers']).toBe('Content-Type, Authorization')
     })
 
@@ -286,32 +271,26 @@ describe('CORS Utilities', () => {
     })
 
     it('should include max age', async () => {
-      const result = await calculatePreflightHeaders(
-        'http://example.com',
-        'POST',
-        null,
-        { origin: true, maxAge: 3600 },
-      )
+      const result = await calculatePreflightHeaders('http://example.com', 'POST', null, {
+        origin: true,
+        maxAge: 3600,
+      })
       expect(result!['Access-Control-Max-Age']).toBe('3600')
     })
 
     it('should include cache control as number', async () => {
-      const result = await calculatePreflightHeaders(
-        'http://example.com',
-        'POST',
-        null,
-        { origin: true, cacheControl: 600 },
-      )
+      const result = await calculatePreflightHeaders('http://example.com', 'POST', null, {
+        origin: true,
+        cacheControl: 600,
+      })
       expect(result!['Cache-Control']).toBe('max-age=600')
     })
 
     it('should include cache control as string', async () => {
-      const result = await calculatePreflightHeaders(
-        'http://example.com',
-        'POST',
-        null,
-        { origin: true, cacheControl: 'private, max-age=300' },
-      )
+      const result = await calculatePreflightHeaders('http://example.com', 'POST', null, {
+        origin: true,
+        cacheControl: 'private, max-age=300',
+      })
       expect(result!['Cache-Control']).toBe('private, max-age=300')
     })
   })

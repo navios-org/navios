@@ -1,5 +1,6 @@
-import type { XmlComponent, XmlStreamParams } from '../../src/index.mjs'
+import { afterAll, beforeAll, describe, expect, it } from 'bun:test'
 
+import { defineBunEnvironment, type BunEnvironment } from '@navios/adapter-bun'
 import { builder } from '@navios/builder'
 import {
   Controller,
@@ -12,10 +13,7 @@ import {
   NaviosFactory,
   type EndpointParams,
 } from '@navios/core'
-import { defineBunEnvironment, type BunEnvironment } from '@navios/adapter-bun'
-
 import supertest from 'supertest'
-import { afterAll, beforeAll, describe, expect, it } from 'bun:test'
 import { z } from 'zod/v4'
 
 import {
@@ -27,6 +25,8 @@ import {
   XmlStream,
   createElement,
 } from '../../src/index.mjs'
+
+import type { XmlComponent, XmlStreamParams } from '../../src/index.mjs'
 
 describe('XML Stream with Bun adapter', () => {
   let server: NaviosApplication<BunEnvironment>
@@ -314,9 +314,7 @@ describe('XML Stream with Bun adapter', () => {
       return (
         <root>
           <cdata-example>
-            <CData>
-              {'This is <raw> HTML & XML content that should not be escaped'}
-            </CData>
+            <CData>{'This is <raw> HTML & XML content that should not be escaped'}</CData>
           </cdata-example>
           <raw-xml-example>
             <DangerouslyInsertRawXml>
@@ -370,9 +368,7 @@ describe('XML Stream with Bun adapter', () => {
 
       expect(response.status).toBe(200)
       expect(response.headers['content-type']).toContain('application/atom+xml')
-      expect(response.text).toContain(
-        '<feed xmlns="http://www.w3.org/2005/Atom">',
-      )
+      expect(response.text).toContain('<feed xmlns="http://www.w3.org/2005/Atom">')
 
       // Count entries - should be limited to 2
       const entryCount = (response.text.match(/<entry>/g) || []).length
@@ -436,12 +432,8 @@ describe('XML Stream with Bun adapter', () => {
 
       expect(response.status).toBe(200)
       expect(response.text).toContain('<sync>Immediate content</sync>')
-      expect(response.text).toContain(
-        '<async-data>Loaded after 10ms</async-data>',
-      )
-      expect(response.text).toContain(
-        '<async-data>Loaded after 5ms</async-data>',
-      )
+      expect(response.text).toContain('<async-data>Loaded after 10ms</async-data>')
+      expect(response.text).toContain('<async-data>Loaded after 5ms</async-data>')
     })
   })
 
@@ -493,14 +485,10 @@ describe('XML Stream with Bun adapter', () => {
       )
 
       // Raw XML should be inserted without escaping
-      expect(response.text).toContain(
-        '<nested><element attr="value">text</element></nested>',
-      )
+      expect(response.text).toContain('<nested><element attr="value">text</element></nested>')
 
       // Regular content should be escaped
-      expect(response.text).toContain(
-        '&lt;this&gt; &amp; "that" should be escaped',
-      )
+      expect(response.text).toContain('&lt;this&gt; &amp; "that" should be escaped')
     })
   })
 
@@ -510,14 +498,10 @@ describe('XML Stream with Bun adapter', () => {
       const jsonResponse = await supertest(serverUrl).get('/api/data')
 
       expect(xmlResponse.status).toBe(200)
-      expect(xmlResponse.headers['content-type']).toContain(
-        'application/rss+xml',
-      )
+      expect(xmlResponse.headers['content-type']).toContain('application/rss+xml')
 
       expect(jsonResponse.status).toBe(200)
-      expect(jsonResponse.body.message).toBe(
-        'JSON endpoint works alongside XML',
-      )
+      expect(jsonResponse.body.message).toBe('JSON endpoint works alongside XML')
     })
   })
 

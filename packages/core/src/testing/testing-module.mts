@@ -1,17 +1,12 @@
-import type {
-  ClassType,
-  ClassTypeWithInstance,
-  InjectionToken,
-  ScopedContainer,
-} from '@navios/di'
-
 import { TestContainer } from '@navios/di/testing'
 
-import type { NaviosModule } from '../interfaces/index.mjs'
-import type { NaviosApplicationOptions } from '../navios.application.mjs'
+import type { ClassType, ClassTypeWithInstance, InjectionToken, ScopedContainer } from '@navios/di'
 
 import { NaviosApplication } from '../navios.application.mjs'
 import { NaviosFactory } from '../navios.factory.mjs'
+
+import type { NaviosModule } from '../interfaces/index.mjs'
+import type { NaviosApplicationOptions } from '../navios.application.mjs'
 
 /**
  * Configuration for overriding a provider in the testing module.
@@ -39,10 +34,7 @@ export interface TestingModuleOverride<T = any> {
  * Extends NaviosApplicationOptions but excludes the container option,
  * as TestingModule manages its own TestContainer.
  */
-export interface TestingModuleOptions extends Omit<
-  NaviosApplicationOptions,
-  'container'
-> {
+export interface TestingModuleOptions extends Omit<NaviosApplicationOptions, 'container'> {
   /**
    * Initial provider overrides to apply when creating the testing module.
    *
@@ -169,9 +161,7 @@ export class TestingModule {
    */
   getApp(): NaviosApplication {
     if (!this.app) {
-      throw new Error(
-        'TestingModule not compiled. Call compile() or init() first.',
-      )
+      throw new Error('TestingModule not compiled. Call compile() or init() first.')
     }
     return this.app
   }
@@ -225,9 +215,7 @@ export class TestingModule {
    * If only `compile()` was called, this uses the root container
    * and request-scoped services will throw.
    */
-  async get<T>(
-    token: ClassTypeWithInstance<T> | InjectionToken<T, any>,
-  ): Promise<T> {
+  async get<T>(token: ClassTypeWithInstance<T> | InjectionToken<T, any>): Promise<T> {
     // Use scoped container if available (after init)
     if (this.scopedContainer) {
       return this.scopedContainer.get(token as any)
@@ -304,10 +292,7 @@ export class TestingModule {
    * Asserts that a method was called on a service.
    * Note: You must use `recordMethodCall()` in your mocks for this to work.
    */
-  expectCalled(
-    token: ClassType | InjectionToken<any, any>,
-    method: string,
-  ): void {
+  expectCalled(token: ClassType | InjectionToken<any, any>, method: string): void {
     this.container.expectCalled(token, method)
   }
 

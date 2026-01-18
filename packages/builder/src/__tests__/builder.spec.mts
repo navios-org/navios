@@ -1,10 +1,10 @@
 import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod/v4'
 
-import type { Client } from '../types/index.mjs'
-
 import { builder } from '../builder.mjs'
 import { NaviosError } from '../errors/index.mjs'
+
+import type { Client } from '../types/index.mjs'
 
 describe('builder', () => {
   const responseSchema = z.object({
@@ -103,9 +103,7 @@ describe('builder', () => {
       const api = builder()
 
       expect(() => api.getClient()).toThrow(NaviosError)
-      expect(() => api.getClient()).toThrow(
-        '[Navios-API]: Client was not provided',
-      )
+      expect(() => api.getClient()).toThrow('[Navios-API]: Client was not provided')
     })
 
     it('should return the provided client', () => {
@@ -501,9 +499,7 @@ describe('builder', () => {
 
         await endpoint({})
 
-        expect(client.request).toHaveBeenCalledWith(
-          expect.objectContaining({ method }),
-        )
+        expect(client.request).toHaveBeenCalledWith(expect.objectContaining({ method }))
       },
     )
 
@@ -523,9 +519,7 @@ describe('builder', () => {
 
         await endpoint({ data: { name: 'Test', email: 'test@example.com' } })
 
-        expect(client.request).toHaveBeenCalledWith(
-          expect.objectContaining({ method }),
-        )
+        expect(client.request).toHaveBeenCalledWith(expect.objectContaining({ method }))
       },
     )
   })

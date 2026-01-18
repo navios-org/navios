@@ -1,6 +1,6 @@
-import type { FastifyInstance } from 'fastify'
-
 import { InjectionToken } from '@navios/core'
+
+import type { FastifyInstance } from 'fastify'
 
 /**
  * Injection token for the Fastify server instance.
@@ -25,5 +25,4 @@ import { InjectionToken } from '@navios/core'
  * }
  * ```
  */
-export const FastifyServerToken =
-  InjectionToken.create<FastifyInstance>('FastifyServerToken')
+export const FastifyServerToken = InjectionToken.create<FastifyInstance>('FastifyServerToken')

@@ -1,6 +1,6 @@
-import type { AnyInjectableType, InjectionToken } from '@navios/di'
-
 import { Injectable } from '@navios/di'
+
+import type { AnyInjectableType, InjectionToken } from '@navios/di'
 
 import { AdapterToken } from './tokens/index.mjs'
 
@@ -13,14 +13,10 @@ export class NaviosEnvironment {
   private adapterConfigured = false
   private tokens = new Map<InjectionToken<any, undefined>, AnyInjectableType>()
 
-  setupEnvironment(
-    tokens: Map<InjectionToken<any, undefined>, AnyInjectableType>,
-  ) {
+  setupEnvironment(tokens: Map<InjectionToken<any, undefined>, AnyInjectableType>) {
     const hasAdapterToken = tokens.has(AdapterToken)
     if (hasAdapterToken && this.adapterConfigured) {
-      throw new Error(
-        'Adapter already configured. Only one adapter per application.',
-      )
+      throw new Error('Adapter already configured. Only one adapter per application.')
     }
 
     for (const [token, value] of tokens) {

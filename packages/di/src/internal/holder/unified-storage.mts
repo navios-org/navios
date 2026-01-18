@@ -1,13 +1,12 @@
-import type { OnServiceDestroy } from '../../interfaces/index.mjs'
-import type {
-  HolderGetResult,
-  IHolderStorage,
-} from './holder-storage.interface.mjs'
-import type { InstanceHolder } from './instance-holder.mjs'
-
 import { InjectableScope, InjectableType } from '../../enums/index.mjs'
 import { DIError } from '../../errors/index.mjs'
+
+import type { OnServiceDestroy } from '../../interfaces/index.mjs'
+
 import { InstanceStatus } from './instance-holder.mjs'
+
+import type { HolderGetResult, IHolderStorage } from './holder-storage.interface.mjs'
+import type { InstanceHolder } from './instance-holder.mjs'
 
 /**
  * Unified storage implementation that works the same way regardless of scope.
@@ -40,16 +39,10 @@ export class UnifiedStorage implements IHolderStorage {
     // Check holder status for error states
     switch (holder.status) {
       case InstanceStatus.Destroying:
-        return [
-          DIError.instanceDestroying(instanceName),
-          holder as InstanceHolder<T>,
-        ]
+        return [DIError.instanceDestroying(instanceName), holder as InstanceHolder<T>]
 
       case InstanceStatus.Error:
-        return [
-          holder.instance as unknown as DIError,
-          holder as InstanceHolder<T>,
-        ]
+        return [holder.instance as unknown as DIError, holder as InstanceHolder<T>]
 
       case InstanceStatus.Creating:
       case InstanceStatus.Created:
@@ -81,10 +74,7 @@ export class UnifiedStorage implements IHolderStorage {
     instanceName: string,
     type: InjectableType,
     deps: Set<string>,
-  ): [
-    ReturnType<typeof Promise.withResolvers<[undefined, T]>>,
-    InstanceHolder<T>,
-  ] {
+  ): [ReturnType<typeof Promise.withResolvers<[undefined, T]>>, InstanceHolder<T>] {
     const deferred = Promise.withResolvers<[undefined, T]>()
 
     const holder: InstanceHolder<T> = {
@@ -107,11 +97,7 @@ export class UnifiedStorage implements IHolderStorage {
   storeInstance(instanceName: string, instance: unknown): void {
     const holder = this.holders.get(instanceName)
     if (holder) {
-      throw DIError.storageError(
-        'Instance already stored',
-        'storeInstance',
-        instanceName,
-      )
+      throw DIError.storageError('Instance already stored', 'storeInstance', instanceName)
     }
     this.set(instanceName, {
       status: InstanceStatus.Created,
@@ -123,9 +109,7 @@ export class UnifiedStorage implements IHolderStorage {
       scope: this.scope,
       deps: new Set(),
       destroyListeners:
-        typeof instance === 'object' &&
-        instance !== null &&
-        'onServiceDestroy' in instance
+        typeof instance === 'object' && instance !== null && 'onServiceDestroy' in instance
           ? [(instance as OnServiceDestroy).onServiceDestroy]
           : [],
       createdAt: Date.now(),
@@ -228,10 +212,7 @@ export class UnifiedStorage implements IHolderStorage {
   /**
    * Removes a holder from the reverse dependency index.
    */
-  private removeFromDependentsIndex(
-    holderName: string,
-    deps: Set<string>,
-  ): void {
+  private removeFromDependentsIndex(holderName: string, deps: Set<string>): void {
     for (const dep of deps) {
       const dependents = this.dependents.get(dep)
       if (dependents) {

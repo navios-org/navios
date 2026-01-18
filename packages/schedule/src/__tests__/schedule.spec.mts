@@ -1,5 +1,4 @@
 import { Container, globalRegistry, Injectable, Registry } from '@navios/core'
-
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { Cron, Schedulable } from '../decorators/index.mjs'

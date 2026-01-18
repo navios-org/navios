@@ -1,6 +1,6 @@
-import type { ClassType } from '../token/injection-token.mjs'
-
 import { Factory as OriginalFactory, type FactoryOptions } from '../decorators/index.mjs'
+
+import type { ClassType } from '../token/injection-token.mjs'
 
 import { createClassContext } from './context-compat.mjs'
 
@@ -29,9 +29,7 @@ export function Factory(options: FactoryOptions = {}) {
     const context = createClassContext(target)
     // Use the no-args overload when options is empty, otherwise pass options
     const originalDecorator =
-      Object.keys(options).length === 0
-        ? OriginalFactory()
-        : OriginalFactory(options)
+      Object.keys(options).length === 0 ? OriginalFactory() : OriginalFactory(options)
     return originalDecorator(target, context)
   }
 }

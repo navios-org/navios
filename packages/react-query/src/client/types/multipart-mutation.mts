@@ -1,16 +1,9 @@
-import type {
-  ErrorSchemaRecord,
-  Simplify,
-  UrlHasParams,
-  UrlParams,
-} from '@navios/builder'
-import type {
-  MutationFunctionContext,
-  UseMutationResult,
-} from '@tanstack/react-query'
+import type { ErrorSchemaRecord, Simplify, UrlHasParams, UrlParams } from '@navios/builder'
+import type { MutationFunctionContext, UseMutationResult } from '@tanstack/react-query'
 import type { ZodObject, ZodType } from 'zod/v4'
 
 import type { MutationArgs, MutationHelpers } from '../../mutation/types.mjs'
+
 import type { ComputeBaseResult, EndpointHelper } from './helpers.mjs'
 
 /**
@@ -19,9 +12,7 @@ import type { ComputeBaseResult, EndpointHelper } from './helpers.mjs'
  * @template UseDiscriminator - When `true`, errors are returned as union types.
  *   When `false` (default), errors are thrown and not included in TData.
  */
-export interface ClientMultipartMutationMethods<
-  UseDiscriminator extends boolean = false,
-> {
+export interface ClientMultipartMutationMethods<UseDiscriminator extends boolean = false> {
   // ============================================================================
   // MULTIPART MUTATION METHODS
   // ============================================================================

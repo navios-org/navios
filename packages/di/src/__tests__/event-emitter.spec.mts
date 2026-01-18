@@ -61,9 +61,7 @@ describe('EventEmitter', () => {
     })
 
     it('should support different event types', async () => {
-      const emitter = await container.get(
-        EventEmitter<{ eventA: []; eventB: [] }>,
-      )
+      const emitter = await container.get(EventEmitter<{ eventA: []; eventB: [] }>)
       const listenerA = vi.fn()
       const listenerB = vi.fn()
 
@@ -150,9 +148,7 @@ describe('EventEmitter', () => {
 
   describe('emit', () => {
     it('should pass arguments to listeners', async () => {
-      const emitter = await container.get(
-        EventEmitter<{ test: [string, number] }>,
-      )
+      const emitter = await container.get(EventEmitter<{ test: [string, number] }>)
       const listener = vi.fn()
 
       emitter.on('test', listener)

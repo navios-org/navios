@@ -1,9 +1,9 @@
 import { Injectable } from '@navios/di'
 
+import { QueueConfigServiceToken } from '../tokens/queue-config-service.token.mjs'
+
 import type { QueueConfigService } from '../interfaces/queue-config-service.mjs'
 import type { QueueConfig } from '../types/queue-config.mjs'
-
-import { QueueConfigServiceToken } from '../tokens/queue-config-service.token.mjs'
 
 /**
  * Default queue configuration service with lowest priority.

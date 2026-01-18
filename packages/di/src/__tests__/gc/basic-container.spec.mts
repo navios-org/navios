@@ -9,18 +9,14 @@
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
-import type { OnServiceDestroy } from '../../interfaces/on-service-destroy.interface.mjs'
-
 import { Container } from '../../container/container.mjs'
 import { Injectable } from '../../decorators/injectable.decorator.mjs'
 import { Registry } from '../../token/registry.mjs'
 import { inject } from '../../utils/index.mjs'
-import {
-  createGCTracker,
-  forceGC,
-  isGCAvailable,
-  waitForGC,
-} from './gc-test-utils.mjs'
+
+import type { OnServiceDestroy } from '../../interfaces/on-service-destroy.interface.mjs'
+
+import { createGCTracker, forceGC, isGCAvailable, waitForGC } from './gc-test-utils.mjs'
 
 /**
  * NOTE: Many of these tests currently fail because the DI container retains
@@ -54,8 +50,7 @@ describe.skipIf(!isGCAvailable)('GC: Basic Container', () => {
         public readonly data = Array.from({ length: 1000 }, () => 'test-data')
       }
 
-      let instance: SingletonService | null =
-        await container.get(SingletonService)
+      let instance: SingletonService | null = await container.get(SingletonService)
       const tracker = createGCTracker(instance)
 
       expect(tracker().collected).toBe(false)
@@ -119,18 +114,14 @@ describe.skipIf(!isGCAvailable)('GC: Basic Container', () => {
 
       @Injectable({ registry })
       class ServiceWithDestroy implements OnServiceDestroy {
-        public readonly data = Array.from(
-          { length: 1000 },
-          () => 'destroy-test',
-        )
+        public readonly data = Array.from({ length: 1000 }, () => 'destroy-test')
 
         onServiceDestroy(): void {
           destroyCalled = true
         }
       }
 
-      let instance: ServiceWithDestroy | null =
-        await container.get(ServiceWithDestroy)
+      let instance: ServiceWithDestroy | null = await container.get(ServiceWithDestroy)
       const tracker = createGCTracker(instance)
 
       expect(destroyCalled).toBe(false)
@@ -152,10 +143,7 @@ describe.skipIf(!isGCAvailable)('GC: Basic Container', () => {
 
       @Injectable({ registry })
       class AsyncDestroyService implements OnServiceDestroy {
-        public readonly data = Array.from(
-          { length: 1000 },
-          () => 'async-destroy',
-        )
+        public readonly data = Array.from({ length: 1000 }, () => 'async-destroy')
 
         async onServiceDestroy(): Promise<void> {
           await new Promise((resolve) => setTimeout(resolve, 10))
@@ -163,8 +151,7 @@ describe.skipIf(!isGCAvailable)('GC: Basic Container', () => {
         }
       }
 
-      let instance: AsyncDestroyService | null =
-        await container.get(AsyncDestroyService)
+      let instance: AsyncDestroyService | null = await container.get(AsyncDestroyService)
       const tracker = createGCTracker(instance)
 
       await container.dispose()
@@ -275,8 +262,7 @@ describe.skipIf(!isGCAvailable)('GC: Basic Container', () => {
         public readonly data = Array.from({ length: 1000 }, () => 'invalidate')
       }
 
-      let instance1: InvalidatableService | null =
-        await container.get(InvalidatableService)
+      let instance1: InvalidatableService | null = await container.get(InvalidatableService)
       const id1 = instance1.id
       const tracker1 = createGCTracker(instance1)
 
@@ -308,8 +294,7 @@ describe.skipIf(!isGCAvailable)('GC: Basic Container', () => {
         public readonly id = Math.random()
       }
 
-      let dependent: DependentService | null =
-        await container.get(DependentService)
+      let dependent: DependentService | null = await container.get(DependentService)
       let dependency: DependencyService | null = dependent.dep
 
       const dependentTracker = createGCTracker(dependent)
@@ -338,10 +323,7 @@ describe.skipIf(!isGCAvailable)('GC: Basic Container', () => {
 
       @Injectable({ registry: localRegistry })
       class TestService {
-        public readonly data = Array.from(
-          { length: 1000 },
-          () => 'container-gc',
-        )
+        public readonly data = Array.from({ length: 1000 }, () => 'container-gc')
       }
 
       await localContainer.get(TestService)

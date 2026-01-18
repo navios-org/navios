@@ -1,16 +1,11 @@
-import type { BaseEndpointOptions } from '@navios/builder'
-import type {
-  HandlerMetadata,
-  InstanceResolution,
-  NaviosApplicationOptions,
-} from '@navios/core'
-
 import { NaviosOptionsToken } from '@navios/core'
 import { Injectable } from '@navios/di'
 import { TestContainer } from '@navios/di/testing'
-
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { z } from 'zod/v4'
+
+import type { BaseEndpointOptions } from '@navios/builder'
+import type { HandlerMetadata, InstanceResolution, NaviosApplicationOptions } from '@navios/core'
 
 import {
   FastifyStreamAdapterService,
@@ -25,9 +20,7 @@ const bindNaviosOptions = (
   container: TestContainer,
   options: Partial<NaviosApplicationOptions>,
 ) => {
-  container
-    .bind(NaviosOptionsToken)
-    .toValue(options as NaviosApplicationOptions)
+  container.bind(NaviosOptionsToken).toValue(options as NaviosApplicationOptions)
 }
 
 const createHandlerMetadata = (
@@ -59,9 +52,7 @@ interface MockFastifyReply {
   type: ReturnType<typeof vi.fn>
 }
 
-const createMockRequest = (
-  overrides: Partial<MockFastifyRequest> = {},
-): MockFastifyRequest => ({
+const createMockRequest = (overrides: Partial<MockFastifyRequest> = {}): MockFastifyRequest => ({
   query: {},
   params: {},
   body: {},
@@ -189,18 +180,12 @@ describe('FastifyStreamAdapterService', () => {
 
       const adapter = await container.get(TestFastifyStreamAdapter)
       const boundMethod = vi.fn().mockResolvedValue(undefined)
-      const formatArguments = vi
-        .fn()
-        .mockResolvedValue({ data: { message: 'stream' } })
+      const formatArguments = vi.fn().mockResolvedValue({ data: { message: 'stream' } })
       const context = {
         hasArguments: true,
       }
 
-      const result = adapter.testCreateStaticHandler(
-        boundMethod,
-        formatArguments,
-        context,
-      )
+      const result = adapter.testCreateStaticHandler(boundMethod, formatArguments, context)
 
       expect(result.isStatic).toBe(true)
       expect(typeof result.handler).toBe('function')
@@ -211,10 +196,7 @@ describe('FastifyStreamAdapterService', () => {
       await result.handler(request as any, reply as any)
 
       expect(formatArguments).toHaveBeenCalledWith(request)
-      expect(boundMethod).toHaveBeenCalledWith(
-        { data: { message: 'stream' } },
-        reply,
-      )
+      expect(boundMethod).toHaveBeenCalledWith({ data: { message: 'stream' } }, reply)
     })
 
     it('should create static handler that passes reply to method without arguments', async () => {
@@ -227,11 +209,7 @@ describe('FastifyStreamAdapterService', () => {
         hasArguments: false,
       }
 
-      const result = adapter.testCreateStaticHandler(
-        boundMethod,
-        formatArguments,
-        context,
-      )
+      const result = adapter.testCreateStaticHandler(boundMethod, formatArguments, context)
 
       expect(result.isStatic).toBe(true)
 
@@ -258,19 +236,13 @@ describe('FastifyStreamAdapterService', () => {
         instance: null,
         resolve: vi.fn().mockResolvedValue(mockController),
       }
-      const formatArguments = vi
-        .fn()
-        .mockResolvedValue({ data: { channel: 'test' } })
+      const formatArguments = vi.fn().mockResolvedValue({ data: { channel: 'test' } })
       const context = {
         methodName: 'streamMethod',
         hasArguments: true,
       }
 
-      const result = adapter.testCreateDynamicHandler(
-        resolution,
-        formatArguments,
-        context,
-      )
+      const result = adapter.testCreateDynamicHandler(resolution, formatArguments, context)
 
       expect(result.isStatic).toBe(false)
       expect(typeof result.handler).toBe('function')
@@ -283,10 +255,7 @@ describe('FastifyStreamAdapterService', () => {
 
       expect(resolution.resolve).toHaveBeenCalledWith(scopedContainer)
       expect(formatArguments).toHaveBeenCalledWith(request)
-      expect(mockController.streamMethod).toHaveBeenCalledWith(
-        { data: { channel: 'test' } },
-        reply,
-      )
+      expect(mockController.streamMethod).toHaveBeenCalledWith({ data: { channel: 'test' } }, reply)
     })
 
     it('should create dynamic handler that passes reply to method without arguments', async () => {
@@ -307,11 +276,7 @@ describe('FastifyStreamAdapterService', () => {
         hasArguments: false,
       }
 
-      const result = adapter.testCreateDynamicHandler(
-        resolution,
-        formatArguments,
-        context,
-      )
+      const result = adapter.testCreateDynamicHandler(resolution, formatArguments, context)
 
       expect(result.isStatic).toBe(false)
 
@@ -323,10 +288,7 @@ describe('FastifyStreamAdapterService', () => {
 
       expect(resolution.resolve).toHaveBeenCalledWith(scopedContainer)
       expect(formatArguments).not.toHaveBeenCalled()
-      expect(mockController.noArgsStream).toHaveBeenCalledWith(
-        expect.any(Object),
-        reply,
-      )
+      expect(mockController.noArgsStream).toHaveBeenCalledWith(expect.any(Object), reply)
     })
   })
 })

@@ -1,11 +1,12 @@
-import { z } from 'zod/v4'
 import { describe, expect, it, vi } from 'vitest'
+import { z } from 'zod/v4'
 
 import {
   BoundInjectionToken,
   FactoryInjectionToken,
   InjectionToken,
 } from '../token/injection-token.mjs'
+
 import type { FactoryContext } from '../internal/context/factory-context.mjs'
 
 describe('InjectionToken', () => {
@@ -83,10 +84,7 @@ describe('InjectionToken', () => {
 
     it('should create token with schema', () => {
       const schema = z.object({ id: z.number() })
-      const token = InjectionToken.create<{ data: string }, typeof schema>(
-        'TestToken',
-        schema,
-      )
+      const token = InjectionToken.create<{ data: string }, typeof schema>('TestToken', schema)
 
       expect(token.schema).toBe(schema)
     })
@@ -95,10 +93,7 @@ describe('InjectionToken', () => {
   describe('static bound', () => {
     it('should create BoundInjectionToken', () => {
       const schema = z.object({ value: z.string() })
-      const token = InjectionToken.create<string, typeof schema>(
-        'TestToken',
-        schema,
-      )
+      const token = InjectionToken.create<string, typeof schema>('TestToken', schema)
 
       const bound = InjectionToken.bound(token, { value: 'test' })
 
@@ -111,10 +106,7 @@ describe('InjectionToken', () => {
   describe('static factory', () => {
     it('should create FactoryInjectionToken', () => {
       const schema = z.object({ value: z.string() })
-      const token = InjectionToken.create<string, typeof schema>(
-        'TestToken',
-        schema,
-      )
+      const token = InjectionToken.create<string, typeof schema>('TestToken', schema)
       const factory = async () => ({ value: 'factory' })
 
       const factoryToken = InjectionToken.factory(token, factory)
@@ -128,10 +120,7 @@ describe('InjectionToken', () => {
   describe('static refineType', () => {
     it('should refine bound token type', () => {
       const schema = z.object({ value: z.string() })
-      const token = InjectionToken.create<string, typeof schema>(
-        'TestToken',
-        schema,
-      )
+      const token = InjectionToken.create<string, typeof schema>('TestToken', schema)
       const bound = new BoundInjectionToken(token, { value: 'test' })
 
       const refined = InjectionToken.refineType<number>(bound)
@@ -182,10 +171,7 @@ describe('BoundInjectionToken', () => {
   describe('constructor', () => {
     it('should wrap token with value', () => {
       const schema = z.object({ config: z.string() })
-      const token = InjectionToken.create<string, typeof schema>(
-        'TestToken',
-        schema,
-      )
+      const token = InjectionToken.create<string, typeof schema>('TestToken', schema)
 
       const bound = new BoundInjectionToken(token, { config: 'value' })
 
@@ -195,10 +181,7 @@ describe('BoundInjectionToken', () => {
 
     it('should copy properties from wrapped token', () => {
       const schema = z.object({ config: z.string() })
-      const token = InjectionToken.create<string, typeof schema>(
-        'TestToken',
-        schema,
-      )
+      const token = InjectionToken.create<string, typeof schema>('TestToken', schema)
 
       const bound = new BoundInjectionToken(token, { config: 'value' })
 
@@ -211,10 +194,7 @@ describe('BoundInjectionToken', () => {
   describe('toString', () => {
     it('should delegate to wrapped token', () => {
       const schema = z.object({ config: z.string() })
-      const token = InjectionToken.create<string, typeof schema>(
-        'TestToken',
-        schema,
-      )
+      const token = InjectionToken.create<string, typeof schema>('TestToken', schema)
       const bound = new BoundInjectionToken(token, { config: 'value' })
 
       expect(bound.toString()).toBe(token.toString())
@@ -226,10 +206,7 @@ describe('FactoryInjectionToken', () => {
   describe('constructor', () => {
     it('should wrap token with factory function', () => {
       const schema = z.object({ config: z.string() })
-      const token = InjectionToken.create<string, typeof schema>(
-        'TestToken',
-        schema,
-      )
+      const token = InjectionToken.create<string, typeof schema>('TestToken', schema)
       const factory = async () => ({ config: 'factory' })
 
       const factoryToken = new FactoryInjectionToken(token, factory)
@@ -242,10 +219,7 @@ describe('FactoryInjectionToken', () => {
 
     it('should copy properties from wrapped token', () => {
       const schema = z.object({ config: z.string() })
-      const token = InjectionToken.create<string, typeof schema>(
-        'TestToken',
-        schema,
-      )
+      const token = InjectionToken.create<string, typeof schema>('TestToken', schema)
       const factory = async () => ({ config: 'factory' })
 
       const factoryToken = new FactoryInjectionToken(token, factory)
@@ -259,10 +233,7 @@ describe('FactoryInjectionToken', () => {
   describe('resolve', () => {
     it('should call factory and store value', async () => {
       const schema = z.object({ config: z.string() })
-      const token = InjectionToken.create<string, typeof schema>(
-        'TestToken',
-        schema,
-      )
+      const token = InjectionToken.create<string, typeof schema>('TestToken', schema)
       const factory = vi.fn(async () => ({ config: 'resolved' }))
       const factoryToken = new FactoryInjectionToken(token, factory)
 
@@ -282,10 +253,7 @@ describe('FactoryInjectionToken', () => {
 
     it('should only call factory once', async () => {
       const schema = z.object({ config: z.string() })
-      const token = InjectionToken.create<string, typeof schema>(
-        'TestToken',
-        schema,
-      )
+      const token = InjectionToken.create<string, typeof schema>('TestToken', schema)
       const factory = vi.fn(async () => ({ config: 'resolved' }))
       const factoryToken = new FactoryInjectionToken(token, factory)
 
@@ -304,10 +272,7 @@ describe('FactoryInjectionToken', () => {
 
     it('should return cached value on subsequent calls', async () => {
       const schema = z.object({ config: z.string() })
-      const token = InjectionToken.create<string, typeof schema>(
-        'TestToken',
-        schema,
-      )
+      const token = InjectionToken.create<string, typeof schema>('TestToken', schema)
       let callCount = 0
       const factory = async () => ({ config: `call-${++callCount}` })
       const factoryToken = new FactoryInjectionToken(token, factory)
@@ -327,10 +292,7 @@ describe('FactoryInjectionToken', () => {
 
     it('should allow factory to use inject', async () => {
       const schema = z.object({ config: z.string() })
-      const token = InjectionToken.create<string, typeof schema>(
-        'TestToken',
-        schema,
-      )
+      const token = InjectionToken.create<string, typeof schema>('TestToken', schema)
 
       const factory = async (ctx: FactoryContext) => {
         await ctx.inject(InjectionToken.create<string>('Dependency'))
@@ -354,10 +316,7 @@ describe('FactoryInjectionToken', () => {
   describe('toString', () => {
     it('should delegate to wrapped token', () => {
       const schema = z.object({ config: z.string() })
-      const token = InjectionToken.create<string, typeof schema>(
-        'TestToken',
-        schema,
-      )
+      const token = InjectionToken.create<string, typeof schema>('TestToken', schema)
       const factory = async () => ({ config: 'factory' })
       const factoryToken = new FactoryInjectionToken(token, factory)
 
@@ -369,10 +328,7 @@ describe('FactoryInjectionToken', () => {
 describe('token identity', () => {
   it('should maintain token reference through wrapping', () => {
     const schema = z.object({ value: z.string() })
-    const original = InjectionToken.create<string, typeof schema>(
-      'TestToken',
-      schema,
-    )
+    const original = InjectionToken.create<string, typeof schema>('TestToken', schema)
 
     const bound = new BoundInjectionToken(original, { value: 'test' })
     const factory = new FactoryInjectionToken(original, async () => ({

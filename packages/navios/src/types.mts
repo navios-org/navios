@@ -12,25 +12,12 @@ export interface NaviosConfig {
   baseURL?: string
   validateStatus?: (status: number) => boolean
   headers?: { [key: string]: string }
-  responseType?:
-    | 'json'
-    | 'text'
-    | 'blob'
-    | 'arrayBuffer'
-    | 'formData'
-    | 'stream'
+  responseType?: 'json' | 'text' | 'blob' | 'arrayBuffer' | 'formData' | 'stream'
   FormData?: any
   URLSearchParams?: any
 }
 
-export type HttpMethod =
-  | 'GET'
-  | 'POST'
-  | 'PUT'
-  | 'DELETE'
-  | 'PATCH'
-  | 'HEAD'
-  | 'OPTIONS'
+export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH' | 'HEAD' | 'OPTIONS'
 
 export interface NaviosRequestConfig<
   Data,

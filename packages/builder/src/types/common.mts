@@ -1,14 +1,7 @@
 /**
  * Supported HTTP methods for API requests.
  */
-export type HttpMethod =
-  | 'GET'
-  | 'POST'
-  | 'PUT'
-  | 'DELETE'
-  | 'PATCH'
-  | 'HEAD'
-  | 'OPTIONS'
+export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH' | 'HEAD' | 'OPTIONS'
 
 /**
  * Standard HTTP response structure.
@@ -84,7 +77,5 @@ export interface Client {
    * @param config - Request configuration
    * @returns A promise that resolves to the HTTP response
    */
-  request: <T = unknown>(
-    config: AbstractRequestConfig,
-  ) => Promise<AbstractResponse<T>>
+  request: <T = unknown>(config: AbstractRequestConfig) => Promise<AbstractResponse<T>>
 }

@@ -1,6 +1,5 @@
-import type { FastifyReply, FastifyRequest } from 'fastify'
-
 import type { SpanFactoryService } from '@navios/otel'
+import type { FastifyReply, FastifyRequest } from 'fastify'
 
 /**
  * Creates the onResponse hook for ending spans.
@@ -9,10 +8,7 @@ import type { SpanFactoryService } from '@navios/otel'
  * @returns Fastify onResponse hook
  */
 export function createOnResponseHook(spanFactory: SpanFactoryService) {
-  return async function onResponse(
-    request: FastifyRequest,
-    reply: FastifyReply,
-  ): Promise<void> {
+  return async function onResponse(request: FastifyRequest, reply: FastifyReply): Promise<void> {
     const span = request.otelSpan
     if (!span) {
       return
@@ -24,10 +20,7 @@ export function createOnResponseHook(spanFactory: SpanFactoryService) {
     // Add response content length if available
     const contentLength = reply.getHeader('content-length')
     if (contentLength) {
-      const length =
-        typeof contentLength === 'string'
-          ? parseInt(contentLength, 10)
-          : contentLength
+      const length = typeof contentLength === 'string' ? parseInt(contentLength, 10) : contentLength
       if (!isNaN(length as number)) {
         span.setAttribute('http.response_content_length', length as number)
       }

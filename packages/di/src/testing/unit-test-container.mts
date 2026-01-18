@@ -1,3 +1,11 @@
+import { Container } from '../container/container.mjs'
+import { InjectableScope, InjectableType } from '../enums/index.mjs'
+import { DIError } from '../errors/index.mjs'
+import { BoundInjectionToken, InjectionToken } from '../token/injection-token.mjs'
+import { Registry } from '../token/registry.mjs'
+import { getInjectableToken } from '../utils/get-injectable-token.mjs'
+import { defaultInjectors } from '../utils/index.mjs'
+
 import type {
   LifecycleRecord,
   MethodCallRecord,
@@ -5,17 +13,6 @@ import type {
   ProviderConfig,
   UnitTestContainerOptions,
 } from './types.mjs'
-
-import { Container } from '../container/container.mjs'
-import { InjectableScope, InjectableType } from '../enums/index.mjs'
-import { DIError } from '../errors/index.mjs'
-import {
-  BoundInjectionToken,
-  InjectionToken,
-} from '../token/injection-token.mjs'
-import { Registry } from '../token/registry.mjs'
-import { getInjectableToken } from '../utils/get-injectable-token.mjs'
-import { defaultInjectors } from '../utils/index.mjs'
 
 type AnyToken =
   | InjectionToken<any, any>
@@ -179,8 +176,7 @@ export class UnitTestContainer extends Container {
 
     // Check if this is a registered provider (check both bound token ID and real token ID)
     const isRegistered =
-      (tokenId && this.registeredTokenIds.has(tokenId)) ||
-      this.registeredTokenIds.has(realToken.id)
+      (tokenId && this.registeredTokenIds.has(tokenId)) || this.registeredTokenIds.has(realToken.id)
 
     if (!isRegistered) {
       if (!this.allowUnregistered) {
@@ -235,9 +231,7 @@ export class UnitTestContainer extends Container {
     const found = names.some((name) => name.includes(realToken.id))
 
     if (!found) {
-      throw new Error(
-        `Expected ${realToken.toString()} to be resolved, but it was not`,
-      )
+      throw new Error(`Expected ${realToken.toString()} to be resolved, but it was not`)
     }
   }
 
@@ -251,9 +245,7 @@ export class UnitTestContainer extends Container {
     const found = names.some((name) => name.includes(realToken.id))
 
     if (found) {
-      throw new Error(
-        `Expected ${realToken.toString()} to NOT be resolved, but it was`,
-      )
+      throw new Error(`Expected ${realToken.toString()} to NOT be resolved, but it was`)
     }
   }
 
@@ -278,9 +270,7 @@ export class UnitTestContainer extends Container {
     const realToken = this.resolveToken(token)
 
     if (this.autoMockedTokenIds.has(realToken.id)) {
-      throw new Error(
-        `Expected ${realToken.toString()} to NOT be auto-mocked, but it was.`,
-      )
+      throw new Error(`Expected ${realToken.toString()} to NOT be auto-mocked, but it was.`)
     }
   }
 
@@ -369,9 +359,7 @@ export class UnitTestContainer extends Container {
     const found = calls.some((c) => c.method === method)
 
     if (!found) {
-      throw new Error(
-        `Expected ${realToken.toString()}.${method}() to be called, but it was not`,
-      )
+      throw new Error(`Expected ${realToken.toString()}.${method}() to be called, but it was not`)
     }
   }
 
@@ -384,31 +372,21 @@ export class UnitTestContainer extends Container {
     const found = calls.some((c) => c.method === method)
 
     if (found) {
-      throw new Error(
-        `Expected ${realToken.toString()}.${method}() to NOT be called, but it was`,
-      )
+      throw new Error(`Expected ${realToken.toString()}.${method}() to NOT be called, but it was`)
     }
   }
 
   /**
    * Asserts that a method was called with specific arguments.
    */
-  expectCalledWith(
-    token: AnyToken,
-    method: string,
-    expectedArgs: unknown[],
-  ): void {
+  expectCalledWith(token: AnyToken, method: string, expectedArgs: unknown[]): void {
     const realToken = this.resolveToken(token)
     const calls = this.methodCalls.get(realToken.id) || []
-    const found = calls.some(
-      (c) => c.method === method && this.argsMatch(c.args, expectedArgs),
-    )
+    const found = calls.some((c) => c.method === method && this.argsMatch(c.args, expectedArgs))
 
     if (!found) {
       const methodCalls = calls.filter((c) => c.method === method)
-      const actualArgs = methodCalls
-        .map((c) => JSON.stringify(c.args))
-        .join(', ')
+      const actualArgs = methodCalls.map((c) => JSON.stringify(c.args)).join(', ')
       throw new Error(
         `Expected ${realToken.toString()}.${method}() to be called with ${JSON.stringify(expectedArgs)}. ` +
           `Actual calls: [${actualArgs}]`,
@@ -524,10 +502,7 @@ export class UnitTestContainer extends Container {
     }
   }
 
-  private registerValueBinding<T>(
-    token: InjectionToken<T, any>,
-    value: T,
-  ): void {
+  private registerValueBinding<T>(token: InjectionToken<T, any>, value: T): void {
     const ValueHolder = class {
       create(): T {
         return value

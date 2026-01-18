@@ -1,8 +1,6 @@
 import type { PreparedRequestConfig } from '../../types.mjs'
 
-export function paramsRequestInterceptor(
-  config: PreparedRequestConfig<any, any>,
-) {
+export function paramsRequestInterceptor(config: PreparedRequestConfig<any, any>) {
   if (!config.params || config.url.includes('?')) {
     return config
   }

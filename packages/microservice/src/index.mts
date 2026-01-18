@@ -31,4 +31,3 @@ export { getMessageHandlerMetadata } from './metadata/message-handler.metadata.m
 export type { MessageControllerMetadata } from './metadata/message-controller.metadata.mjs'
 export type { MessageModuleMetadata } from './metadata/message-module.metadata.mjs'
 export type { MessageHandlerMetadata } from './metadata/message-handler.metadata.mjs'
-

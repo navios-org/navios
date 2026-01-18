@@ -1,3 +1,6 @@
+import { NaviosError } from './errors/index.mjs'
+import { createEndpoint, createMultipart, createStream } from './handlers/index.mjs'
+
 import type {
   BaseEndpointOptions,
   BuilderConfig,
@@ -5,13 +8,6 @@ import type {
   Client,
   EndpointOptions,
 } from './types/index.mjs'
-
-import { NaviosError } from './errors/index.mjs'
-import {
-  createEndpoint,
-  createMultipart,
-  createStream,
-} from './handlers/index.mjs'
 
 /**
  * Creates a new API builder instance with the specified configuration.
@@ -97,12 +93,9 @@ export function builder<UseDiscriminator extends boolean = false>(
   // 2. The type inference happens through the BuilderInstance interface
   // 3. The handler functions already handle optional schemas via conditional logic
   return {
-    declareEndpoint: (options: EndpointOptions) =>
-      createEndpoint(options, context),
-    declareStream: (options: BaseEndpointOptions) =>
-      createStream(options, context),
-    declareMultipart: (options: EndpointOptions) =>
-      createMultipart(options, context),
+    declareEndpoint: (options: EndpointOptions) => createEndpoint(options, context),
+    declareStream: (options: BaseEndpointOptions) => createStream(options, context),
+    declareMultipart: (options: EndpointOptions) => createMultipart(options, context),
     provideClient,
     getClient,
   } as BuilderInstance<UseDiscriminator>

@@ -2,9 +2,9 @@ import { HttpException } from './http.exception.mjs'
 
 /**
  * Exception that represents a 404 Not Found HTTP error.
- * 
+ *
  * Use this exception when the requested resource does not exist.
- * 
+ *
  * @example
  * ```typescript
  * @Endpoint(getUserEndpoint)
@@ -20,7 +20,7 @@ import { HttpException } from './http.exception.mjs'
 export class NotFoundException extends HttpException {
   /**
    * Creates a new NotFoundException.
-   * 
+   *
    * @param response - Error message or response object
    * @param error - Optional underlying error for logging
    */

@@ -53,9 +53,7 @@ class UserContext {
     this.sessionId = sessionId
     this.startTime = Date.now()
 
-    console.log(
-      `[UserContext] Created for user ${userId} in request ${this.requestId}`,
-    )
+    console.log(`[UserContext] Created for user ${userId} in request ${this.requestId}`)
   }
 
   async getDatabaseConnection() {
@@ -87,9 +85,7 @@ class OrderService {
     const orderId = `order_${Math.random().toString(36).substring(2, 15)}`
 
     this.orders.push(orderId)
-    console.log(
-      `[OrderService] Created order ${orderId} for user ${userCtx.userId}`,
-    )
+    console.log(`[OrderService] Created order ${orderId} for user ${userCtx.userId}`)
 
     return {
       orderId,
@@ -166,9 +162,7 @@ async function demonstrateRequestScope() {
   for (let i = 0; i < requests.length; i++) {
     const { userId, sessionId } = requests[i]
 
-    console.log(
-      `\n📝 Processing Request ${i + 1}: User ${userId}, Session ${sessionId}`,
-    )
+    console.log(`\n📝 Processing Request ${i + 1}: User ${userId}, Session ${sessionId}`)
     console.log('─'.repeat(50))
 
     // Begin request context
@@ -189,9 +183,7 @@ async function demonstrateRequestScope() {
 
   // Show that singleton services persist across requests
   const dbService = await container.get(DatabaseService)
-  console.log(
-    `\n📊 Total database connections created: ${dbService.getConnectionCount()}`,
-  )
+  console.log(`\n📊 Total database connections created: ${dbService.getConnectionCount()}`)
 
   console.log('\n✨ Example completed!')
 }
@@ -228,9 +220,7 @@ async function demonstratePerformanceBenefits() {
 
   const time2 = Date.now() - start2
   console.log(`   Time: ${time2}ms`)
-  console.log(
-    `   Improvement: ${(((time1 - time2) / time1) * 100).toFixed(1)}% faster`,
-  )
+  console.log(`   Improvement: ${(((time1 - time2) / time1) * 100).toFixed(1)}% faster`)
 }
 
 // ============================================================================

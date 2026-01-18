@@ -1,4 +1,4 @@
-import type { EndpointParams } from '@navios/core'
+import { afterAll, beforeAll, describe, expect, it } from 'bun:test'
 
 import { builder } from '@navios/builder'
 import {
@@ -11,12 +11,13 @@ import {
   NaviosApplication,
   NaviosFactory,
 } from '@navios/core'
-
-import { afterAll, beforeAll, describe, expect, it } from 'bun:test'
 import supertest from 'supertest'
 import { z } from 'zod/v4'
 
+import type { EndpointParams } from '@navios/core'
+
 import { defineBunEnvironment } from '../../src/index.mjs'
+
 import type { BunEnvironment } from '../../src/index.mjs'
 
 describe('GET variants', () => {
@@ -154,9 +155,7 @@ describe('GET variants', () => {
   })
 
   it('should return 200 with query params', async () => {
-    const response = await supertest(realServer).get(
-      '/with-query-params?name=John',
-    )
+    const response = await supertest(realServer).get('/with-query-params?name=John')
     expect(response.status).toBe(200)
   })
 
@@ -190,13 +189,7 @@ describe('GET variants', () => {
     expect(uniqueRequestIds.size).toBe(requestIds.length)
 
     // Verify each request returns its own data (proving request scoped isolation)
-    const expectedData = [
-      'request1',
-      'request2',
-      'request3',
-      'request4',
-      'request5',
-    ]
+    const expectedData = ['request1', 'request2', 'request3', 'request4', 'request5']
     const actualData = responses.map((r) => r.body.data)
     expect(actualData).toEqual(expect.arrayContaining(expectedData))
   })

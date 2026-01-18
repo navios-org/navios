@@ -1,4 +1,1 @@
-export {
-  OpenApiDocumentService,
-  OpenApiDocumentServiceToken,
-} from './openapi-document.service.mjs'
+export { OpenApiDocumentService, OpenApiDocumentServiceToken } from './openapi-document.service.mjs'

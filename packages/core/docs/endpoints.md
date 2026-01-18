@@ -388,13 +388,7 @@ import { Multipart } from '@navios/core'
 @Controller()
 export class UserController {
   @Multipart(uploadAvatarEndpoint)
-  async uploadAvatar({
-    params,
-    files,
-  }: {
-    params: { id: string }
-    files: { avatar: File }
-  }) {
+  async uploadAvatar({ params, files }: { params: { id: string }; files: { avatar: File } }) {
     const avatarUrl = await this.storageService.upload(files.avatar)
     return this.userService.updateAvatar(params.id, avatarUrl)
   }

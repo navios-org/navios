@@ -1,6 +1,6 @@
-import type { Meter } from '@opentelemetry/api'
-
 import { InjectionToken } from '@navios/di'
+
+import type { Meter } from '@opentelemetry/api'
 
 /**
  * Injection token for the OpenTelemetry Meter instance.

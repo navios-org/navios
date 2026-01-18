@@ -1,6 +1,6 @@
 import type { EventSourceClient } from './eventsource-client.mjs'
-import type { EventOptions } from './eventsource-options.mjs'
 import type { EventHandler } from './eventsource-handlers.mjs'
+import type { EventOptions } from './eventsource-options.mjs'
 
 /**
  * EventSource builder instance interface.
@@ -95,7 +95,5 @@ export interface EventSourceBuilderInstance {
    * unsubscribe()
    * ```
    */
-  defineEvent<const Options extends EventOptions>(
-    options: Options,
-  ): EventHandler<Options>
+  defineEvent<const Options extends EventOptions>(options: Options): EventHandler<Options>
 }

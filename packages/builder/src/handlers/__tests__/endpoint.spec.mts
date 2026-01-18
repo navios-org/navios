@@ -1,9 +1,9 @@
 import { describe, expect, it, vi } from 'vitest'
 import { z, ZodError } from 'zod/v4'
 
-import type { AbstractResponse, BuilderContext, Client } from '../../types/index.mjs'
-
 import { createEndpoint } from '../endpoint.mjs'
+
+import type { AbstractResponse, BuilderContext, Client } from '../../types/index.mjs'
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -23,10 +23,7 @@ describe('createEndpoint', () => {
     email: z.string(),
   })
 
-  function createMockClient(
-    response: unknown,
-    status = 200,
-  ): Client {
+  function createMockClient(response: unknown, status = 200): Client {
     return {
       request: vi.fn().mockResolvedValue({
         data: response,

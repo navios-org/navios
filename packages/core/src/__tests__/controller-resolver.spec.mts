@@ -7,7 +7,6 @@ import {
   InjectableScope,
   Registry,
 } from '@navios/di'
-
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import { InstanceResolverService } from '../services/instance-resolver.service.mjs'
@@ -54,9 +53,7 @@ describe('InstanceResolverService', () => {
 
       expect(resolution.cached).toBe(true)
       expect(resolution.instance).toBeInstanceOf(SingletonController)
-      expect((resolution.instance as SingletonController).getValue()).toBe(
-        'simple',
-      )
+      expect((resolution.instance as SingletonController).getValue()).toBe('simple')
     })
 
     it('should not cache controller with request-scoped dependencies', async () => {
@@ -101,9 +98,7 @@ describe('InstanceResolverService', () => {
       await resolver.resolve(ControllerWithRequestDep)
 
       // Check that the controller's scope was updated
-      const token = container
-        .getRegistry()
-        .get(getInjectableToken(ControllerWithRequestDep))
+      const token = container.getRegistry().get(getInjectableToken(ControllerWithRequestDep))
       expect(token.scope).toBe(InjectableScope.Request)
     })
 
@@ -186,17 +181,13 @@ describe('InstanceResolverService', () => {
       expect(resolution.cached).toBe(false)
 
       // Create 5 parallel requests
-      const requests = ['req1', 'req2', 'req3', 'req4', 'req5'].map(
-        async (data, i) => {
-          const scoped = container.beginRequest(`request-${i}`)
-          const controller = (await resolution.resolve(
-            scoped,
-          )) as ControllerWithTracker
-          const result = await controller.handleRequest(data)
-          await scoped.endRequest()
-          return result
-        },
-      )
+      const requests = ['req1', 'req2', 'req3', 'req4', 'req5'].map(async (data, i) => {
+        const scoped = container.beginRequest(`request-${i}`)
+        const controller = (await resolution.resolve(scoped)) as ControllerWithTracker
+        const result = await controller.handleRequest(data)
+        await scoped.endRequest()
+        return result
+      })
 
       const results = await Promise.all(requests)
 

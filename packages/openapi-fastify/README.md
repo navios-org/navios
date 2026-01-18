@@ -65,7 +65,7 @@ async function bootstrap() {
 
   await app.init()
   await app.listen({ port: 3000 })
-  
+
   console.log('API docs available at http://localhost:3000/docs')
 }
 
@@ -77,13 +77,7 @@ bootstrap()
 ```ts
 import { defineFastifyEnvironment } from '@navios/adapter-fastify'
 import { builder } from '@navios/builder'
-import {
-  Controller,
-  Endpoint,
-  EndpointParams,
-  Module,
-  NaviosFactory,
-} from '@navios/core'
+import { Controller, Endpoint, EndpointParams, Module, NaviosFactory } from '@navios/core'
 import { defineOpenApiPlugin } from '@navios/openapi-fastify'
 import { ApiOperation, ApiTag } from '@navios/openapi'
 import { z } from 'zod'
@@ -205,12 +199,12 @@ app.usePlugin(
 
 ### Path Configuration
 
-| Option     | Default         | Description                |
-| ---------- | --------------- | -------------------------- |
-| `jsonPath` | `/openapi.json` | Path to serve OpenAPI JSON |
-| `yamlPath` | `/openapi.yaml` | Path to serve OpenAPI YAML |
-| `docsPath` | `/docs`         | Path to serve Scalar UI    |
-| `disableYaml` | `false`      | Disable YAML endpoint      |
+| Option        | Default         | Description                |
+| ------------- | --------------- | -------------------------- |
+| `jsonPath`    | `/openapi.json` | Path to serve OpenAPI JSON |
+| `yamlPath`    | `/openapi.yaml` | Path to serve OpenAPI YAML |
+| `docsPath`    | `/docs`         | Path to serve Scalar UI    |
+| `disableYaml` | `false`         | Disable YAML endpoint      |
 
 ### Scalar Themes
 
@@ -298,14 +292,13 @@ For complete documentation on using OpenAPI with Navios, see:
 
 ## Comparison with Bun Provider
 
-| Feature     | Fastify Provider | Bun Provider    |
-| ----------- | ---------------- | --------------- |
-| Runtime     | Node.js          | Bun             |
-| Performance | High             | Very High       |
-| UI          | Scalar           | Scalar          |
-| Setup       | Simple           | Simple          |
-| Themes      | 5 themes         | 5 themes        |
-| Ecosystem   | Rich             | Growing         |
+| Feature     | Fastify Provider | Bun Provider |
+| ----------- | ---------------- | ------------ |
+| Runtime     | Node.js          | Bun          |
+| Performance | High             | Very High    |
+| UI          | Scalar           | Scalar       |
+| Setup       | Simple           | Simple       |
+| Themes      | 5 themes         | 5 themes     |
+| Ecosystem   | Rich             | Growing      |
 
 Both providers offer the same features and API - choose based on your runtime environment.
-

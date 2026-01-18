@@ -1,21 +1,15 @@
-import type { EndpointParams } from '@navios/core'
+import { afterAll, beforeAll, describe, expect, it } from 'bun:test'
 
 import { builder } from '@navios/builder'
-import {
-  Controller,
-  Endpoint,
-  Module,
-  NaviosApplication,
-  NaviosFactory,
-} from '@navios/core'
-
-import { afterAll, beforeAll, describe, expect, it } from 'bun:test'
+import { Controller, Endpoint, Module, NaviosApplication, NaviosFactory } from '@navios/core'
 import supertest from 'supertest'
 import { z } from 'zod/v4'
 
-import type { BunEnvironment } from '../../src/index.mjs'
+import type { EndpointParams } from '@navios/core'
 
 import { defineBunEnvironment } from '../../src/index.mjs'
+
+import type { BunEnvironment } from '../../src/index.mjs'
 
 describe('POST variants', () => {
   let server: NaviosApplication<BunEnvironment>
@@ -63,9 +57,7 @@ describe('POST variants', () => {
     }
 
     @Endpoint(withRequestAndQueryParams)
-    async getWithQueryParams(
-      req: EndpointParams<typeof withRequestAndQueryParams>,
-    ) {
+    async getWithQueryParams(req: EndpointParams<typeof withRequestAndQueryParams>) {
       return {
         foo: req.data.foo as string,
         bar: req.params.bar as string,

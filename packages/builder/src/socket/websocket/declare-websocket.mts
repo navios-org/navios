@@ -43,9 +43,7 @@ import type {
  * socket.provideClient(handle)
  * ```
  */
-export function createWebSocketHandler(
-  config: CreateWebSocketHandlerConfig = {},
-) {
+export function createWebSocketHandler(config: CreateWebSocketHandlerConfig = {}) {
   return function declareWebSocket<const Options extends DeclareWebSocketOptions>(
     options: Options,
   ): WebSocketHandler<Options> {
@@ -159,9 +157,8 @@ export function createWebSocketHandler(
           // When used directly (Socket.IO style), args contain the raw payload.
           // We detect this by checking if the first arg is already an array with the event.
           const firstArg = args[0]
-          const isPreformatted = Array.isArray(firstArg)
-            && firstArg.length >= 2
-            && typeof firstArg[0] === 'string'
+          const isPreformatted =
+            Array.isArray(firstArg) && firstArg.length >= 2 && typeof firstArg[0] === 'string'
 
           // Check if last arg is a callback (for ack support in direct usage)
           let callback: Handler | undefined
@@ -178,9 +175,8 @@ export function createWebSocketHandler(
             dataToSend = firstArg
           } else {
             // Direct usage - create Socket.IO format [event, ...args]
-            dataToSend = messageArgs.length === 1
-              ? [event, messageArgs[0]]
-              : [event, ...messageArgs]
+            dataToSend =
+              messageArgs.length === 1 ? [event, messageArgs[0]] : [event, ...messageArgs]
           }
 
           // Send as JSON

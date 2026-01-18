@@ -1,7 +1,7 @@
-import type { ClassType, Registry } from '@navios/di'
-
-import { Injectable, InjectableScope, InjectionToken } from '@navios/di'
 import { NaviosManagedMetadataKey } from '@navios/core'
+import { Injectable, InjectableScope, InjectionToken } from '@navios/di'
+
+import type { ClassType, Registry } from '@navios/di'
 
 import { getMessageModuleMetadata } from '../metadata/message-module.metadata.mjs'
 
@@ -56,13 +56,7 @@ export interface MessageModuleOptions {
  * ```
  */
 export function MessageModule(
-  {
-    controllers = [],
-    imports = [],
-    guards = [],
-    priority,
-    registry,
-  }: MessageModuleOptions = {
+  { controllers = [], imports = [], guards = [], priority, registry }: MessageModuleOptions = {
     controllers: [],
     imports: [],
     guards: [],
@@ -70,9 +64,7 @@ export function MessageModule(
 ) {
   return (target: ClassType, context: ClassDecoratorContext) => {
     if (context.kind !== 'class') {
-      throw new Error(
-        '[Navios/Microservice] @MessageModule decorator can only be used on classes.',
-      )
+      throw new Error('[Navios/Microservice] @MessageModule decorator can only be used on classes.')
     }
     // Register the module in the service locator
     const token = InjectionToken.create(target)
@@ -103,4 +95,3 @@ export function MessageModule(
     })(target, context)
   }
 }
-

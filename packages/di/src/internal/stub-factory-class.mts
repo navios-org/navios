@@ -9,8 +9,6 @@ import { DIError } from '../errors/di-error.mjs'
  */
 export class StubFactoryClass {
   constructor() {
-    throw DIError.factoryNotFound(
-      'Trying to get instance of factory without real implementation',
-    )
+    throw DIError.factoryNotFound('Trying to get instance of factory without real implementation')
   }
 }

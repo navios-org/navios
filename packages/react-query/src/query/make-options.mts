@@ -1,3 +1,5 @@
+import { queryOptions, useQuery, useSuspenseQuery } from '@tanstack/react-query'
+
 import type {
   EndpointHandler,
   EndpointOptions,
@@ -12,12 +14,11 @@ import type {
 } from '@tanstack/react-query'
 import type { ZodObject, ZodType } from 'zod/v4'
 
-import { queryOptions, useQuery, useSuspenseQuery } from '@tanstack/react-query'
-
 import type { Split } from '../common/types.mjs'
-import type { QueryArgs, QueryHelpers, QueryResult } from './types.mjs'
 
 import { createQueryKey } from './key-creator.mjs'
+
+import type { QueryArgs, QueryHelpers, QueryResult } from './types.mjs'
 
 /**
  * Options for makeQueryOptions.
@@ -30,9 +31,7 @@ export interface MakeQueryOptionsParams<
   keyPrefix?: string[]
   keySuffix?: string[]
   onFail?: (err: unknown) => void
-  processResponse: (
-    data: InferEndpointReturn<Options, UseDiscriminator>,
-  ) => Result
+  processResponse: (data: InferEndpointReturn<Options, UseDiscriminator>) => Result
 }
 
 /**
@@ -94,9 +93,7 @@ export function makeQueryOptions<
   params: Simplify<
     QueryArgs<
       Options['url'],
-      Options extends { querySchema: infer Q extends ZodObject }
-        ? Q
-        : undefined,
+      Options extends { querySchema: infer Q extends ZodObject } ? Q : undefined,
       Options extends { requestSchema: infer R extends ZodType } ? R : undefined
     >
   >,
@@ -121,12 +118,8 @@ export function makeQueryOptions<
     params: Simplify<
       QueryArgs<
         Options['url'],
-        Options extends { querySchema: infer Q extends ZodObject }
-          ? Q
-          : undefined,
-        Options extends { requestSchema: infer R extends ZodType }
-          ? R
-          : undefined
+        Options extends { querySchema: infer Q extends ZodObject } ? Q : undefined,
+        Options extends { requestSchema: infer R extends ZodType } ? R : undefined
       >
     >,
   ): any => {
@@ -225,12 +218,8 @@ export function makeQueryOptions<
     params: Simplify<
       QueryArgs<
         Options['url'],
-        Options extends { querySchema: infer Q extends ZodObject }
-          ? Q
-          : undefined,
-        Options extends { requestSchema: infer R extends ZodType }
-          ? R
-          : undefined
+        Options extends { querySchema: infer Q extends ZodObject } ? Q : undefined,
+        Options extends { requestSchema: infer R extends ZodType } ? R : undefined
       >
     >,
   ) => UseSuspenseQueryOptions<
@@ -241,9 +230,7 @@ export function makeQueryOptions<
   >) &
     QueryHelpers<
       Options['url'],
-      Options extends { querySchema: infer Q extends ZodObject }
-        ? Q
-        : undefined,
+      Options extends { querySchema: infer Q extends ZodObject } ? Q : undefined,
       Result,
       false,
       Options extends { requestSchema: infer R extends ZodType } ? R : undefined

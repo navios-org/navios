@@ -20,36 +20,28 @@ export interface BaseMessageConfig<
 export const pubsubMessageConfigSchema = z.object({
   pattern: z.literal('pubsub'),
   topic: z.string(),
-  payloadSchema: z
-    .custom<ZodType>()
-    .refine((schema) => schema instanceof ZodType, {
-      message: 'Payload schema must be a Zod type',
-    }),
+  payloadSchema: z.custom<ZodType>().refine((schema) => schema instanceof ZodType, {
+    message: 'Payload schema must be a Zod type',
+  }),
 })
 
 export const pointToPointMessageConfigSchema = z.object({
   pattern: z.literal('point-to-point'),
   queue: z.string(),
-  payloadSchema: z
-    .custom<ZodType>()
-    .refine((schema) => schema instanceof ZodType, {
-      message: 'Payload schema must be a Zod type',
-    }),
+  payloadSchema: z.custom<ZodType>().refine((schema) => schema instanceof ZodType, {
+    message: 'Payload schema must be a Zod type',
+  }),
 })
 
 export const requestReplyMessageConfigSchema = z.object({
   pattern: z.literal('request-reply'),
   topic: z.string(),
-  payloadSchema: z
-    .custom<ZodType>()
-    .refine((schema) => schema instanceof ZodType, {
-      message: 'Payload schema must be a Zod type',
-    }),
-  responseSchema: z
-    .custom<ZodType>()
-    .refine((schema) => schema instanceof ZodType, {
-      message: 'Response schema must be a Zod type',
-    }),
+  payloadSchema: z.custom<ZodType>().refine((schema) => schema instanceof ZodType, {
+    message: 'Payload schema must be a Zod type',
+  }),
+  responseSchema: z.custom<ZodType>().refine((schema) => schema instanceof ZodType, {
+    message: 'Response schema must be a Zod type',
+  }),
 })
 
 export const abstractMessageConfigSchema = z.discriminatedUnion('pattern', [
@@ -89,6 +81,4 @@ export const abstractMessageDefinitionSchema = z.discriminatedUnion('pattern', [
   requestReplyMessageDefinitionSchema,
 ])
 
-export type AbstractMessageDefinition = z.infer<
-  typeof abstractMessageDefinitionSchema
->
+export type AbstractMessageDefinition = z.infer<typeof abstractMessageDefinitionSchema>

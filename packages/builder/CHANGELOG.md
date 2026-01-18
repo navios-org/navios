@@ -100,10 +100,7 @@
 - **Server-Sent Events (SSE) Support**: New `@navios/builder/eventsource` export provides type-safe SSE event handling with Zod schema validation
 
   ```typescript
-  import {
-    declareEventSource,
-    eventSourceBuilder,
-  } from '@navios/builder/eventsource'
+  import { declareEventSource, eventSourceBuilder } from '@navios/builder/eventsource'
 
   import { z } from 'zod'
 
@@ -217,12 +214,7 @@
 - **New `handlers` module**: Contains all handler creation functions with a unified API.
 
   ```typescript
-  import {
-    createEndpoint,
-    createHandler,
-    createMultipart,
-    createStream,
-  } from '@navios/builder'
+  import { createEndpoint, createHandler, createMultipart, createStream } from '@navios/builder'
   ```
 
 - **New `request` module**: Contains request-related utilities.
@@ -289,10 +281,5 @@
    ```typescript
    // Before
    // After
-   import {
-     bindUrlParams,
-     bindUrlParams,
-     makeConfig,
-     makeRequestConfig,
-   } from '@navios/builder'
+   import { bindUrlParams, bindUrlParams, makeConfig, makeRequestConfig } from '@navios/builder'
    ```

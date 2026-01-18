@@ -1,7 +1,7 @@
-import type { UserConfig } from 'vite'
-
 import { Command, Option } from 'clipanion'
 import { createServer, mergeConfig } from 'vite'
+
+import type { UserConfig } from 'vite'
 
 import { ViteNaviosPlugin } from '../plugin/index.js'
 import { getVideConfig, hasViteConfig } from '../utils/vite.js'
@@ -58,9 +58,7 @@ export class ServeCommand extends Command {
 
     try {
       const server = await createServer(serverConfig)
-      const port = this.port
-        ? parseInt(this.port, 10)
-        : serverConfig.server?.port
+      const port = this.port ? parseInt(this.port, 10) : serverConfig.server?.port
       await server.listen(port)
       server.printUrls()
       return new Promise((resolve) => {

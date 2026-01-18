@@ -42,10 +42,10 @@ const configSchema = z.object({
   database: z.string(),
 })
 
-const DB_CONFIG_TOKEN = InjectionToken.create<
-  DatabaseConfig,
-  typeof configSchema
->('DB_CONFIG', configSchema)
+const DB_CONFIG_TOKEN = InjectionToken.create<DatabaseConfig, typeof configSchema>(
+  'DB_CONFIG',
+  configSchema,
+)
 
 @Factory({ token: DB_CONFIG_TOKEN })
 class DatabaseConnectionFactory {
@@ -56,9 +56,7 @@ class DatabaseConnectionFactory {
       database: config.database,
       connected: false,
       connect: () => {
-        console.log(
-          `Connecting to ${config.host}:${config.port}/${config.database}`,
-        )
+        console.log(`Connecting to ${config.host}:${config.port}/${config.database}`)
         return Promise.resolve()
       },
     }
@@ -171,10 +169,10 @@ const emailConfigSchema = z.object({
   fromEmail: z.string().email(),
 })
 
-const EMAIL_CONFIG_TOKEN = InjectionToken.create<
-  EmailConfig,
-  typeof emailConfigSchema
->('EMAIL_CONFIG', emailConfigSchema)
+const EMAIL_CONFIG_TOKEN = InjectionToken.create<EmailConfig, typeof emailConfigSchema>(
+  'EMAIL_CONFIG',
+  emailConfigSchema,
+)
 
 @Factory({ token: EMAIL_CONFIG_TOKEN })
 class EmailServiceFactory {
@@ -271,9 +269,7 @@ class UserRepositoryFactory {
 
       async createUser(userData: any) {
         const db = await dbService
-        return db.query(
-          `INSERT INTO users VALUES (${JSON.stringify(userData)})`,
-        )
+        return db.query(`INSERT INTO users VALUES (${JSON.stringify(userData)})`)
       },
     }
   }
@@ -298,10 +294,10 @@ const httpConfigSchema = z.object({
   headers: z.record(z.string()).optional(),
 })
 
-const HTTP_CONFIG_TOKEN = InjectionToken.create<
-  HttpClientFactory,
-  typeof httpConfigSchema
->('HTTP_CONFIG', httpConfigSchema)
+const HTTP_CONFIG_TOKEN = InjectionToken.create<HttpClientFactory, typeof httpConfigSchema>(
+  'HTTP_CONFIG',
+  httpConfigSchema,
+)
 
 @Factory({ token: HTTP_CONFIG_TOKEN })
 class HttpClientFactory {
@@ -508,8 +504,7 @@ interface PaymentProcessor {
   processPayment(amount: number): Promise<string>
 }
 
-const PAYMENT_PROCESSOR_TOKEN =
-  InjectionToken.create<PaymentProcessor>('PaymentProcessor')
+const PAYMENT_PROCESSOR_TOKEN = InjectionToken.create<PaymentProcessor>('PaymentProcessor')
 
 @Factory({ token: PAYMENT_PROCESSOR_TOKEN })
 class StripePaymentProcessorFactory {
@@ -560,9 +555,9 @@ interface FactoryOptions {
 
 ```typescript
 interface FactoryContext {
-  inject: typeof asyncInject  // Inject dependencies asynchronously
-  locator: ServiceLocator     // Access to the service locator
-  addDestroyListener: (listener: () => void | Promise<void>) => void  // Register cleanup callback
+  inject: typeof asyncInject // Inject dependencies asynchronously
+  locator: ServiceLocator // Access to the service locator
+  addDestroyListener: (listener: () => void | Promise<void>) => void // Register cleanup callback
 }
 ```
 

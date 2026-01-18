@@ -7,11 +7,7 @@ describe('navios::get', () => {
   it('should make a simple GET request', async () => {
     const mockAdapter = makeNaviosFakeAdapter()
     const navios = create({ adapter: mockAdapter.fetch })
-    mockAdapter.mock(
-      '/test',
-      'GET',
-      () => new Response(JSON.stringify({ test: 'value' })),
-    )
+    mockAdapter.mock('/test', 'GET', () => new Response(JSON.stringify({ test: 'value' })))
     const response = await navios.get('/test')
     expect(response.status).toBe(200)
     expect(response.data).toEqual({ test: 'value' })
@@ -55,8 +51,6 @@ describe('navios::get', () => {
           },
         }),
     )
-    await expect(navios.get('/test')).rejects.toThrow(
-      'Request failed with Internal Server Error',
-    )
+    await expect(navios.get('/test')).rejects.toThrow('Request failed with Internal Server Error')
   })
 })

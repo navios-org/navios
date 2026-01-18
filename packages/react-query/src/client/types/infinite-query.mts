@@ -5,15 +5,12 @@ import type {
   InferEndpointParams,
   Simplify,
 } from '@navios/builder'
-import type {
-  DataTag,
-  InfiniteData,
-  UseSuspenseInfiniteQueryOptions,
-} from '@tanstack/react-query'
+import type { DataTag, InfiniteData, UseSuspenseInfiniteQueryOptions } from '@tanstack/react-query'
 import type { z, ZodObject, ZodType } from 'zod/v4'
 
 import type { Split } from '../../common/types.mjs'
 import type { QueryHelpers } from '../../query/types.mjs'
+
 import type { ComputeBaseResult, EndpointHelper } from './helpers.mjs'
 
 /**
@@ -59,9 +56,7 @@ interface InfiniteQueryEndpointConfig<
  * @template UseDiscriminator - When `true`, errors are returned as union types.
  *   When `false` (default), errors are thrown and not included in TData.
  */
-export interface ClientInfiniteQueryMethods<
-  UseDiscriminator extends boolean = false,
-> {
+export interface ClientInfiniteQueryMethods<UseDiscriminator extends boolean = false> {
   /**
    * Creates a type-safe infinite query with automatic type inference.
    *
@@ -91,11 +86,7 @@ export interface ClientInfiniteQueryMethods<
     const ResponseSchema extends ZodType = ZodType,
     const ErrorSchema extends ErrorSchemaRecord | undefined = undefined,
     const UrlParamsSchema extends ZodObject | undefined = undefined,
-    const TBaseResult = ComputeBaseResult<
-      UseDiscriminator,
-      ResponseSchema,
-      ErrorSchema
-    >,
+    const TBaseResult = ComputeBaseResult<UseDiscriminator, ResponseSchema, ErrorSchema>,
     const PageResult = TBaseResult,
     const Options extends EndpointOptions = {
       method: Method

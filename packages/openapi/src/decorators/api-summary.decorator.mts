@@ -26,8 +26,4 @@ const ApiSummarySchema = z.string()
  * }
  * ```
  */
-export const ApiSummary = AttributeFactory.createAttribute(
-  ApiSummaryToken,
-  ApiSummarySchema,
-)
-
+export const ApiSummary = AttributeFactory.createAttribute(ApiSummaryToken, ApiSummarySchema)

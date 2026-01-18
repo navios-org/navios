@@ -1,12 +1,12 @@
-import type { ClassType, ClassTypeWithInstance } from '@navios/di'
-
 import { Container, getInjectableToken, inject, Injectable } from '@navios/di'
 
-import type { NaviosModule } from '../interfaces/index.mjs'
-import type { ModuleMetadata } from '../metadata/index.mjs'
+import type { ClassType, ClassTypeWithInstance } from '@navios/di'
 
 import { Logger } from '../logger/index.mjs'
 import { extractModuleMetadata } from '../metadata/index.mjs'
+
+import type { NaviosModule } from '../interfaces/index.mjs'
+import type { ModuleMetadata } from '../metadata/index.mjs'
 
 /**
  * Extension definition for dynamically adding to the module tree.
@@ -87,9 +87,7 @@ export class ModuleLoaderService {
       }
 
       if (!extension.moduleName) {
-        throw new Error(
-          'moduleName is required when providing controllers without a module',
-        )
+        throw new Error('moduleName is required when providing controllers without a module')
       }
 
       await this.registerControllers(extension.controllers, extension.moduleName)
@@ -100,19 +98,14 @@ export class ModuleLoaderService {
    * Registers controllers under a synthetic module.
    * Used when plugins want to add controllers without a full module class.
    */
-  private async registerControllers(
-    controllers: ClassType[],
-    moduleName: string,
-  ): Promise<void> {
+  private async registerControllers(controllers: ClassType[], moduleName: string): Promise<void> {
     if (this.modulesMetadata.has(moduleName)) {
       // Merge controllers into existing module
       const existing = this.modulesMetadata.get(moduleName)!
       for (const controller of controllers) {
         existing.controllers.add(controller)
       }
-      this.logger.debug(
-        `Extended module ${moduleName} with ${controllers.length} controllers`,
-      )
+      this.logger.debug(`Extended module ${moduleName} with ${controllers.length} controllers`)
     } else {
       // Create new synthetic module metadata
       const metadata: ModuleMetadata = {
@@ -126,9 +119,7 @@ export class ModuleLoaderService {
       }
       this.modulesMetadata.set(moduleName, metadata)
 
-      this.logger.debug(
-        `Created module ${moduleName} with ${controllers.length} controllers`,
-      )
+      this.logger.debug(`Created module ${moduleName} with ${controllers.length} controllers`)
     }
   }
 
@@ -165,10 +156,7 @@ export class ModuleLoaderService {
     }
   }
 
-  private validateOverrides(
-    metadata: ModuleMetadata,
-    moduleName: string,
-  ): void {
+  private validateOverrides(metadata: ModuleMetadata, moduleName: string): void {
     if (!metadata.overrides || metadata.overrides.size === 0) {
       return
     }
@@ -194,9 +182,7 @@ export class ModuleLoaderService {
         // Check if the override class has the highest priority
         const highestPriorityRegistration = allRegistrations[0]
         if (highestPriorityRegistration.target !== overrideClass) {
-          const overrideRegistration = allRegistrations.find(
-            (r) => r.target === overrideClass,
-          )
+          const overrideRegistration = allRegistrations.find((r) => r.target === overrideClass)
 
           if (!overrideRegistration) {
             this.logger.warn(
@@ -226,10 +212,7 @@ export class ModuleLoaderService {
     }
   }
 
-  private mergeMetadata(
-    metadata: ModuleMetadata,
-    parentMetadata: ModuleMetadata,
-  ): void {
+  private mergeMetadata(metadata: ModuleMetadata, parentMetadata: ModuleMetadata): void {
     if (parentMetadata.guards) {
       for (const guard of parentMetadata.guards) {
         metadata.guards.add(guard)

@@ -2,6 +2,7 @@ import type { HttpAdapterEnvironment } from '@navios/core'
 import type { Server } from 'bun'
 
 import type { BunCorsOptions } from '../utils/cors.util.mjs'
+
 import type {
   BunApplicationOptions,
   BunApplicationServiceInterface,

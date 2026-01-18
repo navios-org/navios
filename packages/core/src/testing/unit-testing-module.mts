@@ -1,15 +1,7 @@
-import type {
-  ClassType,
-  ClassTypeWithInstance,
-  InjectionToken,
-} from '@navios/di'
-import type {
-  MethodCallRecord,
-  MockServiceStats,
-  ProviderConfig,
-} from '@navios/di/testing'
-
 import { UnitTestContainer } from '@navios/di/testing'
+
+import type { ClassType, ClassTypeWithInstance, InjectionToken } from '@navios/di'
+import type { MethodCallRecord, MockServiceStats, ProviderConfig } from '@navios/di/testing'
 
 /**
  * Options for creating a UnitTestingModule.
@@ -113,9 +105,7 @@ export class UnitTestingModule {
    * @throws Error if the token is not in the providers list
    *         and `allowUnregistered` is false
    */
-  async get<T>(
-    token: ClassTypeWithInstance<T> | InjectionToken<T, any>,
-  ): Promise<T> {
+  async get<T>(token: ClassTypeWithInstance<T> | InjectionToken<T, any>): Promise<T> {
     return this.container.get(token as any)
   }
 
@@ -180,20 +170,14 @@ export class UnitTestingModule {
    * Asserts that a method was called on a service.
    * Method calls are automatically tracked via proxy.
    */
-  expectCalled(
-    token: ClassType | InjectionToken<any, any>,
-    method: string,
-  ): void {
+  expectCalled(token: ClassType | InjectionToken<any, any>, method: string): void {
     this.container.expectCalled(token, method)
   }
 
   /**
    * Asserts that a method was NOT called on a service.
    */
-  expectNotCalled(
-    token: ClassType | InjectionToken<any, any>,
-    method: string,
-  ): void {
+  expectNotCalled(token: ClassType | InjectionToken<any, any>, method: string): void {
     this.container.expectNotCalled(token, method)
   }
 
@@ -222,18 +206,14 @@ export class UnitTestingModule {
   /**
    * Gets all recorded method calls for a service.
    */
-  getMethodCalls(
-    token: ClassType | InjectionToken<any, any>,
-  ): MethodCallRecord[] {
+  getMethodCalls(token: ClassType | InjectionToken<any, any>): MethodCallRecord[] {
     return this.container.getMethodCalls(token)
   }
 
   /**
    * Gets statistics about a service (instance count, method calls, lifecycle events).
    */
-  getServiceStats(
-    token: ClassType | InjectionToken<any, any>,
-  ): MockServiceStats {
+  getServiceStats(token: ClassType | InjectionToken<any, any>): MockServiceStats {
     return this.container.getServiceStats(token)
   }
 

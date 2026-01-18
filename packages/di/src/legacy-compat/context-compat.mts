@@ -65,9 +65,7 @@ export function createMethodContext(
   // We need to get the class constructor to access class-level metadata
   const constructor = getConstructor(target)
   if (!constructor) {
-    throw new Error(
-      '[Navios] Could not determine class constructor from method decorator target.',
-    )
+    throw new Error('[Navios] Could not determine class constructor from method decorator target.')
   }
 
   // Get or create metadata storage for the class

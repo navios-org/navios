@@ -1,20 +1,16 @@
-import type { z } from 'zod/v4'
-
 import { assertType, describe, expectTypeOf, test } from 'vitest'
 import { z as zod } from 'zod/v4'
 
-import type {
-  SendHandler,
-  SubscribeHandler,
-  Unsubscribe,
-} from '../socket-handlers.mjs'
-import type { SocketBuilderInstance } from '../socket-builder-instance.mjs'
+import type { z } from 'zod/v4'
+
 import type {
   DeclareWebSocketOptions,
   InferWebSocketConnectParams,
   WebSocketHandler,
   WebSocketSocketHandle,
 } from '../../websocket/types.mjs'
+import type { SocketBuilderInstance } from '../socket-builder-instance.mjs'
+import type { SendHandler, SubscribeHandler, Unsubscribe } from '../socket-handlers.mjs'
 
 // Declare a mock socket builder instance at module level
 declare const socket: SocketBuilderInstance
@@ -124,9 +120,7 @@ describe('SocketBuilderInstance', () => {
       })
 
       // Should take a handler and return Unsubscribe
-      assertType<((handler: (payload: MessageResponse) => void) => Unsubscribe)>(
-        onMessage,
-      )
+      assertType<(handler: (payload: MessageResponse) => void) => Unsubscribe>(onMessage)
     })
 
     test('subscribe handler config has topic as literal', () => {
@@ -143,7 +137,7 @@ describe('SocketBuilderInstance', () => {
         topic: 'any.message',
       })
 
-      assertType<((handler: (payload: unknown) => void) => Unsubscribe)>(onAny)
+      assertType<(handler: (payload: unknown) => void) => Unsubscribe>(onAny)
     })
 
     test('Unsubscribe type is a void-returning function', () => {
@@ -275,7 +269,7 @@ describe('Handler types', () => {
       })
 
       // Verify handler takes a callback and returns Unsubscribe
-      assertType<((handler: (payload: MessageResponse) => void) => Unsubscribe)>(onMessage)
+      assertType<(handler: (payload: MessageResponse) => void) => Unsubscribe>(onMessage)
 
       // Verify it's a SubscribeHandler
       assertType<SubscribeHandler<typeof onMessage.config>>(onMessage)
@@ -308,10 +302,7 @@ describe('WebSocket handler types', () => {
     test('options with querySchema', () => {
       const querySchema = zod.object({ token: zod.string() })
 
-      type Options = DeclareWebSocketOptions<
-        'wss://example.com/ws',
-        typeof querySchema
-      >
+      type Options = DeclareWebSocketOptions<'wss://example.com/ws', typeof querySchema>
 
       const options: Options = {
         url: 'wss://example.com/ws',
@@ -438,9 +429,9 @@ describe('WebSocket handler types', () => {
       type Options = typeof options
       type Handler = WebSocketHandler<Options>
 
-      assertType<
-        (params: { urlParams: { roomId: string | number } }) => WebSocketSocketHandle
-      >({} as Handler)
+      assertType<(params: { urlParams: { roomId: string | number } }) => WebSocketSocketHandle>(
+        {} as Handler,
+      )
     })
 
     test('handler has config property', () => {
@@ -463,15 +454,11 @@ describe('WebSocket handler types', () => {
     })
 
     test('has on method', () => {
-      assertType<(event: string, handler: (...args: unknown[]) => void) => void>(
-        wsHandle.on,
-      )
+      assertType<(event: string, handler: (...args: unknown[]) => void) => void>(wsHandle.on)
     })
 
     test('has off method', () => {
-      assertType<(event: string, handler?: (...args: unknown[]) => void) => void>(
-        wsHandle.off,
-      )
+      assertType<(event: string, handler?: (...args: unknown[]) => void) => void>(wsHandle.off)
     })
 
     test('has disconnect method', () => {

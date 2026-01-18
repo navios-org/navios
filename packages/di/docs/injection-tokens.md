@@ -28,10 +28,7 @@ const configSchema = z.object({
   timeout: z.number(),
 })
 
-const CONFIG_TOKEN = InjectionToken.create<Config, typeof configSchema>(
-  'APP_CONFIG',
-  configSchema,
-)
+const CONFIG_TOKEN = InjectionToken.create<Config, typeof configSchema>('APP_CONFIG', configSchema)
 ```
 
 ### Using Injection Tokens
@@ -91,10 +88,10 @@ const databaseConfigSchema = z.object({
   password: z.string(),
 })
 
-const DB_CONFIG_TOKEN = InjectionToken.create<
-  DatabaseConfig,
-  typeof databaseConfigSchema
->('DB_CONFIG', databaseConfigSchema)
+const DB_CONFIG_TOKEN = InjectionToken.create<DatabaseConfig, typeof databaseConfigSchema>(
+  'DB_CONFIG',
+  databaseConfigSchema,
+)
 
 @Injectable({ token: DB_CONFIG_TOKEN })
 class DatabaseConfigService {
@@ -129,10 +126,7 @@ const configSchema = z.object({
   timeout: z.number(),
 })
 
-const CONFIG_TOKEN = InjectionToken.create<Config, typeof configSchema>(
-  'APP_CONFIG',
-  configSchema,
-)
+const CONFIG_TOKEN = InjectionToken.create<Config, typeof configSchema>('APP_CONFIG', configSchema)
 
 // Create bound token with specific values
 const PRODUCTION_CONFIG = InjectionToken.bound(CONFIG_TOKEN, {
@@ -184,10 +178,7 @@ const configSchema = z.object({
   timeout: z.number(),
 })
 
-const CONFIG_TOKEN = InjectionToken.create<Config, typeof configSchema>(
-  'APP_CONFIG',
-  configSchema,
-)
+const CONFIG_TOKEN = InjectionToken.create<Config, typeof configSchema>('APP_CONFIG', configSchema)
 
 // Create factory token
 const DYNAMIC_CONFIG = InjectionToken.factory(CONFIG_TOKEN, async (ctx) => {
@@ -215,8 +206,7 @@ interface PaymentProcessor {
   processPayment(amount: number): Promise<string>
 }
 
-const PAYMENT_PROCESSOR_TOKEN =
-  InjectionToken.create<PaymentProcessor>('PaymentProcessor')
+const PAYMENT_PROCESSOR_TOKEN = InjectionToken.create<PaymentProcessor>('PaymentProcessor')
 
 // Stripe implementation
 @Injectable({ token: PAYMENT_PROCESSOR_TOKEN })
@@ -288,8 +278,7 @@ console.log(config.getRetries()) // 3 (default)
 
 ```typescript
 // ✅ Good: Descriptive names
-const USER_REPOSITORY_TOKEN =
-  InjectionToken.create<UserRepository>('UserRepository')
+const USER_REPOSITORY_TOKEN = InjectionToken.create<UserRepository>('UserRepository')
 const EMAIL_SERVICE_TOKEN = InjectionToken.create<EmailService>('EmailService')
 
 // ❌ Avoid: Generic names
@@ -307,10 +296,7 @@ const configSchema = z.object({
   retries: z.number().min(0).max(10),
 })
 
-const CONFIG_TOKEN = InjectionToken.create<Config, typeof configSchema>(
-  'APP_CONFIG',
-  configSchema,
-)
+const CONFIG_TOKEN = InjectionToken.create<Config, typeof configSchema>('APP_CONFIG', configSchema)
 ```
 
 ### 3. Use Bound Tokens for Environment-Specific Configuration
@@ -338,8 +324,7 @@ const DYNAMIC_CONFIG = InjectionToken.factory(CONFIG_TOKEN, async () => {
   const env = process.env.NODE_ENV || 'development'
 
   return {
-    apiUrl:
-      env === 'production' ? 'https://api.prod.com' : 'https://api.dev.com',
+    apiUrl: env === 'production' ? 'https://api.prod.com' : 'https://api.dev.com',
     timeout: env === 'production' ? 10000 : 5000,
     retries: env === 'production' ? 5 : 3,
   }

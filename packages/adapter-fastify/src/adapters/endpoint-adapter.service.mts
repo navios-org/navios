@@ -1,3 +1,5 @@
+import { Injectable, InjectionToken } from '@navios/core'
+
 import type { EndpointOptions } from '@navios/builder'
 import type {
   AbstractDynamicHandler,
@@ -9,8 +11,6 @@ import type {
 } from '@navios/core'
 import type { FastifyReply, FastifyRequest } from 'fastify'
 
-import { Injectable, InjectionToken } from '@navios/core'
-
 import { FastifyStreamAdapterService } from './stream-adapter.service.mjs'
 
 /**
@@ -19,10 +19,9 @@ import { FastifyStreamAdapterService } from './stream-adapter.service.mjs'
  * This token is used to inject the `FastifyEndpointAdapterService` instance
  * into the dependency injection container.
  */
-export const FastifyEndpointAdapterToken =
-  InjectionToken.create<FastifyEndpointAdapterService>(
-    Symbol.for('FastifyEndpointAdapterService'),
-  )
+export const FastifyEndpointAdapterToken = InjectionToken.create<FastifyEndpointAdapterService>(
+  Symbol.for('FastifyEndpointAdapterService'),
+)
 
 /**
  * Adapter service for handling standard REST endpoint requests in Fastify.
@@ -63,9 +62,7 @@ export class FastifyEndpointAdapterService extends FastifyStreamAdapterService {
    * @param handlerMetadata - The handler metadata containing configuration.
    * @returns `true` if the handler has request, query, or response schemas.
    */
-  override hasSchema(
-    handlerMetadata: HandlerMetadata<EndpointOptions>,
-  ): boolean {
+  override hasSchema(handlerMetadata: HandlerMetadata<EndpointOptions>): boolean {
     const config = handlerMetadata.config
     return (
       super.hasSchema(handlerMetadata) ||
@@ -82,9 +79,7 @@ export class FastifyEndpointAdapterService extends FastifyStreamAdapterService {
    * @param handlerMetadata - The handler metadata containing configuration and schemas.
    * @returns A Fastify route schema object.
    */
-  override provideSchema(
-    handlerMetadata: HandlerMetadata<EndpointOptions>,
-  ): Record<string, any> {
+  override provideSchema(handlerMetadata: HandlerMetadata<EndpointOptions>): Record<string, any> {
     const config = handlerMetadata.config
     const schema = super.provideSchema(handlerMetadata)
     if (this.options.validateResponses && config.responseSchema) {
@@ -155,11 +150,7 @@ export class FastifyEndpointAdapterService extends FastifyStreamAdapterService {
     if (hasArguments) {
       return {
         isStatic: false,
-        handler: async (
-          scoped,
-          request: FastifyRequest,
-          reply: FastifyReply,
-        ) => {
+        handler: async (scoped, request: FastifyRequest, reply: FastifyReply) => {
           const controllerInstance = (await resolution.resolve(scoped)) as any
           const argument = await formatArguments(request)
           const result = await controllerInstance[methodName](argument)
@@ -171,11 +162,7 @@ export class FastifyEndpointAdapterService extends FastifyStreamAdapterService {
     const emptyArgs = Object.freeze({})
     return {
       isStatic: false,
-      handler: async (
-        scoped,
-        _request: FastifyRequest,
-        reply: FastifyReply,
-      ) => {
+      handler: async (scoped, _request: FastifyRequest, reply: FastifyReply) => {
         const controllerInstance = (await resolution.resolve(scoped)) as any
         const result = await controllerInstance[methodName](emptyArgs)
         reply.status(statusCode).headers(headers).send(result)

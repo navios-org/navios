@@ -1,6 +1,7 @@
 import { inject, Injectable, InjectionToken, Logger } from '@navios/core'
-
 import jwt from 'jsonwebtoken'
+
+import { JwtServiceOptionsSchema, RequestType } from './options/jwt-service.options.mjs'
 
 import type {
   GetSecretKeyResult,
@@ -9,11 +10,6 @@ import type {
   JwtVerifyOptions,
   SignOptions,
   VerifyOptions,
-} from './options/jwt-service.options.mjs'
-
-import {
-  JwtServiceOptionsSchema,
-  RequestType,
 } from './options/jwt-service.options.mjs'
 
 /**
@@ -92,10 +88,7 @@ export class JwtService {
    * const token = jwtService.sign('payload-string', { secret: 'key' })
    * ```
    */
-  sign(
-    payload: string,
-    options?: Omit<JwtSignOptions, keyof SignOptions>,
-  ): string
+  sign(payload: string, options?: Omit<JwtSignOptions, keyof SignOptions>): string
   /**
    * Signs a JWT payload synchronously.
    *
@@ -104,10 +97,7 @@ export class JwtService {
    * @returns The signed JWT token as a string
    */
   sign(payload: Buffer | object, options?: JwtSignOptions): string
-  sign(
-    payload: string | Buffer | object,
-    options: JwtSignOptions = {},
-  ): string {
+  sign(payload: string | Buffer | object, options: JwtSignOptions = {}): string {
     const { signOptions, secret } = this.prepareSign(payload, options)
     return jwt.sign(payload, secret, signOptions)
   }
@@ -130,10 +120,7 @@ export class JwtService {
    * )
    * ```
    */
-  signAsync(
-    payload: string,
-    options?: Omit<JwtSignOptions, keyof jwt.SignOptions>,
-  ): Promise<string>
+  signAsync(payload: string, options?: Omit<JwtSignOptions, keyof jwt.SignOptions>): Promise<string>
   /**
    * Signs a JWT payload asynchronously.
    *
@@ -142,10 +129,7 @@ export class JwtService {
    * @returns A Promise that resolves to the signed JWT token as a string
    */
   signAsync(payload: Buffer | object, options?: JwtSignOptions): Promise<string>
-  signAsync(
-    payload: string | Buffer | object,
-    options: JwtSignOptions = {},
-  ): Promise<string> {
+  signAsync(payload: string | Buffer | object, options: JwtSignOptions = {}): Promise<string> {
     const { signOptions, secret } = this.prepareSign(payload, options)
     return new Promise((resolve, reject) => {
       jwt.sign(payload, secret, signOptions, (err, encoded) =>
@@ -180,10 +164,7 @@ export class JwtService {
    * }
    * ```
    */
-  verify<T extends object = any>(
-    token: string,
-    options: JwtVerifyOptions = {},
-  ): T {
+  verify<T extends object = any>(token: string, options: JwtVerifyOptions = {}): T {
     const { verifyOptions, secret } = this.prepareVerify(token, options)
     // @ts-expect-error We check it
     return jwt.verify(token, secret, verifyOptions) as unknown as T
@@ -214,10 +195,7 @@ export class JwtService {
    * }
    * ```
    */
-  verifyAsync<T extends object = any>(
-    token: string,
-    options: JwtVerifyOptions = {},
-  ): Promise<T> {
+  verifyAsync<T extends object = any>(token: string, options: JwtVerifyOptions = {}): Promise<T> {
     const { verifyOptions, secret } = this.prepareVerify(token, options)
     return new Promise((resolve, reject) => {
       // @ts-expect-error We check it
@@ -256,23 +234,12 @@ export class JwtService {
     payload: string | Buffer | object,
     options: JwtSignOptions,
   ): { signOptions: jwt.SignOptions; secret: GetSecretKeyResult } {
-    const signOptions = this.mergeJwtOptions(
-      { ...options },
-      'signOptions',
-    ) as jwt.SignOptions
-    const secret = this.getSecretKey(
-      payload,
-      options,
-      'privateKey',
-      RequestType.Sign,
-    )
+    const signOptions = this.mergeJwtOptions({ ...options }, 'signOptions') as jwt.SignOptions
+    const secret = this.getSecretKey(payload, options, 'privateKey', RequestType.Sign)
 
     const allowedSignOptKeys = ['secret', 'privateKey']
     const signOptKeys = Object.keys(signOptions)
-    if (
-      typeof payload === 'string' &&
-      signOptKeys.some((k) => !allowedSignOptKeys.includes(k))
-    ) {
+    if (typeof payload === 'string' && signOptKeys.some((k) => !allowedSignOptKeys.includes(k))) {
       throw new Error(
         'Payload as string is not allowed with the following sign options: ' +
           signOptKeys.join(', '),
@@ -290,12 +257,7 @@ export class JwtService {
     secret: GetSecretKeyResult
   } {
     const verifyOptions = this.mergeJwtOptions({ ...options }, 'verifyOptions')
-    const secret = this.getSecretKey(
-      token,
-      options,
-      'publicKey',
-      RequestType.Verify,
-    )
+    const secret = this.getSecretKey(token, options, 'publicKey', RequestType.Verify)
     return { verifyOptions, secret }
   }
 
@@ -330,8 +292,7 @@ export class JwtService {
         this.options.secret ||
         (key === 'privateKey'
           ? (options as JwtSignOptions)?.privateKey || this.options.privateKey
-          : (options as JwtVerifyOptions)?.publicKey ||
-            this.options.publicKey) ||
+          : (options as JwtVerifyOptions)?.publicKey || this.options.publicKey) ||
         this.options[key]
 
     return secret as GetSecretKeyResult

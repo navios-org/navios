@@ -10,10 +10,7 @@ const ApiDeprecatedSchema = z.object({
 /** Options for the @ApiDeprecated decorator, inferred from the schema */
 export type ApiDeprecatedOptions = z.infer<typeof ApiDeprecatedSchema>
 
-const BaseApiDeprecated = AttributeFactory.createAttribute(
-  ApiDeprecatedToken,
-  ApiDeprecatedSchema,
-)
+const BaseApiDeprecated = AttributeFactory.createAttribute(ApiDeprecatedToken, ApiDeprecatedSchema)
 
 /**
  * Marks an endpoint as deprecated.
@@ -42,4 +39,3 @@ const BaseApiDeprecated = AttributeFactory.createAttribute(
 export function ApiDeprecated(message?: string) {
   return BaseApiDeprecated({ message })
 }
-

@@ -1,9 +1,9 @@
 import { inject, Injectable } from '@navios/di'
 
+import { Logger, LoggerOutput } from './logger.tokens.mjs'
+
 import type { LoggerService } from './logger-service.interface.mjs'
 import type { LoggerOptions } from './logger.tokens.mjs'
-
-import { Logger, LoggerOutput } from './logger.tokens.mjs'
 
 /**
  * Logger service instance that can be injected into services and controllers.
@@ -43,9 +43,7 @@ export class LoggerInstance implements LoggerService {
   error(message: any, ...optionalParams: [...any, string?, string?]): void
   error(message: any, ...optionalParams: any[]) {
     optionalParams = this.context
-      ? (optionalParams.length ? optionalParams : [undefined]).concat(
-          this.context,
-        )
+      ? (optionalParams.length ? optionalParams : [undefined]).concat(this.context)
       : optionalParams
 
     this.localInstance?.error(message, ...optionalParams)
@@ -57,9 +55,7 @@ export class LoggerInstance implements LoggerService {
   log(message: any, context?: string): void
   log(message: any, ...optionalParams: [...any, string?]): void
   log(message: any, ...optionalParams: any[]) {
-    optionalParams = this.context
-      ? optionalParams.concat(this.context)
-      : optionalParams
+    optionalParams = this.context ? optionalParams.concat(this.context) : optionalParams
     this.localInstance?.log(message, ...optionalParams)
   }
 
@@ -69,9 +65,7 @@ export class LoggerInstance implements LoggerService {
   warn(message: any, context?: string): void
   warn(message: any, ...optionalParams: [...any, string?]): void
   warn(message: any, ...optionalParams: any[]) {
-    optionalParams = this.context
-      ? optionalParams.concat(this.context)
-      : optionalParams
+    optionalParams = this.context ? optionalParams.concat(this.context) : optionalParams
     this.localInstance?.warn(message, ...optionalParams)
   }
 
@@ -81,9 +75,7 @@ export class LoggerInstance implements LoggerService {
   debug(message: any, context?: string): void
   debug(message: any, ...optionalParams: [...any, string?]): void
   debug(message: any, ...optionalParams: any[]) {
-    optionalParams = this.context
-      ? optionalParams.concat(this.context)
-      : optionalParams
+    optionalParams = this.context ? optionalParams.concat(this.context) : optionalParams
     this.localInstance?.debug?.(message, ...optionalParams)
   }
 
@@ -93,9 +85,7 @@ export class LoggerInstance implements LoggerService {
   verbose(message: any, context?: string): void
   verbose(message: any, ...optionalParams: [...any, string?]): void
   verbose(message: any, ...optionalParams: any[]) {
-    optionalParams = this.context
-      ? optionalParams.concat(this.context)
-      : optionalParams
+    optionalParams = this.context ? optionalParams.concat(this.context) : optionalParams
     this.localInstance?.verbose?.(message, ...optionalParams)
   }
 
@@ -105,9 +95,7 @@ export class LoggerInstance implements LoggerService {
   fatal(message: any, context?: string): void
   fatal(message: any, ...optionalParams: [...any, string?]): void
   fatal(message: any, ...optionalParams: any[]) {
-    optionalParams = this.context
-      ? optionalParams.concat(this.context)
-      : optionalParams
+    optionalParams = this.context ? optionalParams.concat(this.context) : optionalParams
     this.localInstance?.fatal?.(message, ...optionalParams)
   }
 }

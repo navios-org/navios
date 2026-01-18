@@ -14,10 +14,7 @@ const RetrySchema = z.object({
   maxDelay: z.number().min(0).optional(),
   multiplier: z.number().min(1).default(2),
 })
-export const Retry = AttributeFactory.createAttribute(
-  Symbol('Retry'),
-  RetrySchema,
-)
+export const Retry = AttributeFactory.createAttribute(Symbol('Retry'), RetrySchema)
 
 // 3. Dead Letter Queue
 const DeadLetterQueueSchema = z.object({
@@ -44,10 +41,7 @@ const TimeoutSchema = z.object({
   timeout: z.number().min(0), // milliseconds
   onTimeout: z.enum(['fail', 'retry', 'dlq']).default('fail'),
 })
-export const Timeout = AttributeFactory.createAttribute(
-  Symbol('Timeout'),
-  TimeoutSchema,
-)
+export const Timeout = AttributeFactory.createAttribute(Symbol('Timeout'), TimeoutSchema)
 
 // 6. Error Handling Strategy
 const ErrorHandlingSchema = z.object({
@@ -77,10 +71,7 @@ const RateLimitSchema = z.object({
   window: z.number().min(1), // milliseconds
   strategy: z.enum(['drop', 'queue', 'fail']).default('queue'),
 })
-export const RateLimit = AttributeFactory.createAttribute(
-  Symbol('RateLimit'),
-  RateLimitSchema,
-)
+export const RateLimit = AttributeFactory.createAttribute(Symbol('RateLimit'), RateLimitSchema)
 
 // 9. Batch Processing
 const BatchProcessingSchema = z.object({
@@ -97,8 +88,4 @@ export const BatchProcessing = AttributeFactory.createAttribute(
 const PrioritySchema = z.object({
   priority: z.number().min(0).max(10).default(5),
 })
-export const Priority = AttributeFactory.createAttribute(
-  Symbol('Priority'),
-  PrioritySchema,
-)
-
+export const Priority = AttributeFactory.createAttribute(Symbol('Priority'), PrioritySchema)

@@ -1,8 +1,12 @@
 import type { ZodType } from 'zod/v4'
 
 import type { SocketClient } from '../types/socket-client.mjs'
-import type { MessageFormatter, SendOptions, SocketBuilderConfig } from '../types/socket-options.mjs'
 import type { SendHandler } from '../types/socket-handlers.mjs'
+import type {
+  MessageFormatter,
+  SendOptions,
+  SocketBuilderConfig,
+} from '../types/socket-options.mjs'
 
 /**
  * Default message formatter using Socket.IO array format.
@@ -27,11 +31,14 @@ function generateAckId(): string {
 export interface CreateSendContext {
   getClient: () => SocketClient
   config: SocketBuilderConfig
-  ackHandlers: Map<string, {
-    resolve: (value: unknown) => void
-    reject: (error: Error) => void
-    timeoutId: ReturnType<typeof setTimeout>
-  }>
+  ackHandlers: Map<
+    string,
+    {
+      resolve: (value: unknown) => void
+      reject: (error: Error) => void
+      timeoutId: ReturnType<typeof setTimeout>
+    }
+  >
 }
 
 /**

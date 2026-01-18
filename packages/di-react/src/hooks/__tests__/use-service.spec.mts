@@ -1,5 +1,4 @@
 import { Container, Injectable, InjectionToken, Registry } from '@navios/di'
-
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { createElement, useMemo } from 'react'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -71,9 +70,7 @@ describe('useService', () => {
         expect(result.current.isError).toBe(true)
       })
 
-      expect(result.current.error?.message).toContain(
-        'Service initialization failed',
-      )
+      expect(result.current.error?.message).toContain('Service initialization failed')
       expect(result.current.data).toBeUndefined()
       expect(result.current.isLoading).toBe(false)
       expect(result.current.isSuccess).toBe(false)
@@ -138,10 +135,10 @@ describe('useService', () => {
 
     it('should load a service with injection token and args', async () => {
       const UserSchema = z.object({ userId: z.string() })
-      const UserToken = InjectionToken.create<
-        { userId: string; name: string },
-        typeof UserSchema
-      >('User', UserSchema)
+      const UserToken = InjectionToken.create<{ userId: string; name: string }, typeof UserSchema>(
+        'User',
+        UserSchema,
+      )
 
       @Injectable({ registry, token: UserToken })
       class UserService {

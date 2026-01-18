@@ -39,7 +39,7 @@ export function getHeapUsedMB(): number {
  * Forces GC before and after to get accurate measurements
  */
 export async function measureMemoryDelta(
-  callback: () => Promise<void>
+  callback: () => Promise<void>,
 ): Promise<{ before: number; after: number; delta: number }> {
   forceGC()
   const before = getHeapUsed()
@@ -61,7 +61,7 @@ export async function measureMemoryDelta(
  * Returns a function that checks if the object has been collected
  */
 export function createGCTracker<T extends object>(
-  obj: T
+  obj: T,
 ): () => { collected: boolean; ref: WeakRef<T> } {
   const ref = new WeakRef(obj)
   return () => ({
@@ -77,7 +77,7 @@ export function createGCTracker<T extends object>(
 export async function waitForGC<T extends object>(
   ref: WeakRef<T>,
   timeoutMs: number = 1000,
-  intervalMs: number = 10
+  intervalMs: number = 10,
 ): Promise<boolean> {
   const startTime = Date.now()
 
@@ -109,7 +109,7 @@ export function createLargeObject(sizeBytes: number): { data: Uint8Array } {
  */
 export function createLargeObjects(
   count: number,
-  sizePerObject: number
+  sizePerObject: number,
 ): Array<{ data: Uint8Array }> {
   return Array.from({ length: count }, () => createLargeObject(sizePerObject))
 }
@@ -121,7 +121,7 @@ export function createLargeObjects(
 export function assertMemoryWithinBounds(
   actualBytes: number,
   expectedBytes: number,
-  tolerancePercent: number = 20
+  tolerancePercent: number = 20,
 ): void {
   const tolerance = expectedBytes * (tolerancePercent / 100)
   const lowerBound = expectedBytes - tolerance
@@ -130,7 +130,7 @@ export function assertMemoryWithinBounds(
   if (actualBytes < lowerBound || actualBytes > upperBound) {
     throw new Error(
       `Memory usage ${actualBytes} bytes is outside expected bounds ` +
-        `[${lowerBound}, ${upperBound}] (expected: ${expectedBytes} ±${tolerancePercent}%)`
+        `[${lowerBound}, ${upperBound}] (expected: ${expectedBytes} ±${tolerancePercent}%)`,
     )
   }
 }

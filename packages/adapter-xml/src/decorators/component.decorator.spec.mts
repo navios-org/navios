@@ -1,18 +1,14 @@
 import { Container, Registry } from '@navios/core'
-
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod/v4'
-
-import type { XmlComponent } from '../types/component.mjs'
 
 import { createElement } from '../runtime/create-element.mjs'
 import { renderToXml } from '../runtime/render-to-xml.mjs'
 import { ClassComponent } from '../types/xml-node.mjs'
-import {
-  Component,
-  ComponentMeta,
-  isComponentClass,
-} from './component.decorator.mjs'
+
+import type { XmlComponent } from '../types/component.mjs'
+
+import { Component, ComponentMeta, isComponentClass } from './component.decorator.mjs'
 
 describe('@Component decorator', () => {
   it('should mark class as a component', () => {
@@ -287,9 +283,7 @@ describe('class component rendering', () => {
 
       // Invalid props - negative number
       const invalidNode = createElement(StrictComponent, { count: -1 })
-      await expect(
-        renderToXml(invalidNode, { declaration: false, container }),
-      ).rejects.toThrow()
+      await expect(renderToXml(invalidNode, { declaration: false, container })).rejects.toThrow()
     } finally {
       await requestContainer.endRequest()
     }
@@ -320,9 +314,7 @@ describe('class component rendering', () => {
         declaration: false,
         container: requestContainer,
       })
-      expect(xml).toBe(
-        '<page><header>Welcome</header><footer>Copyright 2025</footer></page>',
-      )
+      expect(xml).toBe('<page><header>Welcome</header><footer>Copyright 2025</footer></page>')
     } finally {
       await requestContainer.endRequest()
     }

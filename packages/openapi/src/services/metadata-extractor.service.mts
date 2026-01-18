@@ -1,8 +1,6 @@
-import type { ControllerMetadata, HandlerMetadata } from '@navios/core'
-
 import { Injectable } from '@navios/core'
 
-import type { OpenApiEndpointMetadata } from '../metadata/openapi.metadata.mjs'
+import type { ControllerMetadata, HandlerMetadata } from '@navios/core'
 
 import {
   ApiDeprecatedToken,
@@ -13,6 +11,8 @@ import {
   ApiSummaryToken,
   ApiTagToken,
 } from '../tokens/index.mjs'
+
+import type { OpenApiEndpointMetadata } from '../metadata/openapi.metadata.mjs'
 
 /**
  * Service responsible for extracting OpenAPI metadata from decorators.
@@ -29,10 +29,7 @@ export class MetadataExtractorService {
    * @param handler - Handler metadata
    * @returns Merged OpenAPI metadata
    */
-  extract(
-    controller: ControllerMetadata,
-    handler: HandlerMetadata<any>,
-  ): OpenApiEndpointMetadata {
+  extract(controller: ControllerMetadata, handler: HandlerMetadata<any>): OpenApiEndpointMetadata {
     // Extract controller-level metadata
     const controllerTag = controller.customAttributes.get(ApiTagToken) as
       | { name: string; description?: string }
@@ -51,18 +48,14 @@ export class MetadataExtractorService {
           externalDocs?: { url: string; description?: string }
         }
       | undefined
-    const summary = handler.customAttributes.get(ApiSummaryToken) as
-      | string
-      | undefined
+    const summary = handler.customAttributes.get(ApiSummaryToken) as string | undefined
     const deprecated = handler.customAttributes.get(ApiDeprecatedToken) as
       | { message?: string }
       | undefined
     const security = handler.customAttributes.get(ApiSecurityToken) as
       | Record<string, string[]>
       | undefined
-    const excluded = handler.customAttributes.get(ApiExcludeToken) as
-      | boolean
-      | undefined
+    const excluded = handler.customAttributes.get(ApiExcludeToken) as boolean | undefined
     const stream = handler.customAttributes.get(ApiStreamToken) as
       | { contentType: string; description?: string }
       | undefined

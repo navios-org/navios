@@ -1,11 +1,10 @@
-import type { ErrorSchemaRecord } from '@navios/builder'
-
 import { builder } from '@navios/builder'
 import { create } from '@navios/http'
 import { makeNaviosFakeAdapter } from '@navios/http/testing'
-
 import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod/v4'
+
+import type { ErrorSchemaRecord } from '@navios/builder'
 
 import { makeMutation } from '../mutation/make-hook.mjs'
 import { makeQueryOptions } from '../query/make-options.mjs'
@@ -30,24 +29,12 @@ vi.mock('@tanstack/react-query', async (importReal) => {
           const onMutateResult = await req.onMutate?.(data, mockMutationContext)
           const res = await req.mutationFn(data)
           await req.onSuccess?.(res, data, onMutateResult, mockMutationContext)
-          await req.onSettled?.(
-            res,
-            null,
-            data,
-            onMutateResult,
-            mockMutationContext,
-          )
+          await req.onSettled?.(res, null, data, onMutateResult, mockMutationContext)
           return res
         } catch (err) {
           const onMutateResult = undefined
           await req.onError?.(err, data, onMutateResult, mockMutationContext)
-          await req.onSettled?.(
-            undefined,
-            err,
-            data,
-            onMutateResult,
-            mockMutationContext,
-          )
+          await req.onSettled?.(undefined, err, data, onMutateResult, mockMutationContext)
           throw err
         }
       },
@@ -118,13 +105,10 @@ describe('errorSchema support', () => {
 
     it('should pass error response (400) through processResponse', async () => {
       adapter.mock('/users/2', 'GET', () => {
-        return new Response(
-          JSON.stringify({ error: 'Invalid user ID', code: 400 }),
-          {
-            status: 400,
-            headers: { 'content-type': 'application/json' },
-          },
-        )
+        return new Response(JSON.stringify({ error: 'Invalid user ID', code: 400 }), {
+          status: 400,
+          headers: { 'content-type': 'application/json' },
+        })
       })
 
       const options = makeQueryOptions(endpoint, {
@@ -264,13 +248,10 @@ describe('errorSchema support', () => {
 
     it('should return error response (400) as data (not thrown)', async () => {
       adapter.mock('/users', 'POST', () => {
-        return new Response(
-          JSON.stringify({ error: 'Name is required', code: 400 }),
-          {
-            status: 400,
-            headers: { 'content-type': 'application/json' },
-          },
-        )
+        return new Response(JSON.stringify({ error: 'Name is required', code: 400 }), {
+          status: 400,
+          headers: { 'content-type': 'application/json' },
+        })
       })
 
       const mutation = makeMutation(mutationEndpoint, {
@@ -303,13 +284,10 @@ describe('errorSchema support', () => {
 
     it('should call onSuccess with error response data (when error response is returned)', async () => {
       adapter.mock('/users', 'POST', () => {
-        return new Response(
-          JSON.stringify({ error: 'Validation failed', code: 400 }),
-          {
-            status: 400,
-            headers: { 'content-type': 'application/json' },
-          },
-        )
+        return new Response(JSON.stringify({ error: 'Validation failed', code: 400 }), {
+          status: 400,
+          headers: { 'content-type': 'application/json' },
+        })
       })
 
       const onSuccess = vi.fn()

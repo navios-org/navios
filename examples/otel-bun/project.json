@@ -1,0 +1,7 @@
+{
+  "name": "otel-bun",
+  "root": "examples/otel-bun",
+  "sourceRoot": "examples/otel-bun/src",
+  "projectType": "application",
+  "tags": ["example", "bun", "otel", "legacy"]
+}

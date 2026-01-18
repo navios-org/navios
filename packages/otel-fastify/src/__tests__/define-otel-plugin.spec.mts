@@ -1,13 +1,13 @@
 import { describe, expect, it } from 'vitest'
 
-import type { FastifyOtelPluginOptions } from '../interfaces/index.mjs'
-
 import { defineOtelPlugin, OtelFastifyPlugin } from '../plugin/define-otel-plugin.mjs'
+
+import type { FastifyOtelPluginOptions } from '../interfaces/index.mjs'
 
 describe('defineOtelPlugin', () => {
   describe('plugin structure', () => {
     it('should return a plugin definition object', () => {
-      const pluginDef = defineOtelPlugin({
+      const [, pluginDef] = defineOtelPlugin({
         serviceName: 'test-service',
         exporter: 'console',
       })
@@ -18,7 +18,7 @@ describe('defineOtelPlugin', () => {
     })
 
     it('should return an OtelFastifyPlugin instance', () => {
-      const pluginDef = defineOtelPlugin({
+      const [, pluginDef] = defineOtelPlugin({
         serviceName: 'test-service',
         exporter: 'console',
       })
@@ -41,7 +41,7 @@ describe('defineOtelPlugin', () => {
         ignoreRoutes: ['/health', '/metrics'],
       }
 
-      const pluginDef = defineOtelPlugin(options)
+      const [, pluginDef] = defineOtelPlugin(options)
 
       expect(pluginDef.options).toBe(options)
     })
@@ -64,12 +64,14 @@ describe('defineOtelPlugin', () => {
 
   describe('options handling', () => {
     it('should accept minimal required options', () => {
-      const pluginDef = defineOtelPlugin({
+      const [, pluginDef] = defineOtelPlugin({
         serviceName: 'minimal-service',
         exporter: 'none',
       })
 
+      // @ts-expect-error - pluginDef is a StagedPluginDefinition
       expect(pluginDef.options.serviceName).toBe('minimal-service')
+      // @ts-expect-error - pluginDef is a StagedPluginDefinition
       expect(pluginDef.options.exporter).toBe('none')
     })
 
@@ -101,7 +103,7 @@ describe('defineOtelPlugin', () => {
         propagateContext: true,
       }
 
-      const pluginDef = defineOtelPlugin(options)
+      const [, pluginDef] = defineOtelPlugin(options)
 
       expect(pluginDef.options).toEqual(options)
     })
@@ -113,8 +115,9 @@ describe('defineOtelPlugin', () => {
         ignoreRoutes: ['/health', '/metrics', '/api/internal/*', '/docs/*'],
       }
 
-      const pluginDef = defineOtelPlugin(options)
+      const [, pluginDef] = defineOtelPlugin(options)
 
+      // @ts-expect-error - pluginDef is a StagedPluginDefinition
       expect(pluginDef.options.ignoreRoutes).toEqual([
         '/health',
         '/metrics',

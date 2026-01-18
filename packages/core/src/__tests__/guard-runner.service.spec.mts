@@ -1,18 +1,7 @@
-import type { ScopedContainer } from '@navios/di'
-
 import { Container, Injectable, InjectionToken } from '@navios/di'
-
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type {
-  AbstractExecutionContext,
-  CanActivate,
-} from '../interfaces/index.mjs'
-import type {
-  ControllerMetadata,
-  HandlerMetadata,
-  ModuleMetadata,
-} from '../metadata/index.mjs'
+import type { ScopedContainer } from '@navios/di'
 
 import { HttpException } from '../exceptions/index.mjs'
 import { LoggerOutput } from '../logger/logger.tokens.mjs'
@@ -23,6 +12,9 @@ import {
   ValidationErrorResponderToken,
 } from '../responders/tokens/responder.tokens.mjs'
 import { GuardRunnerService } from '../services/guard-runner.service.mjs'
+
+import type { AbstractExecutionContext, CanActivate } from '../interfaces/index.mjs'
+import type { ControllerMetadata, HandlerMetadata, ModuleMetadata } from '../metadata/index.mjs'
 
 // Mock responders
 const createMockResponder = (statusCode: number, message: string) => ({
@@ -59,9 +51,7 @@ const createMockExecutionContext = (): AbstractExecutionContext => {
 }
 
 // Mock guard
-const createMockGuard = (
-  canActivateResult: boolean | Promise<boolean>,
-): CanActivate => ({
+const createMockGuard = (canActivateResult: boolean | Promise<boolean>): CanActivate => ({
   canActivate: vi.fn().mockImplementation(() => canActivateResult),
 })
 
@@ -78,24 +68,15 @@ describe('GuardRunnerService', () => {
 
     // Create mock responders
     mockForbiddenResponder = createMockResponder(403, 'Forbidden')
-    mockInternalErrorResponder = createMockResponder(
-      500,
-      'Internal Server Error',
-    )
+    mockInternalErrorResponder = createMockResponder(500, 'Internal Server Error')
     mockNotFoundResponder = createMockResponder(404, 'Not Found')
     mockValidationErrorResponder = createMockResponder(400, 'Validation Error')
 
     // Register all required dependencies
     container.addInstance(ForbiddenResponderToken, mockForbiddenResponder)
-    container.addInstance(
-      InternalServerErrorResponderToken,
-      mockInternalErrorResponder,
-    )
+    container.addInstance(InternalServerErrorResponderToken, mockInternalErrorResponder)
     container.addInstance(NotFoundResponderToken, mockNotFoundResponder)
-    container.addInstance(
-      ValidationErrorResponderToken,
-      mockValidationErrorResponder,
-    )
+    container.addInstance(ValidationErrorResponderToken, mockValidationErrorResponder)
     container.addInstance(LoggerOutput, mockLoggerOutput)
   })
 
@@ -206,11 +187,7 @@ describe('GuardRunnerService', () => {
       const guards = new Set([TestGuard])
       const context = createMockExecutionContext()
 
-      const result = await service.runGuards(
-        guards,
-        context,
-        mockScopedContainer,
-      )
+      const result = await service.runGuards(guards, context, mockScopedContainer)
 
       expect(result).toBe(true)
       expect(mockScopedContainer.get).toHaveBeenCalled()
@@ -231,9 +208,9 @@ describe('GuardRunnerService', () => {
       const guards = new Set([InvalidGuard as any])
       const context = createMockExecutionContext()
 
-      await expect(
-        service.runGuards(guards, context, mockScopedContainer),
-      ).rejects.toThrow('does not implement canActivate')
+      await expect(service.runGuards(guards, context, mockScopedContainer)).rejects.toThrow(
+        'does not implement canActivate',
+      )
     })
 
     it('should reverse guard order (module -> controller -> endpoint)', async () => {
@@ -304,11 +281,7 @@ describe('GuardRunnerService', () => {
         guards: new Set([EndpointGuard]),
       } as unknown as HandlerMetadata<any>
 
-      const result = service.makeContext(
-        moduleMetadata,
-        controllerMetadata,
-        endpointMetadata,
-      )
+      const result = service.makeContext(moduleMetadata, controllerMetadata, endpointMetadata)
 
       expect(result.size).toBe(3)
       expect(result.has(ModuleGuard as any)).toBe(true)
@@ -331,11 +304,7 @@ describe('GuardRunnerService', () => {
         guards: new Set(),
       } as unknown as HandlerMetadata<any>
 
-      const result = service.makeContext(
-        moduleMetadata,
-        controllerMetadata,
-        endpointMetadata,
-      )
+      const result = service.makeContext(moduleMetadata, controllerMetadata, endpointMetadata)
 
       expect(result.size).toBe(0)
     })
@@ -357,11 +326,7 @@ describe('GuardRunnerService', () => {
         guards: new Set([SharedGuard]), // Same guard
       } as unknown as HandlerMetadata<any>
 
-      const result = service.makeContext(
-        moduleMetadata,
-        controllerMetadata,
-        endpointMetadata,
-      )
+      const result = service.makeContext(moduleMetadata, controllerMetadata, endpointMetadata)
 
       // Set deduplicates automatically
       expect(result.size).toBe(1)
@@ -370,9 +335,7 @@ describe('GuardRunnerService', () => {
     it('should handle injection tokens as guards', async () => {
       const service = await container.get(GuardRunnerService)
 
-      const GuardToken = InjectionToken.create<CanActivate>(
-        Symbol.for('GuardToken'),
-      )
+      const GuardToken = InjectionToken.create<CanActivate>(Symbol.for('GuardToken'))
 
       const moduleMetadata = {
         guards: new Set([GuardToken]),
@@ -386,11 +349,7 @@ describe('GuardRunnerService', () => {
         guards: new Set(),
       } as unknown as HandlerMetadata<any>
 
-      const result = service.makeContext(
-        moduleMetadata,
-        controllerMetadata,
-        endpointMetadata,
-      )
+      const result = service.makeContext(moduleMetadata, controllerMetadata, endpointMetadata)
 
       expect(result.size).toBe(1)
       expect(result.has(GuardToken)).toBe(true)

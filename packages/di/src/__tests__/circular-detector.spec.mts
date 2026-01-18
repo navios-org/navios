@@ -1,14 +1,12 @@
 import { describe, expect, it, vi } from 'vitest'
 
 import { InjectableScope, InjectableType } from '../enums/index.mjs'
-import { CircularDetector } from '../internal/lifecycle/circular-detector.mjs'
-import type { InstanceHolder } from '../internal/holder/instance-holder.mjs'
 import { InstanceStatus } from '../internal/holder/instance-holder.mjs'
+import { CircularDetector } from '../internal/lifecycle/circular-detector.mjs'
 
-function createMockHolder(
-  name: string,
-  waitingFor: string[] = [],
-): InstanceHolder {
+import type { InstanceHolder } from '../internal/holder/instance-holder.mjs'
+
+function createMockHolder(name: string, waitingFor: string[] = []): InstanceHolder {
   return {
     status: InstanceStatus.Creating,
     name,

@@ -2,9 +2,9 @@ import { HttpException } from './http.exception.mjs'
 
 /**
  * Exception that represents a 400 Bad Request HTTP error.
- * 
+ *
  * Use this exception when the client's request is malformed or invalid.
- * 
+ *
  * @example
  * ```typescript
  * @Endpoint(createUserEndpoint)
@@ -19,7 +19,7 @@ import { HttpException } from './http.exception.mjs'
 export class BadRequestException extends HttpException {
   /**
    * Creates a new BadRequestException.
-   * 
+   *
    * @param message - Error message or response object
    */
   constructor(message: string | object) {

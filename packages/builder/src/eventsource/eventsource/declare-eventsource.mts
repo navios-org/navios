@@ -43,9 +43,7 @@ import type {
  * sse.provideClient(handle)
  * ```
  */
-export function createEventSourceHandler(
-  config: CreateEventSourceHandlerConfig = {},
-) {
+export function createEventSourceHandler(config: CreateEventSourceHandlerConfig = {}) {
   return function declareEventSource<const Options extends DeclareEventSourceOptions>(
     options: Options,
   ): EventSourceHandler<Options> {

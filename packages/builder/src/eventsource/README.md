@@ -79,18 +79,18 @@ Creates a new EventSource builder instance.
 
 #### Config Options
 
-| Option | Type | Description |
-|--------|------|-------------|
+| Option              | Type                                  | Description                                          |
+| ------------------- | ------------------------------------- | ---------------------------------------------------- |
 | `onValidationError` | `(error, eventName, rawData) => void` | Called when incoming event data fails Zod validation |
-| `onError` | `(error) => void` | Called when an event handler throws an error |
+| `onError`           | `(error) => void`                     | Called when an event handler throws an error         |
 
 #### Returns: `EventSourceBuilderInstance`
 
-| Method | Description |
-|--------|-------------|
+| Method                  | Description                                            |
+| ----------------------- | ------------------------------------------------------ |
 | `provideClient(client)` | Set the EventSource client (from `declareEventSource`) |
-| `getClient()` | Get the current client (throws if not set) |
-| `defineEvent(options)` | Define a typed event handler |
+| `getClient()`           | Get the current client (throws if not set)             |
+| `defineEvent(options)`  | Define a typed event handler                           |
 
 ### `declareEventSource(options)`
 
@@ -98,12 +98,12 @@ Declares an EventSource endpoint. Returns a handler function that creates connec
 
 #### Options
 
-| Option | Type | Description |
-|--------|------|-------------|
-| `url` | `string` | EventSource URL (supports `$param` placeholders) |
-| `urlParamsSchema` | `ZodObject` | Optional schema for URL parameter validation |
-| `querySchema` | `ZodObject` | Optional schema for query parameters |
-| `withCredentials` | `boolean` | Include credentials (cookies) in requests |
+| Option            | Type        | Description                                      |
+| ----------------- | ----------- | ------------------------------------------------ |
+| `url`             | `string`    | EventSource URL (supports `$param` placeholders) |
+| `urlParamsSchema` | `ZodObject` | Optional schema for URL parameter validation     |
+| `querySchema`     | `ZodObject` | Optional schema for query parameters             |
+| `withCredentials` | `boolean`   | Include credentials (cookies) in requests        |
 
 #### Usage
 
@@ -151,9 +151,9 @@ Defines a typed event handler on the builder instance.
 
 #### Options
 
-| Option | Type | Description |
-|--------|------|-------------|
-| `eventName` | `string` | SSE event name to listen for |
+| Option          | Type      | Description                            |
+| --------------- | --------- | -------------------------------------- |
+| `eventName`     | `string`  | SSE event name to listen for           |
 | `payloadSchema` | `ZodType` | Optional schema for payload validation |
 
 #### Returns
@@ -232,13 +232,13 @@ onUser((user) => {
 
 The EventSource builder follows the same pattern as the WebSocket/Socket builder:
 
-| Feature | EventSource | Socket |
-|---------|-------------|--------|
-| Builder | `eventSourceBuilder()` | `socketBuilder()` |
-| Connection | `declareEventSource()` | `declareWebSocket()` |
-| Define handlers | `defineEvent()` | `defineSend()` / `defineSubscribe()` |
-| Direction | Server → Client only | Bidirectional |
-| Protocol | HTTP/SSE | WebSocket |
+| Feature         | EventSource            | Socket                               |
+| --------------- | ---------------------- | ------------------------------------ |
+| Builder         | `eventSourceBuilder()` | `socketBuilder()`                    |
+| Connection      | `declareEventSource()` | `declareWebSocket()`                 |
+| Define handlers | `defineEvent()`        | `defineSend()` / `defineSubscribe()` |
+| Direction       | Server → Client only   | Bidirectional                        |
+| Protocol        | HTTP/SSE               | WebSocket                            |
 
 ## Best Practices
 

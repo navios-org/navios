@@ -1,18 +1,18 @@
 import { createMethodContext } from '@navios/di/legacy-compat'
 
-import type { HttpHeader } from '../../interfaces/index.mjs'
-
 import { Header as OriginalHeader } from '../../decorators/header.decorator.mjs'
+
+import type { HttpHeader } from '../../interfaces/index.mjs'
 
 /**
  * Legacy-compatible Header decorator.
- * 
+ *
  * Works with TypeScript experimental decorators (legacy API).
- * 
+ *
  * @param name - The header name (e.g., 'Content-Type', 'Cache-Control')
  * @param value - The header value (string, number, or array of strings)
  * @returns A method decorator compatible with legacy decorator API
- * 
+ *
  * @example
  * ```typescript
  * @Controller()
@@ -40,4 +40,3 @@ export function Header(name: HttpHeader, value: string | number | string[]) {
     return descriptor
   }
 }
-

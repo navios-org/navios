@@ -19,7 +19,8 @@ import type { ClientQueryMethods } from './query.mjs'
  *   When `false` (default), errors are thrown and not included in TData.
  */
 export interface ClientInstance<UseDiscriminator extends boolean = false>
-  extends ClientQueryMethods<UseDiscriminator>,
+  extends
+    ClientQueryMethods<UseDiscriminator>,
     ClientInfiniteQueryMethods<UseDiscriminator>,
     ClientMutationMethods<UseDiscriminator>,
     ClientMultipartMutationMethods<UseDiscriminator>,

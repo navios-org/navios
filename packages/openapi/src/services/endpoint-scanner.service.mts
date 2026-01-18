@@ -1,16 +1,7 @@
-import type { BaseEndpointOptions, EndpointOptions } from '@navios/builder'
-import type {
-  ControllerMetadata,
-  HandlerMetadata,
-  ModuleMetadata,
-} from '@navios/core'
+import { extractControllerMetadata, inject, Injectable, Logger } from '@navios/core'
 
-import {
-  extractControllerMetadata,
-  inject,
-  Injectable,
-  Logger,
-} from '@navios/core'
+import type { BaseEndpointOptions, EndpointOptions } from '@navios/builder'
+import type { ControllerMetadata, HandlerMetadata, ModuleMetadata } from '@navios/core'
 
 import type { OpenApiEndpointMetadata } from '../metadata/openapi.metadata.mjs'
 
@@ -58,10 +49,7 @@ export class EndpointScannerService {
     const endpoints: DiscoveredEndpoint[] = []
 
     for (const [moduleName, moduleMetadata] of modules) {
-      if (
-        !moduleMetadata.controllers ||
-        moduleMetadata.controllers.size === 0
-      ) {
+      if (!moduleMetadata.controllers || moduleMetadata.controllers.size === 0) {
         continue
       }
 
@@ -98,10 +86,7 @@ export class EndpointScannerService {
         continue
       }
 
-      const openApiMetadata = this.metadataExtractor.extract(
-        controllerMeta,
-        handler,
-      )
+      const openApiMetadata = this.metadataExtractor.extract(controllerMeta, handler)
 
       // Skip excluded endpoints
       if (openApiMetadata.excluded) {

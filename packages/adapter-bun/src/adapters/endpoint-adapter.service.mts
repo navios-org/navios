@@ -1,3 +1,5 @@
+import { Injectable, InjectionToken } from '@navios/core'
+
 import type { EndpointOptions } from '@navios/builder'
 import type {
   AbstractDynamicHandler,
@@ -9,8 +11,6 @@ import type {
 } from '@navios/core'
 import type { BunRequest } from 'bun'
 
-import { Injectable, InjectionToken } from '@navios/core'
-
 import { AbstractBunHandlerAdapterService } from './abstract-bun-handler-adapter.service.mjs'
 
 /**
@@ -19,10 +19,9 @@ import { AbstractBunHandlerAdapterService } from './abstract-bun-handler-adapter
  * This token is used to inject the `BunEndpointAdapterService` instance
  * into the dependency injection container.
  */
-export const BunEndpointAdapterToken =
-  InjectionToken.create<BunEndpointAdapterService>(
-    Symbol.for('BunEndpointAdapterService'),
-  )
+export const BunEndpointAdapterToken = InjectionToken.create<BunEndpointAdapterService>(
+  Symbol.for('BunEndpointAdapterService'),
+)
 
 /**
  * Adapter service for handling standard REST endpoint requests in Bun.
@@ -63,9 +62,7 @@ export class BunEndpointAdapterService extends AbstractBunHandlerAdapterService<
    * @param handlerMetadata - The handler metadata containing configuration.
    * @returns `true` if the handler has request, query, or response schemas.
    */
-  override hasSchema(
-    handlerMetadata: HandlerMetadata<EndpointOptions>,
-  ): boolean {
+  override hasSchema(handlerMetadata: HandlerMetadata<EndpointOptions>): boolean {
     const config = handlerMetadata.config
     return (
       super.hasSchema(handlerMetadata) ||
@@ -82,9 +79,7 @@ export class BunEndpointAdapterService extends AbstractBunHandlerAdapterService<
    * @param _handlerMetadata - The handler metadata containing configuration.
    * @returns An empty schema object.
    */
-  override provideSchema(
-    _handlerMetadata: HandlerMetadata<EndpointOptions>,
-  ): Record<string, any> {
+  override provideSchema(_handlerMetadata: HandlerMetadata<EndpointOptions>): Record<string, any> {
     return {}
   }
 
@@ -148,17 +143,15 @@ export class BunEndpointAdapterService extends AbstractBunHandlerAdapterService<
 
     return {
       isStatic: false,
-      handler: this.wrapWithErrorHandling(
-        async (scoped, request: BunRequest) => {
-          const controllerInstance = (await resolution.resolve(scoped)) as any
-          const argument = await formatArguments(request)
-          const result = await controllerInstance[methodName](argument)
-          return new Response(JSON.stringify(formatResponse(result)), {
-            status: statusCode,
-            headers,
-          })
-        },
-      ),
+      handler: this.wrapWithErrorHandling(async (scoped, request: BunRequest) => {
+        const controllerInstance = (await resolution.resolve(scoped)) as any
+        const argument = await formatArguments(request)
+        const result = await controllerInstance[methodName](argument)
+        return new Response(JSON.stringify(formatResponse(result)), {
+          status: statusCode,
+          headers,
+        })
+      }),
     }
   }
 

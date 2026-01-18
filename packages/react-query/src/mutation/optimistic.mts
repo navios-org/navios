@@ -7,11 +7,7 @@ import type { QueryClient } from '@tanstack/react-query'
  * @template TVariables - The mutation variables type
  * @template TQueryData - The query cache data type
  */
-export interface OptimisticUpdateConfig<
-  _TData,
-  TVariables,
-  TQueryData,
-> {
+export interface OptimisticUpdateConfig<_TData, TVariables, TQueryData> {
   /**
    * The query key to optimistically update.
    * This should match the query key used for the affected query.
@@ -146,23 +142,13 @@ export interface OptimisticUpdateCallbacks<TData, TVariables, TQueryData> {
  * })
  * ```
  */
-export function createOptimisticUpdate<
-  TData,
-  TVariables,
-  TQueryData,
->(config: OptimisticUpdateConfig<TData, TVariables, TQueryData>): OptimisticUpdateCallbacks<TData, TVariables, TQueryData> {
-  const {
-    queryKey,
-    updateFn,
-    rollbackOnError = true,
-    invalidateOnSettled = true,
-  } = config
+export function createOptimisticUpdate<TData, TVariables, TQueryData>(
+  config: OptimisticUpdateConfig<TData, TVariables, TQueryData>,
+): OptimisticUpdateCallbacks<TData, TVariables, TQueryData> {
+  const { queryKey, updateFn, rollbackOnError = true, invalidateOnSettled = true } = config
 
   return {
-    onMutate: async (
-      variables: TVariables,
-      context: { queryClient: QueryClient },
-    ) => {
+    onMutate: async (variables: TVariables, context: { queryClient: QueryClient }) => {
       // Cancel any outgoing refetches to prevent overwriting optimistic update
       await context.queryClient.cancelQueries({ queryKey })
 
@@ -170,10 +156,7 @@ export function createOptimisticUpdate<
       const previousData = context.queryClient.getQueryData<TQueryData>(queryKey)
 
       // Optimistically update the cache
-      context.queryClient.setQueryData<TQueryData>(
-        queryKey,
-        (old) => updateFn(old, variables),
-      )
+      context.queryClient.setQueryData<TQueryData>(queryKey, (old) => updateFn(old, variables))
 
       // Return context with the previous data for potential rollback
       return { previousData }
@@ -244,10 +227,7 @@ export function createMultiOptimisticUpdate<TData, TVariables>(
   configs: Array<OptimisticUpdateConfig<TData, TVariables, unknown>>,
 ): OptimisticUpdateCallbacks<TData, TVariables, Map<string, unknown>> {
   return {
-    onMutate: async (
-      variables: TVariables,
-      context: { queryClient: QueryClient },
-    ) => {
+    onMutate: async (variables: TVariables, context: { queryClient: QueryClient }) => {
       // Cancel and snapshot all queries
       const previousData = new Map<string, unknown>()
 
@@ -255,9 +235,8 @@ export function createMultiOptimisticUpdate<TData, TVariables>(
         await context.queryClient.cancelQueries({ queryKey: config.queryKey })
         const key = JSON.stringify(config.queryKey)
         previousData.set(key, context.queryClient.getQueryData(config.queryKey))
-        context.queryClient.setQueryData(
-          config.queryKey,
-          (old: unknown) => config.updateFn(old, variables),
+        context.queryClient.setQueryData(config.queryKey, (old: unknown) =>
+          config.updateFn(old, variables),
         )
       }
 

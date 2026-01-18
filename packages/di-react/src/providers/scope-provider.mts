@@ -1,8 +1,8 @@
-import type { ScopedContainer } from '@navios/di'
-import type { ReactNode } from 'react'
-
 import { useContext, useEffect, useId, useRef } from 'react'
 import { jsx } from 'react/jsx-runtime'
+
+import type { ScopedContainer } from '@navios/di'
+import type { ReactNode } from 'react'
 
 import { ContainerContext, ScopedContainerContext } from './context.mjs'
 
@@ -42,11 +42,7 @@ export interface ScopeProviderProps {
  * ))}
  * ```
  */
-export function ScopeProvider({
-  scopeId,
-  metadata,
-  children,
-}: ScopeProviderProps) {
+export function ScopeProvider({ scopeId, metadata, children }: ScopeProviderProps) {
   const container = useContext(ContainerContext)
   if (!container) {
     throw new Error('ScopeProvider must be used within a ContainerProvider')
@@ -61,10 +57,7 @@ export function ScopeProvider({
   if (!scopedContainerRef.current) {
     // Check if this request ID already exists (e.g., from StrictMode double render)
     if (!container.hasActiveRequest(effectiveScopeId)) {
-      scopedContainerRef.current = container.beginRequest(
-        effectiveScopeId,
-        metadata,
-      )
+      scopedContainerRef.current = container.beginRequest(effectiveScopeId, metadata)
     }
   }
 

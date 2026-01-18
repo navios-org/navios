@@ -1,10 +1,6 @@
 import { LoggerOutput } from '@navios/core'
 import { Container } from '@navios/di'
-
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-
-import type { JwtServiceOptions } from '../index.mjs'
-import type { JwtService } from '../jwt.service.mjs'
 
 import {
   JsonWebTokenError,
@@ -12,6 +8,9 @@ import {
   provideJwtService,
   TokenExpiredError,
 } from '../index.mjs'
+
+import type { JwtServiceOptions } from '../index.mjs'
+import type { JwtService } from '../jwt.service.mjs'
 
 // Mock logger output
 const mockLoggerOutput = {
@@ -84,18 +83,16 @@ describe('JwtService', () => {
 
       // Sign with instance secret
       const token1 = service.sign(payload)
-      const decoded1 = service.verify<typeof payload & { iat: number }>(
-        token1,
-        { secret: 'instance-secret' },
-      )
+      const decoded1 = service.verify<typeof payload & { iat: number }>(token1, {
+        secret: 'instance-secret',
+      })
       expect(decoded1.userId).toBe('123')
 
       // Sign with method-level secret
       const token2 = service.sign(payload, { secret: 'method-secret' })
-      const decoded2 = service.verify<typeof payload & { iat: number }>(
-        token2,
-        { secret: 'method-secret' },
-      )
+      const decoded2 = service.verify<typeof payload & { iat: number }>(token2, {
+        secret: 'method-secret',
+      })
       expect(decoded2.userId).toBe('123')
 
       // Verify that tokens signed with different secrets cannot be verified with the other secret
@@ -112,9 +109,7 @@ describe('JwtService', () => {
       const payload = { userId: '123' }
 
       const token = service.sign(payload)
-      const decoded = service.decode<
-        typeof payload & { iat: number; exp: number }
-      >(token)
+      const decoded = service.decode<typeof payload & { iat: number; exp: number }>(token)
 
       expect(decoded?.exp).toBeTypeOf('number')
       expect(decoded?.exp).toBeGreaterThan(decoded?.iat ?? 0)
@@ -130,13 +125,14 @@ describe('JwtService', () => {
         subject: 'test-subject',
       })
 
-      const decoded = service.verify<
-        typeof payload & { iss: string; aud: string; sub: string }
-      >(token, {
-        secret: 'test-secret',
-        issuer: 'test-issuer',
-        audience: 'test-audience',
-      })
+      const decoded = service.verify<typeof payload & { iss: string; aud: string; sub: string }>(
+        token,
+        {
+          secret: 'test-secret',
+          issuer: 'test-issuer',
+          audience: 'test-audience',
+        },
+      )
 
       expect(decoded.iss).toBe('test-issuer')
       expect(decoded.aud).toBe('test-audience')
@@ -155,9 +151,7 @@ describe('JwtService', () => {
       expect(token.split('.')).toHaveLength(3)
 
       // Verify the token
-      const decoded = await service.verifyAsync<
-        typeof payload & { iat: number }
-      >(token)
+      const decoded = await service.verifyAsync<typeof payload & { iat: number }>(token)
       expect(decoded.userId).toBe('123')
     })
   })
@@ -303,9 +297,7 @@ describe('JwtService', () => {
 
       const token = service.sign(payload)
 
-      const result = await service.verifyAsync<
-        typeof payload & { iat: number }
-      >(token)
+      const result = await service.verifyAsync<typeof payload & { iat: number }>(token)
 
       expect(result.userId).toBe('123')
       expect(result.role).toBe('admin')
@@ -315,9 +307,7 @@ describe('JwtService', () => {
     it('should reject when token is invalid', async () => {
       const service = await createJwtService({ secret: 'test-secret' })
 
-      await expect(service.verifyAsync('invalid-token')).rejects.toThrow(
-        JsonWebTokenError,
-      )
+      await expect(service.verifyAsync('invalid-token')).rejects.toThrow(JsonWebTokenError)
     })
 
     it('should reject when token is expired', async () => {
@@ -327,9 +317,7 @@ describe('JwtService', () => {
       const token = service.sign(payload, { expiresIn: '-1s' })
       await new Promise((resolve) => setTimeout(resolve, 100))
 
-      await expect(service.verifyAsync(token)).rejects.toThrow(
-        TokenExpiredError,
-      )
+      await expect(service.verifyAsync(token)).rejects.toThrow(TokenExpiredError)
     })
   })
 
@@ -423,9 +411,7 @@ describe('JwtService', () => {
 
       const token = service.sign(payload)
 
-      const decoded = service.verify<
-        typeof payload & { iss: string; aud: string }
-      >(token, {
+      const decoded = service.verify<typeof payload & { iss: string; aud: string }>(token, {
         secret: 'test-secret',
         issuer: 'default-issuer',
         audience: 'default-audience',

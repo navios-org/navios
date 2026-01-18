@@ -1,7 +1,4 @@
-import type {
-  ErrorSchemaRecord,
-  InferErrorSchemaOutput,
-} from '../types/error-schema.mjs'
+import type { ErrorSchemaRecord, InferErrorSchemaOutput } from '../types/error-schema.mjs'
 import type { BaseEndpointOptions, BuilderContext } from '../types/index.mjs'
 
 import { createHandler } from './create-handler.mjs'

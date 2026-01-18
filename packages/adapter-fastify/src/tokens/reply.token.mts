@@ -1,6 +1,6 @@
-import type { FastifyReply } from 'fastify'
-
 import { InjectionToken } from '@navios/core'
+
+import type { FastifyReply } from 'fastify'
 
 /**
  * Injection token for the current Fastify reply object.
@@ -25,5 +25,4 @@ import { InjectionToken } from '@navios/core'
  * }
  * ```
  */
-export const FastifyReplyToken =
-  InjectionToken.create<FastifyReply>('FastifyReplyToken')
+export const FastifyReplyToken = InjectionToken.create<FastifyReply>('FastifyReplyToken')

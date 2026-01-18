@@ -1,28 +1,23 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
-import type { ScopedContainer } from '../../container/scoped-container.mjs'
-import type { IContainer } from '../../interfaces/container.interface.mjs'
-import type {
-  AnyInjectableType,
-  InjectionTokenType,
-} from '../../token/injection-token.mjs'
-import type { Registry } from '../../token/registry.mjs'
-import type { ServiceInitializationContext } from '../context/service-initialization-context.mjs'
-import type { IHolderStorage } from '../holder/holder-storage.interface.mjs'
-import type { InstanceHolder } from '../holder/instance-holder.mjs'
-import type { LifecycleEventBus } from '../lifecycle/lifecycle-event-bus.mjs'
-
 import { InjectableScope } from '../../enums/index.mjs'
 import { DIError, DIErrorCode } from '../../errors/index.mjs'
-import {
-  FactoryInjectionToken,
-  InjectionToken,
-} from '../../token/injection-token.mjs'
+import { FactoryInjectionToken, InjectionToken } from '../../token/injection-token.mjs'
 import {
   getCurrentResolutionContext,
   withResolutionContext,
 } from '../context/resolution-context.mjs'
 import { InstanceStatus } from '../holder/instance-holder.mjs'
 import { CircularDetector } from '../lifecycle/circular-detector.mjs'
+
+/* eslint-disable @typescript-eslint/no-explicit-any */
+import type { ScopedContainer } from '../../container/scoped-container.mjs'
+import type { IContainer } from '../../interfaces/container.interface.mjs'
+import type { AnyInjectableType, InjectionTokenType } from '../../token/injection-token.mjs'
+import type { Registry } from '../../token/registry.mjs'
+import type { ServiceInitializationContext } from '../context/service-initialization-context.mjs'
+import type { IHolderStorage } from '../holder/holder-storage.interface.mjs'
+import type { InstanceHolder } from '../holder/instance-holder.mjs'
+import type { LifecycleEventBus } from '../lifecycle/lifecycle-event-bus.mjs'
+
 import { NameResolver } from './name-resolver.mjs'
 import { ScopeTracker } from './scope-tracker.mjs'
 import { ServiceInitializer } from './service-initializer.mjs'
@@ -149,8 +144,7 @@ export class InstanceResolver {
 
     // Step 2: Check for existing holder SYNCHRONOUSLY (no await between check and store)
     // This is critical for preventing race conditions with concurrent resolution
-    const getResult =
-      storage.get(instanceName) ?? requestStorage?.get(instanceName) ?? null
+    const getResult = storage.get(instanceName) ?? requestStorage?.get(instanceName) ?? null
 
     // Create getHolder function for circular dependency detection
     const getHolder = (name: string): InstanceHolder | undefined => {
@@ -175,11 +169,7 @@ export class InstanceResolver {
         // Try to get waiterHolder from resolution context if available
         const resolutionCtx = getCurrentResolutionContext()
         const waiterHolder = resolutionCtx?.waiterHolder
-        const readyResult = await this.waitForInstanceReady(
-          holder,
-          waiterHolder,
-          getHolder,
-        )
+        const readyResult = await this.waitForInstanceReady(holder, waiterHolder, getHolder)
         if (readyResult[0]) {
           return [readyResult[0]]
         }
@@ -187,12 +177,7 @@ export class InstanceResolver {
       }
       // Handle error states (destroying, etc.)
       if (error) {
-        const handledResult = await this.handleStorageError(
-          instanceName,
-          error,
-          holder,
-          storage,
-        )
+        const handledResult = await this.handleStorageError(instanceName, error, holder, storage)
         if (handledResult) {
           return handledResult
         }
@@ -242,12 +227,11 @@ export class InstanceResolver {
       ]
     | [DIError]
   > {
-    const [err, { actualToken, validatedArgs }] =
-      this.tokenResolver.validateAndResolveTokenArgs(token, args)
-    if (
-      err instanceof DIError &&
-      err.code === DIErrorCode.TokenValidationError
-    ) {
+    const [err, { actualToken, validatedArgs }] = this.tokenResolver.validateAndResolveTokenArgs(
+      token,
+      args,
+    )
+    if (err instanceof DIError && err.code === DIErrorCode.TokenValidationError) {
       return [err]
     } else if (
       err instanceof DIError &&
@@ -259,8 +243,7 @@ export class InstanceResolver {
       )
       // Create a simple factory context for resolving the factory token
       const factoryCtx = {
-        inject: async (t: any, a?: any) =>
-          (scopedContainer ?? contextContainer).get(t, a),
+        inject: async (t: any, a?: any) => (scopedContainer ?? contextContainer).get(t, a),
         container: scopedContainer ?? contextContainer,
         addDestroyListener: () => {},
       }
@@ -288,10 +271,7 @@ export class InstanceResolver {
       scope,
     )
 
-    return [
-      undefined,
-      { instanceName, validatedArgs, actualToken, realToken, scope },
-    ]
+    return [undefined, { instanceName, validatedArgs, actualToken, realToken, scope }]
   }
 
   /**
@@ -319,15 +299,9 @@ export class InstanceResolver {
           // Create getHolder for circular dependency detection
           const getHolder = (name: string): InstanceHolder | undefined => {
             const result = storage.get(name)
-            return result && result[0] === undefined && result[1]
-              ? result[1]
-              : undefined
+            return result && result[0] === undefined && result[1] ? result[1] : undefined
           }
-          const readyResult = await this.waitForInstanceReady(
-            newResult[1]!,
-            undefined,
-            getHolder,
-          )
+          const readyResult = await this.waitForInstanceReady(newResult[1]!, undefined, getHolder)
           if (readyResult[0]) {
             return [readyResult[0]]
           }
@@ -405,11 +379,7 @@ export class InstanceResolver {
     }
 
     // Create holder in "Creating" state
-    const [deferred, holder] = storageToUse.createHolder<Instance>(
-      instanceName,
-      type,
-      new Set(),
-    )
+    const [deferred, holder] = storageToUse.createHolder<Instance>(instanceName, type, new Set())
     // Store holder immediately (for lock mechanism)
     storageToUse.set(instanceName, holder)
 
@@ -447,8 +417,7 @@ export class InstanceResolver {
       this.serviceInitializer
         .instantiateService(ctx, record, args)
         .then(async (result: [undefined, Instance] | [DIError]) => {
-          const [error, instance] =
-            result.length === 2 ? result : [result[0], undefined]
+          const [error, instance] = result.length === 2 ? result : [result[0], undefined]
           const newScope = record.scope
           const newName = this.nameResolver.generateInstanceName(
             realToken,
@@ -478,13 +447,7 @@ export class InstanceResolver {
             newScope,
           )
 
-          await this.handleInstantiationError(
-            newName,
-            holder,
-            deferred,
-            newScope,
-            error,
-          )
+          await this.handleInstantiationError(newName, holder, deferred, newScope, error)
         })
         .catch(() => {
           // Suppress unhandled rejections from the async chain.
@@ -529,11 +492,7 @@ export class InstanceResolver {
       requestId,
     )
 
-    const [error, instance] = await this.serviceInitializer.instantiateService(
-      ctx,
-      record,
-      args,
-    )
+    const [error, instance] = await this.serviceInitializer.instantiateService(ctx, record, args)
 
     if (error) {
       return [error]
@@ -587,9 +546,7 @@ export class InstanceResolver {
       )
     }
 
-    this.logger?.log(
-      `[InstanceResolver] Instance ${instanceName} created successfully`,
-    )
+    this.logger?.log(`[InstanceResolver] Instance ${instanceName} created successfully`)
     deferred.resolve([undefined, instance])
   }
 
@@ -605,10 +562,7 @@ export class InstanceResolver {
   ): Promise<void> {
     holder.status = InstanceStatus.Error
     holder.instance = error instanceof DIError ? error : DIError.unknown(error)
-    this.logger?.error(
-      `[InstanceResolver] Instance ${instanceName} creation failed:`,
-      error,
-    )
+    this.logger?.error(`[InstanceResolver] Instance ${instanceName} creation failed:`, error)
     deferred.reject(error instanceof DIError ? error : DIError.unknown(error))
   }
 
@@ -628,13 +582,7 @@ export class InstanceResolver {
     requestId?: string,
   ): Promise<void> {
     if (error) {
-      await this.handleInstantiationError(
-        instanceName,
-        holder,
-        deferred,
-        scope,
-        error,
-      )
+      await this.handleInstantiationError(instanceName, holder, deferred, scope, error)
     } else {
       await this.handleInstantiationSuccess(
         instanceName,
@@ -665,11 +613,7 @@ export class InstanceResolver {
       case InstanceStatus.Creating: {
         // Check for circular dependency before waiting
         if (waiterHolder && getHolder) {
-          const cycle = CircularDetector.detectCycle(
-            waiterHolder.name,
-            holder.name,
-            getHolder,
-          )
+          const cycle = CircularDetector.detectCycle(waiterHolder.name, holder.name, getHolder)
           if (cycle) {
             return [DIError.circularDependency(cycle)]
           }
@@ -728,16 +672,13 @@ export class InstanceResolver {
       inject: async (token: any, args?: any) => {
         // Track dependency and check for scope upgrade
         const actualToken =
-          typeof token === 'function'
-            ? this.tokenResolver.normalizeToken(token)
-            : token
+          typeof token === 'function' ? this.tokenResolver.normalizeToken(token) : token
         const realToken = this.tokenResolver.getRealToken(actualToken)
         const depRecord = this.registry.get(realToken)
         const depScope = depRecord.scope
 
         // Generate dependency name - if dependency is Request-scoped and we have requestId, use it
-        const dependencyRequestId =
-          depScope === InjectableScope.Request ? requestId : undefined
+        const dependencyRequestId = depScope === InjectableScope.Request ? requestId : undefined
         const finalDepName = this.nameResolver.generateInstanceName(
           actualToken,
           args,
@@ -755,17 +696,16 @@ export class InstanceResolver {
         ) {
           // Check and perform scope upgrade for current service
           // Use the dependency name with requestId for the check
-          const [needsUpgrade, newServiceName] =
-            this.scopeTracker.checkAndUpgradeScope(
-              serviceName,
-              scope,
-              finalDepName,
-              depScope,
-              serviceToken,
-              this.storage,
-              requestStorage,
-              requestId,
-            )
+          const [needsUpgrade, newServiceName] = this.scopeTracker.checkAndUpgradeScope(
+            serviceName,
+            scope,
+            finalDepName,
+            depScope,
+            serviceToken,
+            this.storage,
+            requestStorage,
+            requestId,
+          )
 
           if (needsUpgrade && newServiceName) {
             // Service was upgraded - update the service name in context

@@ -1,11 +1,7 @@
-import type {
-  EndpointHandler,
-  EndpointOptions,
-  RequestArgs,
-} from '@navios/builder'
-import type { z } from 'zod/v4'
-
 import { ZodDiscriminatedUnion } from 'zod/v4'
+
+import type { EndpointHandler, EndpointOptions, RequestArgs } from '@navios/builder'
+import type { z } from 'zod/v4'
 
 import { getEndpointMetadata } from '../metadata/index.mjs'
 import { EndpointAdapterToken } from '../tokens/index.mjs'
@@ -72,9 +68,7 @@ export type EndpointResult<
     config: EndpointOptions
   },
 > =
-  EndpointDeclaration['config']['responseSchema'] extends ZodDiscriminatedUnion<
-    infer Options
-  >
+  EndpointDeclaration['config']['responseSchema'] extends ZodDiscriminatedUnion<infer Options>
     ? Promise<z.input<Options[number]>>
     : Promise<z.input<EndpointDeclaration['config']['responseSchema']>>
 
@@ -119,17 +113,13 @@ export function Endpoint<const Config extends EndpointOptions>(
       Config['urlParamsSchema'],
       true
     >,
-  ) =>
-    | Promise<z.input<Config['responseSchema']>>
-    | z.input<Config['responseSchema']>,
+  ) => Promise<z.input<Config['responseSchema']>> | z.input<Config['responseSchema']>,
   context: ClassMethodDecoratorContext,
 ) => void
 export function Endpoint<const Config extends EndpointOptions>(
   endpoint: EndpointHandler<Config, false>,
 ): (
-  target: () =>
-    | Promise<z.input<Config['responseSchema']>>
-    | z.input<Config['responseSchema']>,
+  target: () => Promise<z.input<Config['responseSchema']>> | z.input<Config['responseSchema']>,
   context: ClassMethodDecoratorContext,
 ) => void
 export function Endpoint<const Config extends EndpointOptions>(
@@ -146,25 +136,16 @@ export function Endpoint<const Config extends EndpointOptions>(
   type Handler =
     | ((
         params: Params,
-      ) =>
-        | Promise<z.input<Config['responseSchema']>>
-        | z.input<Config['responseSchema']>)
-    | (() =>
-        | Promise<z.input<Config['responseSchema']>>
-        | z.input<Config['responseSchema']>)
+      ) => Promise<z.input<Config['responseSchema']>> | z.input<Config['responseSchema']>)
+    | (() => Promise<z.input<Config['responseSchema']>> | z.input<Config['responseSchema']>)
 
   return (target: Handler, context: ClassMethodDecoratorContext) => {
     if (context.kind !== 'method') {
-      throw new Error(
-        '[Navios] Endpoint decorator can only be used on methods.',
-      )
+      throw new Error('[Navios] Endpoint decorator can only be used on methods.')
     }
     const config = endpoint.config
     if (context.metadata) {
-      let endpointMetadata = getEndpointMetadata<EndpointOptions>(
-        target,
-        context,
-      )
+      let endpointMetadata = getEndpointMetadata<EndpointOptions>(target, context)
       if (endpointMetadata.config && endpointMetadata.config.url) {
         throw new Error(
           `[Navios] Endpoint ${config.method} ${config.url} already exists. Please use a different method or url.`,

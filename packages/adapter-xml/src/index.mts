@@ -20,7 +20,13 @@ export {
 } from './types/index.mjs'
 
 // Runtime
-export { createElement, CData, DangerouslyInsertRawXml, renderToXml, MissingContainerError } from './runtime/index.mjs'
+export {
+  createElement,
+  CData,
+  DangerouslyInsertRawXml,
+  renderToXml,
+  MissingContainerError,
+} from './runtime/index.mjs'
 export type { RenderOptions } from './runtime/index.mjs'
 
 // Tags

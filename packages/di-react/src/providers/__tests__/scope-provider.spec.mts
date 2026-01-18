@@ -1,14 +1,9 @@
 import { Container, Injectable, InjectableScope, Registry } from '@navios/di'
-
 import { render, screen, waitFor } from '@testing-library/react'
 import { createElement } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import {
-  useScope,
-  useScopedContainer,
-  useScopeMetadata,
-} from '../../hooks/use-scope.mjs'
+import { useScope, useScopedContainer, useScopeMetadata } from '../../hooks/use-scope.mjs'
 import { useService } from '../../hooks/use-service.mjs'
 import { ContainerProvider } from '../container-provider.mjs'
 import { ScopeProvider } from '../scope-provider.mjs'
@@ -49,11 +44,7 @@ describe('ScopeProvider', () => {
 
       function TestComponent() {
         scopeValue = useScope()
-        return createElement(
-          'div',
-          { 'data-testid': 'test' },
-          scopeValue ?? 'no-scope',
-        )
+        return createElement('div', { 'data-testid': 'test' }, scopeValue ?? 'no-scope')
       }
 
       render(
@@ -75,18 +66,10 @@ describe('ScopeProvider', () => {
 
       function TestComponent() {
         scopeValue = useScope()
-        return createElement(
-          'div',
-          { 'data-testid': 'test' },
-          scopeValue ?? 'no-scope',
-        )
+        return createElement('div', { 'data-testid': 'test' }, scopeValue ?? 'no-scope')
       }
 
-      render(
-        createWrapper(
-          createElement(ScopeProvider, null, createElement(TestComponent)),
-        ),
-      )
+      render(createWrapper(createElement(ScopeProvider, null, createElement(TestComponent))))
 
       expect(scopeValue).not.toBeNull()
       expect(typeof scopeValue).toBe('string')
@@ -111,11 +94,7 @@ describe('ScopeProvider', () => {
         const { data, isSuccess } = useService(RequestScopedService)
 
         if (!isSuccess) {
-          return createElement(
-            'div',
-            { 'data-testid': `${testId}-loading` },
-            'Loading...',
-          )
+          return createElement('div', { 'data-testid': `${testId}-loading` }, 'Loading...')
         }
 
         return createElement('div', { 'data-testid': testId }, String(data!.id))
@@ -175,11 +154,7 @@ describe('ScopeProvider', () => {
         const { data, isSuccess } = useService(RequestScopedService)
 
         if (!isSuccess) {
-          return createElement(
-            'div',
-            { 'data-testid': `${testId}-loading` },
-            'Loading...',
-          )
+          return createElement('div', { 'data-testid': `${testId}-loading` }, 'Loading...')
         }
 
         return createElement('div', { 'data-testid': testId }, String(data!.id))
@@ -230,11 +205,7 @@ describe('ScopeProvider', () => {
 
       function InnerComponent() {
         innerScope = useScope()
-        return createElement(
-          'div',
-          { 'data-testid': 'inner' },
-          innerScope ?? 'no-scope',
-        )
+        return createElement('div', { 'data-testid': 'inner' }, innerScope ?? 'no-scope')
       }
 
       render(

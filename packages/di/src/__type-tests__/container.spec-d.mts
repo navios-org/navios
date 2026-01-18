@@ -1,12 +1,12 @@
 import { assertType, describe, test } from 'vitest'
 import { z } from 'zod/v4'
 
-import type { Factorable } from '../interfaces/index.mjs'
-
 import { Container } from '../container/container.mjs'
 import { ScopedContainer } from '../container/scoped-container.mjs'
 import { Injectable, Factory } from '../decorators/index.mjs'
 import { InjectionToken } from '../token/injection-token.mjs'
+
+import type { Factorable } from '../interfaces/index.mjs'
 
 interface FooService {
   makeFoo(): string
@@ -30,10 +30,10 @@ const typelessOptionalObjectToken = InjectionToken.create(
   simpleOptionalObjectSchema,
 )
 
-const typedObjectToken = InjectionToken.create<
-  FooService,
-  typeof simpleObjectSchema
->(Symbol.for('Typed object token'), simpleObjectSchema)
+const typedObjectToken = InjectionToken.create<FooService, typeof simpleObjectSchema>(
+  Symbol.for('Typed object token'),
+  simpleObjectSchema,
+)
 const typedOptionalObjectToken = InjectionToken.create<
   FooService,
   typeof simpleOptionalObjectSchema
@@ -140,10 +140,7 @@ describe('Container.get', () => {
   test('#6 FactoryInjectionToken', async () => {
     const container = new Container()
 
-    const factoryToken = InjectionToken.factory(
-      typedObjectToken,
-      async () => ({ foo: 'bar' }),
-    )
+    const factoryToken = InjectionToken.factory(typedObjectToken, async () => ({ foo: 'bar' }))
     const result = await container.get(factoryToken)
     assertType<FooService>(result)
   })

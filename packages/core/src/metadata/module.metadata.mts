@@ -1,8 +1,4 @@
-import type {
-  ClassType,
-  ClassTypeWithInstance,
-  InjectionToken,
-} from '@navios/di'
+import type { ClassType, ClassTypeWithInstance, InjectionToken } from '@navios/di'
 
 import type { CanActivate } from '../index.mjs'
 
@@ -15,9 +11,7 @@ export interface ModuleMetadata {
   name: string
   controllers: Set<ClassType>
   imports: Set<ClassType>
-  guards: Set<
-    ClassTypeWithInstance<CanActivate> | InjectionToken<CanActivate, undefined>
-  >
+  guards: Set<ClassTypeWithInstance<CanActivate> | InjectionToken<CanActivate, undefined>>
   overrides: Set<ClassType>
   customAttributes: Map<string | symbol, any>
   /**
@@ -41,9 +35,7 @@ export function getModuleMetadata(
     throw new Error('[Navios] Wrong environment.')
   }
 
-  const existingMetadata = context.metadata[ModuleMetadataKey] as
-    | ModuleMetadata
-    | undefined
+  const existingMetadata = context.metadata[ModuleMetadataKey] as ModuleMetadata | undefined
 
   if (existingMetadata) {
     return existingMetadata
@@ -53,9 +45,7 @@ export function getModuleMetadata(
     name: target.name,
     controllers: new Set<ClassType>(),
     imports: new Set<ClassType>(),
-    guards: new Set<
-      ClassTypeWithInstance<CanActivate> | InjectionToken<CanActivate, undefined>
-    >(),
+    guards: new Set<ClassTypeWithInstance<CanActivate> | InjectionToken<CanActivate, undefined>>(),
     overrides: new Set<ClassType>(),
     customAttributes: new Map<string | symbol, any>(),
     customEntries: new Map<symbol, unknown>(),

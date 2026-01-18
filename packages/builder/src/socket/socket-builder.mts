@@ -1,12 +1,16 @@
 import { NaviosError } from '../errors/index.mjs'
 
-import type { SocketClient } from './types/socket-client.mjs'
-import type { SendOptions, SocketBuilderConfig, SubscribeOptions } from './types/socket-options.mjs'
-import type { SendHandler, SubscribeHandler } from './types/socket-handlers.mjs'
-import type { SocketBuilderInstance } from './types/socket-builder-instance.mjs'
-
 import { createSendHandler, type CreateSendContext } from './handlers/create-send.mjs'
-import { createGlobalMessageHandler, createSubscribeHandler, type CreateSubscribeContext } from './handlers/create-subscribe.mjs'
+import {
+  createGlobalMessageHandler,
+  createSubscribeHandler,
+  type CreateSubscribeContext,
+} from './handlers/create-subscribe.mjs'
+
+import type { SocketBuilderInstance } from './types/socket-builder-instance.mjs'
+import type { SocketClient } from './types/socket-client.mjs'
+import type { SendHandler, SubscribeHandler } from './types/socket-handlers.mjs'
+import type { SendOptions, SocketBuilderConfig, SubscribeOptions } from './types/socket-options.mjs'
 
 /**
  * Creates a socket builder instance for declarative WebSocket/Socket.IO messaging.
@@ -51,19 +55,20 @@ import { createGlobalMessageHandler, createSubscribeHandler, type CreateSubscrib
  * const unsub = onMessage((msg) => console.log(`${msg.from}: ${msg.text}`))
  * ```
  */
-export function socketBuilder(
-  config: SocketBuilderConfig = {},
-): SocketBuilderInstance {
+export function socketBuilder(config: SocketBuilderConfig = {}): SocketBuilderInstance {
   // Client stored in closure (like HTTP builder pattern)
   let client: SocketClient | null = null
 
   // State for message handling
   const topicHandlers = new Map<string, Set<(payload: unknown) => void>>()
-  const ackHandlers = new Map<string, {
-    resolve: (value: unknown) => void
-    reject: (error: Error) => void
-    timeoutId: ReturnType<typeof setTimeout>
-  }>()
+  const ackHandlers = new Map<
+    string,
+    {
+      resolve: (value: unknown) => void
+      reject: (error: Error) => void
+      timeoutId: ReturnType<typeof setTimeout>
+    }
+  >()
 
   // Track if global listener is set up
   let globalListenerSetup = false
@@ -153,9 +158,7 @@ export function socketBuilder(
     provideClient,
     getClient,
 
-    defineSend<const Options extends SendOptions>(
-      options: Options,
-    ): SendHandler<Options> {
+    defineSend<const Options extends SendOptions>(options: Options): SendHandler<Options> {
       return createSendHandler(options, sendContext)
     },
 

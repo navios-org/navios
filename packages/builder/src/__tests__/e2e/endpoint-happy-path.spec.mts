@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import { z } from 'zod/v4'
 
 import { builder } from '../../builder.mjs'
+
 import { createMockClient, successResponse, type MockClient } from './mock-client.mjs'
 
 describe('Endpoint Happy Path', () => {
@@ -24,10 +25,14 @@ describe('Endpoint Happy Path', () => {
         responseSchema: z.array(z.object({ id: z.string(), name: z.string() })),
       })
 
-      mockClient.mockResponse('GET', '/users', successResponse([
-        { id: '1', name: 'User 1' },
-        { id: '2', name: 'User 2' },
-      ]))
+      mockClient.mockResponse(
+        'GET',
+        '/users',
+        successResponse([
+          { id: '1', name: 'User 1' },
+          { id: '2', name: 'User 2' },
+        ]),
+      )
 
       const result = await getUsers({})
 
@@ -63,10 +68,14 @@ describe('Endpoint Happy Path', () => {
         responseSchema: z.object({ id: z.string(), title: z.string() }),
       })
 
-      mockClient.mockResponse('GET', '/users/123/posts/456', successResponse({
-        id: '456',
-        title: 'Test Post',
-      }))
+      mockClient.mockResponse(
+        'GET',
+        '/users/123/posts/456',
+        successResponse({
+          id: '456',
+          title: 'Test Post',
+        }),
+      )
 
       const result = await getPost({ urlParams: { userId: '123', postId: '456' } })
 
@@ -108,9 +117,11 @@ describe('Endpoint Happy Path', () => {
         responseSchema: z.array(z.object({ id: z.string(), title: z.string() })),
       })
 
-      mockClient.mockResponse('GET', '/users/123/posts', successResponse([
-        { id: '1', title: 'Post 1' },
-      ]))
+      mockClient.mockResponse(
+        'GET',
+        '/users/123/posts',
+        successResponse([{ id: '1', title: 'Post 1' }]),
+      )
 
       const result = await getUserPosts({
         urlParams: { userId: '123' },
@@ -138,10 +149,11 @@ describe('Endpoint Happy Path', () => {
         responseSchema: z.object({ id: z.string(), name: z.string(), email: z.string() }),
       })
 
-      mockClient.mockResponse('POST', '/users', successResponse(
-        { id: '456', name: 'Jane', email: 'jane@example.com' },
-        201,
-      ))
+      mockClient.mockResponse(
+        'POST',
+        '/users',
+        successResponse({ id: '456', name: 'Jane', email: 'jane@example.com' }, 201),
+      )
 
       const result = await createUser({
         data: { name: 'Jane', email: 'jane@example.com' },
@@ -163,10 +175,14 @@ describe('Endpoint Happy Path', () => {
         responseSchema: z.object({ id: z.string(), title: z.string() }),
       })
 
-      mockClient.mockResponse('POST', '/users/123/posts', successResponse({
-        id: '789',
-        title: 'New Post',
-      }))
+      mockClient.mockResponse(
+        'POST',
+        '/users/123/posts',
+        successResponse({
+          id: '789',
+          title: 'New Post',
+        }),
+      )
 
       const result = await createPost({
         urlParams: { userId: '123' },
@@ -191,11 +207,15 @@ describe('Endpoint Happy Path', () => {
         responseSchema: z.object({ id: z.string(), name: z.string(), email: z.string() }),
       })
 
-      mockClient.mockResponse('PUT', '/users/123', successResponse({
-        id: '123',
-        name: 'Updated',
-        email: 'updated@example.com',
-      }))
+      mockClient.mockResponse(
+        'PUT',
+        '/users/123',
+        successResponse({
+          id: '123',
+          name: 'Updated',
+          email: 'updated@example.com',
+        }),
+      )
 
       const result = await updateUser({
         urlParams: { userId: '123' },
@@ -213,10 +233,14 @@ describe('Endpoint Happy Path', () => {
         responseSchema: z.object({ id: z.string(), name: z.string() }),
       })
 
-      mockClient.mockResponse('PATCH', '/users/123', successResponse({
-        id: '123',
-        name: 'Patched Name',
-      }))
+      mockClient.mockResponse(
+        'PATCH',
+        '/users/123',
+        successResponse({
+          id: '123',
+          name: 'Patched Name',
+        }),
+      )
 
       const result = await patchUser({
         urlParams: { userId: '123' },
@@ -297,11 +321,15 @@ describe('Endpoint Happy Path', () => {
         }),
       })
 
-      mockClient.mockResponse('GET', '/users/123', successResponse({
-        id: '123',
-        name: 'John',
-        createdAt: '2024-01-01T00:00:00.000Z',
-      }))
+      mockClient.mockResponse(
+        'GET',
+        '/users/123',
+        successResponse({
+          id: '123',
+          name: 'John',
+          createdAt: '2024-01-01T00:00:00.000Z',
+        }),
+      )
 
       const result = await getUser({ urlParams: { userId: '123' } })
 
@@ -321,10 +349,14 @@ describe('Endpoint Happy Path', () => {
       })
 
       // Response missing required field
-      mockClient.mockResponse('GET', '/users/123', successResponse({
-        id: '123',
-        // name is missing
-      }))
+      mockClient.mockResponse(
+        'GET',
+        '/users/123',
+        successResponse({
+          id: '123',
+          // name is missing
+        }),
+      )
 
       await expect(getUser({ urlParams: { userId: '123' } })).rejects.toThrow()
     })

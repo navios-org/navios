@@ -1,9 +1,9 @@
 import { describe, expect, it, vi } from 'vitest'
 import { z, ZodError } from 'zod/v4'
 
-import type { AbstractResponse, BuilderContext, Client } from '../../types/index.mjs'
-
 import { createMultipart } from '../multipart.mjs'
+
+import type { AbstractResponse, BuilderContext, Client } from '../../types/index.mjs'
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -299,9 +299,7 @@ describe('createMultipart', () => {
         context,
       )
 
-      await expect(handler({ data: { name: 'Test', file } } as any)).rejects.toThrow(
-        ZodError,
-      )
+      await expect(handler({ data: { name: 'Test', file } } as any)).rejects.toThrow(ZodError)
     })
   })
 

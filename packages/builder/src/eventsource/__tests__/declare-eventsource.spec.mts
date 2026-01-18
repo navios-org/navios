@@ -184,9 +184,7 @@ describe('declareEventSource', () => {
       expect(handle.source.url).toBe(`/events/${uuid}`)
 
       // Invalid UUID should throw
-      expect(() =>
-        chatEvents({ urlParams: { roomId: 'invalid' } }),
-      ).toThrow()
+      expect(() => chatEvents({ urlParams: { roomId: 'invalid' } })).toThrow()
     })
 
     it('should build URL with query params', () => {
@@ -258,10 +256,7 @@ describe('declareEventSource', () => {
         const handler = vi.fn()
         handle.on('custom-event', handler)
 
-        getMock(handle.source).simulateEvent(
-          'custom-event',
-          '{"data":"value"}',
-        )
+        getMock(handle.source).simulateEvent('custom-event', '{"data":"value"}')
 
         expect(handler).toHaveBeenCalledWith({ data: 'value' })
       })
@@ -452,9 +447,7 @@ describe('declareEventSource', () => {
       const handler = vi.fn()
       handle.on('message', handler)
 
-      getMock(handle.source).simulateMessage(
-        JSON.stringify({ foo: 'bar', num: 123 }),
-      )
+      getMock(handle.source).simulateMessage(JSON.stringify({ foo: 'bar', num: 123 }))
 
       expect(handler).toHaveBeenCalledWith({ foo: 'bar', num: 123 })
     })

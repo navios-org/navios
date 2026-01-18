@@ -1,7 +1,7 @@
-import type { UserConfig } from 'vite'
-
 import { Command, Option } from 'clipanion'
 import { createBuilder, mergeConfig } from 'vite'
+
+import type { UserConfig } from 'vite'
 
 import { ViteNaviosPlugin } from '../plugin/index.js'
 import { getVideConfig, hasViteConfig } from '../utils/vite.js'
@@ -11,8 +11,7 @@ export class BuildCommand extends Command {
 
   static usage = Command.Usage({
     description: 'Build the project if vite.config.ts is present',
-    details:
-      'This command checks for a vite.config.ts file and runs a Vite build if found.',
+    details: 'This command checks for a vite.config.ts file and runs a Vite build if found.',
     examples: [['Build the project', 'navios build']],
   })
 

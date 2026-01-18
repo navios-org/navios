@@ -1,13 +1,9 @@
-import type { ErrorSchemaRecord } from '@navios/builder'
-import type {
-  DataTag,
-  InfiniteData,
-  UseSuspenseInfiniteQueryOptions,
-} from '@tanstack/react-query'
-import type { z } from 'zod/v4'
-
 import { assertType, describe, test } from 'vitest'
 import { z as zod } from 'zod/v4'
+
+import type { ErrorSchemaRecord } from '@navios/builder'
+import type { DataTag, InfiniteData, UseSuspenseInfiniteQueryOptions } from '@tanstack/react-query'
+import type { z } from 'zod/v4'
 
 import type { Split } from '../../common/types.mjs'
 import type { QueryHelpers } from '../../query/types.mjs'
@@ -70,8 +66,7 @@ describe('ClientInstance<false> infiniteQuery() method', () => {
         url: '/users',
         querySchema,
         responseSchema,
-        getNextPageParam: (_lastPage, _allPages, _lastPageParam, _allPageParams) =>
-          undefined,
+        getNextPageParam: (_lastPage, _allPages, _lastPageParam, _allPageParams) => undefined,
       })
 
       assertType<
@@ -87,14 +82,9 @@ describe('ClientInstance<false> infiniteQuery() method', () => {
       >(query)
 
       // Should have QueryHelpers with isInfinite=true
-      assertType<
-        QueryHelpers<
-          '/users',
-          typeof querySchema,
-          ResponseType,
-          true
-        >['queryKey']
-      >(query.queryKey)
+      assertType<QueryHelpers<'/users', typeof querySchema, ResponseType, true>['queryKey']>(
+        query.queryKey,
+      )
     })
 
     test('GET infinite query with URL params', () => {
@@ -137,11 +127,7 @@ describe('ClientInstance<false> infiniteQuery() method', () => {
           ResponseType,
           Error,
           InfiniteData<ResponseType>,
-          DataTag<
-            Split<'/orgs/$orgId/users/$userId/posts', '/'>,
-            ResponseType,
-            Error
-          >,
+          DataTag<Split<'/orgs/$orgId/users/$userId/posts', '/'>, ResponseType, Error>,
           z.output<typeof querySchema>
         >
       >(query)
@@ -272,12 +258,7 @@ describe('ClientInstance<false> infiniteQuery() method', () => {
         querySchema,
         responseSchema,
         getNextPageParam: () => undefined,
-        getPreviousPageParam: (
-          firstPage,
-          allPages,
-          lastPageParam,
-          allPageParams,
-        ) => {
+        getPreviousPageParam: (firstPage, allPages, lastPageParam, allPageParams) => {
           assertType<ResponseType>(firstPage)
           assertType<ResponseType[]>(allPages)
           assertType<z.infer<typeof querySchema> | undefined>(lastPageParam)
@@ -318,41 +299,19 @@ describe('ClientInstance<false> infiniteQuery() method', () => {
         getNextPageParam: () => undefined,
       })
 
-      assertType<
-        QueryHelpers<
-          '/users',
-          typeof querySchema,
-          ResponseType,
-          true
-        >['queryKey']
-      >(query.queryKey)
-      assertType<
-        QueryHelpers<'/users', typeof querySchema, ResponseType, true>['use']
-      >(query.use)
-      assertType<
-        QueryHelpers<
-          '/users',
-          typeof querySchema,
-          ResponseType,
-          true
-        >['useSuspense']
-      >(query.useSuspense)
-      assertType<
-        QueryHelpers<
-          '/users',
-          typeof querySchema,
-          ResponseType,
-          true
-        >['invalidate']
-      >(query.invalidate)
-      assertType<
-        QueryHelpers<
-          '/users',
-          typeof querySchema,
-          ResponseType,
-          true
-        >['invalidateAll']
-      >(query.invalidateAll)
+      assertType<QueryHelpers<'/users', typeof querySchema, ResponseType, true>['queryKey']>(
+        query.queryKey,
+      )
+      assertType<QueryHelpers<'/users', typeof querySchema, ResponseType, true>['use']>(query.use)
+      assertType<QueryHelpers<'/users', typeof querySchema, ResponseType, true>['useSuspense']>(
+        query.useSuspense,
+      )
+      assertType<QueryHelpers<'/users', typeof querySchema, ResponseType, true>['invalidate']>(
+        query.invalidate,
+      )
+      assertType<QueryHelpers<'/users', typeof querySchema, ResponseType, true>['invalidateAll']>(
+        query.invalidateAll,
+      )
     })
   })
 
@@ -432,9 +391,7 @@ describe('ClientInstance<true> infiniteQuery() method (discriminator mode)', () 
     })
 
     test('processResponse can transform union type', () => {
-      type ExpectedResult =
-        | { ok: false; error: ErrorUnion }
-        | { ok: true; data: ResponseType }
+      type ExpectedResult = { ok: false; error: ErrorUnion } | { ok: true; data: ResponseType }
 
       const query = clientWithDiscriminator.infiniteQuery({
         method: 'GET',

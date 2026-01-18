@@ -21,40 +21,32 @@ plugin({
     fs.watch(folderToWatch, { recursive: true }, (event, filename) => {
       const needestart = watchFileSet.has(filename)
       log(`file ${filename} changed (in set: ${watchFileSet.has(filename)})`)
-      if (needestart)
-        void Bun.file(`./${RELOAD_HACK_FILENAME}`).write(
-          `// '${Math.random()})\n`,
-        )
+      if (needestart) void Bun.file(`./${RELOAD_HACK_FILENAME}`).write(`// '${Math.random()})\n`)
     })
 
     // 2. change how .ts and .tsx files are loaded
     log(`setup took ${Date.now() - startSetup}ms`)
     const filter = /.*\.m?(ts|tsx)$/
-    build.onLoad(
-      { filter },
-      async (args): Promise<{ loader: 'js'; contents: string }> => {
-        try {
-          watchFileSet.add(args.path.replace(folderToWatch, ''))
-          const codeTs = await Bun.file(args.path).text()
-          const startTranspiling = performance.now()
-          let codeJS = await transpileFile(args.path, codeTs)
+    build.onLoad({ filter }, async (args): Promise<{ loader: 'js'; contents: string }> => {
+      try {
+        watchFileSet.add(args.path.replace(folderToWatch, ''))
+        const codeTs = await Bun.file(args.path).text()
+        const startTranspiling = performance.now()
+        let codeJS = await transpileFile(args.path, codeTs)
 
-          totalTimeSpentTranspiling += performance.now() - startTranspiling
-          addToCache(codeTs, codeJS)
-          return { loader: 'js', contents: codeJS }
-        } catch (e) {
-          console.log(`[🔴] `, e)
-          return { contents: '', loader: 'js' }
-        }
-      },
-    )
+        totalTimeSpentTranspiling += performance.now() - startTranspiling
+        addToCache(codeTs, codeJS)
+        return { loader: 'js', contents: codeJS }
+      } catch (e) {
+        console.log(`[🔴] `, e)
+        return { contents: '', loader: 'js' }
+      }
+    })
   },
 })
 
 // 4. cache system
-const oldCache: Map<string, string> = (await Bun.file(
-  './bunPlugin.cache',
-).exists())
+const oldCache: Map<string, string> = (await Bun.file('./bunPlugin.cache').exists())
   ? new Map(JSON.parse((await Bun.file('./bunPlugin.cache').text()) || '[]'))
   : new Map()
 
@@ -70,10 +62,7 @@ export const getFromCache = (content: string): string | undefined => {
   }
   return
 }
-export function debounce<F extends (...args: any[]) => void>(
-  func: F,
-  waitFor: number,
-) {
+export function debounce<F extends (...args: any[]) => void>(func: F, waitFor: number) {
   let timeout: ReturnType<typeof setTimeout> | null = null
 
   const debounced = (...args: Parameters<F>) => {
@@ -109,10 +98,7 @@ async function transpileFile(name: string, codeTs: string): Promise<string> {
   return codeJs
 }
 
-async function transpileFileForReal(
-  name: string,
-  codeTS: string,
-): Promise<string> {
+async function transpileFileForReal(name: string, codeTS: string): Promise<string> {
   // Use esbuild with JSX support
   const esbuild = (await import('@swc/core')).default
 

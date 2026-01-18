@@ -4,7 +4,13 @@ import { z } from 'zod/v4'
 import { builder } from '../../builder.mjs'
 import { UnknownResponseError } from '../../errors/unknown-response-error.mjs'
 import { isErrorResponse, isErrorStatus } from '../../types/error-schema.mjs'
-import { createMockClient, errorResponse, successResponse, type MockClient } from './mock-client.mjs'
+
+import {
+  createMockClient,
+  errorResponse,
+  successResponse,
+  type MockClient,
+} from './mock-client.mjs'
 
 describe('Discriminator Mode', () => {
   describe('useDiscriminatorResponse: true', () => {
@@ -19,11 +25,15 @@ describe('Discriminator Mode', () => {
 
     describe('with errorSchema', () => {
       it('should return success response without __status', async () => {
-        mockClient.mockResponse('GET', '/users/123', successResponse({
-          id: '123',
-          name: 'John Doe',
-          email: 'john@example.com',
-        }))
+        mockClient.mockResponse(
+          'GET',
+          '/users/123',
+          successResponse({
+            id: '123',
+            name: 'John Doe',
+            email: 'john@example.com',
+          }),
+        )
 
         const getUser = api.declareEndpoint({
           method: 'GET',
@@ -50,10 +60,11 @@ describe('Discriminator Mode', () => {
       })
 
       it('should return 404 error with __status', async () => {
-        mockClient.mockResponse('GET', '/users/999', errorResponse(
-          { error: 'Not found', resource: 'user' },
-          404,
-        ))
+        mockClient.mockResponse(
+          'GET',
+          '/users/999',
+          errorResponse({ error: 'Not found', resource: 'user' }, 404),
+        )
 
         const getUser = api.declareEndpoint({
           method: 'GET',
@@ -75,10 +86,11 @@ describe('Discriminator Mode', () => {
       })
 
       it('should return 403 error with __status', async () => {
-        mockClient.mockResponse('GET', '/users/123', errorResponse(
-          { error: 'Forbidden', reason: 'Insufficient permissions' },
-          403,
-        ))
+        mockClient.mockResponse(
+          'GET',
+          '/users/123',
+          errorResponse({ error: 'Forbidden', reason: 'Insufficient permissions' }, 403),
+        )
 
         const getUser = api.declareEndpoint({
           method: 'GET',
@@ -100,10 +112,11 @@ describe('Discriminator Mode', () => {
       })
 
       it('should throw UnknownResponseError for unhandled status', async () => {
-        mockClient.mockResponse('GET', '/users/123', errorResponse(
-          { message: 'Internal server error' },
-          500,
-        ))
+        mockClient.mockResponse(
+          'GET',
+          '/users/123',
+          errorResponse({ message: 'Internal server error' }, 500),
+        )
 
         const getUser = api.declareEndpoint({
           method: 'GET',
@@ -121,10 +134,14 @@ describe('Discriminator Mode', () => {
       })
 
       it('should throw when error response fails errorSchema validation', async () => {
-        mockClient.mockResponse('GET', '/users/123', errorResponse(
-          { wrongField: 'wrong value' },  // Doesn't match expected schema
-          404,
-        ))
+        mockClient.mockResponse(
+          'GET',
+          '/users/123',
+          errorResponse(
+            { wrongField: 'wrong value' }, // Doesn't match expected schema
+            404,
+          ),
+        )
 
         const getUser = api.declareEndpoint({
           method: 'GET',
@@ -146,10 +163,14 @@ describe('Discriminator Mode', () => {
           z.object({ type: z.literal('error'), message: z.string() }),
         ])
 
-        mockClient.mockResponse('GET', '/resource', successResponse({
-          type: 'success',
-          data: { id: '123' },
-        }))
+        mockClient.mockResponse(
+          'GET',
+          '/resource',
+          successResponse({
+            type: 'success',
+            data: { id: '123' },
+          }),
+        )
 
         const getResource = api.declareEndpoint({
           method: 'GET',
@@ -171,10 +192,17 @@ describe('Discriminator Mode', () => {
           z.object({ type: z.literal('error'), message: z.string() }),
         ])
 
-        mockClient.mockResponse('GET', '/resource', errorResponse({
-          type: 'error',
-          message: 'Something went wrong',
-        }, 400))
+        mockClient.mockResponse(
+          'GET',
+          '/resource',
+          errorResponse(
+            {
+              type: 'error',
+              message: 'Something went wrong',
+            },
+            400,
+          ),
+        )
 
         const getResource = api.declareEndpoint({
           method: 'GET',
@@ -193,10 +221,11 @@ describe('Discriminator Mode', () => {
 
     describe('type discrimination patterns', () => {
       it('should allow discrimination using isErrorStatus', async () => {
-        mockClient.mockResponse('POST', '/orders', errorResponse(
-          { error: 'Out of stock', productId: 'ABC123' },
-          400,
-        ))
+        mockClient.mockResponse(
+          'POST',
+          '/orders',
+          errorResponse({ error: 'Out of stock', productId: 'ABC123' }, 400),
+        )
 
         const createOrder = api.declareEndpoint({
           method: 'POST',
@@ -227,10 +256,11 @@ describe('Discriminator Mode', () => {
       })
 
       it('should allow discrimination using isErrorResponse', async () => {
-        mockClient.mockResponse('POST', '/orders', errorResponse(
-          { error: 'Conflict', conflictWith: 'ORDER-789' },
-          409,
-        ))
+        mockClient.mockResponse(
+          'POST',
+          '/orders',
+          errorResponse({ error: 'Conflict', conflictWith: 'ORDER-789' }, 409),
+        )
 
         const createOrder = api.declareEndpoint({
           method: 'POST',
@@ -258,10 +288,14 @@ describe('Discriminator Mode', () => {
       })
 
       it('should allow success handling when no error', async () => {
-        mockClient.mockResponse('POST', '/orders', successResponse({
-          orderId: 'ORD-123',
-          status: 'pending',
-        }))
+        mockClient.mockResponse(
+          'POST',
+          '/orders',
+          successResponse({
+            orderId: 'ORD-123',
+            status: 'pending',
+          }),
+        )
 
         const createOrder = api.declareEndpoint({
           method: 'POST',
@@ -297,10 +331,7 @@ describe('Discriminator Mode', () => {
     })
 
     it('should throw on any error response', async () => {
-      mockClient.mockResponse('GET', '/users/123', errorResponse(
-        { error: 'Not found' },
-        404,
-      ))
+      mockClient.mockResponse('GET', '/users/123', errorResponse({ error: 'Not found' }, 404))
 
       const getUser = api.declareEndpoint({
         method: 'GET',
@@ -316,10 +347,14 @@ describe('Discriminator Mode', () => {
     })
 
     it('should return success response normally', async () => {
-      mockClient.mockResponse('GET', '/users/123', successResponse({
-        id: '123',
-        name: 'John',
-      }))
+      mockClient.mockResponse(
+        'GET',
+        '/users/123',
+        successResponse({
+          id: '123',
+          name: 'John',
+        }),
+      )
 
       const getUser = api.declareEndpoint({
         method: 'GET',
@@ -361,10 +396,7 @@ describe('Discriminator Mode', () => {
     })
 
     it('should return error with __status on stream error', async () => {
-      mockClient.mockResponse('GET', '/files/123', errorResponse(
-        { error: 'File not found' },
-        404,
-      ))
+      mockClient.mockResponse('GET', '/files/123', errorResponse({ error: 'File not found' }, 404))
 
       const downloadFile = api.declareStream({
         method: 'GET',
@@ -396,10 +428,7 @@ describe('Discriminator Mode', () => {
       })
       api.provideClient(mockClient)
 
-      mockClient.mockResponse('GET', '/users/123', errorResponse(
-        { error: 'Not found' },
-        404,
-      ))
+      mockClient.mockResponse('GET', '/users/123', errorResponse({ error: 'Not found' }, 404))
 
       const getUser = api.declareEndpoint({
         method: 'GET',
@@ -425,10 +454,14 @@ describe('Discriminator Mode', () => {
       })
       api.provideClient(mockClient)
 
-      mockClient.mockResponse('GET', '/users/123', errorResponse(
-        { wrongShape: true },  // Doesn't match errorSchema
-        404,
-      ))
+      mockClient.mockResponse(
+        'GET',
+        '/users/123',
+        errorResponse(
+          { wrongShape: true }, // Doesn't match errorSchema
+          404,
+        ),
+      )
 
       const getUser = api.declareEndpoint({
         method: 'GET',

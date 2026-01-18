@@ -1,6 +1,13 @@
 import type { z, ZodType } from 'zod/v4'
 
+import { InjectableScope } from '../enums/index.mjs'
+import { UnifiedStorage } from '../internal/holder/unified-storage.mjs'
+import { BoundInjectionToken, InjectionToken } from '../token/injection-token.mjs'
+
 import type { Factorable } from '../interfaces/factory.interface.mjs'
+import type { NameResolver } from '../internal/core/name-resolver.mjs'
+import type { ServiceInvalidator } from '../internal/core/service-invalidator.mjs'
+import type { TokenResolver } from '../internal/core/token-resolver.mjs'
 import type {
   ClassType,
   ClassTypeWithArgument,
@@ -9,16 +16,7 @@ import type {
 } from '../token/injection-token.mjs'
 import type { Registry } from '../token/registry.mjs'
 import type { Join, UnionToArray } from '../utils/types.mjs'
-import type { NameResolver } from '../internal/core/name-resolver.mjs'
-import type { ServiceInvalidator } from '../internal/core/service-invalidator.mjs'
-import type { TokenResolver } from '../internal/core/token-resolver.mjs'
 
-import { InjectableScope } from '../enums/index.mjs'
-import { UnifiedStorage } from '../internal/holder/unified-storage.mjs'
-import {
-  BoundInjectionToken,
-  InjectionToken,
-} from '../token/injection-token.mjs'
 import { AbstractContainer } from './abstract-container.mjs'
 import { Container } from './container.mjs'
 
@@ -113,14 +111,9 @@ export class ScopedContainer extends AbstractContainer {
   // #1 Simple class
   get<T extends ClassType>(
     token: T,
-  ): InstanceType<T> extends Factorable<infer R>
-    ? Promise<R>
-    : Promise<InstanceType<T>>
+  ): InstanceType<T> extends Factorable<infer R> ? Promise<R> : Promise<InstanceType<T>>
   // #1.1 Simple class with args
-  get<T extends ClassTypeWithArgument<R>, R>(
-    token: T,
-    args: R,
-  ): Promise<InstanceType<T>>
+  get<T extends ClassTypeWithArgument<R>, R>(token: T, args: R): Promise<InstanceType<T>>
   // #2 Token with required Schema
   get<T, S extends InjectionTokenSchemaType>(
     token: InjectionToken<T, S>,
@@ -132,10 +125,7 @@ export class ScopedContainer extends AbstractContainer {
   ): R extends false
     ? Promise<T>
     : S extends ZodType<infer Type>
-      ? `Error: Your token requires args: ${Join<
-          UnionToArray<keyof Type>,
-          ', '
-        >}`
+      ? `Error: Your token requires args: ${Join<UnionToArray<keyof Type>, ', '>}`
       : 'Error: Your token requires args'
   // #4 Token with no Schema
   get<T>(token: InjectionToken<T, undefined>): Promise<T>
@@ -197,10 +187,7 @@ export class ScopedContainer extends AbstractContainer {
       return this.parent.invalidate(service)
     }
 
-    await this.getServiceInvalidator().invalidateWithStorage(
-      holder.name,
-      this.storage,
-    )
+    await this.getServiceInvalidator().invalidateWithStorage(holder.name, this.storage)
   }
 
   /**
@@ -225,12 +212,7 @@ export class ScopedContainer extends AbstractContainer {
       : InjectableScope.Singleton
 
     if (scope === InjectableScope.Request) {
-      const result = this.tryGetSyncFromStorage<T>(
-        token,
-        args,
-        this.storage,
-        this.requestId,
-      )
+      const result = this.tryGetSyncFromStorage<T>(token, args, this.storage, this.requestId)
       if (result !== null) {
         return result
       }

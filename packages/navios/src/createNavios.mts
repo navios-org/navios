@@ -1,3 +1,7 @@
+import { createInterceptorManager } from './interceptors/interceptor.manager.mjs'
+import { NaviosError, NaviosInternalError } from './NaviosError.mjs'
+import { processResponseBody } from './utils/processResponseBody.mjs'
+
 import type {
   Navios,
   NaviosConfig,
@@ -5,10 +9,6 @@ import type {
   NaviosResponse,
   PreparedRequestConfig,
 } from './types.mjs'
-
-import { createInterceptorManager } from './interceptors/interceptor.manager.mjs'
-import { NaviosError, NaviosInternalError } from './NaviosError.mjs'
-import { processResponseBody } from './utils/processResponseBody.mjs'
 
 export function create(baseConfig: NaviosConfig = {}): Navios {
   const adapter = baseConfig.adapter ?? fetch
@@ -84,11 +84,7 @@ export function create(baseConfig: NaviosConfig = {}): Navios {
     try {
       res = await adapter(finalConfig.url, finalConfig)
     } catch (err) {
-      return (await tryRecoverFromError(
-        err,
-        finalConfig,
-        'request',
-      )) as NaviosResponse<Result>
+      return (await tryRecoverFromError(err, finalConfig, 'request')) as NaviosResponse<Result>
     }
     const isSuccessful = finalConfig.validateStatus(res.status)
     if (isSuccessful) {
@@ -115,14 +111,11 @@ export function create(baseConfig: NaviosConfig = {}): Navios {
     create,
     request,
     get: (url, config) => request({ ...config, url, method: 'GET' }),
-    post: (url, data, config) =>
-      request({ ...config, url, method: 'POST', data }),
+    post: (url, data, config) => request({ ...config, url, method: 'POST', data }),
     head: (url, config) => request({ ...config, url, method: 'HEAD' }),
     options: (url, config) => request({ ...config, url, method: 'OPTIONS' }),
-    put: (url, data, config) =>
-      request({ ...config, url, method: 'PUT', data }),
-    patch: (url, data, config) =>
-      request({ ...config, url, method: 'PATCH', data }),
+    put: (url, data, config) => request({ ...config, url, method: 'PUT', data }),
+    patch: (url, data, config) => request({ ...config, url, method: 'PATCH', data }),
     delete: (url, config) => request({ ...config, url, method: 'DELETE' }),
     defaults: normalizedBaseConfig,
     // @ts-expect-error TS2322. First interceptor is fixing the type

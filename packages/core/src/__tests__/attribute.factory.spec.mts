@@ -1,16 +1,17 @@
-import type { ControllerMetadata, HandlerMetadata, ModuleMetadata } from '../metadata/index.mjs'
-
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod/v4'
 
 import { AttributeFactory } from '../attribute.factory.mjs'
 
+import type { ControllerMetadata, HandlerMetadata, ModuleMetadata } from '../metadata/index.mjs'
+
 // Helper to create mock metadata objects
 const createMockMetadata = (
   attributes: Map<symbol, any> = new Map(),
-): ModuleMetadata | ControllerMetadata | HandlerMetadata<any> => ({
-  customAttributes: attributes,
-} as any)
+): ModuleMetadata | ControllerMetadata | HandlerMetadata<any> =>
+  ({
+    customAttributes: attributes,
+  }) as any
 
 describe('AttributeFactory', () => {
   describe('createAttribute', () => {

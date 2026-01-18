@@ -1,19 +1,16 @@
-import type { z } from 'zod/v4'
-
 import { assertType, describe, expectTypeOf, test } from 'vitest'
 import { z as zod } from 'zod/v4'
 
-import type {
-  EventHandler,
-  EventUnsubscribe,
-} from '../eventsource-handlers.mjs'
-import type { EventSourceBuilderInstance } from '../eventsource-builder-instance.mjs'
+import type { z } from 'zod/v4'
+
 import type {
   DeclareEventSourceOptions,
   InferEventSourceConnectParams,
   EventSourceHandler,
   EventSourceHandle,
 } from '../../eventsource/types.mjs'
+import type { EventSourceBuilderInstance } from '../eventsource-builder-instance.mjs'
+import type { EventHandler, EventUnsubscribe } from '../eventsource-handlers.mjs'
 
 // Declare a mock eventsource builder instance at module level
 declare const sse: EventSourceBuilderInstance
@@ -43,9 +40,7 @@ describe('EventSourceBuilderInstance', () => {
       })
 
       // Should take a handler and return EventUnsubscribe
-      assertType<(handler: (payload: MessagePayload) => void) => EventUnsubscribe>(
-        onMessage,
-      )
+      assertType<(handler: (payload: MessagePayload) => void) => EventUnsubscribe>(onMessage)
     })
 
     test('event handler config has eventName as literal', () => {
@@ -105,9 +100,7 @@ describe('EventHandler types', () => {
       })
 
       // Verify handler takes a callback and returns EventUnsubscribe
-      assertType<(handler: (payload: MessagePayload) => void) => EventUnsubscribe>(
-        onMessage,
-      )
+      assertType<(handler: (payload: MessagePayload) => void) => EventUnsubscribe>(onMessage)
 
       // Verify it's an EventHandler
       assertType<EventHandler<typeof onMessage.config>>(onMessage)
@@ -121,9 +114,7 @@ describe('EventHandler types', () => {
 
       // Config should have the eventName and payloadSchema
       expectTypeOf(onMessage.config.eventName).toEqualTypeOf<'test'>()
-      expectTypeOf(onMessage.config.payloadSchema).toEqualTypeOf<
-        typeof messagePayloadSchema
-      >()
+      expectTypeOf(onMessage.config.payloadSchema).toEqualTypeOf<typeof messagePayloadSchema>()
     })
   })
 })
@@ -154,11 +145,7 @@ describe('EventSource handler types', () => {
     test('options with urlParamsSchema', () => {
       const urlParamsSchema = zod.object({ roomId: zod.string().uuid() })
 
-      type Options = DeclareEventSourceOptions<
-        '/events/$roomId',
-        undefined,
-        typeof urlParamsSchema
-      >
+      type Options = DeclareEventSourceOptions<'/events/$roomId', undefined, typeof urlParamsSchema>
 
       const options: Options = {
         url: '/events/$roomId',
@@ -263,9 +250,9 @@ describe('EventSource handler types', () => {
       type Options = typeof options
       type Handler = EventSourceHandler<Options>
 
-      assertType<
-        (params: { urlParams: { roomId: string | number } }) => EventSourceHandle
-      >({} as Handler)
+      assertType<(params: { urlParams: { roomId: string | number } }) => EventSourceHandle>(
+        {} as Handler,
+      )
     })
 
     test('handler can be called without params when none required', () => {
@@ -295,15 +282,11 @@ describe('EventSource handler types', () => {
 
   describe('EventSourceHandle interface', () => {
     test('has on method', () => {
-      assertType<(event: string, handler: (data: unknown) => void) => void>(
-        esHandle.on,
-      )
+      assertType<(event: string, handler: (data: unknown) => void) => void>(esHandle.on)
     })
 
     test('has off method', () => {
-      assertType<(event: string, handler?: (data: unknown) => void) => void>(
-        esHandle.off,
-      )
+      assertType<(event: string, handler?: (data: unknown) => void) => void>(esHandle.off)
     })
 
     test('has onError method', () => {

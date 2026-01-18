@@ -66,9 +66,7 @@ export function bindUrlParams<Url extends string>(
 
   // Validate that urlParams exists and contains all required params
   if (!params.urlParams) {
-    throw new Error(
-      `Missing urlParams. Required parameters: ${requiredParams.join(', ')}`,
-    )
+    throw new Error(`Missing urlParams. Required parameters: ${requiredParams.join(', ')}`)
   }
 
   // If urlParamsSchema is provided, validate and transform the URL params
@@ -79,13 +77,9 @@ export function bindUrlParams<Url extends string>(
   }
 
   // Validate that all required params are present (after schema transformation)
-  const missingParams = requiredParams.filter(
-    (param) => urlParamsToUse[param] === undefined,
-  )
+  const missingParams = requiredParams.filter((param) => urlParamsToUse[param] === undefined)
   if (missingParams.length > 0) {
-    throw new Error(
-      `Missing required URL parameters: ${missingParams.join(', ')}`,
-    )
+    throw new Error(`Missing required URL parameters: ${missingParams.join(', ')}`)
   }
 
   // Single-pass replacement using callback to avoid issues with values containing $

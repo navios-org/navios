@@ -1,6 +1,5 @@
-import type { z } from 'zod/v4'
-
 import type { BaseMessageConfig } from '@navios/queues'
+import type { z } from 'zod/v4'
 
 /**
  * Extracts the typed parameters for a message handler function.
@@ -59,4 +58,3 @@ export type MessageResult<
 > = MessageDeclaration['config']['responseSchema'] extends z.ZodType
   ? Promise<z.input<MessageDeclaration['config']['responseSchema']>>
   : Promise<void>
-

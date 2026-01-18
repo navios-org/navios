@@ -39,4 +39,3 @@ export function getManagedMetadata(target: ClassType): ManagedMetadata | null {
 export function hasManagedMetadata(target: ClassType): boolean {
   return getManagedMetadata(target) !== null
 }
-

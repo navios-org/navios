@@ -46,9 +46,7 @@ export type QueryArgs<
  * Arguments containing only URL params (for invalidateAll operations).
  */
 export type QueryUrlParamsArgs<Url extends string = string> =
-  UrlHasParams<Url> extends true
-    ? { urlParams: UrlParams<Url> }
-    : {} | undefined
+  UrlHasParams<Url> extends true ? { urlParams: UrlParams<Url> } : {} | undefined
 
 /**
  * Base parameters for query configuration.
@@ -65,11 +63,7 @@ export type QueryParams<
   keySuffix?: string[]
   onFail?: (err: unknown) => void
   processResponse: (
-    data: ComputeResponseInput<
-      UseDiscriminator,
-      Config['responseSchema'],
-      Config['errorSchema']
-    >,
+    data: ComputeResponseInput<UseDiscriminator, Config['responseSchema'], Config['errorSchema']>,
   ) => Res
 }
 
@@ -87,18 +81,10 @@ export type QueryKeyCreatorResult<
   dataTag: (
     params: (HasParams extends true ? { urlParams: UrlParams<Url> } : {}) &
       (QuerySchema extends ZodObject ? { params: z.input<QuerySchema> } : {}),
-  ) => DataTag<
-    Split<Url, '/'>,
-    IsInfinite extends true ? InfiniteData<Result> : Result,
-    Error
-  >
+  ) => DataTag<Split<Url, '/'>, IsInfinite extends true ? InfiniteData<Result> : Result, Error>
   filterKey: (
     params: HasParams extends true ? { urlParams: UrlParams<Url> } : {},
-  ) => DataTag<
-    Split<Url, '/'>,
-    IsInfinite extends true ? InfiniteData<Result> : Result,
-    Error
-  >
+  ) => DataTag<Split<Url, '/'>, IsInfinite extends true ? InfiniteData<Result> : Result, Error>
   bindToUrl: (
     params: (HasParams extends true ? { urlParams: UrlParams<Url> } : {}) &
       (QuerySchema extends ZodObject ? { params: z.infer<QuerySchema> } : {}),
@@ -146,11 +132,7 @@ export type InfiniteQueryOptions<
   keyPrefix?: string[]
   keySuffix?: string[]
   processResponse: (
-    data: ComputeResponseInput<
-      UseDiscriminator,
-      Config['responseSchema'],
-      Config['errorSchema']
-    >,
+    data: ComputeResponseInput<UseDiscriminator, Config['responseSchema'], Config['errorSchema']>,
   ) => Res
   onFail?: (err: unknown) => void
   getNextPageParam: (
@@ -158,19 +140,14 @@ export type InfiniteQueryOptions<
     allPages: Res[],
     lastPageParam: z.infer<Config['querySchema']> | undefined,
     allPageParams: z.infer<Config['querySchema']>[] | undefined,
-  ) =>
-    | z.input<Config['querySchema']>
-    | z.infer<Config['querySchema']>
-    | undefined
+  ) => z.input<Config['querySchema']> | z.infer<Config['querySchema']> | undefined
   getPreviousPageParam?: (
     firstPage: Res,
     allPages: Res[],
     lastPageParam: z.infer<Config['querySchema']> | undefined,
     allPageParams: z.infer<Config['querySchema']>[] | undefined,
   ) => z.input<Config['querySchema']>
-  initialPageParam?:
-    | z.input<Config['querySchema']>
-    | z.infer<Config['querySchema']>
+  initialPageParam?: z.input<Config['querySchema']> | z.infer<Config['querySchema']>
 }
 
 // Legacy type aliases for backwards compatibility
@@ -182,14 +159,13 @@ export type ClientQueryArgs<
 > = QueryArgs<Url, QuerySchema, RequestSchema>
 
 /** @deprecated Use QueryUrlParamsArgs instead */
-export type ClientQueryUrlParamsArgs<Url extends string = string> =
-  QueryUrlParamsArgs<Url>
+export type ClientQueryUrlParamsArgs<Url extends string = string> = QueryUrlParamsArgs<Url>
 
 /** @deprecated Use QueryParams instead */
-export type BaseQueryParams<
-  Config extends AnyEndpointConfig,
-  Res = unknown,
-> = QueryParams<Config, Res>
+export type BaseQueryParams<Config extends AnyEndpointConfig, Res = unknown> = QueryParams<
+  Config,
+  Res
+>
 
 /** @deprecated Use QueryArgs instead */
 export type BaseQueryArgs<Config extends AnyEndpointConfig> = (UrlHasParams<
@@ -197,6 +173,4 @@ export type BaseQueryArgs<Config extends AnyEndpointConfig> = (UrlHasParams<
 > extends true
   ? { urlParams: UrlParams<Config['url']> }
   : {}) &
-  (Config['querySchema'] extends ZodObject
-    ? { params: z.input<Config['querySchema']> }
-    : {})
+  (Config['querySchema'] extends ZodObject ? { params: z.input<Config['querySchema']> } : {})

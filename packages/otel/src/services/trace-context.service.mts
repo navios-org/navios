@@ -1,19 +1,11 @@
+import { Injectable } from '@navios/di'
+import { context as otelContext, propagation, trace } from '@opentelemetry/api'
+
 import type { Context, Span, TextMapGetter, TextMapSetter } from '@opentelemetry/api'
 
-import { Injectable } from '@navios/di'
-import {
-  context as otelContext,
-  propagation,
-  trace,
-} from '@opentelemetry/api'
+import { getCurrentSpan, getCurrentSpanContext, runWithSpanContext } from '../stores/index.mjs'
 
 import type { SpanContext } from '../stores/index.mjs'
-
-import {
-  getCurrentSpan,
-  getCurrentSpanContext,
-  runWithSpanContext,
-} from '../stores/index.mjs'
 
 /**
  * HTTP headers getter for context propagation.
@@ -82,7 +74,6 @@ const httpHeadersSetter: TextMapSetter<Record<string, string>> = {
  */
 @Injectable()
 export class TraceContextService {
-
   /**
    * Runs a function within a span context.
    *
@@ -124,9 +115,7 @@ export class TraceContextService {
    * @param headers - HTTP headers object
    * @returns OpenTelemetry Context with extracted trace info
    */
-  extractFromHeaders(
-    headers: Record<string, string | string[] | undefined>,
-  ): Context {
+  extractFromHeaders(headers: Record<string, string | string[] | undefined>): Context {
     return propagation.extract(otelContext.active(), headers, httpHeadersGetter)
   }
 

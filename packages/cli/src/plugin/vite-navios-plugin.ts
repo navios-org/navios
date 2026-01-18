@@ -1,15 +1,15 @@
 import type { IncomingMessage, ServerResponse } from 'node:http'
-import type { VitePluginNodeConfig } from 'vite-plugin-node'
 
 import { VitePluginNode } from 'vite-plugin-node'
 
+import type { VitePluginNodeConfig } from 'vite-plugin-node'
+
 let prevApp: any = null
 
-export interface ViteNaviosPluginConfig
-  extends Omit<
-    VitePluginNodeConfig,
-    'adapter' | 'tsCompiler' | 'outputFormat'
-  > {}
+export interface ViteNaviosPluginConfig extends Omit<
+  VitePluginNodeConfig,
+  'adapter' | 'tsCompiler' | 'outputFormat'
+> {}
 
 export function ViteNaviosPlugin({
   appPath,
@@ -18,15 +18,7 @@ export function ViteNaviosPlugin({
   swcOptions,
 }: ViteNaviosPluginConfig) {
   return VitePluginNode({
-    adapter: async ({
-      app,
-      req,
-      res,
-    }: {
-      app: any
-      req: IncomingMessage
-      res: ServerResponse
-    }) => {
+    adapter: async ({ app, req, res }: { app: any; req: IncomingMessage; res: ServerResponse }) => {
       if (!app.isInitialized) {
         if (prevApp) await prevApp.close()
 

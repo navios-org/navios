@@ -35,20 +35,19 @@ export class KafkaClient implements QueueClient, OnServiceInit, OnServiceDestroy
   async onServiceInit(): Promise<void> {
     const kafkajs = await this.loadKafkaJS()
 
-    const ssl = this.config.ssl === true
-      ? true
-      : this.config.ssl
-        ? {
-            rejectUnauthorized: this.config.ssl.rejectUnauthorized ?? true,
-            ca: this.config.ssl.ca ? [this.config.ssl.ca] : undefined,
-            cert: this.config.ssl.cert,
-            key: this.config.ssl.key,
-          }
-        : undefined
+    const ssl =
+      this.config.ssl === true
+        ? true
+        : this.config.ssl
+          ? {
+              rejectUnauthorized: this.config.ssl.rejectUnauthorized ?? true,
+              ca: this.config.ssl.ca ? [this.config.ssl.ca] : undefined,
+              cert: this.config.ssl.cert,
+              key: this.config.ssl.key,
+            }
+          : undefined
 
-    const sasl = this.config.sasl
-      ? this.buildSaslConfig(this.config.sasl)
-      : undefined
+    const sasl = this.config.sasl ? this.buildSaslConfig(this.config.sasl) : undefined
 
     this.kafka = new kafkajs.Kafka({
       clientId: this.config.clientId ?? 'navios-queue-client',
@@ -92,9 +91,7 @@ export class KafkaClient implements QueueClient, OnServiceInit, OnServiceDestroy
     try {
       return await import('kafkajs')
     } catch {
-      throw new Error(
-        'kafkajs is not installed. Please install it with: npm install kafkajs',
-      )
+      throw new Error('kafkajs is not installed. Please install it with: npm install kafkajs')
     }
   }
 
@@ -194,10 +191,7 @@ export class KafkaClient implements QueueClient, OnServiceInit, OnServiceDestroy
     })
   }
 
-  async subscribe(
-    topic: string,
-    handler: (message: unknown) => Promise<void>,
-  ): Promise<void> {
+  async subscribe(topic: string, handler: (message: unknown) => Promise<void>): Promise<void> {
     const consumer = await this.ensureConsumer()
 
     await consumer.subscribe({
@@ -215,10 +209,7 @@ export class KafkaClient implements QueueClient, OnServiceInit, OnServiceDestroy
     await this.publish(queue, message)
   }
 
-  async receive(
-    queue: string,
-    handler: (message: unknown) => Promise<void>,
-  ): Promise<void> {
+  async receive(queue: string, handler: (message: unknown) => Promise<void>): Promise<void> {
     // In Kafka, point-to-point is achieved by having a single consumer group
     await this.subscribe(queue, handler)
   }
@@ -303,10 +294,7 @@ export class KafkaClient implements QueueClient, OnServiceInit, OnServiceDestroy
     })
   }
 
-  async reply(
-    topic: string,
-    handler: (message: unknown) => Promise<unknown>,
-  ): Promise<void> {
+  async reply(topic: string, handler: (message: unknown) => Promise<unknown>): Promise<void> {
     if (!this.producer || !this.kafka) {
       throw new Error('Kafka client not initialized')
     }
@@ -402,7 +390,6 @@ export class KafkaClient implements QueueClient, OnServiceInit, OnServiceDestroy
   }
 
   private generateId(): string {
-    return Math.random().toString(36).substring(2, 15) +
-      Math.random().toString(36).substring(2, 15)
+    return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15)
   }
 }

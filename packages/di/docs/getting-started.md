@@ -72,11 +72,7 @@ class UserService {
     console.log(`Creating user: ${name}`)
 
     // Use the injected email service
-    await this.emailService.sendEmail(
-      email,
-      'Welcome!',
-      `Hello ${name}, welcome to our platform!`,
-    )
+    await this.emailService.sendEmail(email, 'Welcome!', `Hello ${name}, welcome to our platform!`)
 
     return { id: Math.random().toString(36), name, email }
   }
@@ -308,7 +304,7 @@ To fix circular dependencies, use `asyncInject()` on at least one side:
 ```typescript
 @Injectable()
 class ServiceA {
-  private serviceB = asyncInject(ServiceB)  // Break cycle with asyncInject
+  private serviceB = asyncInject(ServiceB) // Break cycle with asyncInject
 
   async doSomething() {
     const b = await this.serviceB
@@ -318,7 +314,7 @@ class ServiceA {
 
 @Injectable()
 class ServiceB {
-  private serviceA = inject(ServiceA)  // This side can use inject()
+  private serviceA = inject(ServiceA) // This side can use inject()
 }
 ```
 

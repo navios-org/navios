@@ -196,9 +196,7 @@ export const kafkaConfigSchema = z.object({
     .object({
       acks: z.union([z.literal(-1), z.literal(0), z.literal(1)]).default(-1),
       timeout: z.number().int().min(0).default(30000),
-      compression: z
-        .enum(['none', 'gzip', 'snappy', 'lz4', 'zstd'])
-        .default('none'),
+      compression: z.enum(['none', 'gzip', 'snappy', 'lz4', 'zstd']).default('none'),
       maxInFlightRequests: z.number().int().min(1).default(5),
       idempotent: z.boolean().default(false),
       transactionalId: z.string().optional(),

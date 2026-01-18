@@ -29,12 +29,7 @@ describe('Registry', () => {
       const childRegistry = new Registry(parentRegistry)
       const token = InjectionToken.create<string>('test')
 
-      parentRegistry.set(
-        token,
-        InjectableScope.Singleton,
-        class Test {},
-        InjectableType.Class,
-      )
+      parentRegistry.set(token, InjectableScope.Singleton, class Test {}, InjectableType.Class)
 
       expect(childRegistry.has(token)).toBe(true)
     })
@@ -45,13 +40,7 @@ describe('Registry', () => {
       const token = InjectionToken.create<string>('test')
       class TestClass {}
 
-      registry.set(
-        token,
-        InjectableScope.Singleton,
-        TestClass,
-        InjectableType.Class,
-        10,
-      )
+      registry.set(token, InjectableScope.Singleton, TestClass, InjectableType.Class, 10)
 
       const record = registry.get(token)
 
@@ -74,12 +63,7 @@ describe('Registry', () => {
       const token = InjectionToken.create<string>('test')
       class TestClass {}
 
-      parentRegistry.set(
-        token,
-        InjectableScope.Singleton,
-        TestClass,
-        InjectableType.Class,
-      )
+      parentRegistry.set(token, InjectableScope.Singleton, TestClass, InjectableType.Class)
 
       const record = childRegistry.get(token)
       expect(record.target).toBe(TestClass)
@@ -92,12 +76,7 @@ describe('Registry', () => {
       class ParentClass {}
       class ChildClass {}
 
-      parentRegistry.set(
-        token,
-        InjectableScope.Singleton,
-        ParentClass,
-        InjectableType.Class,
-      )
+      parentRegistry.set(token, InjectableScope.Singleton, ParentClass, InjectableType.Class)
       childRegistry.set(
         token,
         InjectableScope.Singleton,
@@ -143,12 +122,7 @@ describe('Registry', () => {
       const token = InjectionToken.create<string>('test')
       class TestClass {}
 
-      parentRegistry.set(
-        token,
-        InjectableScope.Singleton,
-        TestClass,
-        InjectableType.Class,
-      )
+      parentRegistry.set(token, InjectableScope.Singleton, TestClass, InjectableType.Class)
 
       const records = childRegistry.getAll(token)
       expect(records).toHaveLength(1)
@@ -171,13 +145,7 @@ describe('Registry', () => {
       const token = InjectionToken.create<string>('test')
       class TestClass {}
 
-      registry.set(
-        token,
-        InjectableScope.Singleton,
-        TestClass,
-        InjectableType.Class,
-        100,
-      )
+      registry.set(token, InjectableScope.Singleton, TestClass, InjectableType.Class, 100)
 
       const record = registry.get(token)
       expect(record.priority).toBe(100)
@@ -301,12 +269,7 @@ describe('Registry', () => {
       const token = InjectionToken.create<string>('test')
       class TestClass {}
 
-      parentRegistry.set(
-        token,
-        InjectableScope.Singleton,
-        TestClass,
-        InjectableType.Class,
-      )
+      parentRegistry.set(token, InjectableScope.Singleton, TestClass, InjectableType.Class)
 
       const result = childRegistry.updateScope(token, InjectableScope.Transient)
 
@@ -322,27 +285,9 @@ describe('Registry', () => {
       class OverrideImpl {}
       class HighPriorityImpl {}
 
-      registry.set(
-        token,
-        InjectableScope.Singleton,
-        DefaultImpl,
-        InjectableType.Class,
-        0,
-      )
-      registry.set(
-        token,
-        InjectableScope.Singleton,
-        OverrideImpl,
-        InjectableType.Class,
-        1,
-      )
-      registry.set(
-        token,
-        InjectableScope.Singleton,
-        HighPriorityImpl,
-        InjectableType.Class,
-        100,
-      )
+      registry.set(token, InjectableScope.Singleton, DefaultImpl, InjectableType.Class, 0)
+      registry.set(token, InjectableScope.Singleton, OverrideImpl, InjectableType.Class, 1)
+      registry.set(token, InjectableScope.Singleton, HighPriorityImpl, InjectableType.Class, 100)
 
       expect(registry.get(token).target).toBe(HighPriorityImpl)
     })
@@ -352,20 +297,8 @@ describe('Registry', () => {
       class FirstImpl {}
       class SecondImpl {}
 
-      registry.set(
-        token,
-        InjectableScope.Singleton,
-        FirstImpl,
-        InjectableType.Class,
-        5,
-      )
-      registry.set(
-        token,
-        InjectableScope.Singleton,
-        SecondImpl,
-        InjectableType.Class,
-        5,
-      )
+      registry.set(token, InjectableScope.Singleton, FirstImpl, InjectableType.Class, 5)
+      registry.set(token, InjectableScope.Singleton, SecondImpl, InjectableType.Class, 5)
 
       // With equal priority, the first one stays as highest
       expect(registry.get(token).target).toBe(FirstImpl)
@@ -376,20 +309,8 @@ describe('Registry', () => {
       class LowPriority {}
       class DefaultPriority {}
 
-      registry.set(
-        token,
-        InjectableScope.Singleton,
-        LowPriority,
-        InjectableType.Class,
-        -10,
-      )
-      registry.set(
-        token,
-        InjectableScope.Singleton,
-        DefaultPriority,
-        InjectableType.Class,
-        0,
-      )
+      registry.set(token, InjectableScope.Singleton, LowPriority, InjectableType.Class, -10)
+      registry.set(token, InjectableScope.Singleton, DefaultPriority, InjectableType.Class, 0)
 
       expect(registry.get(token).target).toBe(DefaultPriority)
     })
@@ -413,12 +334,7 @@ describe('Registry', () => {
         }
       }
 
-      registry.set(
-        token,
-        InjectableScope.Singleton,
-        TestFactory,
-        InjectableType.Factory,
-      )
+      registry.set(token, InjectableScope.Singleton, TestFactory, InjectableType.Factory)
 
       expect(registry.get(token).type).toBe(InjectableType.Factory)
     })
@@ -446,13 +362,7 @@ describe('Registry', () => {
       class ChildImpl {}
 
       parent.set(token, InjectableScope.Singleton, ParentImpl, InjectableType.Class)
-      child.set(
-        token,
-        InjectableScope.Request,
-        ChildImpl,
-        InjectableType.Class,
-        1,
-      )
+      child.set(token, InjectableScope.Request, ChildImpl, InjectableType.Class, 1)
 
       // Child should return its own registration
       expect(child.get(token).target).toBe(ChildImpl)
@@ -469,12 +379,7 @@ describe('Registry', () => {
       const token = InjectionToken.create<string>('test')
       class TestClass {}
 
-      grandparent.set(
-        token,
-        InjectableScope.Singleton,
-        TestClass,
-        InjectableType.Class,
-      )
+      grandparent.set(token, InjectableScope.Singleton, TestClass, InjectableType.Class)
 
       expect(child.has(token)).toBe(true)
       expect(child.get(token).target).toBe(TestClass)

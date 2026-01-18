@@ -1,9 +1,8 @@
+import { Injectable } from '@navios/core'
+import { safeParse } from 'zod/v4/core'
+
 import type { FastifySchemaCompiler } from 'fastify'
 import type { $ZodType } from 'zod/v4/core'
-
-import { Injectable } from '@navios/core'
-
-import { safeParse } from 'zod/v4/core'
 
 @Injectable()
 export class FastifyValidatorCompilerService {

@@ -21,11 +21,7 @@ export type FastifyStaticHandler = {
  */
 export type FastifyDynamicHandler = {
   isStatic: false
-  handler: (
-    scoped: ScopedContainer,
-    request: FastifyRequest,
-    reply: FastifyReply,
-  ) => Promise<any>
+  handler: (scoped: ScopedContainer, request: FastifyRequest, reply: FastifyReply) => Promise<any>
 }
 
 /**
@@ -83,10 +79,7 @@ export interface FastifyHandlerAdapterInterface extends AbstractHttpHandlerAdapt
    */
   prepareArguments?: (
     handlerMetadata: HandlerMetadata<any>,
-  ) => ((
-    target: Record<string, any>,
-    request: FastifyRequest,
-  ) => Promise<void> | void)[]
+  ) => ((target: Record<string, any>, request: FastifyRequest) => Promise<void> | void)[]
 
   /**
    * Creates a request handler function for the endpoint.

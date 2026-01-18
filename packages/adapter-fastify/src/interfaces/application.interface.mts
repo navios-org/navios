@@ -21,8 +21,7 @@ import type { FastifyServerOptions } from 'fastify'
  *
  * @see {@link https://www.fastify.io/docs/latest/Reference/Server/} Fastify server options documentation
  */
-export interface FastifyApplicationOptions
-  extends Omit<FastifyServerOptions, 'logger'> {
+export interface FastifyApplicationOptions extends Omit<FastifyServerOptions, 'logger'> {
   /**
    * Specifies the logger to use. Pass `false` to turn off logging.
    *
@@ -60,7 +59,6 @@ import type { FastifyEnvironment } from './environment.interface.mjs'
  * await app.listen({ port: 3000 })
  * ```
  */
-export interface FastifyApplicationServiceInterface
-  extends AbstractHttpAdapterInterface<FastifyEnvironment> {
+export interface FastifyApplicationServiceInterface extends AbstractHttpAdapterInterface<FastifyEnvironment> {
   initServer(): Promise<void>
 }

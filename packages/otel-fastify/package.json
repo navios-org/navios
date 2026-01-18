@@ -1,36 +1,20 @@
 {
   "name": "@navios/otel-fastify",
-  "version": "1.0.0-alpha.2",
-  "scripts": {
-    "check": "tsc -b",
-    "lint": "oxlint --fix",
-    "test:ci": "vitest run",
-    "build": "tsdown",
-    "publish": "yarn npm publish --access public",
-    "publish:next": "yarn npm publish --access public --tag next"
-  },
+  "version": "1.0.0-alpha.3",
   "description": "OpenTelemetry integration for Navios Fastify adapter",
+  "license": "MIT",
   "author": {
     "name": "Oleksandr Hanzha",
     "email": "alex@granted.name"
   },
   "repository": {
-    "directory": "packages/otel-fastify",
     "type": "git",
-    "url": "https://github.com/Arilas/navios.git"
+    "url": "https://github.com/Arilas/navios.git",
+    "directory": "packages/otel-fastify"
   },
-  "license": "MIT",
-  "peerDependencies": {
-    "@navios/adapter-fastify": "workspace:^",
-    "@navios/core": "workspace:^",
-    "@navios/di": "workspace:^",
-    "@navios/otel": "workspace:^",
-    "@opentelemetry/api": "^1.9.0",
-    "fastify": "^5.0.0"
-  },
-  "typings": "./lib/index.d.mts",
   "main": "./lib/index.cjs",
   "module": "./lib/index.mjs",
+  "typings": "./lib/index.d.mts",
   "exports": {
     ".": {
       "import": {
@@ -43,6 +27,14 @@
       }
     }
   },
+  "scripts": {
+    "check": "tsc -b",
+    "lint": "yarn run -T oxlint --fix && yarn run -T oxfmt",
+    "test:ci": "vitest run",
+    "build": "tsdown",
+    "publish": "yarn npm publish --access public",
+    "publish:next": "yarn npm publish --access public --tag next"
+  },
   "devDependencies": {
     "@navios/adapter-fastify": "workspace:^",
     "@navios/core": "workspace:^",
@@ -51,5 +43,13 @@
     "@opentelemetry/api": "^1.9.0",
     "fastify": "^5.7.1",
     "typescript": "^5.9.3"
+  },
+  "peerDependencies": {
+    "@navios/adapter-fastify": "workspace:^",
+    "@navios/core": "workspace:^",
+    "@navios/di": "workspace:^",
+    "@navios/otel": "workspace:^",
+    "@opentelemetry/api": "^1.9.0",
+    "fastify": "^5.0.0"
   }
 }

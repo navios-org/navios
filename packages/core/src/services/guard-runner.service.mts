@@ -1,21 +1,14 @@
-import type { ClassTypeWithInstance, ScopedContainer } from '@navios/di'
-
 import { inject, Injectable, InjectionToken } from '@navios/di'
 
-import type {
-  AbstractExecutionContext,
-  CanActivate,
-} from '../interfaces/index.mjs'
-import type {
-  ControllerMetadata,
-  HandlerMetadata,
-  ModuleMetadata,
-} from '../metadata/index.mjs'
+import type { ClassTypeWithInstance, ScopedContainer } from '@navios/di'
 
 import { HttpException } from '../exceptions/index.mjs'
 import { Logger } from '../logger/index.mjs'
 import { FrameworkError } from '../responders/enums/framework-error.enum.mjs'
 import { ErrorResponseProducerService } from '../responders/services/error-response-producer.service.mjs'
+
+import type { AbstractExecutionContext, CanActivate } from '../interfaces/index.mjs'
+import type { ControllerMetadata, HandlerMetadata, ModuleMetadata } from '../metadata/index.mjs'
 
 @Injectable()
 export class GuardRunnerService {
@@ -29,10 +22,7 @@ export class GuardRunnerService {
    * Use this when guards have request-scoped dependencies.
    */
   async runGuards(
-    allGuards: Set<
-      | ClassTypeWithInstance<CanActivate>
-      | InjectionToken<CanActivate, undefined>
-    >,
+    allGuards: Set<ClassTypeWithInstance<CanActivate> | InjectionToken<CanActivate, undefined>>,
     executionContext: AbstractExecutionContext,
     context: ScopedContainer,
   ) {
@@ -42,13 +32,9 @@ export class GuardRunnerService {
     // Resolve all guards in parallel
     const guardInstances = await Promise.all(
       guardsArray.map(async (guard) => {
-        const guardInstance = await context.get(
-          guard as InjectionToken<CanActivate, undefined>,
-        )
+        const guardInstance = await context.get(guard as InjectionToken<CanActivate, undefined>)
         if (!guardInstance.canActivate) {
-          throw new Error(
-            `[Navios] Guard ${guard.name as string} does not implement canActivate()`,
-          )
+          throw new Error(`[Navios] Guard ${guard.name as string} does not implement canActivate()`)
         }
         return guardInstance
       }),
@@ -61,10 +47,7 @@ export class GuardRunnerService {
    * Runs pre-resolved guard instances.
    * Use this when all guards are singletons and have been pre-resolved at startup.
    */
-  async runGuardsStatic(
-    guardInstances: CanActivate[],
-    executionContext: AbstractExecutionContext,
-  ) {
+  async runGuardsStatic(guardInstances: CanActivate[], executionContext: AbstractExecutionContext) {
     return this.executeGuards(guardInstances, executionContext)
   }
 
@@ -85,10 +68,7 @@ export class GuardRunnerService {
         }
       } catch (error) {
         if (error instanceof HttpException) {
-          executionContext
-            .getReply()
-            .status(error.statusCode)
-            .send(error.response)
+          executionContext.getReply().status(error.statusCode).send(error.response)
           return false
         } else {
           this.logger.error('Error running guard', error)
@@ -96,23 +76,14 @@ export class GuardRunnerService {
             FrameworkError.InternalServerError,
             error,
           )
-          executionContext
-            .getReply()
-            .status(errorResponse.statusCode)
-            .send(errorResponse.payload)
+          executionContext.getReply().status(errorResponse.statusCode).send(errorResponse.payload)
           return false
         }
       }
     }
     if (!canActivate) {
-      const errorResponse = this.errorProducer.respond(
-        FrameworkError.Forbidden,
-        null,
-      )
-      executionContext
-        .getReply()
-        .status(errorResponse.statusCode)
-        .send(errorResponse.payload)
+      const errorResponse = this.errorProducer.respond(FrameworkError.Forbidden, null)
+      executionContext.getReply().status(errorResponse.statusCode).send(errorResponse.payload)
       return false
     }
     return canActivate
@@ -122,12 +93,9 @@ export class GuardRunnerService {
     moduleMetadata: ModuleMetadata,
     controllerMetadata: ControllerMetadata,
     endpoint: HandlerMetadata,
-  ): Set<
-    ClassTypeWithInstance<CanActivate> | InjectionToken<CanActivate, undefined>
-  > {
+  ): Set<ClassTypeWithInstance<CanActivate> | InjectionToken<CanActivate, undefined>> {
     const guards = new Set<
-      | ClassTypeWithInstance<CanActivate>
-      | InjectionToken<CanActivate, undefined>
+      ClassTypeWithInstance<CanActivate> | InjectionToken<CanActivate, undefined>
     >()
     const endpointGuards = endpoint.guards
     const controllerGuards = controllerMetadata.guards

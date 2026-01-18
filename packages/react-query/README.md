@@ -292,10 +292,7 @@ const updateUser = client.mutation({
     })
 
     // Snapshot previous value
-    const previousUser = context.queryClient.getQueryData([
-      'users',
-      variables.urlParams.userId,
-    ])
+    const previousUser = context.queryClient.getQueryData(['users', variables.urlParams.userId])
 
     // Optimistically update
     context.queryClient.setQueryData(['users', variables.urlParams.userId], {
@@ -584,7 +581,7 @@ const updateUser = client.mutation({
       ...oldData,
       ...variables.data,
     }),
-    rollbackOnError: true,    // default
+    rollbackOnError: true, // default
     invalidateOnSettled: true, // default
   }),
 })
@@ -607,9 +604,7 @@ const updateUser = client.mutation({
     {
       queryKey: ['users'],
       updateFn: (oldList, variables) =>
-        (oldList ?? []).map((u) =>
-          u.id === userId ? { ...u, ...variables.data } : u
-        ),
+        (oldList ?? []).map((u) => (u.id === userId ? { ...u, ...variables.data } : u)),
     },
   ]),
 })

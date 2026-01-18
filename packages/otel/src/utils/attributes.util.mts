@@ -61,8 +61,7 @@ export function createHttpRequestAttributes(request: {
 
     // Try to get client IP from common headers
     const clientIp =
-      getHeader(request.headers, 'x-forwarded-for') ||
-      getHeader(request.headers, 'x-real-ip')
+      getHeader(request.headers, 'x-forwarded-for') || getHeader(request.headers, 'x-real-ip')
     if (clientIp) {
       // x-forwarded-for can contain multiple IPs, take the first one
       attributes[HttpAttributes.CLIENT_IP] = clientIp.split(',')[0].trim()

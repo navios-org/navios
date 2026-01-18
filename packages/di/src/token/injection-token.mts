@@ -9,15 +9,11 @@ export type ClassTypeWithOptionalArgument<Arg> = new (arg?: Arg) => any
 
 export type ClassTypeWithInstance<T> = new (...args: any[]) => T
 export type ClassTypeWithInstanceAndArgument<T, Arg> = new (arg: Arg) => T
-export type ClassTypeWithInstanceAndOptionalArgument<T, Arg> = new (
-  arg?: Arg,
-) => T
+export type ClassTypeWithInstanceAndOptionalArgument<T, Arg> = new (arg?: Arg) => T
 
 export type BaseInjectionTokenSchemaType = ZodObject | ZodRecord
 
-export type OptionalInjectionTokenSchemaType =
-  | ZodOptional<ZodObject>
-  | ZodOptional<ZodRecord>
+export type OptionalInjectionTokenSchemaType = ZodOptional<ZodObject> | ZodOptional<ZodRecord>
 
 export type InjectionTokenSchemaType =
   | BaseInjectionTokenSchemaType
@@ -82,9 +78,7 @@ export class InjectionToken<
     this.id = generateTokenId(name, customId)
   }
 
-  static create<T extends ClassType>(
-    name: T,
-  ): InjectionToken<InstanceType<T>, undefined>
+  static create<T extends ClassType>(name: T): InjectionToken<InstanceType<T>, undefined>
   static create<T extends ClassType, Schema extends InjectionTokenSchemaType>(
     name: T,
     schema: Schema,
@@ -115,9 +109,7 @@ export class InjectionToken<
     return new FactoryInjectionToken(token, factory)
   }
 
-  static refineType<T>(
-    token: BoundInjectionToken<any, any>,
-  ): BoundInjectionToken<T, any> {
+  static refineType<T>(token: BoundInjectionToken<any, any>): BoundInjectionToken<T, any> {
     return token as BoundInjectionToken<T, any>
   }
 
@@ -197,4 +189,3 @@ export type InjectionTokenType =
   | InjectionToken<any, any>
   | BoundInjectionToken<any, any>
   | FactoryInjectionToken<any, any>
-

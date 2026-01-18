@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { Fragment } from '../types/xml-node.mjs'
+
 import { createElement } from './create-element.mjs'
 import { renderToXml } from './render-to-xml.mjs'
 import { CData, DangerouslyInsertRawXml } from './special-nodes.mjs'
@@ -29,11 +30,7 @@ describe('renderToXml', () => {
     })
 
     it('should render nested elements', async () => {
-      const node = createElement(
-        'channel',
-        null,
-        createElement('title', null, 'My Feed'),
-      )
+      const node = createElement('channel', null, createElement('title', null, 'My Feed'))
       const xml = await renderToXml(node, { declaration: false })
       expect(xml).toBe('<channel><title>My Feed</title></channel>')
     })
@@ -45,13 +42,7 @@ describe('renderToXml', () => {
     })
 
     it('should skip null and undefined children', async () => {
-      const node = createElement(
-        'items',
-        null,
-        null,
-        createElement('item', null),
-        undefined,
-      )
+      const node = createElement('items', null, null, createElement('item', null), undefined)
       const xml = await renderToXml(node, { declaration: false })
       expect(xml).toBe('<items><item/></items>')
     })
@@ -89,9 +80,7 @@ describe('renderToXml', () => {
         title: 'A "quoted" & <special> title',
       })
       const xml = await renderToXml(node, { declaration: false })
-      expect(xml).toBe(
-        '<link title="A &quot;quoted&quot; &amp; &lt;special&gt; title"/>',
-      )
+      expect(xml).toBe('<link title="A &quot;quoted&quot; &amp; &lt;special&gt; title"/>')
     })
 
     it('should skip null attributes', async () => {
@@ -121,12 +110,7 @@ describe('renderToXml', () => {
       const node = createElement(
         'root',
         null,
-        createElement(
-          Fragment,
-          null,
-          createElement('a', null),
-          createElement('b', null),
-        ),
+        createElement(Fragment, null, createElement('a', null), createElement('b', null)),
       )
       const xml = await renderToXml(node, { declaration: false })
       expect(xml).toBe('<root><a/><b/></root>')
@@ -206,31 +190,19 @@ describe('renderToXml', () => {
         CData({ children: 'Some <html> content & more' }),
       )
       const xml = await renderToXml(node, { declaration: false })
-      expect(xml).toBe(
-        '<description><![CDATA[Some <html> content & more]]></description>',
-      )
+      expect(xml).toBe('<description><![CDATA[Some <html> content & more]]></description>')
     })
 
     it('should handle CDATA containing ]]>', async () => {
-      const node = createElement(
-        'data',
-        null,
-        CData({ children: 'Before ]]> After' }),
-      )
+      const node = createElement('data', null, CData({ children: 'Before ]]> After' }))
       const xml = await renderToXml(node, { declaration: false })
       expect(xml).toBe('<data><![CDATA[Before ]]]]><![CDATA[> After]]></data>')
     })
 
     it('should handle multiple ]]> in CDATA', async () => {
-      const node = createElement(
-        'data',
-        null,
-        CData({ children: 'A ]]> B ]]> C' }),
-      )
+      const node = createElement('data', null, CData({ children: 'A ]]> B ]]> C' }))
       const xml = await renderToXml(node, { declaration: false })
-      expect(xml).toBe(
-        '<data><![CDATA[A ]]]]><![CDATA[> B ]]]]><![CDATA[> C]]></data>',
-      )
+      expect(xml).toBe('<data><![CDATA[A ]]]]><![CDATA[> B ]]]]><![CDATA[> C]]></data>')
     })
   })
 
@@ -248,15 +220,9 @@ describe('renderToXml', () => {
 
     it('should handle complex raw XML', async () => {
       const rawXml = '<nested><element attr="value">text</element></nested>'
-      const node = createElement(
-        'wrapper',
-        null,
-        DangerouslyInsertRawXml({ children: rawXml }),
-      )
+      const node = createElement('wrapper', null, DangerouslyInsertRawXml({ children: rawXml }))
       const xml = await renderToXml(node, { declaration: false })
-      expect(xml).toBe(
-        '<wrapper><nested><element attr="value">text</element></nested></wrapper>',
-      )
+      expect(xml).toBe('<wrapper><nested><element attr="value">text</element></nested></wrapper>')
     })
   })
 
@@ -287,11 +253,7 @@ describe('renderToXml', () => {
     })
 
     it('should keep text content inline', async () => {
-      const node = createElement(
-        'root',
-        null,
-        createElement('title', null, 'Hello'),
-      )
+      const node = createElement('root', null, createElement('title', null, 'Hello'))
       const xml = await renderToXml(node, { declaration: false, pretty: true })
       expect(xml).toBe(`<root>
   <title>Hello</title>
@@ -335,11 +297,7 @@ describe('renderToXml', () => {
             null,
             createElement('title', null, 'First Post'),
             createElement('link', null, 'https://example.com/post/1'),
-            createElement(
-              'description',
-              null,
-              CData({ children: 'This has <html> in it' }),
-            ),
+            createElement('description', null, CData({ children: 'This has <html> in it' })),
           ),
           createElement(
             'item',

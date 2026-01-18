@@ -113,16 +113,7 @@ Create the controller:
 import { Controller } from '@navios/core'
 import { XmlStream } from '@navios/adapter-xml'
 import { getRssFeed } from './api'
-import {
-  rss,
-  channel,
-  title,
-  link,
-  description,
-  item,
-  pubDate,
-  atomLink,
-} from './tags'
+import { rss, channel, title, link, description, item, pubDate, atomLink } from './tags'
 
 @Controller('/api')
 export class FeedController {
@@ -136,11 +127,7 @@ export class FeedController {
           <title>My Blog</title>
           <link>https://example.com</link>
           <description>Latest posts from my blog</description>
-          <atomLink
-            href="https://example.com/feed.xml"
-            rel="self"
-            type="application/rss+xml"
-          />
+          <atomLink href="https://example.com/feed.xml" rel="self" type="application/rss+xml" />
           {posts.map((post) => (
             <item>
               <title>{post.title}</title>
@@ -289,11 +276,7 @@ class DescriptionComponent implements XmlComponent {
   async render() {
     const { content, wrapInCData } = this.props
 
-    return (
-      <description>
-        {wrapInCData ? <CData>{content}</CData> : content}
-      </description>
-    )
+    return <description>{wrapInCData ? <CData>{content}</CData> : content}</description>
   }
 }
 
@@ -365,11 +348,7 @@ interface BaseXmlStreamConfig {
   url: string
   querySchema?: ZodType
   requestSchema?: ZodType
-  contentType?:
-    | 'application/xml'
-    | 'text/xml'
-    | 'application/rss+xml'
-    | 'application/atom+xml'
+  contentType?: 'application/xml' | 'text/xml' | 'application/rss+xml' | 'application/atom+xml'
   xmlDeclaration?: boolean // Include <?xml?> declaration (default: true)
   encoding?: string // XML encoding (default: 'UTF-8')
 }

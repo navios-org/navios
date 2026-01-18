@@ -1,20 +1,13 @@
-import type {
-  ClassType,
-  ClassTypeWithInstance,
-  InjectionToken,
-} from '@navios/di'
-
 import type { ManagedMetadata } from '@navios/core'
 import type { CanActivate } from '@navios/core'
+import type { ClassType, ClassTypeWithInstance, InjectionToken } from '@navios/di'
 
 export const MessageModuleMetadataKey = Symbol('MessageModuleMetadataKey')
 
 export interface MessageModuleMetadata extends ManagedMetadata {
   controllers: Set<ClassType>
   imports: Set<ClassType>
-  guards: Set<
-    ClassTypeWithInstance<CanActivate> | InjectionToken<CanActivate, undefined>
-  >
+  guards: Set<ClassTypeWithInstance<CanActivate> | InjectionToken<CanActivate, undefined>>
   customAttributes: Map<string | symbol, any>
 }
 
@@ -23,9 +16,7 @@ export function getMessageModuleMetadata(
   context: ClassDecoratorContext,
 ): MessageModuleMetadata {
   if (context.metadata) {
-    const metadata = context.metadata[MessageModuleMetadataKey] as
-      | MessageModuleMetadata
-      | undefined
+    const metadata = context.metadata[MessageModuleMetadataKey] as MessageModuleMetadata | undefined
     if (metadata) {
       return metadata
     } else {
@@ -33,8 +24,7 @@ export function getMessageModuleMetadata(
         controllers: new Set<ClassType>(),
         imports: new Set<ClassType>(),
         guards: new Set<
-          | ClassTypeWithInstance<CanActivate>
-          | InjectionToken<CanActivate, undefined>
+          ClassTypeWithInstance<CanActivate> | InjectionToken<CanActivate, undefined>
         >(),
         customAttributes: new Map<string | symbol, any>(),
       }
@@ -47,13 +37,9 @@ export function getMessageModuleMetadata(
   throw new Error('[Navios/Microservice] Wrong environment.')
 }
 
-export function extractMessageModuleMetadata(
-  target: ClassType,
-): MessageModuleMetadata {
+export function extractMessageModuleMetadata(target: ClassType): MessageModuleMetadata {
   // @ts-expect-error We add a custom metadata key to the target
-  const metadata = target[MessageModuleMetadataKey] as
-    | MessageModuleMetadata
-    | undefined
+  const metadata = target[MessageModuleMetadataKey] as MessageModuleMetadata | undefined
   if (!metadata) {
     throw new Error(
       '[Navios/Microservice] MessageModule metadata not found. Make sure to use @MessageModule decorator.',
@@ -64,9 +50,6 @@ export function extractMessageModuleMetadata(
 
 export function hasMessageModuleMetadata(target: ClassType): boolean {
   // @ts-expect-error We add a custom metadata key to the target
-  const metadata = target[MessageModuleMetadataKey] as
-    | MessageModuleMetadata
-    | undefined
+  const metadata = target[MessageModuleMetadataKey] as MessageModuleMetadata | undefined
   return !!metadata
 }
-

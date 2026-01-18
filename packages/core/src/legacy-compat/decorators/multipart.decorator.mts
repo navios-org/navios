@@ -1,9 +1,6 @@
-import type {
-  EndpointHandler,
-  EndpointOptions,
-  RequestArgs,
-} from '@navios/builder'
 import { createMethodContext } from '@navios/di/legacy-compat'
+
+import type { EndpointHandler, EndpointOptions, RequestArgs } from '@navios/builder'
 import type { z } from 'zod/v4'
 
 import { Multipart as OriginalMultipart } from '../../decorators/multipart.decorator.mjs'
@@ -13,18 +10,17 @@ import { Multipart as OriginalMultipart } from '../../decorators/multipart.decor
  * Note: In legacy decorators, type constraints are checked when the decorator is applied,
  * but may not be preserved perfectly when decorators are stacked.
  */
-type MultipartMethodDescriptor<Config extends EndpointOptions> =
-  TypedPropertyDescriptor<
-    (
-      params: RequestArgs<
-        Config['url'],
-        Config['querySchema'],
-        Config['requestSchema'],
-        Config['urlParamsSchema'],
-        true
-      >,
-    ) => Promise<z.input<Config['responseSchema']>>
-  >
+type MultipartMethodDescriptor<Config extends EndpointOptions> = TypedPropertyDescriptor<
+  (
+    params: RequestArgs<
+      Config['url'],
+      Config['querySchema'],
+      Config['requestSchema'],
+      Config['urlParamsSchema'],
+      true
+    >,
+  ) => Promise<z.input<Config['responseSchema']>>
+>
 
 /**
  * Legacy-compatible Multipart decorator.

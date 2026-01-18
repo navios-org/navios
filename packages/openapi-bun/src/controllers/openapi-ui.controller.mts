@@ -1,14 +1,13 @@
-import type { ClassType } from '@navios/core'
-
 import { builder } from '@navios/builder'
 import { Controller, inject, Stream } from '@navios/core'
 import { ApiExclude, ApiStream } from '@navios/openapi'
-
 import { getHtmlDocument } from '@scalar/core/libs/html-rendering'
 
-import type { ScalarOptions } from '../schemas/index.mjs'
+import type { ClassType } from '@navios/core'
 
 import { OpenApiOptionsToken } from '../tokens/openapi-options.token.mjs'
+
+import type { ScalarOptions } from '../schemas/index.mjs'
 
 /**
  * Creates a customized Scalar UI controller with the correct path.
@@ -17,10 +16,7 @@ import { OpenApiOptionsToken } from '../tokens/openapi-options.token.mjs'
  * @param jsonPath - The path to the OpenAPI JSON spec (used by Scalar to load the spec)
  * @returns A controller class that serves the Scalar API Reference UI
  */
-export function createOpenApiUiController(
-  docsPath: string,
-  jsonPath: string,
-): ClassType {
+export function createOpenApiUiController(docsPath: string, jsonPath: string): ClassType {
   const API = builder()
 
   const endpoint = API.declareStream({

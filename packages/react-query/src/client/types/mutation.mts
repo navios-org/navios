@@ -7,13 +7,11 @@ import type {
   UrlHasParams,
   UrlParams,
 } from '@navios/builder'
-import type {
-  MutationFunctionContext,
-  UseMutationResult,
-} from '@tanstack/react-query'
+import type { MutationFunctionContext, UseMutationResult } from '@tanstack/react-query'
 import type { ZodObject, ZodType } from 'zod/v4'
 
 import type { MutationHelpers } from '../../mutation/types.mjs'
+
 import type { ComputeBaseResult, EndpointHelper } from './helpers.mjs'
 
 /**
@@ -92,9 +90,7 @@ interface MutationEndpointConfig<
  * @template UseDiscriminator - When `true`, errors are returned as union types.
  *   When `false` (default), errors are thrown and not included in TData.
  */
-export interface ClientMutationMethods<
-  UseDiscriminator extends boolean = false,
-> {
+export interface ClientMutationMethods<UseDiscriminator extends boolean = false> {
   /**
    * Creates a type-safe mutation with automatic type inference.
    *
@@ -124,20 +120,11 @@ export interface ClientMutationMethods<
     const ErrorSchema extends ErrorSchemaRecord | undefined = undefined,
     const UrlParamsSchema extends ZodObject | undefined = undefined,
     const UseKey extends boolean = false,
-    const TBaseResult = ComputeBaseResult<
-      UseDiscriminator,
-      ResponseSchema,
-      ErrorSchema
-    >,
+    const TBaseResult = ComputeBaseResult<UseDiscriminator, ResponseSchema, ErrorSchema>,
     const Result = TBaseResult,
     const OnMutateResult = unknown,
     const Context = unknown,
-    const Variables = ComputeVariables<
-      Url,
-      QuerySchema,
-      RequestSchema,
-      UrlParamsSchema
-    >,
+    const Variables = ComputeVariables<Url, QuerySchema, RequestSchema, UrlParamsSchema>,
     const Options extends EndpointOptions = {
       method: Method
       url: Url

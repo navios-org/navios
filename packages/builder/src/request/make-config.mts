@@ -51,8 +51,7 @@ export function makeConfig<Options extends EndpointOptions | StreamOptions>(
   isMultipart = false,
 ) {
   // Extract clientOptions from endpoint options
-  const clientOptions = (options as Options & { clientOptions?: ClientOptions })
-    .clientOptions
+  const clientOptions = (options as Options & { clientOptions?: ClientOptions }).clientOptions
 
   // Build base config from request, spreading clientOptions first so request can override
   const baseConfig = {
@@ -76,14 +75,9 @@ export function makeConfig<Options extends EndpointOptions | StreamOptions>(
     url: finalUrlPart,
     data: isMultipart
       ? makeFormData(request, options)
-      : parseWithSchema(
-          options.requestSchema as ZodType | undefined,
-          request.data,
-        ),
+      : parseWithSchema(options.requestSchema as ZodType | undefined, request.data),
     // Only include headers if there are any
-    ...(Object.keys(mergedHeaders).length > 0
-      ? { headers: mergedHeaders }
-      : {}),
+    ...(Object.keys(mergedHeaders).length > 0 ? { headers: mergedHeaders } : {}),
   } satisfies AbstractRequestConfig
 }
 
@@ -112,11 +106,7 @@ function serializeFormDataValue(value: unknown): string | File {
   if (typeof value === 'string') {
     return value
   }
-  if (
-    typeof value === 'bigint' ||
-    typeof value === 'number' ||
-    typeof value === 'boolean'
-  ) {
+  if (typeof value === 'bigint' || typeof value === 'number' || typeof value === 'boolean') {
     return String(value)
   }
   if (value instanceof Date) {
@@ -129,9 +119,7 @@ function serializeFormDataValue(value: unknown): string | File {
     // For toJSON:
     if ('toJSON' in value && typeof value.toJSON === 'function') {
       const jsonValue = value.toJSON()
-      return typeof jsonValue === 'string'
-        ? jsonValue
-        : JSON.stringify(jsonValue)
+      return typeof jsonValue === 'string' ? jsonValue : JSON.stringify(jsonValue)
     }
     return JSON.stringify(value)
   }

@@ -27,12 +27,7 @@ describe('ScopeTracker', () => {
     describe('when conditions are NOT met for upgrade', () => {
       it('should return [false] when current service is NOT Singleton', () => {
         const token = InjectionToken.create<any>('TestService')
-        registry.set(
-          token,
-          InjectableScope.Request,
-          class {},
-          InjectableType.Class,
-        )
+        registry.set(token, InjectableScope.Request, class {}, InjectableType.Class)
 
         const result = scopeTracker.checkAndUpgradeScope(
           'TestService',
@@ -50,12 +45,7 @@ describe('ScopeTracker', () => {
 
       it('should return [false] when dependency is NOT Request-scoped', () => {
         const token = InjectionToken.create<any>('TestService')
-        registry.set(
-          token,
-          InjectableScope.Singleton,
-          class {},
-          InjectableType.Class,
-        )
+        registry.set(token, InjectableScope.Singleton, class {}, InjectableType.Class)
 
         const result = scopeTracker.checkAndUpgradeScope(
           'TestService',
@@ -73,12 +63,7 @@ describe('ScopeTracker', () => {
 
       it('should return [false] when dependency is Transient', () => {
         const token = InjectionToken.create<any>('TestService')
-        registry.set(
-          token,
-          InjectableScope.Singleton,
-          class {},
-          InjectableType.Class,
-        )
+        registry.set(token, InjectableScope.Singleton, class {}, InjectableType.Class)
 
         const result = scopeTracker.checkAndUpgradeScope(
           'TestService',
@@ -96,12 +81,7 @@ describe('ScopeTracker', () => {
 
       it('should return [false] when requestStorage is missing', () => {
         const token = InjectionToken.create<any>('TestService')
-        registry.set(
-          token,
-          InjectableScope.Singleton,
-          class {},
-          InjectableType.Class,
-        )
+        registry.set(token, InjectableScope.Singleton, class {}, InjectableType.Class)
 
         const result = scopeTracker.checkAndUpgradeScope(
           'TestService',
@@ -119,12 +99,7 @@ describe('ScopeTracker', () => {
 
       it('should return [false] when requestId is missing', () => {
         const token = InjectionToken.create<any>('TestService')
-        registry.set(
-          token,
-          InjectableScope.Singleton,
-          class {},
-          InjectableType.Class,
-        )
+        registry.set(token, InjectableScope.Singleton, class {}, InjectableType.Class)
 
         const result = scopeTracker.checkAndUpgradeScope(
           'TestService',
@@ -144,12 +119,7 @@ describe('ScopeTracker', () => {
     describe('when conditions ARE met for upgrade', () => {
       it('should upgrade scope when Singleton depends on Request-scoped', () => {
         const token = InjectionToken.create<any>('TestService')
-        registry.set(
-          token,
-          InjectableScope.Singleton,
-          class {},
-          InjectableType.Class,
-        )
+        registry.set(token, InjectableScope.Singleton, class {}, InjectableType.Class)
 
         const serviceName = token.id
         const requestId = 'request-1'
@@ -172,12 +142,7 @@ describe('ScopeTracker', () => {
 
       it('should update registry scope to Request', () => {
         const token = InjectionToken.create<any>('TestService')
-        registry.set(
-          token,
-          InjectableScope.Singleton,
-          class {},
-          InjectableType.Class,
-        )
+        registry.set(token, InjectableScope.Singleton, class {}, InjectableType.Class)
 
         expect(registry.get(token).scope).toBe(InjectableScope.Singleton)
 
@@ -197,12 +162,7 @@ describe('ScopeTracker', () => {
 
       it('should move existing holder from singleton to request storage', () => {
         const token = InjectionToken.create<any>('TestService')
-        registry.set(
-          token,
-          InjectableScope.Singleton,
-          class {},
-          InjectableType.Class,
-        )
+        registry.set(token, InjectableScope.Singleton, class {}, InjectableType.Class)
 
         const serviceName = token.id
         const requestId = 'request-1'
@@ -245,23 +205,14 @@ describe('ScopeTracker', () => {
 
       it('should preserve holder data during move', () => {
         const token = InjectionToken.create<any>('TestService')
-        registry.set(
-          token,
-          InjectableScope.Singleton,
-          class {},
-          InjectableType.Class,
-        )
+        registry.set(token, InjectableScope.Singleton, class {}, InjectableType.Class)
 
         const serviceName = token.id
         const requestId = 'request-1'
 
         // Create a holder with dependencies
         const deps = new Set(['dep1', 'dep2'])
-        const [, holder] = singletonStorage.createHolder(
-          serviceName,
-          InjectableType.Class,
-          deps,
-        )
+        const [, holder] = singletonStorage.createHolder(serviceName, InjectableType.Class, deps)
         holder.status = InstanceStatus.Created
         holder.instance = { value: 'test' }
         holder.destroyListeners = [() => {}, () => {}]
@@ -290,12 +241,7 @@ describe('ScopeTracker', () => {
 
       it('should handle holder in Creating state', () => {
         const token = InjectionToken.create<any>('TestService')
-        registry.set(
-          token,
-          InjectableScope.Singleton,
-          class {},
-          InjectableType.Class,
-        )
+        registry.set(token, InjectableScope.Singleton, class {}, InjectableType.Class)
 
         const serviceName = token.id
         const requestId = 'request-1'
@@ -332,12 +278,7 @@ describe('ScopeTracker', () => {
     describe('name generation', () => {
       it('should generate correct name for simple token', () => {
         const token = InjectionToken.create<any>('TestService')
-        registry.set(
-          token,
-          InjectableScope.Singleton,
-          class {},
-          InjectableType.Class,
-        )
+        registry.set(token, InjectableScope.Singleton, class {}, InjectableType.Class)
 
         const serviceName = token.id
         const requestId = 'request-1'
@@ -359,12 +300,7 @@ describe('ScopeTracker', () => {
 
       it('should preserve args hash in name when upgrading', () => {
         const token = InjectionToken.create<any>('TestService')
-        registry.set(
-          token,
-          InjectableScope.Singleton,
-          class {},
-          InjectableType.Class,
-        )
+        registry.set(token, InjectableScope.Singleton, class {}, InjectableType.Class)
 
         const serviceName = `${token.id}:abc123` // Token with args hash
         const requestId = 'request-1'
@@ -389,24 +325,18 @@ describe('ScopeTracker', () => {
   describe('upgradeScopeToRequest (async)', () => {
     it('should return success and new name on successful upgrade', async () => {
       const token = InjectionToken.create<any>('TestService')
-      registry.set(
-        token,
-        InjectableScope.Singleton,
-        class {},
-        InjectableType.Class,
-      )
+      registry.set(token, InjectableScope.Singleton, class {}, InjectableType.Class)
 
       const serviceName = token.id
       const requestId = 'request-1'
 
-      const [success, newName, error] =
-        await scopeTracker.upgradeScopeToRequest(
-          serviceName,
-          token,
-          singletonStorage,
-          requestStorage,
-          requestId,
-        )
+      const [success, newName, error] = await scopeTracker.upgradeScopeToRequest(
+        serviceName,
+        token,
+        singletonStorage,
+        requestStorage,
+        requestId,
+      )
 
       expect(success).toBe(true)
       expect(newName).toBeDefined()
@@ -417,14 +347,13 @@ describe('ScopeTracker', () => {
       const token = InjectionToken.create<any>('NonExistentService')
       // Don't register the token
 
-      const [success, newName, error] =
-        await scopeTracker.upgradeScopeToRequest(
-          'NonExistentService',
-          token,
-          singletonStorage,
-          requestStorage,
-          'request-1',
-        )
+      const [success, newName, error] = await scopeTracker.upgradeScopeToRequest(
+        'NonExistentService',
+        token,
+        singletonStorage,
+        requestStorage,
+        'request-1',
+      )
 
       expect(success).toBe(false)
       expect(newName).toBeUndefined()
@@ -445,12 +374,7 @@ describe('ScopeTracker', () => {
       )
       singletonStorage.set('ParentService', parentHolder)
 
-      scopeTracker.updateParentDependencies(
-        oldName,
-        newName,
-        singletonStorage,
-        requestStorage,
-      )
+      scopeTracker.updateParentDependencies(oldName, newName, singletonStorage, requestStorage)
 
       // Check that parent's deps are updated
       const updatedResult = singletonStorage.get('ParentService')
@@ -471,12 +395,7 @@ describe('ScopeTracker', () => {
       )
       requestStorage.set('ParentService:requestId=req-1', parentHolder)
 
-      scopeTracker.updateParentDependencies(
-        oldName,
-        newName,
-        singletonStorage,
-        requestStorage,
-      )
+      scopeTracker.updateParentDependencies(oldName, newName, singletonStorage, requestStorage)
 
       // Check that parent's deps are updated
       const updatedResult = requestStorage.get('ParentService:requestId=req-1')
@@ -504,12 +423,7 @@ describe('ScopeTracker', () => {
       )
       requestStorage.set('RequestParent:requestId=req-1', requestHolder)
 
-      scopeTracker.updateParentDependencies(
-        oldName,
-        newName,
-        singletonStorage,
-        requestStorage,
-      )
+      scopeTracker.updateParentDependencies(oldName, newName, singletonStorage, requestStorage)
 
       // Both should be updated
       const singletonResult = singletonStorage.get('SingletonParent')
@@ -528,19 +442,10 @@ describe('ScopeTracker', () => {
         error: vi.fn(),
       } as unknown as Console
 
-      const trackerWithLogger = new ScopeTracker(
-        registry,
-        nameResolver,
-        mockLogger,
-      )
+      const trackerWithLogger = new ScopeTracker(registry, nameResolver, mockLogger)
 
       const token = InjectionToken.create<any>('TestService')
-      registry.set(
-        token,
-        InjectableScope.Singleton,
-        class {},
-        InjectableType.Class,
-      )
+      registry.set(token, InjectableScope.Singleton, class {}, InjectableType.Class)
 
       trackerWithLogger.checkAndUpgradeScope(
         token.id,
@@ -553,9 +458,7 @@ describe('ScopeTracker', () => {
         'request-1',
       )
 
-      expect(mockLogger.log).toHaveBeenCalledWith(
-        expect.stringContaining('Upgrading'),
-      )
+      expect(mockLogger.log).toHaveBeenCalledWith(expect.stringContaining('Upgrading'))
     })
 
     it('should warn when requestStorage is missing', () => {
@@ -565,19 +468,10 @@ describe('ScopeTracker', () => {
         error: vi.fn(),
       } as unknown as Console
 
-      const trackerWithLogger = new ScopeTracker(
-        registry,
-        nameResolver,
-        mockLogger,
-      )
+      const trackerWithLogger = new ScopeTracker(registry, nameResolver, mockLogger)
 
       const token = InjectionToken.create<any>('TestService')
-      registry.set(
-        token,
-        InjectableScope.Singleton,
-        class {},
-        InjectableType.Class,
-      )
+      registry.set(token, InjectableScope.Singleton, class {}, InjectableType.Class)
 
       trackerWithLogger.checkAndUpgradeScope(
         token.id,
@@ -590,9 +484,7 @@ describe('ScopeTracker', () => {
         'request-1',
       )
 
-      expect(mockLogger.warn).toHaveBeenCalledWith(
-        expect.stringContaining('Cannot upgrade scope'),
-      )
+      expect(mockLogger.warn).toHaveBeenCalledWith(expect.stringContaining('Cannot upgrade scope'))
     })
   })
 })

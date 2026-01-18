@@ -24,11 +24,7 @@ import type { ZodObject, ZodType } from 'zod/v4'
  * ```
  */
 export interface XmlStreamConfig extends BaseEndpointOptions {
-  contentType?:
-    | 'application/xml'
-    | 'text/xml'
-    | 'application/rss+xml'
-    | 'application/atom+xml'
+  contentType?: 'application/xml' | 'text/xml' | 'application/rss+xml' | 'application/atom+xml'
   xmlDeclaration?: boolean
   encoding?: string
 }

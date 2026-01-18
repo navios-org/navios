@@ -16,14 +16,8 @@ export default defineProject({
   },
   resolve: {
     alias: {
-      '@navios/adapter-xml/jsx-dev-runtime': resolve(
-        __dirname,
-        'src/jsx-dev-runtime.mts',
-      ),
-      '@navios/adapter-xml/jsx-runtime': resolve(
-        __dirname,
-        'src/jsx-runtime.mts',
-      ),
+      '@navios/adapter-xml/jsx-dev-runtime': resolve(__dirname, 'src/jsx-dev-runtime.mts'),
+      '@navios/adapter-xml/jsx-runtime': resolve(__dirname, 'src/jsx-runtime.mts'),
     },
   },
 })

@@ -1,6 +1,3 @@
-import type { ModuleMetadata } from '@navios/core'
-import type { BunRequest, Serve, Server } from 'bun'
-
 import {
   Container,
   ErrorResponseProducerService,
@@ -10,23 +7,23 @@ import {
   Logger,
 } from '@navios/core'
 
-import type {
-  BunApplicationOptions,
-  BunApplicationServiceInterface,
-} from '../interfaces/application.interface.mjs'
-import type { BunCorsOptions } from '../utils/cors.util.mjs'
-import type { BunRoutes } from './controller-adapter.service.mjs'
+import type { ModuleMetadata } from '@navios/core'
+import type { BunRequest, Serve, Server } from 'bun'
 
 import {
   BunApplicationServiceToken,
   BunControllerAdapterToken,
   BunServerToken,
 } from '../tokens/index.mjs'
-import {
-  applyCorsToResponse,
-  calculatePreflightHeaders,
-  isPreflight,
-} from '../utils/cors.util.mjs'
+import { applyCorsToResponse, calculatePreflightHeaders, isPreflight } from '../utils/cors.util.mjs'
+
+import type {
+  BunApplicationOptions,
+  BunApplicationServiceInterface,
+} from '../interfaces/application.interface.mjs'
+import type { BunCorsOptions } from '../utils/cors.util.mjs'
+
+import type { BunRoutes } from './controller-adapter.service.mjs'
 
 /**
  * Bun HTTP adapter service implementation for Navios.
@@ -164,10 +161,7 @@ export class BunApplicationService implements BunApplicationServiceInterface {
 
   async onModulesInit(modules: Map<string, ModuleMetadata>): Promise<void> {
     for (const [_moduleName, moduleMetadata] of modules) {
-      if (
-        !moduleMetadata.controllers ||
-        moduleMetadata.controllers.size === 0
-      ) {
+      if (!moduleMetadata.controllers || moduleMetadata.controllers.size === 0) {
         continue
       }
       for (const controller of moduleMetadata.controllers) {
@@ -195,18 +189,11 @@ export class BunApplicationService implements BunApplicationServiceInterface {
    */
   private async handleRequest(request: BunRequest): Promise<Response> {
     const origin = request.headers.get('Origin')
-    const accessControlRequestMethod = request.headers.get(
-      'Access-Control-Request-Method',
-    )
+    const accessControlRequestMethod = request.headers.get('Access-Control-Request-Method')
 
     // Handle CORS preflight requests
-    if (
-      this.corsOptions &&
-      isPreflight(request.method, origin, accessControlRequestMethod)
-    ) {
-      const requestHeaders = request.headers.get(
-        'Access-Control-Request-Headers',
-      )
+    if (this.corsOptions && isPreflight(request.method, origin, accessControlRequestMethod)) {
+      const requestHeaders = request.headers.get('Access-Control-Request-Headers')
       const preflightHeaders = await calculatePreflightHeaders(
         origin ?? undefined,
         accessControlRequestMethod,
@@ -302,10 +289,7 @@ export class BunApplicationService implements BunApplicationServiceInterface {
       fetch: this.handleRequest.bind(this),
     })
     this.initServer()
-    this.logger.log(
-      `Bun server listening on http://${hostname}:${port}`,
-      'Bootstrap',
-    )
+    this.logger.log(`Bun server listening on http://${hostname}:${port}`, 'Bootstrap')
     return `${hostname}:${port}`
   }
 

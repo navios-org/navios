@@ -1,3 +1,5 @@
+import { useCallback, useEffect, useRef, useSyncExternalStore } from 'react'
+
 import type {
   BoundInjectionToken,
   ClassType,
@@ -8,9 +10,6 @@ import type {
   InjectionTokenSchemaType,
 } from '@navios/di'
 import type { z, ZodType } from 'zod/v4'
-
-
-import { useCallback, useEffect, useRef, useSyncExternalStore } from 'react'
 
 import type { Join, UnionToArray } from '../types.mjs'
 
@@ -33,9 +32,7 @@ const cacheMap = new WeakMap<object, Map<string, CacheEntry<any>>>()
 
 function getCacheKey(token: any, args: unknown): string {
   const tokenId =
-    typeof token === 'function'
-      ? token.name
-      : token.id || token.token?.id || String(token)
+    typeof token === 'function' ? token.name : token.id || token.token?.id || String(token)
   return `${tokenId}:${JSON.stringify(args ?? null)}`
 }
 
@@ -52,10 +49,7 @@ function getCache(container: object): Map<string, CacheEntry<any>> {
  * Sets up invalidation subscription for a cache entry if not already subscribed.
  * When the service is destroyed, clears the cache and notifies subscribers.
  */
-function setupInvalidationSubscription(
-  entry: CacheEntry<any>,
-  rootContainer: Container,
-): void {
+function setupInvalidationSubscription(entry: CacheEntry<any>, rootContainer: Container): void {
   if (entry.unsubscribe || !entry.instanceName) return
 
   const eventBus = rootContainer.getEventBus()
@@ -82,11 +76,7 @@ export function useSuspenseService<T, S extends InjectionTokenSchemaType>(
 ): T
 
 // #3 Token with optional Schema
-export function useSuspenseService<
-  T,
-  S extends InjectionTokenSchemaType,
-  R extends boolean,
->(
+export function useSuspenseService<T, S extends InjectionTokenSchemaType, R extends boolean>(
   token: InjectionToken<T, S, R>,
 ): R extends false
   ? T

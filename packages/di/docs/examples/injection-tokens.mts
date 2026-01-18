@@ -9,7 +9,6 @@
  */
 
 import { Container, Injectable, InjectionToken } from '@navios/di'
-
 import { z } from 'zod'
 
 const container = new Container()
@@ -30,15 +29,15 @@ const emailConfigSchema = z.object({
 })
 
 // 2. Create injection tokens
-const DB_CONFIG_TOKEN = InjectionToken.create<
-  DatabaseConfigService,
-  typeof databaseConfigSchema
->('DB_CONFIG', databaseConfigSchema)
+const DB_CONFIG_TOKEN = InjectionToken.create<DatabaseConfigService, typeof databaseConfigSchema>(
+  'DB_CONFIG',
+  databaseConfigSchema,
+)
 
-const EMAIL_CONFIG_TOKEN = InjectionToken.create<
-  EmailConfigService,
-  typeof emailConfigSchema
->('EMAIL_CONFIG', emailConfigSchema)
+const EMAIL_CONFIG_TOKEN = InjectionToken.create<EmailConfigService, typeof emailConfigSchema>(
+  'EMAIL_CONFIG',
+  emailConfigSchema,
+)
 
 // 3. Create services that use injection tokens
 @Injectable({ token: DB_CONFIG_TOKEN })
@@ -127,26 +126,23 @@ const DYNAMIC_DB_CONFIG = InjectionToken.factory(DB_CONFIG_TOKEN, async () => {
   }
 })
 
-const DYNAMIC_EMAIL_CONFIG = InjectionToken.factory(
-  EMAIL_CONFIG_TOKEN,
-  async () => {
-    const env = process.env.NODE_ENV || 'development'
+const DYNAMIC_EMAIL_CONFIG = InjectionToken.factory(EMAIL_CONFIG_TOKEN, async () => {
+  const env = process.env.NODE_ENV || 'development'
 
-    if (env === 'production') {
-      return {
-        provider: 'sendgrid' as const,
-        apiKey: 'sg.prod_key',
-        fromEmail: 'noreply@example.com',
-      }
-    } else {
-      return {
-        provider: 'smtp' as const,
-        apiKey: 'smtp_dev_key',
-        fromEmail: 'dev@example.com',
-      }
+  if (env === 'production') {
+    return {
+      provider: 'sendgrid' as const,
+      apiKey: 'sg.prod_key',
+      fromEmail: 'noreply@example.com',
     }
-  },
-)
+  } else {
+    return {
+      provider: 'smtp' as const,
+      apiKey: 'smtp_dev_key',
+      fromEmail: 'dev@example.com',
+    }
+  }
+})
 
 // 6. Usage examples
 async function demonstrateBoundTokens() {

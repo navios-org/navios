@@ -52,8 +52,4 @@ export type ApiOperationOptions = z.infer<typeof ApiOperationSchema>
  * }
  * ```
  */
-export const ApiOperation = AttributeFactory.createAttribute(
-  ApiOperationToken,
-  ApiOperationSchema,
-)
-
+export const ApiOperation = AttributeFactory.createAttribute(ApiOperationToken, ApiOperationSchema)

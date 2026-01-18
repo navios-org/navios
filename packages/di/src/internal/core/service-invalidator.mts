@@ -1,8 +1,8 @@
+import { InstanceStatus } from '../holder/instance-holder.mjs'
+
 import type { IHolderStorage } from '../holder/holder-storage.interface.mjs'
 import type { InstanceHolder } from '../holder/instance-holder.mjs'
 import type { LifecycleEventBus } from '../lifecycle/lifecycle-event-bus.mjs'
-
-import { InstanceStatus } from '../holder/instance-holder.mjs'
 
 export interface ClearAllOptions {
   /** Whether to wait for all services to settle before starting (default: true) */
@@ -47,9 +47,7 @@ export class ServiceInvalidator {
   ): Promise<void> {
     const { emitEvents = true, onInvalidated } = options
 
-    this.logger?.log(
-      `[ServiceInvalidator] Starting invalidation process for ${service}`,
-    )
+    this.logger?.log(`[ServiceInvalidator] Starting invalidation process for ${service}`)
 
     const result = storage.get(service)
     if (result === null) {
@@ -58,13 +56,7 @@ export class ServiceInvalidator {
 
     const [, holder] = result
     if (holder) {
-      await this.invalidateHolderWithStorage(
-        service,
-        holder,
-        storage,
-        emitEvents,
-        onInvalidated,
-      )
+      await this.invalidateHolderWithStorage(service, holder, storage, emitEvents, onInvalidated)
     }
   }
 
@@ -112,21 +104,14 @@ export class ServiceInvalidator {
    * Gracefully clears all services in a specific storage.
    * This allows clearing request-scoped services using a RequestStorage.
    */
-  async clearAllWithStorage(
-    storage: IHolderStorage,
-    options: ClearAllOptions = {},
-  ): Promise<void> {
+  async clearAllWithStorage(storage: IHolderStorage, options: ClearAllOptions = {}): Promise<void> {
     const { waitForSettlement = true } = options
 
-    this.logger?.log(
-      '[ServiceInvalidator] Starting graceful clearing of all services',
-    )
+    this.logger?.log('[ServiceInvalidator] Starting graceful clearing of all services')
 
     // Wait for all services to settle if requested
     if (waitForSettlement) {
-      this.logger?.log(
-        '[ServiceInvalidator] Waiting for all services to settle...',
-      )
+      this.logger?.log('[ServiceInvalidator] Waiting for all services to settle...')
       await this.readyWithStorage(storage)
     }
 
@@ -157,9 +142,7 @@ export class ServiceInvalidator {
   async readyWithStorage(storage: IHolderStorage): Promise<void> {
     const holders: InstanceHolder<any>[] = []
     storage.forEach((_: string, holder: InstanceHolder) => holders.push(holder))
-    await Promise.all(
-      holders.map((holder) => this.waitForHolderToSettle(holder)),
-    )
+    await Promise.all(holders.map((holder) => this.waitForHolderToSettle(holder)))
   }
 
   // ============================================================================
@@ -179,13 +162,7 @@ export class ServiceInvalidator {
     await this.invalidateHolderByStatus(holder, {
       context: key,
       onDestroy: () =>
-        this.destroyHolderWithStorage(
-          key,
-          holder,
-          storage,
-          emitEvents,
-          onInvalidated,
-        ),
+        this.destroyHolderWithStorage(key, holder, storage, emitEvents, onInvalidated),
     })
   }
 
@@ -227,27 +204,25 @@ export class ServiceInvalidator {
     onInvalidated?: (instanceName: string) => Promise<void>,
   ): Promise<void> {
     holder.status = InstanceStatus.Destroying
-    this.logger?.log(
-      `[ServiceInvalidator] Invalidating ${key} and notifying listeners`,
+    this.logger?.log(`[ServiceInvalidator] Invalidating ${key} and notifying listeners`)
+
+    holder.destroyPromise = Promise.all(holder.destroyListeners.map((listener) => listener())).then(
+      async () => {
+        holder.destroyListeners = []
+        holder.deps.clear()
+        storage.delete(key)
+
+        // Emit events if enabled and event bus exists
+        if (emitEvents && this.eventBus) {
+          await this.emitInstanceEvent(key, 'destroy')
+        }
+
+        // Call custom callback if provided
+        if (onInvalidated) {
+          await onInvalidated(key)
+        }
+      },
     )
-
-    holder.destroyPromise = Promise.all(
-      holder.destroyListeners.map((listener) => listener()),
-    ).then(async () => {
-      holder.destroyListeners = []
-      holder.deps.clear()
-      storage.delete(key)
-
-      // Emit events if enabled and event bus exists
-      if (emitEvents && this.eventBus) {
-        await this.emitInstanceEvent(key, 'destroy')
-      }
-
-      // Call custom callback if provided
-      if (onInvalidated) {
-        await onInvalidated(key)
-      }
-    })
 
     await holder.destroyPromise
   }
@@ -255,9 +230,7 @@ export class ServiceInvalidator {
   /**
    * Waits for a holder to settle (either created, destroyed, or error state).
    */
-  private async waitForHolderToSettle(
-    holder: InstanceHolder<any>,
-  ): Promise<void> {
+  private async waitForHolderToSettle(holder: InstanceHolder<any>): Promise<void> {
     switch (holder.status) {
       case InstanceStatus.Creating:
         await holder.creationPromise
@@ -275,10 +248,7 @@ export class ServiceInvalidator {
   /**
    * Emits events to listeners for instance lifecycle events.
    */
-  private emitInstanceEvent(
-    name: string,
-    event: 'create' | 'destroy' = 'create',
-  ) {
+  private emitInstanceEvent(name: string, event: 'create' | 'destroy' = 'create') {
     if (!this.eventBus) {
       return Promise.resolve()
     }

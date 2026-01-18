@@ -9,14 +9,7 @@ declare global {
     }
 
     // Child types that can appear in JSX
-    type Child =
-      | Element
-      | Element[]
-      | string
-      | number
-      | boolean
-      | null
-      | undefined
+    type Child = Element | Element[] | string | number | boolean | null | undefined
 
     type BaseTagProps = {
       key?: string | number

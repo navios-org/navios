@@ -2,6 +2,7 @@ import type { Container } from '@navios/di'
 
 import type { ModuleMetadata } from '../metadata/index.mjs'
 import type { ModuleLoaderService } from '../services/module-loader.service.mjs'
+
 import type { AbstractAdapterInterface } from './abstract-adapter.interface.mjs'
 import type { PluginStage } from './plugin-stage.mjs'
 
@@ -99,6 +100,5 @@ export type ContextForStage<
  *
  * @typeParam TAdapter - The adapter type, defaults to AbstractAdapterInterface
  */
-export type PluginContext<
-  TAdapter extends AbstractAdapterInterface = AbstractAdapterInterface,
-> = FullPluginContext<TAdapter>
+export type PluginContext<TAdapter extends AbstractAdapterInterface = AbstractAdapterInterface> =
+  FullPluginContext<TAdapter>

@@ -7,11 +7,7 @@ describe('navios::post', () => {
   it('should make a simple GET request', async () => {
     const mockAdapter = makeNaviosFakeAdapter()
     const navios = create({ adapter: mockAdapter.fetch })
-    mockAdapter.mock(
-      '/test/post',
-      'POST',
-      (_, req) => new Response(req?.body, {}),
-    )
+    mockAdapter.mock('/test/post', 'POST', (_, req) => new Response(req?.body, {}))
     const response = await navios.post('/test/post', {
       test: 'value',
     })
@@ -25,11 +21,7 @@ describe('navios::post', () => {
       expect(url).toBe('/test?query=param')
       return new Response(req?.body)
     })
-    const response = await navios.post(
-      '/test',
-      { test: 'value' },
-      { params: { query: 'param' } },
-    )
+    const response = await navios.post('/test', { test: 'value' }, { params: { query: 'param' } })
     expect(response.status).toBe(200)
     expect(response.data).toEqual({ test: 'value' })
   })
@@ -54,9 +46,7 @@ describe('navios::post', () => {
         ),
     )
     const failedRequest = navios.post('/test')
-    await expect(failedRequest).rejects.toThrow(
-      'Request failed with Bad Request',
-    )
+    await expect(failedRequest).rejects.toThrow('Request failed with Bad Request')
     await expect(failedRequest).rejects.toMatchObject({
       response: {
         data: { error: 'message' },

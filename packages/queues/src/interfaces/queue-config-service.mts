@@ -12,4 +12,3 @@ export interface QueueConfigService {
    */
   getConfig(): QueueConfig
 }
-

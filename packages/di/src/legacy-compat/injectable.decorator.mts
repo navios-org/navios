@@ -1,9 +1,6 @@
-import type { ClassType } from '../token/injection-token.mjs'
+import { Injectable as OriginalInjectable, type InjectableOptions } from '../decorators/index.mjs'
 
-import {
-  Injectable as OriginalInjectable,
-  type InjectableOptions,
-} from '../decorators/index.mjs'
+import type { ClassType } from '../token/injection-token.mjs'
 
 import { createClassContext } from './context-compat.mjs'
 

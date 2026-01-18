@@ -1,10 +1,9 @@
-import type { ModuleMetadata } from '@navios/core'
-import type { oas31 } from 'zod-openapi'
-
 import { inject, Injectable, InjectionToken } from '@navios/core'
 import { OpenApiGeneratorService } from '@navios/openapi'
-
 import { stringify as yamlStringify } from 'yaml'
+
+import type { ModuleMetadata } from '@navios/core'
+import type { oas31 } from 'zod-openapi'
 
 import { OpenApiOptionsToken } from '../tokens/openapi-options.token.mjs'
 
@@ -13,10 +12,9 @@ type OpenAPIObject = oas31.OpenAPIObject
 /**
  * Injection token for the document service
  */
-export const OpenApiDocumentServiceToken =
-  InjectionToken.create<OpenApiDocumentService>(
-    Symbol.for('OpenApiDocumentService'),
-  )
+export const OpenApiDocumentServiceToken = InjectionToken.create<OpenApiDocumentService>(
+  Symbol.for('OpenApiDocumentService'),
+)
 
 /**
  * Service that generates and caches the OpenAPI document.
@@ -46,10 +44,7 @@ export class OpenApiDocumentService {
     this.document = this.generator.generate(modules, this.options)
 
     // Apply global prefix to servers if not already set
-    if (
-      globalPrefix &&
-      (!this.document.servers || this.document.servers.length === 0)
-    ) {
+    if (globalPrefix && (!this.document.servers || this.document.servers.length === 0)) {
       this.document.servers = [{ url: globalPrefix }]
     }
 
@@ -62,9 +57,7 @@ export class OpenApiDocumentService {
    */
   getDocument(): OpenAPIObject {
     if (!this.document) {
-      throw new Error(
-        'OpenApiDocumentService not initialized. Call initialize() first.',
-      )
+      throw new Error('OpenApiDocumentService not initialized. Call initialize() first.')
     }
     return this.document
   }
@@ -74,9 +67,7 @@ export class OpenApiDocumentService {
    */
   getYamlDocument(): string {
     if (!this.yamlDocument) {
-      throw new Error(
-        'OpenApiDocumentService not initialized. Call initialize() first.',
-      )
+      throw new Error('OpenApiDocumentService not initialized. Call initialize() first.')
     }
     return this.yamlDocument
   }

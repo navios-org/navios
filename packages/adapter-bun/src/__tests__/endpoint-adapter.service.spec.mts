@@ -1,3 +1,9 @@
+import { NaviosOptionsToken } from '@navios/core'
+import { Injectable } from '@navios/di'
+import { TestContainer } from '@navios/di/testing'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { z } from 'zod/v4'
+
 import type { EndpointOptions } from '@navios/builder'
 import type {
   HandlerContext,
@@ -5,13 +11,6 @@ import type {
   InstanceResolution,
   NaviosApplicationOptions,
 } from '@navios/core'
-
-import { NaviosOptionsToken } from '@navios/core'
-import { Injectable } from '@navios/di'
-import { TestContainer } from '@navios/di/testing'
-
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { z } from 'zod/v4'
 
 import { BunEndpointAdapterService } from '../adapters/endpoint-adapter.service.mjs'
 
@@ -23,9 +22,7 @@ const bindNaviosOptions = (
   container: TestContainer,
   options: Partial<NaviosApplicationOptions>,
 ) => {
-  container
-    .bind(NaviosOptionsToken)
-    .toValue(options as NaviosApplicationOptions)
+  container.bind(NaviosOptionsToken).toValue(options as NaviosApplicationOptions)
 }
 
 // Mock BunRequest type
@@ -37,9 +34,7 @@ interface MockBunRequest {
   text: () => Promise<string>
 }
 
-const createMockBunRequest = (
-  overrides: Partial<MockBunRequest> = {},
-): MockBunRequest => ({
+const createMockBunRequest = (overrides: Partial<MockBunRequest> = {}): MockBunRequest => ({
   url: 'http://localhost:3000/test',
   method: 'GET',
   headers: new Headers(),
@@ -227,9 +222,7 @@ describe('BunEndpointAdapterService', () => {
 
       const adapter = await container.get(TestBunEndpointAdapter)
       const boundMethod = vi.fn().mockResolvedValue({ id: '123', name: 'test' })
-      const formatArguments = vi
-        .fn()
-        .mockResolvedValue({ data: { input: 'value' } })
+      const formatArguments = vi.fn().mockResolvedValue({ data: { input: 'value' } })
       const handlerMetadata = createHandlerMetadata({
         method: 'GET',
         url: '/test',
@@ -239,11 +232,7 @@ describe('BunEndpointAdapterService', () => {
         hasArguments: true,
       })
 
-      const result = adapter.testCreateStaticHandler(
-        boundMethod,
-        formatArguments,
-        context,
-      )
+      const result = adapter.testCreateStaticHandler(boundMethod, formatArguments, context)
 
       expect(result.isStatic).toBe(true)
       expect(typeof result.handler).toBe('function')
@@ -278,11 +267,7 @@ describe('BunEndpointAdapterService', () => {
         hasArguments: false,
       })
 
-      const result = adapter.testCreateStaticHandler(
-        boundMethod,
-        formatArguments,
-        context,
-      )
+      const result = adapter.testCreateStaticHandler(boundMethod, formatArguments, context)
       const request = createMockBunRequest()
       const response = await result.handler(request as any)
 
@@ -308,11 +293,7 @@ describe('BunEndpointAdapterService', () => {
         hasArguments: false,
       })
 
-      const result = adapter.testCreateStaticHandler(
-        boundMethod,
-        formatArguments,
-        context,
-      )
+      const result = adapter.testCreateStaticHandler(boundMethod, formatArguments, context)
       const request = createMockBunRequest()
       const response = await result.handler(request as any)
 
@@ -333,9 +314,7 @@ describe('BunEndpointAdapterService', () => {
         instance: null,
         resolve: vi.fn().mockResolvedValue(mockController),
       }
-      const formatArguments = vi
-        .fn()
-        .mockResolvedValue({ data: { input: 'test' } })
+      const formatArguments = vi.fn().mockResolvedValue({ data: { input: 'test' } })
       const handlerMetadata = createHandlerMetadata(
         {
           method: 'GET',
@@ -348,21 +327,14 @@ describe('BunEndpointAdapterService', () => {
         hasArguments: true,
       })
 
-      const result = adapter.testCreateDynamicHandler(
-        resolution,
-        formatArguments,
-        context,
-      )
+      const result = adapter.testCreateDynamicHandler(resolution, formatArguments, context)
 
       expect(result.isStatic).toBe(false)
       expect(typeof result.handler).toBe('function')
 
       const scopedContainer = {}
       const request = createMockBunRequest()
-      const response = await result.handler(
-        scopedContainer as any,
-        request as any,
-      )
+      const response = await result.handler(scopedContainer as any, request as any)
 
       expect(resolution.resolve).toHaveBeenCalledWith(scopedContainer)
       expect(mockController.testMethod).toHaveBeenCalledWith({
@@ -401,11 +373,7 @@ describe('BunEndpointAdapterService', () => {
         hasArguments: false,
       })
 
-      const result = adapter.testCreateDynamicHandler(
-        resolution,
-        formatArguments,
-        context,
-      )
+      const result = adapter.testCreateDynamicHandler(resolution, formatArguments, context)
       const request = createMockBunRequest()
       const response = await result.handler({} as any, request as any)
 

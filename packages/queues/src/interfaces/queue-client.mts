@@ -18,10 +18,7 @@ export interface QueueClient {
    * @param topic - Topic name
    * @param handler - Message handler function
    */
-  subscribe(
-    topic: string,
-    handler: (message: unknown) => Promise<void>,
-  ): Promise<void>
+  subscribe(topic: string, handler: (message: unknown) => Promise<void>): Promise<void>
 
   /**
    * Sends a message to a queue (point-to-point pattern).
@@ -37,10 +34,7 @@ export interface QueueClient {
    * @param queue - Queue name
    * @param handler - Message handler function
    */
-  receive(
-    queue: string,
-    handler: (message: unknown) => Promise<void>,
-  ): Promise<void>
+  receive(queue: string, handler: (message: unknown) => Promise<void>): Promise<void>
 
   /**
    * Sends a request and waits for a reply (request/reply pattern).
@@ -57,14 +51,10 @@ export interface QueueClient {
    * @param topic - Topic name for request/reply
    * @param handler - Request handler function that returns a response
    */
-  reply(
-    topic: string,
-    handler: (message: unknown) => Promise<unknown>,
-  ): Promise<void>
+  reply(topic: string, handler: (message: unknown) => Promise<unknown>): Promise<void>
 
   /**
    * Disconnects from the queue system.
    */
   disconnect(): Promise<void>
 }
-

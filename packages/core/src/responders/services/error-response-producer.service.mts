@@ -1,13 +1,14 @@
 import { inject, Injectable } from '@navios/di'
 
 import { FrameworkError } from '../enums/framework-error.enum.mjs'
-import type { ErrorResponse } from '../interfaces/error-response.interface.mjs'
 import {
   ForbiddenResponderToken,
   InternalServerErrorResponderToken,
   NotFoundResponderToken,
   ValidationErrorResponderToken,
 } from '../tokens/responder.tokens.mjs'
+
+import type { ErrorResponse } from '../interfaces/error-response.interface.mjs'
 
 /**
  * Service for producing standardized error responses.
@@ -50,13 +51,9 @@ import {
 @Injectable()
 export class ErrorResponseProducerService {
   private readonly forbiddenResponder = inject(ForbiddenResponderToken)
-  private readonly internalServerErrorResponder = inject(
-    InternalServerErrorResponderToken,
-  )
+  private readonly internalServerErrorResponder = inject(InternalServerErrorResponderToken)
   private readonly notFoundResponder = inject(NotFoundResponderToken)
-  private readonly validationErrorResponder = inject(
-    ValidationErrorResponderToken,
-  )
+  private readonly validationErrorResponder = inject(ValidationErrorResponderToken)
 
   /**
    * Produces an error response for a specific framework error type.
@@ -66,11 +63,7 @@ export class ErrorResponseProducerService {
    * @param description - Optional custom description to include in the response
    * @returns ErrorResponse with status code, RFC 7807 payload, and headers
    */
-  respond(
-    type: FrameworkError,
-    error: unknown,
-    description?: string,
-  ): ErrorResponse {
+  respond(type: FrameworkError, error: unknown, description?: string): ErrorResponse {
     switch (type) {
       case FrameworkError.NotFound:
         return this.notFoundResponder.getResponse(error, description)

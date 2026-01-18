@@ -124,10 +124,7 @@ await prefetchAll(queryClient, [
 New `createOptimisticUpdate` and `createMultiOptimisticUpdate` utilities for type-safe optimistic updates:
 
 ```typescript
-import {
-  createMultiOptimisticUpdate,
-  createOptimisticUpdate,
-} from '@navios/react-query'
+import { createMultiOptimisticUpdate, createOptimisticUpdate } from '@navios/react-query'
 
 const updateUser = client.mutation({
   method: 'PATCH',
@@ -161,9 +158,7 @@ const updateUser = client.mutation({
     {
       queryKey: ['users'],
       updateFn: (oldList, variables) =>
-        (oldList ?? []).map((u) =>
-          u.id === userId ? { ...u, ...variables.data } : u,
-        ),
+        (oldList ?? []).map((u) => (u.id === userId ? { ...u, ...variables.data } : u)),
     },
   ]),
 })

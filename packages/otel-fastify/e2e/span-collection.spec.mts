@@ -1,29 +1,19 @@
-import type { EndpointParams } from '@navios/core'
-import type { ReadableSpan, SpanExporter } from '@opentelemetry/sdk-trace-node'
-import type { ExportResult } from '@opentelemetry/core'
-
-import { builder } from '@navios/builder'
-import {
-  Controller,
-  Endpoint,
-  Module,
-  NaviosApplication,
-  NaviosFactory,
-} from '@navios/core'
 import { defineFastifyEnvironment } from '@navios/adapter-fastify'
-import type { FastifyEnvironment } from '@navios/adapter-fastify'
-import {
-  NodeTracerProvider,
-  SimpleSpanProcessor,
-} from '@opentelemetry/sdk-trace-node'
+import { builder } from '@navios/builder'
+import { Controller, Endpoint, Module, NaviosApplication, NaviosFactory } from '@navios/core'
+import { trace, context as otelContext } from '@opentelemetry/api'
 import { ExportResultCode } from '@opentelemetry/core'
 import { resourceFromAttributes } from '@opentelemetry/resources'
+import { NodeTracerProvider, SimpleSpanProcessor } from '@opentelemetry/sdk-trace-node'
 import { ATTR_SERVICE_NAME } from '@opentelemetry/semantic-conventions'
-import { trace, context as otelContext } from '@opentelemetry/api'
-
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import supertest from 'supertest'
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { z } from 'zod/v4'
+
+import type { FastifyEnvironment } from '@navios/adapter-fastify'
+import type { EndpointParams } from '@navios/core'
+import type { ExportResult } from '@opentelemetry/core'
+import type { ReadableSpan, SpanExporter } from '@opentelemetry/sdk-trace-node'
 
 import { defineOtelPlugin } from '../src/index.mjs'
 
@@ -34,10 +24,7 @@ import { defineOtelPlugin } from '../src/index.mjs'
 class TestSpanExporter implements SpanExporter {
   private spans: ReadableSpan[] = []
 
-  export(
-    spans: ReadableSpan[],
-    resultCallback: (result: ExportResult) => void,
-  ): void {
+  export(spans: ReadableSpan[], resultCallback: (result: ExportResult) => void): void {
     this.spans.push(...spans)
     resultCallback({ code: ExportResultCode.SUCCESS })
   }
@@ -145,16 +132,18 @@ describe('Span Collection Verification (Fastify)', () => {
     })
 
     // Register OTel plugin with 'none' exporter since we already registered our own
-    server.usePlugin(defineOtelPlugin({
-      serviceName: 'span-collection-test-fastify',
-      exporter: 'none', // We've already set up our test exporter
-      autoInstrument: {
-        http: true,
-        handlers: true,
-      },
-      ignoreRoutes: ['/health'],
-      includeNaviosAttributes: true, // Enable navios attributes for testing
-    }))
+    server.usePlugin(
+      defineOtelPlugin({
+        serviceName: 'span-collection-test-fastify',
+        exporter: 'none', // We've already set up our test exporter
+        autoInstrument: {
+          http: true,
+          handlers: true,
+        },
+        ignoreRoutes: ['/health'],
+        includeNaviosAttributes: true, // Enable navios attributes for testing
+      }),
+    )
 
     await server.init()
   })
@@ -181,9 +170,7 @@ describe('Span Collection Verification (Fastify)', () => {
       expect(spans.length).toBeGreaterThan(0)
 
       // Find the HTTP span
-      const httpSpan = spans.find((span) =>
-        span.name.startsWith('HTTP GET'),
-      )
+      const httpSpan = spans.find((span) => span.name.startsWith('HTTP GET'))
       expect(httpSpan).toBeDefined()
 
       if (httpSpan) {
@@ -211,9 +198,7 @@ describe('Span Collection Verification (Fastify)', () => {
       expect(spans.length).toBeGreaterThan(0)
 
       // Find the HTTP span
-      const httpSpan = spans.find((span) =>
-        span.name.startsWith('HTTP POST'),
-      )
+      const httpSpan = spans.find((span) => span.name.startsWith('HTTP POST'))
       expect(httpSpan).toBeDefined()
 
       if (httpSpan) {
@@ -236,9 +221,7 @@ describe('Span Collection Verification (Fastify)', () => {
       const spans = testExporter.getSpans()
 
       // Should not have any HTTP span for /health
-      const healthSpan = spans.find((span) =>
-        span.name.includes('/health'),
-      )
+      const healthSpan = spans.find((span) => span.name.includes('/health'))
       expect(healthSpan).toBeUndefined()
     })
 
@@ -253,9 +236,7 @@ describe('Span Collection Verification (Fastify)', () => {
       const spans = testExporter.getSpans()
 
       // Fastify creates spans for 404s since they go through the hook chain
-      const notFoundSpan = spans.find((span) =>
-        span.name.includes('/nonexistent'),
-      )
+      const notFoundSpan = spans.find((span) => span.name.includes('/nonexistent'))
       // The span may or may not be created depending on Fastify's routing behavior
       // This test documents the actual behavior
       expect(spans).toBeDefined()
@@ -280,9 +261,7 @@ describe('Span Collection Verification (Fastify)', () => {
       const spans = testExporter.getSpans()
 
       // Should have at least 3 HTTP spans
-      const httpSpans = spans.filter((span) =>
-        span.name.startsWith('HTTP GET /users'),
-      )
+      const httpSpans = spans.filter((span) => span.name.startsWith('HTTP GET /users'))
       expect(httpSpans.length).toBeGreaterThanOrEqual(3)
 
       // Each span should have a unique trace ID or span ID

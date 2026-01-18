@@ -1,18 +1,15 @@
-import type { BunApplicationServiceInterface } from '@navios/adapter-bun'
 import { BunControllerAdapterToken } from '@navios/adapter-bun'
-import type {
-  FullPluginContext,
-  ModulesLoadedContext,
-  StagedPluginDefinition,
-} from '@navios/core'
 import { Logger } from '@navios/core'
 import { InjectableScope, InjectableType } from '@navios/di'
-import { OtelSetupService } from '@navios/otel'
+import { OtelSetupService, defineOtelTracingPlugin } from '@navios/otel'
 
-import type { BunOtelPluginOptions } from '../interfaces/index.mjs'
+import type { BunApplicationServiceInterface } from '@navios/adapter-bun'
+import type { FullPluginContext, ModulesLoadedContext, StagedPluginDefinition } from '@navios/core'
 
 import { TracedBunControllerAdapterService } from '../overrides/index.mjs'
 import { BunOtelOptionsToken } from '../tokens/index.mjs'
+
+import type { BunOtelPluginOptions } from '../interfaces/index.mjs'
 
 /**
  * Pre-adapter-resolve plugin that registers the traced controller adapter.
@@ -66,9 +63,7 @@ class OtelBunPostModulesPlugin {
     const setupService = await container.get(OtelSetupService)
     await setupService.initialize(options)
 
-    logger.debug(
-      `OpenTelemetry plugin registered for service: ${options.serviceName}`,
-    )
+    logger.debug(`OpenTelemetry plugin registered for service: ${options.serviceName}`)
   }
 }
 
@@ -122,15 +117,15 @@ class OtelBunPostModulesPlugin {
  * await app.listen({ port: 3000 })
  * ```
  */
-export function defineOtelPlugin(options: BunOtelPluginOptions): [
+export function defineOtelPlugin(
+  options: BunOtelPluginOptions,
+): [
+  StagedPluginDefinition<'pre:adapter-resolve'>,
   StagedPluginDefinition<'pre:adapter-resolve', BunOtelPluginOptions>,
-  StagedPluginDefinition<
-    'post:modules-init',
-    BunOtelPluginOptions,
-    BunApplicationServiceInterface
-  >,
+  StagedPluginDefinition<'post:modules-init', BunOtelPluginOptions, BunApplicationServiceInterface>,
 ] {
   return [
+    defineOtelTracingPlugin({}),
     {
       plugin: new OtelBunPreAdapterPlugin(),
       options,

@@ -1,6 +1,5 @@
-import { describe, expect, it } from 'vitest'
-
 import { Controller, extractControllerMetadata } from '@navios/core'
+import { describe, expect, it } from 'vitest'
 
 import {
   ApiDeprecated,

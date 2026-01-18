@@ -28,9 +28,7 @@ describe('TestContainer', () => {
     })
 
     it('should bind a class to a token', async () => {
-      const TOKEN = InjectionToken.create<{ getValue(): string }>(
-        'service-token',
-      )
+      const TOKEN = InjectionToken.create<{ getValue(): string }>('service-token')
 
       class MockService {
         getValue(): string {
@@ -92,17 +90,13 @@ describe('TestContainer', () => {
       @Injectable()
       class NeverResolved {}
 
-      expect(() => container.expectResolved(NeverResolved)).toThrow(
-        /to be resolved/,
-      )
+      expect(() => container.expectResolved(NeverResolved)).toThrow(/to be resolved/)
     })
 
     it('should throw when expecting not resolved but was resolved', async () => {
       await container.get(SimpleService)
 
-      expect(() => container.expectNotResolved(SimpleService)).toThrow(
-        /to NOT be resolved/,
-      )
+      expect(() => container.expectNotResolved(SimpleService)).toThrow(/to NOT be resolved/)
     })
 
     it('should assert singleton scope', async () => {
@@ -133,26 +127,20 @@ describe('TestContainer', () => {
       @Injectable()
       class SingletonService {}
 
-      await expect(
-        container.expectSameInstance(SingletonService),
-      ).resolves.not.toThrow()
+      await expect(container.expectSameInstance(SingletonService)).resolves.not.toThrow()
     })
 
     it('should assert different instances for transient', async () => {
       @Injectable({ scope: InjectableScope.Transient })
       class TransientService {}
 
-      await expect(
-        container.expectDifferentInstances(TransientService),
-      ).resolves.not.toThrow()
+      await expect(container.expectDifferentInstances(TransientService)).resolves.not.toThrow()
     })
   })
 
   describe('Method Call Tracking', () => {
     it('should record method calls', async () => {
-      const TOKEN = InjectionToken.create<{ doWork(x: number): number }>(
-        'work-token',
-      )
+      const TOKEN = InjectionToken.create<{ doWork(x: number): number }>('work-token')
 
       class MockWorker {
         doWork(x: number): number {
@@ -168,9 +156,7 @@ describe('TestContainer', () => {
       container.recordMethodCall(TOKEN, 'doWork', [5], result)
 
       expect(() => container.expectCalled(TOKEN, 'doWork')).not.toThrow()
-      expect(() =>
-        container.expectCalledWith(TOKEN, 'doWork', [5]),
-      ).not.toThrow()
+      expect(() => container.expectCalledWith(TOKEN, 'doWork', [5])).not.toThrow()
     })
 
     it('should track call count', async () => {
@@ -194,9 +180,7 @@ describe('TestContainer', () => {
     })
 
     it('should get all method calls', async () => {
-      const TOKEN = InjectionToken.create<{ action(s: string): void }>(
-        'action-token',
-      )
+      const TOKEN = InjectionToken.create<{ action(s: string): void }>('action-token')
 
       class MockAction {
         // oxlint-disable-next-line no-unused-vars
@@ -242,9 +226,7 @@ describe('TestContainer', () => {
       container.bind(TOKEN).toValue({ name: 'test' })
 
       const stats = container.getServiceStats(TOKEN)
-      expect(stats.lifecycleEvents.some((e) => e.event === 'created')).toBe(
-        true,
-      )
+      expect(stats.lifecycleEvents.some((e) => e.event === 'created')).toBe(true)
     })
 
     it('should get service stats with method calls', async () => {

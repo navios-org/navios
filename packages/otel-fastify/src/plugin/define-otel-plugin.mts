@@ -1,26 +1,24 @@
-import type { FastifyInstance } from 'fastify'
-
-import type { FastifyApplicationServiceInterface } from '@navios/adapter-fastify'
-import type {
-  NaviosPlugin,
-  PluginContext,
-  PluginDefinition,
-} from '@navios/core'
 import { Logger } from '@navios/core'
 import {
   OtelConfigToken,
   OtelSetupService,
   SpanFactoryService,
   TraceContextService,
+  defineOtelTracingPlugin,
 } from '@navios/otel'
 
-import type { FastifyOtelPluginOptions } from '../interfaces/index.mjs'
+import type { FastifyApplicationServiceInterface } from '@navios/adapter-fastify'
+import type {
+  NaviosPlugin,
+  PluginContext,
+  PluginDefinition,
+  StagedPluginDefinition,
+} from '@navios/core'
+import type { FastifyInstance } from 'fastify'
 
-import {
-  createOnErrorHook,
-  createOnRequestHook,
-  createOnResponseHook,
-} from '../hooks/index.mjs'
+import { createOnErrorHook, createOnRequestHook, createOnResponseHook } from '../hooks/index.mjs'
+
+import type { FastifyOtelPluginOptions } from '../interfaces/index.mjs'
 
 /**
  * OpenTelemetry plugin for Fastify adapter.
@@ -29,10 +27,10 @@ import {
  * It automatically creates spans for incoming HTTP requests and provides
  * context propagation for distributed tracing.
  */
-export class OtelFastifyPlugin
-  implements
-    NaviosPlugin<FastifyOtelPluginOptions, FastifyApplicationServiceInterface>
-{
+export class OtelFastifyPlugin implements NaviosPlugin<
+  FastifyOtelPluginOptions,
+  FastifyApplicationServiceInterface
+> {
   readonly name = '@navios/otel-fastify'
 
   async register(
@@ -58,10 +56,7 @@ export class OtelFastifyPlugin
 
     // Register hooks
     if (options.autoInstrument?.http !== false) {
-      fastify.addHook(
-        'onRequest',
-        createOnRequestHook(traceContext, spanFactory, config, options),
-      )
+      fastify.addHook('onRequest', createOnRequestHook(traceContext, spanFactory, config, options))
 
       fastify.addHook('onResponse', createOnResponseHook(spanFactory))
 
@@ -74,9 +69,7 @@ export class OtelFastifyPlugin
       await setupService.shutdown()
     })
 
-    logger.debug(
-      `OpenTelemetry plugin registered for service: ${options.serviceName}`,
-    )
+    logger.debug(`OpenTelemetry plugin registered for service: ${options.serviceName}`)
   }
 }
 
@@ -115,11 +108,12 @@ export class OtelFastifyPlugin
  * await app.listen({ port: 3000 })
  * ```
  */
-export function defineOtelPlugin(
-  options: FastifyOtelPluginOptions,
-): PluginDefinition<FastifyOtelPluginOptions, FastifyApplicationServiceInterface> {
-  return {
-    plugin: new OtelFastifyPlugin(),
-    options,
-  }
+export function defineOtelPlugin(options: FastifyOtelPluginOptions) {
+  return [
+    defineOtelTracingPlugin({}),
+    {
+      plugin: new OtelFastifyPlugin(),
+      options,
+    },
+  ]
 }
