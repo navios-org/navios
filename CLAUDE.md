@@ -17,7 +17,7 @@
 
 - No semicolons
 - Single quotes
-- Follow Prettier config
+- Follow Oxlint config
 - Run `yarn turbo run lint --filter=<package>` after making changes
 
 ## DI System Testing Rules
