@@ -1,6 +1,14 @@
 {
   "name": "@navios/otel-fastify",
   "version": "1.0.0-alpha.2",
+  "scripts": {
+    "check": "tsc -b",
+    "lint": "oxlint --fix",
+    "test:ci": "vitest run",
+    "build": "tsdown",
+    "publish": "yarn npm publish --access public",
+    "publish:next": "yarn npm publish --access public --tag next"
+  },
   "description": "OpenTelemetry integration for Navios Fastify adapter",
   "author": {
     "name": "Oleksandr Hanzha",

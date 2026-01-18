@@ -1,6 +1,14 @@
 {
   "name": "@navios/queues",
   "version": "0.1.0",
+  "scripts": {
+    "check": "tsc -b",
+    "lint": "oxlint --fix",
+    "test:ci": "vitest run",
+    "build": "tsdown",
+    "publish": "yarn npm publish --access public",
+    "publish:next": "yarn npm publish --access public --tag next"
+  },
   "description": "Queue adapters for Navios - RabbitMQ, Kafka, and AWS SQS/SNS support",
   "author": {
     "name": "Oleksandr Hanzha",
