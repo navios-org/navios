@@ -4343,7 +4343,7 @@ __metadata:
     "@types/node": "npm:25.0.9"
     "@vitest/coverage-v8": "npm:^4.0.17"
     "@vitest/ui": "npm:4.0.17"
-    happy-dom: "npm:^20.3.1"
+    happy-dom: "npm:^20.3.3"
     oxfmt: "npm:^0.24.0"
     oxlint: "npm:^1.39.0"
     tsdown: "npm:^0.19.0"
@@ -7028,7 +7028,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@types/node@npm:*, @types/node@npm:25.0.9, @types/node@npm:>=13.7.0, @types/node@npm:^25.0.9":
+"@types/node@npm:*, @types/node@npm:25.0.9, @types/node@npm:>=13.7.0, @types/node@npm:>=20.0.0, @types/node@npm:^25.0.9":
   version: 25.0.9
   resolution: "@types/node@npm:25.0.9"
   dependencies:
@@ -7041,15 +7041,6 @@ __metadata:
   version: 17.0.45
   resolution: "@types/node@npm:17.0.45"
   checksum: 10c0/0db377133d709b33a47892581a21a41cd7958f22723a3cc6c71d55ac018121382de42fbfc7970d5ae3e7819dbe5f40e1c6a5174aedf7e7964e9cb8fa72b580b0
-  languageName: node
-  linkType: hard
-
-"@types/node@npm:^20.0.0":
-  version: 20.19.27
-  resolution: "@types/node@npm:20.19.27"
-  dependencies:
-    undici-types: "npm:~6.21.0"
-  checksum: 10c0/7599c24d80465c1aa6e29b53581fc20ad8862ff33e6eef31d05c1c706868476ee57319c89b802ea972dd4d64ce86d18020aa5344f851fb59b730ea509a63300f
   languageName: node
   linkType: hard
 
@@ -10379,7 +10370,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"entities@npm:^4.2.0, entities@npm:^4.4.0":
+"entities@npm:^4.2.0, entities@npm:^4.4.0, entities@npm:^4.5.0":
   version: 4.5.0
   resolution: "entities@npm:4.5.0"
   checksum: 10c0/5b039739f7621f5d1ad996715e53d964035f75ad3b9a4d38c6b3804bb226e282ffeae2443624d8fdd9c47d8e926ae9ac009c54671243f0c3294c26af7cc85250
@@ -11565,16 +11556,17 @@ __metadata:
   languageName: node
   linkType: hard
 
-"happy-dom@npm:^20.3.1":
-  version: 20.3.1
-  resolution: "happy-dom@npm:20.3.1"
+"happy-dom@npm:^20.3.3":
+  version: 20.3.3
+  resolution: "happy-dom@npm:20.3.3"
   dependencies:
-    "@types/node": "npm:^20.0.0"
+    "@types/node": "npm:>=20.0.0"
     "@types/whatwg-mimetype": "npm:^3.0.2"
     "@types/ws": "npm:^8.18.1"
+    entities: "npm:^4.5.0"
     whatwg-mimetype: "npm:^3.0.0"
     ws: "npm:^8.18.3"
-  checksum: 10c0/bb2283e7b897bc55d10ca52033256bfde4a209d981ca50af022fc431252775292971531c0a527c7429af5965043f4fd144d0873ed0fd62ddf4c9dd4ce750908a
+  checksum: 10c0/8d2ca0337be44c4d9b0ecd18213ce4ba326fe08f3cee604d64395fac88b21f056668e6d247ba0f05f7e54805b6e76e1edfe7f9cb4dcd1f812cff35ac2b2a88e4
   languageName: node
   linkType: hard
 
@@ -18553,13 +18545,6 @@ __metadata:
     "@quansync/fs": "npm:^1.0.0"
     quansync: "npm:^1.0.0"
   checksum: 10c0/12aa85c78114a505fb49adc5fd6c2ce58b1661c517caea7f8943b9f56912634bfd085443a84d7675a0b245598e6220daaff0a69e3dd712819e0d05195fcfb75b
-  languageName: node
-  linkType: hard
-
-"undici-types@npm:~6.21.0":
-  version: 6.21.0
-  resolution: "undici-types@npm:6.21.0"
-  checksum: 10c0/c01ed51829b10aa72fc3ce64b747f8e74ae9b60eafa19a7b46ef624403508a54c526ffab06a14a26b3120d055e1104d7abe7c9017e83ced038ea5cf52f8d5e04
   languageName: node
   linkType: hard
 
