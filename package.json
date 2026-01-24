@@ -19,7 +19,7 @@
   },
   "devDependencies": {
     "@microsoft/api-extractor": "^7.55.2",
-    "@swc/core": "^1.15.8",
+    "@swc/core": "^1.15.10",
     "@types/node": "25.0.9",
     "@vitest/coverage-v8": "^4.0.17",
     "@vitest/ui": "4.0.17",
