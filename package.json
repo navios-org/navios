@@ -21,7 +21,7 @@
     "@microsoft/api-extractor": "^7.55.2",
     "@swc/core": "^1.15.10",
     "@types/node": "25.0.9",
-    "@vitest/coverage-v8": "^4.0.17",
+    "@vitest/coverage-v8": "^4.0.18",
     "@vitest/ui": "4.0.17",
     "happy-dom": "^20.3.4",
     "oxfmt": "^0.24.0",
