@@ -34,6 +34,7 @@ export interface QueryConfig<
   ErrorSchema extends ErrorSchemaRecord | undefined = undefined,
   Result = ComputeBaseResult<true, Response, ErrorSchema>,
   RequestSchema extends ZodType | undefined = undefined,
+  TClientOptions = ClientOptions,
 > {
   method: Method
   url: Url
@@ -42,6 +43,7 @@ export interface QueryConfig<
   errorSchema?: ErrorSchema
   requestSchema?: RequestSchema
   processResponse?: (data: ComputeBaseResult<true, Response, ErrorSchema>) => Result
+  clientOptions?: TClientOptions
 }
 
 /**
@@ -56,6 +58,7 @@ export type InfiniteQueryConfig<
   PageResult = ComputeBaseResult<true, Response, ErrorSchema>,
   Result = InfiniteData<PageResult>,
   RequestSchema extends ZodType | undefined = undefined,
+  TClientOptions = ClientOptions,
 > = {
   method: Method
   url: Url
@@ -64,6 +67,7 @@ export type InfiniteQueryConfig<
   errorSchema?: ErrorSchema
   requestSchema?: RequestSchema
   processResponse?: (data: ComputeBaseResult<true, Response, ErrorSchema>) => PageResult
+  clientOptions?: TClientOptions
   select?: (data: InfiniteData<PageResult>) => Result
   getNextPageParam: (
     lastPage: PageResult,
@@ -164,6 +168,7 @@ export function declareClient<UseDiscriminator extends boolean = false>({
       requestSchema: config.requestSchema,
       responseSchema: config.responseSchema,
       errorSchema: config.errorSchema,
+      clientOptions: config.clientOptions,
     })
 
     const queryOptions = makeQueryOptions(endpoint, {
@@ -197,6 +202,7 @@ export function declareClient<UseDiscriminator extends boolean = false>({
       requestSchema: config.requestSchema,
       responseSchema: config.responseSchema,
       errorSchema: config.errorSchema,
+      clientOptions: config.clientOptions,
     })
     const infiniteQueryOptions = makeInfiniteQueryOptions(endpoint, {
       ...defaults,

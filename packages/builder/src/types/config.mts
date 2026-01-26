@@ -88,6 +88,10 @@ export interface ClientOptions {
     skipFields?: string[]
     /** Nested paths to skip (e.g., 'data.metadata.raw') */
     skipPaths?: string[]
+    /** Whether to transform query parameters to snake_case */
+    snakeCaseQuery?: boolean
+    /** Whether to transform request body to snake_case */
+    snakeCaseBody?: boolean
   }
 
   /**
@@ -99,6 +103,10 @@ export interface ClientOptions {
     skipFields?: string[]
     /** Nested paths to skip (e.g., 'data.metadata.raw') */
     skipPaths?: string[]
+    /** Whether to transform query parameters from snake_case */
+    snakeCaseQuery?: boolean
+    /** Whether to transform response body from snake_case */
+    snakeCaseBody?: boolean
   }
 
   /** Allow arbitrary client-specific options */
