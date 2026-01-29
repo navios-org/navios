@@ -36,7 +36,7 @@
   },
   "dependencies": {
     "@fastify/cors": "^11.2.0",
-    "@fastify/multipart": "^9.3.0",
+    "@fastify/multipart": "^9.4.0",
     "@fastify/swagger": "^9.6.1",
     "fastify": "^5.7.1",
     "fastify-type-provider-zod": "^6.1.0",
