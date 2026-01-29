@@ -434,3 +434,177 @@ test('Injectable types', () => {
     ),
   ).toBeConstructibleWith()
 })
+
+test('Injectable with classes that have static fields', () => {
+  // Simple class with static fields - decorator syntax
+  expectTypeOf(
+    @Injectable()
+    class ServiceWithStatics {
+      static readonly VERSION = '1.0.0'
+      static create() {
+        return new ServiceWithStatics()
+      }
+
+      getValue() {
+        return 42
+      }
+    },
+  ).toBeConstructibleWith()
+
+  // Class with static fields and scope
+  expectTypeOf(
+    @Injectable({ scope: InjectableScope.Transient })
+    class ServiceWithStaticsAndScope {
+      static readonly DEFAULT_VALUE = 100
+      static instances: ServiceWithStaticsAndScope[] = []
+
+      getValue() {
+        return ServiceWithStaticsAndScope.DEFAULT_VALUE
+      }
+    },
+  ).toBeConstructibleWith()
+
+  // Class with static fields and typed token
+  expectTypeOf(
+    @Injectable({
+      token: typedToken,
+    })
+    class ServiceWithStaticsAndToken {
+      static readonly SERVICE_NAME = 'FooServiceImpl'
+
+      makeFoo() {
+        return ServiceWithStaticsAndToken.SERVICE_NAME
+      }
+    },
+  ).toBeConstructibleWith()
+
+  // Class with static fields and typed token with schema
+  expectTypeOf(
+    @Injectable({
+      token: typedObjectToken,
+    })
+    class ServiceWithStaticsAndTokenSchema {
+      static readonly DEFAULT_FOO = 'default-foo'
+
+      constructor(public config: z.infer<typeof simpleObjectSchema>) {}
+
+      makeFoo() {
+        return this.config.foo || ServiceWithStaticsAndTokenSchema.DEFAULT_FOO
+      }
+    },
+  ).toBeConstructibleWith({
+    foo: 'something',
+  })
+
+  // Function call syntax with static fields
+  expectTypeOf(
+    Injectable()(
+      class ServiceWithStaticsFn {
+        static readonly VERSION = '2.0.0'
+
+        getValue() {
+          return ServiceWithStaticsFn.VERSION
+        }
+      },
+    ),
+  ).toBeConstructibleWith()
+
+  // Function call syntax with static fields and schema
+  expectTypeOf(
+    Injectable({
+      schema: simpleObjectSchema,
+    })(
+      class ServiceWithStaticsAndSchemaFn {
+        static readonly PREFIX = 'value:'
+
+        constructor(public config: z.infer<typeof simpleObjectSchema>) {}
+
+        getValue() {
+          return ServiceWithStaticsAndSchemaFn.PREFIX + this.config.foo
+        }
+      },
+    ),
+  ).toBeConstructibleWith({
+    foo: 'something',
+  })
+
+  // Class with generic static methods
+  expectTypeOf(
+    @Injectable()
+    class ServiceWithGenericStatics {
+      static create<T>(_value: T): ServiceWithGenericStatics {
+        return new ServiceWithGenericStatics()
+      }
+
+      getValue() {
+        return 42
+      }
+    },
+  ).toBeConstructibleWith()
+
+  // Class with private static fields
+  expectTypeOf(
+    @Injectable()
+    class ServiceWithPrivateStatics {
+      static #counter = 0
+      private static _secretKey = 'secret'
+
+      static getCount() {
+        return this.#counter
+      }
+
+      getValue() {
+        return ServiceWithPrivateStatics.getCount()
+      }
+    },
+  ).toBeConstructibleWith()
+
+  // Class with inherited static fields
+  class BaseWithStatics {
+    static readonly BASE_VERSION = '1.0.0'
+  }
+
+  expectTypeOf(
+    @Injectable()
+    class DerivedWithStatics extends BaseWithStatics {
+      static readonly DERIVED_VERSION = '2.0.0'
+
+      getVersions() {
+        return `${DerivedWithStatics.BASE_VERSION}-${DerivedWithStatics.DERIVED_VERSION}`
+      }
+    },
+  ).toBeConstructibleWith()
+})
+
+test('Injectable with static object fields and schema works with explicit type annotation', () => {
+  // NOTE: When using @Injectable with schema and static object fields,
+  // some IDE/TypeScript configurations may report:
+  // "'DEFAULT_CONFIG' implicitly has type 'any' because it does not have a
+  // type annotation and is referenced directly or indirectly in its own initializer."
+  //
+  // This can happen due to circular type inference: the decorator's generic type
+  // tries to infer the full class type (including static members), but inferring
+  // the static member type requires knowing the class type first.
+  //
+  // RECOMMENDATION: Add explicit type annotations to static object fields when
+  // using @Injectable with schema to ensure consistent behavior across all
+  // TypeScript configurations.
+
+  // With explicit type annotation - always works:
+  expectTypeOf(
+    @Injectable({
+      schema: simpleObjectSchema,
+    })
+    class ServiceWithStaticObjectWithAnnotation {
+      static readonly DEFAULT_CONFIG: { foo: string } = { foo: 'default' }
+
+      constructor(public config: z.infer<typeof simpleObjectSchema>) {}
+
+      getValue() {
+        return this.config.foo
+      }
+    },
+  ).toBeConstructibleWith({
+    foo: 'something',
+  })
+})
