@@ -4342,7 +4342,7 @@ __metadata:
     "@swc/core": "npm:^1.15.10"
     "@types/node": "npm:25.0.9"
     "@vitest/coverage-v8": "npm:^4.0.18"
-    "@vitest/ui": "npm:4.0.17"
+    "@vitest/ui": "npm:4.0.18"
     happy-dom: "npm:^20.3.4"
     oxfmt: "npm:^0.24.0"
     oxlint: "npm:^1.41.0"
@@ -7407,11 +7407,11 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@vitest/ui@npm:4.0.17":
-  version: 4.0.17
-  resolution: "@vitest/ui@npm:4.0.17"
+"@vitest/ui@npm:4.0.18":
+  version: 4.0.18
+  resolution: "@vitest/ui@npm:4.0.18"
   dependencies:
-    "@vitest/utils": "npm:4.0.17"
+    "@vitest/utils": "npm:4.0.18"
     fflate: "npm:^0.8.2"
     flatted: "npm:^3.3.3"
     pathe: "npm:^2.0.3"
@@ -7419,8 +7419,8 @@ __metadata:
     tinyglobby: "npm:^0.2.15"
     tinyrainbow: "npm:^3.0.3"
   peerDependencies:
-    vitest: 4.0.17
-  checksum: 10c0/30479cc76defbb86bbc4af33483d21c769e5bef44ff93b291eb6bc1d4a715303dfbea91b651c2d639a29b2d2c596835bf45d09a3cf116c53525e5409eac952b6
+    vitest: 4.0.18
+  checksum: 10c0/25ed45b52948101ba5c641aeb84126ce695d067984b8430f797498f7e3aeee53c5392e9e14290744a68b5114cfe933e84675b85340204cdbd118079217985157
   languageName: node
   linkType: hard
 
