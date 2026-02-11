@@ -35,7 +35,7 @@
     "publish:next": "yarn npm publish --access public --tag next"
   },
   "dependencies": {
-    "@scalar/core": "^0.3.32",
+    "@scalar/core": "^0.3.34",
     "yaml": "^2.8.2"
   },
   "devDependencies": {

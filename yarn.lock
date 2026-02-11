@@ -4363,7 +4363,7 @@ __metadata:
     "@navios/builder": "workspace:^"
     "@navios/core": "workspace:^"
     "@navios/openapi": "workspace:^"
-    "@scalar/core": "npm:^0.3.32"
+    "@scalar/core": "npm:^0.3.34"
     typescript: "npm:^5.9.3"
     yaml: "npm:^2.8.2"
     zod: "npm:^4.3.5"
@@ -4383,7 +4383,7 @@ __metadata:
     "@navios/adapter-fastify": "workspace:^"
     "@navios/core": "workspace:^"
     "@navios/openapi": "workspace:^"
-    "@scalar/core": "npm:^0.3.32"
+    "@scalar/core": "npm:^0.3.34"
     fastify: "npm:^5.7.1"
     typescript: "npm:^5.9.3"
     yaml: "npm:^2.8.2"
@@ -5452,31 +5452,31 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@scalar/core@npm:^0.3.32":
-  version: 0.3.32
-  resolution: "@scalar/core@npm:0.3.32"
+"@scalar/core@npm:^0.3.34":
+  version: 0.3.34
+  resolution: "@scalar/core@npm:0.3.34"
   dependencies:
-    "@scalar/types": "npm:0.5.8"
-  checksum: 10c0/dfd1cc94c87ec8b810ca93bd88202afe01c34d85dd6d22f886d09bf95c2a12325b1fb7d162902380a88fedac2fb8e5f86f7813db504138c6eb88a5713cbf40a9
+    "@scalar/types": "npm:0.5.10"
+  checksum: 10c0/e00c15e486f587b400e899009bcaddcf700b03cc4d9838c4ac5341f39015b8439a37338da18c45f143a163dd16d4e2620f60a14c5dbc8b71ea1a5567a8920531
   languageName: node
   linkType: hard
 
-"@scalar/helpers@npm:0.2.8":
-  version: 0.2.8
-  resolution: "@scalar/helpers@npm:0.2.8"
-  checksum: 10c0/1c687cbaf7b3779afaf17f6766d20e28cd667fa4af0774a0c97dffb2fce7d585071cae02dc7e329c1422664484798192a4bcb735d90b212472635d8f6bf2261e
+"@scalar/helpers@npm:0.2.9":
+  version: 0.2.9
+  resolution: "@scalar/helpers@npm:0.2.9"
+  checksum: 10c0/6cfb36419c035e72c57b1eb284f311fb82f30a7784a0fc42ebc4658d9b306f6604a18cbfecca50a4a68f06d6ca5bcae3983ad88d4edbc413240f075a76202b9f
   languageName: node
   linkType: hard
 
-"@scalar/types@npm:0.5.8":
-  version: 0.5.8
-  resolution: "@scalar/types@npm:0.5.8"
+"@scalar/types@npm:0.5.10":
+  version: 0.5.10
+  resolution: "@scalar/types@npm:0.5.10"
   dependencies:
-    "@scalar/helpers": "npm:0.2.8"
+    "@scalar/helpers": "npm:0.2.9"
     nanoid: "npm:^5.1.6"
     type-fest: "npm:^5.3.1"
     zod: "npm:^4.3.5"
-  checksum: 10c0/b48e39e8d9256b14df6f9922512ead96cc94f90e078d1e6dbc4d505d0fd5406d966985e87775d8283b994612f399745dfaed91d1a45d52b3fe1db37001eb3f9c
+  checksum: 10c0/a3c557d4790c0aaef5d4f71ada5625dc366f051adf27782e65ded22a905808fed25d39d4874d93e160b9b1dd8f085cdcc934827d16014a6a1692a9744a47b027
   languageName: node
   linkType: hard
 
