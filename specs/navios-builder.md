@@ -294,6 +294,128 @@ const API = builder({
 
 ---
 
+## Envelope Mode (`result: 'envelope'`)
+
+Per-endpoint opt-in mode that swaps the default "parsed body, throw on error" return shape for a single typed value carrying the parsed body, a discriminated error, and response metadata. Envelope endpoints never throw.
+
+### `result` option
+
+Set on `declareEndpoint`, `declareMultipart`, and `declareStream`, or via `builder({ defaults: { result: 'envelope' } })` to make envelope the default.
+
+| Value | Return type | Throws on error |
+|-------|-------------|-----------------|
+| `'data'` (default) | `z.output<ResponseSchema>` | Yes |
+| `'envelope'` | `ResponseEnvelope<TData, EnvelopeError<ErrorSchema>>` | No |
+
+### `ResponseEnvelope<TData, TError>`
+
+Discriminated union of success and error branches:
+
+```typescript
+interface ResponseMeta {
+  status: number
+  statusText: string
+  headers: Headers
+}
+
+interface ResponseEnvelopeOk<TData> {
+  readonly ok: true
+  readonly data: TData
+  readonly error: null
+  readonly response: ResponseMeta
+}
+
+interface ResponseEnvelopeErr<TError> {
+  readonly ok: false
+  readonly data: null
+  readonly error: TError
+  readonly response: ResponseMeta | null  // null on network failure
+}
+
+type ResponseEnvelope<TData, TError> =
+  | ResponseEnvelopeOk<TData>
+  | ResponseEnvelopeErr<TError>
+```
+
+### `EnvelopeError` variants
+
+Tagged union keyed on `kind`:
+
+| Kind | Fields | When |
+|------|--------|------|
+| `'http'` | `status: keyof ErrorSchema & number`, `body: z.output<ErrorSchema[status]> & { status }` | Response status matched an `errorSchema` entry and parsed cleanly |
+| `'http-unknown'` | `status: number`, `body: unknown` | HTTP non-2xx with no matching `errorSchema` entry |
+| `'validation'` | `status: number`, `issues: readonly $ZodIssue[]`, `body: unknown` | Body failed `responseSchema` (or matched `errorSchema`) parse |
+| `'network'` | `cause: unknown` | Request never produced a response (DNS, abort, timeout) |
+
+When `errorSchema` is not declared, the `http` variant drops out of the union; all HTTP errors surface as `http-unknown`.
+
+### Type guards
+
+```typescript
+function isHttpError<E, S extends keyof E & number>(
+  error: unknown,
+  status?: S,
+): error is HttpErrorVariant<E> & { status: S }
+
+function isUnknownHttpError(error: unknown): error is UnknownHttpErrorVariant
+
+function isValidationError(error: unknown): error is ValidationErrorVariant
+
+function isNetworkError(error: unknown): error is NetworkErrorVariant
+
+function isEnvelopeError(error: unknown): error is EnvelopeError
+```
+
+`isHttpError(error, status)` narrows both `kind` and `status`, which in turn narrows `body` to the matching `errorSchema` entry.
+
+### Header helpers
+
+| Helper | Signature | Returns |
+|--------|-----------|---------|
+| `getHeader` | `(meta: ResponseMeta \| null, name: string)` | `string \| null` |
+| `getCookie` | `(meta: ResponseMeta \| null, name: string)` | `string \| null` (parsed from `Set-Cookie`) |
+| `getRetryAfterMs` | `(meta: ResponseMeta \| null)` | `number \| null` (seconds or HTTP-date converted to ms) |
+
+All accept `ResponseMeta | null`, so they are safe to call on the error branch.
+
+### `classifyError`
+
+The internal classifier used by envelope-mode handlers; exported for parity with custom dispatchers and tests.
+
+```typescript
+function classifyError<E extends ErrorSchemaRecord | undefined = undefined>(
+  error: unknown,
+  errorSchema: E,
+): EnvelopeError<E>
+```
+
+### `validateResponse`
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `validateResponse` | `boolean` | `true` | When `false`, skip `responseSchema.parse()` at runtime. Static type is still taken from `responseSchema`. |
+
+### `defaults` on `BuilderConfig`
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `defaults.result` | `'data' \| 'envelope'` | Default `result` mode for every endpoint declared by this builder. Per-endpoint `result` overrides. |
+
+### Deprecated APIs
+
+| Deprecated | Replacement |
+|------------|-------------|
+| `builder({ useDiscriminatorResponse: true })` | Per-endpoint `result: 'envelope'` (or `defaults: { result: 'envelope' }`). Emits a one-time `console.warn` per builder instance. |
+| `isErrorStatus(result, status)` | `isHttpError(error, status)` on an envelope-mode error |
+| `isErrorResponse(result)` | `isEnvelopeError(error)` or `isHttpError(error)` |
+| `__status` injection on parsed error bodies | `error.status` on the typed `EnvelopeError` variants |
+| `BuilderInstance<UseDiscriminator>` generic | Kept as `never`-defaulted phantom; removed next major |
+
+Legacy behavior is preserved for one major version. See [`docs/plans/2026-05-14-builder-response-envelope-design.md`](../docs/plans/2026-05-14-builder-response-envelope-design.md) for the full design rationale.
+
+---
+
 ## Advanced Usage
 
 ### Endpoint Configuration Access
