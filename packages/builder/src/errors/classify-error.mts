@@ -21,10 +21,10 @@ function getResponse(error: unknown): AbstractResponse<unknown> | null {
  * @param error The thrown value (usually a NaviosError)
  * @param errorSchema Optional per-status schemas; when omitted, all HTTP errors fall through to 'http-unknown'
  */
-export function classifyError(
+export function classifyError<E extends ErrorSchemaRecord | undefined = undefined>(
   error: unknown,
-  errorSchema: ErrorSchemaRecord | undefined,
-): EnvelopeError {
+  errorSchema: E,
+): EnvelopeError<E> {
   const response = getResponse(error)
   if (!response) {
     return { kind: 'network', cause: error }
@@ -36,14 +36,14 @@ export function classifyError(
   if (schema) {
     try {
       const parsed = schema.parse(response.data) as Record<string, unknown>
-      // The 'http' variant is dropped from EnvelopeError<undefined> structurally;
-      // callers with a concrete E will narrow it back. Cast through unknown.
+      // The http variant's body type is `z.output<E[status]> & { status }`,
+      // which can only be reconstructed structurally from a runtime parse.
+      // The single `as` here narrows the dynamic shape to the precise variant.
       return {
         kind: 'http',
         status,
-        // status is injected for body-level discrimination; the field is read-only
         body: Object.freeze({ ...parsed, status }),
-      } as unknown as EnvelopeError
+      } as EnvelopeError<E>
     } catch (zerr) {
       if (zerr instanceof ZodError) {
         return { kind: 'validation', status, issues: zerr.issues, body: response.data }

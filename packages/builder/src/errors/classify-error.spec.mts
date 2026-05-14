@@ -1,8 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod/v4'
 
-import type { EnvelopeError } from '../types/envelope-error.mjs'
-
 import { classifyError } from './classify-error.mjs'
 
 describe('classifyError', () => {
@@ -16,7 +14,7 @@ describe('classifyError', () => {
         headers: new Headers(),
       },
     }
-    const result = classifyError(error, schema) as EnvelopeError<typeof schema>
+    const result = classifyError(error, schema)
     expect(result.kind).toBe('http')
     if (result.kind === 'http') {
       expect(result.status).toBe(404)
