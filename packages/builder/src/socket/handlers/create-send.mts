@@ -1,4 +1,4 @@
-import type { ZodType } from 'zod/v4'
+import { ZodError, type ZodType } from 'zod/v4'
 
 import type { SocketClient } from '../types/socket-client.mjs'
 import type { SendHandler } from '../types/socket-handlers.mjs'
@@ -93,7 +93,15 @@ export function createSendHandler<Options extends SendOptions>(
             const validatedAck = (ackSchema as ZodType).parse(ackData)
             pending.resolve(validatedAck)
           } catch (error) {
-            config.onValidationError?.(error, ackTopic, ackData)
+            config.onError?.({
+              kind: 'validation',
+              endpoint: {},
+              cause: error,
+              zodIssues: error instanceof ZodError ? error.issues : undefined,
+              body: ackData,
+              topic: ackTopic,
+              rawData: ackData,
+            })
             pending.reject(error as Error)
           }
         }
@@ -103,8 +111,16 @@ export function createSendHandler<Options extends SendOptions>(
       const timeoutId = setTimeout(() => {
         ackHandlers.delete(ackId)
         client.off(ackTopic, ackHandler) // Remove specific handler to prevent leak
-        config.onAckTimeout?.(topic, ackId)
-        reject(new Error(`Acknowledgement timeout for topic "${topic}" (ackId: ${ackId})`))
+        const timeoutError = new Error(
+          `Acknowledgement timeout for topic "${topic}" (ackId: ${ackId})`,
+        )
+        config.onError?.({
+          kind: 'socket-ack-timeout',
+          endpoint: {},
+          cause: timeoutError,
+          topic,
+        })
+        reject(timeoutError)
       }, timeout)
 
       // Store handler for cleanup

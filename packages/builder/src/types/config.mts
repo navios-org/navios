@@ -10,20 +10,49 @@ import type { ErrorSchemaRecord } from './error-schema.mjs'
 // =============================================================================
 
 /**
+ * Variant classification for {@link BuilderErrorEvent}.
+ *
+ * Covers the three subpackages that share a unified `onError` hook:
+ * - Main HTTP builder: `'http' | 'http-unknown' | 'validation' | 'network'`
+ *   (matches `EnvelopeError['kind']`).
+ * - Socket builder: `'socket-ack-timeout' | 'socket-transport'`.
+ * - EventSource builder: `'event-source-transport'`.
+ *
+ * Validation failures across all three subpackages reuse the shared
+ * `'validation'` kind so consumers can branch on a single discriminator.
+ */
+export type BuilderErrorKind =
+  | EnvelopeError<ErrorSchemaRecord>['kind']
+  | 'socket-ack-timeout'
+  | 'socket-transport'
+  | 'event-source-transport'
+
+/**
  * Structured event fired by the unified `onError` hook on every error path.
  *
- * - In envelope mode, fired on validation/http/http-unknown/network outcomes
- *   before the envelope is returned.
- * - In data mode, fired before the error is rethrown.
+ * Used by all three builder subpackages (main HTTP builder, socket builder,
+ * EventSource builder). The base shape (`kind`, `endpoint`, `cause`) is shared;
+ * `topic`, `eventName`, and `rawData` are populated only for the subpackages
+ * that have those concepts.
+ *
+ * - In envelope mode (HTTP), fired on validation/http/http-unknown/network
+ *   outcomes before the envelope is returned.
+ * - In data mode (HTTP), fired before the error is rethrown.
+ * - For socket/SSE, fired on validation failures, ack timeouts, or transport
+ *   errors raised inside user handlers.
  */
 export interface BuilderErrorEvent {
-  /** Variant classification. Matches `EnvelopeError['kind']`. */
-  kind: EnvelopeError<ErrorSchemaRecord>['kind']
+  /** Variant classification — see {@link BuilderErrorKind}. */
+  kind: BuilderErrorKind
 
-  /** HTTP method and URL of the endpoint that produced the error. */
+  /**
+   * Endpoint identification. Both fields are optional so socket and SSE
+   * variants can omit `method` (no HTTP verb) and socket variants can omit
+   * `url` (they use `topic` instead).
+   */
   endpoint: {
-    method: HttpMethod
-    url: string
+    method?: HttpMethod
+    url?: string
   }
 
   /** HTTP status code, when available (absent for `kind: 'network'`). */
@@ -37,6 +66,26 @@ export interface BuilderErrorEvent {
 
   /** Response body for HTTP errors (raw if `http-unknown`, parsed if `http`). */
   body?: unknown
+
+  /**
+   * Socket topic/event name. Populated for socket variants
+   * (`'socket-ack-timeout'`, `'socket-transport'`, and `'validation'` from
+   * the socket builder).
+   */
+  topic?: string
+
+  /**
+   * EventSource event name. Populated for EventSource variants
+   * (`'event-source-transport'` and `'validation'` from the EventSource
+   * builder).
+   */
+  eventName?: string
+
+  /**
+   * Raw payload that failed validation, before any Zod parsing. Populated
+   * on `kind === 'validation'` from socket/SSE subpackages.
+   */
+  rawData?: unknown
 }
 
 export interface BuilderConfig {

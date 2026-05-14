@@ -1,5 +1,7 @@
 import type { ZodType } from 'zod/v4'
 
+import type { BuilderErrorEvent } from '../../types/config.mjs'
+
 /**
  * Message formatter function type.
  *
@@ -70,21 +72,22 @@ export interface SocketBuilderConfig {
   parseMessage?: MessageParser
 
   /**
-   * Callback for validation errors on incoming messages.
+   * Unified structured-error hook. Fires on every error path:
    *
-   * @param error - The validation error (typically ZodError)
-   * @param topic - The topic of the message that failed validation
-   * @param rawData - The raw payload data that failed validation
-   */
-  onValidationError?: (error: unknown, topic: string, rawData: unknown) => void
-
-  /**
-   * Callback for acknowledgement timeouts.
+   * - `kind: 'validation'` when an incoming payload or ack response fails
+   *   Zod validation. `topic` and `rawData` are populated; `cause` is the
+   *   raw error (usually a `ZodError`).
+   * - `kind: 'socket-ack-timeout'` when an acknowledgement times out.
+   *   `topic` is the original send topic; `cause` is an `Error` describing
+   *   the timeout.
+   * - `kind: 'socket-transport'` when a user-supplied subscribe handler
+   *   throws synchronously. `topic` is the subscription topic; `cause` is
+   *   the thrown value.
    *
-   * @param topic - The topic of the message that timed out
-   * @param ackId - The acknowledgement ID that timed out
+   * The shared {@link BuilderErrorEvent} shape lets consumers route socket,
+   * SSE, and HTTP errors through a single telemetry pipeline.
    */
-  onAckTimeout?: (topic: string, ackId: string) => void
+  onError?: (event: BuilderErrorEvent) => void
 
   /**
    * Default timeout for acknowledgements in milliseconds.
@@ -157,7 +160,8 @@ export interface SubscribeOptions<
    * Optional Zod schema for validating incoming payload.
    *
    * When provided, incoming messages are validated before calling handlers.
-   * Invalid messages trigger onValidationError callback and are skipped.
+   * Invalid messages trigger the `onError` hook with `kind: 'validation'`
+   * and are skipped.
    */
   payloadSchema?: PayloadSchema
 }

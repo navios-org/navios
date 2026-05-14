@@ -84,12 +84,10 @@ describe('socketBuilder', () => {
     })
 
     it('should accept optional config', () => {
-      const onValidationError = vi.fn()
-      const onAckTimeout = vi.fn()
+      const onError = vi.fn()
 
       const socket = socketBuilder({
-        onValidationError,
-        onAckTimeout,
+        onError,
         ackTimeout: 5000,
       })
 
@@ -277,13 +275,13 @@ describe('socketBuilder', () => {
       expect(result).toEqual({ id: 'room-123', createdAt: '2024-01-01' })
     })
 
-    it('should timeout ack and call onAckTimeout', async () => {
+    it('should timeout ack and fire onError with kind socket-ack-timeout', async () => {
       vi.useFakeTimers()
 
-      const onAckTimeout = vi.fn()
+      const onError = vi.fn()
       const socket = socketBuilder({
         ackTimeout: 1000,
-        onAckTimeout,
+        onError,
       })
       const client = createMockClient()
       socket.provideClient(client)
@@ -300,7 +298,16 @@ describe('socketBuilder', () => {
       vi.advanceTimersByTime(1100)
 
       await expect(promise).rejects.toThrow('Acknowledgement timeout')
-      expect(onAckTimeout).toHaveBeenCalledWith('room.create', expect.any(String))
+      expect(onError).toHaveBeenCalledWith(
+        expect.objectContaining({
+          kind: 'socket-ack-timeout',
+          topic: 'room.create',
+          endpoint: {},
+        }),
+      )
+      const event = onError.mock.calls[0]![0] as { cause: Error }
+      expect(event.cause).toBeInstanceOf(Error)
+      expect((event.cause as Error).message).toContain('Acknowledgement timeout')
 
       vi.useRealTimers()
     })
@@ -328,9 +335,9 @@ describe('socketBuilder', () => {
       vi.useRealTimers()
     })
 
-    it('should validate ack response', async () => {
-      const onValidationError = vi.fn()
-      const socket = socketBuilder({ onValidationError })
+    it('should validate ack response and fire onError with kind validation', async () => {
+      const onError = vi.fn()
+      const socket = socketBuilder({ onError })
       const client = createMockClient()
       socket.provideClient(client)
 
@@ -346,12 +353,25 @@ describe('socketBuilder', () => {
       const emitCall = client.emitMock.mock.calls[0]
       const message = emitCall[1] as unknown[]
       const ackId = message[2] as string
+      const ackTopic = `__navios_ack:${ackId}`
+      const invalidAck = { invalid: 'data' }
 
       // Simulate invalid ack response
-      simulateAck(client, ackId, { invalid: 'data' })
+      simulateAck(client, ackId, invalidAck)
 
       await expect(promise).rejects.toThrow()
-      expect(onValidationError).toHaveBeenCalled()
+      expect(onError).toHaveBeenCalledWith(
+        expect.objectContaining({
+          kind: 'validation',
+          topic: ackTopic,
+          rawData: invalidAck,
+          body: invalidAck,
+          endpoint: {},
+        }),
+      )
+      const event = onError.mock.calls[0]![0] as { zodIssues: unknown[] }
+      expect(Array.isArray(event.zodIssues)).toBe(true)
+      expect(event.zodIssues.length).toBeGreaterThan(0)
     })
 
     it('should cleanup ack handler after success', async () => {
@@ -446,9 +466,9 @@ describe('socketBuilder', () => {
       })
     })
 
-    it('should skip invalid messages and call onValidationError', () => {
-      const onValidationError = vi.fn()
-      const socket = socketBuilder({ onValidationError })
+    it('should skip invalid messages and fire onError with kind validation', () => {
+      const onError = vi.fn()
+      const socket = socketBuilder({ onError })
       const client = createMockClient()
       socket.provideClient(client)
 
@@ -460,11 +480,80 @@ describe('socketBuilder', () => {
       const handler = vi.fn()
       onMessage(handler)
 
+      const invalidPayload = { text: 'Hello' } // Missing from and timestamp
       // Simulate invalid message
-      simulateMessage(client, ['chat.message', { text: 'Hello' }]) // Missing from and timestamp
+      simulateMessage(client, ['chat.message', invalidPayload])
 
       expect(handler).not.toHaveBeenCalled()
-      expect(onValidationError).toHaveBeenCalled()
+      expect(onError).toHaveBeenCalledWith(
+        expect.objectContaining({
+          kind: 'validation',
+          topic: 'chat.message',
+          rawData: invalidPayload,
+          body: invalidPayload,
+          endpoint: {},
+        }),
+      )
+      const event = onError.mock.calls[0]![0] as { zodIssues: unknown[] }
+      expect(Array.isArray(event.zodIssues)).toBe(true)
+    })
+
+    it('should fire onError with kind socket-transport when handler throws', () => {
+      const onError = vi.fn()
+      const socket = socketBuilder({ onError })
+      const client = createMockClient()
+      socket.provideClient(client)
+
+      const onMessage = socket.defineSubscribe({
+        topic: 'chat.message',
+        payloadSchema: subscribePayloadSchema,
+      })
+
+      const handlerError = new Error('Handler exploded')
+      const throwingHandler = vi.fn(() => {
+        throw handlerError
+      })
+      onMessage(throwingHandler)
+
+      simulateMessage(client, ['chat.message', { text: 'Hi', from: 'A', timestamp: 1 }])
+
+      expect(throwingHandler).toHaveBeenCalled()
+      expect(onError).toHaveBeenCalledWith(
+        expect.objectContaining({
+          kind: 'socket-transport',
+          topic: 'chat.message',
+          cause: handlerError,
+          endpoint: {},
+        }),
+      )
+    })
+
+    it('should not let one throwing handler stop sibling handlers', () => {
+      const onError = vi.fn()
+      const socket = socketBuilder({ onError })
+      const client = createMockClient()
+      socket.provideClient(client)
+
+      const onMessage = socket.defineSubscribe({
+        topic: 'chat.message',
+        payloadSchema: subscribePayloadSchema,
+      })
+
+      const throwingHandler = vi.fn(() => {
+        throw new Error('boom')
+      })
+      const okHandler = vi.fn()
+      onMessage(throwingHandler)
+      onMessage(okHandler)
+
+      simulateMessage(client, ['chat.message', { text: 'Hi', from: 'A', timestamp: 1 }])
+
+      expect(throwingHandler).toHaveBeenCalled()
+      expect(okHandler).toHaveBeenCalled()
+      expect(onError).toHaveBeenCalledTimes(1)
+      expect(onError).toHaveBeenCalledWith(
+        expect.objectContaining({ kind: 'socket-transport', topic: 'chat.message' }),
+      )
     })
 
     it('should unsubscribe handler when unsubscribe is called', () => {

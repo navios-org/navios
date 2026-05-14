@@ -1,24 +1,25 @@
 import type { ZodType } from 'zod/v4'
 
+import type { BuilderErrorEvent } from '../../types/config.mjs'
+
 /**
  * Configuration options for eventSourceBuilder.
  */
 export interface EventSourceBuilderConfig {
   /**
-   * Callback for validation errors on incoming events.
+   * Unified structured-error hook. Fires on every error path:
    *
-   * @param error - The validation error (typically ZodError)
-   * @param eventName - The name of the event that failed validation
-   * @param rawData - The raw payload data that failed validation
-   */
-  onValidationError?: (error: unknown, eventName: string, rawData: unknown) => void
-
-  /**
-   * Callback for errors occurring during event handler execution.
+   * - `kind: 'validation'` when an incoming event payload fails Zod
+   *   validation. `eventName` and `rawData` are populated; `cause` is the
+   *   raw error (usually a `ZodError`).
+   * - `kind: 'event-source-transport'` when a user-supplied event handler
+   *   throws synchronously. `eventName` is the subscription event name;
+   *   `cause` is the thrown value.
    *
-   * @param error - The error that occurred
+   * The shared {@link BuilderErrorEvent} shape lets consumers route SSE,
+   * socket, and HTTP errors through a single telemetry pipeline.
    */
-  onError?: (error: unknown) => void
+  onError?: (event: BuilderErrorEvent) => void
 }
 
 /**
@@ -42,7 +43,8 @@ export interface EventOptions<
    * Optional Zod schema for validating incoming payload.
    *
    * When provided, incoming events are validated before calling handlers.
-   * Invalid events trigger onValidationError callback and are skipped.
+   * Invalid events trigger the `onError` hook with `kind: 'validation'`
+   * and are skipped.
    */
   payloadSchema?: PayloadSchema
 }
