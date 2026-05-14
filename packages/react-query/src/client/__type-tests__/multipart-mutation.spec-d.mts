@@ -1,12 +1,12 @@
 import { assertType, describe, test } from 'vitest'
 import { z as zod } from 'zod/v4'
 
-import type { ErrorSchemaRecord } from '@navios/builder'
+import type { EndpointHandler, ErrorSchemaRecord } from '@navios/builder'
 import type { UseMutationResult } from '@tanstack/react-query'
 import type { z } from 'zod/v4'
 
 import type { MutationHelpers } from '../../mutation/types.mjs'
-import type { ClientInstance, EndpointHelper } from '../types.mjs'
+import type { ClientInstance } from '../types.mjs'
 
 // ============================================================================
 // TEST SCHEMAS
@@ -216,7 +216,7 @@ describe('client.multipart() method', () => {
     })
   })
 
-  describe('EndpointHelper', () => {
+  describe('endpoint property', () => {
     test('multipart mutation exposes endpoint property with declared config', () => {
       const mutation = client.multipart({
         method: 'POST',
@@ -226,12 +226,12 @@ describe('client.multipart() method', () => {
       })
 
       assertType<
-        EndpointHelper<{
+        EndpointHandler<{
           method: 'POST'
           url: '/upload'
           requestSchema: typeof requestSchema
           responseSchema: typeof responseSchema
-        }>['endpoint']
+        }>
       >(mutation.endpoint)
     })
   })

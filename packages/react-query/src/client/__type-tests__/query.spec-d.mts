@@ -1,13 +1,13 @@
 import { assertType, describe, test } from 'vitest'
 import { z as zod } from 'zod/v4'
 
-import type { ErrorSchemaRecord } from '@navios/builder'
+import type { EndpointHandler, ErrorSchemaRecord } from '@navios/builder'
 import type { DataTag, UseSuspenseQueryOptions } from '@tanstack/react-query'
 import type { z } from 'zod/v4'
 
 import type { Split } from '../../common/types.mjs'
 import type { QueryHelpers } from '../../query/types.mjs'
-import type { ClientInstance, EndpointHelper } from '../types.mjs'
+import type { ClientInstance } from '../types.mjs'
 
 // ============================================================================
 // TEST SCHEMAS
@@ -162,7 +162,7 @@ describe('client.query() method', () => {
     >(query)
   })
 
-  describe('EndpointHelper', () => {
+  describe('endpoint property', () => {
     test('query exposes endpoint property with declared config', () => {
       const query = client.query({
         method: 'GET',
@@ -171,11 +171,11 @@ describe('client.query() method', () => {
       })
 
       assertType<
-        EndpointHelper<{
+        EndpointHandler<{
           method: 'GET'
           url: '/users'
           responseSchema: typeof responseSchema
-        }>['endpoint']
+        }>
       >(query.endpoint)
     })
   })

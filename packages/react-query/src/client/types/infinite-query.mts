@@ -10,7 +10,7 @@ import type { z, ZodObject, ZodType } from 'zod/v4'
 import type { Split } from '../../common/types.mjs'
 import type { InfiniteUnwrapMode, QueryHelpers } from '../../query/types.mjs'
 
-import type { ComputeResult, EndpointHelper } from './helpers.mjs'
+import type { ComputeResult } from './helpers.mjs'
 
 /**
  * Query schema constraint: infinite queries require `querySchema` to derive
@@ -83,8 +83,7 @@ type InfiniteQueryReturn<
     ComputeResult<Options, Unwrap>,
     true,
     Options['requestSchema'] extends ZodType ? Options['requestSchema'] : undefined
-  > &
-  EndpointHelper<Options>
+  > & { endpoint: EndpointHandler<Options> }
 
 /**
  * Infinite-query surface using interface overloads to express the two call

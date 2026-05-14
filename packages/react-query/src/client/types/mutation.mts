@@ -14,7 +14,7 @@ import type { ZodObject, ZodType } from 'zod/v4'
 import type { MutationHelpers } from '../../mutation/types.mjs'
 import type { UnwrapMode } from '../../query/types.mjs'
 
-import type { ComputeResult, EndpointHelper, StreamHelper } from './helpers.mjs'
+import type { ComputeResult } from './helpers.mjs'
 
 /**
  * Variables shape passed to the mutation hook, derived from the inferred
@@ -155,5 +155,7 @@ export interface ClientMutationMethods {
       : []
   ) => UseMutationResult<Result, Error, MutationVariables<Options>, OnMutateResult>) &
     (UseKey extends true ? MutationHelpers<Options['url'], Result> : {}) &
-    (Options extends EndpointOptions ? EndpointHelper<Options> : StreamHelper<Options>)
+    (Options extends EndpointOptions
+      ? { endpoint: EndpointHandler<Options> }
+      : { endpoint: StreamHandler<Options> })
 }

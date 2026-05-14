@@ -10,7 +10,7 @@ import type { ZodObject, ZodType } from 'zod/v4'
 import type { Split } from '../../common/types.mjs'
 import type { QueryHelpers, UnwrapMode } from '../../query/types.mjs'
 
-import type { ComputeResult, EndpointHelper } from './helpers.mjs'
+import type { ComputeResult } from './helpers.mjs'
 
 /**
  * Surface-specific fields layered on top of `EndpointOptions` for the inline
@@ -95,6 +95,5 @@ export interface ClientQueryMethods {
       ComputeResult<Options, Unwrap>,
       false,
       Options['requestSchema'] extends ZodType ? Options['requestSchema'] : undefined
-    > &
-    EndpointHelper<Options>
+    > & { endpoint: EndpointHandler<Options> }
 }

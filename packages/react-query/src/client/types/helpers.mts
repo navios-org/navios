@@ -1,11 +1,8 @@
 import type {
-  BaseEndpointOptions,
-  EndpointHandler,
   EndpointOptions,
   EnvelopeError,
   ErrorSchemaRecord,
   ResponseEnvelope,
-  StreamHandler,
 } from '@navios/builder'
 import type { z } from 'zod/v4'
 
@@ -42,21 +39,3 @@ export type ComputeResult<
         >
       >
   : z.output<Options['responseSchema']>
-
-/**
- * Helper type that attaches the endpoint to query/mutation results.
- *
- * @template Options - EndpointOptions from builder (const generic pattern)
- */
-export type EndpointHelper<Options extends EndpointOptions> = {
-  endpoint: EndpointHandler<Options>
-}
-
-/**
- * Helper type that attaches a stream endpoint to mutation results.
- *
- * @template Options - BaseEndpointOptions from builder (const generic pattern)
- */
-export type StreamHelper<Options extends BaseEndpointOptions> = {
-  endpoint: StreamHandler<Options>
-}

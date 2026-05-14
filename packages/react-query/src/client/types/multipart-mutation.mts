@@ -12,7 +12,7 @@ import type { ZodObject, ZodType } from 'zod/v4'
 import type { MutationHelpers } from '../../mutation/types.mjs'
 import type { UnwrapMode } from '../../query/types.mjs'
 
-import type { ComputeResult, EndpointHelper } from './helpers.mjs'
+import type { ComputeResult } from './helpers.mjs'
 
 /**
  * Variables shape for a multipart mutation, derived from the synthesised
@@ -154,6 +154,7 @@ export interface ClientMultipartMutationMethods {
     MultipartVariables<Options>,
     OnMutateResult
   >) &
-    (UseKey extends true ? MutationHelpers<Options['url'], ComputeResult<Options, Unwrap>> : {}) &
-    EndpointHelper<Options>
+    (UseKey extends true ? MutationHelpers<Options['url'], ComputeResult<Options, Unwrap>> : {}) & {
+      endpoint: EndpointHandler<Options>
+    }
 }

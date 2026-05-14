@@ -1,13 +1,13 @@
 import { assertType, describe, test } from 'vitest'
 import { z as zod } from 'zod/v4'
 
-import type { ErrorSchemaRecord } from '@navios/builder'
+import type { EndpointHandler, ErrorSchemaRecord } from '@navios/builder'
 import type { DataTag, InfiniteData, UseSuspenseInfiniteQueryOptions } from '@tanstack/react-query'
 import type { z } from 'zod/v4'
 
 import type { Split } from '../../common/types.mjs'
 import type { QueryHelpers } from '../../query/types.mjs'
-import type { ClientInstance, EndpointHelper } from '../types.mjs'
+import type { ClientInstance } from '../types.mjs'
 
 // ============================================================================
 // TEST SCHEMAS
@@ -176,7 +176,7 @@ describe('client.infiniteQuery() method', () => {
     })
   })
 
-  describe('EndpointHelper', () => {
+  describe('endpoint property', () => {
     test('infinite query exposes endpoint property with declared config', () => {
       const query = client.infiniteQuery({
         method: 'GET',
@@ -187,12 +187,12 @@ describe('client.infiniteQuery() method', () => {
       })
 
       assertType<
-        EndpointHelper<{
+        EndpointHandler<{
           method: 'GET'
           url: '/users'
           querySchema: typeof querySchema
           responseSchema: typeof responseSchema
-        }>['endpoint']
+        }>
       >(query.endpoint)
     })
   })

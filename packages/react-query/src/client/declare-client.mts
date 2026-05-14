@@ -221,9 +221,7 @@ export function declareClient({ api, defaults = {} }: ClientOptions): ClientInst
       ...(keySuffix !== undefined ? { keySuffix } : {}),
       unwrap,
     })
-    // @ts-expect-error We attach the endpoint to the queryOptions
-    queryOptions.endpoint = endpoint
-    return queryOptions
+    return Object.assign(queryOptions, { endpoint })
   }
 
   function infiniteQuery(input: any, options: any = {}) {
@@ -263,9 +261,7 @@ export function declareClient({ api, defaults = {} }: ClientOptions): ClientInst
       initialPageParam,
     })
 
-    // @ts-expect-error We attach the endpoint to the infiniteQueryOptions
-    infiniteQueryOptions.endpoint = endpoint
-    return infiniteQueryOptions
+    return Object.assign(infiniteQueryOptions, { endpoint })
   }
 
   function mutation(input: any, options: any = {}) {
@@ -280,8 +276,12 @@ export function declareClient({ api, defaults = {} }: ClientOptions): ClientInst
       surfaceFields = input
     }
 
-    // @ts-expect-error Type inference for errorSchema variants
-    const useMutation = makeMutation(endpoint, {
+    // `makeMutation` is overloaded on whether the endpoint has an
+    // `errorSchema`; this call site passes a union of both shapes (or a
+    // `StreamHandler`) and untyped `surfaceFields` from runtime dispatch,
+    // so we cast both arguments to `never` to bypass overload resolution.
+    // The implementation accepts any endpoint config + options bag.
+    const mutationOptions = {
       unwrap: surfaceFields.unwrap,
       useContext: surfaceFields.useContext,
       onMutate: surfaceFields.onMutate,
@@ -291,11 +291,10 @@ export function declareClient({ api, defaults = {} }: ClientOptions): ClientInst
       useKey: surfaceFields.useKey,
       meta: surfaceFields.meta,
       ...defaults,
-    })
+    } as never
+    const useMutation = makeMutation(endpoint as never, mutationOptions)
 
-    // @ts-expect-error We attach the endpoint to the useMutation
-    useMutation.endpoint = endpoint
-    return useMutation
+    return Object.assign(useMutation, { endpoint })
   }
 
   function multipart(input: any, options: any = {}) {
@@ -310,8 +309,8 @@ export function declareClient({ api, defaults = {} }: ClientOptions): ClientInst
       surfaceFields = input
     }
 
-    // @ts-expect-error Type inference for errorSchema variants
-    const useMutation = makeMutation(endpoint, {
+    // Same overload-bypass pattern as `mutation` above.
+    const mutationOptions = {
       unwrap: surfaceFields.unwrap,
       useContext: surfaceFields.useContext,
       onSuccess: surfaceFields.onSuccess,
@@ -321,21 +320,21 @@ export function declareClient({ api, defaults = {} }: ClientOptions): ClientInst
       useKey: surfaceFields.useKey,
       meta: surfaceFields.meta,
       ...defaults,
-    })
+    } as never
+    const useMutation = makeMutation(endpoint as never, mutationOptions)
 
-    // @ts-expect-error We attach the endpoint to the useMutation
-    useMutation.endpoint = endpoint
-    return useMutation
+    return Object.assign(useMutation, { endpoint })
   }
 
+  // The four local functions use `any` parameters internally for runtime
+  // dispatch (inline-config vs. existing-handler), so their inferred types
+  // are looser than the overloaded `ClientInstance` interface. The runtime
+  // behaviour matches the interface — cast via `unknown` to assert the
+  // narrow public type.
   return {
-    // @ts-expect-error We simplified types here
     query,
-    // @ts-expect-error We simplified types here
     infiniteQuery,
-    // @ts-expect-error We simplified types here
     mutation,
-    // @ts-expect-error We simplified types here
     multipart,
-  }
+  } as unknown as ClientInstance
 }
