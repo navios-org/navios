@@ -397,7 +397,12 @@ describe('client.multipartMutation() method', () => {
       })
 
       assertType<
-        EndpointHelper<'POST', '/upload', typeof requestSchema, typeof responseSchema>['endpoint']
+        EndpointHelper<{
+          method: 'POST'
+          url: '/upload'
+          requestSchema: typeof requestSchema
+          responseSchema: typeof responseSchema
+        }>['endpoint']
       >(mutation.endpoint)
     })
 
@@ -412,13 +417,13 @@ describe('client.multipartMutation() method', () => {
       })
 
       assertType<
-        EndpointHelper<
-          'POST',
-          '/upload',
-          typeof requestSchema,
-          typeof responseSchema,
-          typeof querySchema
-        >['endpoint']
+        EndpointHelper<{
+          method: 'POST'
+          url: '/upload'
+          querySchema: typeof querySchema
+          requestSchema: typeof requestSchema
+          responseSchema: typeof responseSchema
+        }>['endpoint']
       >(mutation.endpoint)
     })
   })

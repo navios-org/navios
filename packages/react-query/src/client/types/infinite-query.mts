@@ -14,7 +14,12 @@ import type { InfiniteUnwrapMode, QueryHelpers } from '../../query/types.mjs'
 import type { ComputeResult, EndpointHelper, OptionsFromInline, ResultMode } from './helpers.mjs'
 
 /**
- * Extended endpoint options interface for infinite query that includes processResponse and pagination.
+ * Extended endpoint options interface for infinite query.
+ *
+ * Same decomposed-inference pattern as `query`; once `Options` is
+ * synthesised the pagination callbacks (`getNextPageParam`,
+ * `getPreviousPageParam`) read their page-param types from
+ * `Options['querySchema']` directly.
  */
 interface InfiniteQueryEndpointConfig<
   Method extends HttpMethod,
@@ -25,7 +30,7 @@ interface InfiniteQueryEndpointConfig<
   ErrorSchema extends ErrorSchemaRecord | undefined,
   UrlParamsSchema extends ZodObject | undefined,
   ResultModeT extends ResultMode,
-  Unwrap extends InfiniteUnwrapMode | undefined,
+  Unwrap extends InfiniteUnwrapMode,
   TBaseResult,
   PageResult,
 > extends EndpointOptions {
@@ -36,16 +41,8 @@ interface InfiniteQueryEndpointConfig<
   responseSchema: ResponseSchema
   errorSchema?: ErrorSchema
   urlParamsSchema?: UrlParamsSchema
-  processResponse?: (data: TBaseResult) => PageResult
-  /**
-   * Selects the wire-level result shape produced by the endpoint.
-   *
-   * - `'data'` (or omitted, default): legacy throwing surface — success body
-   *   is returned, errors throw.
-   * - `'envelope'`: each page becomes a `ResponseEnvelope`. Combine with
-   *   {@link unwrap} to control how pages are exposed to React Query.
-   */
   result?: ResultModeT
+  processResponse?: (data: TBaseResult) => PageResult
   /**
    * For endpoints declared with `result: 'envelope'`, controls how each page
    * is delivered to React Query.
@@ -75,14 +72,15 @@ interface InfiniteQueryEndpointConfig<
 }
 
 /**
- * Infinite query method using decomposed generics pattern for proper processResponse typing.
+ * Infinite query method.
+ *
+ * Uses the same decomposed-inference / synthesised-Options pattern as
+ * `query`. The constraint `Options extends EndpointOptions & { querySchema:
+ * ZodObject }` is enforced through the required `querySchema` generic.
  */
 export interface ClientInfiniteQueryMethods {
   /**
    * Creates a type-safe infinite query with automatic type inference.
-   *
-   * Uses decomposed generic pattern to infer types from the configuration object.
-   * All schema combinations are handled by a single method.
    *
    * @example
    * ```ts
@@ -108,7 +106,7 @@ export interface ClientInfiniteQueryMethods {
     const ErrorSchema extends ErrorSchemaRecord | undefined = undefined,
     const UrlParamsSchema extends ZodObject | undefined = undefined,
     const ResultModeT extends ResultMode = undefined,
-    const Unwrap extends InfiniteUnwrapMode | undefined = undefined,
+    const Unwrap extends InfiniteUnwrapMode = 'none',
     const Options extends EndpointOptions = OptionsFromInline<
       Method,
       Url,
@@ -119,7 +117,7 @@ export interface ClientInfiniteQueryMethods {
       UrlParamsSchema,
       ResultModeT
     >,
-    const TBaseResult = ComputeResult<Options, Unwrap extends undefined ? 'none' : Unwrap>,
+    const TBaseResult = ComputeResult<Options, Unwrap>,
     const PageResult = TBaseResult,
   >(
     config: InfiniteQueryEndpointConfig<
@@ -141,9 +139,15 @@ export interface ClientInfiniteQueryMethods {
     PageResult,
     Error,
     InfiniteData<PageResult>,
-    DataTag<Split<Url, '/'>, PageResult, Error>,
+    DataTag<Split<Options['url'], '/'>, PageResult, Error>,
     z.output<QuerySchema>
   >) &
-    QueryHelpers<Url, QuerySchema, PageResult, true, RequestSchema> &
+    QueryHelpers<
+      Options['url'],
+      Options['querySchema'] extends ZodObject ? Options['querySchema'] : undefined,
+      PageResult,
+      true,
+      Options['requestSchema'] extends ZodType ? Options['requestSchema'] : undefined
+    > &
     EndpointHelper<Options>
 }

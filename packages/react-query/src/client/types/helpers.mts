@@ -54,17 +54,23 @@ export type ComputeResult<
   : z.output<Options['responseSchema']>
 
 /**
- * Build a minimal `EndpointOptions`-shaped type from the loose generics that
- * the inline-config client methods (`client.query`, `client.mutation`,
- * `client.infiniteQuery`, `client.multipartMutation`) carry.
+ * Build a minimal `EndpointOptions`-shaped type from the loose per-field
+ * generics that the inline-config client methods (`client.query`,
+ * `client.mutation`, `client.infiniteQuery`, `client.multipartMutation`)
+ * carry.
  *
  * Optional fields (`querySchema`, `requestSchema`, `errorSchema`,
  * `urlParamsSchema`) are only present in the resulting shape when the
  * corresponding generic is not `undefined` — this keeps property-presence
  * checks (e.g. `'querySchema' in Options`) working downstream.
  *
- * Task 7 will collapse the inline configs to derive from `Options` directly
- * and likely delete this helper.
+ * The per-field generics are still required for inference (TypeScript
+ * cannot simultaneously infer a single `Options extends EndpointOptions`
+ * generic AND provide a useful contextual type for `processResponse`'s
+ * `data` parameter from the same literal). Once `Options` is synthesised
+ * via this helper, every downstream type derivation references `Options`
+ * directly — so new fields added to `BaseEndpointOptions` flow through
+ * automatically without per-surface re-declaration in return types.
  */
 export type OptionsFromInline<
   Method,

@@ -16,17 +16,23 @@ import type { UnwrapMode } from '../../query/types.mjs'
 import type { ComputeResult, EndpointHelper, OptionsFromInline, ResultMode } from './helpers.mjs'
 
 /**
- * Compute variables type from URL, schemas
+ * Variables shape passed to the mutation hook, derived from the inferred
+ * `Options` type alone (URL, query / request / urlParams schemas).
  */
-type ComputeVariables<
-  Url extends string,
-  QuerySchema extends ZodObject | undefined,
-  RequestSchema extends ZodType | undefined,
-  UrlParamsSchema extends ZodObject | undefined,
-> = Simplify<RequestArgs<Url, QuerySchema, RequestSchema, UrlParamsSchema>>
+type MutationVariables<Options extends EndpointOptions> = Simplify<
+  RequestArgs<
+    Options['url'],
+    Options['querySchema'] extends ZodObject ? Options['querySchema'] : undefined,
+    Options['requestSchema'] extends ZodType ? Options['requestSchema'] : undefined,
+    Options['urlParamsSchema'] extends ZodObject ? Options['urlParamsSchema'] : undefined
+  >
+>
 
 /**
- * Extended endpoint options interface for mutation that includes processResponse and callbacks.
+ * Extended endpoint options interface for mutation. Inherits the endpoint
+ * fields via the per-field generics for inference, then derives the
+ * mutation-specific callback / context shapes from the synthesised
+ * `Options` so they automatically pick up future endpoint fields.
  */
 interface MutationEndpointConfig<
   Method extends HttpMethod,
@@ -36,9 +42,9 @@ interface MutationEndpointConfig<
   ResponseSchema extends ZodType,
   ErrorSchema extends ErrorSchemaRecord | undefined,
   UrlParamsSchema extends ZodObject | undefined,
-  UseKey extends boolean,
   ResultModeT extends ResultMode,
-  Unwrap extends UnwrapMode | undefined,
+  UseKey extends boolean,
+  Unwrap extends UnwrapMode,
   TBaseResult,
   Result,
   OnMutateResult,
@@ -52,17 +58,8 @@ interface MutationEndpointConfig<
   responseSchema: ResponseSchema
   errorSchema?: ErrorSchema
   urlParamsSchema?: UrlParamsSchema
-  processResponse?: (data: TBaseResult) => Result | Promise<Result>
-  /**
-   * Selects the wire-level result shape produced by the endpoint.
-   *
-   * - `'data'` (or omitted, default): legacy throwing surface — success body
-   *   is returned, errors throw.
-   * - `'envelope'`: the mutation result becomes a `ResponseEnvelope`.
-   *   Combine with {@link unwrap} to control how the envelope is exposed
-   *   to React Query's mutation channel.
-   */
   result?: ResultModeT
+  processResponse?: (data: TBaseResult) => Result | Promise<Result>
   /**
    * For endpoints declared with `result: 'envelope'`, controls how the
    * envelope is delivered to React Query's mutation channel.
@@ -108,14 +105,15 @@ interface MutationEndpointConfig<
 }
 
 /**
- * Mutation method using decomposed generics pattern for proper processResponse typing.
+ * Mutation method.
+ *
+ * Uses the same decomposed-generics inference pattern as `query`; the
+ * synthesised `Options` is reused everywhere downstream so future endpoint
+ * fields propagate automatically.
  */
 export interface ClientMutationMethods {
   /**
    * Creates a type-safe mutation with automatic type inference.
-   *
-   * Uses decomposed generic pattern to infer types from the configuration object.
-   * All schema combinations are handled by a single method.
    *
    * @example
    * ```ts
@@ -124,7 +122,6 @@ export interface ClientMutationMethods {
    *   url: '/users',
    *   requestSchema: createUserSchema,
    *   responseSchema: userSchema,
-   *   processResponse: (data) => data,
    * })
    *
    * const { mutate } = createUser()
@@ -139,9 +136,9 @@ export interface ClientMutationMethods {
     const ResponseSchema extends ZodType = ZodType,
     const ErrorSchema extends ErrorSchemaRecord | undefined = undefined,
     const UrlParamsSchema extends ZodObject | undefined = undefined,
-    const UseKey extends boolean = false,
     const ResultModeT extends ResultMode = undefined,
-    const Unwrap extends UnwrapMode | undefined = undefined,
+    const UseKey extends boolean = false,
+    const Unwrap extends UnwrapMode = 'none',
     const Options extends EndpointOptions = OptionsFromInline<
       Method,
       Url,
@@ -152,11 +149,11 @@ export interface ClientMutationMethods {
       UrlParamsSchema,
       ResultModeT
     >,
-    const TBaseResult = ComputeResult<Options, Unwrap extends undefined ? 'none' : Unwrap>,
+    const TBaseResult = ComputeResult<Options, Unwrap>,
     const Result = TBaseResult,
     const OnMutateResult = unknown,
     const Context = unknown,
-    const Variables = ComputeVariables<Url, QuerySchema, RequestSchema, UrlParamsSchema>,
+    const Variables = MutationVariables<Options>,
   >(
     config: MutationEndpointConfig<
       Method,
@@ -166,8 +163,8 @@ export interface ClientMutationMethods {
       ResponseSchema,
       ErrorSchema,
       UrlParamsSchema,
-      UseKey,
       ResultModeT,
+      UseKey,
       Unwrap,
       TBaseResult,
       Result,
@@ -182,6 +179,6 @@ export interface ClientMutationMethods {
         : [{}]
       : []
   ) => UseMutationResult<Result, Error, Variables, OnMutateResult>) &
-    (UseKey extends true ? MutationHelpers<Url, Result> : {}) &
+    (UseKey extends true ? MutationHelpers<Options['url'], Result> : {}) &
     EndpointHelper<Options>
 }
