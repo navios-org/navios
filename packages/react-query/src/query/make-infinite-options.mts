@@ -1,3 +1,4 @@
+import { isResponseEnvelope } from '@navios/builder'
 import {
   infiniteQueryOptions,
   useInfiniteQuery,
@@ -32,7 +33,7 @@ export function makeInfiniteQueryOptions<
   Config extends AnyEndpointConfig,
   Options extends InfiniteQueryOptions<Config>,
   BaseQuery extends Omit<
-    UseInfiniteQueryOptions<ReturnType<Options['processResponse']>, Error, any>,
+    UseInfiniteQueryOptions<ReturnType<NonNullable<Options['processResponse']>>, Error, any>,
     | 'queryKey'
     | 'queryFn'
     | 'getNextPageParam'
@@ -42,12 +43,14 @@ export function makeInfiniteQueryOptions<
   >,
 >(endpoint: AbstractEndpoint<Config>, options: Options, baseQuery: BaseQuery = {} as BaseQuery) {
   const config = endpoint.config
-  const queryKey = createQueryKey(config, options, true)
+  const queryKey = createQueryKey(config as any, options as any, true)
 
-  const processResponse = options.processResponse
+  const processResponse: (data: any) => any = options.processResponse ?? ((data: any) => data)
+  const unwrapMode = options.unwrap ?? 'none'
+  const shouldUnwrap = unwrapMode === 'throw-on-error' || unwrapMode === 'pages'
   const res = (
     params: QueryArgs<Config['url'], Config['querySchema']>,
-  ): Options['processResponse'] extends (...args: any[]) => infer Result
+  ): NonNullable<Options['processResponse']> extends (...args: any[]) => infer Result
     ? UseSuspenseInfiniteQueryOptions<
         Result,
         Error,
@@ -58,7 +61,10 @@ export function makeInfiniteQueryOptions<
     return infiniteQueryOptions({
       // @ts-expect-error TS2345 We bind the url params only if the url has params
       queryKey: queryKey.dataTag(params),
-      queryFn: async ({ signal, pageParam }): Promise<ReturnType<Options['processResponse']>> => {
+      queryFn: async ({
+        signal,
+        pageParam,
+      }): Promise<ReturnType<NonNullable<Options['processResponse']>>> => {
         let result
         try {
           result = await endpoint({
@@ -77,7 +83,20 @@ export function makeInfiniteQueryOptions<
           throw err
         }
 
-        return processResponse(result) as ReturnType<Options['processResponse']>
+        if (shouldUnwrap && isResponseEnvelope(result)) {
+          const envelope = result as { ok: boolean; data?: unknown; error?: unknown }
+          if (!envelope.ok) {
+            if (options.onFail) {
+              options.onFail(envelope.error)
+            }
+            throw envelope.error
+          }
+          return processResponse(envelope.data) as ReturnType<
+            NonNullable<Options['processResponse']>
+          >
+        }
+
+        return processResponse(result) as ReturnType<NonNullable<Options['processResponse']>>
       },
       getNextPageParam: options.getNextPageParam,
       getPreviousPageParam: options.getPreviousPageParam,

@@ -37,6 +37,25 @@ import type { ComputeResponseInput, Split } from '../common/types.mjs'
 export type UnwrapMode = 'none' | 'throw-on-error'
 
 /**
+ * Like {@link UnwrapMode} but with an extra `'pages'` mode for infinite
+ * queries.
+ *
+ * - `'none'` (default): each entry in `data.pages[i]` is the full
+ *   `ResponseEnvelope`.
+ * - `'throw-on-error'`: each page's envelope is unwrapped; on
+ *   `envelope.ok === false` the `envelope.error` is thrown from the queryFn
+ *   so React Query's `error` channel fires and pagination stops.
+ * - `'pages'`: recommended mode for infinite queries. Currently behaves
+ *   identically to `'throw-on-error'` — success pages are unwrapped to the
+ *   `envelope.data` body and errors throw. The separate name leaves room to
+ *   diverge later (e.g. surface per-page errors without aborting the page
+ *   chain) and signals intent at the call site.
+ *
+ * Has no effect on non-envelope endpoints.
+ */
+export type InfiniteUnwrapMode = 'none' | 'throw-on-error' | 'pages'
+
+/**
  * Result type for an envelope-mode endpoint given an `UnwrapMode`.
  *
  * - `'throw-on-error'` → unwrapped success data (envelope.data on the ok branch).
@@ -173,10 +192,29 @@ export type InfiniteQueryOptions<
 > = {
   keyPrefix?: string[]
   keySuffix?: string[]
-  processResponse: (
+  processResponse?: (
     data: ComputeResponseInput<UseDiscriminator, Config['responseSchema'], Config['errorSchema']>,
   ) => Res
   onFail?: (err: unknown) => void
+  /**
+   * For endpoints declared with `result: 'envelope'`, controls how each page
+   * is delivered to React Query.
+   *
+   * - `'none'` (default): each `data.pages[i]` is the full `ResponseEnvelope`.
+   * - `'throw-on-error'`: each page's envelope is unwrapped; on
+   *   `envelope.ok === false` the `envelope.error` is thrown from the queryFn
+   *   so the React Query `error` channel fires and pagination stops.
+   * - `'pages'`: recommended for infinite queries. Currently identical to
+   *   `'throw-on-error'` at runtime — success pages are unwrapped to
+   *   `envelope.data` and errors throw. The separate name signals intent and
+   *   leaves room for divergence later.
+   *
+   * Has no effect on non-envelope endpoints. Note: `getNextPageParam` /
+   * `getPreviousPageParam` receive whatever shape this mode produces — the
+   * full envelope under `'none'`, the unwrapped body under `'throw-on-error'`
+   * / `'pages'`.
+   */
+  unwrap?: InfiniteUnwrapMode
   getNextPageParam: (
     lastPage: Res,
     allPages: Res[],
