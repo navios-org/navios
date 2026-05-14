@@ -5,7 +5,7 @@
 `@navios/react-query` is a type-safe React Query integration library that bridges TanStack Query v5 with the `@navios/builder` API client. It provides a declarative, schema-validated approach to handling server state management in React applications using Zod for validation and TypeScript for type safety.
 
 **Package:** `@navios/react-query`
-**Version:** 0.6.1
+**Version:** 2.0.0
 **License:** MIT
 **Peer Dependencies:** `@navios/builder`, `@tanstack/react-query` (^5.51.21), `zod` (^3.25.0 || ^4.0.0)
 
@@ -80,7 +80,7 @@ const client = declareClient({
 
 ### client.query()
 
-Creates a query with inline configuration.
+Creates a query with inline configuration. `processResponse` is optional — omit it to use the identity transform.
 
 ```typescript
 import { z } from 'zod'
@@ -95,13 +95,12 @@ const getUser = client.query({
   method: 'GET',
   url: '/users/$userId',
   responseSchema: userSchema,
-  processResponse: (data) => data,
 })
 ```
 
 ### client.queryFromEndpoint()
 
-Creates a query from a pre-declared endpoint.
+Creates a query from a pre-declared endpoint. Options object is optional when the endpoint covers everything you need.
 
 ```typescript
 // shared/endpoints/users.ts
@@ -118,9 +117,7 @@ export const getUserEndpoint = API.declareEndpoint({
 
 ```typescript
 // client/queries/users.ts
-const getUser = client.queryFromEndpoint(getUserEndpoint, {
-  processResponse: (data) => data,
-})
+const getUser = client.queryFromEndpoint(getUserEndpoint)
 ```
 
 ### Query Helper Methods
@@ -172,7 +169,6 @@ const searchUsers = client.query({
     filters: z.array(z.string()).optional(),
   }),
   responseSchema: z.array(userSchema),
-  processResponse: (data) => data,
 })
 
 // Usage
@@ -203,7 +199,6 @@ const getUsers = client.infiniteQuery({
     users: z.array(userSchema),
     nextCursor: z.string().nullable(),
   }),
-  processResponse: (data) => data,
   getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
   initialPageParam: undefined,
 })
@@ -215,7 +210,6 @@ Creates an infinite query from a pre-declared endpoint.
 
 ```typescript
 const getUsers = client.infiniteQueryFromEndpoint(getUsersEndpoint, {
-  processResponse: (data) => data,
   getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
   initialPageParam: undefined,
 })
@@ -275,7 +269,6 @@ const createUser = client.mutation({
     email: z.string().email(),
   }),
   responseSchema: userSchema,
-  processResponse: (data) => data,
   onSuccess: (data, variables, context) => {
     console.log('User created:', data)
   },
@@ -288,7 +281,6 @@ Creates a mutation from a pre-declared endpoint.
 
 ```typescript
 const createUser = client.mutationFromEndpoint(createUserEndpoint, {
-  processResponse: (data) => data,
   onSuccess: (data, variables, context) => {
     console.log('User created:', data)
   },
@@ -306,7 +298,6 @@ const updateUser = client.mutation({
     email: z.string().email(),
   }),
   responseSchema: userSchema,
-  processResponse: (data) => data,
 })
 
 // Usage
@@ -335,7 +326,6 @@ const updateUser = client.mutation({
   requestSchema: userUpdateSchema,
   responseSchema: userSchema,
   useKey: true,  // Enable scoping
-  processResponse: (data) => data,
 })
 
 // Must pass URL params to hook
@@ -359,7 +349,10 @@ function UserCard({ userId }: { userId: string }) {
 
 | Property          | Type                                              | Description                           |
 | ----------------- | ------------------------------------------------- | ------------------------------------- |
-| `processResponse` | `(data: Response) => TData`                       | Transform response data               |
+| `processResponse` | `(data: Response) => TData`                       | Transform response data (optional; identity by default) |
+| `result`          | `'data' \| 'envelope'`                            | Endpoint return shape (forwarded to the endpoint declaration) |
+| `unwrap`          | `'none' \| 'throw-on-error'`                      | How envelopes are surfaced to TanStack Query (default `'none'`) |
+| `validateResponse`| `boolean`                                         | Skip runtime `responseSchema.parse()` when `false` |
 | `useContext`      | `() => TContext`                                  | Hook to provide context               |
 | `useKey`          | `boolean`                                         | Enable mutation key scoping           |
 | `keyPrefix`       | `string[]`                                        | Prefix for mutation key (requires useKey) |
@@ -368,6 +361,8 @@ function UserCard({ userId }: { userId: string }) {
 | `onSuccess`       | `(data, variables, context) => void`              | Called on success                     |
 | `onError`         | `(error, variables, context) => void`             | Called on error                       |
 | `onSettled`       | `(data, error, variables, context) => void`       | Called on completion                  |
+
+The v1 `onFail` callback was removed. Register a global `onError` on the builder (`builder({ onError })`) for cross-cutting error handling; for envelope endpoints use `unwrap: 'throw-on-error'` to surface typed errors through TanStack Query's `error` channel.
 
 ### Mutation Arguments
 
@@ -433,9 +428,11 @@ const getUsers = client.infiniteQuery({
 })
 ```
 
-### `processResponse` is optional
+### `processResponse` is optional everywhere
 
-`processResponse` is optional on every helper. Omitting it yields the identity transform. Existing call sites that pass `processResponse: (data) => data` continue to work.
+`processResponse` is optional on every helper — queries, infinite queries, mutations, multipart, and the `*FromEndpoint` variants. Omitting it yields the identity transform. Existing call sites that pass `processResponse: (data) => data` continue to work unchanged.
+
+In envelope mode with `unwrap: 'none'`, `processResponse` receives the full envelope. For read-only projections of `envelope.data`, prefer TanStack's `select` (runs on read) over `processResponse` (runs in the cache-write path).
 
 See the [@navios/builder spec](./navios-builder.md) for the underlying envelope shape, `IsEnvelope` detector, and validation modes.
 
@@ -459,7 +456,6 @@ const uploadFile = client.multipartMutation({
     fileId: z.string(),
     url: z.string(),
   }),
-  processResponse: (data) => data,
 })
 
 // Usage
@@ -492,7 +488,6 @@ const updateUser = client.mutation({
     queryClient: useQueryClient(),
     toast: useToast(),
   }),
-  processResponse: (data) => data,
   onMutate: async (variables, context) => {
     // Cancel outgoing queries
     await context.queryClient.cancelQueries({ queryKey: ['users'] })
@@ -619,9 +614,7 @@ export const downloadFileEndpoint = API.declareStream({
 
 ```typescript
 // client/queries/files.ts
-const downloadFileMutation = client.mutationFromEndpoint(downloadFileEndpoint, {
-  processResponse: (blob) => blob,
-})
+const downloadFileMutation = client.mutationFromEndpoint(downloadFileEndpoint)
 
 // Usage
 function DownloadButton({ fileId }: { fileId: string }) {
@@ -652,7 +645,6 @@ function DownloadButton({ fileId }: { fileId: string }) {
 ```typescript
 // Define mutation with onSuccess at declaration time
 const downloadFileMutation = client.mutationFromEndpoint(downloadFileEndpoint, {
-  processResponse: (blob) => blob,
   onSuccess: (blob) => {
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
@@ -738,16 +730,11 @@ import { useQueryClient } from '@tanstack/react-query'
 import { client } from '../index'
 import { getUser, getUsers, createUser, updateUser, deleteUser } from '../../shared/endpoints/users'
 
-export const userQuery = client.queryFromEndpoint(getUser, {
-  processResponse: (data) => data,
-})
+export const userQuery = client.queryFromEndpoint(getUser)
 
-export const usersQuery = client.queryFromEndpoint(getUsers, {
-  processResponse: (data) => data,
-})
+export const usersQuery = client.queryFromEndpoint(getUsers)
 
 export const createUserMutation = client.mutationFromEndpoint(createUser, {
-  processResponse: (data) => data,
   useContext: () => ({ queryClient: useQueryClient() }),
   onSuccess: (data, variables, context) => {
     context.queryClient.invalidateQueries({ queryKey: ['users'] })
@@ -755,7 +742,6 @@ export const createUserMutation = client.mutationFromEndpoint(createUser, {
 })
 
 export const updateUserMutation = client.mutationFromEndpoint(updateUser, {
-  processResponse: (data) => data,
   useKey: true,
   useContext: () => ({ queryClient: useQueryClient() }),
   onSuccess: (data, variables, context) => {
@@ -767,7 +753,6 @@ export const updateUserMutation = client.mutationFromEndpoint(updateUser, {
 })
 
 export const deleteUserMutation = client.mutationFromEndpoint(deleteUser, {
-  processResponse: (data) => data,
   useContext: () => ({ queryClient: useQueryClient() }),
   onSuccess: (data, variables, context) => {
     context.queryClient.invalidateQueries({ queryKey: ['users'] })
@@ -858,6 +843,8 @@ export const getUser = API.declareEndpoint({ ... })
 ```
 
 ### 2. Use processResponse for Data Transformation
+
+`processResponse` is optional — omit it to use the identity transform. Provide it when you need to reshape data before it lands in the cache. For read-only projections, prefer TanStack's `select` (runs on read; doesn't widen the cache type).
 
 ```typescript
 const getUser = client.queryFromEndpoint(getUserEndpoint, {
