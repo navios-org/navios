@@ -127,6 +127,45 @@ describe("declareEndpoint with result: 'envelope'", () => {
     if (!env.ok) expect(isValidationError(env.error)).toBe(true)
   })
 
+  it('non-Zod throw during success-body processing is classified as validation', async () => {
+    const api = builder()
+    api.provideClient(
+      mockClient(() =>
+        Promise.resolve({
+          data: { id: '1', name: 'A' },
+          status: 200,
+          statusText: 'OK',
+          headers: new Headers(),
+        }),
+      ),
+    )
+
+    // Zod transform that throws a non-ZodError; Zod propagates it as-is.
+    const responseSchema = z.unknown().transform(() => {
+      throw new Error('custom transform failure')
+    })
+
+    const getUser = api.declareEndpoint({
+      method: 'GET',
+      url: '/u',
+      responseSchema,
+      result: 'envelope',
+    })
+
+    const env: any = await getUser({})
+    expect(env.ok).toBe(false)
+    if (!env.ok) {
+      expect(isValidationError(env.error)).toBe(true)
+      if (isValidationError(env.error)) {
+        expect(env.error.status).toBe(200)
+        expect(env.error.issues).toEqual([])
+        expect(env.error.body).toEqual({ id: '1', name: 'A' })
+      }
+      // We had a successful HTTP response in hand; response should be present.
+      expect(env.response?.status).toBe(200)
+    }
+  })
+
   it('returns network variant when no response is present', async () => {
     const api = builder()
     api.provideClient(mockClient(() => Promise.reject(new TypeError('fetch failed'))))

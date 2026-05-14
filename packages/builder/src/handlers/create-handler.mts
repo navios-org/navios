@@ -81,19 +81,16 @@ export function createHandler<Options extends EndpointOptions | StreamOptions, T
             response: toResponseMeta(result),
           } as TResponse
         } catch (zerr) {
-          // Validation failed on a 2xx body. classifyError can't infer this is a
-          // validation failure (the response status isn't in errorSchema), so we
-          // build the variant directly here.
+          // Validation or transform failed on a 2xx body. We already have a
+          // successful HTTP response in hand, so any throw here is a validation
+          // variant — keep Zod issues when available, empty list otherwise.
           if (config.onError) config.onError(zerr)
-          const envError =
-            zerr instanceof ZodError
-              ? {
-                  kind: 'validation' as const,
-                  status: result.status,
-                  issues: zerr.issues,
-                  body: raw,
-                }
-              : classifyError(zerr, errorSchema)
+          const envError = {
+            kind: 'validation' as const,
+            status: result.status,
+            issues: zerr instanceof ZodError ? zerr.issues : [],
+            body: raw,
+          }
           return {
             ok: false,
             data: null,
