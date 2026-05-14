@@ -45,10 +45,12 @@ export function classifyError<E extends ErrorSchemaRecord | undefined = undefine
         body: Object.freeze({ ...parsed, status }),
       } as EnvelopeError<E>
     } catch (zerr) {
-      if (zerr instanceof ZodError) {
-        return { kind: 'validation', status, issues: zerr.issues, body: response.data }
+      return {
+        kind: 'validation',
+        status,
+        issues: zerr instanceof ZodError ? zerr.issues : [],
+        body: response.data,
       }
-      throw zerr
     }
   }
 

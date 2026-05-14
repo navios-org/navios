@@ -56,6 +56,24 @@ describe('classifyError', () => {
     }
   })
 
+  it('classifies non-Zod throw from a schema transform as validation', () => {
+    const schema = {
+      400: z.unknown().transform(() => {
+        throw new Error('boom')
+      }),
+    }
+    const error = {
+      response: { data: 'irrelevant', status: 400, statusText: 'Bad', headers: new Headers() },
+    }
+    const result = classifyError(error, schema)
+    expect(result.kind).toBe('validation')
+    if (result.kind === 'validation') {
+      expect(result.status).toBe(400)
+      expect(result.issues).toEqual([])
+      expect(result.body).toBe('irrelevant')
+    }
+  })
+
   it('returns network when error has no response', () => {
     const result = classifyError(new TypeError('Failed to fetch'), undefined)
     expect(result.kind).toBe('network')
