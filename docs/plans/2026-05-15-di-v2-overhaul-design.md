@@ -308,6 +308,22 @@ Memoized via `WeakMap<ClassType, true>` so steady-state cost is zero.
 
 Most rows are mechanical 1:1 transforms. A jscodeshift codemod is feasible for the field-decorator rewrites and should be written before touching consumer packages.
 
+## Bun: drop the Stage-3 decorator transpilation plugin
+
+Bun now ships native Stage-3 decorator support. The repo currently preloads a transpilation plugin (`bun-plugin.mts`) via `bunfig.toml` in every Bun-running package and example, with three modes (`babel | esbuild | typescript`) to compile decorators down before Bun parses them. This is no longer needed.
+
+Files to delete:
+
+- `bun-plugin.mts` at the repo root
+- `packages/adapter-bun/bun-plugin.mts` (+ its `bunfig.toml` `preload` entry)
+- `packages/otel-bun/bun-plugin.mts` (+ `bunfig.toml`)
+- `packages/adapter-xml/bun-plugin.mts` (+ `bunfig.toml`)
+- `examples/e2e-bun-stage3/bun-plugin.mts` (+ `bunfig.toml`)
+- `examples/openapi/bun-plugin.mts` (+ `bunfig.toml`)
+- `examples/simple-test/bun-plugin.mts` (+ `bunfig.toml`)
+
+Verification step in the plan: run `bun test` and `bun run` for each Bun-using package/example after removal to confirm Bun's native decorator implementation handles them.
+
 ## Out of scope
 
 - `@Module` decorator / NestJS-style module composition — revisit if isolation pain appears in v3.
