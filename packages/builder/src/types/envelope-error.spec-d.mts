@@ -30,12 +30,12 @@ test('EnvelopeError union covers four kinds', () => {
   }
 })
 
-test('HttpErrorVariant.body.status narrows body', () => {
+test('HttpErrorVariant.status narrows body', () => {
   const v = {} as HttpErrorVariant<typeof errorSchema>
-  if (v.body.status === 404) {
+  if (v.status === 404) {
     expectTypeOf(v.body).toEqualTypeOf<{ kind: 'not_found' } & { readonly status: 404 }>()
   } else {
-    expectTypeOf(v.body.status).toEqualTypeOf<401>()
+    expectTypeOf(v.status).toEqualTypeOf<401>()
     expectTypeOf(v.body).toEqualTypeOf<
       { kind: 'unauthorized'; retryAfter: number } & { readonly status: 401 }
     >()

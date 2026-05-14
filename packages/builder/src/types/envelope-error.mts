@@ -8,14 +8,17 @@ import type { ErrorSchemaRecord } from './error-schema.mjs'
  * the schemas in the endpoint's `errorSchema` record. The `body` is the parsed
  * Zod output for that status, with `status` injected at the type level so
  * `error.body.status` is discriminating.
+ *
+ * Distributed per-key so that narrowing on `status` also narrows `body`:
+ * `if (v.status === 404)` refines the whole variant, not just the field.
  */
-export interface HttpErrorVariant<E extends ErrorSchemaRecord = ErrorSchemaRecord> {
-  readonly kind: 'http'
-  readonly status: keyof E & number
-  readonly body: {
-    [K in keyof E]: z.output<E[K]> & { readonly status: K & number }
-  }[keyof E]
-}
+export type HttpErrorVariant<E extends ErrorSchemaRecord = ErrorSchemaRecord> = {
+  [K in keyof E & number]: {
+    readonly kind: 'http'
+    readonly status: K
+    readonly body: z.output<E[K]> & { readonly status: K }
+  }
+}[keyof E & number]
 
 /**
  * HTTP error variant where the server responded with a status code that does
