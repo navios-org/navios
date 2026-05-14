@@ -200,15 +200,33 @@ async function runData<Options extends BaseEndpointOptions, TResponse>(
   const finalUrlPart = bindUrlParams<Options['url']>(url, request, urlParamsSchema)
   const finalRequest = transformRequest ? transformRequest(request) : request
 
+  let response: AbstractResponse<unknown>
   try {
-    const result = await client.request(
+    response = await client.request(
       makeConfig(finalRequest, options, method, finalUrlPart, isMultipart),
     )
-    const data = transformResponse ? transformResponse(result.data) : result.data
-    return (shouldValidate && responseSchema ? responseSchema.parse(data) : data) as TResponse
   } catch (error) {
-    // handleError fires the structured onError event then rethrows
+    // HTTP failure path: classify (http / http-unknown / network), fire onError, rethrow.
     handleError(config, error, { method, url })
+  }
+
+  // 2xx path: a raw-body transform or schema validation failure here is a
+  // validation outcome, not a network error. Mirror runEnvelope's handling so
+  // the unified hook reports kind: 'validation' with the real HTTP status.
+  const raw = transformResponse ? transformResponse(response.data) : response.data
+  try {
+    return (shouldValidate && responseSchema ? responseSchema.parse(raw) : raw) as TResponse
+  } catch (zerr) {
+    if (config.onError) {
+      const validationVariant: EnvelopeError = {
+        kind: 'validation' as const,
+        status: response.status,
+        issues: zerr instanceof ZodError ? zerr.issues : [],
+        body: raw,
+      }
+      config.onError(buildErrorEvent(validationVariant, { method, url }, zerr))
+    }
+    throw zerr
   }
 }
 

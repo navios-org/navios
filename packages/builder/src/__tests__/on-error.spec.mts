@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { z } from 'zod/v4'
+import { z, ZodError } from 'zod/v4'
 
 import { builder } from '../builder.mjs'
 
@@ -164,6 +164,54 @@ describe('onError event', () => {
     expect(events[0].kind).toBe('http-unknown')
     expect(events[0].status).toBe(500)
     expect(events[0].endpoint).toEqual({ method: 'GET', url: '/u' })
+  })
+
+  it('fires validation event for 2xx ZodError in data mode, then rethrows', async () => {
+    const events: BuilderErrorEvent[] = []
+    const api = builder({ onError: (e) => events.push(e) })
+    api.provideClient({
+      request: () =>
+        Promise.resolve({
+          data: { id: 1, name: 'A' }, // id should be string
+          status: 200,
+          statusText: 'OK',
+          headers: new Headers(),
+        }),
+    } as unknown as Client)
+    const ep = api.declareEndpoint({
+      method: 'GET',
+      url: '/u',
+      responseSchema: z.object({ id: z.string(), name: z.string() }),
+      // no result: 'envelope' — data mode (default)
+    })
+
+    await expect(ep({})).rejects.toBeInstanceOf(ZodError)
+    expect(events).toHaveLength(1)
+    expect(events[0]).toMatchObject({
+      kind: 'validation',
+      status: 200,
+      endpoint: { method: 'GET', url: '/u' },
+    })
+    expect(events[0].zodIssues?.length).toBeGreaterThan(0)
+    expect(events[0].body).toEqual({ id: 1, name: 'A' })
+  })
+
+  it('fires network event for non-Response throws in data mode', async () => {
+    const events: BuilderErrorEvent[] = []
+    const api = builder({ onError: (e) => events.push(e) })
+    api.provideClient({
+      request: () => Promise.reject(new TypeError('fetch failed')),
+    } as unknown as Client)
+    const ep = api.declareEndpoint({
+      method: 'GET',
+      url: '/u',
+      responseSchema: z.object({ name: z.string() }),
+    })
+
+    await expect(ep({})).rejects.toBeInstanceOf(TypeError)
+    expect(events).toHaveLength(1)
+    expect(events[0].kind).toBe('network')
+    expect(events[0].status).toBeUndefined()
   })
 
   it('does not fire on success', async () => {
