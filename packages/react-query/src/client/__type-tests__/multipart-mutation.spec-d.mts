@@ -40,24 +40,18 @@ const errorSchema = {
 type ResponseType = z.output<typeof responseSchema>
 type QueryType = z.input<typeof querySchema>
 type RequestType = z.input<typeof requestSchema>
-type Error400 = z.output<typeof error400Schema>
-type Error404 = z.output<typeof error404Schema>
-type Error500 = z.output<typeof error500Schema>
-type ErrorUnion = Error400 | Error404 | Error500
-type ResponseWithErrors = ResponseType | ErrorUnion
 
 // ============================================================================
 // CLIENT INSTANCE DECLARATIONS
 // ============================================================================
 
-declare const client: ClientInstance<false>
-declare const clientWithDiscriminator: ClientInstance<true>
+declare const client: ClientInstance
 
 // ============================================================================
-// MULTIPART MUTATION METHOD - DEFAULT MODE (UseDiscriminator=false)
+// MULTIPART MUTATION METHOD
 // ============================================================================
 
-describe('ClientInstance<false> multipartMutation() method', () => {
+describe('client.multipartMutation() method', () => {
   describe('POST multipart mutations', () => {
     test('POST multipart mutation with request schema', () => {
       const mutation = client.multipartMutation({
@@ -426,92 +420,6 @@ describe('ClientInstance<false> multipartMutation() method', () => {
           typeof querySchema
         >['endpoint']
       >(mutation.endpoint)
-    })
-  })
-})
-
-// ============================================================================
-// MULTIPART MUTATION METHOD - DISCRIMINATOR MODE (UseDiscriminator=true)
-// ============================================================================
-
-describe('ClientInstance<true> multipartMutation() method (discriminator mode)', () => {
-  describe('errorSchema includes error union in TData', () => {
-    test('multipart mutation with errorSchema returns union result type', () => {
-      const mutation = clientWithDiscriminator.multipartMutation({
-        method: 'POST',
-        url: '/upload',
-        requestSchema,
-        responseSchema,
-        errorSchema,
-        processResponse: (data) => data,
-      })
-
-      assertType<() => UseMutationResult<ResponseWithErrors, Error, { data: RequestType }>>(
-        mutation,
-      )
-    })
-
-    test('processResponse receives union type', () => {
-      clientWithDiscriminator.multipartMutation({
-        method: 'POST',
-        url: '/upload',
-        requestSchema,
-        responseSchema,
-        errorSchema,
-        processResponse: (data) => {
-          assertType<ResponseWithErrors>(data)
-          return data
-        },
-      })
-    })
-
-    test('processResponse can transform union type', () => {
-      type ExpectedResult = { ok: false; error: ErrorUnion } | { ok: true; data: ResponseType }
-
-      const mutation = clientWithDiscriminator.multipartMutation({
-        method: 'POST',
-        url: '/upload',
-        requestSchema,
-        responseSchema,
-        errorSchema,
-        processResponse: (data): ExpectedResult => {
-          // Use 'id' property to discriminate - only ResponseType has 'id'
-          if ('id' in data) {
-            return { ok: true, data }
-          }
-          return { ok: false, error: data }
-        },
-      })
-
-      assertType<() => UseMutationResult<ExpectedResult, Error, { data: RequestType }>>(mutation)
-    })
-
-    test('onSuccess receives union type', () => {
-      clientWithDiscriminator.multipartMutation({
-        method: 'POST',
-        url: '/upload',
-        requestSchema,
-        responseSchema,
-        errorSchema,
-        processResponse: (data) => data,
-        onSuccess: (data) => {
-          assertType<ResponseWithErrors>(data)
-        },
-      })
-    })
-  })
-
-  describe('without errorSchema behaves same as default', () => {
-    test('multipart mutation without errorSchema returns only success type', () => {
-      const mutation = clientWithDiscriminator.multipartMutation({
-        method: 'POST',
-        url: '/upload',
-        requestSchema,
-        responseSchema,
-        processResponse: (data) => data,
-      })
-
-      assertType<() => UseMutationResult<ResponseType, Error, { data: RequestType }>>(mutation)
     })
   })
 })

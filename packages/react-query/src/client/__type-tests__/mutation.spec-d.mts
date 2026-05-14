@@ -40,24 +40,18 @@ const errorSchema = {
 type ResponseType = z.output<typeof responseSchema>
 type QueryType = z.input<typeof querySchema>
 type RequestType = z.input<typeof requestSchema>
-type Error400 = z.output<typeof error400Schema>
-type Error404 = z.output<typeof error404Schema>
-type Error500 = z.output<typeof error500Schema>
-type ErrorUnion = Error400 | Error404 | Error500
-type ResponseWithErrors = ResponseType | ErrorUnion
 
 // ============================================================================
 // CLIENT INSTANCE DECLARATIONS
 // ============================================================================
 
-declare const client: ClientInstance<false>
-declare const clientWithDiscriminator: ClientInstance<true>
+declare const client: ClientInstance
 
 // ============================================================================
-// MUTATION METHOD - DEFAULT MODE (UseDiscriminator=false)
+// MUTATION METHOD
 // ============================================================================
 
-describe('ClientInstance<false> mutation() method', () => {
+describe('client.mutation() method', () => {
   describe('POST mutations', () => {
     test('POST mutation with request schema only', () => {
       const mutation = client.mutation({
@@ -454,100 +448,16 @@ describe('ClientInstance<false> mutation() method', () => {
       })
 
       assertType<
-        EndpointHelper<
-          {
-            method: 'POST'
-            url: '/users'
-            querySchema: undefined
-            requestSchema: typeof requestSchema
-            responseSchema: typeof responseSchema
-            errorSchema: undefined
-            urlParamsSchema: undefined
-          },
-          false
-        >['endpoint']
+        EndpointHelper<{
+          method: 'POST'
+          url: '/users'
+          querySchema: undefined
+          requestSchema: typeof requestSchema
+          responseSchema: typeof responseSchema
+          errorSchema: undefined
+          urlParamsSchema: undefined
+        }>['endpoint']
       >(mutation.endpoint)
-    })
-  })
-})
-
-// ============================================================================
-// MUTATION METHOD - DISCRIMINATOR MODE (UseDiscriminator=true)
-// ============================================================================
-
-describe('ClientInstance<true> mutation() method (discriminator mode)', () => {
-  describe('errorSchema includes error union in TData', () => {
-    test('POST mutation with errorSchema returns union result type', () => {
-      const mutation = clientWithDiscriminator.mutation({
-        method: 'POST',
-        url: '/users',
-        requestSchema,
-        responseSchema,
-        errorSchema,
-      })
-
-      assertType<
-        () => UseMutationResult<ResponseWithErrors, Error, { data: RequestType }, unknown>
-      >(mutation)
-    })
-
-    test('processResponse receives union type', () => {
-      clientWithDiscriminator.mutation({
-        method: 'POST',
-        url: '/users',
-        requestSchema,
-        responseSchema,
-        errorSchema,
-        processResponse: (data) => {
-          assertType<ResponseWithErrors>(data)
-          return data
-        },
-      })
-    })
-
-    test('processResponse can transform union type', () => {
-      // Note: This test verifies processResponse receives the union type.
-      // The exact return type assertion is complex due to readonly inference.
-      clientWithDiscriminator.mutation({
-        method: 'POST',
-        url: '/users',
-        requestSchema,
-        responseSchema,
-        errorSchema,
-        processResponse: (data): { handled: boolean; original: typeof data } => {
-          assertType<ResponseWithErrors>(data)
-          return { handled: true, original: data }
-        },
-      })
-    })
-
-    test('onSuccess receives union type', () => {
-      clientWithDiscriminator.mutation({
-        method: 'POST',
-        url: '/users',
-        requestSchema,
-        responseSchema,
-        errorSchema,
-        processResponse: (data) => data,
-        onSuccess: (data) => {
-          assertType<ResponseWithErrors>(data)
-        },
-      })
-    })
-  })
-
-  describe('without errorSchema behaves same as default', () => {
-    test('mutation without errorSchema returns only success type', () => {
-      const mutation = clientWithDiscriminator.mutation({
-        method: 'POST',
-        url: '/users',
-        requestSchema,
-        responseSchema,
-      })
-
-      assertType<() => UseMutationResult<ResponseType, Error, { data: RequestType }, unknown>>(
-        mutation,
-      )
     })
   })
 })

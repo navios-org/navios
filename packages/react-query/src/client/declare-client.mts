@@ -33,7 +33,7 @@ export interface QueryConfig<
   QuerySchema extends ZodObject | undefined = undefined,
   Response extends ZodType = ZodType,
   ErrorSchema extends ErrorSchemaRecord | undefined = undefined,
-  Result = ComputeBaseResult<true, Response, ErrorSchema>,
+  Result = ComputeBaseResult<Response, ErrorSchema>,
   RequestSchema extends ZodType | undefined = undefined,
 > {
   method: Method
@@ -42,7 +42,7 @@ export interface QueryConfig<
   responseSchema: Response
   errorSchema?: ErrorSchema
   requestSchema?: RequestSchema
-  processResponse?: (data: ComputeBaseResult<true, Response, ErrorSchema>) => Result
+  processResponse?: (data: ComputeBaseResult<Response, ErrorSchema>) => Result
   unwrap?: UnwrapMode
   result?: 'data' | 'envelope'
   validateResponse?: boolean
@@ -57,7 +57,7 @@ export type InfiniteQueryConfig<
   QuerySchema extends ZodObject = ZodObject,
   Response extends ZodType = ZodType,
   ErrorSchema extends ErrorSchemaRecord | undefined = undefined,
-  PageResult = ComputeBaseResult<true, Response, ErrorSchema>,
+  PageResult = ComputeBaseResult<Response, ErrorSchema>,
   Result = InfiniteData<PageResult>,
   RequestSchema extends ZodType | undefined = undefined,
 > = {
@@ -67,7 +67,7 @@ export type InfiniteQueryConfig<
   responseSchema: Response
   errorSchema?: ErrorSchema
   requestSchema?: RequestSchema
-  processResponse?: (data: ComputeBaseResult<true, Response, ErrorSchema>) => PageResult
+  processResponse?: (data: ComputeBaseResult<Response, ErrorSchema>) => PageResult
   unwrap?: InfiniteUnwrapMode
   result?: 'data' | 'envelope'
   validateResponse?: boolean
@@ -97,7 +97,7 @@ export interface MutationConfig<
   QuerySchema extends ZodObject | undefined = undefined,
   Response extends ZodType = ZodType,
   ErrorSchema extends ErrorSchemaRecord | undefined = undefined,
-  ReqResult = ComputeBaseResult<true, Response, ErrorSchema>,
+  ReqResult = ComputeBaseResult<Response, ErrorSchema>,
   Result = unknown,
   TOnMutateResult = unknown,
   Context = unknown,
@@ -141,9 +141,6 @@ export interface MutationConfig<
 /**
  * Creates a client instance for making type-safe queries and mutations.
  *
- * @template UseDiscriminator - When `true`, errors are returned as union types.
- *   When `false` (default), errors are thrown and not included in TData.
- *
  * @param options - Client configuration including the API builder and defaults
  * @returns A client instance with query, infiniteQuery, and mutation methods
  *
@@ -162,10 +159,7 @@ export interface MutationConfig<
  * const { data } = useSuspenseQuery(getUser({ urlParams: { id: '123' } }));
  * ```
  */
-export function declareClient<UseDiscriminator extends boolean = false>({
-  api,
-  defaults = {},
-}: ClientOptions<UseDiscriminator>): ClientInstance<UseDiscriminator> {
+export function declareClient({ api, defaults = {} }: ClientOptions): ClientInstance {
   function query(config: QueryConfig) {
     const endpoint = api.declareEndpoint({
       method: config.method,
@@ -189,9 +183,7 @@ export function declareClient<UseDiscriminator extends boolean = false>({
   }
 
   function queryFromEndpoint(
-    endpoint:
-      | AbstractEndpoint<AnyEndpointConfig>
-      | EndpointHandler<EndpointOptions, UseDiscriminator>,
+    endpoint: AbstractEndpoint<AnyEndpointConfig> | EndpointHandler<EndpointOptions>,
     options?: {
       processResponse?: (data: z.output<AnyEndpointConfig['responseSchema']>) => unknown
       unwrap?: UnwrapMode
@@ -230,9 +222,7 @@ export function declareClient<UseDiscriminator extends boolean = false>({
   }
 
   function infiniteQueryFromEndpoint(
-    endpoint:
-      | AbstractEndpoint<AnyEndpointConfig>
-      | EndpointHandler<EndpointOptions, UseDiscriminator>,
+    endpoint: AbstractEndpoint<AnyEndpointConfig> | EndpointHandler<EndpointOptions>,
     options: {
       processResponse?: (data: z.output<AnyEndpointConfig['responseSchema']>) => unknown
       unwrap?: InfiniteUnwrapMode
@@ -296,8 +286,8 @@ export function declareClient<UseDiscriminator extends boolean = false>({
     endpoint:
       | AbstractEndpoint<AnyEndpointConfig>
       | AbstractStream<AnyStreamConfig>
-      | EndpointHandler<EndpointOptions, UseDiscriminator>
-      | StreamHandler<BaseEndpointOptions, UseDiscriminator>,
+      | EndpointHandler<EndpointOptions>
+      | StreamHandler<BaseEndpointOptions>,
     options?: {
       processResponse?: ProcessResponseFunction
       unwrap?: UnwrapMode

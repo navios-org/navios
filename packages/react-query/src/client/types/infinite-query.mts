@@ -17,7 +17,6 @@ import type { ComputeInfinitePageResult, EndpointHelper, ResultMode } from './he
  * Extended endpoint options interface for infinite query that includes processResponse and pagination.
  */
 interface InfiniteQueryEndpointConfig<
-  _UseDiscriminator extends boolean,
   Method extends HttpMethod,
   Url extends string,
   QuerySchema extends ZodObject,
@@ -77,11 +76,8 @@ interface InfiniteQueryEndpointConfig<
 
 /**
  * Infinite query method using decomposed generics pattern for proper processResponse typing.
- *
- * @template UseDiscriminator - When `true`, errors are returned as union types.
- *   When `false` (default), errors are thrown and not included in TData.
  */
-export interface ClientInfiniteQueryMethods<UseDiscriminator extends boolean = false> {
+export interface ClientInfiniteQueryMethods {
   /**
    * Creates a type-safe infinite query with automatic type inference.
    *
@@ -113,13 +109,7 @@ export interface ClientInfiniteQueryMethods<UseDiscriminator extends boolean = f
     const UrlParamsSchema extends ZodObject | undefined = undefined,
     const ResultModeT extends ResultMode = undefined,
     const Unwrap extends InfiniteUnwrapMode | undefined = undefined,
-    const TBaseResult = ComputeInfinitePageResult<
-      UseDiscriminator,
-      ResponseSchema,
-      ErrorSchema,
-      ResultModeT,
-      Unwrap
-    >,
+    const TBaseResult = ComputeInfinitePageResult<ResponseSchema, ErrorSchema, ResultModeT, Unwrap>,
     const PageResult = TBaseResult,
     const Options extends EndpointOptions = {
       method: Method
@@ -132,7 +122,6 @@ export interface ClientInfiniteQueryMethods<UseDiscriminator extends boolean = f
     },
   >(
     config: InfiniteQueryEndpointConfig<
-      UseDiscriminator,
       Method,
       Url,
       QuerySchema,
@@ -155,5 +144,5 @@ export interface ClientInfiniteQueryMethods<UseDiscriminator extends boolean = f
     z.output<QuerySchema>
   >) &
     QueryHelpers<Url, QuerySchema, PageResult, true, RequestSchema> &
-    EndpointHelper<Options, UseDiscriminator>
+    EndpointHelper<Options>
 }

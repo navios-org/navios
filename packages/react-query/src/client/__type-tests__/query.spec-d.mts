@@ -41,24 +41,18 @@ const errorSchema = {
 type ResponseType = z.output<typeof responseSchema>
 type QueryType = z.input<typeof querySchema>
 type RequestType = z.input<typeof requestSchema>
-type Error400 = z.output<typeof error400Schema>
-type Error404 = z.output<typeof error404Schema>
-type Error500 = z.output<typeof error500Schema>
-type ErrorUnion = Error400 | Error404 | Error500
-type ResponseWithErrors = ResponseType | ErrorUnion
 
 // ============================================================================
 // CLIENT INSTANCE DECLARATIONS
 // ============================================================================
 
-declare const client: ClientInstance<false>
-declare const clientWithDiscriminator: ClientInstance<true>
+declare const client: ClientInstance
 
 // ============================================================================
-// QUERY METHOD - DEFAULT MODE (UseDiscriminator=false)
+// QUERY METHOD
 // ============================================================================
 
-describe('ClientInstance<false> query() method', () => {
+describe('client.query() method', () => {
   describe('GET endpoints', () => {
     test('simple GET query without params', () => {
       const query = client.query({
@@ -216,7 +210,7 @@ describe('ClientInstance<false> query() method', () => {
         errorSchema,
       })
 
-      // With UseDiscriminator=false, errors are thrown, not returned
+      // Errors are thrown, not returned
       assertType<
         (params: {}) => UseSuspenseQueryOptions<
           ResponseType,
@@ -363,14 +357,11 @@ describe('ClientInstance<false> query() method', () => {
       // EndpointHelper only includes properties that were actually provided
       // (no explicit undefined for missing optional properties)
       assertType<
-        EndpointHelper<
-          {
-            method: 'GET'
-            url: '/users'
-            responseSchema: typeof responseSchema
-          },
-          false
-        >['endpoint']
+        EndpointHelper<{
+          method: 'GET'
+          url: '/users'
+          responseSchema: typeof responseSchema
+        }>['endpoint']
       >(query.endpoint)
     })
 
@@ -386,133 +377,15 @@ describe('ClientInstance<false> query() method', () => {
 
       // EndpointHelper only includes properties that were actually provided
       assertType<
-        EndpointHelper<
-          {
-            method: 'POST'
-            url: '/search'
-            querySchema: typeof querySchema
-            requestSchema: typeof requestSchema
-            responseSchema: typeof responseSchema
-            errorSchema: typeof errorSchema
-          },
-          false
-        >['endpoint']
+        EndpointHelper<{
+          method: 'POST'
+          url: '/search'
+          querySchema: typeof querySchema
+          requestSchema: typeof requestSchema
+          responseSchema: typeof responseSchema
+          errorSchema: typeof errorSchema
+        }>['endpoint']
       >(query.endpoint)
-    })
-  })
-})
-
-// ============================================================================
-// QUERY METHOD - DISCRIMINATOR MODE (UseDiscriminator=true)
-// ============================================================================
-
-describe('ClientInstance<true> query() method (discriminator mode)', () => {
-  describe('errorSchema includes error union in TData', () => {
-    test('GET query with errorSchema returns union result type', () => {
-      const query = clientWithDiscriminator.query({
-        method: 'GET',
-        url: '/users',
-        responseSchema,
-        errorSchema,
-      })
-
-      assertType<
-        (params: {}) => UseSuspenseQueryOptions<
-          ResponseWithErrors,
-          Error,
-          ResponseWithErrors,
-          DataTag<Split<'/users', '/'>, ResponseWithErrors, Error>
-        >
-      >(query)
-    })
-
-    test('GET query with errorSchema and URL params returns union', () => {
-      const query = clientWithDiscriminator.query({
-        method: 'GET',
-        url: '/users/$userId',
-        responseSchema,
-        errorSchema,
-      })
-
-      assertType<
-        (params: {
-          urlParams: { userId: string | number }
-        }) => UseSuspenseQueryOptions<
-          ResponseWithErrors,
-          Error,
-          ResponseWithErrors,
-          DataTag<Split<'/users/$userId', '/'>, ResponseWithErrors, Error>
-        >
-      >(query)
-    })
-
-    test('GET query with errorSchema and query schema returns union', () => {
-      const query = clientWithDiscriminator.query({
-        method: 'GET',
-        url: '/users',
-        querySchema,
-        responseSchema,
-        errorSchema,
-      })
-
-      assertType<
-        (params: {
-          params: QueryType
-        }) => UseSuspenseQueryOptions<
-          ResponseWithErrors,
-          Error,
-          ResponseWithErrors,
-          DataTag<Split<'/users', '/'>, ResponseWithErrors, Error>
-        >
-      >(query)
-    })
-
-    test('processResponse receives union type', () => {
-      clientWithDiscriminator.query({
-        method: 'GET',
-        url: '/users',
-        responseSchema,
-        errorSchema,
-        processResponse: (data) => {
-          assertType<ResponseWithErrors>(data)
-          return data
-        },
-      })
-    })
-
-    test('processResponse can transform union type', () => {
-      // Note: This test verifies processResponse receives the union type
-      // and can return a transformed type. The exact type assertion is
-      // complex due to readonly inference, so we just verify the callback types.
-      clientWithDiscriminator.query({
-        method: 'GET',
-        url: '/users',
-        responseSchema,
-        errorSchema,
-        processResponse: (data): { handled: boolean; original: typeof data } => {
-          assertType<ResponseWithErrors>(data)
-          return { handled: true, original: data }
-        },
-      })
-    })
-  })
-
-  describe('without errorSchema behaves same as default', () => {
-    test('GET query without errorSchema returns only success type', () => {
-      const query = clientWithDiscriminator.query({
-        method: 'GET',
-        url: '/users',
-        responseSchema,
-      })
-
-      assertType<
-        (params: {}) => UseSuspenseQueryOptions<
-          ResponseType,
-          Error,
-          ResponseType,
-          DataTag<Split<'/users', '/'>, ResponseType, Error>
-        >
-      >(query)
     })
   })
 })

@@ -47,7 +47,7 @@ type EnvelopeTypeNoErrSchema = ResponseEnvelope<ResponseType, EnvelopeError<unde
 // CLIENT INSTANCE
 // ============================================================================
 
-declare const client: ClientInstance<false>
+declare const client: ClientInstance
 
 // ============================================================================
 // QUERY: result: 'envelope' inference

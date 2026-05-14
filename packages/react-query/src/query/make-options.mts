@@ -26,13 +26,12 @@ import type { QueryArgs, QueryHelpers, QueryResult, UnwrapMode } from './types.m
  */
 export interface MakeQueryOptionsParams<
   Options extends EndpointOptions,
-  UseDiscriminator extends boolean = false,
-  Result = QueryResult<Options, UseDiscriminator>,
+  Result = QueryResult<Options>,
 > {
   keyPrefix?: string[]
   keySuffix?: string[]
   onFail?: (err: unknown) => void
-  processResponse?: (data: InferEndpointReturn<Options, UseDiscriminator>) => Result
+  processResponse?: (data: InferEndpointReturn<Options>) => Result
   /**
    * For endpoints declared with `result: 'envelope'`, controls how the
    * envelope is delivered to React Query.
@@ -78,8 +77,7 @@ export interface MakeQueryOptionsParams<
  */
 export function makeQueryOptions<
   const Options extends EndpointOptions,
-  UseDiscriminator extends boolean = false,
-  Result = QueryResult<Options, UseDiscriminator>,
+  Result = QueryResult<Options>,
   BaseQuery extends Omit<
     UseQueryOptions<Result, Error, any>,
     | 'queryKey'
@@ -100,8 +98,8 @@ export function makeQueryOptions<
     | 'placeholderData'
   >,
 >(
-  endpoint: EndpointHandler<Options, UseDiscriminator>,
-  options: MakeQueryOptionsParams<Options, UseDiscriminator, Result>,
+  endpoint: EndpointHandler<Options>,
+  options: MakeQueryOptionsParams<Options, Result>,
   baseQuery?: BaseQuery,
 ): ((
   params: Simplify<
@@ -127,8 +125,7 @@ export function makeQueryOptions<
   const config = endpoint.config
   const queryKey = createQueryKey(config as any, options as any, false)
   const processResponse =
-    options.processResponse ??
-    ((data: InferEndpointReturn<Options, UseDiscriminator>) => data as unknown as Result)
+    options.processResponse ?? ((data: InferEndpointReturn<Options>) => data as unknown as Result)
 
   const result = (
     params: Simplify<

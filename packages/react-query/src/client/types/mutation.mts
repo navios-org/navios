@@ -29,7 +29,6 @@ type ComputeVariables<
  * Extended endpoint options interface for mutation that includes processResponse and callbacks.
  */
 interface MutationEndpointConfig<
-  _UseDiscriminator extends boolean,
   Method extends HttpMethod,
   Url extends string,
   QuerySchema extends ZodObject | undefined,
@@ -110,11 +109,8 @@ interface MutationEndpointConfig<
 
 /**
  * Mutation method using decomposed generics pattern for proper processResponse typing.
- *
- * @template UseDiscriminator - When `true`, errors are returned as union types.
- *   When `false` (default), errors are thrown and not included in TData.
  */
-export interface ClientMutationMethods<UseDiscriminator extends boolean = false> {
+export interface ClientMutationMethods {
   /**
    * Creates a type-safe mutation with automatic type inference.
    *
@@ -146,13 +142,7 @@ export interface ClientMutationMethods<UseDiscriminator extends boolean = false>
     const UseKey extends boolean = false,
     const ResultModeT extends ResultMode = undefined,
     const Unwrap extends UnwrapMode | undefined = undefined,
-    const TBaseResult = ComputeQueryResult<
-      UseDiscriminator,
-      ResponseSchema,
-      ErrorSchema,
-      ResultModeT,
-      Unwrap
-    >,
+    const TBaseResult = ComputeQueryResult<ResponseSchema, ErrorSchema, ResultModeT, Unwrap>,
     const Result = TBaseResult,
     const OnMutateResult = unknown,
     const Context = unknown,
@@ -168,7 +158,6 @@ export interface ClientMutationMethods<UseDiscriminator extends boolean = false>
     },
   >(
     config: MutationEndpointConfig<
-      UseDiscriminator,
       Method,
       Url,
       QuerySchema,
@@ -193,5 +182,5 @@ export interface ClientMutationMethods<UseDiscriminator extends boolean = false>
       : []
   ) => UseMutationResult<Result, Error, Variables, OnMutateResult>) &
     (UseKey extends true ? MutationHelpers<Url, Result> : {}) &
-    EndpointHelper<Options, UseDiscriminator>
+    EndpointHelper<Options>
 }

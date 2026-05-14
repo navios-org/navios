@@ -83,11 +83,8 @@ interface QueryEndpointConfig<
 
 /**
  * Query method using decomposed generics pattern for proper processResponse typing.
- *
- * @template UseDiscriminator - When `true`, errors are returned as union types.
- *   When `false` (default), errors are thrown and not included in TData.
  */
-export interface ClientQueryMethods<UseDiscriminator extends boolean = false> {
+export interface ClientQueryMethods {
   /**
    * Creates a type-safe query with automatic type inference.
    *
@@ -116,13 +113,7 @@ export interface ClientQueryMethods<UseDiscriminator extends boolean = false> {
     const UrlParamsSchema extends ZodObject | undefined = undefined,
     const ResultModeT extends ResultMode = undefined,
     const Unwrap extends UnwrapMode | undefined = undefined,
-    const TBaseResult = ComputeQueryResult<
-      UseDiscriminator,
-      ResponseSchema,
-      ErrorSchema,
-      ResultModeT,
-      Unwrap
-    >,
+    const TBaseResult = ComputeQueryResult<ResponseSchema, ErrorSchema, ResultModeT, Unwrap>,
     const Result = TBaseResult,
     const Options extends EndpointOptions = BuildEndpointOptions<
       Method,
@@ -151,5 +142,5 @@ export interface ClientQueryMethods<UseDiscriminator extends boolean = false> {
     params: Simplify<InferEndpointParams<Options>>,
   ) => UseSuspenseQueryOptions<Result, Error, Result, DataTag<Split<Url, '/'>, Result, Error>>) &
     QueryHelpers<Url, QuerySchema, Result, false, RequestSchema> &
-    EndpointHelper<Options, UseDiscriminator>
+    EndpointHelper<Options>
 }

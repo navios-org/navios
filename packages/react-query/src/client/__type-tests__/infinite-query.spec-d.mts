@@ -41,24 +41,18 @@ const errorSchema = {
 type ResponseType = z.output<typeof responseSchema>
 type QueryType = z.input<typeof querySchema>
 type RequestType = z.input<typeof requestSchema>
-type Error400 = z.output<typeof error400Schema>
-type Error404 = z.output<typeof error404Schema>
-type Error500 = z.output<typeof error500Schema>
-type ErrorUnion = Error400 | Error404 | Error500
-type ResponseWithErrors = ResponseType | ErrorUnion
 
 // ============================================================================
 // CLIENT INSTANCE DECLARATIONS
 // ============================================================================
 
-declare const client: ClientInstance<false>
-declare const clientWithDiscriminator: ClientInstance<true>
+declare const client: ClientInstance
 
 // ============================================================================
-// INFINITE QUERY METHOD - DEFAULT MODE (UseDiscriminator=false)
+// INFINITE QUERY METHOD
 // ============================================================================
 
-describe('ClientInstance<false> infiniteQuery() method', () => {
+describe('client.infiniteQuery() method', () => {
   describe('GET infinite queries', () => {
     test('basic GET infinite query', () => {
       const query = client.infiniteQuery({
@@ -168,7 +162,7 @@ describe('ClientInstance<false> infiniteQuery() method', () => {
         getNextPageParam: () => undefined,
       })
 
-      // With UseDiscriminator=false, errors are thrown
+      // Errors are thrown
       assertType<
         (params: {
           params: QueryType
@@ -326,142 +320,16 @@ describe('ClientInstance<false> infiniteQuery() method', () => {
       })
 
       assertType<
-        EndpointHelper<
-          {
-            method: 'GET'
-            url: '/users'
-            querySchema: typeof querySchema
-            requestSchema: undefined
-            responseSchema: typeof responseSchema
-            errorSchema: undefined
-            urlParamsSchema: undefined
-          },
-          false
-        >['endpoint']
+        EndpointHelper<{
+          method: 'GET'
+          url: '/users'
+          querySchema: typeof querySchema
+          requestSchema: undefined
+          responseSchema: typeof responseSchema
+          errorSchema: undefined
+          urlParamsSchema: undefined
+        }>['endpoint']
       >(query.endpoint)
-    })
-  })
-})
-
-// ============================================================================
-// INFINITE QUERY METHOD - DISCRIMINATOR MODE (UseDiscriminator=true)
-// ============================================================================
-
-describe('ClientInstance<true> infiniteQuery() method (discriminator mode)', () => {
-  describe('errorSchema includes error union in PageResult', () => {
-    test('infinite query returns union PageResult', () => {
-      const query = clientWithDiscriminator.infiniteQuery({
-        method: 'GET',
-        url: '/users',
-        querySchema,
-        responseSchema,
-        errorSchema,
-        getNextPageParam: (lastPage) => {
-          assertType<ResponseWithErrors>(lastPage)
-          return undefined
-        },
-      })
-
-      assertType<
-        (params: {
-          params: QueryType
-        }) => UseSuspenseInfiniteQueryOptions<
-          ResponseWithErrors,
-          Error,
-          InfiniteData<ResponseWithErrors>,
-          DataTag<Split<'/users', '/'>, ResponseWithErrors, Error>,
-          z.output<typeof querySchema>
-        >
-      >(query)
-    })
-
-    test('processResponse receives union type', () => {
-      clientWithDiscriminator.infiniteQuery({
-        method: 'GET',
-        url: '/users',
-        querySchema,
-        responseSchema,
-        errorSchema,
-        processResponse: (data) => {
-          assertType<ResponseWithErrors>(data)
-          return data
-        },
-        getNextPageParam: () => undefined,
-      })
-    })
-
-    test('processResponse can transform union type', () => {
-      type ExpectedResult = { ok: false; error: ErrorUnion } | { ok: true; data: ResponseType }
-
-      const query = clientWithDiscriminator.infiniteQuery({
-        method: 'GET',
-        url: '/users',
-        querySchema,
-        responseSchema,
-        errorSchema,
-        processResponse: (data): ExpectedResult => {
-          // Use 'id' property to discriminate - only ResponseType has 'id'
-          if ('id' in data) {
-            return { ok: true, data }
-          }
-          return { ok: false, error: data }
-        },
-        getNextPageParam: (lastPage) => {
-          if (!lastPage.ok) return undefined
-          return { page: 1, limit: 10 }
-        },
-      })
-
-      assertType<
-        (params: {
-          params: QueryType
-        }) => UseSuspenseInfiniteQueryOptions<
-          ExpectedResult,
-          Error,
-          InfiniteData<ExpectedResult>,
-          DataTag<Split<'/users', '/'>, ExpectedResult, Error>,
-          z.output<typeof querySchema>
-        >
-      >(query)
-    })
-
-    test('getNextPageParam receives union type', () => {
-      clientWithDiscriminator.infiniteQuery({
-        method: 'GET',
-        url: '/users',
-        querySchema,
-        responseSchema,
-        errorSchema,
-        getNextPageParam: (lastPage, allPages) => {
-          assertType<ResponseWithErrors>(lastPage)
-          assertType<ResponseWithErrors[]>(allPages)
-          return undefined
-        },
-      })
-    })
-  })
-
-  describe('without errorSchema behaves same as default', () => {
-    test('infinite query without errorSchema returns only success type', () => {
-      const query = clientWithDiscriminator.infiniteQuery({
-        method: 'GET',
-        url: '/users',
-        querySchema,
-        responseSchema,
-        getNextPageParam: () => undefined,
-      })
-
-      assertType<
-        (params: {
-          params: QueryType
-        }) => UseSuspenseInfiniteQueryOptions<
-          ResponseType,
-          Error,
-          InfiniteData<ResponseType>,
-          DataTag<Split<'/users', '/'>, ResponseType, Error>,
-          z.output<typeof querySchema>
-        >
-      >(query)
     })
   })
 })

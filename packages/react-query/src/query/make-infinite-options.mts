@@ -31,12 +31,7 @@ import type { InfiniteQueryOptions, QueryArgs } from './types.mjs'
  */
 export function makeInfiniteQueryOptions<
   Config extends EndpointOptions & { querySchema: ZodObject },
-  UseDiscriminator extends boolean = false,
-  Options extends InfiniteQueryOptions<Config, any, UseDiscriminator> = InfiniteQueryOptions<
-    Config,
-    any,
-    UseDiscriminator
-  >,
+  Options extends InfiniteQueryOptions<Config> = InfiniteQueryOptions<Config>,
   BaseQuery extends Omit<
     UseInfiniteQueryOptions<ReturnType<NonNullable<Options['processResponse']>>, Error, any>,
     | 'queryKey'
@@ -54,11 +49,7 @@ export function makeInfiniteQueryOptions<
     | 'placeholderData'
     | 'throwOnError'
   >,
->(
-  endpoint: EndpointHandler<Config, UseDiscriminator>,
-  options: Options,
-  baseQuery: BaseQuery = {} as BaseQuery,
-) {
+>(endpoint: EndpointHandler<Config>, options: Options, baseQuery: BaseQuery = {} as BaseQuery) {
   const config = endpoint.config
   const queryKey = createQueryKey(config as any, options as any, true)
 

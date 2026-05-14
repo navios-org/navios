@@ -40,148 +40,82 @@ const errorSchema = {
 
 type ResponseType = z.output<typeof responseSchema>
 type RequestType = z.input<typeof requestSchema>
-type Error400 = z.output<typeof error400Schema>
-type Error404 = z.output<typeof error404Schema>
-type Error500 = z.output<typeof error500Schema>
-type ErrorUnion = Error400 | Error404 | Error500
-type ResponseWithErrors = ResponseType | ErrorUnion
 
 // ============================================================================
 // CLIENT INSTANCE DECLARATIONS
 // ============================================================================
 
-declare const client: ClientInstance<false>
-declare const clientWithDiscriminator: ClientInstance<true>
+declare const client: ClientInstance
 
 // ============================================================================
 // MOCK ENDPOINTS FOR TESTING - Using EndpointHandler type from builder
 // ============================================================================
 
 // Regular endpoints using EndpointHandler
-declare const getEndpoint: EndpointHandler<
-  {
-    method: 'GET'
-    url: '/users'
-    responseSchema: typeof responseSchema
-  },
-  false
->
+declare const getEndpoint: EndpointHandler<{
+  method: 'GET'
+  url: '/users'
+  responseSchema: typeof responseSchema
+}>
 
-declare const getEndpointWithUrlParams: EndpointHandler<
-  {
-    method: 'GET'
-    url: '/users/$userId'
-    responseSchema: typeof responseSchema
-  },
-  false
->
+declare const getEndpointWithUrlParams: EndpointHandler<{
+  method: 'GET'
+  url: '/users/$userId'
+  responseSchema: typeof responseSchema
+}>
 
-declare const getEndpointWithQuery: EndpointHandler<
-  {
-    method: 'GET'
-    url: '/users'
-    querySchema: typeof querySchema
-    responseSchema: typeof responseSchema
-  },
-  false
->
+declare const getEndpointWithQuery: EndpointHandler<{
+  method: 'GET'
+  url: '/users'
+  querySchema: typeof querySchema
+  responseSchema: typeof responseSchema
+}>
 
-declare const getEndpointWithUrlParamsAndQuery: EndpointHandler<
-  {
-    method: 'GET'
-    url: '/users/$userId/posts'
-    querySchema: typeof querySchema
-    responseSchema: typeof responseSchema
-  },
-  false
->
+declare const getEndpointWithUrlParamsAndQuery: EndpointHandler<{
+  method: 'GET'
+  url: '/users/$userId/posts'
+  querySchema: typeof querySchema
+  responseSchema: typeof responseSchema
+}>
 
-declare const postEndpoint: EndpointHandler<
-  {
-    method: 'POST'
-    url: '/users'
-    requestSchema: typeof requestSchema
-    responseSchema: typeof responseSchema
-  },
-  false
->
+declare const postEndpoint: EndpointHandler<{
+  method: 'POST'
+  url: '/users'
+  requestSchema: typeof requestSchema
+  responseSchema: typeof responseSchema
+}>
 
-declare const postEndpointWithUrlParams: EndpointHandler<
-  {
-    method: 'POST'
-    url: '/users/$userId/posts'
-    requestSchema: typeof requestSchema
-    responseSchema: typeof responseSchema
-  },
-  false
->
+declare const postEndpointWithUrlParams: EndpointHandler<{
+  method: 'POST'
+  url: '/users/$userId/posts'
+  requestSchema: typeof requestSchema
+  responseSchema: typeof responseSchema
+}>
 
-declare const endpointWithErrors: EndpointHandler<
-  {
-    method: 'GET'
-    url: '/users'
-    responseSchema: typeof responseSchema
-    errorSchema: typeof errorSchema
-  },
-  false
->
+declare const endpointWithErrors: EndpointHandler<{
+  method: 'GET'
+  url: '/users'
+  responseSchema: typeof responseSchema
+  errorSchema: typeof errorSchema
+}>
 
 // Stream endpoints for testing
-declare const streamEndpoint: StreamHandler<
-  {
-    method: 'GET'
-    url: '/files/$fileId/download'
-  },
-  false
->
+declare const streamEndpoint: StreamHandler<{
+  method: 'GET'
+  url: '/files/$fileId/download'
+}>
 
-declare const streamEndpointWithRequest: StreamHandler<
-  {
-    method: 'POST'
-    url: '/files/generate'
-    requestSchema: typeof requestSchema
-  },
-  false
->
-
-// Discriminator mode endpoints
-declare const endpointWithErrorsDiscriminator: EndpointHandler<
-  {
-    method: 'GET'
-    url: '/users'
-    responseSchema: typeof responseSchema
-    errorSchema: typeof errorSchema
-  },
-  true
->
-
-declare const infiniteEndpointWithErrors: EndpointHandler<
-  {
-    method: 'GET'
-    url: '/users'
-    querySchema: typeof querySchema
-    responseSchema: typeof responseSchema
-    errorSchema: typeof errorSchema
-  },
-  true
->
-
-declare const mutationEndpointWithErrors: EndpointHandler<
-  {
-    method: 'POST'
-    url: '/users'
-    requestSchema: typeof requestSchema
-    responseSchema: typeof responseSchema
-    errorSchema: typeof errorSchema
-  },
-  true
->
+declare const streamEndpointWithRequest: StreamHandler<{
+  method: 'POST'
+  url: '/files/generate'
+  requestSchema: typeof requestSchema
+}>
 
 // ============================================================================
-// queryFromEndpoint - DEFAULT MODE (UseDiscriminator=false)
+// queryFromEndpoint
 // ============================================================================
 
-describe('ClientInstance<false> queryFromEndpoint() method', () => {
+describe('client.queryFromEndpoint() method', () => {
   describe('basic usage', () => {
     test('simple GET endpoint - result is callable with optional signal/headers only', () => {
       const query = client.queryFromEndpoint(getEndpoint)
@@ -259,10 +193,10 @@ describe('ClientInstance<false> queryFromEndpoint() method', () => {
 })
 
 // ============================================================================
-// infiniteQueryFromEndpoint - DEFAULT MODE (UseDiscriminator=false)
+// infiniteQueryFromEndpoint
 // ============================================================================
 
-describe('ClientInstance<false> infiniteQueryFromEndpoint() method', () => {
+describe('client.infiniteQueryFromEndpoint() method', () => {
   describe('QueryHelpers for infinite', () => {
     test('infiniteQueryFromEndpoint has QueryHelpers with isInfinite=true', () => {
       const query = client.infiniteQueryFromEndpoint(getEndpointWithQuery, {
@@ -320,10 +254,10 @@ describe('ClientInstance<false> infiniteQueryFromEndpoint() method', () => {
 })
 
 // ============================================================================
-// mutationFromEndpoint - DEFAULT MODE (UseDiscriminator=false)
+// mutationFromEndpoint
 // ============================================================================
 
-describe('ClientInstance<false> mutationFromEndpoint() method', () => {
+describe('client.mutationFromEndpoint() method', () => {
   describe('regular endpoints', () => {
     test('POST endpoint returns mutation with correct mutate signature', () => {
       const mutation = client.mutationFromEndpoint(postEndpoint)
@@ -433,50 +367,11 @@ describe('ClientInstance<false> mutationFromEndpoint() method', () => {
   })
 
   describe('errorSchema (errors thrown)', () => {
-    test('processResponse receives only success type when UseDiscriminator=false', () => {
+    test('processResponse receives success type (errors are thrown)', () => {
       client.mutationFromEndpoint(endpointWithErrors, {
         processResponse: (data) => {
-          // With UseDiscriminator=false, data should only be ResponseType
+          // Errors are thrown; data should only be ResponseType
           assertType<ResponseType>(data)
-          return data
-        },
-      })
-    })
-  })
-})
-
-// ============================================================================
-// DISCRIMINATOR MODE (UseDiscriminator=true)
-// ============================================================================
-
-describe('ClientInstance<true> fromEndpoint methods (discriminator mode)', () => {
-  describe('queryFromEndpoint with errorSchema includes union', () => {
-    test('processResponse receives union type', () => {
-      clientWithDiscriminator.queryFromEndpoint(endpointWithErrorsDiscriminator, {
-        processResponse: (data) => {
-          assertType<ResponseWithErrors>(data)
-          return data
-        },
-      })
-    })
-  })
-
-  describe('infiniteQueryFromEndpoint with errorSchema', () => {
-    test('getNextPageParam receives union type', () => {
-      clientWithDiscriminator.infiniteQueryFromEndpoint(infiniteEndpointWithErrors, {
-        getNextPageParam: (lastPage) => {
-          assertType<ResponseWithErrors>(lastPage)
-          return undefined
-        },
-      })
-    })
-  })
-
-  describe('mutationFromEndpoint with errorSchema', () => {
-    test('processResponse receives union type', () => {
-      clientWithDiscriminator.mutationFromEndpoint(mutationEndpointWithErrors, {
-        processResponse: (data) => {
-          assertType<ResponseWithErrors>(data)
           return data
         },
       })

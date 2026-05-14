@@ -57,9 +57,6 @@ export type MutationHelpers<Url extends string, Result = unknown> =
 
 /**
  * Base parameters for mutation configuration.
- *
- * @template UseDiscriminator - When `true`, errors are returned as union types in processResponse.
- *   When `false` (default), errors are thrown and not included in TResponse.
  */
 export interface MutationParams<
   Config extends AnyEndpointConfig,
@@ -70,29 +67,20 @@ export interface MutationParams<
     Config['requestSchema'],
     Config['urlParamsSchema']
   >,
-  _TResponse = ComputeResponseInput<false, Config['responseSchema'], Config['errorSchema']>,
+  _TResponse = ComputeResponseInput<Config['responseSchema'], Config['errorSchema']>,
   TOnMutateResult = unknown,
   TContext = unknown,
   UseKey extends boolean = false,
-  UseDiscriminator extends boolean = false,
-  TError = UseDiscriminator extends true
-    ? Error
-    : Config['errorSchema'] extends ErrorSchemaRecord
-      ? InferErrorSchemaOutput<Config['errorSchema']> | Error
-      : Error,
+  TError = Config['errorSchema'] extends ErrorSchemaRecord
+    ? InferErrorSchemaOutput<Config['errorSchema']> | Error
+    : Error,
 > extends Omit<
-  UseMutationOptions<
-    TData,
-    // When UseDiscriminator is false and errorSchema exists, errors are thrown, so Error is correct.
-    // When UseDiscriminator is true, errors are part of the response union, but network/other errors still throw Error.
-    TError,
-    TVariables
-  >,
+  UseMutationOptions<TData, TError, TVariables>,
   'mutationKey' | 'mutationFn' | 'onMutate' | 'onSuccess' | 'onError' | 'onSettled' | 'scope'
 > {
   processResponse?: ProcessResponseFunction<
     TData,
-    ComputeResponseInput<UseDiscriminator, Config['responseSchema'], Config['errorSchema']>
+    ComputeResponseInput<Config['responseSchema'], Config['errorSchema']>
   >
   /**
    * React hooks that will prepare the context for the mutation onSuccess and onError

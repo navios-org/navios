@@ -34,11 +34,8 @@ type ExtractUseKey<Options> = Options extends { useKey: infer U }
 
 /**
  * FromEndpoint methods using const generics pattern (simplified from multiple overloads).
- *
- * @template UseDiscriminator - When `true`, errors are returned as union types.
- *   When `false` (default), errors are thrown and not included in TData.
  */
-export interface ClientFromEndpointMethods<UseDiscriminator extends boolean = false> {
+export interface ClientFromEndpointMethods {
   /**
    * Creates a type-safe query from an existing endpoint with automatic type inference.
    *
@@ -59,11 +56,7 @@ export interface ClientFromEndpointMethods<UseDiscriminator extends boolean = fa
    */
   queryFromEndpoint<
     const Config extends EndpointOptions,
-    TBaseResult = ComputeBaseResult<
-      UseDiscriminator,
-      Config['responseSchema'],
-      Config['errorSchema']
-    >,
+    TBaseResult = ComputeBaseResult<Config['responseSchema'], Config['errorSchema']>,
     Result = TBaseResult,
   >(
     endpoint: { config: Config },
@@ -117,11 +110,7 @@ export interface ClientFromEndpointMethods<UseDiscriminator extends boolean = fa
     const Config extends EndpointOptions & {
       querySchema: ZodObject
     },
-    TBaseResult = ComputeBaseResult<
-      UseDiscriminator,
-      Config['responseSchema'],
-      Config['errorSchema']
-    >,
+    TBaseResult = ComputeBaseResult<Config['responseSchema'], Config['errorSchema']>,
     PageResult = TBaseResult,
     Result = InfiniteData<PageResult>,
   >(
@@ -187,10 +176,10 @@ export interface ClientFromEndpointMethods<UseDiscriminator extends boolean = fa
   mutationFromEndpoint<
     const Config extends EndpointOptions | BaseEndpointOptions,
     TBaseResult = Config extends EndpointOptions
-      ? ComputeBaseResult<UseDiscriminator, Config['responseSchema'], Config['errorSchema']>
+      ? ComputeBaseResult<Config['responseSchema'], Config['errorSchema']>
       : Blob,
     Result = Config extends EndpointOptions
-      ? ComputeBaseResult<UseDiscriminator, Config['responseSchema'], Config['errorSchema']>
+      ? ComputeBaseResult<Config['responseSchema'], Config['errorSchema']>
       : Blob,
     OnMutateResult = unknown,
     Context = unknown,
@@ -286,7 +275,5 @@ export interface ClientFromEndpointMethods<UseDiscriminator extends boolean = fa
     (ExtractUseKey<typeof mutationOptions> extends true
       ? MutationHelpers<Config['url'], Result>
       : {}) &
-    (Config extends EndpointOptions
-      ? EndpointHelper<Config, UseDiscriminator>
-      : StreamHelper<Config, UseDiscriminator>)
+    (Config extends EndpointOptions ? EndpointHelper<Config> : StreamHelper<Config>)
 }

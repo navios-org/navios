@@ -9,11 +9,8 @@ import type { ComputeQueryResult, EndpointHelper, ResultMode } from './helpers.m
 
 /**
  * Multipart mutation method overloads for ClientInstance.
- *
- * @template UseDiscriminator - When `true`, errors are returned as union types.
- *   When `false` (default), errors are thrown and not included in TData.
  */
-export interface ClientMultipartMutationMethods<UseDiscriminator extends boolean = false> {
+export interface ClientMultipartMutationMethods {
   // ============================================================================
   // MULTIPART MUTATION METHODS
   // ============================================================================
@@ -27,7 +24,7 @@ export interface ClientMultipartMutationMethods<UseDiscriminator extends boolean
     ErrorSchema extends ErrorSchemaRecord | undefined = undefined,
     ResultModeT extends ResultMode = undefined,
     Unwrap extends UnwrapMode | undefined = undefined,
-    TBaseResult = ComputeQueryResult<UseDiscriminator, Response, ErrorSchema, ResultModeT, Unwrap>,
+    TBaseResult = ComputeQueryResult<Response, ErrorSchema, ResultModeT, Unwrap>,
     Result = unknown,
     OnMutateResult = unknown,
     Context = unknown,
@@ -107,7 +104,7 @@ export interface ClientMultipartMutationMethods<UseDiscriminator extends boolean
     ErrorSchema extends ErrorSchemaRecord | undefined = undefined,
     ResultModeT extends ResultMode = undefined,
     Unwrap extends UnwrapMode | undefined = undefined,
-    TBaseResult = ComputeQueryResult<UseDiscriminator, Response, ErrorSchema, ResultModeT, Unwrap>,
+    TBaseResult = ComputeQueryResult<Response, ErrorSchema, ResultModeT, Unwrap>,
     Result = unknown,
     OnMutateResult = unknown,
     Context = unknown,
@@ -182,7 +179,7 @@ export interface ClientMultipartMutationMethods<UseDiscriminator extends boolean
     ErrorSchema extends ErrorSchemaRecord | undefined = undefined,
     ResultModeT extends ResultMode = undefined,
     Unwrap extends UnwrapMode | undefined = undefined,
-    TBaseResult = ComputeQueryResult<UseDiscriminator, Response, ErrorSchema, ResultModeT, Unwrap>,
+    TBaseResult = ComputeQueryResult<Response, ErrorSchema, ResultModeT, Unwrap>,
     Result = unknown,
     OnMutateResult = unknown,
     Context = unknown,
@@ -256,7 +253,7 @@ export interface ClientMultipartMutationMethods<UseDiscriminator extends boolean
     ErrorSchema extends ErrorSchemaRecord | undefined = undefined,
     ResultModeT extends ResultMode = undefined,
     Unwrap extends UnwrapMode | undefined = undefined,
-    TBaseResult = ComputeQueryResult<UseDiscriminator, Response, ErrorSchema, ResultModeT, Unwrap>,
+    TBaseResult = ComputeQueryResult<Response, ErrorSchema, ResultModeT, Unwrap>,
     Result = unknown,
     OnMutateResult = unknown,
     Context = unknown,

@@ -26,32 +26,22 @@ export type ProcessResponseFunction<TData = unknown, TVariables = unknown> = (
 ) => Promise<TData> | TData
 
 /**
- * Compute the response input type based on discriminator and error schema.
- * When UseDiscriminator=true and errorSchema is present, errors are included as a union.
- * When UseDiscriminator=false, only the success type is returned (errors are thrown).
+ * Compute the response input type.
+ * In the data-mode default (errors are thrown), this is just `z.output<ResponseSchema>`.
  *
- * @template UseDiscriminator - Whether to include error types in the response union
  * @template ResponseSchema - The success response schema
- * @template ErrorSchema - The error schema record (optional)
+ * @template ErrorSchema - The error schema record (unused; kept for backwards compatibility)
  */
 export type ComputeResponseInput<
-  UseDiscriminator extends boolean,
   ResponseSchema extends ZodType,
-  ErrorSchema extends ErrorSchemaRecord | undefined,
-> = UseDiscriminator extends true
-  ? ErrorSchema extends ErrorSchemaRecord
-    ? z.output<ResponseSchema> | InferErrorSchemaOutput<ErrorSchema>
-    : z.output<ResponseSchema>
-  : z.output<ResponseSchema>
+  _ErrorSchema extends ErrorSchemaRecord | undefined = undefined,
+> = z.output<ResponseSchema>
 
 /**
  * Options for creating a client instance.
- *
- * @template UseDiscriminator - When `true`, errors are returned as union types.
- *   When `false` (default), errors are thrown.
  */
-export type ClientOptions<UseDiscriminator extends boolean = false> = {
-  api: BuilderInstance<UseDiscriminator>
+export type ClientOptions = {
+  api: BuilderInstance
   defaults?: {
     keyPrefix?: string[]
     keySuffix?: string[]
@@ -103,8 +93,4 @@ export type ComputeResultType<
  * than a parsed body.
  */
 export type IsEnvelope<E> =
-  E extends EndpointHandler<infer O, boolean>
-    ? O extends { result: 'envelope' }
-      ? true
-      : false
-    : false
+  E extends EndpointHandler<infer O> ? (O extends { result: 'envelope' } ? true : false) : false
