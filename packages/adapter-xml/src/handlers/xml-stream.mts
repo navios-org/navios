@@ -43,10 +43,10 @@ import type { XmlStreamConfig } from '../types/config.mjs'
  */
 export function declareXmlStream<const Config extends XmlStreamConfig>(
   config: Config,
-): StreamHandler<Config, false> {
+): StreamHandler<Config> {
   const handler = async (_params: ServerRequestArgs<Config>) => {
     throw new Error('Not implemented')
   }
   handler.config = config
-  return handler as unknown as StreamHandler<Config, false>
+  return handler as unknown as StreamHandler<Config>
 }

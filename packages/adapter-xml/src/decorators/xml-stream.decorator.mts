@@ -17,7 +17,7 @@ import type { BaseXmlStreamConfig } from '../index.mjs'
  * @typeParam EndpointDeclaration - The XML stream endpoint declaration from @navios/builder
  */
 export type XmlStreamParams<
-  EndpointDeclaration extends StreamHandler<Config, false>,
+  EndpointDeclaration extends StreamHandler<Config>,
   Config extends BaseXmlStreamConfig = EndpointDeclaration['config'],
 > = Simplify<ServerRequestArgs<Config>>
 
