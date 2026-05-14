@@ -171,6 +171,106 @@ const queryKey = getUsers.queryKey.dataTag({ params: { page: 1 } })
 // Use with queryClient.getQueryData(queryKey), etc.
 ```
 
+## Envelope mode and unwrap
+
+When an endpoint is declared with `result: 'envelope'` (see the [@navios/builder README](../builder/README.md) for the underlying envelope shape), every helper in this package detects that and surfaces the full envelope by default. The envelope carries the raw `Response`, parsed `data`, optional `error`, and HTTP `status` — useful when you need access to headers, status codes, or want to discriminate success and error in a single value.
+
+The `unwrap` option controls how the envelope is delivered to TanStack Query:
+
+| Surface             | Allowed values                          | Default  |
+| ------------------- | --------------------------------------- | -------- |
+| `query`             | `'none' \| 'throw-on-error'`            | `'none'` |
+| `infiniteQuery`     | `'none' \| 'throw-on-error' \| 'pages'` | `'none'` |
+| `mutation`          | `'none' \| 'throw-on-error'`            | `'none'` |
+| `multipartMutation` | `'none' \| 'throw-on-error'`            | `'none'` |
+
+- `'none'` — the envelope is passed through unchanged. `data` is the envelope, `error` is null. You can discriminate `envelope.error` yourself.
+- `'throw-on-error'` — if the envelope carries an error, it's thrown so TanStack Query routes it through `error`. On success `data` is the unwrapped body. Best when you want classic React Query ergonomics without giving up envelope-typed errors.
+- `'pages'` (infinite queries only) — each page is unwrapped before being stored, so `data.pages[i]` is the body. `getNextPageParam` also receives the unwrapped body. Envelope errors are still thrown.
+
+The `unwrap` field is ignored for endpoints that aren't envelope mode, so it's safe to add prophylactically.
+
+### Classic React Query ergonomics with `throw-on-error`
+
+```typescript
+const userQuery = client.query({
+  method: 'GET',
+  url: '/users/$id',
+  responseSchema: UserSchema,
+  errorSchema: { 404: NotFoundSchema },
+  result: 'envelope',
+  unwrap: 'throw-on-error',
+})
+
+function UserView({ id }: { id: string }) {
+  const { data: user, error } = userQuery.use({ urlParams: { id } })
+  // data is User | undefined, error is EnvelopeError | null
+}
+```
+
+### Envelope passthrough with header access
+
+```typescript
+const userQuery = client.query({
+  method: 'GET',
+  url: '/users/$id',
+  responseSchema: UserSchema,
+  result: 'envelope',
+})
+
+function UserView({ id }: { id: string }) {
+  const { data: envelope } = userQuery.useSuspense({ urlParams: { id } })
+  if (envelope.error) return <Err err={envelope.error} />
+  const etag = envelope.response.headers.get('etag')
+  return <p>{envelope.data.name} (etag: {etag})</p>
+}
+```
+
+### Infinite queries with `'pages'`
+
+```typescript
+// unwrap: 'pages' — getNextPageParam receives the unwrapped body
+const usersQuery = client.infiniteQuery({
+  method: 'GET',
+  url: '/users',
+  querySchema: z.object({ cursor: z.string().optional() }),
+  responseSchema: PageSchema,
+  result: 'envelope',
+  unwrap: 'pages',
+  getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
+})
+
+// unwrap: 'none' — getNextPageParam receives the full envelope
+const usersEnvelopeQuery = client.infiniteQuery({
+  method: 'GET',
+  url: '/users',
+  querySchema: z.object({ cursor: z.string().optional() }),
+  responseSchema: PageSchema,
+  result: 'envelope',
+  getNextPageParam: (lastEnvelope) => lastEnvelope.data?.nextCursor ?? undefined,
+})
+```
+
+### `processResponse` is now optional
+
+`processResponse` used to be required boilerplate (`processResponse: (data) => data`). It's now optional on every helper — queries, mutations, infinite queries, multipart, and the `*FromEndpoint` variants. Existing call sites that pass an explicit `processResponse` continue to work unchanged.
+
+```typescript
+// Both forms are valid
+const getUser = client.query({
+  method: 'GET',
+  url: '/users/$id',
+  responseSchema: UserSchema,
+})
+
+const getUser2 = client.query({
+  method: 'GET',
+  url: '/users/$id',
+  responseSchema: UserSchema,
+  processResponse: (data) => data, // still works
+})
+```
+
 ## Infinite Queries
 
 ```typescript
