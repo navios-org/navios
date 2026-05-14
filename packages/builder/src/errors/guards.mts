@@ -5,6 +5,7 @@ import type {
   UnknownHttpErrorVariant,
   ValidationErrorVariant,
 } from '../types/envelope-error.mjs'
+import type { ResponseEnvelope } from '../types/envelope.mjs'
 import type { ErrorSchemaRecord } from '../types/error-schema.mjs'
 
 function isObj(v: unknown): v is Record<string, unknown> {
@@ -60,4 +61,15 @@ export function isEnvelopeError(error: unknown): error is EnvelopeError {
     isValidationError(error) ||
     isNetworkError(error)
   )
+}
+
+/**
+ * Runtime type guard for `ResponseEnvelope` shape. Returns true if the value
+ * looks like an envelope (has the four discriminator-relevant keys).
+ *
+ * Used by consumers (e.g. `@navios/react-query`) to branch behaviour for
+ * envelope-mode endpoints without importing endpoint config metadata.
+ */
+export function isResponseEnvelope(v: unknown): v is ResponseEnvelope<unknown, unknown> {
+  return isObj(v) && 'ok' in v && 'data' in v && 'error' in v && 'response' in v
 }
