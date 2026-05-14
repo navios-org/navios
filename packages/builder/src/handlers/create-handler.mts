@@ -123,6 +123,7 @@ export function buildErr(
 async function runEnvelope<Options extends BaseEndpointOptions, TResponse>(
   opts: CreateHandlerOptions<Options>,
   request: HandlerRequest,
+  shouldValidate: boolean,
 ): Promise<TResponse> {
   const {
     options,
@@ -135,7 +136,6 @@ async function runEnvelope<Options extends BaseEndpointOptions, TResponse>(
     transformResponse,
   } = opts
   const { method, url } = options
-  const shouldValidate = (options as { validateResponse?: boolean }).validateResponse !== false
 
   const client = getClient()
   const finalUrlPart = bindUrlParams<Options['url']>(url, request, urlParamsSchema)
@@ -183,6 +183,7 @@ async function runEnvelope<Options extends BaseEndpointOptions, TResponse>(
 async function runData<Options extends BaseEndpointOptions, TResponse>(
   opts: CreateHandlerOptions<Options>,
   request: HandlerRequest,
+  shouldValidate: boolean,
 ): Promise<TResponse> {
   const {
     options,
@@ -194,7 +195,6 @@ async function runData<Options extends BaseEndpointOptions, TResponse>(
     transformResponse,
   } = opts
   const { method, url } = options
-  const shouldValidate = (options as { validateResponse?: boolean }).validateResponse !== false
 
   const client = getClient()
   const finalUrlPart = bindUrlParams<Options['url']>(url, request, urlParamsSchema)
@@ -237,15 +237,13 @@ async function runData<Options extends BaseEndpointOptions, TResponse>(
 export function createHandler<Options extends BaseEndpointOptions, TResponse>(
   opts: CreateHandlerOptions<Options>,
 ) {
-  const resultMode =
-    (opts.options as { result?: 'data' | 'envelope' }).result ??
-    opts.context.config.defaults?.result ??
-    'data'
+  const resultMode = opts.options.result ?? opts.context.config.defaults?.result ?? 'data'
+  const shouldValidate = opts.options.validateResponse !== false
 
   const handler = async (request: HandlerRequest = {} as HandlerRequest): Promise<TResponse> => {
     return resultMode === 'envelope'
-      ? runEnvelope<Options, TResponse>(opts, request)
-      : runData<Options, TResponse>(opts, request)
+      ? runEnvelope<Options, TResponse>(opts, request, shouldValidate)
+      : runData<Options, TResponse>(opts, request, shouldValidate)
   }
 
   handler.config = opts.options
