@@ -22,7 +22,6 @@ import type { MutationArgs } from '../mutation/types.mjs'
 import type { InfiniteUnwrapMode, UnwrapMode } from '../query/types.mjs'
 
 import type { ClientInstance } from './types.mjs'
-import type { ComputeBaseResult } from './types/helpers.mjs'
 
 /**
  * Configuration for declaring a query endpoint.
@@ -33,7 +32,7 @@ export interface QueryConfig<
   QuerySchema extends ZodObject | undefined = undefined,
   Response extends ZodType = ZodType,
   ErrorSchema extends ErrorSchemaRecord | undefined = undefined,
-  Result = ComputeBaseResult<Response, ErrorSchema>,
+  Result = z.output<Response>,
   RequestSchema extends ZodType | undefined = undefined,
 > {
   method: Method
@@ -42,7 +41,7 @@ export interface QueryConfig<
   responseSchema: Response
   errorSchema?: ErrorSchema
   requestSchema?: RequestSchema
-  processResponse?: (data: ComputeBaseResult<Response, ErrorSchema>) => Result
+  processResponse?: (data: z.output<Response>) => Result
   unwrap?: UnwrapMode
   result?: 'data' | 'envelope'
   validateResponse?: boolean
@@ -57,7 +56,7 @@ export type InfiniteQueryConfig<
   QuerySchema extends ZodObject = ZodObject,
   Response extends ZodType = ZodType,
   ErrorSchema extends ErrorSchemaRecord | undefined = undefined,
-  PageResult = ComputeBaseResult<Response, ErrorSchema>,
+  PageResult = z.output<Response>,
   Result = InfiniteData<PageResult>,
   RequestSchema extends ZodType | undefined = undefined,
 > = {
@@ -67,7 +66,7 @@ export type InfiniteQueryConfig<
   responseSchema: Response
   errorSchema?: ErrorSchema
   requestSchema?: RequestSchema
-  processResponse?: (data: ComputeBaseResult<Response, ErrorSchema>) => PageResult
+  processResponse?: (data: z.output<Response>) => PageResult
   unwrap?: InfiniteUnwrapMode
   result?: 'data' | 'envelope'
   validateResponse?: boolean
@@ -97,7 +96,7 @@ export interface MutationConfig<
   QuerySchema extends ZodObject | undefined = undefined,
   Response extends ZodType = ZodType,
   ErrorSchema extends ErrorSchemaRecord | undefined = undefined,
-  ReqResult = ComputeBaseResult<Response, ErrorSchema>,
+  ReqResult = z.output<Response>,
   Result = unknown,
   TOnMutateResult = unknown,
   Context = unknown,

@@ -22,77 +22,68 @@ import type { InfiniteUnwrapMode, UnwrapMode } from '../../query/types.mjs'
 export type ResultMode = 'data' | 'envelope' | undefined
 
 /**
- * Compute the base result type based on result mode.
- *
- * - `Result extends 'envelope'`: surfaces a `ResponseEnvelope`. The envelope's
- *   error branch is typed by `EnvelopeError<ErrorSchema>`.
- * - Otherwise (data-mode default): success type is returned and errors are thrown.
- */
-export type ComputeBaseResult<
-  ResponseSchema extends ZodType,
-  ErrorSchema extends ErrorSchemaRecord | undefined = undefined,
-  Result extends ResultMode = undefined,
-> = Result extends 'envelope'
-  ? ResponseEnvelope<
-      z.output<ResponseSchema>,
-      EnvelopeError<ErrorSchema extends ErrorSchemaRecord ? ErrorSchema : undefined>
-    >
-  : z.output<ResponseSchema>
-
-/**
- * Compute the data-channel result type given a `Result` mode and `Unwrap` mode.
+ * Compute the public data-channel type for an endpoint, taking unwrap mode
+ * into account.
  *
  * Behaviour matrix:
- * | Result      | Unwrap            | Surface type                                 |
- * | ----------- | ----------------- | -------------------------------------------- |
- * | 'envelope'  | 'none' (default)  | `ResponseEnvelope<...>`                      |
- * | 'envelope'  | 'throw-on-error'  | `z.output<ResponseSchema>` (unwrapped body)  |
- * | 'data'/und. | any               | `z.output<ResponseSchema>`                   |
+ * | Endpoint    | Unwrap                       | Surface type                                  |
+ * | ----------- | ---------------------------- | --------------------------------------------- |
+ * | envelope    | `'none'` (default)           | `ResponseEnvelope<Data, EnvelopeError<...>>`  |
+ * | envelope    | `'throw-on-error'`/`'pages'` | `z.output<responseSchema>` (unwrapped body)   |
+ * | non-envelope| any                          | `z.output<responseSchema>`                    |
  *
- * Mirrors {@link EnvelopeQueryResult} but takes the raw inline-config generics
- * rather than a derived `EndpointOptions`.
+ * Replaces the three previous helpers (`ComputeBaseResult`,
+ * `ComputeQueryResult`, `ComputeInfinitePageResult`) — query/mutation use
+ * `Unwrap extends UnwrapMode` ('none' | 'throw-on-error'), infinite queries
+ * use `InfiniteUnwrapMode` which adds `'pages'`. Both fold into the same
+ * branch here because `'pages'` and `'throw-on-error'` deliver the unwrapped
+ * body.
  */
-export type ComputeQueryResult<
-  ResponseSchema extends ZodType,
-  ErrorSchema extends ErrorSchemaRecord | undefined = undefined,
-  Result extends ResultMode = undefined,
-  Unwrap extends UnwrapMode | undefined = undefined,
-> = Result extends 'envelope'
-  ? Unwrap extends 'throw-on-error'
-    ? z.output<ResponseSchema>
-    : ResponseEnvelope<
-        z.output<ResponseSchema>,
-        EnvelopeError<ErrorSchema extends ErrorSchemaRecord ? ErrorSchema : undefined>
-      >
-  : ComputeBaseResult<ResponseSchema, ErrorSchema>
-
-/**
- * Like {@link ComputeQueryResult} but for infinite queries where `'pages'`
- * also unwraps each page to its envelope body.
- */
-export type ComputeInfinitePageResult<
-  ResponseSchema extends ZodType,
-  ErrorSchema extends ErrorSchemaRecord | undefined = undefined,
-  Result extends ResultMode = undefined,
-  Unwrap extends InfiniteUnwrapMode | undefined = undefined,
-> = Result extends 'envelope'
+export type ComputeResult<
+  Options extends EndpointOptions,
+  Unwrap extends UnwrapMode | InfiniteUnwrapMode = 'none',
+> = Options extends { result: 'envelope' }
   ? Unwrap extends 'throw-on-error' | 'pages'
-    ? z.output<ResponseSchema>
+    ? z.output<Options['responseSchema']>
     : ResponseEnvelope<
-        z.output<ResponseSchema>,
-        EnvelopeError<ErrorSchema extends ErrorSchemaRecord ? ErrorSchema : undefined>
+        z.output<Options['responseSchema']>,
+        EnvelopeError<
+          Options['errorSchema'] extends ErrorSchemaRecord ? Options['errorSchema'] : undefined
+        >
       >
-  : ComputeBaseResult<ResponseSchema, ErrorSchema>
+  : z.output<Options['responseSchema']>
 
 /**
- * Helper type to compute the response data type.
+ * Build a minimal `EndpointOptions`-shaped type from the loose generics that
+ * the inline-config client methods (`client.query`, `client.mutation`,
+ * `client.infiniteQuery`, `client.multipartMutation`) carry.
  *
- * @deprecated Use ComputeBaseResult instead (same logic, different parameter order)
+ * Optional fields (`querySchema`, `requestSchema`, `errorSchema`,
+ * `urlParamsSchema`) are only present in the resulting shape when the
+ * corresponding generic is not `undefined` — this keeps property-presence
+ * checks (e.g. `'querySchema' in Options`) working downstream.
+ *
+ * Task 7 will collapse the inline configs to derive from `Options` directly
+ * and likely delete this helper.
  */
-export type ResponseDataType<
-  Response extends ZodType,
-  ErrorSchema extends ErrorSchemaRecord | undefined,
-> = ComputeBaseResult<Response, ErrorSchema>
+export type OptionsFromInline<
+  Method,
+  Url,
+  QuerySchema,
+  RequestSchema,
+  ResponseSchema,
+  ErrorSchema,
+  UrlParamsSchema,
+  ResultModeT,
+> = {
+  method: Method
+  url: Url
+  responseSchema: ResponseSchema
+} & (QuerySchema extends undefined ? {} : { querySchema: QuerySchema }) &
+  (RequestSchema extends undefined ? {} : { requestSchema: RequestSchema }) &
+  (ErrorSchema extends undefined ? {} : { errorSchema: ErrorSchema }) &
+  (UrlParamsSchema extends undefined ? {} : { urlParamsSchema: UrlParamsSchema }) &
+  (ResultModeT extends undefined ? {} : { result: ResultModeT })
 
 /**
  * Helper type that attaches the endpoint to query/mutation results.

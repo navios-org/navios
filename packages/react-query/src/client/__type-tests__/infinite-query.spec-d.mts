@@ -324,10 +324,7 @@ describe('client.infiniteQuery() method', () => {
           method: 'GET'
           url: '/users'
           querySchema: typeof querySchema
-          requestSchema: undefined
           responseSchema: typeof responseSchema
-          errorSchema: undefined
-          urlParamsSchema: undefined
         }>['endpoint']
       >(query.endpoint)
     })

@@ -11,7 +11,7 @@ import type { z, ZodObject, ZodType } from 'zod/v4'
 import type { Split } from '../../common/types.mjs'
 import type { InfiniteUnwrapMode, QueryHelpers } from '../../query/types.mjs'
 
-import type { ComputeInfinitePageResult, EndpointHelper, ResultMode } from './helpers.mjs'
+import type { ComputeResult, EndpointHelper, OptionsFromInline, ResultMode } from './helpers.mjs'
 
 /**
  * Extended endpoint options interface for infinite query that includes processResponse and pagination.
@@ -109,17 +109,18 @@ export interface ClientInfiniteQueryMethods {
     const UrlParamsSchema extends ZodObject | undefined = undefined,
     const ResultModeT extends ResultMode = undefined,
     const Unwrap extends InfiniteUnwrapMode | undefined = undefined,
-    const TBaseResult = ComputeInfinitePageResult<ResponseSchema, ErrorSchema, ResultModeT, Unwrap>,
+    const Options extends EndpointOptions = OptionsFromInline<
+      Method,
+      Url,
+      QuerySchema,
+      RequestSchema,
+      ResponseSchema,
+      ErrorSchema,
+      UrlParamsSchema,
+      ResultModeT
+    >,
+    const TBaseResult = ComputeResult<Options, Unwrap extends undefined ? 'none' : Unwrap>,
     const PageResult = TBaseResult,
-    const Options extends EndpointOptions = {
-      method: Method
-      url: Url
-      querySchema: QuerySchema
-      requestSchema: RequestSchema
-      responseSchema: ResponseSchema
-      errorSchema: ErrorSchema
-      urlParamsSchema: UrlParamsSchema
-    },
   >(
     config: InfiniteQueryEndpointConfig<
       Method,

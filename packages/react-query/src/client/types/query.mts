@@ -11,28 +11,7 @@ import type { ZodObject, ZodType } from 'zod/v4'
 import type { Split } from '../../common/types.mjs'
 import type { QueryHelpers, UnwrapMode } from '../../query/types.mjs'
 
-import type { ComputeQueryResult, EndpointHelper, ResultMode } from './helpers.mjs'
-
-/**
- * Helper type to build endpoint options without including undefined properties.
- * This ensures HasProperty correctly identifies missing properties.
- */
-type BuildEndpointOptions<
-  Method extends HttpMethod,
-  Url extends string,
-  QuerySchema extends ZodObject | undefined,
-  RequestSchema extends ZodType | undefined,
-  ResponseSchema extends ZodType,
-  ErrorSchema extends ErrorSchemaRecord | undefined,
-  UrlParamsSchema extends ZodObject | undefined,
-> = {
-  method: Method
-  url: Url
-  responseSchema: ResponseSchema
-} & (QuerySchema extends undefined ? {} : { querySchema: QuerySchema }) &
-  (RequestSchema extends undefined ? {} : { requestSchema: RequestSchema }) &
-  (ErrorSchema extends undefined ? {} : { errorSchema: ErrorSchema }) &
-  (UrlParamsSchema extends undefined ? {} : { urlParamsSchema: UrlParamsSchema })
+import type { ComputeResult, EndpointHelper, OptionsFromInline, ResultMode } from './helpers.mjs'
 
 /**
  * Extended endpoint options interface for query that includes processResponse.
@@ -113,17 +92,18 @@ export interface ClientQueryMethods {
     const UrlParamsSchema extends ZodObject | undefined = undefined,
     const ResultModeT extends ResultMode = undefined,
     const Unwrap extends UnwrapMode | undefined = undefined,
-    const TBaseResult = ComputeQueryResult<ResponseSchema, ErrorSchema, ResultModeT, Unwrap>,
-    const Result = TBaseResult,
-    const Options extends EndpointOptions = BuildEndpointOptions<
+    const Options extends EndpointOptions = OptionsFromInline<
       Method,
       Url,
       QuerySchema,
       RequestSchema,
       ResponseSchema,
       ErrorSchema,
-      UrlParamsSchema
+      UrlParamsSchema,
+      ResultModeT
     >,
+    const TBaseResult = ComputeResult<Options, Unwrap extends undefined ? 'none' : Unwrap>,
+    const Result = TBaseResult,
   >(
     config: QueryEndpointConfig<
       Method,

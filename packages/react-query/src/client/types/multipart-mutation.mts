@@ -5,7 +5,7 @@ import type { ZodObject, ZodType } from 'zod/v4'
 import type { MutationArgs, MutationHelpers } from '../../mutation/types.mjs'
 import type { UnwrapMode } from '../../query/types.mjs'
 
-import type { ComputeQueryResult, EndpointHelper, ResultMode } from './helpers.mjs'
+import type { ComputeResult, EndpointHelper, OptionsFromInline, ResultMode } from './helpers.mjs'
 
 /**
  * Multipart mutation method overloads for ClientInstance.
@@ -24,7 +24,19 @@ export interface ClientMultipartMutationMethods {
     ErrorSchema extends ErrorSchemaRecord | undefined = undefined,
     ResultModeT extends ResultMode = undefined,
     Unwrap extends UnwrapMode | undefined = undefined,
-    TBaseResult = ComputeQueryResult<Response, ErrorSchema, ResultModeT, Unwrap>,
+    TBaseResult = ComputeResult<
+      OptionsFromInline<
+        Method,
+        Url,
+        QuerySchema extends ZodObject ? QuerySchema : undefined,
+        RequestSchema,
+        Response,
+        ErrorSchema,
+        undefined,
+        ResultModeT
+      >,
+      Unwrap extends undefined ? 'none' : Unwrap
+    >,
     Result = unknown,
     OnMutateResult = unknown,
     Context = unknown,
@@ -104,7 +116,19 @@ export interface ClientMultipartMutationMethods {
     ErrorSchema extends ErrorSchemaRecord | undefined = undefined,
     ResultModeT extends ResultMode = undefined,
     Unwrap extends UnwrapMode | undefined = undefined,
-    TBaseResult = ComputeQueryResult<Response, ErrorSchema, ResultModeT, Unwrap>,
+    TBaseResult = ComputeResult<
+      OptionsFromInline<
+        Method,
+        Url,
+        QuerySchema extends ZodObject ? QuerySchema : undefined,
+        RequestSchema,
+        Response,
+        ErrorSchema,
+        undefined,
+        ResultModeT
+      >,
+      Unwrap extends undefined ? 'none' : Unwrap
+    >,
     Result = unknown,
     OnMutateResult = unknown,
     Context = unknown,
@@ -179,7 +203,19 @@ export interface ClientMultipartMutationMethods {
     ErrorSchema extends ErrorSchemaRecord | undefined = undefined,
     ResultModeT extends ResultMode = undefined,
     Unwrap extends UnwrapMode | undefined = undefined,
-    TBaseResult = ComputeQueryResult<Response, ErrorSchema, ResultModeT, Unwrap>,
+    TBaseResult = ComputeResult<
+      OptionsFromInline<
+        Method,
+        Url,
+        undefined,
+        RequestSchema,
+        Response,
+        ErrorSchema,
+        undefined,
+        ResultModeT
+      >,
+      Unwrap extends undefined ? 'none' : Unwrap
+    >,
     Result = unknown,
     OnMutateResult = unknown,
     Context = unknown,
@@ -253,7 +289,19 @@ export interface ClientMultipartMutationMethods {
     ErrorSchema extends ErrorSchemaRecord | undefined = undefined,
     ResultModeT extends ResultMode = undefined,
     Unwrap extends UnwrapMode | undefined = undefined,
-    TBaseResult = ComputeQueryResult<Response, ErrorSchema, ResultModeT, Unwrap>,
+    TBaseResult = ComputeResult<
+      OptionsFromInline<
+        Method,
+        Url,
+        undefined,
+        RequestSchema,
+        Response,
+        ErrorSchema,
+        undefined,
+        ResultModeT
+      >,
+      Unwrap extends undefined ? 'none' : Unwrap
+    >,
     Result = unknown,
     OnMutateResult = unknown,
     Context = unknown,

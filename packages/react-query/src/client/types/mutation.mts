@@ -13,7 +13,7 @@ import type { ZodObject, ZodType } from 'zod/v4'
 import type { MutationHelpers } from '../../mutation/types.mjs'
 import type { UnwrapMode } from '../../query/types.mjs'
 
-import type { ComputeQueryResult, EndpointHelper, ResultMode } from './helpers.mjs'
+import type { ComputeResult, EndpointHelper, OptionsFromInline, ResultMode } from './helpers.mjs'
 
 /**
  * Compute variables type from URL, schemas
@@ -142,20 +142,21 @@ export interface ClientMutationMethods {
     const UseKey extends boolean = false,
     const ResultModeT extends ResultMode = undefined,
     const Unwrap extends UnwrapMode | undefined = undefined,
-    const TBaseResult = ComputeQueryResult<ResponseSchema, ErrorSchema, ResultModeT, Unwrap>,
+    const Options extends EndpointOptions = OptionsFromInline<
+      Method,
+      Url,
+      QuerySchema,
+      RequestSchema,
+      ResponseSchema,
+      ErrorSchema,
+      UrlParamsSchema,
+      ResultModeT
+    >,
+    const TBaseResult = ComputeResult<Options, Unwrap extends undefined ? 'none' : Unwrap>,
     const Result = TBaseResult,
     const OnMutateResult = unknown,
     const Context = unknown,
     const Variables = ComputeVariables<Url, QuerySchema, RequestSchema, UrlParamsSchema>,
-    const Options extends EndpointOptions = {
-      method: Method
-      url: Url
-      querySchema: QuerySchema
-      requestSchema: RequestSchema
-      responseSchema: ResponseSchema
-      errorSchema: ErrorSchema
-      urlParamsSchema: UrlParamsSchema
-    },
   >(
     config: MutationEndpointConfig<
       Method,

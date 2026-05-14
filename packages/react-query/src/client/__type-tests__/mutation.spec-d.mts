@@ -451,11 +451,8 @@ describe('client.mutation() method', () => {
         EndpointHelper<{
           method: 'POST'
           url: '/users'
-          querySchema: undefined
           requestSchema: typeof requestSchema
           responseSchema: typeof responseSchema
-          errorSchema: undefined
-          urlParamsSchema: undefined
         }>['endpoint']
       >(mutation.endpoint)
     })

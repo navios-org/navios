@@ -21,7 +21,7 @@ import type { Split } from '../../common/types.mjs'
 import type { MutationHelpers } from '../../mutation/types.mjs'
 import type { InfiniteUnwrapMode, QueryHelpers, UnwrapMode } from '../../query/types.mjs'
 
-import type { ComputeBaseResult, EndpointHelper, StreamHelper } from './helpers.mjs'
+import type { ComputeResult, EndpointHelper, StreamHelper } from './helpers.mjs'
 
 /**
  * Helper type to extract useKey from mutation options
@@ -56,7 +56,8 @@ export interface ClientFromEndpointMethods {
    */
   queryFromEndpoint<
     const Config extends EndpointOptions,
-    TBaseResult = ComputeBaseResult<Config['responseSchema'], Config['errorSchema']>,
+    const Unwrap extends UnwrapMode = 'none',
+    TBaseResult = ComputeResult<Config, Unwrap>,
     Result = TBaseResult,
   >(
     endpoint: { config: Config },
@@ -67,7 +68,7 @@ export interface ClientFromEndpointMethods {
        * envelope is delivered to React Query. Has no effect on non-envelope
        * endpoints.
        */
-      unwrap?: UnwrapMode
+      unwrap?: Unwrap
     },
   ): ((
     params: Simplify<InferEndpointParams<Config>>,
@@ -110,7 +111,8 @@ export interface ClientFromEndpointMethods {
     const Config extends EndpointOptions & {
       querySchema: ZodObject
     },
-    TBaseResult = ComputeBaseResult<Config['responseSchema'], Config['errorSchema']>,
+    const Unwrap extends InfiniteUnwrapMode = 'none',
+    TBaseResult = ComputeResult<Config, Unwrap>,
     PageResult = TBaseResult,
     Result = InfiniteData<PageResult>,
   >(
@@ -122,7 +124,7 @@ export interface ClientFromEndpointMethods {
        * page is delivered to React Query. Has no effect on non-envelope
        * endpoints.
        */
-      unwrap?: InfiniteUnwrapMode
+      unwrap?: Unwrap
       getNextPageParam: (
         lastPage: PageResult,
         allPages: PageResult[],
@@ -175,12 +177,9 @@ export interface ClientFromEndpointMethods {
    */
   mutationFromEndpoint<
     const Config extends EndpointOptions | BaseEndpointOptions,
-    TBaseResult = Config extends EndpointOptions
-      ? ComputeBaseResult<Config['responseSchema'], Config['errorSchema']>
-      : Blob,
-    Result = Config extends EndpointOptions
-      ? ComputeBaseResult<Config['responseSchema'], Config['errorSchema']>
-      : Blob,
+    const Unwrap extends UnwrapMode = 'none',
+    TBaseResult = Config extends EndpointOptions ? ComputeResult<Config, Unwrap> : Blob,
+    Result = Config extends EndpointOptions ? ComputeResult<Config, Unwrap> : Blob,
     OnMutateResult = unknown,
     Context = unknown,
   >(
@@ -192,7 +191,7 @@ export interface ClientFromEndpointMethods {
        * envelope is delivered to the mutation channel. Has no effect on
        * non-envelope endpoints.
        */
-      unwrap?: UnwrapMode
+      unwrap?: Unwrap
       useContext?: () => Context
       useKey?: boolean
       onMutate?: (
