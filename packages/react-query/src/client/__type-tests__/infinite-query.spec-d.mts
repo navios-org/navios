@@ -94,31 +94,6 @@ describe('client.infiniteQuery() method', () => {
     )
   })
 
-  test('processResponse transforms the per-page type seen by callbacks and InfiniteData', () => {
-    const query = client.infiniteQuery({
-      method: 'GET',
-      url: '/users',
-      querySchema,
-      responseSchema,
-      processResponse: (data) => ({ user: data, timestamp: Date.now() }),
-      getNextPageParam: () => undefined,
-    })
-
-    type TransformedType = { user: ResponseType; timestamp: number }
-
-    assertType<
-      (params: {
-        params: QueryType
-      }) => UseSuspenseInfiniteQueryOptions<
-        TransformedType,
-        Error,
-        InfiniteData<TransformedType>,
-        DataTag<Split<'/users', '/'>, TransformedType, Error>,
-        z.output<typeof querySchema>
-      >
-    >(query)
-  })
-
   test('errorSchema does not appear in the return type (errors thrown in data mode)', () => {
     const query = client.infiniteQuery({
       method: 'GET',
@@ -199,26 +174,6 @@ describe('client.infiniteQuery() method', () => {
         },
       })
     })
-
-    test('pagination callbacks see transformed page type after processResponse', () => {
-      type TransformedPage = { items: ResponseType[]; hasMore: boolean }
-
-      client.infiniteQuery({
-        method: 'GET',
-        url: '/users',
-        querySchema,
-        responseSchema,
-        processResponse: (data): TransformedPage => ({
-          items: [data],
-          hasMore: true,
-        }),
-        getNextPageParam: (lastPage, allPages) => {
-          assertType<TransformedPage>(lastPage)
-          assertType<TransformedPage[]>(allPages)
-          return lastPage.hasMore ? { page: 1, limit: 10 } : undefined
-        },
-      })
-    })
   })
 
   describe('EndpointHelper', () => {
@@ -256,20 +211,6 @@ describe('infiniteQuery() error cases', () => {
       responseSchema,
       // @ts-expect-error - return type doesn't match querySchema input
       getNextPageParam: () => ({ wrongKey: 'value' }),
-    })
-  })
-
-  test('processResponse receives correct input type', () => {
-    client.infiniteQuery({
-      method: 'GET',
-      url: '/users',
-      querySchema,
-      responseSchema,
-      processResponse: (data) => {
-        // @ts-expect-error - data doesn't have 'nonExistent' property
-        return data.nonExistent
-      },
-      getNextPageParam: () => undefined,
     })
   })
 

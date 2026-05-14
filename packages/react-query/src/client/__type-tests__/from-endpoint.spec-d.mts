@@ -141,15 +141,6 @@ describe('client.queryFromEndpoint() method', () => {
       queryWithQ.queryKey,
     )
   })
-
-  test('processResponse receives the endpoint response type', () => {
-    client.queryFromEndpoint(getEndpoint, {
-      processResponse: (data) => {
-        assertType<ResponseType>(data)
-        return data.name.toUpperCase()
-      },
-    })
-  })
 })
 
 // ============================================================================
@@ -179,19 +170,6 @@ describe('client.infiniteQueryFromEndpoint() method', () => {
       getPreviousPageParam: (firstPage) => {
         assertType<ResponseType>(firstPage)
         return { page: 0, limit: 10 }
-      },
-    })
-  })
-
-  test('processResponse threads transformed page type through getNextPageParam', () => {
-    client.infiniteQueryFromEndpoint(getEndpointWithQuery, {
-      processResponse: (data) => {
-        assertType<ResponseType>(data)
-        return { items: [data], hasMore: true }
-      },
-      getNextPageParam: (lastPage) => {
-        assertType<{ items: ResponseType[]; hasMore: boolean }>(lastPage)
-        return lastPage.hasMore ? { page: 1, limit: 10 } : undefined
       },
     })
   })
@@ -236,11 +214,10 @@ describe('client.mutationFromEndpoint() method', () => {
       assertType<Blob | undefined>(data)
     })
 
-    test('stream endpoint processResponse receives Blob', () => {
+    test('stream endpoint onSuccess receives Blob', () => {
       client.mutationFromEndpoint(streamEndpoint, {
-        processResponse: (data) => {
+        onSuccess: (data) => {
           assertType<Blob>(data)
-          return { url: URL.createObjectURL(data) }
         },
       })
     })
@@ -248,7 +225,6 @@ describe('client.mutationFromEndpoint() method', () => {
 
   test('callbacks receive endpoint-typed args (onMutate / onSuccess / onError / onSettled)', () => {
     client.mutationFromEndpoint(postEndpoint, {
-      processResponse: (data) => data,
       onMutate: (variables, context) => {
         assertType<{ data: RequestType }>(variables)
         assertType<{ meta: Record<string, unknown> | undefined }>(context)
@@ -273,11 +249,10 @@ describe('client.mutationFromEndpoint() method', () => {
     })
   })
 
-  test('processResponse receives only the success type when the endpoint has errorSchema', () => {
+  test('onSuccess receives only the success type when the endpoint has errorSchema', () => {
     client.mutationFromEndpoint(endpointWithErrors, {
-      processResponse: (data) => {
+      onSuccess: (data) => {
         assertType<ResponseType>(data)
-        return data
       },
     })
   })
@@ -310,23 +285,5 @@ describe('fromEndpoint() error cases', () => {
 
     // @ts-expect-error - wrong property names
     mutate({ data: { username: 'test', mail: 'test@test.com' } })
-  })
-
-  test('queryFromEndpoint processResponse rejects access to missing fields', () => {
-    client.queryFromEndpoint(getEndpoint, {
-      processResponse: (data) => {
-        // @ts-expect-error - data doesn't have 'nonExistent' property
-        return data.nonExistent
-      },
-    })
-  })
-
-  test('mutationFromEndpoint processResponse rejects access to missing fields', () => {
-    client.mutationFromEndpoint(postEndpoint, {
-      processResponse: (data) => {
-        // @ts-expect-error - data doesn't have 'nonExistent' property
-        return data.nonExistent
-      },
-    })
   })
 })

@@ -13,7 +13,7 @@ import { makeMutation } from '../mutation/make-hook.mjs'
 import { makeInfiniteQueryOptions } from '../query/make-infinite-options.mjs'
 import { makeQueryOptions } from '../query/make-options.mjs'
 
-import type { ClientOptions, ProcessResponseFunction } from '../common/types.mjs'
+import type { ClientOptions } from '../common/types.mjs'
 import type { MutationArgs } from '../mutation/types.mjs'
 import type { InfiniteUnwrapMode, UnwrapMode } from '../query/types.mjs'
 
@@ -28,7 +28,6 @@ export interface QueryConfig<
   QuerySchema extends ZodObject | undefined = undefined,
   Response extends ZodType = ZodType,
   ErrorSchema extends ErrorSchemaRecord | undefined = undefined,
-  Result = z.output<Response>,
   RequestSchema extends ZodType | undefined = undefined,
 > {
   method: Method
@@ -37,7 +36,6 @@ export interface QueryConfig<
   responseSchema: Response
   errorSchema?: ErrorSchema
   requestSchema?: RequestSchema
-  processResponse?: (data: z.output<Response>) => Result
   unwrap?: UnwrapMode
   result?: 'data' | 'envelope'
   validateResponse?: boolean
@@ -62,7 +60,6 @@ export type InfiniteQueryConfig<
   responseSchema: Response
   errorSchema?: ErrorSchema
   requestSchema?: RequestSchema
-  processResponse?: (data: z.output<Response>) => PageResult
   unwrap?: InfiniteUnwrapMode
   result?: 'data' | 'envelope'
   validateResponse?: boolean
@@ -92,8 +89,7 @@ export interface MutationConfig<
   QuerySchema extends ZodObject | undefined = undefined,
   Response extends ZodType = ZodType,
   ErrorSchema extends ErrorSchemaRecord | undefined = undefined,
-  ReqResult = z.output<Response>,
-  Result = unknown,
+  Result = z.output<Response>,
   TOnMutateResult = unknown,
   Context = unknown,
   UseKey extends boolean = false,
@@ -104,7 +100,6 @@ export interface MutationConfig<
   responseSchema: Response
   errorSchema?: ErrorSchema
   requestSchema?: RequestSchema
-  processResponse?: ProcessResponseFunction<Result, ReqResult>
   unwrap?: UnwrapMode
   result?: 'data' | 'envelope'
   validateResponse?: boolean
@@ -169,7 +164,6 @@ export function declareClient({ api, defaults = {} }: ClientOptions): ClientInst
 
     const queryOptions = makeQueryOptions(endpoint, {
       ...defaults,
-      processResponse: config.processResponse ?? ((data) => data),
       unwrap: config.unwrap,
     })
     // @ts-expect-error We attach the endpoint to the queryOptions
@@ -180,13 +174,11 @@ export function declareClient({ api, defaults = {} }: ClientOptions): ClientInst
   function queryFromEndpoint(
     endpoint: EndpointHandler<EndpointOptions>,
     options?: {
-      processResponse?: (data: z.output<EndpointOptions['responseSchema']>) => unknown
       unwrap?: UnwrapMode
     },
   ) {
     return makeQueryOptions(endpoint as any, {
       ...defaults,
-      processResponse: options?.processResponse ?? ((data) => data),
       unwrap: options?.unwrap,
     })
   }
@@ -204,7 +196,6 @@ export function declareClient({ api, defaults = {} }: ClientOptions): ClientInst
     })
     const infiniteQueryOptions = makeInfiniteQueryOptions(endpoint, {
       ...defaults,
-      processResponse: config.processResponse ?? ((data: unknown) => data),
       unwrap: config.unwrap,
       getNextPageParam: config.getNextPageParam,
       getPreviousPageParam: config.getPreviousPageParam,
@@ -219,7 +210,6 @@ export function declareClient({ api, defaults = {} }: ClientOptions): ClientInst
   function infiniteQueryFromEndpoint(
     endpoint: EndpointHandler<EndpointOptions>,
     options: {
-      processResponse?: (data: z.output<EndpointOptions['responseSchema']>) => unknown
       unwrap?: InfiniteUnwrapMode
       getNextPageParam: (
         lastPage: z.infer<EndpointOptions['responseSchema']>,
@@ -238,7 +228,6 @@ export function declareClient({ api, defaults = {} }: ClientOptions): ClientInst
   ) {
     return makeInfiniteQueryOptions(endpoint as any, {
       ...defaults,
-      processResponse: options?.processResponse ?? ((data) => data),
       unwrap: options?.unwrap,
       getNextPageParam: options.getNextPageParam,
       getPreviousPageParam: options?.getPreviousPageParam,
@@ -260,7 +249,6 @@ export function declareClient({ api, defaults = {} }: ClientOptions): ClientInst
 
     // @ts-expect-error Type inference for errorSchema variants
     const useMutation = makeMutation(endpoint, {
-      processResponse: config.processResponse ?? ((data: unknown) => data),
       unwrap: config.unwrap,
       useContext: config.useContext,
       onMutate: config.onMutate,
@@ -280,7 +268,6 @@ export function declareClient({ api, defaults = {} }: ClientOptions): ClientInst
   function mutationFromEndpoint(
     endpoint: EndpointHandler<EndpointOptions> | StreamHandler<BaseEndpointOptions>,
     options?: {
-      processResponse?: ProcessResponseFunction
       unwrap?: UnwrapMode
       useContext?: () => unknown
       onMutate?: (
@@ -318,7 +305,6 @@ export function declareClient({ api, defaults = {} }: ClientOptions): ClientInst
   ) {
     // @ts-expect-error endpoint types are compatible at runtime
     return makeMutation(endpoint, {
-      processResponse: options?.processResponse,
       unwrap: options?.unwrap,
       useContext: options?.useContext,
       onMutate: options?.onMutate,
@@ -345,7 +331,6 @@ export function declareClient({ api, defaults = {} }: ClientOptions): ClientInst
 
     // @ts-expect-error Type inference for errorSchema variants
     const useMutation = makeMutation(endpoint, {
-      processResponse: config.processResponse ?? ((data: unknown) => data),
       unwrap: config.unwrap,
       useContext: config.useContext,
       onSuccess: config.onSuccess,

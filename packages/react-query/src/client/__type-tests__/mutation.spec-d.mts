@@ -111,20 +111,6 @@ describe('client.mutation() method', () => {
     >(mutation)
   })
 
-  test('processResponse transforms variables payload type', () => {
-    const mutation = client.mutation({
-      method: 'POST',
-      url: '/users',
-      requestSchema,
-      responseSchema,
-      processResponse: (data) => ({ processed: true, name: data.name }),
-    })
-
-    assertType<
-      () => UseMutationResult<{ processed: boolean; name: string }, Error, { data: RequestType }>
-    >(mutation)
-  })
-
   describe('useKey option', () => {
     test('useKey: true requires urlParams in the outer call', () => {
       const mutation = client.mutation({
@@ -196,7 +182,6 @@ describe('client.mutation() method', () => {
         url: '/users',
         requestSchema,
         responseSchema,
-        processResponse: (data) => data,
         onSuccess: (data, variables, context) => {
           assertType<ResponseType>(data)
           assertType<{ data: RequestType }>(variables)
@@ -225,7 +210,6 @@ describe('client.mutation() method', () => {
         url: '/users',
         requestSchema,
         responseSchema,
-        processResponse: (data) => data,
         onSettled: (data, error, variables, context) => {
           assertType<ResponseType | undefined>(data)
           assertType<Error | null>(error)
@@ -264,16 +248,15 @@ describe('client.mutation() method', () => {
       )
     })
 
-    test('processResponse receives only the success type when errorSchema is set', () => {
+    test('onSuccess receives only the success type when errorSchema is set', () => {
       client.mutation({
         method: 'POST',
         url: '/users',
         requestSchema,
         responseSchema,
         errorSchema,
-        processResponse: (data) => {
+        onSuccess: (data) => {
           assertType<ResponseType>(data)
-          return data
         },
       })
     })
@@ -360,19 +343,5 @@ describe('mutation() error cases', () => {
 
     // @ts-expect-error - wrong property names
     mutate({ data: { username: 'test', mail: 'test@test.com' } })
-  })
-
-  test('onSuccess data type matches processResponse result', () => {
-    client.mutation({
-      method: 'POST',
-      url: '/users',
-      requestSchema,
-      responseSchema,
-      processResponse: (data) => ({ transformed: data.name }),
-      onSuccess: (data) => {
-        // @ts-expect-error - data is { transformed: string }, not ResponseType
-        const _id: string = data.id
-      },
-    })
   })
 })

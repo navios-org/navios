@@ -65,11 +65,11 @@ export type ComputeResult<
  *
  * The per-field generics are still required for inference (TypeScript
  * cannot simultaneously infer a single `Options extends EndpointOptions`
- * generic AND provide a useful contextual type for `processResponse`'s
- * `data` parameter from the same literal). Once `Options` is synthesised
- * via this helper, every downstream type derivation references `Options`
- * directly — so new fields added to `BaseEndpointOptions` flow through
- * automatically without per-surface re-declaration in return types.
+ * generic AND provide useful contextual types for callbacks like
+ * `onSuccess`/`onError` from the same literal). Once `Options` is
+ * synthesised via this helper, every downstream type derivation references
+ * `Options` directly — so new fields added to `BaseEndpointOptions` flow
+ * through automatically without per-surface re-declaration in return types.
  */
 export type OptionsFromInline<
   Method,

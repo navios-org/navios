@@ -23,15 +23,9 @@ describe('makeInfiniteQueryOptions', () => {
         getNextPageParam: (lastPage) => ({
           foo: 'test' in lastPage ? lastPage.test : undefined,
         }),
-        processResponse: (data) => {
-          if (!data.success) {
-            throw new Error(data.message)
-          }
-          return data
-        },
       },
       {
-        select: (data) => data.pages.map((page) => page.test).flat(),
+        select: (data) => data.pages.flatMap((page) => ('test' in page ? [page.test] : [])),
       },
     )
     const options = makeOptions({

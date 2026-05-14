@@ -9,7 +9,7 @@ import type {
 import type { DataTag, MutationFunctionContext, UseMutationOptions } from '@tanstack/react-query'
 import type { z, ZodObject, ZodType } from 'zod/v4'
 
-import type { ComputeResponseInput, ProcessResponseFunction } from '../common/types.mjs'
+import type { ComputeResponseInput } from '../common/types.mjs'
 import type { UnwrapMode } from '../query/types.mjs'
 
 /**
@@ -78,10 +78,6 @@ export interface MutationParams<
   UseMutationOptions<TData, TError, TVariables>,
   'mutationKey' | 'mutationFn' | 'onMutate' | 'onSuccess' | 'onError' | 'onSettled' | 'scope'
 > {
-  processResponse?: ProcessResponseFunction<
-    TData,
-    ComputeResponseInput<Config['responseSchema'], Config['errorSchema']>
-  >
   /**
    * React hooks that will prepare the context for the mutation onSuccess and onError
    * callbacks. This is useful for when you want to use the context in the callbacks

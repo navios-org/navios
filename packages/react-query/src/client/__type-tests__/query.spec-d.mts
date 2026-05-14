@@ -54,8 +54,8 @@ declare const client: ClientInstance
 // (urlParams × params × data × error) combination matrix are exercised at the
 // builder layer in `packages/builder/src/types/__type-tests__/builder-instance.spec-d.mts`.
 // The tests below focus on surface-specific bits: query cache-key shape,
-// QueryHelpers attachment, processResponse-driven return-type transformation,
-// and that errors are thrown (not surfaced in the return type) in data mode.
+// QueryHelpers attachment, and that errors are thrown (not surfaced in the
+// return type) in data mode.
 
 describe('client.query() method', () => {
   test('simple GET query wires DataTag + QueryHelpers', () => {
@@ -120,24 +120,6 @@ describe('client.query() method', () => {
         Error,
         ResponseType,
         DataTag<Split<'/users/$userId', '/'>, ResponseType, Error>
-      >
-    >(query)
-  })
-
-  test('processResponse transforms the returned data type', () => {
-    const query = client.query({
-      method: 'GET',
-      url: '/users',
-      responseSchema,
-      processResponse: (data) => data.name.toUpperCase(),
-    })
-
-    assertType<
-      (params: {}) => UseSuspenseQueryOptions<
-        string,
-        Error,
-        string,
-        DataTag<Split<'/users', '/'>, string, Error>
       >
     >(query)
   })
@@ -227,17 +209,5 @@ describe('query() error cases', () => {
 
     // @ts-expect-error - missing data
     query({})
-  })
-
-  test('processResponse receives correct input type', () => {
-    client.query({
-      method: 'GET',
-      url: '/users',
-      responseSchema,
-      processResponse: (data) => {
-        // @ts-expect-error - data doesn't have 'nonExistent' property
-        return data.nonExistent
-      },
-    })
   })
 })

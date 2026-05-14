@@ -25,15 +25,16 @@ import type { InfiniteQueryOptions, QueryArgs } from './types.mjs'
  * The returned function also has helper methods attached (use, useSuspense, invalidate, etc.)
  *
  * @param endpoint - The navios endpoint to create infinite query options for
- * @param options - Infinite query configuration including processResponse and pagination params
+ * @param options - Infinite query configuration including pagination params
  * @param baseQuery - Optional base query options to merge
  * @returns A function that generates infinite query options with attached helpers
  */
 export function makeInfiniteQueryOptions<
   Config extends EndpointOptions & { querySchema: ZodObject },
   Options extends InfiniteQueryOptions<Config> = InfiniteQueryOptions<Config>,
+  PageResult = z.output<Config['responseSchema']>,
   BaseQuery extends Omit<
-    UseInfiniteQueryOptions<ReturnType<NonNullable<Options['processResponse']>>, Error, any>,
+    UseInfiniteQueryOptions<PageResult, Error, any>,
     | 'queryKey'
     | 'queryFn'
     | 'getNextPageParam'
@@ -41,7 +42,7 @@ export function makeInfiniteQueryOptions<
     | 'placeholderData'
     | 'throwOnError'
   > = Omit<
-    UseInfiniteQueryOptions<ReturnType<NonNullable<Options['processResponse']>>, Error, any>,
+    UseInfiniteQueryOptions<PageResult, Error, any>,
     | 'queryKey'
     | 'queryFn'
     | 'getNextPageParam'
@@ -53,26 +54,19 @@ export function makeInfiniteQueryOptions<
   const config = endpoint.config
   const queryKey = createQueryKey(config as any, options as any, true)
 
-  const processResponse: (data: any) => any = options.processResponse ?? ((data: any) => data)
   const unwrapMode = options.unwrap ?? 'none'
   const shouldUnwrap = unwrapMode === 'throw-on-error' || unwrapMode === 'pages'
   const res = (
     params: QueryArgs<Config['url'], Config['querySchema']>,
-  ): NonNullable<Options['processResponse']> extends (...args: any[]) => infer Result
-    ? UseSuspenseInfiniteQueryOptions<
-        Result,
-        Error,
-        BaseQuery['select'] extends (...args: any[]) => infer T ? T : InfiniteData<Result>
-      >
-    : never => {
-    // @ts-expect-error TS2322 We know that the processResponse is defined and types align at runtime
+  ): UseSuspenseInfiniteQueryOptions<
+    PageResult,
+    Error,
+    BaseQuery['select'] extends (...args: any[]) => infer T ? T : InfiniteData<PageResult>
+  > => {
     return infiniteQueryOptions<any, any, any, any, any>({
       // @ts-expect-error TS2345 We bind the url params only if the url has params
       queryKey: queryKey.dataTag(params),
-      queryFn: async ({
-        signal,
-        pageParam,
-      }): Promise<ReturnType<NonNullable<Options['processResponse']>>> => {
+      queryFn: async ({ signal, pageParam }): Promise<PageResult> => {
         const callParams = params as {
           urlParams?: z.infer<UrlParams<Config['url']>>
           params?: Record<string, unknown>
@@ -91,12 +85,10 @@ export function makeInfiniteQueryOptions<
           if (!envelope.ok) {
             throw envelope.error
           }
-          return processResponse(envelope.data) as ReturnType<
-            NonNullable<Options['processResponse']>
-          >
+          return envelope.data as PageResult
         }
 
-        return processResponse(result) as ReturnType<NonNullable<Options['processResponse']>>
+        return result as PageResult
       },
       getNextPageParam: options.getNextPageParam,
       getPreviousPageParam: options.getPreviousPageParam,

@@ -128,20 +128,6 @@ describe('client.query with result: "envelope"', () => {
       >
     >(query)
   })
-
-  test('processResponse on result: "envelope" receives the envelope as input', () => {
-    client.query({
-      method: 'GET',
-      url: '/u',
-      responseSchema,
-      errorSchema,
-      result: 'envelope',
-      processResponse: (data) => {
-        assertType<EnvelopeType>(data)
-        return data
-      },
-    })
-  })
 })
 
 // ============================================================================

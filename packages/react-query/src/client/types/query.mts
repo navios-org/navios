@@ -14,13 +14,13 @@ import type { QueryHelpers, UnwrapMode } from '../../query/types.mjs'
 import type { ComputeResult, EndpointHelper, OptionsFromInline, ResultMode } from './helpers.mjs'
 
 /**
- * Extended endpoint options interface for query that includes processResponse.
+ * Extended endpoint options interface for query.
  *
  * Inherits all endpoint fields from `EndpointOptions` and adds the
- * surface-specific `processResponse` / `unwrap` fields. The per-field
- * generic parameters (`Method`, `Url`, `QuerySchema`, …) re-declare the
- * underlying endpoint fields with concrete generics — this is what lets
- * TypeScript infer the precise shape of the literal passed to `query(...)`.
+ * surface-specific `unwrap` field. The per-field generic parameters
+ * (`Method`, `Url`, `QuerySchema`, …) re-declare the underlying endpoint
+ * fields with concrete generics — this is what lets TypeScript infer the
+ * precise shape of the literal passed to `query(...)`.
  */
 interface QueryEndpointConfig<
   Method extends HttpMethod,
@@ -32,8 +32,6 @@ interface QueryEndpointConfig<
   UrlParamsSchema extends ZodObject | undefined,
   ResultModeT extends ResultMode,
   Unwrap extends UnwrapMode,
-  TBaseResult,
-  Result,
 > extends EndpointOptions {
   method: Method
   url: Url
@@ -43,7 +41,6 @@ interface QueryEndpointConfig<
   errorSchema?: ErrorSchema
   urlParamsSchema?: UrlParamsSchema
   result?: ResultModeT
-  processResponse?: (data: TBaseResult) => Result
   /**
    * For endpoints declared with `result: 'envelope'`, controls how the
    * envelope is delivered to React Query.
@@ -63,6 +60,9 @@ interface QueryEndpointConfig<
  * and reused everywhere downstream — the return type only references
  * `Options` (and a handful of surface-specific generics), so adding a new
  * endpoint field to `EndpointOptions` propagates via `Options` automatically.
+ *
+ * For projecting the cached data into a derived shape, callers should use
+ * TanStack Query's built-in `select` option on `use()` / `useSuspense()`.
  */
 export interface ClientQueryMethods {
   /**
@@ -100,8 +100,6 @@ export interface ClientQueryMethods {
       UrlParamsSchema,
       ResultModeT
     >,
-    const TBaseResult = ComputeResult<Options, Unwrap>,
-    const Result = TBaseResult,
   >(
     config: QueryEndpointConfig<
       Method,
@@ -112,22 +110,20 @@ export interface ClientQueryMethods {
       ErrorSchema,
       UrlParamsSchema,
       ResultModeT,
-      Unwrap,
-      TBaseResult,
-      Result
+      Unwrap
     >,
   ): ((
     params: Simplify<InferEndpointParams<Options>>,
   ) => UseSuspenseQueryOptions<
-    Result,
+    ComputeResult<Options, Unwrap>,
     Error,
-    Result,
-    DataTag<Split<Options['url'], '/'>, Result, Error>
+    ComputeResult<Options, Unwrap>,
+    DataTag<Split<Options['url'], '/'>, ComputeResult<Options, Unwrap>, Error>
   >) &
     QueryHelpers<
       Options['url'],
       Options['querySchema'] extends ZodObject ? Options['querySchema'] : undefined,
-      Result,
+      ComputeResult<Options, Unwrap>,
       false,
       Options['requestSchema'] extends ZodType ? Options['requestSchema'] : undefined
     > &

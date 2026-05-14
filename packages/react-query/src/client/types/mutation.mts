@@ -45,7 +45,6 @@ interface MutationEndpointConfig<
   ResultModeT extends ResultMode,
   UseKey extends boolean,
   Unwrap extends UnwrapMode,
-  TBaseResult,
   Result,
   OnMutateResult,
   Context,
@@ -59,7 +58,6 @@ interface MutationEndpointConfig<
   errorSchema?: ErrorSchema
   urlParamsSchema?: UrlParamsSchema
   result?: ResultModeT
-  processResponse?: (data: TBaseResult) => Result | Promise<Result>
   /**
    * For endpoints declared with `result: 'envelope'`, controls how the
    * envelope is delivered to React Query's mutation channel.
@@ -149,8 +147,7 @@ export interface ClientMutationMethods {
       UrlParamsSchema,
       ResultModeT
     >,
-    const TBaseResult = ComputeResult<Options, Unwrap>,
-    const Result = TBaseResult,
+    const Result = ComputeResult<Options, Unwrap>,
     const OnMutateResult = unknown,
     const Context = unknown,
     const Variables = MutationVariables<Options>,
@@ -166,7 +163,6 @@ export interface ClientMutationMethods {
       ResultModeT,
       UseKey,
       Unwrap,
-      TBaseResult,
       Result,
       OnMutateResult,
       Context,

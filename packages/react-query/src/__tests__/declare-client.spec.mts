@@ -90,12 +90,6 @@ describe('declareClient', () => {
       querySchema: z.object({
         id: z.string(),
       }),
-      processResponse(data) {
-        if (!data.success) {
-          throw new Error(data.message)
-        }
-        return data
-      },
     })
 
     expect(query).toBeDefined()
@@ -113,12 +107,6 @@ describe('declareClient', () => {
         page: z.number(),
         id: z.string(),
       }),
-      processResponse(data) {
-        if (!data.success) {
-          throw new Error(data.message)
-        }
-        return data
-      },
       getNextPageParam(lastPage, allPages) {
         if (lastPage.success) {
           return { page: allPages.length + 1, id: 'foo' }
@@ -145,12 +133,6 @@ describe('declareClient', () => {
         success: z.literal(true),
         test: z.string(),
       }),
-      processResponse: (data) => {
-        if (!data.success) {
-          throw new Error('error')
-        }
-        return data
-      },
       onSuccess(data, variables, context) {
         expect(data).toMatchObject({
           success: true,
@@ -201,9 +183,7 @@ describe('declareClient', () => {
       responseSchema,
     })
 
-    const query = client.queryFromEndpoint(endpoint, {
-      processResponse: (data) => data,
-    })
+    const query = client.queryFromEndpoint(endpoint)
 
     expect(query).toBeDefined()
     expect(typeof query).toBe('function')
@@ -224,7 +204,6 @@ describe('declareClient', () => {
     })
 
     const query = client.infiniteQueryFromEndpoint(endpoint, {
-      processResponse: (data) => data,
       getNextPageParam: (_lastPage, allPages) => {
         return { page: allPages.length + 1 }
       },
@@ -251,9 +230,7 @@ describe('declareClient', () => {
       }),
     })
 
-    const mutation = client.mutationFromEndpoint(endpoint, {
-      processResponse: (data) => data,
-    })
+    const mutation = client.mutationFromEndpoint(endpoint)
 
     expect(mutation).toBeDefined()
     expect(typeof mutation).toBe('function')
@@ -291,7 +268,6 @@ describe('declareClient', () => {
         success: z.literal(true),
         fileId: z.string(),
       }),
-      processResponse: (data) => data,
     })
 
     expect(mutation).toBeDefined()
@@ -311,7 +287,6 @@ describe('declareClient', () => {
       url: '/test/$id' as const,
       method: 'GET',
       responseSchema: z.object({ id: z.string() }),
-      processResponse: (data) => data,
     })
 
     expect(query).toBeDefined()
@@ -326,7 +301,6 @@ describe('declareClient', () => {
       url: '/test/$id' as const,
       method: 'GET',
       responseSchema: z.object({ id: z.string() }),
-      processResponse: (data) => data,
     })
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -343,7 +317,6 @@ describe('declareClient', () => {
       method: 'GET',
       responseSchema: z.object({ items: z.array(z.string()) }),
       querySchema: z.object({ page: z.number() }),
-      processResponse: (data) => data,
       getNextPageParam: (_lastPage, allPages) => ({ page: allPages.length + 1 }),
     })
 
@@ -361,25 +334,10 @@ describe('declareClient', () => {
       method: 'POST',
       requestSchema: z.object({ name: z.string() }),
       responseSchema: z.object({ id: z.string() }),
-      processResponse: (data) => data,
     })
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     expect((mutation as any).endpoint).toBeDefined()
-  })
-
-  it('should work with query without processResponse (uses default)', async () => {
-    const client = declareClient({
-      api,
-    })
-
-    const query = client.query({
-      url: '/test/$id' as const,
-      method: 'GET',
-      responseSchema: z.object({ id: z.string() }),
-    })
-
-    expect(query).toBeDefined()
   })
 
   it('should work with mutation lifecycle hooks', async () => {
@@ -403,7 +361,6 @@ describe('declareClient', () => {
       method: 'POST',
       requestSchema: z.object({ value: z.string() }),
       responseSchema: z.object({ success: z.boolean() }),
-      processResponse: (data) => data,
       onMutate,
       onSettled,
     })
@@ -415,7 +372,7 @@ describe('declareClient', () => {
     expect(onSettled).toHaveBeenCalled()
   })
 
-  it('should accept query without processResponse (processResponse is optional)', async () => {
+  it('should accept query without explicit projection options', async () => {
     const client = declareClient({ api })
 
     const query = client.query({

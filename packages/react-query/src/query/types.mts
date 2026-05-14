@@ -18,7 +18,7 @@ import type {
 } from '@tanstack/react-query'
 import type { z, ZodObject, ZodType } from 'zod/v4'
 
-import type { ComputeResponseInput, Split } from '../common/types.mjs'
+import type { Split } from '../common/types.mjs'
 
 /**
  * Controls how `@navios/react-query` handles `result: 'envelope'` endpoints.
@@ -79,13 +79,12 @@ export type EnvelopeQueryError<Options extends EndpointOptions> = EnvelopeError<
 >
 
 /**
- * Helper type to extract the result type from processResponse.
+ * Helper type that resolves the data-channel type for an endpoint.
+ *
+ * This is the inferred endpoint return type — kept as a named alias so
+ * downstream surfaces can reference a single canonical name.
  */
-export type QueryResult<Options extends EndpointOptions> = Options extends {
-  processResponse: (data: any) => infer Result
-}
-  ? Result
-  : InferEndpointReturn<Options>
+export type QueryResult<Options extends EndpointOptions> = InferEndpointReturn<Options>
 
 /**
  * Arguments for query functions based on URL params and query schema.
@@ -106,12 +105,9 @@ export type QueryUrlParamsArgs<Url extends string = string> =
 /**
  * Base parameters for query configuration.
  */
-export type QueryParams<Options extends EndpointOptions, Res = any> = {
+export type QueryParams<_Options extends EndpointOptions> = {
   keyPrefix?: string[]
   keySuffix?: string[]
-  processResponse: (
-    data: ComputeResponseInput<Options['responseSchema'], Options['errorSchema']>,
-  ) => Res
 }
 
 /**
@@ -172,13 +168,10 @@ export type InfiniteQueryOptions<
   Config extends EndpointOptions & {
     querySchema: ZodObject
   },
-  Res = any,
+  Res = z.output<Config['responseSchema']>,
 > = {
   keyPrefix?: string[]
   keySuffix?: string[]
-  processResponse?: (
-    data: ComputeResponseInput<Config['responseSchema'], Config['errorSchema']>,
-  ) => Res
   /**
    * For endpoints declared with `result: 'envelope'`, controls how each page
    * is delivered to React Query.
@@ -225,10 +218,7 @@ export type ClientQueryArgs<
 export type ClientQueryUrlParamsArgs<Url extends string = string> = QueryUrlParamsArgs<Url>
 
 /** @deprecated Use QueryParams instead */
-export type BaseQueryParams<Options extends EndpointOptions, Res = unknown> = QueryParams<
-  Options,
-  Res
->
+export type BaseQueryParams<Options extends EndpointOptions> = QueryParams<Options>
 
 /** @deprecated Use QueryArgs instead */
 export type BaseQueryArgs<Options extends EndpointOptions> = (UrlHasParams<

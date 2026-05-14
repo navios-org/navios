@@ -31,7 +31,6 @@ interface InfiniteQueryEndpointConfig<
   UrlParamsSchema extends ZodObject | undefined,
   ResultModeT extends ResultMode,
   Unwrap extends InfiniteUnwrapMode,
-  TBaseResult,
   PageResult,
 > extends EndpointOptions {
   method: Method
@@ -42,7 +41,6 @@ interface InfiniteQueryEndpointConfig<
   errorSchema?: ErrorSchema
   urlParamsSchema?: UrlParamsSchema
   result?: ResultModeT
-  processResponse?: (data: TBaseResult) => PageResult
   /**
    * For endpoints declared with `result: 'envelope'`, controls how each page
    * is delivered to React Query.
@@ -77,6 +75,10 @@ interface InfiniteQueryEndpointConfig<
  * Uses the same decomposed-inference / synthesised-Options pattern as
  * `query`. The constraint `Options extends EndpointOptions & { querySchema:
  * ZodObject }` is enforced through the required `querySchema` generic.
+ *
+ * For projecting `InfiniteData<PageResult>` into a derived shape, callers
+ * should use TanStack Query's built-in `select` option on `use()` /
+ * `useSuspense()`.
  */
 export interface ClientInfiniteQueryMethods {
   /**
@@ -117,8 +119,7 @@ export interface ClientInfiniteQueryMethods {
       UrlParamsSchema,
       ResultModeT
     >,
-    const TBaseResult = ComputeResult<Options, Unwrap>,
-    const PageResult = TBaseResult,
+    const PageResult = ComputeResult<Options, Unwrap>,
   >(
     config: InfiniteQueryEndpointConfig<
       Method,
@@ -130,7 +131,6 @@ export interface ClientInfiniteQueryMethods {
       UrlParamsSchema,
       ResultModeT,
       Unwrap,
-      TBaseResult,
       PageResult
     >,
   ): ((

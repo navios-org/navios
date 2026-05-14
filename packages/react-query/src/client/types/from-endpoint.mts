@@ -34,6 +34,11 @@ type ExtractUseKey<Options> = Options extends { useKey: infer U }
 
 /**
  * FromEndpoint methods using const generics pattern (simplified from multiple overloads).
+ *
+ * For projecting the cached data or the mutation result into a derived shape,
+ * callers should use TanStack Query's built-in `select` option on the read-side
+ * helpers (`use()` / `useSuspense()`); on the mutation side, transform in
+ * `onSuccess` or the caller.
  */
 export interface ClientFromEndpointMethods {
   /**
@@ -49,20 +54,16 @@ export interface ClientFromEndpointMethods {
    *   responseSchema: userSchema,
    * })
    *
-   * const getUser = client.queryFromEndpoint(getUserEndpoint, {
-   *   processResponse: (data) => data,
-   * })
+   * const getUser = client.queryFromEndpoint(getUserEndpoint)
    * ```
    */
   queryFromEndpoint<
     const Config extends EndpointOptions,
     const Unwrap extends UnwrapMode = 'none',
-    TBaseResult = ComputeResult<Config, Unwrap>,
-    Result = TBaseResult,
+    Result = ComputeResult<Config, Unwrap>,
   >(
     endpoint: { config: Config },
     options?: {
-      processResponse?: (data: TBaseResult) => Result
       /**
        * For endpoints declared with `result: 'envelope'`, controls how the
        * envelope is delivered to React Query. Has no effect on non-envelope
@@ -112,13 +113,10 @@ export interface ClientFromEndpointMethods {
       querySchema: ZodObject
     },
     const Unwrap extends InfiniteUnwrapMode = 'none',
-    TBaseResult = ComputeResult<Config, Unwrap>,
-    PageResult = TBaseResult,
-    Result = InfiniteData<PageResult>,
+    PageResult = ComputeResult<Config, Unwrap>,
   >(
     endpoint: { config: Config },
     options: {
-      processResponse?: (data: TBaseResult) => PageResult
       /**
        * For endpoints declared with `result: 'envelope'`, controls how each
        * page is delivered to React Query. Has no effect on non-envelope
@@ -143,7 +141,7 @@ export interface ClientFromEndpointMethods {
   ) => UseSuspenseInfiniteQueryOptions<
     PageResult,
     Error,
-    Result,
+    InfiniteData<PageResult>,
     DataTag<Split<Config['url'], '/'>, PageResult, Error>,
     z.output<Config['querySchema']>
   >) &
@@ -170,22 +168,18 @@ export interface ClientFromEndpointMethods {
    *   responseSchema: userSchema,
    * })
    *
-   * const createUser = client.mutationFromEndpoint(createUserEndpoint, {
-   *   processResponse: (data) => data,
-   * })
+   * const createUser = client.mutationFromEndpoint(createUserEndpoint)
    * ```
    */
   mutationFromEndpoint<
     const Config extends EndpointOptions | BaseEndpointOptions,
     const Unwrap extends UnwrapMode = 'none',
-    TBaseResult = Config extends EndpointOptions ? ComputeResult<Config, Unwrap> : Blob,
     Result = Config extends EndpointOptions ? ComputeResult<Config, Unwrap> : Blob,
     OnMutateResult = unknown,
     Context = unknown,
   >(
     endpoint: { config: Config },
     mutationOptions?: {
-      processResponse?: (data: TBaseResult) => Result | Promise<Result>
       /**
        * For endpoints declared with `result: 'envelope'`, controls how the
        * envelope is delivered to the mutation channel. Has no effect on

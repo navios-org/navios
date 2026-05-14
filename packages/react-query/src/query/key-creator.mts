@@ -2,6 +2,7 @@ import { bindUrlParams } from '@navios/builder'
 
 import type { EndpointOptions, UrlHasParams } from '@navios/builder'
 import type { DataTag, InfiniteData } from '@tanstack/react-query'
+import type { z } from 'zod/v4'
 
 import type { Split } from '../common/types.mjs'
 
@@ -14,7 +15,7 @@ import type { QueryKeyCreatorResult, QueryParams } from './types.mjs'
  * with TanStack Query for caching, invalidation, and data tagging.
  *
  * @param config - The endpoint configuration
- * @param options - Query parameters including processResponse and key prefix/suffix
+ * @param options - Query parameters including key prefix/suffix
  * @param isInfinite - Whether this is for an infinite query
  * @returns An object with methods to generate query keys
  */
@@ -31,7 +32,7 @@ export function createQueryKey<
 ): QueryKeyCreatorResult<
   Config['querySchema'],
   Url,
-  Options['processResponse'] extends (...args: any[]) => infer Result ? Result : never,
+  z.output<Config['responseSchema']>,
   IsInfinite,
   HasParams
 > {
@@ -39,7 +40,6 @@ export function createQueryKey<
   const urlParts = url.split('/').filter(Boolean) as Split<Url, '/'>
   return {
     template: urlParts,
-    // @ts-expect-error We have correct types in return type
     dataTag: (params) => {
       const queryParams =
         params && 'querySchema' in config && 'params' in params
@@ -61,15 +61,12 @@ export function createQueryKey<
         queryParams ?? [],
       ] as unknown as DataTag<
         Split<Url, '/'>,
-        Options['processResponse'] extends (...args: any[]) => infer Result
-          ? IsInfinite extends true
-            ? InfiniteData<Result>
-            : Result
-          : never,
+        IsInfinite extends true
+          ? InfiniteData<z.output<Config['responseSchema']>>
+          : z.output<Config['responseSchema']>,
         Error
       >
     },
-    // @ts-expect-error We have correct types in return type
     filterKey: (params) => {
       // Use bindUrlParams to get the bound URL, then split it to get the parts
       const boundUrl = bindUrlParams<Url>(
@@ -85,11 +82,9 @@ export function createQueryKey<
         ...(options.keySuffix ?? []),
       ] as unknown as DataTag<
         Split<Url, '/'>,
-        Options['processResponse'] extends (...args: any[]) => infer Result
-          ? IsInfinite extends true
-            ? InfiniteData<Result>
-            : Result
-          : never,
+        IsInfinite extends true
+          ? InfiniteData<z.output<Config['responseSchema']>>
+          : z.output<Config['responseSchema']>,
         Error
       >
     },

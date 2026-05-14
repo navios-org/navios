@@ -10,7 +10,6 @@ describe('makeQueryOptions', () => {
     z.object({ success: z.literal(true), test: z.string() }),
     z.object({ success: z.literal(false), message: z.string() }),
   ])
-  type ResponseType = z.output<typeof responseSchema>
   const endpoint = api.declareEndpoint({
     method: 'GET',
     url: '/test/$testId/foo/$fooId' as const,
@@ -20,16 +19,9 @@ describe('makeQueryOptions', () => {
   it('should work with types', () => {
     const makeOptions = makeQueryOptions(
       endpoint,
+      {},
       {
-        processResponse: (data: ResponseType) => {
-          if (!data.success) {
-            throw new Error(data.message)
-          }
-          return data
-        },
-      },
-      {
-        select: (data) => data.test,
+        select: (data) => ('test' in data ? data.test : undefined),
       },
     )
     const options = makeOptions({
