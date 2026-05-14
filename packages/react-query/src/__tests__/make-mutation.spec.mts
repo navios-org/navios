@@ -335,4 +335,106 @@ describe('makeMutation', () => {
       expect(context).toHaveProperty('onMutateResult')
     })
   })
+
+  describe('envelope + unwrap', () => {
+    const adapter = makeNaviosFakeAdapter()
+    const api = builder({})
+    api.provideClient(create({ adapter: adapter.fetch }))
+
+    const createUser = api.declareEndpoint({
+      method: 'POST',
+      url: '/u' as const,
+      requestSchema: z.object({ name: z.string() }),
+      responseSchema: z.object({ id: z.string(), name: z.string() }),
+      errorSchema: { 400: z.object({ msg: z.string() }) },
+      result: 'envelope',
+    })
+
+    it("unwrap: 'none' (default) — mutate resolves to envelope on success", async () => {
+      adapter.mock(
+        '/u',
+        'POST',
+        () =>
+          new Response(JSON.stringify({ id: '1', name: 'A' }), {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+          }),
+      )
+
+      const mutation = makeMutation(createUser, {})
+      // @ts-expect-error internal type
+      const m = mutation()
+      const result: any = await m.mutateAsync({ data: { name: 'A' } })
+      expect(result.ok).toBe(true)
+      if (result.ok) expect(result.data).toEqual({ id: '1', name: 'A' })
+    })
+
+    it("unwrap: 'none' (default) — mutate resolves to envelope on error", async () => {
+      adapter.mock(
+        '/u',
+        'POST',
+        () =>
+          new Response(JSON.stringify({ msg: 'bad' }), {
+            status: 400,
+            headers: { 'content-type': 'application/json' },
+          }),
+      )
+
+      const mutation = makeMutation(createUser, {})
+      // @ts-expect-error internal type
+      const m = mutation()
+      const result: any = await m.mutateAsync({ data: { name: 'A' } })
+      expect(result.ok).toBe(false)
+      if (!result.ok) {
+        expect(result.error).toMatchObject({ kind: 'http', status: 400 })
+      }
+    })
+
+    it("unwrap: 'throw-on-error' fires onError with the envelope error", async () => {
+      adapter.mock(
+        '/u',
+        'POST',
+        () =>
+          new Response(JSON.stringify({ msg: 'bad' }), {
+            status: 400,
+            headers: { 'content-type': 'application/json' },
+          }),
+      )
+
+      let captured: unknown
+      const mutation = makeMutation(createUser, {
+        unwrap: 'throw-on-error',
+        onError: (err) => {
+          captured = err
+        },
+      })
+      // @ts-expect-error internal type
+      const m = mutation()
+      await expect(m.mutateAsync({ data: { name: 'A' } })).rejects.toMatchObject({
+        kind: 'http',
+        status: 400,
+      })
+      expect(captured).toMatchObject({ kind: 'http', status: 400 })
+    })
+
+    it("unwrap: 'throw-on-error' — success path delivers unwrapped data", async () => {
+      adapter.mock(
+        '/u',
+        'POST',
+        () =>
+          new Response(JSON.stringify({ id: '1', name: 'A' }), {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+          }),
+      )
+
+      const mutation = makeMutation(createUser, {
+        unwrap: 'throw-on-error',
+      })
+      // @ts-expect-error internal type
+      const m = mutation()
+      const result: any = await m.mutateAsync({ data: { name: 'A' } })
+      expect(result).toEqual({ id: '1', name: 'A' })
+    })
+  })
 })

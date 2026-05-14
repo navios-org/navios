@@ -10,6 +10,7 @@ import type { DataTag, MutationFunctionContext, UseMutationOptions } from '@tans
 import type { z, ZodObject, ZodType } from 'zod/v4'
 
 import type { ComputeResponseInput, ProcessResponseFunction } from '../common/types.mjs'
+import type { UnwrapMode } from '../query/types.mjs'
 
 /**
  * Arguments for mutation functions based on URL params, request schema, and query schema.
@@ -119,6 +120,20 @@ export interface MutationParams<
     context: TContext & MutationFunctionContext & { onMutateResult: TOnMutateResult | undefined },
   ) => void | Promise<void>
 
+  /**
+   * For endpoints declared with `result: 'envelope'`, controls how the
+   * envelope is delivered to React Query's mutation channel.
+   *
+   * - `'none'` (default): the `ResponseEnvelope` is returned from
+   *   `mutationFn` as-is. React Query's `error` channel is unused — even
+   *   on `envelope.ok === false`, `onSuccess` fires with the envelope.
+   * - `'throw-on-error'`: on `envelope.ok === false`, the `envelope.error`
+   *   is thrown from `mutationFn` so React Query's `onError` channel fires;
+   *   on success, the unwrapped `envelope.data` is delivered to `onSuccess`.
+   *
+   * Has no effect for non-envelope endpoints.
+   */
+  unwrap?: UnwrapMode
   /**
    * If true, we will create a mutation key that can be shared across the project.
    */
