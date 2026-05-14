@@ -1,7 +1,7 @@
 import type {
+  ClientRequestArgs,
   EndpointHandler,
   EndpointOptions,
-  RequestArgs,
   Simplify,
   UrlHasParams,
   UrlParams,
@@ -20,11 +20,11 @@ import type { ComputeResult } from './helpers.mjs'
  * variables are derived from URL params + query / request schemas only.
  */
 type MultipartVariables<Options extends EndpointOptions> = Simplify<
-  RequestArgs<
-    Options['url'],
-    Options['querySchema'] extends ZodObject ? Options['querySchema'] : undefined,
-    Options['requestSchema'] extends ZodType ? Options['requestSchema'] : undefined
-  >
+  ClientRequestArgs<{
+    url: Options['url']
+    querySchema: Options['querySchema'] extends ZodObject ? Options['querySchema'] : undefined
+    requestSchema: Options['requestSchema'] extends ZodType ? Options['requestSchema'] : undefined
+  }>
 >
 
 /**

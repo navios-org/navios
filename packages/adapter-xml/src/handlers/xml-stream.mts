@@ -1,4 +1,4 @@
-import type { RequestArgs, StreamHandler } from '@navios/builder'
+import type { ServerRequestArgs, StreamHandler } from '@navios/builder'
 
 import type { XmlStreamConfig } from '../types/config.mjs'
 
@@ -44,15 +44,7 @@ import type { XmlStreamConfig } from '../types/config.mjs'
 export function declareXmlStream<const Config extends XmlStreamConfig>(
   config: Config,
 ): StreamHandler<Config, false> {
-  const handler = async (
-    _params: RequestArgs<
-      Config['url'],
-      Config['querySchema'],
-      Config['requestSchema'],
-      Config['urlParamsSchema'],
-      true
-    >,
-  ) => {
+  const handler = async (_params: ServerRequestArgs<Config>) => {
     throw new Error('Not implemented')
   }
   handler.config = config

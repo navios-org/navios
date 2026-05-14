@@ -96,69 +96,96 @@ export interface NaviosZodRequestBase extends Pick<AbstractRequestConfig, 'signa
 }
 
 // =============================================================================
-// Unified Request Arguments Type (NEW)
+// Unified Request Arguments Types (NEW)
 // =============================================================================
 
 /**
- * Unified request arguments type for endpoint calls.
+ * Minimal shape consumed by {@link ClientRequestArgs} / {@link ServerRequestArgs}.
  *
- * This is the single source of truth for request parameters.
- * It conditionally includes urlParams, params (query), and data (body)
- * based on the URL and schema types provided.
+ * Both `EndpointOptions` and `BaseEndpointOptions` satisfy this constraint, so
+ * these types are usable on both the http endpoint surface and the stream /
+ * multipart surfaces (which don't require `responseSchema`).
+ */
+export interface RequestArgsOptions {
+  url: string
+  querySchema?: ZodObject
+  requestSchema?: ZodType
+  urlParamsSchema?: ZodObject
+}
+
+/**
+ * Client-side request arguments derived from an endpoint's options.
  *
- * @template Url - URL template string (e.g., '/users/$userId')
- * @template QuerySchema - Zod schema for query parameters
- * @template RequestSchema - Zod schema for request body
- * @template UrlParamsSchema - Optional Zod schema for URL parameters
- * @template IsServer - If true, URL params are string only
+ * Conditionally includes `urlParams`, `params` (query), and `data` (body) based
+ * on the URL template and schema types declared on the endpoint. Uses
+ * `z.input` for schema-typed fields (the pre-validation, user-facing shape) and
+ * intersects with {@link RequestBase} so callers can pass `signal` / `headers`.
+ *
+ * @template Options - Endpoint options object (satisfies {@link RequestArgsOptions}).
  *
  * @example
  * ```ts
  * // GET /users/$userId?page=1
- * type Args = RequestArgs<
- *   '/users/$userId',
- *   z.ZodObject<{ page: z.ZodNumber }>,
- *   undefined
- * >
+ * type Args = ClientRequestArgs<{
+ *   url: '/users/$userId'
+ *   querySchema: z.ZodObject<{ page: z.ZodNumber }>
+ * }>
  * // Result: { urlParams: { userId: string | number }, params: { page: number } } & RequestBase
  * ```
  */
-export type RequestArgs<
-  Url extends string,
-  QuerySchema extends ZodObject | undefined = undefined,
-  RequestSchema extends ZodType | undefined = undefined,
-  UrlParamsSchema extends ZodObject | undefined = undefined,
-  IsServer extends boolean = false,
-> = Simplify<
-  (IsServer extends false ? RequestBase : {}) &
-    // URL Parameters: Use UrlParamsSchema if provided, else default UrlParams type
-    (UrlHasParams<Url> extends true
-      ? UrlParamsSchema extends ZodObject
-        ? IsServer extends true
-          ? { urlParams: z.output<UrlParamsSchema> }
-          : { urlParams: z.input<UrlParamsSchema> }
-        : { urlParams: Simplify<UrlParams<Url, IsServer>> }
+export type ClientRequestArgs<Options extends RequestArgsOptions> = Simplify<
+  RequestBase &
+    // URL Parameters: Use urlParamsSchema if provided, else default UrlParams type
+    (UrlHasParams<Options['url']> extends true
+      ? Options['urlParamsSchema'] extends ZodObject
+        ? { urlParams: z.input<Options['urlParamsSchema']> }
+        : { urlParams: Simplify<UrlParams<Options['url']>> }
       : {}) &
     // Query Parameters
-    (QuerySchema extends ZodObject
-      ? IsServer extends true
-        ? { params: z.output<QuerySchema> }
-        : { params: z.input<QuerySchema> }
-      : {}) &
+    (Options['querySchema'] extends ZodObject ? { params: z.input<Options['querySchema']> } : {}) &
     // Request Body
-    (RequestSchema extends ZodType
-      ? IsServer extends true
-        ? { data: z.output<RequestSchema> }
-        : { data: z.input<RequestSchema> }
-      : {})
+    (Options['requestSchema'] extends ZodType ? { data: z.input<Options['requestSchema']> } : {})
+>
+
+/**
+ * Server-side request arguments derived from an endpoint's options.
+ *
+ * Mirrors {@link ClientRequestArgs} but uses `z.output` (the post-validation,
+ * handler-facing shape) and constrains raw URL params to `string` only (no
+ * `number`). Does not intersect with {@link RequestBase} — server handlers
+ * never receive client cancellation primitives directly via the args object.
+ *
+ * @template Options - Endpoint options object (satisfies {@link RequestArgsOptions}).
+ *
+ * @example
+ * ```ts
+ * // GET /users/$userId?page=1 — inside the controller method
+ * type Args = ServerRequestArgs<{
+ *   url: '/users/$userId'
+ *   querySchema: z.ZodObject<{ page: z.ZodNumber }>
+ * }>
+ * // Result: { urlParams: { userId: string }, params: { page: number } }
+ * ```
+ */
+export type ServerRequestArgs<Options extends RequestArgsOptions> = Simplify<
+  // URL Parameters: Use urlParamsSchema if provided, else default UrlParams type
+  (UrlHasParams<Options['url']> extends true
+    ? Options['urlParamsSchema'] extends ZodObject
+      ? { urlParams: z.output<Options['urlParamsSchema']> }
+      : { urlParams: Simplify<UrlParams<Options['url'], true>> }
+    : {}) &
+    // Query Parameters
+    (Options['querySchema'] extends ZodObject ? { params: z.output<Options['querySchema']> } : {}) &
+    // Request Body
+    (Options['requestSchema'] extends ZodType ? { data: z.output<Options['requestSchema']> } : {})
 >
 
 // =============================================================================
-// Legacy Types (Deprecated - Use RequestArgs)
+// Legacy Types (Deprecated - Use ClientRequestArgs / ServerRequestArgs)
 // =============================================================================
 
 /**
- * @deprecated Use RequestArgs instead
+ * @deprecated Use ClientRequestArgs / ServerRequestArgs instead
  */
 export type NaviosZodRequest<Config extends BaseEndpointOptions> = (UrlHasParams<
   Config['url']
@@ -170,7 +197,7 @@ export type NaviosZodRequest<Config extends BaseEndpointOptions> = (UrlHasParams
   NaviosZodRequestBase
 
 /**
- * @deprecated Use RequestArgs instead
+ * @deprecated Use ClientRequestArgs / ServerRequestArgs instead
  */
 export type EndpointFunctionArgs<
   Url extends string,

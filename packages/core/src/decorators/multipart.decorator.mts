@@ -1,6 +1,6 @@
 import { ZodDiscriminatedUnion } from 'zod/v4'
 
-import type { EndpointOptions, RequestArgs } from '@navios/builder'
+import type { EndpointOptions, ServerRequestArgs } from '@navios/builder'
 import type { z, ZodObject, ZodType } from 'zod/v4'
 
 import { getEndpointMetadata } from '../metadata/index.mjs'
@@ -21,29 +21,27 @@ export type MultipartParams<
   QuerySchema = EndpointDeclaration['config']['querySchema'],
 > = QuerySchema extends ZodObject
   ? EndpointDeclaration['config']['requestSchema'] extends ZodType
-    ? RequestArgs<
-        Url,
-        QuerySchema,
-        EndpointDeclaration['config']['requestSchema'],
-        EndpointDeclaration['config']['urlParamsSchema'],
-        true
-      >
-    : RequestArgs<
-        Url,
-        QuerySchema,
-        undefined,
-        EndpointDeclaration['config']['urlParamsSchema'],
-        true
-      >
+    ? ServerRequestArgs<{
+        url: Url
+        querySchema: QuerySchema
+        requestSchema: EndpointDeclaration['config']['requestSchema']
+        urlParamsSchema: EndpointDeclaration['config']['urlParamsSchema']
+      }>
+    : ServerRequestArgs<{
+        url: Url
+        querySchema: QuerySchema
+        urlParamsSchema: EndpointDeclaration['config']['urlParamsSchema']
+      }>
   : EndpointDeclaration['config']['requestSchema'] extends ZodType
-    ? RequestArgs<
-        Url,
-        undefined,
-        EndpointDeclaration['config']['requestSchema'],
-        EndpointDeclaration['config']['urlParamsSchema'],
-        true
-      >
-    : RequestArgs<Url, undefined, undefined, EndpointDeclaration['config']['urlParamsSchema'], true>
+    ? ServerRequestArgs<{
+        url: Url
+        requestSchema: EndpointDeclaration['config']['requestSchema']
+        urlParamsSchema: EndpointDeclaration['config']['urlParamsSchema']
+      }>
+    : ServerRequestArgs<{
+        url: Url
+        urlParamsSchema: EndpointDeclaration['config']['urlParamsSchema']
+      }>
 
 /**
  * Extracts the typed return value for a multipart endpoint handler function.
@@ -92,13 +90,7 @@ export function Multipart<Config extends EndpointOptions>(endpoint: {
   config: Config
 }): (
   target: (
-    params: RequestArgs<
-      Config['url'],
-      Config['querySchema'],
-      Config['requestSchema'],
-      Config['urlParamsSchema'],
-      true
-    >,
+    params: ServerRequestArgs<Config>,
   ) => Promise<z.input<Config['responseSchema']>> | z.input<Config['responseSchema']>,
   context: ClassMethodDecoratorContext,
 ) => void
@@ -109,13 +101,7 @@ export function Multipart<Config extends EndpointOptions>(endpoint: {
   context: ClassMethodDecoratorContext,
 ) => void
 export function Multipart<Config extends EndpointOptions>(endpoint: { config: Config }) {
-  type Params = RequestArgs<
-    Config['url'],
-    Config['querySchema'],
-    Config['requestSchema'],
-    Config['urlParamsSchema'],
-    true
-  >
+  type Params = ServerRequestArgs<Config>
 
   type Handler =
     | ((

@@ -1,8 +1,8 @@
 import type {
   BaseEndpointOptions,
+  ClientRequestArgs,
   EndpointHandler,
   EndpointOptions,
-  RequestArgs,
   Simplify,
   StreamHandler,
   UrlHasParams,
@@ -21,16 +21,16 @@ import type { ComputeResult } from './helpers.mjs'
  * `Options` type alone (URL, query / request / urlParams schemas).
  */
 type MutationVariables<Options extends EndpointOptions | BaseEndpointOptions> = Simplify<
-  RequestArgs<
-    Options['url'],
-    Options['querySchema'] extends ZodObject ? Options['querySchema'] : undefined,
-    Options['requestSchema'] extends ZodType ? Options['requestSchema'] : undefined,
-    Options extends EndpointOptions
+  ClientRequestArgs<{
+    url: Options['url']
+    querySchema: Options['querySchema'] extends ZodObject ? Options['querySchema'] : undefined
+    requestSchema: Options['requestSchema'] extends ZodType ? Options['requestSchema'] : undefined
+    urlParamsSchema: Options extends EndpointOptions
       ? Options['urlParamsSchema'] extends ZodObject
         ? Options['urlParamsSchema']
         : undefined
       : undefined
-  >
+  }>
 >
 
 /**

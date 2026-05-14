@@ -1,9 +1,9 @@
 import type {
+  ClientRequestArgs,
   EndpointOptions,
   EnvelopeError,
   ErrorSchemaRecord,
   InferEndpointReturn,
-  RequestArgs,
   ResponseEnvelope,
   Simplify,
   UrlHasParams,
@@ -88,13 +88,13 @@ export type QueryResult<Options extends EndpointOptions> = InferEndpointReturn<O
 
 /**
  * Arguments for query functions based on URL params and query schema.
- * Uses RequestArgs from builder for consistency.
+ * Uses ClientRequestArgs from builder for consistency.
  */
 export type QueryArgs<
   Url extends string = string,
   QuerySchema extends ZodObject | undefined = undefined,
   RequestSchema extends ZodType | undefined = undefined,
-> = RequestArgs<Url, QuerySchema, RequestSchema>
+> = ClientRequestArgs<{ url: Url; querySchema: QuerySchema; requestSchema: RequestSchema }>
 
 /**
  * Arguments containing only URL params (for invalidateAll operations).
