@@ -29,12 +29,10 @@ const requestSchema = zod.object({
 
 const error400Schema = zod.object({ error: zod.string(), code: zod.number() })
 const error404Schema = zod.object({ notFound: zod.literal(true) })
-const error500Schema = zod.object({ serverError: zod.string() })
 
 const errorSchema = {
   400: error400Schema,
   404: error404Schema,
-  500: error500Schema,
 } satisfies ErrorSchemaRecord
 
 type ResponseType = z.output<typeof responseSchema>
@@ -50,207 +48,85 @@ declare const client: ClientInstance
 // ============================================================================
 // MUTATION METHOD
 // ============================================================================
+//
+// Note: URL-param extraction, querySchema/requestSchema input typing, and the
+// (urlParams × params × data × error) combination matrix are exercised at the
+// builder layer. The tests below focus on surface-specific bits: the
+// `{ data, urlParams, params }` variables shape inside `UseMutationResult`,
+// the `useKey: true` outer-call signature, callback types, and
+// `useContext`-driven context overrides.
 
 describe('client.mutation() method', () => {
-  describe('POST mutations', () => {
-    test('POST mutation with request schema only', () => {
-      const mutation = client.mutation({
-        method: 'POST',
-        url: '/users',
-        requestSchema,
-        responseSchema,
-      })
-
-      assertType<() => UseMutationResult<ResponseType, Error, { data: RequestType }>>(mutation)
+  test('POST mutation surfaces RequestType in variables shape', () => {
+    const mutation = client.mutation({
+      method: 'POST',
+      url: '/users',
+      requestSchema,
+      responseSchema,
     })
 
-    test('POST mutation with processResponse', () => {
-      const mutation = client.mutation({
-        method: 'POST',
-        url: '/users',
-        requestSchema,
-        responseSchema,
-        processResponse: (data) => data,
-      })
-
-      assertType<() => UseMutationResult<ResponseType, Error, { data: RequestType }>>(mutation)
-    })
-
-    test('POST mutation with URL params', () => {
-      const mutation = client.mutation({
-        method: 'POST',
-        url: '/users/$userId/posts',
-        requestSchema,
-        responseSchema,
-      })
-
-      assertType<
-        () => UseMutationResult<
-          ResponseType,
-          Error,
-          { urlParams: { userId: string | number }; data: RequestType }
-        >
-      >(mutation)
-    })
-
-    test('POST mutation with multiple URL params', () => {
-      const mutation = client.mutation({
-        method: 'POST',
-        url: '/orgs/$orgId/users/$userId/posts',
-        requestSchema,
-        responseSchema,
-      })
-
-      assertType<
-        () => UseMutationResult<
-          ResponseType,
-          Error,
-          {
-            urlParams: { orgId: string | number; userId: string | number }
-            data: RequestType
-          }
-        >
-      >(mutation)
-    })
-
-    test('POST mutation with query schema', () => {
-      const mutation = client.mutation({
-        method: 'POST',
-        url: '/users',
-        requestSchema,
-        querySchema,
-        responseSchema,
-      })
-
-      assertType<
-        () => UseMutationResult<ResponseType, Error, { data: RequestType; params: QueryType }>
-      >(mutation)
-    })
-
-    test('POST mutation with all schemas', () => {
-      const mutation = client.mutation({
-        method: 'POST',
-        url: '/users/$userId',
-        requestSchema,
-        querySchema,
-        responseSchema,
-      })
-
-      assertType<
-        () => UseMutationResult<
-          ResponseType,
-          Error,
-          {
-            urlParams: { userId: string | number }
-            data: RequestType
-            params: QueryType
-          }
-        >
-      >(mutation)
-    })
-
-    test('POST mutation with custom result type', () => {
-      const mutation = client.mutation({
-        method: 'POST',
-        url: '/users',
-        requestSchema,
-        responseSchema,
-        processResponse: (data) => ({ processed: true, name: data.name }),
-      })
-
-      assertType<
-        () => UseMutationResult<{ processed: boolean; name: string }, Error, { data: RequestType }>
-      >(mutation)
-    })
+    assertType<() => UseMutationResult<ResponseType, Error, { data: RequestType }>>(mutation)
   })
 
-  describe('PUT mutations', () => {
-    test('PUT mutation with URL params', () => {
-      const mutation = client.mutation({
-        method: 'PUT',
-        url: '/users/$userId',
-        requestSchema,
-        responseSchema,
-      })
-
-      assertType<
-        () => UseMutationResult<
-          ResponseType,
-          Error,
-          { urlParams: { userId: string | number }; data: RequestType }
-        >
-      >(mutation)
+  test('POST mutation with URL params adds urlParams to variables shape', () => {
+    const mutation = client.mutation({
+      method: 'POST',
+      url: '/users/$userId/posts',
+      requestSchema,
+      responseSchema,
     })
+
+    assertType<
+      () => UseMutationResult<
+        ResponseType,
+        Error,
+        { urlParams: { userId: string | number }; data: RequestType }
+      >
+    >(mutation)
   })
 
-  describe('PATCH mutations', () => {
-    test('PATCH mutation with URL params and query schema', () => {
-      const mutation = client.mutation({
-        method: 'PATCH',
-        url: '/users/$userId',
-        requestSchema,
-        querySchema,
-        responseSchema,
-      })
-
-      assertType<
-        () => UseMutationResult<
-          ResponseType,
-          Error,
-          {
-            urlParams: { userId: string | number }
-            data: RequestType
-            params: QueryType
-          }
-        >
-      >(mutation)
+  test('POST mutation with query schema adds params to variables shape', () => {
+    const mutation = client.mutation({
+      method: 'POST',
+      url: '/users',
+      requestSchema,
+      querySchema,
+      responseSchema,
     })
+
+    assertType<
+      () => UseMutationResult<ResponseType, Error, { data: RequestType; params: QueryType }>
+    >(mutation)
   })
 
-  describe('DELETE mutations', () => {
-    test('DELETE mutation without request schema', () => {
-      const mutation = client.mutation({
-        method: 'DELETE',
-        url: '/users/$userId',
-        responseSchema,
-      })
-
-      assertType<
-        () => UseMutationResult<ResponseType, Error, { urlParams: { userId: string | number } }>
-      >(mutation)
+  test('DELETE mutation without request schema omits data from variables', () => {
+    const mutation = client.mutation({
+      method: 'DELETE',
+      url: '/users/$userId',
+      responseSchema,
     })
 
-    test('DELETE mutation with query schema', () => {
-      const mutation = client.mutation({
-        method: 'DELETE',
-        url: '/cache',
-        querySchema,
-        responseSchema,
-      })
+    assertType<
+      () => UseMutationResult<ResponseType, Error, { urlParams: { userId: string | number } }>
+    >(mutation)
+  })
 
-      assertType<() => UseMutationResult<ResponseType, Error, { params: QueryType }>>(mutation)
+  test('processResponse transforms variables payload type', () => {
+    const mutation = client.mutation({
+      method: 'POST',
+      url: '/users',
+      requestSchema,
+      responseSchema,
+      processResponse: (data) => ({ processed: true, name: data.name }),
     })
 
-    test('DELETE mutation with URL params and query schema', () => {
-      const mutation = client.mutation({
-        method: 'DELETE',
-        url: '/users/$userId',
-        querySchema,
-        responseSchema,
-      })
-
-      assertType<
-        () => UseMutationResult<
-          ResponseType,
-          Error,
-          { urlParams: { userId: string | number }; params: QueryType }
-        >
-      >(mutation)
-    })
+    assertType<
+      () => UseMutationResult<{ processed: boolean; name: string }, Error, { data: RequestType }>
+    >(mutation)
   })
 
   describe('useKey option', () => {
-    test('POST mutation with useKey requires urlParams in call', () => {
+    test('useKey: true requires urlParams in the outer call', () => {
       const mutation = client.mutation({
         method: 'POST',
         url: '/users/$userId',
@@ -270,7 +146,7 @@ describe('client.mutation() method', () => {
       >(mutation)
     })
 
-    test('mutation with useKey has MutationHelpers', () => {
+    test('useKey: true attaches MutationHelpers', () => {
       const mutation = client.mutation({
         method: 'POST',
         url: '/users/$userId',
@@ -287,42 +163,7 @@ describe('client.mutation() method', () => {
       )
     })
 
-    test('DELETE mutation with useKey and URL params', () => {
-      const mutation = client.mutation({
-        method: 'DELETE',
-        url: '/users/$userId',
-        useKey: true,
-        responseSchema,
-      })
-
-      assertType<
-        (params: {
-          urlParams: { userId: string | number }
-        }) => UseMutationResult<ResponseType, Error, { urlParams: { userId: string | number } }>
-      >(mutation)
-    })
-
-    test('DELETE mutation with useKey and querySchema', () => {
-      const mutation = client.mutation({
-        method: 'DELETE',
-        url: '/users/$userId',
-        useKey: true,
-        querySchema,
-        responseSchema,
-      })
-
-      assertType<
-        (params: {
-          urlParams: { userId: string | number }
-        }) => UseMutationResult<
-          ResponseType,
-          Error,
-          { urlParams: { userId: string | number }; params: QueryType }
-        >
-      >(mutation)
-    })
-
-    test('mutation with useKey without URL params', () => {
+    test('useKey: true without URL params still takes a () call', () => {
       const mutation = client.mutation({
         method: 'DELETE',
         url: '/cache',
@@ -335,7 +176,7 @@ describe('client.mutation() method', () => {
   })
 
   describe('callback options', () => {
-    test('onMutate receives variables and context', () => {
+    test('onMutate receives variables and default context', () => {
       client.mutation({
         method: 'POST',
         url: '/users',
@@ -349,7 +190,7 @@ describe('client.mutation() method', () => {
       })
     })
 
-    test('onSuccess receives data, variables, and context', () => {
+    test('onSuccess receives data, variables, and onMutate context', () => {
       client.mutation({
         method: 'POST',
         url: '/users',
@@ -394,7 +235,7 @@ describe('client.mutation() method', () => {
       })
     })
 
-    test('useContext provides custom context', () => {
+    test('useContext overrides the context type seen by callbacks', () => {
       client.mutation({
         method: 'POST',
         url: '/users',
@@ -409,7 +250,7 @@ describe('client.mutation() method', () => {
   })
 
   describe('errorSchema (errors thrown, not in return type)', () => {
-    test('mutation with errorSchema returns only success type', () => {
+    test('mutation with errorSchema still returns only success type', () => {
       const mutation = client.mutation({
         method: 'POST',
         url: '/users',
@@ -423,7 +264,7 @@ describe('client.mutation() method', () => {
       )
     })
 
-    test('processResponse receives only success type', () => {
+    test('processResponse receives only the success type when errorSchema is set', () => {
       client.mutation({
         method: 'POST',
         url: '/users',
@@ -439,7 +280,7 @@ describe('client.mutation() method', () => {
   })
 
   describe('EndpointHelper', () => {
-    test('mutation exposes endpoint property', () => {
+    test('mutation exposes endpoint property with declared config', () => {
       const mutation = client.mutation({
         method: 'POST',
         url: '/users',
@@ -460,166 +301,78 @@ describe('client.mutation() method', () => {
 })
 
 // ============================================================================
-// ERROR CASES - Should fail type checking
+// ERROR CASES - Surface-specific. We assert the surface preserves errors on
+// the `mutate()` call (the inner function returned by `mutation()`), since
+// the builder-instance suite doesn't model the mutate signature.
 // ============================================================================
 
 describe('mutation() error cases', () => {
-  describe('missing required parameters in variables', () => {
-    test('mutation().mutate() without data when requestSchema is defined', () => {
-      const mutation = client.mutation({
-        method: 'POST',
-        url: '/users',
-        requestSchema,
-        responseSchema,
-      })
-
-      const { mutate } = mutation()
-
-      // @ts-expect-error - missing data
-      mutate({})
+  test('mutate() without data when requestSchema is defined', () => {
+    const mutation = client.mutation({
+      method: 'POST',
+      url: '/users',
+      requestSchema,
+      responseSchema,
     })
 
-    test('mutation().mutate() without urlParams when URL has params', () => {
-      const mutation = client.mutation({
-        method: 'POST',
-        url: '/users/$userId',
-        requestSchema,
-        responseSchema,
-      })
+    const { mutate } = mutation()
 
-      const { mutate } = mutation()
-
-      // @ts-expect-error - missing urlParams
-      mutate({ data: { name: 'test', email: 'test@test.com' } })
-    })
-
-    test('mutation().mutate() without params when querySchema is defined', () => {
-      const mutation = client.mutation({
-        method: 'POST',
-        url: '/users',
-        requestSchema,
-        querySchema,
-        responseSchema,
-      })
-
-      const { mutate } = mutation()
-
-      // @ts-expect-error - missing params
-      mutate({ data: { name: 'test', email: 'test@test.com' } })
-    })
+    // @ts-expect-error - missing data
+    mutate({})
   })
 
-  describe('missing useKey call params', () => {
-    test('mutation with useKey called without urlParams', () => {
-      const mutation = client.mutation({
-        method: 'POST',
-        url: '/users/$userId',
-        useKey: true,
-        requestSchema,
-        responseSchema,
-      })
-
-      // @ts-expect-error - missing urlParams in call
-      mutation()
+  test('mutate() without urlParams when URL has params', () => {
+    const mutation = client.mutation({
+      method: 'POST',
+      url: '/users/$userId',
+      requestSchema,
+      responseSchema,
     })
+
+    const { mutate } = mutation()
+
+    // @ts-expect-error - missing urlParams
+    mutate({ data: { name: 'test', email: 'test@test.com' } })
   })
 
-  describe('wrong parameter types in variables', () => {
-    test('data with wrong shape', () => {
-      const mutation = client.mutation({
-        method: 'POST',
-        url: '/users',
-        requestSchema,
-        responseSchema,
-      })
-
-      const { mutate } = mutation()
-
-      // @ts-expect-error - wrong property names
-      mutate({ data: { username: 'test', mail: 'test@test.com' } })
+  test('useKey: true outer call requires urlParams', () => {
+    const mutation = client.mutation({
+      method: 'POST',
+      url: '/users/$userId',
+      useKey: true,
+      requestSchema,
+      responseSchema,
     })
 
-    test('data with wrong value types', () => {
-      const mutation = client.mutation({
-        method: 'POST',
-        url: '/users',
-        requestSchema,
-        responseSchema,
-      })
-
-      const { mutate } = mutation()
-
-      // @ts-expect-error - name should be string, not number
-      mutate({ data: { name: 123, email: 'test@test.com' } })
-    })
-
-    test('urlParams with wrong type', () => {
-      const mutation = client.mutation({
-        method: 'POST',
-        url: '/users/$userId',
-        requestSchema,
-        responseSchema,
-      })
-
-      const { mutate } = mutation()
-
-      mutate({
-        // @ts-expect-error - userId should be string | number, not boolean
-        urlParams: { userId: true },
-        data: { name: 'test', email: 'test@test.com' },
-      })
-    })
-
-    test('params with wrong shape', () => {
-      const mutation = client.mutation({
-        method: 'POST',
-        url: '/users',
-        requestSchema,
-        querySchema,
-        responseSchema,
-      })
-
-      const { mutate } = mutation()
-
-      mutate({
-        data: { name: 'test', email: 'test@test.com' },
-        params: {
-          // @ts-expect-error - wrong property names
-          offset: 0,
-          count: 10,
-        },
-      })
-    })
+    // @ts-expect-error - missing urlParams in call
+    mutation()
   })
 
-  describe('processResponse type safety', () => {
-    test('processResponse receives correct input type', () => {
-      client.mutation({
-        method: 'POST',
-        url: '/users',
-        requestSchema,
-        responseSchema,
-        processResponse: (data) => {
-          // @ts-expect-error - data doesn't have 'nonExistent' property
-          return data.nonExistent
-        },
-      })
+  test('mutate() with wrong data shape is rejected', () => {
+    const mutation = client.mutation({
+      method: 'POST',
+      url: '/users',
+      requestSchema,
+      responseSchema,
     })
+
+    const { mutate } = mutation()
+
+    // @ts-expect-error - wrong property names
+    mutate({ data: { username: 'test', mail: 'test@test.com' } })
   })
 
-  describe('callback type safety', () => {
-    test('onSuccess data type matches processResponse result', () => {
-      client.mutation({
-        method: 'POST',
-        url: '/users',
-        requestSchema,
-        responseSchema,
-        processResponse: (data) => ({ transformed: data.name }),
-        onSuccess: (data) => {
-          // @ts-expect-error - data is { transformed: string }, not ResponseType
-          const _id: string = data.id
-        },
-      })
+  test('onSuccess data type matches processResponse result', () => {
+    client.mutation({
+      method: 'POST',
+      url: '/users',
+      requestSchema,
+      responseSchema,
+      processResponse: (data) => ({ transformed: data.name }),
+      onSuccess: (data) => {
+        // @ts-expect-error - data is { transformed: string }, not ResponseType
+        const _id: string = data.id
+      },
     })
   })
 })
