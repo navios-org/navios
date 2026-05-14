@@ -1,3 +1,4 @@
-preload = ["./bun-plugin.mts"]
+jsx = "react-jsx"
+jsxImportSource = "@navios/adapter-xml"
+
 [test]
-preload = ["./bun-plugin.mts"]

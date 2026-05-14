@@ -61,55 +61,7 @@ If you cannot disable `experimentalDecorators`, you can use the legacy-compatibl
 
 ## ES Decorators Support in Bun
 
-Bun supports **Legacy Decorators** natively (with `experimentalDecorators: true`). If you want to use **Stage 3 decorators** (TypeScript 5 native decorators) with Navios, you need to configure a plugin that transpiles TypeScript files with proper decorator support.
-
-### Solution: Bun Plugin with TypeScript
-
-Create a `bun-plugin.mts` file in your project root:
-
-```typescript
-// bun-plugin.mts
-import { plugin } from 'bun'
-
-plugin({
-  name: 'typescript-decorators',
-  setup(build) {
-    const filter = /\.m?(ts|tsx)$/
-
-    build.onLoad({ filter }, async (args) => {
-      const codeTs = await Bun.file(args.path).text()
-      const typescript = (await import('typescript')).default
-
-      const result = typescript.transpileModule(codeTs, {
-        compilerOptions: {
-          module: typescript.ModuleKind.ESNext,
-          target: typescript.ScriptTarget.ESNext,
-          jsx: typescript.JsxEmit.React,
-        },
-      })
-
-      return {
-        loader: 'js',
-        contents: result.outputText,
-      }
-    })
-  },
-})
-```
-
-### Configure Bun to Use the Plugin
-
-Create or update `bunfig.toml` in your project root:
-
-```toml
-preload = ["./bun-plugin.mts"]
-```
-
-### Install TypeScript
-
-```bash
-bun add -d typescript
-```
+Recent versions of Bun ship **native Stage 3 decorator** support, so no additional transpiler plugin is needed when using Navios with Bun. Just make sure your `tsconfig.json` has `experimentalDecorators` disabled (see above).
 
 ### Alternative: Use Node.js
 
