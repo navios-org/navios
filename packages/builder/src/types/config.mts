@@ -40,6 +40,12 @@ export interface BuilderConfig<UseDiscriminator extends boolean = false> {
     response: AbstractResponse<any> | undefined,
     originalError: unknown,
   ) => void
+
+  /** Default behaviour applied to every endpoint declaration unless overridden per-endpoint. */
+  defaults?: {
+    /** Default result mode; per-endpoint `result` overrides. */
+    result?: 'data' | 'envelope'
+  }
 }
 
 export interface BuilderContext<UseDiscriminator extends boolean = boolean> {
@@ -162,6 +168,21 @@ export interface BaseEndpointOptions {
    * These options are passed through to the HTTP client.
    */
   clientOptions?: ClientOptions
+
+  /**
+   * Output mode for this endpoint.
+   * - 'data' (default): returns parsed body; throws on error (current behavior).
+   * - 'envelope': returns { ok, data, error, response } and never throws. Errors are
+   *   classified into typed variants; access status/headers via `response`.
+   */
+  result?: 'data' | 'envelope'
+
+  /**
+   * When false, skip `responseSchema.parse()` at runtime. The static type is still
+   * inferred from `responseSchema`. Useful for high-volume reads against a trusted server.
+   * @default true
+   */
+  validateResponse?: boolean
 }
 
 /**
