@@ -34,9 +34,7 @@ type EndpointMethodDescriptor<Config extends EndpointOptions> = TypedPropertyDes
  * }
  * ```
  */
-export function Endpoint<const Config extends EndpointOptions>(
-  endpoint: EndpointHandler<Config, false>,
-) {
+export function Endpoint<const Config extends EndpointOptions>(endpoint: EndpointHandler<Config>) {
   return function (
     target: any,
     propertyKey: string | symbol,

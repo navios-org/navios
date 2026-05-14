@@ -8,9 +8,7 @@ import { extractControllerMetadata } from '../index.mjs'
 import type { EndpointParams } from '../decorators/index.mjs'
 
 describe('Controller decorator', () => {
-  const api = builder({
-    useDiscriminatorResponse: true,
-  })
+  const api = builder()
   const endpoint = api.declareEndpoint({
     url: 'test/$test/foo' as const,
     method: 'GET',

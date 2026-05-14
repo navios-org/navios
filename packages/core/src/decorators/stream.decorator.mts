@@ -12,7 +12,7 @@ import { StreamAdapterToken } from '../tokens/index.mjs'
  * @typeParam EndpointDeclaration - The stream endpoint declaration from @navios/builder
  */
 export type StreamParams<
-  EndpointDeclaration extends StreamHandler<Config, false>,
+  EndpointDeclaration extends StreamHandler<Config>,
   Config extends BaseEndpointOptions = EndpointDeclaration['config'],
   Url extends string = EndpointDeclaration['config']['url'],
   QuerySchema = EndpointDeclaration['config']['querySchema'],

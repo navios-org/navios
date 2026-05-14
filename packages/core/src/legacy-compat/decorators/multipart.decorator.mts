@@ -35,9 +35,7 @@ type MultipartMethodDescriptor<Config extends EndpointOptions> = TypedPropertyDe
  * }
  * ```
  */
-export function Multipart<const Config extends EndpointOptions>(
-  endpoint: EndpointHandler<Config, false>,
-) {
+export function Multipart<const Config extends EndpointOptions>(endpoint: EndpointHandler<Config>) {
   return function <T extends object>(
     target: T,
     propertyKey: string | symbol,

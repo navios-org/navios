@@ -35,9 +35,7 @@ type StreamMethodDescriptor<Config extends BaseEndpointOptions> =
  * }
  * ```
  */
-export function Stream<const Config extends BaseEndpointOptions>(
-  endpoint: StreamHandler<Config, false>,
-) {
+export function Stream<const Config extends BaseEndpointOptions>(endpoint: StreamHandler<Config>) {
   return function (
     target: any,
     propertyKey: string | symbol,

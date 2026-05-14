@@ -31,7 +31,7 @@ import { EndpointAdapterToken } from '../tokens/index.mjs'
  * ```
  */
 export type EndpointParams<
-  EndpointDeclaration extends EndpointHandler<Config, false>,
+  EndpointDeclaration extends EndpointHandler<Config>,
   Config extends EndpointOptions = EndpointDeclaration['config'],
 > = ServerRequestArgs<Config>
 
@@ -97,7 +97,7 @@ export type EndpointResult<
  * ```
  */
 export function Endpoint<const Config extends EndpointOptions>(
-  endpoint: EndpointHandler<Config, false>,
+  endpoint: EndpointHandler<Config>,
 ): (
   target: (
     params: ServerRequestArgs<Config>,
@@ -105,14 +105,12 @@ export function Endpoint<const Config extends EndpointOptions>(
   context: ClassMethodDecoratorContext,
 ) => void
 export function Endpoint<const Config extends EndpointOptions>(
-  endpoint: EndpointHandler<Config, false>,
+  endpoint: EndpointHandler<Config>,
 ): (
   target: () => Promise<z.input<Config['responseSchema']>> | z.input<Config['responseSchema']>,
   context: ClassMethodDecoratorContext,
 ) => void
-export function Endpoint<const Config extends EndpointOptions>(
-  endpoint: EndpointHandler<Config, false>,
-) {
+export function Endpoint<const Config extends EndpointOptions>(endpoint: EndpointHandler<Config>) {
   type Params = ServerRequestArgs<Config>
 
   type Handler =
