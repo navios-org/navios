@@ -101,18 +101,19 @@ declare const streamEndpointWithRequest: StreamHandler<{
 }>
 
 // ============================================================================
-// queryFromEndpoint
+// client.query() with an existing endpoint
 // ============================================================================
 //
 // Note: URL-param extraction and the (urlParams × params × data × error)
 // combination matrix are exercised at the builder layer. The tests below
-// focus on `*FromEndpoint`-specific bits: that an `EndpointHandler` /
-// `StreamHandler` can flow into a surface and that the resulting return
-// shape, QueryHelpers attachment, and stream Blob handling are preserved.
+// focus on the from-endpoint code path of each unified surface: that an
+// `EndpointHandler` / `StreamHandler` can flow in and that the resulting
+// return shape, QueryHelpers attachment, and stream Blob handling are
+// preserved.
 
-describe('client.queryFromEndpoint() method', () => {
-  test('queryFromEndpoint returns a callable producing UseSuspenseQueryOptions', () => {
-    const query = client.queryFromEndpoint(getEndpoint)
+describe('client.query() with an existing endpoint', () => {
+  test('returns a callable producing UseSuspenseQueryOptions', () => {
+    const query = client.query(getEndpoint)
     const options = query({})
     assertType<
       UseSuspenseQueryOptions<
@@ -124,19 +125,19 @@ describe('client.queryFromEndpoint() method', () => {
     >(options)
   })
 
-  test('queryFromEndpoint preserves endpoint config metadata', () => {
+  test('preserves endpoint config metadata', () => {
     assertType<typeof responseSchema>(getEndpoint.config.responseSchema)
     assertType<'GET'>(getEndpoint.config.method)
     assertType<'/users'>(getEndpoint.config.url)
   })
 
-  test('queryFromEndpoint attaches QueryHelpers, typed by querySchema when present', () => {
-    const query = client.queryFromEndpoint(getEndpoint)
+  test('attaches QueryHelpers, typed by querySchema when present', () => {
+    const query = client.query(getEndpoint)
     assertType<QueryHelpers<'/users', undefined, ResponseType>['queryKey']>(query.queryKey)
     assertType<QueryHelpers<'/users', undefined, ResponseType>['use']>(query.use)
     assertType<QueryHelpers<'/users', undefined, ResponseType>['useSuspense']>(query.useSuspense)
 
-    const queryWithQ = client.queryFromEndpoint(getEndpointWithQuery)
+    const queryWithQ = client.query(getEndpointWithQuery)
     assertType<QueryHelpers<'/users', typeof querySchema, ResponseType>['queryKey']>(
       queryWithQ.queryKey,
     )
@@ -144,12 +145,12 @@ describe('client.queryFromEndpoint() method', () => {
 })
 
 // ============================================================================
-// infiniteQueryFromEndpoint
+// client.infiniteQuery() with an existing endpoint
 // ============================================================================
 
-describe('client.infiniteQueryFromEndpoint() method', () => {
+describe('client.infiniteQuery() with an existing endpoint', () => {
   test('attaches QueryHelpers with isInfinite=true', () => {
-    const query = client.infiniteQueryFromEndpoint(getEndpointWithQuery, {
+    const query = client.infiniteQuery(getEndpointWithQuery, {
       getNextPageParam: () => undefined,
     })
 
@@ -159,7 +160,7 @@ describe('client.infiniteQueryFromEndpoint() method', () => {
   })
 
   test('pagination callbacks receive page params typed by the endpoint querySchema', () => {
-    client.infiniteQueryFromEndpoint(getEndpointWithQuery, {
+    client.infiniteQuery(getEndpointWithQuery, {
       getNextPageParam: (lastPage, allPages, lastPageParam, allPageParams) => {
         assertType<ResponseType>(lastPage)
         assertType<ResponseType[]>(allPages)
@@ -176,18 +177,18 @@ describe('client.infiniteQueryFromEndpoint() method', () => {
 })
 
 // ============================================================================
-// mutationFromEndpoint
+// client.mutation() with an existing endpoint
 // ============================================================================
 
-describe('client.mutationFromEndpoint() method', () => {
+describe('client.mutation() with an existing endpoint', () => {
   test('POST endpoint flows into mutate signature', () => {
-    const mutation = client.mutationFromEndpoint(postEndpoint)
+    const mutation = client.mutation(postEndpoint)
     const { mutate } = mutation()
     mutate({ data: { name: 'test', email: 'test@test.com' } })
   })
 
   test('POST endpoint with URL params requires urlParams on mutate', () => {
-    const mutation = client.mutationFromEndpoint(postEndpointWithUrlParams)
+    const mutation = client.mutation(postEndpointWithUrlParams)
     const { mutate } = mutation()
     mutate({
       urlParams: { userId: '123' },
@@ -197,7 +198,7 @@ describe('client.mutationFromEndpoint() method', () => {
 
   describe('stream endpoints', () => {
     test('StreamHandler flows into a mutation that resolves Blob', () => {
-      const mutation = client.mutationFromEndpoint(streamEndpoint)
+      const mutation = client.mutation(streamEndpoint)
       const { mutate, data } = mutation()
 
       mutate({ urlParams: { fileId: '123' } })
@@ -206,7 +207,7 @@ describe('client.mutationFromEndpoint() method', () => {
     })
 
     test('StreamHandler with requestSchema requires data on mutate', () => {
-      const mutation = client.mutationFromEndpoint(streamEndpointWithRequest)
+      const mutation = client.mutation(streamEndpointWithRequest)
       const { mutate, data } = mutation()
 
       mutate({ data: { name: 'test', email: 'test@test.com' } })
@@ -215,7 +216,7 @@ describe('client.mutationFromEndpoint() method', () => {
     })
 
     test('stream endpoint onSuccess receives Blob', () => {
-      client.mutationFromEndpoint(streamEndpoint, {
+      client.mutation(streamEndpoint, {
         onSuccess: (data) => {
           assertType<Blob>(data)
         },
@@ -224,7 +225,7 @@ describe('client.mutationFromEndpoint() method', () => {
   })
 
   test('callbacks receive endpoint-typed args (onMutate / onSuccess / onError / onSettled)', () => {
-    client.mutationFromEndpoint(postEndpoint, {
+    client.mutation(postEndpoint, {
       onMutate: (variables, context) => {
         assertType<{ data: RequestType }>(variables)
         assertType<{ meta: Record<string, unknown> | undefined }>(context)
@@ -250,7 +251,7 @@ describe('client.mutationFromEndpoint() method', () => {
   })
 
   test('onSuccess receives only the success type when the endpoint has errorSchema', () => {
-    client.mutationFromEndpoint(endpointWithErrors, {
+    client.mutation(endpointWithErrors, {
       onSuccess: (data) => {
         assertType<ResponseType>(data)
       },
@@ -259,28 +260,29 @@ describe('client.mutationFromEndpoint() method', () => {
 })
 
 // ============================================================================
-// ERROR CASES - Surface-specific. Verifies that the `*FromEndpoint` wrapping
-// preserves the same param-validation that the schema-driven surfaces enforce.
+// ERROR CASES - Surface-specific. Verifies that the from-endpoint code path of
+// each unified surface preserves the same param-validation that the inline
+// config path enforces.
 // ============================================================================
 
-describe('fromEndpoint() error cases', () => {
-  test('queryFromEndpoint with URL params - missing urlParams', () => {
-    const query = client.queryFromEndpoint(getEndpointWithUrlParams)
+describe('from-endpoint code path: error cases', () => {
+  test('query(endpoint) with URL params - missing urlParams', () => {
+    const query = client.query(getEndpointWithUrlParams)
 
     // @ts-expect-error - missing urlParams
     query({})
   })
 
-  test('mutationFromEndpoint().mutate() without data is rejected', () => {
-    const mutation = client.mutationFromEndpoint(postEndpoint)
+  test('mutation(endpoint)().mutate() without data is rejected', () => {
+    const mutation = client.mutation(postEndpoint)
     const { mutate } = mutation()
 
     // @ts-expect-error - missing data
     mutate({})
   })
 
-  test('mutationFromEndpoint().mutate() wrong data shape is rejected', () => {
-    const mutation = client.mutationFromEndpoint(postEndpoint)
+  test('mutation(endpoint)().mutate() wrong data shape is rejected', () => {
+    const mutation = client.mutation(postEndpoint)
     const { mutate } = mutation()
 
     // @ts-expect-error - wrong property names

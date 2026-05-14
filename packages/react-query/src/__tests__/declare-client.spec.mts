@@ -172,7 +172,7 @@ describe('declareClient', () => {
     })
   })
 
-  it('should work with queryFromEndpoint', async () => {
+  it('should work with query() from an existing endpoint', async () => {
     const client = declareClient({
       api,
     })
@@ -183,13 +183,13 @@ describe('declareClient', () => {
       responseSchema,
     })
 
-    const query = client.queryFromEndpoint(endpoint)
+    const query = client.query(endpoint)
 
     expect(query).toBeDefined()
     expect(typeof query).toBe('function')
   })
 
-  it('should work with infiniteQueryFromEndpoint', async () => {
+  it('should work with infiniteQuery() from an existing endpoint', async () => {
     const client = declareClient({
       api,
     })
@@ -203,7 +203,7 @@ describe('declareClient', () => {
       }),
     })
 
-    const query = client.infiniteQueryFromEndpoint(endpoint, {
+    const query = client.infiniteQuery(endpoint, {
       getNextPageParam: (_lastPage, allPages) => {
         return { page: allPages.length + 1 }
       },
@@ -213,7 +213,7 @@ describe('declareClient', () => {
     expect(typeof query).toBe('function')
   })
 
-  it('should work with mutationFromEndpoint', async () => {
+  it('should work with mutation() from an existing endpoint', async () => {
     const client = declareClient({
       api,
     })
@@ -230,13 +230,13 @@ describe('declareClient', () => {
       }),
     })
 
-    const mutation = client.mutationFromEndpoint(endpoint)
+    const mutation = client.mutation(endpoint)
 
     expect(mutation).toBeDefined()
     expect(typeof mutation).toBe('function')
   })
 
-  it('should work with multipartMutation', async () => {
+  it('should work with multipart', async () => {
     const client = declareClient({
       api,
     })
@@ -257,7 +257,7 @@ describe('declareClient', () => {
       )
     })
 
-    const mutation = client.multipartMutation({
+    const mutation = client.multipart({
       url: '/upload' as const,
       method: 'POST',
       requestSchema: z.object({
@@ -457,7 +457,7 @@ describe('declareClient', () => {
     expect(captured).toMatchObject({ kind: 'http', status: 400 })
   })
 
-  it('client.queryFromEndpoint passes unwrap through', async () => {
+  it('client.query(endpoint) passes unwrap through', async () => {
     const envelopeAdapter = makeNaviosFakeAdapter()
     const envelopeApi = builder({})
     envelopeApi.provideClient(create({ adapter: envelopeAdapter.fetch }))
@@ -480,7 +480,7 @@ describe('declareClient', () => {
       result: 'envelope',
     })
 
-    const getThing = client.queryFromEndpoint(endpoint, {
+    const getThing = client.query(endpoint, {
       unwrap: 'throw-on-error',
     })
 
