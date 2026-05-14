@@ -9,7 +9,7 @@ import type { DataTag, UseSuspenseQueryOptions } from '@tanstack/react-query'
 import type { ZodObject, ZodType } from 'zod/v4'
 
 import type { Split } from '../../common/types.mjs'
-import type { QueryHelpers } from '../../query/types.mjs'
+import type { QueryHelpers, UnwrapMode } from '../../query/types.mjs'
 
 import type { ComputeBaseResult, EndpointHelper } from './helpers.mjs'
 
@@ -56,6 +56,17 @@ interface QueryEndpointConfig<
   errorSchema?: ErrorSchema
   urlParamsSchema?: UrlParamsSchema
   processResponse?: (data: TBaseResult) => Result
+  /**
+   * For endpoints declared with `result: 'envelope'`, controls how the
+   * envelope is delivered to React Query.
+   *
+   * - `'none'` (default): the `ResponseEnvelope` is cached as-is.
+   * - `'throw-on-error'`: on `envelope.ok === false`, the `envelope.error`
+   *   is thrown so React Query's `error` channel fires.
+   *
+   * Has no effect for non-envelope endpoints.
+   */
+  unwrap?: UnwrapMode
 }
 
 /**

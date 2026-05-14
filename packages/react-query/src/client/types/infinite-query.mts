@@ -9,7 +9,7 @@ import type { DataTag, InfiniteData, UseSuspenseInfiniteQueryOptions } from '@ta
 import type { z, ZodObject, ZodType } from 'zod/v4'
 
 import type { Split } from '../../common/types.mjs'
-import type { QueryHelpers } from '../../query/types.mjs'
+import type { InfiniteUnwrapMode, QueryHelpers } from '../../query/types.mjs'
 
 import type { ComputeBaseResult, EndpointHelper } from './helpers.mjs'
 
@@ -36,6 +36,20 @@ interface InfiniteQueryEndpointConfig<
   errorSchema?: ErrorSchema
   urlParamsSchema?: UrlParamsSchema
   processResponse?: (data: TBaseResult) => PageResult
+  /**
+   * For endpoints declared with `result: 'envelope'`, controls how each page
+   * is delivered to React Query.
+   *
+   * - `'none'` (default): each page is the full `ResponseEnvelope`.
+   * - `'throw-on-error'`: on `envelope.ok === false`, the `envelope.error`
+   *   is thrown so React Query's `error` channel fires.
+   * - `'pages'`: recommended for infinite queries; currently identical to
+   *   `'throw-on-error'` at runtime — success pages are unwrapped to
+   *   `envelope.data` and errors throw.
+   *
+   * Has no effect for non-envelope endpoints.
+   */
+  unwrap?: InfiniteUnwrapMode
   getNextPageParam: (
     lastPage: PageResult,
     allPages: PageResult[],

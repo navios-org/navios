@@ -3,6 +3,7 @@ import type { MutationFunctionContext, UseMutationResult } from '@tanstack/react
 import type { ZodObject, ZodType } from 'zod/v4'
 
 import type { MutationArgs, MutationHelpers } from '../../mutation/types.mjs'
+import type { UnwrapMode } from '../../query/types.mjs'
 
 import type { ComputeBaseResult, EndpointHelper } from './helpers.mjs'
 
@@ -37,7 +38,13 @@ export interface ClientMultipartMutationMethods<UseDiscriminator extends boolean
     querySchema: QuerySchema
     responseSchema: Response
     errorSchema?: ErrorSchema
-    processResponse: (data: TBaseResult) => Result | Promise<Result>
+    processResponse?: (data: TBaseResult) => Result | Promise<Result>
+    /**
+     * For endpoints declared with `result: 'envelope'`, controls how the
+     * envelope is delivered to the mutation channel. Has no effect on
+     * non-envelope endpoints.
+     */
+    unwrap?: UnwrapMode
     useContext?: () => Context
     onMutate?: (
       variables: Simplify<MutationArgs<Url, RequestSchema, QuerySchema>>,
@@ -97,7 +104,13 @@ export interface ClientMultipartMutationMethods<UseDiscriminator extends boolean
     querySchema: QuerySchema
     responseSchema: Response
     errorSchema?: ErrorSchema
-    processResponse: (data: TBaseResult) => Result | Promise<Result>
+    processResponse?: (data: TBaseResult) => Result | Promise<Result>
+    /**
+     * For endpoints declared with `result: 'envelope'`, controls how the
+     * envelope is delivered to the mutation channel. Has no effect on
+     * non-envelope endpoints.
+     */
+    unwrap?: UnwrapMode
     useContext?: () => Context
     onMutate?: (
       variables: Simplify<MutationArgs<Url, RequestSchema, QuerySchema>>,
@@ -153,7 +166,13 @@ export interface ClientMultipartMutationMethods<UseDiscriminator extends boolean
     requestSchema: RequestSchema
     responseSchema: Response
     errorSchema?: ErrorSchema
-    processResponse: (data: TBaseResult) => Result | Promise<Result>
+    processResponse?: (data: TBaseResult) => Result | Promise<Result>
+    /**
+     * For endpoints declared with `result: 'envelope'`, controls how the
+     * envelope is delivered to the mutation channel. Has no effect on
+     * non-envelope endpoints.
+     */
+    unwrap?: UnwrapMode
     useContext?: () => Context
     onMutate?: (
       variables: Simplify<MutationArgs<Url, RequestSchema, undefined>>,
@@ -211,7 +230,13 @@ export interface ClientMultipartMutationMethods<UseDiscriminator extends boolean
     requestSchema: RequestSchema
     responseSchema: Response
     errorSchema?: ErrorSchema
-    processResponse: (data: TBaseResult) => Result | Promise<Result>
+    processResponse?: (data: TBaseResult) => Result | Promise<Result>
+    /**
+     * For endpoints declared with `result: 'envelope'`, controls how the
+     * envelope is delivered to the mutation channel. Has no effect on
+     * non-envelope endpoints.
+     */
+    unwrap?: UnwrapMode
     useContext?: () => Context
     onMutate?: (
       variables: Simplify<MutationArgs<Url, RequestSchema, undefined>>,

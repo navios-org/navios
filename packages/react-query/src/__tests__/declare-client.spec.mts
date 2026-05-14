@@ -1,6 +1,7 @@
 import { builder } from '@navios/builder'
 import { create } from '@navios/http'
 import { makeNaviosFakeAdapter } from '@navios/http/testing'
+import { QueryClient } from '@tanstack/react-query'
 import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod/v4'
 
@@ -412,5 +413,122 @@ describe('declareClient', () => {
 
     expect(onMutate).toHaveBeenCalled()
     expect(onSettled).toHaveBeenCalled()
+  })
+
+  it('should accept query without processResponse (processResponse is optional)', async () => {
+    const client = declareClient({ api })
+
+    const query = client.query({
+      url: '/no-process/$id' as const,
+      method: 'GET',
+      responseSchema: z.object({ id: z.string() }),
+    })
+
+    expect(query).toBeDefined()
+    expect(typeof query).toBe('function')
+  })
+
+  it('client.query passes unwrap through to envelope endpoint', async () => {
+    const envelopeAdapter = makeNaviosFakeAdapter()
+    const envelopeApi = builder({})
+    envelopeApi.provideClient(create({ adapter: envelopeAdapter.fetch }))
+    const client = declareClient({ api: envelopeApi })
+
+    envelopeAdapter.mock(
+      '/envelope-query',
+      'GET',
+      () =>
+        new Response(JSON.stringify({ msg: 'not found' }), {
+          status: 404,
+          headers: { 'content-type': 'application/json' },
+        }),
+    )
+
+    const getThing = client.query({
+      method: 'GET',
+      url: '/envelope-query' as const,
+      responseSchema: z.object({ name: z.string() }),
+      errorSchema: { 404: z.object({ msg: z.string() }) },
+      result: 'envelope',
+      unwrap: 'throw-on-error',
+    })
+
+    const qc = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    })
+    await expect(qc.fetchQuery(getThing({}))).rejects.toMatchObject({
+      kind: 'http',
+      status: 404,
+    })
+  })
+
+  it('client.mutation passes unwrap through to envelope mutation', async () => {
+    const envelopeAdapter = makeNaviosFakeAdapter()
+    const envelopeApi = builder({})
+    envelopeApi.provideClient(create({ adapter: envelopeAdapter.fetch }))
+    const client = declareClient({ api: envelopeApi })
+
+    envelopeAdapter.mock(
+      '/envelope-mutation',
+      'POST',
+      () =>
+        new Response(JSON.stringify({ msg: 'bad' }), {
+          status: 400,
+          headers: { 'content-type': 'application/json' },
+        }),
+    )
+
+    let captured: unknown
+    const createThing = client.mutation({
+      method: 'POST',
+      url: '/envelope-mutation' as const,
+      requestSchema: z.object({ name: z.string() }),
+      responseSchema: z.object({ id: z.string() }),
+      errorSchema: { 400: z.object({ msg: z.string() }) },
+      result: 'envelope',
+      unwrap: 'throw-on-error',
+      onError: (err) => {
+        captured = err
+      },
+    })
+
+    const m = createThing()
+    await expect(m.mutateAsync({ data: { name: 'A' } })).rejects.toMatchObject({
+      kind: 'http',
+      status: 400,
+    })
+    expect(captured).toMatchObject({ kind: 'http', status: 400 })
+  })
+
+  it('client.queryFromEndpoint passes unwrap through', async () => {
+    const envelopeAdapter = makeNaviosFakeAdapter()
+    const envelopeApi = builder({})
+    envelopeApi.provideClient(create({ adapter: envelopeAdapter.fetch }))
+    const client = declareClient({ api: envelopeApi })
+
+    envelopeAdapter.mock(
+      '/from-endpoint-query',
+      'GET',
+      () =>
+        new Response(JSON.stringify({ name: 'A' }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        }),
+    )
+
+    const endpoint = envelopeApi.declareEndpoint({
+      method: 'GET',
+      url: '/from-endpoint-query' as const,
+      responseSchema: z.object({ name: z.string() }),
+      result: 'envelope',
+    })
+
+    const getThing = client.queryFromEndpoint(endpoint, {
+      unwrap: 'throw-on-error',
+    })
+
+    const qc = new QueryClient()
+    const data: any = await qc.fetchQuery(getThing({}))
+    expect(data).toEqual({ name: 'A' })
   })
 })

@@ -11,6 +11,7 @@ import type { MutationFunctionContext, UseMutationResult } from '@tanstack/react
 import type { ZodObject, ZodType } from 'zod/v4'
 
 import type { MutationHelpers } from '../../mutation/types.mjs'
+import type { UnwrapMode } from '../../query/types.mjs'
 
 import type { ComputeBaseResult, EndpointHelper } from './helpers.mjs'
 
@@ -51,6 +52,17 @@ interface MutationEndpointConfig<
   errorSchema?: ErrorSchema
   urlParamsSchema?: UrlParamsSchema
   processResponse?: (data: TBaseResult) => Result | Promise<Result>
+  /**
+   * For endpoints declared with `result: 'envelope'`, controls how the
+   * envelope is delivered to React Query's mutation channel.
+   *
+   * - `'none'` (default): the `ResponseEnvelope` is returned as-is.
+   * - `'throw-on-error'`: on `envelope.ok === false`, the `envelope.error`
+   *   is thrown so React Query's `onError` channel fires.
+   *
+   * Has no effect for non-envelope endpoints.
+   */
+  unwrap?: UnwrapMode
   useContext?: () => Context
   useKey?: UseKey
   onMutate?: (
