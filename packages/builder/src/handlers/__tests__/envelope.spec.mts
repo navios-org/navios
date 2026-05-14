@@ -222,4 +222,26 @@ describe("declareEndpoint with result: 'envelope'", () => {
     const result = await getUser({})
     expect(result).toEqual({ id: 1, name: 'A' })
   })
+
+  it('declareStream with result envelope returns Blob in data', async () => {
+    const api = builder()
+    const blob = new Blob(['x'])
+    api.provideClient(
+      mockClient(() =>
+        Promise.resolve({
+          data: blob,
+          status: 200,
+          statusText: 'OK',
+          headers: new Headers({ 'content-type': 'application/pdf' }),
+        }),
+      ),
+    )
+    const dl = api.declareStream({ method: 'GET', url: '/d', result: 'envelope' })
+    const env = await dl({})
+    expect(env.ok).toBe(true)
+    if (env.ok) {
+      expect(env.data).toBe(blob)
+      expect(env.response.headers.get('content-type')).toBe('application/pdf')
+    }
+  })
 })
