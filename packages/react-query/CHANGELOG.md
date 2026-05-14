@@ -1,24 +1,52 @@
 # Changelog
 
-## [1.1.0] - 2026-05-14
+## [2.0.0] - 2026-05-14
 
 ### Added
 
-- **Envelope-aware bridge**: All `client.xxx` and `client.xxxFromEndpoint` surfaces now detect endpoints declared with `result: 'envelope'` (in `@navios/builder` v2+) and pass the envelope through unchanged when `unwrap: 'none'` (default for envelope endpoints).
-- **`unwrap` option** on every helper: `'none' | 'throw-on-error'` for queries, mutations, and multipart mutations; `'none' | 'throw-on-error' | 'pages'` for infinite queries. `'throw-on-error'` re-routes envelope errors through TanStack Query's native `error` channel.
-- **`IsEnvelope<E>`** type detector exported for users who want to write envelope-aware utilities.
-- **`UnwrapMode` / `InfiniteUnwrapMode`** types exported.
-- Forwarded `result` and `validateResponse` from inline `client.query` / `client.mutation` / `client.infiniteQuery` configs through to the underlying endpoint declaration.
+- **Envelope-aware bridge**: all `client.xxx` and `client.xxxFromEndpoint` surfaces detect endpoints declared with `result: 'envelope'` and pass the envelope through unchanged when `unwrap: 'none'` (default).
+- **`unwrap` option** on every helper: `'none' | 'throw-on-error'` for queries / mutations / multipart; `'none' | 'throw-on-error' | 'pages'` for infinite queries.
+- **`IsEnvelope<E>`** type detector.
+- **`UnwrapMode`, `InfiniteUnwrapMode`** types exported.
+- Inline configs forward `result` and `validateResponse` to the underlying endpoint declaration.
 
 ### Changed
 
-- **`processResponse` is now optional** on every helper. The identity transformer that used to be required boilerplate (`processResponse: (data) => data`) can be omitted. Existing calls that pass an explicit `processResponse` continue to work unchanged.
-- `makeInfiniteQueryOptions` now accepts an `EndpointHandler<Options, UseDiscriminator>` instead of the looser `AbstractEndpoint<Config>`, aligning it with `makeQueryOptions` and enabling envelope endpoints without a cast.
+- **Client configs derive from `EndpointOptions`** via `OptionsFromInline` rather than redeclaring fields. Future endpoint fields propagate through return types without per-surface edits.
+- **`makeInfiniteQueryOptions`** accepts `EndpointHandler<Options>` (was `AbstractEndpoint<Config>`).
+- **Result-type computers** unified into a single `ComputeResult<Options, Unwrap>`.
+- **`processResponse` is now optional everywhere**. The identity-transformer boilerplate can be deleted.
+- **Multipart**: 4 overloads collapsed into 1; `UseKey` and optional `QuerySchema` encode the variants.
 
-### Notes
+### Removed
 
-- No behavioural change for non-envelope endpoints. The `unwrap` field is ignored at runtime when the endpoint isn't envelope mode.
-- See [`docs/plans/2026-05-14-builder-response-envelope-design.md`](../../docs/plans/2026-05-14-builder-response-envelope-design.md) for the full design rationale.
+- **`onFail` option** on every helper (`makeQueryOptions`, `makeMutation`, `makeInfiniteQueryOptions`, and all `client.xxx` surfaces) — register `onError` on the builder instead.
+- **`UseDiscriminator` generic** from every client method (`ClientQueryMethods<>`, `ClientMutationMethods<>`, etc.) and from `declareClient`.
+- **`AbstractEndpoint<Config>`, `ClientEndpointHelper` types** — use `EndpointHandler<Options>`, `EndpointHelper<Options>`.
+- **Dual-signature pattern in `EndpointHelper`, `StreamHelper`** — only the modern `Options`-based branch remains.
+- **`ComputeBaseResult`, `ComputeQueryResult`, `ComputeInfinitePageResult`, `ResponseDataType`** — unified into `ComputeResult<Options, Unwrap>`.
+
+### Migration
+
+```diff
+- const userQuery = client.queryFromEndpoint(getUserEndpoint, {
+-   processResponse: (data) => data,  // identity transformer no longer required
+- })
++ const userQuery = client.queryFromEndpoint(getUserEndpoint)
+```
+
+For envelope endpoints needing classic RQ error-channel ergonomics:
+
+```ts
+const userQuery = client.query({
+  method: 'GET',
+  url: '/users/$id',
+  responseSchema: userSchema,
+  result: 'envelope',
+  unwrap: 'throw-on-error',
+})
+// data is User, error is EnvelopeError, just like a regular query
+```
 
 ## [1.0.1] - 2026-01-09
 

@@ -5,9 +5,7 @@ import { z } from 'zod/v4'
 import { declareClient } from '../client/declare-client.mjs'
 
 describe('client type check', () => {
-  const api = builder({
-    useDiscriminatorResponse: true,
-  })
+  const api = builder({})
   const client = declareClient({
     api,
   })

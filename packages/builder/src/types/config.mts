@@ -1,45 +1,52 @@
-import type { ZodError, ZodObject, ZodType } from 'zod/v4'
+import type { ZodObject, ZodType } from 'zod/v4'
+import type { $ZodIssue } from 'zod/v4/core'
 
-import type { AbstractResponse, Client, HttpMethod } from './common.mjs'
+import type { Client, HttpMethod } from './common.mjs'
+import type { EnvelopeError } from './envelope-error.mjs'
 import type { ErrorSchemaRecord } from './error-schema.mjs'
 
 // =============================================================================
 // Builder Configuration
 // =============================================================================
 
-export interface BuilderConfig<UseDiscriminator extends boolean = false> {
-  /**
-   * If your schema uses discriminatedUnion which works for both success
-   * and error responses, you can set this to true to use the discriminator
-   * to parse error response using the same schema as success response.
-   *
-   * When `true`, endpoints with `errorSchema` will return a union type
-   * (success response | error responses). When `false` (default), errors
-   * are thrown and the return type is only the success response.
-   */
-  useDiscriminatorResponse?: UseDiscriminator
+/**
+ * Structured event fired by the unified `onError` hook on every error path.
+ *
+ * - In envelope mode, fired on validation/http/http-unknown/network outcomes
+ *   before the envelope is returned.
+ * - In data mode, fired before the error is rethrown.
+ */
+export interface BuilderErrorEvent {
+  /** Variant classification. Matches `EnvelopeError['kind']`. */
+  kind: EnvelopeError<ErrorSchemaRecord>['kind']
 
-  /**
-   * This method is used to process the error response or to format the
-   * error message.
-   * @param error unknown or NaviosError
-   */
-  onError?: (error: unknown) => void
+  /** HTTP method and URL of the endpoint that produced the error. */
+  endpoint: {
+    method: HttpMethod
+    url: string
+  }
 
+  /** HTTP status code, when available (absent for `kind: 'network'`). */
+  status?: number
+
+  /** Zod validation issues, present when `kind === 'validation'`. */
+  zodIssues?: readonly $ZodIssue[]
+
+  /** Original thrown value (e.g. NaviosError, TypeError, AbortError). */
+  cause: unknown
+
+  /** Response body for HTTP errors (raw if `http-unknown`, parsed if `http`). */
+  body?: unknown
+}
+
+export interface BuilderConfig {
   /**
-   * This method is useful to handle the error with the zod schema.
-   * You can use this to log the error or to show a message to the user.
-   *
-   * Please note that this method has lower priority than the onError method.
-   * @param error ZodError
-   * @param response original response
-   * @param originalError original error
+   * Called whenever any error path fires — HTTP error, Zod validation failure,
+   * or network failure. In envelope mode, errors are not thrown but this hook
+   * still fires for telemetry. In data mode, this fires before the error is
+   * rethrown.
    */
-  onZodError?: (
-    error: ZodError,
-    response: AbstractResponse<any> | undefined,
-    originalError: unknown,
-  ) => void
+  onError?: (event: BuilderErrorEvent) => void
 
   /** Default behaviour applied to every endpoint declaration unless overridden per-endpoint. */
   defaults?: {
@@ -48,9 +55,9 @@ export interface BuilderConfig<UseDiscriminator extends boolean = false> {
   }
 }
 
-export interface BuilderContext<UseDiscriminator extends boolean = boolean> {
+export interface BuilderContext {
   getClient: () => Client
-  config: BuilderConfig<UseDiscriminator>
+  config: BuilderConfig
 }
 
 // =============================================================================
@@ -139,9 +146,8 @@ export interface BaseEndpointOptions {
   /**
    * Optional mapping of HTTP status codes to Zod schemas for error responses.
    *
-   * When `useDiscriminatorResponse` is enabled:
-   * - Matching status codes return parsed error (not thrown)
-   * - Non-matching status codes throw `UnknownResponseError`
+   * In envelope mode (`result: 'envelope'`), matching status codes are
+   * classified as typed `http` errors with parsed bodies.
    */
   errorSchema?: ErrorSchemaRecord
 
@@ -193,76 +199,3 @@ export interface EndpointOptions extends BaseEndpointOptions {
   /** Zod schema for validating and typing the response */
   responseSchema: ZodType
 }
-
-/**
- * Base stream options interface used for const generic inference.
- * Similar to EndpointOptions but without responseSchema (streams return Blob).
- *
- * @deprecated Use BaseEndpointOptions instead
- */
-export type StreamOptions = BaseEndpointOptions
-
-// =============================================================================
-// Legacy Config Types (Preserved for Backwards Compatibility)
-// =============================================================================
-
-/**
- * @deprecated Use BaseEndpointOptions instead
- */
-export interface BaseStreamConfig<
-  Method extends HttpMethod = HttpMethod,
-  Url extends string = string,
-  QuerySchema = undefined,
-  RequestSchema = undefined,
-  ErrorSchema extends ErrorSchemaRecord | undefined = undefined,
-  UrlParamsSchema extends ZodObject | undefined = undefined,
-> {
-  method: Method
-  url: Url
-  querySchema?: QuerySchema
-  requestSchema?: RequestSchema
-  /**
-   * Optional mapping of HTTP status codes to Zod schemas for error responses.
-   *
-   * When `useDiscriminatorResponse` is enabled and an error occurs:
-   * - If the status code matches a key in errorSchema, parse with that schema and RETURN (not throw)
-   * - If the status code does NOT match any key, throw `UnknownResponseError`
-   * - If errorSchema is not defined, use current behavior (re-throw or parse with responseSchema)
-   */
-  errorSchema?: ErrorSchema
-  /**
-   * Optional Zod schema for URL path parameters.
-   * When provided, runtime validation is performed on URL params.
-   */
-  urlParamsSchema?: UrlParamsSchema
-  /**
-   * Optional per-endpoint client configuration.
-   * These options are passed through to the HTTP client.
-   */
-  clientOptions?: ClientOptions
-}
-
-/**
- * @deprecated Use EndpointOptions instead
- */
-export interface BaseEndpointConfig<
-  Method extends HttpMethod = HttpMethod,
-  Url extends string = string,
-  QuerySchema = undefined,
-  ResponseSchema extends ZodType = ZodType,
-  RequestSchema = undefined,
-  ErrorSchema extends ErrorSchemaRecord | undefined = undefined,
-  UrlParamsSchema extends ZodObject | undefined = undefined,
-> extends BaseStreamConfig<Method, Url, QuerySchema, RequestSchema, ErrorSchema, UrlParamsSchema> {
-  responseSchema: ResponseSchema
-}
-
-/**
- * @deprecated Use BaseEndpointOptions instead
- */
-export type AnyStreamConfig = BaseStreamConfig<any, any, any, any, any, any>
-
-/**
- * @deprecated Use EndpointOptions instead
- */
-export type AnyEndpointConfig = BaseEndpointConfig<any, any, any, any, any, any, any>

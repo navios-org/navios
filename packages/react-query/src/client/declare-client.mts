@@ -1,8 +1,4 @@
 import type {
-  AbstractEndpoint,
-  AbstractStream,
-  AnyEndpointConfig,
-  AnyStreamConfig,
   BaseEndpointOptions,
   EndpointHandler,
   EndpointOptions,
@@ -22,7 +18,6 @@ import type { MutationArgs } from '../mutation/types.mjs'
 import type { InfiniteUnwrapMode, UnwrapMode } from '../query/types.mjs'
 
 import type { ClientInstance } from './types.mjs'
-import type { ComputeBaseResult } from './types/helpers.mjs'
 
 /**
  * Configuration for declaring a query endpoint.
@@ -33,7 +28,7 @@ export interface QueryConfig<
   QuerySchema extends ZodObject | undefined = undefined,
   Response extends ZodType = ZodType,
   ErrorSchema extends ErrorSchemaRecord | undefined = undefined,
-  Result = ComputeBaseResult<true, Response, ErrorSchema>,
+  Result = z.output<Response>,
   RequestSchema extends ZodType | undefined = undefined,
 > {
   method: Method
@@ -42,7 +37,7 @@ export interface QueryConfig<
   responseSchema: Response
   errorSchema?: ErrorSchema
   requestSchema?: RequestSchema
-  processResponse?: (data: ComputeBaseResult<true, Response, ErrorSchema>) => Result
+  processResponse?: (data: z.output<Response>) => Result
   unwrap?: UnwrapMode
   result?: 'data' | 'envelope'
   validateResponse?: boolean
@@ -57,7 +52,7 @@ export type InfiniteQueryConfig<
   QuerySchema extends ZodObject = ZodObject,
   Response extends ZodType = ZodType,
   ErrorSchema extends ErrorSchemaRecord | undefined = undefined,
-  PageResult = ComputeBaseResult<true, Response, ErrorSchema>,
+  PageResult = z.output<Response>,
   Result = InfiniteData<PageResult>,
   RequestSchema extends ZodType | undefined = undefined,
 > = {
@@ -67,7 +62,7 @@ export type InfiniteQueryConfig<
   responseSchema: Response
   errorSchema?: ErrorSchema
   requestSchema?: RequestSchema
-  processResponse?: (data: ComputeBaseResult<true, Response, ErrorSchema>) => PageResult
+  processResponse?: (data: z.output<Response>) => PageResult
   unwrap?: InfiniteUnwrapMode
   result?: 'data' | 'envelope'
   validateResponse?: boolean
@@ -97,7 +92,7 @@ export interface MutationConfig<
   QuerySchema extends ZodObject | undefined = undefined,
   Response extends ZodType = ZodType,
   ErrorSchema extends ErrorSchemaRecord | undefined = undefined,
-  ReqResult = ComputeBaseResult<true, Response, ErrorSchema>,
+  ReqResult = z.output<Response>,
   Result = unknown,
   TOnMutateResult = unknown,
   Context = unknown,
@@ -141,9 +136,6 @@ export interface MutationConfig<
 /**
  * Creates a client instance for making type-safe queries and mutations.
  *
- * @template UseDiscriminator - When `true`, errors are returned as union types.
- *   When `false` (default), errors are thrown and not included in TData.
- *
  * @param options - Client configuration including the API builder and defaults
  * @returns A client instance with query, infiniteQuery, and mutation methods
  *
@@ -162,10 +154,7 @@ export interface MutationConfig<
  * const { data } = useSuspenseQuery(getUser({ urlParams: { id: '123' } }));
  * ```
  */
-export function declareClient<UseDiscriminator extends boolean = false>({
-  api,
-  defaults = {},
-}: ClientOptions<UseDiscriminator>): ClientInstance<UseDiscriminator> {
+export function declareClient({ api, defaults = {} }: ClientOptions): ClientInstance {
   function query(config: QueryConfig) {
     const endpoint = api.declareEndpoint({
       method: config.method,
@@ -189,11 +178,9 @@ export function declareClient<UseDiscriminator extends boolean = false>({
   }
 
   function queryFromEndpoint(
-    endpoint:
-      | AbstractEndpoint<AnyEndpointConfig>
-      | EndpointHandler<EndpointOptions, UseDiscriminator>,
+    endpoint: EndpointHandler<EndpointOptions>,
     options?: {
-      processResponse?: (data: z.output<AnyEndpointConfig['responseSchema']>) => unknown
+      processResponse?: (data: z.output<EndpointOptions['responseSchema']>) => unknown
       unwrap?: UnwrapMode
     },
   ) {
@@ -230,25 +217,23 @@ export function declareClient<UseDiscriminator extends boolean = false>({
   }
 
   function infiniteQueryFromEndpoint(
-    endpoint:
-      | AbstractEndpoint<AnyEndpointConfig>
-      | EndpointHandler<EndpointOptions, UseDiscriminator>,
+    endpoint: EndpointHandler<EndpointOptions>,
     options: {
-      processResponse?: (data: z.output<AnyEndpointConfig['responseSchema']>) => unknown
+      processResponse?: (data: z.output<EndpointOptions['responseSchema']>) => unknown
       unwrap?: InfiniteUnwrapMode
       getNextPageParam: (
-        lastPage: z.infer<AnyEndpointConfig['responseSchema']>,
-        allPages: z.infer<AnyEndpointConfig['responseSchema']>[],
-        lastPageParam: z.infer<AnyEndpointConfig['querySchema']> | undefined,
-        allPageParams: z.infer<AnyEndpointConfig['querySchema']>[] | undefined,
-      ) => z.input<AnyEndpointConfig['querySchema']> | undefined
+        lastPage: z.infer<EndpointOptions['responseSchema']>,
+        allPages: z.infer<EndpointOptions['responseSchema']>[],
+        lastPageParam: z.infer<NonNullable<EndpointOptions['querySchema']>> | undefined,
+        allPageParams: z.infer<NonNullable<EndpointOptions['querySchema']>>[] | undefined,
+      ) => z.input<NonNullable<EndpointOptions['querySchema']>> | undefined
       getPreviousPageParam?: (
-        firstPage: z.infer<AnyEndpointConfig['responseSchema']>,
-        allPages: z.infer<AnyEndpointConfig['responseSchema']>[],
-        lastPageParam: z.infer<AnyEndpointConfig['querySchema']> | undefined,
-        allPageParams: z.infer<AnyEndpointConfig['querySchema']>[] | undefined,
-      ) => z.input<AnyEndpointConfig['querySchema']>
-      initialPageParam?: z.input<AnyEndpointConfig['querySchema']>
+        firstPage: z.infer<EndpointOptions['responseSchema']>,
+        allPages: z.infer<EndpointOptions['responseSchema']>[],
+        lastPageParam: z.infer<NonNullable<EndpointOptions['querySchema']>> | undefined,
+        allPageParams: z.infer<NonNullable<EndpointOptions['querySchema']>>[] | undefined,
+      ) => z.input<NonNullable<EndpointOptions['querySchema']>>
+      initialPageParam?: z.input<NonNullable<EndpointOptions['querySchema']>>
     },
   ) {
     return makeInfiniteQueryOptions(endpoint as any, {
@@ -293,11 +278,7 @@ export function declareClient<UseDiscriminator extends boolean = false>({
   }
 
   function mutationFromEndpoint(
-    endpoint:
-      | AbstractEndpoint<AnyEndpointConfig>
-      | AbstractStream<AnyStreamConfig>
-      | EndpointHandler<EndpointOptions, UseDiscriminator>
-      | StreamHandler<BaseEndpointOptions, UseDiscriminator>,
+    endpoint: EndpointHandler<EndpointOptions> | StreamHandler<BaseEndpointOptions>,
     options?: {
       processResponse?: ProcessResponseFunction
       unwrap?: UnwrapMode

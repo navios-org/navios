@@ -21,7 +21,7 @@ import type { Split } from '../../common/types.mjs'
 import type { MutationHelpers } from '../../mutation/types.mjs'
 import type { InfiniteUnwrapMode, QueryHelpers, UnwrapMode } from '../../query/types.mjs'
 
-import type { ComputeBaseResult, EndpointHelper, StreamHelper } from './helpers.mjs'
+import type { ComputeResult, EndpointHelper, StreamHelper } from './helpers.mjs'
 
 /**
  * Helper type to extract useKey from mutation options
@@ -34,11 +34,8 @@ type ExtractUseKey<Options> = Options extends { useKey: infer U }
 
 /**
  * FromEndpoint methods using const generics pattern (simplified from multiple overloads).
- *
- * @template UseDiscriminator - When `true`, errors are returned as union types.
- *   When `false` (default), errors are thrown and not included in TData.
  */
-export interface ClientFromEndpointMethods<UseDiscriminator extends boolean = false> {
+export interface ClientFromEndpointMethods {
   /**
    * Creates a type-safe query from an existing endpoint with automatic type inference.
    *
@@ -59,11 +56,8 @@ export interface ClientFromEndpointMethods<UseDiscriminator extends boolean = fa
    */
   queryFromEndpoint<
     const Config extends EndpointOptions,
-    TBaseResult = ComputeBaseResult<
-      UseDiscriminator,
-      Config['responseSchema'],
-      Config['errorSchema']
-    >,
+    const Unwrap extends UnwrapMode = 'none',
+    TBaseResult = ComputeResult<Config, Unwrap>,
     Result = TBaseResult,
   >(
     endpoint: { config: Config },
@@ -74,7 +68,7 @@ export interface ClientFromEndpointMethods<UseDiscriminator extends boolean = fa
        * envelope is delivered to React Query. Has no effect on non-envelope
        * endpoints.
        */
-      unwrap?: UnwrapMode
+      unwrap?: Unwrap
     },
   ): ((
     params: Simplify<InferEndpointParams<Config>>,
@@ -117,11 +111,8 @@ export interface ClientFromEndpointMethods<UseDiscriminator extends boolean = fa
     const Config extends EndpointOptions & {
       querySchema: ZodObject
     },
-    TBaseResult = ComputeBaseResult<
-      UseDiscriminator,
-      Config['responseSchema'],
-      Config['errorSchema']
-    >,
+    const Unwrap extends InfiniteUnwrapMode = 'none',
+    TBaseResult = ComputeResult<Config, Unwrap>,
     PageResult = TBaseResult,
     Result = InfiniteData<PageResult>,
   >(
@@ -133,7 +124,7 @@ export interface ClientFromEndpointMethods<UseDiscriminator extends boolean = fa
        * page is delivered to React Query. Has no effect on non-envelope
        * endpoints.
        */
-      unwrap?: InfiniteUnwrapMode
+      unwrap?: Unwrap
       getNextPageParam: (
         lastPage: PageResult,
         allPages: PageResult[],
@@ -186,12 +177,9 @@ export interface ClientFromEndpointMethods<UseDiscriminator extends boolean = fa
    */
   mutationFromEndpoint<
     const Config extends EndpointOptions | BaseEndpointOptions,
-    TBaseResult = Config extends EndpointOptions
-      ? ComputeBaseResult<UseDiscriminator, Config['responseSchema'], Config['errorSchema']>
-      : Blob,
-    Result = Config extends EndpointOptions
-      ? ComputeBaseResult<UseDiscriminator, Config['responseSchema'], Config['errorSchema']>
-      : Blob,
+    const Unwrap extends UnwrapMode = 'none',
+    TBaseResult = Config extends EndpointOptions ? ComputeResult<Config, Unwrap> : Blob,
+    Result = Config extends EndpointOptions ? ComputeResult<Config, Unwrap> : Blob,
     OnMutateResult = unknown,
     Context = unknown,
   >(
@@ -203,7 +191,7 @@ export interface ClientFromEndpointMethods<UseDiscriminator extends boolean = fa
        * envelope is delivered to the mutation channel. Has no effect on
        * non-envelope endpoints.
        */
-      unwrap?: UnwrapMode
+      unwrap?: Unwrap
       useContext?: () => Context
       useKey?: boolean
       onMutate?: (
@@ -286,7 +274,5 @@ export interface ClientFromEndpointMethods<UseDiscriminator extends boolean = fa
     (ExtractUseKey<typeof mutationOptions> extends true
       ? MutationHelpers<Config['url'], Result>
       : {}) &
-    (Config extends EndpointOptions
-      ? EndpointHelper<Config, UseDiscriminator>
-      : StreamHelper<Config, UseDiscriminator>)
+    (Config extends EndpointOptions ? EndpointHelper<Config> : StreamHelper<Config>)
 }

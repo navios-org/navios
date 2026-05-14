@@ -328,47 +328,6 @@ describe('createMultipart', () => {
       )
       expect(onError).toHaveBeenCalled()
     })
-
-    it('should use discriminator response on error', async () => {
-      const discriminatorSchema = z.discriminatedUnion('status', [
-        z.object({
-          status: z.literal('success'),
-          id: z.string(),
-          filename: z.string(),
-        }),
-        z.object({ status: z.literal('error'), message: z.string() }),
-      ])
-
-      const client: Client = {
-        request: vi.fn().mockRejectedValue({
-          response: {
-            data: { status: 'error', message: 'File too large' },
-            status: 413,
-            statusText: 'Payload Too Large',
-            headers: {},
-          },
-        }),
-      }
-      const context = createContext(client, { useDiscriminatorResponse: true })
-      const file = new File(['content'], 'large.zip', {
-        type: 'application/zip',
-      })
-
-      const handler = createMultipart(
-        {
-          method: 'POST',
-          url: '/upload',
-          querySchema: undefined,
-          requestSchema,
-          responseSchema: discriminatorSchema,
-        } as any,
-        context,
-      )
-
-      const result = await handler({ data: { name: 'Large File', file } } as any)
-
-      expect(result).toEqual({ status: 'error', message: 'File too large' })
-    })
   })
 
   describe('FormData content', () => {

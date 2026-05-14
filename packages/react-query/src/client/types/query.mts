@@ -11,31 +11,16 @@ import type { ZodObject, ZodType } from 'zod/v4'
 import type { Split } from '../../common/types.mjs'
 import type { QueryHelpers, UnwrapMode } from '../../query/types.mjs'
 
-import type { ComputeQueryResult, EndpointHelper, ResultMode } from './helpers.mjs'
-
-/**
- * Helper type to build endpoint options without including undefined properties.
- * This ensures HasProperty correctly identifies missing properties.
- */
-type BuildEndpointOptions<
-  Method extends HttpMethod,
-  Url extends string,
-  QuerySchema extends ZodObject | undefined,
-  RequestSchema extends ZodType | undefined,
-  ResponseSchema extends ZodType,
-  ErrorSchema extends ErrorSchemaRecord | undefined,
-  UrlParamsSchema extends ZodObject | undefined,
-> = {
-  method: Method
-  url: Url
-  responseSchema: ResponseSchema
-} & (QuerySchema extends undefined ? {} : { querySchema: QuerySchema }) &
-  (RequestSchema extends undefined ? {} : { requestSchema: RequestSchema }) &
-  (ErrorSchema extends undefined ? {} : { errorSchema: ErrorSchema }) &
-  (UrlParamsSchema extends undefined ? {} : { urlParamsSchema: UrlParamsSchema })
+import type { ComputeResult, EndpointHelper, OptionsFromInline, ResultMode } from './helpers.mjs'
 
 /**
  * Extended endpoint options interface for query that includes processResponse.
+ *
+ * Inherits all endpoint fields from `EndpointOptions` and adds the
+ * surface-specific `processResponse` / `unwrap` fields. The per-field
+ * generic parameters (`Method`, `Url`, `QuerySchema`, …) re-declare the
+ * underlying endpoint fields with concrete generics — this is what lets
+ * TypeScript infer the precise shape of the literal passed to `query(...)`.
  */
 interface QueryEndpointConfig<
   Method extends HttpMethod,
@@ -46,7 +31,7 @@ interface QueryEndpointConfig<
   ErrorSchema extends ErrorSchemaRecord | undefined,
   UrlParamsSchema extends ZodObject | undefined,
   ResultModeT extends ResultMode,
-  Unwrap extends UnwrapMode | undefined,
+  Unwrap extends UnwrapMode,
   TBaseResult,
   Result,
 > extends EndpointOptions {
@@ -57,17 +42,8 @@ interface QueryEndpointConfig<
   responseSchema: ResponseSchema
   errorSchema?: ErrorSchema
   urlParamsSchema?: UrlParamsSchema
-  processResponse?: (data: TBaseResult) => Result
-  /**
-   * Selects the wire-level result shape produced by the endpoint.
-   *
-   * - `'data'` (or omitted, default): legacy throwing surface — success body
-   *   is returned, errors throw.
-   * - `'envelope'`: surface becomes a `ResponseEnvelope<Data, EnvelopeError<...>>`.
-   *   Combine with {@link unwrap} to control how the envelope is exposed to
-   *   React Query.
-   */
   result?: ResultModeT
+  processResponse?: (data: TBaseResult) => Result
   /**
    * For endpoints declared with `result: 'envelope'`, controls how the
    * envelope is delivered to React Query.
@@ -82,17 +58,15 @@ interface QueryEndpointConfig<
 }
 
 /**
- * Query method using decomposed generics pattern for proper processResponse typing.
- *
- * @template UseDiscriminator - When `true`, errors are returned as union types.
- *   When `false` (default), errors are thrown and not included in TData.
+ * Query method using decomposed generics for inference. Once the literal is
+ * inferred field-by-field, `Options` is synthesised via `OptionsFromInline`
+ * and reused everywhere downstream — the return type only references
+ * `Options` (and a handful of surface-specific generics), so adding a new
+ * endpoint field to `EndpointOptions` propagates via `Options` automatically.
  */
-export interface ClientQueryMethods<UseDiscriminator extends boolean = false> {
+export interface ClientQueryMethods {
   /**
    * Creates a type-safe query with automatic type inference.
-   *
-   * Uses decomposed generic pattern to infer types from the configuration object.
-   * All schema combinations are handled by a single method.
    *
    * @example
    * ```ts
@@ -115,24 +89,19 @@ export interface ClientQueryMethods<UseDiscriminator extends boolean = false> {
     const ErrorSchema extends ErrorSchemaRecord | undefined = undefined,
     const UrlParamsSchema extends ZodObject | undefined = undefined,
     const ResultModeT extends ResultMode = undefined,
-    const Unwrap extends UnwrapMode | undefined = undefined,
-    const TBaseResult = ComputeQueryResult<
-      UseDiscriminator,
-      ResponseSchema,
-      ErrorSchema,
-      ResultModeT,
-      Unwrap
-    >,
-    const Result = TBaseResult,
-    const Options extends EndpointOptions = BuildEndpointOptions<
+    const Unwrap extends UnwrapMode = 'none',
+    const Options extends EndpointOptions = OptionsFromInline<
       Method,
       Url,
       QuerySchema,
       RequestSchema,
       ResponseSchema,
       ErrorSchema,
-      UrlParamsSchema
+      UrlParamsSchema,
+      ResultModeT
     >,
+    const TBaseResult = ComputeResult<Options, Unwrap>,
+    const Result = TBaseResult,
   >(
     config: QueryEndpointConfig<
       Method,
@@ -149,7 +118,18 @@ export interface ClientQueryMethods<UseDiscriminator extends boolean = false> {
     >,
   ): ((
     params: Simplify<InferEndpointParams<Options>>,
-  ) => UseSuspenseQueryOptions<Result, Error, Result, DataTag<Split<Url, '/'>, Result, Error>>) &
-    QueryHelpers<Url, QuerySchema, Result, false, RequestSchema> &
-    EndpointHelper<Options, UseDiscriminator>
+  ) => UseSuspenseQueryOptions<
+    Result,
+    Error,
+    Result,
+    DataTag<Split<Options['url'], '/'>, Result, Error>
+  >) &
+    QueryHelpers<
+      Options['url'],
+      Options['querySchema'] extends ZodObject ? Options['querySchema'] : undefined,
+      Result,
+      false,
+      Options['requestSchema'] extends ZodType ? Options['requestSchema'] : undefined
+    > &
+    EndpointHelper<Options>
 }

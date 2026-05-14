@@ -9,7 +9,8 @@
 - **Integration with @navios/http**: @navios/http is a powerful HTTP client that simplifies API requests. By combining it with Zod, you can create a robust and type-safe API client.
 - **Declarative API**: The API is designed to be declarative, allowing you to define your API endpoints and their schemas in a clear and concise manner. This makes it easy to understand and maintain your API client.
 - **Discriminated Union Support**: The package supports discriminated unions, allowing you to handle different response types based on a common property. This is useful for APIs that return different data structures based on the request.
-- **Error Schema Support**: Define different Zod schemas for different HTTP error status codes with type-safe discrimination using `isErrorStatus()` and `isErrorResponse()` helpers.
+- **Envelope Mode**: Opt endpoints into a non-throwing return shape (`{ ok, data, error, response }`) with typed error variants (`http`, `http-unknown`, `validation`, `network`) via `result: 'envelope'`.
+- **Error Schema Support**: Define different Zod schemas for different HTTP error status codes with type-safe discrimination using `isHttpError()` and the other envelope guards.
 - **URL Parameter Validation**: Validate URL parameters at runtime using Zod schemas with `urlParamsSchema` option.
 - **Customizable**: The package allows you to customize the behavior of the API client, such as using a custom client.
 - **Error Handling**: The package provides built-in error handling capabilities, allowing you to handle API errors gracefully and provide meaningful feedback to users.
@@ -36,9 +37,7 @@ import { create } from '@navios/http'
 import { create } from 'axios'
 import { z } from 'zod/v4'
 
-const API = builder({
-  useDiscriminatorResponse: true,
-})
+const API = builder()
 
 const client = create({
   baseURL: 'https://example.com/api/',
@@ -68,9 +67,7 @@ import { z } from 'zod/v4'
 
 import { GetUsersResponseSchema } from './schemas/GetUsersResponseSchema.js'
 
-const API = builder({
-  useDiscriminatorResponse: true,
-})
+const API = builder()
 
 const UpdateUserRequestSchema = z.object({
   id: z.number(),
@@ -132,7 +129,8 @@ if (result.status === 'success') {
 
 `builder` is a function that creates an API object. It accepts an object with the following properties:
 
-- `useDiscriminatorResponse` - if `true`, the error response will be checked by the original responseSchema. Default is `false`.
+- `defaults` - default settings applied to every endpoint declared by this builder. Currently supports `defaults.result: 'data' | 'envelope'`.
+- `onError` - global error hook. Receives a structured `BuilderErrorEvent` (`kind`, `endpoint`, `status`, `zodIssues`, `cause`, `body`) on every failure path. Use `event.kind === 'validation'` to react to Zod failures specifically.
 
 The function returns an API object with the following methods:
 
@@ -209,12 +207,12 @@ getClient() // Returns the current client or throws NaviosError if not set
 
 ### Error Schema
 
-Define different response schemas for different HTTP error status codes:
+Define different response schemas for different HTTP error status codes. Combine `errorSchema` with `result: 'envelope'` for type-safe error discrimination:
 
 ```ts
-import { builder, isErrorResponse, isErrorStatus } from '@navios/builder'
+import { builder, isHttpError } from '@navios/builder'
 
-const API = builder({ useDiscriminatorResponse: true })
+const API = builder()
 
 const getUser = API.declareEndpoint({
   method: 'GET',
@@ -228,25 +226,26 @@ const getUser = API.declareEndpoint({
     404: z.object({ error: z.literal('Not Found') }),
     500: z.object({ error: z.string() }),
   },
+  result: 'envelope',
 })
 
-const result = await getUser({ urlParams: { userId: '123' } })
+const { data, error } = await getUser({ urlParams: { userId: '123' } })
 
 // Use type guards to narrow the type
-if (isErrorStatus(result, 404)) {
-  console.log('Not found:', result.error) // TypeScript knows this is the 404 schema
-} else if (isErrorResponse(result)) {
-  console.log('Error:', result.__status, result.error)
-} else {
-  console.log('User:', result.name) // TypeScript knows this is the success response
+if (isHttpError(error, 404)) {
+  console.log('Not found:', error.body.error) // TypeScript knows this is the 404 schema
+} else if (isHttpError(error)) {
+  console.log('Error:', error.status, error.body)
+} else if (!error) {
+  console.log('User:', data.name) // TypeScript knows this is the success response
 }
 ```
 
-When `useDiscriminatorResponse` is `true` and `errorSchema` is defined:
+With `result: 'envelope'` and `errorSchema` defined:
 
-- Error responses matching a status code in `errorSchema` are parsed and returned (not thrown)
-- Error responses include a `__status` property with the HTTP status code
-- Unmatched status codes throw `UnknownResponseError`
+- Error responses matching a status code in `errorSchema` are parsed and returned on `error.body` (not thrown)
+- The typed `error` variant carries `status`, `body`, and `kind`
+- Unmatched status codes surface as the `http-unknown` variant with `body: unknown`
 
 ### URL Parameter Validation
 
@@ -410,10 +409,20 @@ const retryMs = getRetryAfterMs(response) // number | null (seconds or HTTP-date
 
 All helpers accept `ResponseMeta | null`, so they are safe to call on an error envelope where `response` may be absent.
 
-### Migration from `useDiscriminatorResponse`
+### Subtle behaviour to be aware of
+
+- **`builder({ defaults: { result: 'envelope' } })` is a global contract change.** Every endpoint declared on that builder returns an envelope instead of throwing. `try` / `catch` blocks that previously caught HTTP failures will silently stop catching — failing assignments will surface as runtime errors at the destructuring site. Prefer per-endpoint opt-in unless you're rewriting your whole call site.
+
+- **`response.headers` is a Fetch `Headers` instance**, not a plain object. It is **not JSON-serializable**. SSR hydration, React Query's persister, and `localStorage` will silently lose headers. If you need to persist envelopes, convert with `Object.fromEntries(envelope.response.headers.entries())` first.
+
+- **`Object.freeze` is applied to `EnvelopeError['http']` bodies only.** Other variants (`http-unknown`, `validation`) leave their `body` mutable. Don't rely on freezing for runtime safety.
+
+### Migration from v1 (`useDiscriminatorResponse`)
+
+In v1 you discriminated error responses with `useDiscriminatorResponse: true` and the `isErrorStatus` / `isErrorResponse` guards. v2 removes that mode entirely; use `result: 'envelope'` with `isHttpError` instead:
 
 ```typescript
-// Before
+// v1
 import { builder, isErrorResponse, isErrorStatus } from '@navios/builder'
 
 const API = builder({ useDiscriminatorResponse: true })
@@ -434,7 +443,7 @@ if (isErrorStatus(result, 404)) {
   console.log(result.name)
 }
 
-// After
+// v2
 import { builder, isHttpError } from '@navios/builder'
 
 const API = builder()
@@ -455,7 +464,7 @@ if (isHttpError(error, 404)) {
 }
 ```
 
-`useDiscriminatorResponse`, `isErrorStatus`, and `isErrorResponse` are deprecated and will be removed in the next major. The legacy mode still works (and `isErrorStatus` / `isErrorResponse` still discriminate it) for one major version.
+The legacy flag, `isErrorStatus`, `isErrorResponse`, and `__status` injection are removed in v2.
 
 ### `validateResponse: false`
 

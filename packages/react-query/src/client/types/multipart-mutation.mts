@@ -1,328 +1,156 @@
-import type { ErrorSchemaRecord, Simplify, UrlHasParams, UrlParams } from '@navios/builder'
+import type {
+  EndpointOptions,
+  ErrorSchemaRecord,
+  RequestArgs,
+  Simplify,
+  UrlHasParams,
+  UrlParams,
+} from '@navios/builder'
 import type { MutationFunctionContext, UseMutationResult } from '@tanstack/react-query'
 import type { ZodObject, ZodType } from 'zod/v4'
 
-import type { MutationArgs, MutationHelpers } from '../../mutation/types.mjs'
+import type { MutationHelpers } from '../../mutation/types.mjs'
 import type { UnwrapMode } from '../../query/types.mjs'
 
-import type { ComputeQueryResult, EndpointHelper, ResultMode } from './helpers.mjs'
+import type { ComputeResult, EndpointHelper, OptionsFromInline, ResultMode } from './helpers.mjs'
 
 /**
- * Multipart mutation method overloads for ClientInstance.
- *
- * @template UseDiscriminator - When `true`, errors are returned as union types.
- *   When `false` (default), errors are thrown and not included in TData.
+ * Variables shape for a multipart mutation, derived from the synthesised
+ * `Options` type.
  */
-export interface ClientMultipartMutationMethods<UseDiscriminator extends boolean = false> {
-  // ============================================================================
-  // MULTIPART MUTATION METHODS
-  // ============================================================================
+type MultipartVariables<Options extends EndpointOptions> = Simplify<
+  RequestArgs<
+    Options['url'],
+    Options['querySchema'] extends ZodObject ? Options['querySchema'] : undefined,
+    Options['requestSchema'] extends ZodType ? Options['requestSchema'] : undefined
+  >
+>
 
-  multipartMutation<
-    Method extends 'POST' | 'PUT' | 'PATCH' = 'POST' | 'PUT' | 'PATCH',
-    Url extends string = string,
-    RequestSchema extends ZodType = ZodType,
-    QuerySchema extends ZodObject = ZodObject,
-    Response extends ZodType = ZodType,
-    ErrorSchema extends ErrorSchemaRecord | undefined = undefined,
-    ResultModeT extends ResultMode = undefined,
-    Unwrap extends UnwrapMode | undefined = undefined,
-    TBaseResult = ComputeQueryResult<UseDiscriminator, Response, ErrorSchema, ResultModeT, Unwrap>,
-    Result = unknown,
-    OnMutateResult = unknown,
-    Context = unknown,
-    UseKey extends true = true,
-  >(config: {
-    method: Method
-    url: Url
-    useKey: UseKey
-    requestSchema: RequestSchema
-    querySchema: QuerySchema
-    responseSchema: Response
-    errorSchema?: ErrorSchema
-    processResponse?: (data: TBaseResult) => Result | Promise<Result>
-    /**
-     * Selects the wire-level result shape produced by the endpoint.
-     *
-     * - `'data'` (or omitted, default): legacy throwing surface — success body
-     *   is returned, errors throw.
-     * - `'envelope'`: surface becomes a `ResponseEnvelope`. Combine with
-     *   {@link unwrap} to control how the envelope is exposed to the mutation
-     *   channel.
-     */
-    result?: ResultModeT
-    /**
-     * For endpoints declared with `result: 'envelope'`, controls how the
-     * envelope is delivered to the mutation channel. Has no effect on
-     * non-envelope endpoints.
-     */
-    unwrap?: Unwrap
-    useContext?: () => Context
-    onMutate?: (
-      variables: Simplify<MutationArgs<Url, RequestSchema, QuerySchema>>,
-      context: Context & MutationFunctionContext,
-    ) => OnMutateResult | Promise<OnMutateResult>
-    onSuccess?: (
-      data: NoInfer<Result>,
-      variables: Simplify<MutationArgs<Url, RequestSchema, QuerySchema>>,
-      context: Context &
-        MutationFunctionContext & {
-          onMutateResult: OnMutateResult | undefined
-        },
-    ) => void | Promise<void>
-    onError?: (
-      error: Error,
-      variables: Simplify<MutationArgs<Url, RequestSchema, QuerySchema>>,
-      context: Context &
-        MutationFunctionContext & {
-          onMutateResult: OnMutateResult | undefined
-        },
-    ) => void | Promise<void>
-    onSettled?: (
-      data: NoInfer<Result> | undefined,
-      error: Error | null,
-      variables: Simplify<MutationArgs<Url, RequestSchema, QuerySchema>>,
-      context: Context &
-        MutationFunctionContext & {
-          onMutateResult: OnMutateResult | undefined
-        },
-    ) => void | Promise<void>
-  }): ((
-    params: UrlHasParams<Url> extends true ? { urlParams: UrlParams<Url> } : {},
-  ) => UseMutationResult<
-    Result,
-    Error,
-    MutationArgs<Url, RequestSchema, QuerySchema>,
-    OnMutateResult
-  >) &
-    MutationHelpers<Url, Result> &
-    EndpointHelper<Method, Url, RequestSchema, Response, QuerySchema>
+/**
+ * Extended endpoint config for `multipartMutation`. Mirrors
+ * `MutationEndpointConfig` but constrains the HTTP method to `'POST' |
+ * 'PUT' | 'PATCH'` and treats `requestSchema` as required.
+ */
+interface MultipartMutationEndpointConfig<
+  Method extends 'POST' | 'PUT' | 'PATCH',
+  Url extends string,
+  QuerySchema extends ZodObject | undefined,
+  RequestSchema extends ZodType,
+  ResponseSchema extends ZodType,
+  ErrorSchema extends ErrorSchemaRecord | undefined,
+  ResultModeT extends ResultMode,
+  UseKey extends boolean,
+  Unwrap extends UnwrapMode,
+  TBaseResult,
+  Result,
+  OnMutateResult,
+  Context,
+  Variables,
+> extends EndpointOptions {
+  method: Method
+  url: Url
+  querySchema?: QuerySchema
+  requestSchema: RequestSchema
+  responseSchema: ResponseSchema
+  errorSchema?: ErrorSchema
+  result?: ResultModeT
+  useKey?: UseKey
+  processResponse?: (data: TBaseResult) => Result | Promise<Result>
+  /**
+   * For endpoints declared with `result: 'envelope'`, controls how the
+   * envelope is delivered to the mutation channel. Has no effect on
+   * non-envelope endpoints.
+   */
+  unwrap?: Unwrap
+  useContext?: () => Context
+  onMutate?: (
+    variables: Variables,
+    context: Context & MutationFunctionContext,
+  ) => OnMutateResult | Promise<OnMutateResult>
+  onSuccess?: (
+    data: NoInfer<Result>,
+    variables: Variables,
+    context: Context &
+      MutationFunctionContext & {
+        onMutateResult: OnMutateResult | undefined
+      },
+  ) => void | Promise<void>
+  onError?: (
+    error: Error,
+    variables: Variables,
+    context: Context &
+      MutationFunctionContext & {
+        onMutateResult: OnMutateResult | undefined
+      },
+  ) => void | Promise<void>
+  onSettled?: (
+    data: NoInfer<Result> | undefined,
+    error: Error | null,
+    variables: Variables,
+    context: Context &
+      MutationFunctionContext & {
+        onMutateResult: OnMutateResult | undefined
+      },
+  ) => void | Promise<void>
+}
 
+/**
+ * Multipart mutation method.
+ *
+ * Collapsed from four near-identical overloads into a single signature whose
+ * `UseKey extends boolean` and `QuerySchema extends ZodObject | undefined`
+ * generics encode the variants previously split across overloads.
+ */
+export interface ClientMultipartMutationMethods {
   multipartMutation<
-    Method extends 'POST' | 'PUT' | 'PATCH' = 'POST' | 'PUT' | 'PATCH',
-    Url extends string = string,
-    RequestSchema extends ZodType = ZodType,
-    QuerySchema extends ZodObject = ZodObject,
-    Response extends ZodType = ZodType,
-    ErrorSchema extends ErrorSchemaRecord | undefined = undefined,
-    ResultModeT extends ResultMode = undefined,
-    Unwrap extends UnwrapMode | undefined = undefined,
-    TBaseResult = ComputeQueryResult<UseDiscriminator, Response, ErrorSchema, ResultModeT, Unwrap>,
-    Result = unknown,
-    OnMutateResult = unknown,
-    Context = unknown,
-  >(config: {
-    method: Method
-    url: Url
-    requestSchema: RequestSchema
-    querySchema: QuerySchema
-    responseSchema: Response
-    errorSchema?: ErrorSchema
-    processResponse?: (data: TBaseResult) => Result | Promise<Result>
-    /**
-     * Selects the wire-level result shape produced by the endpoint.
-     *
-     * - `'data'` (or omitted, default): legacy throwing surface — success body
-     *   is returned, errors throw.
-     * - `'envelope'`: surface becomes a `ResponseEnvelope`. Combine with
-     *   {@link unwrap} to control how the envelope is exposed to the mutation
-     *   channel.
-     */
-    result?: ResultModeT
-    /**
-     * For endpoints declared with `result: 'envelope'`, controls how the
-     * envelope is delivered to the mutation channel. Has no effect on
-     * non-envelope endpoints.
-     */
-    unwrap?: Unwrap
-    useContext?: () => Context
-    onMutate?: (
-      variables: Simplify<MutationArgs<Url, RequestSchema, QuerySchema>>,
-      context: Context & MutationFunctionContext,
-    ) => OnMutateResult | Promise<OnMutateResult>
-    onSuccess?: (
-      data: NoInfer<Result>,
-      variables: Simplify<MutationArgs<Url, RequestSchema, QuerySchema>>,
-      context: Context &
-        MutationFunctionContext & {
-          onMutateResult: OnMutateResult | undefined
-        },
-    ) => void | Promise<void>
-    onError?: (
-      error: Error,
-      variables: Simplify<MutationArgs<Url, RequestSchema, QuerySchema>>,
-      context: Context &
-        MutationFunctionContext & {
-          onMutateResult: OnMutateResult | undefined
-        },
-    ) => void | Promise<void>
-    onSettled?: (
-      data: NoInfer<Result> | undefined,
-      error: Error | null,
-      variables: Simplify<MutationArgs<Url, RequestSchema, QuerySchema>>,
-      context: Context &
-        MutationFunctionContext & {
-          onMutateResult: OnMutateResult | undefined
-        },
-    ) => void | Promise<void>
-  }): (() => UseMutationResult<
-    Result,
-    Error,
-    MutationArgs<Url, RequestSchema, QuerySchema>,
-    OnMutateResult
-  >) &
-    MutationHelpers<Url, Result> &
-    EndpointHelper<Method, Url, RequestSchema, Response, QuerySchema>
-
-  multipartMutation<
-    Method extends 'POST' | 'PUT' | 'PATCH' = 'POST' | 'PUT' | 'PATCH',
-    Url extends string = string,
-    RequestSchema extends ZodType = ZodType,
-    Response extends ZodType = ZodType,
-    ErrorSchema extends ErrorSchemaRecord | undefined = undefined,
-    ResultModeT extends ResultMode = undefined,
-    Unwrap extends UnwrapMode | undefined = undefined,
-    TBaseResult = ComputeQueryResult<UseDiscriminator, Response, ErrorSchema, ResultModeT, Unwrap>,
-    Result = unknown,
-    OnMutateResult = unknown,
-    Context = unknown,
-  >(config: {
-    method: Method
-    url: Url
-    requestSchema: RequestSchema
-    responseSchema: Response
-    errorSchema?: ErrorSchema
-    processResponse?: (data: TBaseResult) => Result | Promise<Result>
-    /**
-     * Selects the wire-level result shape produced by the endpoint.
-     *
-     * - `'data'` (or omitted, default): legacy throwing surface — success body
-     *   is returned, errors throw.
-     * - `'envelope'`: surface becomes a `ResponseEnvelope`. Combine with
-     *   {@link unwrap} to control how the envelope is exposed to the mutation
-     *   channel.
-     */
-    result?: ResultModeT
-    /**
-     * For endpoints declared with `result: 'envelope'`, controls how the
-     * envelope is delivered to the mutation channel. Has no effect on
-     * non-envelope endpoints.
-     */
-    unwrap?: Unwrap
-    useContext?: () => Context
-    onMutate?: (
-      variables: Simplify<MutationArgs<Url, RequestSchema, undefined>>,
-      context: Context & MutationFunctionContext,
-    ) => OnMutateResult | Promise<OnMutateResult>
-    onSuccess?: (
-      data: NoInfer<Result>,
-      variables: Simplify<MutationArgs<Url, RequestSchema, undefined>>,
-      context: Context &
-        MutationFunctionContext & {
-          onMutateResult: OnMutateResult | undefined
-        },
-    ) => void | Promise<void>
-    onError?: (
-      error: Error,
-      variables: Simplify<MutationArgs<Url, RequestSchema, undefined>>,
-      context: Context &
-        MutationFunctionContext & {
-          onMutateResult: OnMutateResult | undefined
-        },
-    ) => void | Promise<void>
-    onSettled?: (
-      data: NoInfer<Result> | undefined,
-      error: Error | null,
-      variables: Simplify<MutationArgs<Url, RequestSchema, undefined>>,
-      context: Context &
-        MutationFunctionContext & {
-          onMutateResult: OnMutateResult | undefined
-        },
-    ) => void | Promise<void>
-  }): (() => UseMutationResult<
-    Result,
-    Error,
-    MutationArgs<Url, RequestSchema, undefined>,
-    OnMutateResult
-  >) &
-    MutationHelpers<Url, Result> &
-    EndpointHelper<Method, Url, RequestSchema, Response>
-
-  multipartMutation<
-    Method extends 'POST' | 'PUT' | 'PATCH' = 'POST' | 'PUT' | 'PATCH',
-    Url extends string = string,
-    RequestSchema extends ZodType = ZodType,
-    Response extends ZodType = ZodType,
-    ErrorSchema extends ErrorSchemaRecord | undefined = undefined,
-    ResultModeT extends ResultMode = undefined,
-    Unwrap extends UnwrapMode | undefined = undefined,
-    TBaseResult = ComputeQueryResult<UseDiscriminator, Response, ErrorSchema, ResultModeT, Unwrap>,
-    Result = unknown,
-    OnMutateResult = unknown,
-    Context = unknown,
-    UseKey extends true = true,
-  >(config: {
-    method: Method
-    url: Url
-    useKey: UseKey
-    requestSchema: RequestSchema
-    responseSchema: Response
-    errorSchema?: ErrorSchema
-    processResponse?: (data: TBaseResult) => Result | Promise<Result>
-    /**
-     * Selects the wire-level result shape produced by the endpoint.
-     *
-     * - `'data'` (or omitted, default): legacy throwing surface — success body
-     *   is returned, errors throw.
-     * - `'envelope'`: surface becomes a `ResponseEnvelope`. Combine with
-     *   {@link unwrap} to control how the envelope is exposed to the mutation
-     *   channel.
-     */
-    result?: ResultModeT
-    /**
-     * For endpoints declared with `result: 'envelope'`, controls how the
-     * envelope is delivered to the mutation channel. Has no effect on
-     * non-envelope endpoints.
-     */
-    unwrap?: Unwrap
-    useContext?: () => Context
-    onMutate?: (
-      variables: Simplify<MutationArgs<Url, RequestSchema, undefined>>,
-      context: Context & MutationFunctionContext,
-    ) => OnMutateResult | Promise<OnMutateResult>
-    onSuccess?: (
-      data: NoInfer<Result>,
-      variables: Simplify<MutationArgs<Url, RequestSchema, undefined>>,
-      context: Context &
-        MutationFunctionContext & {
-          onMutateResult: OnMutateResult | undefined
-        },
-    ) => void | Promise<void>
-    onError?: (
-      error: Error,
-      variables: Simplify<MutationArgs<Url, RequestSchema, undefined>>,
-      context: Context &
-        MutationFunctionContext & {
-          onMutateResult: OnMutateResult | undefined
-        },
-    ) => void | Promise<void>
-    onSettled?: (
-      data: NoInfer<Result> | undefined,
-      error: Error | null,
-      variables: Simplify<MutationArgs<Url, RequestSchema, undefined>>,
-      context: Context &
-        MutationFunctionContext & {
-          onMutateResult: OnMutateResult | undefined
-        },
-    ) => void | Promise<void>
-  }): ((
-    params: UrlHasParams<Url> extends true ? { urlParams: UrlParams<Url> } : {},
-  ) => UseMutationResult<
-    Result,
-    Error,
-    MutationArgs<Url, RequestSchema, undefined>,
-    OnMutateResult
-  >) &
-    MutationHelpers<Url, Result> &
-    EndpointHelper<Method, Url, RequestSchema, Response>
+    const Method extends 'POST' | 'PUT' | 'PATCH' = 'POST' | 'PUT' | 'PATCH',
+    const Url extends string = string,
+    const RequestSchema extends ZodType = ZodType,
+    const QuerySchema extends ZodObject | undefined = undefined,
+    const ResponseSchema extends ZodType = ZodType,
+    const ErrorSchema extends ErrorSchemaRecord | undefined = undefined,
+    const ResultModeT extends ResultMode = undefined,
+    const UseKey extends boolean = false,
+    const Unwrap extends UnwrapMode = 'none',
+    const Options extends EndpointOptions = OptionsFromInline<
+      Method,
+      Url,
+      QuerySchema,
+      RequestSchema,
+      ResponseSchema,
+      ErrorSchema,
+      undefined,
+      ResultModeT
+    >,
+    const TBaseResult = ComputeResult<Options, Unwrap>,
+    const Result = TBaseResult,
+    const OnMutateResult = unknown,
+    const Context = unknown,
+    const Variables = MultipartVariables<Options>,
+  >(
+    config: MultipartMutationEndpointConfig<
+      Method,
+      Url,
+      QuerySchema,
+      RequestSchema,
+      ResponseSchema,
+      ErrorSchema,
+      ResultModeT,
+      UseKey,
+      Unwrap,
+      TBaseResult,
+      Result,
+      OnMutateResult,
+      Context,
+      Variables
+    >,
+  ): ((
+    ...args: UseKey extends true
+      ? UrlHasParams<Url> extends true
+        ? [{ urlParams: UrlParams<Url> }]
+        : [{}]
+      : []
+  ) => UseMutationResult<Result, Error, Variables, OnMutateResult>) &
+    (UseKey extends true ? MutationHelpers<Options['url'], Result> : {}) &
+    EndpointHelper<Options>
 }

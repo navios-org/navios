@@ -1,10 +1,7 @@
 import type {
-  AnyEndpointConfig,
-  BaseEndpointConfig,
   EndpointOptions,
   EnvelopeError,
   ErrorSchemaRecord,
-  HttpMethod,
   InferEndpointReturn,
   RequestArgs,
   ResponseEnvelope,
@@ -84,14 +81,11 @@ export type EnvelopeQueryError<Options extends EndpointOptions> = EnvelopeError<
 /**
  * Helper type to extract the result type from processResponse.
  */
-export type QueryResult<
-  Options extends EndpointOptions,
-  UseDiscriminator extends boolean = false,
-> = Options extends {
+export type QueryResult<Options extends EndpointOptions> = Options extends {
   processResponse: (data: any) => infer Result
 }
   ? Result
-  : InferEndpointReturn<Options, UseDiscriminator>
+  : InferEndpointReturn<Options>
 
 /**
  * Arguments for query functions based on URL params and query schema.
@@ -111,20 +105,12 @@ export type QueryUrlParamsArgs<Url extends string = string> =
 
 /**
  * Base parameters for query configuration.
- *
- * @template UseDiscriminator - When `true`, errors are returned as union types in processResponse.
- *   When `false` (default), errors are thrown and not included in the response type.
  */
-export type QueryParams<
-  Config extends AnyEndpointConfig,
-  Res = any,
-  UseDiscriminator extends boolean = false,
-> = {
+export type QueryParams<Options extends EndpointOptions, Res = any> = {
   keyPrefix?: string[]
   keySuffix?: string[]
-  onFail?: (err: unknown) => void
   processResponse: (
-    data: ComputeResponseInput<UseDiscriminator, Config['responseSchema'], Config['errorSchema']>,
+    data: ComputeResponseInput<Options['responseSchema'], Options['errorSchema']>,
   ) => Res
 }
 
@@ -181,23 +167,18 @@ export type QueryHelpers<
 
 /**
  * Options for infinite query configuration.
- *
- * @template UseDiscriminator - When `true`, errors are returned as union types in processResponse.
- *   When `false` (default), errors are thrown and not included in the response type.
  */
 export type InfiniteQueryOptions<
-  Config extends (EndpointOptions | BaseEndpointConfig<HttpMethod, string, ZodObject>) & {
+  Config extends EndpointOptions & {
     querySchema: ZodObject
   },
   Res = any,
-  UseDiscriminator extends boolean = false,
 > = {
   keyPrefix?: string[]
   keySuffix?: string[]
   processResponse?: (
-    data: ComputeResponseInput<UseDiscriminator, Config['responseSchema'], Config['errorSchema']>,
+    data: ComputeResponseInput<Config['responseSchema'], Config['errorSchema']>,
   ) => Res
-  onFail?: (err: unknown) => void
   /**
    * For endpoints declared with `result: 'envelope'`, controls how each page
    * is delivered to React Query.
@@ -244,15 +225,15 @@ export type ClientQueryArgs<
 export type ClientQueryUrlParamsArgs<Url extends string = string> = QueryUrlParamsArgs<Url>
 
 /** @deprecated Use QueryParams instead */
-export type BaseQueryParams<Config extends AnyEndpointConfig, Res = unknown> = QueryParams<
-  Config,
+export type BaseQueryParams<Options extends EndpointOptions, Res = unknown> = QueryParams<
+  Options,
   Res
 >
 
 /** @deprecated Use QueryArgs instead */
-export type BaseQueryArgs<Config extends AnyEndpointConfig> = (UrlHasParams<
-  Config['url']
+export type BaseQueryArgs<Options extends EndpointOptions> = (UrlHasParams<
+  Options['url']
 > extends true
-  ? { urlParams: UrlParams<Config['url']> }
+  ? { urlParams: UrlParams<Options['url']> }
   : {}) &
-  (Config['querySchema'] extends ZodObject ? { params: z.input<Config['querySchema']> } : {})
+  (Options['querySchema'] extends ZodObject ? { params: z.input<Options['querySchema']> } : {})

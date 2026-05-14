@@ -5,7 +5,7 @@
 `@navios/builder` is a type-safe HTTP API client builder for TypeScript. It provides a declarative way to define API endpoints with full Zod schema validation for requests, responses, and URL parameters.
 
 **Package:** `@navios/builder`
-**Version:** 0.4.0
+**Version:** 2.0.0
 **License:** MIT
 **Peer Dependencies:** `zod` (^3.25.0 || ^4.0.0)
 
@@ -38,8 +38,8 @@ Creates a new API builder instance.
 import { builder } from '@navios/builder'
 
 const API = builder({
-  useDiscriminatorResponse: true,
-  onError: (error) => console.error(error),
+  defaults: { result: 'envelope' },
+  onError: (event) => console.error(event.kind, event.endpoint, event.cause),
 })
 ```
 
@@ -47,9 +47,21 @@ const API = builder({
 
 | Property | Type | Description |
 |----------|------|-------------|
-| `useDiscriminatorResponse` | `boolean` | Parse error responses using the same schema (for discriminated unions) |
-| `onError` | `(error: unknown) => void` | Global error callback |
-| `onZodError` | `(error: ZodError, response?, originalError?) => void` | Zod validation error callback |
+| `defaults` | `{ result?: 'data' \| 'envelope' }` | Default settings applied to every endpoint declared by this builder; per-endpoint values override |
+| `onError` | `(event: BuilderErrorEvent) => void` | Unified error hook fired on every failure path. See `BuilderErrorEvent` below |
+
+#### BuilderErrorEvent
+
+Structured payload passed to `onError`:
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `kind` | `'http' \| 'http-unknown' \| 'validation' \| 'network'` | Classifier — same taxonomy as `EnvelopeError` |
+| `endpoint` | `{ method: HttpMethod; url: string }` | The endpoint that triggered the failure |
+| `status` | `number \| undefined` | HTTP status (absent on `network` failures) |
+| `zodIssues` | `readonly $ZodIssue[] \| undefined` | Present when `kind === 'validation'` |
+| `cause` | `unknown` | The original error/throwable |
+| `body` | `unknown` | Raw response body (when available) |
 
 ---
 
@@ -253,11 +265,9 @@ try {
 
 ### Discriminated Union Responses
 
-Enable `useDiscriminatorResponse` to handle APIs that return different shapes for success/error:
+Schemas that encode a discriminator inside the success body still work as expected — `responseSchema` may be any Zod type:
 
 ```typescript
-const API = builder({ useDiscriminatorResponse: true })
-
 const responseSchema = z.discriminatedUnion('status', [
   z.object({ status: z.literal('success'), data: userSchema }),
   z.object({ status: z.literal('error'), message: z.string() }),
@@ -277,17 +287,18 @@ if (result.status === 'success') {
 }
 ```
 
+For HTTP-level error discrimination, declare `errorSchema` and opt the endpoint into `result: 'envelope'` (see below).
+
 ### Error Callbacks
 
 ```typescript
 const API = builder({
-  onError: (error) => {
-    // Called on any error
-    reportToSentry(error)
-  },
-  onZodError: (zodError, response, originalError) => {
-    // Called specifically on Zod validation failures
-    console.error('Validation failed:', zodError.errors)
+  onError: (event) => {
+    if (event.kind === 'validation') {
+      console.error('Validation failed:', event.zodIssues)
+    } else {
+      reportToSentry(event.cause)
+    }
   },
 })
 ```
@@ -402,17 +413,23 @@ function classifyError<E extends ErrorSchemaRecord | undefined = undefined>(
 |----------|------|-------------|
 | `defaults.result` | `'data' \| 'envelope'` | Default `result` mode for every endpoint declared by this builder. Per-endpoint `result` overrides. |
 
-### Deprecated APIs
+### Removed in v2
 
-| Deprecated | Replacement |
-|------------|-------------|
-| `builder({ useDiscriminatorResponse: true })` | Per-endpoint `result: 'envelope'` (or `defaults: { result: 'envelope' }`). Emits a one-time `console.warn` per builder instance. |
+| Removed | Replacement |
+|---------|-------------|
+| `builder({ useDiscriminatorResponse: true })` | Per-endpoint `result: 'envelope'` (or `defaults: { result: 'envelope' }`) |
+| `onZodError(error, response, originalError)` callback | `onError(event)` with `event.kind === 'validation'` |
 | `isErrorStatus(result, status)` | `isHttpError(error, status)` on an envelope-mode error |
 | `isErrorResponse(result)` | `isEnvelopeError(error)` or `isHttpError(error)` |
 | `__status` injection on parsed error bodies | `error.status` on the typed `EnvelopeError` variants |
-| `BuilderInstance<UseDiscriminator>` generic | Kept as `never`-defaulted phantom; removed next major |
+| `UnknownResponseError` class | Envelope `http-unknown` variant |
+| `InferErrorSchemaOutputWithStatus<T>` type | `EnvelopeError<T>` |
+| `UseDiscriminator` generic on `BuilderInstance` / `EndpointHandler` / `StreamHandler` | None — generic dropped |
+| Legacy types `BaseEndpointConfig`, `BaseStreamConfig`, `AnyEndpointConfig`, `AnyStreamConfig`, `StreamOptions` | `EndpointOptions`, `StreamOptions` |
+| `AbstractEndpoint<Config>`, `AbstractStream<Config>` | `EndpointHandler<Options>`, `StreamHandler<Options>` |
+| `[key: string]: any` index signature on `AbstractRequestConfig` | Typed `timeout`, `responseType`, `clientOptions` slots |
 
-Legacy behavior is preserved for one major version. See [`docs/plans/2026-05-14-builder-response-envelope-design.md`](../docs/plans/2026-05-14-builder-response-envelope-design.md) for the full design rationale.
+See [`docs/plans/2026-05-14-builder-response-envelope-design.md`](../docs/plans/2026-05-14-builder-response-envelope-design.md) for the full design rationale.
 
 ---
 
@@ -483,10 +500,13 @@ interface Client {
 interface AbstractRequestConfig {
   method: string
   url: string
-  data?: any
-  params?: any
+  data?: unknown
+  params?: unknown
   headers?: Record<string, string>
   responseType?: 'json' | 'blob'
+  timeout?: number
+  clientOptions?: ClientOptions
+  signal?: AbortSignal
 }
 
 interface AbstractResponse<T> {
@@ -495,6 +515,8 @@ interface AbstractResponse<T> {
   headers: Record<string, string>
 }
 ```
+
+Note: v2 dropped the `[key: string]: any` index signature from `AbstractRequestConfig`. Custom adapter-specific fields belong inside the typed `clientOptions` slot.
 
 ### Compatible Clients
 
@@ -512,33 +534,51 @@ interface AbstractResponse<T> {
 // HTTP Methods
 type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH' | 'HEAD' | 'OPTIONS'
 
-// Configuration types
-type BaseEndpointConfig = {
+// Endpoint / stream options (unified)
+type EndpointOptions = {
   method: HttpMethod
   url: string
   querySchema?: ZodType
   requestSchema?: ZodType
   responseSchema: ZodType
+  errorSchema?: ErrorSchemaRecord
+  urlParamsSchema?: ZodObject
+  clientOptions?: ClientOptions
+  result?: 'data' | 'envelope'
+  validateResponse?: boolean
 }
 
-type BaseStreamConfig = {
-  method: HttpMethod
-  url: string
-  querySchema?: ZodType
-  requestSchema?: ZodType
-}
+// Handler types
+type EndpointHandler<Options extends EndpointOptions>
+type StreamHandler<Options extends StreamOptions>
 
 // Request argument types
-type NaviosZodRequest<Config> = {
+type NaviosZodRequest<Options> = {
   urlParams?: Record<string, string>
-  params?: z.infer<Config['querySchema']>
-  data?: z.infer<Config['requestSchema']>
+  params?: z.infer<Options['querySchema']>
+  data?: z.infer<Options['requestSchema']>
 }
+
+// Envelope types
+type ResponseEnvelope<TData, TError>
+type ResponseEnvelopeOk<TData>
+type ResponseEnvelopeErr<TError>
+type ResponseMeta = { status: number; statusText: string; headers: Headers }
+type EnvelopeError<E = undefined>  // tagged union of variants
+type HttpErrorVariant<E>
+type UnknownHttpErrorVariant
+type ValidationErrorVariant
+type NetworkErrorVariant
+
+// Error hook event
+type BuilderErrorEvent
 
 // Type utilities
 type UrlParams<Url extends string>  // Extracts URL parameter object type
 type UrlHasParams<Url extends string>  // Boolean check for URL parameters
 ```
+
+Removed in v2: `BaseEndpointConfig`, `BaseStreamConfig`, `AnyEndpointConfig`, `AnyStreamConfig`, `StreamOptions` (legacy), `AbstractEndpoint`, `AbstractStream`, `InferErrorSchemaOutputWithStatus`.
 
 ---
 
@@ -593,9 +633,9 @@ const createUserRequest = userSchema.omit({ id: true })
 
 ```typescript
 const API = builder({
-  onError: (error) => {
-    if (error instanceof NaviosError) {
-      toast.error(error.message)
+  onError: (event) => {
+    if (event.cause instanceof NaviosError) {
+      toast.error(event.cause.message)
     }
   },
 })

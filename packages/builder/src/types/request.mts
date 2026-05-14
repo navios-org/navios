@@ -1,7 +1,7 @@
 import type { z, ZodObject, ZodType } from 'zod/v4'
 
 import type { AbstractRequestConfig } from './common.mjs'
-import type { AnyEndpointConfig, AnyStreamConfig, BaseStreamConfig } from './config.mjs'
+import type { BaseEndpointOptions } from './config.mjs'
 
 // =============================================================================
 // URL Parameter Parsing Types
@@ -160,7 +160,7 @@ export type RequestArgs<
 /**
  * @deprecated Use RequestArgs instead
  */
-export type NaviosZodRequest<Config extends BaseStreamConfig> = (UrlHasParams<
+export type NaviosZodRequest<Config extends BaseEndpointOptions> = (UrlHasParams<
   Config['url']
 > extends true
   ? { urlParams: UrlParams<Config['url']> }
@@ -193,17 +193,3 @@ export type EndpointFunctionArgs<
       }
     : {}) &
   (IsServer extends false ? NaviosZodRequestBase : {})
-
-// =============================================================================
-// Abstract Endpoint Types
-// =============================================================================
-
-export type AbstractStream<Config extends AnyStreamConfig> = ((params: any) => Promise<Blob>) & {
-  config: Config
-}
-
-export type AbstractEndpoint<Config extends AnyEndpointConfig> = ((
-  params: any,
-) => Promise<z.infer<Config['responseSchema']>>) & {
-  config: Config
-}

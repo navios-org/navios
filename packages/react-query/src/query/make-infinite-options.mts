@@ -31,12 +31,7 @@ import type { InfiniteQueryOptions, QueryArgs } from './types.mjs'
  */
 export function makeInfiniteQueryOptions<
   Config extends EndpointOptions & { querySchema: ZodObject },
-  UseDiscriminator extends boolean = false,
-  Options extends InfiniteQueryOptions<Config, any, UseDiscriminator> = InfiniteQueryOptions<
-    Config,
-    any,
-    UseDiscriminator
-  >,
+  Options extends InfiniteQueryOptions<Config> = InfiniteQueryOptions<Config>,
   BaseQuery extends Omit<
     UseInfiniteQueryOptions<ReturnType<NonNullable<Options['processResponse']>>, Error, any>,
     | 'queryKey'
@@ -54,11 +49,7 @@ export function makeInfiniteQueryOptions<
     | 'placeholderData'
     | 'throwOnError'
   >,
->(
-  endpoint: EndpointHandler<Config, UseDiscriminator>,
-  options: Options,
-  baseQuery: BaseQuery = {} as BaseQuery,
-) {
+>(endpoint: EndpointHandler<Config>, options: Options, baseQuery: BaseQuery = {} as BaseQuery) {
   const config = endpoint.config
   const queryKey = createQueryKey(config as any, options as any, true)
 
@@ -82,33 +73,22 @@ export function makeInfiniteQueryOptions<
         signal,
         pageParam,
       }): Promise<ReturnType<NonNullable<Options['processResponse']>>> => {
-        let result
-        try {
-          const callParams = params as {
-            urlParams?: z.infer<UrlParams<Config['url']>>
-            params?: Record<string, unknown>
-          }
-          result = await endpoint({
-            signal,
-            urlParams: callParams.urlParams,
-            params: {
-              ...callParams.params,
-              ...(pageParam as z.infer<Config['querySchema']>),
-            },
-          } as any)
-        } catch (err) {
-          if (options.onFail) {
-            options.onFail(err)
-          }
-          throw err
+        const callParams = params as {
+          urlParams?: z.infer<UrlParams<Config['url']>>
+          params?: Record<string, unknown>
         }
+        const result = await endpoint({
+          signal,
+          urlParams: callParams.urlParams,
+          params: {
+            ...callParams.params,
+            ...(pageParam as z.infer<Config['querySchema']>),
+          },
+        } as any)
 
         if (shouldUnwrap && isResponseEnvelope(result)) {
           const envelope = result as { ok: boolean; data?: unknown; error?: unknown }
           if (!envelope.ok) {
-            if (options.onFail) {
-              options.onFail(envelope.error)
-            }
             throw envelope.error
           }
           return processResponse(envelope.data) as ReturnType<

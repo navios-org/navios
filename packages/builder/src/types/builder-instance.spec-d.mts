@@ -18,12 +18,12 @@ const envelopeOptions = {
 } as const
 
 test("result: 'data' (or omitted) returns parsed body", () => {
-  type R = Awaited<ReturnType<EndpointHandler<typeof dataOptions, false>>>
+  type R = Awaited<ReturnType<EndpointHandler<typeof dataOptions>>>
   expectTypeOf<R>().toEqualTypeOf<{ name: string }>()
 })
 
 test("result: 'envelope' returns ResponseEnvelope", () => {
-  type R = Awaited<ReturnType<EndpointHandler<typeof envelopeOptions, false>>>
+  type R = Awaited<ReturnType<EndpointHandler<typeof envelopeOptions>>>
   const r = {} as R
   if (r.ok) {
     expectTypeOf(r.data).toMatchTypeOf<{ name: string }>()

@@ -359,38 +359,6 @@ describe('createEndpoint', () => {
       await expect(handler({} as any)).rejects.toThrow('Network error')
       expect(onError).toHaveBeenCalled()
     })
-
-    it('should use discriminator response on error', async () => {
-      const discriminatorSchema = z.discriminatedUnion('type', [
-        z.object({ type: z.literal('success'), id: z.string(), name: z.string() }),
-        z.object({ type: z.literal('error'), message: z.string() }),
-      ])
-
-      const client: Client = {
-        request: vi.fn().mockRejectedValue({
-          response: {
-            data: { type: 'error', message: 'Not found' },
-            status: 404,
-            statusText: 'Not Found',
-            headers: {},
-          },
-        }),
-      }
-      const context = createContext(client, { useDiscriminatorResponse: true })
-
-      const handler = createEndpoint(
-        {
-          method: 'GET',
-          url: '/users',
-          responseSchema: discriminatorSchema,
-        } as any,
-        context,
-      )
-
-      const result = await handler({} as any)
-
-      expect(result).toEqual({ type: 'error', message: 'Not found' })
-    })
   })
 
   describe('request options', () => {

@@ -4,12 +4,10 @@ import type {
   EndpointOptions,
   EnvelopeError,
   ErrorSchemaRecord,
-  HttpMethod,
-  InferErrorSchemaOutput,
   ResponseEnvelope,
   StreamHandler,
 } from '@navios/builder'
-import type { z, ZodType } from 'zod/v4'
+import type { z } from 'zod/v4'
 
 import type { InfiniteUnwrapMode, UnwrapMode } from '../../query/types.mjs'
 
@@ -23,188 +21,89 @@ import type { InfiniteUnwrapMode, UnwrapMode } from '../../query/types.mjs'
 export type ResultMode = 'data' | 'envelope' | undefined
 
 /**
- * Compute the base result type based on discriminator, error schema, and result mode.
- *
- * - `Result extends 'envelope'` always wins: surfaces a `ResponseEnvelope` regardless
- *   of `UseDiscriminator`. The envelope's error branch is typed by `EnvelopeError<ErrorSchema>`.
- * - Otherwise: when `UseDiscriminator=true` and `errorSchema` is present, errors are
- *   included as a union. When `UseDiscriminator=false`, only the success type is
- *   returned (errors are thrown).
- */
-export type ComputeBaseResult<
-  UseDiscriminator extends boolean,
-  ResponseSchema extends ZodType,
-  ErrorSchema extends ErrorSchemaRecord | undefined,
-  Result extends ResultMode = undefined,
-> = Result extends 'envelope'
-  ? ResponseEnvelope<
-      z.output<ResponseSchema>,
-      EnvelopeError<ErrorSchema extends ErrorSchemaRecord ? ErrorSchema : undefined>
-    >
-  : UseDiscriminator extends true
-    ? ErrorSchema extends ErrorSchemaRecord
-      ? z.output<ResponseSchema> | InferErrorSchemaOutput<ErrorSchema>
-      : z.output<ResponseSchema>
-    : z.output<ResponseSchema>
-
-/**
- * Compute the data-channel result type given a `Result` mode and `Unwrap` mode.
+ * Compute the public data-channel type for an endpoint, taking unwrap mode
+ * into account.
  *
  * Behaviour matrix:
- * | Result      | Unwrap            | Surface type                                 |
- * | ----------- | ----------------- | -------------------------------------------- |
- * | 'envelope'  | 'none' (default)  | `ResponseEnvelope<...>`                      |
- * | 'envelope'  | 'throw-on-error'  | `z.output<ResponseSchema>` (unwrapped body)  |
- * | 'data'/und. | any               | `z.output<ResponseSchema>`                   |
+ * | Endpoint    | Unwrap                       | Surface type                                  |
+ * | ----------- | ---------------------------- | --------------------------------------------- |
+ * | envelope    | `'none'` (default)           | `ResponseEnvelope<Data, EnvelopeError<...>>`  |
+ * | envelope    | `'throw-on-error'`/`'pages'` | `z.output<responseSchema>` (unwrapped body)   |
+ * | non-envelope| any                          | `z.output<responseSchema>`                    |
  *
- * Mirrors {@link EnvelopeQueryResult} but takes the raw inline-config generics
- * rather than a derived `EndpointOptions`.
+ * Replaces the three previous helpers (`ComputeBaseResult`,
+ * `ComputeQueryResult`, `ComputeInfinitePageResult`) — query/mutation use
+ * `Unwrap extends UnwrapMode` ('none' | 'throw-on-error'), infinite queries
+ * use `InfiniteUnwrapMode` which adds `'pages'`. Both fold into the same
+ * branch here because `'pages'` and `'throw-on-error'` deliver the unwrapped
+ * body.
  */
-export type ComputeQueryResult<
-  UseDiscriminator extends boolean,
-  ResponseSchema extends ZodType,
-  ErrorSchema extends ErrorSchemaRecord | undefined,
-  Result extends ResultMode = undefined,
-  Unwrap extends UnwrapMode | undefined = undefined,
-> = Result extends 'envelope'
-  ? Unwrap extends 'throw-on-error'
-    ? z.output<ResponseSchema>
-    : ResponseEnvelope<
-        z.output<ResponseSchema>,
-        EnvelopeError<ErrorSchema extends ErrorSchemaRecord ? ErrorSchema : undefined>
-      >
-  : ComputeBaseResult<UseDiscriminator, ResponseSchema, ErrorSchema>
-
-/**
- * Like {@link ComputeQueryResult} but for infinite queries where `'pages'`
- * also unwraps each page to its envelope body.
- */
-export type ComputeInfinitePageResult<
-  UseDiscriminator extends boolean,
-  ResponseSchema extends ZodType,
-  ErrorSchema extends ErrorSchemaRecord | undefined,
-  Result extends ResultMode = undefined,
-  Unwrap extends InfiniteUnwrapMode | undefined = undefined,
-> = Result extends 'envelope'
+export type ComputeResult<
+  Options extends EndpointOptions,
+  Unwrap extends UnwrapMode | InfiniteUnwrapMode = 'none',
+> = Options extends { result: 'envelope' }
   ? Unwrap extends 'throw-on-error' | 'pages'
-    ? z.output<ResponseSchema>
+    ? z.output<Options['responseSchema']>
     : ResponseEnvelope<
-        z.output<ResponseSchema>,
-        EnvelopeError<ErrorSchema extends ErrorSchemaRecord ? ErrorSchema : undefined>
+        z.output<Options['responseSchema']>,
+        EnvelopeError<
+          Options['errorSchema'] extends ErrorSchemaRecord ? Options['errorSchema'] : undefined
+        >
       >
-  : ComputeBaseResult<UseDiscriminator, ResponseSchema, ErrorSchema>
+  : z.output<Options['responseSchema']>
 
 /**
- * Helper type to compute the response data type based on errorSchema presence and UseDiscriminator.
+ * Build a minimal `EndpointOptions`-shaped type from the loose per-field
+ * generics that the inline-config client methods (`client.query`,
+ * `client.mutation`, `client.infiniteQuery`, `client.multipartMutation`)
+ * carry.
  *
- * When `UseDiscriminator` is `true` and `errorSchema` exists, returns `ResponseType | ErrorTypes`.
- * When `UseDiscriminator` is `false`, returns only `ResponseType` (errors are thrown).
+ * Optional fields (`querySchema`, `requestSchema`, `errorSchema`,
+ * `urlParamsSchema`) are only present in the resulting shape when the
+ * corresponding generic is not `undefined` — this keeps property-presence
+ * checks (e.g. `'querySchema' in Options`) working downstream.
  *
- * @deprecated Use ComputeBaseResult instead (same logic, different parameter order)
+ * The per-field generics are still required for inference (TypeScript
+ * cannot simultaneously infer a single `Options extends EndpointOptions`
+ * generic AND provide a useful contextual type for `processResponse`'s
+ * `data` parameter from the same literal). Once `Options` is synthesised
+ * via this helper, every downstream type derivation references `Options`
+ * directly — so new fields added to `BaseEndpointOptions` flow through
+ * automatically without per-surface re-declaration in return types.
  */
-export type ResponseDataType<
-  Response extends ZodType,
-  ErrorSchema extends ErrorSchemaRecord | undefined,
-  UseDiscriminator extends boolean = false,
-> = ComputeBaseResult<UseDiscriminator, Response, ErrorSchema>
+export type OptionsFromInline<
+  Method,
+  Url,
+  QuerySchema,
+  RequestSchema,
+  ResponseSchema,
+  ErrorSchema,
+  UrlParamsSchema,
+  ResultModeT,
+> = {
+  method: Method
+  url: Url
+  responseSchema: ResponseSchema
+} & (QuerySchema extends undefined ? {} : { querySchema: QuerySchema }) &
+  (RequestSchema extends undefined ? {} : { requestSchema: RequestSchema }) &
+  (ErrorSchema extends undefined ? {} : { errorSchema: ErrorSchema }) &
+  (UrlParamsSchema extends undefined ? {} : { urlParamsSchema: UrlParamsSchema }) &
+  (ResultModeT extends undefined ? {} : { result: ResultModeT })
 
 /**
  * Helper type that attaches the endpoint to query/mutation results.
- * Supports both new const generic pattern and legacy pattern with individual parameters.
  *
- * New pattern (2 args):
- * @template Options - EndpointOptions from builder (new const generic pattern)
- * @template UseDiscriminator - When true, errors are returned as union types
- *
- * Legacy pattern (4-5 args):
- * @template Method - HTTP method
- * @template Url - URL template
- * @template RequestSchema - Request body schema
- * @template ResponseSchema - Response schema
- * @template QuerySchema - Query params schema (optional)
+ * @template Options - EndpointOptions from builder (const generic pattern)
  */
-export type EndpointHelper<
-  OptionsOrMethod extends EndpointOptions | HttpMethod = EndpointOptions,
-  UseDiscriminatorOrUrl extends boolean | string = false,
-  RequestSchema = undefined,
-  ResponseSchema extends ZodType = ZodType,
-  QuerySchema = undefined,
-> = OptionsOrMethod extends EndpointOptions
-  ? UseDiscriminatorOrUrl extends boolean
-    ? {
-        endpoint: EndpointHandler<OptionsOrMethod, UseDiscriminatorOrUrl>
-      }
-    : never
-  : OptionsOrMethod extends HttpMethod
-    ? UseDiscriminatorOrUrl extends string
-      ? {
-          endpoint: EndpointHandler<
-            EndpointOptions & {
-              method: OptionsOrMethod
-              url: UseDiscriminatorOrUrl
-              requestSchema: RequestSchema
-              responseSchema: ResponseSchema
-              querySchema: QuerySchema
-            },
-            false
-          >
-        }
-      : never
-    : never
-
-// Legacy export for backwards compatibility
-/** @deprecated Use EndpointHelper instead */
-export type ClientEndpointHelper<
-  Method extends HttpMethod = HttpMethod,
-  Url extends string = string,
-  RequestSchema = unknown,
-  ResponseSchema extends z.ZodType = z.ZodType,
-  QuerySchema = unknown,
-> = EndpointHelper<Method, Url, RequestSchema, ResponseSchema, QuerySchema>
+export type EndpointHelper<Options extends EndpointOptions> = {
+  endpoint: EndpointHandler<Options>
+}
 
 /**
  * Helper type that attaches a stream endpoint to mutation results.
- * Supports both new const generic pattern and legacy pattern with individual parameters.
  *
- * New pattern (2 args):
- * @template Options - BaseEndpointOptions from builder (new const generic pattern)
- * @template UseDiscriminator - When true, errors are returned as union types
- *
- * Legacy pattern (4-6 args):
- * @template Method - HTTP method
- * @template Url - URL template
- * @template QuerySchema - Query params schema
- * @template RequestSchema - Request body schema
- * @template ErrorSchema - Error schema (optional)
- * @template UrlParamsSchema - URL params schema (optional)
+ * @template Options - BaseEndpointOptions from builder (const generic pattern)
  */
-export type StreamHelper<
-  OptionsOrMethod extends BaseEndpointOptions | HttpMethod = BaseEndpointOptions,
-  UseDiscriminatorOrUrl extends boolean | string = false,
-  QuerySchema = undefined,
-  RequestSchema = undefined,
-  ErrorSchema = undefined,
-  UrlParamsSchema = undefined,
-> = OptionsOrMethod extends BaseEndpointOptions
-  ? UseDiscriminatorOrUrl extends boolean
-    ? {
-        endpoint: StreamHandler<OptionsOrMethod, UseDiscriminatorOrUrl>
-      }
-    : never
-  : OptionsOrMethod extends HttpMethod
-    ? UseDiscriminatorOrUrl extends string
-      ? {
-          endpoint: StreamHandler<
-            BaseEndpointOptions & {
-              method: OptionsOrMethod
-              url: UseDiscriminatorOrUrl
-              querySchema: QuerySchema
-              requestSchema: RequestSchema
-              errorSchema: ErrorSchema
-              urlParamsSchema: UrlParamsSchema
-            },
-            false
-          >
-        }
-      : never
-    : never
+export type StreamHelper<Options extends BaseEndpointOptions> = {
+  endpoint: StreamHandler<Options>
+}

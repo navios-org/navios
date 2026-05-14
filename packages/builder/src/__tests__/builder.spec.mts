@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod/v4'
 
 import { builder } from '../builder.mjs'
@@ -51,24 +51,10 @@ describe('builder', () => {
       expect(api).toBeDefined()
     })
 
-    it('should accept config with useDiscriminatorResponse', () => {
-      const api = builder({ useDiscriminatorResponse: true })
-
-      expect(api).toBeDefined()
-    })
-
-    it('should accept config with onZodError', () => {
-      const onZodError = vi.fn()
-      const api = builder({ onZodError })
-
-      expect(api).toBeDefined()
-    })
-
     it('should accept full config', () => {
       const api = builder({
         onError: vi.fn(),
-        onZodError: vi.fn(),
-        useDiscriminatorResponse: true,
+        defaults: { result: 'envelope' },
       })
 
       expect(api).toBeDefined()
@@ -403,7 +389,7 @@ describe('builder', () => {
   })
 
   describe('error handling with config', () => {
-    it('should call onError when request fails', async () => {
+    it('should call onError with structured event when request fails', async () => {
       const onError = vi.fn()
       const api = builder({ onError })
       const client: Client = {
@@ -418,37 +404,10 @@ describe('builder', () => {
       })
 
       await expect(endpoint({})).rejects.toThrow('Network error')
-      expect(onError).toHaveBeenCalled()
-    })
-
-    it('should use discriminator response when configured', async () => {
-      const discriminatorSchema = z.discriminatedUnion('type', [
-        z.object({ type: z.literal('success'), id: z.string(), name: z.string() }),
-        z.object({ type: z.literal('error'), message: z.string() }),
-      ])
-
-      const api = builder({ useDiscriminatorResponse: true })
-      const client: Client = {
-        request: vi.fn().mockRejectedValue({
-          response: {
-            data: { type: 'error', message: 'Not found' },
-            status: 404,
-            statusText: 'Not Found',
-            headers: {},
-          },
-        }),
-      }
-      api.provideClient(client)
-
-      const endpoint = api.declareEndpoint({
-        method: 'GET',
-        url: '/users/$userId',
-        responseSchema: discriminatorSchema,
-      })
-
-      const result = await endpoint({ urlParams: { userId: '999' } })
-
-      expect(result).toEqual({ type: 'error', message: 'Not found' })
+      expect(onError).toHaveBeenCalledTimes(1)
+      const event = onError.mock.calls[0][0]
+      expect(event.kind).toBe('network')
+      expect(event.endpoint).toEqual({ method: 'GET', url: '/users' })
     })
   })
 
@@ -522,51 +481,5 @@ describe('builder', () => {
         expect(client.request).toHaveBeenCalledWith(expect.objectContaining({ method }))
       },
     )
-  })
-
-  describe('deprecation warning for useDiscriminatorResponse', () => {
-    let warn: ReturnType<typeof vi.spyOn>
-    beforeEach(() => {
-      warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
-    })
-    afterEach(() => {
-      warn.mockRestore()
-    })
-
-    it('warns once per builder instance when useDiscriminatorResponse is set', () => {
-      const api = builder({ useDiscriminatorResponse: true })
-      api.declareEndpoint({
-        method: 'GET',
-        url: '/u',
-        responseSchema: z.object({ name: z.string() }),
-      })
-      api.declareEndpoint({
-        method: 'GET',
-        url: '/v',
-        responseSchema: z.object({ name: z.string() }),
-      })
-      expect(warn).toHaveBeenCalledTimes(1)
-      expect(warn.mock.calls[0][0]).toMatch(/useDiscriminatorResponse/)
-    })
-
-    it('does not warn when only defaults.result is used', () => {
-      const api = builder({ defaults: { result: 'envelope' } })
-      api.declareEndpoint({
-        method: 'GET',
-        url: '/u',
-        responseSchema: z.object({ name: z.string() }),
-      })
-      expect(warn).not.toHaveBeenCalled()
-    })
-
-    it('does not warn for plain builder() with no flags', () => {
-      const api = builder()
-      api.declareEndpoint({
-        method: 'GET',
-        url: '/u',
-        responseSchema: z.object({ name: z.string() }),
-      })
-      expect(warn).not.toHaveBeenCalled()
-    })
   })
 })

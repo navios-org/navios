@@ -5,24 +5,18 @@ import type { EndpointHandler } from '@navios/builder'
 
 import type { IsEnvelope } from './types.mjs'
 
-const dataEp = (() => null) as unknown as EndpointHandler<
-  {
-    method: 'GET'
-    url: '/u'
-    responseSchema: z.ZodObject<{ a: z.ZodString }>
-  },
-  false
->
+const dataEp = (() => null) as unknown as EndpointHandler<{
+  method: 'GET'
+  url: '/u'
+  responseSchema: z.ZodObject<{ a: z.ZodString }>
+}>
 
-const envEp = (() => null) as unknown as EndpointHandler<
-  {
-    method: 'GET'
-    url: '/u'
-    responseSchema: z.ZodObject<{ a: z.ZodString }>
-    result: 'envelope'
-  },
-  false
->
+const envEp = (() => null) as unknown as EndpointHandler<{
+  method: 'GET'
+  url: '/u'
+  responseSchema: z.ZodObject<{ a: z.ZodString }>
+  result: 'envelope'
+}>
 
 test('IsEnvelope detects per-endpoint result', () => {
   expectTypeOf<IsEnvelope<typeof dataEp>>().toEqualTypeOf<false>()

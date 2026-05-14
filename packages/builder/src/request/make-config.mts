@@ -2,10 +2,9 @@ import type { ZodType } from 'zod/v4'
 
 import type {
   AbstractRequestConfig,
+  BaseEndpointOptions,
   ClientOptions,
-  EndpointOptions,
   HttpMethod,
-  StreamOptions,
 } from '../types/index.mjs'
 
 /**
@@ -43,7 +42,7 @@ function parseWithSchema(schema: ZodType | undefined, value: unknown): unknown {
  *
  * @internal
  */
-export function makeConfig<Options extends EndpointOptions | StreamOptions>(
+export function makeConfig<Options extends BaseEndpointOptions>(
   request: ConfigRequest,
   options: Options,
   method: HttpMethod,
@@ -151,7 +150,7 @@ function serializeFormDataValue(value: unknown): string | File {
  *
  * @internal
  */
-export function makeFormData<Options extends EndpointOptions | StreamOptions>(
+export function makeFormData<Options extends BaseEndpointOptions>(
   request: ConfigRequest,
   options: Options,
 ) {

@@ -137,16 +137,16 @@ const getUsers = client.query({
 
 ### Query with Error Handling
 
+Register error handling on the underlying builder (`builder({ onError })`) rather than per-helper. Every failure path — network, HTTP, validation — flows through that hook with a structured `BuilderErrorEvent`. For envelope endpoints, prefer `unwrap: 'throw-on-error'` to route envelope errors through TanStack Query's standard `error` channel.
+
 ```typescript
-const getUsers = client.query({
-  method: 'GET',
-  url: '/users',
-  responseSchema: z.array(UserSchema),
-  onFail: (error) => {
-    // Called when the endpoint throws an error
-    // Note: The error is still thrown after this callback
-    console.error('Failed to fetch users:', error)
-    // You can log to error tracking service, show toast, etc.
+const api = builder({
+  onError: (event) => {
+    if (event.kind === 'validation') {
+      reportValidationFailure(event.endpoint, event.zodIssues)
+    } else if (event.kind === 'network') {
+      console.error('Network failure', event.cause)
+    }
   },
 })
 ```
@@ -270,6 +270,12 @@ const getUser2 = client.query({
   processResponse: (data) => data, // still works
 })
 ```
+
+### Subtle behaviour
+
+- The `error` channel on TanStack Query hooks is typed as `Error`. To get the typed `EnvelopeError`, either use `unwrap: 'throw-on-error'` (envelope errors flow through RQ's error channel typed as `EnvelopeError`) or destructure the envelope from `data` in `unwrap: 'none'` mode.
+
+- `processResponse` in envelope mode + `unwrap: 'none'` receives the full envelope. If you only want to project a field from `envelope.data`, prefer TanStack's `select` over `processResponse` — `processResponse` runs in the cache-write path, `select` runs on read.
 
 ## Infinite Queries
 
@@ -712,10 +718,10 @@ const updateUser = client.mutation({
 
 ## Error Schema Support
 
-When using `useDiscriminatorResponse: true` mode, API errors are returned as data instead of being thrown. This enables type-safe error discrimination:
+Combine `result: 'envelope'` with `errorSchema` for type-safe error discrimination. The envelope `error` is a typed variant; `isHttpError(error, status)` narrows both the status and the parsed `body`.
 
 ```typescript
-const api = builder({ useDiscriminatorResponse: true })
+import { isHttpError } from '@navios/builder'
 
 const getUser = client.query({
   method: 'GET',
@@ -726,31 +732,41 @@ const getUser = client.query({
     404: z.object({ notFound: z.literal(true) }),
     500: z.object({ serverError: z.string() }),
   },
-  processResponse: (data) => {
-    // data is typed as: User | { error: string, code: number } | { notFound: true } | { serverError: string }
-    if ('error' in data) {
-      return { ok: false as const, error: data.error }
-    }
-    if ('notFound' in data) {
-      return { ok: false as const, error: 'User not found' }
-    }
-    if ('serverError' in data) {
-      return { ok: false as const, error: data.serverError }
-    }
-    return { ok: true as const, user: data }
-  },
+  result: 'envelope',
 })
 
 // In your component
 function UserProfile({ userId }: { userId: string }) {
-  const result = getUser.useSuspense({ urlParams: { userId } })
+  const envelope = getUser.useSuspense({ urlParams: { userId } })
 
-  if (!result.ok) {
-    return <ErrorMessage error={result.error} />
+  if (envelope.error) {
+    if (isHttpError(envelope.error, 404)) {
+      return <ErrorMessage error="User not found" />
+    }
+    if (isHttpError(envelope.error, 400)) {
+      return <ErrorMessage error={envelope.error.body.error} />
+    }
+    return <ErrorMessage error="Unknown error" />
   }
 
-  return <div>{result.user.name}</div>
+  return <div>{envelope.data.name}</div>
 }
+```
+
+If you prefer classic React Query ergonomics (typed `data` and `error` channels), add `unwrap: 'throw-on-error'`:
+
+```typescript
+const getUser = client.query({
+  method: 'GET',
+  url: '/users/$userId',
+  responseSchema: userSchema,
+  errorSchema: { 404: z.object({ notFound: z.literal(true) }) },
+  result: 'envelope',
+  unwrap: 'throw-on-error',
+})
+
+// data is User | undefined, error is EnvelopeError | null
+const { data, error } = getUser.use({ urlParams: { userId } })
 ```
 
 ## API Reference
@@ -795,34 +811,43 @@ const client = declareClient({
 
 ### Query Config
 
-| Property          | Type                                     | Required | Description                                                      |
-| ----------------- | ---------------------------------------- | -------- | ---------------------------------------------------------------- |
-| `method`          | `'GET' \| 'POST' \| 'HEAD' \| 'OPTIONS'` | Yes      | HTTP method                                                      |
-| `url`             | `string`                                 | Yes      | URL pattern (e.g., `/users/$userId`)                             |
-| `responseSchema`  | `ZodSchema`                              | Yes      | Zod schema for response validation                               |
-| `querySchema`     | `ZodObject`                              | No       | Zod schema for query parameters                                  |
-| `requestSchema`   | `ZodSchema`                              | No       | Zod schema for request body (POST queries)                       |
-| `processResponse` | `(data) => Result`                       | No       | Transform the response                                           |
-| `onFail`          | `(error) => void`                        | No       | Called when the endpoint throws an error (error is still thrown) |
-| `keyPrefix`       | `string[]`                               | No       | Prefix to add to query keys (useful for namespacing)             |
-| `keySuffix`       | `string[]`                               | No       | Suffix to add to query keys                                      |
+| Property           | Type                                     | Required | Description                                                                              |
+| ------------------ | ---------------------------------------- | -------- | ---------------------------------------------------------------------------------------- |
+| `method`           | `'GET' \| 'POST' \| 'HEAD' \| 'OPTIONS'` | Yes      | HTTP method                                                                              |
+| `url`              | `string`                                 | Yes      | URL pattern (e.g., `/users/$userId`)                                                     |
+| `responseSchema`   | `ZodSchema`                              | Yes      | Zod schema for response validation                                                       |
+| `querySchema`      | `ZodObject`                              | No       | Zod schema for query parameters                                                          |
+| `requestSchema`    | `ZodSchema`                              | No       | Zod schema for request body (POST queries)                                               |
+| `errorSchema`      | `Record<number, ZodSchema>`              | No       | Per-status error schemas (combine with `result: 'envelope'`)                             |
+| `result`           | `'data' \| 'envelope'`                   | No       | Endpoint return shape; envelope returns `{ ok, data, error, response }` without throwing |
+| `unwrap`           | `'none' \| 'throw-on-error'`             | No       | How envelopes are surfaced to TanStack Query (default `'none'`)                          |
+| `validateResponse` | `boolean`                                | No       | Skip runtime `responseSchema.parse()` when `false` (default `true`)                      |
+| `processResponse`  | `(data) => Result`                       | No       | Transform the response                                                                   |
+| `keyPrefix`        | `string[]`                               | No       | Prefix to add to query keys (useful for namespacing)                                     |
+| `keySuffix`        | `string[]`                               | No       | Suffix to add to query keys                                                              |
+
+Error handling is configured globally via the builder's `onError` hook (`builder({ onError })`); the per-helper `onFail` callback was removed in v2.
 
 ### Mutation Config
 
-| Property          | Type                                        | Required | Description                          |
-| ----------------- | ------------------------------------------- | -------- | ------------------------------------ |
-| `method`          | `'POST' \| 'PUT' \| 'PATCH' \| 'DELETE'`    | Yes      | HTTP method                          |
-| `url`             | `string`                                    | Yes      | URL pattern (e.g., `/users/$userId`) |
-| `responseSchema`  | `ZodSchema`                                 | Yes      | Zod schema for response validation   |
-| `requestSchema`   | `ZodSchema`                                 | No       | Zod schema for request body          |
-| `querySchema`     | `ZodObject`                                 | No       | Zod schema for query parameters      |
-| `processResponse` | `(data) => Result`                          | No       | Transform the response               |
-| `useKey`          | `boolean`                                   | No       | Enable mutation key for scoping      |
-| `useContext`      | `() => Context`                             | No       | Hook to provide context to callbacks |
-| `onMutate`        | `(variables, context) => onMutateResult`    | No       | Called before mutation               |
-| `onSuccess`       | `(data, variables, context) => void`        | No       | Called on success                    |
-| `onError`         | `(error, variables, context) => void`       | No       | Called on error                      |
-| `onSettled`       | `(data, error, variables, context) => void` | No       | Called on completion                 |
+| Property           | Type                                        | Required | Description                                |
+| ------------------ | ------------------------------------------- | -------- | ------------------------------------------ |
+| `method`           | `'POST' \| 'PUT' \| 'PATCH' \| 'DELETE'`    | Yes      | HTTP method                                |
+| `url`              | `string`                                    | Yes      | URL pattern (e.g., `/users/$userId`)       |
+| `responseSchema`   | `ZodSchema`                                 | Yes      | Zod schema for response validation         |
+| `requestSchema`    | `ZodSchema`                                 | No       | Zod schema for request body                |
+| `querySchema`      | `ZodObject`                                 | No       | Zod schema for query parameters            |
+| `errorSchema`      | `Record<number, ZodSchema>`                 | No       | Per-status error schemas (envelope mode)   |
+| `result`           | `'data' \| 'envelope'`                      | No       | Endpoint return shape                      |
+| `unwrap`           | `'none' \| 'throw-on-error'`                | No       | Envelope delivery mode (default `'none'`)  |
+| `validateResponse` | `boolean`                                   | No       | Skip runtime response parsing when `false` |
+| `processResponse`  | `(data) => Result`                          | No       | Transform the response                     |
+| `useKey`           | `boolean`                                   | No       | Enable mutation key for scoping            |
+| `useContext`       | `() => Context`                             | No       | Hook to provide context to callbacks       |
+| `onMutate`         | `(variables, context) => onMutateResult`    | No       | Called before mutation                     |
+| `onSuccess`        | `(data, variables, context) => void`        | No       | Called on success                          |
+| `onError`          | `(error, variables, context) => void`       | No       | Called on error                            |
+| `onSettled`        | `(data, error, variables, context) => void` | No       | Called on completion                       |
 
 ### Context Object
 
@@ -833,19 +858,16 @@ The context passed to mutation callbacks includes:
 - `meta` - Mutation metadata
 - `onMutateResult` - Return value from `onMutate` (in `onSuccess`, `onError`, `onSettled`)
 
-## Migration to 1.0.0
+## Migration to 2.0.0
 
-See [CHANGELOG.md](./CHANGELOG.md) for full migration guide.
+See [CHANGELOG.md](./CHANGELOG.md) for the full migration guide.
 
-### From 0.7.x
+### From 1.x
 
-- **Type file reorganization** - If importing internal types, update paths to use `client/types/*.mts`
-
-### From 0.5.x to 0.6.x
-
-- Mutation callbacks now receive `(data, variables, context)` instead of `(queryClient, data, variables)`
-- Use `useContext` hook to provide `queryClient` and other dependencies
-- New `onMutate` and `onSettled` callbacks for optimistic updates
+- **`onFail` removed** — register `onError` on the builder instead (`builder({ onError: (event) => ... })`).
+- **`UseDiscriminator` generic removed** from every client method and from `declareClient`. Endpoints declared with `useDiscriminatorResponse: true` no longer compile — switch them to `result: 'envelope'`.
+- **`processResponse` is optional** — identity transformers (`processResponse: (data) => data`) can be deleted.
+- **Envelope mode**: opt endpoints into `result: 'envelope'` to receive `{ ok, data, error, response }` instead of the raw body, and pick an `unwrap` mode (`'none'`, `'throw-on-error'`, or `'pages'` for infinite queries).
 
 ## License
 

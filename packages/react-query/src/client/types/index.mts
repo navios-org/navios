@@ -14,14 +14,11 @@ import type { ClientQueryMethods } from './query.mjs'
 /**
  * The main client instance interface.
  * Provides methods for creating queries, infinite queries, and mutations.
- *
- * @template UseDiscriminator - When `true`, errors are returned as union types.
- *   When `false` (default), errors are thrown and not included in TData.
  */
-export interface ClientInstance<UseDiscriminator extends boolean = false>
+export interface ClientInstance
   extends
-    ClientQueryMethods<UseDiscriminator>,
-    ClientInfiniteQueryMethods<UseDiscriminator>,
-    ClientMutationMethods<UseDiscriminator>,
-    ClientMultipartMutationMethods<UseDiscriminator>,
-    ClientFromEndpointMethods<UseDiscriminator> {}
+    ClientQueryMethods,
+    ClientInfiniteQueryMethods,
+    ClientMutationMethods,
+    ClientMultipartMutationMethods,
+    ClientFromEndpointMethods {}

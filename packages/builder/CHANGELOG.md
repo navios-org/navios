@@ -1,28 +1,66 @@
 # Changelog
 
-## [2.0.0-alpha.1] - 2026-05-14
+## [2.0.0] - 2026-05-14
 
 ### Added
 
-- **Response envelope mode (`result: 'envelope'`)**: Per-endpoint opt-in mode that returns `{ ok, data, error, response }` without throwing. Errors are classified into four typed variants (`http`, `http-unknown`, `validation`, `network`) via the new `classifyError` classifier. Access status code, headers, and statusText via `envelope.response`.
-- **Builder-level `defaults.result`**: Configure the default `result` mode for all endpoints in a builder, with per-endpoint override.
-- **New error guards**: `isHttpError(error, status?)`, `isUnknownHttpError(error)`, `isValidationError(error)`, `isNetworkError(error)`, `isEnvelopeError(error)` — typed discriminators for envelope-mode errors.
-- **Header helpers**: `getHeader(meta, name)`, `getCookie(meta, name)`, `getRetryAfterMs(meta)` for ergonomic access to common response headers.
+- **Response envelope mode (`result: 'envelope'`)**: per-endpoint opt-in mode that returns `{ ok, data, error, response }` without throwing. Errors classified into four typed variants (`http`, `http-unknown`, `validation`, `network`).
+- **Builder-level `defaults.result`**: configure the default `result` mode for all endpoints in a builder.
+- **`BuilderErrorEvent`** structured event, fired by the unified `onError` hook on every error path. Includes `kind`, `endpoint`, `status`, `zodIssues`, `cause`, `body`.
+- **New error guards**: `isHttpError(error, status?)`, `isUnknownHttpError`, `isValidationError`, `isNetworkError`, `isResponseEnvelope`.
+- **Header helpers**: `getHeader`, `getCookie`, `getRetryAfterMs`.
 - **`validateResponse: false`** per-endpoint option to skip runtime Zod parsing while keeping the inferred static type.
-- **`ResponseEnvelope`, `ResponseEnvelopeOk`, `ResponseEnvelopeErr`, `ResponseMeta`, `EnvelopeError`, `HttpErrorVariant`, `UnknownHttpErrorVariant`, `ValidationErrorVariant`, `NetworkErrorVariant`** — new type exports.
+- **Composable handler helpers**: `runRequest`, `buildOk`, `buildErr`, `toResponseMeta` exported from `@navios/builder` for advanced use cases.
+- **Typed `AbstractRequestConfig`**: replaced `[key: string]: any` index signature with first-class `timeout`, `responseType`, `clientOptions` fields.
+- **New type exports**: `ResponseEnvelope`, `ResponseEnvelopeOk`, `ResponseEnvelopeErr`, `ResponseMeta`, `EnvelopeError`, `HttpErrorVariant`, `UnknownHttpErrorVariant`, `ValidationErrorVariant`, `NetworkErrorVariant`, `BuilderErrorEvent`.
 
-### Deprecated
+### Changed
 
-- **`builder({ useDiscriminatorResponse: true })`** — emits a one-time `console.warn` per builder instance. Use per-endpoint `result: 'envelope'` (or `defaults: { result: 'envelope' }`) instead. The legacy flag will be removed in the next major.
-- **`isErrorStatus(result, status)`** — use `isHttpError(error, status)` on an envelope-mode error.
-- **`isErrorResponse(result)`** — use `isEnvelopeError(error)` or `isHttpError(error)`.
-- **`__status` injection on parsed error bodies** — the legacy mode still injects `__status` for back-compat; envelope mode uses typed variants instead.
+- **`onError(error: unknown)`** → **`onError(event: BuilderErrorEvent)`**. The hook receives a structured event with classification, endpoint, status, zodIssues, cause, body.
+- `handleError` signature updated to `(config, error, endpoint) => never`.
+- `BuilderInstance`, `EndpointHandler`, `StreamHandler`, `InferEndpointReturn`, `InferStreamReturn` no longer carry the `UseDiscriminator` generic.
+- `AbstractRequestConfig.data` is now `unknown` (was `any`).
 
-### Notes
+### Removed
 
-- All existing endpoints behave exactly as before unless `result: 'envelope'` is set; back-compat is preserved.
-- Envelope mode never throws — errors are returned as values on the `error` field.
-- See [`docs/plans/2026-05-14-builder-response-envelope-design.md`](../../docs/plans/2026-05-14-builder-response-envelope-design.md) for the full design rationale.
+- **`useDiscriminatorResponse` config flag** — use `result: 'envelope'` instead.
+- **`onZodError` callback** — use `onError` with `event.kind === 'validation'`.
+- **`isErrorStatus`, `isErrorResponse` guards** — use `isHttpError`, `isEnvelopeError` on the envelope error.
+- **`InferErrorSchemaOutputWithStatus` type** — use `EnvelopeError`.
+- **`__status` injection on parsed error bodies** — envelope mode carries `status` on the response/error variant directly.
+- **`UnknownResponseError` class** — envelope mode classifies these as `http-unknown`.
+- **Legacy `BaseEndpointConfig`, `BaseStreamConfig`, `AnyEndpointConfig`, `AnyStreamConfig`, `StreamOptions` types**.
+- **`AbstractEndpoint`, `AbstractStream` types** — use `EndpointHandler<Options>`, `StreamHandler<Options>`.
+- **`[key: string]: any` index signature on `AbstractRequestConfig`** — extend via the typed `clientOptions` slot.
+
+### Migration
+
+```diff
+- const api = builder({ useDiscriminatorResponse: true })
++ const api = builder()
+  const ep = api.declareEndpoint({
+    method: 'GET',
+    url: '/users/$id',
+    responseSchema: userSchema,
+    errorSchema: { 404: notFoundSchema },
++   result: 'envelope',
+  })
+
+- const result = await ep({ urlParams: { id: '1' } })
+- if (isErrorStatus(result, 404)) { ... } else { result.name }
++ const { data, error, response } = await ep({ urlParams: { id: '1' } })
++ if (isHttpError(error, 404)) { ... } else if (!error) { data.name }
+```
+
+```diff
+- onError: (error) => log(error)
++ onError: (event) => log(event.cause, event.kind, event.status)
+```
+
+```diff
+- onZodError: (error, response, originalError) => report(error)
++ onError: (event) => { if (event.kind === 'validation') report(event.zodIssues) }
+```
 
 ## [1.0.0] - 2026-01-08
 
