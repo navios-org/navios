@@ -1,6 +1,11 @@
 import { getEndpointMetadata, XmlStreamAdapterToken } from '@navios/core'
 
-import type { BaseEndpointOptions, RequestArgs, Simplify, StreamHandler } from '@navios/builder'
+import type {
+  BaseEndpointOptions,
+  ServerRequestArgs,
+  Simplify,
+  StreamHandler,
+} from '@navios/builder'
 
 import type { BaseXmlStreamConfig } from '../index.mjs'
 
@@ -12,17 +17,9 @@ import type { BaseXmlStreamConfig } from '../index.mjs'
  * @typeParam EndpointDeclaration - The XML stream endpoint declaration from @navios/builder
  */
 export type XmlStreamParams<
-  EndpointDeclaration extends StreamHandler<Config, false>,
+  EndpointDeclaration extends StreamHandler<Config>,
   Config extends BaseXmlStreamConfig = EndpointDeclaration['config'],
-> = Simplify<
-  RequestArgs<
-    Config['url'],
-    Config['querySchema'],
-    Config['requestSchema'],
-    Config['urlParamsSchema'],
-    true
-  >
->
+> = Simplify<ServerRequestArgs<Config>>
 
 /**
  * Decorator that marks a method as an XML streaming endpoint.
@@ -60,44 +57,21 @@ export type XmlStreamParams<
 export function XmlStream<Config extends BaseEndpointOptions>(endpoint: {
   config: Config
 }): (
-  target: (
-    params: RequestArgs<
-      Config['url'],
-      Config['querySchema'],
-      Config['requestSchema'],
-      Config['urlParamsSchema'],
-      true
-    >,
-    reply: any,
-  ) => any,
+  target: (params: ServerRequestArgs<Config>, reply: any) => any,
   context: ClassMethodDecoratorContext,
 ) => void
 // Bun doesn't support reply parameter
 export function XmlStream<Config extends BaseEndpointOptions>(endpoint: {
   config: Config
 }): (
-  target: (
-    params: RequestArgs<
-      Config['url'],
-      Config['querySchema'],
-      Config['requestSchema'],
-      Config['urlParamsSchema'],
-      true
-    >,
-  ) => any,
+  target: (params: ServerRequestArgs<Config>) => any,
   context: ClassMethodDecoratorContext,
 ) => void
 export function XmlStream<Config extends BaseEndpointOptions>(endpoint: {
   config: Config
 }): (target: () => any, context: ClassMethodDecoratorContext) => void
 export function XmlStream<Config extends BaseEndpointOptions>(endpoint: { config: Config }) {
-  type Params = RequestArgs<
-    Config['url'],
-    Config['querySchema'],
-    Config['requestSchema'],
-    Config['urlParamsSchema'],
-    true
-  >
+  type Params = ServerRequestArgs<Config>
 
   type Handler = ((params: Params, reply: any) => any) | ((params: Params) => any) | (() => any)
 

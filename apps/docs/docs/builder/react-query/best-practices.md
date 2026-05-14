@@ -20,9 +20,7 @@ export const getUserEndpoint = API.declareEndpoint({
 })
 
 // client/queries/users.ts
-const getUser = client.queryFromEndpoint(getUserEndpoint, {
-  processResponse: (data) => data,
-})
+const getUser = client.query(getUserEndpoint)
 ```
 
 ### Group by Resource
@@ -59,27 +57,32 @@ function UserProfile({ userId }: { userId: string }) {
 }
 ```
 
-### Use processResponse for Transformations
+### Use `select` for Read-Side Projections
 
 ```typescript
-// ✅ Good - transform at query level
 const getUser = client.query({
   method: 'GET',
   url: '/users/$userId',
   responseSchema: userSchema,
-  processResponse: (data) => ({
-    ...data,
-    displayName: `${data.firstName} ${data.lastName}`,
-  }),
 })
 
-// ❌ Bad - transform in component
-const getUser = client.query({ ... })
-function Component() {
-  const { data } = getUser.use({ ... })
+// ✅ Good - project on read; runs outside the cache-write path
+function Component({ userId }: { userId: string }) {
+  const { data } = getUser.use(
+    { urlParams: { userId } },
+    { select: (data) => ({ ...data, displayName: `${data.firstName} ${data.lastName}` }) },
+  )
+  return <div>{data.displayName}</div>
+}
+
+// ❌ Bad - reshape inline in the component body (re-runs on every render)
+function ComponentBad({ userId }: { userId: string }) {
+  const { data } = getUser.use({ urlParams: { userId } })
   const displayName = `${data.firstName} ${data.lastName}`
 }
 ```
+
+The endpoint-level `processResponse` callback was removed in v2 — `select` is the supported way to project read-side data. For mutations, transform inside `onSuccess` or in the caller.
 
 ## Mutation Patterns
 

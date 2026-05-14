@@ -36,7 +36,6 @@ const getUser = client.query({
   method: 'GET',
   url: '/users/$userId',
   responseSchema: userSchema,
-  processResponse: (data) => data,
 })
 
 // Key: ['api', 'v1', 'users', '123']
@@ -59,7 +58,6 @@ const getUser = client.query({
   method: 'GET',
   url: '/users/$userId',
   responseSchema: userSchema,
-  processResponse: (data) => data,
 })
 
 // Key: ['users', '123', 'cache']

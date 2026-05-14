@@ -30,8 +30,8 @@ import type { SendOptions, SocketBuilderConfig, SubscribeOptions } from './types
  *
  * // Create builder
  * const socket = socketBuilder({
- *   onValidationError: (error, topic, data) => {
- *     console.error(`Validation failed for ${topic}:`, error)
+ *   onError: (event) => {
+ *     console.error(`Socket error (${event.kind}) on ${event.topic ?? '?'}:`, event.cause)
  *   }
  * })
  *

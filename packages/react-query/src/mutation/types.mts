@@ -1,26 +1,26 @@
 import type {
+  ClientRequestArgs,
   EndpointOptions,
   ErrorSchemaRecord,
   InferErrorSchemaOutput,
-  RequestArgs,
   UrlHasParams,
   UrlParams,
 } from '@navios/builder'
 import type { DataTag, MutationFunctionContext, UseMutationOptions } from '@tanstack/react-query'
 import type { z, ZodObject, ZodType } from 'zod/v4'
 
-import type { ComputeResponseInput, ProcessResponseFunction } from '../common/types.mjs'
+import type { ComputeResponseInput } from '../common/types.mjs'
 import type { UnwrapMode } from '../query/types.mjs'
 
 /**
  * Arguments for mutation functions based on URL params, request schema, and query schema.
- * Uses RequestArgs from builder for consistency.
+ * Uses ClientRequestArgs from builder for consistency.
  */
 export type MutationArgs<
   Url extends string = string,
   RequestSchema extends ZodType | undefined = undefined,
   QuerySchema extends ZodObject | undefined = undefined,
-> = RequestArgs<Url, QuerySchema, RequestSchema>
+> = ClientRequestArgs<{ url: Url; querySchema: QuerySchema; requestSchema: RequestSchema }>
 
 /**
  * Helper methods attached to mutation hooks.
@@ -61,12 +61,7 @@ export type MutationHelpers<Url extends string, Result = unknown> =
 export interface MutationParams<
   Config extends EndpointOptions,
   TData = unknown,
-  TVariables = RequestArgs<
-    Config['url'],
-    Config['querySchema'],
-    Config['requestSchema'],
-    Config['urlParamsSchema']
-  >,
+  TVariables = ClientRequestArgs<Config>,
   _TResponse = ComputeResponseInput<Config['responseSchema'], Config['errorSchema']>,
   TOnMutateResult = unknown,
   TContext = unknown,
@@ -78,10 +73,6 @@ export interface MutationParams<
   UseMutationOptions<TData, TError, TVariables>,
   'mutationKey' | 'mutationFn' | 'onMutate' | 'onSuccess' | 'onError' | 'onSettled' | 'scope'
 > {
-  processResponse?: ProcessResponseFunction<
-    TData,
-    ComputeResponseInput<Config['responseSchema'], Config['errorSchema']>
-  >
   /**
    * React hooks that will prepare the context for the mutation onSuccess and onError
    * callbacks. This is useful for when you want to use the context in the callbacks
@@ -150,21 +141,11 @@ export type ClientMutationArgs<
 export type BaseMutationParams<
   Config extends EndpointOptions,
   TData = unknown,
-  TVariables = RequestArgs<
-    Config['url'],
-    Config['querySchema'],
-    Config['requestSchema'],
-    Config['urlParamsSchema']
-  >,
+  TVariables = ClientRequestArgs<Config>,
   TResponse = z.output<Config['responseSchema']>,
   TContext = unknown,
   UseKey extends boolean = false,
 > = MutationParams<Config, TData, TVariables, TResponse, TContext, UseKey>
 
-/** @deprecated Use RequestArgs from @navios/builder instead */
-export type BaseMutationArgs<Config extends EndpointOptions> = RequestArgs<
-  Config['url'],
-  Config['querySchema'],
-  Config['requestSchema'],
-  Config['urlParamsSchema']
->
+/** @deprecated Use ClientRequestArgs from @navios/builder instead */
+export type BaseMutationArgs<Config extends EndpointOptions> = ClientRequestArgs<Config>

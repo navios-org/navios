@@ -46,7 +46,6 @@ describe('makeMutation', () => {
     z.object({ success: z.literal(true), test: z.string() }),
     z.object({ success: z.literal(false), message: z.string() }),
   ])
-  type ResponseType = z.output<typeof responseSchema>
   const endpoint = api.declareEndpoint({
     method: 'POST',
     url: '/test/$testId/foo/$fooId' as const,
@@ -75,12 +74,6 @@ describe('makeMutation', () => {
 
   it('should just work', async () => {
     const mutation = makeMutation(endpoint, {
-      processResponse: (data: ResponseType) => {
-        if (!data.success) {
-          throw new Error(data.message)
-        }
-        return data
-      },
       onSuccess: (data, variables, context) => {
         expect(data).toMatchObject({
           success: true,
@@ -126,12 +119,6 @@ describe('makeMutation', () => {
 
   it('should work with a key', async () => {
     const mutation = makeMutation(endpoint, {
-      processResponse: (data: ResponseType) => {
-        if (!data.success) {
-          throw new Error(data.message)
-        }
-        return data
-      },
       useKey: true,
     })
     const mutationResult = mutation({
@@ -163,7 +150,7 @@ describe('makeMutation', () => {
       })
     })
 
-    it('should work without processResponse (returns Blob)', async () => {
+    it('should return a Blob from a stream endpoint', async () => {
       // @ts-expect-error stream endpoint type differs from regular endpoint
       const mutation = makeMutation(streamEndpoint, {})
       // @ts-expect-error internal type
@@ -174,22 +161,6 @@ describe('makeMutation', () => {
       })
 
       expect(result).toBeInstanceOf(Blob)
-    })
-
-    it('should work with processResponse transformation', async () => {
-      // @ts-expect-error stream endpoint type differs from regular endpoint
-      const mutation = makeMutation(streamEndpoint, {
-        processResponse: (blob: Blob) => URL.createObjectURL(blob),
-      })
-      // @ts-expect-error internal type
-      const mutationResult = mutation()
-
-      const result = await mutationResult.mutateAsync({
-        urlParams: { fileId: '123' },
-      })
-
-      expect(typeof result).toBe('string')
-      expect(result).toContain('blob:')
     })
 
     it('should call onSuccess with Blob data and context', async () => {
@@ -233,10 +204,6 @@ describe('makeMutation', () => {
       })
 
       const mutation = makeMutation(endpoint, {
-        processResponse: (data: ResponseType) => {
-          if (!data.success) throw new Error(data.message)
-          return data
-        },
         onMutate,
         onSuccess,
         onSettled,
@@ -256,52 +223,6 @@ describe('makeMutation', () => {
       expect(onSettled).toHaveBeenCalledTimes(1)
     })
 
-    it('should call onError and onSettled on failure', async () => {
-      adapter.mock('/test/1/foo/2', 'POST', () => {
-        return new Response(JSON.stringify({ success: false, message: 'Test error' }), {
-          status: 200,
-          headers: { 'content-type': 'application/json' },
-        })
-      })
-
-      const onError = vi.fn()
-      const onSettled = vi.fn()
-
-      const mutation = makeMutation(endpoint, {
-        processResponse: (data: ResponseType) => {
-          if (!data.success) throw new Error(data.message)
-          return data
-        },
-        onError,
-        onSettled,
-      })
-
-      // @ts-expect-error internal type
-      const mutationResult = mutation()
-
-      await expect(
-        mutationResult.mutateAsync({
-          urlParams: { testId: '1', fooId: '2' },
-          data: { testId: '1', fooId: '2' },
-          params: { foo: 'bar' },
-        }),
-      ).rejects.toThrow('Test error')
-
-      expect(onError).toHaveBeenCalledTimes(1)
-      expect(onError.mock.calls[0][0]).toBeInstanceOf(Error)
-      expect(onError.mock.calls[0][0].message).toBe('Test error')
-      expect(onSettled).toHaveBeenCalledTimes(1)
-      expect(onSettled.mock.calls[0][1]).toBeInstanceOf(Error)
-
-      // Restore the mock
-      adapter.mock('/test/1/foo/2', 'POST', () => {
-        return new Response(JSON.stringify({ success: true, test: 'test' }), {
-          status: 200,
-          headers: { 'content-type': 'application/json' },
-        })
-      })
-    })
-
     it('should merge useContext result with MutationFunctionContext', async () => {
       const useContext = () => ({
         queryClient: { invalidate: vi.fn() },
@@ -311,10 +232,6 @@ describe('makeMutation', () => {
       const onSuccess = vi.fn()
 
       const mutation = makeMutation(endpoint, {
-        processResponse: (data: ResponseType) => {
-          if (!data.success) throw new Error(data.message)
-          return data
-        },
         useContext,
         onSuccess,
       })

@@ -53,12 +53,10 @@ Works with any HTTP client that implements the `Client` interface:
 
 Comprehensive error handling with:
 
-- Global error callbacks
-- Zod validation error callbacks
-- Discriminated union support for error responses
+- Unified `onError(event)` hook with a structured `BuilderErrorEvent` (`kind`, `endpoint`, `status`, `zodIssues`, `cause`, `body`)
+- Envelope mode (`result: 'envelope'`) that returns errors as data alongside `data` / `response`
 - **Error schema** - Map HTTP status codes to Zod schemas
-- Type guards (`isErrorStatus`, `isErrorResponse`) for type-safe error discrimination
-- Custom error transformation
+- Type guards (`isHttpError`, `isValidationError`, `isNetworkError`, `isUnknownHttpError`) for typed error discrimination
 
 ## Core Concepts
 
@@ -170,26 +168,31 @@ const uploadFile = API.declareMultipart({ ... })
 
 ### Error Handling
 
+Register a single `onError(event)` hook for cross-cutting concerns. The hook receives a structured `BuilderErrorEvent` on every failure path — HTTP, Zod validation (both error responses and 2xx body failures), and network:
+
 ```typescript
 const API = builder({
-  useDiscriminatorResponse: true, // Enable error schema support
-  onError: (error) => {
-    // Global error handler
-    logError(error)
-  },
-  onZodError: (zodError, response) => {
-    // Zod validation errors
-    logValidationError(zodError)
+  defaults: { result: 'envelope' }, // optional: envelope mode by default
+  onError: (event) => {
+    if (event.kind === 'validation') {
+      logValidationError(event.zodIssues)
+    } else if (event.kind === 'network') {
+      logNetworkFailure(event.cause)
+    } else {
+      logHttpError(event.endpoint, event.status, event.body)
+    }
   },
 })
 ```
 
+The v1 `onZodError` callback and `useDiscriminatorResponse` flag were removed — filter on `event.kind` and opt into envelope mode per-endpoint with `result: 'envelope'`.
+
 ### Error Schema
 
-Handle different error responses by HTTP status code:
+Handle different error responses by HTTP status code. Combine with `result: 'envelope'` so errors flow back as typed envelope variants instead of throwing:
 
 ```typescript
-import { isErrorStatus, isErrorResponse } from '@navios/builder'
+import { isHttpError } from '@navios/builder'
 
 const getUser = API.declareEndpoint({
   method: 'GET',
@@ -199,18 +202,21 @@ const getUser = API.declareEndpoint({
     400: z.object({ error: z.string(), field: z.string() }),
     404: z.object({ error: z.literal('Not Found') }),
   },
+  result: 'envelope',
 })
 
-const result = await getUser({ urlParams: { userId: '123' } })
+const { data, error, response } = await getUser({ urlParams: { userId: '123' } })
 
-if (isErrorStatus(result, 404)) {
-  console.log('Not found')
-} else if (isErrorResponse(result)) {
-  console.log('Error:', result.__status)
-} else {
-  console.log('User:', result.name)
+if (isHttpError(error, 404)) {
+  console.log('Not found:', error.body.error)
+} else if (isHttpError(error, 400)) {
+  console.log('Bad request:', error.body.error, error.body.field)
+} else if (!error) {
+  console.log('User:', data.name)
 }
 ```
+
+The v1 `isErrorStatus` / `isErrorResponse` guards and `__status` injection were removed — use `isHttpError(error, status?)` on the envelope error variant instead.
 
 ### Per-Endpoint Configuration
 

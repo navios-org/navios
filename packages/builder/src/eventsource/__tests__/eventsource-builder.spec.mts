@@ -73,11 +73,9 @@ describe('eventSourceBuilder', () => {
     })
 
     it('should accept optional config', () => {
-      const onValidationError = vi.fn()
       const onError = vi.fn()
 
       const sse = eventSourceBuilder({
-        onValidationError,
         onError,
       })
 
@@ -211,9 +209,9 @@ describe('eventSourceBuilder', () => {
       expect(handler).toHaveBeenCalledWith({ text: 'Hello', from: 'Alice' })
     })
 
-    it('should skip invalid events and call onValidationError', () => {
-      const onValidationError = vi.fn()
-      const sse = eventSourceBuilder({ onValidationError })
+    it('should skip invalid events and fire onError with kind validation', () => {
+      const onError = vi.fn()
+      const sse = eventSourceBuilder({ onError })
       const client = createMockClient()
       sse.provideClient(client)
 
@@ -225,14 +223,26 @@ describe('eventSourceBuilder', () => {
       const handler = vi.fn()
       onMessage(handler)
 
+      const invalidPayload = { text: 'Hello' } // missing 'from'
       // Simulate invalid event (missing 'from')
-      simulateEvent(client, 'message', { text: 'Hello' })
+      simulateEvent(client, 'message', invalidPayload)
 
       expect(handler).not.toHaveBeenCalled()
-      expect(onValidationError).toHaveBeenCalled()
+      expect(onError).toHaveBeenCalledWith(
+        expect.objectContaining({
+          kind: 'validation',
+          eventName: 'message',
+          rawData: invalidPayload,
+          body: invalidPayload,
+          endpoint: {},
+        }),
+      )
+      const event = onError.mock.calls[0]![0] as { zodIssues: unknown[] }
+      expect(Array.isArray(event.zodIssues)).toBe(true)
+      expect(event.zodIssues.length).toBeGreaterThan(0)
     })
 
-    it('should call onError when handler throws', () => {
+    it('should fire onError with kind event-source-transport when handler throws', () => {
       const onError = vi.fn()
       const sse = eventSourceBuilder({ onError })
       const client = createMockClient()
@@ -253,7 +263,14 @@ describe('eventSourceBuilder', () => {
       simulateEvent(client, 'message', { text: 'Hello', from: 'Alice' })
 
       expect(handler).toHaveBeenCalled()
-      expect(onError).toHaveBeenCalledWith(error)
+      expect(onError).toHaveBeenCalledWith(
+        expect.objectContaining({
+          kind: 'event-source-transport',
+          eventName: 'message',
+          cause: error,
+          endpoint: {},
+        }),
+      )
     })
 
     it('should unsubscribe handler when unsubscribe is called', () => {
@@ -422,8 +439,13 @@ describe('eventSourceBuilder', () => {
       expect(handler1).toHaveBeenCalled()
       expect(handler2).toHaveBeenCalled()
 
-      // Error should have been reported
-      expect(onError).toHaveBeenCalled()
+      // Error should have been reported as structured transport error
+      expect(onError).toHaveBeenCalledWith(
+        expect.objectContaining({
+          kind: 'event-source-transport',
+          eventName: 'message',
+        }),
+      )
     })
   })
 })

@@ -128,20 +128,19 @@ export type User = z.output<typeof userSchema>
 ### Use Global Error Handlers
 
 ```typescript
-// ✅ Good - centralized error handling
+// ✅ Good - centralized error handling via the unified onError hook
 const API = builder({
-  onError: (error) => {
-    logError(error)
-    if (error instanceof NaviosError && error.cause) {
-      const httpError = error.cause as { status?: number }
-      if (httpError.status === 401) {
-        redirectToLogin()
-      }
+  onError: (event) => {
+    logError(event.cause, { kind: event.kind, endpoint: event.endpoint, status: event.status })
+
+    if (event.kind === 'http' && event.status === 401) {
+      redirectToLogin()
     }
-  },
-  onZodError: (zodError) => {
-    logValidationError(zodError)
-    showUserFriendlyError('Invalid data received from server')
+
+    if (event.kind === 'validation') {
+      logValidationError(event.zodIssues)
+      showUserFriendlyError('Invalid data received from server')
+    }
   },
 })
 

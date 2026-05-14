@@ -1,7 +1,6 @@
 import type {
+  EndpointHandler,
   EndpointOptions,
-  ErrorSchemaRecord,
-  HttpMethod,
   InferEndpointParams,
   Simplify,
 } from '@navios/builder'
@@ -11,39 +10,14 @@ import type { ZodObject, ZodType } from 'zod/v4'
 import type { Split } from '../../common/types.mjs'
 import type { QueryHelpers, UnwrapMode } from '../../query/types.mjs'
 
-import type { ComputeResult, EndpointHelper, OptionsFromInline, ResultMode } from './helpers.mjs'
+import type { ComputeResult } from './helpers.mjs'
 
 /**
- * Extended endpoint options interface for query that includes processResponse.
- *
- * Inherits all endpoint fields from `EndpointOptions` and adds the
- * surface-specific `processResponse` / `unwrap` fields. The per-field
- * generic parameters (`Method`, `Url`, `QuerySchema`, …) re-declare the
- * underlying endpoint fields with concrete generics — this is what lets
- * TypeScript infer the precise shape of the literal passed to `query(...)`.
+ * Surface-specific fields layered on top of `EndpointOptions` for the inline
+ * config path. These do not belong to `EndpointOptions` and are stripped out
+ * at runtime before being forwarded to `api.declareEndpoint`.
  */
-interface QueryEndpointConfig<
-  Method extends HttpMethod,
-  Url extends string,
-  QuerySchema extends ZodObject | undefined,
-  RequestSchema extends ZodType | undefined,
-  ResponseSchema extends ZodType,
-  ErrorSchema extends ErrorSchemaRecord | undefined,
-  UrlParamsSchema extends ZodObject | undefined,
-  ResultModeT extends ResultMode,
-  Unwrap extends UnwrapMode,
-  TBaseResult,
-  Result,
-> extends EndpointOptions {
-  method: Method
-  url: Url
-  querySchema?: QuerySchema
-  requestSchema?: RequestSchema
-  responseSchema: ResponseSchema
-  errorSchema?: ErrorSchema
-  urlParamsSchema?: UrlParamsSchema
-  result?: ResultModeT
-  processResponse?: (data: TBaseResult) => Result
+interface QuerySurfaceFields<Unwrap extends UnwrapMode> {
   /**
    * For endpoints declared with `result: 'envelope'`, controls how the
    * envelope is delivered to React Query.
@@ -55,21 +29,37 @@ interface QueryEndpointConfig<
    * Has no effect for non-envelope endpoints.
    */
   unwrap?: Unwrap
+  keyPrefix?: string[]
+  keySuffix?: string[]
 }
 
 /**
- * Query method using decomposed generics for inference. Once the literal is
- * inferred field-by-field, `Options` is synthesised via `OptionsFromInline`
- * and reused everywhere downstream — the return type only references
- * `Options` (and a handful of surface-specific generics), so adding a new
- * endpoint field to `EndpointOptions` propagates via `Options` automatically.
+ * Single overloaded query surface. The first argument is either:
+ *
+ * - an inline `EndpointOptions` config (with optional surface fields like
+ *   `unwrap`, `keyPrefix`, `keySuffix`), or
+ * - an existing `EndpointHandler` produced by `api.declareEndpoint`.
+ *
+ * In both cases the result is the same: a callable that produces
+ * `UseSuspenseQueryOptions` plus the attached `QueryHelpers` + `endpoint`.
+ *
+ * `Options` is inferred from the literal config via the structural copy
+ * `{ [K in keyof Options]: Options[K] }`, which keeps surface-specific fields
+ * out of `Options`. Downstream return-type derivations reference `Options`
+ * directly so adding a new endpoint field to `EndpointOptions` propagates
+ * automatically.
+ *
+ * For projecting the cached data into a derived shape, callers should use
+ * TanStack Query's built-in `select` option on `use()` / `useSuspense()`.
  */
 export interface ClientQueryMethods {
   /**
-   * Creates a type-safe query with automatic type inference.
+   * Creates a type-safe query with automatic type inference, accepting either
+   * an inline config or an existing endpoint handler.
    *
    * @example
    * ```ts
+   * // Inline config
    * const getUser = client.query({
    *   method: 'GET',
    *   url: '/users/$userId',
@@ -77,59 +67,33 @@ export interface ClientQueryMethods {
    *   urlParamsSchema: z.object({ userId: z.string().uuid() }),
    * })
    *
-   * const { data } = getUser.useSuspense({ urlParams: { userId: '123' } })
+   * // From an existing endpoint
+   * const getUserEndpoint = api.declareEndpoint({
+   *   method: 'GET',
+   *   url: '/users/$userId',
+   *   responseSchema: userSchema,
+   * })
+   * const getUser2 = client.query(getUserEndpoint)
    * ```
    */
-  query<
-    const Method extends HttpMethod = HttpMethod,
-    const Url extends string = string,
-    const QuerySchema extends ZodObject | undefined = undefined,
-    const RequestSchema extends ZodType | undefined = undefined,
-    const ResponseSchema extends ZodType = ZodType,
-    const ErrorSchema extends ErrorSchemaRecord | undefined = undefined,
-    const UrlParamsSchema extends ZodObject | undefined = undefined,
-    const ResultModeT extends ResultMode = undefined,
-    const Unwrap extends UnwrapMode = 'none',
-    const Options extends EndpointOptions = OptionsFromInline<
-      Method,
-      Url,
-      QuerySchema,
-      RequestSchema,
-      ResponseSchema,
-      ErrorSchema,
-      UrlParamsSchema,
-      ResultModeT
-    >,
-    const TBaseResult = ComputeResult<Options, Unwrap>,
-    const Result = TBaseResult,
-  >(
-    config: QueryEndpointConfig<
-      Method,
-      Url,
-      QuerySchema,
-      RequestSchema,
-      ResponseSchema,
-      ErrorSchema,
-      UrlParamsSchema,
-      ResultModeT,
-      Unwrap,
-      TBaseResult,
-      Result
-    >,
+  query<const Options extends EndpointOptions, const Unwrap extends UnwrapMode = 'none'>(
+    input:
+      | ({ [K in keyof Options]: Options[K] } & QuerySurfaceFields<Unwrap>)
+      | EndpointHandler<Options>,
+    options?: QuerySurfaceFields<Unwrap>,
   ): ((
     params: Simplify<InferEndpointParams<Options>>,
   ) => UseSuspenseQueryOptions<
-    Result,
+    ComputeResult<Options, Unwrap>,
     Error,
-    Result,
-    DataTag<Split<Options['url'], '/'>, Result, Error>
+    ComputeResult<Options, Unwrap>,
+    DataTag<Split<Options['url'], '/'>, ComputeResult<Options, Unwrap>, Error>
   >) &
     QueryHelpers<
       Options['url'],
       Options['querySchema'] extends ZodObject ? Options['querySchema'] : undefined,
-      Result,
+      ComputeResult<Options, Unwrap>,
       false,
       Options['requestSchema'] extends ZodType ? Options['requestSchema'] : undefined
-    > &
-    EndpointHelper<Options>
+    > & { endpoint: EndpointHandler<Options> }
 }

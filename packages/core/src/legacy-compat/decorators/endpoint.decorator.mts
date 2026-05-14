@@ -1,6 +1,6 @@
 import { createMethodContext } from '@navios/di/legacy-compat'
 
-import type { EndpointHandler, EndpointOptions, RequestArgs } from '@navios/builder'
+import type { EndpointHandler, EndpointOptions, ServerRequestArgs } from '@navios/builder'
 import type { z } from 'zod/v4'
 
 import { Endpoint as OriginalEndpoint } from '../../decorators/endpoint.decorator.mjs'
@@ -11,15 +11,7 @@ import { Endpoint as OriginalEndpoint } from '../../decorators/endpoint.decorato
  * but may not be preserved perfectly when decorators are stacked.
  */
 type EndpointMethodDescriptor<Config extends EndpointOptions> = TypedPropertyDescriptor<
-  (
-    params: RequestArgs<
-      Config['url'],
-      Config['querySchema'],
-      Config['requestSchema'],
-      Config['urlParamsSchema'],
-      true
-    >,
-  ) => Promise<z.input<Config['responseSchema']>>
+  (params: ServerRequestArgs<Config>) => Promise<z.input<Config['responseSchema']>>
 >
 
 /**
@@ -42,9 +34,7 @@ type EndpointMethodDescriptor<Config extends EndpointOptions> = TypedPropertyDes
  * }
  * ```
  */
-export function Endpoint<const Config extends EndpointOptions>(
-  endpoint: EndpointHandler<Config, false>,
-) {
+export function Endpoint<const Config extends EndpointOptions>(endpoint: EndpointHandler<Config>) {
   return function (
     target: any,
     propertyKey: string | symbol,

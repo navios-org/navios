@@ -18,11 +18,7 @@ describe('makeDataTag', () => {
       responseSchema,
     })
 
-    const result = makeQueryOptions(endpoint, {
-      processResponse(data) {
-        return data
-      },
-    })
+    const result = makeQueryOptions(endpoint, {})
     expect(typeof result.queryKey.dataTag).toBe('function')
     expect(
       result.queryKey.dataTag({
@@ -45,21 +41,13 @@ describe('makeDataTag', () => {
       z.object({ success: z.literal(true), test: z.string() }),
       z.object({ success: z.literal(false), message: z.string() }),
     ])
-    type ResponseType = z.output<typeof responseSchema>
     const endpoint = api.declareEndpoint({
       method: 'GET',
       url: '/test/$testId/foo/$fooId' as const,
       responseSchema,
     })
 
-    const result = makeQueryOptions(endpoint, {
-      processResponse(data: ResponseType) {
-        if (!data.success) {
-          throw new Error(data.message)
-        }
-        return data
-      },
-    })
+    const result = makeQueryOptions(endpoint, {})
     expect(typeof result.queryKey.dataTag).toBe('function')
     const queryKey = result.queryKey.dataTag({
       urlParams: { testId: '1', fooId: 'bar' },

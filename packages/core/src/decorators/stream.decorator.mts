@@ -1,4 +1,4 @@
-import type { BaseEndpointOptions, RequestArgs, StreamHandler } from '@navios/builder'
+import type { BaseEndpointOptions, ServerRequestArgs, StreamHandler } from '@navios/builder'
 import type { ZodObject, ZodType } from 'zod/v4'
 
 import { getEndpointMetadata } from '../metadata/index.mjs'
@@ -12,35 +12,33 @@ import { StreamAdapterToken } from '../tokens/index.mjs'
  * @typeParam EndpointDeclaration - The stream endpoint declaration from @navios/builder
  */
 export type StreamParams<
-  EndpointDeclaration extends StreamHandler<Config, false>,
+  EndpointDeclaration extends StreamHandler<Config>,
   Config extends BaseEndpointOptions = EndpointDeclaration['config'],
   Url extends string = EndpointDeclaration['config']['url'],
   QuerySchema = EndpointDeclaration['config']['querySchema'],
 > = QuerySchema extends ZodObject
   ? EndpointDeclaration['config']['requestSchema'] extends ZodType
-    ? RequestArgs<
-        Url,
-        QuerySchema,
-        EndpointDeclaration['config']['requestSchema'],
-        EndpointDeclaration['config']['urlParamsSchema'],
-        true
-      >
-    : RequestArgs<
-        Url,
-        QuerySchema,
-        undefined,
-        EndpointDeclaration['config']['urlParamsSchema'],
-        true
-      >
+    ? ServerRequestArgs<{
+        url: Url
+        querySchema: QuerySchema
+        requestSchema: EndpointDeclaration['config']['requestSchema']
+        urlParamsSchema: EndpointDeclaration['config']['urlParamsSchema']
+      }>
+    : ServerRequestArgs<{
+        url: Url
+        querySchema: QuerySchema
+        urlParamsSchema: EndpointDeclaration['config']['urlParamsSchema']
+      }>
   : EndpointDeclaration['config']['requestSchema'] extends ZodType
-    ? RequestArgs<
-        Url,
-        undefined,
-        EndpointDeclaration['config']['requestSchema'],
-        EndpointDeclaration['config']['urlParamsSchema'],
-        true
-      >
-    : RequestArgs<Url, undefined, undefined, EndpointDeclaration['config']['urlParamsSchema'], true>
+    ? ServerRequestArgs<{
+        url: Url
+        requestSchema: EndpointDeclaration['config']['requestSchema']
+        urlParamsSchema: EndpointDeclaration['config']['urlParamsSchema']
+      }>
+    : ServerRequestArgs<{
+        url: Url
+        urlParamsSchema: EndpointDeclaration['config']['urlParamsSchema']
+      }>
 
 /**
  * Decorator that marks a method as a streaming endpoint.
@@ -71,44 +69,21 @@ export type StreamParams<
 export function Stream<Config extends BaseEndpointOptions>(endpoint: {
   config: Config
 }): (
-  target: (
-    params: RequestArgs<
-      Config['url'],
-      Config['querySchema'],
-      Config['requestSchema'],
-      Config['urlParamsSchema'],
-      true
-    >,
-    reply: any,
-  ) => any,
+  target: (params: ServerRequestArgs<Config>, reply: any) => any,
   context: ClassMethodDecoratorContext,
 ) => void
 // Bun doesn't support reply parameter
 export function Stream<Config extends BaseEndpointOptions>(endpoint: {
   config: Config
 }): (
-  target: (
-    params: RequestArgs<
-      Config['url'],
-      Config['querySchema'],
-      Config['requestSchema'],
-      Config['urlParamsSchema'],
-      true
-    >,
-  ) => any,
+  target: (params: ServerRequestArgs<Config>) => any,
   context: ClassMethodDecoratorContext,
 ) => void
 export function Stream<Config extends BaseEndpointOptions>(endpoint: {
   config: Config
 }): (target: () => any, context: ClassMethodDecoratorContext) => void
 export function Stream<Config extends BaseEndpointOptions>(endpoint: { config: Config }) {
-  type Params = RequestArgs<
-    Config['url'],
-    Config['querySchema'],
-    Config['requestSchema'],
-    Config['urlParamsSchema'],
-    true
-  >
+  type Params = ServerRequestArgs<Config>
 
   type Handler = ((params: Params, reply: any) => any) | ((params: Params) => any) | (() => any)
 

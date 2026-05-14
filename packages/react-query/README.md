@@ -110,30 +110,37 @@ function UsersPage() {
 }
 ```
 
-### Query with Response Transformation
+### Query with Response Projection (`select`)
+
+Read-side projections live on the call site, not the endpoint declaration. Pass `select` to `use`, `useSuspense`, or the underlying `useQuery` options — it runs after data is in the cache, so different consumers can project the same cached response differently without invalidating each other.
 
 ```typescript
 const getUsers = client.query({
   method: 'GET',
   url: '/users',
-  responseSchema: z.discriminatedUnion('success', [
-    z.object({
-      success: z.literal(true),
-      data: z.array(UserSchema),
-    }),
-    z.object({
-      success: z.literal(false),
-      error: z.object({ message: z.string() }),
-    }),
-  ]),
-  processResponse: (response) => {
-    if (!response.success) {
-      throw new Error(response.error.message)
-    }
-    return response.data
-  },
+  responseSchema: z.array(UserSchema),
 })
+
+// Project to just names in one consumer
+function UserNames() {
+  const { data: names } = getUsers.useSuspense(
+    {},
+    { select: (users) => users.map((u) => u.name) },
+  )
+  return <ul>{names.map((n) => <li key={n}>{n}</li>)}</ul>
+}
+
+// Project to a map keyed by id in another
+function UsersById() {
+  const { data: byId } = getUsers.useSuspense(
+    {},
+    { select: (users) => new Map(users.map((u) => [u.id, u])) },
+  )
+  return <pre>{byId.size}</pre>
+}
 ```
+
+For mutations, transform in your `onSuccess` callback or in the caller — there is no read-side `select` for the mutation surface.
 
 ### Query with Error Handling
 
@@ -177,12 +184,12 @@ When an endpoint is declared with `result: 'envelope'` (see the [@navios/builder
 
 The `unwrap` option controls how the envelope is delivered to TanStack Query:
 
-| Surface             | Allowed values                          | Default  |
-| ------------------- | --------------------------------------- | -------- |
-| `query`             | `'none' \| 'throw-on-error'`            | `'none'` |
-| `infiniteQuery`     | `'none' \| 'throw-on-error' \| 'pages'` | `'none'` |
-| `mutation`          | `'none' \| 'throw-on-error'`            | `'none'` |
-| `multipartMutation` | `'none' \| 'throw-on-error'`            | `'none'` |
+| Surface         | Allowed values                          | Default  |
+| --------------- | --------------------------------------- | -------- |
+| `query`         | `'none' \| 'throw-on-error'`            | `'none'` |
+| `infiniteQuery` | `'none' \| 'throw-on-error' \| 'pages'` | `'none'` |
+| `mutation`      | `'none' \| 'throw-on-error'`            | `'none'` |
+| `multipart`     | `'none' \| 'throw-on-error'`            | `'none'` |
 
 - `'none'` — the envelope is passed through unchanged. `data` is the envelope, `error` is null. You can discriminate `envelope.error` yourself.
 - `'throw-on-error'` — if the envelope carries an error, it's thrown so TanStack Query routes it through `error`. On success `data` is the unwrapped body. Best when you want classic React Query ergonomics without giving up envelope-typed errors.
@@ -251,31 +258,11 @@ const usersEnvelopeQuery = client.infiniteQuery({
 })
 ```
 
-### `processResponse` is now optional
-
-`processResponse` used to be required boilerplate (`processResponse: (data) => data`). It's now optional on every helper — queries, mutations, infinite queries, multipart, and the `*FromEndpoint` variants. Existing call sites that pass an explicit `processResponse` continue to work unchanged.
-
-```typescript
-// Both forms are valid
-const getUser = client.query({
-  method: 'GET',
-  url: '/users/$id',
-  responseSchema: UserSchema,
-})
-
-const getUser2 = client.query({
-  method: 'GET',
-  url: '/users/$id',
-  responseSchema: UserSchema,
-  processResponse: (data) => data, // still works
-})
-```
-
 ### Subtle behaviour
 
 - The `error` channel on TanStack Query hooks is typed as `Error`. To get the typed `EnvelopeError`, either use `unwrap: 'throw-on-error'` (envelope errors flow through RQ's error channel typed as `EnvelopeError`) or destructure the envelope from `data` in `unwrap: 'none'` mode.
 
-- `processResponse` in envelope mode + `unwrap: 'none'` receives the full envelope. If you only want to project a field from `envelope.data`, prefer TanStack's `select` over `processResponse` — `processResponse` runs in the cache-write path, `select` runs on read.
+- In envelope mode + `unwrap: 'none'`, the full envelope is what lands in the cache. To project to a single field on the consumer, pass `select` to `use` / `useSuspense` — it runs on read without re-writing the cache.
 
 ## Infinite Queries
 
@@ -328,7 +315,6 @@ const createUser = client.mutation({
     id: z.string(),
     name: z.string(),
   }),
-  processResponse: (data) => data,
 })
 
 function CreateUserForm() {
@@ -357,7 +343,6 @@ const updateUser = client.mutation({
     name: z.string(),
   }),
   responseSchema: UserSchema,
-  processResponse: (data) => data,
 })
 
 function EditUserForm({ userId }: { userId: string }) {
@@ -382,7 +367,6 @@ const updateUser = client.mutation({
   url: '/users/$userId',
   requestSchema: z.object({ name: z.string() }),
   responseSchema: UserSchema,
-  processResponse: (data) => data,
 
   // Provide context (e.g., queryClient) via hook
   useContext: () => {
@@ -440,7 +424,6 @@ const deleteUser = client.mutation({
   method: 'DELETE',
   url: '/users/$userId',
   responseSchema: z.object({ success: z.boolean() }),
-  processResponse: (data) => data,
 })
 
 const { mutateAsync } = deleteUser()
@@ -458,7 +441,6 @@ const updateUser = client.mutation({
   useKey: true,
   requestSchema: UpdateUserSchema,
   responseSchema: UserSchema,
-  processResponse: (data) => data,
 })
 
 // With useKey, you must pass urlParams when calling the hook
@@ -479,12 +461,12 @@ const downloadFile = api.declareStream({
   url: '/files/$fileId/download',
 })
 
-// Create mutation from stream endpoint
-const useDownloadFile = client.mutationFromEndpoint(downloadFile, {
-  // processResponse is optional - defaults to returning Blob
-  processResponse: (blob) => URL.createObjectURL(blob),
-
-  onSuccess: (url, variables, context) => {
+// Create mutation from stream endpoint — `mutation` is the unified entrypoint;
+// it accepts either an inline config or an existing endpoint handler.
+const useDownloadFile = client.mutation(downloadFile, {
+  // Transform the Blob in onSuccess (mutations have no select).
+  onSuccess: (blob, variables, context) => {
+    const url = URL.createObjectURL(blob)
     window.open(url)
   },
 })
@@ -505,7 +487,7 @@ function DownloadButton({ fileId }: { fileId: string }) {
 
 ## Using Existing Endpoints
 
-If you have endpoints defined separately, you can use them with the client:
+If you have endpoints defined separately, pass them to the same `client.query`, `client.infiniteQuery`, or `client.mutation` method. Each accepts either an inline config or an existing endpoint handler — the dedicated `*FromEndpoint` siblings were folded in for v2.
 
 ### Query from Endpoint
 
@@ -518,16 +500,15 @@ const getUserEndpoint = api.declareEndpoint({
 })
 
 // Create query from endpoint
-const getUser = client.queryFromEndpoint(getUserEndpoint, {
-  processResponse: (data) => data,
-})
+const getUser = client.query(getUserEndpoint)
 
-// Use in component
+// Use in component (read-side projection via `select`)
 function UserProfile({ userId }: { userId: string }) {
-  const { data } = getUser.useSuspense({
-    urlParams: { userId },
-  })
-  return <div>{data.name}</div>
+  const { data } = getUser.useSuspense(
+    { urlParams: { userId } },
+    { select: (user) => user.name },
+  )
+  return <div>{data}</div>
 }
 ```
 
@@ -547,8 +528,7 @@ const getUsersEndpoint = api.declareEndpoint({
   }),
 })
 
-const getUsers = client.infiniteQueryFromEndpoint(getUsersEndpoint, {
-  processResponse: (data) => data,
+const getUsers = client.infiniteQuery(getUsersEndpoint, {
   getNextPageParam: (lastPage, allPages) => lastPage.nextCursor ?? undefined,
 })
 
@@ -570,13 +550,13 @@ const updateUserEndpoint = api.declareEndpoint({
   responseSchema: UserSchema,
 })
 
-const updateUser = client.mutationFromEndpoint(updateUserEndpoint, {
-  processResponse: (data) => data,
+const updateUser = client.mutation(updateUserEndpoint, {
   useContext: () => {
     const queryClient = useQueryClient()
     return { queryClient }
   },
   onSuccess: (data, variables, context) => {
+    // Transform on the consumer side or in onSuccess — there's no select for mutations
     context.queryClient.invalidateQueries({ queryKey: ['users'] })
     console.log('Updated:', data)
   },
@@ -589,7 +569,7 @@ const updateUser = client.mutationFromEndpoint(updateUserEndpoint, {
 ## Multipart Mutations (File Uploads)
 
 ```typescript
-const uploadAvatar = client.multipartMutation({
+const uploadAvatar = client.multipart({
   method: 'POST',
   url: '/users/$userId/avatar',
   requestSchema: z.object({
@@ -598,7 +578,6 @@ const uploadAvatar = client.multipartMutation({
   responseSchema: z.object({
     url: z.string(),
   }),
-  processResponse: (data) => data,
 })
 
 function AvatarUpload({ userId }: { userId: string }) {
@@ -679,7 +658,6 @@ const updateUser = client.mutation({
   url: '/users/$userId',
   requestSchema: updateUserSchema,
   responseSchema: userSchema,
-  processResponse: (data) => data,
   useContext: () => ({ queryClient: useQueryClient() }),
   ...createOptimisticUpdate({
     queryKey: ['users', userId],
@@ -798,16 +776,13 @@ const client = declareClient({
 
 ### Query Methods
 
-- `client.query(config)` - Create a query
-- `client.queryFromEndpoint(endpoint, options)` - Create a query from an existing endpoint
-- `client.infiniteQuery(config)` - Create an infinite query
-- `client.infiniteQueryFromEndpoint(endpoint, options)` - Create an infinite query from an endpoint
+- `client.query(config | endpoint, options?)` - Create a query from an inline config or an existing endpoint handler
+- `client.infiniteQuery(config | endpoint, options?)` - Create an infinite query from an inline config or an existing endpoint handler
 
 ### Mutation Methods
 
-- `client.mutation(config)` - Create a mutation
-- `client.mutationFromEndpoint(endpoint, options)` - Create a mutation from an existing endpoint
-- `client.multipartMutation(config)` - Create a multipart/form-data mutation
+- `client.mutation(config | endpoint, options?)` - Create a mutation from an inline config or an existing endpoint handler
+- `client.multipart(config)` - Create a multipart/form-data mutation
 
 ### Query Config
 
@@ -822,9 +797,10 @@ const client = declareClient({
 | `result`           | `'data' \| 'envelope'`                   | No       | Endpoint return shape; envelope returns `{ ok, data, error, response }` without throwing |
 | `unwrap`           | `'none' \| 'throw-on-error'`             | No       | How envelopes are surfaced to TanStack Query (default `'none'`)                          |
 | `validateResponse` | `boolean`                                | No       | Skip runtime `responseSchema.parse()` when `false` (default `true`)                      |
-| `processResponse`  | `(data) => Result`                       | No       | Transform the response                                                                   |
 | `keyPrefix`        | `string[]`                               | No       | Prefix to add to query keys (useful for namespacing)                                     |
 | `keySuffix`        | `string[]`                               | No       | Suffix to add to query keys                                                              |
+
+Read-side projections live on the call site: pass `select` to `getUser.use(params, { select })` or `getUser.useSuspense(params, { select })`. The endpoint-level `processResponse` option was removed in v2.
 
 Error handling is configured globally via the builder's `onError` hook (`builder({ onError })`); the per-helper `onFail` callback was removed in v2.
 
@@ -841,7 +817,6 @@ Error handling is configured globally via the builder's `onError` hook (`builder
 | `result`           | `'data' \| 'envelope'`                      | No       | Endpoint return shape                      |
 | `unwrap`           | `'none' \| 'throw-on-error'`                | No       | Envelope delivery mode (default `'none'`)  |
 | `validateResponse` | `boolean`                                   | No       | Skip runtime response parsing when `false` |
-| `processResponse`  | `(data) => Result`                          | No       | Transform the response                     |
 | `useKey`           | `boolean`                                   | No       | Enable mutation key for scoping            |
 | `useContext`       | `() => Context`                             | No       | Hook to provide context to callbacks       |
 | `onMutate`         | `(variables, context) => onMutateResult`    | No       | Called before mutation                     |
@@ -866,7 +841,9 @@ See [CHANGELOG.md](./CHANGELOG.md) for the full migration guide.
 
 - **`onFail` removed** — register `onError` on the builder instead (`builder({ onError: (event) => ... })`).
 - **`UseDiscriminator` generic removed** from every client method and from `declareClient`. Endpoints declared with `useDiscriminatorResponse: true` no longer compile — switch them to `result: 'envelope'`.
-- **`processResponse` is optional** — identity transformers (`processResponse: (data) => data`) can be deleted.
+- **`processResponse` removed** — for queries / infinite queries, use TanStack Query's per-call `select`. For mutations / multipart, transform in `onSuccess` or in the caller.
+- **`client.queryFromEndpoint`, `client.mutationFromEndpoint`, `client.infiniteQueryFromEndpoint` removed** — pass the endpoint as the first argument to `client.query`, `client.mutation`, or `client.infiniteQuery`.
+- **`client.multipartMutation` renamed to `client.multipart`** for consistency with the other shorter method names.
 - **Envelope mode**: opt endpoints into `result: 'envelope'` to receive `{ ok, data, error, response }` instead of the raw body, and pick an `unwrap` mode (`'none'`, `'throw-on-error'`, or `'pages'` for infinite queries).
 
 ## License

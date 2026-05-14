@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0] - 2026-05-15
+
+### Changed
+
+- **Decorator type signatures aligned with `@navios/builder` v2**: `EndpointHandler<Options>`, `StreamHandler<Options>`, `MultipartHandler<Options>` are now single-generic. The `@Endpoint`, `@Stream`, `@Multipart` decorators, plus their legacy-compat siblings, propagate the new shape.
+- **Server-side request args**: `EndpointParams<T>`, `MultipartParams<T>`, `StreamParams<T>` now derive from `ServerRequestArgs<Options>` (uses `z.output`, no `RequestBase`). Adapter-xml `XmlStreamParams<T>` follows the same pattern.
+
+### Removed
+
+- Test fixtures and JSDoc references to `useDiscriminatorResponse` / `UseDiscriminator` (the v1 boolean generic) — round-1 deletion in `@navios/builder` propagated end-to-end.
+
 ## [1.1.0] - 2026-01-15
 
 ### Added

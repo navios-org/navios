@@ -1,6 +1,6 @@
 import { createMethodContext } from '@navios/di/legacy-compat'
 
-import type { BaseEndpointOptions, RequestArgs, StreamHandler } from '@navios/builder'
+import type { BaseEndpointOptions, ServerRequestArgs, StreamHandler } from '@navios/builder'
 
 import { Stream as OriginalStream } from '../../decorators/stream.decorator.mjs'
 
@@ -11,29 +11,8 @@ import { Stream as OriginalStream } from '../../decorators/stream.decorator.mjs'
  * but may not be preserved perfectly when decorators are stacked.
  */
 type StreamMethodDescriptor<Config extends BaseEndpointOptions> =
-  | TypedPropertyDescriptor<
-      (
-        params: RequestArgs<
-          Config['url'],
-          Config['querySchema'],
-          Config['requestSchema'],
-          Config['urlParamsSchema'],
-          true
-        >,
-        reply: any,
-      ) => any
-    >
-  | TypedPropertyDescriptor<
-      (
-        params: RequestArgs<
-          Config['url'],
-          Config['querySchema'],
-          Config['requestSchema'],
-          Config['urlParamsSchema'],
-          true
-        >,
-      ) => any
-    >
+  | TypedPropertyDescriptor<(params: ServerRequestArgs<Config>, reply: any) => any>
+  | TypedPropertyDescriptor<(params: ServerRequestArgs<Config>) => any>
 
 /**
  * Legacy-compatible Stream decorator.
@@ -56,9 +35,7 @@ type StreamMethodDescriptor<Config extends BaseEndpointOptions> =
  * }
  * ```
  */
-export function Stream<const Config extends BaseEndpointOptions>(
-  endpoint: StreamHandler<Config, false>,
-) {
+export function Stream<const Config extends BaseEndpointOptions>(endpoint: StreamHandler<Config>) {
   return function (
     target: any,
     propertyKey: string | symbol,

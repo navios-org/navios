@@ -20,7 +20,6 @@ const getUsers = client.infiniteQuery({
     users: z.array(userSchema),
     nextCursor: z.string().nullable(),
   }),
-  processResponse: (data) => data,
   getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
   initialPageParam: undefined,
 })
@@ -79,8 +78,7 @@ export const getUsersEndpoint = API.declareEndpoint({
 
 ```typescript
 // client/queries/users.ts
-const getUsers = client.infiniteQueryFromEndpoint(getUsersEndpoint, {
-  processResponse: (data) => data,
+const getUsers = client.infiniteQuery(getUsersEndpoint, {
   getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
   initialPageParam: undefined,
 })
@@ -141,7 +139,6 @@ const getUsers = client.infiniteQuery({
     users: z.array(userSchema),
     nextCursor: z.string().nullable(),
   }),
-  processResponse: (data) => data,
   getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
   initialPageParam: undefined,
 })
@@ -161,7 +158,6 @@ const getUsers = client.infiniteQuery({
     users: z.array(userSchema),
     hasMore: z.boolean(),
   }),
-  processResponse: (data) => data,
   getNextPageParam: (lastPage, allPages) => {
     if (!lastPage.hasMore) return undefined
     const currentOffset = allPages.length * 20
@@ -184,7 +180,6 @@ const getUsers = client.infiniteQuery({
     users: z.array(userSchema),
     totalPages: z.number(),
   }),
-  processResponse: (data) => data,
   getNextPageParam: (lastPage, allPages) => {
     const nextPage = allPages.length + 1
     return nextPage <= lastPage.totalPages ? nextPage : undefined

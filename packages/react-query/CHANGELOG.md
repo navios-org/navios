@@ -1,6 +1,6 @@
 # Changelog
 
-## [2.0.0] - 2026-05-14
+## [2.0.0] - 2026-05-15
 
 ### Added
 
@@ -32,7 +32,7 @@
 - const userQuery = client.queryFromEndpoint(getUserEndpoint, {
 -   processResponse: (data) => data,  // identity transformer no longer required
 - })
-+ const userQuery = client.queryFromEndpoint(getUserEndpoint)
++ const userQuery = client.query(getUserEndpoint)
 ```
 
 For envelope endpoints needing classic RQ error-channel ergonomics:
@@ -46,6 +46,50 @@ const userQuery = client.query({
   unwrap: 'throw-on-error',
 })
 // data is User, error is EnvelopeError, just like a regular query
+```
+
+### Changed (round 2)
+
+- **Per-call `select` support**: `query.use(params, { select })` and `query.useSuspense(params, { select })` (plus the infinite-query equivalents) now accept a per-call `select` transform, replacing the removed `processResponse` for read-side projections.
+- **`RequestArgs<…, IsServer>` propagation**: 29 internal call sites across `@navios/react-query` migrated to `ClientRequestArgs<Options>` (queries / mutations use the client-side `z.input` variant).
+
+### Removed (round 2)
+
+- **`processResponse`** option on every helper. Use TanStack Query's `select` for read-side projections; transform in user code or `onSuccess` for mutations.
+- **`client.queryFromEndpoint`, `client.mutationFromEndpoint`, `client.infiniteQueryFromEndpoint`** — folded into `client.query`, `client.mutation`, `client.infiniteQuery`. Each method now accepts either an inline config or an existing `EndpointHandler<Options>`.
+- **`client.multipartMutation`** — renamed to `client.multipart` for consistency with the other shorter names.
+- **`EndpointHelper`, `StreamHelper`** types — inlined at use sites; the dual-signature legacy branch was already removed in round 1.
+- **`OptionsFromInline`, `BuildEndpointOptions`** internal helpers — per-surface methods now use a single `Options` generic (2–5 generics each, was 9–15).
+- All `@ts-expect-error` directives in `declare-client.mts` resolved at the type level (14 → 0).
+
+### Migration
+
+```diff
+- const getUser = client.queryFromEndpoint(getUserEndpoint, {
+-   processResponse: (data) => ({ ...data, displayName: `${data.name}` }),
+- })
++ const getUser = client.query(getUserEndpoint)
++ // Then use TanStack's select on the call site:
++ const { data } = getUser.use(
++   { urlParams: { id } },
++   { select: (data) => ({ ...data, displayName: `${data.name}` }) },
++ )
+```
+
+```diff
+- const createUser = client.mutationFromEndpoint(createUserEndpoint, {
+-   processResponse: (data) => normalize(data),
+- })
++ const createUser = client.mutation(createUserEndpoint, {
++   onSuccess: (data) => {
++     // transform in your callback / consumer instead
++   },
++ })
+```
+
+```diff
+- const uploadFile = client.multipartMutation({...})
++ const uploadFile = client.multipart({...})
 ```
 
 ## [1.0.1] - 2026-01-09

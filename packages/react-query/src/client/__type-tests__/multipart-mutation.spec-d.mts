@@ -1,12 +1,12 @@
 import { assertType, describe, test } from 'vitest'
 import { z as zod } from 'zod/v4'
 
-import type { ErrorSchemaRecord } from '@navios/builder'
+import type { EndpointHandler, ErrorSchemaRecord } from '@navios/builder'
 import type { UseMutationResult } from '@tanstack/react-query'
 import type { z } from 'zod/v4'
 
 import type { MutationHelpers } from '../../mutation/types.mjs'
-import type { ClientInstance, EndpointHelper } from '../types.mjs'
+import type { ClientInstance } from '../types.mjs'
 
 // ============================================================================
 // TEST SCHEMAS
@@ -55,26 +55,24 @@ declare const client: ClientInstance
 // and callback surface as `mutation()` applies, and that errorSchema
 // suppresses error union in the return type (data mode).
 
-describe('client.multipartMutation() method', () => {
+describe('client.multipart() method', () => {
   test('POST multipart mutation surfaces File-bearing RequestType in variables', () => {
-    const mutation = client.multipartMutation({
+    const mutation = client.multipart({
       method: 'POST',
       url: '/upload',
       requestSchema,
       responseSchema,
-      processResponse: (data) => data,
     })
 
     assertType<() => UseMutationResult<ResponseType, Error, { data: RequestType }>>(mutation)
   })
 
   test('POST multipart mutation with URL params adds urlParams to variables', () => {
-    const mutation = client.multipartMutation({
+    const mutation = client.multipart({
       method: 'POST',
       url: '/users/$userId/avatar',
       requestSchema,
       responseSchema,
-      processResponse: (data) => data,
     })
 
     assertType<
@@ -86,32 +84,14 @@ describe('client.multipartMutation() method', () => {
     >(mutation)
   })
 
-  test('processResponse transforms the variables payload type', () => {
-    const mutation = client.multipartMutation({
-      method: 'POST',
-      url: '/upload',
-      requestSchema,
-      responseSchema,
-      processResponse: (data) => ({
-        uploaded: true,
-        fileId: data.id,
-      }),
-    })
-
-    assertType<
-      () => UseMutationResult<{ uploaded: boolean; fileId: string }, Error, { data: RequestType }>
-    >(mutation)
-  })
-
   describe('useKey option', () => {
     test('useKey: true requires urlParams in the outer call', () => {
-      const mutation = client.multipartMutation({
+      const mutation = client.multipart({
         method: 'POST',
         url: '/users/$userId/avatar',
         useKey: true,
         requestSchema,
         responseSchema,
-        processResponse: (data) => data,
       })
 
       assertType<
@@ -126,13 +106,12 @@ describe('client.multipartMutation() method', () => {
     })
 
     test('useKey: true attaches MutationHelpers', () => {
-      const mutation = client.multipartMutation({
+      const mutation = client.multipart({
         method: 'POST',
         url: '/users/$userId/avatar',
         useKey: true,
         requestSchema,
         responseSchema,
-        processResponse: (data) => data,
       })
 
       assertType<MutationHelpers<'/users/$userId/avatar', ResponseType>['mutationKey']>(
@@ -144,14 +123,13 @@ describe('client.multipartMutation() method', () => {
     })
 
     test('useKey: true + querySchema still requires urlParams only in outer call', () => {
-      const mutation = client.multipartMutation({
+      const mutation = client.multipart({
         method: 'POST',
         url: '/users/$userId/files',
         useKey: true,
         requestSchema,
         querySchema,
         responseSchema,
-        processResponse: (data) => data,
       })
 
       assertType<
@@ -170,12 +148,11 @@ describe('client.multipartMutation() method', () => {
 
   describe('callback options', () => {
     test('onMutate receives variables and default context', () => {
-      client.multipartMutation({
+      client.multipart({
         method: 'POST',
         url: '/upload',
         requestSchema,
         responseSchema,
-        processResponse: (data) => data,
         onMutate: (variables, context) => {
           assertType<{ data: RequestType }>(variables)
           assertType<{ meta: Record<string, unknown> | undefined }>(context)
@@ -185,12 +162,11 @@ describe('client.multipartMutation() method', () => {
     })
 
     test('onSuccess receives data, variables, and onMutate context', () => {
-      client.multipartMutation({
+      client.multipart({
         method: 'POST',
         url: '/upload',
         requestSchema,
         responseSchema,
-        processResponse: (data) => data,
         onSuccess: (data, variables, context) => {
           assertType<ResponseType>(data)
           assertType<{ data: RequestType }>(variables)
@@ -200,12 +176,11 @@ describe('client.multipartMutation() method', () => {
     })
 
     test('useContext overrides the context type seen by callbacks', () => {
-      client.multipartMutation({
+      client.multipart({
         method: 'POST',
         url: '/upload',
         requestSchema,
         responseSchema,
-        processResponse: (data) => data,
         useContext: () => ({ uploadProgress: 0 }),
         onMutate: (_variables, context) => {
           assertType<{ uploadProgress: number }>(context)
@@ -216,50 +191,47 @@ describe('client.multipartMutation() method', () => {
 
   describe('errorSchema (errors thrown, not in return type)', () => {
     test('multipart mutation with errorSchema returns only success type', () => {
-      const mutation = client.multipartMutation({
+      const mutation = client.multipart({
         method: 'POST',
         url: '/upload',
         requestSchema,
         responseSchema,
         errorSchema,
-        processResponse: (data) => data,
       })
 
       assertType<() => UseMutationResult<ResponseType, Error, { data: RequestType }>>(mutation)
     })
 
-    test('processResponse receives only the success type when errorSchema is set', () => {
-      client.multipartMutation({
+    test('onSuccess receives only the success type when errorSchema is set', () => {
+      client.multipart({
         method: 'POST',
         url: '/upload',
         requestSchema,
         responseSchema,
         errorSchema,
-        processResponse: (data) => {
+        onSuccess: (data) => {
           assertType<ResponseType>(data)
-          return data
         },
       })
     })
   })
 
-  describe('EndpointHelper', () => {
+  describe('endpoint property', () => {
     test('multipart mutation exposes endpoint property with declared config', () => {
-      const mutation = client.multipartMutation({
+      const mutation = client.multipart({
         method: 'POST',
         url: '/upload',
         requestSchema,
         responseSchema,
-        processResponse: (data) => data,
       })
 
       assertType<
-        EndpointHelper<{
+        EndpointHandler<{
           method: 'POST'
           url: '/upload'
           requestSchema: typeof requestSchema
           responseSchema: typeof responseSchema
-        }>['endpoint']
+        }>
       >(mutation.endpoint)
     })
   })
@@ -269,14 +241,13 @@ describe('client.multipartMutation() method', () => {
 // ERROR CASES - Surface-specific
 // ============================================================================
 
-describe('multipartMutation() error cases', () => {
+describe('multipart() error cases', () => {
   test('mutate() without data when requestSchema is defined', () => {
-    const mutation = client.multipartMutation({
+    const mutation = client.multipart({
       method: 'POST',
       url: '/upload',
       requestSchema,
       responseSchema,
-      processResponse: (data) => data,
     })
 
     const { mutate } = mutation()
@@ -286,13 +257,12 @@ describe('multipartMutation() error cases', () => {
   })
 
   test('useKey: true outer call requires urlParams', () => {
-    const mutation = client.multipartMutation({
+    const mutation = client.multipart({
       method: 'POST',
       url: '/users/$userId/avatar',
       useKey: true,
       requestSchema,
       responseSchema,
-      processResponse: (data) => data,
     })
 
     // @ts-expect-error - missing urlParams in call
@@ -300,31 +270,16 @@ describe('multipartMutation() error cases', () => {
   })
 
   test('mutate() rejects a string in place of a File-valued field', () => {
-    const mutation = client.multipartMutation({
+    const mutation = client.multipart({
       method: 'POST',
       url: '/upload',
       requestSchema,
       responseSchema,
-      processResponse: (data) => data,
     })
 
     const { mutate } = mutation()
 
     // @ts-expect-error - file should be File, not string
     mutate({ data: { file: 'not-a-file', description: 'test' } })
-  })
-
-  test('onSuccess data type matches processResponse result', () => {
-    client.multipartMutation({
-      method: 'POST',
-      url: '/upload',
-      requestSchema,
-      responseSchema,
-      processResponse: (data) => ({ transformed: data.name }),
-      onSuccess: (data) => {
-        // @ts-expect-error - data is { transformed: string }, not ResponseType
-        const _id: string = data.id
-      },
-    })
   })
 })

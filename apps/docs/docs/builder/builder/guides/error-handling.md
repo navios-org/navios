@@ -67,43 +67,36 @@ try {
 }
 ```
 
-## Global Error Callbacks
+## Unified Global `onError` Hook
 
-### onError
-
-Handle all errors globally:
+In v2, every error path — HTTP, Zod validation (on both error responses and 2xx bodies), and network failures — flows through one `onError(event: BuilderErrorEvent)` hook. The event carries `kind`, `endpoint`, `status`, `zodIssues`, `cause`, `body`. Filter on `event.kind` instead of registering separate callbacks.
 
 ```typescript
 const API = builder({
-  onError: (error) => {
-    // Called for any error (HTTP, validation, network, etc.)
-    console.error('API Error:', error)
-    
+  onError: (event) => {
+    // Every failure path lands here.
+    console.error('API Error:', event.kind, event.endpoint, event.status)
+
+    if (event.kind === 'validation') {
+      console.error('Validation failed:', event.zodIssues, 'body:', event.body)
+      showToast('Invalid response from server. Please try again.')
+    } else if (event.kind === 'network') {
+      showToast('Network error. Check your connection.')
+    } else if (event.kind === 'http' && event.status === 401) {
+      redirectToLogin()
+    }
+
     // Log to error tracking service
     if (typeof window !== 'undefined' && window.Sentry) {
-      window.Sentry.captureException(error)
+      window.Sentry.captureException(event.cause, {
+        tags: { kind: event.kind, url: event.endpoint?.url },
+      })
     }
   },
 })
 ```
 
-### onZodError
-
-Handle Zod validation errors specifically:
-
-```typescript
-const API = builder({
-  onZodError: (zodError, response, originalError) => {
-    // Called specifically for Zod validation failures
-    console.error('Validation failed:', zodError.errors)
-    console.error('Response data:', response)
-    console.error('Original error:', originalError)
-    
-    // Show user-friendly error message
-    showToast('Invalid response from server. Please try again.')
-  },
-})
-```
+The v1 `onZodError` callback was removed in v2 — filter on `event.kind === 'validation'` inside the unified `onError`.
 
 ## Error Handling Patterns
 
@@ -184,14 +177,14 @@ if (result.error) {
 }
 ```
 
-## Error Schema
+## Error Schema + Envelope Mode
 
-For APIs that return different error shapes based on HTTP status codes, use `errorSchema`:
+For APIs that return different error shapes by HTTP status code, combine `errorSchema` with `result: 'envelope'`. Error responses are surfaced as typed variants on `envelope.error` instead of thrown, with the full `response` meta attached.
 
 ```typescript
-import { builder, isErrorStatus, isErrorResponse } from '@navios/builder'
+import { builder, isHttpError } from '@navios/builder'
 
-const API = builder({ useDiscriminatorResponse: true })
+const API = builder()
 
 const getUser = API.declareEndpoint({
   method: 'GET',
@@ -202,75 +195,53 @@ const getUser = API.declareEndpoint({
     404: z.object({ error: z.literal('Not Found') }),
     500: z.object({ error: z.string() }),
   },
+  result: 'envelope',
 })
 
-// Usage - error responses are returned, not thrown
-const result = await getUser({ urlParams: { userId: '123' } })
+const { data, error, response } = await getUser({ urlParams: { userId: '123' } })
 
-// Check for specific error status
-if (isErrorStatus(result, 404)) {
-  console.log('Not found') // result is typed as the 404 schema
-} else if (isErrorStatus(result, 400)) {
-  console.log('Invalid:', result.field) // result has { error, field, __status: 400 }
-} else if (isErrorResponse(result)) {
-  console.log('Error:', result.__status) // Any other error
+if (isHttpError(error, 404)) {
+  console.log('Not found') // error.body is the 404 schema
+} else if (isHttpError(error, 400)) {
+  console.log('Invalid:', error.body.field)
+} else if (error) {
+  console.log('Other error:', error.kind, error.status) // includes http-unknown / validation / network
 } else {
-  console.log('User:', result.name) // Success response
+  console.log('User:', data.name) // success
 }
 ```
 
-### How errorSchema Works
+### How errorSchema Works in Envelope Mode
 
-When `useDiscriminatorResponse` is `true` and `errorSchema` is defined:
-
-1. **Successful responses** (2xx) are validated against `responseSchema`
-2. **Error responses** matching a status code in `errorSchema` are:
-   - Validated against the corresponding schema
-   - Returned with a `__status` property containing the HTTP status code
-   - NOT thrown as errors
-3. **Unmatched error status codes** throw `UnknownResponseError`
+1. **Successful responses** (2xx) are validated against `responseSchema` and land in `envelope.data`.
+2. **Error responses** matching a status code in `errorSchema` are validated against that schema and land on `envelope.error.body`, with `error.kind === 'http'`.
+3. **Unmatched error status codes** become the `http-unknown` envelope variant; `error.body` is the raw payload.
+4. **Network failures** become the `network` envelope variant.
+5. **Validation failures** become the `validation` envelope variant; `error.zodIssues` carries the issues.
 
 ### Type Guards
 
-Builder provides type guards for type-safe error discrimination:
+Builder provides narrowing guards for the envelope `error` variants:
 
 ```typescript
-import { isErrorStatus, isErrorResponse } from '@navios/builder'
+import { isHttpError, isValidationError, isNetworkError, isUnknownHttpError } from '@navios/builder'
 
-// Check for specific status code
-if (isErrorStatus(result, 404)) {
-  // result is narrowed to the 404 error schema type
+if (isHttpError(error, 404)) {
+  // error.body is narrowed to the 404 schema
 }
-
-// Check if result is any error (has __status)
-if (isErrorResponse(result)) {
-  console.log('Status:', result.__status)
+if (isValidationError(error)) {
+  // error.zodIssues is available
 }
 ```
 
-### UnknownResponseError
-
-When an error response's status code doesn't match any key in `errorSchema`:
-
-```typescript
-import { UnknownResponseError } from '@navios/builder'
-
-try {
-  const result = await getUser({ urlParams: { userId: '123' } })
-} catch (error) {
-  if (error instanceof UnknownResponseError) {
-    console.error('Unhandled status:', error.statusCode)
-    console.error('Response:', error.response.data)
-  }
-}
-```
+The v1 `isErrorStatus`, `isErrorResponse`, `__status` injection, and `UnknownResponseError` class were removed in v2 — envelope mode replaces them.
 
 ## Discriminated Union Responses
 
-For APIs that return different shapes for success/error in the same response body, use discriminated unions:
+For APIs that return different shapes for success/error in the same 2xx response body, use a Zod discriminated union on `responseSchema`:
 
 ```typescript
-const API = builder({ useDiscriminatorResponse: true })
+const API = builder()
 
 const responseSchema = z.discriminatedUnion('status', [
   z.object({
@@ -289,16 +260,15 @@ const getUser = API.declareEndpoint({
   responseSchema,
 })
 
-// Usage - no try-catch needed for error responses
 const result = await getUser({ urlParams: { userId: '123' } })
 if (result.status === 'success') {
-  console.log(result.data) // TypeScript knows this is User
+  console.log(result.data)
 } else {
-  console.error(result.error) // TypeScript knows this is string
+  console.error(result.error)
 }
 ```
 
-See [Discriminated Unions](/docs/builder/builder/advanced/discriminated-unions) for more details.
+This is a pure Zod feature — there is no builder-level mode to enable. See [Discriminated Unions](/docs/builder/builder/advanced/discriminated-unions) for the full comparison with envelope mode.
 
 ## HTTP Status Code Handling
 
@@ -423,26 +393,26 @@ function UserProfile({ userId }: { userId: string }) {
 
 ```typescript
 const API = builder({
-  onError: (error) => {
+  onError: (event) => {
     // Log to console in development
     if (process.env.NODE_ENV === 'development') {
-      console.error('API Error:', error)
+      console.error('API Error:', event.kind, event.endpoint, event.cause)
     }
-    
-    // Log to error tracking service in production
-    if (typeof window !== 'undefined' && window.Sentry) {
-      window.Sentry.captureException(error, {
-        tags: { source: 'navios-builder' },
+
+    // Log validation errors with structured detail
+    if (event.kind === 'validation') {
+      console.error('Validation Error:', {
+        zodIssues: event.zodIssues,
+        body: event.body,
       })
     }
-  },
-  onZodError: (zodError, response, originalError) => {
-    // Log validation errors separately
-    console.error('Validation Error:', {
-      errors: zodError.errors,
-      response: response,
-      originalError: originalError,
-    })
+
+    // Log to error tracking service in production
+    if (typeof window !== 'undefined' && window.Sentry) {
+      window.Sentry.captureException(event.cause, {
+        tags: { source: 'navios-builder', kind: event.kind, url: event.endpoint?.url },
+      })
+    }
   },
 })
 ```

@@ -21,7 +21,6 @@ const getUser = client.query({
   method: 'GET',
   url: '/users/$userId',
   responseSchema: userSchema,
-  processResponse: (data) => data,
 })
 
 // URL: /users/123?include=posts
@@ -43,7 +42,6 @@ const getUser = client.query({
     include: z.string().optional(),
   }),
   responseSchema: userSchema,
-  processResponse: (data) => data,
 })
 
 // Full key with all parameters
@@ -157,7 +155,6 @@ const getUser = client.query({
   method: 'GET',
   url: '/users/$userId',
   responseSchema: userSchema,
-  processResponse: (data) => data,
 })
 
 // Key: ['api', 'v1', 'users', '123', 'cache']

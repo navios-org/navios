@@ -1,13 +1,13 @@
 import { assertType, describe, test } from 'vitest'
 import { z as zod } from 'zod/v4'
 
-import type { ErrorSchemaRecord } from '@navios/builder'
+import type { EndpointHandler, ErrorSchemaRecord } from '@navios/builder'
 import type { DataTag, UseSuspenseQueryOptions } from '@tanstack/react-query'
 import type { z } from 'zod/v4'
 
 import type { Split } from '../../common/types.mjs'
 import type { QueryHelpers } from '../../query/types.mjs'
-import type { ClientInstance, EndpointHelper } from '../types.mjs'
+import type { ClientInstance } from '../types.mjs'
 
 // ============================================================================
 // TEST SCHEMAS
@@ -54,8 +54,8 @@ declare const client: ClientInstance
 // (urlParams × params × data × error) combination matrix are exercised at the
 // builder layer in `packages/builder/src/types/__type-tests__/builder-instance.spec-d.mts`.
 // The tests below focus on surface-specific bits: query cache-key shape,
-// QueryHelpers attachment, processResponse-driven return-type transformation,
-// and that errors are thrown (not surfaced in the return type) in data mode.
+// QueryHelpers attachment, and that errors are thrown (not surfaced in the
+// return type) in data mode.
 
 describe('client.query() method', () => {
   test('simple GET query wires DataTag + QueryHelpers', () => {
@@ -124,24 +124,6 @@ describe('client.query() method', () => {
     >(query)
   })
 
-  test('processResponse transforms the returned data type', () => {
-    const query = client.query({
-      method: 'GET',
-      url: '/users',
-      responseSchema,
-      processResponse: (data) => data.name.toUpperCase(),
-    })
-
-    assertType<
-      (params: {}) => UseSuspenseQueryOptions<
-        string,
-        Error,
-        string,
-        DataTag<Split<'/users', '/'>, string, Error>
-      >
-    >(query)
-  })
-
   test('errorSchema does not appear in the query return type (errors thrown in data mode)', () => {
     const query = client.query({
       method: 'GET',
@@ -180,7 +162,7 @@ describe('client.query() method', () => {
     >(query)
   })
 
-  describe('EndpointHelper', () => {
+  describe('endpoint property', () => {
     test('query exposes endpoint property with declared config', () => {
       const query = client.query({
         method: 'GET',
@@ -189,11 +171,11 @@ describe('client.query() method', () => {
       })
 
       assertType<
-        EndpointHelper<{
+        EndpointHandler<{
           method: 'GET'
           url: '/users'
           responseSchema: typeof responseSchema
-        }>['endpoint']
+        }>
       >(query.endpoint)
     })
   })
@@ -227,17 +209,5 @@ describe('query() error cases', () => {
 
     // @ts-expect-error - missing data
     query({})
-  })
-
-  test('processResponse receives correct input type', () => {
-    client.query({
-      method: 'GET',
-      url: '/users',
-      responseSchema,
-      processResponse: (data) => {
-        // @ts-expect-error - data doesn't have 'nonExistent' property
-        return data.nonExistent
-      },
-    })
   })
 })

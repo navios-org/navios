@@ -1,4 +1,4 @@
-import type { ZodType } from 'zod/v4'
+import { ZodError, type ZodType } from 'zod/v4'
 
 import type { SocketClient } from '../types/socket-client.mjs'
 import type { SubscribeHandler, Unsubscribe } from '../types/socket-handlers.mjs'
@@ -50,16 +50,35 @@ export function createSubscribeHandler<Options extends SubscribeOptions>(
     // Ensure global listener is set up
     setupGlobalListener()
 
-    // Create wrapper that validates payload
+    // Create wrapper that validates payload and isolates handler errors
     const wrappedHandler = (payload: unknown) => {
-      try {
-        let validatedPayload = payload
-        if (payloadSchema) {
+      let validatedPayload = payload
+      if (payloadSchema) {
+        try {
           validatedPayload = (payloadSchema as ZodType).parse(payload)
+        } catch (error) {
+          config.onError?.({
+            kind: 'validation',
+            endpoint: {},
+            cause: error,
+            zodIssues: error instanceof ZodError ? error.issues : undefined,
+            body: payload,
+            topic,
+            rawData: payload,
+          })
+          return
         }
+      }
+
+      try {
         userHandler(validatedPayload)
       } catch (error) {
-        config.onValidationError?.(error, topic, payload)
+        config.onError?.({
+          kind: 'socket-transport',
+          endpoint: {},
+          cause: error,
+          topic,
+        })
       }
     }
 

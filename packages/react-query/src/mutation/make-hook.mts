@@ -1,22 +1,14 @@
 import { isResponseEnvelope } from '@navios/builder'
 import { useIsMutating, useMutation } from '@tanstack/react-query'
 
-import type {
-  EndpointOptions,
-  ErrorSchemaRecord,
-  HttpMethod,
-  InferErrorSchemaOutput,
-  UrlHasParams,
-  UrlParams,
-} from '@navios/builder'
+import type { EndpointOptions, HttpMethod, UrlHasParams, UrlParams } from '@navios/builder'
 import type {
   MutationFunctionContext,
   UseMutationOptions,
   UseMutationResult,
 } from '@tanstack/react-query'
-import type { z, ZodObject, ZodType } from 'zod/v4'
+import type { ZodObject, ZodType } from 'zod/v4'
 
-import type { ProcessResponseFunction } from '../common/types.mjs'
 import type { UnwrapMode } from '../query/types.mjs'
 
 import { createMutationKey } from './key-creator.mjs'
@@ -31,22 +23,10 @@ type EndpointWithConfig<Config extends EndpointOptions> = ((params: any) => Prom
 }
 
 /**
- * Helper type for response input when errorSchema is present
- */
-type ResponseInput<
-  ResponseSchema extends ZodType,
-  ErrorSchema extends ErrorSchemaRecord | undefined,
-> = ErrorSchema extends ErrorSchemaRecord
-  ? z.output<ResponseSchema> | InferErrorSchemaOutput<ErrorSchema>
-  : z.output<ResponseSchema>
-
-/**
  * Options type for makeMutation
  */
 type MakeMutationParams<
   Config extends EndpointOptions,
-  ResponseSchema extends ZodType,
-  ErrorSchema extends ErrorSchemaRecord | undefined,
   TData,
   TVariables,
   TOnMutateResult,
@@ -56,7 +36,6 @@ type MakeMutationParams<
   UseMutationOptions<TData, Error, TVariables>,
   'mutationKey' | 'mutationFn' | 'onMutate' | 'onSuccess' | 'onError' | 'onSettled' | 'scope'
 > & {
-  processResponse?: ProcessResponseFunction<TData, ResponseInput<ResponseSchema, ErrorSchema>>
   useContext?: () => TContext
   onSuccess?: (
     data: TData,
@@ -110,7 +89,7 @@ type MakeMutationParams<
  * The returned function also has helper methods attached (mutationKey, useIsMutating).
  *
  * @param endpoint - The navios endpoint to create a mutation hook for
- * @param options - Mutation configuration including processResponse and callbacks
+ * @param options - Mutation configuration including callbacks
  * @returns A hook function that returns mutation result with attached helpers
  */
 // Overload: WITH errorSchema
@@ -120,7 +99,7 @@ export function makeMutation<
   QuerySchema extends ZodObject | undefined,
   ResponseSchema extends ZodType,
   RequestSchema extends ZodType,
-  ErrorSchema extends ErrorSchemaRecord,
+  ErrorSchema extends Record<number, ZodType>,
   TData,
   TOnMutateResult = unknown,
   TContext = unknown,
@@ -145,8 +124,6 @@ export function makeMutation<
       requestSchema?: RequestSchema
       errorSchema?: ErrorSchema
     },
-    ResponseSchema,
-    ErrorSchema,
     TData,
     any,
     TOnMutateResult,
@@ -191,8 +168,6 @@ export function makeMutation<
       responseSchema: ResponseSchema
       requestSchema?: RequestSchema
     },
-    ResponseSchema,
-    undefined,
     TData,
     any,
     TOnMutateResult,
@@ -212,10 +187,7 @@ export function makeMutation<
 export function makeMutation(endpoint: EndpointWithConfig<EndpointOptions>, options: any): any {
   const config = endpoint.config
 
-  const mutationKey = createMutationKey(config, {
-    ...options,
-    processResponse: options.processResponse ?? ((data: any) => data),
-  })
+  const mutationKey = createMutationKey(config, options)
   const result = (keyParams: any): any => {
     const {
       useKey,
@@ -226,12 +198,9 @@ export function makeMutation(endpoint: EndpointWithConfig<EndpointOptions>, opti
       onSettled,
       keyPrefix: _keyPrefix,
       keySuffix: _keySuffix,
-      processResponse: rawProcessResponse,
       unwrap,
       ...rest
     } = options
-
-    const processResponse = rawProcessResponse ?? ((data: any) => data)
 
     const ownContext = useContext?.() ?? {}
 
@@ -250,10 +219,10 @@ export function makeMutation(endpoint: EndpointWithConfig<EndpointOptions>, opti
           if (!response.ok) {
             throw response.error
           }
-          return processResponse(response.data)
+          return response.data
         }
 
-        return processResponse(response)
+        return response
       },
       onSuccess: onSuccess
         ? (data: any, variables: any, onMutateResult: any, context: MutationFunctionContext) => {

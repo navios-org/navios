@@ -1,9 +1,10 @@
 import type {
+  BaseEndpointOptions,
+  ClientRequestArgs,
+  EndpointHandler,
   EndpointOptions,
-  ErrorSchemaRecord,
-  HttpMethod,
-  RequestArgs,
   Simplify,
+  StreamHandler,
   UrlHasParams,
   UrlParams,
 } from '@navios/builder'
@@ -13,53 +14,37 @@ import type { ZodObject, ZodType } from 'zod/v4'
 import type { MutationHelpers } from '../../mutation/types.mjs'
 import type { UnwrapMode } from '../../query/types.mjs'
 
-import type { ComputeResult, EndpointHelper, OptionsFromInline, ResultMode } from './helpers.mjs'
+import type { ComputeResult } from './helpers.mjs'
 
 /**
  * Variables shape passed to the mutation hook, derived from the inferred
  * `Options` type alone (URL, query / request / urlParams schemas).
  */
-type MutationVariables<Options extends EndpointOptions> = Simplify<
-  RequestArgs<
-    Options['url'],
-    Options['querySchema'] extends ZodObject ? Options['querySchema'] : undefined,
-    Options['requestSchema'] extends ZodType ? Options['requestSchema'] : undefined,
-    Options['urlParamsSchema'] extends ZodObject ? Options['urlParamsSchema'] : undefined
-  >
+type MutationVariables<Options extends EndpointOptions | BaseEndpointOptions> = Simplify<
+  ClientRequestArgs<{
+    url: Options['url']
+    querySchema: Options['querySchema'] extends ZodObject ? Options['querySchema'] : undefined
+    requestSchema: Options['requestSchema'] extends ZodType ? Options['requestSchema'] : undefined
+    urlParamsSchema: Options extends EndpointOptions
+      ? Options['urlParamsSchema'] extends ZodObject
+        ? Options['urlParamsSchema']
+        : undefined
+      : undefined
+  }>
 >
 
 /**
- * Extended endpoint options interface for mutation. Inherits the endpoint
- * fields via the per-field generics for inference, then derives the
- * mutation-specific callback / context shapes from the synthesised
- * `Options` so they automatically pick up future endpoint fields.
+ * Surface-specific fields layered on top of `EndpointOptions` for the inline
+ * config path. Stripped before forwarding to `api.declareEndpoint`.
  */
-interface MutationEndpointConfig<
-  Method extends HttpMethod,
-  Url extends string,
-  QuerySchema extends ZodObject | undefined,
-  RequestSchema extends ZodType | undefined,
-  ResponseSchema extends ZodType,
-  ErrorSchema extends ErrorSchemaRecord | undefined,
-  UrlParamsSchema extends ZodObject | undefined,
-  ResultModeT extends ResultMode,
+interface MutationSurfaceFields<
+  Options extends EndpointOptions | BaseEndpointOptions,
+  Result,
   UseKey extends boolean,
   Unwrap extends UnwrapMode,
-  TBaseResult,
-  Result,
   OnMutateResult,
   Context,
-  Variables,
-> extends EndpointOptions {
-  method: Method
-  url: Url
-  querySchema?: QuerySchema
-  requestSchema?: RequestSchema
-  responseSchema: ResponseSchema
-  errorSchema?: ErrorSchema
-  urlParamsSchema?: UrlParamsSchema
-  result?: ResultModeT
-  processResponse?: (data: TBaseResult) => Result | Promise<Result>
+> {
   /**
    * For endpoints declared with `result: 'envelope'`, controls how the
    * envelope is delivered to React Query's mutation channel.
@@ -73,13 +58,14 @@ interface MutationEndpointConfig<
   unwrap?: Unwrap
   useContext?: () => Context
   useKey?: UseKey
+  meta?: Record<string, unknown>
   onMutate?: (
-    variables: Variables,
+    variables: MutationVariables<Options>,
     context: Context & MutationFunctionContext,
   ) => OnMutateResult | Promise<OnMutateResult>
   onSuccess?: (
     data: NoInfer<Result>,
-    variables: Variables,
+    variables: MutationVariables<Options>,
     context: Context &
       MutationFunctionContext & {
         onMutateResult: OnMutateResult | undefined
@@ -87,7 +73,7 @@ interface MutationEndpointConfig<
   ) => void | Promise<void>
   onError?: (
     error: Error,
-    variables: Variables,
+    variables: MutationVariables<Options>,
     context: Context &
       MutationFunctionContext & {
         onMutateResult: OnMutateResult | undefined
@@ -96,7 +82,7 @@ interface MutationEndpointConfig<
   onSettled?: (
     data: NoInfer<Result> | undefined,
     error: Error | null,
-    variables: Variables,
+    variables: MutationVariables<Options>,
     context: Context &
       MutationFunctionContext & {
         onMutateResult: OnMutateResult | undefined
@@ -105,18 +91,26 @@ interface MutationEndpointConfig<
 }
 
 /**
- * Mutation method.
+ * Single overloaded mutation surface. The first argument is either:
  *
- * Uses the same decomposed-generics inference pattern as `query`; the
- * synthesised `Options` is reused everywhere downstream so future endpoint
- * fields propagate automatically.
+ * - an inline `EndpointOptions` config (with optional surface fields), or
+ * - an existing `EndpointHandler` produced by `api.declareEndpoint`, or
+ * - a `StreamHandler` produced by `api.declareStream` (Blob mutations).
+ *
+ * `Options` is inferred from the literal config via the structural copy
+ * `{ [K in keyof Options]: Options[K] }`, which keeps surface-specific fields
+ * out of `Options`. Downstream return-type derivations reference `Options`
+ * directly so adding a new endpoint field to `EndpointOptions` propagates
+ * automatically.
  */
 export interface ClientMutationMethods {
   /**
-   * Creates a type-safe mutation with automatic type inference.
+   * Creates a type-safe mutation with automatic type inference, accepting
+   * either an inline config or an existing endpoint handler.
    *
    * @example
    * ```ts
+   * // Inline config
    * const createUser = client.mutation({
    *   method: 'POST',
    *   url: '/users',
@@ -124,61 +118,44 @@ export interface ClientMutationMethods {
    *   responseSchema: userSchema,
    * })
    *
-   * const { mutate } = createUser()
-   * mutate({ data: { name: 'John' } })
+   * // From an existing endpoint
+   * const createUserEndpoint = api.declareEndpoint({
+   *   method: 'POST',
+   *   url: '/users',
+   *   requestSchema: createUserSchema,
+   *   responseSchema: userSchema,
+   * })
+   * const createUser2 = client.mutation(createUserEndpoint)
    * ```
    */
   mutation<
-    const Method extends HttpMethod = HttpMethod,
-    const Url extends string = string,
-    const QuerySchema extends ZodObject | undefined = undefined,
-    const RequestSchema extends ZodType | undefined = undefined,
-    const ResponseSchema extends ZodType = ZodType,
-    const ErrorSchema extends ErrorSchemaRecord | undefined = undefined,
-    const UrlParamsSchema extends ZodObject | undefined = undefined,
-    const ResultModeT extends ResultMode = undefined,
+    const Options extends EndpointOptions | BaseEndpointOptions,
     const UseKey extends boolean = false,
     const Unwrap extends UnwrapMode = 'none',
-    const Options extends EndpointOptions = OptionsFromInline<
-      Method,
-      Url,
-      QuerySchema,
-      RequestSchema,
-      ResponseSchema,
-      ErrorSchema,
-      UrlParamsSchema,
-      ResultModeT
-    >,
-    const TBaseResult = ComputeResult<Options, Unwrap>,
-    const Result = TBaseResult,
     const OnMutateResult = unknown,
     const Context = unknown,
-    const Variables = MutationVariables<Options>,
+    Result = Options extends EndpointOptions ? ComputeResult<Options, Unwrap> : Blob,
   >(
-    config: MutationEndpointConfig<
-      Method,
-      Url,
-      QuerySchema,
-      RequestSchema,
-      ResponseSchema,
-      ErrorSchema,
-      UrlParamsSchema,
-      ResultModeT,
-      UseKey,
-      Unwrap,
-      TBaseResult,
-      Result,
-      OnMutateResult,
-      Context,
-      Variables
-    >,
+    input:
+      | ({ [K in keyof Options]: Options[K] } & MutationSurfaceFields<
+          Options,
+          Result,
+          UseKey,
+          Unwrap,
+          OnMutateResult,
+          Context
+        >)
+      | (Options extends EndpointOptions ? EndpointHandler<Options> : StreamHandler<Options>),
+    options?: MutationSurfaceFields<Options, Result, UseKey, Unwrap, OnMutateResult, Context>,
   ): ((
     ...args: UseKey extends true
-      ? UrlHasParams<Url> extends true
-        ? [{ urlParams: UrlParams<Url> }]
+      ? UrlHasParams<Options['url']> extends true
+        ? [{ urlParams: UrlParams<Options['url']> }]
         : [{}]
       : []
-  ) => UseMutationResult<Result, Error, Variables, OnMutateResult>) &
+  ) => UseMutationResult<Result, Error, MutationVariables<Options>, OnMutateResult>) &
     (UseKey extends true ? MutationHelpers<Options['url'], Result> : {}) &
-    EndpointHelper<Options>
+    (Options extends EndpointOptions
+      ? { endpoint: EndpointHandler<Options> }
+      : { endpoint: StreamHandler<Options> })
 }

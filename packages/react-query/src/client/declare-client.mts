@@ -6,14 +6,14 @@ import type {
   HttpMethod,
   StreamHandler,
 } from '@navios/builder'
-import type { InfiniteData, MutationFunctionContext } from '@tanstack/react-query'
+import type { MutationFunctionContext } from '@tanstack/react-query'
 import type { z, ZodObject, ZodType } from 'zod/v4'
 
 import { makeMutation } from '../mutation/make-hook.mjs'
 import { makeInfiniteQueryOptions } from '../query/make-infinite-options.mjs'
 import { makeQueryOptions } from '../query/make-options.mjs'
 
-import type { ClientOptions, ProcessResponseFunction } from '../common/types.mjs'
+import type { ClientOptions } from '../common/types.mjs'
 import type { MutationArgs } from '../mutation/types.mjs'
 import type { InfiniteUnwrapMode, UnwrapMode } from '../query/types.mjs'
 
@@ -28,7 +28,6 @@ export interface QueryConfig<
   QuerySchema extends ZodObject | undefined = undefined,
   Response extends ZodType = ZodType,
   ErrorSchema extends ErrorSchemaRecord | undefined = undefined,
-  Result = z.output<Response>,
   RequestSchema extends ZodType | undefined = undefined,
 > {
   method: Method
@@ -37,10 +36,11 @@ export interface QueryConfig<
   responseSchema: Response
   errorSchema?: ErrorSchema
   requestSchema?: RequestSchema
-  processResponse?: (data: z.output<Response>) => Result
   unwrap?: UnwrapMode
   result?: 'data' | 'envelope'
   validateResponse?: boolean
+  keyPrefix?: string[]
+  keySuffix?: string[]
 }
 
 /**
@@ -53,7 +53,6 @@ export type InfiniteQueryConfig<
   Response extends ZodType = ZodType,
   ErrorSchema extends ErrorSchemaRecord | undefined = undefined,
   PageResult = z.output<Response>,
-  Result = InfiniteData<PageResult>,
   RequestSchema extends ZodType | undefined = undefined,
 > = {
   method: Method
@@ -62,11 +61,11 @@ export type InfiniteQueryConfig<
   responseSchema: Response
   errorSchema?: ErrorSchema
   requestSchema?: RequestSchema
-  processResponse?: (data: z.output<Response>) => PageResult
   unwrap?: InfiniteUnwrapMode
   result?: 'data' | 'envelope'
   validateResponse?: boolean
-  select?: (data: InfiniteData<PageResult>) => Result
+  keyPrefix?: string[]
+  keySuffix?: string[]
   getNextPageParam: (
     lastPage: PageResult,
     allPages: PageResult[],
@@ -92,8 +91,7 @@ export interface MutationConfig<
   QuerySchema extends ZodObject | undefined = undefined,
   Response extends ZodType = ZodType,
   ErrorSchema extends ErrorSchemaRecord | undefined = undefined,
-  ReqResult = z.output<Response>,
-  Result = unknown,
+  Result = z.output<Response>,
   TOnMutateResult = unknown,
   Context = unknown,
   UseKey extends boolean = false,
@@ -104,7 +102,6 @@ export interface MutationConfig<
   responseSchema: Response
   errorSchema?: ErrorSchema
   requestSchema?: RequestSchema
-  processResponse?: ProcessResponseFunction<Result, ReqResult>
   unwrap?: UnwrapMode
   result?: 'data' | 'envelope'
   validateResponse?: boolean
@@ -134,247 +131,210 @@ export interface MutationConfig<
 }
 
 /**
+ * Type guard: distinguishes an existing endpoint handler from an inline config.
+ *
+ * Endpoint handlers from `api.declareEndpoint` / `api.declareMultipart` /
+ * `api.declareStream` are callable functions with an attached `config`
+ * property. Inline configs are plain objects.
+ */
+function isEndpointHandler(
+  input: unknown,
+): input is EndpointHandler<EndpointOptions> | StreamHandler<BaseEndpointOptions> {
+  return typeof input === 'function' && 'config' in input
+}
+
+/**
+ * Extract the underlying `EndpointOptions` from an inline config, dropping
+ * surface-specific fields (`unwrap`, `keyPrefix`, `keySuffix`, mutation
+ * callbacks, `useContext`, `useKey`, `meta`, infinite-query pagination
+ * callbacks) which `api.declareEndpoint` does not understand.
+ */
+function extractEndpointOptions(config: Record<string, unknown>): EndpointOptions {
+  return {
+    method: config.method,
+    url: config.url,
+    querySchema: config.querySchema,
+    requestSchema: config.requestSchema,
+    responseSchema: config.responseSchema,
+    errorSchema: config.errorSchema,
+    urlParamsSchema: config.urlParamsSchema,
+    result: config.result,
+    validateResponse: config.validateResponse,
+    clientOptions: config.clientOptions,
+  } as EndpointOptions
+}
+
+/**
  * Creates a client instance for making type-safe queries and mutations.
  *
+ * Each surface method (`query`, `infiniteQuery`, `mutation`, `multipart`)
+ * accepts either an inline endpoint config or an existing endpoint handler
+ * produced by `api.declareEndpoint` / `api.declareMultipart`.
+ *
  * @param options - Client configuration including the API builder and defaults
- * @returns A client instance with query, infiniteQuery, and mutation methods
+ * @returns A client instance with `query`, `infiniteQuery`, `mutation`, and
+ *   `multipart` methods.
  *
  * @example
  * ```typescript
  * const api = builder({});
  * const client = declareClient({ api });
  *
+ * // Inline config
  * const getUser = client.query({
  *   method: 'GET',
  *   url: '/users/$id',
  *   responseSchema: UserSchema,
  * });
  *
- * // In a component
- * const { data } = useSuspenseQuery(getUser({ urlParams: { id: '123' } }));
+ * // From an existing endpoint
+ * const getUserEndpoint = api.declareEndpoint({
+ *   method: 'GET',
+ *   url: '/users/$id',
+ *   responseSchema: UserSchema,
+ * });
+ * const getUserFromEndpoint = client.query(getUserEndpoint);
  * ```
  */
 export function declareClient({ api, defaults = {} }: ClientOptions): ClientInstance {
-  function query(config: QueryConfig) {
-    const endpoint = api.declareEndpoint({
-      method: config.method,
-      url: config.url,
-      querySchema: config.querySchema,
-      requestSchema: config.requestSchema,
-      responseSchema: config.responseSchema,
-      errorSchema: config.errorSchema,
-      result: config.result,
-      validateResponse: config.validateResponse,
-    })
+  function query(input: any, options: any = {}) {
+    let endpoint: EndpointHandler<EndpointOptions>
+    let unwrap: UnwrapMode | undefined
+    let keyPrefix: string[] | undefined
+    let keySuffix: string[] | undefined
+
+    if (isEndpointHandler(input)) {
+      endpoint = input as EndpointHandler<EndpointOptions>
+      unwrap = options?.unwrap
+      keyPrefix = options?.keyPrefix
+      keySuffix = options?.keySuffix
+    } else {
+      endpoint = api.declareEndpoint(extractEndpointOptions(input))
+      unwrap = input.unwrap ?? options?.unwrap
+      keyPrefix = input.keyPrefix ?? options?.keyPrefix
+      keySuffix = input.keySuffix ?? options?.keySuffix
+    }
 
     const queryOptions = makeQueryOptions(endpoint, {
       ...defaults,
-      processResponse: config.processResponse ?? ((data) => data),
-      unwrap: config.unwrap,
+      ...(keyPrefix !== undefined ? { keyPrefix } : {}),
+      ...(keySuffix !== undefined ? { keySuffix } : {}),
+      unwrap,
     })
-    // @ts-expect-error We attach the endpoint to the queryOptions
-    queryOptions.endpoint = endpoint
-    return queryOptions
+    return Object.assign(queryOptions, { endpoint })
   }
 
-  function queryFromEndpoint(
-    endpoint: EndpointHandler<EndpointOptions>,
-    options?: {
-      processResponse?: (data: z.output<EndpointOptions['responseSchema']>) => unknown
-      unwrap?: UnwrapMode
-    },
-  ) {
-    return makeQueryOptions(endpoint as any, {
+  function infiniteQuery(input: any, options: any = {}) {
+    let endpoint: EndpointHandler<EndpointOptions>
+    let unwrap: InfiniteUnwrapMode | undefined
+    let keyPrefix: string[] | undefined
+    let keySuffix: string[] | undefined
+    let getNextPageParam: any
+    let getPreviousPageParam: any
+    let initialPageParam: any
+
+    if (isEndpointHandler(input)) {
+      endpoint = input as EndpointHandler<EndpointOptions>
+      unwrap = options?.unwrap
+      keyPrefix = options?.keyPrefix
+      keySuffix = options?.keySuffix
+      getNextPageParam = options.getNextPageParam
+      getPreviousPageParam = options?.getPreviousPageParam
+      initialPageParam = options?.initialPageParam
+    } else {
+      endpoint = api.declareEndpoint(extractEndpointOptions(input))
+      unwrap = input.unwrap ?? options?.unwrap
+      keyPrefix = input.keyPrefix ?? options?.keyPrefix
+      keySuffix = input.keySuffix ?? options?.keySuffix
+      getNextPageParam = input.getNextPageParam ?? options?.getNextPageParam
+      getPreviousPageParam = input.getPreviousPageParam ?? options?.getPreviousPageParam
+      initialPageParam = input.initialPageParam ?? options?.initialPageParam
+    }
+
+    const infiniteQueryOptions = makeInfiniteQueryOptions(endpoint as any, {
       ...defaults,
-      processResponse: options?.processResponse ?? ((data) => data),
-      unwrap: options?.unwrap,
+      ...(keyPrefix !== undefined ? { keyPrefix } : {}),
+      ...(keySuffix !== undefined ? { keySuffix } : {}),
+      unwrap,
+      getNextPageParam,
+      getPreviousPageParam,
+      initialPageParam,
     })
+
+    return Object.assign(infiniteQueryOptions, { endpoint })
   }
 
-  function infiniteQuery(config: InfiniteQueryConfig) {
-    const endpoint = api.declareEndpoint({
-      method: config.method,
-      url: config.url,
-      querySchema: config.querySchema,
-      requestSchema: config.requestSchema,
-      responseSchema: config.responseSchema,
-      errorSchema: config.errorSchema,
-      result: config.result,
-      validateResponse: config.validateResponse,
-    })
-    const infiniteQueryOptions = makeInfiniteQueryOptions(endpoint, {
+  function mutation(input: any, options: any = {}) {
+    let endpoint: EndpointHandler<EndpointOptions> | StreamHandler<BaseEndpointOptions>
+    let surfaceFields: Record<string, unknown>
+
+    if (isEndpointHandler(input)) {
+      endpoint = input
+      surfaceFields = options ?? {}
+    } else {
+      endpoint = api.declareEndpoint(extractEndpointOptions(input))
+      surfaceFields = input
+    }
+
+    // `makeMutation` is overloaded on whether the endpoint has an
+    // `errorSchema`; this call site passes a union of both shapes (or a
+    // `StreamHandler`) and untyped `surfaceFields` from runtime dispatch,
+    // so we cast both arguments to `never` to bypass overload resolution.
+    // The implementation accepts any endpoint config + options bag.
+    const mutationOptions = {
+      unwrap: surfaceFields.unwrap,
+      useContext: surfaceFields.useContext,
+      onMutate: surfaceFields.onMutate,
+      onSuccess: surfaceFields.onSuccess,
+      onError: surfaceFields.onError,
+      onSettled: surfaceFields.onSettled,
+      useKey: surfaceFields.useKey,
+      meta: surfaceFields.meta,
       ...defaults,
-      processResponse: config.processResponse ?? ((data: unknown) => data),
-      unwrap: config.unwrap,
-      getNextPageParam: config.getNextPageParam,
-      getPreviousPageParam: config.getPreviousPageParam,
-      initialPageParam: config.initialPageParam,
-    })
+    } as never
+    const useMutation = makeMutation(endpoint as never, mutationOptions)
 
-    // @ts-expect-error We attach the endpoint to the infiniteQueryOptions
-    infiniteQueryOptions.endpoint = endpoint
-    return infiniteQueryOptions
+    return Object.assign(useMutation, { endpoint })
   }
 
-  function infiniteQueryFromEndpoint(
-    endpoint: EndpointHandler<EndpointOptions>,
-    options: {
-      processResponse?: (data: z.output<EndpointOptions['responseSchema']>) => unknown
-      unwrap?: InfiniteUnwrapMode
-      getNextPageParam: (
-        lastPage: z.infer<EndpointOptions['responseSchema']>,
-        allPages: z.infer<EndpointOptions['responseSchema']>[],
-        lastPageParam: z.infer<NonNullable<EndpointOptions['querySchema']>> | undefined,
-        allPageParams: z.infer<NonNullable<EndpointOptions['querySchema']>>[] | undefined,
-      ) => z.input<NonNullable<EndpointOptions['querySchema']>> | undefined
-      getPreviousPageParam?: (
-        firstPage: z.infer<EndpointOptions['responseSchema']>,
-        allPages: z.infer<EndpointOptions['responseSchema']>[],
-        lastPageParam: z.infer<NonNullable<EndpointOptions['querySchema']>> | undefined,
-        allPageParams: z.infer<NonNullable<EndpointOptions['querySchema']>>[] | undefined,
-      ) => z.input<NonNullable<EndpointOptions['querySchema']>>
-      initialPageParam?: z.input<NonNullable<EndpointOptions['querySchema']>>
-    },
-  ) {
-    return makeInfiniteQueryOptions(endpoint as any, {
+  function multipart(input: any, options: any = {}) {
+    let endpoint: EndpointHandler<EndpointOptions>
+    let surfaceFields: Record<string, unknown>
+
+    if (isEndpointHandler(input)) {
+      endpoint = input as EndpointHandler<EndpointOptions>
+      surfaceFields = options ?? {}
+    } else {
+      endpoint = api.declareMultipart(extractEndpointOptions(input))
+      surfaceFields = input
+    }
+
+    // Same overload-bypass pattern as `mutation` above.
+    const mutationOptions = {
+      unwrap: surfaceFields.unwrap,
+      useContext: surfaceFields.useContext,
+      onSuccess: surfaceFields.onSuccess,
+      onError: surfaceFields.onError,
+      onMutate: surfaceFields.onMutate,
+      onSettled: surfaceFields.onSettled,
+      useKey: surfaceFields.useKey,
+      meta: surfaceFields.meta,
       ...defaults,
-      processResponse: options?.processResponse ?? ((data) => data),
-      unwrap: options?.unwrap,
-      getNextPageParam: options.getNextPageParam,
-      getPreviousPageParam: options?.getPreviousPageParam,
-      initialPageParam: options?.initialPageParam,
-    })
+    } as never
+    const useMutation = makeMutation(endpoint as never, mutationOptions)
+
+    return Object.assign(useMutation, { endpoint })
   }
 
-  function mutation(config: MutationConfig) {
-    const endpoint = api.declareEndpoint({
-      method: config.method,
-      url: config.url,
-      querySchema: config.querySchema,
-      requestSchema: config.requestSchema,
-      responseSchema: config.responseSchema,
-      errorSchema: config.errorSchema,
-      result: config.result,
-      validateResponse: config.validateResponse,
-    })
-
-    // @ts-expect-error Type inference for errorSchema variants
-    const useMutation = makeMutation(endpoint, {
-      processResponse: config.processResponse ?? ((data: unknown) => data),
-      unwrap: config.unwrap,
-      useContext: config.useContext,
-      onMutate: config.onMutate,
-      onSuccess: config.onSuccess,
-      onError: config.onError,
-      onSettled: config.onSettled,
-      useKey: config.useKey,
-      meta: config.meta,
-      ...defaults,
-    })
-
-    // @ts-expect-error We attach the endpoint to the useMutation
-    useMutation.endpoint = endpoint
-    return useMutation
-  }
-
-  function mutationFromEndpoint(
-    endpoint: EndpointHandler<EndpointOptions> | StreamHandler<BaseEndpointOptions>,
-    options?: {
-      processResponse?: ProcessResponseFunction
-      unwrap?: UnwrapMode
-      useContext?: () => unknown
-      onMutate?: (
-        variables: MutationArgs,
-        context: MutationFunctionContext & { [key: string]: unknown },
-      ) => unknown | Promise<unknown>
-      onSuccess?: (
-        data: unknown,
-        variables: MutationArgs,
-        context: MutationFunctionContext & {
-          onMutateResult: unknown | undefined
-          [key: string]: unknown
-        },
-      ) => void | Promise<void>
-      onError?: (
-        err: unknown,
-        variables: MutationArgs,
-        context: MutationFunctionContext & {
-          onMutateResult: unknown | undefined
-          [key: string]: unknown
-        },
-      ) => void | Promise<void>
-      onSettled?: (
-        data: unknown | undefined,
-        error: Error | null,
-        variables: MutationArgs,
-        context: MutationFunctionContext & {
-          onMutateResult: unknown | undefined
-          [key: string]: unknown
-        },
-      ) => void | Promise<void>
-      useKey?: boolean
-      meta?: Record<string, unknown>
-    },
-  ) {
-    // @ts-expect-error endpoint types are compatible at runtime
-    return makeMutation(endpoint, {
-      processResponse: options?.processResponse,
-      unwrap: options?.unwrap,
-      useContext: options?.useContext,
-      onMutate: options?.onMutate,
-      onSuccess: options?.onSuccess,
-      onError: options?.onError,
-      onSettled: options?.onSettled,
-      useKey: options?.useKey,
-      meta: options?.meta,
-      ...defaults,
-    })
-  }
-
-  function multipartMutation(config: MutationConfig) {
-    const endpoint = api.declareMultipart({
-      method: config.method,
-      url: config.url,
-      querySchema: config.querySchema,
-      requestSchema: config.requestSchema,
-      responseSchema: config.responseSchema,
-      errorSchema: config.errorSchema,
-      result: config.result,
-      validateResponse: config.validateResponse,
-    })
-
-    // @ts-expect-error Type inference for errorSchema variants
-    const useMutation = makeMutation(endpoint, {
-      processResponse: config.processResponse ?? ((data: unknown) => data),
-      unwrap: config.unwrap,
-      useContext: config.useContext,
-      onSuccess: config.onSuccess,
-      onError: config.onError,
-      onMutate: config.onMutate,
-      onSettled: config.onSettled,
-      useKey: config.useKey,
-      ...defaults,
-    })
-
-    // @ts-expect-error We attach the endpoint to the useMutation
-    useMutation.endpoint = endpoint
-    return useMutation
-  }
-
+  // The four local functions use `any` parameters internally for runtime
+  // dispatch (inline-config vs. existing-handler), so their inferred types
+  // are looser than the overloaded `ClientInstance` interface. The runtime
+  // behaviour matches the interface — cast via `unknown` to assert the
+  // narrow public type.
   return {
-    // @ts-expect-error We simplified types here
     query,
-    // @ts-expect-error We simplified types here
-    queryFromEndpoint,
-    // @ts-expect-error We simplified types here
     infiniteQuery,
-    // @ts-expect-error We simplified types here
-    infiniteQueryFromEndpoint,
-    // @ts-expect-error We simplified types here
     mutation,
-    // @ts-expect-error We simplified types here
-    mutationFromEndpoint,
-    // @ts-expect-error We simplified types here
-    multipartMutation,
-  }
+    multipart,
+  } as unknown as ClientInstance
 }

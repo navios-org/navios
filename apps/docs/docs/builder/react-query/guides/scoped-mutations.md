@@ -17,7 +17,6 @@ const updateUser = client.mutation({
   requestSchema: userUpdateSchema,
   responseSchema: userSchema,
   useKey: true, // Enable scoping
-  processResponse: (data) => data,
 })
 ```
 
@@ -120,7 +119,6 @@ const updateUser = client.mutation({
   requestSchema: userUpdateSchema,
   responseSchema: userSchema,
   // useKey: false (default)
-  processResponse: (data) => data,
 })
 
 function UserCard({ userId }: { userId: string }) {

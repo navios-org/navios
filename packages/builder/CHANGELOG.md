@@ -1,6 +1,6 @@
 # Changelog
 
-## [2.0.0] - 2026-05-14
+## [2.0.0] - 2026-05-15
 
 ### Added
 
@@ -60,6 +60,30 @@
 ```diff
 - onZodError: (error, response, originalError) => report(error)
 + onError: (event) => { if (event.kind === 'validation') report(event.zodIssues) }
+```
+
+### Changed (round 2)
+
+- **Socket and EventSource builders** now use the unified `onError(BuilderErrorEvent)` hook. The `BuilderErrorKind` union extends with `'socket-ack-timeout'`, `'socket-transport'`, `'event-source-transport'`. The event gains optional `topic`, `eventName`, `rawData` fields.
+- **`RequestArgs<Url, QuerySchema, RequestSchema, UrlParamsSchema, IsServer>`** split into `ClientRequestArgs<Options>` (uses `z.input`) and `ServerRequestArgs<Options>` (uses `z.output`). The `IsServer` boolean generic is removed; pick the variant that matches the surface.
+
+### Removed (round 2)
+
+- **Socket `onValidationError`, `onAckTimeout` configs** — use the unified `onError(event)` and filter on `event.kind === 'validation'` / `'socket-ack-timeout'`.
+- **EventSource legacy `onError(error)`, `onValidationError` configs** — use the unified `onError(event)` and filter on `event.kind === 'validation'` / `'event-source-transport'`.
+- **`RequestArgs<...IsServer>`** — replaced by `ClientRequestArgs<Options>` / `ServerRequestArgs<Options>`.
+
+```diff
+- socketBuilder({
+-   onValidationError: (err) => reportZod(err),
+-   onAckTimeout: (topic) => reportTimeout(topic),
+- })
++ socketBuilder({
++   onError: (event) => {
++     if (event.kind === 'validation') reportZod(event.zodIssues)
++     if (event.kind === 'socket-ack-timeout') reportTimeout(event.topic)
++   },
++ })
 ```
 
 ## [1.0.0] - 2026-01-08

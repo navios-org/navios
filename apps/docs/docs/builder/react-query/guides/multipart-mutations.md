@@ -9,7 +9,7 @@ Multipart mutations handle file uploads using `multipart/form-data` encoding. Bu
 ## Basic Multipart Mutation
 
 ```typescript
-const uploadFile = client.multipartMutation({
+const uploadFile = client.multipart({
   method: 'POST',
   url: '/files',
   requestSchema: z.object({
@@ -20,7 +20,6 @@ const uploadFile = client.multipartMutation({
     fileId: z.string(),
     url: z.string(),
   }),
-  processResponse: (data) => data,
 })
 ```
 
@@ -55,7 +54,7 @@ function FileUpload() {
 ## With URL Parameters
 
 ```typescript
-const uploadAvatar = client.multipartMutation({
+const uploadAvatar = client.multipart({
   method: 'POST',
   url: '/users/$userId/avatar',
   requestSchema: z.object({
@@ -64,7 +63,6 @@ const uploadAvatar = client.multipartMutation({
   responseSchema: z.object({
     url: z.string(),
   }),
-  processResponse: (data) => data,
 })
 
 // Usage
@@ -88,7 +86,7 @@ function AvatarUpload({ userId }: { userId: string }) {
 ## Multiple Files
 
 ```typescript
-const uploadFiles = client.multipartMutation({
+const uploadFiles = client.multipart({
   method: 'POST',
   url: '/files',
   requestSchema: z.object({
@@ -98,7 +96,6 @@ const uploadFiles = client.multipartMutation({
   responseSchema: z.object({
     ids: z.array(z.string()),
   }),
-  processResponse: (data) => data,
 })
 
 // Usage
@@ -134,7 +131,7 @@ Validate files before upload:
 ```typescript
 const MAX_FILE_SIZE = 5 * 1024 * 1024 // 5MB
 
-const uploadImage = client.multipartMutation({
+const uploadImage = client.multipart({
   method: 'POST',
   url: '/images',
   requestSchema: z.object({
@@ -149,7 +146,6 @@ const uploadImage = client.multipartMutation({
   responseSchema: z.object({
     url: z.string(),
   }),
-  processResponse: (data) => data,
 })
 ```
 
@@ -255,7 +251,7 @@ function DragDropUpload() {
 ### With Success Callback
 
 ```typescript
-const uploadFile = client.multipartMutation({
+const uploadFile = client.multipart({
   method: 'POST',
   url: '/files',
   requestSchema: z.object({
@@ -264,7 +260,6 @@ const uploadFile = client.multipartMutation({
   responseSchema: z.object({
     url: z.string(),
   }),
-  processResponse: (data) => data,
   onSuccess: (data) => {
     console.log('File uploaded:', data.url)
     // Show success message, update UI, etc.

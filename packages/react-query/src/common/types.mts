@@ -19,13 +19,6 @@ export type Split<S extends string, D extends string> = string extends S
       : [S]
 
 /**
- * Function type for processing API responses before returning to the caller.
- */
-export type ProcessResponseFunction<TData = unknown, TVariables = unknown> = (
-  variables: TVariables,
-) => Promise<TData> | TData
-
-/**
  * Compute the response input type.
  * In the data-mode default (errors are thrown), this is just `z.output<ResponseSchema>`.
  *
@@ -70,20 +63,6 @@ export type InferEndpointResponse<
 > = Config['errorSchema'] extends ErrorSchemaRecord
   ? z.output<Config['responseSchema']> | InferErrorSchemaOutput<Config['errorSchema']>
   : z.output<Config['responseSchema']>
-
-/**
- * Computes the Result type, applying processResponse transformation
- * to the full response (including error union when present).
- */
-export type ComputeResultType<
-  ResponseSchema extends ZodType,
-  ErrorSchema extends ErrorSchemaRecord | undefined,
-  ProcessedResult,
-> = ProcessedResult extends undefined
-  ? ErrorSchema extends ErrorSchemaRecord
-    ? z.output<ResponseSchema> | InferErrorSchemaOutput<ErrorSchema>
-    : z.output<ResponseSchema>
-  : ProcessedResult
 
 /**
  * Returns true if an endpoint handler was declared with `result: 'envelope'`.

@@ -18,7 +18,6 @@ const getUser = client.query({
     include: z.string().optional(),
   }),
   responseSchema: userSchema,
-  processResponse: (data) => data,
 })
 
 // Invalidate specific query
@@ -49,7 +48,6 @@ const updateUser = client.mutation({
   url: '/users/$userId',
   requestSchema: userUpdateSchema,
   responseSchema: userSchema,
-  processResponse: (data) => data,
   useContext: () => ({ queryClient: useQueryClient() }),
   onSuccess: (data, variables, context) => {
     // Invalidate user query after update
@@ -86,7 +84,6 @@ const createUser = client.mutation({
   url: '/users',
   requestSchema: userCreateSchema,
   responseSchema: userSchema,
-  processResponse: (data) => data,
   useContext: () => ({ queryClient: useQueryClient() }),
   onSuccess: (data, variables, context) => {
     // Invalidate users list
@@ -103,7 +100,6 @@ const updateUser = client.mutation({
   url: '/users/$userId',
   requestSchema: userUpdateSchema,
   responseSchema: userSchema,
-  processResponse: (data) => data,
   useContext: () => ({ queryClient: useQueryClient() }),
   onSuccess: (data, variables, context) => {
     // Invalidate specific user
@@ -123,7 +119,6 @@ const deleteUser = client.mutation({
   method: 'DELETE',
   url: '/users/$userId',
   responseSchema: z.object({ success: z.boolean() }),
-  processResponse: (data) => data,
   useContext: () => ({ queryClient: useQueryClient() }),
   onSuccess: (data, variables, context) => {
     // Remove from cache
@@ -229,7 +224,6 @@ const updateUser = client.mutation({
   url: '/users/$userId',
   requestSchema: userUpdateSchema,
   responseSchema: userSchema,
-  processResponse: (data) => data,
   useContext: () => ({ queryClient: useQueryClient() }),
   onSuccess: (data, variables, context) => {
     // Invalidate after a delay

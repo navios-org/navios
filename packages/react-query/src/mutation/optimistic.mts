@@ -96,7 +96,6 @@ export interface OptimisticUpdateCallbacks<TData, TVariables, TQueryData> {
  *   url: '/users/$userId',
  *   requestSchema: updateUserSchema,
  *   responseSchema: userSchema,
- *   processResponse: (data) => data,
  *   ...createOptimisticUpdate({
  *     queryKey: ['users', userId],
  *     updateFn: (oldData, variables) => ({
@@ -115,7 +114,6 @@ export interface OptimisticUpdateCallbacks<TData, TVariables, TQueryData> {
  *   url: '/todos',
  *   requestSchema: createTodoSchema,
  *   responseSchema: todoSchema,
- *   processResponse: (data) => data,
  *   ...createOptimisticUpdate({
  *     queryKey: ['todos'],
  *     updateFn: (oldData, variables) => [
@@ -133,7 +131,6 @@ export interface OptimisticUpdateCallbacks<TData, TVariables, TQueryData> {
  *   method: 'DELETE',
  *   url: '/todos/$todoId',
  *   responseSchema: z.object({ success: z.boolean() }),
- *   processResponse: (data) => data,
  *   ...createOptimisticUpdate({
  *     queryKey: ['todos'],
  *     updateFn: (oldData, variables) =>
@@ -206,7 +203,6 @@ export function createOptimisticUpdate<TData, TVariables, TQueryData>(
  *   url: '/users/$userId',
  *   requestSchema: updateUserSchema,
  *   responseSchema: userSchema,
- *   processResponse: (data) => data,
  *   ...createMultiOptimisticUpdate([
  *     {
  *       queryKey: ['users', userId],

@@ -29,7 +29,6 @@ const getUser = client.query({
   method: 'GET',
   url: '/users/$userId',
   responseSchema: userSchema,
-  processResponse: (data) => data,
 })
 
 // Create prefetch helper
@@ -220,7 +219,6 @@ export const getUser = client.query({
     name: z.string(),
     email: z.string(),
   }),
-  processResponse: (data) => data,
 })
 
 export const getUserPosts = client.query({
@@ -237,7 +235,6 @@ export const getUserPosts = client.query({
     })),
     total: z.number(),
   }),
-  processResponse: (data) => data,
 })
 
 export const userPrefetch = createPrefetchHelper(getUser)

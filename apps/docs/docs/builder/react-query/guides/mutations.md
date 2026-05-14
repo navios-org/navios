@@ -17,7 +17,6 @@ const createUser = client.mutation({
     email: z.string().email(),
   }),
   responseSchema: userSchema,
-  processResponse: (data) => data,
 })
 
 // Usage
@@ -61,9 +60,7 @@ export const createUserEndpoint = API.declareEndpoint({
 
 ```typescript
 // client/mutations/users.ts
-const createUser = client.mutationFromEndpoint(createUserEndpoint, {
-  processResponse: (data) => data,
-})
+const createUser = client.mutation(createUserEndpoint)
 ```
 
 ## Mutation with URL Parameters
@@ -77,7 +74,6 @@ const updateUser = client.mutation({
     email: z.string().email(),
   }),
   responseSchema: userSchema,
-  processResponse: (data) => data,
 })
 
 // Usage
@@ -108,7 +104,6 @@ const createUser = client.mutation({
   url: '/users',
   requestSchema: userCreateSchema,
   responseSchema: userSchema,
-  processResponse: (data) => data,
   onSuccess: (data, variables, context) => {
     console.log('User created:', data)
     // Invalidate queries, show toast, etc.
@@ -124,7 +119,6 @@ const createUser = client.mutation({
   url: '/users',
   requestSchema: userCreateSchema,
   responseSchema: userSchema,
-  processResponse: (data) => data,
   onError: (error, variables, context) => {
     console.error('Failed to create user:', error)
     // Show error message, log to error tracking, etc.
@@ -142,7 +136,6 @@ const updateUser = client.mutation({
   url: '/users/$userId',
   requestSchema: userUpdateSchema,
   responseSchema: userSchema,
-  processResponse: (data) => data,
   onMutate: async (variables, context) => {
     // Cancel outgoing queries
     await queryClient.cancelQueries({ queryKey: ['users'] })
@@ -171,7 +164,6 @@ const createUser = client.mutation({
   url: '/users',
   requestSchema: userCreateSchema,
   responseSchema: userSchema,
-  processResponse: (data) => data,
   onSettled: (data, error, variables, context) => {
     // Always called, regardless of success or error
     console.log('Mutation completed')
@@ -235,7 +227,6 @@ const createUser = client.mutation({
   url: '/users',
   requestSchema: userCreateSchema,
   responseSchema: userSchema,
-  processResponse: (data) => data,
   useContext: () => ({ queryClient: useQueryClient() }),
   onSuccess: (data, variables, context) => {
     // Invalidate users list
@@ -252,7 +243,6 @@ const updateUser = client.mutation({
   url: '/users/$userId',
   requestSchema: userUpdateSchema,
   responseSchema: userSchema,
-  processResponse: (data) => data,
   useContext: () => ({ queryClient: useQueryClient() }),
   onSuccess: (data, variables, context) => {
     // Update specific query
@@ -276,7 +266,6 @@ const createUser = client.mutation({
   url: '/users',
   requestSchema: userCreateSchema,
   responseSchema: userSchema,
-  processResponse: (data) => data,
   onError: (error, variables, context) => {
     if (error instanceof NaviosError) {
       console.error('API Error:', error.message)

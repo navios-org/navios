@@ -1,7 +1,7 @@
 import type {
+  ClientRequestArgs,
+  EndpointHandler,
   EndpointOptions,
-  ErrorSchemaRecord,
-  RequestArgs,
   Simplify,
   UrlHasParams,
   UrlParams,
@@ -12,50 +12,42 @@ import type { ZodObject, ZodType } from 'zod/v4'
 import type { MutationHelpers } from '../../mutation/types.mjs'
 import type { UnwrapMode } from '../../query/types.mjs'
 
-import type { ComputeResult, EndpointHelper, OptionsFromInline, ResultMode } from './helpers.mjs'
+import type { ComputeResult } from './helpers.mjs'
 
 /**
  * Variables shape for a multipart mutation, derived from the synthesised
- * `Options` type.
+ * `Options` type. Multipart endpoints do not support `urlParamsSchema`, so
+ * variables are derived from URL params + query / request schemas only.
  */
 type MultipartVariables<Options extends EndpointOptions> = Simplify<
-  RequestArgs<
-    Options['url'],
-    Options['querySchema'] extends ZodObject ? Options['querySchema'] : undefined,
-    Options['requestSchema'] extends ZodType ? Options['requestSchema'] : undefined
-  >
+  ClientRequestArgs<{
+    url: Options['url']
+    querySchema: Options['querySchema'] extends ZodObject ? Options['querySchema'] : undefined
+    requestSchema: Options['requestSchema'] extends ZodType ? Options['requestSchema'] : undefined
+  }>
 >
 
 /**
- * Extended endpoint config for `multipartMutation`. Mirrors
- * `MutationEndpointConfig` but constrains the HTTP method to `'POST' |
- * 'PUT' | 'PATCH'` and treats `requestSchema` as required.
+ * Constraint applied to multipart mutations: HTTP method must be a
+ * body-bearing verb and `requestSchema` is required.
  */
-interface MultipartMutationEndpointConfig<
-  Method extends 'POST' | 'PUT' | 'PATCH',
-  Url extends string,
-  QuerySchema extends ZodObject | undefined,
-  RequestSchema extends ZodType,
-  ResponseSchema extends ZodType,
-  ErrorSchema extends ErrorSchemaRecord | undefined,
-  ResultModeT extends ResultMode,
+type MultipartEndpointOptions = EndpointOptions & {
+  method: 'POST' | 'PUT' | 'PATCH'
+  requestSchema: ZodType
+}
+
+/**
+ * Surface-specific fields layered on top of `EndpointOptions` for the inline
+ * config path. Stripped before forwarding to `api.declareMultipart`.
+ */
+interface MultipartSurfaceFields<
+  Options extends MultipartEndpointOptions,
   UseKey extends boolean,
   Unwrap extends UnwrapMode,
-  TBaseResult,
-  Result,
   OnMutateResult,
   Context,
-  Variables,
-> extends EndpointOptions {
-  method: Method
-  url: Url
-  querySchema?: QuerySchema
-  requestSchema: RequestSchema
-  responseSchema: ResponseSchema
-  errorSchema?: ErrorSchema
-  result?: ResultModeT
+> {
   useKey?: UseKey
-  processResponse?: (data: TBaseResult) => Result | Promise<Result>
   /**
    * For endpoints declared with `result: 'envelope'`, controls how the
    * envelope is delivered to the mutation channel. Has no effect on
@@ -63,13 +55,14 @@ interface MultipartMutationEndpointConfig<
    */
   unwrap?: Unwrap
   useContext?: () => Context
+  meta?: Record<string, unknown>
   onMutate?: (
-    variables: Variables,
+    variables: MultipartVariables<Options>,
     context: Context & MutationFunctionContext,
   ) => OnMutateResult | Promise<OnMutateResult>
   onSuccess?: (
-    data: NoInfer<Result>,
-    variables: Variables,
+    data: NoInfer<ComputeResult<Options, Unwrap>>,
+    variables: MultipartVariables<Options>,
     context: Context &
       MutationFunctionContext & {
         onMutateResult: OnMutateResult | undefined
@@ -77,16 +70,16 @@ interface MultipartMutationEndpointConfig<
   ) => void | Promise<void>
   onError?: (
     error: Error,
-    variables: Variables,
+    variables: MultipartVariables<Options>,
     context: Context &
       MutationFunctionContext & {
         onMutateResult: OnMutateResult | undefined
       },
   ) => void | Promise<void>
   onSettled?: (
-    data: NoInfer<Result> | undefined,
+    data: NoInfer<ComputeResult<Options, Unwrap>> | undefined,
     error: Error | null,
-    variables: Variables,
+    variables: MultipartVariables<Options>,
     context: Context &
       MutationFunctionContext & {
         onMutateResult: OnMutateResult | undefined
@@ -95,62 +88,73 @@ interface MultipartMutationEndpointConfig<
 }
 
 /**
- * Multipart mutation method.
+ * Single overloaded multipart surface (renamed from `multipartMutation` for
+ * consistency with the other shorter names). The first argument is either:
  *
- * Collapsed from four near-identical overloads into a single signature whose
- * `UseKey extends boolean` and `QuerySchema extends ZodObject | undefined`
- * generics encode the variants previously split across overloads.
+ * - an inline `MultipartEndpointOptions` config (with optional surface
+ *   fields), or
+ * - an existing `EndpointHandler` produced by `api.declareMultipart`.
+ *
+ * `Options` is inferred from the literal config via the structural copy
+ * `{ [K in keyof Options]: Options[K] }`, which keeps surface-specific fields
+ * out of `Options`.
  */
 export interface ClientMultipartMutationMethods {
-  multipartMutation<
-    const Method extends 'POST' | 'PUT' | 'PATCH' = 'POST' | 'PUT' | 'PATCH',
-    const Url extends string = string,
-    const RequestSchema extends ZodType = ZodType,
-    const QuerySchema extends ZodObject | undefined = undefined,
-    const ResponseSchema extends ZodType = ZodType,
-    const ErrorSchema extends ErrorSchemaRecord | undefined = undefined,
-    const ResultModeT extends ResultMode = undefined,
+  /**
+   * Creates a type-safe multipart mutation with automatic type inference,
+   * accepting either an inline config or an existing multipart endpoint
+   * handler.
+   *
+   * @example
+   * ```ts
+   * // Inline config
+   * const uploadFile = client.multipart({
+   *   method: 'POST',
+   *   url: '/files',
+   *   requestSchema: z.object({ file: z.instanceof(File) }),
+   *   responseSchema: z.object({ fileId: z.string() }),
+   * })
+   *
+   * // From an existing endpoint
+   * const uploadEndpoint = api.declareMultipart({
+   *   method: 'POST',
+   *   url: '/files',
+   *   requestSchema: z.object({ file: z.instanceof(File) }),
+   *   responseSchema: z.object({ fileId: z.string() }),
+   * })
+   * const uploadFile2 = client.multipart(uploadEndpoint)
+   * ```
+   */
+  multipart<
+    const Options extends MultipartEndpointOptions,
     const UseKey extends boolean = false,
     const Unwrap extends UnwrapMode = 'none',
-    const Options extends EndpointOptions = OptionsFromInline<
-      Method,
-      Url,
-      QuerySchema,
-      RequestSchema,
-      ResponseSchema,
-      ErrorSchema,
-      undefined,
-      ResultModeT
-    >,
-    const TBaseResult = ComputeResult<Options, Unwrap>,
-    const Result = TBaseResult,
     const OnMutateResult = unknown,
     const Context = unknown,
-    const Variables = MultipartVariables<Options>,
   >(
-    config: MultipartMutationEndpointConfig<
-      Method,
-      Url,
-      QuerySchema,
-      RequestSchema,
-      ResponseSchema,
-      ErrorSchema,
-      ResultModeT,
-      UseKey,
-      Unwrap,
-      TBaseResult,
-      Result,
-      OnMutateResult,
-      Context,
-      Variables
-    >,
+    input:
+      | ({ [K in keyof Options]: Options[K] } & MultipartSurfaceFields<
+          Options,
+          UseKey,
+          Unwrap,
+          OnMutateResult,
+          Context
+        >)
+      | EndpointHandler<Options>,
+    options?: MultipartSurfaceFields<Options, UseKey, Unwrap, OnMutateResult, Context>,
   ): ((
     ...args: UseKey extends true
-      ? UrlHasParams<Url> extends true
-        ? [{ urlParams: UrlParams<Url> }]
+      ? UrlHasParams<Options['url']> extends true
+        ? [{ urlParams: UrlParams<Options['url']> }]
         : [{}]
       : []
-  ) => UseMutationResult<Result, Error, Variables, OnMutateResult>) &
-    (UseKey extends true ? MutationHelpers<Options['url'], Result> : {}) &
-    EndpointHelper<Options>
+  ) => UseMutationResult<
+    ComputeResult<Options, Unwrap>,
+    Error,
+    MultipartVariables<Options>,
+    OnMutateResult
+  >) &
+    (UseKey extends true ? MutationHelpers<Options['url'], ComputeResult<Options, Unwrap>> : {}) & {
+      endpoint: EndpointHandler<Options>
+    }
 }

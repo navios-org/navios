@@ -1,4 +1,4 @@
-import type { ZodType } from 'zod/v4'
+import { ZodError, type ZodType } from 'zod/v4'
 
 import { NaviosError } from '../errors/index.mjs'
 
@@ -25,8 +25,8 @@ import type { EventSourceBuilderConfig, EventOptions } from './types/eventsource
  *
  * // Create builder
  * const sse = eventSourceBuilder({
- *   onValidationError: (error, eventName, data) => {
- *     console.error(`Validation failed for ${eventName}:`, error)
+ *   onError: (event) => {
+ *     console.error(`SSE error (${event.kind}) on ${event.eventName ?? '?'}:`, event.cause)
  *   }
  * })
  *
@@ -103,7 +103,12 @@ export function eventSourceBuilder(
           try {
             handler(data)
           } catch (error) {
-            config.onError?.(error)
+            config.onError?.({
+              kind: 'event-source-transport',
+              endpoint: {},
+              cause: error,
+              eventName,
+            })
           }
         })
       }
@@ -162,7 +167,15 @@ export function eventSourceBuilder(
           try {
             data = (payloadSchema as ZodType).parse(rawData)
           } catch (error) {
-            config.onValidationError?.(error, eventName, rawData)
+            config.onError?.({
+              kind: 'validation',
+              endpoint: {},
+              cause: error,
+              zodIssues: error instanceof ZodError ? error.issues : undefined,
+              body: rawData,
+              eventName,
+              rawData,
+            })
             return // Skip handler if validation fails
           }
         }

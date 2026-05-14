@@ -22,7 +22,6 @@ const updateUser = client.mutation({
   url: '/users/$userId',
   requestSchema: userUpdateSchema,
   responseSchema: userSchema,
-  processResponse: (data) => data,
   useContext: () => ({
     queryClient: useQueryClient(),
   }),
@@ -61,7 +60,6 @@ const updateUser = client.mutation({
   url: '/users/$userId',
   requestSchema: userUpdateSchema,
   responseSchema: userSchema,
-  processResponse: (data) => data,
   useContext: () => ({
     queryClient: useQueryClient(),
   }),
@@ -95,7 +93,6 @@ const deleteTodo = client.mutation({
   method: 'DELETE',
   url: '/todos/$todoId',
   responseSchema: z.object({ success: z.boolean() }),
-  processResponse: (data) => data,
   useContext: () => ({ queryClient: useQueryClient() }),
   ...createOptimisticUpdate({
     queryKey: ['todos'],
@@ -113,7 +110,6 @@ const addTodo = client.mutation({
   url: '/todos',
   requestSchema: createTodoSchema,
   responseSchema: todoSchema,
-  processResponse: (data) => data,
   useContext: () => ({ queryClient: useQueryClient() }),
   ...createOptimisticUpdate({
     queryKey: ['todos'],
@@ -145,7 +141,6 @@ const updateUser = client.mutation({
   url: '/users/$userId',
   requestSchema: userUpdateSchema,
   responseSchema: userSchema,
-  processResponse: (data) => data,
   useContext: () => ({
     queryClient: useQueryClient(),
   }),
@@ -207,7 +202,6 @@ const updateUser = client.mutation({
   url: '/users/$userId',
   requestSchema: userUpdateSchema,
   responseSchema: userSchema,
-  processResponse: (data) => data,
   useContext: () => ({
     queryClient: useQueryClient(),
   }),
@@ -259,7 +253,6 @@ const createUser = client.mutation({
   url: '/users',
   requestSchema: userCreateSchema,
   responseSchema: userSchema,
-  processResponse: (data) => data,
   useContext: () => ({
     queryClient: useQueryClient(),
   }),
@@ -329,7 +322,6 @@ const deleteUser = client.mutation({
   method: 'DELETE',
   url: '/users/$userId',
   responseSchema: z.object({ success: z.boolean() }),
-  processResponse: (data) => data,
   useContext: () => ({
     queryClient: useQueryClient(),
   }),

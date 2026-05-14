@@ -30,7 +30,6 @@ const getUser = client.query({
   method: 'GET',
   url: '/users/$userId',
   responseSchema: userSchema,
-  processResponse: (data) => data,
 })
 
 // Automatic key generation
@@ -112,7 +111,6 @@ const getUser = client.query({
   method: 'GET',
   url: '/users/$userId',
   responseSchema: userSchema,
-  processResponse: (data) => data,
 })
 
 // 5. Use in component
@@ -133,7 +131,6 @@ const getUser = client.query({
   method: 'GET',
   url: '/users/$userId',
   responseSchema: userSchema,
-  processResponse: (data) => data,
 })
 
 // Standard hook
@@ -158,7 +155,6 @@ const getUsers = client.infiniteQuery({
     users: z.array(userSchema),
     nextCursor: z.string().nullable(),
   }),
-  processResponse: (data) => data,
   getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
   initialPageParam: undefined,
 })
@@ -174,7 +170,6 @@ const createUser = client.mutation({
   url: '/users',
   requestSchema: userCreateSchema,
   responseSchema: userSchema,
-  processResponse: (data) => data,
   useContext: () => ({ queryClient: useQueryClient() }),
   onSuccess: (data, variables, context) => {
     context.queryClient.invalidateQueries({ queryKey: ['users'] })

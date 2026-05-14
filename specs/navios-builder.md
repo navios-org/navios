@@ -52,16 +52,27 @@ const API = builder({
 
 #### BuilderErrorEvent
 
-Structured payload passed to `onError`:
+Structured payload passed to `onError` on every error path (main builder, socket builder, eventsource builder):
 
 | Field | Type | Notes |
 |-------|------|-------|
-| `kind` | `'http' \| 'http-unknown' \| 'validation' \| 'network'` | Classifier — same taxonomy as `EnvelopeError` |
-| `endpoint` | `{ method: HttpMethod; url: string }` | The endpoint that triggered the failure |
-| `status` | `number \| undefined` | HTTP status (absent on `network` failures) |
+| `kind` | `BuilderErrorKind` | Classifier; see below |
+| `endpoint` | `{ method: HttpMethod; url: string } \| undefined` | The endpoint that triggered the failure (absent on socket / SSE) |
+| `status` | `number \| undefined` | HTTP status (absent on `network` / `socket-*` / `event-source-*` failures) |
 | `zodIssues` | `readonly $ZodIssue[] \| undefined` | Present when `kind === 'validation'` |
 | `cause` | `unknown` | The original error/throwable |
 | `body` | `unknown` | Raw response body (when available) |
+| `topic` | `string \| undefined` | Socket topic (socket-builder events only) |
+| `eventName` | `string \| undefined` | SSE event name (eventsource-builder events only) |
+| `rawData` | `unknown` | Raw payload before validation (socket / SSE) |
+
+`BuilderErrorKind` is the union of:
+
+- `'http'`, `'http-unknown'`, `'validation'`, `'network'` — main builder
+- `'socket-ack-timeout'`, `'socket-transport'` — socket builder
+- `'event-source-transport'` — eventsource builder
+
+The socket builder's removed callbacks (`onValidationError`, `onAckTimeout`) and the eventsource builder's removed callbacks (legacy `onError(error)`, `onValidationError`) all route through this unified hook now. Filter on `event.kind`.
 
 ---
 
@@ -428,6 +439,16 @@ function classifyError<E extends ErrorSchemaRecord | undefined = undefined>(
 | Legacy types `BaseEndpointConfig`, `BaseStreamConfig`, `AnyEndpointConfig`, `AnyStreamConfig`, `StreamOptions` | `EndpointOptions`, `StreamOptions` |
 | `AbstractEndpoint<Config>`, `AbstractStream<Config>` | `EndpointHandler<Options>`, `StreamHandler<Options>` |
 | `[key: string]: any` index signature on `AbstractRequestConfig` | Typed `timeout`, `responseType`, `clientOptions` slots |
+
+### Removed in v2 (round 2)
+
+| Removed | Replacement |
+|---------|-------------|
+| Socket `onValidationError` callback | `onError(event)` with `event.kind === 'validation'` (uses `event.topic`) |
+| Socket `onAckTimeout` callback | `onError(event)` with `event.kind === 'socket-ack-timeout'` |
+| EventSource legacy `onError(error)` | `onError(event: BuilderErrorEvent)` (now a structured event) |
+| EventSource `onValidationError` callback | `onError(event)` with `event.kind === 'validation'` (uses `event.eventName`) |
+| `RequestArgs<Url, QuerySchema, RequestSchema, UrlParamsSchema, IsServer>` | `ClientRequestArgs<Options>` (uses `z.input`) or `ServerRequestArgs<Options>` (uses `z.output`); the `IsServer` boolean generic is gone |
 
 See [`docs/plans/2026-05-14-builder-response-envelope-design.md`](../docs/plans/2026-05-14-builder-response-envelope-design.md) for the full design rationale.
 

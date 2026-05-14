@@ -1,7 +1,6 @@
 import type {
+  EndpointHandler,
   EndpointOptions,
-  ErrorSchemaRecord,
-  HttpMethod,
   InferEndpointParams,
   Simplify,
 } from '@navios/builder'
@@ -11,38 +10,27 @@ import type { z, ZodObject, ZodType } from 'zod/v4'
 import type { Split } from '../../common/types.mjs'
 import type { InfiniteUnwrapMode, QueryHelpers } from '../../query/types.mjs'
 
-import type { ComputeResult, EndpointHelper, OptionsFromInline, ResultMode } from './helpers.mjs'
+import type { ComputeResult } from './helpers.mjs'
 
 /**
- * Extended endpoint options interface for infinite query.
- *
- * Same decomposed-inference pattern as `query`; once `Options` is
- * synthesised the pagination callbacks (`getNextPageParam`,
- * `getPreviousPageParam`) read their page-param types from
- * `Options['querySchema']` directly.
+ * Query schema constraint: infinite queries require `querySchema` to derive
+ * the page-param type. Extracts the `ZodObject` from `Options['querySchema']`
+ * with a fallback when the constraint is somehow not met.
  */
-interface InfiniteQueryEndpointConfig<
-  Method extends HttpMethod,
-  Url extends string,
-  QuerySchema extends ZodObject,
-  RequestSchema extends ZodType | undefined,
-  ResponseSchema extends ZodType,
-  ErrorSchema extends ErrorSchemaRecord | undefined,
-  UrlParamsSchema extends ZodObject | undefined,
-  ResultModeT extends ResultMode,
+type InfiniteQuerySchema<Options extends EndpointOptions> = Options['querySchema'] extends ZodObject
+  ? Options['querySchema']
+  : ZodObject
+
+/**
+ * Surface-specific fields layered on top of `EndpointOptions` for the inline
+ * config path. Stripped before forwarding to `api.declareEndpoint`.
+ *
+ * `getNextPageParam` is required: infinite queries cannot paginate without it.
+ */
+interface InfiniteQuerySurfaceFields<
+  Options extends EndpointOptions,
   Unwrap extends InfiniteUnwrapMode,
-  TBaseResult,
-  PageResult,
-> extends EndpointOptions {
-  method: Method
-  url: Url
-  querySchema: QuerySchema
-  requestSchema?: RequestSchema
-  responseSchema: ResponseSchema
-  errorSchema?: ErrorSchema
-  urlParamsSchema?: UrlParamsSchema
-  result?: ResultModeT
-  processResponse?: (data: TBaseResult) => PageResult
+> {
   /**
    * For endpoints declared with `result: 'envelope'`, controls how each page
    * is delivered to React Query.
@@ -57,30 +45,67 @@ interface InfiniteQueryEndpointConfig<
    * Has no effect for non-envelope endpoints.
    */
   unwrap?: Unwrap
+  keyPrefix?: string[]
+  keySuffix?: string[]
   getNextPageParam: (
-    lastPage: PageResult,
-    allPages: PageResult[],
-    lastPageParam: z.infer<QuerySchema> | undefined,
-    allPageParams: z.infer<QuerySchema>[] | undefined,
-  ) => z.input<QuerySchema> | undefined
+    lastPage: ComputeResult<Options, Unwrap>,
+    allPages: ComputeResult<Options, Unwrap>[],
+    lastPageParam: z.infer<InfiniteQuerySchema<Options>> | undefined,
+    allPageParams: z.infer<InfiniteQuerySchema<Options>>[] | undefined,
+  ) => z.input<InfiniteQuerySchema<Options>> | undefined
   getPreviousPageParam?: (
-    firstPage: PageResult,
-    allPages: PageResult[],
-    lastPageParam: z.infer<QuerySchema> | undefined,
-    allPageParams: z.infer<QuerySchema>[] | undefined,
-  ) => z.input<QuerySchema>
+    firstPage: ComputeResult<Options, Unwrap>,
+    allPages: ComputeResult<Options, Unwrap>[],
+    lastPageParam: z.infer<InfiniteQuerySchema<Options>> | undefined,
+    allPageParams: z.infer<InfiniteQuerySchema<Options>>[] | undefined,
+  ) => z.input<InfiniteQuerySchema<Options>>
+  initialPageParam?: z.input<InfiniteQuerySchema<Options>>
 }
 
 /**
- * Infinite query method.
+ * Return type for the infinite-query callable + attached helpers.
+ */
+type InfiniteQueryReturn<
+  Options extends EndpointOptions & { querySchema: ZodObject },
+  Unwrap extends InfiniteUnwrapMode,
+> = ((
+  params: Simplify<InferEndpointParams<Options>>,
+) => UseSuspenseInfiniteQueryOptions<
+  ComputeResult<Options, Unwrap>,
+  Error,
+  InfiniteData<ComputeResult<Options, Unwrap>>,
+  DataTag<Split<Options['url'], '/'>, ComputeResult<Options, Unwrap>, Error>,
+  z.output<InfiniteQuerySchema<Options>>
+>) &
+  QueryHelpers<
+    Options['url'],
+    Options['querySchema'] extends ZodObject ? Options['querySchema'] : undefined,
+    ComputeResult<Options, Unwrap>,
+    true,
+    Options['requestSchema'] extends ZodType ? Options['requestSchema'] : undefined
+  > & { endpoint: EndpointHandler<Options> }
+
+/**
+ * Infinite-query surface using interface overloads to express the two call
+ * shapes:
  *
- * Uses the same decomposed-inference / synthesised-Options pattern as
- * `query`. The constraint `Options extends EndpointOptions & { querySchema:
- * ZodObject }` is enforced through the required `querySchema` generic.
+ * - inline config with `getNextPageParam` baked in, OR
+ * - existing `EndpointHandler` plus a required `options` carrying
+ *   `getNextPageParam`.
+ *
+ * `Options` is inferred from the literal config via the structural copy
+ * `{ [K in keyof Options]: Options[K] }`, which keeps surface-specific fields
+ * out of `Options`. Downstream return-type derivations reference `Options`
+ * directly so adding a new endpoint field to `EndpointOptions` propagates
+ * automatically.
+ *
+ * For projecting `InfiniteData<PageResult>` into a derived shape, callers
+ * should use TanStack Query's built-in `select` option on `use()` /
+ * `useSuspense()`.
  */
 export interface ClientInfiniteQueryMethods {
   /**
-   * Creates a type-safe infinite query with automatic type inference.
+   * Creates a type-safe infinite query from an inline config.
    *
    * @example
    * ```ts
@@ -89,65 +114,40 @@ export interface ClientInfiniteQueryMethods {
    *   url: '/users',
    *   querySchema: z.object({ page: z.number() }),
    *   responseSchema: z.array(userSchema),
-   *   getNextPageParam: (lastPage, allPages, lastPageParam) => {
-   *     return lastPage.length > 0 ? { page: (lastPageParam?.page ?? 0) + 1 } : undefined
-   *   },
+   *   getNextPageParam: (lastPage, allPages, lastPageParam) =>
+   *     lastPage.length > 0 ? { page: (lastPageParam?.page ?? 0) + 1 } : undefined,
    * })
-   *
-   * const { data } = getUsers.useSuspense({ params: { page: 0 } })
    * ```
    */
   infiniteQuery<
-    const Method extends HttpMethod = HttpMethod,
-    const Url extends string = string,
-    const QuerySchema extends ZodObject = ZodObject,
-    const RequestSchema extends ZodType | undefined = undefined,
-    const ResponseSchema extends ZodType = ZodType,
-    const ErrorSchema extends ErrorSchemaRecord | undefined = undefined,
-    const UrlParamsSchema extends ZodObject | undefined = undefined,
-    const ResultModeT extends ResultMode = undefined,
+    const Options extends EndpointOptions & { querySchema: ZodObject },
     const Unwrap extends InfiniteUnwrapMode = 'none',
-    const Options extends EndpointOptions = OptionsFromInline<
-      Method,
-      Url,
-      QuerySchema,
-      RequestSchema,
-      ResponseSchema,
-      ErrorSchema,
-      UrlParamsSchema,
-      ResultModeT
-    >,
-    const TBaseResult = ComputeResult<Options, Unwrap>,
-    const PageResult = TBaseResult,
   >(
-    config: InfiniteQueryEndpointConfig<
-      Method,
-      Url,
-      QuerySchema,
-      RequestSchema,
-      ResponseSchema,
-      ErrorSchema,
-      UrlParamsSchema,
-      ResultModeT,
-      Unwrap,
-      TBaseResult,
-      PageResult
-    >,
-  ): ((
-    params: Simplify<InferEndpointParams<Options>>,
-  ) => UseSuspenseInfiniteQueryOptions<
-    PageResult,
-    Error,
-    InfiniteData<PageResult>,
-    DataTag<Split<Options['url'], '/'>, PageResult, Error>,
-    z.output<QuerySchema>
-  >) &
-    QueryHelpers<
-      Options['url'],
-      Options['querySchema'] extends ZodObject ? Options['querySchema'] : undefined,
-      PageResult,
-      true,
-      Options['requestSchema'] extends ZodType ? Options['requestSchema'] : undefined
-    > &
-    EndpointHelper<Options>
+    config: { [K in keyof Options]: Options[K] } & InfiniteQuerySurfaceFields<Options, Unwrap>,
+  ): InfiniteQueryReturn<Options, Unwrap>
+
+  /**
+   * Creates a type-safe infinite query from an existing endpoint handler.
+   *
+   * @example
+   * ```ts
+   * const endpoint = api.declareEndpoint({
+   *   method: 'GET',
+   *   url: '/users',
+   *   querySchema: z.object({ page: z.number() }),
+   *   responseSchema: z.array(userSchema),
+   * })
+   * const getUsers = client.infiniteQuery(endpoint, {
+   *   getNextPageParam: (lastPage, allPages, lastPageParam) =>
+   *     lastPage.length > 0 ? { page: (lastPageParam?.page ?? 0) + 1 } : undefined,
+   * })
+   * ```
+   */
+  infiniteQuery<
+    const Options extends EndpointOptions & { querySchema: ZodObject },
+    const Unwrap extends InfiniteUnwrapMode = 'none',
+  >(
+    endpoint: EndpointHandler<Options>,
+    options: InfiniteQuerySurfaceFields<Options, Unwrap>,
+  ): InfiniteQueryReturn<Options, Unwrap>
 }

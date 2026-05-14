@@ -1,6 +1,6 @@
 import { ZodDiscriminatedUnion } from 'zod/v4'
 
-import type { EndpointHandler, EndpointOptions, RequestArgs } from '@navios/builder'
+import type { EndpointHandler, EndpointOptions, ServerRequestArgs } from '@navios/builder'
 import type { z } from 'zod/v4'
 
 import { getEndpointMetadata } from '../metadata/index.mjs'
@@ -31,15 +31,9 @@ import { EndpointAdapterToken } from '../tokens/index.mjs'
  * ```
  */
 export type EndpointParams<
-  EndpointDeclaration extends EndpointHandler<Config, false>,
+  EndpointDeclaration extends EndpointHandler<Config>,
   Config extends EndpointOptions = EndpointDeclaration['config'],
-> = RequestArgs<
-  Config['url'],
-  Config['querySchema'],
-  Config['requestSchema'],
-  Config['urlParamsSchema'],
-  true
->
+> = ServerRequestArgs<Config>
 
 /**
  * Extracts the typed return value for an endpoint handler function.
@@ -103,35 +97,21 @@ export type EndpointResult<
  * ```
  */
 export function Endpoint<const Config extends EndpointOptions>(
-  endpoint: EndpointHandler<Config, false>,
+  endpoint: EndpointHandler<Config>,
 ): (
   target: (
-    params: RequestArgs<
-      Config['url'],
-      Config['querySchema'],
-      Config['requestSchema'],
-      Config['urlParamsSchema'],
-      true
-    >,
+    params: ServerRequestArgs<Config>,
   ) => Promise<z.input<Config['responseSchema']>> | z.input<Config['responseSchema']>,
   context: ClassMethodDecoratorContext,
 ) => void
 export function Endpoint<const Config extends EndpointOptions>(
-  endpoint: EndpointHandler<Config, false>,
+  endpoint: EndpointHandler<Config>,
 ): (
   target: () => Promise<z.input<Config['responseSchema']>> | z.input<Config['responseSchema']>,
   context: ClassMethodDecoratorContext,
 ) => void
-export function Endpoint<const Config extends EndpointOptions>(
-  endpoint: EndpointHandler<Config, false>,
-) {
-  type Params = RequestArgs<
-    Config['url'],
-    Config['querySchema'],
-    Config['requestSchema'],
-    Config['urlParamsSchema'],
-    true
-  >
+export function Endpoint<const Config extends EndpointOptions>(endpoint: EndpointHandler<Config>) {
+  type Params = ServerRequestArgs<Config>
 
   type Handler =
     | ((

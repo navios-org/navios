@@ -1,6 +1,6 @@
 import { createMethodContext } from '@navios/di/legacy-compat'
 
-import type { EndpointHandler, EndpointOptions, RequestArgs } from '@navios/builder'
+import type { EndpointHandler, EndpointOptions, ServerRequestArgs } from '@navios/builder'
 import type { z } from 'zod/v4'
 
 import { Multipart as OriginalMultipart } from '../../decorators/multipart.decorator.mjs'
@@ -11,15 +11,7 @@ import { Multipart as OriginalMultipart } from '../../decorators/multipart.decor
  * but may not be preserved perfectly when decorators are stacked.
  */
 type MultipartMethodDescriptor<Config extends EndpointOptions> = TypedPropertyDescriptor<
-  (
-    params: RequestArgs<
-      Config['url'],
-      Config['querySchema'],
-      Config['requestSchema'],
-      Config['urlParamsSchema'],
-      true
-    >,
-  ) => Promise<z.input<Config['responseSchema']>>
+  (params: ServerRequestArgs<Config>) => Promise<z.input<Config['responseSchema']>>
 >
 
 /**
@@ -43,9 +35,7 @@ type MultipartMethodDescriptor<Config extends EndpointOptions> = TypedPropertyDe
  * }
  * ```
  */
-export function Multipart<const Config extends EndpointOptions>(
-  endpoint: EndpointHandler<Config, false>,
-) {
+export function Multipart<const Config extends EndpointOptions>(endpoint: EndpointHandler<Config>) {
   return function <T extends object>(
     target: T,
     propertyKey: string | symbol,

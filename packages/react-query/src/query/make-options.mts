@@ -1,12 +1,7 @@
 import { isResponseEnvelope } from '@navios/builder'
 import { queryOptions, useQuery, useSuspenseQuery } from '@tanstack/react-query'
 
-import type {
-  EndpointHandler,
-  EndpointOptions,
-  InferEndpointReturn,
-  Simplify,
-} from '@navios/builder'
+import type { EndpointHandler, EndpointOptions, Simplify } from '@navios/builder'
 import type {
   DataTag,
   QueryClient,
@@ -24,13 +19,9 @@ import type { QueryArgs, QueryHelpers, QueryResult, UnwrapMode } from './types.m
 /**
  * Options for makeQueryOptions.
  */
-export interface MakeQueryOptionsParams<
-  Options extends EndpointOptions,
-  Result = QueryResult<Options>,
-> {
+export interface MakeQueryOptionsParams {
   keyPrefix?: string[]
   keySuffix?: string[]
-  processResponse?: (data: InferEndpointReturn<Options>) => Result
   /**
    * For endpoints declared with `result: 'envelope'`, controls how the
    * envelope is delivered to React Query.
@@ -55,7 +46,7 @@ export interface MakeQueryOptionsParams<
  * Uses const generics pattern to automatically infer types from the endpoint configuration.
  *
  * @param endpoint - The navios endpoint handler (from builder's declareEndpoint)
- * @param options - Query configuration including processResponse
+ * @param options - Query configuration
  * @param baseQuery - Optional base query options to merge
  * @returns A function that generates query options with attached helpers
  *
@@ -67,9 +58,7 @@ export interface MakeQueryOptionsParams<
  *   responseSchema: userSchema,
  * })
  *
- * const queryOptions = makeQueryOptions(getUser, {
- *   processResponse: (data) => data,
- * })
+ * const queryOptions = makeQueryOptions(getUser, {})
  *
  * const { data } = queryOptions.useSuspense({ urlParams: { userId: '123' } })
  * ```
@@ -98,7 +87,7 @@ export function makeQueryOptions<
   >,
 >(
   endpoint: EndpointHandler<Options>,
-  options: MakeQueryOptionsParams<Options, Result>,
+  options: MakeQueryOptionsParams,
   baseQuery?: BaseQuery,
 ): ((
   params: Simplify<
@@ -123,8 +112,6 @@ export function makeQueryOptions<
   > {
   const config = endpoint.config
   const queryKey = createQueryKey(config as any, options as any, false)
-  const processResponse =
-    options.processResponse ?? ((data: InferEndpointReturn<Options>) => data as unknown as Result)
 
   const result = (
     params: Simplify<
@@ -147,10 +134,10 @@ export function makeQueryOptions<
           if (!result.ok) {
             throw result.error
           }
-          return processResponse(result.data as never)
+          return result.data as Result
         }
 
-        return processResponse(result)
+        return result as Result
       },
       ...baseQuery,
     })
@@ -164,10 +151,12 @@ export function makeQueryOptions<
    * Uses `useQuery` from TanStack Query internally.
    *
    * @param params - URL parameters, query parameters, and request body
+   * @param opts - Optional per-call options (currently `select` only). A
+   *   per-call `select` overrides any construction-time `baseQuery.select`.
    * @returns Query result with data, isLoading, error, etc.
    */
-  result.use = (params: any) => {
-    return useQuery(result(params))
+  result.use = (params: any, opts?: { select?: (data: Result) => unknown }) => {
+    return useQuery({ ...result(params), ...opts })
   }
 
   /**
@@ -176,10 +165,12 @@ export function makeQueryOptions<
    * The component will suspend while loading and throw on error.
    *
    * @param params - URL parameters, query parameters, and request body
+   * @param opts - Optional per-call options (currently `select` only). A
+   *   per-call `select` overrides any construction-time `baseQuery.select`.
    * @returns Query result with data guaranteed to be defined
    */
-  result.useSuspense = (params: any) => {
-    return useSuspenseQuery(result(params))
+  result.useSuspense = (params: any, opts?: { select?: (data: Result) => unknown }) => {
+    return useSuspenseQuery({ ...result(params), ...opts })
   }
 
   /**
