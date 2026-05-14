@@ -53,7 +53,7 @@ Navios DI uses native ES decorators, not legacy decorators. Ensure `experimental
 
 ### Alternative: Legacy Decorators
 
-If you cannot disable `experimentalDecorators` (e.g., existing codebase, Bun, or certain bundler limitations), use the legacy-compatible decorators:
+If you cannot disable `experimentalDecorators` (e.g., existing codebase or certain bundler limitations), use the legacy-compatible decorators:
 
 ```json title="tsconfig.json"
 {

@@ -11,10 +11,6 @@ title: Bun
 **License:** MIT
 **Runtime:** Bun
 
-:::caution ES Decorators Support
-Bun does not yet fully support ES decorators natively. You'll need to configure a Bun plugin to transpile TypeScript with proper decorator support. See [Common Problems](/server/faq/common-problems#es-decorators-support-in-bun) for the solution.
-:::
-
 ## Installation
 
 ```bash

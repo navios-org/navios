@@ -161,7 +161,6 @@ import { inject, Container } from '@navios/di'
 
 This is useful when:
 - Your project has `experimentalDecorators: true` and you can't change it
-- You're using Bun (which has limited Stage 3 decorator support)
 - Your bundler doesn't fully support Stage 3 decorators
 
 See [Setup - Alternative: Legacy Decorators](/docs/di/di/getting-started/setup#alternative-legacy-decorators) for configuration details.
