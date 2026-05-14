@@ -1,3 +1,4 @@
+import { isResponseEnvelope } from '@navios/builder'
 import { queryOptions, useQuery, useSuspenseQuery } from '@tanstack/react-query'
 
 import type {
@@ -18,7 +19,7 @@ import type { Split } from '../common/types.mjs'
 
 import { createQueryKey } from './key-creator.mjs'
 
-import type { QueryArgs, QueryHelpers, QueryResult } from './types.mjs'
+import type { QueryArgs, QueryHelpers, QueryResult, UnwrapMode } from './types.mjs'
 
 /**
  * Options for makeQueryOptions.
@@ -31,7 +32,20 @@ export interface MakeQueryOptionsParams<
   keyPrefix?: string[]
   keySuffix?: string[]
   onFail?: (err: unknown) => void
-  processResponse: (data: InferEndpointReturn<Options, UseDiscriminator>) => Result
+  processResponse?: (data: InferEndpointReturn<Options, UseDiscriminator>) => Result
+  /**
+   * For endpoints declared with `result: 'envelope'`, controls how the
+   * envelope is delivered to React Query.
+   *
+   * - `'none'` (default): the `ResponseEnvelope` is cached as-is. The
+   *   React Query `error` channel is unused.
+   * - `'throw-on-error'`: on `envelope.ok === false`, the `envelope.error`
+   *   is thrown from the queryFn so the React Query `error` channel fires;
+   *   on success, the unwrapped `envelope.data` becomes the cached data.
+   *
+   * Has no effect for non-envelope endpoints.
+   */
+  unwrap?: UnwrapMode
 }
 
 /**
@@ -112,7 +126,9 @@ export function makeQueryOptions<
   > {
   const config = endpoint.config
   const queryKey = createQueryKey(config as any, options as any, false)
-  const processResponse = options.processResponse
+  const processResponse =
+    options.processResponse ??
+    ((data: InferEndpointReturn<Options, UseDiscriminator>) => data as unknown as Result)
 
   const result = (
     params: Simplify<
@@ -137,6 +153,16 @@ export function makeQueryOptions<
             options.onFail(err)
           }
           throw err
+        }
+
+        if ((options.unwrap ?? 'none') === 'throw-on-error' && isResponseEnvelope(result)) {
+          if (!result.ok) {
+            if (options.onFail) {
+              options.onFail(result.error)
+            }
+            throw result.error
+          }
+          return processResponse(result.data as never)
         }
 
         return processResponse(result)

@@ -1,5 +1,29 @@
 # Changelog
 
+## [2.0.0-alpha.1] - 2026-05-14
+
+### Added
+
+- **Response envelope mode (`result: 'envelope'`)**: Per-endpoint opt-in mode that returns `{ ok, data, error, response }` without throwing. Errors are classified into four typed variants (`http`, `http-unknown`, `validation`, `network`) via the new `classifyError` classifier. Access status code, headers, and statusText via `envelope.response`.
+- **Builder-level `defaults.result`**: Configure the default `result` mode for all endpoints in a builder, with per-endpoint override.
+- **New error guards**: `isHttpError(error, status?)`, `isUnknownHttpError(error)`, `isValidationError(error)`, `isNetworkError(error)`, `isEnvelopeError(error)` — typed discriminators for envelope-mode errors.
+- **Header helpers**: `getHeader(meta, name)`, `getCookie(meta, name)`, `getRetryAfterMs(meta)` for ergonomic access to common response headers.
+- **`validateResponse: false`** per-endpoint option to skip runtime Zod parsing while keeping the inferred static type.
+- **`ResponseEnvelope`, `ResponseEnvelopeOk`, `ResponseEnvelopeErr`, `ResponseMeta`, `EnvelopeError`, `HttpErrorVariant`, `UnknownHttpErrorVariant`, `ValidationErrorVariant`, `NetworkErrorVariant`** — new type exports.
+
+### Deprecated
+
+- **`builder({ useDiscriminatorResponse: true })`** — emits a one-time `console.warn` per builder instance. Use per-endpoint `result: 'envelope'` (or `defaults: { result: 'envelope' }`) instead. The legacy flag will be removed in the next major.
+- **`isErrorStatus(result, status)`** — use `isHttpError(error, status)` on an envelope-mode error.
+- **`isErrorResponse(result)`** — use `isEnvelopeError(error)` or `isHttpError(error)`.
+- **`__status` injection on parsed error bodies** — the legacy mode still injects `__status` for back-compat; envelope mode uses typed variants instead.
+
+### Notes
+
+- All existing endpoints behave exactly as before unless `result: 'envelope'` is set; back-compat is preserved.
+- Envelope mode never throws — errors are returned as values on the `error` field.
+- See [`docs/plans/2026-05-14-builder-response-envelope-design.md`](../../docs/plans/2026-05-14-builder-response-envelope-design.md) for the full design rationale.
+
 ## [1.0.0] - 2026-01-08
 
 ### Fixed

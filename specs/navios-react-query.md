@@ -381,6 +381,66 @@ type MutationArgs<Config> = {
 
 ---
 
+## Envelope Mode & Unwrap
+
+When an endpoint is declared with `result: 'envelope'` (see the [@navios/builder spec](./navios-builder.md) for the envelope shape — `{ data, error, response, status }`), every helper in `@navios/react-query` detects envelope mode and surfaces the full envelope by default. The `unwrap` option selects how the envelope is delivered to TanStack Query.
+
+### `unwrap` values per surface
+
+| Surface                | Allowed values                            | Default  | `data` channel        | `error` channel              |
+| ---------------------- | ----------------------------------------- | -------- | --------------------- | ---------------------------- |
+| `query`                | `'none' \| 'throw-on-error'`              | `'none'` | envelope / body       | `null` / envelope `error`    |
+| `infiniteQuery`        | `'none' \| 'throw-on-error' \| 'pages'`   | `'none'` | envelopes / bodies    | `null` / envelope `error`    |
+| `mutation`             | `'none' \| 'throw-on-error'`              | `'none'` | envelope / body       | `null` / envelope `error`    |
+| `multipartMutation`    | `'none' \| 'throw-on-error'`              | `'none'` | envelope / body       | `null` / envelope `error`    |
+
+**Semantics:**
+
+- `'none'` — envelope is passed through unchanged. Both success and error are in `data` (use `envelope.error` to discriminate). `error` is always `null`.
+- `'throw-on-error'` — envelope errors are thrown so TanStack Query routes them through the standard `error` channel. On success `data` is the unwrapped body.
+- `'pages'` (infinite queries only) — each page is unwrapped before storage. `getNextPageParam` receives the unwrapped body. Envelope errors are thrown.
+
+The `unwrap` field is ignored at runtime when the endpoint isn't envelope mode.
+
+### Query example
+
+```typescript
+const getUser = client.query({
+  method: 'GET',
+  url: '/users/$userId',
+  responseSchema: userSchema,
+  errorSchema: { 404: notFoundSchema },
+  result: 'envelope',
+  unwrap: 'throw-on-error',
+})
+
+// data is User | undefined, error is EnvelopeError | null
+const { data, error } = getUser.use({ urlParams: { userId: '123' } })
+```
+
+### Infinite query example
+
+```typescript
+const getUsers = client.infiniteQuery({
+  method: 'GET',
+  url: '/users',
+  querySchema: z.object({ cursor: z.string().optional() }),
+  responseSchema: pageSchema,
+  result: 'envelope',
+  unwrap: 'pages',
+  getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
+  initialPageParam: undefined,
+})
+```
+
+### `processResponse` is optional
+
+`processResponse` is optional on every helper. Omitting it yields the identity transform. Existing call sites that pass `processResponse: (data) => data` continue to work.
+
+See the [@navios/builder spec](./navios-builder.md) for the underlying envelope shape, `IsEnvelope` detector, and validation modes.
+
+---
+
 ## Multipart Mutations
 
 ### client.multipartMutation()

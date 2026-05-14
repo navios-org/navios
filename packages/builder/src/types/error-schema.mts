@@ -76,6 +76,8 @@ export type InferErrorSchemaOutputWithStatus<T extends ErrorSchemaRecord> = {
  *   console.log('User:', result.name)
  * }
  * ```
+ *
+ * @deprecated Use `isHttpError(error, status)` from `@navios/builder` instead.
  */
 export function isErrorStatus<T, S extends number>(
   result: T,
@@ -105,6 +107,8 @@ export function isErrorStatus<T, S extends number>(
  *   console.log('Success:', result)
  * }
  * ```
+ *
+ * @deprecated Use `isEnvelopeError(error)` or `isHttpError(error)` from `@navios/builder` instead.
  */
 export function isErrorResponse<T>(result: T): result is Extract<T, { __status: number }> {
   return (

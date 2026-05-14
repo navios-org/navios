@@ -2,6 +2,8 @@ import type { z, ZodObject, ZodType } from 'zod/v4'
 
 import type { Client } from './common.mjs'
 import type { BaseEndpointOptions, EndpointOptions } from './config.mjs'
+import type { EnvelopeError } from './envelope-error.mjs'
+import type { ResponseEnvelope } from './envelope.mjs'
 import type { ErrorSchemaRecord, InferErrorSchemaOutputWithStatus } from './error-schema.mjs'
 import type { Simplify, UrlHasParams, UrlParams } from './request.mjs'
 
@@ -115,6 +117,10 @@ export type InferStreamParams<Options extends BaseEndpointOptions> = Simplify<
  * When UseDiscriminator is true and errorSchema is provided, the return type
  * is a union of the success response and all error responses.
  *
+ * When `result: 'envelope'` is set on the endpoint, the return type becomes a
+ * `ResponseEnvelope<Data, EnvelopeError<ErrorSchema>>` and the function never
+ * throws. The envelope branch takes precedence over `UseDiscriminator`.
+ *
  * @example
  * ```ts
  * const options = {
@@ -134,26 +140,46 @@ export type InferStreamParams<Options extends BaseEndpointOptions> = Simplify<
 export type InferEndpointReturn<
   Options extends EndpointOptions,
   UseDiscriminator extends boolean,
-> = UseDiscriminator extends true
-  ? Options['errorSchema'] extends ErrorSchemaRecord
-    ? z.output<Options['responseSchema']> | InferErrorSchemaOutputWithStatus<Options['errorSchema']>
+> = Options['result'] extends 'envelope'
+  ? ResponseEnvelope<
+      z.output<Options['responseSchema']>,
+      EnvelopeError<
+        Options['errorSchema'] extends ErrorSchemaRecord ? Options['errorSchema'] : undefined
+      >
+    >
+  : UseDiscriminator extends true
+    ? Options['errorSchema'] extends ErrorSchemaRecord
+      ?
+          | z.output<Options['responseSchema']>
+          | InferErrorSchemaOutputWithStatus<Options['errorSchema']>
+      : z.output<Options['responseSchema']>
     : z.output<Options['responseSchema']>
-  : z.output<Options['responseSchema']>
 
 /**
  * Infers the return type for stream endpoints.
  *
  * Streams always return Blob, but with UseDiscriminator, error responses
  * can be returned as part of the union.
+ *
+ * When `result: 'envelope'` is set on the endpoint, the return type becomes a
+ * `ResponseEnvelope<Blob, EnvelopeError<ErrorSchema>>` and the function never
+ * throws. The envelope branch takes precedence over `UseDiscriminator`.
  */
 export type InferStreamReturn<
   Options extends BaseEndpointOptions,
   UseDiscriminator extends boolean,
-> = UseDiscriminator extends true
-  ? Options['errorSchema'] extends ErrorSchemaRecord
-    ? Blob | InferErrorSchemaOutputWithStatus<Options['errorSchema']>
+> = Options['result'] extends 'envelope'
+  ? ResponseEnvelope<
+      Blob,
+      EnvelopeError<
+        Options['errorSchema'] extends ErrorSchemaRecord ? Options['errorSchema'] : undefined
+      >
+    >
+  : UseDiscriminator extends true
+    ? Options['errorSchema'] extends ErrorSchemaRecord
+      ? Blob | InferErrorSchemaOutputWithStatus<Options['errorSchema']>
+      : Blob
     : Blob
-  : Blob
 
 /**
  * The handler function type returned by declareEndpoint.

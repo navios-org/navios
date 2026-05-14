@@ -2,27 +2,97 @@ import type {
   BaseEndpointOptions,
   EndpointHandler,
   EndpointOptions,
+  EnvelopeError,
   ErrorSchemaRecord,
   HttpMethod,
   InferErrorSchemaOutput,
+  ResponseEnvelope,
   StreamHandler,
 } from '@navios/builder'
 import type { z, ZodType } from 'zod/v4'
 
+import type { InfiniteUnwrapMode, UnwrapMode } from '../../query/types.mjs'
+
 /**
- * Compute the base result type based on discriminator and error schema.
- * When UseDiscriminator=true and errorSchema is present, errors are included as a union.
- * When UseDiscriminator=false, only the success type is returned (errors are thrown).
+ * Result mode parameter for inline client configs.
+ *
+ * - `'data'` (or `undefined`, default): legacy "data-only" surface — success
+ *   `z.output<ResponseSchema>` is returned, errors are thrown.
+ * - `'envelope'`: surface type is `ResponseEnvelope<Data, EnvelopeError<ErrorSchema>>`.
+ */
+export type ResultMode = 'data' | 'envelope' | undefined
+
+/**
+ * Compute the base result type based on discriminator, error schema, and result mode.
+ *
+ * - `Result extends 'envelope'` always wins: surfaces a `ResponseEnvelope` regardless
+ *   of `UseDiscriminator`. The envelope's error branch is typed by `EnvelopeError<ErrorSchema>`.
+ * - Otherwise: when `UseDiscriminator=true` and `errorSchema` is present, errors are
+ *   included as a union. When `UseDiscriminator=false`, only the success type is
+ *   returned (errors are thrown).
  */
 export type ComputeBaseResult<
   UseDiscriminator extends boolean,
   ResponseSchema extends ZodType,
   ErrorSchema extends ErrorSchemaRecord | undefined,
-> = UseDiscriminator extends true
-  ? ErrorSchema extends ErrorSchemaRecord
-    ? z.output<ResponseSchema> | InferErrorSchemaOutput<ErrorSchema>
+  Result extends ResultMode = undefined,
+> = Result extends 'envelope'
+  ? ResponseEnvelope<
+      z.output<ResponseSchema>,
+      EnvelopeError<ErrorSchema extends ErrorSchemaRecord ? ErrorSchema : undefined>
+    >
+  : UseDiscriminator extends true
+    ? ErrorSchema extends ErrorSchemaRecord
+      ? z.output<ResponseSchema> | InferErrorSchemaOutput<ErrorSchema>
+      : z.output<ResponseSchema>
     : z.output<ResponseSchema>
-  : z.output<ResponseSchema>
+
+/**
+ * Compute the data-channel result type given a `Result` mode and `Unwrap` mode.
+ *
+ * Behaviour matrix:
+ * | Result      | Unwrap            | Surface type                                 |
+ * | ----------- | ----------------- | -------------------------------------------- |
+ * | 'envelope'  | 'none' (default)  | `ResponseEnvelope<...>`                      |
+ * | 'envelope'  | 'throw-on-error'  | `z.output<ResponseSchema>` (unwrapped body)  |
+ * | 'data'/und. | any               | `z.output<ResponseSchema>`                   |
+ *
+ * Mirrors {@link EnvelopeQueryResult} but takes the raw inline-config generics
+ * rather than a derived `EndpointOptions`.
+ */
+export type ComputeQueryResult<
+  UseDiscriminator extends boolean,
+  ResponseSchema extends ZodType,
+  ErrorSchema extends ErrorSchemaRecord | undefined,
+  Result extends ResultMode = undefined,
+  Unwrap extends UnwrapMode | undefined = undefined,
+> = Result extends 'envelope'
+  ? Unwrap extends 'throw-on-error'
+    ? z.output<ResponseSchema>
+    : ResponseEnvelope<
+        z.output<ResponseSchema>,
+        EnvelopeError<ErrorSchema extends ErrorSchemaRecord ? ErrorSchema : undefined>
+      >
+  : ComputeBaseResult<UseDiscriminator, ResponseSchema, ErrorSchema>
+
+/**
+ * Like {@link ComputeQueryResult} but for infinite queries where `'pages'`
+ * also unwraps each page to its envelope body.
+ */
+export type ComputeInfinitePageResult<
+  UseDiscriminator extends boolean,
+  ResponseSchema extends ZodType,
+  ErrorSchema extends ErrorSchemaRecord | undefined,
+  Result extends ResultMode = undefined,
+  Unwrap extends InfiniteUnwrapMode | undefined = undefined,
+> = Result extends 'envelope'
+  ? Unwrap extends 'throw-on-error' | 'pages'
+    ? z.output<ResponseSchema>
+    : ResponseEnvelope<
+        z.output<ResponseSchema>,
+        EnvelopeError<ErrorSchema extends ErrorSchemaRecord ? ErrorSchema : undefined>
+      >
+  : ComputeBaseResult<UseDiscriminator, ResponseSchema, ErrorSchema>
 
 /**
  * Helper type to compute the response data type based on errorSchema presence and UseDiscriminator.

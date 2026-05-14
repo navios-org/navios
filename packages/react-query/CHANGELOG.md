@@ -1,5 +1,25 @@
 # Changelog
 
+## [1.1.0] - 2026-05-14
+
+### Added
+
+- **Envelope-aware bridge**: All `client.xxx` and `client.xxxFromEndpoint` surfaces now detect endpoints declared with `result: 'envelope'` (in `@navios/builder` v2+) and pass the envelope through unchanged when `unwrap: 'none'` (default for envelope endpoints).
+- **`unwrap` option** on every helper: `'none' | 'throw-on-error'` for queries, mutations, and multipart mutations; `'none' | 'throw-on-error' | 'pages'` for infinite queries. `'throw-on-error'` re-routes envelope errors through TanStack Query's native `error` channel.
+- **`IsEnvelope<E>`** type detector exported for users who want to write envelope-aware utilities.
+- **`UnwrapMode` / `InfiniteUnwrapMode`** types exported.
+- Forwarded `result` and `validateResponse` from inline `client.query` / `client.mutation` / `client.infiniteQuery` configs through to the underlying endpoint declaration.
+
+### Changed
+
+- **`processResponse` is now optional** on every helper. The identity transformer that used to be required boilerplate (`processResponse: (data) => data`) can be omitted. Existing calls that pass an explicit `processResponse` continue to work unchanged.
+- `makeInfiniteQueryOptions` now accepts an `EndpointHandler<Options, UseDiscriminator>` instead of the looser `AbstractEndpoint<Config>`, aligning it with `makeQueryOptions` and enabling envelope endpoints without a cast.
+
+### Notes
+
+- No behavioural change for non-envelope endpoints. The `unwrap` field is ignored at runtime when the endpoint isn't envelope mode.
+- See [`docs/plans/2026-05-14-builder-response-envelope-design.md`](../../docs/plans/2026-05-14-builder-response-envelope-design.md) for the full design rationale.
+
 ## [1.0.1] - 2026-01-09
 
 ### Fixed

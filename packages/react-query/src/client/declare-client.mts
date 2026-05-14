@@ -19,6 +19,7 @@ import { makeQueryOptions } from '../query/make-options.mjs'
 
 import type { ClientOptions, ProcessResponseFunction } from '../common/types.mjs'
 import type { MutationArgs } from '../mutation/types.mjs'
+import type { InfiniteUnwrapMode, UnwrapMode } from '../query/types.mjs'
 
 import type { ClientInstance } from './types.mjs'
 import type { ComputeBaseResult } from './types/helpers.mjs'
@@ -42,6 +43,9 @@ export interface QueryConfig<
   errorSchema?: ErrorSchema
   requestSchema?: RequestSchema
   processResponse?: (data: ComputeBaseResult<true, Response, ErrorSchema>) => Result
+  unwrap?: UnwrapMode
+  result?: 'data' | 'envelope'
+  validateResponse?: boolean
 }
 
 /**
@@ -64,6 +68,9 @@ export type InfiniteQueryConfig<
   errorSchema?: ErrorSchema
   requestSchema?: RequestSchema
   processResponse?: (data: ComputeBaseResult<true, Response, ErrorSchema>) => PageResult
+  unwrap?: InfiniteUnwrapMode
+  result?: 'data' | 'envelope'
+  validateResponse?: boolean
   select?: (data: InfiniteData<PageResult>) => Result
   getNextPageParam: (
     lastPage: PageResult,
@@ -102,7 +109,10 @@ export interface MutationConfig<
   responseSchema: Response
   errorSchema?: ErrorSchema
   requestSchema?: RequestSchema
-  processResponse: ProcessResponseFunction<Result, ReqResult>
+  processResponse?: ProcessResponseFunction<Result, ReqResult>
+  unwrap?: UnwrapMode
+  result?: 'data' | 'envelope'
+  validateResponse?: boolean
   useContext?: () => Context
   onSuccess?: (
     data: Result,
@@ -164,11 +174,14 @@ export function declareClient<UseDiscriminator extends boolean = false>({
       requestSchema: config.requestSchema,
       responseSchema: config.responseSchema,
       errorSchema: config.errorSchema,
+      result: config.result,
+      validateResponse: config.validateResponse,
     })
 
     const queryOptions = makeQueryOptions(endpoint, {
       ...defaults,
       processResponse: config.processResponse ?? ((data) => data),
+      unwrap: config.unwrap,
     })
     // @ts-expect-error We attach the endpoint to the queryOptions
     queryOptions.endpoint = endpoint
@@ -181,11 +194,13 @@ export function declareClient<UseDiscriminator extends boolean = false>({
       | EndpointHandler<EndpointOptions, UseDiscriminator>,
     options?: {
       processResponse?: (data: z.output<AnyEndpointConfig['responseSchema']>) => unknown
+      unwrap?: UnwrapMode
     },
   ) {
     return makeQueryOptions(endpoint as any, {
       ...defaults,
       processResponse: options?.processResponse ?? ((data) => data),
+      unwrap: options?.unwrap,
     })
   }
 
@@ -197,10 +212,13 @@ export function declareClient<UseDiscriminator extends boolean = false>({
       requestSchema: config.requestSchema,
       responseSchema: config.responseSchema,
       errorSchema: config.errorSchema,
+      result: config.result,
+      validateResponse: config.validateResponse,
     })
     const infiniteQueryOptions = makeInfiniteQueryOptions(endpoint, {
       ...defaults,
       processResponse: config.processResponse ?? ((data: unknown) => data),
+      unwrap: config.unwrap,
       getNextPageParam: config.getNextPageParam,
       getPreviousPageParam: config.getPreviousPageParam,
       initialPageParam: config.initialPageParam,
@@ -217,6 +235,7 @@ export function declareClient<UseDiscriminator extends boolean = false>({
       | EndpointHandler<EndpointOptions, UseDiscriminator>,
     options: {
       processResponse?: (data: z.output<AnyEndpointConfig['responseSchema']>) => unknown
+      unwrap?: InfiniteUnwrapMode
       getNextPageParam: (
         lastPage: z.infer<AnyEndpointConfig['responseSchema']>,
         allPages: z.infer<AnyEndpointConfig['responseSchema']>[],
@@ -232,9 +251,10 @@ export function declareClient<UseDiscriminator extends boolean = false>({
       initialPageParam?: z.input<AnyEndpointConfig['querySchema']>
     },
   ) {
-    return makeInfiniteQueryOptions(endpoint, {
+    return makeInfiniteQueryOptions(endpoint as any, {
       ...defaults,
       processResponse: options?.processResponse ?? ((data) => data),
+      unwrap: options?.unwrap,
       getNextPageParam: options.getNextPageParam,
       getPreviousPageParam: options?.getPreviousPageParam,
       initialPageParam: options?.initialPageParam,
@@ -249,11 +269,14 @@ export function declareClient<UseDiscriminator extends boolean = false>({
       requestSchema: config.requestSchema,
       responseSchema: config.responseSchema,
       errorSchema: config.errorSchema,
+      result: config.result,
+      validateResponse: config.validateResponse,
     })
 
     // @ts-expect-error Type inference for errorSchema variants
     const useMutation = makeMutation(endpoint, {
       processResponse: config.processResponse ?? ((data: unknown) => data),
+      unwrap: config.unwrap,
       useContext: config.useContext,
       onMutate: config.onMutate,
       onSuccess: config.onSuccess,
@@ -277,6 +300,7 @@ export function declareClient<UseDiscriminator extends boolean = false>({
       | StreamHandler<BaseEndpointOptions, UseDiscriminator>,
     options?: {
       processResponse?: ProcessResponseFunction
+      unwrap?: UnwrapMode
       useContext?: () => unknown
       onMutate?: (
         variables: MutationArgs,
@@ -314,6 +338,7 @@ export function declareClient<UseDiscriminator extends boolean = false>({
     // @ts-expect-error endpoint types are compatible at runtime
     return makeMutation(endpoint, {
       processResponse: options?.processResponse,
+      unwrap: options?.unwrap,
       useContext: options?.useContext,
       onMutate: options?.onMutate,
       onSuccess: options?.onSuccess,
@@ -333,11 +358,14 @@ export function declareClient<UseDiscriminator extends boolean = false>({
       requestSchema: config.requestSchema,
       responseSchema: config.responseSchema,
       errorSchema: config.errorSchema,
+      result: config.result,
+      validateResponse: config.validateResponse,
     })
 
     // @ts-expect-error Type inference for errorSchema variants
     const useMutation = makeMutation(endpoint, {
       processResponse: config.processResponse ?? ((data: unknown) => data),
+      unwrap: config.unwrap,
       useContext: config.useContext,
       onSuccess: config.onSuccess,
       onError: config.onError,

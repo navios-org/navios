@@ -1,3 +1,4 @@
+import { isResponseEnvelope } from '@navios/builder'
 import { useIsMutating, useMutation } from '@tanstack/react-query'
 
 import type {
@@ -17,6 +18,7 @@ import type {
 import type { z, ZodObject, ZodType } from 'zod/v4'
 
 import type { ProcessResponseFunction } from '../common/types.mjs'
+import type { UnwrapMode } from '../query/types.mjs'
 
 import { createMutationKey } from './key-creator.mjs'
 
@@ -88,6 +90,18 @@ type MakeMutationParams<
       ? string[]
       : never
     : never
+  /**
+   * For endpoints declared with `result: 'envelope'`, controls how the
+   * envelope is delivered to React Query's mutation channel.
+   *
+   * - `'none'` (default): the `ResponseEnvelope` is returned from
+   *   `mutationFn` as-is.
+   * - `'throw-on-error'`: on `envelope.ok === false`, the `envelope.error`
+   *   is thrown so React Query's `onError` channel fires.
+   *
+   * Has no effect for non-envelope endpoints.
+   */
+  unwrap?: UnwrapMode
 }
 
 /**
@@ -187,9 +201,12 @@ export function makeMutation(endpoint: EndpointWithConfig<AnyEndpointConfig>, op
       onSettled,
       keyPrefix: _keyPrefix,
       keySuffix: _keySuffix,
-      processResponse,
+      processResponse: rawProcessResponse,
+      unwrap,
       ...rest
     } = options
+
+    const processResponse = rawProcessResponse ?? ((data: any) => data)
 
     const ownContext = useContext?.() ?? {}
 
@@ -204,7 +221,14 @@ export function makeMutation(endpoint: EndpointWithConfig<AnyEndpointConfig>, op
       async mutationFn(params: any) {
         const response = await endpoint(params)
 
-        return processResponse ? processResponse(response) : response
+        if ((unwrap ?? 'none') === 'throw-on-error' && isResponseEnvelope(response)) {
+          if (!response.ok) {
+            throw response.error
+          }
+          return processResponse(response.data)
+        }
+
+        return processResponse(response)
       },
       onSuccess: onSuccess
         ? (data: any, variables: any, onMutateResult: any, context: MutationFunctionContext) => {

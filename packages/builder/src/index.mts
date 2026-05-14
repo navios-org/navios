@@ -10,5 +10,8 @@ export * from './handlers/index.mjs'
 // Request utilities
 export * from './request/index.mjs'
 
+// Response utilities
+export * from './response/index.mjs'
+
 // Errors
 export * from './errors/index.mjs'

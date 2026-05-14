@@ -19,7 +19,7 @@ import type { z, ZodObject, ZodType } from 'zod/v4'
 
 import type { Split } from '../../common/types.mjs'
 import type { MutationHelpers } from '../../mutation/types.mjs'
-import type { QueryHelpers } from '../../query/types.mjs'
+import type { InfiniteUnwrapMode, QueryHelpers, UnwrapMode } from '../../query/types.mjs'
 
 import type { ComputeBaseResult, EndpointHelper, StreamHelper } from './helpers.mjs'
 
@@ -69,6 +69,12 @@ export interface ClientFromEndpointMethods<UseDiscriminator extends boolean = fa
     endpoint: { config: Config },
     options?: {
       processResponse?: (data: TBaseResult) => Result
+      /**
+       * For endpoints declared with `result: 'envelope'`, controls how the
+       * envelope is delivered to React Query. Has no effect on non-envelope
+       * endpoints.
+       */
+      unwrap?: UnwrapMode
     },
   ): ((
     params: Simplify<InferEndpointParams<Config>>,
@@ -122,6 +128,12 @@ export interface ClientFromEndpointMethods<UseDiscriminator extends boolean = fa
     endpoint: { config: Config },
     options: {
       processResponse?: (data: TBaseResult) => PageResult
+      /**
+       * For endpoints declared with `result: 'envelope'`, controls how each
+       * page is delivered to React Query. Has no effect on non-envelope
+       * endpoints.
+       */
+      unwrap?: InfiniteUnwrapMode
       getNextPageParam: (
         lastPage: PageResult,
         allPages: PageResult[],
@@ -186,6 +198,12 @@ export interface ClientFromEndpointMethods<UseDiscriminator extends boolean = fa
     endpoint: { config: Config },
     mutationOptions?: {
       processResponse?: (data: TBaseResult) => Result | Promise<Result>
+      /**
+       * For endpoints declared with `result: 'envelope'`, controls how the
+       * envelope is delivered to the mutation channel. Has no effect on
+       * non-envelope endpoints.
+       */
+      unwrap?: UnwrapMode
       useContext?: () => Context
       useKey?: boolean
       onMutate?: (

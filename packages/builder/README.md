@@ -298,6 +298,180 @@ const createUser = API.declareEndpoint({
 })
 ```
 
+## Envelope mode (`result: 'envelope'`)
+
+### Why
+
+Opting an endpoint into envelope mode swaps the "parsed body or thrown error" return shape for a single value that carries the parsed body, a typed error, and the response metadata (status code, status text, headers). Reading a pagination cursor, an `ETag`, a `Retry-After`, or a typed `errorSchema` body becomes a destructuring expression rather than a `try`/`catch` plus a side-trip to the raw HTTP client. Envelope endpoints never throw — every failure is surfaced as a value on `error`.
+
+### Quick example
+
+```typescript
+import { builder, isHttpError } from '@navios/builder'
+
+import { z } from 'zod/v4'
+
+const API = builder()
+
+const getUser = API.declareEndpoint({
+  method: 'GET',
+  url: '/users/$userId',
+  responseSchema: z.object({ id: z.string(), name: z.string() }),
+  errorSchema: {
+    404: z.object({ error: z.literal('Not Found') }),
+    401: z.object({ error: z.string() }),
+  },
+  result: 'envelope',
+})
+
+const { data, error, response } = await getUser({ urlParams: { userId: '1' } })
+
+if (error) {
+  if (isHttpError(error, 404)) {
+    // error.body is typed as the 404 schema output
+    console.warn('missing user', error.body.error)
+  }
+  return
+}
+
+// data is typed as { id: string; name: string }
+// response is ResponseMeta (status / statusText / headers)
+console.log(`got ${data.name} as status ${response.status}`)
+console.log('etag:', response.headers.get('etag'))
+```
+
+### The four error variants
+
+Envelope `error` is a discriminated union keyed on `kind`:
+
+```typescript
+import {
+  isEnvelopeError,
+  isHttpError,
+  isNetworkError,
+  isUnknownHttpError,
+  isValidationError,
+} from '@navios/builder'
+
+if (isHttpError(error, 404)) {
+  // kind: 'http' — status matched errorSchema, body is the parsed schema output
+} else if (isUnknownHttpError(error)) {
+  // kind: 'http-unknown' — HTTP non-2xx with no matching errorSchema entry; body is unknown
+} else if (isValidationError(error)) {
+  // kind: 'validation' — response status was handled but Zod failed; carries issues + raw body
+} else if (isNetworkError(error)) {
+  // kind: 'network' — request never produced a response (DNS, abort, timeout, ...)
+}
+
+// or just check it is any envelope error:
+if (isEnvelopeError(error)) {
+  // narrowed to EnvelopeError union
+}
+```
+
+`isHttpError(error, status)` narrows both `kind` and `status`, which in turn narrows `body` to the matching `errorSchema` entry.
+
+### Builder-level default
+
+To make envelope mode the default for every endpoint declared by a builder, set `defaults.result`:
+
+```typescript
+const API = builder({
+  defaults: { result: 'envelope' },
+})
+
+// inherits result: 'envelope'
+const getUser = API.declareEndpoint({
+  method: 'GET',
+  url: '/users/$userId',
+  responseSchema: UserSchema,
+})
+
+// per-endpoint override still wins
+const ping = API.declareEndpoint({
+  method: 'GET',
+  url: '/ping',
+  responseSchema: z.literal('pong'),
+  result: 'data',
+})
+```
+
+### Header helpers
+
+`response.headers` is a native `Headers` instance. Three thin helpers cover the common cases without having to remember the casing:
+
+```typescript
+import { getCookie, getHeader, getRetryAfterMs } from '@navios/builder'
+
+const etag = getHeader(response, 'etag') // string | null
+const session = getCookie(response, 'sid') // string | null (parsed from Set-Cookie)
+const retryMs = getRetryAfterMs(response) // number | null (seconds or HTTP-date -> ms)
+```
+
+All helpers accept `ResponseMeta | null`, so they are safe to call on an error envelope where `response` may be absent.
+
+### Migration from `useDiscriminatorResponse`
+
+```typescript
+// Before
+import { builder, isErrorResponse, isErrorStatus } from '@navios/builder'
+
+const API = builder({ useDiscriminatorResponse: true })
+
+const getUser = API.declareEndpoint({
+  method: 'GET',
+  url: '/users/$userId',
+  responseSchema: UserSchema,
+  errorSchema: { 404: NotFoundSchema },
+})
+
+const result = await getUser({ urlParams: { userId: '1' } })
+if (isErrorStatus(result, 404)) {
+  console.log(result.error)
+} else if (isErrorResponse(result)) {
+  console.log(result.__status)
+} else {
+  console.log(result.name)
+}
+
+// After
+import { builder, isHttpError } from '@navios/builder'
+
+const API = builder()
+
+const getUser = API.declareEndpoint({
+  method: 'GET',
+  url: '/users/$userId',
+  responseSchema: UserSchema,
+  errorSchema: { 404: NotFoundSchema },
+  result: 'envelope',
+})
+
+const { data, error } = await getUser({ urlParams: { userId: '1' } })
+if (isHttpError(error, 404)) {
+  console.log(error.body)
+} else if (!error) {
+  console.log(data.name)
+}
+```
+
+`useDiscriminatorResponse`, `isErrorStatus`, and `isErrorResponse` are deprecated and will be removed in the next major. The legacy mode still works (and `isErrorStatus` / `isErrorResponse` still discriminate it) for one major version.
+
+### `validateResponse: false`
+
+For trusted servers where the runtime Zod parse on the success body is overhead, set `validateResponse: false` per endpoint. The inferred static type is still taken from `responseSchema`, but the response body is returned as-is without a `parse()` call.
+
+```typescript
+const listFeedItems = API.declareEndpoint({
+  method: 'GET',
+  url: '/feed',
+  responseSchema: FeedItemArraySchema, // still used for the TYPE
+  validateResponse: false, // but not for runtime parsing
+})
+```
+
+This is independent of envelope mode and can be combined with it.
+
 ## WebSocket Support
 
 `@navios/builder` includes full WebSocket and Socket.IO support through the `@navios/builder/socket` export. This provides type-safe, bidirectional messaging with Zod schema validation.
