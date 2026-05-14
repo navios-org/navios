@@ -4,100 +4,31 @@ sidebar_position: 3
 
 # Discriminated Unions
 
-Discriminated unions allow you to handle APIs that return different response shapes based on a common discriminator field. This is useful for APIs that include both success and error cases in the same response type.
+Discriminated unions in your `responseSchema` let you model APIs that return different shapes based on a tag field. This is a Zod feature, not a builder-level mode — it works on every endpoint regardless of `result` mode.
+
+If you instead want to discriminate **error responses by HTTP status code**, see [Error Handling](/docs/builder/builder/guides/error-handling) for the envelope mode + `errorSchema` flow.
 
 ## When to Use
 
-Use discriminated unions when:
-- Your API returns different response shapes based on a status field
-- You want to handle success and error cases in the same type
-- You need type-safe narrowing based on a discriminator field
+Use a discriminated union in `responseSchema` when:
+
+- Your API uses a tag field (e.g. `kind`, `type`, `status`) to switch between response shapes
+- A single 2xx response can legitimately have multiple shapes
+- You want TypeScript narrowing on a `responseSchema` field
 
 ## Basic Example
 
 ```typescript
-const API = builder({ useDiscriminatorResponse: true })
+const API = builder()
 
-const responseSchema = z.discriminatedUnion('status', [
+const responseSchema = z.discriminatedUnion('kind', [
   z.object({
-    status: z.literal('success'),
+    kind: z.literal('user'),
     data: userSchema,
   }),
   z.object({
-    status: z.literal('error'),
-    error: z.string(),
-  }),
-])
-
-const getUser = API.declareEndpoint({
-  method: 'GET',
-  url: '/users/$userId',
-  responseSchema,
-})
-
-// Usage - TypeScript narrows the type automatically
-const result = await getUser({ urlParams: { userId: '123' } })
-
-if (result.status === 'success') {
-  console.log(result.data) // TypeScript knows this is User
-} else {
-  console.error(result.error) // TypeScript knows this is string
-}
-```
-
-## Configuration
-
-Enable discriminated union support when creating the builder:
-
-```typescript
-const API = builder({
-  useDiscriminatorResponse: true, // Enable discriminated union parsing
-})
-```
-
-When enabled, error responses (non-2xx status codes) will be parsed using the same `responseSchema` as success responses, allowing discriminated unions to handle both cases.
-
-## Multiple Response Types
-
-### Success and Error
-
-```typescript
-const API = builder({ useDiscriminatorResponse: true })
-
-const responseSchema = z.discriminatedUnion('status', [
-  z.object({
-    status: z.literal('success'),
-    data: userSchema,
-  }),
-  z.object({
-    status: z.literal('error'),
-    error: z.string(),
-    code: z.string().optional(),
-  }),
-])
-
-const getUser = API.declareEndpoint({
-  method: 'GET',
-  url: '/users/$userId',
-  responseSchema,
-})
-```
-
-### Multiple Success Types
-
-```typescript
-const responseSchema = z.discriminatedUnion('type', [
-  z.object({
-    type: z.literal('user'),
-    data: userSchema,
-  }),
-  z.object({
-    type: z.literal('admin'),
+    kind: z.literal('admin'),
     data: adminSchema,
-  }),
-  z.object({
-    type: z.literal('guest'),
-    data: guestSchema,
   }),
 ])
 
@@ -107,250 +38,129 @@ const getAccount = API.declareEndpoint({
   responseSchema,
 })
 
-// Usage
+const account = await getAccount({ urlParams: { accountId: '123' } })
+
+if (account.kind === 'user') {
+  // TypeScript narrows account.data to User
+  console.log(account.data.name)
+} else {
+  // TypeScript narrows account.data to Admin
+  console.log(account.data.permissions)
+}
+```
+
+## Multiple Variants
+
+```typescript
+const responseSchema = z.discriminatedUnion('type', [
+  z.object({ type: z.literal('user'), data: userSchema }),
+  z.object({ type: z.literal('admin'), data: adminSchema }),
+  z.object({ type: z.literal('guest'), data: guestSchema }),
+])
+
+const getAccount = API.declareEndpoint({
+  method: 'GET',
+  url: '/accounts/$accountId',
+  responseSchema,
+})
+
 const account = await getAccount({ urlParams: { accountId: '123' } })
 
 switch (account.type) {
   case 'user':
-    // TypeScript knows account.data is User
     console.log(account.data.name)
     break
   case 'admin':
-    // TypeScript knows account.data is Admin
     console.log(account.data.permissions)
     break
   case 'guest':
-    // TypeScript knows account.data is Guest
     console.log(account.data.limitedAccess)
     break
 }
 ```
 
-## Type Narrowing
+## Discriminated Unions vs `errorSchema` + Envelope Mode
 
-TypeScript automatically narrows types based on the discriminator:
+In v1, the `useDiscriminatorResponse: true` builder flag re-routed error responses through `responseSchema`, encouraging APIs to embed success and error in one discriminated union. **That flag was removed in v2.** Today the choice is:
 
-```typescript
-const responseSchema = z.discriminatedUnion('status', [
-  z.object({
-    status: z.literal('success'),
-    data: userSchema,
-  }),
-  z.object({
-    status: z.literal('error'),
-    error: z.string(),
-  }),
-])
+### Use a `responseSchema` discriminated union when
 
-const result = await getUser({ urlParams: { userId: '123' } })
+- The success body itself has multiple shapes
+- The discriminator is a field inside the 2xx response body
+- You don't need access to the HTTP status, headers, or the network-layer error path
 
-// TypeScript narrows based on status
-if (result.status === 'success') {
-  // result.data is available and typed as User
-  const user = result.data
-  console.log(user.name)
-} else {
-  // result.error is available and typed as string
-  console.error(result.error)
-}
-```
+### Use envelope mode + `errorSchema` when
 
-## Error Handling
-
-With discriminated unions, you don't need try-catch for error responses:
+- The discriminator is the HTTP status code
+- Different statuses carry different body shapes
+- You want one place to catch validation, network, and HTTP errors
 
 ```typescript
-// ✅ Good - no try-catch needed
-const result = await getUser({ urlParams: { userId: '123' } })
-
-if (result.status === 'error') {
-  // Handle error case
-  showError(result.error)
-  return
-}
-
-// Handle success case
-displayUser(result.data)
-```
-
-Without discriminated unions, you'd need:
-
-```typescript
-// ❌ More verbose
-try {
-  const user = await getUser({ urlParams: { userId: '123' } })
-  displayUser(user)
-} catch (error) {
-  if (error instanceof NaviosError) {
-    showError(error.message)
-  }
-}
-```
-
-## Error Schema vs Discriminated Unions
-
-Builder offers two approaches for handling error responses:
-
-### Discriminated Unions (In Response Body)
-
-Use when the API returns success and error in the same response format with a discriminator field:
-
-```typescript
-// API returns: { status: 'success', data: {...} } or { status: 'error', error: '...' }
-const responseSchema = z.discriminatedUnion('status', [
-  z.object({ status: z.literal('success'), data: userSchema }),
-  z.object({ status: z.literal('error'), error: z.string() }),
-])
+import { isHttpError } from '@navios/builder'
 
 const getUser = API.declareEndpoint({
   method: 'GET',
   url: '/users/$userId',
-  responseSchema,
-})
-```
-
-### Error Schema (By HTTP Status Code)
-
-Use when the API returns different shapes based on HTTP status codes:
-
-```typescript
-import { isErrorStatus, isErrorResponse } from '@navios/builder'
-
-// API returns different shapes for different status codes
-const getUser = API.declareEndpoint({
-  method: 'GET',
-  url: '/users/$userId',
-  responseSchema: userSchema, // For 2xx responses
+  responseSchema: userSchema, // 2xx
   errorSchema: {
     400: z.object({ error: z.string(), field: z.string() }),
     404: z.object({ error: z.literal('Not Found') }),
     500: z.object({ error: z.string() }),
   },
+  result: 'envelope',
 })
 
-const result = await getUser({ urlParams: { userId: '123' } })
+const { data, error } = await getUser({ urlParams: { userId: '123' } })
 
-if (isErrorStatus(result, 404)) {
-  // result.__status === 404, typed as 404 error schema
+if (isHttpError(error, 404)) {
   console.log('Not found')
-} else if (isErrorResponse(result)) {
-  // Any error response
-  console.log('Error:', result.__status)
-} else {
-  // Success response
-  console.log('User:', result.name)
+} else if (isHttpError(error, 400)) {
+  console.log('Bad request:', error.body.field)
+} else if (!error) {
+  console.log('User:', data.name)
 }
 ```
 
-### Key Differences
+### Side-by-side
 
-| Feature | Discriminated Unions | Error Schema |
-|---------|---------------------|--------------|
-| Discrimination | By field value in response body | By HTTP status code |
-| `__status` property | Not added | Added to error responses |
-| Type guards | Standard TypeScript narrowing | `isErrorStatus()`, `isErrorResponse()` |
-| Unhandled errors | Covered by union | Throws `UnknownResponseError` |
-| Use case | Single response format | Different formats per status |
+| Concern                | `responseSchema` union          | Envelope mode + `errorSchema`                |
+|------------------------|---------------------------------|----------------------------------------------|
+| Discriminator          | Field in the body               | HTTP status code                             |
+| Status access          | Not exposed on the body         | `error.status`, plus full `response` meta    |
+| Errors as data         | Yes (no throwing)               | Yes (no throwing)                            |
+| Unmodeled error status | Lands as a Zod validation throw | Surfaces as the `http-unknown` variant       |
+| Network failure        | Throws                          | Surfaces as the `network` variant            |
 
-See [Error Handling](/docs/builder/builder/guides/error-handling) for more details on `errorSchema`.
+The v1 `__status` injection, `isErrorStatus`, `isErrorResponse`, and `UnknownResponseError` are removed in v2; envelope mode replaces them.
 
-## Complex Examples
-
-### Paginated Response with Error
-
-```typescript
-const responseSchema = z.discriminatedUnion('status', [
-  z.object({
-    status: z.literal('success'),
-    data: z.object({
-      users: z.array(userSchema),
-      total: z.number(),
-      page: z.number(),
-    }),
-  }),
-  z.object({
-    status: z.literal('error'),
-    error: z.string(),
-    code: z.enum(['INVALID_PAGE', 'INVALID_LIMIT', 'SERVER_ERROR']),
-  }),
-])
-
-const getUsers = API.declareEndpoint({
-  method: 'GET',
-  url: '/users',
-  querySchema: z.object({
-    page: z.number().optional(),
-    limit: z.number().optional(),
-  }),
-  responseSchema,
-})
-
-// Usage
-const result = await getUsers({ params: { page: 1, limit: 20 } })
-
-if (result.status === 'success') {
-  console.log(`Found ${result.data.total} users`)
-  result.data.users.forEach((user) => {
-    console.log(user.name)
-  })
-} else {
-  switch (result.code) {
-    case 'INVALID_PAGE':
-      console.error('Invalid page number')
-      break
-    case 'INVALID_LIMIT':
-      console.error('Invalid limit')
-      break
-    case 'SERVER_ERROR':
-      console.error('Server error:', result.error)
-      break
-  }
-}
-```
-
-### Mutation Response
+## Mutation Example
 
 ```typescript
 const createUserResponseSchema = z.discriminatedUnion('status', [
   z.object({
-    status: z.literal('success'),
+    status: z.literal('created'),
     data: userSchema,
     message: z.string().optional(),
   }),
   z.object({
-    status: z.literal('error'),
-    error: z.string(),
-    field: z.string().optional(),
-    code: z.enum(['VALIDATION_ERROR', 'DUPLICATE_EMAIL', 'SERVER_ERROR']),
+    status: z.literal('duplicate'),
+    existingUserId: z.string(),
   }),
 ])
 
 const createUser = API.declareEndpoint({
   method: 'POST',
   url: '/users',
-  requestSchema: z.object({
-    name: z.string(),
-    email: z.string().email(),
-  }),
+  requestSchema: z.object({ name: z.string(), email: z.string().email() }),
   responseSchema: createUserResponseSchema,
 })
 
-// Usage
-const result = await createUser({
-  data: { name: 'John', email: 'john@example.com' },
-})
+const result = await createUser({ data: { name: 'John', email: 'john@example.com' } })
 
-if (result.status === 'success') {
+if (result.status === 'created') {
   console.log('User created:', result.data)
-  if (result.message) {
-    showSuccess(result.message)
-  }
 } else {
-  if (result.code === 'VALIDATION_ERROR' && result.field) {
-    showFieldError(result.field, result.error)
-  } else {
-    showError(result.error)
-  }
+  console.log('Already exists as', result.existingUserId)
 }
 ```
 
@@ -359,86 +169,25 @@ if (result.status === 'success') {
 ### Use Descriptive Discriminator Values
 
 ```typescript
-// ✅ Good - clear discriminator values
+// Good - clear discriminator values
 const responseSchema = z.discriminatedUnion('status', [
   z.object({ status: z.literal('success'), data: userSchema }),
   z.object({ status: z.literal('error'), error: z.string() }),
 ])
 
-// ❌ Bad - unclear values
+// Bad - unclear values
 const responseSchema = z.discriminatedUnion('s', [
   z.object({ s: z.literal('ok'), d: userSchema }),
   z.object({ s: z.literal('err'), e: z.string() }),
 ])
 ```
 
-### Include Error Codes
+### Prefer Envelope Mode for HTTP-Status-Based Errors
 
-```typescript
-// ✅ Good - includes error codes for better handling
-const responseSchema = z.discriminatedUnion('status', [
-  z.object({
-    status: z.literal('success'),
-    data: userSchema,
-  }),
-  z.object({
-    status: z.literal('error'),
-    error: z.string(),
-    code: z.enum(['NOT_FOUND', 'VALIDATION_ERROR', 'SERVER_ERROR']),
-  }),
-])
-```
-
-### Use Type Guards
-
-```typescript
-function isSuccessResponse(
-  response: SuccessResponse | ErrorResponse
-): response is SuccessResponse {
-  return response.status === 'success'
-}
-
-const result = await getUser({ urlParams: { userId: '123' } })
-
-if (isSuccessResponse(result)) {
-  // TypeScript knows result is SuccessResponse
-  console.log(result.data)
-} else {
-  // TypeScript knows result is ErrorResponse
-  console.error(result.error)
-}
-```
-
-## Common Mistakes
-
-### Forgetting useDiscriminatorResponse
-
-```typescript
-// ❌ Error responses won't be parsed
-const API = builder() // Missing useDiscriminatorResponse: true
-
-const responseSchema = z.discriminatedUnion('status', [
-  z.object({ status: z.literal('success'), data: userSchema }),
-  z.object({ status: z.literal('error'), error: z.string() }),
-])
-
-// Error responses will throw instead of being parsed
-```
-
-### Wrong Discriminator Field
-
-```typescript
-// ❌ Wrong - discriminator field doesn't match
-const responseSchema = z.discriminatedUnion('type', [
-  z.object({ status: z.literal('success'), data: userSchema }),
-  z.object({ status: z.literal('error'), error: z.string() }),
-])
-// Should use 'status' as discriminator
-```
+If your only motivation for a `responseSchema` discriminated union is "I want errors to come back as data rather than throw," switch to envelope mode. The envelope already gives you `data | error` discrimination with the full HTTP `response` attached, no extra schema modeling needed.
 
 ## Next Steps
 
-- [Error Handling](/docs/builder/builder/guides/error-handling) - More error handling patterns
-- [Request & Response Schemas](/docs/builder/builder/guides/schemas) - Learn about Zod schemas
-- [Defining Endpoints](/docs/builder/builder/guides/defining-endpoints) - Review endpoint basics
-
+- [Error Handling](/docs/builder/builder/guides/error-handling) - The unified `onError(event)` hook plus envelope mode
+- [Request & Response Schemas](/docs/builder/builder/guides/schemas) - Zod schema essentials
+- [Defining Endpoints](/docs/builder/builder/guides/defining-endpoints) - Endpoint basics

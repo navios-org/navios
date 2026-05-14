@@ -17,9 +17,8 @@ function builder(config?: BuilderConfig): BuilderInstance
 ### Parameters
 
 - `config` (optional): Configuration options
-  - `useDiscriminatorResponse?: boolean` - Parse error responses using the same schema (for discriminated unions). Default: `false`
-  - `onError?: (error: unknown) => void` - Global error callback
-  - `onZodError?: (error: ZodError, response?, originalError?) => void` - Zod validation error callback
+  - `defaults?: { result?: 'data' | 'envelope' }` - Default settings applied to every endpoint; per-endpoint values override
+  - `onError?: (event: BuilderErrorEvent) => void` - Unified error hook fired on every failure path. The event carries `kind`, `endpoint`, `status`, `zodIssues`, `cause`, `body`, plus optional `topic` / `eventName` / `rawData` on socket / SSE builders
 
 ### Returns
 
@@ -29,11 +28,18 @@ A `BuilderInstance` with methods to declare endpoints and manage the HTTP client
 
 ```typescript
 const API = builder({
-  useDiscriminatorResponse: true,
-  onError: (error) => console.error(error),
-  onZodError: (zodError) => console.error('Validation failed:', zodError.errors),
+  defaults: { result: 'envelope' },
+  onError: (event) => {
+    if (event.kind === 'validation') {
+      console.error('Validation failed:', event.zodIssues)
+    } else {
+      console.error('Request failed:', event.endpoint, event.cause)
+    }
+  },
 })
 ```
+
+The v1 `useDiscriminatorResponse` flag and `onZodError` callback were removed in v2. Use per-endpoint `result: 'envelope'` (or `defaults: { result: 'envelope' }`) for the discriminator-mode replacement, and filter on `event.kind === 'validation'` inside the unified `onError`.
 
 ## BuilderInstance
 
@@ -255,16 +261,42 @@ console.log(getUser.config)
 
 ```typescript
 interface BuilderConfig {
-  useDiscriminatorResponse?: boolean
-  onError?: (error: unknown) => void
-  onZodError?: (error: ZodError, response?: any, originalError?: unknown) => void
+  defaults?: { result?: 'data' | 'envelope' }
+  onError?: (event: BuilderErrorEvent) => void
 }
 ```
 
-### BaseEndpointConfig
+### BuilderErrorEvent
+
+Structured event passed to `onError`:
 
 ```typescript
-interface BaseEndpointConfig {
+interface BuilderErrorEvent {
+  kind: BuilderErrorKind
+  endpoint?: { method: HttpMethod; url: string }
+  status?: number
+  zodIssues?: readonly $ZodIssue[]
+  cause: unknown
+  body?: unknown
+  topic?: string       // socket builder only
+  eventName?: string   // eventsource builder only
+  rawData?: unknown    // socket / SSE raw payload
+}
+
+type BuilderErrorKind =
+  | 'http'
+  | 'http-unknown'
+  | 'validation'
+  | 'network'
+  | 'socket-ack-timeout'
+  | 'socket-transport'
+  | 'event-source-transport'
+```
+
+### EndpointOptions
+
+```typescript
+interface EndpointOptions {
   method: HttpMethod
   url: string
   responseSchema: ZodType
@@ -273,22 +305,12 @@ interface BaseEndpointConfig {
   errorSchema?: ErrorSchemaRecord
   urlParamsSchema?: ZodObject
   clientOptions?: ClientOptions
+  result?: 'data' | 'envelope'
+  validateResponse?: boolean
 }
 ```
 
-### BaseStreamConfig
-
-```typescript
-interface BaseStreamConfig {
-  method: HttpMethod
-  url: string
-  requestSchema?: ZodType
-  querySchema?: ZodType
-  errorSchema?: ErrorSchemaRecord
-  urlParamsSchema?: ZodObject
-  clientOptions?: ClientOptions
-}
-```
+The v1 `BaseEndpointConfig`, `BaseStreamConfig`, `AnyEndpointConfig`, `AnyStreamConfig`, `StreamOptions` (legacy), `AbstractEndpoint`, `AbstractStream` types were removed in v2. Use `EndpointOptions`, `StreamOptions`, and `EndpointHandler<Options>` / `StreamHandler<Options>`.
 
 ### ErrorSchemaRecord
 
@@ -296,7 +318,7 @@ interface BaseStreamConfig {
 type ErrorSchemaRecord = Record<number, ZodType>
 ```
 
-Maps HTTP status codes to Zod schemas for error responses. Used with `useDiscriminatorResponse: true`.
+Maps HTTP status codes to Zod schemas for error responses. Use with `result: 'envelope'` to flow typed error variants through the envelope `error` channel.
 
 ### ClientOptions
 
@@ -375,86 +397,52 @@ try {
 }
 ```
 
-### UnknownResponseError
+### Unknown HTTP errors (envelope mode)
 
-Thrown when an error response's status code doesn't match any schema in `errorSchema`.
-
-```typescript
-class UnknownResponseError extends Error {
-  response: AbstractResponse<unknown>
-  statusCode: number
-}
-```
-
-This error is thrown only when:
-- `useDiscriminatorResponse` is `true`
-- `errorSchema` is defined for the endpoint
-- The response status code is NOT found in `errorSchema` keys
-
-**Example:**
+In envelope mode, an error response whose status doesn't match any `errorSchema` key is surfaced as the `http-unknown` variant on `envelope.error` rather than thrown. The v1 `UnknownResponseError` class was removed.
 
 ```typescript
-import { UnknownResponseError } from '@navios/builder'
+const { data, error } = await getUser({ urlParams: { userId: '123' } })
 
-try {
-  await getUser({ urlParams: { userId: '123' } })
-} catch (error) {
-  if (error instanceof UnknownResponseError) {
-    console.error('Unhandled status:', error.statusCode)
-    console.error('Response data:', error.response.data)
-  }
+if (error && error.kind === 'http-unknown') {
+  console.error('Unhandled status:', error.status, error.body)
 }
 ```
 
 ## Type Guards
 
-### isErrorStatus
+### isHttpError
 
-Check if a result is an error response with a specific status code.
+Narrows an envelope `error` to the typed HTTP variant for a specific status (or any status if you omit the second arg).
 
 ```typescript
-function isErrorStatus<T, S extends number>(
-  result: T,
-  status: S
-): result is Extract<T, { __status: S }>
+function isHttpError(error: EnvelopeError, status?: number): boolean
 ```
 
 **Example:**
 
 ```typescript
-import { isErrorStatus } from '@navios/builder'
+import { isHttpError } from '@navios/builder'
 
-const result = await getUser({ urlParams: { userId: '123' } })
+const { data, error } = await getUser({ urlParams: { userId: '123' } })
 
-if (isErrorStatus(result, 404)) {
-  // result is typed as the 404 error schema with __status: 404
-  console.log('Not found:', result.error)
+if (isHttpError(error, 404)) {
+  // error.body is narrowed to the 404 schema
+  console.log('Not found:', error.body)
 }
 ```
 
-### isErrorResponse
+### isValidationError / isNetworkError / isUnknownHttpError
 
-Check if a result is any error response (has `__status` property).
-
-```typescript
-function isErrorResponse<T>(
-  result: T
-): result is Extract<T, { __status: number }>
-```
-
-**Example:**
+Narrow an envelope `error` to the corresponding variant.
 
 ```typescript
-import { isErrorResponse } from '@navios/builder'
-
-const result = await getUser({ urlParams: { userId: '123' } })
-
-if (isErrorResponse(result)) {
-  console.log('Error with status:', result.__status)
-} else {
-  console.log('Success:', result.name)
-}
+function isValidationError(error: EnvelopeError): boolean
+function isNetworkError(error: EnvelopeError): boolean
+function isUnknownHttpError(error: EnvelopeError): boolean
 ```
+
+The v1 `isErrorStatus` / `isErrorResponse` guards and `__status` injection were removed in v2.
 
 ## Low-Level API
 

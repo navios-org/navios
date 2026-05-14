@@ -20,9 +20,7 @@ export const downloadFileEndpoint = API.declareStream({
 
 ```typescript
 // client/mutations/files.ts
-const downloadFileMutation = client.mutationFromEndpoint(downloadFileEndpoint, {
-  processResponse: (blob) => blob,
-})
+const downloadFileMutation = client.mutation(downloadFileEndpoint)
 ```
 
 ## Usage
@@ -59,8 +57,7 @@ function DownloadButton({ fileId }: { fileId: string }) {
 Define download logic at declaration time:
 
 ```typescript
-const downloadFileMutation = client.mutationFromEndpoint(downloadFileEndpoint, {
-  processResponse: (blob) => blob,
+const downloadFileMutation = client.mutation(downloadFileEndpoint, {
   onSuccess: (blob) => {
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')

@@ -41,10 +41,11 @@ const client = declareClient({
 
 ### query
 
-Creates a query with inline configuration.
+Creates a query from either an inline config or a pre-declared endpoint handler.
 
 ```typescript
 client.query<Config>(config: QueryConfig): QueryHelpers
+client.query<Endpoint>(endpoint: Endpoint, options?: QueryOptions): QueryHelpers
 ```
 
 **Config Options:**
@@ -54,24 +55,21 @@ client.query<Config>(config: QueryConfig): QueryHelpers
 - `responseSchema`: Zod schema for response
 - `querySchema?`: Zod schema for query parameters
 - `requestSchema?`: Zod schema for request body
-- `processResponse`: Transform response data
+- `result?`: `'data' | 'envelope'` — endpoint return shape
+- `unwrap?`: `'none' | 'throw-on-error'` — how envelopes flow into TanStack Query
+- `validateResponse?`: skip runtime parse when `false`
 
-**Returns:** Query helpers with `use()`, `useSuspense()`, `invalidate()`, etc.
+**Returns:** Query helpers with `use()`, `useSuspense()`, `invalidate()`, etc. Read-side projections are passed per-call via `select` on `use` / `useSuspense`, not on the config.
 
-### queryFromEndpoint
-
-Creates a query from a pre-declared endpoint.
-
-```typescript
-client.queryFromEndpoint<Endpoint>(endpoint: Endpoint, options?: QueryOptions): QueryHelpers
-```
+The dedicated `client.query` method was removed in v2 — pass an endpoint handler as the first argument to `client.query` instead.
 
 ### infiniteQuery
 
-Creates an infinite query for paginated data.
+Creates an infinite query for paginated data. Accepts either an inline config or a pre-declared endpoint.
 
 ```typescript
 client.infiniteQuery<Config>(config: InfiniteQueryConfig): InfiniteQueryHelpers
+client.infiniteQuery<Endpoint>(endpoint: Endpoint, options: InfiniteQueryOptions): InfiniteQueryHelpers
 ```
 
 **Additional Options:**
@@ -79,21 +77,17 @@ client.infiniteQuery<Config>(config: InfiniteQueryConfig): InfiniteQueryHelpers
 - `getNextPageParam`: Extract next page parameter
 - `getPreviousPageParam?`: Extract previous page parameter
 - `initialPageParam`: Initial page parameter
+- `unwrap?`: `'none' | 'throw-on-error' | 'pages'` — infinite-query envelope handling
 
-### infiniteQueryFromEndpoint
-
-Creates an infinite query from a pre-declared endpoint.
-
-```typescript
-client.infiniteQueryFromEndpoint<Endpoint>(endpoint: Endpoint, options: InfiniteQueryOptions): InfiniteQueryHelpers
-```
+The dedicated `client.infiniteQuery` method was removed in v2.
 
 ### mutation
 
-Creates a mutation for data modification.
+Creates a mutation for data modification. Accepts either an inline config, a pre-declared endpoint, or a pre-declared stream endpoint (for file downloads).
 
 ```typescript
 client.mutation<Config>(config: MutationConfig): MutationHelpers
+client.mutation<Endpoint>(endpoint: Endpoint, options?: MutationOptions): MutationHelpers
 ```
 
 **Config Options:**
@@ -103,28 +97,24 @@ client.mutation<Config>(config: MutationConfig): MutationHelpers
 - `requestSchema?`: Zod schema for request body
 - `responseSchema?`: Zod schema for response
 - `querySchema?`: Zod schema for query parameters
-- `processResponse?`: Transform response data
+- `result?`: `'data' | 'envelope'`
+- `unwrap?`: `'none' | 'throw-on-error'`
+- `validateResponse?`: skip runtime parse when `false`
 - `useContext?`: Provide context to callbacks
 - `onMutate?`: Called before mutation
-- `onSuccess?`: Called on success
+- `onSuccess?`: Called on success (transform response data here if needed)
 - `onError?`: Called on error
 - `onSettled?`: Called on completion
 - `useKey?`: Enable mutation key scoping
 
-### mutationFromEndpoint
+The dedicated `client.mutation` method was removed in v2.
 
-Creates a mutation from a pre-declared endpoint.
+### multipart
 
-```typescript
-client.mutationFromEndpoint<Endpoint>(endpoint: Endpoint, options?: MutationOptions): MutationHelpers
-```
-
-### multipartMutation
-
-Creates a mutation for file uploads.
+Creates a mutation for file uploads. (Renamed from `client.multipart` in v2.)
 
 ```typescript
-client.multipartMutation<Config>(config: MultipartMutationConfig): MutationHelpers
+client.multipart<Config>(config: MultipartConfig): MutationHelpers
 ```
 
 Same options as `mutation`, but automatically handles `FormData` conversion.
@@ -303,9 +293,13 @@ interface QueryConfig {
   querySchema?: ZodType
   requestSchema?: ZodType
   errorSchema?: ErrorSchemaRecord
-  processResponse: (data: any) => any
+  result?: 'data' | 'envelope'
+  unwrap?: 'none' | 'throw-on-error'
+  validateResponse?: boolean
 }
 ```
+
+Read-side projections are passed per-call as `select` to `use(params, { select })` / `useSuspense(params, { select })`. The endpoint-level `processResponse` was removed in v2.
 
 ### MutationConfig
 
@@ -317,7 +311,9 @@ interface MutationConfig {
   responseSchema?: ZodType
   querySchema?: ZodType
   errorSchema?: ErrorSchemaRecord
-  processResponse?: (data: any) => any
+  result?: 'data' | 'envelope'
+  unwrap?: 'none' | 'throw-on-error'
+  validateResponse?: boolean
   useContext?: () => any
   onMutate?: (variables: any, context: any) => any
   onSuccess?: (data: any, variables: any, context: any) => void
@@ -326,6 +322,8 @@ interface MutationConfig {
   useKey?: boolean
 }
 ```
+
+Transform mutation responses inside `onSuccess` or in the caller — mutations have no read-side `select`.
 
 ### InfiniteQueryConfig
 
@@ -367,21 +365,15 @@ interface OptimisticUpdateConfig<TData, TVariables, TQueryData> {
 }
 ```
 
-### ComputeBaseResult
+### ComputeResult
 
-Helper type that computes result based on discriminator mode and error schema.
+Unified result-type computer that picks the right return shape from the endpoint's `Options` and the surface's `Unwrap` mode.
 
 ```typescript
-type ComputeBaseResult<
-  UseDiscriminator extends boolean,
-  ResponseSchema extends ZodType,
-  ErrorSchema extends ErrorSchemaRecord | undefined,
-> = UseDiscriminator extends true
-  ? ErrorSchema extends ErrorSchemaRecord
-    ? z.output<ResponseSchema> | InferErrorSchemaOutput<ErrorSchema>
-    : z.output<ResponseSchema>
-  : z.output<ResponseSchema>
+type ComputeResult<Options extends EndpointOptions, Unwrap extends UnwrapMode>
 ```
+
+This replaces the v1 helpers `ComputeBaseResult`, `ComputeQueryResult`, and `ComputeInfinitePageResult`, which were removed alongside the `UseDiscriminator` generic.
 
 ## See Also
 

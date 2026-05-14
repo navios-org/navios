@@ -111,7 +111,7 @@ import { builder } from '@navios/builder'
 import { z } from 'zod/v4'
 
 const api = builder({
-  useDiscriminatorResponse: true,
+  defaults: { result: 'envelope' },
 })
 
 const login = api.declareEndpoint({
@@ -121,20 +121,16 @@ const login = api.declareEndpoint({
     email: z.string().email(),
     password: z.string().min(6),
   }),
-  responseSchema: z.discriminatedUnion('success', [
-    z.object({
-      success: z.literal(true),
-      user: z.object({
-        id: z.string(),
-        name: z.string(),
-        email: z.string().email(),
-      }),
+  responseSchema: z.object({
+    user: z.object({
+      id: z.string(),
+      name: z.string(),
+      email: z.string().email(),
     }),
-    z.object({
-      success: z.literal(false),
-      error: z.string(),
-    }),
-  ]),
+  }),
+  errorSchema: {
+    401: z.object({ error: z.literal('invalid-credentials') }),
+  },
 })
 ```
 

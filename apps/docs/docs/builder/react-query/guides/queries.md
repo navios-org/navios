@@ -15,7 +15,6 @@ const getUser = client.query({
   method: 'GET',
   url: '/users/$userId',
   responseSchema: userSchema,
-  processResponse: (data) => data,
 })
 
 // Use in component
@@ -53,9 +52,7 @@ export const getUserEndpoint = API.declareEndpoint({
 import { client } from '../index'
 import { getUserEndpoint } from '../../shared/endpoints/users'
 
-const getUser = client.queryFromEndpoint(getUserEndpoint, {
-  processResponse: (data) => data,
-})
+const getUser = client.query(getUserEndpoint)
 
 // Usage is the same
 const { data } = getUser.use({ urlParams: { userId: '123' } })
@@ -154,7 +151,6 @@ const getUser = client.query({
   method: 'GET',
   url: '/users/$userId',
   responseSchema: userSchema,
-  processResponse: (data) => data,
 })
 
 const { data } = getUser.use({
@@ -173,7 +169,6 @@ const getUsers = client.query({
     limit: z.number().optional(),
   }),
   responseSchema: z.array(userSchema),
-  processResponse: (data) => data,
 })
 
 const { data } = getUsers.use({
@@ -191,7 +186,6 @@ const getUserPosts = client.query({
     page: z.number().optional(),
   }),
   responseSchema: z.array(postSchema),
-  processResponse: (data) => data,
 })
 
 const { data } = getUserPosts.use({
@@ -213,7 +207,6 @@ const searchUsers = client.query({
     filters: z.array(z.string()).optional(),
   }),
   responseSchema: z.array(userSchema),
-  processResponse: (data) => data,
 })
 
 const { data } = searchUsers.use({
@@ -224,24 +217,28 @@ const { data } = searchUsers.use({
 })
 ```
 
-## processResponse
+## Projecting with `select`
 
-Transform response data:
+Transform response data per-consumer using TanStack Query's `select` option. The endpoint-level `processResponse` callback was removed in v2; pass `select` to `use` / `useSuspense` instead. `select` runs on read (not in the cache-write path), so multiple consumers can project the same cached value differently.
 
 ```typescript
 const getUser = client.query({
   method: 'GET',
   url: '/users/$userId',
   responseSchema: userSchema,
-  processResponse: (data) => ({
-    ...data,
-    displayName: `${data.firstName} ${data.lastName}`,
-    isActive: data.status === 'active',
-  }),
 })
 
-// data includes displayName and isActive
-const { data } = getUser.use({ urlParams: { userId: '123' } })
+// Project to a derived shape
+const { data } = getUser.use(
+  { urlParams: { userId: '123' } },
+  {
+    select: (data) => ({
+      ...data,
+      displayName: `${data.firstName} ${data.lastName}`,
+      isActive: data.status === 'active',
+    }),
+  },
+)
 ```
 
 ## Error Handling

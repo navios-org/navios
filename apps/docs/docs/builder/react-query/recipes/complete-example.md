@@ -48,7 +48,6 @@ export const getUser = client.query({
   method: 'GET',
   url: '/users/$userId',
   responseSchema: userSchema,
-  processResponse: (data) => data,
 })
 
 export const getUsers = client.query({
@@ -62,7 +61,6 @@ export const getUsers = client.query({
     users: z.array(userSchema),
     total: z.number(),
   }),
-  processResponse: (data) => data,
 })
 ```
 
@@ -81,7 +79,6 @@ export const createUser = client.mutation({
   url: '/users',
   requestSchema: userSchema.omit({ id: true, createdAt: true }),
   responseSchema: userSchema,
-  processResponse: (data) => data,
   useContext: () => ({ queryClient: useQueryClient() }),
   onSuccess: (data, variables, context) => {
     context.queryClient.invalidateQueries({
@@ -95,7 +92,6 @@ export const updateUser = client.mutation({
   url: '/users/$userId',
   requestSchema: userSchema.partial().omit({ id: true, createdAt: true }),
   responseSchema: userSchema,
-  processResponse: (data) => data,
   useContext: () => ({ queryClient: useQueryClient() }),
   useKey: true,
   onMutate: async (variables, context) => {
@@ -144,7 +140,6 @@ export const deleteUser = client.mutation({
   method: 'DELETE',
   url: '/users/$userId',
   responseSchema: z.object({ success: z.boolean() }),
-  processResponse: (data) => data,
   useContext: () => ({ queryClient: useQueryClient() }),
   onSuccess: (data, variables, context) => {
     context.queryClient.removeQueries({

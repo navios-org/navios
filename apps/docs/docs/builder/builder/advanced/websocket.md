@@ -78,14 +78,15 @@ const socket = socketBuilder({
     ackId: data[2],
   }),
 
-  // Optional: Validation error callback
-  onValidationError: (error, topic, rawData) => {
-    console.error(`Validation failed for ${topic}:`, error)
-  },
-
-  // Optional: Acknowledgement timeout callback
-  onAckTimeout: (topic, ackId) => {
-    console.warn(`Ack timeout for ${topic}`)
+  // Unified error hook — receives a structured BuilderErrorEvent on every failure path
+  onError: (event) => {
+    if (event.kind === 'validation') {
+      console.error(`Validation failed for ${event.topic}:`, event.zodIssues)
+    } else if (event.kind === 'socket-ack-timeout') {
+      console.warn(`Ack timeout for ${event.topic}`)
+    } else if (event.kind === 'socket-transport') {
+      console.error('Socket transport error:', event.cause)
+    }
   },
 
   // Optional: Default ack timeout in ms (default: 30000)
@@ -310,28 +311,36 @@ onUpdate((data) => {
 
 ## Error Handling
 
-### Validation Errors
+All errors flow through the unified `onError(event)` hook. Filter on `event.kind`. The v1 separate `onValidationError` and `onAckTimeout` callbacks were removed in v2.
 
-When incoming messages fail schema validation, they are skipped and the `onValidationError` callback is called:
+### Validation Errors (`event.kind === 'validation'`)
+
+When incoming messages fail Zod validation, the message is skipped and `onError` fires with `event.kind === 'validation'`:
 
 ```typescript
 const socket = socketBuilder({
-  onValidationError: (error, topic, rawData) => {
-    console.error(`Invalid message on ${topic}:`, error)
-    // Optionally report to error tracking service
+  onError: (event) => {
+    if (event.kind === 'validation') {
+      console.error(`Invalid message on ${event.topic}:`, {
+        zodIssues: event.zodIssues,
+        rawData: event.rawData,
+      })
+    }
   },
 })
 ```
 
-### Acknowledgement Timeouts
+### Acknowledgement Timeouts (`event.kind === 'socket-ack-timeout'`)
 
-When an acknowledgement times out, the Promise rejects and `onAckTimeout` is called:
+When an acknowledgement times out, the Promise rejects and `onError` fires with `event.kind === 'socket-ack-timeout'`:
 
 ```typescript
 const socket = socketBuilder({
   ackTimeout: 5000, // 5 seconds
-  onAckTimeout: (topic, ackId) => {
-    console.warn(`Request to ${topic} timed out`)
+  onError: (event) => {
+    if (event.kind === 'socket-ack-timeout') {
+      console.warn(`Request to ${event.topic} timed out`)
+    }
   },
 })
 
@@ -341,6 +350,10 @@ try {
   // Error: Acknowledgement timeout for topic "room.create" (ackId: ...)
 }
 ```
+
+### Transport Errors (`event.kind === 'socket-transport'`)
+
+Underlying socket transport failures (disconnects, send errors) fire with `event.kind === 'socket-transport'`.
 
 ### Client Not Provided
 
@@ -394,7 +407,7 @@ console.log(sendMessage.config.payloadSchema) // ZodObject
 
 3. **Handle cleanup properly** - Always unsubscribe from events and close connections when done.
 
-4. **Use `onValidationError` for debugging** - Log validation errors to catch schema mismatches.
+4. **Use the unified `onError` hook for debugging** - Filter `event.kind === 'validation'` to catch schema mismatches and report `event.zodIssues` / `event.rawData`.
 
 5. **Separate connection declaration from usage** - Declare connections once, use multiple times:
 

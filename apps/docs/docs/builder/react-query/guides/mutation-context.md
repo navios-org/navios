@@ -16,7 +16,6 @@ const updateUser = client.mutation({
   url: '/users/$userId',
   requestSchema: userUpdateSchema,
   responseSchema: userSchema,
-  processResponse: (data) => data,
   useContext: () => ({
     queryClient: useQueryClient(),
   }),
@@ -39,7 +38,6 @@ const updateUser = client.mutation({
   url: '/users/$userId',
   requestSchema: userUpdateSchema,
   responseSchema: userSchema,
-  processResponse: (data) => data,
   useContext: () => ({
     queryClient: useQueryClient(),
   }),
@@ -66,7 +64,6 @@ const updateUser = client.mutation({
   url: '/users/$userId',
   requestSchema: userUpdateSchema,
   responseSchema: userSchema,
-  processResponse: (data) => data,
   useContext: () => ({
     queryClient: useQueryClient(),
     toast: useToast(),
@@ -92,7 +89,6 @@ const updateUser = client.mutation({
   url: '/users/$userId',
   requestSchema: userUpdateSchema,
   responseSchema: userSchema,
-  processResponse: (data) => data,
   useContext: () => ({
     queryClient: useQueryClient(),
     toast: useToast(),
@@ -150,7 +146,6 @@ const updateUser = client.mutation({
   url: '/users/$userId',
   requestSchema: userUpdateSchema,
   responseSchema: userSchema,
-  processResponse: (data) => data,
   useContext: () => ({
     queryClient: useQueryClient(),
   }),
@@ -201,7 +196,6 @@ const createUser = client.mutation({
   url: '/users',
   requestSchema: userCreateSchema,
   responseSchema: userSchema,
-  processResponse: (data) => data,
   useContext: () => ({
     queryClient: useQueryClient(),
     toast: useToast(),
@@ -224,7 +218,6 @@ const createUser = client.mutation({
   url: '/users',
   requestSchema: userCreateSchema,
   responseSchema: userSchema,
-  processResponse: (data) => data,
   useContext: () => ({
     router: useRouter(),
     toast: useToast(),

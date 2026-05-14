@@ -4,32 +4,39 @@ sidebar_position: 4
 
 # Error Schema Handling
 
-When using `useDiscriminatorResponse: true` mode with `@navios/builder`, API error responses are returned as data instead of being thrown. This enables type-safe error discrimination in your components.
+`@navios/builder`'s envelope mode (`result: 'envelope'`) plus `errorSchema` lets you discriminate API errors by HTTP status without throwing. In `@navios/react-query`, envelope endpoints integrate with TanStack Query through the `unwrap` option.
 
 ## Overview
 
-By default, HTTP errors (4xx, 5xx) throw exceptions. With discriminator mode, they become part of your response type, allowing you to handle different error cases in a type-safe way.
+In v1, the discriminator path conflated success and error responses into a single discriminated union returned through the data channel. In v2 the success and error sides are split into a typed envelope:
 
-## Setting Up Discriminator Mode
+```ts
+type ResponseEnvelope<Data, Error> =
+  | { ok: true; data: Data; error: null; response: ResponseMeta }
+  | { ok: false; data: undefined; error: EnvelopeError<Error>; response: ResponseMeta }
+```
 
-First, configure your builder to use discriminator response mode:
+The `error` variant is a typed union (`http`, `http-unknown`, `validation`, `network`) and `error.body` carries the parsed payload from `errorSchema`.
+
+## Setting Up Envelope Mode
+
+Either opt in per-endpoint with `result: 'envelope'`, or set a default for the whole builder:
 
 ```typescript
 import { builder } from '@navios/builder'
 import { create } from '@navios/http'
 import { declareClient } from '@navios/react-query'
 
-// Enable discriminator mode
-const api = builder({ useDiscriminatorResponse: true })
+// Per-builder default; can be overridden per-endpoint
+const api = builder({ defaults: { result: 'envelope' } })
 api.provideClient(create({ baseURL: 'https://api.example.com' }))
 
-// Create client with discriminator type parameter
-const client = declareClient<true>({ api })
+const client = declareClient({ api })
 ```
 
 ## Defining Error Schemas
 
-Use `errorSchema` to define the shape of error responses by status code:
+Use `errorSchema` to map status codes to Zod schemas:
 
 ```typescript
 const getUser = client.query({
@@ -41,32 +48,49 @@ const getUser = client.query({
     email: z.string(),
   }),
   errorSchema: {
-    400: z.object({
-      error: z.string(),
-      code: z.number(),
-    }),
-    404: z.object({
-      notFound: z.literal(true),
-      message: z.string(),
-    }),
-    500: z.object({
-      serverError: z.string(),
-      traceId: z.string(),
-    }),
+    400: z.object({ error: z.string(), code: z.number() }),
+    404: z.object({ notFound: z.literal(true), message: z.string() }),
+    500: z.object({ serverError: z.string(), traceId: z.string() }),
   },
-  processResponse: (data) => {
-    // data is typed as the union of all possible responses
-    // User | { error, code } | { notFound, message } | { serverError, traceId }
-    return data
-  },
+  result: 'envelope',
 })
 ```
 
-## Processing Responses
+## Reading Envelopes
 
-The `processResponse` callback receives the union of success and error types. Transform this into a result type:
+By default (`unwrap: 'none'`) the helper returns the full envelope as `data`. Use `isHttpError` to narrow status and `error.body` to access the typed payload:
 
-### Result Pattern
+```tsx
+import { isHttpError } from '@navios/builder'
+
+function UserProfile({ userId }: { userId: string }) {
+  const envelope = getUser.useSuspense({ urlParams: { userId } })
+
+  if (envelope.error) {
+    if (isHttpError(envelope.error, 404)) {
+      return <NotFound message={envelope.error.body.message} />
+    }
+    if (isHttpError(envelope.error, 400)) {
+      return <ErrorMessage error={envelope.error.body.error} />
+    }
+    if (isHttpError(envelope.error, 500)) {
+      return <ServerError traceId={envelope.error.body.traceId} />
+    }
+    return <ErrorMessage error="Unknown error" />
+  }
+
+  return (
+    <div>
+      <h1>{envelope.data.name}</h1>
+      <p>{envelope.data.email}</p>
+    </div>
+  )
+}
+```
+
+## Classic React Query Ergonomics with `unwrap: 'throw-on-error'`
+
+If you want envelope errors to flow through TanStack Query's `error` channel (so `data` is the unwrapped body), add `unwrap: 'throw-on-error'`:
 
 ```typescript
 const getUser = client.query({
@@ -74,45 +98,19 @@ const getUser = client.query({
   url: '/users/$userId',
   responseSchema: userSchema,
   errorSchema: {
-    400: z.object({ error: z.string() }),
     404: z.object({ notFound: z.literal(true) }),
   },
-  processResponse: (data) => {
-    // Check for error shapes
-    if ('error' in data) {
-      return { ok: false as const, error: data.error }
-    }
-    if ('notFound' in data) {
-      return { ok: false as const, error: 'User not found' }
-    }
-    // Success case
-    return { ok: true as const, user: data }
-  },
+  result: 'envelope',
+  unwrap: 'throw-on-error',
 })
-```
 
-### Using in Components
-
-```tsx
-function UserProfile({ userId }: { userId: string }) {
-  const result = getUser.useSuspense({ urlParams: { userId } })
-
-  if (!result.ok) {
-    return <ErrorMessage error={result.error} />
-  }
-
-  return (
-    <div>
-      <h1>{result.user.name}</h1>
-      <p>{result.user.email}</p>
-    </div>
-  )
-}
+// data is User | undefined, error is EnvelopeError | null
+const { data, error } = getUser.use({ urlParams: { userId: '123' } })
 ```
 
 ## Mutations with Error Schemas
 
-The same pattern works for mutations:
+Envelope + `errorSchema` works identically on mutations. Transform inside `onSuccess` (mutations do not have a read-side `select`):
 
 ```typescript
 const createUser = client.mutation({
@@ -135,29 +133,16 @@ const createUser = client.mutation({
       existingId: z.string(),
     }),
   },
-  processResponse: (data) => {
-    if ('validationErrors' in data) {
-      return {
-        ok: false as const,
-        type: 'validation' as const,
-        errors: data.validationErrors,
-      }
-    }
-    if ('conflict' in data) {
-      return {
-        ok: false as const,
-        type: 'conflict' as const,
-        existingId: data.existingId,
-      }
-    }
-    return { ok: true as const, user: data }
-  },
+  result: 'envelope',
+  unwrap: 'throw-on-error',
 })
 ```
 
 ### Using Mutation Results
 
 ```tsx
+import { isHttpError } from '@navios/builder'
+
 function CreateUserForm() {
   const { mutateAsync, isPending } = createUser()
   const [error, setError] = useState<string | null>(null)
@@ -167,28 +152,27 @@ function CreateUserForm() {
     setError(null)
     setFieldErrors({})
 
-    const result = await mutateAsync({
-      data: {
-        name: formData.get('name') as string,
-        email: formData.get('email') as string,
-      },
-    })
-
-    if (!result.ok) {
-      if (result.type === 'validation') {
+    try {
+      const user = await mutateAsync({
+        data: {
+          name: formData.get('name') as string,
+          email: formData.get('email') as string,
+        },
+      })
+      navigate(`/users/${user.id}`)
+    } catch (err) {
+      if (isHttpError(err, 400)) {
         const errors: Record<string, string> = {}
-        result.errors.forEach((e) => {
+        err.body.validationErrors.forEach((e) => {
           errors[e.field] = e.message
         })
         setFieldErrors(errors)
-      } else if (result.type === 'conflict') {
-        setError(`User already exists: ${result.existingId}`)
+      } else if (isHttpError(err, 409)) {
+        setError(`User already exists: ${err.body.existingId}`)
+      } else {
+        setError('Unknown error')
       }
-      return
     }
-
-    // Success - navigate to user page
-    navigate(`/users/${result.user.id}`)
   }
 
   return (
@@ -208,142 +192,70 @@ function CreateUserForm() {
 
 ## Status Code Access
 
-Error responses include a `__status` property for accessing the HTTP status code:
+The envelope `error.status` field carries the HTTP status; no `__status` injection is needed. `isHttpError(error, status)` narrows both the status and the typed body:
 
 ```typescript
-const getUser = client.query({
-  // ...
-  processResponse: (data) => {
-    if ('error' in data) {
-      // Access the status code
-      const status = (data as any).__status // 400, 404, or 500
-      console.log(`Error with status ${status}: ${data.error}`)
-      return { ok: false as const, error: data.error, status }
-    }
-    return { ok: true as const, user: data }
-  },
-})
-```
-
-## Error Handling vs Error Schema
-
-Understanding when to use each approach:
-
-### Error Schema (Discriminator Mode)
-
-Use when:
-- API returns structured error responses
-- You need to discriminate between different error types
-- You want to display error-specific UI
-- Validation errors need to be shown inline
-
-```typescript
-// Good: API returns structured validation errors
-errorSchema: {
-  400: z.object({
-    errors: z.array(z.object({
-      field: z.string(),
-      message: z.string(),
-    })),
-  }),
+if (envelope.error && envelope.error.kind === 'http') {
+  console.log(`Error with status ${envelope.error.status}`)
 }
 ```
 
-### Traditional Error Handling (onFail)
+## Global Error Logging
 
-Use when:
-- Errors should be logged but not displayed differently
-- You want errors to throw and be caught by error boundaries
-- Simple error toast/notification is sufficient
+Register a global `onError` hook on the builder for cross-cutting error handling. The hook receives a structured `BuilderErrorEvent` on every failure path (HTTP, validation, network):
 
 ```typescript
-const getUser = client.query({
-  method: 'GET',
-  url: '/users/$userId',
-  responseSchema: userSchema,
-  onFail: (error) => {
-    // Log error, show toast, etc.
-    // Error is still thrown
-    console.error('Failed to fetch user:', error)
-    toast.error('Failed to load user')
+const api = builder({
+  defaults: { result: 'envelope' },
+  onError: (event) => {
+    if (event.kind === 'http') {
+      reportHttpError(event.endpoint, event.status, event.body)
+    } else if (event.kind === 'validation') {
+      reportZodFailure(event.endpoint, event.zodIssues)
+    } else if (event.kind === 'network') {
+      reportNetworkFailure(event.endpoint, event.cause)
+    }
   },
 })
 ```
+
+The v1 `onFail` per-helper callback and `onZodError` builder callback were removed — use `onError(event)` and filter on `event.kind`.
 
 ## Best Practices
 
-### Use Discriminant Properties
+### Lean on Status Codes, Not Body Discriminants
 
-Design your error schemas with clear discriminant properties:
+In v2 the envelope error already carries `status` and `kind`. Design your `errorSchema` payloads to be simple per-status bodies rather than tagged unions:
 
 ```typescript
-// ✅ Good - clear discriminant
+// ✅ Good - simple per-status bodies; isHttpError(error, status) narrows the body
 errorSchema: {
-  400: z.object({ type: z.literal('validation'), errors: z.array(...) }),
-  404: z.object({ type: z.literal('not_found'), resource: z.string() }),
-  500: z.object({ type: z.literal('server_error'), message: z.string() }),
-}
-
-// ❌ Ambiguous - hard to discriminate
-errorSchema: {
-  400: z.object({ message: z.string() }),
+  400: z.object({ errors: z.array(z.object({ field: z.string(), message: z.string() })) }),
   404: z.object({ message: z.string() }),
-  500: z.object({ message: z.string() }),
+  500: z.object({ traceId: z.string() }),
 }
 ```
 
-### Consistent Result Types
+### Use `select` for Cosmetic Projections
 
-Use a consistent result type across your application:
-
-```typescript
-// types.ts
-type Result<T, E = string> =
-  | { ok: true; data: T }
-  | { ok: false; error: E }
-
-// In your queries
-processResponse: (data): Result<User, string> => {
-  if ('error' in data) {
-    return { ok: false, error: data.error }
-  }
-  return { ok: true, data: data }
-}
-```
-
-### Create Reusable Error Handlers
-
-For common error patterns, create helper functions:
+When you want to project a piece of the envelope to a derived shape on read, pass `select` to `use` / `useSuspense`:
 
 ```typescript
-// helpers.ts
-function handleApiResponse<T>(
-  data: T | { error: string } | { notFound: true },
-  successKey: keyof T,
-): Result<T> {
-  if ('error' in data) {
-    return { ok: false, error: data.error }
-  }
-  if ('notFound' in data) {
-    return { ok: false, error: 'Not found' }
-  }
-  return { ok: true, data }
-}
-
-// Usage
-processResponse: (data) => handleApiResponse(data, 'id')
+const { data: name } = getUser.use(
+  { urlParams: { userId } },
+  { select: (envelope) => envelope.data?.name ?? 'Unknown' },
+)
 ```
 
 ## Complete Example
 
 ```typescript
 // queries.ts
-const api = builder({ useDiscriminatorResponse: true })
+const api = builder({ defaults: { result: 'envelope' } })
 api.provideClient(create({ baseURL: '/api' }))
 
-const client = declareClient<true>({ api })
+const client = declareClient({ api })
 
-// Common error schema for all endpoints
 const commonErrorSchema = {
   401: z.object({ unauthorized: z.literal(true) }),
   403: z.object({ forbidden: z.literal(true), requiredRole: z.string() }),
@@ -363,50 +275,29 @@ export const getUser = client.query({
     ...commonErrorSchema,
     404: z.object({ notFound: z.literal(true) }),
   },
-  processResponse: (data) => {
-    // Handle common errors
-    if ('unauthorized' in data) {
-      return { ok: false as const, type: 'unauthorized' as const }
-    }
-    if ('forbidden' in data) {
-      return { ok: false as const, type: 'forbidden' as const, requiredRole: data.requiredRole }
-    }
-    if ('serverError' in data) {
-      return { ok: false as const, type: 'server_error' as const, message: data.serverError }
-    }
-    // Endpoint-specific errors
-    if ('notFound' in data) {
-      return { ok: false as const, type: 'not_found' as const }
-    }
-    // Success
-    return { ok: true as const, user: data }
-  },
 })
 ```
 
 ```tsx
 // UserProfile.tsx
-function UserProfile({ userId }: { userId: string }) {
-  const result = getUser.useSuspense({ urlParams: { userId } })
+import { isHttpError } from '@navios/builder'
 
-  if (!result.ok) {
-    switch (result.type) {
-      case 'unauthorized':
-        return <RedirectToLogin />
-      case 'forbidden':
-        return <AccessDenied requiredRole={result.requiredRole} />
-      case 'not_found':
-        return <NotFound message="User not found" />
-      case 'server_error':
-        return <ServerError message={result.message} />
-    }
+function UserProfile({ userId }: { userId: string }) {
+  const envelope = getUser.useSuspense({ urlParams: { userId } })
+
+  if (envelope.error) {
+    if (isHttpError(envelope.error, 401)) return <RedirectToLogin />
+    if (isHttpError(envelope.error, 403)) return <AccessDenied requiredRole={envelope.error.body.requiredRole} />
+    if (isHttpError(envelope.error, 404)) return <NotFound message="User not found" />
+    if (isHttpError(envelope.error, 500)) return <ServerError traceId={envelope.error.body.traceId} />
+    return <ErrorMessage error="Unknown error" />
   }
 
   return (
     <div>
-      <h1>{result.user.name}</h1>
-      <p>{result.user.email}</p>
-      <Badge>{result.user.role}</Badge>
+      <h1>{envelope.data.name}</h1>
+      <p>{envelope.data.email}</p>
+      <Badge>{envelope.data.role}</Badge>
     </div>
   )
 }
@@ -414,6 +305,6 @@ function UserProfile({ userId }: { userId: string }) {
 
 ## Next Steps
 
-- [Discriminated Unions](/docs/builder/builder/advanced/discriminated-unions) - Learn about builder discriminator mode
-- [Error Handling](/docs/builder/builder/guides/error-handling) - Traditional error handling
+- [Discriminated Unions](/docs/builder/builder/advanced/discriminated-unions) - Working with `responseSchema` discriminated unions
+- [Error Handling](/docs/builder/builder/guides/error-handling) - The unified `onError(event)` hook
 - [Queries](/docs/builder/react-query/guides/queries) - Basic query usage
