@@ -135,6 +135,23 @@ export type QueryKeyCreatorResult<
 }
 
 /**
+ * Per-call options accepted by `use` / `useSuspense`.
+ *
+ * Conservative subset of TanStack's query options. Currently only `select`
+ * is supported — it transforms the cached `Result` into `TSelected` and
+ * narrows the hook's `data` type accordingly. The transform runs after the
+ * queryFn (and after any envelope unwrap), letting components pull
+ * component-specific projections without redeclaring the query.
+ *
+ * If a per-call `select` is provided it overrides any construction-time
+ * `baseQuery.select`. We may widen this surface (e.g. `enabled`,
+ * `staleTime`) later — start conservative.
+ */
+export type UseQueryCallOptions<Result, TSelected> = {
+  select?: (data: Result) => TSelected
+}
+
+/**
  * Helper methods attached to query options.
  */
 export type QueryHelpers<
@@ -145,12 +162,14 @@ export type QueryHelpers<
   RequestSchema extends ZodType | undefined = undefined,
 > = {
   queryKey: QueryKeyCreatorResult<QuerySchema, Url, Result, IsInfinite>
-  use: (
+  use: <TSelected = Result>(
     params: Simplify<QueryArgs<Url, QuerySchema, RequestSchema>>,
-  ) => UseQueryResult<Result, Error>
-  useSuspense: (
+    opts?: UseQueryCallOptions<Result, TSelected>,
+  ) => UseQueryResult<TSelected, Error>
+  useSuspense: <TSelected = Result>(
     params: Simplify<QueryArgs<Url, QuerySchema, RequestSchema>>,
-  ) => UseSuspenseQueryResult<Result, Error>
+    opts?: UseQueryCallOptions<Result, TSelected>,
+  ) => UseSuspenseQueryResult<TSelected, Error>
   invalidate: (
     queryClient: QueryClient,
     params: Simplify<QueryArgs<Url, QuerySchema, RequestSchema>>,

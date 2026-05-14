@@ -151,10 +151,12 @@ export function makeQueryOptions<
    * Uses `useQuery` from TanStack Query internally.
    *
    * @param params - URL parameters, query parameters, and request body
+   * @param opts - Optional per-call options (currently `select` only). A
+   *   per-call `select` overrides any construction-time `baseQuery.select`.
    * @returns Query result with data, isLoading, error, etc.
    */
-  result.use = (params: any) => {
-    return useQuery(result(params))
+  result.use = (params: any, opts?: { select?: (data: Result) => unknown }) => {
+    return useQuery({ ...result(params), ...opts })
   }
 
   /**
@@ -163,10 +165,12 @@ export function makeQueryOptions<
    * The component will suspend while loading and throw on error.
    *
    * @param params - URL parameters, query parameters, and request body
+   * @param opts - Optional per-call options (currently `select` only). A
+   *   per-call `select` overrides any construction-time `baseQuery.select`.
    * @returns Query result with data guaranteed to be defined
    */
-  result.useSuspense = (params: any) => {
-    return useSuspenseQuery(result(params))
+  result.useSuspense = (params: any, opts?: { select?: (data: Result) => unknown }) => {
+    return useSuspenseQuery({ ...result(params), ...opts })
   }
 
   /**

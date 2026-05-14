@@ -6,7 +6,7 @@ import type {
   HttpMethod,
   StreamHandler,
 } from '@navios/builder'
-import type { InfiniteData, MutationFunctionContext } from '@tanstack/react-query'
+import type { MutationFunctionContext } from '@tanstack/react-query'
 import type { z, ZodObject, ZodType } from 'zod/v4'
 
 import { makeMutation } from '../mutation/make-hook.mjs'
@@ -51,7 +51,6 @@ export type InfiniteQueryConfig<
   Response extends ZodType = ZodType,
   ErrorSchema extends ErrorSchemaRecord | undefined = undefined,
   PageResult = z.output<Response>,
-  Result = InfiniteData<PageResult>,
   RequestSchema extends ZodType | undefined = undefined,
 > = {
   method: Method
@@ -63,7 +62,6 @@ export type InfiniteQueryConfig<
   unwrap?: InfiniteUnwrapMode
   result?: 'data' | 'envelope'
   validateResponse?: boolean
-  select?: (data: InfiniteData<PageResult>) => Result
   getNextPageParam: (
     lastPage: PageResult,
     allPages: PageResult[],

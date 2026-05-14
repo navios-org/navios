@@ -107,11 +107,20 @@ export function makeInfiniteQueryOptions<
    * Uses `useInfiniteQuery` from TanStack Query internally.
    *
    * @param params - URL parameters and initial query parameters
+   * @param opts - Optional per-call options (currently `select` only). The
+   *   transform receives `InfiniteData<PageResult>`. A per-call `select`
+   *   overrides any construction-time `baseQuery.select`.
    * @returns Infinite query result with pages, fetchNextPage, etc.
    */
-  res.use = (params: QueryArgs<Config['url'], Config['querySchema']>) => {
-    return useInfiniteQuery(res(params))
+  function useHook<TSelected = InfiniteData<PageResult>>(
+    params: QueryArgs<Config['url'], Config['querySchema']>,
+    opts?: { select?: (data: InfiniteData<PageResult>) => TSelected },
+  ) {
+    return useInfiniteQuery({ ...res(params), ...opts } as any) as ReturnType<
+      typeof useInfiniteQuery<PageResult, Error, TSelected>
+    >
   }
+  res.use = useHook
 
   /**
    * React hook that executes the infinite query with Suspense support.
@@ -119,11 +128,20 @@ export function makeInfiniteQueryOptions<
    * The component will suspend while loading and throw on error.
    *
    * @param params - URL parameters and initial query parameters
+   * @param opts - Optional per-call options (currently `select` only). The
+   *   transform receives `InfiniteData<PageResult>`. A per-call `select`
+   *   overrides any construction-time `baseQuery.select`.
    * @returns Infinite query result with pages guaranteed to be defined
    */
-  res.useSuspense = (params: QueryArgs<Config['url'], Config['querySchema']>) => {
-    return useSuspenseInfiniteQuery(res(params))
+  function useSuspenseHook<TSelected = InfiniteData<PageResult>>(
+    params: QueryArgs<Config['url'], Config['querySchema']>,
+    opts?: { select?: (data: InfiniteData<PageResult>) => TSelected },
+  ) {
+    return useSuspenseInfiniteQuery({ ...res(params), ...opts } as any) as ReturnType<
+      typeof useSuspenseInfiniteQuery<PageResult, Error, TSelected>
+    >
   }
+  res.useSuspense = useSuspenseHook
 
   /**
    * Creates a function that invalidates this specific infinite query in the cache.
