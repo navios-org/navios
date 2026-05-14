@@ -186,7 +186,9 @@ export type QueryHelpers<
  *   When `false` (default), errors are thrown and not included in the response type.
  */
 export type InfiniteQueryOptions<
-  Config extends BaseEndpointConfig<HttpMethod, string, ZodObject>,
+  Config extends (EndpointOptions | BaseEndpointConfig<HttpMethod, string, ZodObject>) & {
+    querySchema: ZodObject
+  },
   Res = any,
   UseDiscriminator extends boolean = false,
 > = {

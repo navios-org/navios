@@ -5,14 +5,14 @@ import {
   useSuspenseInfiniteQuery,
 } from '@tanstack/react-query'
 
-import type { AbstractEndpoint, AnyEndpointConfig, UrlParams } from '@navios/builder'
+import type { EndpointHandler, EndpointOptions, UrlParams } from '@navios/builder'
 import type {
   InfiniteData,
   QueryClient,
   UseInfiniteQueryOptions,
   UseSuspenseInfiniteQueryOptions,
 } from '@tanstack/react-query'
-import type { z } from 'zod/v4'
+import type { z, ZodObject } from 'zod/v4'
 
 import { createQueryKey } from './key-creator.mjs'
 
@@ -30,8 +30,13 @@ import type { InfiniteQueryOptions, QueryArgs } from './types.mjs'
  * @returns A function that generates infinite query options with attached helpers
  */
 export function makeInfiniteQueryOptions<
-  Config extends AnyEndpointConfig,
-  Options extends InfiniteQueryOptions<Config>,
+  Config extends EndpointOptions & { querySchema: ZodObject },
+  UseDiscriminator extends boolean = false,
+  Options extends InfiniteQueryOptions<Config, any, UseDiscriminator> = InfiniteQueryOptions<
+    Config,
+    any,
+    UseDiscriminator
+  >,
   BaseQuery extends Omit<
     UseInfiniteQueryOptions<ReturnType<NonNullable<Options['processResponse']>>, Error, any>,
     | 'queryKey'
@@ -40,8 +45,20 @@ export function makeInfiniteQueryOptions<
     | 'initialPageParam'
     | 'placeholderData'
     | 'throwOnError'
+  > = Omit<
+    UseInfiniteQueryOptions<ReturnType<NonNullable<Options['processResponse']>>, Error, any>,
+    | 'queryKey'
+    | 'queryFn'
+    | 'getNextPageParam'
+    | 'initialPageParam'
+    | 'placeholderData'
+    | 'throwOnError'
   >,
->(endpoint: AbstractEndpoint<Config>, options: Options, baseQuery: BaseQuery = {} as BaseQuery) {
+>(
+  endpoint: EndpointHandler<Config, UseDiscriminator>,
+  options: Options,
+  baseQuery: BaseQuery = {} as BaseQuery,
+) {
   const config = endpoint.config
   const queryKey = createQueryKey(config as any, options as any, true)
 
@@ -57,8 +74,8 @@ export function makeInfiniteQueryOptions<
         BaseQuery['select'] extends (...args: any[]) => infer T ? T : InfiniteData<Result>
       >
     : never => {
-    // @ts-expect-error TS2322 We know that the processResponse is defined
-    return infiniteQueryOptions({
+    // @ts-expect-error TS2322 We know that the processResponse is defined and types align at runtime
+    return infiniteQueryOptions<any, any, any, any, any>({
       // @ts-expect-error TS2345 We bind the url params only if the url has params
       queryKey: queryKey.dataTag(params),
       queryFn: async ({
@@ -67,15 +84,18 @@ export function makeInfiniteQueryOptions<
       }): Promise<ReturnType<NonNullable<Options['processResponse']>>> => {
         let result
         try {
+          const callParams = params as {
+            urlParams?: z.infer<UrlParams<Config['url']>>
+            params?: Record<string, unknown>
+          }
           result = await endpoint({
             signal,
-            // @ts-expect-error TS2345 We bind the url params only if the url has params
-            urlParams: params.urlParams as z.infer<UrlParams<Config['url']>>,
+            urlParams: callParams.urlParams,
             params: {
-              ...('params' in params ? params.params : {}),
+              ...callParams.params,
               ...(pageParam as z.infer<Config['querySchema']>),
             },
-          })
+          } as any)
         } catch (err) {
           if (options.onFail) {
             options.onFail(err)
