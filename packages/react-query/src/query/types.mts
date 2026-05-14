@@ -109,7 +109,6 @@ export type QueryUrlParamsArgs<Url extends string = string> =
 export type QueryParams<Options extends EndpointOptions, Res = any> = {
   keyPrefix?: string[]
   keySuffix?: string[]
-  onFail?: (err: unknown) => void
   processResponse: (
     data: ComputeResponseInput<Options['responseSchema'], Options['errorSchema']>,
   ) => Res
@@ -180,7 +179,6 @@ export type InfiniteQueryOptions<
   processResponse?: (
     data: ComputeResponseInput<Config['responseSchema'], Config['errorSchema']>,
   ) => Res
-  onFail?: (err: unknown) => void
   /**
    * For endpoints declared with `result: 'envelope'`, controls how each page
    * is delivered to React Query.

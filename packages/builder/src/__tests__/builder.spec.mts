@@ -51,17 +51,10 @@ describe('builder', () => {
       expect(api).toBeDefined()
     })
 
-    it('should accept config with onZodError', () => {
-      const onZodError = vi.fn()
-      const api = builder({ onZodError })
-
-      expect(api).toBeDefined()
-    })
-
     it('should accept full config', () => {
       const api = builder({
         onError: vi.fn(),
-        onZodError: vi.fn(),
+        defaults: { result: 'envelope' },
       })
 
       expect(api).toBeDefined()
@@ -396,7 +389,7 @@ describe('builder', () => {
   })
 
   describe('error handling with config', () => {
-    it('should call onError when request fails', async () => {
+    it('should call onError with structured event when request fails', async () => {
       const onError = vi.fn()
       const api = builder({ onError })
       const client: Client = {
@@ -411,7 +404,10 @@ describe('builder', () => {
       })
 
       await expect(endpoint({})).rejects.toThrow('Network error')
-      expect(onError).toHaveBeenCalled()
+      expect(onError).toHaveBeenCalledTimes(1)
+      const event = onError.mock.calls[0][0]
+      expect(event.kind).toBe('network')
+      expect(event.endpoint).toEqual({ method: 'GET', url: '/users' })
     })
   })
 

@@ -1,34 +1,52 @@
-import type { ZodError, ZodObject, ZodType } from 'zod/v4'
+import type { ZodObject, ZodType } from 'zod/v4'
+import type { $ZodIssue } from 'zod/v4/core'
 
-import type { AbstractResponse, Client, HttpMethod } from './common.mjs'
+import type { Client, HttpMethod } from './common.mjs'
+import type { EnvelopeError } from './envelope-error.mjs'
 import type { ErrorSchemaRecord } from './error-schema.mjs'
 
 // =============================================================================
 // Builder Configuration
 // =============================================================================
 
+/**
+ * Structured event fired by the unified `onError` hook on every error path.
+ *
+ * - In envelope mode, fired on validation/http/http-unknown/network outcomes
+ *   before the envelope is returned.
+ * - In data mode, fired before the error is rethrown.
+ */
+export interface BuilderErrorEvent {
+  /** Variant classification. Matches `EnvelopeError['kind']`. */
+  kind: EnvelopeError<ErrorSchemaRecord>['kind']
+
+  /** HTTP method and URL of the endpoint that produced the error. */
+  endpoint: {
+    method: HttpMethod
+    url: string
+  }
+
+  /** HTTP status code, when available (absent for `kind: 'network'`). */
+  status?: number
+
+  /** Zod validation issues, present when `kind === 'validation'`. */
+  zodIssues?: readonly $ZodIssue[]
+
+  /** Original thrown value (e.g. NaviosError, TypeError, AbortError). */
+  cause: unknown
+
+  /** Response body for HTTP errors (raw if `http-unknown`, parsed if `http`). */
+  body?: unknown
+}
+
 export interface BuilderConfig {
   /**
-   * This method is used to process the error response or to format the
-   * error message.
-   * @param error unknown or NaviosError
+   * Called whenever any error path fires — HTTP error, Zod validation failure,
+   * or network failure. In envelope mode, errors are not thrown but this hook
+   * still fires for telemetry. In data mode, this fires before the error is
+   * rethrown.
    */
-  onError?: (error: unknown) => void
-
-  /**
-   * This method is useful to handle the error with the zod schema.
-   * You can use this to log the error or to show a message to the user.
-   *
-   * Please note that this method has lower priority than the onError method.
-   * @param error ZodError
-   * @param response original response
-   * @param originalError original error
-   */
-  onZodError?: (
-    error: ZodError,
-    response: AbstractResponse<any> | undefined,
-    originalError: unknown,
-  ) => void
+  onError?: (event: BuilderErrorEvent) => void
 
   /** Default behaviour applied to every endpoint declaration unless overridden per-endpoint. */
   defaults?: {

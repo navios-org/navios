@@ -2,6 +2,7 @@ import { ZodError } from 'zod/v4'
 
 import type { ZodObject, ZodType } from 'zod/v4'
 
+import { buildErrorEvent } from '../errors/build-error-event.mjs'
 import { classifyError } from '../errors/classify-error.mjs'
 import { handleError } from '../errors/handle-error.mjs'
 import { bindUrlParams } from '../request/bind-url-params.mjs'
@@ -146,7 +147,10 @@ async function runEnvelope<Options extends BaseEndpointOptions, TResponse>(
   )
 
   if (!result.ok) {
-    if (config.onError) config.onError(result.error)
+    if (config.onError) {
+      const classified = classifyError(result.error, errorSchema)
+      config.onError(buildErrorEvent(classified, { method, url }, result.error))
+    }
     return buildErr(result.error, errorSchema) as TResponse
   }
 
@@ -158,16 +162,19 @@ async function runEnvelope<Options extends BaseEndpointOptions, TResponse>(
     // Validation or transform failed on a 2xx body. We already have a
     // successful HTTP response in hand, so any throw here is a validation
     // variant — keep Zod issues when available, empty list otherwise.
-    if (config.onError) config.onError(zerr)
+    const validationVariant: EnvelopeError = {
+      kind: 'validation' as const,
+      status: result.response.status,
+      issues: zerr instanceof ZodError ? zerr.issues : [],
+      body: raw,
+    }
+    if (config.onError) {
+      config.onError(buildErrorEvent(validationVariant, { method, url }, zerr))
+    }
     return {
       ok: false,
       data: null,
-      error: {
-        kind: 'validation' as const,
-        status: result.response.status,
-        issues: zerr instanceof ZodError ? zerr.issues : [],
-        body: raw,
-      },
+      error: validationVariant,
       response: toResponseMeta(result.response),
     } as TResponse
   }
@@ -200,8 +207,8 @@ async function runData<Options extends BaseEndpointOptions, TResponse>(
     const data = transformResponse ? transformResponse(result.data) : result.data
     return (shouldValidate && responseSchema ? responseSchema.parse(data) : data) as TResponse
   } catch (error) {
-    // handleError fires onError / onZodError callbacks then rethrows
-    handleError(config, error)
+    // handleError fires the structured onError event then rethrows
+    handleError(config, error, { method, url })
   }
 }
 

@@ -1,3 +1,4 @@
+export * from './build-error-event.mjs'
 export * from './classify-error.mjs'
 export * from './guards.mjs'
 export * from './handle-error.mjs'

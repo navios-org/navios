@@ -73,33 +73,22 @@ export function makeInfiniteQueryOptions<
         signal,
         pageParam,
       }): Promise<ReturnType<NonNullable<Options['processResponse']>>> => {
-        let result
-        try {
-          const callParams = params as {
-            urlParams?: z.infer<UrlParams<Config['url']>>
-            params?: Record<string, unknown>
-          }
-          result = await endpoint({
-            signal,
-            urlParams: callParams.urlParams,
-            params: {
-              ...callParams.params,
-              ...(pageParam as z.infer<Config['querySchema']>),
-            },
-          } as any)
-        } catch (err) {
-          if (options.onFail) {
-            options.onFail(err)
-          }
-          throw err
+        const callParams = params as {
+          urlParams?: z.infer<UrlParams<Config['url']>>
+          params?: Record<string, unknown>
         }
+        const result = await endpoint({
+          signal,
+          urlParams: callParams.urlParams,
+          params: {
+            ...callParams.params,
+            ...(pageParam as z.infer<Config['querySchema']>),
+          },
+        } as any)
 
         if (shouldUnwrap && isResponseEnvelope(result)) {
           const envelope = result as { ok: boolean; data?: unknown; error?: unknown }
           if (!envelope.ok) {
-            if (options.onFail) {
-              options.onFail(envelope.error)
-            }
             throw envelope.error
           }
           return processResponse(envelope.data) as ReturnType<

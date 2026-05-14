@@ -17,12 +17,11 @@ import type {
  * error handling callbacks, and various HTTP methods.
  *
  * @param config - Configuration options for the builder
- * @param config.onError - Optional callback function that will be called when
- *   any error occurs during a request. This is called before the error is thrown
- *   or processed.
- * @param config.onZodError - Optional callback function that will be called when
- *   a Zod validation error occurs. This is called after `onError` if provided.
- *   Useful for logging validation errors or showing user-friendly messages.
+ * @param config.onError - Optional callback fired on every error path with a
+ *   structured `BuilderErrorEvent`. Covers HTTP errors, Zod validation
+ *   failures (both on error responses and 2xx bodies), and network failures.
+ *   In envelope mode the hook fires before the error envelope is returned;
+ *   in data mode it fires before the error is rethrown.
  * @param config.defaults - Default behaviour applied to every endpoint declaration
  *   unless overridden per-endpoint (e.g. `defaults: { result: 'envelope' }`).
  *
@@ -36,10 +35,9 @@ import type {
  * // Envelope-by-default
  * const API = builder({
  *   defaults: { result: 'envelope' },
- *   onError: (error) => console.error('Request failed:', error),
- *   onZodError: (error, response) => {
- *     console.error('Validation failed:', error.errors)
- *   }
+ *   onError: (event) => {
+ *     console.error('Request failed:', event.kind, event.endpoint, event.cause)
+ *   },
  * })
  * ```
  */

@@ -30,7 +30,6 @@ export interface MakeQueryOptionsParams<
 > {
   keyPrefix?: string[]
   keySuffix?: string[]
-  onFail?: (err: unknown) => void
   processResponse?: (data: InferEndpointReturn<Options>) => Result
   /**
    * For endpoints declared with `result: 'envelope'`, controls how the
@@ -139,24 +138,13 @@ export function makeQueryOptions<
     return queryOptions({
       queryKey: queryKey.dataTag(params as any),
       queryFn: async ({ signal }): Promise<Result> => {
-        let result
-        try {
-          result = await endpoint({
-            signal,
-            ...params,
-          } as any)
-        } catch (err) {
-          if (options.onFail) {
-            options.onFail(err)
-          }
-          throw err
-        }
+        const result = await endpoint({
+          signal,
+          ...params,
+        } as any)
 
         if ((options.unwrap ?? 'none') === 'throw-on-error' && isResponseEnvelope(result)) {
           if (!result.ok) {
-            if (options.onFail) {
-              options.onFail(result.error)
-            }
             throw result.error
           }
           return processResponse(result.data as never)
