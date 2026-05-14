@@ -2,9 +2,12 @@ import type {
   AnyEndpointConfig,
   BaseEndpointConfig,
   EndpointOptions,
+  EnvelopeError,
+  ErrorSchemaRecord,
   HttpMethod,
   InferEndpointReturn,
   RequestArgs,
+  ResponseEnvelope,
   Simplify,
   UrlHasParams,
   UrlParams,
@@ -19,6 +22,45 @@ import type {
 import type { z, ZodObject, ZodType } from 'zod/v4'
 
 import type { ComputeResponseInput, Split } from '../common/types.mjs'
+
+/**
+ * Controls how `@navios/react-query` handles `result: 'envelope'` endpoints.
+ *
+ * - `'none'` (default): the `ResponseEnvelope` is stored verbatim as the
+ *   cached `data`; React Query's error channel is unused.
+ * - `'throw-on-error'`: on `envelope.ok === false` the `envelope.error` is
+ *   thrown from the queryFn so React Query's `error` channel fires. On
+ *   success, the unwrapped `envelope.data` is cached.
+ *
+ * Has no effect on non-envelope endpoints.
+ */
+export type UnwrapMode = 'none' | 'throw-on-error'
+
+/**
+ * Result type for an envelope-mode endpoint given an `UnwrapMode`.
+ *
+ * - `'throw-on-error'` → unwrapped success data (envelope.data on the ok branch).
+ * - `'none'` (default) → full `ResponseEnvelope` discriminated union.
+ */
+export type EnvelopeQueryResult<
+  Options extends EndpointOptions,
+  Unwrap extends UnwrapMode = 'none',
+> = Unwrap extends 'throw-on-error'
+  ? z.output<Options['responseSchema']>
+  : ResponseEnvelope<
+      z.output<Options['responseSchema']>,
+      EnvelopeError<
+        Options['errorSchema'] extends ErrorSchemaRecord ? Options['errorSchema'] : undefined
+      >
+    >
+
+/**
+ * The error type produced by the queryFn for an envelope-mode endpoint when
+ * `unwrap: 'throw-on-error'`. Non-envelope endpoints fall back to `Error`.
+ */
+export type EnvelopeQueryError<Options extends EndpointOptions> = EnvelopeError<
+  Options['errorSchema'] extends ErrorSchemaRecord ? Options['errorSchema'] : undefined
+>
 
 /**
  * Helper type to extract the result type from processResponse.
