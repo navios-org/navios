@@ -3,7 +3,7 @@ import { z, ZodType } from 'zod/v4'
 export type MessagePattern = 'pubsub' | 'point-to-point' | 'request-reply'
 
 /**
- * Base message configuration similar to BaseEndpointConfig but for messages.
+ * Base message configuration similar to BaseEndpointOptions but for messages.
  */
 export interface BaseMessageConfig<
   Pattern extends MessagePattern = MessagePattern,
