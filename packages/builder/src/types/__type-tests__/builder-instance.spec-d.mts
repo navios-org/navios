@@ -17,7 +17,6 @@ import type {
 } from '../index.mjs'
 
 declare const api: BuilderInstance
-declare const apiWithDiscriminator: BuilderInstance<true>
 
 const responseSchema = zod.object({
   id: zod.string(),
@@ -1103,7 +1102,7 @@ describe('errorSchema type utilities', () => {
   })
 })
 
-describe('declareEndpoint with errorSchema (uses apiWithDiscriminator)', () => {
+describe('declareEndpoint with errorSchema (data mode)', () => {
   const error400Schema = zod.object({ error: zod.string(), code: zod.number() })
   const error404Schema = zod.object({ notFound: zod.literal(true) })
 
@@ -1112,27 +1111,22 @@ describe('declareEndpoint with errorSchema (uses apiWithDiscriminator)', () => {
     404: error404Schema,
   } satisfies ErrorSchemaRecord
 
-  type Error400Type = z.output<typeof error400Schema>
-  type Error404Type = z.output<typeof error404Schema>
-
-  test('GET endpoint with errorSchema returns union type', () => {
-    const endpoint = apiWithDiscriminator.declareEndpoint({
+  test('GET endpoint with errorSchema still returns just the success type', () => {
+    const endpoint = api.declareEndpoint({
       method: 'GET',
       url: '/users/$userId',
       responseSchema,
       errorSchema,
     })
 
-    // Return type should be union of success and all error types
-    assertType<
-      (params: {
-        urlParams: { userId: string | number }
-      }) => Promise<ResponseType | Error400Type | Error404Type>
-    >(endpoint)
+    // In data mode the return type is the success type only — errors throw.
+    assertType<(params: { urlParams: { userId: string | number } }) => Promise<ResponseType>>(
+      endpoint,
+    )
   })
 
   test('GET endpoint with errorSchema and querySchema', () => {
-    const endpoint = apiWithDiscriminator.declareEndpoint({
+    const endpoint = api.declareEndpoint({
       method: 'GET',
       url: '/users',
       querySchema,
@@ -1140,13 +1134,11 @@ describe('declareEndpoint with errorSchema (uses apiWithDiscriminator)', () => {
       errorSchema,
     })
 
-    assertType<
-      (params: { params: QueryType }) => Promise<ResponseType | Error400Type | Error404Type>
-    >(endpoint)
+    assertType<(params: { params: QueryType }) => Promise<ResponseType>>(endpoint)
   })
 
   test('POST endpoint with all schemas and errorSchema', () => {
-    const endpoint = apiWithDiscriminator.declareEndpoint({
+    const endpoint = api.declareEndpoint({
       method: 'POST',
       url: '/users',
       requestSchema,
@@ -1154,13 +1146,11 @@ describe('declareEndpoint with errorSchema (uses apiWithDiscriminator)', () => {
       errorSchema,
     })
 
-    assertType<
-      (params: { data: RequestType }) => Promise<ResponseType | Error400Type | Error404Type>
-    >(endpoint)
+    assertType<(params: { data: RequestType }) => Promise<ResponseType>>(endpoint)
   })
 
   test('POST endpoint with querySchema, requestSchema, and errorSchema', () => {
-    const endpoint = apiWithDiscriminator.declareEndpoint({
+    const endpoint = api.declareEndpoint({
       method: 'POST',
       url: '/users',
       querySchema,
@@ -1169,27 +1159,23 @@ describe('declareEndpoint with errorSchema (uses apiWithDiscriminator)', () => {
       errorSchema,
     })
 
-    assertType<
-      (params: {
-        params: QueryType
-        data: RequestType
-      }) => Promise<ResponseType | Error400Type | Error404Type>
-    >(endpoint)
+    assertType<(params: { params: QueryType; data: RequestType }) => Promise<ResponseType>>(
+      endpoint,
+    )
   })
 
   test('endpoint without errorSchema still returns simple type', () => {
-    const endpoint = apiWithDiscriminator.declareEndpoint({
+    const endpoint = api.declareEndpoint({
       method: 'GET',
       url: '/users',
       responseSchema,
     })
 
-    // No errorSchema = simple return type
     assertType<(params: {}) => Promise<ResponseType>>(endpoint)
   })
 
   test('endpoint config includes errorSchema', () => {
-    const endpoint = apiWithDiscriminator.declareEndpoint({
+    const endpoint = api.declareEndpoint({
       method: 'GET',
       url: '/users/$userId',
       responseSchema,
@@ -1209,14 +1195,12 @@ describe('declareEndpoint with errorSchema (uses apiWithDiscriminator)', () => {
   })
 })
 
-describe('declareMultipart with errorSchema (uses apiWithDiscriminator)', () => {
+describe('declareMultipart with errorSchema (data mode)', () => {
   const error413Schema = zod.object({ error: zod.literal('File too large') })
   const errorSchema = { 413: error413Schema } satisfies ErrorSchemaRecord
 
-  type Error413Type = z.output<typeof error413Schema>
-
-  test('multipart POST with errorSchema returns union type', () => {
-    const endpoint = apiWithDiscriminator.declareMultipart({
+  test('multipart POST with errorSchema returns just the success type', () => {
+    const endpoint = api.declareMultipart({
       method: 'POST',
       url: '/upload',
       requestSchema: multipartRequestSchema,
@@ -1224,15 +1208,13 @@ describe('declareMultipart with errorSchema (uses apiWithDiscriminator)', () => 
       errorSchema,
     })
 
-    assertType<
-      (params: {
-        data: z.input<typeof multipartRequestSchema>
-      }) => Promise<ResponseType | Error413Type>
-    >(endpoint)
+    assertType<(params: { data: z.input<typeof multipartRequestSchema> }) => Promise<ResponseType>>(
+      endpoint,
+    )
   })
 
   test('multipart POST with querySchema and errorSchema', () => {
-    const endpoint = apiWithDiscriminator.declareMultipart({
+    const endpoint = api.declareMultipart({
       method: 'POST',
       url: '/upload',
       querySchema,
@@ -1245,12 +1227,12 @@ describe('declareMultipart with errorSchema (uses apiWithDiscriminator)', () => 
       (params: {
         params: QueryType
         data: z.input<typeof multipartRequestSchema>
-      }) => Promise<ResponseType | Error413Type>
+      }) => Promise<ResponseType>
     >(endpoint)
   })
 })
 
-describe('declareStream with errorSchema (uses apiWithDiscriminator)', () => {
+describe('declareStream with errorSchema (data mode)', () => {
   const error404Schema = zod.object({ error: zod.literal('File not found') })
   const error403Schema = zod.object({ error: zod.literal('Access denied') })
 
@@ -1259,51 +1241,40 @@ describe('declareStream with errorSchema (uses apiWithDiscriminator)', () => {
     403: error403Schema,
   } satisfies ErrorSchemaRecord
 
-  type Error404Type = z.output<typeof error404Schema>
-  type Error403Type = z.output<typeof error403Schema>
-
-  test('GET stream with errorSchema returns Blob union error types', () => {
-    const stream = apiWithDiscriminator.declareStream({
+  test('GET stream with errorSchema returns just Blob', () => {
+    const stream = api.declareStream({
       method: 'GET',
       url: '/files/$fileId',
       errorSchema,
     })
 
-    assertType<
-      (params: {
-        urlParams: { fileId: string | number }
-      }) => Promise<Blob | Error404Type | Error403Type>
-    >(stream)
+    assertType<(params: { urlParams: { fileId: string | number } }) => Promise<Blob>>(stream)
   })
 
   test('GET stream with querySchema and errorSchema', () => {
-    const stream = apiWithDiscriminator.declareStream({
+    const stream = api.declareStream({
       method: 'GET',
       url: '/export',
       querySchema,
       errorSchema,
     })
 
-    assertType<(params: { params: QueryType }) => Promise<Blob | Error404Type | Error403Type>>(
-      stream,
-    )
+    assertType<(params: { params: QueryType }) => Promise<Blob>>(stream)
   })
 
   test('POST stream with requestSchema and errorSchema', () => {
-    const stream = apiWithDiscriminator.declareStream({
+    const stream = api.declareStream({
       method: 'POST',
       url: '/generate',
       requestSchema,
       errorSchema,
     })
 
-    assertType<(params: { data: RequestType }) => Promise<Blob | Error404Type | Error403Type>>(
-      stream,
-    )
+    assertType<(params: { data: RequestType }) => Promise<Blob>>(stream)
   })
 
   test('POST stream with all schemas and errorSchema', () => {
-    const stream = apiWithDiscriminator.declareStream({
+    const stream = api.declareStream({
       method: 'POST',
       url: '/generate',
       querySchema,
@@ -1311,16 +1282,11 @@ describe('declareStream with errorSchema (uses apiWithDiscriminator)', () => {
       errorSchema,
     })
 
-    assertType<
-      (params: {
-        params: QueryType
-        data: RequestType
-      }) => Promise<Blob | Error404Type | Error403Type>
-    >(stream)
+    assertType<(params: { params: QueryType; data: RequestType }) => Promise<Blob>>(stream)
   })
 
   test('stream without errorSchema still returns Blob', () => {
-    const stream = apiWithDiscriminator.declareStream({
+    const stream = api.declareStream({
       method: 'GET',
       url: '/download',
     })
@@ -1329,7 +1295,7 @@ describe('declareStream with errorSchema (uses apiWithDiscriminator)', () => {
   })
 
   test('stream config includes errorSchema', () => {
-    const stream = apiWithDiscriminator.declareStream({
+    const stream = api.declareStream({
       method: 'GET',
       url: '/files/$fileId',
       errorSchema,
@@ -1338,155 +1304,5 @@ describe('declareStream with errorSchema (uses apiWithDiscriminator)', () => {
     assertType<BaseStreamConfig<'GET', '/files/$fileId', undefined, undefined, typeof errorSchema>>(
       stream.config,
     )
-  })
-})
-
-describe('BuilderInstance generic parameter for useDiscriminatorResponse', () => {
-  const error400Schema = zod.object({ error: zod.string(), code: zod.number() })
-  const error404Schema = zod.object({ notFound: zod.literal(true) })
-
-  const errorSchema = {
-    400: error400Schema,
-    404: error404Schema,
-  } satisfies ErrorSchemaRecord
-
-  type Error400Type = z.output<typeof error400Schema>
-  type Error404Type = z.output<typeof error404Schema>
-
-  describe('useDiscriminatorResponse: false (default)', () => {
-    // Using the default api which has UseDiscriminator = false
-    test('endpoint with errorSchema returns only success type', () => {
-      const endpoint = api.declareEndpoint({
-        method: 'GET',
-        url: '/users/$userId',
-        responseSchema,
-        errorSchema,
-      })
-
-      // Return type should be only success type, NOT union with errors
-      assertType<(params: { urlParams: { userId: string | number } }) => Promise<ResponseType>>(
-        endpoint,
-      )
-    })
-
-    test('POST endpoint with errorSchema returns only success type', () => {
-      const endpoint = api.declareEndpoint({
-        method: 'POST',
-        url: '/users',
-        requestSchema,
-        responseSchema,
-        errorSchema,
-      })
-
-      assertType<(params: { data: RequestType }) => Promise<ResponseType>>(endpoint)
-    })
-
-    test('stream with errorSchema returns only Blob', () => {
-      const stream = api.declareStream({
-        method: 'GET',
-        url: '/files/$fileId',
-        errorSchema,
-      })
-
-      assertType<(params: { urlParams: { fileId: string | number } }) => Promise<Blob>>(stream)
-    })
-
-    test('multipart with errorSchema returns only success type', () => {
-      const endpoint = api.declareMultipart({
-        method: 'POST',
-        url: '/upload',
-        requestSchema: multipartRequestSchema,
-        responseSchema,
-        errorSchema,
-      })
-
-      assertType<
-        (params: { data: z.input<typeof multipartRequestSchema> }) => Promise<ResponseType>
-      >(endpoint)
-    })
-  })
-
-  describe('useDiscriminatorResponse: true', () => {
-    // Uses apiWithDiscriminator declared at module level
-
-    test('endpoint with errorSchema returns union type', () => {
-      const endpoint = apiWithDiscriminator.declareEndpoint({
-        method: 'GET',
-        url: '/users/$userId',
-        responseSchema,
-        errorSchema,
-      })
-
-      // Return type should be union of success and all error types
-      assertType<
-        (params: {
-          urlParams: { userId: string | number }
-        }) => Promise<ResponseType | Error400Type | Error404Type>
-      >(endpoint)
-    })
-
-    test('POST endpoint with errorSchema returns union type', () => {
-      const endpoint = apiWithDiscriminator.declareEndpoint({
-        method: 'POST',
-        url: '/users',
-        requestSchema,
-        responseSchema,
-        errorSchema,
-      })
-
-      assertType<
-        (params: { data: RequestType }) => Promise<ResponseType | Error400Type | Error404Type>
-      >(endpoint)
-    })
-
-    test('stream with errorSchema returns union with Blob', () => {
-      const stream = apiWithDiscriminator.declareStream({
-        method: 'GET',
-        url: '/files/$fileId',
-        errorSchema,
-      })
-
-      assertType<
-        (params: {
-          urlParams: { fileId: string | number }
-        }) => Promise<Blob | Error400Type | Error404Type>
-      >(stream)
-    })
-
-    test('multipart with errorSchema returns union type', () => {
-      const endpoint = apiWithDiscriminator.declareMultipart({
-        method: 'POST',
-        url: '/upload',
-        requestSchema: multipartRequestSchema,
-        responseSchema,
-        errorSchema,
-      })
-
-      assertType<
-        (params: {
-          data: z.input<typeof multipartRequestSchema>
-        }) => Promise<ResponseType | Error400Type | Error404Type>
-      >(endpoint)
-    })
-
-    test('endpoint without errorSchema still returns simple type', () => {
-      const endpoint = apiWithDiscriminator.declareEndpoint({
-        method: 'GET',
-        url: '/users',
-        responseSchema,
-      })
-
-      // No errorSchema = simple return type regardless of UseDiscriminator
-      assertType<(params: {}) => Promise<ResponseType>>(endpoint)
-    })
-
-    test('stream without errorSchema still returns Blob', () => {
-      const stream = apiWithDiscriminator.declareStream({
-        method: 'GET',
-        url: '/download',
-      })
-
-      assertType<(params: {}) => Promise<Blob>>(stream)
-    })
   })
 })

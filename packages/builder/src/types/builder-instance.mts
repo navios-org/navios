@@ -4,7 +4,7 @@ import type { Client } from './common.mjs'
 import type { BaseEndpointOptions, EndpointOptions } from './config.mjs'
 import type { EnvelopeError } from './envelope-error.mjs'
 import type { ResponseEnvelope } from './envelope.mjs'
-import type { ErrorSchemaRecord, InferErrorSchemaOutputWithStatus } from './error-schema.mjs'
+import type { ErrorSchemaRecord } from './error-schema.mjs'
 import type { Simplify, UrlHasParams, UrlParams } from './request.mjs'
 
 // =============================================================================
@@ -112,14 +112,12 @@ export type InferStreamParams<Options extends BaseEndpointOptions> = Simplify<
 >
 
 /**
- * Infers the return type based on responseSchema, errorSchema, and UseDiscriminator.
- *
- * When UseDiscriminator is true and errorSchema is provided, the return type
- * is a union of the success response and all error responses.
+ * Infers the return type based on responseSchema and result mode.
  *
  * When `result: 'envelope'` is set on the endpoint, the return type becomes a
  * `ResponseEnvelope<Data, EnvelopeError<ErrorSchema>>` and the function never
- * throws. The envelope branch takes precedence over `UseDiscriminator`.
+ * throws. Otherwise the return type is the parsed response data and the
+ * function throws on error.
  *
  * @example
  * ```ts
@@ -130,55 +128,35 @@ export type InferStreamParams<Options extends BaseEndpointOptions> = Simplify<
  *   errorSchema: { 404: notFoundSchema },
  * } as const
  *
- * // Without discriminator: z.output<userSchema>
- * type Result1 = InferEndpointReturn<typeof options, false>
- *
- * // With discriminator: z.output<userSchema> | z.output<notFoundSchema>
- * type Result2 = InferEndpointReturn<typeof options, true>
+ * type Result = InferEndpointReturn<typeof options>
+ * // z.output<userSchema>
  * ```
  */
-export type InferEndpointReturn<
-  Options extends EndpointOptions,
-  UseDiscriminator extends boolean,
-> = Options['result'] extends 'envelope'
-  ? ResponseEnvelope<
-      z.output<Options['responseSchema']>,
-      EnvelopeError<
-        Options['errorSchema'] extends ErrorSchemaRecord ? Options['errorSchema'] : undefined
+export type InferEndpointReturn<Options extends EndpointOptions> =
+  Options['result'] extends 'envelope'
+    ? ResponseEnvelope<
+        z.output<Options['responseSchema']>,
+        EnvelopeError<
+          Options['errorSchema'] extends ErrorSchemaRecord ? Options['errorSchema'] : undefined
+        >
       >
-    >
-  : UseDiscriminator extends true
-    ? Options['errorSchema'] extends ErrorSchemaRecord
-      ?
-          | z.output<Options['responseSchema']>
-          | InferErrorSchemaOutputWithStatus<Options['errorSchema']>
-      : z.output<Options['responseSchema']>
     : z.output<Options['responseSchema']>
 
 /**
  * Infers the return type for stream endpoints.
  *
- * Streams always return Blob, but with UseDiscriminator, error responses
- * can be returned as part of the union.
- *
- * When `result: 'envelope'` is set on the endpoint, the return type becomes a
- * `ResponseEnvelope<Blob, EnvelopeError<ErrorSchema>>` and the function never
- * throws. The envelope branch takes precedence over `UseDiscriminator`.
+ * Streams return `Blob` by default. When `result: 'envelope'` is set on the
+ * endpoint, the return type becomes a `ResponseEnvelope<Blob, EnvelopeError<ErrorSchema>>`
+ * and the function never throws.
  */
-export type InferStreamReturn<
-  Options extends BaseEndpointOptions,
-  UseDiscriminator extends boolean,
-> = Options['result'] extends 'envelope'
-  ? ResponseEnvelope<
-      Blob,
-      EnvelopeError<
-        Options['errorSchema'] extends ErrorSchemaRecord ? Options['errorSchema'] : undefined
+export type InferStreamReturn<Options extends BaseEndpointOptions> =
+  Options['result'] extends 'envelope'
+    ? ResponseEnvelope<
+        Blob,
+        EnvelopeError<
+          Options['errorSchema'] extends ErrorSchemaRecord ? Options['errorSchema'] : undefined
+        >
       >
-    >
-  : UseDiscriminator extends true
-    ? Options['errorSchema'] extends ErrorSchemaRecord
-      ? Blob | InferErrorSchemaOutputWithStatus<Options['errorSchema']>
-      : Blob
     : Blob
 
 /**
@@ -189,14 +167,14 @@ export type InferStreamReturn<
  *
  * @example
  * ```ts
- * const getUser: EndpointHandler<typeof options, false> = api.declareEndpoint(options)
+ * const getUser: EndpointHandler<typeof options> = api.declareEndpoint(options)
  * const result = await getUser({ urlParams: { userId: '123' } })
  * const config = getUser.config // Access the original config
  * ```
  */
-export type EndpointHandler<Options extends EndpointOptions, UseDiscriminator extends boolean> = ((
+export type EndpointHandler<Options extends EndpointOptions> = ((
   params: InferEndpointParams<Options>,
-) => Promise<InferEndpointReturn<Options, UseDiscriminator>>) & {
+) => Promise<InferEndpointReturn<Options>>) & {
   config: Options
 }
 
@@ -205,12 +183,9 @@ export type EndpointHandler<Options extends EndpointOptions, UseDiscriminator ex
  *
  * Similar to EndpointHandler but for streaming endpoints that return Blob.
  */
-export type StreamHandler<
-  Options extends BaseEndpointOptions,
-  UseDiscriminator extends boolean,
-> = ((
+export type StreamHandler<Options extends BaseEndpointOptions> = ((
   params: InferStreamParams<Options>,
-) => Promise<InferStreamReturn<Options, UseDiscriminator>>) & {
+) => Promise<InferStreamReturn<Options>>) & {
   config: Options
 }
 
@@ -224,11 +199,8 @@ export type StreamHandler<
  * Uses TypeScript's `const` type parameter inference to reduce overloads
  * while maintaining full type safety. All schema combinations are handled
  * by a single generic method per endpoint type.
- *
- * @template UseDiscriminator - When true, error responses are returned as part
- *   of a union type. When false (default), errors are thrown.
  */
-export interface BuilderInstance<UseDiscriminator extends boolean = false> {
+export interface BuilderInstance {
   /**
    * Provides the HTTP client instance to use for requests.
    * Must be called before making any API calls.
@@ -272,9 +244,7 @@ export interface BuilderInstance<UseDiscriminator extends boolean = false> {
    * })
    * ```
    */
-  declareEndpoint<const Options extends EndpointOptions>(
-    options: Options,
-  ): EndpointHandler<Options, UseDiscriminator>
+  declareEndpoint<const Options extends EndpointOptions>(options: Options): EndpointHandler<Options>
 
   /**
    * Declares a multipart/form-data endpoint for file uploads.
@@ -297,7 +267,7 @@ export interface BuilderInstance<UseDiscriminator extends boolean = false> {
    */
   declareMultipart<const Options extends EndpointOptions>(
     options: Options,
-  ): EndpointHandler<Options, UseDiscriminator>
+  ): EndpointHandler<Options>
 
   /**
    * Declares a streaming endpoint that returns a Blob.
@@ -315,9 +285,7 @@ export interface BuilderInstance<UseDiscriminator extends boolean = false> {
    * const blob = await downloadFile({ urlParams: { fileId: '123' } })
    * ```
    */
-  declareStream<const Options extends BaseEndpointOptions>(
-    options: Options,
-  ): StreamHandler<Options, UseDiscriminator>
+  declareStream<const Options extends BaseEndpointOptions>(options: Options): StreamHandler<Options>
 }
 
 // =============================================================================

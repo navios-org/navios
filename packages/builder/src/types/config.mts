@@ -7,18 +7,7 @@ import type { ErrorSchemaRecord } from './error-schema.mjs'
 // Builder Configuration
 // =============================================================================
 
-export interface BuilderConfig<UseDiscriminator extends boolean = false> {
-  /**
-   * If your schema uses discriminatedUnion which works for both success
-   * and error responses, you can set this to true to use the discriminator
-   * to parse error response using the same schema as success response.
-   *
-   * When `true`, endpoints with `errorSchema` will return a union type
-   * (success response | error responses). When `false` (default), errors
-   * are thrown and the return type is only the success response.
-   */
-  useDiscriminatorResponse?: UseDiscriminator
-
+export interface BuilderConfig {
   /**
    * This method is used to process the error response or to format the
    * error message.
@@ -48,9 +37,9 @@ export interface BuilderConfig<UseDiscriminator extends boolean = false> {
   }
 }
 
-export interface BuilderContext<UseDiscriminator extends boolean = boolean> {
+export interface BuilderContext {
   getClient: () => Client
-  config: BuilderConfig<UseDiscriminator>
+  config: BuilderConfig
 }
 
 // =============================================================================
@@ -139,9 +128,8 @@ export interface BaseEndpointOptions {
   /**
    * Optional mapping of HTTP status codes to Zod schemas for error responses.
    *
-   * When `useDiscriminatorResponse` is enabled:
-   * - Matching status codes return parsed error (not thrown)
-   * - Non-matching status codes throw `UnknownResponseError`
+   * In envelope mode (`result: 'envelope'`), matching status codes are
+   * classified as typed `http` errors with parsed bodies.
    */
   errorSchema?: ErrorSchemaRecord
 
@@ -223,11 +211,6 @@ export interface BaseStreamConfig<
   requestSchema?: RequestSchema
   /**
    * Optional mapping of HTTP status codes to Zod schemas for error responses.
-   *
-   * When `useDiscriminatorResponse` is enabled and an error occurs:
-   * - If the status code matches a key in errorSchema, parse with that schema and RETURN (not throw)
-   * - If the status code does NOT match any key, throw `UnknownResponseError`
-   * - If errorSchema is not defined, use current behavior (re-throw or parse with responseSchema)
    */
   errorSchema?: ErrorSchema
   /**

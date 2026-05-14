@@ -13,33 +13,29 @@ import type {
  * Creates a new API builder instance with the specified configuration.
  *
  * The builder allows you to declaratively define API endpoints with type-safe
- * request and response schemas using Zod. It supports discriminated unions for
- * handling different response types, error handling callbacks, and various
- * HTTP methods.
+ * request and response schemas using Zod. It supports envelope-mode responses,
+ * error handling callbacks, and various HTTP methods.
  *
  * @param config - Configuration options for the builder
- * @param config.useDiscriminatorResponse - If `true`, error responses will be
- *   parsed using the same responseSchema as success responses and the return
- *   type will include the error schema union. If `false` (default), errors are
- *   thrown and the return type is only the success response. This affects both
- *   runtime behavior and TypeScript types.
  * @param config.onError - Optional callback function that will be called when
  *   any error occurs during a request. This is called before the error is thrown
  *   or processed.
  * @param config.onZodError - Optional callback function that will be called when
  *   a Zod validation error occurs. This is called after `onError` if provided.
  *   Useful for logging validation errors or showing user-friendly messages.
+ * @param config.defaults - Default behaviour applied to every endpoint declaration
+ *   unless overridden per-endpoint (e.g. `defaults: { result: 'envelope' }`).
  *
  * @returns A BuilderInstance with methods to declare endpoints and manage the HTTP client
  *
  * @example
  * ```ts
- * // Default mode: errors are thrown, return type is just the success response
+ * // Default mode: errors are thrown, return type is the success response
  * const API = builder()
  *
- * // Discriminator mode: errors are returned, return type includes error union
+ * // Envelope-by-default
  * const API = builder({
- *   useDiscriminatorResponse: true,
+ *   defaults: { result: 'envelope' },
  *   onError: (error) => console.error('Request failed:', error),
  *   onZodError: (error, response) => {
  *     console.error('Validation failed:', error.errors)
@@ -47,9 +43,7 @@ import type {
  * })
  * ```
  */
-export function builder<UseDiscriminator extends boolean = false>(
-  config: BuilderConfig<UseDiscriminator> = {} as BuilderConfig<UseDiscriminator>,
-): BuilderInstance<UseDiscriminator> {
+export function builder(config: BuilderConfig = {}): BuilderInstance {
   let client: Client | null = null
 
   /**
@@ -66,20 +60,6 @@ export function builder<UseDiscriminator extends boolean = false>(
   }
 
   const context = { getClient, config }
-
-  let warnedDeprecation = false
-  function maybeWarnDeprecation() {
-    if (warnedDeprecation) return
-    warnedDeprecation = true
-    if (config.useDiscriminatorResponse) {
-      // eslint-disable-next-line no-console
-      console.warn(
-        '[@navios/builder] `useDiscriminatorResponse` is deprecated and will be removed in the next major. ' +
-          "Use per-endpoint `result: 'envelope'` (or `defaults: { result: 'envelope' }`) instead. " +
-          'See docs/plans/2026-05-14-builder-response-envelope-design.md',
-      )
-    }
-  }
 
   /**
    * Sets or replaces the HTTP client instance used by all endpoints.
@@ -107,19 +87,10 @@ export function builder<UseDiscriminator extends boolean = false>(
   // 2. The type inference happens through the BuilderInstance interface
   // 3. The handler functions already handle optional schemas via conditional logic
   return {
-    declareEndpoint: (options: EndpointOptions) => {
-      maybeWarnDeprecation()
-      return createEndpoint(options, context)
-    },
-    declareStream: (options: BaseEndpointOptions) => {
-      maybeWarnDeprecation()
-      return createStream(options, context)
-    },
-    declareMultipart: (options: EndpointOptions) => {
-      maybeWarnDeprecation()
-      return createMultipart(options, context)
-    },
+    declareEndpoint: (options: EndpointOptions) => createEndpoint(options, context),
+    declareStream: (options: BaseEndpointOptions) => createStream(options, context),
+    declareMultipart: (options: EndpointOptions) => createMultipart(options, context),
     provideClient,
     getClient,
-  } as BuilderInstance<UseDiscriminator>
+  } as BuilderInstance
 }

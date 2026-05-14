@@ -111,7 +111,7 @@ export function createHandler<Options extends EndpointOptions | StreamOptions, T
       }
     }
 
-    // Legacy data mode — unchanged behaviour, plus validateResponse opt-out.
+    // Legacy data mode — validate (if enabled) and return, or throw via handleError.
     try {
       const result = await client.request(
         makeConfig(finalRequest, options, method, finalUrlPart, isMultipart),
@@ -121,9 +121,8 @@ export function createHandler<Options extends EndpointOptions | StreamOptions, T
 
       return (shouldValidate && responseSchema ? responseSchema.parse(data) : data) as TResponse
     } catch (error) {
-      // handleError may return a parsed response (when useDiscriminatorResponse is true)
-      // or throw an error
-      return handleError(config, error, responseSchema, errorSchema) as TResponse
+      // handleError fires onError / onZodError callbacks then rethrows
+      handleError(config, error)
     }
   }
 
