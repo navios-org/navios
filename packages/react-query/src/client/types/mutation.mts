@@ -1,7 +1,5 @@
 import type {
   EndpointOptions,
-  ErrorSchemaRecord,
-  HttpMethod,
   RequestArgs,
   Simplify,
   UrlHasParams,
@@ -13,7 +11,7 @@ import type { ZodObject, ZodType } from 'zod/v4'
 import type { MutationHelpers } from '../../mutation/types.mjs'
 import type { UnwrapMode } from '../../query/types.mjs'
 
-import type { ComputeResult, EndpointHelper, OptionsFromInline, ResultMode } from './helpers.mjs'
+import type { ComputeResult, EndpointHelper } from './helpers.mjs'
 
 /**
  * Variables shape passed to the mutation hook, derived from the inferred
@@ -29,85 +27,13 @@ type MutationVariables<Options extends EndpointOptions> = Simplify<
 >
 
 /**
- * Extended endpoint options interface for mutation. Inherits the endpoint
- * fields via the per-field generics for inference, then derives the
- * mutation-specific callback / context shapes from the synthesised
- * `Options` so they automatically pick up future endpoint fields.
- */
-interface MutationEndpointConfig<
-  Method extends HttpMethod,
-  Url extends string,
-  QuerySchema extends ZodObject | undefined,
-  RequestSchema extends ZodType | undefined,
-  ResponseSchema extends ZodType,
-  ErrorSchema extends ErrorSchemaRecord | undefined,
-  UrlParamsSchema extends ZodObject | undefined,
-  ResultModeT extends ResultMode,
-  UseKey extends boolean,
-  Unwrap extends UnwrapMode,
-  Result,
-  OnMutateResult,
-  Context,
-  Variables,
-> extends EndpointOptions {
-  method: Method
-  url: Url
-  querySchema?: QuerySchema
-  requestSchema?: RequestSchema
-  responseSchema: ResponseSchema
-  errorSchema?: ErrorSchema
-  urlParamsSchema?: UrlParamsSchema
-  result?: ResultModeT
-  /**
-   * For endpoints declared with `result: 'envelope'`, controls how the
-   * envelope is delivered to React Query's mutation channel.
-   *
-   * - `'none'` (default): the `ResponseEnvelope` is returned as-is.
-   * - `'throw-on-error'`: on `envelope.ok === false`, the `envelope.error`
-   *   is thrown so React Query's `onError` channel fires.
-   *
-   * Has no effect for non-envelope endpoints.
-   */
-  unwrap?: Unwrap
-  useContext?: () => Context
-  useKey?: UseKey
-  onMutate?: (
-    variables: Variables,
-    context: Context & MutationFunctionContext,
-  ) => OnMutateResult | Promise<OnMutateResult>
-  onSuccess?: (
-    data: NoInfer<Result>,
-    variables: Variables,
-    context: Context &
-      MutationFunctionContext & {
-        onMutateResult: OnMutateResult | undefined
-      },
-  ) => void | Promise<void>
-  onError?: (
-    error: Error,
-    variables: Variables,
-    context: Context &
-      MutationFunctionContext & {
-        onMutateResult: OnMutateResult | undefined
-      },
-  ) => void | Promise<void>
-  onSettled?: (
-    data: NoInfer<Result> | undefined,
-    error: Error | null,
-    variables: Variables,
-    context: Context &
-      MutationFunctionContext & {
-        onMutateResult: OnMutateResult | undefined
-      },
-  ) => void | Promise<void>
-}
-
-/**
- * Mutation method.
- *
- * Uses the same decomposed-generics inference pattern as `query`; the
- * synthesised `Options` is reused everywhere downstream so future endpoint
- * fields propagate automatically.
+ * Mutation method using a single `Options extends EndpointOptions` generic
+ * (inferred from the literal config via the structural copy
+ * `{ [K in keyof Options]: Options[K] }`, which keeps surface-specific fields
+ * out of `Options`) plus surface-specific generics (`UseKey`, `Unwrap`,
+ * callback context). Downstream return-type derivations reference `Options`
+ * directly so adding a new endpoint field to `EndpointOptions` propagates
+ * automatically.
  */
 export interface ClientMutationMethods {
   /**
@@ -127,54 +53,68 @@ export interface ClientMutationMethods {
    * ```
    */
   mutation<
-    const Method extends HttpMethod = HttpMethod,
-    const Url extends string = string,
-    const QuerySchema extends ZodObject | undefined = undefined,
-    const RequestSchema extends ZodType | undefined = undefined,
-    const ResponseSchema extends ZodType = ZodType,
-    const ErrorSchema extends ErrorSchemaRecord | undefined = undefined,
-    const UrlParamsSchema extends ZodObject | undefined = undefined,
-    const ResultModeT extends ResultMode = undefined,
+    const Options extends EndpointOptions,
     const UseKey extends boolean = false,
     const Unwrap extends UnwrapMode = 'none',
-    const Options extends EndpointOptions = OptionsFromInline<
-      Method,
-      Url,
-      QuerySchema,
-      RequestSchema,
-      ResponseSchema,
-      ErrorSchema,
-      UrlParamsSchema,
-      ResultModeT
-    >,
-    const Result = ComputeResult<Options, Unwrap>,
     const OnMutateResult = unknown,
     const Context = unknown,
-    const Variables = MutationVariables<Options>,
   >(
-    config: MutationEndpointConfig<
-      Method,
-      Url,
-      QuerySchema,
-      RequestSchema,
-      ResponseSchema,
-      ErrorSchema,
-      UrlParamsSchema,
-      ResultModeT,
-      UseKey,
-      Unwrap,
-      Result,
-      OnMutateResult,
-      Context,
-      Variables
-    >,
+    config: { [K in keyof Options]: Options[K] } & {
+      /**
+       * For endpoints declared with `result: 'envelope'`, controls how the
+       * envelope is delivered to React Query's mutation channel.
+       *
+       * - `'none'` (default): the `ResponseEnvelope` is returned as-is.
+       * - `'throw-on-error'`: on `envelope.ok === false`, the `envelope.error`
+       *   is thrown so React Query's `onError` channel fires.
+       *
+       * Has no effect for non-envelope endpoints.
+       */
+      unwrap?: Unwrap
+      useContext?: () => Context
+      useKey?: UseKey
+      onMutate?: (
+        variables: MutationVariables<Options>,
+        context: Context & MutationFunctionContext,
+      ) => OnMutateResult | Promise<OnMutateResult>
+      onSuccess?: (
+        data: NoInfer<ComputeResult<Options, Unwrap>>,
+        variables: MutationVariables<Options>,
+        context: Context &
+          MutationFunctionContext & {
+            onMutateResult: OnMutateResult | undefined
+          },
+      ) => void | Promise<void>
+      onError?: (
+        error: Error,
+        variables: MutationVariables<Options>,
+        context: Context &
+          MutationFunctionContext & {
+            onMutateResult: OnMutateResult | undefined
+          },
+      ) => void | Promise<void>
+      onSettled?: (
+        data: NoInfer<ComputeResult<Options, Unwrap>> | undefined,
+        error: Error | null,
+        variables: MutationVariables<Options>,
+        context: Context &
+          MutationFunctionContext & {
+            onMutateResult: OnMutateResult | undefined
+          },
+      ) => void | Promise<void>
+    },
   ): ((
     ...args: UseKey extends true
-      ? UrlHasParams<Url> extends true
-        ? [{ urlParams: UrlParams<Url> }]
+      ? UrlHasParams<Options['url']> extends true
+        ? [{ urlParams: UrlParams<Options['url']> }]
         : [{}]
       : []
-  ) => UseMutationResult<Result, Error, Variables, OnMutateResult>) &
-    (UseKey extends true ? MutationHelpers<Options['url'], Result> : {}) &
+  ) => UseMutationResult<
+    ComputeResult<Options, Unwrap>,
+    Error,
+    MutationVariables<Options>,
+    OnMutateResult
+  >) &
+    (UseKey extends true ? MutationHelpers<Options['url'], ComputeResult<Options, Unwrap>> : {}) &
     EndpointHelper<Options>
 }

@@ -12,15 +12,6 @@ import type { z } from 'zod/v4'
 import type { InfiniteUnwrapMode, UnwrapMode } from '../../query/types.mjs'
 
 /**
- * Result mode parameter for inline client configs.
- *
- * - `'data'` (or `undefined`, default): legacy "data-only" surface — success
- *   `z.output<ResponseSchema>` is returned, errors are thrown.
- * - `'envelope'`: surface type is `ResponseEnvelope<Data, EnvelopeError<ErrorSchema>>`.
- */
-export type ResultMode = 'data' | 'envelope' | undefined
-
-/**
  * Compute the public data-channel type for an endpoint, taking unwrap mode
  * into account.
  *
@@ -51,44 +42,6 @@ export type ComputeResult<
         >
       >
   : z.output<Options['responseSchema']>
-
-/**
- * Build a minimal `EndpointOptions`-shaped type from the loose per-field
- * generics that the inline-config client methods (`client.query`,
- * `client.mutation`, `client.infiniteQuery`, `client.multipartMutation`)
- * carry.
- *
- * Optional fields (`querySchema`, `requestSchema`, `errorSchema`,
- * `urlParamsSchema`) are only present in the resulting shape when the
- * corresponding generic is not `undefined` — this keeps property-presence
- * checks (e.g. `'querySchema' in Options`) working downstream.
- *
- * The per-field generics are still required for inference (TypeScript
- * cannot simultaneously infer a single `Options extends EndpointOptions`
- * generic AND provide useful contextual types for callbacks like
- * `onSuccess`/`onError` from the same literal). Once `Options` is
- * synthesised via this helper, every downstream type derivation references
- * `Options` directly — so new fields added to `BaseEndpointOptions` flow
- * through automatically without per-surface re-declaration in return types.
- */
-export type OptionsFromInline<
-  Method,
-  Url,
-  QuerySchema,
-  RequestSchema,
-  ResponseSchema,
-  ErrorSchema,
-  UrlParamsSchema,
-  ResultModeT,
-> = {
-  method: Method
-  url: Url
-  responseSchema: ResponseSchema
-} & (QuerySchema extends undefined ? {} : { querySchema: QuerySchema }) &
-  (RequestSchema extends undefined ? {} : { requestSchema: RequestSchema }) &
-  (ErrorSchema extends undefined ? {} : { errorSchema: ErrorSchema }) &
-  (UrlParamsSchema extends undefined ? {} : { urlParamsSchema: UrlParamsSchema }) &
-  (ResultModeT extends undefined ? {} : { result: ResultModeT })
 
 /**
  * Helper type that attaches the endpoint to query/mutation results.
