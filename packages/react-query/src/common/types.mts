@@ -1,4 +1,9 @@
-import type { BuilderInstance, ErrorSchemaRecord, InferErrorSchemaOutput } from '@navios/builder'
+import type {
+  BuilderInstance,
+  EndpointHandler,
+  ErrorSchemaRecord,
+  InferErrorSchemaOutput,
+} from '@navios/builder'
 import type { z, ZodType } from 'zod/v4'
 
 /**
@@ -89,3 +94,17 @@ export type ComputeResultType<
     ? z.output<ResponseSchema> | InferErrorSchemaOutput<ErrorSchema>
     : z.output<ResponseSchema>
   : ProcessedResult
+
+/**
+ * Returns true if an endpoint handler was declared with `result: 'envelope'`.
+ *
+ * Used by react-query helpers to switch type inference and unwrap behaviour
+ * (see `unwrap` option) when the endpoint produces a `ResponseEnvelope` rather
+ * than a parsed body.
+ */
+export type IsEnvelope<E> =
+  E extends EndpointHandler<infer O, boolean>
+    ? O extends { result: 'envelope' }
+      ? true
+      : false
+    : false

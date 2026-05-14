@@ -31,7 +31,7 @@ export interface MakeQueryOptionsParams<
   keyPrefix?: string[]
   keySuffix?: string[]
   onFail?: (err: unknown) => void
-  processResponse: (data: InferEndpointReturn<Options, UseDiscriminator>) => Result
+  processResponse?: (data: InferEndpointReturn<Options, UseDiscriminator>) => Result
 }
 
 /**
@@ -112,7 +112,9 @@ export function makeQueryOptions<
   > {
   const config = endpoint.config
   const queryKey = createQueryKey(config as any, options as any, false)
-  const processResponse = options.processResponse
+  const processResponse =
+    options.processResponse ??
+    ((data: InferEndpointReturn<Options, UseDiscriminator>) => data as unknown as Result)
 
   const result = (
     params: Simplify<
