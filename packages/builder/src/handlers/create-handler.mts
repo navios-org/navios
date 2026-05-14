@@ -7,8 +7,9 @@ import { handleError } from '../errors/handle-error.mjs'
 import { bindUrlParams } from '../request/bind-url-params.mjs'
 import { makeConfig } from '../request/make-config.mjs'
 
-import type { AbstractResponse } from '../types/common.mjs'
-import type { ResponseMeta } from '../types/envelope.mjs'
+import type { AbstractRequestConfig, AbstractResponse, Client } from '../types/common.mjs'
+import type { EnvelopeError } from '../types/envelope-error.mjs'
+import type { ResponseEnvelopeErr, ResponseEnvelopeOk, ResponseMeta } from '../types/envelope.mjs'
 import type { ErrorSchemaRecord } from '../types/error-schema.mjs'
 import type { BaseEndpointOptions, BuilderContext } from '../types/index.mjs'
 
@@ -37,7 +38,41 @@ export interface CreateHandlerOptions<Options extends BaseEndpointOptions> {
   transformResponse?: (data: unknown) => unknown
 }
 
-function toResponseMeta(r: {
+// =============================================================================
+// Composers (exported for direct testing and reuse)
+// =============================================================================
+
+/**
+ * Result of {@link runRequest}: a discriminated union of either a successful
+ * response or an unknown thrown value.
+ */
+export type RunResult =
+  | { ok: true; response: AbstractResponse<unknown> }
+  | { ok: false; error: unknown }
+
+/**
+ * Execute a single HTTP request against the client and convert the
+ * resolve/reject outcome into a discriminated {@link RunResult}.
+ */
+export async function runRequest(
+  client: Client,
+  config: AbstractRequestConfig,
+): Promise<RunResult> {
+  try {
+    const response = await client.request(config)
+    return { ok: true, response }
+  } catch (error) {
+    return { ok: false, error }
+  }
+}
+
+/**
+ * Normalize the response-meta carried on a successful (or error-with-response)
+ * HTTP outcome into the canonical {@link ResponseMeta} shape. Plain-object
+ * header bags are upgraded to a `Headers` instance; an existing `Headers` is
+ * passed through.
+ */
+export function toResponseMeta(r: {
   status: number
   statusText: string
   headers: Headers | Record<string, string>
@@ -46,87 +81,149 @@ function toResponseMeta(r: {
   return { status: r.status, statusText: r.statusText, headers }
 }
 
-export function createHandler<Options extends BaseEndpointOptions, TResponse>({
-  options,
-  context: { getClient, config },
-  isMultipart = false,
-  responseSchema,
-  errorSchema,
-  urlParamsSchema,
-  transformRequest,
-  transformResponse,
-}: CreateHandlerOptions<Options>) {
+/**
+ * Construct a success envelope from already-parsed data plus the raw response.
+ */
+export function buildOk<TData>(
+  data: TData,
+  response: { status: number; statusText: string; headers: Headers | Record<string, string> },
+): ResponseEnvelopeOk<TData> {
+  return { ok: true, data, error: null, response: toResponseMeta(response) }
+}
+
+/**
+ * Construct an error envelope by classifying an unknown thrown value into an
+ * {@link EnvelopeError} variant. If the thrown value carries an HTTP
+ * `response`, that response is normalized and preserved on the envelope;
+ * otherwise `response` is `null` (network variant).
+ */
+export function buildErr(
+  error: unknown,
+  errorSchema: ErrorSchemaRecord | undefined,
+): ResponseEnvelopeErr<EnvelopeError<ErrorSchemaRecord>> {
+  const envError = classifyError(error, errorSchema) as EnvelopeError<ErrorSchemaRecord>
+  const resp = (
+    error as {
+      response?: { status: number; statusText: string; headers: Headers | Record<string, string> }
+    }
+  ).response
+  return {
+    ok: false,
+    data: null,
+    error: envError,
+    response: resp ? toResponseMeta(resp) : null,
+  }
+}
+
+// =============================================================================
+// Mode-specific composers (private)
+// =============================================================================
+
+async function runEnvelope<Options extends BaseEndpointOptions, TResponse>(
+  opts: CreateHandlerOptions<Options>,
+  request: HandlerRequest,
+): Promise<TResponse> {
+  const {
+    options,
+    context: { getClient, config },
+    isMultipart = false,
+    responseSchema,
+    errorSchema,
+    urlParamsSchema,
+    transformRequest,
+    transformResponse,
+  } = opts
   const { method, url } = options
-  const resultMode =
-    (options as { result?: 'data' | 'envelope' }).result ?? config.defaults?.result ?? 'data'
   const shouldValidate = (options as { validateResponse?: boolean }).validateResponse !== false
 
-  const handler = async (request: HandlerRequest = {} as HandlerRequest): Promise<TResponse> => {
-    const client = getClient()
-    const finalUrlPart = bindUrlParams<Options['url']>(url, request, urlParamsSchema)
-    const finalRequest = transformRequest ? transformRequest(request) : request
+  const client = getClient()
+  const finalUrlPart = bindUrlParams<Options['url']>(url, request, urlParamsSchema)
+  const finalRequest = transformRequest ? transformRequest(request) : request
 
-    if (resultMode === 'envelope') {
-      try {
-        const result = await client.request(
-          makeConfig(finalRequest, options, method, finalUrlPart, isMultipart),
-        )
-        const raw = transformResponse ? transformResponse(result.data) : result.data
-        try {
-          const data = shouldValidate && responseSchema ? responseSchema.parse(raw) : raw
-          return {
-            ok: true,
-            data,
-            error: null,
-            response: toResponseMeta(result),
-          } as TResponse
-        } catch (zerr) {
-          // Validation or transform failed on a 2xx body. We already have a
-          // successful HTTP response in hand, so any throw here is a validation
-          // variant — keep Zod issues when available, empty list otherwise.
-          if (config.onError) config.onError(zerr)
-          const envError = {
-            kind: 'validation' as const,
-            status: result.status,
-            issues: zerr instanceof ZodError ? zerr.issues : [],
-            body: raw,
-          }
-          return {
-            ok: false,
-            data: null,
-            error: envError,
-            response: toResponseMeta(result),
-          } as TResponse
-        }
-      } catch (err) {
-        if (config.onError) config.onError(err)
-        const envError = classifyError(err, errorSchema)
-        const resp = (err as { response?: AbstractResponse<unknown> }).response
-        return {
-          ok: false,
-          data: null,
-          error: envError,
-          response: resp ? toResponseMeta(resp) : null,
-        } as TResponse
-      }
-    }
+  const result = await runRequest(
+    client,
+    makeConfig(finalRequest, options, method, finalUrlPart, isMultipart),
+  )
 
-    // Legacy data mode — validate (if enabled) and return, or throw via handleError.
-    try {
-      const result = await client.request(
-        makeConfig(finalRequest, options, method, finalUrlPart, isMultipart),
-      )
-
-      const data = transformResponse ? transformResponse(result.data) : result.data
-
-      return (shouldValidate && responseSchema ? responseSchema.parse(data) : data) as TResponse
-    } catch (error) {
-      // handleError fires onError / onZodError callbacks then rethrows
-      handleError(config, error)
-    }
+  if (!result.ok) {
+    if (config.onError) config.onError(result.error)
+    return buildErr(result.error, errorSchema) as TResponse
   }
 
-  handler.config = options
+  const raw = transformResponse ? transformResponse(result.response.data) : result.response.data
+  try {
+    const data = shouldValidate && responseSchema ? responseSchema.parse(raw) : raw
+    return buildOk(data, result.response) as TResponse
+  } catch (zerr) {
+    // Validation or transform failed on a 2xx body. We already have a
+    // successful HTTP response in hand, so any throw here is a validation
+    // variant — keep Zod issues when available, empty list otherwise.
+    if (config.onError) config.onError(zerr)
+    return {
+      ok: false,
+      data: null,
+      error: {
+        kind: 'validation' as const,
+        status: result.response.status,
+        issues: zerr instanceof ZodError ? zerr.issues : [],
+        body: raw,
+      },
+      response: toResponseMeta(result.response),
+    } as TResponse
+  }
+}
+
+async function runData<Options extends BaseEndpointOptions, TResponse>(
+  opts: CreateHandlerOptions<Options>,
+  request: HandlerRequest,
+): Promise<TResponse> {
+  const {
+    options,
+    context: { getClient, config },
+    isMultipart = false,
+    responseSchema,
+    urlParamsSchema,
+    transformRequest,
+    transformResponse,
+  } = opts
+  const { method, url } = options
+  const shouldValidate = (options as { validateResponse?: boolean }).validateResponse !== false
+
+  const client = getClient()
+  const finalUrlPart = bindUrlParams<Options['url']>(url, request, urlParamsSchema)
+  const finalRequest = transformRequest ? transformRequest(request) : request
+
+  try {
+    const result = await client.request(
+      makeConfig(finalRequest, options, method, finalUrlPart, isMultipart),
+    )
+    const data = transformResponse ? transformResponse(result.data) : result.data
+    return (shouldValidate && responseSchema ? responseSchema.parse(data) : data) as TResponse
+  } catch (error) {
+    // handleError fires onError / onZodError callbacks then rethrows
+    handleError(config, error)
+  }
+}
+
+// =============================================================================
+// Selector
+// =============================================================================
+
+export function createHandler<Options extends BaseEndpointOptions, TResponse>(
+  opts: CreateHandlerOptions<Options>,
+) {
+  const resultMode =
+    (opts.options as { result?: 'data' | 'envelope' }).result ??
+    opts.context.config.defaults?.result ??
+    'data'
+
+  const handler = async (request: HandlerRequest = {} as HandlerRequest): Promise<TResponse> => {
+    return resultMode === 'envelope'
+      ? runEnvelope<Options, TResponse>(opts, request)
+      : runData<Options, TResponse>(opts, request)
+  }
+
+  handler.config = opts.options
 
   return handler
 }
