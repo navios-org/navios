@@ -10,7 +10,7 @@ import { makeConfig } from '../request/make-config.mjs'
 import type { AbstractResponse } from '../types/common.mjs'
 import type { ResponseMeta } from '../types/envelope.mjs'
 import type { ErrorSchemaRecord } from '../types/error-schema.mjs'
-import type { BuilderContext, EndpointOptions, StreamOptions } from '../types/index.mjs'
+import type { BaseEndpointOptions, BuilderContext } from '../types/index.mjs'
 
 /**
  * Base request type for handler functions.
@@ -25,7 +25,7 @@ export interface HandlerRequest {
   [key: string]: unknown
 }
 
-export interface CreateHandlerOptions<Options extends EndpointOptions | StreamOptions> {
+export interface CreateHandlerOptions<Options extends BaseEndpointOptions> {
   options: Options
   context: BuilderContext
   isMultipart?: boolean
@@ -46,7 +46,7 @@ function toResponseMeta(r: {
   return { status: r.status, statusText: r.statusText, headers }
 }
 
-export function createHandler<Options extends EndpointOptions | StreamOptions, TResponse>({
+export function createHandler<Options extends BaseEndpointOptions, TResponse>({
   options,
   context: { getClient, config },
   isMultipart = false,

@@ -2,8 +2,7 @@ import { isResponseEnvelope } from '@navios/builder'
 import { useIsMutating, useMutation } from '@tanstack/react-query'
 
 import type {
-  AnyEndpointConfig,
-  BaseEndpointConfig,
+  EndpointOptions,
   ErrorSchemaRecord,
   HttpMethod,
   InferErrorSchemaOutput,
@@ -27,7 +26,7 @@ import type { MutationHelpers } from './types.mjs'
 /**
  * Helper type for endpoint with config property
  */
-type EndpointWithConfig<Config extends AnyEndpointConfig> = ((params: any) => Promise<any>) & {
+type EndpointWithConfig<Config extends EndpointOptions> = ((params: any) => Promise<any>) & {
   config: Config
 }
 
@@ -45,7 +44,7 @@ type ResponseInput<
  * Options type for makeMutation
  */
 type MakeMutationParams<
-  Config extends AnyEndpointConfig,
+  Config extends EndpointOptions,
   ResponseSchema extends ZodType,
   ErrorSchema extends ErrorSchemaRecord | undefined,
   TData,
@@ -128,10 +127,24 @@ export function makeMutation<
   UseKey extends boolean = false,
 >(
   endpoint: EndpointWithConfig<
-    BaseEndpointConfig<Method, Url, QuerySchema, ResponseSchema, RequestSchema, ErrorSchema>
+    EndpointOptions & {
+      method: Method
+      url: Url
+      querySchema?: QuerySchema
+      responseSchema: ResponseSchema
+      requestSchema?: RequestSchema
+      errorSchema?: ErrorSchema
+    }
   >,
   options: MakeMutationParams<
-    BaseEndpointConfig<Method, Url, QuerySchema, ResponseSchema, RequestSchema, ErrorSchema>,
+    EndpointOptions & {
+      method: Method
+      url: Url
+      querySchema?: QuerySchema
+      responseSchema: ResponseSchema
+      requestSchema?: RequestSchema
+      errorSchema?: ErrorSchema
+    },
     ResponseSchema,
     ErrorSchema,
     TData,
@@ -162,10 +175,22 @@ export function makeMutation<
   UseKey extends boolean = false,
 >(
   endpoint: EndpointWithConfig<
-    BaseEndpointConfig<Method, Url, QuerySchema, ResponseSchema, RequestSchema, undefined>
+    EndpointOptions & {
+      method: Method
+      url: Url
+      querySchema?: QuerySchema
+      responseSchema: ResponseSchema
+      requestSchema?: RequestSchema
+    }
   >,
   options: MakeMutationParams<
-    BaseEndpointConfig<Method, Url, QuerySchema, ResponseSchema, RequestSchema, undefined>,
+    EndpointOptions & {
+      method: Method
+      url: Url
+      querySchema?: QuerySchema
+      responseSchema: ResponseSchema
+      requestSchema?: RequestSchema
+    },
     ResponseSchema,
     undefined,
     TData,
@@ -184,7 +209,7 @@ export function makeMutation<
   MutationHelpers<Url, TData>
 
 // Implementation
-export function makeMutation(endpoint: EndpointWithConfig<AnyEndpointConfig>, options: any): any {
+export function makeMutation(endpoint: EndpointWithConfig<EndpointOptions>, options: any): any {
   const config = endpoint.config
 
   const mutationKey = createMutationKey(config, {

@@ -1,5 +1,5 @@
 import type {
-  AnyEndpointConfig,
+  EndpointOptions,
   ErrorSchemaRecord,
   InferErrorSchemaOutput,
   RequestArgs,
@@ -59,7 +59,7 @@ export type MutationHelpers<Url extends string, Result = unknown> =
  * Base parameters for mutation configuration.
  */
 export interface MutationParams<
-  Config extends AnyEndpointConfig,
+  Config extends EndpointOptions,
   TData = unknown,
   TVariables = RequestArgs<
     Config['url'],
@@ -148,7 +148,7 @@ export type ClientMutationArgs<
 
 /** @deprecated Use MutationParams instead */
 export type BaseMutationParams<
-  Config extends AnyEndpointConfig,
+  Config extends EndpointOptions,
   TData = unknown,
   TVariables = RequestArgs<
     Config['url'],
@@ -162,7 +162,7 @@ export type BaseMutationParams<
 > = MutationParams<Config, TData, TVariables, TResponse, TContext, UseKey>
 
 /** @deprecated Use RequestArgs from @navios/builder instead */
-export type BaseMutationArgs<Config extends AnyEndpointConfig> = RequestArgs<
+export type BaseMutationArgs<Config extends EndpointOptions> = RequestArgs<
   Config['url'],
   Config['querySchema'],
   Config['requestSchema'],

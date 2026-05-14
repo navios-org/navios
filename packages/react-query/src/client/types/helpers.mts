@@ -4,11 +4,10 @@ import type {
   EndpointOptions,
   EnvelopeError,
   ErrorSchemaRecord,
-  HttpMethod,
   ResponseEnvelope,
   StreamHandler,
 } from '@navios/builder'
-import type { z, ZodType } from 'zod/v4'
+import type { z } from 'zod/v4'
 
 import type { InfiniteUnwrapMode, UnwrapMode } from '../../query/types.mjs'
 
@@ -93,89 +92,18 @@ export type OptionsFromInline<
 
 /**
  * Helper type that attaches the endpoint to query/mutation results.
- * Supports both new const generic pattern and legacy pattern with individual parameters.
  *
- * New pattern (1 arg):
- * @template Options - EndpointOptions from builder (new const generic pattern)
- *
- * Legacy pattern (2-5 args):
- * @template Method - HTTP method
- * @template Url - URL template
- * @template RequestSchema - Request body schema
- * @template ResponseSchema - Response schema
- * @template QuerySchema - Query params schema (optional)
+ * @template Options - EndpointOptions from builder (const generic pattern)
  */
-export type EndpointHelper<
-  OptionsOrMethod extends EndpointOptions | HttpMethod = EndpointOptions,
-  Url extends string = string,
-  RequestSchema = undefined,
-  ResponseSchema extends ZodType = ZodType,
-  QuerySchema = undefined,
-> = OptionsOrMethod extends EndpointOptions
-  ? {
-      endpoint: EndpointHandler<OptionsOrMethod>
-    }
-  : OptionsOrMethod extends HttpMethod
-    ? {
-        endpoint: EndpointHandler<
-          EndpointOptions & {
-            method: OptionsOrMethod
-            url: Url
-            requestSchema: RequestSchema
-            responseSchema: ResponseSchema
-            querySchema: QuerySchema
-          }
-        >
-      }
-    : never
-
-// Legacy export for backwards compatibility
-/** @deprecated Use EndpointHelper instead */
-export type ClientEndpointHelper<
-  Method extends HttpMethod = HttpMethod,
-  Url extends string = string,
-  RequestSchema = unknown,
-  ResponseSchema extends z.ZodType = z.ZodType,
-  QuerySchema = unknown,
-> = EndpointHelper<Method, Url, RequestSchema, ResponseSchema, QuerySchema>
+export type EndpointHelper<Options extends EndpointOptions> = {
+  endpoint: EndpointHandler<Options>
+}
 
 /**
  * Helper type that attaches a stream endpoint to mutation results.
- * Supports both new const generic pattern and legacy pattern with individual parameters.
  *
- * New pattern (1 arg):
- * @template Options - BaseEndpointOptions from builder (new const generic pattern)
- *
- * Legacy pattern (2-6 args):
- * @template Method - HTTP method
- * @template Url - URL template
- * @template QuerySchema - Query params schema
- * @template RequestSchema - Request body schema
- * @template ErrorSchema - Error schema (optional)
- * @template UrlParamsSchema - URL params schema (optional)
+ * @template Options - BaseEndpointOptions from builder (const generic pattern)
  */
-export type StreamHelper<
-  OptionsOrMethod extends BaseEndpointOptions | HttpMethod = BaseEndpointOptions,
-  Url extends string = string,
-  QuerySchema = undefined,
-  RequestSchema = undefined,
-  ErrorSchema = undefined,
-  UrlParamsSchema = undefined,
-> = OptionsOrMethod extends BaseEndpointOptions
-  ? {
-      endpoint: StreamHandler<OptionsOrMethod>
-    }
-  : OptionsOrMethod extends HttpMethod
-    ? {
-        endpoint: StreamHandler<
-          BaseEndpointOptions & {
-            method: OptionsOrMethod
-            url: Url
-            querySchema: QuerySchema
-            requestSchema: RequestSchema
-            errorSchema: ErrorSchema
-            urlParamsSchema: UrlParamsSchema
-          }
-        >
-      }
-    : never
+export type StreamHelper<Options extends BaseEndpointOptions> = {
+  endpoint: StreamHandler<Options>
+}

@@ -1,6 +1,6 @@
 import { bindUrlParams } from '@navios/builder'
 
-import type { AnyEndpointConfig, UrlHasParams } from '@navios/builder'
+import type { EndpointOptions, UrlHasParams } from '@navios/builder'
 import type { DataTag, InfiniteData } from '@tanstack/react-query'
 
 import type { Split } from '../common/types.mjs'
@@ -19,7 +19,7 @@ import type { QueryKeyCreatorResult, QueryParams } from './types.mjs'
  * @returns An object with methods to generate query keys
  */
 export function createQueryKey<
-  Config extends AnyEndpointConfig,
+  Config extends EndpointOptions,
   Options extends QueryParams<Config>,
   IsInfinite extends boolean,
   Url extends Config['url'] = Config['url'],

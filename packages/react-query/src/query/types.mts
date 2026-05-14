@@ -1,10 +1,7 @@
 import type {
-  AnyEndpointConfig,
-  BaseEndpointConfig,
   EndpointOptions,
   EnvelopeError,
   ErrorSchemaRecord,
-  HttpMethod,
   InferEndpointReturn,
   RequestArgs,
   ResponseEnvelope,
@@ -109,12 +106,12 @@ export type QueryUrlParamsArgs<Url extends string = string> =
 /**
  * Base parameters for query configuration.
  */
-export type QueryParams<Config extends AnyEndpointConfig, Res = any> = {
+export type QueryParams<Options extends EndpointOptions, Res = any> = {
   keyPrefix?: string[]
   keySuffix?: string[]
   onFail?: (err: unknown) => void
   processResponse: (
-    data: ComputeResponseInput<Config['responseSchema'], Config['errorSchema']>,
+    data: ComputeResponseInput<Options['responseSchema'], Options['errorSchema']>,
   ) => Res
 }
 
@@ -173,7 +170,7 @@ export type QueryHelpers<
  * Options for infinite query configuration.
  */
 export type InfiniteQueryOptions<
-  Config extends (EndpointOptions | BaseEndpointConfig<HttpMethod, string, ZodObject>) & {
+  Config extends EndpointOptions & {
     querySchema: ZodObject
   },
   Res = any,
@@ -230,15 +227,15 @@ export type ClientQueryArgs<
 export type ClientQueryUrlParamsArgs<Url extends string = string> = QueryUrlParamsArgs<Url>
 
 /** @deprecated Use QueryParams instead */
-export type BaseQueryParams<Config extends AnyEndpointConfig, Res = unknown> = QueryParams<
-  Config,
+export type BaseQueryParams<Options extends EndpointOptions, Res = unknown> = QueryParams<
+  Options,
   Res
 >
 
 /** @deprecated Use QueryArgs instead */
-export type BaseQueryArgs<Config extends AnyEndpointConfig> = (UrlHasParams<
-  Config['url']
+export type BaseQueryArgs<Options extends EndpointOptions> = (UrlHasParams<
+  Options['url']
 > extends true
-  ? { urlParams: UrlParams<Config['url']> }
+  ? { urlParams: UrlParams<Options['url']> }
   : {}) &
-  (Config['querySchema'] extends ZodObject ? { params: z.input<Config['querySchema']> } : {})
+  (Options['querySchema'] extends ZodObject ? { params: z.input<Options['querySchema']> } : {})

@@ -1,8 +1,4 @@
 import type {
-  AbstractEndpoint,
-  AbstractStream,
-  AnyEndpointConfig,
-  AnyStreamConfig,
   BaseEndpointOptions,
   EndpointHandler,
   EndpointOptions,
@@ -182,9 +178,9 @@ export function declareClient({ api, defaults = {} }: ClientOptions): ClientInst
   }
 
   function queryFromEndpoint(
-    endpoint: AbstractEndpoint<AnyEndpointConfig> | EndpointHandler<EndpointOptions>,
+    endpoint: EndpointHandler<EndpointOptions>,
     options?: {
-      processResponse?: (data: z.output<AnyEndpointConfig['responseSchema']>) => unknown
+      processResponse?: (data: z.output<EndpointOptions['responseSchema']>) => unknown
       unwrap?: UnwrapMode
     },
   ) {
@@ -221,23 +217,23 @@ export function declareClient({ api, defaults = {} }: ClientOptions): ClientInst
   }
 
   function infiniteQueryFromEndpoint(
-    endpoint: AbstractEndpoint<AnyEndpointConfig> | EndpointHandler<EndpointOptions>,
+    endpoint: EndpointHandler<EndpointOptions>,
     options: {
-      processResponse?: (data: z.output<AnyEndpointConfig['responseSchema']>) => unknown
+      processResponse?: (data: z.output<EndpointOptions['responseSchema']>) => unknown
       unwrap?: InfiniteUnwrapMode
       getNextPageParam: (
-        lastPage: z.infer<AnyEndpointConfig['responseSchema']>,
-        allPages: z.infer<AnyEndpointConfig['responseSchema']>[],
-        lastPageParam: z.infer<AnyEndpointConfig['querySchema']> | undefined,
-        allPageParams: z.infer<AnyEndpointConfig['querySchema']>[] | undefined,
-      ) => z.input<AnyEndpointConfig['querySchema']> | undefined
+        lastPage: z.infer<EndpointOptions['responseSchema']>,
+        allPages: z.infer<EndpointOptions['responseSchema']>[],
+        lastPageParam: z.infer<NonNullable<EndpointOptions['querySchema']>> | undefined,
+        allPageParams: z.infer<NonNullable<EndpointOptions['querySchema']>>[] | undefined,
+      ) => z.input<NonNullable<EndpointOptions['querySchema']>> | undefined
       getPreviousPageParam?: (
-        firstPage: z.infer<AnyEndpointConfig['responseSchema']>,
-        allPages: z.infer<AnyEndpointConfig['responseSchema']>[],
-        lastPageParam: z.infer<AnyEndpointConfig['querySchema']> | undefined,
-        allPageParams: z.infer<AnyEndpointConfig['querySchema']>[] | undefined,
-      ) => z.input<AnyEndpointConfig['querySchema']>
-      initialPageParam?: z.input<AnyEndpointConfig['querySchema']>
+        firstPage: z.infer<EndpointOptions['responseSchema']>,
+        allPages: z.infer<EndpointOptions['responseSchema']>[],
+        lastPageParam: z.infer<NonNullable<EndpointOptions['querySchema']>> | undefined,
+        allPageParams: z.infer<NonNullable<EndpointOptions['querySchema']>>[] | undefined,
+      ) => z.input<NonNullable<EndpointOptions['querySchema']>>
+      initialPageParam?: z.input<NonNullable<EndpointOptions['querySchema']>>
     },
   ) {
     return makeInfiniteQueryOptions(endpoint as any, {
@@ -282,11 +278,7 @@ export function declareClient({ api, defaults = {} }: ClientOptions): ClientInst
   }
 
   function mutationFromEndpoint(
-    endpoint:
-      | AbstractEndpoint<AnyEndpointConfig>
-      | AbstractStream<AnyStreamConfig>
-      | EndpointHandler<EndpointOptions>
-      | StreamHandler<BaseEndpointOptions>,
+    endpoint: EndpointHandler<EndpointOptions> | StreamHandler<BaseEndpointOptions>,
     options?: {
       processResponse?: ProcessResponseFunction
       unwrap?: UnwrapMode

@@ -4,8 +4,6 @@ import { z as zod } from 'zod/v4'
 import type { z } from 'zod/v4'
 
 import type {
-  BaseEndpointConfig,
-  BaseStreamConfig,
   BuilderInstance,
   EndpointFunctionArgs,
   ErrorSchemaRecord,
@@ -55,11 +53,6 @@ describe('BuilderInstance', () => {
 
         // Return type is a callable that returns Promise<ResponseType>
         assertType<(params: {}) => Promise<ResponseType>>(endpoint)
-
-        // Has config property
-        assertType<BaseEndpointConfig<'GET', '/users', undefined, typeof responseSchema>>(
-          endpoint.config,
-        )
       })
 
       test('GET endpoint with URL params only', () => {
@@ -73,11 +66,6 @@ describe('BuilderInstance', () => {
         assertType<(params: { urlParams: { userId: string | number } }) => Promise<ResponseType>>(
           endpoint,
         )
-
-        // Has config property
-        assertType<BaseEndpointConfig<'GET', '/users/$userId', undefined, typeof responseSchema>>(
-          endpoint.config,
-        )
       })
 
       test('GET endpoint with query schema only', () => {
@@ -90,11 +78,6 @@ describe('BuilderInstance', () => {
 
         // Requires params in the call
         assertType<(params: { params: QueryType }) => Promise<ResponseType>>(endpoint)
-
-        // Has config property
-        assertType<BaseEndpointConfig<'GET', '/search', typeof querySchema, typeof responseSchema>>(
-          endpoint.config,
-        )
       })
 
       test('GET endpoint with both URL params and query schema', () => {
@@ -112,16 +95,6 @@ describe('BuilderInstance', () => {
             params: QueryType
           }) => Promise<ResponseType>
         >(endpoint)
-
-        // Has config property
-        assertType<
-          BaseEndpointConfig<
-            'GET',
-            '/users/$userId/posts',
-            typeof querySchema,
-            typeof responseSchema
-          >
-        >(endpoint.config)
       })
 
       test('GET endpoint with multiple URL params', () => {
@@ -156,11 +129,6 @@ describe('BuilderInstance', () => {
         assertType<(params: { urlParams: { userId: string | number } }) => Promise<ResponseType>>(
           endpoint,
         )
-
-        // Has config property
-        assertType<
-          BaseEndpointConfig<'DELETE', '/users/$userId', undefined, typeof responseSchema>
-        >(endpoint.config)
       })
 
       test('DELETE endpoint with query schema', () => {
@@ -196,9 +164,6 @@ describe('BuilderInstance', () => {
         })
 
         assertType<(params: {}) => Promise<ResponseType>>(endpoint)
-        assertType<BaseEndpointConfig<'HEAD', '/ping', undefined, typeof responseSchema>>(
-          endpoint.config,
-        )
       })
 
       test('OPTIONS endpoint', () => {
@@ -209,9 +174,6 @@ describe('BuilderInstance', () => {
         })
 
         assertType<(params: {}) => Promise<ResponseType>>(endpoint)
-        assertType<BaseEndpointConfig<'OPTIONS', '/cors', undefined, typeof responseSchema>>(
-          endpoint.config,
-        )
       })
 
       test('HEAD endpoint with query schema', () => {
@@ -237,17 +199,6 @@ describe('BuilderInstance', () => {
 
         // Requires data in the call
         assertType<(params: { data: RequestType }) => Promise<ResponseType>>(endpoint)
-
-        // Has config property
-        assertType<
-          BaseEndpointConfig<
-            'POST',
-            '/users',
-            undefined,
-            typeof responseSchema,
-            typeof requestSchema
-          >
-        >(endpoint.config)
       })
 
       test('POST with simple definition', () => {
@@ -258,9 +209,6 @@ describe('BuilderInstance', () => {
         })
 
         assertType<(params: {}) => Promise<ResponseType>>(endpoint)
-        assertType<BaseEndpointConfig<'POST', '/users', undefined, typeof responseSchema>>(
-          endpoint.config,
-        )
       })
 
       test('POST with query schema only', () => {
@@ -272,9 +220,6 @@ describe('BuilderInstance', () => {
         })
 
         assertType<(params: { params: QueryType }) => Promise<ResponseType>>(endpoint)
-        assertType<BaseEndpointConfig<'POST', '/users', typeof querySchema, typeof responseSchema>>(
-          endpoint.config,
-        )
       })
 
       test('POST endpoint with URL params and request schema', () => {
@@ -307,17 +252,6 @@ describe('BuilderInstance', () => {
         assertType<(params: { params: QueryType; data: RequestType }) => Promise<ResponseType>>(
           endpoint,
         )
-
-        // Has config property
-        assertType<
-          BaseEndpointConfig<
-            'POST',
-            '/users',
-            typeof querySchema,
-            typeof responseSchema,
-            typeof requestSchema
-          >
-        >(endpoint.config)
       })
 
       test('POST endpoint with URL params, query schema, and request schema', () => {
@@ -366,16 +300,6 @@ describe('BuilderInstance', () => {
             data: RequestType
           }) => Promise<ResponseType>
         >(endpoint)
-
-        assertType<
-          BaseEndpointConfig<
-            'PUT',
-            '/users/$userId',
-            undefined,
-            typeof responseSchema,
-            typeof requestSchema
-          >
-        >(endpoint.config)
       })
 
       test('PUT endpoint with query schema and request schema', () => {
@@ -412,16 +336,6 @@ describe('BuilderInstance', () => {
             data: RequestType
           }) => Promise<ResponseType>
         >(endpoint)
-
-        assertType<
-          BaseEndpointConfig<
-            'PATCH',
-            '/users/$userId',
-            undefined,
-            typeof responseSchema,
-            typeof requestSchema
-          >
-        >(endpoint.config)
       })
 
       test('PATCH endpoint without URL params', () => {
@@ -450,17 +364,6 @@ describe('BuilderInstance', () => {
       assertType<
         (params: { data: z.input<typeof multipartRequestSchema> }) => Promise<ResponseType>
       >(endpoint)
-
-      // Has config property
-      assertType<
-        BaseEndpointConfig<
-          'POST',
-          '/upload',
-          undefined,
-          typeof responseSchema,
-          typeof multipartRequestSchema
-        >
-      >(endpoint.config)
     })
 
     test('multipart POST endpoint with URL params', () => {
@@ -496,16 +399,6 @@ describe('BuilderInstance', () => {
           data: z.input<typeof multipartRequestSchema>
         }) => Promise<ResponseType>
       >(endpoint)
-
-      assertType<
-        BaseEndpointConfig<
-          'POST',
-          '/upload',
-          typeof querySchema,
-          typeof responseSchema,
-          typeof multipartRequestSchema
-        >
-      >(endpoint.config)
     })
 
     test('multipart PUT endpoint', () => {
@@ -522,16 +415,6 @@ describe('BuilderInstance', () => {
           data: z.input<typeof multipartRequestSchema>
         }) => Promise<ResponseType>
       >(endpoint)
-
-      assertType<
-        BaseEndpointConfig<
-          'PUT',
-          '/users/$userId/profile',
-          undefined,
-          typeof responseSchema,
-          typeof multipartRequestSchema
-        >
-      >(endpoint.config)
     })
 
     test('multipart PATCH endpoint', () => {
@@ -548,16 +431,6 @@ describe('BuilderInstance', () => {
           data: z.input<typeof multipartRequestSchema>
         }) => Promise<ResponseType>
       >(endpoint)
-
-      assertType<
-        BaseEndpointConfig<
-          'PATCH',
-          '/users/$userId/avatar',
-          undefined,
-          typeof responseSchema,
-          typeof multipartRequestSchema
-        >
-      >(endpoint.config)
     })
 
     test('multipart endpoint without request schema (response only)', () => {
@@ -580,7 +453,6 @@ describe('BuilderInstance', () => {
         })
 
         assertType<(params: {}) => Promise<Blob>>(stream)
-        assertType<BaseStreamConfig<'GET', '/download'>>(stream.config)
       })
 
       test('GET stream with URL params', () => {
@@ -600,8 +472,6 @@ describe('BuilderInstance', () => {
         })
 
         assertType<(params: { params: QueryType }) => Promise<Blob>>(stream)
-
-        assertType<BaseStreamConfig<'GET', '/export', typeof querySchema>>(stream.config)
       })
 
       test('GET stream with URL params and query schema', () => {
@@ -626,10 +496,6 @@ describe('BuilderInstance', () => {
         })
 
         assertType<(params: { data: RequestType }) => Promise<Blob>>(stream)
-
-        assertType<BaseStreamConfig<'POST', '/generate', undefined, typeof requestSchema>>(
-          stream.config,
-        )
       })
 
       test('POST stream with URL params and request schema', () => {
@@ -653,10 +519,6 @@ describe('BuilderInstance', () => {
         })
 
         assertType<(params: { params: QueryType; data: RequestType }) => Promise<Blob>>(stream)
-
-        assertType<BaseStreamConfig<'POST', '/generate', typeof querySchema, typeof requestSchema>>(
-          stream.config,
-        )
       })
 
       test('POST stream without schemas', () => {
@@ -666,7 +528,6 @@ describe('BuilderInstance', () => {
         })
 
         assertType<(params: {}) => Promise<Blob>>(stream)
-        assertType<BaseStreamConfig<'POST', '/trigger-download'>>(stream.config)
       })
     })
 
@@ -895,97 +756,6 @@ describe('Util_FlatObject type', () => {
   })
 })
 
-describe('BaseEndpointConfig type', () => {
-  test('full config with all type parameters', () => {
-    type Config = BaseEndpointConfig<
-      'POST',
-      '/users/$userId',
-      typeof querySchema,
-      typeof responseSchema,
-      typeof requestSchema
-    >
-
-    const config: Config = {
-      method: 'POST',
-      url: '/users/$userId',
-      querySchema,
-      responseSchema,
-      requestSchema,
-    }
-    assertType<Config>(config)
-  })
-
-  test('config without request schema', () => {
-    type Config = BaseEndpointConfig<'GET', '/users', typeof querySchema, typeof responseSchema>
-
-    const config: Config = {
-      method: 'GET',
-      url: '/users',
-      querySchema,
-      responseSchema,
-      requestSchema: undefined,
-    }
-    assertType<Config>(config)
-  })
-
-  test('config without query schema', () => {
-    type Config = BaseEndpointConfig<
-      'POST',
-      '/users',
-      undefined,
-      typeof responseSchema,
-      typeof requestSchema
-    >
-
-    const config: Config = {
-      method: 'POST',
-      url: '/users',
-      querySchema: undefined,
-      responseSchema,
-      requestSchema,
-    }
-    assertType<Config>(config)
-  })
-})
-
-describe('BaseStreamConfig type', () => {
-  test('full config with all type parameters', () => {
-    type Config = BaseStreamConfig<'POST', '/generate', typeof querySchema, typeof requestSchema>
-
-    const config: Config = {
-      method: 'POST',
-      url: '/generate',
-      querySchema,
-      requestSchema,
-    }
-    assertType<Config>(config)
-  })
-
-  test('config without request schema', () => {
-    type Config = BaseStreamConfig<'GET', '/download', typeof querySchema>
-
-    const config: Config = {
-      method: 'GET',
-      url: '/download',
-      querySchema,
-      requestSchema: undefined,
-    }
-    assertType<Config>(config)
-  })
-
-  test('minimal config', () => {
-    type Config = BaseStreamConfig<'GET', '/download'>
-
-    const config: Config = {
-      method: 'GET',
-      url: '/download',
-      querySchema: undefined,
-      requestSchema: undefined,
-    }
-    assertType<Config>(config)
-  })
-})
-
 describe('Error cases - should fail type checking', () => {
   test('GET endpoint without urlParams when URL has params', () => {
     const endpoint = api.declareEndpoint({
@@ -1182,16 +952,7 @@ describe('declareEndpoint with errorSchema (data mode)', () => {
       errorSchema,
     })
 
-    assertType<
-      BaseEndpointConfig<
-        'GET',
-        '/users/$userId',
-        undefined,
-        typeof responseSchema,
-        undefined,
-        typeof errorSchema
-      >
-    >(endpoint.config)
+    assertType<typeof errorSchema>(endpoint.config.errorSchema)
   })
 })
 
@@ -1301,8 +1062,6 @@ describe('declareStream with errorSchema (data mode)', () => {
       errorSchema,
     })
 
-    assertType<BaseStreamConfig<'GET', '/files/$fileId', undefined, undefined, typeof errorSchema>>(
-      stream.config,
-    )
+    assertType<typeof errorSchema>(stream.config.errorSchema)
   })
 })

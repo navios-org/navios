@@ -1,4 +1,4 @@
-import type { AnyEndpointConfig, UrlHasParams, UrlParams } from '@navios/builder'
+import type { EndpointOptions, UrlHasParams, UrlParams } from '@navios/builder'
 import type { DataTag } from '@tanstack/react-query'
 
 import { createQueryKey } from '../query/key-creator.mjs'
@@ -33,7 +33,7 @@ import type { QueryParams } from '../query/types.mjs'
  * ```
  */
 export function createMutationKey<
-  Config extends AnyEndpointConfig,
+  Config extends EndpointOptions,
   Options extends QueryParams<Config>,
   Url extends Config['url'] = Config['url'],
   HasParams extends UrlHasParams<Url> = UrlHasParams<Url>,
