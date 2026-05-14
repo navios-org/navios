@@ -67,6 +67,20 @@ export function builder<UseDiscriminator extends boolean = false>(
 
   const context = { getClient, config }
 
+  let warnedDeprecation = false
+  function maybeWarnDeprecation() {
+    if (warnedDeprecation) return
+    warnedDeprecation = true
+    if (config.useDiscriminatorResponse) {
+      // eslint-disable-next-line no-console
+      console.warn(
+        '[@navios/builder] `useDiscriminatorResponse` is deprecated and will be removed in the next major. ' +
+          "Use per-endpoint `result: 'envelope'` (or `defaults: { result: 'envelope' }`) instead. " +
+          'See docs/plans/2026-05-14-builder-response-envelope-design.md',
+      )
+    }
+  }
+
   /**
    * Sets or replaces the HTTP client instance used by all endpoints.
    *
@@ -93,9 +107,18 @@ export function builder<UseDiscriminator extends boolean = false>(
   // 2. The type inference happens through the BuilderInstance interface
   // 3. The handler functions already handle optional schemas via conditional logic
   return {
-    declareEndpoint: (options: EndpointOptions) => createEndpoint(options, context),
-    declareStream: (options: BaseEndpointOptions) => createStream(options, context),
-    declareMultipart: (options: EndpointOptions) => createMultipart(options, context),
+    declareEndpoint: (options: EndpointOptions) => {
+      maybeWarnDeprecation()
+      return createEndpoint(options, context)
+    },
+    declareStream: (options: BaseEndpointOptions) => {
+      maybeWarnDeprecation()
+      return createStream(options, context)
+    },
+    declareMultipart: (options: EndpointOptions) => {
+      maybeWarnDeprecation()
+      return createMultipart(options, context)
+    },
     provideClient,
     getClient,
   } as BuilderInstance<UseDiscriminator>

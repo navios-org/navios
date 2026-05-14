@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { z } from 'zod/v4'
 
 import { builder } from '../builder.mjs'
@@ -522,5 +522,51 @@ describe('builder', () => {
         expect(client.request).toHaveBeenCalledWith(expect.objectContaining({ method }))
       },
     )
+  })
+
+  describe('deprecation warning for useDiscriminatorResponse', () => {
+    let warn: ReturnType<typeof vi.spyOn>
+    beforeEach(() => {
+      warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    })
+    afterEach(() => {
+      warn.mockRestore()
+    })
+
+    it('warns once per builder instance when useDiscriminatorResponse is set', () => {
+      const api = builder({ useDiscriminatorResponse: true })
+      api.declareEndpoint({
+        method: 'GET',
+        url: '/u',
+        responseSchema: z.object({ name: z.string() }),
+      })
+      api.declareEndpoint({
+        method: 'GET',
+        url: '/v',
+        responseSchema: z.object({ name: z.string() }),
+      })
+      expect(warn).toHaveBeenCalledTimes(1)
+      expect(warn.mock.calls[0][0]).toMatch(/useDiscriminatorResponse/)
+    })
+
+    it('does not warn when only defaults.result is used', () => {
+      const api = builder({ defaults: { result: 'envelope' } })
+      api.declareEndpoint({
+        method: 'GET',
+        url: '/u',
+        responseSchema: z.object({ name: z.string() }),
+      })
+      expect(warn).not.toHaveBeenCalled()
+    })
+
+    it('does not warn for plain builder() with no flags', () => {
+      const api = builder()
+      api.declareEndpoint({
+        method: 'GET',
+        url: '/u',
+        responseSchema: z.object({ name: z.string() }),
+      })
+      expect(warn).not.toHaveBeenCalled()
+    })
   })
 })
