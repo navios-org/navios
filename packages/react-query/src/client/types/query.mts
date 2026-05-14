@@ -11,7 +11,7 @@ import type { ZodObject, ZodType } from 'zod/v4'
 import type { Split } from '../../common/types.mjs'
 import type { QueryHelpers, UnwrapMode } from '../../query/types.mjs'
 
-import type { ComputeBaseResult, EndpointHelper } from './helpers.mjs'
+import type { ComputeQueryResult, EndpointHelper, ResultMode } from './helpers.mjs'
 
 /**
  * Helper type to build endpoint options without including undefined properties.
@@ -45,6 +45,8 @@ interface QueryEndpointConfig<
   ResponseSchema extends ZodType,
   ErrorSchema extends ErrorSchemaRecord | undefined,
   UrlParamsSchema extends ZodObject | undefined,
+  ResultModeT extends ResultMode,
+  Unwrap extends UnwrapMode | undefined,
   TBaseResult,
   Result,
 > extends EndpointOptions {
@@ -57,6 +59,16 @@ interface QueryEndpointConfig<
   urlParamsSchema?: UrlParamsSchema
   processResponse?: (data: TBaseResult) => Result
   /**
+   * Selects the wire-level result shape produced by the endpoint.
+   *
+   * - `'data'` (or omitted, default): legacy throwing surface — success body
+   *   is returned, errors throw.
+   * - `'envelope'`: surface becomes a `ResponseEnvelope<Data, EnvelopeError<...>>`.
+   *   Combine with {@link unwrap} to control how the envelope is exposed to
+   *   React Query.
+   */
+  result?: ResultModeT
+  /**
    * For endpoints declared with `result: 'envelope'`, controls how the
    * envelope is delivered to React Query.
    *
@@ -66,7 +78,7 @@ interface QueryEndpointConfig<
    *
    * Has no effect for non-envelope endpoints.
    */
-  unwrap?: UnwrapMode
+  unwrap?: Unwrap
 }
 
 /**
@@ -102,7 +114,15 @@ export interface ClientQueryMethods<UseDiscriminator extends boolean = false> {
     const ResponseSchema extends ZodType = ZodType,
     const ErrorSchema extends ErrorSchemaRecord | undefined = undefined,
     const UrlParamsSchema extends ZodObject | undefined = undefined,
-    const TBaseResult = ComputeBaseResult<UseDiscriminator, ResponseSchema, ErrorSchema>,
+    const ResultModeT extends ResultMode = undefined,
+    const Unwrap extends UnwrapMode | undefined = undefined,
+    const TBaseResult = ComputeQueryResult<
+      UseDiscriminator,
+      ResponseSchema,
+      ErrorSchema,
+      ResultModeT,
+      Unwrap
+    >,
     const Result = TBaseResult,
     const Options extends EndpointOptions = BuildEndpointOptions<
       Method,
@@ -122,6 +142,8 @@ export interface ClientQueryMethods<UseDiscriminator extends boolean = false> {
       ResponseSchema,
       ErrorSchema,
       UrlParamsSchema,
+      ResultModeT,
+      Unwrap,
       TBaseResult,
       Result
     >,

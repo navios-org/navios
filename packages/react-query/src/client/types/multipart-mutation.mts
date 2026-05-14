@@ -5,7 +5,7 @@ import type { ZodObject, ZodType } from 'zod/v4'
 import type { MutationArgs, MutationHelpers } from '../../mutation/types.mjs'
 import type { UnwrapMode } from '../../query/types.mjs'
 
-import type { ComputeBaseResult, EndpointHelper } from './helpers.mjs'
+import type { ComputeQueryResult, EndpointHelper, ResultMode } from './helpers.mjs'
 
 /**
  * Multipart mutation method overloads for ClientInstance.
@@ -25,7 +25,9 @@ export interface ClientMultipartMutationMethods<UseDiscriminator extends boolean
     QuerySchema extends ZodObject = ZodObject,
     Response extends ZodType = ZodType,
     ErrorSchema extends ErrorSchemaRecord | undefined = undefined,
-    TBaseResult = ComputeBaseResult<UseDiscriminator, Response, ErrorSchema>,
+    ResultModeT extends ResultMode = undefined,
+    Unwrap extends UnwrapMode | undefined = undefined,
+    TBaseResult = ComputeQueryResult<UseDiscriminator, Response, ErrorSchema, ResultModeT, Unwrap>,
     Result = unknown,
     OnMutateResult = unknown,
     Context = unknown,
@@ -40,11 +42,21 @@ export interface ClientMultipartMutationMethods<UseDiscriminator extends boolean
     errorSchema?: ErrorSchema
     processResponse?: (data: TBaseResult) => Result | Promise<Result>
     /**
+     * Selects the wire-level result shape produced by the endpoint.
+     *
+     * - `'data'` (or omitted, default): legacy throwing surface — success body
+     *   is returned, errors throw.
+     * - `'envelope'`: surface becomes a `ResponseEnvelope`. Combine with
+     *   {@link unwrap} to control how the envelope is exposed to the mutation
+     *   channel.
+     */
+    result?: ResultModeT
+    /**
      * For endpoints declared with `result: 'envelope'`, controls how the
      * envelope is delivered to the mutation channel. Has no effect on
      * non-envelope endpoints.
      */
-    unwrap?: UnwrapMode
+    unwrap?: Unwrap
     useContext?: () => Context
     onMutate?: (
       variables: Simplify<MutationArgs<Url, RequestSchema, QuerySchema>>,
@@ -93,7 +105,9 @@ export interface ClientMultipartMutationMethods<UseDiscriminator extends boolean
     QuerySchema extends ZodObject = ZodObject,
     Response extends ZodType = ZodType,
     ErrorSchema extends ErrorSchemaRecord | undefined = undefined,
-    TBaseResult = ComputeBaseResult<UseDiscriminator, Response, ErrorSchema>,
+    ResultModeT extends ResultMode = undefined,
+    Unwrap extends UnwrapMode | undefined = undefined,
+    TBaseResult = ComputeQueryResult<UseDiscriminator, Response, ErrorSchema, ResultModeT, Unwrap>,
     Result = unknown,
     OnMutateResult = unknown,
     Context = unknown,
@@ -106,11 +120,21 @@ export interface ClientMultipartMutationMethods<UseDiscriminator extends boolean
     errorSchema?: ErrorSchema
     processResponse?: (data: TBaseResult) => Result | Promise<Result>
     /**
+     * Selects the wire-level result shape produced by the endpoint.
+     *
+     * - `'data'` (or omitted, default): legacy throwing surface — success body
+     *   is returned, errors throw.
+     * - `'envelope'`: surface becomes a `ResponseEnvelope`. Combine with
+     *   {@link unwrap} to control how the envelope is exposed to the mutation
+     *   channel.
+     */
+    result?: ResultModeT
+    /**
      * For endpoints declared with `result: 'envelope'`, controls how the
      * envelope is delivered to the mutation channel. Has no effect on
      * non-envelope endpoints.
      */
-    unwrap?: UnwrapMode
+    unwrap?: Unwrap
     useContext?: () => Context
     onMutate?: (
       variables: Simplify<MutationArgs<Url, RequestSchema, QuerySchema>>,
@@ -156,7 +180,9 @@ export interface ClientMultipartMutationMethods<UseDiscriminator extends boolean
     RequestSchema extends ZodType = ZodType,
     Response extends ZodType = ZodType,
     ErrorSchema extends ErrorSchemaRecord | undefined = undefined,
-    TBaseResult = ComputeBaseResult<UseDiscriminator, Response, ErrorSchema>,
+    ResultModeT extends ResultMode = undefined,
+    Unwrap extends UnwrapMode | undefined = undefined,
+    TBaseResult = ComputeQueryResult<UseDiscriminator, Response, ErrorSchema, ResultModeT, Unwrap>,
     Result = unknown,
     OnMutateResult = unknown,
     Context = unknown,
@@ -168,11 +194,21 @@ export interface ClientMultipartMutationMethods<UseDiscriminator extends boolean
     errorSchema?: ErrorSchema
     processResponse?: (data: TBaseResult) => Result | Promise<Result>
     /**
+     * Selects the wire-level result shape produced by the endpoint.
+     *
+     * - `'data'` (or omitted, default): legacy throwing surface — success body
+     *   is returned, errors throw.
+     * - `'envelope'`: surface becomes a `ResponseEnvelope`. Combine with
+     *   {@link unwrap} to control how the envelope is exposed to the mutation
+     *   channel.
+     */
+    result?: ResultModeT
+    /**
      * For endpoints declared with `result: 'envelope'`, controls how the
      * envelope is delivered to the mutation channel. Has no effect on
      * non-envelope endpoints.
      */
-    unwrap?: UnwrapMode
+    unwrap?: Unwrap
     useContext?: () => Context
     onMutate?: (
       variables: Simplify<MutationArgs<Url, RequestSchema, undefined>>,
@@ -218,7 +254,9 @@ export interface ClientMultipartMutationMethods<UseDiscriminator extends boolean
     RequestSchema extends ZodType = ZodType,
     Response extends ZodType = ZodType,
     ErrorSchema extends ErrorSchemaRecord | undefined = undefined,
-    TBaseResult = ComputeBaseResult<UseDiscriminator, Response, ErrorSchema>,
+    ResultModeT extends ResultMode = undefined,
+    Unwrap extends UnwrapMode | undefined = undefined,
+    TBaseResult = ComputeQueryResult<UseDiscriminator, Response, ErrorSchema, ResultModeT, Unwrap>,
     Result = unknown,
     OnMutateResult = unknown,
     Context = unknown,
@@ -232,11 +270,21 @@ export interface ClientMultipartMutationMethods<UseDiscriminator extends boolean
     errorSchema?: ErrorSchema
     processResponse?: (data: TBaseResult) => Result | Promise<Result>
     /**
+     * Selects the wire-level result shape produced by the endpoint.
+     *
+     * - `'data'` (or omitted, default): legacy throwing surface — success body
+     *   is returned, errors throw.
+     * - `'envelope'`: surface becomes a `ResponseEnvelope`. Combine with
+     *   {@link unwrap} to control how the envelope is exposed to the mutation
+     *   channel.
+     */
+    result?: ResultModeT
+    /**
      * For endpoints declared with `result: 'envelope'`, controls how the
      * envelope is delivered to the mutation channel. Has no effect on
      * non-envelope endpoints.
      */
-    unwrap?: UnwrapMode
+    unwrap?: Unwrap
     useContext?: () => Context
     onMutate?: (
       variables: Simplify<MutationArgs<Url, RequestSchema, undefined>>,

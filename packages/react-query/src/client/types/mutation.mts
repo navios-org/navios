@@ -13,7 +13,7 @@ import type { ZodObject, ZodType } from 'zod/v4'
 import type { MutationHelpers } from '../../mutation/types.mjs'
 import type { UnwrapMode } from '../../query/types.mjs'
 
-import type { ComputeBaseResult, EndpointHelper } from './helpers.mjs'
+import type { ComputeQueryResult, EndpointHelper, ResultMode } from './helpers.mjs'
 
 /**
  * Compute variables type from URL, schemas
@@ -38,6 +38,8 @@ interface MutationEndpointConfig<
   ErrorSchema extends ErrorSchemaRecord | undefined,
   UrlParamsSchema extends ZodObject | undefined,
   UseKey extends boolean,
+  ResultModeT extends ResultMode,
+  Unwrap extends UnwrapMode | undefined,
   TBaseResult,
   Result,
   OnMutateResult,
@@ -53,6 +55,16 @@ interface MutationEndpointConfig<
   urlParamsSchema?: UrlParamsSchema
   processResponse?: (data: TBaseResult) => Result | Promise<Result>
   /**
+   * Selects the wire-level result shape produced by the endpoint.
+   *
+   * - `'data'` (or omitted, default): legacy throwing surface — success body
+   *   is returned, errors throw.
+   * - `'envelope'`: the mutation result becomes a `ResponseEnvelope`.
+   *   Combine with {@link unwrap} to control how the envelope is exposed
+   *   to React Query's mutation channel.
+   */
+  result?: ResultModeT
+  /**
    * For endpoints declared with `result: 'envelope'`, controls how the
    * envelope is delivered to React Query's mutation channel.
    *
@@ -62,7 +74,7 @@ interface MutationEndpointConfig<
    *
    * Has no effect for non-envelope endpoints.
    */
-  unwrap?: UnwrapMode
+  unwrap?: Unwrap
   useContext?: () => Context
   useKey?: UseKey
   onMutate?: (
@@ -132,7 +144,15 @@ export interface ClientMutationMethods<UseDiscriminator extends boolean = false>
     const ErrorSchema extends ErrorSchemaRecord | undefined = undefined,
     const UrlParamsSchema extends ZodObject | undefined = undefined,
     const UseKey extends boolean = false,
-    const TBaseResult = ComputeBaseResult<UseDiscriminator, ResponseSchema, ErrorSchema>,
+    const ResultModeT extends ResultMode = undefined,
+    const Unwrap extends UnwrapMode | undefined = undefined,
+    const TBaseResult = ComputeQueryResult<
+      UseDiscriminator,
+      ResponseSchema,
+      ErrorSchema,
+      ResultModeT,
+      Unwrap
+    >,
     const Result = TBaseResult,
     const OnMutateResult = unknown,
     const Context = unknown,
@@ -157,6 +177,8 @@ export interface ClientMutationMethods<UseDiscriminator extends boolean = false>
       ErrorSchema,
       UrlParamsSchema,
       UseKey,
+      ResultModeT,
+      Unwrap,
       TBaseResult,
       Result,
       OnMutateResult,
