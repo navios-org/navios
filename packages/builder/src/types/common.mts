@@ -27,6 +27,11 @@ export interface AbstractResponse<T> {
  *
  * This interface defines the shape of request configurations accepted by HTTP clients.
  * Compatible with axios, @navios/http, and other standard HTTP clients.
+ *
+ * Common fields are first-class. Anything genuinely client-specific (e.g. axios
+ * `adapter`, fetch `credentials` overrides) should be routed through
+ * `clientOptions` rather than relying on an open index signature, so consumer
+ * sites stay strongly typed.
  */
 export interface AbstractRequestConfig {
   /** Query parameters (will be appended to URL) */
@@ -36,13 +41,24 @@ export interface AbstractRequestConfig {
   /** Request URL (can include path parameters) */
   url: string
   /** Request body data */
-  data?: any
+  data?: unknown
   /** Additional request headers */
   headers?: Record<string, string>
   /** AbortSignal for request cancellation */
   signal?: AbortSignal | null
-  /** Additional client-specific options */
-  [key: string]: any
+  /** Request timeout in milliseconds (recognised by axios, @navios/http, etc.) */
+  timeout?: number
+  /**
+   * Expected response body type. Standard fetch/axios-style hint used by
+   * streaming endpoints to request a `Blob` body and by clients that need
+   * the raw bytes/text instead of JSON.
+   */
+  responseType?: 'json' | 'text' | 'blob' | 'arrayBuffer' | 'formData' | 'stream'
+  /**
+   * Additional client-specific options forwarded verbatim to the underlying
+   * HTTP client. Use this for keys the abstract config does not model.
+   */
+  clientOptions?: Record<string, unknown>
 }
 
 /**
