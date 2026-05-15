@@ -117,6 +117,8 @@ export class ServiceInitializer {
         // therefore `ctx.inject`) runs only when this object is awaited,
         // which is what breaks circular dependencies. `catch`/`finally` are
         // provided so it behaves like a real Promise for consumers.
+        // Symbol.toStringTag is cosmetic only (DevTools / util.inspect); await
+        // and thenable-detection key off .then, not this tag.
         /* oxlint-disable no-thenable */
         const lazy: Promise<unknown> = {
           then(onFulfilled, onRejected) {

@@ -12,6 +12,8 @@ import type { IContainer } from '../../interfaces/container.interface.mjs'
  */
 type ContextInject = <T = unknown>(token: any, args?: any) => Promise<T>
 
+type ContextRegisterDependency = (token: any, args?: any) => void
+
 /**
  * Context provided to injectors during service initialization.
  *
@@ -30,7 +32,7 @@ export interface ServiceInitializationContext {
    * cascade invalidation still works through lazy edges), even though the
    * instance itself is resolved lazily on first await (or never).
    */
-  registerDependency: (token: any, args?: any) => void
+  registerDependency: ContextRegisterDependency
   /**
    * The container instance for dependency resolution.
    * This may be either a Container or ScopedContainer.

@@ -537,6 +537,13 @@ export class InstanceResolver {
     const storageForSubscriptions = requestStorage || this.storage
 
     // Set up subscriptions via ServiceInvalidator
+    // ctx.dependencies is fully populated for ALL injection kinds — eager,
+    // optional, AND lazy — because the @InjectLazy deferred path calls
+    // ctx.registerDependency() synchronously during resolveInjections (before
+    // construction). Lazy edges are therefore included in subscriptions even
+    // though their instances resolve only on first field-await. Do NOT move
+    // lazy registration into the deferred start() closure — it would be missed
+    // here and cascade invalidation would silently break for lazy deps.
     if (ctx.dependencies.size > 0) {
       this.serviceInvalidator.setupDependencySubscriptions(
         instanceName,
