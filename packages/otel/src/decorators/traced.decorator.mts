@@ -54,7 +54,12 @@ const traceableServices = new Set<ClassType>()
 
 /**
  * Returns the set of all classes decorated with @Traceable or @Traced.
- * Used by the plugin to find services that need wrapping.
+ *
+ * NOTE: Retained for external introspection only. This is NOT consumed by
+ * `defineOtelTracingPlugin` in di v2 — the v2 middleware wraps per resolution
+ * via `hasTracedMetadata(ctx.target)`. Only the legacy v1 `pre:adapter-resolve`
+ * plugin used this registry to find services to wrap; it does not drive
+ * behavior anymore.
  */
 export function getTraceableServices(): ReadonlySet<ClassType> {
   return traceableServices
