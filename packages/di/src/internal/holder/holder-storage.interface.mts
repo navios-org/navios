@@ -108,13 +108,4 @@ export interface IHolderStorage {
    * @returns Array of instance names that have this instance as a dependency
    */
   findDependents(instanceName: string): string[]
-
-  /**
-   * Updates dependency references when instance names change.
-   * Used during scope upgrades when instance names are regenerated with requestId.
-   *
-   * @param oldName The old instance name
-   * @param newName The new instance name
-   */
-  updateDependencyReference(oldName: string, newName: string): void
 }

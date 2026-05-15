@@ -149,48 +149,6 @@ export class UnifiedStorage implements IHolderStorage {
     return dependents ? Array.from(dependents) : []
   }
 
-  /**
-   * Updates dependency references when instance names change.
-   * Used during scope upgrades when instance names are regenerated with requestId.
-   *
-   * @param oldName The old instance name
-   * @param newName The new instance name
-   */
-  updateDependencyReference(oldName: string, newName: string): void {
-    // Update all holders that reference oldName in their deps Set
-    for (const holder of this.holders.values()) {
-      if (holder.deps.has(oldName)) {
-        holder.deps.delete(oldName)
-        holder.deps.add(newName)
-      }
-    }
-
-    // Update reverse dependency index
-    const oldDependents = this.dependents.get(oldName)
-    if (oldDependents) {
-      // Move dependents from old name to new name
-      const newDependents = this.dependents.get(newName) || new Set<string>()
-      for (const dependent of oldDependents) {
-        newDependents.add(dependent)
-      }
-      this.dependents.set(newName, newDependents)
-      this.dependents.delete(oldName)
-    }
-
-    // Update reverse index entries - if oldName was a dependency, update all holders that depend on it
-    for (const [depName, dependents] of this.dependents.entries()) {
-      if (depName === oldName) {
-        // This shouldn't happen, but handle it just in case
-        const newDependents = this.dependents.get(newName) || new Set<string>()
-        for (const dependent of dependents) {
-          newDependents.add(dependent)
-        }
-        this.dependents.set(newName, newDependents)
-        this.dependents.delete(oldName)
-      }
-    }
-  }
-
   // ============================================================================
   // INTERNAL HELPERS
   // ============================================================================

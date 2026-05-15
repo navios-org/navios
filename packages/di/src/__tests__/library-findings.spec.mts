@@ -8,7 +8,7 @@
  * When investigating, remove `.skip` to reproduce the issue.
  */
 
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import { Container } from '../container/container.mjs'
 import { Inject } from '../decorators/inject.decorator.mjs'
@@ -19,7 +19,6 @@ import { Registry } from '../token/registry.mjs'
 import { Token } from '../token/token.mjs'
 
 import type { InstanceHolder } from '../index.mjs'
-import type { OnServiceDestroy } from '../interfaces/on-service-destroy.interface.mjs'
 
 function createTestSetup() {
   const registry = new Registry()
@@ -149,82 +148,6 @@ describe('FINDING #1: Circular Dependencies (FIXED)', () => {
 
     await expect(container.get(TokX)).rejects.toThrow(/circular/i)
   }, 1000)
-})
-
-// ============================================================================
-// FINDING #2: Request-Scoped Service Behavior Investigation
-// ============================================================================
-
-describe('FINDING #2: Request-Scoped Edge Cases (FIXED)', () => {
-  let registry: Registry
-  let container: Container
-
-  beforeEach(() => {
-    const setup = createTestSetup()
-    registry = setup.registry
-    container = setup.container
-  })
-
-  afterEach(async () => {
-    try {
-      await container.dispose()
-    } catch {
-      // Ignore
-    }
-  })
-
-  /**
-   * FIXED: Singletons that depend on request-scoped services are now
-   * properly invalidated when the request ends.
-   *
-   * This prevents stale reference issues where a singleton would hold
-   * a reference to a destroyed request-scoped service.
-   */
-  it('singleton is invalidated when its request-scoped dependency is destroyed', async () => {
-    @Injectable({ scope: InjectableScope.Request, registry })
-    class RequestData3 {
-      id = Math.random().toString(36).slice(2)
-      data = 'initial'
-    }
-
-    @Injectable({ scope: InjectableScope.Singleton, registry })
-    class SingletonHolder3 {
-      singletonId = Math.random().toString(36).slice(2)
-      @InjectLazy(RequestData3) accessor requestData!: Promise<RequestData3>
-
-      async getData() {
-        const rd = await this.requestData
-        return rd
-      }
-    }
-
-    // Create first request
-    const scoped1 = container.beginRequest('request-1')
-    const holder1 = await scoped1.get(SingletonHolder3)
-    const originalSingletonId = holder1.singletonId
-    const data1 = await holder1.getData()
-    const originalRequestDataId = data1.id
-    data1.data = 'modified-in-request-1'
-
-    await scoped1.endRequest()
-
-    // Create second request
-    const scoped2 = container.beginRequest('request-2')
-
-    // FIXED: The singleton is now invalidated when request ends
-    // Getting the singleton again creates a NEW instance
-    const holder2 = await scoped2.get(SingletonHolder3)
-
-    // New singleton instance (different ID)
-    expect(holder2.singletonId).not.toBe(originalSingletonId)
-
-    // The new singleton gets fresh request data from request-2
-    const data2 = await holder2.getData()
-    expect(data2.id).not.toBe(originalRequestDataId) // New request data instance
-    expect(data2.data).toBe('initial') // Fresh data, not stale!
-
-    await scoped2.endRequest()
-  })
 })
 
 // ============================================================================
@@ -406,68 +329,6 @@ describe('FINDING #5: Cross-Storage Dependency Invalidation', () => {
     } catch {
       // Ignore
     }
-  })
-
-  /**
-   * FIXED: When a request-scoped service is invalidated/destroyed,
-   * singletons that depend on it ARE now properly invalidated.
-   *
-   * The fix involved TWO changes:
-   * 1. RequestHolderStorage.findDependents() now checks both request storage
-   *    AND singleton storage for holders that depend on the request service
-   * 2. endRequest() now uses clearAllWithStorage() which properly cascades
-   *    invalidation to dependent singletons
-   */
-  it('singleton IS invalidated when its request dependency ends (FIXED)', async () => {
-    const singletonDestroySpy = vi.fn()
-
-    @Injectable({ scope: InjectableScope.Request, registry })
-    class RequestData2 {
-      data = 'request-data'
-    }
-
-    // Use a unique ID generator that doesn't depend on counting
-    @Injectable({ scope: InjectableScope.Singleton, registry })
-    class SingletonConsumer2 implements OnServiceDestroy {
-      id = Math.random().toString(36).slice(2)
-      @InjectLazy(RequestData2) accessor requestData!: Promise<RequestData2>
-
-      async getData() {
-        const rd = await this.requestData
-        return rd.data
-      }
-
-      onServiceDestroy() {
-        singletonDestroySpy(this.id)
-      }
-    }
-
-    // Request 1: Create singleton and its request-scoped dependency
-    const scoped1 = container.beginRequest('request-1')
-    const singleton1 = await scoped1.get(SingletonConsumer2)
-    const originalId = singleton1.id
-    const data1 = await singleton1.getData()
-    expect(data1).toBe('request-data')
-
-    await scoped1.endRequest()
-
-    // FIXED BEHAVIOR: Singleton IS invalidated when request ends
-    // because it depends on a request-scoped service
-    expect(singletonDestroySpy).toHaveBeenCalledWith(originalId)
-
-    // Request 2: Get singleton again - should be a NEW instance
-    const scoped2 = container.beginRequest('request-2')
-    const singleton2 = await scoped2.get(SingletonConsumer2)
-
-    // FIXED BEHAVIOR: New singleton instance is created
-    expect(singleton2).not.toBe(singleton1)
-    expect(singleton2.id).not.toBe(originalId)
-
-    // The new singleton gets fresh request-scoped data from request-2
-    const data2 = await singleton2.getData()
-    expect(data2).toBe('request-data')
-
-    await scoped2.endRequest()
   })
 
   /**

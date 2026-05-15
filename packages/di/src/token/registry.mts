@@ -115,34 +115,6 @@ export class Registry {
     }
   }
 
-  /**
-   * Updates the scope of an already registered factory.
-   * This is useful when you need to dynamically change a service's scope
-   * (e.g., when a singleton controller has request-scoped dependencies).
-   *
-   * @param token The injection token to update
-   * @param scope The new scope to set
-   * @returns true if the scope was updated, false if the token was not found
-   */
-  updateScope(token: Token<any, any>, scope: InjectableScope): boolean {
-    const records = this.factories.get(token.id)
-    if (records && records.length > 0) {
-      // Update all records
-      records.forEach((record) => {
-        record.scope = scope
-      })
-      // Update highest priority cache if it exists
-      const highest = this.highestPriority.get(token.id)
-      if (highest) {
-        highest.scope = scope
-      }
-      return true
-    }
-    if (this.parent) {
-      return this.parent.updateScope(token, scope)
-    }
-    return false
-  }
 }
 
 export const globalRegistry = /* #__PURE__ */ new Registry()

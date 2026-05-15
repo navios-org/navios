@@ -20,7 +20,6 @@ import type { InstanceHolder } from '../holder/instance-holder.mjs'
 import type { LifecycleEventBus } from '../lifecycle/lifecycle-event-bus.mjs'
 
 import { NameResolver } from './name-resolver.mjs'
-import { ScopeTracker } from './scope-tracker.mjs'
 import { ServiceInitializer } from './service-initializer.mjs'
 import { ServiceInvalidator } from './service-invalidator.mjs'
 import { TokenResolver } from './token-resolver.mjs'
@@ -30,7 +29,6 @@ import { TokenResolver } from './token-resolver.mjs'
  *
  * Uses unified storage for both singleton and request-scoped services.
  * Coordinates with ServiceInitializer for actual service creation.
- * Integrates ScopeTracker for automatic scope upgrades.
  */
 export class InstanceResolver {
   constructor(
@@ -39,7 +37,6 @@ export class InstanceResolver {
     private readonly serviceInitializer: ServiceInitializer,
     private readonly tokenResolver: TokenResolver,
     private readonly nameResolver: NameResolver,
-    private readonly scopeTracker: ScopeTracker,
     private readonly serviceInvalidator: ServiceInvalidator,
     private readonly eventBus: LifecycleEventBus,
     private readonly pluginRegistry: PluginRegistry | null = null,
@@ -83,8 +80,8 @@ export class InstanceResolver {
    * @param token The injection token
    * @param args Optional arguments
    * @param contextContainer The container to use for creating context
-   * @param requestStorage Optional request storage (for scope upgrades)
-   * @param requestId Optional request ID (for scope upgrades)
+   * @param requestStorage Optional request storage (for request-scoped resolution)
+   * @param requestId Optional request ID (for request-scoped resolution)
    */
   async resolveInstance(
     token: AnyInjectableType,
@@ -144,8 +141,8 @@ export class InstanceResolver {
    * @param contextContainer The container for context
    * @param storage The storage strategy to use
    * @param scopedContainer Optional scoped container for request-scoped services
-   * @param requestStorage Optional request storage (for scope upgrades)
-   * @param requestId Optional request ID (for scope upgrades)
+   * @param requestStorage Optional request storage (for request-scoped resolution)
+   * @param requestId Optional request ID (for request-scoped resolution)
    */
   private async resolveWithStorage(
     token: AnyInjectableType,
@@ -418,8 +415,6 @@ export class InstanceResolver {
       instanceName,
       serviceScope,
       holder.deps,
-      realToken,
-      requestStorage,
       requestId,
     )
 
@@ -558,8 +553,6 @@ export class InstanceResolver {
       instanceName,
       InjectableScope.Transient,
       new Set(),
-      record.originalToken,
-      requestStorage,
       requestId,
     )
 
@@ -800,19 +793,16 @@ export class InstanceResolver {
     serviceName: string,
     scope: InjectableScope,
     deps: Set<string>,
-    serviceToken: Token<any, any>,
-    requestStorage?: IHolderStorage,
     requestId?: string,
   ): ServiceInitializationContext {
     const destroyListeners: Array<() => void> = []
 
-    // Records the dependency edge (name + scope-upgrade tracking) WITHOUT
-    // resolving the instance. Used by both `inject` (eager path) and
-    // `registerDependency` (the @InjectLazy deferred path) so that the
-    // dependency is registered in `deps` BEFORE the host's
-    // setupDependencySubscriptions runs — preserving event-based cascade
-    // invalidation for lazy edges even though the instance itself is
-    // resolved later (or never).
+    // Records the dependency edge (name) WITHOUT resolving the instance.
+    // Used by both `inject` (eager path) and `registerDependency` (the
+    // @InjectLazy deferred path) so that the dependency is registered in
+    // `deps` BEFORE the host's setupDependencySubscriptions runs —
+    // preserving event-based cascade invalidation for lazy edges even
+    // though the instance itself is resolved later (or never).
     const recordDependencyEdge = (token: any, args?: any): void => {
       const actualToken =
         typeof token === 'function' ? this.tokenResolver.normalizeToken(token) : token
@@ -828,35 +818,6 @@ export class InstanceResolver {
         dependencyRequestId,
         depScope,
       )
-
-      // Check if current service needs scope upgrade
-      // If current service is Singleton and dependency is Request, upgrade current service
-      if (
-        scope === InjectableScope.Singleton &&
-        depScope === InjectableScope.Request &&
-        requestStorage &&
-        requestId
-      ) {
-        // Check and perform scope upgrade for current service
-        // Use the dependency name with requestId for the check
-        const [needsUpgrade, newServiceName] = this.scopeTracker.checkAndUpgradeScope(
-          serviceName,
-          scope,
-          finalDepName,
-          depScope,
-          serviceToken,
-          this.storage,
-          requestStorage,
-          requestId,
-        )
-
-        if (needsUpgrade && newServiceName) {
-          // Service was upgraded - update the service name in context
-          // The holder will be moved to request storage by ScopeTracker
-          // For now, we continue with the current resolution
-          // Future resolutions will use the new name
-        }
-      }
 
       // Track dependency
       deps.add(finalDepName)
@@ -881,27 +842,6 @@ export class InstanceResolver {
       serviceName,
       dependencies: deps,
       scope,
-      trackDependency: (name: string, depScope: InjectableScope) => {
-        deps.add(name)
-        // Check for scope upgrade
-        if (
-          scope === InjectableScope.Singleton &&
-          depScope === InjectableScope.Request &&
-          requestStorage &&
-          requestId
-        ) {
-          this.scopeTracker.checkAndUpgradeScope(
-            serviceName,
-            scope,
-            name,
-            depScope,
-            serviceToken,
-            this.storage,
-            requestStorage,
-            requestId,
-          )
-        }
-      },
     }
   }
 }

@@ -226,58 +226,6 @@ describe('Registry', () => {
     })
   })
 
-  describe('updateScope', () => {
-    it('should update scope of registered token', () => {
-      const token = Token.create<string>('test')
-      class TestClass {}
-
-      registry.set(token, InjectableScope.Singleton, TestClass, InjectableType.Class)
-      expect(registry.get(token).scope).toBe(InjectableScope.Singleton)
-
-      const result = registry.updateScope(token, InjectableScope.Request)
-
-      expect(result).toBe(true)
-      expect(registry.get(token).scope).toBe(InjectableScope.Request)
-    })
-
-    it('should return false for non-existent token', () => {
-      const token = Token.create<string>('test')
-
-      const result = registry.updateScope(token, InjectableScope.Request)
-
-      expect(result).toBe(false)
-    })
-
-    it('should update all records for the token', () => {
-      const token = Token.create<string>('test')
-      class ClassA {}
-      class ClassB {}
-
-      registry.set(token, InjectableScope.Singleton, ClassA, InjectableType.Class, 0)
-      registry.set(token, InjectableScope.Singleton, ClassB, InjectableType.Class, 1)
-
-      registry.updateScope(token, InjectableScope.Request)
-
-      const records = registry.getAll(token)
-      expect(records[0].scope).toBe(InjectableScope.Request)
-      expect(records[1].scope).toBe(InjectableScope.Request)
-    })
-
-    it('should delegate to parent if not found in child', () => {
-      const parentRegistry = new Registry()
-      const childRegistry = new Registry(parentRegistry)
-      const token = Token.create<string>('test')
-      class TestClass {}
-
-      parentRegistry.set(token, InjectableScope.Singleton, TestClass, InjectableType.Class)
-
-      const result = childRegistry.updateScope(token, InjectableScope.Transient)
-
-      expect(result).toBe(true)
-      expect(parentRegistry.get(token).scope).toBe(InjectableScope.Transient)
-    })
-  })
-
   describe('priority system', () => {
     it('should respect priority when getting the active registration', () => {
       const token = Token.create<string>('test')

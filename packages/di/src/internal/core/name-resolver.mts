@@ -126,57 +126,6 @@ export class NameResolver {
   }
 
   /**
-   * Upgrades an existing instance name to include requestId.
-   * Preserves any args hash that might already be in the name.
-   *
-   * Examples:
-   * - `TokenName` → `TokenName:requestId=req-123`
-   * - `TokenName:abc123` → `TokenName:requestId=req-123:abc123`
-   *
-   * @param existingName The existing instance name (without requestId)
-   * @param requestId The request ID to add
-   * @returns The upgraded instance name with requestId
-   */
-  upgradeInstanceNameToRequest(existingName: string, requestId: string): string {
-    // Check if requestId is already in the name
-    if (existingName.includes(`:requestId=${requestId}`)) {
-      return existingName
-    }
-
-    // Find where to insert requestId
-    // Format: TokenName or TokenName:argsHash
-    // We want: TokenName:requestId=req-123 or TokenName:requestId=req-123:argsHash
-
-    // Check if there's an args hash (starts after first colon, but not requestId=)
-    const requestIdPattern = /:requestId=/
-    const hasRequestId = requestIdPattern.test(existingName)
-
-    if (hasRequestId) {
-      // Already has a requestId, don't upgrade
-      return existingName
-    }
-
-    // Find the token part (everything before first colon, or entire string if no colon)
-    const colonIndex = existingName.indexOf(':')
-    if (colonIndex === -1) {
-      // No colon, just token name: TokenName → TokenName:requestId=req-123
-      return `${existingName}:requestId=${requestId}`
-    }
-
-    // Has colon, means there's an args hash: TokenName:abc123 → TokenName:requestId=req-123:abc123
-    const tokenPart = existingName.substring(0, colonIndex)
-    const argsPart = existingName.substring(colonIndex + 1)
-
-    // Check if argsPart looks like an args hash (not requestId=)
-    if (argsPart.startsWith('requestId=')) {
-      // Already has requestId, return as is
-      return existingName
-    }
-
-    return `${tokenPart}:requestId=${requestId}:${argsPart}`
-  }
-
-  /**
    * Formats a single argument value for instance name generation.
    */
   formatArgValue(value: any): string {

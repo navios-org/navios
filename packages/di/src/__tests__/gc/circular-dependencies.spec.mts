@@ -358,55 +358,6 @@ describe.skipIf(!isGCAvailable)('GC: Circular Dependencies', () => {
     })
   })
 
-  describe('Mixed scope circular dependencies', () => {
-    it('should handle circular deps between singleton and request scope', async () => {
-      const SingletonTok = Token.create<SingletonService>('MixedSingleton')
-      const RequestTok = Token.create<RequestService>('MixedRequest')
-
-      @Injectable({ registry, token: SingletonTok })
-      class SingletonService {
-        public readonly id = 'singleton'
-        public readonly data = Array.from({ length: 500 }, () => 's')
-        @InjectLazy(RequestTok) accessor requestServicePromise!: Promise<RequestService>
-
-        async getRequestService(): Promise<RequestService> {
-          return this.requestServicePromise
-        }
-      }
-
-      @Injectable({ registry, scope: InjectableScope.Request, token: RequestTok })
-      class RequestService {
-        public readonly id = Math.random()
-        public readonly data = Array.from({ length: 500 }, () => 'r')
-        @InjectLazy(SingletonTok) accessor singletonPromise!: Promise<SingletonService>
-
-        async getSingleton(): Promise<SingletonService> {
-          return this.singletonPromise
-        }
-      }
-
-      const scoped = container.beginRequest('mixed-circular')
-
-      let singleton: SingletonService | null = await scoped.get(SingletonTok)
-      let request: RequestService | null = await scoped.get(RequestTok)
-
-      const singletonTracker = createGCTracker(singleton)
-      const requestTracker = createGCTracker(request)
-
-      await scoped.endRequest()
-
-      // Release local reference
-      request = null
-      singleton = null
-
-      // Request-scoped should be collected
-      expect(await waitForGC(requestTracker().ref)).toBe(true)
-
-      // Singleton should remain (still in container)
-      expect(singletonTracker().collected).toBe(true)
-    })
-  })
-
   describe('Memory reclamation with circular dependencies', () => {
     it('should not leak memory with repeated circular service creation', async () => {
       const ALLOCATION_SIZE = 1024 * 50 // 50KB

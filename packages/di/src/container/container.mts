@@ -3,7 +3,6 @@ import { InjectableScope, InjectableType } from '../enums/index.mjs'
 import { DIError } from '../errors/index.mjs'
 import { InstanceResolver } from '../internal/core/instance-resolver.mjs'
 import { NameResolver } from '../internal/core/name-resolver.mjs'
-import { ScopeTracker } from '../internal/core/scope-tracker.mjs'
 import { ServiceInitializer } from '../internal/core/service-initializer.mjs'
 import { ServiceInvalidator } from '../internal/core/service-invalidator.mjs'
 import { TokenResolver } from '../internal/core/token-resolver.mjs'
@@ -64,7 +63,6 @@ export class Container extends AbstractContainer {
   private readonly serviceInvalidator: ServiceInvalidator
   private readonly tokenResolver: TokenResolver
   private readonly nameResolver: NameResolver
-  private readonly scopeTracker: ScopeTracker
   private readonly eventBus: LifecycleEventBus
   private readonly instanceResolver: InstanceResolver
   private readonly pluginRegistry: PluginRegistry
@@ -96,7 +94,6 @@ export class Container extends AbstractContainer {
     this.eventBus = new LifecycleEventBus(logger)
     this.nameResolver = new NameResolver(logger)
     this.tokenResolver = new TokenResolver(logger)
-    this.scopeTracker = new ScopeTracker(registry, this.nameResolver, logger)
     this.serviceInitializer = new ServiceInitializer()
     this.serviceInvalidator = new ServiceInvalidator(
       this.eventBus,
@@ -109,7 +106,6 @@ export class Container extends AbstractContainer {
       this.serviceInitializer,
       this.tokenResolver,
       this.nameResolver,
-      this.scopeTracker,
       this.serviceInvalidator,
       this.eventBus,
       this.pluginRegistry,
@@ -292,10 +288,6 @@ export class Container extends AbstractContainer {
 
   getNameResolver(): NameResolver {
     return this.nameResolver
-  }
-
-  getScopeTracker(): ScopeTracker {
-    return this.scopeTracker
   }
 
   getEventBus(): LifecycleEventBus {

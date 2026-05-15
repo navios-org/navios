@@ -19,7 +19,7 @@ type ContextRegisterDependency = (token: any, args?: any) => void
  *
  * Extends FactoryContext with additional tracking information about
  * the service being initialized, its dependencies, and scope.
- * Used for scope upgrade tracking and dependency management.
+ * Used for dependency-edge tracking and dependency management.
  */
 export interface ServiceInitializationContext {
   inject: ContextInject
@@ -53,13 +53,4 @@ export interface ServiceInitializationContext {
    * The scope of the service being initialized.
    */
   scope: InjectableScope
-  /**
-   * Track a dependency that was resolved.
-   * Used for scope upgrade tracking - if a Singleton service
-   * resolves a Request dependency, the scope can be upgraded.
-   *
-   * @param name The name of the dependency
-   * @param scope The scope of the dependency
-   */
-  trackDependency(name: string, scope: InjectableScope): void
 }
