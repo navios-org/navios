@@ -68,6 +68,9 @@
     "publish": "yarn npm publish --access public",
     "publish:next": "yarn npm publish --access public --tag next"
   },
+  "dependencies": {
+    "@standard-schema/spec": "^1.0.0"
+  },
   "devDependencies": {
     "tsx": "^4.21.0",
     "typescript": "^5.9.3",
