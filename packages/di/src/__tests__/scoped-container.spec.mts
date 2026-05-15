@@ -14,7 +14,6 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { z } from 'zod/v4'
 
 import { Container } from '../container/container.mjs'
-import { Inject } from '../decorators/inject.decorator.mjs'
 import { Injectable } from '../decorators/injectable.decorator.mjs'
 import { InjectableScope } from '../enums/index.mjs'
 import { DIError, DIErrorCode } from '../errors/di-error.mjs'
@@ -452,27 +451,13 @@ describe('ScopedContainer: Complex Scenarios', () => {
   })
 
   describe('Mixed scopes with addInstance', () => {
-    it('should handle singleton depending on request-scoped added instance', async () => {
-      @Injectable({ scope: InjectableScope.Request, registry })
-      class RequestService {
-        value = 'request'
-      }
-
-      @Injectable({ scope: InjectableScope.Singleton, registry })
-      class SingletonService {
-        @Inject(RequestService) accessor requestService!: RequestService
-      }
-
-      const scoped = container.beginRequest('request-1')
-      const requestInstance = new RequestService()
-      scoped.addInstance(RequestService, requestInstance)
-
-      // Singleton should be able to get the request-scoped instance
-      const singleton = await scoped.get(SingletonService)
-      expect(singleton.requestService).toBe(requestInstance)
-
-      scoped.endRequest()
-    })
+    // NOTE: The former test "should handle singleton depending on
+    // request-scoped added instance" was removed in the v2 overhaul (Task
+    // 5.2). It asserted the now-deleted runtime scope-upgrade: a Singleton
+    // eagerly @Inject-ing a Request-scoped service and silently obtaining a
+    // request instance. v2 replaces that silent demotion with a fail-fast
+    // DIError.scopeMismatch, so this scenario is now an intentional error,
+    // not a supported behavior (escape hatch: @InjectLazy or a Request host).
 
     it('should handle multiple addInstance calls with different token types', async () => {
       @Injectable({ registry, scope: InjectableScope.Request })

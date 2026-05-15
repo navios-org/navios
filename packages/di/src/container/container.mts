@@ -94,7 +94,7 @@ export class Container extends AbstractContainer {
     this.eventBus = new LifecycleEventBus(logger)
     this.nameResolver = new NameResolver(logger)
     this.tokenResolver = new TokenResolver(logger)
-    this.serviceInitializer = new ServiceInitializer()
+    this.serviceInitializer = new ServiceInitializer(registry, this.tokenResolver)
     this.serviceInvalidator = new ServiceInvalidator(
       this.eventBus,
       this.pluginRegistry,

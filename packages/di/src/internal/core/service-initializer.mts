@@ -2,10 +2,13 @@ import { getInjections, InjectionKind } from '../../decorators/injection-metadat
 import { InjectableType } from '../../enums/index.mjs'
 import { DIError } from '../../errors/index.mjs'
 
+import { validateScopeCompatibility } from './scope-validator.mjs'
+
 import type { InjectionEntry } from '../../decorators/injection-metadata.mjs'
-import type { FactoryRecord } from '../../token/registry.mjs'
+import type { FactoryRecord, Registry } from '../../token/registry.mjs'
 import type { ClassType } from '../../token/token.mjs'
 import type { ServiceInitializationContext } from '../context/service-initialization-context.mjs'
+import type { TokenResolver } from './token-resolver.mjs'
 
 /**
  * Creates service instances from registry records.
@@ -20,6 +23,17 @@ import type { ServiceInitializationContext } from '../context/service-initializa
  * fields. No constructor re-run, no throw-proxy, no frozen-replay.
  */
 export class ServiceInitializer {
+  /**
+   * @param registry Registry used by the fail-fast scope-compatibility check
+   *   to look up each eager dependency's registered scope.
+   * @param tokenResolver Resolves a dependency token/class to its registry
+   *   token for that scope lookup.
+   */
+  constructor(
+    private readonly registry: Registry,
+    private readonly tokenResolver: TokenResolver,
+  ) {}
+
   /**
    * Instantiates a service based on its registry record.
    * @param ctx The factory context for dependency injection
@@ -165,6 +179,13 @@ export class ServiceInitializer {
     record: FactoryRecord<T, any>,
     args: any,
   ): Promise<[undefined, T] | [DIError]> {
+    validateScopeCompatibility(
+      record.target,
+      ctx.scope,
+      this.registry,
+      this.tokenResolver,
+    )
+
     const resolved = await this.resolveInjections(ctx, record.target, args)
 
     const instance = new record.target(...(args !== undefined ? [args] : [])) as any
@@ -196,6 +217,13 @@ export class ServiceInitializer {
     record: FactoryRecord<T, any>,
     args: any,
   ): Promise<[undefined, T] | [DIError]> {
+    validateScopeCompatibility(
+      record.target,
+      ctx.scope,
+      this.registry,
+      this.tokenResolver,
+    )
+
     const resolved = await this.resolveInjections(ctx, record.target, args)
 
     const builder = new record.target() as any

@@ -11,6 +11,7 @@ export enum DIErrorCode {
   TokenSchemaRequiredError = 'TokenSchemaRequiredError',
   ClassNotInjectable = 'ClassNotInjectable',
   ScopeMismatchError = 'ScopeMismatchError',
+  ScopeIncompatible = 'ScopeIncompatible',
   PriorityConflictError = 'PriorityConflictError',
   StorageError = 'StorageError',
   InitializationError = 'InitializationError',
@@ -107,6 +108,31 @@ export class DIError extends Error {
       DIErrorCode.ScopeMismatchError,
       `Scope mismatch for ${token?.toString() ?? 'unknown'}: expected ${expectedScope}, got ${actualScope}`,
       { token, expectedScope, actualScope },
+    )
+  }
+
+  /**
+   * Fail-fast scope-compatibility error (v2 replacement for the deleted
+   * runtime scope-upgrade). Thrown at first resolution of a class when an
+   * eager (`@Inject`/`@InjectDerived`) dependency's scope outlives the host's:
+   * a Singleton host eagerly depending on a Request- or Transient-scoped
+   * service. The message names the host, the dependency, both scopes, and the
+   * actionable fixes (mark the host Request, or use `@InjectLazy`).
+   */
+  static scopeMismatch(
+    hostName: string,
+    depName: string,
+    hostScope: string,
+    depScope: string,
+  ): DIError {
+    const fix =
+      depScope === 'Transient'
+        ? `use @InjectLazy(${depName}) for transient dependencies`
+        : `mark ${hostName} as @Injectable({ scope: Request }) or wrap the dependency in @InjectLazy(${depName})`
+    return new DIError(
+      DIErrorCode.ScopeIncompatible,
+      `Scope mismatch: ${hostName} is ${hostScope} but eagerly depends on ${depName} (${depScope}). A ${hostScope}-scoped service cannot eagerly hold a ${depScope}-scoped dependency — ${fix}.`,
+      { hostName, depName, hostScope, depScope },
     )
   }
 

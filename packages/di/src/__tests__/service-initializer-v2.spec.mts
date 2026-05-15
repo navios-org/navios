@@ -150,7 +150,12 @@ describe('ServiceInitializer v2 (one-pass metadata-driven resolution)', () => {
       constructor(public readonly args: { size: number }) {}
     }
 
-    @Injectable({ registry, schema: hostSchema })
+    // Host is Transient: it eagerly holds a Transient (@InjectDerived)
+    // dependency, which v2's fail-fast scope check forbids for a Singleton
+    // host. Per-host-args derived deps are inherently non-singleton, so a
+    // Transient host is the correct v2 wiring here — the assertion below
+    // (derived args computed from host args) is unchanged.
+    @Injectable({ registry, scope: InjectableScope.Transient, schema: hostSchema })
     class Service {
       @InjectDerived(Sized, (hostArgs: { id: number }) => ({ size: hostArgs.id * 2 }))
       accessor sized!: Sized
