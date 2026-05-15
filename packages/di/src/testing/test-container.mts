@@ -69,9 +69,9 @@ export class TestContainer extends Container {
    * ```
    */
   constructor(options: TestContainerOptions = {}) {
-    const { parentRegistry = globalRegistry, logger = null } = options
+    const { parentRegistry = globalRegistry, logger = null, plugins = [] } = options
     const testRegistry = parentRegistry ? new Registry(parentRegistry) : new Registry()
-    super(testRegistry, logger)
+    super({ registry: testRegistry, logger, plugins })
     this.testRegistry = testRegistry
   }
 

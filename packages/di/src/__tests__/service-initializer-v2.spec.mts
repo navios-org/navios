@@ -17,7 +17,7 @@ describe('ServiceInitializer v2 (one-pass metadata-driven resolution)', () => {
 
   beforeEach(() => {
     registry = new Registry()
-    container = new Container(registry)
+    container = new Container({ registry })
   })
 
   afterEach(async () => {

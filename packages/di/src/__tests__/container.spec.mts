@@ -36,7 +36,7 @@ describe('Container', () => {
       info: vi.fn(),
       debug: vi.fn(),
     } as any
-    container = new Container(registry, mockLogger)
+    container = new Container({ registry, logger: mockLogger })
   })
 
   describe('Basic functionality', () => {
@@ -127,7 +127,7 @@ describe('Container', () => {
 
       it('should work with custom registry', async () => {
         const customRegistry = new Registry()
-        const customContainer = new Container(customRegistry, mockLogger)
+        const customContainer = new Container({ registry: customRegistry, logger: mockLogger })
         const token = Token.create<CustomService>('CustomService')
 
         @Injectable({ token, registry: customRegistry })

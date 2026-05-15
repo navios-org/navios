@@ -11,8 +11,9 @@ import { CircularDetector } from '../lifecycle/circular-detector.mjs'
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import type { ScopedContainer } from '../../container/scoped-container.mjs'
 import type { IContainer } from '../../interfaces/container.interface.mjs'
+import type { CreateContext, PluginRegistry } from '../../plugin/index.mjs'
 import type { AnyInjectableType, TokenType } from '../../token/token.mjs'
-import type { Registry } from '../../token/registry.mjs'
+import type { FactoryRecord, Registry } from '../../token/registry.mjs'
 import type { ServiceInitializationContext } from '../context/service-initialization-context.mjs'
 import type { IHolderStorage } from '../holder/holder-storage.interface.mjs'
 import type { InstanceHolder } from '../holder/instance-holder.mjs'
@@ -41,8 +42,35 @@ export class InstanceResolver {
     private readonly scopeTracker: ScopeTracker,
     private readonly serviceInvalidator: ServiceInvalidator,
     private readonly eventBus: LifecycleEventBus,
+    private readonly pluginRegistry: PluginRegistry | null = null,
     private readonly logger: Console | null = null,
   ) {}
+
+  /**
+   * Builds the plugin {@link CreateContext} for a construction. Only ever
+   * called on the construction path (never a cache hit), so middleware/hooks
+   * fire exactly when an instance is actually built — once per singleton,
+   * every time for transients.
+   */
+  private buildCreateContext(
+    realToken: Token<any, any>,
+    record: FactoryRecord,
+    args: any,
+    instanceName: string,
+    scope: InjectableScope,
+    contextContainer: IContainer,
+    requestId?: string,
+  ): CreateContext {
+    return {
+      token: realToken as Token<unknown>,
+      target: record.target,
+      scope,
+      args,
+      instanceName,
+      container: contextContainer,
+      requestId,
+    }
+  }
 
   // ============================================================================
   // PUBLIC RESOLUTION METHODS
@@ -360,6 +388,7 @@ export class InstanceResolver {
         scopedContainer,
         requestStorage,
         requestId,
+        realToken,
       )
     }
     if (serviceScope === InjectableScope.Request && !requestStorage) {
@@ -412,12 +441,52 @@ export class InstanceResolver {
       return undefined
     }
 
+    // Plugin context for this construction. We are guaranteed NOT on a
+    // cache-hit path here (resolveWithStorage returns cached holders before
+    // ever calling createAndStoreInstance), so middleware/hooks fire exactly
+    // once per singleton instance and never on subsequent cached gets.
+    const pluginCtx = this.pluginRegistry
+      ? this.buildCreateContext(
+          realToken,
+          record,
+          args,
+          instanceName,
+          serviceScope,
+          scopedContainer ?? contextContainer,
+          requestId,
+        )
+      : null
+
+    // core = the real construction. Middleware wraps this; its transformed
+    // return becomes what is stored in the holder AND returned (OTEL wrap
+    // contract). instantiateService still runs unchanged so the @InjectLazy
+    // deferred-thenable + registerDependency cascade is recorded on ctx.deps
+    // exactly as before — middleware only wraps the resulting value.
+    const core = async (): Promise<Instance> => {
+      const result = await this.serviceInitializer.instantiateService(ctx, record, args)
+      const [error, instance] = result.length === 2 ? result : [result[0], undefined]
+      if (error) {
+        // Throw so the chain rejects → handleInstantiationError. Middleware
+        // errors propagate the same way (intentional abort).
+        throw error
+      }
+      return instance as Instance
+    }
+
+    const runConstruction = (): Promise<unknown> =>
+      this.pluginRegistry && pluginCtx
+        ? this.pluginRegistry.runMiddleware(pluginCtx, core)
+        : core()
+
     // Start async instantiation within resolution context for circular dependency detection
     withResolutionContext(holder, getHolder, () => {
-      this.serviceInitializer
-        .instantiateService(ctx, record, args)
-        .then(async (result: [undefined, Instance] | [DIError]) => {
-          const [error, instance] = result.length === 2 ? result : [result[0], undefined]
+      ;(async () => {
+        if (this.pluginRegistry && pluginCtx) {
+          await this.pluginRegistry.runBeforeCreate(pluginCtx)
+        }
+        return runConstruction()
+      })()
+        .then(async (instance: unknown) => {
           const newScope = record.scope
           const newName = this.nameResolver.generateInstanceName(
             realToken,
@@ -431,11 +500,12 @@ export class InstanceResolver {
             ctx,
             deferred,
             newScope,
-            error,
+            undefined,
             instance,
             scopedContainer,
             requestStorage,
             requestId,
+            pluginCtx,
           )
         })
         .catch(async (error: Error) => {
@@ -476,6 +546,7 @@ export class InstanceResolver {
     scopedContainer?: ScopedContainer,
     requestStorage?: IHolderStorage,
     requestId?: string,
+    realToken?: Token<any, any>,
   ): Promise<[undefined, InstanceHolder<Instance>] | [DIError]> {
     this.logger?.log(
       `[InstanceResolver]#createTransientInstance() Creating transient instance for ${instanceName}`,
@@ -492,10 +563,45 @@ export class InstanceResolver {
       requestId,
     )
 
-    const [error, instance] = await this.serviceInitializer.instantiateService(ctx, record, args)
+    // Transient = no caching, so middleware/hooks run on EVERY get (per
+    // design §3.3). Same construction-only wiring as the singleton path.
+    const pluginCtx =
+      this.pluginRegistry && realToken
+        ? this.buildCreateContext(
+            realToken,
+            record as FactoryRecord,
+            args,
+            instanceName,
+            InjectableScope.Transient,
+            scopedContainer ?? contextContainer,
+            requestId,
+          )
+        : null
 
-    if (error) {
-      return [error]
+    if (this.pluginRegistry && pluginCtx) {
+      await this.pluginRegistry.runBeforeCreate(pluginCtx)
+    }
+
+    const core = async (): Promise<unknown> => {
+      const [err, built] = await this.serviceInitializer.instantiateService(ctx, record, args)
+      if (err) {
+        throw err
+      }
+      return built
+    }
+
+    let instance: unknown
+    try {
+      instance =
+        this.pluginRegistry && pluginCtx
+          ? await this.pluginRegistry.runMiddleware(pluginCtx, core)
+          : await core()
+    } catch (err) {
+      return [err instanceof DIError ? err : DIError.unknown(err as Error)]
+    }
+
+    if (this.pluginRegistry && pluginCtx) {
+      await this.pluginRegistry.runAfterCreate(pluginCtx, instance)
     }
 
     // Create a temporary holder for the result
@@ -528,7 +634,12 @@ export class InstanceResolver {
     _scopedContainer?: ScopedContainer,
     requestStorage?: IHolderStorage,
     _requestId?: string,
+    pluginCtx?: CreateContext | null,
   ): Promise<void> {
+    // `instance` is the post-middleware value (OTEL wrap contract): the
+    // holder stores, subscribes-against, and returns the wrapped value, so
+    // findByInstance + cascade invalidation operate on exactly what callers
+    // received.
     holder.instance = instance
     holder.status = InstanceStatus.Created
 
@@ -551,6 +662,13 @@ export class InstanceResolver {
         storageForSubscriptions,
         holder,
       )
+    }
+
+    // onAfterCreate observes the fully-stored (post-middleware) instance.
+    // Error-isolated inside PluginRegistry: a throwing hook is reported via
+    // the container-logger-backed onPluginError and never breaks the get().
+    if (this.pluginRegistry && pluginCtx) {
+      await this.pluginRegistry.runAfterCreate(pluginCtx, instance)
     }
 
     this.logger?.log(`[InstanceResolver] Instance ${instanceName} created successfully`)
@@ -587,6 +705,7 @@ export class InstanceResolver {
     scopedContainer?: ScopedContainer,
     requestStorage?: IHolderStorage,
     requestId?: string,
+    pluginCtx?: CreateContext | null,
   ): Promise<void> {
     if (error) {
       await this.handleInstantiationError(instanceName, holder, deferred, scope, error)
@@ -600,6 +719,7 @@ export class InstanceResolver {
         scopedContainer,
         requestStorage,
         requestId,
+        pluginCtx,
       )
     }
   }

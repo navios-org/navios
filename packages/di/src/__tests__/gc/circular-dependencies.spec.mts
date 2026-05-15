@@ -37,7 +37,7 @@ describe.skipIf(!isGCAvailable)('GC: Circular Dependencies', () => {
 
   beforeEach(() => {
     registry = new Registry()
-    container = new Container(registry)
+    container = new Container({ registry })
   })
 
   afterEach(async () => {
@@ -84,7 +84,7 @@ describe.skipIf(!isGCAvailable)('GC: Circular Dependencies', () => {
       await container.dispose()
 
       registry = new Registry()
-      container = new Container(registry)
+      container = new Container({ registry })
 
       // Release local references
       serviceA = null
@@ -197,7 +197,7 @@ describe.skipIf(!isGCAvailable)('GC: Circular Dependencies', () => {
       await container.dispose()
 
       registry = new Registry()
-      container = new Container(registry)
+      container = new Container({ registry })
 
       // Release local references
       a = null
@@ -250,7 +250,7 @@ describe.skipIf(!isGCAvailable)('GC: Circular Dependencies', () => {
       expect(destroyOrder).toContain('B')
 
       registry = new Registry()
-      container = new Container(registry)
+      container = new Container({ registry })
 
       // Release local references
       a = null
@@ -298,7 +298,7 @@ describe.skipIf(!isGCAvailable)('GC: Circular Dependencies', () => {
       expect(destroyCompleted).toContain('B')
 
       registry = new Registry()
-      container = new Container(registry)
+      container = new Container({ registry })
 
       // Release local references
       a = null
@@ -417,7 +417,7 @@ describe.skipIf(!isGCAvailable)('GC: Circular Dependencies', () => {
 
       for (let i = 0; i < ITERATIONS; i++) {
         const localRegistry = new Registry()
-        const localContainer = new Container(localRegistry)
+        const localContainer = new Container({ registry: localRegistry })
         const TokA = Token.create<ServiceA>(`LeakA${i}`)
         const TokB = Token.create<ServiceB>(`LeakB${i}`)
 

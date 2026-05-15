@@ -136,7 +136,11 @@ export class UnitTestContainer extends Container {
 
   constructor(options: UnitTestContainerOptions) {
     const testRegistry = new Registry()
-    super(testRegistry, options.logger ?? null)
+    super({
+      registry: testRegistry,
+      logger: options.logger ?? null,
+      plugins: options.plugins ?? [],
+    })
     this.testRegistry = testRegistry
     this.allowUnregistered = options.allowUnregistered ?? false
 

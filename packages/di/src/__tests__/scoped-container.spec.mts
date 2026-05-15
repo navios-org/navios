@@ -27,7 +27,7 @@ import { Token } from '../token/token.mjs'
 
 function createTestSetup() {
   const registry = new Registry()
-  const container = new Container(registry)
+  const container = new Container({ registry })
 
   return { registry, container }
 }

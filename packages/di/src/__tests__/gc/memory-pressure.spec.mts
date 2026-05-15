@@ -33,7 +33,7 @@ describe.skipIf(!isGCAvailable)('GC: Memory Pressure', () => {
 
   beforeEach(() => {
     registry = new Registry()
-    container = new Container(registry)
+    container = new Container({ registry })
   })
 
   afterEach(async () => {
@@ -76,7 +76,7 @@ describe.skipIf(!isGCAvailable)('GC: Memory Pressure', () => {
 
       // Create new container for afterEach cleanup
       registry = new Registry()
-      container = new Container(registry)
+      container = new Container({ registry })
 
       forceGC()
       const afterDisposal = getHeapUsed()
@@ -105,7 +105,7 @@ describe.skipIf(!isGCAvailable)('GC: Memory Pressure', () => {
       // Cleanup and measure reclamation
       await container.dispose()
       registry = new Registry()
-      container = new Container(registry)
+      container = new Container({ registry })
 
       forceGC()
       const final = getHeapUsed()
@@ -223,7 +223,7 @@ describe.skipIf(!isGCAvailable)('GC: Memory Pressure', () => {
       // Release spike
       await container.dispose()
       registry = new Registry()
-      container = new Container(registry)
+      container = new Container({ registry })
 
       forceGC()
       const afterRecovery = getHeapUsedMB()
@@ -245,7 +245,7 @@ describe.skipIf(!isGCAvailable)('GC: Memory Pressure', () => {
       // Create multiple containers
       for (let i = 0; i < CONTAINER_COUNT; i++) {
         const localRegistry = new Registry()
-        const localContainer = new Container(localRegistry)
+        const localContainer = new Container({ registry: localRegistry })
 
         @Injectable({ registry: localRegistry })
         class ContainerService {
@@ -319,7 +319,7 @@ describe.skipIf(!isGCAvailable)('GC: Memory Pressure', () => {
       // Dispose and verify reclamation
       await container.dispose()
       registry = new Registry()
-      container = new Container(registry)
+      container = new Container({ registry })
 
       // Clear references
       smallServices = []
@@ -416,7 +416,7 @@ describe.skipIf(!isGCAvailable)('GC: Memory Pressure', () => {
       // Dispose
       await container.dispose()
       registry = new Registry()
-      container = new Container(registry)
+      container = new Container({ registry })
 
       forceGC()
       const finalMemory = getHeapUsed()
@@ -473,7 +473,7 @@ describe.skipIf(!isGCAvailable)('GC: Memory Pressure', () => {
       // Dispose and verify reclamation
       await container.dispose()
       registry = new Registry()
-      container = new Container(registry)
+      container = new Container({ registry })
 
       forceGC()
       const finalMemory = getHeapUsed()

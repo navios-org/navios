@@ -1,3 +1,4 @@
+import type { Plugin } from '../plugin/index.mjs'
 import type { BoundToken, Token } from '../token/token.mjs'
 import type { Registry } from '../token/registry.mjs'
 
@@ -93,6 +94,11 @@ export interface TestContainerOptions {
    * Logger for debugging.
    */
   logger?: Console | null
+
+  /**
+   * Plugins to register at construction time, in registration order.
+   */
+  plugins?: Plugin[]
 }
 
 /**
@@ -114,4 +120,9 @@ export interface UnitTestContainerOptions {
    * Logger for debugging.
    */
   logger?: Console | null
+
+  /**
+   * Plugins to register at construction time, in registration order.
+   */
+  plugins?: Plugin[]
 }

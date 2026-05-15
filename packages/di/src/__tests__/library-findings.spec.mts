@@ -23,7 +23,7 @@ import type { OnServiceDestroy } from '../interfaces/on-service-destroy.interfac
 
 function createTestSetup() {
   const registry = new Registry()
-  const container = new Container(registry)
+  const container = new Container({ registry })
   return { registry, container }
 }
 

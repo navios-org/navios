@@ -35,7 +35,7 @@ describe.skipIf(!isGCAvailable)('GC: Basic Container', () => {
 
   beforeEach(() => {
     registry = new Registry()
-    container = new Container(registry)
+    container = new Container({ registry })
   })
 
   afterEach(async () => {
@@ -59,7 +59,7 @@ describe.skipIf(!isGCAvailable)('GC: Basic Container', () => {
 
       // Create new container for cleanup in afterEach
       registry = new Registry()
-      container = new Container(registry)
+      container = new Container({ registry })
       instance = null
 
       const collected = await waitForGC(tracker().ref)
@@ -93,7 +93,7 @@ describe.skipIf(!isGCAvailable)('GC: Basic Container', () => {
       await container.dispose()
 
       registry = new Registry()
-      container = new Container(registry)
+      container = new Container({ registry })
 
       // Release local references to allow GC
       instanceA = null
@@ -131,7 +131,7 @@ describe.skipIf(!isGCAvailable)('GC: Basic Container', () => {
       expect(destroyCalled).toBe(true)
 
       registry = new Registry()
-      container = new Container(registry)
+      container = new Container({ registry })
       instance = null
 
       const collected = await waitForGC(tracker().ref)
@@ -159,7 +159,7 @@ describe.skipIf(!isGCAvailable)('GC: Basic Container', () => {
       expect(destroyCompleted).toBe(true)
 
       registry = new Registry()
-      container = new Container(registry)
+      container = new Container({ registry })
       instance = null
 
       const collected = await waitForGC(tracker().ref)
@@ -189,7 +189,7 @@ describe.skipIf(!isGCAvailable)('GC: Basic Container', () => {
       await container.dispose()
 
       registry = new Registry()
-      container = new Container(registry)
+      container = new Container({ registry })
 
       // Release local references
       parent = null
@@ -239,7 +239,7 @@ describe.skipIf(!isGCAvailable)('GC: Basic Container', () => {
       await container.dispose()
 
       registry = new Registry()
-      container = new Container(registry)
+      container = new Container({ registry })
 
       // Release local references
       root = null
@@ -319,7 +319,7 @@ describe.skipIf(!isGCAvailable)('GC: Basic Container', () => {
   describe('Container itself can be garbage collected', () => {
     it('should allow container to be garbage collected after disposal', async () => {
       const localRegistry = new Registry()
-      let localContainer: Container | null = new Container(localRegistry)
+      let localContainer: Container | null = new Container({ registry: localRegistry })
 
       @Injectable({ registry: localRegistry })
       class TestService {

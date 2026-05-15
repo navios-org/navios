@@ -32,7 +32,7 @@ describe.skipIf(!isGCAvailable)('GC: Scoped Container', () => {
 
   beforeEach(() => {
     registry = new Registry()
-    container = new Container(registry)
+    container = new Container({ registry })
   })
 
   afterEach(async () => {

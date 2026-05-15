@@ -1,5 +1,7 @@
 import { InstanceStatus } from '../holder/instance-holder.mjs'
 
+import type { IContainer } from '../../interfaces/container.interface.mjs'
+import type { PluginRegistry } from '../../plugin/index.mjs'
 import type { IHolderStorage } from '../holder/holder-storage.interface.mjs'
 import type { InstanceHolder } from '../holder/instance-holder.mjs'
 import type { LifecycleEventBus } from '../lifecycle/lifecycle-event-bus.mjs'
@@ -7,6 +9,8 @@ import type { LifecycleEventBus } from '../lifecycle/lifecycle-event-bus.mjs'
 export interface ClearAllOptions {
   /** Whether to wait for all services to settle before starting (default: true) */
   waitForSettlement?: boolean
+  /** Owning container + requestId, used to build the plugin DestroyContext. */
+  destroyContext?: DestroyHookContext
 }
 
 export interface InvalidationOptions {
@@ -16,6 +20,18 @@ export interface InvalidationOptions {
   onInvalidated?: (instanceName: string) => Promise<void>
   /** Whether to cascade invalidation to dependents (default: false - events handle it) */
   cascade?: boolean
+  /** Owning container + requestId, used to build the plugin DestroyContext. */
+  destroyContext?: DestroyHookContext
+}
+
+/**
+ * The owning-container info the invalidator needs to build a plugin
+ * `DestroyContext`. Threaded from the call site (Container/ScopedContainer)
+ * because the invalidator itself is shared between them.
+ */
+export interface DestroyHookContext {
+  container: IContainer
+  requestId?: string
 }
 
 /**
@@ -28,6 +44,7 @@ export interface InvalidationOptions {
 export class ServiceInvalidator {
   constructor(
     private readonly eventBus: LifecycleEventBus | null,
+    private readonly pluginRegistry: PluginRegistry | null = null,
     private readonly logger: Console | null = null,
   ) {}
 
@@ -45,7 +62,7 @@ export class ServiceInvalidator {
     storage: IHolderStorage,
     options: InvalidationOptions = {},
   ): Promise<void> {
-    const { emitEvents = true, onInvalidated } = options
+    const { emitEvents = true, onInvalidated, destroyContext } = options
 
     this.logger?.log(`[ServiceInvalidator] Starting invalidation process for ${service}`)
 
@@ -56,7 +73,14 @@ export class ServiceInvalidator {
 
     const [, holder] = result
     if (holder) {
-      await this.invalidateHolderWithStorage(service, holder, storage, emitEvents, onInvalidated)
+      await this.invalidateHolderWithStorage(
+        service,
+        holder,
+        storage,
+        emitEvents,
+        onInvalidated,
+        destroyContext,
+      )
     }
   }
 
@@ -74,6 +98,7 @@ export class ServiceInvalidator {
     dependencies: Set<string>,
     storage: IHolderStorage,
     holder: InstanceHolder,
+    destroyContext?: DestroyHookContext,
   ): void {
     if (!this.eventBus) {
       return
@@ -85,8 +110,10 @@ export class ServiceInvalidator {
         this.logger?.log(
           `[ServiceInvalidator] Dependency ${dependencyName} destroyed, invalidating ${serviceName}`,
         )
-        // Automatically invalidate this service when dependency is destroyed
-        this.invalidateWithStorage(serviceName, storage).catch((error) => {
+        // Automatically invalidate this service when dependency is destroyed.
+        // Forward the same DestroyContext so cascade invalidations still fire
+        // before/after-destroy plugin hooks against the owning container.
+        this.invalidateWithStorage(serviceName, storage, { destroyContext }).catch((error) => {
           this.logger?.error(
             `[ServiceInvalidator] Error invalidating ${serviceName} after dependency ${dependencyName} destroyed:`,
             error,
@@ -105,7 +132,7 @@ export class ServiceInvalidator {
    * This allows clearing request-scoped services using a RequestStorage.
    */
   async clearAllWithStorage(storage: IHolderStorage, options: ClearAllOptions = {}): Promise<void> {
-    const { waitForSettlement = true } = options
+    const { waitForSettlement = true, destroyContext } = options
 
     this.logger?.log('[ServiceInvalidator] Starting graceful clearing of all services')
 
@@ -127,7 +154,7 @@ export class ServiceInvalidator {
 
       // Clear services - events will handle dependent invalidation
       const clearPromises = allServiceNames.map((serviceName) =>
-        this.invalidateWithStorage(serviceName, storage),
+        this.invalidateWithStorage(serviceName, storage, { destroyContext }),
       )
 
       await Promise.all(clearPromises)
@@ -158,11 +185,19 @@ export class ServiceInvalidator {
     storage: IHolderStorage,
     emitEvents: boolean,
     onInvalidated?: (instanceName: string) => Promise<void>,
+    destroyContext?: DestroyHookContext,
   ): Promise<void> {
     await this.invalidateHolderByStatus(holder, {
       context: key,
       onDestroy: () =>
-        this.destroyHolderWithStorage(key, holder, storage, emitEvents, onInvalidated),
+        this.destroyHolderWithStorage(
+          key,
+          holder,
+          storage,
+          emitEvents,
+          onInvalidated,
+          destroyContext,
+        ),
     })
   }
 
@@ -202,27 +237,48 @@ export class ServiceInvalidator {
     storage: IHolderStorage,
     emitEvents: boolean,
     onInvalidated?: (instanceName: string) => Promise<void>,
+    destroyContext?: DestroyHookContext,
   ): Promise<void> {
     holder.status = InstanceStatus.Destroying
     this.logger?.log(`[ServiceInvalidator] Invalidating ${key} and notifying listeners`)
 
-    holder.destroyPromise = Promise.all(holder.destroyListeners.map((listener) => listener())).then(
-      async () => {
-        holder.destroyListeners = []
-        holder.deps.clear()
-        storage.delete(key)
+    // Build the (deliberately minimal) plugin DestroyContext. Only fire the
+    // destroy hooks when we have both a PluginRegistry and the owning-container
+    // info (internal cascade calls without a container simply skip them — but
+    // they forward the context so they don't).
+    const instanceForHooks = holder.instance
+    const pluginCtx =
+      this.pluginRegistry && destroyContext
+        ? {
+            instanceName: key,
+            container: destroyContext.container,
+            requestId: destroyContext.requestId,
+          }
+        : null
 
-        // Emit events if enabled and event bus exists
-        if (emitEvents && this.eventBus) {
-          await this.emitInstanceEvent(key, 'destroy')
-        }
+    holder.destroyPromise = (async () => {
+      if (pluginCtx) {
+        await this.pluginRegistry!.runBeforeDestroy(pluginCtx, instanceForHooks)
+      }
+      await Promise.all(holder.destroyListeners.map((listener) => listener()))
+      holder.destroyListeners = []
+      holder.deps.clear()
+      storage.delete(key)
 
-        // Call custom callback if provided
-        if (onInvalidated) {
-          await onInvalidated(key)
-        }
-      },
-    )
+      // Emit events if enabled and event bus exists
+      if (emitEvents && this.eventBus) {
+        await this.emitInstanceEvent(key, 'destroy')
+      }
+
+      // Call custom callback if provided
+      if (onInvalidated) {
+        await onInvalidated(key)
+      }
+
+      if (pluginCtx) {
+        await this.pluginRegistry!.runAfterDestroy(pluginCtx)
+      }
+    })()
 
     await holder.destroyPromise
   }

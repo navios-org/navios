@@ -9,6 +9,7 @@ import { ServiceInvalidator } from '../internal/core/service-invalidator.mjs'
 import { TokenResolver } from '../internal/core/token-resolver.mjs'
 import { UnifiedStorage } from '../internal/holder/unified-storage.mjs'
 import { LifecycleEventBus } from '../internal/lifecycle/lifecycle-event-bus.mjs'
+import { PluginRegistry } from '../plugin/index.mjs'
 import {
   BoundToken,
   FactoryToken,
@@ -18,6 +19,7 @@ import { globalRegistry } from '../token/registry.mjs'
 import { getInjectableToken } from '../utils/index.mjs'
 
 import type { Factorable } from '../interfaces/factory.interface.mjs'
+import type { Plugin } from '../plugin/index.mjs'
 import type {
   ClassType,
   ClassTypeWithArgument,
@@ -31,6 +33,18 @@ import { AbstractContainer } from './abstract-container.mjs'
 import { ScopedContainer } from './scoped-container.mjs'
 
 /**
+ * Configuration options for {@link Container}.
+ */
+export interface ContainerOptions {
+  /** Registry to resolve token records from. Defaults to {@link globalRegistry}. */
+  registry?: Registry
+  /** Optional logger used for diagnostics AND as the backing for plugin-error reporting. */
+  logger?: Console | null
+  /** Plugins registered at construction time, in registration order. */
+  plugins?: Plugin[]
+}
+
+/**
  * Main dependency injection container.
  *
  * Provides a simplified public API for dependency injection.
@@ -42,6 +56,9 @@ export class Container extends AbstractContainer {
   protected readonly defaultScope = InjectableScope.Singleton
   protected readonly requestId = undefined
 
+  protected readonly registry: Registry
+  protected readonly logger: Console | null
+
   private readonly storage: UnifiedStorage
   private readonly serviceInitializer: ServiceInitializer
   private readonly serviceInvalidator: ServiceInvalidator
@@ -50,13 +67,30 @@ export class Container extends AbstractContainer {
   private readonly scopeTracker: ScopeTracker
   private readonly eventBus: LifecycleEventBus
   private readonly instanceResolver: InstanceResolver
+  private readonly pluginRegistry: PluginRegistry
   private readonly activeRequestIds = new Set<string>()
 
-  constructor(
-    protected readonly registry: Registry = globalRegistry,
-    protected readonly logger: Console | null = null,
-  ) {
+  constructor(options: ContainerOptions = {}) {
     super()
+    const { registry = globalRegistry, logger = null, plugins = [] } = options
+    this.registry = registry
+    this.logger = logger
+    // Plugin observer-hook errors are isolated by PluginRegistry; route the
+    // report through the container logger when one was provided so plugin
+    // authors get a signal on the same sink as the rest of the container
+    // (carry-forward from the Task 4.1 review). When no logger is supplied we
+    // pass NO handler so PluginRegistry's own guarded console.error default
+    // applies — rather than duplicating that fallback here.
+    this.pluginRegistry = new PluginRegistry(
+      plugins,
+      logger
+        ? (error, plugin, phase) =>
+            logger.error(
+              `[navios/di] plugin "${plugin.name}" ${phase} hook failed`,
+              error,
+            )
+        : undefined,
+    )
     // Initialize components
     this.storage = new UnifiedStorage(InjectableScope.Singleton)
     this.eventBus = new LifecycleEventBus(logger)
@@ -64,7 +98,11 @@ export class Container extends AbstractContainer {
     this.tokenResolver = new TokenResolver(logger)
     this.scopeTracker = new ScopeTracker(registry, this.nameResolver, logger)
     this.serviceInitializer = new ServiceInitializer()
-    this.serviceInvalidator = new ServiceInvalidator(this.eventBus, logger)
+    this.serviceInvalidator = new ServiceInvalidator(
+      this.eventBus,
+      this.pluginRegistry,
+      logger,
+    )
     this.instanceResolver = new InstanceResolver(
       registry,
       this.storage,
@@ -74,9 +112,28 @@ export class Container extends AbstractContainer {
       this.scopeTracker,
       this.serviceInvalidator,
       this.eventBus,
+      this.pluginRegistry,
       logger,
     )
     this.registerSelf()
+  }
+
+  /**
+   * Registers a plugin after construction. Subsequently-created instances
+   * (and, for transients, every resolution) observe it; already-cached
+   * singletons are not retroactively wrapped.
+   */
+  use(plugin: Plugin): void {
+    this.pluginRegistry.register(plugin)
+  }
+
+  /**
+   * @internal
+   * Exposes the container's PluginRegistry so a ScopedContainer can share
+   * its parent's plugins rather than constructing a second registry.
+   */
+  getPluginRegistry(): PluginRegistry {
+    return this.pluginRegistry
   }
 
   private registerSelf() {
@@ -154,14 +211,19 @@ export class Container extends AbstractContainer {
       return
     }
 
-    await this.serviceInvalidator.invalidateWithStorage(holder.name, this.storage)
+    await this.serviceInvalidator.invalidateWithStorage(holder.name, this.storage, {
+      destroyContext: { container: this },
+    })
   }
 
   /**
    * Disposes the container and cleans up all resources.
    */
   async dispose(): Promise<void> {
-    await this.serviceInvalidator.clearAllWithStorage(this.storage)
+    await this.serviceInvalidator.clearAllWithStorage(this.storage, {
+      destroyContext: { container: this },
+    })
+    await this.pluginRegistry.runContainerDispose(this)
   }
 
   /**

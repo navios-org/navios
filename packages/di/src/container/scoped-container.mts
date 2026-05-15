@@ -182,7 +182,9 @@ export class ScopedContainer extends AbstractContainer {
       return this.parent.invalidate(service)
     }
 
-    await this.getServiceInvalidator().invalidateWithStorage(holder.name, this.storage)
+    await this.getServiceInvalidator().invalidateWithStorage(holder.name, this.storage, {
+      destroyContext: { container: this, requestId: this.requestId },
+    })
   }
 
   /**
@@ -243,7 +245,9 @@ export class ScopedContainer extends AbstractContainer {
     this.disposed = true
 
     // Clear all request-scoped services
-    await this.getServiceInvalidator().clearAllWithStorage(this.storage)
+    await this.getServiceInvalidator().clearAllWithStorage(this.storage, {
+      destroyContext: { container: this, requestId: this.requestId },
+    })
 
     // Remove request ID from parent
     this.parent.removeRequestId(this.requestId)

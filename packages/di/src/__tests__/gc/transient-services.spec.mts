@@ -31,7 +31,7 @@ describe.skipIf(!isGCAvailable)('GC: Transient Services', () => {
 
   beforeEach(() => {
     registry = new Registry()
-    container = new Container(registry)
+    container = new Container({ registry })
   })
 
   afterEach(async () => {
