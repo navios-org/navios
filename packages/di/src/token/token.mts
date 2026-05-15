@@ -90,8 +90,11 @@ export class Token<
    *
    * @param value Raw pre-validation input ({@link StandardSchemaV1.InferInput}).
    */
-  bind(value: StandardSchemaV1.InferInput<NonNullable<S>>): BoundToken<T, NonNullable<S>> {
-    return new BoundToken(this as Token<T, NonNullable<S>>, value)
+  bind<SS extends StandardSchemaV1>(
+    this: Token<T, SS>,
+    value: StandardSchemaV1.InferInput<SS>,
+  ): BoundToken<T, SS> {
+    return new BoundToken(this, value)
   }
 
   /**
@@ -99,10 +102,11 @@ export class Token<
    *
    * @param factory Async factory returning raw pre-validation input.
    */
-  fromFactory(
-    factory: (ctx: FactoryContext) => Promise<StandardSchemaV1.InferInput<NonNullable<S>>>,
-  ): FactoryToken<T, NonNullable<S>> {
-    return new FactoryToken(this as Token<T, NonNullable<S>>, factory)
+  fromFactory<SS extends StandardSchemaV1>(
+    this: Token<T, SS>,
+    factory: (ctx: FactoryContext) => Promise<StandardSchemaV1.InferInput<SS>>,
+  ): FactoryToken<T, SS> {
+    return new FactoryToken(this, factory)
   }
 
   static bound<T, S extends StandardSchemaV1>(
@@ -181,11 +185,11 @@ export class FactoryToken<T, S extends StandardSchemaV1> {
   // Returns the raw factory output (pre-validation input); the container
   // validates this to InferOutput at resolution time (see token-resolver).
   async resolve(ctx: FactoryContext): Promise<StandardSchemaV1.InferInput<S>> {
-    if (!this.value) {
+    if (!this.resolved) {
       this.value = await this.factory(ctx)
       this.resolved = true
     }
-    return this.value
+    return this.value as StandardSchemaV1.InferInput<S>
   }
 
   toString() {

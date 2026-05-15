@@ -26,7 +26,7 @@ describe('Token', () => {
     expect(bound.id).toBe(tok.id)
   })
 
-  it('.fromFactory(fn) produces a lazy-resolving token', async () => {
+  it('.fromFactory(fn) produces a lazy-resolving token and memoizes', async () => {
     const schema = z.object({ port: z.number() })
     const tok = Token.create<{ port: number }, typeof schema>('Cfg', schema)
     const factoryFn = vi.fn(async () => ({ port: 9999 }))
@@ -35,5 +35,20 @@ describe('Token', () => {
     await factoryTok.resolve({} as FactoryContext)
     expect(factoryTok.resolved).toBe(true)
     expect(factoryTok.value).toEqual({ port: 9999 })
+    await factoryTok.resolve({} as FactoryContext)
+    expect(factoryFn).toHaveBeenCalledTimes(1)
+  })
+
+  it('.fromFactory(fn) memoizes a falsy resolved value', async () => {
+    const schema = z.any()
+    const tok = Token.create<number, typeof schema>('Falsy', schema)
+    const factoryFn = vi.fn(async () => 0)
+    const factoryTok = tok.fromFactory(factoryFn)
+    const first = await factoryTok.resolve({} as FactoryContext)
+    const second = await factoryTok.resolve({} as FactoryContext)
+    expect(factoryFn).toHaveBeenCalledTimes(1)
+    expect(first).toBe(0)
+    expect(second).toBe(0)
+    expect(factoryTok.value).toBe(0)
   })
 })
