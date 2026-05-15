@@ -206,6 +206,7 @@ export abstract class AbstractContainer implements IContainer {
   }
 
   /**
+   * @internal
    * Adds an instance to the container.
    * Accepts class types, Tokens, and BoundTokens.
    * Rejects Tokens with required schemas (use BoundToken instead).

@@ -35,6 +35,34 @@ export class ServiceInitializer {
   ) {}
 
   /**
+   * @internal
+   * Per-target field overrides keyed by the target class, then by field name.
+   * Empty by default — when empty the normal one-pass resolution path runs
+   * byte-for-byte unchanged (guarded by a `size === 0` fast-path in
+   * {@link resolveInjections}). Populated ONLY by `TestContainer.mockInject`
+   * to set a specific `@Inject*` accessor field directly, WITHOUT resolving
+   * the field's token/class through the resolution context. This is the
+   * field-granular sibling of TestContainer's token-granular `bind()`.
+   */
+  readonly fieldOverrides = new Map<ClassType, Map<string | symbol, unknown>>()
+
+  /**
+   * @internal
+   * Registers a direct value for one `@Inject*` accessor field on `target`.
+   * When `target` is later instantiated, that field is assigned `value`
+   * directly and its token is NEVER resolved. Used by
+   * `TestContainer.mockInject`.
+   */
+  setFieldOverride(target: ClassType, fieldName: string | symbol, value: unknown): void {
+    let perField = this.fieldOverrides.get(target)
+    if (!perField) {
+      perField = new Map()
+      this.fieldOverrides.set(target, perField)
+    }
+    perField.set(fieldName, value)
+  }
+
+  /**
    * Instantiates a service based on its registry record.
    * @param ctx The factory context for dependency injection
    * @param record The factory record from the registry
@@ -86,8 +114,28 @@ export class ServiceInitializer {
     const entries = getInjections(target)
     const resolved = new Map<string | symbol, unknown>()
 
+    // Field-override fast-path: when no `mockInject` overrides are registered
+    // (the universal production case) `perFieldOverrides` is undefined and the
+    // resolution path below is byte-for-byte the unchanged v2 one-pass model.
+    // When present, an overridden field's value is assigned DIRECTLY and its
+    // token is never passed to `ctx.inject` (so the real dependency is never
+    // resolved). Works uniformly for Eager/Derived/Lazy/Optional because the
+    // skip happens before any kind-specific branching.
+    const perFieldOverrides =
+      this.fieldOverrides.size > 0 ? this.fieldOverrides.get(target) : undefined
+    const isOverridden = (fieldName: string | symbol): boolean =>
+      perFieldOverrides !== undefined && perFieldOverrides.has(fieldName)
+    if (perFieldOverrides !== undefined) {
+      for (const [fieldName, value] of perFieldOverrides) {
+        resolved.set(fieldName, value)
+      }
+    }
+
     const eagerOrDerived: InjectionEntry[] = []
     for (const entry of entries) {
+      if (isOverridden(entry.fieldName)) {
+        continue
+      }
       if (entry.kind === InjectionKind.Eager || entry.kind === InjectionKind.Derived) {
         eagerOrDerived.push(entry)
       }
@@ -107,6 +155,9 @@ export class ServiceInitializer {
 
     const optionalPending: Array<[string | symbol, Promise<unknown>]> = []
     for (const entry of entries) {
+      if (isOverridden(entry.fieldName)) {
+        continue
+      }
       if (entry.kind === InjectionKind.Lazy) {
         // Lazy: the field holds a DEFERRED thenable. `ctx.inject()` is NOT
         // called here (during resolveInjections, before the host instance has

@@ -111,8 +111,25 @@ export interface UnitTestContainerOptions {
   providers: ProviderConfig[]
 
   /**
-   * If true, unregistered dependencies will be auto-mocked instead of throwing.
-   * Default: false (throws on unregistered dependencies)
+   * Strict mode. When `true`, resolving a dependency that is not in the
+   * `providers` list throws a `DIError`. When `false` (the DEFAULT in v2),
+   * unregistered dependencies are auto-mocked.
+   *
+   * v2 flipped the default: auto-mocking is now on by default because
+   * strict-by-default surprised most users. Pass `{ strict: true }` to
+   * restore the old throw-on-unregistered behavior.
+   *
+   * Default: `false` (auto-mock unregistered dependencies).
+   */
+  strict?: boolean
+
+  /**
+   * @deprecated Use `strict` instead. `allowUnregistered: true` is equivalent
+   * to `strict: false` and `allowUnregistered: false` to `strict: true`.
+   * When both are provided, `strict` wins.
+   *
+   * If set, unregistered dependencies are auto-mocked (`true`) or throw
+   * (`false`).
    */
   allowUnregistered?: boolean
 

@@ -113,6 +113,41 @@ export class TestContainer extends Container {
   }
 
   /**
+   * Directly sets one `@Inject*` accessor field on `target` to `value` when
+   * `target` is later resolved — WITHOUT going through registry/token
+   * resolution for that field. The field's real dependency token is never
+   * resolved (no constructor side-effects, and the dependency need not even
+   * be registered).
+   *
+   * This is the field-granular sibling of {@link bind}: where `bind()`
+   * overrides resolution at the TOKEN level, `mockInject` overrides a single
+   * named field at the INSTANCE level. Use it to unit-test a service in
+   * isolation when you don't want to register a fake at the token level.
+   *
+   * Other (non-overridden) `@Inject*` fields on the same class still resolve
+   * normally. Works for `@Inject`, `@InjectLazy`, `@InjectOptional`, and
+   * `@InjectDerived` fields alike — the override short-circuits resolution
+   * before any kind-specific handling.
+   *
+   * Fluent: returns `this`.
+   *
+   * @example
+   * ```ts
+   * container.mockInject(UserService, 'repo', { findUser: () => fakeUser })
+   * const svc = await container.get(UserService)
+   * // svc.repo is the stub; UserRepo's token was never resolved.
+   * ```
+   */
+  mockInject<T>(
+    target: new (...args: any[]) => T,
+    fieldName: string | symbol,
+    value: unknown,
+  ): this {
+    this.internals.serviceInitializer.setFieldOverride(target, fieldName, value)
+    return this
+  }
+
+  /**
    * Clears all bindings and resets container state.
    */
   async clear(): Promise<void> {

@@ -93,7 +93,7 @@ function createAutoMockProxy(tokenId: string): object {
         throw new Error(
           `[UnitTestContainer] Attempted to access '${prop}' on auto-mocked service '${tokenId}'. ` +
             `This service was not provided in the providers list. ` +
-            `Add it to providers or use allowUnregistered: false to catch this earlier.`,
+            `Add it to providers or use { strict: true } to catch this earlier.`,
         )
       },
     },
@@ -103,9 +103,11 @@ function createAutoMockProxy(tokenId: string): object {
 /**
  * UnitTestContainer for isolated unit testing.
  *
- * Only services explicitly listed in `providers` can be resolved.
+ * Only services explicitly listed in `providers` are constructed for real.
  * All method calls are automatically tracked via proxies.
- * Unregistered dependencies throw by default, or can be auto-mocked.
+ *
+ * In v2, unregistered dependencies are AUTO-MOCKED by default. Pass
+ * `{ strict: true }` to restore the throw-on-unregistered behavior.
  *
  * @example
  * ```ts
@@ -142,7 +144,12 @@ export class UnitTestContainer extends Container {
       plugins: options.plugins ?? [],
     })
     this.testRegistry = testRegistry
-    this.allowUnregistered = options.allowUnregistered ?? false
+    // v2: auto-mocking is the DEFAULT. Precedence: explicit `strict` wins,
+    // then the deprecated `allowUnregistered`, otherwise auto-mock (true).
+    this.allowUnregistered =
+      options.strict !== undefined
+        ? !options.strict
+        : (options.allowUnregistered ?? true)
 
     // Register all providers
     for (const provider of options.providers) {
@@ -185,7 +192,7 @@ export class UnitTestContainer extends Container {
       if (!this.allowUnregistered) {
         throw DIError.factoryNotFound(
           `${realToken.toString()} is not in the providers list. ` +
-            `Add it to providers or enable allowUnregistered.`,
+            `Add it to providers or drop { strict: true } to auto-mock it.`,
         )
       }
 

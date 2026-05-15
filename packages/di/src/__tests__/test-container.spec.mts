@@ -1,5 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
+import { Inject } from '../decorators/inject.decorator.mjs'
+import { InjectLazy } from '../decorators/inject-lazy.decorator.mjs'
+import { InjectOptional } from '../decorators/inject-optional.decorator.mjs'
 import { Injectable } from '../decorators/injectable.decorator.mjs'
 import { InjectableScope } from '../enums/index.mjs'
 import { TestContainer } from '../testing/test-container.mjs'
@@ -270,6 +273,126 @@ describe('TestContainer', () => {
       const graph = container.getSimplifiedDependencyGraph()
       expect(graph).toBeDefined()
       expect(typeof graph).toBe('object')
+    })
+  })
+
+  describe('mockInject', () => {
+    it('should set an @Inject field to a stub without resolving the real token', async () => {
+      let realDepConstructed = 0
+
+      @Injectable()
+      class RealDep {
+        constructor() {
+          realDepConstructed++
+        }
+        greet(): string {
+          return 'real'
+        }
+      }
+
+      @Injectable()
+      class Consumer {
+        @Inject(RealDep) accessor dep!: RealDep
+      }
+
+      const stub = { greet: () => 'stub' } as RealDep
+
+      const ret = container.mockInject(Consumer, 'dep', stub)
+      expect(ret).toBe(container) // fluent
+
+      const consumer = await container.get(Consumer)
+
+      expect(consumer.dep).toBe(stub)
+      expect(consumer.dep.greet()).toBe('stub')
+      // The real dependency token was NEVER resolved.
+      expect(realDepConstructed).toBe(0)
+      container.expectNotResolved(RealDep)
+    })
+
+    it('should not require the mocked dependency to be registered', async () => {
+      // RealDep is intentionally NOT @Injectable / not registered anywhere.
+      class UnregisteredDep {
+        value = 'real'
+      }
+
+      @Injectable()
+      class Service {
+        @Inject(UnregisteredDep) accessor dep!: UnregisteredDep
+      }
+
+      container.mockInject(Service, 'dep', { value: 'mocked' })
+
+      const service = await container.get(Service)
+      expect(service.dep.value).toBe('mocked')
+    })
+
+    it('should keep other non-mocked @Inject fields resolving normally', async () => {
+      const REAL_TOKEN = Token.create<{ name: string }>('real-other')
+
+      @Injectable()
+      class MockedDep {
+        tag = 'real-mocked-dep'
+      }
+
+      @Injectable()
+      class Host {
+        @Inject(MockedDep) accessor mocked!: MockedDep
+        @Inject(REAL_TOKEN) accessor real!: { name: string }
+      }
+
+      container.bind(REAL_TOKEN).toValue({ name: 'really-resolved' })
+      container.mockInject(Host, 'mocked', { tag: 'stubbed' })
+
+      const host = await container.get(Host)
+      expect(host.mocked.tag).toBe('stubbed')
+      expect(host.real.name).toBe('really-resolved')
+      container.expectNotResolved(MockedDep)
+    })
+
+    it('should support mocking an @InjectLazy field', async () => {
+      let lazyConstructed = 0
+
+      @Injectable()
+      class LazyDep {
+        constructor() {
+          lazyConstructed++
+        }
+        ping(): string {
+          return 'real-lazy'
+        }
+      }
+
+      @Injectable()
+      class LazyConsumer {
+        @InjectLazy(LazyDep) accessor dep!: Promise<LazyDep>
+      }
+
+      const lazyStub = Promise.resolve({ ping: () => 'stub-lazy' } as LazyDep)
+      container.mockInject(LazyConsumer, 'dep', lazyStub)
+
+      const consumer = await container.get(LazyConsumer)
+      const resolved = await consumer.dep
+      expect(resolved.ping()).toBe('stub-lazy')
+      expect(lazyConstructed).toBe(0)
+      container.expectNotResolved(LazyDep)
+    })
+
+    it('should support mocking an @InjectOptional field', async () => {
+      @Injectable()
+      class OptionalDep {
+        flag = 'real-optional'
+      }
+
+      @Injectable()
+      class OptionalConsumer {
+        @InjectOptional(OptionalDep) accessor dep!: OptionalDep | null
+      }
+
+      container.mockInject(OptionalConsumer, 'dep', { flag: 'stub-optional' })
+
+      const consumer = await container.get(OptionalConsumer)
+      expect(consumer.dep?.flag).toBe('stub-optional')
+      container.expectNotResolved(OptionalDep)
     })
   })
 })

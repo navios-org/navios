@@ -6,7 +6,7 @@ import { UnitTestContainer } from '../testing/unit-test-container.mjs'
 import { Token } from '../token/token.mjs'
 
 describe('UnitTestContainer', () => {
-  describe('Strict Mode (default)', () => {
+  describe('Provider Resolution', () => {
     it('should resolve services from providers list', async () => {
       @Injectable()
       class UserService {
@@ -25,15 +25,31 @@ describe('UnitTestContainer', () => {
       await container.dispose()
     })
 
-    it('should throw when resolving unregistered service', async () => {
+    it('should throw when resolving unregistered service in strict mode', async () => {
       @Injectable()
       class NotProvided {}
 
       const container = new UnitTestContainer({
         providers: [],
+        strict: true,
       })
 
       await expect(container.get(NotProvided)).rejects.toThrow(/not in the providers list/)
+
+      await container.dispose()
+    })
+
+    it('should auto-mock an unregistered service by default (v2)', async () => {
+      @Injectable()
+      class NotProvidedByDefault {}
+
+      const container = new UnitTestContainer({
+        providers: [],
+      })
+
+      const service = await container.get(NotProvidedByDefault)
+      expect(service).toBeDefined()
+      container.expectAutoMocked(NotProvidedByDefault)
 
       await container.dispose()
     })
@@ -245,9 +261,10 @@ describe('UnitTestContainer', () => {
 
       const container = new UnitTestContainer({
         providers: [],
+        strict: true,
       })
 
-      // Should throw initially
+      // Should throw initially (strict mode)
       await expect(container.get(DynamicService)).rejects.toThrow()
 
       // Enable auto-mocking
@@ -272,6 +289,36 @@ describe('UnitTestContainer', () => {
       container.disableAutoMocking()
 
       await expect(container.get(AnotherService)).rejects.toThrow()
+
+      await container.dispose()
+    })
+
+    it('should restore throw-on-unregistered with { strict: true }', async () => {
+      @Injectable()
+      class StrictOptOut {}
+
+      const container = new UnitTestContainer({
+        providers: [],
+        strict: true,
+      })
+
+      await expect(container.get(StrictOptOut)).rejects.toThrow(/not in the providers list/)
+
+      await container.dispose()
+    })
+
+    it('should let strict win over deprecated allowUnregistered', async () => {
+      @Injectable()
+      class Conflicting {}
+
+      // strict:true must override allowUnregistered:true (strict wins).
+      const container = new UnitTestContainer({
+        providers: [],
+        strict: true,
+        allowUnregistered: true,
+      })
+
+      await expect(container.get(Conflicting)).rejects.toThrow(/not in the providers list/)
 
       await container.dispose()
     })
