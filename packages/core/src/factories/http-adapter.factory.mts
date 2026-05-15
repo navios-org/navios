@@ -1,20 +1,22 @@
-import { Factory, inject, InjectionToken } from '@navios/di'
+import { Factory, Inject, Token } from '@navios/di'
 
 import type { FactoryContext } from '@navios/di'
 
 import { NaviosEnvironment } from '../navios.environment.mjs'
 import { HttpAdapterToken } from '../tokens/index.mjs'
 
+import type { AbstractHttpAdapterInterface } from '../interfaces/index.mjs'
+
 @Factory({
   token: HttpAdapterToken,
 })
 export class HttpAdapterFactory {
-  private readonly environment = inject(NaviosEnvironment)
+  @Inject(NaviosEnvironment) private accessor environment!: NaviosEnvironment
   create(ctx: FactoryContext) {
     const service = this.environment.getToken(HttpAdapterToken)
     if (!service) {
       throw new Error('HttpAdapterToken service not found in environment')
     }
-    return ctx.inject(service as InjectionToken<any, undefined>)
+    return ctx.inject<AbstractHttpAdapterInterface>(service as Token<any, undefined>)
   }
 }

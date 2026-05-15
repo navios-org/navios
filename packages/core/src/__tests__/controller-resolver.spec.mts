@@ -1,8 +1,9 @@
 import {
   Container,
-  getInjectableToken,
+  DIError,
+  DIErrorCode,
   globalRegistry,
-  inject,
+  Inject,
   Injectable,
   InjectableScope,
   Registry,
@@ -13,7 +14,7 @@ import { InstanceResolverService } from '../services/instance-resolver.service.m
 
 function createTestSetup() {
   const registry = new Registry(globalRegistry)
-  const container = new Container(registry)
+  const container = new Container({ registry })
 
   return { registry, container }
 }
@@ -41,7 +42,7 @@ describe('InstanceResolverService', () => {
 
       @Injectable({ registry })
       class SingletonController {
-        private service = inject(SimpleService)
+        @Inject(SimpleService) private accessor service!: SimpleService
 
         getValue() {
           return this.service.value
@@ -64,7 +65,7 @@ describe('InstanceResolverService', () => {
 
       @Injectable({ registry })
       class ControllerWithRequestDep {
-        private service = inject(RequestScopedService)
+        @Inject(RequestScopedService) private accessor service!: RequestScopedService
 
         getServiceId() {
           return this.service.id
@@ -79,7 +80,11 @@ describe('InstanceResolverService', () => {
       expect(typeof resolution.resolve).toBe('function')
     })
 
-    it('should update controller scope to Request when it has request-scoped dependencies', async () => {
+    it('should NOT mutate the registered scope (v2 explicit-opt-in contract)', async () => {
+      // v2 deleted the v1 implicit Singleton->Request registry mutation. The
+      // controller stays Singleton-registered; `container.get()` keeps failing
+      // fast with ScopeIncompatibleError, while per-request resolution happens
+      // via the explicit, non-mutating `resolveInScope`.
       @Injectable({ scope: InjectableScope.Request, registry })
       class RequestScopedService {
         id = Math.random().toString(36).substring(7)
@@ -87,7 +92,7 @@ describe('InstanceResolverService', () => {
 
       @Injectable({ registry })
       class ControllerWithRequestDep {
-        private service = inject(RequestScopedService)
+        @Inject(RequestScopedService) private accessor service!: RequestScopedService
 
         getServiceId() {
           return this.service.id
@@ -95,11 +100,26 @@ describe('InstanceResolverService', () => {
       }
 
       const resolver = await container.get(InstanceResolverService)
-      await resolver.resolve(ControllerWithRequestDep)
+      const resolution = await resolver.resolve(ControllerWithRequestDep)
+      expect(resolution.cached).toBe(false)
 
-      // Check that the controller's scope was updated
-      const token = container.getRegistry().get(getInjectableToken(ControllerWithRequestDep))
-      expect(token.scope).toBe(InjectableScope.Request)
+      // The controller's registration keeps its declared (Singleton) scope and
+      // the validator memo is not poisoned: re-resolving as a plain singleton
+      // STILL fails fast with ScopeIncompatibleError.
+      let thrown: unknown = null
+      try {
+        await container.get(ControllerWithRequestDep)
+      } catch (error) {
+        thrown = error
+      }
+      expect(thrown).toBeInstanceOf(DIError)
+      expect((thrown as DIError).code).toBe(DIErrorCode.ScopeIncompatibleError)
+
+      // ...yet the explicit opt-in path still yields a working instance.
+      const scoped = container.beginRequest('no-mutate-request')
+      const instance = (await resolution.resolve(scoped)) as ControllerWithRequestDep
+      expect(typeof instance.getServiceId()).toBe('string')
+      await scoped.endRequest()
     })
 
     it('should resolve different instances per request when controller has request-scoped deps', async () => {
@@ -112,7 +132,7 @@ describe('InstanceResolverService', () => {
 
       @Injectable({ registry })
       class ControllerWithRequestDep {
-        private service = inject(RequestScopedService)
+        @Inject(RequestScopedService) private accessor service!: RequestScopedService
 
         getServiceId() {
           return this.service.id
@@ -128,7 +148,6 @@ describe('InstanceResolverService', () => {
       const scoped1 = container.beginRequest('request-1')
       const controller1 = await resolution.resolve(scoped1)
       const id1 = (controller1 as ControllerWithRequestDep).getServiceId()
-      console.log('id1', id1)
 
       // Request 2
       const scoped2 = container.beginRequest('request-2')
@@ -162,7 +181,7 @@ describe('InstanceResolverService', () => {
 
       @Injectable({ registry })
       class ControllerWithTracker {
-        private tracker = inject(RequestTrackerService)
+        @Inject(RequestTrackerService) private accessor tracker!: RequestTrackerService
 
         async handleRequest(data: string) {
           this.tracker.addData('input', data)
@@ -215,6 +234,97 @@ describe('InstanceResolverService', () => {
       expect(resolution1.cached).toBe(true)
       expect(resolution2.cached).toBe(true)
       expect(resolution1.instance).toBe(resolution2.instance)
+    })
+
+    it('should propagate a genuine construction error instead of swallowing it', async () => {
+      // v1 used a blanket `catch {}` that masked real failures. v2 narrows the
+      // catch to ScopeIncompatibleError only; any other error must surface.
+      @Injectable({ registry })
+      class ExplodingController {
+        constructor() {
+          throw new Error('boom from constructor')
+        }
+      }
+
+      const resolver = await container.get(InstanceResolverService)
+
+      await expect(resolver.resolve(ExplodingController)).rejects.toThrow(/boom from constructor/)
+    })
+  })
+
+  describe('resolveMany', () => {
+    it('should cache all when every class is a singleton', async () => {
+      @Injectable({ registry })
+      class A {
+        a = 'a'
+      }
+
+      @Injectable({ registry })
+      class B {
+        b = 'b'
+      }
+
+      const resolver = await container.get(InstanceResolverService)
+      const resolution = await resolver.resolveMany([A, B])
+
+      expect(resolution.cached).toBe(true)
+      expect(resolution.instances).toHaveLength(2)
+      expect(resolution.instances?.[0]).toBeInstanceOf(A)
+      expect(resolution.instances?.[1]).toBeInstanceOf(B)
+    })
+
+    it('should not cache when any class has request-scoped deps and resolve per-request', async () => {
+      @Injectable({ scope: InjectableScope.Request, registry })
+      class ReqScoped {
+        id = Math.random()
+      }
+
+      @Injectable({ registry })
+      class SingletonOnly {
+        value = 'ok'
+      }
+
+      @Injectable({ registry })
+      class NeedsRequest {
+        @Inject(ReqScoped) private accessor dep!: ReqScoped
+
+        getId() {
+          return this.dep.id
+        }
+      }
+
+      const resolver = await container.get(InstanceResolverService)
+      const resolution = await resolver.resolveMany([SingletonOnly, NeedsRequest])
+
+      expect(resolution.cached).toBe(false)
+      expect(resolution.instances).toBeNull()
+
+      const scoped = container.beginRequest('rm-request-1')
+      const instances = await resolution.resolve(scoped)
+      expect(instances).toHaveLength(2)
+      expect(instances[0]).toBeInstanceOf(SingletonOnly)
+      expect(instances[1]).toBeInstanceOf(NeedsRequest)
+      await scoped.endRequest()
+    })
+
+    it('should propagate a genuine construction error from resolveMany', async () => {
+      @Injectable({ registry })
+      class FineService {
+        ok = true
+      }
+
+      @Injectable({ registry })
+      class Exploding {
+        constructor() {
+          throw new Error('boom in resolveMany')
+        }
+      }
+
+      const resolver = await container.get(InstanceResolverService)
+
+      await expect(resolver.resolveMany([FineService, Exploding])).rejects.toThrow(
+        /boom in resolveMany/,
+      )
     })
   })
 })

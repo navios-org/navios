@@ -1,8 +1,10 @@
 import { NaviosError } from '@navios/builder'
-import { inject, Injectable, InjectionToken } from '@navios/di'
+import { Inject, Injectable, Token } from '@navios/di'
 import { z } from 'zod/v4'
 
 import { Logger } from '../logger/index.mjs'
+
+import type { LoggerInstance } from '../logger/index.mjs'
 
 import type { ConfigServiceInterface as IConfigService } from './config-service.interface.mjs'
 import type { Path, PathValue } from './types.mjs'
@@ -19,7 +21,7 @@ export type ConfigServiceOptions = z.infer<typeof ConfigServiceOptionsSchema>
 /**
  * Injection token for ConfigService.
  */
-export const ConfigServiceToken = InjectionToken.create<
+export const ConfigServiceToken = Token.create<
   IConfigService,
   typeof ConfigServiceOptionsSchema
 >(Symbol.for('ConfigService'), ConfigServiceOptionsSchema)
@@ -46,7 +48,7 @@ export const ConfigServiceToken = InjectionToken.create<
  *
  * @Injectable()
  * export class DatabaseService {
- *   private config = inject(MyConfigService)
+ *   @Inject(MyConfigService) private accessor config!: MyConfigService
  *
  *   connect() {
  *     const host = this.config.getOrThrow('database.host')
@@ -62,9 +64,8 @@ export const ConfigServiceToken = InjectionToken.create<
 export class ConfigService<
   Config extends ConfigServiceOptions = Record<string, unknown>,
 > implements IConfigService<Config> {
-  private readonly logger = inject(Logger, {
-    context: ConfigService.name,
-  })
+  @Inject(Logger, { context: 'ConfigService' })
+  private accessor logger!: LoggerInstance
 
   /**
    * Creates a new ConfigService instance.

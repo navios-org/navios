@@ -1,6 +1,6 @@
 import { TestContainer } from '@navios/di/testing'
 
-import type { ClassType, ClassTypeWithInstance, InjectionToken, ScopedContainer } from '@navios/di'
+import type { ClassType, ClassTypeWithInstance, Token, ScopedContainer } from '@navios/di'
 
 import { NaviosApplication } from '../navios.application.mjs'
 import { NaviosFactory } from '../navios.factory.mjs'
@@ -17,7 +17,7 @@ export interface TestingModuleOverride<T = any> {
   /**
    * The injection token or class to override.
    */
-  token: ClassType | InjectionToken<T, any>
+  token: ClassType | Token<T, any>
   /**
    * Value to use instead of the original provider.
    */
@@ -190,7 +190,7 @@ export class TestingModule {
    * Override a provider with a mock value or class.
    * Must be called before `compile()` or `init()`.
    */
-  overrideProvider<T>(token: ClassType | InjectionToken<T, any>): {
+  overrideProvider<T>(token: ClassType | Token<T, any>): {
     useValue: (value: T) => TestingModule
     useClass: (target: ClassType) => TestingModule
   } {
@@ -215,7 +215,7 @@ export class TestingModule {
    * If only `compile()` was called, this uses the root container
    * and request-scoped services will throw.
    */
-  async get<T>(token: ClassTypeWithInstance<T> | InjectionToken<T, any>): Promise<T> {
+  async get<T>(token: ClassTypeWithInstance<T> | Token<T, any>): Promise<T> {
     // Use scoped container if available (after init)
     if (this.scopedContainer) {
       return this.scopedContainer.get(token as any)
@@ -256,35 +256,35 @@ export class TestingModule {
   /**
    * Asserts that a service has been resolved at least once.
    */
-  expectResolved(token: ClassType | InjectionToken<any, any>): void {
+  expectResolved(token: ClassType | Token<any, any>): void {
     this.container.expectResolved(token)
   }
 
   /**
    * Asserts that a service has NOT been resolved.
    */
-  expectNotResolved(token: ClassType | InjectionToken<any, any>): void {
+  expectNotResolved(token: ClassType | Token<any, any>): void {
     this.container.expectNotResolved(token)
   }
 
   /**
    * Asserts that a service is registered as singleton scope.
    */
-  expectSingleton(token: ClassType | InjectionToken<any, any>): void {
+  expectSingleton(token: ClassType | Token<any, any>): void {
     this.container.expectSingleton(token)
   }
 
   /**
    * Asserts that a service is registered as transient scope.
    */
-  expectTransient(token: ClassType | InjectionToken<any, any>): void {
+  expectTransient(token: ClassType | Token<any, any>): void {
     this.container.expectTransient(token)
   }
 
   /**
    * Asserts that a service is registered as request scope.
    */
-  expectRequestScoped(token: ClassType | InjectionToken<any, any>): void {
+  expectRequestScoped(token: ClassType | Token<any, any>): void {
     this.container.expectRequestScoped(token)
   }
 
@@ -292,7 +292,7 @@ export class TestingModule {
    * Asserts that a method was called on a service.
    * Note: You must use `recordMethodCall()` in your mocks for this to work.
    */
-  expectCalled(token: ClassType | InjectionToken<any, any>, method: string): void {
+  expectCalled(token: ClassType | Token<any, any>, method: string): void {
     this.container.expectCalled(token, method)
   }
 
@@ -301,7 +301,7 @@ export class TestingModule {
    * Note: You must use `recordMethodCall()` in your mocks for this to work.
    */
   expectCalledWith(
-    token: ClassType | InjectionToken<any, any>,
+    token: ClassType | Token<any, any>,
     method: string,
     expectedArgs: unknown[],
   ): void {
@@ -313,7 +313,7 @@ export class TestingModule {
    * Note: You must use `recordMethodCall()` in your mocks for this to work.
    */
   expectCallCount(
-    token: ClassType | InjectionToken<any, any>,
+    token: ClassType | Token<any, any>,
     method: string,
     count: number,
   ): void {
@@ -325,7 +325,7 @@ export class TestingModule {
    * Call this from your mock implementations to enable call assertions.
    */
   recordMethodCall(
-    token: ClassType | InjectionToken<any, any>,
+    token: ClassType | Token<any, any>,
     method: string,
     args: unknown[],
     result?: unknown,
@@ -337,7 +337,7 @@ export class TestingModule {
   /**
    * Gets all recorded method calls for a service.
    */
-  getMethodCalls(token: ClassType | InjectionToken<any, any>) {
+  getMethodCalls(token: ClassType | Token<any, any>) {
     return this.container.getMethodCalls(token)
   }
 

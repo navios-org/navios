@@ -1,4 +1,4 @@
-import { Container, getInjectableToken, inject, Injectable, InjectableScope } from '@navios/di'
+import { Container, DIError, DIErrorCode, Inject, Injectable } from '@navios/di'
 
 import type { ClassType, ScopedContainer } from '@navios/di'
 
@@ -59,16 +59,28 @@ export interface MultiInstanceResolution<T = any> {
 }
 
 /**
- * Service responsible for resolving class instances with automatic scope detection.
+ * Service responsible for resolving class instances with scope detection.
  *
- * This service attempts to resolve classes as singletons from the root container.
- * If resolution fails (because the class has request-scoped dependencies),
- * it automatically updates the class's scope to Request and provides a
- * resolver function for per-request instantiation.
+ * This service attempts to resolve classes as singletons from the root
+ * container. If that fails specifically because the class eagerly depends on
+ * a Request/Transient-scoped service (`@navios/di` v2 is fail-fast and throws
+ * `DIError` with `code === DIErrorCode.ScopeIncompatibleError`), the class is
+ * flagged as not-cached and a resolver is returned that resolves the class
+ * per-request via the explicit, non-mutating
+ * {@link ScopedContainer.resolveInScope} opt-in API.
+ *
+ * This replaces the v1 implicit Singleton -> Request scope-upgrade, which
+ * mutated a shared global registration at runtime (and had a concurrency race
+ * when two requests upgraded the same token at once). The registry is now
+ * immutable w.r.t. scope; `resolveInScope` resolves the class in a forced
+ * Request scope for that one resolution only, isolated per request.
+ *
+ * Any OTHER error (a genuine construction failure) is rethrown rather than
+ * swallowed, so real failures surface instead of being silently masked.
  *
  * This enables optimal performance:
  * - Classes without request-scoped deps stay as singletons (faster)
- * - Classes with request-scoped deps are automatically promoted to request scope
+ * - Classes with request-scoped deps are resolved per-request on demand
  *
  * @example
  * ```ts
@@ -86,11 +98,11 @@ export interface MultiInstanceResolution<T = any> {
  */
 @Injectable()
 export class InstanceResolverService {
-  private container = inject(Container)
+  @Inject(Container) private accessor container!: Container
 
   /**
-   * Attempts to resolve a class instance, automatically detecting if it needs
-   * request scope based on its dependencies.
+   * Attempts to resolve a class instance, detecting if it needs request scope
+   * based on its dependencies.
    *
    * @param classType - The class to resolve
    * @returns A resolution result containing either a cached instance or resolver function
@@ -100,22 +112,24 @@ export class InstanceResolverService {
 
     try {
       cachedInstance = await this.container.get(classType)
-    } catch {
-      // Class has request-scoped dependencies, update its scope to Request
-      // so it will be resolved per-request from the scoped container
-      const token = getInjectableToken(classType)
-      this.container.getRegistry().updateScope(token, InjectableScope.Request)
+    } catch (error) {
+      // Only a scope-incompatibility means "this class must be resolved
+      // per-request". Anything else is a genuine construction failure that
+      // the v1 blanket `catch {}` masked — rethrow it so it surfaces.
+      if (!(error instanceof DIError && error.code === DIErrorCode.ScopeIncompatibleError)) {
+        throw error
+      }
     }
 
     return {
       cached: cachedInstance !== null,
       instance: cachedInstance,
-      resolve: (scoped: ScopedContainer) => scoped.get(classType) as Promise<T>,
+      resolve: (scoped: ScopedContainer) => scoped.resolveInScope(classType) as Promise<T>,
     }
   }
 
   /**
-   * Attempts to resolve multiple class instances, automatically detecting if any need
+   * Attempts to resolve multiple class instances, detecting if any need
    * request scope based on their dependencies.
    *
    * Returns `cached: true` only if ALL classes can be resolved as singletons.
@@ -140,10 +154,14 @@ export class InstanceResolverService {
         try {
           const instance = await this.container.get(classType)
           return { success: true, instance: instance as T }
-        } catch {
-          // Class has request-scoped dependencies, update its scope to Request
-          const token = getInjectableToken(classType)
-          this.container.getRegistry().updateScope(token, InjectableScope.Request)
+        } catch (error) {
+          // See `resolve()`: only a scope-incompatibility is "needs
+          // per-request"; any other error is a genuine failure — rethrow.
+          if (
+            !(error instanceof DIError && error.code === DIErrorCode.ScopeIncompatibleError)
+          ) {
+            throw error
+          }
           return { success: false, instance: null }
         }
       }),
@@ -157,7 +175,7 @@ export class InstanceResolverService {
       instances: cachedInstances,
       classTypes,
       resolve: (scoped: ScopedContainer) =>
-        Promise.all(classTypes.map((classType) => scoped.get(classType) as Promise<T>)),
+        Promise.all(classTypes.map((classType) => scoped.resolveInScope(classType) as Promise<T>)),
     }
   }
 }

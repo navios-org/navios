@@ -1,9 +1,11 @@
-import { inject, Injectable, InjectionToken } from '@navios/di'
+import { Inject, Injectable, Token } from '@navios/di'
 
 import type { ClassTypeWithInstance, ScopedContainer } from '@navios/di'
 
 import { HttpException } from '../exceptions/index.mjs'
 import { Logger } from '../logger/index.mjs'
+
+import type { LoggerInstance } from '../logger/index.mjs'
 import { FrameworkError } from '../responders/enums/framework-error.enum.mjs'
 import { ErrorResponseProducerService } from '../responders/services/error-response-producer.service.mjs'
 
@@ -12,17 +14,18 @@ import type { ControllerMetadata, HandlerMetadata, ModuleMetadata } from '../met
 
 @Injectable()
 export class GuardRunnerService {
-  private readonly errorProducer = inject(ErrorResponseProducerService)
-  private readonly logger = inject(Logger, {
-    context: GuardRunnerService.name,
-  })
+  @Inject(ErrorResponseProducerService)
+  private accessor errorProducer!: ErrorResponseProducerService
+
+  @Inject(Logger, { context: 'GuardRunnerService' })
+  private accessor logger!: LoggerInstance
 
   /**
    * Runs guards that need to be resolved from a scoped container.
    * Use this when guards have request-scoped dependencies.
    */
   async runGuards(
-    allGuards: Set<ClassTypeWithInstance<CanActivate> | InjectionToken<CanActivate, undefined>>,
+    allGuards: Set<ClassTypeWithInstance<CanActivate> | Token<CanActivate, undefined>>,
     executionContext: AbstractExecutionContext,
     context: ScopedContainer,
   ) {
@@ -32,7 +35,7 @@ export class GuardRunnerService {
     // Resolve all guards in parallel
     const guardInstances = await Promise.all(
       guardsArray.map(async (guard) => {
-        const guardInstance = await context.get(guard as InjectionToken<CanActivate, undefined>)
+        const guardInstance = await context.get(guard as Token<CanActivate, undefined>)
         if (!guardInstance.canActivate) {
           throw new Error(`[Navios] Guard ${guard.name as string} does not implement canActivate()`)
         }
@@ -93,9 +96,9 @@ export class GuardRunnerService {
     moduleMetadata: ModuleMetadata,
     controllerMetadata: ControllerMetadata,
     endpoint: HandlerMetadata,
-  ): Set<ClassTypeWithInstance<CanActivate> | InjectionToken<CanActivate, undefined>> {
+  ): Set<ClassTypeWithInstance<CanActivate> | Token<CanActivate, undefined>> {
     const guards = new Set<
-      ClassTypeWithInstance<CanActivate> | InjectionToken<CanActivate, undefined>
+      ClassTypeWithInstance<CanActivate> | Token<CanActivate, undefined>
     >()
     const endpointGuards = endpoint.guards
     const controllerGuards = controllerMetadata.guards

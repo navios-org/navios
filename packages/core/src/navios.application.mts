@@ -1,18 +1,14 @@
-import {
-  BoundInjectionToken,
-  Container,
-  FactoryInjectionToken,
-  inject,
-  Injectable,
-  InjectionToken,
-} from '@navios/di'
+import { Container, Inject, Injectable } from '@navios/di'
 
 import type {
+  BoundToken,
   ClassType,
   ClassTypeWithArgument,
   ClassTypeWithInstance,
-  InjectionTokenSchemaType,
+  FactoryToken,
   Registry,
+  Token,
+  TokenSchemaType,
 } from '@navios/di'
 import type { z } from 'zod/v4'
 
@@ -41,7 +37,7 @@ import type {
   NaviosModule,
   PluginStage,
 } from './interfaces/index.mjs'
-import type { LoggerService, LogLevel } from './logger/index.mjs'
+import type { LoggerInstance, LoggerService, LogLevel } from './logger/index.mjs'
 import type { NaviosEnvironmentOptions } from './navios.environment.mjs'
 
 /**
@@ -118,13 +114,14 @@ export interface NaviosApplicationOptions {
  */
 @Injectable()
 export class NaviosApplication<Environment extends AdapterEnvironment = DefaultAdapterEnvironment> {
-  private environment = inject(NaviosEnvironment)
-  private moduleLoader = inject(ModuleLoaderService)
+  @Inject(NaviosEnvironment) private accessor environment!: NaviosEnvironment
+  @Inject(ModuleLoaderService) private accessor moduleLoader!: ModuleLoaderService
   private adapter: Environment['adapter'] | null = null
-  private logger = inject(Logger, {
-    context: NaviosApplication.name,
-  })
-  protected container = inject(Container)
+
+  @Inject(Logger, { context: 'NaviosApplication' })
+  private accessor logger!: LoggerInstance
+
+  @Inject(Container) protected accessor container!: Container
 
   private appModule: ClassTypeWithInstance<NaviosModule> | null = null
   private options: NaviosApplicationOptions = {
@@ -446,22 +443,22 @@ export class NaviosApplication<Environment extends AdapterEnvironment = DefaultA
    */
   get<T extends ClassType>(token: T): Promise<InstanceType<T>>
   get<T extends ClassTypeWithArgument<R>, R>(token: T, args: R): Promise<InstanceType<T>>
-  get<T, S extends InjectionTokenSchemaType>(
-    token: InjectionToken<T, S>,
+  get<T, S extends TokenSchemaType>(
+    token: Token<T, S>,
     args: z.input<S>,
   ): Promise<T>
-  get<T, S extends InjectionTokenSchemaType, R extends boolean>(
-    token: InjectionToken<T, S, R>,
+  get<T, S extends TokenSchemaType, R extends boolean>(
+    token: Token<T, S, R>,
   ): Promise<T>
-  get<T>(token: InjectionToken<T, undefined>): Promise<T>
-  get<T>(token: BoundInjectionToken<T, any>): Promise<T>
-  get<T>(token: FactoryInjectionToken<T, any>): Promise<T>
+  get<T>(token: Token<T, undefined>): Promise<T>
+  get<T>(token: BoundToken<T, any>): Promise<T>
+  get<T>(token: FactoryToken<T, any>): Promise<T>
   async get(
     token:
       | ClassType
-      | InjectionToken<any>
-      | BoundInjectionToken<any, any>
-      | FactoryInjectionToken<any, any>,
+      | Token<any>
+      | BoundToken<any, any>
+      | FactoryToken<any, any>,
     args?: unknown,
   ): Promise<any> {
     return this.container.get(token as any, args)

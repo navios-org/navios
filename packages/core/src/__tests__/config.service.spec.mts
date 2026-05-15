@@ -6,10 +6,12 @@ import {
   ConfigServiceToken,
   Container,
   EnvConfigProvider,
-  inject,
+  Inject,
   Injectable,
   Logger,
 } from '../index.mjs'
+
+import type { ConfigService, LoggerInstance } from '../index.mjs'
 
 describe('ConfigService', () => {
   let container: Container
@@ -31,8 +33,10 @@ describe('ConfigService', () => {
   it('should be possible to use inside service as a inject', async () => {
     @Injectable()
     class TestService {
-      public readonly configService = inject(EnvConfigProvider)
-      public readonly logger = inject(Logger)
+      @Inject(EnvConfigProvider)
+      public accessor configService!: ConfigService<Record<string, string>>
+
+      @Inject(Logger) public accessor logger!: LoggerInstance
     }
 
     const service = await container.get(TestService)

@@ -1,4 +1,4 @@
-import { inject, Injectable } from '@navios/di'
+import { Inject, Injectable } from '@navios/di'
 
 import { FrameworkError } from '../enums/framework-error.enum.mjs'
 import {
@@ -8,6 +8,7 @@ import {
   ValidationErrorResponderToken,
 } from '../tokens/responder.tokens.mjs'
 
+import type { ErrorResponder } from '../interfaces/error-responder.interface.mjs'
 import type { ErrorResponse } from '../interfaces/error-response.interface.mjs'
 
 /**
@@ -24,7 +25,7 @@ import type { ErrorResponse } from '../interfaces/error-response.interface.mjs'
  * ```typescript
  * @Injectable()
  * class MyAdapter {
- *   private errorProducer = inject(ErrorResponseProducerService)
+ *   @Inject(ErrorResponseProducerService) private accessor errorProducer!: ErrorResponseProducerService
  *
  *   handleError(error: unknown): Response {
  *     if (error instanceof ZodError) {
@@ -50,10 +51,12 @@ import type { ErrorResponse } from '../interfaces/error-response.interface.mjs'
  */
 @Injectable()
 export class ErrorResponseProducerService {
-  private readonly forbiddenResponder = inject(ForbiddenResponderToken)
-  private readonly internalServerErrorResponder = inject(InternalServerErrorResponderToken)
-  private readonly notFoundResponder = inject(NotFoundResponderToken)
-  private readonly validationErrorResponder = inject(ValidationErrorResponderToken)
+  @Inject(ForbiddenResponderToken) private accessor forbiddenResponder!: ErrorResponder
+  @Inject(InternalServerErrorResponderToken)
+  private accessor internalServerErrorResponder!: ErrorResponder
+  @Inject(NotFoundResponderToken) private accessor notFoundResponder!: ErrorResponder
+  @Inject(ValidationErrorResponderToken)
+  private accessor validationErrorResponder!: ErrorResponder
 
   /**
    * Produces an error response for a specific framework error type.

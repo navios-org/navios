@@ -1,6 +1,6 @@
-import { Factory, inject, InjectableScope } from '@navios/di'
+import { Factory, Inject, InjectableScope } from '@navios/di'
 
-import type { FactoryContext, InjectionToken } from '@navios/di'
+import type { FactoryContext, Token } from '@navios/di'
 
 import { NaviosEnvironment } from '../navios.environment.mjs'
 import { Reply } from '../tokens/index.mjs'
@@ -10,12 +10,12 @@ import { Reply } from '../tokens/index.mjs'
   scope: InjectableScope.Request,
 })
 export class ReplyFactory {
-  private readonly environment = inject(NaviosEnvironment)
+  @Inject(NaviosEnvironment) private accessor environment!: NaviosEnvironment
   create(ctx: FactoryContext) {
     const service = this.environment.getToken(Reply)
     if (!service) {
       throw new Error('ReplyToken service not found in environment')
     }
-    return ctx.inject(service as InjectionToken<any, undefined>)
+    return ctx.inject<any>(service as Token<any, undefined>)
   }
 }

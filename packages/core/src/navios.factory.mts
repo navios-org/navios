@@ -1,6 +1,6 @@
 import { Container } from '@navios/di'
 
-import type { AnyInjectableType, ClassTypeWithInstance, InjectionToken } from '@navios/di'
+import type { AnyInjectableType, ClassTypeWithInstance, Token } from '@navios/di'
 
 import { ConsoleLogger, isNil, LoggerOutput } from './logger/index.mjs'
 import { NaviosApplication } from './navios.application.mjs'
@@ -93,7 +93,7 @@ export class NaviosFactory {
       adapter: [],
     },
   ): Promise<NaviosApplication<Environment>> {
-    const container = options.container ?? new Container(options.registry)
+    const container = options.container ?? new Container({ registry: options.registry })
 
     // Set request ID flag early, before any adapters are registered
     if (options.enableRequestId === true) {
@@ -116,7 +116,7 @@ export class NaviosFactory {
   private static async registerEnvironment(
     container: Container,
     environment: {
-      tokens?: Map<InjectionToken<any, undefined>, AnyInjectableType>
+      tokens?: Map<Token<any, undefined>, AnyInjectableType>
     } = {},
   ) {
     const naviosEnvironment = await container.get(NaviosEnvironment)

@@ -1,4 +1,4 @@
-import { InjectionToken } from '@navios/di'
+import { Token } from '@navios/di'
 import z from 'zod/v4'
 
 import type { LoggerService } from './logger-service.interface.mjs'
@@ -10,7 +10,7 @@ import type { LoggerInstance } from './logger.service.mjs'
  * This token is used to provide a custom logger implementation.
  * By default, it's bound to ConsoleLogger.
  */
-export const LoggerOutput = InjectionToken.create<LoggerService>('LoggerOutput')
+export const LoggerOutput = Token.create<LoggerService>('LoggerOutput')
 
 /**
  * Schema for logger options.
@@ -33,11 +33,11 @@ export type LoggerOptions = z.infer<typeof loggerOptionsSchema>
  *
  * @example
  * ```typescript
- * const logger = inject(Logger, { context: 'MyService' })
- * logger.log('Hello world') // Logs with context: [MyService]
+ * @Inject(Logger, { context: 'MyService' }) private accessor logger!: LoggerInstance
+ * this.logger.log('Hello world') // Logs with context: [MyService]
  * ```
  */
-export const Logger = InjectionToken.create<LoggerInstance, typeof loggerOptionsSchema>(
+export const Logger = Token.create<LoggerInstance, typeof loggerOptionsSchema>(
   'Logger',
   loggerOptionsSchema,
 )

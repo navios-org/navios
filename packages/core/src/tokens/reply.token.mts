@@ -1,3 +1,3 @@
-import { InjectionToken } from '@navios/di'
+import { Token } from '@navios/di'
 
-export const Reply = InjectionToken.create<any>('ReplyToken')
+export const Reply = Token.create<any>('ReplyToken')

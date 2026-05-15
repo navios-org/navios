@@ -1,6 +1,6 @@
 import { env } from 'node:process'
 
-import { FactoryInjectionToken, InjectionToken } from '@navios/di'
+import { FactoryToken, Token } from '@navios/di'
 import { z } from 'zod/v4'
 
 import { ConfigService, ConfigServiceOptionsSchema, ConfigServiceToken } from './config.service.mjs'
@@ -38,8 +38,8 @@ export const ConfigProviderOptions = z.object({
  */
 export function provideConfig<ConfigMap extends ConfigServiceOptions>(
   options: z.input<typeof ConfigProviderOptions>,
-): FactoryInjectionToken<ConfigService<ConfigMap>, typeof ConfigServiceOptionsSchema> {
-  return InjectionToken.factory(ConfigServiceToken, async () => options.load())
+): FactoryToken<ConfigService<ConfigMap>, typeof ConfigServiceOptionsSchema> {
+  return Token.factory(ConfigServiceToken, async () => options.load())
 }
 
 /**
@@ -53,7 +53,7 @@ export function provideConfig<ConfigMap extends ConfigServiceOptions>(
  * container.bind(ConfigServiceToken).toValue(EnvConfigProvider)
  * ```
  */
-export const EnvConfigProvider = InjectionToken.bound<
+export const EnvConfigProvider = Token.bound<
   ConfigService<Record<string, string>>,
   typeof ConfigServiceOptionsSchema
 >(ConfigServiceToken, {

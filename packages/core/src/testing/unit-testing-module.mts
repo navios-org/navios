@@ -1,6 +1,6 @@
 import { UnitTestContainer } from '@navios/di/testing'
 
-import type { ClassType, ClassTypeWithInstance, InjectionToken } from '@navios/di'
+import type { ClassType, ClassTypeWithInstance, Token } from '@navios/di'
 import type { MethodCallRecord, MockServiceStats, ProviderConfig } from '@navios/di/testing'
 
 /**
@@ -105,7 +105,7 @@ export class UnitTestingModule {
    * @throws Error if the token is not in the providers list
    *         and `allowUnregistered` is false
    */
-  async get<T>(token: ClassTypeWithInstance<T> | InjectionToken<T, any>): Promise<T> {
+  async get<T>(token: ClassTypeWithInstance<T> | Token<T, any>): Promise<T> {
     return this.container.get(token as any)
   }
 
@@ -141,28 +141,28 @@ export class UnitTestingModule {
   /**
    * Asserts that a service has been resolved at least once.
    */
-  expectResolved(token: ClassType | InjectionToken<any, any>): void {
+  expectResolved(token: ClassType | Token<any, any>): void {
     this.container.expectResolved(token)
   }
 
   /**
    * Asserts that a service has NOT been resolved.
    */
-  expectNotResolved(token: ClassType | InjectionToken<any, any>): void {
+  expectNotResolved(token: ClassType | Token<any, any>): void {
     this.container.expectNotResolved(token)
   }
 
   /**
    * Asserts that a service was auto-mocked (not in providers list).
    */
-  expectAutoMocked(token: ClassType | InjectionToken<any, any>): void {
+  expectAutoMocked(token: ClassType | Token<any, any>): void {
     this.container.expectAutoMocked(token)
   }
 
   /**
    * Asserts that a service was NOT auto-mocked (is in providers list).
    */
-  expectNotAutoMocked(token: ClassType | InjectionToken<any, any>): void {
+  expectNotAutoMocked(token: ClassType | Token<any, any>): void {
     this.container.expectNotAutoMocked(token)
   }
 
@@ -170,14 +170,14 @@ export class UnitTestingModule {
    * Asserts that a method was called on a service.
    * Method calls are automatically tracked via proxy.
    */
-  expectCalled(token: ClassType | InjectionToken<any, any>, method: string): void {
+  expectCalled(token: ClassType | Token<any, any>, method: string): void {
     this.container.expectCalled(token, method)
   }
 
   /**
    * Asserts that a method was NOT called on a service.
    */
-  expectNotCalled(token: ClassType | InjectionToken<any, any>, method: string): void {
+  expectNotCalled(token: ClassType | Token<any, any>, method: string): void {
     this.container.expectNotCalled(token, method)
   }
 
@@ -185,7 +185,7 @@ export class UnitTestingModule {
    * Asserts that a method was called with specific arguments.
    */
   expectCalledWith(
-    token: ClassType | InjectionToken<any, any>,
+    token: ClassType | Token<any, any>,
     method: string,
     expectedArgs: unknown[],
   ): void {
@@ -196,7 +196,7 @@ export class UnitTestingModule {
    * Asserts that a method was called a specific number of times.
    */
   expectCallCount(
-    token: ClassType | InjectionToken<any, any>,
+    token: ClassType | Token<any, any>,
     method: string,
     count: number,
   ): void {
@@ -206,14 +206,14 @@ export class UnitTestingModule {
   /**
    * Gets all recorded method calls for a service.
    */
-  getMethodCalls(token: ClassType | InjectionToken<any, any>): MethodCallRecord[] {
+  getMethodCalls(token: ClassType | Token<any, any>): MethodCallRecord[] {
     return this.container.getMethodCalls(token)
   }
 
   /**
    * Gets statistics about a service (instance count, method calls, lifecycle events).
    */
-  getServiceStats(token: ClassType | InjectionToken<any, any>): MockServiceStats {
+  getServiceStats(token: ClassType | Token<any, any>): MockServiceStats {
     return this.container.getServiceStats(token)
   }
 
@@ -246,21 +246,21 @@ export class UnitTestingModule {
   /**
    * Asserts that a service's onServiceInit was called.
    */
-  expectInitialized(token: ClassType | InjectionToken<any, any>): void {
+  expectInitialized(token: ClassType | Token<any, any>): void {
     this.container.expectInitialized(token)
   }
 
   /**
    * Asserts that a service's onServiceDestroy was called.
    */
-  expectDestroyed(token: ClassType | InjectionToken<any, any>): void {
+  expectDestroyed(token: ClassType | Token<any, any>): void {
     this.container.expectDestroyed(token)
   }
 
   /**
    * Asserts that a service has NOT been destroyed.
    */
-  expectNotDestroyed(token: ClassType | InjectionToken<any, any>): void {
+  expectNotDestroyed(token: ClassType | Token<any, any>): void {
     this.container.expectNotDestroyed(token)
   }
 
@@ -269,7 +269,7 @@ export class UnitTestingModule {
    * Call this from your mock implementations if needed.
    */
   recordLifecycleEvent(
-    token: ClassType | InjectionToken<any, any>,
+    token: ClassType | Token<any, any>,
     event: 'created' | 'initialized' | 'destroyed',
     instanceName: string,
   ): void {

@@ -1,4 +1,4 @@
-import { inject, Injectable } from '@navios/di'
+import { Inject, Injectable } from '@navios/di'
 
 import { Logger, LoggerOutput } from './logger.tokens.mjs'
 
@@ -15,7 +15,7 @@ import type { LoggerOptions } from './logger.tokens.mjs'
  * ```typescript
  * @Injectable()
  * export class UserService {
- *   private logger = inject(Logger, { context: UserService.name })
+ *   @Inject(Logger, { context: UserService.name }) private accessor logger!: LoggerInstance
  *
  *   async findUser(id: string) {
  *     this.logger.log(`Finding user ${id}`)
@@ -28,7 +28,7 @@ import type { LoggerOptions } from './logger.tokens.mjs'
   token: Logger,
 })
 export class LoggerInstance implements LoggerService {
-  protected localInstance = inject(LoggerOutput)
+  @Inject(LoggerOutput) protected accessor localInstance!: LoggerService
 
   protected context?: string
 

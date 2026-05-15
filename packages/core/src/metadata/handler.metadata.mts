@@ -1,5 +1,5 @@
 import type { HttpMethod } from '@navios/builder'
-import type { ClassTypeWithInstance, InjectionToken } from '@navios/di'
+import type { ClassTypeWithInstance, Token } from '@navios/di'
 
 import type {
   AbstractHttpHandlerAdapterInterface,
@@ -14,13 +14,13 @@ export interface HandlerMetadata<Config = null> {
   url: string
   successStatusCode: number
   adapterToken:
-    | InjectionToken<AbstractHttpHandlerAdapterInterface, undefined>
+    | Token<AbstractHttpHandlerAdapterInterface, undefined>
     | ClassTypeWithInstance<AbstractHttpHandlerAdapterInterface>
     | null
   headers: Partial<Record<HttpHeader, number | string | string[] | undefined>>
   httpMethod: HttpMethod
   config: Config
-  guards: Set<ClassTypeWithInstance<CanActivate> | InjectionToken<CanActivate, undefined>>
+  guards: Set<ClassTypeWithInstance<CanActivate> | Token<CanActivate, undefined>>
   customAttributes: Map<string | symbol, any>
 }
 
@@ -60,7 +60,7 @@ export function getEndpointMetadata<Config = any>(
           // @ts-expect-error We are using a generic type here
           config: null,
           guards: new Set<
-            ClassTypeWithInstance<CanActivate> | InjectionToken<CanActivate, undefined>
+            ClassTypeWithInstance<CanActivate> | Token<CanActivate, undefined>
           >(),
           customAttributes: new Map<string | symbol, any>(),
         }

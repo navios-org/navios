@@ -1,4 +1,4 @@
-import type { ClassType, ClassTypeWithInstance, InjectionToken } from '@navios/di'
+import type { ClassType, ClassTypeWithInstance, Token } from '@navios/di'
 
 import type { CanActivate } from '../interfaces/index.mjs'
 
@@ -14,7 +14,7 @@ export interface ControllerMetadata {
    */
   name: string
   endpoints: Set<HandlerMetadata>
-  guards: Set<ClassTypeWithInstance<CanActivate> | InjectionToken<CanActivate, undefined>>
+  guards: Set<ClassTypeWithInstance<CanActivate> | Token<CanActivate, undefined>>
   customAttributes: Map<string | symbol, any>
 }
 
@@ -35,7 +35,7 @@ export function getControllerMetadata(
   const newMetadata: ControllerMetadata = {
     name: target.name,
     endpoints: getAllEndpointMetadata(context),
-    guards: new Set<ClassTypeWithInstance<CanActivate> | InjectionToken<CanActivate, undefined>>(),
+    guards: new Set<ClassTypeWithInstance<CanActivate> | Token<CanActivate, undefined>>(),
     customAttributes: new Map<string | symbol, any>(),
   }
 

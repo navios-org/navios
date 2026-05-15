@@ -1,4 +1,4 @@
-import { Container, Injectable, InjectionToken } from '@navios/di'
+import { Container, Injectable, Token } from '@navios/di'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { ScopedContainer } from '@navios/di'
@@ -335,7 +335,7 @@ describe('GuardRunnerService', () => {
     it('should handle injection tokens as guards', async () => {
       const service = await container.get(GuardRunnerService)
 
-      const GuardToken = InjectionToken.create<CanActivate>(Symbol.for('GuardToken'))
+      const GuardToken = Token.create<CanActivate>(Symbol.for('GuardToken'))
 
       const moduleMetadata = {
         guards: new Set([GuardToken]),

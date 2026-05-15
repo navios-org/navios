@@ -1,4 +1,4 @@
-import { inject, optional } from '@navios/di'
+import { Inject, InjectOptional } from '@navios/di'
 
 import type { BaseEndpointOptions } from '@navios/builder'
 import type { ClassType, ScopedContainer } from '@navios/di'
@@ -107,8 +107,15 @@ export abstract class AbstractHandlerAdapterService<
   TReply = void,
   TConfig extends BaseEndpointOptions = BaseEndpointOptions,
 > {
-  protected instanceResolver = inject(InstanceResolverService)
-  protected options = optional(NaviosOptionsToken) ?? defaultOptions
+  @Inject(InstanceResolverService)
+  protected accessor instanceResolver!: InstanceResolverService
+
+  @InjectOptional(NaviosOptionsToken)
+  private accessor injectedOptions!: NaviosApplicationOptions | null
+
+  protected get options(): NaviosApplicationOptions {
+    return this.injectedOptions ?? defaultOptions
+  }
 
   // ==========================================================================
   // Abstract Methods - Must be implemented by adapters

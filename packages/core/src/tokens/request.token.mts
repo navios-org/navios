@@ -1,3 +1,3 @@
-import { InjectionToken } from '@navios/di'
+import { Token } from '@navios/di'
 
-export const Request = InjectionToken.create<any>('RequestToken')
+export const Request = Token.create<any>('RequestToken')

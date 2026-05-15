@@ -1,4 +1,4 @@
-import { InjectionToken } from '@navios/di'
+import { Token } from '@navios/di'
 
 import type { ErrorResponder } from '../interfaces/error-responder.interface.mjs'
 
@@ -19,7 +19,7 @@ import type { ErrorResponder } from '../interfaces/error-responder.interface.mjs
  * }
  * ```
  */
-export const InternalServerErrorResponderToken = InjectionToken.create<ErrorResponder>(
+export const InternalServerErrorResponderToken = Token.create<ErrorResponder>(
   'InternalServerErrorResponder',
 )
 
@@ -40,7 +40,7 @@ export const InternalServerErrorResponderToken = InjectionToken.create<ErrorResp
  * }
  * ```
  */
-export const NotFoundResponderToken = InjectionToken.create<ErrorResponder>('NotFoundResponder')
+export const NotFoundResponderToken = Token.create<ErrorResponder>('NotFoundResponder')
 
 /**
  * Injection token for the Validation Error responder.
@@ -60,7 +60,7 @@ export const NotFoundResponderToken = InjectionToken.create<ErrorResponder>('Not
  * }
  * ```
  */
-export const ValidationErrorResponderToken = InjectionToken.create<ErrorResponder>(
+export const ValidationErrorResponderToken = Token.create<ErrorResponder>(
   'ValidationErrorResponder',
 )
 
@@ -81,4 +81,4 @@ export const ValidationErrorResponderToken = InjectionToken.create<ErrorResponde
  * }
  * ```
  */
-export const ForbiddenResponderToken = InjectionToken.create<ErrorResponder>('ForbiddenResponder')
+export const ForbiddenResponderToken = Token.create<ErrorResponder>('ForbiddenResponder')

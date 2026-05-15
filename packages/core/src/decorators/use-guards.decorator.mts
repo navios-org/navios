@@ -1,4 +1,4 @@
-import type { ClassType, ClassTypeWithInstance, InjectionToken } from '@navios/di'
+import type { ClassType, ClassTypeWithInstance, Token } from '@navios/di'
 
 import { getControllerMetadata, getEndpointMetadata } from '../metadata/index.mjs'
 
@@ -34,7 +34,7 @@ import type { CanActivate } from '../interfaces/index.mjs'
  * ```
  */
 export function UseGuards(
-  ...guards: (ClassTypeWithInstance<CanActivate> | InjectionToken<CanActivate, undefined>)[]
+  ...guards: (ClassTypeWithInstance<CanActivate> | Token<CanActivate, undefined>)[]
 ) {
   return function <T extends Function>(
     target: T,

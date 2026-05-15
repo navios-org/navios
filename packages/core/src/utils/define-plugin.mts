@@ -98,7 +98,7 @@ export const definePostModulesTraversePlugin = createPluginFactory<
  * export const defineOtelPlugin = definePreAdapterResolvePlugin({
  *   name: 'otel',
  *   register: (context, options: OtelOptions) => {
- *     const registry = context.container.getRegistry()
+ *     const registry = context.container.internals.registry
  *     // Modify registry before adapter is created
  *   },
  * })

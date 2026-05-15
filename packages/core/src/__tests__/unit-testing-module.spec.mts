@@ -1,4 +1,4 @@
-import { Injectable, InjectionToken } from '@navios/di'
+import { Injectable, Token } from '@navios/di'
 import { afterEach, describe, expect, it } from 'vitest'
 
 import { UnitTestingModule } from '../testing/unit-testing-module.mjs'
@@ -30,7 +30,7 @@ describe('UnitTestingModule', () => {
     })
 
     it('should create with useValue provider', async () => {
-      const TOKEN = InjectionToken.create<string>('test-token')
+      const TOKEN = Token.create<string>('test-token')
 
       unitTestingModule = UnitTestingModule.create({
         providers: [{ token: TOKEN, useValue: 'test-value' }],
@@ -64,7 +64,7 @@ describe('UnitTestingModule', () => {
     })
 
     it('should create with useFactory provider', async () => {
-      const TOKEN = InjectionToken.create<{ value: string }>('factory-token')
+      const TOKEN = Token.create<{ value: string }>('factory-token')
 
       unitTestingModule = UnitTestingModule.create({
         providers: [

@@ -1,9 +1,11 @@
-import { Container, getInjectableToken, inject, Injectable } from '@navios/di'
+import { Container, getInjectableToken, Inject, Injectable } from '@navios/di'
 
 import type { ClassType, ClassTypeWithInstance } from '@navios/di'
 
 import { Logger } from '../logger/index.mjs'
 import { extractModuleMetadata } from '../metadata/index.mjs'
+
+import type { LoggerInstance } from '../logger/index.mjs'
 
 import type { NaviosModule } from '../interfaces/index.mjs'
 import type { ModuleMetadata } from '../metadata/index.mjs'
@@ -34,10 +36,11 @@ export interface ModuleExtension {
 
 @Injectable()
 export class ModuleLoaderService {
-  private logger = inject(Logger, {
-    context: ModuleLoaderService.name,
-  })
-  protected container = inject(Container)
+  @Inject(Logger, { context: 'ModuleLoaderService' })
+  private accessor logger!: LoggerInstance
+
+  @Inject(Container)
+  protected accessor container!: Container
   private modulesMetadata: Map<string, ModuleMetadata> = new Map()
   private loadedModules: Map<string, any> = new Map()
   private initialized = false
@@ -161,7 +164,7 @@ export class ModuleLoaderService {
       return
     }
 
-    const registry = this.container.getRegistry()
+    const registry = this.container.internals.registry
 
     for (const overrideClass of metadata.overrides) {
       try {

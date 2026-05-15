@@ -1,4 +1,4 @@
-import { Injectable, InjectableScope, InjectionToken } from '@navios/di'
+import { Injectable, InjectableScope, Token } from '@navios/di'
 import { afterEach, describe, expect, it } from 'vitest'
 
 import { Module } from '../decorators/module.decorator.mjs'
@@ -25,7 +25,7 @@ describe('TestingModule', () => {
     })
 
     it('should apply initial overrides from options', async () => {
-      const TOKEN = InjectionToken.create<string>('test-token')
+      const TOKEN = Token.create<string>('test-token')
 
       @Module()
       class TestAppModule {}

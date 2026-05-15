@@ -1,4 +1,4 @@
-import { Container, inject, Injectable } from '@navios/di'
+import { Container, Inject, Injectable } from '@navios/di'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { ZodError } from 'zod/v4'
 
@@ -176,7 +176,7 @@ describe('Responders', () => {
     it('should produce NotFound response', async () => {
       @Injectable()
       class TestService {
-        private producer = inject(ErrorResponseProducerService)
+        @Inject(ErrorResponseProducerService) private accessor producer!: ErrorResponseProducerService
 
         produce() {
           return this.producer.respond(
@@ -197,7 +197,7 @@ describe('Responders', () => {
     it('should produce Forbidden response', async () => {
       @Injectable()
       class TestService {
-        private producer = inject(ErrorResponseProducerService)
+        @Inject(ErrorResponseProducerService) private accessor producer!: ErrorResponseProducerService
 
         produce() {
           return this.producer.respond(FrameworkError.Forbidden, null)
@@ -214,7 +214,7 @@ describe('Responders', () => {
     it('should produce InternalServerError response', async () => {
       @Injectable()
       class TestService {
-        private producer = inject(ErrorResponseProducerService)
+        @Inject(ErrorResponseProducerService) private accessor producer!: ErrorResponseProducerService
 
         produce() {
           return this.producer.respond(
@@ -235,7 +235,7 @@ describe('Responders', () => {
     it('should produce ValidationError response', async () => {
       @Injectable()
       class TestService {
-        private producer = inject(ErrorResponseProducerService)
+        @Inject(ErrorResponseProducerService) private accessor producer!: ErrorResponseProducerService
 
         produce() {
           return this.producer.respond(FrameworkError.ValidationError, new ZodError([]))
@@ -252,7 +252,7 @@ describe('Responders', () => {
     it('should handle unknown errors with handleUnknown', async () => {
       @Injectable()
       class TestService {
-        private producer = inject(ErrorResponseProducerService)
+        @Inject(ErrorResponseProducerService) private accessor producer!: ErrorResponseProducerService
 
         produce() {
           return this.producer.handleUnknown(new Error('Unknown error'))
@@ -270,7 +270,7 @@ describe('Responders', () => {
     it('should support convenience methods', async () => {
       @Injectable()
       class TestService {
-        private producer = inject(ErrorResponseProducerService)
+        @Inject(ErrorResponseProducerService) private accessor producer!: ErrorResponseProducerService
 
         testNotFound() {
           return this.producer.notFound(null, 'Resource not found')

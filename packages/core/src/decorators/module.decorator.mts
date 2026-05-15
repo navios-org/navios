@@ -1,4 +1,4 @@
-import { Injectable, InjectableScope, InjectionToken } from '@navios/di'
+import { Injectable, InjectableScope, Token } from '@navios/di'
 
 import type { ClassType, Registry } from '@navios/di'
 
@@ -27,7 +27,7 @@ export interface ModuleOptions {
    * Service override classes to import for side effects.
    * These classes are imported to ensure their @Injectable decorators execute,
    * allowing them to register with the DI system. Overrides should use the same
-   * InjectionToken as the original service with a higher priority.
+   * Token as the original service with a higher priority.
    */
   overrides?: ClassType[] | Set<ClassType>
   /**
@@ -81,7 +81,7 @@ export function Module(
       throw new Error('[Navios] @Module decorator can only be used on classes.')
     }
     // Register the module in the service locator
-    const token = InjectionToken.create(target)
+    const token = Token.create(target)
     const moduleMetadata = getModuleMetadata(target, context)
     for (const controller of controllers) {
       moduleMetadata.controllers.add(controller)

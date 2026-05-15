@@ -1,4 +1,4 @@
-import { Injectable, InjectionToken, Registry } from '@navios/di'
+import { Injectable, Token, Registry } from '@navios/di'
 
 import type { ClassType, InjectableScope } from '@navios/di'
 
@@ -55,7 +55,7 @@ export function Controller({ guards, registry, priority, scope }: ControllerOpti
     if (context.kind !== 'class') {
       throw new Error('[Navios] @Controller decorator can only be used on classes.')
     }
-    const token = InjectionToken.create(target)
+    const token = Token.create(target)
     if (context.metadata) {
       const controllerMetadata = getControllerMetadata(target, context)
       if (guards) {
