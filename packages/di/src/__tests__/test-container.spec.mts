@@ -1,6 +1,7 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { Inject } from '../decorators/inject.decorator.mjs'
+import { InjectDerived } from '../decorators/inject-derived.decorator.mjs'
 import { InjectLazy } from '../decorators/inject-lazy.decorator.mjs'
 import { InjectOptional } from '../decorators/inject-optional.decorator.mjs'
 import { Injectable } from '../decorators/injectable.decorator.mjs'
@@ -393,6 +394,78 @@ describe('TestContainer', () => {
       const consumer = await container.get(OptionalConsumer)
       expect(consumer.dep?.flag).toBe('stub-optional')
       container.expectNotResolved(OptionalDep)
+    })
+
+    it('should support mocking an @InjectDerived field, skipping the derive callback', async () => {
+      let derivedDepConstructed = 0
+
+      @Injectable()
+      class DerivedDep {
+        constructor() {
+          derivedDepConstructed++
+        }
+        run(): string {
+          return 'real-derived'
+        }
+      }
+
+      const deriveFn = vi.fn((hostArgs: unknown) => hostArgs)
+
+      @Injectable()
+      class DerivedHost {
+        @InjectDerived(DerivedDep, deriveFn) accessor d!: DerivedDep
+      }
+
+      const stub = { run: () => 'stub-derived' } as DerivedDep
+      container.mockInject(DerivedHost, 'd', stub)
+
+      const host = await container.get(DerivedHost)
+
+      expect(host.d).toBe(stub)
+      expect(host.d.run()).toBe('stub-derived')
+      // Override short-circuits before kind-specific handling: the real
+      // DerivedDep ctor never ran AND the derive callback was never called.
+      expect(derivedDepConstructed).toBe(0)
+      expect(deriveFn).not.toHaveBeenCalled()
+      container.expectNotResolved(DerivedDep)
+    })
+
+    it('should reset field overrides on clear() so a reused container resolves the real dep', async () => {
+      let resetDepConstructed = 0
+
+      @Injectable()
+      class ResetDep {
+        constructor() {
+          resetDepConstructed++
+        }
+        tag(): string {
+          return 'real-reset'
+        }
+      }
+
+      @Injectable()
+      class ResetHost {
+        @Inject(ResetDep) accessor d!: ResetDep
+      }
+
+      const stub = { tag: () => 'stub-reset' } as ResetDep
+      container.mockInject(ResetHost, 'd', stub)
+
+      const mocked = await container.get(ResetHost)
+      expect(mocked.d).toBe(stub)
+      expect(mocked.d.tag()).toBe('stub-reset')
+      expect(resetDepConstructed).toBe(0)
+
+      // clear() must reset the mockInject override alongside every other
+      // override layer. After clear(), resolving the host again on the SAME
+      // reused container must go through real resolution, not the stale stub.
+      await container.clear()
+
+      const real = await container.get(ResetHost)
+      expect(real.d).not.toBe(stub)
+      expect(real.d).toBeInstanceOf(ResetDep)
+      expect(real.d.tag()).toBe('real-reset')
+      expect(resetDepConstructed).toBe(1)
     })
   })
 })

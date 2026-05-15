@@ -63,6 +63,18 @@ export class ServiceInitializer {
   }
 
   /**
+   * @internal
+   * Clears every `@Inject*` field override registered on THIS (per-container)
+   * serviceInitializer. Used by `TestContainer.clear()` so a `mockInject`
+   * override does not leak across `clear()`-based instance reuse, matching how
+   * every other override layer is reset. Affects only this container — the map
+   * is an instance field, never static/global.
+   */
+  clearFieldOverrides(): void {
+    this.fieldOverrides.clear()
+  }
+
+  /**
    * Instantiates a service based on its registry record.
    * @param ctx The factory context for dependency injection
    * @param record The factory record from the registry

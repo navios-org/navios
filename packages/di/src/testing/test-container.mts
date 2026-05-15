@@ -156,6 +156,7 @@ export class TestContainer extends Container {
     this.lifecycleEvents.clear()
     this.instanceCounts.clear()
     this.boundTokens.clear()
+    this.internals.serviceInitializer.clearFieldOverrides()
   }
 
   // ============================================================================
