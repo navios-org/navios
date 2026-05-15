@@ -153,18 +153,10 @@ export function useOptionalService(
   const isFirstRenderRef = useRef(true)
 
   if (isFirstRenderRef.current) {
-    // v2 removed the throw-proxy, but tryGetSync still throws for a bare class
-    // that is NOT decorated with @Injectable: AbstractContainer.tryGetSync
-    // calls tokenResolver.getRegistryToken(token) *outside* its internal
-    // try/catch (abstract-container.mts:165), and getInjectableToken throws
-    // for an unregistered class. Since this hook's entire purpose is to
-    // tolerate unregistered services, the defensive guard is required.
-    try {
-      initialSyncInstanceRef.current = container.tryGetSync(token, args)
-    } catch {
-      // Service not registered — leave as undefined and fall through to the
-      // async fetch, which classifies "not registered" as not-found.
-    }
+    // v2's tryGetSync is sound: it returns null (never throws) for an
+    // unregistered / non-@Injectable token, so the not-found path is driven
+    // by the null result falling through to the async fetch.
+    initialSyncInstanceRef.current = container.tryGetSync(token, args)
     isFirstRenderRef.current = false
   }
 

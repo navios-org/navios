@@ -177,13 +177,14 @@ export abstract class AbstractContainer implements IContainer {
     requestId?: string,
   ): T | null {
     const tokenResolver = this.internals.tokenResolver
-    const realToken = tokenResolver.getRegistryToken(token)
-    const registry = this.internals.registry
-    const scope = registry.has(realToken)
-      ? registry.get(realToken).scope
-      : InjectableScope.Singleton
 
     try {
+      const realToken = tokenResolver.getRegistryToken(token)
+      const registry = this.internals.registry
+      const scope = registry.has(realToken)
+        ? registry.get(realToken).scope
+        : InjectableScope.Singleton
+
       const instanceName = this.internals.nameResolver.generateInstanceName(
         tokenResolver.normalizeToken(token),
         args,

@@ -206,12 +206,20 @@ export class ScopedContainer extends AbstractContainer {
    * Checks request storage first, then delegates to parent.
    */
   override tryGetSync<T>(token: any, args?: any): T | null {
-    // Check request storage first for request-scoped services
+    // Check request storage first for request-scoped services.
+    // Token resolution can throw for an unregistered / non-@Injectable
+    // token; treat that as "not request-scoped" and delegate to the parent
+    // (which is sound and returns null) so tryGetSync never throws.
     const tokenResolver = this.internals.tokenResolver
-    const realToken = tokenResolver.getRegistryToken(token)
-    const scope = this.registry.has(realToken)
-      ? this.registry.get(realToken).scope
-      : InjectableScope.Singleton
+    let scope: InjectableScope = InjectableScope.Singleton
+    try {
+      const realToken = tokenResolver.getRegistryToken(token)
+      scope = this.registry.has(realToken)
+        ? this.registry.get(realToken).scope
+        : InjectableScope.Singleton
+    } catch {
+      // Ignore error — fall through to parent delegation.
+    }
 
     if (scope === InjectableScope.Request) {
       const result = this.tryGetSyncFromStorage<T>(token, args, this.storage, this.requestId)
