@@ -1,5 +1,5 @@
 import { NaviosManagedMetadataKey } from '@navios/core'
-import { Injectable, InjectionToken, Registry } from '@navios/di'
+import { Injectable, Token, Registry } from '@navios/di'
 
 import type { ClassType, InjectableScope } from '@navios/di'
 
@@ -63,7 +63,7 @@ export function MessageController({
         '[Navios/Microservice] @MessageController decorator can only be used on classes.',
       )
     }
-    const token = InjectionToken.create(target)
+    const token = Token.create(target)
     if (context.metadata) {
       const messageControllerMetadata = getMessageControllerMetadata(target, context)
       if (guards) {

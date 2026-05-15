@@ -1,5 +1,5 @@
 import type { CanActivate } from '@navios/core'
-import type { ClassTypeWithInstance, InjectionToken } from '@navios/di'
+import type { ClassTypeWithInstance, Token } from '@navios/di'
 import type { BaseMessageConfig } from '@navios/queues'
 
 export const MessageHandlerMetadataKey = Symbol('MessageHandlerMetadataKey')
@@ -7,7 +7,7 @@ export const MessageHandlerMetadataKey = Symbol('MessageHandlerMetadataKey')
 export interface MessageHandlerMetadata<Config = null> {
   classMethod: string
   config: Config extends BaseMessageConfig<any, any, any> ? Config : null
-  guards: Set<ClassTypeWithInstance<CanActivate> | InjectionToken<CanActivate, undefined>>
+  guards: Set<ClassTypeWithInstance<CanActivate> | Token<CanActivate, undefined>>
   customAttributes: Map<string | symbol, any>
 }
 
@@ -44,7 +44,7 @@ export function getMessageHandlerMetadata<Config = any>(
           // @ts-expect-error We are using a generic type here
           config: null,
           guards: new Set<
-            ClassTypeWithInstance<CanActivate> | InjectionToken<CanActivate, undefined>
+            ClassTypeWithInstance<CanActivate> | Token<CanActivate, undefined>
           >(),
           customAttributes: new Map<string | symbol, any>(),
         }

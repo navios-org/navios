@@ -1,5 +1,5 @@
 import { AttributeFactory } from '@navios/core'
-import { inject, Injectable } from '@navios/di'
+import { Inject, Injectable } from '@navios/di'
 import { QueueClientToken } from '@navios/queues'
 
 import type { ClassType, Container, ScopedContainer } from '@navios/di'
@@ -42,7 +42,7 @@ import type {
  */
 @Injectable()
 export class MessageHandlerService {
-  private queueClient = inject(QueueClientToken)
+  @Inject(QueueClientToken) private accessor queueClient!: QueueClient
 
   /**
    * Discovers and registers message handlers from modules.

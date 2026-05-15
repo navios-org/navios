@@ -1,5 +1,5 @@
 import { NaviosManagedMetadataKey } from '@navios/core'
-import { Injectable, InjectableScope, InjectionToken } from '@navios/di'
+import { Injectable, InjectableScope, Token } from '@navios/di'
 
 import type { ClassType, Registry } from '@navios/di'
 
@@ -67,7 +67,7 @@ export function MessageModule(
       throw new Error('[Navios/Microservice] @MessageModule decorator can only be used on classes.')
     }
     // Register the module in the service locator
-    const token = InjectionToken.create(target)
+    const token = Token.create(target)
     const messageModuleMetadata = getMessageModuleMetadata(target, context)
     for (const controller of controllers) {
       messageModuleMetadata.controllers.add(controller)
