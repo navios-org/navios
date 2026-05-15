@@ -78,13 +78,13 @@ export function useService(
     isFirstRenderRef.current = false
   }
 
-  const initialState: ServiceState<any> = initialSyncInstanceRef.current
-    ? { status: 'success', data: initialSyncInstanceRef.current }
-    : { status: 'loading', data: undefined }
-
   const [state, dispatch] = useReducer(
     (_: ServiceState<any>, next: ServiceState<any>) => next,
-    initialState,
+    null,
+    (): ServiceState<any> =>
+      initialSyncInstanceRef.current
+        ? { status: 'success', data: initialSyncInstanceRef.current }
+        : { status: 'loading', data: undefined },
   )
   const [refetchCounter, setRefetchCounter] = useState(0)
 

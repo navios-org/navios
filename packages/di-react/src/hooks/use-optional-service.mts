@@ -174,6 +174,10 @@ export function useOptionalService(
 
   const [state, dispatch] = useReducer(optionalServiceReducer, initialState)
   const instanceNameRef = useRef<string | null>(null)
+  // Tracks whether the component is still mounted so the async fetchService
+  // never dispatches state after unmount (post-unmount state update warning /
+  // concurrent-mode glitch). Toggled by the subscription effect's cleanup.
+  const isMountedRef = useRef(true)
 
   if (process.env.NODE_ENV === 'development') {
     const argsRef = useRef<unknown>(args)
@@ -193,6 +197,7 @@ Example:
   }
 
   const fetchService = useCallback(async () => {
+    if (!isMountedRef.current) return
     dispatch({ type: 'loading' })
     try {
       // Use the container (ScopedContainer or Container) for resolution
@@ -201,6 +206,9 @@ Example:
         token as AnyInjectableType,
         args as any,
       )
+      // The component may have unmounted while container.get was pending —
+      // skip the state update to avoid a post-unmount dispatch.
+      if (!isMountedRef.current) return
       // Get instance name for event subscription
       const instanceName = container.calculateInstanceName(token, args)
       if (instanceName) {
@@ -208,6 +216,7 @@ Example:
       }
       dispatch({ type: 'success', data: instance })
     } catch (error) {
+      if (!isMountedRef.current) return
       // Caught exceptions are treated as errors
       const err = error as Error
       const errorMessage = err.message?.toLowerCase() ?? ''
@@ -225,6 +234,7 @@ Example:
 
   // Subscribe to invalidation events
   useEffect(() => {
+    isMountedRef.current = true
     const eventBus = rootContainer.internals.eventBus
     let unsubscribe: (() => void) | undefined
 
@@ -242,7 +252,9 @@ Example:
       }
     } else {
       void fetchService().then(() => {
-        if (instanceNameRef.current) {
+        // The component may have unmounted while the fetch was pending —
+        // don't (re-)subscribe after unmount.
+        if (isMountedRef.current && instanceNameRef.current) {
           unsubscribe = eventBus.on(instanceNameRef.current, 'destroy', () => {
             // Re-fetch when the service is invalidated
             void fetchService()
@@ -251,11 +263,13 @@ Example:
       })
 
       return () => {
+        isMountedRef.current = false
         unsubscribe?.()
       }
     }
 
     return () => {
+      isMountedRef.current = false
       unsubscribe?.()
     }
   }, [fetchService, rootContainer, token, args])

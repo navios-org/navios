@@ -4,6 +4,19 @@ import { createElement, useMemo } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { z } from 'zod/v4'
 
+interface Deferred<T> {
+  promise: Promise<T>
+  resolve: (value: T) => void
+}
+
+function createDeferred<T>(): Deferred<T> {
+  let resolve!: (value: T) => void
+  const promise = new Promise<T>((res) => {
+    resolve = res
+  })
+  return { promise, resolve }
+}
+
 import { ContainerProvider } from '../../providers/container-provider.mjs'
 import { useOptionalService } from '../use-optional-service.mjs'
 
@@ -226,6 +239,89 @@ describe('useOptionalService', () => {
 
       // Same instance because it's cached
       expect(screen.getByTestId('counter').textContent).toBe('1')
+    })
+  })
+
+  describe('unmount safety', () => {
+    it('does not run the post-await fetch path after the component unmounts mid-fetch', async () => {
+      // React 18+/19 no longer logs the legacy "state update on an unmounted
+      // component" warning, so a console.error spy is not a reliable guard.
+      // Instead we assert deterministically that the guarded post-await code
+      // path (container.calculateInstanceName + dispatch + event subscription)
+      // does NOT execute once the component has unmounted. We also keep a
+      // console.error spy so any future React unmount warning still fails.
+      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+
+      // A deferred that gates async service initialization so we can unmount
+      // the component while container.get(...) is still pending (it awaits
+      // onServiceInit).
+      const gate = createDeferred<void>()
+      let initStarted = 0
+
+      const SlowToken = Token.create<{ ready: boolean }>('SlowService')
+
+      @Injectable({ registry, token: SlowToken })
+      class _SlowService {
+        public ready = true
+
+        async onServiceInit() {
+          initStarted++
+          // Block resolution until the test explicitly releases the gate.
+          await gate.promise
+        }
+      }
+
+      // calculateInstanceName runs in fetchService AFTER `await container.get`,
+      // i.e. exactly the code path the unmount guard protects. Track when it is
+      // called so we can prove it never runs post-unmount.
+      const calcSpy = vi.spyOn(container, 'calculateInstanceName')
+
+      function TestComponent() {
+        const { isSuccess } = useOptionalService(SlowToken)
+        return createElement(
+          'div',
+          { 'data-testid': 'state' },
+          isSuccess ? 'success' : 'pending',
+        )
+      }
+
+      const { unmount } = render(createWrapper(createElement(TestComponent)))
+
+      // The component is rendered and the async fetch has started, but the
+      // service initialization is still blocked on the gate.
+      await waitFor(() => {
+        expect(initStarted).toBeGreaterThanOrEqual(1)
+      })
+      expect(screen.getByTestId('state').textContent).toBe('pending')
+
+      // Unmount BEFORE the async container.get(...) resolves.
+      unmount()
+      const callsAtUnmount = calcSpy.mock.calls.length
+
+      // Now release the gate and let the pending fetch promise settle.
+      gate.resolve()
+      await Promise.resolve()
+      await Promise.resolve()
+      await new Promise((r) => setTimeout(r, 0))
+
+      // The post-await body (calculateInstanceName -> dispatch -> subscribe)
+      // must NOT have run after unmount. Without the isMounted guard this
+      // count increases here; with the guard it stays flat.
+      expect(calcSpy.mock.calls.length).toBe(callsAtUnmount)
+
+      // Defensive: no React unmounted-update / act warning either.
+      const offendingCall = consoleErrorSpy.mock.calls.find((call) => {
+        const msg = String(call[0] ?? '')
+        return (
+          msg.includes('unmounted component') ||
+          msg.includes('was not wrapped in act') ||
+          msg.includes("can't perform a React state update")
+        )
+      })
+      expect(offendingCall).toBeUndefined()
+
+      calcSpy.mockRestore()
+      consoleErrorSpy.mockRestore()
     })
   })
 })
