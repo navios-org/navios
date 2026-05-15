@@ -656,11 +656,22 @@ export class InstanceResolver {
     // lazy registration into the deferred start() closure — it would be missed
     // here and cascade invalidation would silently break for lazy deps.
     if (ctx.dependencies.size > 0) {
+      // Forward the SAME owning-container/requestId used for this holder's
+      // create hooks (pluginCtx) as the cascade DestroyContext, so when this
+      // holder is later cascade-invalidated (a dependency was invalidated),
+      // its runBeforeDestroy/runAfterDestroy fire. Without this the cascade
+      // path passes undefined and plugin destroy hooks are silently skipped
+      // for every cascade-invalidated dependent.
+      const cascadeDestroyContext =
+        this.pluginRegistry && pluginCtx
+          ? { container: pluginCtx.container, requestId: pluginCtx.requestId }
+          : undefined
       this.serviceInvalidator.setupDependencySubscriptions(
         instanceName,
         ctx.dependencies,
         storageForSubscriptions,
         holder,
+        cascadeDestroyContext,
       )
     }
 

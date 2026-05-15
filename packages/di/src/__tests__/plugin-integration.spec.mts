@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   Container,
   definePlugin,
+  Inject,
   Injectable,
   InjectableScope,
   Registry,
@@ -263,6 +264,54 @@ describe('Plugin integration (Container + InstanceResolver + ServiceInvalidator)
 
       expect(order).toEqual(['before:true', 'after:true'])
       expect(beforeInstanceSeen).toBe(svc)
+
+      await container.dispose()
+    })
+
+    it('fires runBeforeDestroy/runAfterDestroy for a CASCADE-invalidated dependent', async () => {
+      @Injectable({ registry })
+      class Base {}
+
+      @Injectable({ registry })
+      class Dependent {
+        @Inject(Base) accessor base!: Base
+      }
+
+      const events: string[] = []
+      const container = new Container({
+        registry,
+        plugins: [
+          definePlugin({
+            name: 'cascade-destroy-observer',
+            onBeforeDestroy(ctx: DestroyContext) {
+              events.push(
+                `before:${ctx.instanceName.includes('Dependent') ? 'Dependent' : ctx.instanceName.includes('Base') ? 'Base' : ctx.instanceName}`,
+              )
+            },
+            onAfterDestroy(ctx: DestroyContext) {
+              events.push(
+                `after:${ctx.instanceName.includes('Dependent') ? 'Dependent' : ctx.instanceName.includes('Base') ? 'Base' : ctx.instanceName}`,
+              )
+            },
+          }),
+        ],
+      })
+
+      // Resolving Dependent eagerly injects Base, registering a real
+      // subscription edge (Dependent depends on Base).
+      const dependent = await container.get(Dependent)
+      expect(dependent.base).toBeInstanceOf(Base)
+      const base = await container.get(Base)
+
+      // Cascade: Base invalidated -> Dependent must cascade-destroy.
+      await container.invalidate(base)
+
+      // BOTH must fire before+after destroy hooks. Before the fix the
+      // Dependent's cascade destroy hooks were silently skipped.
+      expect(events).toContain('before:Base')
+      expect(events).toContain('after:Base')
+      expect(events).toContain('before:Dependent')
+      expect(events).toContain('after:Dependent')
 
       await container.dispose()
     })
