@@ -494,12 +494,9 @@ export class InstanceResolver {
             holder,
             ctx,
             deferred,
-            newScope,
             undefined,
             instance,
-            scopedContainer,
             requestStorage,
-            requestId,
             pluginCtx,
           )
         })
@@ -512,7 +509,7 @@ export class InstanceResolver {
             newScope,
           )
 
-          await this.handleInstantiationError(newName, holder, deferred, newScope, error)
+          await this.handleInstantiationError(newName, holder, deferred, error)
         })
         .catch(() => {
           // Suppress unhandled rejections from the async chain.
@@ -624,9 +621,7 @@ export class InstanceResolver {
     ctx: ServiceInitializationContext,
     deferred: any,
     instance: any,
-    _scopedContainer?: ScopedContainer,
     requestStorage?: IHolderStorage,
-    _requestId?: string,
     pluginCtx?: CreateContext | null,
   ): Promise<void> {
     // `instance` is the post-middleware value (OTEL wrap contract): the
@@ -686,7 +681,6 @@ export class InstanceResolver {
     instanceName: string,
     holder: InstanceHolder<any>,
     deferred: any,
-    scope: InjectableScope,
     error: any,
   ): Promise<void> {
     holder.status = InstanceStatus.Error
@@ -703,16 +697,13 @@ export class InstanceResolver {
     holder: InstanceHolder<any>,
     ctx: ServiceInitializationContext,
     deferred: any,
-    scope: InjectableScope,
     error: any,
     instance: any,
-    scopedContainer?: ScopedContainer,
     requestStorage?: IHolderStorage,
-    requestId?: string,
     pluginCtx?: CreateContext | null,
   ): Promise<void> {
     if (error) {
-      await this.handleInstantiationError(instanceName, holder, deferred, scope, error)
+      await this.handleInstantiationError(instanceName, holder, deferred, error)
     } else {
       await this.handleInstantiationSuccess(
         instanceName,
@@ -720,9 +711,7 @@ export class InstanceResolver {
         ctx,
         deferred,
         instance,
-        scopedContainer,
         requestStorage,
-        requestId,
         pluginCtx,
       )
     }

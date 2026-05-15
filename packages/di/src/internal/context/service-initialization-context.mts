@@ -24,7 +24,7 @@ type ContextRegisterDependency = (token: any, args?: any) => void
 export interface ServiceInitializationContext {
   inject: ContextInject
   /**
-   * Records a dependency edge (name + scope-upgrade tracking) WITHOUT
+   * Records a dependency edge (name only) WITHOUT
    * resolving the instance.
    *
    * Used by the @InjectLazy deferred path: the dependency must be registered
