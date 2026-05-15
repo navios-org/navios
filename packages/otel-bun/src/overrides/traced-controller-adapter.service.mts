@@ -6,7 +6,6 @@ import {
 } from '@navios/adapter-bun'
 import { BunExecutionContext, BunFakeReply, BunRequestToken } from '@navios/adapter-bun'
 import {
-  Container,
   ErrorResponseProducerService,
   ExecutionContext,
   extractControllerMetadata,
@@ -14,23 +13,25 @@ import {
   generateRequestId,
   GuardRunnerService,
   HttpException,
-  inject,
-  InjectionToken,
   InstanceResolverService,
   Logger,
   runWithRequestId,
 } from '@navios/core'
+import { Container, Inject } from '@navios/di'
 import { runWithSpanContext, SpanFactoryService, TraceContextService } from '@navios/otel'
 import { ZodError } from 'zod/v4'
 
 import type { BunStaticHandler } from '@navios/adapter-bun'
 import type { BunHandlerAdapterInterface } from '@navios/adapter-bun'
 import type { CanActivate, ControllerMetadata, HandlerMetadata, ModuleMetadata } from '@navios/core'
-import type { ClassType } from '@navios/di'
+import type { LoggerInstance } from '@navios/core'
+import type { ClassType, Token } from '@navios/di'
 import type { Span } from '@opentelemetry/api'
 import type { BunRequest } from 'bun'
 
 import { BunOtelOptionsToken } from '../tokens/index.mjs'
+
+import type { BunOtelPluginOptions } from '../interfaces/index.mjs'
 
 /**
  * Traced controller adapter service for Bun.
@@ -64,18 +65,23 @@ import { BunOtelOptionsToken } from '../tokens/index.mjs'
  * ```
  */
 export class TracedBunControllerAdapterService extends BunControllerAdapterService {
-  private tracedGuardRunner = inject(GuardRunnerService)
-  private tracedContainer = inject(Container)
-  private tracedInstanceResolver = inject(InstanceResolverService)
-  private tracedErrorProducer = inject(ErrorResponseProducerService)
-  private tracedLogger = inject(Logger, {
-    context: TracedBunControllerAdapterService.name,
-  })
+  @Inject(GuardRunnerService) private accessor tracedGuardRunner!: GuardRunnerService
+  @Inject(Container) private accessor tracedContainer!: Container
+  @Inject(InstanceResolverService)
+  private accessor tracedInstanceResolver!: InstanceResolverService
+  @Inject(ErrorResponseProducerService)
+  private accessor tracedErrorProducer!: ErrorResponseProducerService
+  // NOTE: the Logger context is a string literal, NOT
+  // `TracedBunControllerAdapterService.name`. Referencing the enclosing class
+  // by name inside a decorator on that same class is unsafe at decoration time
+  // (the binding is not yet initialized), so a literal is required.
+  @Inject(Logger, { context: 'TracedBunControllerAdapterService' })
+  private accessor tracedLogger!: LoggerInstance
 
   // OTel services
-  private traceContext = inject(TraceContextService)
-  private spanFactory = inject(SpanFactoryService)
-  private pluginOptions = inject(BunOtelOptionsToken)
+  @Inject(TraceContextService) private accessor traceContext!: TraceContextService
+  @Inject(SpanFactoryService) private accessor spanFactory!: SpanFactoryService
+  @Inject(BunOtelOptionsToken) private accessor pluginOptions!: BunOtelPluginOptions
 
   /**
    * Sets up route handlers for a controller with tracing enabled.
@@ -95,7 +101,7 @@ export class TracedBunControllerAdapterService extends BunControllerAdapterServi
         throw new Error(`[Navios] Malformed Endpoint ${controller.name}:${classMethod}`)
       }
       const adapter = await this.tracedContainer.get(
-        adapterToken as InjectionToken<BunHandlerAdapterInterface>,
+        adapterToken as Token<BunHandlerAdapterInterface>,
       )
 
       // Pre-resolve guards (reversed order: module → controller → endpoint)

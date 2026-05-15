@@ -1,7 +1,7 @@
 import { BunControllerAdapterToken } from '@navios/adapter-bun'
 import { Logger } from '@navios/core'
 import { InjectableScope, InjectableType } from '@navios/di'
-import { OtelSetupService, defineOtelTracingPlugin } from '@navios/otel'
+import { defineOtelTracingPlugin, OtelSetupService } from '@navios/otel'
 
 import type { BunApplicationServiceInterface } from '@navios/adapter-bun'
 import type { FullPluginContext, ModulesLoadedContext, StagedPluginDefinition } from '@navios/core'
@@ -12,10 +12,22 @@ import { BunOtelOptionsToken } from '../tokens/index.mjs'
 import type { BunOtelPluginOptions } from '../interfaces/index.mjs'
 
 /**
- * Pre-adapter-resolve plugin that registers the traced controller adapter.
+ * Pre-adapter-resolve plugin that registers the traced controller adapter
+ * and wires the di container `@Traced` middleware.
  *
- * This runs before the adapter is resolved, allowing us to register
- * TracedBunControllerAdapterService with higher priority.
+ * This is a `@navios/core` APP plugin (StagedPluginDefinition). It runs
+ * before the adapter is resolved, so it:
+ *
+ * 1. Stores the plugin options on the container.
+ * 2. Registers the `@navios/di` CONTAINER tracing plugin via
+ *    `container.use(defineOtelTracingPlugin({}))` so every subsequently
+ *    resolved `@Traced`/`@Traceable` service is transparently wrapped with
+ *    the OpenTelemetry tracing proxy.
+ * 3. Registers `TracedBunControllerAdapterService` with higher priority
+ *    (when `autoInstrument.http` is enabled, default: true).
+ *
+ * See the inline comment in `register()` for the two-plugin-systems
+ * rationale behind step 2.
  */
 class OtelBunPreAdapterPlugin {
   readonly name = '@navios/otel-bun:pre-adapter'
@@ -27,11 +39,34 @@ class OtelBunPreAdapterPlugin {
     // Register plugin options in container for TracedBunControllerAdapterService
     container.addInstance(BunOtelOptionsToken, options)
 
+    // Wire the `@navios/di` CONTAINER plugin that transparently wraps
+    // `@Traced`/`@Traceable` services with the OpenTelemetry tracing proxy.
+    //
+    // There are TWO distinct plugin systems at play:
+    //   1. The `@navios/core` APP plugin system (StagedPluginDefinition,
+    //      app.usePlugin, stages like `pre:adapter-resolve`). This class is
+    //      one of those staged app plugins.
+    //   2. The `@navios/di` CONTAINER plugin system (definePlugin/middleware,
+    //      registered via `new Container({ plugins })` OR post-construction
+    //      via `container.use(plugin)`).
+    //
+    // After the `@navios/otel` di-v2 migration, `defineOtelTracingPlugin()`
+    // is a di CONTAINER plugin (resolution middleware), NOT a core staged
+    // app plugin — so it cannot live in `defineOtelPlugin`'s returned staged
+    // array. Instead we register it here via `container.use()`. This stage
+    // (`pre:adapter-resolve`) runs BEFORE controllers/guards/adapters are
+    // resolved, and `container.use()` applies to every service resolved
+    // AFTER the call (the di middleware list is re-read fresh on each
+    // `.get()`), so every `@Traced`/`@Traceable` service resolved afterward
+    // gets the tracing proxy — preserving v1 behavior with the correct v2
+    // system.
+    container.use(defineOtelTracingPlugin({}))
+
     // Only register traced adapter if HTTP auto-instrumentation is enabled (default: true)
     if (options.autoInstrument?.http !== false) {
       // Register TracedBunControllerAdapterService with high priority (100)
       // This overrides the default BunControllerAdapterService (priority 0)
-      const registry = container.getRegistry()
+      const registry = container.internals.registry
       registry.set(
         BunControllerAdapterToken,
         InjectableScope.Singleton,
@@ -70,12 +105,22 @@ class OtelBunPostModulesPlugin {
 /**
  * Creates OpenTelemetry plugins for Bun adapter.
  *
- * This function returns an array of staged plugins that integrate OpenTelemetry
- * tracing with your Navios application:
+ * This function returns exactly TWO `@navios/core` staged APP plugins that
+ * integrate OpenTelemetry tracing with your Navios application:
  *
- * 1. `pre:adapter-resolve` - Registers TracedBunControllerAdapterService
- *    with high priority when `autoInstrument.http` is enabled (default: true)
- * 2. `post:modules-init` - Initializes the OpenTelemetry SDK
+ * 1. `pre:adapter-resolve` (`OtelBunPreAdapterPlugin`) - stores plugin
+ *    options, registers the `@navios/di` CONTAINER `@Traced` middleware via
+ *    `container.use(defineOtelTracingPlugin({}))`, and registers
+ *    `TracedBunControllerAdapterService` with high priority when
+ *    `autoInstrument.http` is enabled (default: true).
+ * 2. `post:modules-init` (`OtelBunPostModulesPlugin`) - Initializes the
+ *    OpenTelemetry SDK.
+ *
+ * Note: the di container `@Traced` tracing middleware is NOT a returned
+ * element. After the `@navios/otel` di-v2 migration it is a `@navios/di`
+ * CONTAINER plugin (not a core staged app plugin), so it is registered
+ * imperatively via `container.use()` from `OtelBunPreAdapterPlugin.register`
+ * rather than being added to this staged array.
  *
  * Features:
  * - Automatic HTTP request tracing with span creation
@@ -86,7 +131,8 @@ class OtelBunPostModulesPlugin {
  * - Configurable route exclusion patterns
  *
  * @param options - Plugin configuration options
- * @returns An array of staged plugin definitions
+ * @returns A 2-tuple of staged plugin definitions
+ *   (`pre:adapter-resolve` then `post:modules-init`)
  *
  * @example
  * ```typescript
@@ -120,12 +166,10 @@ class OtelBunPostModulesPlugin {
 export function defineOtelPlugin(
   options: BunOtelPluginOptions,
 ): [
-  StagedPluginDefinition<'pre:adapter-resolve'>,
   StagedPluginDefinition<'pre:adapter-resolve', BunOtelPluginOptions>,
   StagedPluginDefinition<'post:modules-init', BunOtelPluginOptions, BunApplicationServiceInterface>,
 ] {
   return [
-    defineOtelTracingPlugin({}),
     {
       plugin: new OtelBunPreAdapterPlugin(),
       options,

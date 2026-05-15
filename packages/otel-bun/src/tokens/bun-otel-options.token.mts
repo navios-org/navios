@@ -1,4 +1,4 @@
-import { InjectionToken } from '@navios/di'
+import { Token } from '@navios/di'
 
 import type { BunOtelPluginOptions } from '../interfaces/index.mjs'
 
@@ -9,4 +9,4 @@ import type { BunOtelPluginOptions } from '../interfaces/index.mjs'
  * the application, allowing services to access tracing settings.
  */
 export const BunOtelOptionsToken =
-  InjectionToken.create<BunOtelPluginOptions>('BunOtelOptionsToken')
+  Token.create<BunOtelPluginOptions>('BunOtelOptionsToken')
