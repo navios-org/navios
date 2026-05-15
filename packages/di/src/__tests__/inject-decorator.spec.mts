@@ -25,4 +25,18 @@ describe('@Inject', () => {
     const entries = getInjections(Service)
     expect(entries[0]).toMatchObject({ args: { size: 10 } })
   })
+
+  it('keeps metadata isolated between two decorated classes', () => {
+    const T = Token.create<{}>('T')
+    class A {
+      @Inject(T) accessor x!: any
+    }
+    class B {
+      @Inject(T) accessor y!: any
+    }
+    expect(getInjections(A)).toHaveLength(1)
+    expect(getInjections(B)).toHaveLength(1)
+    expect(getInjections(A)[0].fieldName).toBe('x')
+    expect(getInjections(B)[0].fieldName).toBe('y')
+  })
 })

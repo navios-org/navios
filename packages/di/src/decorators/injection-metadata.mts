@@ -45,8 +45,13 @@ const STORE = new WeakMap<ClassType, InjectionEntry[]>()
 // Stage-3 member decorators (e.g. `@Inject accessor x`) cannot see the class
 // at decoration time, so they cannot use the class-keyed WeakMap. They instead
 // write into the per-class `context.metadata` object, which the runtime
-// attaches as `Class[Symbol.metadata]`. Some runtimes only attach it when
-// `Symbol.metadata` is defined, so polyfill it (idempotently).
+// attaches as `Class[Symbol.metadata]`.
+//
+// `Symbol.metadata` is not defined in older Node versions / some SWC transform
+// configs. The TC39 Stage-3 decorator transform only attaches the per-class
+// metadata object to `Class[Symbol.metadata]` when this symbol already exists
+// on `Symbol`. Polyfill idempotently so decoration-time metadata writes (used
+// by every @Inject* decorator) are never silently dropped.
 const symbolWithMetadata = Symbol as unknown as { metadata?: symbol }
 symbolWithMetadata.metadata ??= Symbol.for('Symbol.metadata')
 const METADATA_SYMBOL = symbolWithMetadata.metadata
@@ -56,6 +61,12 @@ interface InjectionMetadata {
   [METADATA_KEY]?: InjectionEntry[]
 }
 
+/**
+ * Registers an injection into the WeakMap store (programmatic / legacy path).
+ * NOT used by `@Inject` or the other field decorators — those write via
+ * {@link addInjectionToMetadata} into `Class[Symbol.metadata]`. Retained for
+ * programmatic registration and Task 3.1 metadata consolidation.
+ */
 export function registerInjection(target: ClassType, entry: InjectionEntry): void {
   let list = STORE.get(target)
   if (!list) {
