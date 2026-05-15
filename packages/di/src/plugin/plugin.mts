@@ -44,28 +44,56 @@ export interface DestroyContext {
 /**
  * A DI plugin.
  *
- * Observer hooks (`onBefore*`/`onAfter*`/`onContainerDispose`) are
- * fire-and-forget: they run in registration order, are awaited
- * sequentially so ordering is deterministic, and their return values are
- * ignored. `middleware` is the only transforming hook — it is composed
- * Koa-style (outermost plugin wraps innermost, `core` is innermost).
+ * Observer hooks (`onBefore*`/`onAfter*`/`onContainerDispose`) are pure
+ * observers: they run in registration order, are awaited sequentially so
+ * ordering is deterministic, and their return values are ignored.
+ *
+ * Crucially, an observer hook is also error-ISOLATED. If a hook throws or
+ * rejects, the error does NOT propagate out of the dispatch and does NOT
+ * abort the resolution that triggered it, nor does it prevent sibling
+ * plugins' same-phase hooks from running. The error is instead REPORTED
+ * via the {@link PluginRegistry}'s error handler (defaulting to
+ * `console.error`). This is intentional: an OTEL/metrics/logging observer
+ * that throws must never break `container.get()`. If a plugin needs to
+ * intentionally affect or abort resolution, use `middleware` (the
+ * transform layer) — not an observer hook.
+ *
+ * `middleware` is the only transforming hook — it is composed Koa-style
+ * (outermost plugin wraps innermost, `core` is innermost). Unlike
+ * observer hooks, middleware errors DO propagate (it may intentionally
+ * abort resolution).
  */
 export interface Plugin {
   name: string
 
-  /** Fire-and-forget. Runs in registration order before instantiation. */
+  /**
+   * Observer. Runs in registration order before instantiation. Errors are
+   * isolated and reported, never propagated (see {@link Plugin}).
+   */
   onBeforeCreate?(ctx: CreateContext): void | Promise<void>
 
-  /** Fire-and-forget. Runs in registration order after instantiation. */
+  /**
+   * Observer. Runs in registration order after instantiation. Errors are
+   * isolated and reported, never propagated (see {@link Plugin}).
+   */
   onAfterCreate?(ctx: CreateContext, instance: unknown): void | Promise<void>
 
-  /** Fire-and-forget. Runs in registration order before destruction. */
+  /**
+   * Observer. Runs in registration order before destruction. Errors are
+   * isolated and reported, never propagated (see {@link Plugin}).
+   */
   onBeforeDestroy?(ctx: DestroyContext, instance: unknown): void | Promise<void>
 
-  /** Fire-and-forget. Runs in registration order after destruction. */
+  /**
+   * Observer. Runs in registration order after destruction. Errors are
+   * isolated and reported, never propagated (see {@link Plugin}).
+   */
   onAfterDestroy?(ctx: DestroyContext): void | Promise<void>
 
-  /** Fire-and-forget. Runs in registration order when the container disposes. */
+  /**
+   * Observer. Runs in registration order when the container disposes.
+   * Errors are isolated and reported, never propagated (see {@link Plugin}).
+   */
   onContainerDispose?(container: IContainer): void | Promise<void>
 
   /**
@@ -73,6 +101,20 @@ export interface Plugin {
    * plugin's middleware wraps the next plugin's, and the innermost wraps
    * `core`. Call `next()` exactly once to continue the chain (or skip it
    * to short-circuit); the resolved value can be transformed.
+   *
+   * Unlike observer hooks, middleware errors are NOT isolated: a throw or
+   * rejection propagates and aborts the resolution (this is the supported
+   * way to intentionally fail/abort a `get()`).
+   *
+   * The result of `next()` MUST be returned (or awaited and returned) so
+   * the resolved value propagates back up the chain. Dropping the
+   * `next()` promise (calling it without returning/awaiting it) runs the
+   * inner chain in the background and is a bug.
+   *
+   * Calling `ctx.container.get()` from middleware is supported (e.g. to
+   * resolve a helper factory), but it must NOT form a cycle back to the
+   * token currently being resolved — the circular-dependency detector
+   * will throw.
    */
   middleware?(ctx: CreateContext, next: () => Promise<unknown>): Promise<unknown>
 }

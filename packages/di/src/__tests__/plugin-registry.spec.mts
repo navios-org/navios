@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { InjectableScope } from '../enums/index.mjs'
 import { definePlugin, PluginRegistry } from '../plugin/index.mjs'
@@ -267,5 +267,122 @@ describe('PluginRegistry lifecycle hooks', () => {
     await registry.runAfterDestroy(makeDestroyContext())
     await registry.runContainerDispose(fakeContainer)
     expect(order).toEqual(['p2'])
+  })
+})
+
+describe('PluginRegistry observer-hook error isolation', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('isolates a throwing onAfterCreate: B still runs and the dispatch resolves', async () => {
+    const ran: string[] = []
+    const boom = new Error('after-create boom')
+    const a: Plugin = {
+      name: 'a',
+      onAfterCreate() {
+        ran.push('a')
+        throw boom
+      },
+    }
+    const b: Plugin = {
+      name: 'b',
+      onAfterCreate() {
+        ran.push('b')
+      },
+    }
+    const errors: Array<[unknown, string, string]> = []
+    const registry = new PluginRegistry([a, b], (error, plugin, phase) => {
+      errors.push([error, plugin.name, phase])
+    })
+
+    await expect(
+      registry.runAfterCreate(makeCreateContext(), { id: 1 }),
+    ).resolves.toBeUndefined()
+    expect(ran).toEqual(['a', 'b'])
+    expect(errors).toEqual([[boom, 'a', 'onAfterCreate']])
+  })
+
+  it('isolates a rejecting onBeforeCreate: B still runs and the dispatch resolves', async () => {
+    const ran: string[] = []
+    const boom = new Error('before-create boom')
+    const a: Plugin = {
+      name: 'a',
+      async onBeforeCreate() {
+        ran.push('a')
+        await Promise.resolve()
+        throw boom
+      },
+    }
+    const b: Plugin = {
+      name: 'b',
+      onBeforeCreate() {
+        ran.push('b')
+      },
+    }
+    const errors: Array<[unknown, string, string]> = []
+    const registry = new PluginRegistry([a, b], (error, plugin, phase) => {
+      errors.push([error, plugin.name, phase])
+    })
+
+    await expect(registry.runBeforeCreate(makeCreateContext())).resolves.toBeUndefined()
+    expect(ran).toEqual(['a', 'b'])
+    expect(errors).toEqual([[boom, 'a', 'onBeforeCreate']])
+  })
+
+  it('invokes onPluginError with (error, plugin, phase) for the throwing plugin', async () => {
+    const boom = new Error('dispose boom')
+    const onPluginError = vi.fn()
+    const a: Plugin = {
+      name: 'disposer',
+      onContainerDispose() {
+        throw boom
+      },
+    }
+    const registry = new PluginRegistry([a], onPluginError)
+
+    await expect(registry.runContainerDispose(fakeContainer)).resolves.toBeUndefined()
+    expect(onPluginError).toHaveBeenCalledTimes(1)
+    expect(onPluginError).toHaveBeenCalledWith(boom, a, 'onContainerDispose')
+  })
+
+  it('without a handler: throwing hook does not reject, B still runs, console.error fires', async () => {
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const ran: string[] = []
+    const a: Plugin = {
+      name: 'a',
+      onBeforeDestroy() {
+        ran.push('a')
+        throw new Error('destroy boom')
+      },
+    }
+    const b: Plugin = {
+      name: 'b',
+      onBeforeDestroy() {
+        ran.push('b')
+      },
+    }
+    const registry = new PluginRegistry([a, b])
+
+    await expect(
+      registry.runBeforeDestroy(makeDestroyContext(), { id: 1 }),
+    ).resolves.toBeUndefined()
+    expect(ran).toEqual(['a', 'b'])
+    expect(consoleSpy).toHaveBeenCalledTimes(1)
+  })
+
+  it('middleware errors are UNCHANGED: a throwing middleware rejects runMiddleware', async () => {
+    const boom = new Error('mw boom')
+    const mw: Plugin = {
+      name: 'mw',
+      async middleware() {
+        throw boom
+      },
+    }
+    const registry = new PluginRegistry([mw])
+
+    await expect(
+      registry.runMiddleware(makeCreateContext(), async () => 'core'),
+    ).rejects.toThrow(boom)
   })
 })
