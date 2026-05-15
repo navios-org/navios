@@ -5,6 +5,61 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0] - 2026-05-15
+
+Migrated to `@navios/di` v2. Public hook signatures and `UseServiceResult`
+keep the same shape, but **this release requires `@navios/di` ^2.0.0** —
+every item below marked **BREAKING** requires a corresponding change in
+consuming apps (most commonly upgrading `@navios/di` itself). See
+`packages/di/CHANGELOG.md`'s `## [2.0.0]` entry for the underlying core
+migration.
+
+### Changed
+
+- **BREAKING**: `@navios/di` peer dependency now requires **^2.0.0**. This
+  package no longer works against `@navios/di` v1 — the v2 type renames and
+  `container.internals` namespace are hard requirements.
+- **BREAKING**: all hooks migrated to the `@navios/di` v2 surface — internal
+  access moved from the removed `container.getEventBus()` getter to the
+  `@internal` `container.internals.eventBus` namespace, `InjectionToken` /
+  `InjectionTokenSchemaType` / `BoundInjectionToken` / `FactoryInjectionToken`
+  type imports replaced with `Token` / `TokenSchemaType` / `BoundToken` /
+  `FactoryToken`, and the `Container` constructor's positional arguments
+  replaced with the v2 single options bag. No consumer-visible hook signature
+  changed shape, but the surface is now bound to di v2.
+- **`useService` rewritten** for v2's sound `tryGetSync`: the throw-proxy is
+  gone, so `tryGetSync` returns the instance or `null` for any registered
+  token. The internal reducer/action machinery was dropped in favor of a
+  plain replace-state reducer with a lazy initializer, and the initial state
+  is now `loading` (with `data: undefined`) instead of `idle`. The public
+  `UseServiceResult` API, overloads, and observable behavior are unchanged.
+- `useOptionalService` is now **unmount-safe**: state updates after the async
+  fetch are guarded so an unmount mid-fetch no longer triggers a post-unmount
+  state update.
+- `useSuspenseService` migrated to the v2 surface; its genuine React Suspense
+  throw (promise on pending) is preserved unchanged.
+
+### Removed
+
+- **BREAKING**: removed reliance on the v1 `container.getEventBus()` getter
+  and the v1 `InjectionToken` family of types — these no longer exist in
+  `@navios/di` v2.
+- Dropped the defensive `tryGetSync` try/catch workaround in
+  `useOptionalService` now that `@navios/di` v2's `tryGetSync` reliably
+  returns `null` for unregistered tokens instead of throwing.
+
+### Migration
+
+- Upgrade `@navios/di` to `^2.0.0` alongside this package; v1 is not
+  supported.
+- No `@navios/di-react` hook call sites need to change — `useService`,
+  `useSuspenseService`, `useOptionalService`, and the scope/invalidate hooks
+  keep their existing signatures and behavior.
+- If you accessed `@navios/di` internals directly (e.g.
+  `container.getEventBus()`), follow the core v2 migration to
+  `container.internals.*` — see `packages/di/CHANGELOG.md`'s `## [2.0.0]`
+  entry.
+
 ## [1.0.0-alpha.3] - 2026-01-08
 
 ### Added
