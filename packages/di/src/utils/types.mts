@@ -42,12 +42,14 @@ export type UnionToArray<T, A extends unknown[] = []> =
  * string-extractable the message degrades to a generic form.
  */
 export type TokenArgsRequiredError<S extends StandardSchemaV1> =
-  Extract<keyof StandardSchemaV1.InferInput<S>, string> extends never
-    ? 'Error: Your token requires args'
-    : `Error: Your token requires args: ${Join<
-        UnionToArray<Extract<keyof StandardSchemaV1.InferInput<S>, string>>,
-        ', '
-      >}`
+  StandardSchemaV1.InferInput<S> extends Record<string, unknown>
+    ? Extract<keyof StandardSchemaV1.InferInput<S>, string> extends never
+      ? 'Error: Your token requires args'
+      : `Error: Your token requires args: ${Join<
+          UnionToArray<Extract<keyof StandardSchemaV1.InferInput<S>, string>>,
+          ', '
+        >}`
+    : 'Error: Your token requires args'
 
 export type InjectRequest = {
   token:
