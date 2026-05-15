@@ -1,1 +1,1 @@
-export { defineOtelPlugin, OtelFastifyPlugin } from './define-otel-plugin.mjs'
+export { defineOtelPlugin, OtelFastifyPlugin, OtelFastifyPreAdapterPlugin } from './define-otel-plugin.mjs'

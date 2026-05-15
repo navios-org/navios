@@ -1,6 +1,6 @@
 {
   "name": "@navios/otel-fastify",
-  "version": "1.0.0-alpha.3",
+  "version": "2.0.0",
   "description": "OpenTelemetry integration for Navios Fastify adapter",
   "license": "MIT",
   "author": {

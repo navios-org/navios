@@ -1,5 +1,5 @@
 // Plugin
-export { defineOtelPlugin, OtelFastifyPlugin } from './plugin/index.mjs'
+export { defineOtelPlugin, OtelFastifyPlugin, OtelFastifyPreAdapterPlugin } from './plugin/index.mjs'
 
 // Interfaces
 export type { FastifyOtelPluginOptions } from './interfaces/index.mjs'
