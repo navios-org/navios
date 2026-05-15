@@ -7,7 +7,6 @@ import {
   Traceable,
   Traced,
   TracedMetadataKey,
-  TRACED_METADATA_KEY,
 } from '../decorators/traced.decorator.mjs'
 
 describe('@Traced decorator', () => {
@@ -191,10 +190,6 @@ describe('@Traced decorator', () => {
       class TestService {}
 
       expect((TestService as any)[TracedMetadataKey]).toBeDefined()
-    })
-
-    it('should have TRACED_METADATA_KEY as alias for TracedMetadataKey', () => {
-      expect(TRACED_METADATA_KEY).toBe(TracedMetadataKey)
     })
   })
 })

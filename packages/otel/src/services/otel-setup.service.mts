@@ -1,4 +1,7 @@
-import { Container, inject, Injectable, Logger } from '@navios/core'
+import { Logger } from '@navios/core'
+import { Container, Inject, Injectable } from '@navios/di'
+
+import type { LoggerInstance } from '@navios/core'
 import { metrics, trace } from '@opentelemetry/api'
 import { resourceFromAttributes, type Resource } from '@opentelemetry/resources'
 import { ATTR_SERVICE_NAME, ATTR_SERVICE_VERSION } from '@opentelemetry/semantic-conventions'
@@ -72,8 +75,9 @@ function resolveConfig(config: OtelConfig): ResolvedOtelConfig {
  */
 @Injectable()
 export class OtelSetupService {
-  private readonly container = inject(Container)
-  private readonly logger = inject(Logger, { context: OtelSetupService.name })
+  @Inject(Container) private accessor container!: Container
+  @Inject(Logger, { context: 'OtelSetupService' })
+  private accessor logger!: LoggerInstance
 
   private tracerProvider: NodeTracerProvider | null = null
   private meterProvider: MeterProvider | null = null

@@ -1,4 +1,4 @@
-import { Injectable, inject } from '@navios/di'
+import { Inject, Injectable } from '@navios/di'
 import { SpanStatusCode } from '@opentelemetry/api'
 
 import type { ClassTypeWithInstance } from '@navios/di'
@@ -26,7 +26,7 @@ import { SpanFactoryService } from './span-factory.service.mjs'
  */
 @Injectable()
 export class TracedProxyFactory {
-  private readonly spanFactory = inject(SpanFactoryService)
+  @Inject(SpanFactoryService) private accessor spanFactory!: SpanFactoryService
 
   /**
    * Wraps an instance with a tracing proxy.

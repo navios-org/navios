@@ -1,4 +1,4 @@
-import { InjectionToken } from '@navios/di'
+import { Token } from '@navios/di'
 
 import type { Tracer } from '@opentelemetry/api'
 
@@ -9,12 +9,12 @@ import type { Tracer } from '@opentelemetry/api'
  *
  * @example
  * ```typescript
- * import { inject, Injectable } from '@navios/di'
+ * import { Inject, Injectable } from '@navios/di'
  * import { TracerToken } from '@navios/otel'
  *
  * @Injectable()
  * class MyService {
- *   private readonly tracer = inject(TracerToken)
+ *   @Inject(TracerToken) private accessor tracer!: Tracer
  *
  *   async doWork() {
  *     const span = this.tracer.startSpan('my-operation')
@@ -27,4 +27,4 @@ import type { Tracer } from '@opentelemetry/api'
  * }
  * ```
  */
-export const TracerToken = InjectionToken.create<Tracer>('OtelTracer')
+export const TracerToken = Token.create<Tracer>('OtelTracer')

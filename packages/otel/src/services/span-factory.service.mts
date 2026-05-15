@@ -1,4 +1,4 @@
-import { Container, inject, Injectable } from '@navios/core'
+import { Container, Inject, Injectable } from '@navios/di'
 import { context as otelContext, SpanKind, SpanStatusCode, trace } from '@opentelemetry/api'
 
 import type { AttributeValue, Context, Span, SpanOptions } from '@opentelemetry/api'
@@ -86,12 +86,12 @@ export interface ChildSpanOptions {
  *
  * @example
  * ```typescript
- * import { inject, Injectable } from '@navios/di'
+ * import { Inject, Injectable } from '@navios/di'
  * import { SpanFactoryService } from '@navios/otel'
  *
  * @Injectable()
  * class RequestHandler {
- *   private readonly spanFactory = inject(SpanFactoryService)
+ *   @Inject(SpanFactoryService) private accessor spanFactory!: SpanFactoryService
  *
  *   async handleRequest(req: Request) {
  *     const span = this.spanFactory.createHttpSpan({
@@ -118,7 +118,7 @@ export interface ChildSpanOptions {
  */
 @Injectable()
 export class SpanFactoryService {
-  private readonly container = inject(Container)
+  @Inject(Container) private accessor container!: Container
 
   /**
    * Gets the tracer from the global OpenTelemetry API.

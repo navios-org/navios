@@ -42,13 +42,13 @@ const httpHeadersSetter: TextMapSetter<Record<string, string>> = {
  *
  * @example
  * ```typescript
- * import { inject, Injectable } from '@navios/di'
+ * import { Inject, Injectable } from '@navios/di'
  * import { TraceContextService, TracerToken } from '@navios/otel'
  *
  * @Injectable()
  * class MyService {
- *   private readonly traceContext = inject(TraceContextService)
- *   private readonly tracer = inject(TracerToken)
+ *   @Inject(TraceContextService) private accessor traceContext!: TraceContextService
+ *   @Inject(TracerToken) private accessor tracer!: Tracer
  *
  *   async handleRequest(headers: Record<string, string>) {
  *     // Extract parent context from incoming headers

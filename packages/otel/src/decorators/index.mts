@@ -8,8 +8,6 @@ export {
   extractTracedMetadata,
   hasTracedMetadata,
   getTraceableServices,
-  // Deprecated - use TracedMetadataKey
-  TRACED_METADATA_KEY,
 } from './traced.decorator.mjs'
 export type {
   ClassTracedMetadata,

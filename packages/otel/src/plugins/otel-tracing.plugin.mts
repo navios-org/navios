@@ -1,92 +1,63 @@
-import { definePreAdapterResolvePlugin } from '@navios/core'
-import { getInjectableToken, InjectionToken, InjectableType } from '@navios/di'
+import { definePlugin } from '@navios/di'
 
-import {
-  extractTracedMetadata,
-  getTraceableServices,
-  hasTracedMetadata,
-} from '../decorators/traced.decorator.mjs'
-import { createTracedWrapperFactory } from '../factories/traced-wrapper.factory.mjs'
+import type { ClassTypeWithInstance, Plugin } from '@navios/di'
+
+import { hasTracedMetadata } from '../decorators/traced.decorator.mjs'
+import { TracedProxyFactory } from '../services/traced-proxy.factory.mjs'
 
 /**
  * Options for the OTel tracing plugin.
+ *
+ * Kept as an (currently empty) interface so future options like sampling
+ * or filtering can be added without changing the public factory signature.
  */
 export interface OtelTracingPluginOptions {
   // Future options like sampling, filtering, etc.
 }
 
 /**
- * Plugin that automatically wraps @Traceable and @Traced decorated services
- * with tracing proxies at application startup.
+ * Creates a di v2 plugin that transparently wraps `@Traceable`/`@Traced`
+ * decorated services with an OpenTelemetry tracing proxy.
  *
- * This plugin runs at the `pre:adapter-resolve` stage, which is before
- * any services are instantiated. It:
- * 1. Iterates through all services decorated with @Traceable or @Traced
- * 2. Creates a new token for the original service
- * 3. Registers a wrapper factory with higher priority that produces traced instances
+ * Unlike the previous `pre:adapter-resolve` integration (which synthesized
+ * a `:original` token, registered a wrapper factory with bumped priority,
+ * and juggled the registry), this is a single resolution `middleware`:
+ *
+ * 1. It lets the container create the real instance (`await next()`).
+ * 2. If the resolved value is an object whose class carries traced
+ *    metadata, it asks {@link TracedProxyFactory} to wrap it.
+ * 3. Everything else is returned untouched.
+ *
+ * The middleware is composed Koa-style with other plugins; it is registered
+ * via the container `plugins` option.
  *
  * @example
  * ```typescript
+ * import { Container } from '@navios/di'
  * import { defineOtelTracingPlugin } from '@navios/otel'
  *
- * const app = await NaviosApplication.create(AppModule)
- * app.usePlugin(defineOtelTracingPlugin({}))
- * await app.listen()
+ * const container = new Container({
+ *   plugins: [defineOtelTracingPlugin({})],
+ * })
  * ```
  */
-export const defineOtelTracingPlugin = definePreAdapterResolvePlugin<OtelTracingPluginOptions>({
-  name: 'otel-tracing',
-  register: async (context, _options) => {
-    const { container } = context
-    const registry = container.getRegistry()
-    const traceableServices = getTraceableServices()
-
-    for (const serviceClass of traceableServices) {
-      let serviceToken
-      try {
-        serviceToken = getInjectableToken(serviceClass)
-      } catch {
-        // Service not registered with @Injectable - skip
-        continue
+export const defineOtelTracingPlugin = (
+  _options: OtelTracingPluginOptions = {},
+): Plugin =>
+  definePlugin({
+    name: 'otel-tracing',
+    async middleware(ctx, next) {
+      const instance = await next()
+      if (instance == null || typeof instance !== 'object') {
+        return instance
       }
-
-      if (!registry.has(serviceToken)) {
-        continue // Not registered in DI
+      if (!hasTracedMetadata(ctx.target)) {
+        return instance
       }
-
-      if (!hasTracedMetadata(serviceClass)) {
-        continue // No metadata (shouldn't happen but be safe)
-      }
-
-      const metadata = extractTracedMetadata(serviceClass)
-
-      // Skip if no methods to trace (enabled: false and no methods)
-      if (!metadata.enabled && metadata.methods.size === 0) {
-        continue
-      }
-
-      const record = registry.get(serviceToken)
-
-      // Create a new token for the original service
-      // IMPORTANT: Preserve the schema from the original token for parameterized services
-      const originalToken = serviceToken.schema
-        ? InjectionToken.create(`${serviceToken.id}:original`, serviceToken.schema)
-        : InjectionToken.create(`${serviceToken.id}:original`)
-
-      // Register original under new token (same priority)
-      registry.set(originalToken, record.scope, record.target, record.type, record.priority)
-
-      // Create wrapper factory
-      const WrapperFactory = createTracedWrapperFactory(originalToken, serviceClass)
-
-      // Register wrapper factory with higher priority
-      registry.set(
-        serviceToken,
-        record.scope,
-        WrapperFactory,
-        InjectableType.Factory,
-        record.priority + 1, // Higher priority
+      const factory = await ctx.container.get(TracedProxyFactory)
+      return factory.wrap(
+        instance as object,
+        ctx.target as ClassTypeWithInstance<object>,
       )
-    }
-  },
-})
+    },
+  })

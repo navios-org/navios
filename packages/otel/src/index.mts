@@ -9,17 +9,12 @@ export {
   extractTracedMetadata,
   hasTracedMetadata,
   getTraceableServices,
-  // Deprecated - use TracedMetadataKey
-  TRACED_METADATA_KEY,
 } from './decorators/index.mjs'
 export type {
   ClassTracedMetadata,
   MethodTracedMetadata,
   TracedMetadata,
 } from './decorators/index.mjs'
-
-// Factories
-export { createTracedWrapperFactory } from './factories/index.mjs'
 
 // Interfaces
 export type {

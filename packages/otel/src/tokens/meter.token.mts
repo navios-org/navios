@@ -1,4 +1,4 @@
-import { InjectionToken } from '@navios/di'
+import { Token } from '@navios/di'
 
 import type { Meter } from '@opentelemetry/api'
 
@@ -9,18 +9,17 @@ import type { Meter } from '@opentelemetry/api'
  *
  * @example
  * ```typescript
- * import { inject, Injectable } from '@navios/di'
+ * import { Inject, Injectable } from '@navios/di'
  * import { MeterToken } from '@navios/otel'
  *
  * @Injectable()
  * class MyService {
- *   private readonly meter = inject(MeterToken)
- *   private readonly counter = this.meter.createCounter('my_counter')
+ *   @Inject(MeterToken) private accessor meter!: Meter
  *
  *   async doWork() {
- *     this.counter.add(1, { operation: 'doWork' })
+ *     this.meter.createCounter('my_counter').add(1, { operation: 'doWork' })
  *   }
  * }
  * ```
  */
-export const MeterToken = InjectionToken.create<Meter>('OtelMeter')
+export const MeterToken = Token.create<Meter>('OtelMeter')
