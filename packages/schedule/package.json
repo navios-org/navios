@@ -1,6 +1,6 @@
 {
   "name": "@navios/schedule",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "license": "MIT",
   "author": {
     "name": "Oleksandr Hanzha",
@@ -39,11 +39,13 @@
   },
   "devDependencies": {
     "@navios/core": "workspace:^",
+    "@navios/di": "workspace:^",
     "typescript": "^5.9.3",
     "zod": "^4.3.5"
   },
   "peerDependencies": {
     "@navios/core": "workspace:^",
+    "@navios/di": "workspace:^",
     "zod": "^3.25.0 || ^4.0.0"
   }
 }

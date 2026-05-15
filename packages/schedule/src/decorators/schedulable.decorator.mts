@@ -1,6 +1,6 @@
-import { globalRegistry, Injectable, Registry } from '@navios/core'
+import { globalRegistry, Injectable, Registry } from '@navios/di'
 
-import type { ClassType } from '@navios/core'
+import type { ClassType } from '@navios/di'
 
 import { getScheduleMetadata } from '../metadata/index.mjs'
 

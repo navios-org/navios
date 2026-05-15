@@ -4627,11 +4627,13 @@ __metadata:
   resolution: "@navios/schedule@workspace:packages/schedule"
   dependencies:
     "@navios/core": "workspace:^"
+    "@navios/di": "workspace:^"
     cron: "npm:^4.4.0"
     typescript: "npm:^5.9.3"
     zod: "npm:^4.3.5"
   peerDependencies:
     "@navios/core": "workspace:^"
+    "@navios/di": "workspace:^"
     zod: ^3.25.0 || ^4.0.0
   languageName: unknown
   linkType: soft

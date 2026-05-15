@@ -1,4 +1,4 @@
-import { Container, globalRegistry, Injectable, Registry } from '@navios/core'
+import { Container, globalRegistry, Injectable, Registry } from '@navios/di'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { Cron, Schedulable } from '../decorators/index.mjs'
@@ -12,12 +12,13 @@ describe('Schedule Module', () => {
   beforeEach(async () => {
     vi.useFakeTimers()
     registry = new Registry(globalRegistry)
-    container = new Container(registry)
+    container = new Container({ registry })
     schedulerService = await container.get(SchedulerService)
   })
 
   afterEach(async () => {
     schedulerService.stopAll()
+    await container.dispose()
     vi.useRealTimers()
     vi.clearAllMocks()
   })

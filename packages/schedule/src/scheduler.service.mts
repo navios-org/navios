@@ -1,7 +1,9 @@
-import { Container, inject, Injectable, Logger } from '@navios/core'
+import { Logger } from '@navios/core'
+import { Container, Inject, Injectable } from '@navios/di'
 import { CronJob } from 'cron'
 
-import type { ClassType } from '@navios/core'
+import type { LoggerInstance } from '@navios/core'
+import type { ClassType } from '@navios/di'
 
 import { extractScheduleMetadata, hasScheduleMetadata } from './metadata/index.mjs'
 
@@ -15,12 +17,12 @@ import type { ScheduleMetadata } from './metadata/index.mjs'
  *
  * @example
  * ```typescript
- * import { inject, Injectable } from '@navios/core'
  * import { SchedulerService } from '@navios/schedule'
+ * import { Inject, Injectable } from '@navios/di'
  *
  * @Injectable()
  * class AppModule {
- *   private readonly scheduler = inject(SchedulerService)
+ *   @Inject(SchedulerService) accessor scheduler!: SchedulerService
  *
  *   async onModuleInit() {
  *     this.scheduler.register(MySchedulableService)
@@ -32,10 +34,10 @@ import type { ScheduleMetadata } from './metadata/index.mjs'
  */
 @Injectable()
 export class SchedulerService {
-  private readonly logger = inject(Logger, {
-    context: SchedulerService.name,
-  })
-  private readonly container = inject(Container)
+  @Inject(Logger, { context: 'SchedulerService' })
+  private accessor logger!: LoggerInstance
+  @Inject(Container)
+  private accessor container!: Container
   private readonly jobs: Map<string, CronJob> = new Map()
 
   /**

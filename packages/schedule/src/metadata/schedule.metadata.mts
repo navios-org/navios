@@ -1,4 +1,4 @@
-import type { ClassType } from '@navios/core'
+import type { ClassType } from '@navios/di'
 
 import { getAllCronMetadata } from './cron.metadata.mjs'
 
