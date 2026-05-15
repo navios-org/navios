@@ -139,19 +139,19 @@ export class Container extends AbstractContainer {
    * singletons are not retroactively wrapped.
    */
   use(plugin: Plugin): void {
-    this.pluginRegistry.register(plugin)
+    this.internals.pluginRegistry.register(plugin)
   }
 
   private registerSelf() {
     const token = getInjectableToken(Container)
-    this.registry.set(token, InjectableScope.Singleton, Container, InjectableType.Class)
-    const instanceName = this.nameResolver.generateInstanceName(
+    this.internals.registry.set(token, InjectableScope.Singleton, Container, InjectableType.Class)
+    const instanceName = this.internals.nameResolver.generateInstanceName(
       token,
       undefined,
       undefined,
       InjectableScope.Singleton,
     )
-    this.storage.storeInstance(instanceName, this)
+    this.internals.storage.storeInstance(instanceName, this)
   }
 
   /**
@@ -188,16 +188,16 @@ export class Container extends AbstractContainer {
     args?: unknown,
   ) {
     // Check if this is a request-scoped service
-    const realToken = this.tokenResolver.getRegistryToken(token)
+    const realToken = this.internals.tokenResolver.getRegistryToken(token)
 
-    if (this.registry.has(realToken)) {
-      const record = this.registry.get(realToken)
+    if (this.internals.registry.has(realToken)) {
+      const record = this.internals.registry.get(realToken)
       if (record.scope === InjectableScope.Request) {
         throw DIError.scopeMismatchError(realToken.name, 'ScopedContainer', 'Container')
       }
     }
 
-    const [error, instance] = await this.instanceResolver.resolveInstance(token, args, this)
+    const [error, instance] = await this.internals.resolver.resolveInstance(token, args, this)
 
     if (error) {
       throw error
@@ -211,13 +211,13 @@ export class Container extends AbstractContainer {
    */
   async invalidate(service: unknown): Promise<void> {
     // Find the service by instance
-    const holder = this.storage.findByInstance(service)
+    const holder = this.internals.storage.findByInstance(service)
     if (!holder) {
       this.logger?.warn(`[Container] Service instance not found for invalidation`)
       return
     }
 
-    await this.serviceInvalidator.invalidateWithStorage(holder.name, this.storage, {
+    await this.internals.serviceInvalidator.invalidateWithStorage(holder.name, this.internals.storage, {
       destroyContext: { container: this },
     })
   }
@@ -226,10 +226,10 @@ export class Container extends AbstractContainer {
    * Disposes the container and cleans up all resources.
    */
   async dispose(): Promise<void> {
-    await this.serviceInvalidator.clearAllWithStorage(this.storage, {
+    await this.internals.serviceInvalidator.clearAllWithStorage(this.internals.storage, {
       destroyContext: { container: this },
     })
-    await this.pluginRegistry.runContainerDispose(this)
+    await this.internals.pluginRegistry.runContainerDispose(this)
   }
 
   /**
@@ -238,7 +238,7 @@ export class Container extends AbstractContainer {
    * Overrides base class to support requestId parameter for ScopedContainer compatibility.
    */
   override tryGetSync<T>(token: any, args?: any, requestId?: string): T | null {
-    return this.tryGetSyncFromStorage(token, args, this.storage, requestId ?? this.requestId)
+    return this.tryGetSyncFromStorage(token, args, this.internals.storage, requestId ?? this.requestId)
   }
 
   /**

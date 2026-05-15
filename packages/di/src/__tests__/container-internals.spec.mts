@@ -58,7 +58,7 @@ describe('ScopedContainer.internals', () => {
     await container.dispose()
   })
 
-  it('exposes its own request storage and delegates the rest to the parent', () => {
+  it('exposes its own request storage and delegates the rest to the parent', async () => {
     const scoped = container.beginRequest('req-internals')
 
     expect(scoped.internals).toBeDefined()
@@ -77,5 +77,7 @@ describe('ScopedContainer.internals', () => {
 
     const c = scoped as any
     expect(c.getStorage).toBeUndefined()
+
+    await scoped.endRequest()
   })
 })
