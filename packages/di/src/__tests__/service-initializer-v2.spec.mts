@@ -7,6 +7,7 @@ import { InjectLazy } from '../decorators/inject-lazy.decorator.mjs'
 import { InjectOptional } from '../decorators/inject-optional.decorator.mjs'
 import { Injectable } from '../decorators/injectable.decorator.mjs'
 import { InjectableScope } from '../enums/index.mjs'
+import { DIError } from '../errors/index.mjs'
 import { Registry } from '../token/registry.mjs'
 import { Token } from '../token/token.mjs'
 
@@ -161,5 +162,33 @@ describe('ServiceInitializer v2 (one-pass metadata-driven resolution)', () => {
 
     await container.dispose()
     expect(events).toEqual(['init', 'destroy'])
+  })
+
+  it('rejects with a DIError when an eager dependency cannot be resolved', async () => {
+    const Missing = Token.create<{ x: number }>('missing-eager')
+
+    @Injectable({ registry })
+    class Svc {
+      @Inject(Missing) accessor dep!: { x: number }
+    }
+
+    await expect(container.get(Svc)).rejects.toBeInstanceOf(DIError)
+  })
+
+  it('@InjectOptional yields null when the optional dep construction throws', async () => {
+    @Injectable({ registry })
+    class Broken {
+      constructor() {
+        throw new Error('boom')
+      }
+    }
+
+    @Injectable({ registry })
+    class Svc {
+      @InjectOptional(Broken) accessor maybe!: Broken | null
+    }
+
+    const svc = await container.get(Svc)
+    expect(svc.maybe).toBeNull()
   })
 })

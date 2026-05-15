@@ -122,7 +122,7 @@ export function getInjections(target: ClassType): readonly InjectionEntry[] {
     return []
   }
   if (perLevel.length === 1) {
-    return perLevel[0]
+    return [...perLevel[0]]
   }
 
   // Merge least-derived -> most-derived, child overrides parent by fieldName.

@@ -93,8 +93,16 @@ export class ServiceInitializer {
     for (const entry of entries) {
       if (entry.kind === InjectionKind.Lazy) {
         // Lazy: field holds the unresolved promise; do not block construction.
-        resolved.set(entry.fieldName, ctx.inject(entry.token as any, entry.args as any))
+        const lazyPromise = ctx.inject(entry.token as any, entry.args as any)
+        // Attach a no-op catch so Node does not flag unhandledRejection if the
+        // consumer never awaits this lazy field. The consumer still observes the
+        // live rejection when they await `this.field` (they hold `lazyPromise`).
+        lazyPromise.catch(() => undefined)
+        resolved.set(entry.fieldName, lazyPromise)
       } else if (entry.kind === InjectionKind.Optional) {
+        // @InjectOptional yields null when the dependency is unavailable for ANY
+        // reason — not registered, or registered but its construction failed.
+        // This matches the documented optional-injection contract.
         optionalPending.push([
           entry.fieldName,
           ctx.inject(entry.token as any, entry.args as any).catch(() => null),
