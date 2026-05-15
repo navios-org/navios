@@ -668,59 +668,72 @@ export class InstanceResolver {
   ): ServiceInitializationContext {
     const destroyListeners: Array<() => void> = []
 
-    return {
-      inject: async (token: any, args?: any) => {
-        // Track dependency and check for scope upgrade
-        const actualToken =
-          typeof token === 'function' ? this.tokenResolver.normalizeToken(token) : token
-        const realToken = this.tokenResolver.getRealToken(actualToken)
-        const depRecord = this.registry.get(realToken)
-        const depScope = depRecord.scope
+    // Records the dependency edge (name + scope-upgrade tracking) WITHOUT
+    // resolving the instance. Used by both `inject` (eager path) and
+    // `registerDependency` (the @InjectLazy deferred path) so that the
+    // dependency is registered in `deps` BEFORE the host's
+    // setupDependencySubscriptions runs — preserving event-based cascade
+    // invalidation for lazy edges even though the instance itself is
+    // resolved later (or never).
+    const recordDependencyEdge = (token: any, args?: any): void => {
+      const actualToken =
+        typeof token === 'function' ? this.tokenResolver.normalizeToken(token) : token
+      const realToken = this.tokenResolver.getRealToken(actualToken)
+      const depRecord = this.registry.get(realToken)
+      const depScope = depRecord.scope
 
-        // Generate dependency name - if dependency is Request-scoped and we have requestId, use it
-        const dependencyRequestId = depScope === InjectableScope.Request ? requestId : undefined
-        const finalDepName = this.nameResolver.generateInstanceName(
-          actualToken,
-          args,
-          dependencyRequestId,
+      // Generate dependency name - if dependency is Request-scoped and we have requestId, use it
+      const dependencyRequestId = depScope === InjectableScope.Request ? requestId : undefined
+      const finalDepName = this.nameResolver.generateInstanceName(
+        actualToken,
+        args,
+        dependencyRequestId,
+        depScope,
+      )
+
+      // Check if current service needs scope upgrade
+      // If current service is Singleton and dependency is Request, upgrade current service
+      if (
+        scope === InjectableScope.Singleton &&
+        depScope === InjectableScope.Request &&
+        requestStorage &&
+        requestId
+      ) {
+        // Check and perform scope upgrade for current service
+        // Use the dependency name with requestId for the check
+        const [needsUpgrade, newServiceName] = this.scopeTracker.checkAndUpgradeScope(
+          serviceName,
+          scope,
+          finalDepName,
           depScope,
+          serviceToken,
+          this.storage,
+          requestStorage,
+          requestId,
         )
 
-        // Check if current service needs scope upgrade
-        // If current service is Singleton and dependency is Request, upgrade current service
-        if (
-          scope === InjectableScope.Singleton &&
-          depScope === InjectableScope.Request &&
-          requestStorage &&
-          requestId
-        ) {
-          // Check and perform scope upgrade for current service
-          // Use the dependency name with requestId for the check
-          const [needsUpgrade, newServiceName] = this.scopeTracker.checkAndUpgradeScope(
-            serviceName,
-            scope,
-            finalDepName,
-            depScope,
-            serviceToken,
-            this.storage,
-            requestStorage,
-            requestId,
-          )
-
-          if (needsUpgrade && newServiceName) {
-            // Service was upgraded - update the service name in context
-            // The holder will be moved to request storage by ScopeTracker
-            // For now, we continue with the current resolution
-            // Future resolutions will use the new name
-          }
+        if (needsUpgrade && newServiceName) {
+          // Service was upgraded - update the service name in context
+          // The holder will be moved to request storage by ScopeTracker
+          // For now, we continue with the current resolution
+          // Future resolutions will use the new name
         }
+      }
 
-        // Track dependency
-        deps.add(finalDepName)
+      // Track dependency
+      deps.add(finalDepName)
+    }
+
+    return {
+      inject: async (token: any, args?: any) => {
+        recordDependencyEdge(token, args)
 
         // Resolve dependency
         // Resolution context is automatically used by the injectors system for circular dependency detection
         return container.get(token, args)
+      },
+      registerDependency: (token: any, args?: any) => {
+        recordDependencyEdge(token, args)
       },
       container,
       addDestroyListener: (listener: () => void) => {

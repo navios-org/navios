@@ -57,10 +57,12 @@ export class ServiceInitializer {
    * - Eager + Derived: resolved in parallel and awaited before construction.
    * - Optional: resolved, then `.catch(() => null)`, then settled before
    *   construction (the field holds `Dep | null`).
-   * - Lazy: the field holds a `Promise<Dep>` that is NOT awaited here, so
-   *   construction never blocks on it.
+   * - Lazy: the field holds a DEFERRED thenable. Resolution is not even
+   *   initiated here — `ctx.inject()` runs only on first await, after the
+   *   host has finished constructing. This is what lets @InjectLazy break
+   *   circular dependencies.
    *
-   * @returns Map of fieldName -> resolved value (or Promise for Lazy).
+   * @returns Map of fieldName -> resolved value (or deferred thenable for Lazy).
    */
   private async resolveInjections(
     ctx: ServiceInitializationContext,
@@ -92,13 +94,46 @@ export class ServiceInitializer {
     const optionalPending: Array<[string | symbol, Promise<unknown>]> = []
     for (const entry of entries) {
       if (entry.kind === InjectionKind.Lazy) {
-        // Lazy: field holds the unresolved promise; do not block construction.
-        const lazyPromise = ctx.inject(entry.token as any, entry.args as any)
-        // Attach a no-op catch so Node does not flag unhandledRejection if the
-        // consumer never awaits this lazy field. The consumer still observes the
-        // live rejection when they await `this.field` (they hold `lazyPromise`).
-        lazyPromise.catch(() => undefined)
-        resolved.set(entry.fieldName, lazyPromise)
+        // Lazy: the field holds a DEFERRED thenable. `ctx.inject()` is NOT
+        // called here (during resolveInjections, before the host instance has
+        // finished constructing) — it is initiated only on first `.then`/await,
+        // by which time the host is fully built. This is what makes
+        // @InjectLazy break circular dependencies: a pure-lazy mutual cycle
+        // resolves cleanly because both instances already exist when the field
+        // is finally awaited. The inner promise is memoized so repeated awaits
+        // yield the SAME instance. Nothing runs until awaited, so there is no
+        // unhandled-rejection hazard for an un-awaited lazy field.
+        // Register the dependency edge NOW (before construction completes and
+        // before setupDependencySubscriptions runs) without resolving it, so
+        // event-based cascade invalidation still works through the lazy edge.
+        ctx.registerDependency(entry.token as any, entry.args as any)
+
+        let pending: Promise<unknown> | undefined
+        const lazyToken = entry.token
+        const lazyArgs = entry.args
+        const start = (): Promise<unknown> =>
+          (pending ??= ctx.inject(lazyToken as any, lazyArgs as any))
+        // The deferred thenable is the entire mechanism: `start()` (and
+        // therefore `ctx.inject`) runs only when this object is awaited,
+        // which is what breaks circular dependencies. `catch`/`finally` are
+        // provided so it behaves like a real Promise for consumers.
+        /* oxlint-disable no-thenable */
+        const lazy: Promise<unknown> = {
+          then(onFulfilled, onRejected) {
+            return start().then(onFulfilled, onRejected)
+          },
+          catch(onRejected) {
+            return start().catch(onRejected)
+          },
+          finally(onFinally) {
+            return start().finally(onFinally)
+          },
+          get [Symbol.toStringTag]() {
+            return 'Promise'
+          },
+        } as Promise<unknown>
+        /* oxlint-enable no-thenable */
+        resolved.set(entry.fieldName, lazy)
       } else if (entry.kind === InjectionKind.Optional) {
         // @InjectOptional yields null when the dependency is unavailable for ANY
         // reason — not registered, or registered but its construction failed.

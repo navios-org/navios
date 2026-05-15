@@ -22,6 +22,16 @@ type ContextInject = <T = unknown>(token: any, args?: any) => Promise<T>
 export interface ServiceInitializationContext {
   inject: ContextInject
   /**
+   * Records a dependency edge (name + scope-upgrade tracking) WITHOUT
+   * resolving the instance.
+   *
+   * Used by the @InjectLazy deferred path: the dependency must be registered
+   * before the host's dependency subscriptions are set up (so event-based
+   * cascade invalidation still works through lazy edges), even though the
+   * instance itself is resolved lazily on first await (or never).
+   */
+  registerDependency: (token: any, args?: any) => void
+  /**
    * The container instance for dependency resolution.
    * This may be either a Container or ScopedContainer.
    */

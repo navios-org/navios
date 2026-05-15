@@ -86,6 +86,26 @@ describe('ServiceInitializer v2 (one-pass metadata-driven resolution)', () => {
     expect(resolved.value).toBe('lazy-dep')
   })
 
+  it('@InjectLazy breaks a pure mutual circular dependency', async () => {
+    const ATok = Token.create<A>('cyc-A')
+    const BTok = Token.create<B>('cyc-B')
+
+    @Injectable({ registry, token: ATok })
+    class A {
+      @InjectLazy(BTok) accessor b!: Promise<B>
+    }
+
+    @Injectable({ registry, token: BTok })
+    class B {
+      @InjectLazy(ATok) accessor a!: Promise<A>
+    }
+
+    const a = await container.get(ATok)
+    const b = await container.get(BTok)
+    expect(await a.b).toBe(b)
+    expect(await b.a).toBe(a)
+  })
+
   it('optional missing dep resolves to null (settled before construction)', async () => {
     const MissingTok = Token.create<{ x: number }>('missing-optional')
 

@@ -415,7 +415,7 @@ describe('Container', () => {
   })
 
   describe('Complex dependency injection scenarios', () => {
-    it('should construct lazily and detect the cycle only when fully traversed', async () => {
+    it('@InjectLazy breaks a pure mutual circular dependency', async () => {
       // Tokens declared up front so the lazy decorator can reference the
       // other side of the cycle without a forward-reference error.
       const TokA = Token.create<ServiceA>('CircularGracefulA')
@@ -431,19 +431,15 @@ describe('Container', () => {
         @InjectLazy(TokA) accessor serviceA!: Promise<ServiceA>
       }
 
-      // @InjectLazy lets the host construct without resolving the cycle.
+      // @InjectLazy lets both hosts construct without resolving the cycle,
+      // then resolves each direction to the already-built counterpart.
       const serviceA = await container.get(TokA)
+      const serviceB = await container.get(TokB)
       expect(serviceA).toBeInstanceOf(ServiceA)
-      expect(serviceA.serviceB).toBeInstanceOf(Promise)
+      expect(serviceB).toBeInstanceOf(ServiceB)
 
-      // Traversing the full mutual cycle surfaces the v2 CircularDependency
-      // error (the v1 "asyncInject silently defers forever" behavior is gone).
-      await expect(
-        (async () => {
-          const serviceB = await serviceA.serviceB
-          await serviceB.serviceA
-        })(),
-      ).rejects.toThrow(/circular/i)
+      expect(await serviceA.serviceB).toBe(serviceB)
+      expect(await serviceB.serviceA).toBe(serviceA)
     })
 
     it('should handle deep dependency chains', async () => {
