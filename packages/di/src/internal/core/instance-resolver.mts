@@ -435,7 +435,7 @@ export class InstanceResolver {
 
     const record = this.registry.get<Instance, any>(realToken)
     const { type, scope: recordScope } = record
-    const serviceScope = scope || recordScope
+    const serviceScope = scope ?? recordScope
 
     // For transient services, don't use storage locking - create directly
     if (serviceScope === InjectableScope.Transient) {

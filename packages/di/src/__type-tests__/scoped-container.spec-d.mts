@@ -139,6 +139,121 @@ describe('ScopedContainer.get', () => {
   })
 })
 
+describe('ScopedContainer.resolveInScope', () => {
+  describe('#1 Classes', () => {
+    test('simple class', async () => {
+      @Injectable()
+      class Foo {
+        makeFoo() {
+          return 'foo'
+        }
+      }
+
+      const container = new Container()
+      const scopedContainer = container.beginRequest('req-1')
+      assertType<Foo>(await scopedContainer.resolveInScope(Foo))
+    })
+
+    test('class with required argument', async () => {
+      @Injectable({
+        schema: simpleObjectSchema,
+      })
+      class Foo {
+        constructor(public arg: z.infer<typeof simpleObjectSchema>) {}
+      }
+
+      const container = new Container()
+      const scopedContainer = container.beginRequest('req-1')
+      assertType<Foo>(await scopedContainer.resolveInScope(Foo, { foo: 'bar' }))
+    })
+
+    test('should fail if not compatible', async () => {
+      @Injectable({
+        schema: simpleObjectSchema,
+      })
+      class Foo {
+        constructor(public arg: z.infer<typeof simpleObjectSchema>) {}
+      }
+
+      const container = new Container()
+      const scopedContainer = container.beginRequest('req-1')
+      // @ts-expect-error Should fail if not compatible
+      await scopedContainer.resolveInScope(Foo, { test: 'bar' })
+    })
+
+    test('factory class returns unwrapped type', async () => {
+      @Factory()
+      class FooFactory implements Factorable<string> {
+        create() {
+          return 'created'
+        }
+      }
+
+      const container = new Container()
+      const scopedContainer = container.beginRequest('req-1')
+      // When getting a Factorable class, we get the created type, not the factory
+      assertType<string>(await scopedContainer.resolveInScope(FooFactory))
+    })
+  })
+
+  test('#2 Token with required Schema', async () => {
+    const container = new Container()
+    const scopedContainer = container.beginRequest('req-1')
+
+    // Typeless token: T is inferred as unknown.
+    const result = await scopedContainer.resolveInScope(typelessObjectToken, {
+      foo: 'bar',
+    })
+    assertType<unknown>(result)
+
+    const result2 = await scopedContainer.resolveInScope(typedObjectToken, {
+      foo: 'bar',
+    })
+    assertType<FooService>(result2)
+
+    // @ts-expect-error We show error when we pass the wrong type
+    await scopedContainer.resolveInScope(typedObjectToken, undefined)
+  })
+
+  test('#3 Schema-bearing token resolved without args -> compile error string', async () => {
+    const container = new Container()
+    const scopedContainer = container.beginRequest('req-1')
+
+    // Same DX contract as get(): a schema-bearing token without args resolves
+    // to the TokenArgsRequiredError string type, not an instance.
+    const result = scopedContainer.resolveInScope(typedObjectToken)
+    assertType<'Error: Your token requires args: foo'>(result)
+  })
+
+  test('#4 Token with no Schema', async () => {
+    const container = new Container()
+    const scopedContainer = container.beginRequest('req-1')
+
+    const result = await scopedContainer.resolveInScope(typedToken)
+    assertType<FooService>(result)
+  })
+
+  test('#5 BoundToken', async () => {
+    const container = new Container()
+    const scopedContainer = container.beginRequest('req-1')
+
+    const boundToken = Token.bound(typedObjectToken, { foo: 'bar' })
+    const result = await scopedContainer.resolveInScope(boundToken)
+    assertType<FooService>(result)
+  })
+
+  test('#6 FactoryToken', async () => {
+    const container = new Container()
+    const scopedContainer = container.beginRequest('req-1')
+
+    const factoryToken = Token.factory(typedObjectToken, async () => ({
+      foo: 'bar',
+    }))
+    const result = await scopedContainer.resolveInScope(factoryToken)
+    assertType<FooService>(result)
+  })
+})
+
 describe('ScopedContainer methods', () => {
   test('getRequestId returns string', () => {
     const container = new Container()

@@ -225,6 +225,23 @@ describe('ScopedContainer.resolveInScope', () => {
     await s.endRequest()
   })
 
+  it('rejects resolveInScope after endRequest (scope has been ended/disposed)', async () => {
+    @Injectable({ registry, scope: InjectableScope.Singleton })
+    class Ctrl {}
+
+    const s = container.beginRequest('r1')
+    // First resolution works while the request scope is live.
+    await s.resolveInScope(Ctrl)
+
+    await s.endRequest()
+
+    // endRequest() disposes the scoped container, so a subsequent
+    // resolveInScope must reject — the request scope no longer exists.
+    await expect(s.resolveInScope(Ctrl)).rejects.toThrow(
+      'ScopedContainer has been disposed',
+    )
+  })
+
   it('container.get(Ctrl) STILL throws ScopeIncompatibleError after resolveInScope (validator memo not poisoned)', async () => {
     @Injectable({ registry, scope: InjectableScope.Request })
     class ReqSvc {}

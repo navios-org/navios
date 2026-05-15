@@ -49,6 +49,14 @@ export function validateScopeCompatibility(
 
   // Only a Singleton host can be over-scoped by an eager shorter-lived dep.
   // Request/Transient hosts may eagerly hold deps of any scope.
+  //
+  // INVARIANT: this early-return MUST stay above the `validated.set(target,
+  // true)` memo write below. `ScopedContainer.resolveInScope` resolves a
+  // Singleton-declared class with a FORCED Request host scope; that path
+  // reaches here as a non-Singleton host and returns BEFORE the per-class
+  // memo is recorded. Moving this below the memo write would cache the class
+  // as globally-validated off a forced-scope resolution, corrupting the
+  // later real Singleton-scope fail-fast for the same class.
   if (hostScope !== InjectableScope.Singleton) {
     return
   }
