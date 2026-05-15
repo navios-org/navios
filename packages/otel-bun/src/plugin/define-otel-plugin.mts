@@ -1,4 +1,3 @@
-import { BunControllerAdapterToken } from '@navios/adapter-bun'
 import { Logger } from '@navios/core'
 import { InjectableScope, InjectableType } from '@navios/di'
 import { defineOtelTracingPlugin, OtelSetupService } from '@navios/otel'
@@ -6,7 +5,6 @@ import { defineOtelTracingPlugin, OtelSetupService } from '@navios/otel'
 import type { BunApplicationServiceInterface } from '@navios/adapter-bun'
 import type { FullPluginContext, ModulesLoadedContext, StagedPluginDefinition } from '@navios/core'
 
-import { TracedBunControllerAdapterService } from '../overrides/index.mjs'
 import { BunOtelOptionsToken } from '../tokens/index.mjs'
 
 import type { BunOtelPluginOptions } from '../interfaces/index.mjs'
@@ -33,11 +31,8 @@ class OtelBunPreAdapterPlugin {
   readonly name = '@navios/otel-bun:pre-adapter'
   readonly stage = 'pre:adapter-resolve' as const
 
-  register(context: ModulesLoadedContext, options: BunOtelPluginOptions): void {
+  async register(context: ModulesLoadedContext, options: BunOtelPluginOptions): Promise<void> {
     const { container } = context
-
-    // Register plugin options in container for TracedBunControllerAdapterService
-    container.addInstance(BunOtelOptionsToken, options)
 
     // Wire the `@navios/di` CONTAINER plugin that transparently wraps
     // `@Traced`/`@Traceable` services with the OpenTelemetry tracing proxy.
@@ -60,10 +55,50 @@ class OtelBunPreAdapterPlugin {
     // `.get()`), so every `@Traced`/`@Traceable` service resolved afterward
     // gets the tracing proxy — preserving v1 behavior with the correct v2
     // system.
+    //
+    // Guarded invariant: this whole pre-adapter wiring is applied AT MOST
+    // ONCE per container. The di `PluginRegistry.register` is an
+    // unconditional `push` (no dedup) and `defineOtelTracingPlugin()` mints
+    // a fresh `'otel-tracing'` plugin each call, so if `register()` runs
+    // more than once on the same container (consumer calls
+    // `defineOtelPlugin` twice, registers the pre-adapter plugin from two
+    // modules, or a second `app.init()`) the tracing middleware would stack
+    // N-deep → N nested proxies → N child spans per traced method call
+    // (silent, hard to diagnose); the `addInstance(BunOtelOptionsToken)`
+    // below would also throw "Instance already stored". We use the presence
+    // of an already-registered `'otel-tracing'` di plugin (introspected via
+    // the container's di plugin registry) as the sentinel that this wiring
+    // already ran, and short-circuit the whole `register()` if so.
+    const alreadyRegistered = container.internals.pluginRegistry
+      .getAll()
+      .some((plugin) => plugin.name === 'otel-tracing')
+    if (alreadyRegistered) {
+      return
+    }
+
+    // Register plugin options in container for TracedBunControllerAdapterService
+    container.addInstance(BunOtelOptionsToken, options)
+
+    // `{}` is intentional: the di tracing plugin
+    // (`@navios/otel`'s `otel-tracing.plugin.mts`) does not consume
+    // options by design. Bun OTEL options reach the HTTP layer via
+    // `BunOtelOptionsToken` (see `addInstance` above), NOT the di
+    // middleware — so nothing is dropped here. This matches v1 behavior.
     container.use(defineOtelTracingPlugin({}))
 
     // Only register traced adapter if HTTP auto-instrumentation is enabled (default: true)
     if (options.autoInstrument?.http !== false) {
+      // Lazy `import()` (not a top-level import) so merely loading this
+      // module does NOT eagerly pull `@navios/adapter-bun`. adapter-bun is
+      // still di-v1 (un-migrated until Task 8.8) and its module graph
+      // currently fails to load under di-v2; deferring the import to the
+      // branch that actually needs it keeps `defineOtelPlugin` /
+      // `OtelBunPreAdapterPlugin` importable (and thus the
+      // tracing-middleware + option-storage tests runnable) before 8.8,
+      // without changing any production wiring behavior.
+      const { BunControllerAdapterToken } = await import('@navios/adapter-bun')
+      const { TracedBunControllerAdapterService } = await import('../overrides/index.mjs')
+
       // Register TracedBunControllerAdapterService with high priority (100)
       // This overrides the default BunControllerAdapterService (priority 0)
       const registry = container.internals.registry

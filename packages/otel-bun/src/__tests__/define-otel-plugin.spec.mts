@@ -1,17 +1,26 @@
-import { BunControllerAdapterToken } from '@navios/adapter-bun'
+// Adapter-FREE slice of the defineOtelPlugin spec.
+//
+// This file deliberately avoids any top-level import that transitively
+// pulls `@navios/adapter-bun` (still di-v1 / un-migrated until Task 8.8 and
+// currently failing to module-load under di-v2). The adapter-dependent
+// traced-adapter-registration tests live in
+// `define-otel-plugin.adapter.spec.mts`. Everything here — plugin
+// structure, the di `@Traced` middleware integration, the idempotency
+// guard, and option storage — runs and passes TODAY, before Task 8.8.
+//
+// `OtelBunPreAdapterPlugin.register` only `await import('@navios/adapter-bun')`
+// inside its `autoInstrument.http !== false` branch, so as long as these
+// tests use `autoInstrument: { http: false }` the adapter graph is never
+// loaded.
 import {
   Container,
   Injectable,
-  InjectableScope,
-  InjectableType,
-  Registry,
 } from '@navios/di'
 import { SpanFactoryService, Traced } from '@navios/otel'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { ModulesLoadedContext } from '@navios/core'
 
-import { TracedBunControllerAdapterService } from '../overrides/index.mjs'
 import {
   defineOtelPlugin,
   OtelBunPostModulesPlugin,
@@ -23,11 +32,16 @@ import type { BunOtelPluginOptions } from '../interfaces/index.mjs'
 
 describe('defineOtelPlugin', () => {
   let container: Container
-  let registry: Registry
 
   beforeEach(() => {
-    registry = new Registry()
-    container = new Container({ registry })
+    // Use the default (global) registry — mirroring @navios/otel's own
+    // otel-tracing.plugin.spec — because the behavioral integration /
+    // idempotency tests resolve @navios/otel's globally-@Injectable()
+    // SpanFactoryService through this container. A fresh isolated
+    // `new Registry()` would have no factory for it. Per-test @Injectable
+    // fixtures are still defined inside their `it()` blocks to avoid
+    // cross-test pollution.
+    container = new Container()
   })
 
   afterEach(async () => {
@@ -89,99 +103,6 @@ describe('defineOtelPlugin', () => {
   })
 
   describe('OtelBunPreAdapterPlugin', () => {
-    it('should register TracedBunControllerAdapterService when autoInstrument.http is true', () => {
-      const plugin = new OtelBunPreAdapterPlugin()
-      const options: BunOtelPluginOptions = {
-        serviceName: 'test-service',
-        exporter: 'console',
-        autoInstrument: { http: true },
-      }
-
-      const context: ModulesLoadedContext = {
-        container,
-        modules: new Map(),
-        moduleLoader: {} as any,
-      }
-
-      plugin.register(context, options)
-
-      const factoryRecord = container.internals.registry.get(BunControllerAdapterToken)
-      expect(factoryRecord).toBeDefined()
-      expect(factoryRecord.target).toBe(TracedBunControllerAdapterService)
-      expect(factoryRecord.priority).toBe(100)
-      expect(factoryRecord.scope).toBe(InjectableScope.Singleton)
-      expect(factoryRecord.type).toBe(InjectableType.Class)
-    })
-
-    it('should register TracedBunControllerAdapterService when autoInstrument.http is undefined (default)', () => {
-      const plugin = new OtelBunPreAdapterPlugin()
-      const options: BunOtelPluginOptions = {
-        serviceName: 'test-service',
-        exporter: 'console',
-        // autoInstrument not specified - defaults to http: true
-      }
-
-      const context: ModulesLoadedContext = {
-        container,
-        modules: new Map(),
-        moduleLoader: {} as any,
-      }
-
-      plugin.register(context, options)
-
-      const factoryRecord = container.internals.registry.get(BunControllerAdapterToken)
-      expect(factoryRecord).toBeDefined()
-      expect(factoryRecord.target).toBe(TracedBunControllerAdapterService)
-    })
-
-    it('should NOT register TracedBunControllerAdapterService when autoInstrument.http is false', () => {
-      const plugin = new OtelBunPreAdapterPlugin()
-      const options: BunOtelPluginOptions = {
-        serviceName: 'test-service',
-        exporter: 'console',
-        autoInstrument: { http: false },
-      }
-
-      const context: ModulesLoadedContext = {
-        container,
-        modules: new Map(),
-        moduleLoader: {} as any,
-      }
-
-      plugin.register(context, options)
-
-      expect(container.internals.registry.has(BunControllerAdapterToken)).toBe(false)
-    })
-
-    it('should register with higher priority than default (100 > 0)', () => {
-      const plugin = new OtelBunPreAdapterPlugin()
-      const options: BunOtelPluginOptions = {
-        serviceName: 'test-service',
-        exporter: 'console',
-      }
-
-      // First, register a "default" adapter with priority 0
-      container.internals.registry.set(
-        BunControllerAdapterToken,
-        InjectableScope.Singleton,
-        class DefaultAdapter {} as any,
-        InjectableType.Class,
-        0,
-      )
-
-      const context: ModulesLoadedContext = {
-        container,
-        modules: new Map(),
-        moduleLoader: {} as any,
-      }
-
-      plugin.register(context, options)
-
-      const factoryRecord = container.internals.registry.get(BunControllerAdapterToken)
-      expect(factoryRecord.target).toBe(TracedBunControllerAdapterService)
-      expect(factoryRecord.priority).toBe(100)
-    })
-
     it('should store plugin options in container', async () => {
       const plugin = new OtelBunPreAdapterPlugin()
       const options: BunOtelPluginOptions = {
@@ -199,7 +120,7 @@ describe('defineOtelPlugin', () => {
         moduleLoader: {} as any,
       }
 
-      plugin.register(context, options)
+      await plugin.register(context, options)
 
       const storedOptions = await container.get(BunOtelOptionsToken)
       expect(storedOptions).toBe(options)
@@ -233,7 +154,7 @@ describe('defineOtelPlugin', () => {
         moduleLoader: {} as any,
       }
 
-      plugin.register(context, options)
+      await plugin.register(context, options)
 
       // Structural: the di container plugin was registered exactly once.
       expect(useSpy).toHaveBeenCalledTimes(1)
@@ -267,7 +188,7 @@ describe('defineOtelPlugin', () => {
       )
     })
 
-    it('registers the di @Traced middleware even when autoInstrument.http is false', () => {
+    it('registers the di @Traced middleware even when autoInstrument.http is false', async () => {
       const plugin = new OtelBunPreAdapterPlugin()
       const options: BunOtelPluginOptions = {
         serviceName: 'test-service',
@@ -283,12 +204,79 @@ describe('defineOtelPlugin', () => {
         moduleLoader: {} as any,
       }
 
-      plugin.register(context, options)
+      await plugin.register(context, options)
 
       // The @Traced middleware wiring is independent of HTTP
       // auto-instrumentation; it is always registered.
       expect(useSpy).toHaveBeenCalledTimes(1)
       expect(useSpy.mock.calls[0]![0].name).toBe('otel-tracing')
+    })
+
+    // Regression test for the idempotency guard (Fix 1).
+    //
+    // `@navios/di`'s `PluginRegistry.register` is an unconditional `push`
+    // (no dedup) and `defineOtelTracingPlugin()` mints a fresh
+    // `'otel-tracing'` plugin per call. Without the guard, calling
+    // `register()` twice on the same container stacks the tracing
+    // middleware twice → two nested proxies → TWO `createChildSpan` calls
+    // for a single traced-method invocation. The guard
+    // (`pluginRegistry.getAll().some(p => p.name === 'otel-tracing')`)
+    // makes the second `register()` a no-op for the di plugin.
+    //
+    // This test would FAIL (createChildSpan called 2x, useSpy called 2x)
+    // if the guard in OtelBunPreAdapterPlugin.register were removed.
+    it('does not stack the di @Traced middleware when register() runs twice (idempotent)', async () => {
+      const plugin = new OtelBunPreAdapterPlugin()
+      const options: BunOtelPluginOptions = {
+        serviceName: 'test-service',
+        exporter: 'console',
+        autoInstrument: { http: false },
+      }
+
+      const useSpy = vi.spyOn(container, 'use')
+
+      const context: ModulesLoadedContext = {
+        container,
+        modules: new Map(),
+        moduleLoader: {} as any,
+      }
+
+      // Two registrations on the SAME container (consumer double-registers
+      // the pre-adapter plugin / a second app.init()).
+      await plugin.register(context, options)
+      await plugin.register(context, options)
+
+      // Structural: the second register() must NOT register a second
+      // di 'otel-tracing' plugin.
+      expect(useSpy).toHaveBeenCalledTimes(1)
+      expect(useSpy.mock.calls[0]![0].name).toBe('otel-tracing')
+
+      // And the registry holds exactly one 'otel-tracing' plugin.
+      const tracingPlugins = container.internals.pluginRegistry
+        .getAll()
+        .filter((p) => p.name === 'otel-tracing')
+      expect(tracingPlugins).toHaveLength(1)
+
+      // Behavioral: a single traced-method invocation must create EXACTLY
+      // ONE child span. Stacked (N-deep) tracing proxies would yield N.
+      const spanFactory = await container.get(SpanFactoryService)
+      const createChildSpan = vi.spyOn(spanFactory, 'createChildSpan')
+
+      @Injectable()
+      @Traced({ name: 'traced-once' })
+      class TracedOnce {
+        compute(value: number) {
+          return value + 1
+        }
+      }
+
+      const service = await container.get(TracedOnce)
+
+      expect(service.compute(41)).toBe(42)
+      expect(createChildSpan).toHaveBeenCalledTimes(1)
+      expect(createChildSpan).toHaveBeenCalledWith(
+        expect.objectContaining({ name: 'traced-once.compute' }),
+      )
     })
   })
 
