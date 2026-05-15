@@ -84,21 +84,6 @@ The choice of adapter depends on your deployment environment and performance req
 - **Guard**: A guard is a class that is used to validate incoming requests and ensure that they meet certain criteria. Guards can be used to validate request parameters, headers, and body. They can also be used to check authentication and authorization.
 - **Attribute**: An attribute is a decorator that is used to add metadata to a class or method. Attributes can be used in guards, controllers, modules, and endpoints to provide additional information about the class or method.
 
-## Legacy-Compatible Decorators
-
-Navios provides legacy-compatible decorators for projects that use TypeScript's experimental decorator API. These decorators are available from `@navios/core/legacy-compat` and provide the same functionality as the standard decorators, but with compatibility for projects that cannot use Stage 3 decorators.
-
-```ts
-import { Controller, Endpoint, Module } from '@navios/core/legacy-compat'
-
-@Module({
-  controllers: [UserController],
-})
-export class AppModule {}
-```
-
-For more information, see the [Legacy-Compatible Decorators documentation](./docs/legacy-compat.md).
-
 ## Getting Started
 
 ### Define your API
@@ -244,7 +229,6 @@ That's it! You have created your first Navios server. You can now run your serve
 - **[Quick Start Guide](./docs/quick-start.md)** - Get up and running quickly
 - **[Complete Documentation](./docs/README.md)** - Comprehensive framework documentation
 - **[Adapter Guide](./docs/adapters.md)** - Detailed adapter information and comparison
-- **[Legacy-Compatible Decorators](./docs/legacy-compat.md)** - Using Navios with TypeScript experimental decorators
 - **[API Examples](https://github.com/Arilas/navios/tree/main/examples)** - Working code examples
 - **[CHANGELOG](./CHANGELOG.md)** - Version history and release notes
 

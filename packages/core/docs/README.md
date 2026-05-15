@@ -16,7 +16,6 @@
 - [Guards](./guards.md) - Authentication, authorization, and request filtering
 - [Exception Handling](./exceptions.md) - Error handling and HTTP exceptions
 - [Attribute System](./attributes.md) - Metadata and custom decorators
-- [Legacy-Compatible Decorators](./legacy-compat.md) - Using Navios with TypeScript experimental decorators
 
 ### Infrastructure
 
