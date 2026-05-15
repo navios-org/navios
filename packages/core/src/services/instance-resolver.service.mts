@@ -3,6 +3,32 @@ import { Container, DIError, DIErrorCode, Inject, Injectable } from '@navios/di'
 import type { ClassType, ScopedContainer } from '@navios/di'
 
 /**
+ * Whether `error` is the "this class must be resolved per-request" signal,
+ * meaning the eager root-`Container.get()` attempt failed for a scope reason
+ * that the explicit, non-mutating {@link ScopedContainer.resolveInScope}
+ * resolver correctly satisfies (it forces a Request host scope + request
+ * storage for that one resolution).
+ *
+ * Two distinct `DIError` codes both mean "fall back to resolveInScope":
+ * - `ScopeIncompatibleError`: a Singleton host eagerly depends on a
+ *   Request/Transient service (raised by the scope-validator).
+ * - `ScopeMismatchError`: the resolve target is *itself* declared
+ *   Request-scoped (e.g. `@Controller({ scope: InjectableScope.Request })`)
+ *   and was requested from the root `Container`, which rejects Request-scoped
+ *   tokens *before* the scope-validator runs.
+ *
+ * Any OTHER error is a genuine construction failure and must be rethrown
+ * (the v1 blanket `catch {}` masked these).
+ */
+function isScopeFallbackError(error: unknown): boolean {
+  return (
+    error instanceof DIError &&
+    (error.code === DIErrorCode.ScopeIncompatibleError ||
+      error.code === DIErrorCode.ScopeMismatchError)
+  )
+}
+
+/**
  * Result of instance resolution attempt.
  * Contains either a cached singleton instance or a resolver function
  * that can be used to get a fresh instance per request.
@@ -62,12 +88,15 @@ export interface MultiInstanceResolution<T = any> {
  * Service responsible for resolving class instances with scope detection.
  *
  * This service attempts to resolve classes as singletons from the root
- * container. If that fails specifically because the class eagerly depends on
- * a Request/Transient-scoped service (`@navios/di` v2 is fail-fast and throws
- * `DIError` with `code === DIErrorCode.ScopeIncompatibleError`), the class is
- * flagged as not-cached and a resolver is returned that resolves the class
- * per-request via the explicit, non-mutating
- * {@link ScopedContainer.resolveInScope} opt-in API.
+ * container. If that fails for a scope reason — either the class eagerly
+ * depends on a Request/Transient-scoped service (`@navios/di` v2 is fail-fast
+ * and throws `DIError` with `code === DIErrorCode.ScopeIncompatibleError`), or
+ * the class is *itself* declared Request-scoped and was requested from the
+ * root container (`code === DIErrorCode.ScopeMismatchError`, e.g.
+ * `@Controller({ scope: InjectableScope.Request })`) — the class is flagged as
+ * not-cached and a resolver is returned that resolves the class per-request
+ * via the explicit, non-mutating {@link ScopedContainer.resolveInScope}
+ * opt-in API. See {@link isScopeFallbackError}.
  *
  * This replaces the v1 implicit Singleton -> Request scope-upgrade, which
  * mutated a shared global registration at runtime (and had a concurrency race
@@ -113,10 +142,10 @@ export class InstanceResolverService {
     try {
       cachedInstance = await this.container.get(classType)
     } catch (error) {
-      // Only a scope-incompatibility means "this class must be resolved
+      // A scope-fallback error means "this class must be resolved
       // per-request". Anything else is a genuine construction failure that
       // the v1 blanket `catch {}` masked — rethrow it so it surfaces.
-      if (!(error instanceof DIError && error.code === DIErrorCode.ScopeIncompatibleError)) {
+      if (!isScopeFallbackError(error)) {
         throw error
       }
     }
@@ -155,11 +184,9 @@ export class InstanceResolverService {
           const instance = await this.container.get(classType)
           return { success: true, instance: instance as T }
         } catch (error) {
-          // See `resolve()`: only a scope-incompatibility is "needs
-          // per-request"; any other error is a genuine failure — rethrow.
-          if (
-            !(error instanceof DIError && error.code === DIErrorCode.ScopeIncompatibleError)
-          ) {
+          // See `resolve()`: a scope-fallback error is "needs per-request";
+          // any other error is a genuine failure — rethrow.
+          if (!isScopeFallbackError(error)) {
             throw error
           }
           return { success: false, instance: null }

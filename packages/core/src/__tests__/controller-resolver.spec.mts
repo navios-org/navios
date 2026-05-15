@@ -236,6 +236,34 @@ describe('InstanceResolverService', () => {
       expect(resolution1.instance).toBe(resolution2.instance)
     })
 
+    it('should not cache a directly Request-scoped class and resolve it per-request', async () => {
+      // A class declared `@Injectable({ scope: Request })` (reachable via the
+      // public `@Controller({ scope: InjectableScope.Request })` option) makes
+      // the root `Container.get()` throw `ScopeMismatchError` BEFORE the
+      // scope-validator runs — a different code than the eager-dependency
+      // `ScopeIncompatibleError`. Both must trigger the per-request fallback.
+      @Injectable({ scope: InjectableScope.Request, registry })
+      class DirectlyRequestScopedController {
+        id = Math.random().toString(36).substring(7)
+
+        getId() {
+          return this.id
+        }
+      }
+
+      const resolver = await container.get(InstanceResolverService)
+      const resolution = await resolver.resolve(DirectlyRequestScopedController)
+
+      expect(resolution.cached).toBe(false)
+      expect(resolution.instance).toBeNull()
+
+      const scoped = container.beginRequest('directly-request-scoped')
+      const instance = (await resolution.resolve(scoped)) as DirectlyRequestScopedController
+      expect(instance).toBeInstanceOf(DirectlyRequestScopedController)
+      expect(typeof instance.getId()).toBe('string')
+      await scoped.endRequest()
+    })
+
     it('should propagate a genuine construction error instead of swallowing it', async () => {
       // v1 used a blanket `catch {}` that masked real failures. v2 narrows the
       // catch to ScopeIncompatibleError only; any other error must surface.
@@ -304,6 +332,41 @@ describe('InstanceResolverService', () => {
       expect(instances).toHaveLength(2)
       expect(instances[0]).toBeInstanceOf(SingletonOnly)
       expect(instances[1]).toBeInstanceOf(NeedsRequest)
+      await scoped.endRequest()
+    })
+
+    it('should not cache a directly Request-scoped class and resolve it per-request', async () => {
+      // Same `ScopeMismatchError` gap as the single-resolve case, but through
+      // the parallel `resolveMany` path.
+      @Injectable({ registry })
+      class PlainSingleton {
+        value = 'plain'
+      }
+
+      @Injectable({ scope: InjectableScope.Request, registry })
+      class DirectlyRequestScopedController {
+        id = Math.random().toString(36).substring(7)
+
+        getId() {
+          return this.id
+        }
+      }
+
+      const resolver = await container.get(InstanceResolverService)
+      const resolution = await resolver.resolveMany([
+        PlainSingleton,
+        DirectlyRequestScopedController,
+      ])
+
+      expect(resolution.cached).toBe(false)
+      expect(resolution.instances).toBeNull()
+
+      const scoped = container.beginRequest('rm-directly-request-scoped')
+      const instances = await resolution.resolve(scoped)
+      expect(instances).toHaveLength(2)
+      expect(instances[0]).toBeInstanceOf(PlainSingleton)
+      expect(instances[1]).toBeInstanceOf(DirectlyRequestScopedController)
+      expect(typeof (instances[1] as DirectlyRequestScopedController).getId()).toBe('string')
       await scoped.endRequest()
     })
 
