@@ -5,7 +5,7 @@ import {
   BoundInjectionToken,
   FactoryInjectionToken,
   InjectionToken,
-} from '../token/injection-token.mjs'
+} from '../token/token.mjs'
 
 import type {
   ClassType,
@@ -13,7 +13,7 @@ import type {
   ClassTypeWithInstance,
   ClassTypeWithInstanceAndArgument,
   ClassTypeWithOptionalArgument,
-} from '../token/injection-token.mjs'
+} from '../token/token.mjs'
 
 interface FooService {
   makeFoo(): string

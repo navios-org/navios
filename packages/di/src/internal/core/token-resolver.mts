@@ -3,10 +3,10 @@ import {
   BoundInjectionToken,
   FactoryInjectionToken,
   InjectionToken,
-} from '../../token/injection-token.mjs'
+} from '../../token/token.mjs'
 import { getInjectableToken } from '../../utils/index.mjs'
 
-import type { AnyInjectableType, InjectionTokenType } from '../../token/injection-token.mjs'
+import type { AnyInjectableType, InjectionTokenType } from '../../token/token.mjs'
 
 /**
  * Handles token validation and resolution.

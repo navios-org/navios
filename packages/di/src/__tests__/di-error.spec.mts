@@ -3,7 +3,7 @@ import { z } from 'zod/v4'
 
 import { InjectableScope, InjectableType } from '../enums/index.mjs'
 import { DIError, DIErrorCode } from '../errors/index.mjs'
-import { InjectionToken } from '../token/injection-token.mjs'
+import { InjectionToken } from '../token/token.mjs'
 
 import type { FactoryRecord } from '../token/registry.mjs'
 

@@ -17,7 +17,7 @@ import { Container } from '../container/container.mjs'
 import { Injectable } from '../decorators/injectable.decorator.mjs'
 import { InjectableScope } from '../enums/index.mjs'
 import { DIError, DIErrorCode } from '../errors/di-error.mjs'
-import { InjectionToken } from '../token/injection-token.mjs'
+import { InjectionToken } from '../token/token.mjs'
 import { Registry } from '../token/registry.mjs'
 import { getInjectors } from '../utils/get-injectors.mjs'
 

@@ -13,7 +13,7 @@ import type {
   FactoryInjectionToken,
   InjectionToken,
   InjectionTokenSchemaType,
-} from '../token/injection-token.mjs'
+} from '../token/token.mjs'
 
 import type { InjectRequest, InjectState, Join, UnionToArray } from './types.mjs'
 

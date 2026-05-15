@@ -2,7 +2,7 @@ import { z } from 'zod/v4'
 
 import { Factory } from '../decorators/index.mjs'
 import { InjectableScope } from '../enums/index.mjs'
-import { InjectionToken } from '../token/injection-token.mjs'
+import { InjectionToken } from '../token/token.mjs'
 import { Registry } from '../token/registry.mjs'
 
 import type { Factorable, FactorableWithArgs } from '../interfaces/index.mjs'

@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { Container } from '../container/container.mjs'
 import { Injectable } from '../decorators/index.mjs'
 import { InjectableScope } from '../enums/index.mjs'
-import { InjectionToken } from '../token/injection-token.mjs'
+import { InjectionToken } from '../token/token.mjs'
 import { defaultInjectors, getInjectors } from '../utils/index.mjs'
 
 describe('getInjectors', () => {

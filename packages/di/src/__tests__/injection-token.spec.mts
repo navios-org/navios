@@ -5,7 +5,7 @@ import {
   BoundInjectionToken,
   FactoryInjectionToken,
   InjectionToken,
-} from '../token/injection-token.mjs'
+} from '../token/token.mjs'
 
 import type { FactoryContext } from '../internal/context/factory-context.mjs'
 

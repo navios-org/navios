@@ -1,7 +1,7 @@
 import { DIError } from '../errors/di-error.mjs'
 import { InjectableTokenMeta } from '../symbols/index.mjs'
 
-import type { ClassType, InjectionToken } from '../token/injection-token.mjs'
+import type { ClassType, InjectionToken } from '../token/token.mjs'
 
 export function getInjectableToken<R>(
   target: ClassType,

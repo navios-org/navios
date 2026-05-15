@@ -1,6 +1,6 @@
 import { InjectableScope, InjectableType } from '../enums/index.mjs'
 
-import type { ClassType, InjectionToken } from './injection-token.mjs'
+import type { ClassType, InjectionToken } from './token.mjs'
 
 export type FactoryRecord<Instance = any, Schema = any> = {
   scope: InjectableScope

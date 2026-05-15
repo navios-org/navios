@@ -3,7 +3,7 @@ import { z } from 'zod'
 
 import { Injectable } from '../decorators/injectable.decorator.mjs'
 import { UnitTestContainer } from '../testing/unit-test-container.mjs'
-import { InjectionToken } from '../token/injection-token.mjs'
+import { InjectionToken } from '../token/token.mjs'
 
 describe('UnitTestContainer', () => {
   describe('Strict Mode (default)', () => {

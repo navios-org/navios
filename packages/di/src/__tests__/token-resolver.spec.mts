@@ -8,7 +8,7 @@ import {
   BoundInjectionToken,
   FactoryInjectionToken,
   InjectionToken,
-} from '../token/injection-token.mjs'
+} from '../token/token.mjs'
 import { getInjectableToken } from '../utils/index.mjs'
 
 describe('TokenResolver', () => {

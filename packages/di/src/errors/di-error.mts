@@ -1,4 +1,4 @@
-import type { InjectionTokenSchemaType } from '../token/injection-token.mjs'
+import type { InjectionTokenSchemaType } from '../token/token.mjs'
 import type { FactoryRecord } from '../token/registry.mjs'
 
 export enum DIErrorCode {

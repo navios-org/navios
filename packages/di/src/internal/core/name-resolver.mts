@@ -1,6 +1,6 @@
 import { InjectableScope } from '../../enums/index.mjs'
 
-import type { InjectionTokenType } from '../../token/injection-token.mjs'
+import type { InjectionTokenType } from '../../token/token.mjs'
 
 /**
  * Simple LRU cache for instance name generation.

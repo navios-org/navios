@@ -5,7 +5,7 @@ import { NameResolver } from '../internal/core/name-resolver.mjs'
 import { ScopeTracker } from '../internal/core/scope-tracker.mjs'
 import { InstanceStatus } from '../internal/holder/instance-holder.mjs'
 import { UnifiedStorage } from '../internal/holder/unified-storage.mjs'
-import { InjectionToken } from '../token/injection-token.mjs'
+import { InjectionToken } from '../token/token.mjs'
 import { Registry } from '../token/registry.mjs'
 
 describe('ScopeTracker', () => {

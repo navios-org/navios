@@ -1,10 +1,10 @@
 import { InjectableScope, InjectableType } from '../enums/index.mjs'
 import { InjectableTokenMeta } from '../symbols/index.mjs'
-import { InjectionToken } from '../token/injection-token.mjs'
+import { InjectionToken } from '../token/token.mjs'
 import { globalRegistry } from '../token/registry.mjs'
 
 import type { Factorable, FactorableWithArgs } from '../interfaces/index.mjs'
-import type { ClassTypeWithInstance, InjectionTokenSchemaType } from '../token/injection-token.mjs'
+import type { ClassTypeWithInstance, InjectionTokenSchemaType } from '../token/token.mjs'
 import type { Registry } from '../token/registry.mjs'
 
 export interface FactoryOptions {

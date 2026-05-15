@@ -9,7 +9,7 @@ import {
   BoundInjectionToken,
   FactoryInjectionToken,
   InjectionToken,
-} from '../token/injection-token.mjs'
+} from '../token/token.mjs'
 
 import type { IContainer } from '../interfaces/container.interface.mjs'
 import type { Factorable } from '../interfaces/factory.interface.mjs'
@@ -20,7 +20,7 @@ import type {
   ClassType,
   ClassTypeWithArgument,
   InjectionTokenSchemaType,
-} from '../token/injection-token.mjs'
+} from '../token/token.mjs'
 import type { Registry } from '../token/registry.mjs'
 import type { Join, UnionToArray } from '../utils/types.mjs'
 

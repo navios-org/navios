@@ -15,7 +15,7 @@ import {
   BoundInjectionToken,
   FactoryInjectionToken,
   InjectionToken,
-} from '../token/injection-token.mjs'
+} from '../token/token.mjs'
 import { globalRegistry } from '../token/registry.mjs'
 import { defaultInjectors } from '../utils/default-injectors.mjs'
 import { getInjectableToken } from '../utils/index.mjs'
@@ -25,7 +25,7 @@ import type {
   ClassType,
   ClassTypeWithArgument,
   InjectionTokenSchemaType,
-} from '../token/injection-token.mjs'
+} from '../token/token.mjs'
 import type { Registry } from '../token/registry.mjs'
 import type { Injectors } from '../utils/get-injectors.mjs'
 import type { Join, UnionToArray } from '../utils/types.mjs'

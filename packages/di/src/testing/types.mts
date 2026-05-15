@@ -1,4 +1,4 @@
-import type { BoundInjectionToken, InjectionToken } from '../token/injection-token.mjs'
+import type { BoundInjectionToken, InjectionToken } from '../token/token.mjs'
 import type { Registry } from '../token/registry.mjs'
 
 /**

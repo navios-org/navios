@@ -4,7 +4,7 @@ import { z } from 'zod/v4'
 
 import { Injectable } from '../decorators/index.mjs'
 import { InjectableScope } from '../enums/index.mjs'
-import { InjectionToken } from '../token/injection-token.mjs'
+import { InjectionToken } from '../token/token.mjs'
 import { Registry } from '../token/registry.mjs'
 
 interface FooService {

@@ -4,7 +4,7 @@ import { Registry } from '../../token/registry.mjs'
 import { InstanceStatus } from '../holder/instance-holder.mjs'
 
 import type { InjectableScope } from '../../enums/index.mjs'
-import type { InjectionToken } from '../../token/injection-token.mjs'
+import type { InjectionToken } from '../../token/token.mjs'
 import type { IHolderStorage } from '../holder/holder-storage.interface.mjs'
 
 import { NameResolver } from './name-resolver.mjs'

@@ -1,2 +1,2 @@
-export * from './injection-token.mjs'
+export * from './token.mjs'
 export * from './registry.mjs'

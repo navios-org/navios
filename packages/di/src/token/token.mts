@@ -1,6 +1,5 @@
-import type { z, ZodObject, ZodOptional, ZodRecord } from 'zod/v4'
-
 import type { FactoryContext } from '../internal/context/factory-context.mjs'
+import type { StandardSchemaV1 } from './schema.mjs'
 
 export type ClassType = new (...args: any[]) => any
 export type ClassTypeWithoutArguments = new () => any
@@ -11,13 +10,11 @@ export type ClassTypeWithInstance<T> = new (...args: any[]) => T
 export type ClassTypeWithInstanceAndArgument<T, Arg> = new (arg: Arg) => T
 export type ClassTypeWithInstanceAndOptionalArgument<T, Arg> = new (arg?: Arg) => T
 
-export type BaseInjectionTokenSchemaType = ZodObject | ZodRecord
+export type BaseInjectionTokenSchemaType = StandardSchemaV1
 
-export type OptionalInjectionTokenSchemaType = ZodOptional<ZodObject> | ZodOptional<ZodRecord>
+export type OptionalInjectionTokenSchemaType = StandardSchemaV1
 
-export type InjectionTokenSchemaType =
-  | BaseInjectionTokenSchemaType
-  | OptionalInjectionTokenSchemaType
+export type InjectionTokenSchemaType = StandardSchemaV1
 
 /**
  * Simple hash function for deterministic ID generation
@@ -52,59 +49,49 @@ function generateTokenId(name: string | symbol | ClassType, customId?: string): 
   return `${base.split('_')[0]}_${simpleHash(base)}`
 }
 
-export class InjectionToken<
+export class Token<
   // oxlint-disable-next-line no-unused-vars
   T,
-  S extends InjectionTokenSchemaType | unknown = unknown,
+  S extends StandardSchemaV1 | undefined = undefined,
   // oxlint-disable-next-line no-unused-vars
-  Required extends boolean = S extends ZodOptional<ZodObject>
-    ? false
-    : S extends ZodOptional<ZodRecord>
-      ? false
-      : S extends ZodObject
-        ? true
-        : S extends ZodRecord
-          ? true
-          : false,
+  Required extends boolean = S extends StandardSchemaV1 ? true : false,
 > {
   public readonly id: string
   private formattedName: string | null = null
 
   constructor(
     public readonly name: string | symbol | ClassType,
-    public readonly schema: ZodObject | undefined,
+    public readonly schema: S,
     customId?: string,
   ) {
     this.id = generateTokenId(name, customId)
   }
 
-  static create<T extends ClassType>(name: T): InjectionToken<InstanceType<T>, undefined>
-  static create<T extends ClassType, Schema extends InjectionTokenSchemaType>(
+  static create<T extends ClassType>(name: T): Token<InstanceType<T>, undefined>
+  static create<T extends ClassType, Schema extends StandardSchemaV1>(
     name: T,
     schema: Schema,
-  ): Schema['_def']['type'] extends 'ZodOptional'
-    ? InjectionToken<InstanceType<T>, Schema, false>
-    : InjectionToken<InstanceType<T>, Schema, true>
-  static create<T>(name: string | symbol): InjectionToken<T, undefined>
-  static create<T, Schema extends InjectionTokenSchemaType>(
+  ): Token<InstanceType<T>, Schema, true>
+  static create<T>(name: string | symbol): Token<T, undefined>
+  static create<T, Schema extends StandardSchemaV1>(
     name: string | any,
     schema: Schema,
-  ): InjectionToken<T, Schema>
+  ): Token<T, Schema>
   static create(name: string | symbol, schema?: unknown, customId?: string) {
     // @ts-expect-error
-    return new InjectionToken(name, schema, customId)
+    return new Token(name, schema, customId)
   }
 
-  static bound<T, S extends InjectionTokenSchemaType>(
-    token: InjectionToken<T, S>,
-    value: z.input<S>,
+  static bound<T, S extends StandardSchemaV1>(
+    token: Token<T, S>,
+    value: StandardSchemaV1.InferInput<S>,
   ): BoundInjectionToken<T, S> {
     return new BoundInjectionToken(token, value)
   }
 
-  static factory<T, S extends InjectionTokenSchemaType>(
-    token: InjectionToken<T, S>,
-    factory: (ctx: FactoryContext) => Promise<z.input<S>>,
+  static factory<T, S extends StandardSchemaV1>(
+    token: Token<T, S>,
+    factory: (ctx: FactoryContext) => Promise<StandardSchemaV1.InferInput<S>>,
   ): FactoryInjectionToken<T, S> {
     return new FactoryInjectionToken(token, factory)
   }
@@ -131,14 +118,14 @@ export class InjectionToken<
   }
 }
 
-export class BoundInjectionToken<T, S extends InjectionTokenSchemaType> {
+export class BoundInjectionToken<T, S extends StandardSchemaV1> {
   public id: string
   public name: string | symbol | ClassType
   public schema: InjectionTokenSchemaType
 
   constructor(
-    public readonly token: InjectionToken<T, S>,
-    public readonly value: z.input<S>,
+    public readonly token: Token<T, S>,
+    public readonly value: StandardSchemaV1.InferInput<S>,
   ) {
     this.name = token.name
     this.id = token.id
@@ -150,23 +137,23 @@ export class BoundInjectionToken<T, S extends InjectionTokenSchemaType> {
   }
 }
 
-export class FactoryInjectionToken<T, S extends InjectionTokenSchemaType> {
-  public value?: z.input<S>
+export class FactoryInjectionToken<T, S extends StandardSchemaV1> {
+  public value?: StandardSchemaV1.InferInput<S>
   public resolved = false
   public id: string
   public name: string | symbol | ClassType
   public schema: InjectionTokenSchemaType
 
   constructor(
-    public readonly token: InjectionToken<T, S>,
-    public readonly factory: (ctx: FactoryContext) => Promise<z.input<S>>,
+    public readonly token: Token<T, S>,
+    public readonly factory: (ctx: FactoryContext) => Promise<StandardSchemaV1.InferInput<S>>,
   ) {
     this.name = token.name
     this.id = token.id
     this.schema = token.schema as InjectionTokenSchemaType
   }
 
-  async resolve(ctx: FactoryContext): Promise<z.input<S>> {
+  async resolve(ctx: FactoryContext): Promise<StandardSchemaV1.InferInput<S>> {
     if (!this.value) {
       this.value = await this.factory(ctx)
       this.resolved = true
@@ -179,13 +166,29 @@ export class FactoryInjectionToken<T, S extends InjectionTokenSchemaType> {
   }
 }
 
+/**
+ * @deprecated Use {@link Token} instead. Kept as an alias during the v2
+ * migration; will be removed at the end of phase 1.
+ */
+export const InjectionToken = Token
+
+/**
+ * @deprecated Use {@link Token} instead. Kept as an alias during the v2
+ * migration; will be removed at the end of phase 1.
+ */
+export type InjectionToken<
+  T,
+  S extends StandardSchemaV1 | undefined = undefined,
+  Required extends boolean = S extends StandardSchemaV1 ? true : false,
+> = Token<T, S, Required>
+
 export type AnyInjectableType =
   | ClassType
-  | InjectionToken<any, any>
+  | Token<any, any>
   | BoundInjectionToken<any, any>
   | FactoryInjectionToken<any, any>
 
 export type InjectionTokenType =
-  | InjectionToken<any, any>
+  | Token<any, any>
   | BoundInjectionToken<any, any>
   | FactoryInjectionToken<any, any>

@@ -1,6 +1,6 @@
 import { Container } from '../container/container.mjs'
 import { InjectableScope, InjectableType } from '../enums/index.mjs'
-import { BoundInjectionToken, InjectionToken } from '../token/injection-token.mjs'
+import { BoundInjectionToken, InjectionToken } from '../token/token.mjs'
 import { globalRegistry, Registry } from '../token/registry.mjs'
 import { getInjectableToken } from '../utils/get-injectable-token.mjs'
 import { defaultInjectors } from '../utils/index.mjs'

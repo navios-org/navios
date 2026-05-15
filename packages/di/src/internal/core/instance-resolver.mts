@@ -1,6 +1,6 @@
 import { InjectableScope } from '../../enums/index.mjs'
 import { DIError, DIErrorCode } from '../../errors/index.mjs'
-import { FactoryInjectionToken, InjectionToken } from '../../token/injection-token.mjs'
+import { FactoryInjectionToken, InjectionToken } from '../../token/token.mjs'
 import {
   getCurrentResolutionContext,
   withResolutionContext,
@@ -11,7 +11,7 @@ import { CircularDetector } from '../lifecycle/circular-detector.mjs'
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import type { ScopedContainer } from '../../container/scoped-container.mjs'
 import type { IContainer } from '../../interfaces/container.interface.mjs'
-import type { AnyInjectableType, InjectionTokenType } from '../../token/injection-token.mjs'
+import type { AnyInjectableType, InjectionTokenType } from '../../token/token.mjs'
 import type { Registry } from '../../token/registry.mjs'
 import type { ServiceInitializationContext } from '../context/service-initialization-context.mjs'
 import type { IHolderStorage } from '../holder/holder-storage.interface.mjs'

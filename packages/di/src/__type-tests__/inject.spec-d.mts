@@ -2,7 +2,7 @@ import { assertType, describe, test } from 'vitest'
 import { z } from 'zod/v4'
 
 import { Injectable } from '../decorators/index.mjs'
-import { InjectionToken } from '../token/injection-token.mjs'
+import { InjectionToken } from '../token/token.mjs'
 import { asyncInject, inject, optional } from '../utils/default-injectors.mjs'
 
 interface FooService {

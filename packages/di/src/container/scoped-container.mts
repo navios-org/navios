@@ -2,7 +2,7 @@ import type { z, ZodType } from 'zod/v4'
 
 import { InjectableScope } from '../enums/index.mjs'
 import { UnifiedStorage } from '../internal/holder/unified-storage.mjs'
-import { BoundInjectionToken, InjectionToken } from '../token/injection-token.mjs'
+import { BoundInjectionToken, InjectionToken } from '../token/token.mjs'
 
 import type { Factorable } from '../interfaces/factory.interface.mjs'
 import type { NameResolver } from '../internal/core/name-resolver.mjs'
@@ -13,7 +13,7 @@ import type {
   ClassTypeWithArgument,
   FactoryInjectionToken,
   InjectionTokenSchemaType,
-} from '../token/injection-token.mjs'
+} from '../token/token.mjs'
 import type { Registry } from '../token/registry.mjs'
 import type { Join, UnionToArray } from '../utils/types.mjs'
 
