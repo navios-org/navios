@@ -138,7 +138,7 @@ test('BoundToken has value property with correct type', () => {
   )
   const boundToken = token.bind({ foo: 'bar' })
 
-  expectTypeOf(boundToken.value).toMatchTypeOf<{ foo: string }>()
+  expectTypeOf(boundToken.value).toEqualTypeOf<{ foo: string }>()
 })
 
 test('FactoryToken has factory property', () => {

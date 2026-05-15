@@ -78,7 +78,7 @@ test('Injectable types', () => {
   })
 
   // #2 Should fail if not compatible
-  // @ts-expect-error Should fail if not compatible
+  // @ts-expect-error constructor arg type (otherObjectSchema) does not match the decorator schema (simpleObjectSchema)
   @Injectable({
     schema: simpleObjectSchema,
   })

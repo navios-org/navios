@@ -155,8 +155,7 @@ describe('ScopedContainer methods', () => {
   test('getMetadata returns any', () => {
     const container = new Container()
     const scopedContainer = container.beginRequest('req-1', { userId: '123' })
-    // eslint-disable-next-line @typescript-eslint/no-redundant-type-constituents
-    assertType<any | undefined>(scopedContainer.getMetadata('userId'))
+    assertType<any>(scopedContainer.getMetadata('userId'))
   })
 
   test('setMetadata accepts any value', () => {
