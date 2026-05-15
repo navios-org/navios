@@ -331,7 +331,7 @@ describe('ScopedContainer: addInstance Method', () => {
 
       const scoped = container.beginRequest('request-1')
       scoped.addInstance(boundToken, instance)
-      console.log(scoped.getStorage().getAllNames())
+      console.log(scoped.internals.storage.getAllNames())
 
       const retrieved = await scoped.get(boundToken)
       expect(retrieved).toBe(instance)

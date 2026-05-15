@@ -132,7 +132,7 @@ export class TestContainer extends Container {
    */
   expectResolved(token: AnyToken): void {
     const realToken = this.resolveToken(token)
-    const storage = this.getStorage()
+    const storage = this.internals.storage
     const names = storage.getAllNames()
     const found = names.some((name) => name.includes(realToken.id))
 
@@ -146,7 +146,7 @@ export class TestContainer extends Container {
    */
   expectNotResolved(token: AnyToken): void {
     const realToken = this.resolveToken(token)
-    const storage = this.getStorage()
+    const storage = this.internals.storage
     const names = storage.getAllNames()
     const found = names.some((name) => name.includes(realToken.id))
 
@@ -160,7 +160,7 @@ export class TestContainer extends Container {
    */
   expectSingleton(token: AnyToken): void {
     const realToken = this.resolveToken(token)
-    const registry = this.getRegistry()
+    const registry = this.internals.registry
 
     if (!registry.has(realToken)) {
       throw new Error(`Expected ${realToken.toString()} to be registered, but it was not`)
@@ -179,7 +179,7 @@ export class TestContainer extends Container {
    */
   expectTransient(token: AnyToken): void {
     const realToken = this.resolveToken(token)
-    const registry = this.getRegistry()
+    const registry = this.internals.registry
 
     if (!registry.has(realToken)) {
       throw new Error(`Expected ${realToken.toString()} to be registered, but it was not`)
@@ -198,7 +198,7 @@ export class TestContainer extends Container {
    */
   expectRequestScoped(token: AnyToken): void {
     const realToken = this.resolveToken(token)
-    const registry = this.getRegistry()
+    const registry = this.internals.registry
 
     if (!registry.has(realToken)) {
       throw new Error(`Expected ${realToken.toString()} to be registered, but it was not`)
@@ -420,7 +420,7 @@ export class TestContainer extends Container {
    * Returns a serializable structure that can be used with vitest snapshots.
    */
   getDependencyGraph(): DependencyGraph {
-    const storage = this.getStorage()
+    const storage = this.internals.storage
     const nodes: Record<string, DependencyNode> = {}
     const rootTokens: string[] = []
 
@@ -450,7 +450,7 @@ export class TestContainer extends Container {
    * Useful for cleaner snapshot comparisons.
    */
   getSimplifiedDependencyGraph(): Record<string, string[]> {
-    const storage = this.getStorage()
+    const storage = this.internals.storage
     const graph: Record<string, string[]> = {}
 
     storage.forEach((name, holder) => {
@@ -509,14 +509,14 @@ export class TestContainer extends Container {
     )
 
     // Store the instance directly
-    const nameResolver = this.getNameResolver()
+    const nameResolver = this.internals.nameResolver
     const instanceName = nameResolver.generateInstanceName(
       token,
       undefined,
       undefined,
       InjectableScope.Singleton,
     )
-    this.getStorage().storeInstance(instanceName, value)
+    this.internals.storage.storeInstance(instanceName, value)
     this.recordLifecycleEvent(token, 'created', instanceName)
   }
 

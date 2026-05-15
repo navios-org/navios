@@ -11,18 +11,17 @@ import {
   Token,
 } from '../token/token.mjs'
 
-import type { IContainer } from '../interfaces/container.interface.mjs'
+import type {
+  ContainerInternals,
+  IContainer,
+} from '../interfaces/container.interface.mjs'
 import type { Factorable } from '../interfaces/factory.interface.mjs'
-import type { NameResolver } from '../internal/core/name-resolver.mjs'
-import type { ServiceInvalidator } from '../internal/core/service-invalidator.mjs'
-import type { TokenResolver } from '../internal/core/token-resolver.mjs'
 import type {
   ClassType,
   ClassTypeWithArgument,
   TokenSchemaType,
 } from '../token/token.mjs'
 import type { StandardSchemaV1 } from '../token/schema.mjs'
-import type { Registry } from '../token/registry.mjs'
 import type { TokenArgsRequiredError } from '../utils/types.mjs'
 
 /**
@@ -43,33 +42,16 @@ export abstract class AbstractContainer implements IContainer {
   protected abstract readonly requestId: string | undefined
 
   // ============================================================================
-  // ABSTRACT METHODS - Must be implemented by subclasses
+  // ABSTRACT MEMBERS - Must be implemented by subclasses
   // ============================================================================
 
   /**
-   * Gets the storage for this container.
+   * @internal
+   * Internal component namespace. Escape hatch for plugin authors and
+   * internal wiring — NOT stable public API. Each subclass builds and
+   * freezes its own instance.
    */
-  abstract getStorage(): UnifiedStorage
-
-  /**
-   * Gets the registry for this container.
-   */
-  protected abstract getRegistry(): Registry
-
-  /**
-   * Gets the token resolver.
-   */
-  protected abstract getTokenResolver(): TokenResolver
-
-  /**
-   * Gets the name resolver.
-   */
-  protected abstract getNameResolver(): NameResolver
-
-  /**
-   * Gets the service invalidator.
-   */
-  protected abstract getServiceInvalidator(): ServiceInvalidator
+  abstract readonly internals: ContainerInternals
 
   /**
    * Gets an instance from the container.
@@ -124,7 +106,7 @@ export abstract class AbstractContainer implements IContainer {
       | FactoryToken<any, any>,
     args?: unknown,
   ): string | null {
-    const tokenResolver = this.getTokenResolver()
+    const tokenResolver = this.internals.tokenResolver
 
     // Use validateAndResolveTokenArgs to handle token normalization and arg resolution
     const [err, { actualToken, validatedArgs }] = tokenResolver.validateAndResolveTokenArgs(
@@ -145,15 +127,15 @@ export abstract class AbstractContainer implements IContainer {
     }
 
     // Get the real token for registry lookup to determine scope
-    const realToken = this.getTokenResolver().getRealToken(actualToken)
+    const realToken = this.internals.tokenResolver.getRealToken(actualToken)
 
-    const registry = this.getRegistry()
+    const registry = this.internals.registry
 
     // Get scope from registry, or use default scope if not registered
     const scope = registry.has(realToken) ? registry.get(realToken).scope : this.defaultScope
 
     // Generate instance name using the name resolver with actual token and validated args
-    return this.getNameResolver().generateInstanceName(
+    return this.internals.nameResolver.generateInstanceName(
       actualToken,
       validatedArgs,
       scope === InjectableScope.Request ? this.requestId : undefined,
@@ -165,15 +147,15 @@ export abstract class AbstractContainer implements IContainer {
    * Checks if a service is registered in the container.
    */
   isRegistered(token: any): boolean {
-    const realToken = this.getTokenResolver().getRegistryToken(token)
-    return this.getRegistry().has(realToken)
+    const realToken = this.internals.tokenResolver.getRegistryToken(token)
+    return this.internals.registry.has(realToken)
   }
 
   /**
    * Waits for all pending operations to complete.
    */
   async ready(): Promise<void> {
-    await this.getServiceInvalidator().readyWithStorage(this.getStorage())
+    await this.internals.serviceInvalidator.readyWithStorage(this.internals.storage)
   }
 
   /**
@@ -181,7 +163,7 @@ export abstract class AbstractContainer implements IContainer {
    * Attempts to get an instance synchronously if it already exists.
    */
   tryGetSync<T>(token: any, args?: any): T | null {
-    return this.tryGetSyncFromStorage(token, args, this.getStorage(), this.requestId)
+    return this.tryGetSyncFromStorage(token, args, this.internals.storage, this.requestId)
   }
 
   /**
@@ -194,15 +176,15 @@ export abstract class AbstractContainer implements IContainer {
     storage: UnifiedStorage,
     requestId?: string,
   ): T | null {
-    const tokenResolver = this.getTokenResolver()
+    const tokenResolver = this.internals.tokenResolver
     const realToken = tokenResolver.getRegistryToken(token)
-    const registry = this.getRegistry()
+    const registry = this.internals.registry
     const scope = registry.has(realToken)
       ? registry.get(realToken).scope
       : InjectableScope.Singleton
 
     try {
-      const instanceName = this.getNameResolver().generateInstanceName(
+      const instanceName = this.internals.nameResolver.generateInstanceName(
         tokenResolver.normalizeToken(token),
         args,
         requestId,
@@ -235,7 +217,13 @@ export abstract class AbstractContainer implements IContainer {
     token: ClassType | Token<T, any> | BoundToken<T, any>,
     instance: T,
   ): void {
-    this.addInstanceToStorage(token, instance, this.getStorage(), this.defaultScope, this.requestId)
+    this.addInstanceToStorage(
+      token,
+      instance,
+      this.internals.storage,
+      this.defaultScope,
+      this.requestId,
+    )
   }
 
   /**
@@ -261,8 +249,8 @@ export abstract class AbstractContainer implements IContainer {
       }
     }
 
-    const tokenResolver = this.getTokenResolver()
-    const registry = this.getRegistry()
+    const tokenResolver = this.internals.tokenResolver
+    const registry = this.internals.registry
 
     // Normalize the token
     const normalizedToken = tokenResolver.normalizeToken(token)
@@ -284,7 +272,7 @@ export abstract class AbstractContainer implements IContainer {
     }
 
     // Generate instance name with the given scope
-    const instanceName = this.getNameResolver().generateInstanceName(
+    const instanceName = this.internals.nameResolver.generateInstanceName(
       normalizedToken,
       normalizedToken instanceof BoundToken ? normalizedToken.value : undefined,
       requestId,

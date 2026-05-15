@@ -355,7 +355,7 @@ describe('FINDING #5: Cross-Storage Dependency Invalidation', () => {
     await singleton.getValue() // Force resolution
 
     // Check that the singleton's holder has the request service in deps
-    const manager = container.getStorage()
+    const manager = container.internals.storage
     const singletonHolders: InstanceHolder[] = []
     manager.forEach((name, holder) => {
       if (holder.scope === InjectableScope.Singleton) {

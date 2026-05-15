@@ -17,6 +17,7 @@ import {
 import { globalRegistry } from '../token/registry.mjs'
 import { getInjectableToken } from '../utils/index.mjs'
 
+import type { ContainerInternals } from '../interfaces/container.interface.mjs'
 import type { Factorable } from '../interfaces/factory.interface.mjs'
 import type { Plugin } from '../plugin/index.mjs'
 import type {
@@ -68,6 +69,13 @@ export class Container extends AbstractContainer {
   private readonly pluginRegistry: PluginRegistry
   private readonly activeRequestIds = new Set<string>()
 
+  /**
+   * @internal
+   * Internal component namespace. Escape hatch for plugin authors and
+   * internal wiring — NOT stable public API. Frozen at construction.
+   */
+  readonly internals: ContainerInternals
+
   constructor(options: ContainerOptions = {}) {
     super()
     const { registry = globalRegistry, logger = null, plugins = [] } = options
@@ -111,6 +119,17 @@ export class Container extends AbstractContainer {
       this.pluginRegistry,
       logger,
     )
+    this.internals = Object.freeze({
+      registry: this.registry,
+      storage: this.storage,
+      eventBus: this.eventBus,
+      resolver: this.instanceResolver,
+      serviceInitializer: this.serviceInitializer,
+      serviceInvalidator: this.serviceInvalidator,
+      tokenResolver: this.tokenResolver,
+      nameResolver: this.nameResolver,
+      pluginRegistry: this.pluginRegistry,
+    })
     this.registerSelf()
   }
 
@@ -121,15 +140,6 @@ export class Container extends AbstractContainer {
    */
   use(plugin: Plugin): void {
     this.pluginRegistry.register(plugin)
-  }
-
-  /**
-   * @internal
-   * Exposes the container's PluginRegistry so a ScopedContainer can share
-   * its parent's plugins rather than constructing a second registry.
-   */
-  getPluginRegistry(): PluginRegistry {
-    return this.pluginRegistry
   }
 
   private registerSelf() {
@@ -264,41 +274,5 @@ export class Container extends AbstractContainer {
    */
   removeRequestId(requestId: string): void {
     this.activeRequestIds.delete(requestId)
-  }
-
-  // ============================================================================
-  // INTERNAL METHODS FOR COMPONENT ACCESS
-  // ============================================================================
-
-  getStorage(): UnifiedStorage {
-    return this.storage
-  }
-
-  getServiceInitializer(): ServiceInitializer {
-    return this.serviceInitializer
-  }
-
-  getServiceInvalidator(): ServiceInvalidator {
-    return this.serviceInvalidator
-  }
-
-  getTokenResolver(): TokenResolver {
-    return this.tokenResolver
-  }
-
-  getNameResolver(): NameResolver {
-    return this.nameResolver
-  }
-
-  getEventBus(): LifecycleEventBus {
-    return this.eventBus
-  }
-
-  getRegistry(): Registry {
-    return this.registry
-  }
-
-  getInstanceResolver(): InstanceResolver {
-    return this.instanceResolver
   }
 }

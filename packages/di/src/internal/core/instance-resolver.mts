@@ -118,9 +118,9 @@ export class InstanceResolver {
       token,
       args,
       scopedContainer.getParent(),
-      scopedContainer.getParent().getStorage(),
+      scopedContainer.getParent().internals.storage,
       scopedContainer,
-      scopedContainer.getStorage(),
+      scopedContainer.internals.storage,
       scopedContainer.getRequestId(),
     )
   }

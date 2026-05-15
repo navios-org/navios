@@ -229,7 +229,7 @@ export class UnitTestContainer extends Container {
    */
   expectResolved(token: AnyToken): void {
     const realToken = this.resolveToken(token)
-    const storage = this.getStorage()
+    const storage = this.internals.storage
     const names = storage.getAllNames()
     const found = names.some((name) => name.includes(realToken.id))
 
@@ -243,7 +243,7 @@ export class UnitTestContainer extends Container {
    */
   expectNotResolved(token: AnyToken): void {
     const realToken = this.resolveToken(token)
-    const storage = this.getStorage()
+    const storage = this.internals.storage
     const names = storage.getAllNames()
     const found = names.some((name) => name.includes(realToken.id))
 
@@ -520,14 +520,14 @@ export class UnitTestContainer extends Container {
       1000, // Higher priority for test overrides
     )
 
-    const nameResolver = this.getNameResolver()
+    const nameResolver = this.internals.nameResolver
     const instanceName = nameResolver.generateInstanceName(
       token,
       undefined,
       undefined,
       InjectableScope.Singleton,
     )
-    this.getStorage().storeInstance(instanceName, value)
+    this.internals.storage.storeInstance(instanceName, value)
     this.recordLifecycleEvent(token, 'created', instanceName)
   }
 

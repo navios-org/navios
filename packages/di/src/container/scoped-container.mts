@@ -2,10 +2,8 @@ import { InjectableScope } from '../enums/index.mjs'
 import { UnifiedStorage } from '../internal/holder/unified-storage.mjs'
 import { BoundToken, Token } from '../token/token.mjs'
 
+import type { ContainerInternals } from '../interfaces/container.interface.mjs'
 import type { Factorable } from '../interfaces/factory.interface.mjs'
-import type { NameResolver } from '../internal/core/name-resolver.mjs'
-import type { ServiceInvalidator } from '../internal/core/service-invalidator.mjs'
-import type { TokenResolver } from '../internal/core/token-resolver.mjs'
 import type {
   ClassType,
   ClassTypeWithArgument,
@@ -34,6 +32,19 @@ export class ScopedContainer extends AbstractContainer {
   private disposed = false
   private readonly metadata: Record<string, any>
 
+  /**
+   * @internal
+   * Internal component namespace. Escape hatch for plugin authors and
+   * internal wiring — NOT stable public API. Frozen at construction.
+   *
+   * The ScopedContainer owns only its request-scoped {@link storage}; every
+   * other component (resolver, registry, token/name resolvers, invalidator,
+   * initializer, event bus, plugin registry) is delegated to the parent
+   * {@link Container}'s frozen `internals` so a scope shares its parent's
+   * wiring rather than duplicating it.
+   */
+  readonly internals: ContainerInternals
+
   constructor(
     private readonly parent: Container,
     private readonly registry: Registry,
@@ -44,30 +55,18 @@ export class ScopedContainer extends AbstractContainer {
     // Create own unified storage for request-scoped services
     this.storage = new UnifiedStorage(InjectableScope.Request)
     this.metadata = metadata || {}
-  }
-
-  // ============================================================================
-  // ABSTRACT METHOD IMPLEMENTATIONS - Delegate to parent
-  // ============================================================================
-
-  getStorage(): UnifiedStorage {
-    return this.storage
-  }
-
-  protected getRegistry(): Registry {
-    return this.registry
-  }
-
-  protected getTokenResolver(): TokenResolver {
-    return this.parent.getTokenResolver()
-  }
-
-  protected getNameResolver(): NameResolver {
-    return this.parent.getNameResolver()
-  }
-
-  protected getServiceInvalidator(): ServiceInvalidator {
-    return this.parent.getServiceInvalidator()
+    const parentInternals = this.parent.internals
+    this.internals = Object.freeze({
+      registry: this.registry,
+      storage: this.storage,
+      eventBus: parentInternals.eventBus,
+      resolver: parentInternals.resolver,
+      serviceInitializer: parentInternals.serviceInitializer,
+      serviceInvalidator: parentInternals.serviceInvalidator,
+      tokenResolver: parentInternals.tokenResolver,
+      nameResolver: parentInternals.nameResolver,
+      pluginRegistry: parentInternals.pluginRegistry,
+    })
   }
 
   // ============================================================================
@@ -140,16 +139,18 @@ export class ScopedContainer extends AbstractContainer {
     }
 
     // Check if this is a request-scoped service
-    const tokenResolver = this.getTokenResolver()
+    const tokenResolver = this.internals.tokenResolver
     const realToken = tokenResolver.getRegistryToken(token)
 
     if (this.registry.has(realToken)) {
       const record = this.registry.get(realToken)
       if (record.scope === InjectableScope.Request) {
         // Resolve request-scoped service from this container
-        const [error, instance] = await this.parent
-          .getInstanceResolver()
-          .resolveRequestScopedInstance(token, args, this)
+        const [error, instance] = await this.internals.resolver.resolveRequestScopedInstance(
+          token,
+          args,
+          this,
+        )
 
         if (error) {
           throw error
@@ -160,9 +161,13 @@ export class ScopedContainer extends AbstractContainer {
     }
 
     // Delegate singleton/transient services to parent
-    const [error, instance] = await this.parent
-      .getInstanceResolver()
-      .resolveInstance(token, args, this, this.storage, this.requestId)
+    const [error, instance] = await this.internals.resolver.resolveInstance(
+      token,
+      args,
+      this,
+      this.storage,
+      this.requestId,
+    )
 
     if (error) {
       throw error
@@ -182,7 +187,7 @@ export class ScopedContainer extends AbstractContainer {
       return this.parent.invalidate(service)
     }
 
-    await this.getServiceInvalidator().invalidateWithStorage(holder.name, this.storage, {
+    await this.internals.serviceInvalidator.invalidateWithStorage(holder.name, this.storage, {
       destroyContext: { container: this, requestId: this.requestId },
     })
   }
@@ -202,7 +207,7 @@ export class ScopedContainer extends AbstractContainer {
    */
   override tryGetSync<T>(token: any, args?: any): T | null {
     // Check request storage first for request-scoped services
-    const tokenResolver = this.getTokenResolver()
+    const tokenResolver = this.internals.tokenResolver
     const realToken = tokenResolver.getRegistryToken(token)
     const scope = this.registry.has(realToken)
       ? this.registry.get(realToken).scope
@@ -245,7 +250,7 @@ export class ScopedContainer extends AbstractContainer {
     this.disposed = true
 
     // Clear all request-scoped services
-    await this.getServiceInvalidator().clearAllWithStorage(this.storage, {
+    await this.internals.serviceInvalidator.clearAllWithStorage(this.storage, {
       destroyContext: { container: this, requestId: this.requestId },
     })
 
