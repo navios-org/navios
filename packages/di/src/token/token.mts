@@ -198,46 +198,6 @@ export class FactoryToken<T, S extends StandardSchemaV1> {
   }
 }
 
-/**
- * @deprecated Use {@link BoundToken} instead. Kept as an alias during the v2
- * migration; will be removed at the end of phase 1.
- */
-export const BoundInjectionToken = BoundToken
-
-/**
- * @deprecated Use {@link BoundToken} instead. Kept as an alias during the v2
- * migration; will be removed at the end of phase 1.
- */
-export type BoundInjectionToken<T, S extends StandardSchemaV1> = BoundToken<T, S>
-
-/**
- * @deprecated Use {@link FactoryToken} instead. Kept as an alias during the v2
- * migration; will be removed at the end of phase 1.
- */
-export const FactoryInjectionToken = FactoryToken
-
-/**
- * @deprecated Use {@link FactoryToken} instead. Kept as an alias during the v2
- * migration; will be removed at the end of phase 1.
- */
-export type FactoryInjectionToken<T, S extends StandardSchemaV1> = FactoryToken<T, S>
-
-/**
- * @deprecated Use {@link Token} instead. Kept as an alias during the v2
- * migration; will be removed at the end of phase 1.
- */
-export const InjectionToken = Token
-
-/**
- * @deprecated Use {@link Token} instead. Kept as an alias during the v2
- * migration; will be removed at the end of phase 1.
- */
-export type InjectionToken<
-  T,
-  S extends StandardSchemaV1 | undefined = undefined,
-  Required extends boolean = S extends StandardSchemaV1 ? true : false,
-> = Token<T, S, Required>
-
 export type AnyInjectableType =
   | ClassType
   | Token<any, any>

@@ -225,8 +225,8 @@ export abstract class AbstractContainer implements IContainer {
 
   /**
    * Adds an instance to the container.
-   * Accepts class types, InjectionTokens, and BoundInjectionTokens.
-   * Rejects InjectionTokens with required schemas (use BoundToken instead).
+   * Accepts class types, Tokens, and BoundTokens.
+   * Rejects Tokens with required schemas (use BoundToken instead).
    *
    * @param token The class type, Token, or BoundToken to register the instance for
    * @param instance The instance to store
