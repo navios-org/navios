@@ -1,4 +1,4 @@
-import { InjectionToken } from '@navios/core'
+import { Token } from '@navios/di'
 
 import type { BunApplicationServiceInterface } from '../interfaces/application.interface.mjs'
 
@@ -13,7 +13,7 @@ import type { BunApplicationServiceInterface } from '../interfaces/application.i
  * ```ts
  * @Injectable()
  * class MyService {
- *   private appService = inject(BunApplicationServiceToken)
+ *   @Inject(BunApplicationServiceToken) accessor appService!: BunApplicationServiceInterface
  *
  *   getServer() {
  *     return this.appService.getServer()
@@ -22,4 +22,4 @@ import type { BunApplicationServiceInterface } from '../interfaces/application.i
  * ```
  */
 export const BunApplicationServiceToken =
-  InjectionToken.create<BunApplicationServiceInterface>('BunApplicationService')
+  Token.create<BunApplicationServiceInterface>('BunApplicationService')

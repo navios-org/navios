@@ -1,13 +1,7 @@
-import {
-  Container,
-  ErrorResponseProducerService,
-  FrameworkError,
-  inject,
-  Injectable,
-  Logger,
-} from '@navios/core'
+import { ErrorResponseProducerService, FrameworkError, Logger } from '@navios/core'
+import { Container, Inject, Injectable } from '@navios/di'
 
-import type { ModuleMetadata } from '@navios/core'
+import type { LoggerInstance, ModuleMetadata } from '@navios/core'
 import type { BunRequest, Serve, Server } from 'bun'
 
 import {
@@ -23,7 +17,10 @@ import type {
 } from '../interfaces/application.interface.mjs'
 import type { BunCorsOptions } from '../utils/cors.util.mjs'
 
-import type { BunRoutes } from './controller-adapter.service.mjs'
+import type {
+  BunControllerAdapterService,
+  BunRoutes,
+} from './controller-adapter.service.mjs'
 
 /**
  * Bun HTTP adapter service implementation for Navios.
@@ -49,13 +46,15 @@ import type { BunRoutes } from './controller-adapter.service.mjs'
   token: BunApplicationServiceToken,
 })
 export class BunApplicationService implements BunApplicationServiceInterface {
-  private logger = inject(Logger, {
-    context: BunApplicationService.name,
-  })
-  protected container = inject(Container)
-  private errorProducer = inject(ErrorResponseProducerService)
+  @Inject(Logger, { context: 'BunApplicationService' })
+  private accessor logger!: LoggerInstance
+  @Inject(Container)
+  protected accessor container!: Container
+  @Inject(ErrorResponseProducerService)
+  private accessor errorProducer!: ErrorResponseProducerService
   private server: Server<undefined> | null = null
-  private controllerAdapter = inject(BunControllerAdapterToken)
+  @Inject(BunControllerAdapterToken)
+  private accessor controllerAdapter!: BunControllerAdapterService
   private globalPrefix: string = ''
   private routes: BunRoutes = {}
   private serverOptions: BunApplicationOptions | null = null

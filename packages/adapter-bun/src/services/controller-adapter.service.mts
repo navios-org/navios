@@ -1,5 +1,4 @@
 import {
-  Container,
   ErrorResponseProducerService,
   ExecutionContext,
   extractControllerMetadata,
@@ -7,22 +6,21 @@ import {
   generateRequestId,
   GuardRunnerService,
   HttpException,
-  inject,
-  Injectable,
-  InjectionToken,
   InstanceResolverService,
   Logger,
   runWithRequestId,
 } from '@navios/core'
+import { Container, Inject, Injectable, Token } from '@navios/di'
 import { ZodError } from 'zod/v4'
 
 import type {
   CanActivate,
-  ClassType,
   ControllerMetadata,
   HandlerMetadata,
+  LoggerInstance,
   ModuleMetadata,
 } from '@navios/core'
+import type { ClassType } from '@navios/di'
 import type { BunRequest } from 'bun'
 
 import { BunExecutionContext, BunFakeReply } from '../interfaces/index.mjs'
@@ -62,13 +60,16 @@ export type BunRoutes = Record<
  */
 @Injectable({ token: BunControllerAdapterToken })
 export class BunControllerAdapterService {
-  private guardRunner = inject(GuardRunnerService)
-  private container = inject(Container)
-  private instanceResolver = inject(InstanceResolverService)
-  private errorProducer = inject(ErrorResponseProducerService)
-  private logger = inject(Logger, {
-    context: BunControllerAdapterService.name,
-  })
+  @Inject(GuardRunnerService)
+  private accessor guardRunner!: GuardRunnerService
+  @Inject(Container)
+  private accessor container!: Container
+  @Inject(InstanceResolverService)
+  private accessor instanceResolver!: InstanceResolverService
+  @Inject(ErrorResponseProducerService)
+  private accessor errorProducer!: ErrorResponseProducerService
+  @Inject(Logger, { context: 'BunControllerAdapterService' })
+  private accessor logger!: LoggerInstance
 
   /**
    * Sets up route handlers for a controller.
@@ -100,7 +101,7 @@ export class BunControllerAdapterService {
         throw new Error(`[Navios] Malformed Endpoint ${controller.name}:${classMethod}`)
       }
       const adapter = await this.container.get(
-        adapterToken as InjectionToken<BunHandlerAdapterInterface>,
+        adapterToken as Token<BunHandlerAdapterInterface>,
       )
 
       // Pre-resolve guards (reversed order: module → controller → endpoint)

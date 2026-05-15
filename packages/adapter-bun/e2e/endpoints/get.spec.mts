@@ -1,16 +1,8 @@
 import { afterAll, beforeAll, describe, expect, it } from 'bun:test'
 
 import { builder } from '@navios/builder'
-import {
-  Controller,
-  Endpoint,
-  inject,
-  Injectable,
-  InjectableScope,
-  Module,
-  NaviosApplication,
-  NaviosFactory,
-} from '@navios/core'
+import { Controller, Endpoint, Module, NaviosApplication, NaviosFactory } from '@navios/core'
+import { Inject, Injectable, InjectableScope } from '@navios/di'
 import supertest from 'supertest'
 import { z } from 'zod/v4'
 
@@ -91,7 +83,8 @@ describe('GET variants', () => {
 
   @Controller()
   class SomethingController {
-    private requestTracker = inject(RequestTrackerService)
+    @Inject(RequestTrackerService)
+    private accessor requestTracker!: RequestTrackerService
 
     @Endpoint(simple)
     async getSomething(_req: EndpointParams<typeof simple>) {

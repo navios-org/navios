@@ -2,11 +2,11 @@ import {
   AdapterToken,
   EndpointAdapterToken,
   HttpAdapterToken,
-  InjectionToken,
   MultipartAdapterToken,
   Request,
   StreamAdapterToken,
 } from '@navios/core'
+import { Token } from '@navios/di'
 
 import type { AnyInjectableType } from '@navios/core'
 
@@ -61,7 +61,7 @@ import { BunRequestToken } from './tokens/index.mjs'
  * @see {@link BunMultipartAdapterService} The multipart adapter implementation
  */
 export function defineBunEnvironment() {
-  const tokens = new Map<InjectionToken<any, undefined>, AnyInjectableType>([
+  const tokens = new Map<Token<any, undefined>, AnyInjectableType>([
     [AdapterToken, BunApplicationService],
     [HttpAdapterToken, BunApplicationService],
     [EndpointAdapterToken, BunEndpointAdapterService],

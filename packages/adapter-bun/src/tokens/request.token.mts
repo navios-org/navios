@@ -1,4 +1,4 @@
-import { InjectionToken } from '@navios/core'
+import { Token } from '@navios/di'
 
 /**
  * Injection token for the current Bun request object.
@@ -11,7 +11,7 @@ import { InjectionToken } from '@navios/core'
  * ```ts
  * @Injectable()
  * class RequestService {
- *   private request = inject(BunRequestToken)
+ *   @Inject(BunRequestToken) accessor request!: Request
  *
  *   getUrl() {
  *     return this.request.url
@@ -23,4 +23,4 @@ import { InjectionToken } from '@navios/core'
  * }
  * ```
  */
-export const BunRequestToken = InjectionToken.create<Request>('BunRequestToken')
+export const BunRequestToken = Token.create<Request>('BunRequestToken')

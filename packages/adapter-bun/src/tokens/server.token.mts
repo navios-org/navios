@@ -1,4 +1,4 @@
-import { InjectionToken } from '@navios/core'
+import { Token } from '@navios/di'
 
 import type { Server } from 'bun'
 
@@ -13,7 +13,7 @@ import type { Server } from 'bun'
  * ```ts
  * @Injectable()
  * class WebSocketService {
- *   private server = inject(BunServerToken)
+ *   @Inject(BunServerToken) accessor server!: Server<undefined>
  *
  *   upgrade(request: Request) {
  *     // Use server instance for WebSocket upgrades
@@ -22,4 +22,4 @@ import type { Server } from 'bun'
  * }
  * ```
  */
-export const BunServerToken = InjectionToken.create<Server<undefined>>('BunServerToken')
+export const BunServerToken = Token.create<Server<undefined>>('BunServerToken')

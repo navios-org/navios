@@ -1,4 +1,4 @@
-import { Injectable, InjectionToken } from '@navios/core'
+import { Injectable, Token } from '@navios/di'
 
 import type { EndpointOptions } from '@navios/builder'
 import type { ArgumentGetter, HandlerMetadata } from '@navios/core'
@@ -12,7 +12,7 @@ import { BunEndpointAdapterService } from './endpoint-adapter.service.mjs'
  * This token is used to inject the `BunMultipartAdapterService` instance
  * into the dependency injection container.
  */
-export const BunMultipartAdapterToken = InjectionToken.create<BunMultipartAdapterService>(
+export const BunMultipartAdapterToken = Token.create<BunMultipartAdapterService>(
   Symbol.for('BunMultipartAdapterService'),
 )
 

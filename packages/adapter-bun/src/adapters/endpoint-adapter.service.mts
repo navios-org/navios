@@ -1,4 +1,4 @@
-import { Injectable, InjectionToken } from '@navios/core'
+import { Injectable, Token } from '@navios/di'
 
 import type { EndpointOptions } from '@navios/builder'
 import type {
@@ -19,7 +19,7 @@ import { AbstractBunHandlerAdapterService } from './abstract-bun-handler-adapter
  * This token is used to inject the `BunEndpointAdapterService` instance
  * into the dependency injection container.
  */
-export const BunEndpointAdapterToken = InjectionToken.create<BunEndpointAdapterService>(
+export const BunEndpointAdapterToken = Token.create<BunEndpointAdapterService>(
   Symbol.for('BunEndpointAdapterService'),
 )
 
