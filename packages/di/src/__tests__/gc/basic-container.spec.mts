@@ -12,7 +12,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { Container } from '../../container/container.mjs'
 import { Injectable } from '../../decorators/injectable.decorator.mjs'
 import { Registry } from '../../token/registry.mjs'
-import { inject } from '../../utils/index.mjs'
+import { Inject } from '../../decorators/inject.decorator.mjs'
 
 import type { OnServiceDestroy } from '../../interfaces/on-service-destroy.interface.mjs'
 
@@ -176,7 +176,7 @@ describe.skipIf(!isGCAvailable)('GC: Basic Container', () => {
 
       @Injectable({ registry })
       class ParentService {
-        public readonly dep = inject(DependencyService)
+        @Inject(DependencyService) accessor dep!: DependencyService
         public readonly data = Array.from({ length: 500 }, () => 'parent')
       }
 
@@ -210,19 +210,19 @@ describe.skipIf(!isGCAvailable)('GC: Basic Container', () => {
 
       @Injectable({ registry })
       class Level2 {
-        public readonly level3 = inject(Level3)
+        @Inject(Level3) accessor level3!: Level3
         public readonly data = Array.from({ length: 200 }, () => 'l2')
       }
 
       @Injectable({ registry })
       class Level1 {
-        public readonly level2 = inject(Level2)
+        @Inject(Level2) accessor level2!: Level2
         public readonly data = Array.from({ length: 200 }, () => 'l1')
       }
 
       @Injectable({ registry })
       class RootService {
-        public readonly level1 = inject(Level1)
+        @Inject(Level1) accessor level1!: Level1
         public readonly data = Array.from({ length: 200 }, () => 'root')
       }
 
@@ -290,7 +290,7 @@ describe.skipIf(!isGCAvailable)('GC: Basic Container', () => {
 
       @Injectable({ registry })
       class DependentService {
-        public readonly dep = inject(DependencyService)
+        @Inject(DependencyService) accessor dep!: DependencyService
         public readonly id = Math.random()
       }
 

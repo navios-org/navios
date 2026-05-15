@@ -12,7 +12,6 @@ import type {
   ClassTypeWithArgument,
   ClassTypeWithInstance,
   ClassTypeWithInstanceAndArgument,
-  ClassTypeWithOptionalArgument,
 } from '../token/token.mjs'
 
 interface FooService {
@@ -319,20 +318,6 @@ test('ClassTypeWithArgument assignability with static fields', () => {
   }
 
   expectTypeOf(ServiceWithStatics).toMatchTypeOf<ClassTypeWithArgument<string>>()
-})
-
-test('ClassTypeWithOptionalArgument assignability with static fields', () => {
-  class ServiceWithStatics {
-    static readonly DEFAULT_NAME = 'default'
-
-    constructor(public name?: string) {}
-
-    getValue() {
-      return this.name ?? ServiceWithStatics.DEFAULT_NAME
-    }
-  }
-
-  expectTypeOf(ServiceWithStatics).toMatchTypeOf<ClassTypeWithOptionalArgument<string>>()
 })
 
 test('ClassTypeWithInstanceAndArgument assignability with static fields', () => {

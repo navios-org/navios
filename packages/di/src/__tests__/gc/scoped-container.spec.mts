@@ -13,7 +13,7 @@ import { Container } from '../../container/container.mjs'
 import { Injectable } from '../../decorators/injectable.decorator.mjs'
 import { InjectableScope } from '../../enums/injectable-scope.enum.mjs'
 import { Registry } from '../../token/registry.mjs'
-import { inject } from '../../utils/index.mjs'
+import { Inject } from '../../decorators/inject.decorator.mjs'
 
 import type { ScopedContainer } from '../../container/scoped-container.mjs'
 import type { OnServiceDestroy } from '../../interfaces/on-service-destroy.interface.mjs'
@@ -174,7 +174,7 @@ describe.skipIf(!isGCAvailable)('GC: Scoped Container', () => {
 
       @Injectable({ registry, scope: InjectableScope.Request })
       class RequestService {
-        public readonly singleton = inject(SingletonService)
+        @Inject(SingletonService) accessor singleton!: SingletonService
         public readonly id = Math.random()
       }
 
@@ -248,17 +248,17 @@ describe.skipIf(!isGCAvailable)('GC: Scoped Container', () => {
 
       @Injectable({ registry, scope: InjectableScope.Request })
       class Level2 {
-        public readonly level3 = inject(Level3)
+        @Inject(Level3) accessor level3!: Level3
       }
 
       @Injectable({ registry, scope: InjectableScope.Request })
       class Level1 {
-        public readonly level2 = inject(Level2)
+        @Inject(Level2) accessor level2!: Level2
       }
 
       @Injectable({ registry, scope: InjectableScope.Request })
       class RootService {
-        public readonly level1 = inject(Level1)
+        @Inject(Level1) accessor level1!: Level1
       }
 
       const scoped = container.beginRequest('chain-request')
@@ -295,13 +295,13 @@ describe.skipIf(!isGCAvailable)('GC: Scoped Container', () => {
 
       @Injectable({ registry, scope: InjectableScope.Request })
       class RequestMiddle {
-        public readonly base = inject(SingletonBase)
+        @Inject(SingletonBase) accessor base!: SingletonBase
         public readonly id = Math.random()
       }
 
       @Injectable({ registry, scope: InjectableScope.Request })
       class RequestTop {
-        public readonly middle = inject(RequestMiddle)
+        @Inject(RequestMiddle) accessor middle!: RequestMiddle
         public readonly id = Math.random()
       }
 

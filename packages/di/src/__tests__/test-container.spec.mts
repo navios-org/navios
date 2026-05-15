@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { Injectable } from '../decorators/injectable.decorator.mjs'
 import { InjectableScope } from '../enums/index.mjs'
 import { TestContainer } from '../testing/test-container.mjs'
-import { InjectionToken } from '../token/token.mjs'
+import { Token } from '../token/token.mjs'
 
 describe('TestContainer', () => {
   let container: TestContainer
@@ -18,7 +18,7 @@ describe('TestContainer', () => {
 
   describe('Binding API', () => {
     it('should bind a value to a token', async () => {
-      const TOKEN = InjectionToken.create<string>('test-token')
+      const TOKEN = Token.create<string>('test-token')
       const testValue = 'hello world'
 
       container.bind(TOKEN).toValue(testValue)
@@ -28,7 +28,7 @@ describe('TestContainer', () => {
     })
 
     it('should bind a class to a token', async () => {
-      const TOKEN = InjectionToken.create<{ getValue(): string }>('service-token')
+      const TOKEN = Token.create<{ getValue(): string }>('service-token')
 
       class MockService {
         getValue(): string {
@@ -43,7 +43,7 @@ describe('TestContainer', () => {
     })
 
     it('should bind a factory to a token', async () => {
-      const TOKEN = InjectionToken.create<{ id: number }>('factory-token')
+      const TOKEN = Token.create<{ id: number }>('factory-token')
 
       let counter = 0
       container.bind(TOKEN).toFactory(() => ({ id: ++counter }))
@@ -53,7 +53,7 @@ describe('TestContainer', () => {
     })
 
     it('should clear all bindings', async () => {
-      const TOKEN = InjectionToken.create<string>('clear-token')
+      const TOKEN = Token.create<string>('clear-token')
       container.bind(TOKEN).toValue('test')
 
       await container.get(TOKEN)
@@ -140,7 +140,7 @@ describe('TestContainer', () => {
 
   describe('Method Call Tracking', () => {
     it('should record method calls', async () => {
-      const TOKEN = InjectionToken.create<{ doWork(x: number): number }>('work-token')
+      const TOKEN = Token.create<{ doWork(x: number): number }>('work-token')
 
       class MockWorker {
         doWork(x: number): number {
@@ -160,7 +160,7 @@ describe('TestContainer', () => {
     })
 
     it('should track call count', async () => {
-      const TOKEN = InjectionToken.create<{ process(): void }>('process-token')
+      const TOKEN = Token.create<{ process(): void }>('process-token')
 
       class MockProcessor {
         process(): void {}
@@ -180,7 +180,7 @@ describe('TestContainer', () => {
     })
 
     it('should get all method calls', async () => {
-      const TOKEN = InjectionToken.create<{ action(s: string): void }>('action-token')
+      const TOKEN = Token.create<{ action(s: string): void }>('action-token')
 
       class MockAction {
         // oxlint-disable-next-line no-unused-vars
@@ -202,7 +202,7 @@ describe('TestContainer', () => {
     })
 
     it('should clear method calls', async () => {
-      const TOKEN = InjectionToken.create<{ foo(): void }>('foo-token')
+      const TOKEN = Token.create<{ foo(): void }>('foo-token')
 
       class MockFoo {
         foo(): void {}
@@ -220,7 +220,7 @@ describe('TestContainer', () => {
 
   describe('Lifecycle Tracking', () => {
     it('should track lifecycle events for value bindings', async () => {
-      const TOKEN = InjectionToken.create<object>('lifecycle-token')
+      const TOKEN = Token.create<object>('lifecycle-token')
 
       // Value bindings record 'created' event automatically
       container.bind(TOKEN).toValue({ name: 'test' })
@@ -230,7 +230,7 @@ describe('TestContainer', () => {
     })
 
     it('should get service stats with method calls', async () => {
-      const TOKEN = InjectionToken.create<{ method(): void }>('stats-token')
+      const TOKEN = Token.create<{ method(): void }>('stats-token')
 
       const mockService = { method: () => {} }
       container.bind(TOKEN).toValue(mockService)
@@ -247,8 +247,8 @@ describe('TestContainer', () => {
 
   describe('Dependency Graph', () => {
     it('should get dependency graph', async () => {
-      const TOKEN_A = InjectionToken.create<object>('service-a')
-      const TOKEN_B = InjectionToken.create<object>('service-b')
+      const TOKEN_A = Token.create<object>('service-a')
+      const TOKEN_B = Token.create<object>('service-b')
 
       container.bind(TOKEN_A).toValue({ name: 'A' })
       container.bind(TOKEN_B).toValue({ name: 'B' })
@@ -262,7 +262,7 @@ describe('TestContainer', () => {
     })
 
     it('should get simplified dependency graph', async () => {
-      const TOKEN = InjectionToken.create<object>('independent-service')
+      const TOKEN = Token.create<object>('independent-service')
 
       container.bind(TOKEN).toValue({ independent: true })
       await container.get(TOKEN)

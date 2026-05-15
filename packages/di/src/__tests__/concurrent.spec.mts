@@ -1,9 +1,10 @@
 import { describe, expect, it, beforeEach, afterEach } from 'vitest'
 
 import { Container } from '../container/container.mjs'
+import { Inject } from '../decorators/inject.decorator.mjs'
+import { InjectLazy } from '../decorators/inject-lazy.decorator.mjs'
 import { Injectable } from '../decorators/index.mjs'
 import { InjectableScope } from '../enums/index.mjs'
-import { inject, asyncInject } from '../utils/index.mjs'
 
 describe('Concurrent Operations', () => {
   let container: Container
@@ -140,7 +141,7 @@ describe('Concurrent Operations', () => {
 
       @Injectable()
       class ServiceB {
-        private a = inject(ServiceA)
+        @Inject(ServiceA) accessor a!: ServiceA
         id = Math.random()
 
         getAId() {
@@ -150,8 +151,8 @@ describe('Concurrent Operations', () => {
 
       @Injectable()
       class ServiceC {
-        private a = inject(ServiceA)
-        private b = inject(ServiceB)
+        @Inject(ServiceA) accessor a!: ServiceA
+        @Inject(ServiceB) accessor b!: ServiceB
 
         getIds() {
           return { a: this.a.id, b: this.b.id }
@@ -185,7 +186,7 @@ describe('Concurrent Operations', () => {
 
       @Injectable()
       class DependentService {
-        private dep = asyncInject(AsyncDependency)
+        @InjectLazy(AsyncDependency) accessor dep!: Promise<AsyncDependency>
 
         async getValue() {
           const d = await this.dep
@@ -265,7 +266,7 @@ describe('Concurrent Operations', () => {
 
       @Injectable({ scope: InjectableScope.Transient })
       class TransientService {
-        private singleton = inject(SingletonService)
+        @Inject(SingletonService) accessor singleton!: SingletonService
         id = Math.random()
 
         getSingletonId() {

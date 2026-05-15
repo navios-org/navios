@@ -5,9 +5,9 @@ import { Injectable } from '../decorators/index.mjs'
 import { DIError, DIErrorCode } from '../errors/index.mjs'
 import { TokenResolver } from '../internal/core/token-resolver.mjs'
 import {
-  BoundInjectionToken,
-  FactoryInjectionToken,
-  InjectionToken,
+  BoundToken,
+  FactoryToken,
+  Token,
 } from '../token/token.mjs'
 import { getInjectableToken } from '../utils/index.mjs'
 
@@ -19,24 +19,24 @@ describe('TokenResolver', () => {
   })
 
   describe('normalizeToken', () => {
-    it('should return InjectionToken as-is', () => {
-      const token = InjectionToken.create<string>('test')
+    it('should return Token as-is', () => {
+      const token = Token.create<string>('test')
       const result = resolver.normalizeToken(token)
       expect(result).toBe(token)
     })
 
-    it('should return BoundInjectionToken as-is', () => {
+    it('should return BoundToken as-is', () => {
       const schema = z.object({ value: z.string() })
-      const token = InjectionToken.create<string, typeof schema>('test', schema)
-      const bound = new BoundInjectionToken(token, { value: 'test' })
+      const token = Token.create<string, typeof schema>('test', schema)
+      const bound = new BoundToken(token, { value: 'test' })
       const result = resolver.normalizeToken(bound)
       expect(result).toBe(bound)
     })
 
-    it('should return FactoryInjectionToken as-is', () => {
+    it('should return FactoryToken as-is', () => {
       const schema = z.object({ value: z.string() })
-      const token = InjectionToken.create<string, typeof schema>('test', schema)
-      const factory = new FactoryInjectionToken(token, async () => ({
+      const token = Token.create<string, typeof schema>('test', schema)
+      const factory = new FactoryToken(token, async () => ({
         value: 'test',
       }))
       const result = resolver.normalizeToken(factory)
@@ -48,30 +48,30 @@ describe('TokenResolver', () => {
       class TestService {}
 
       const result = resolver.normalizeToken(TestService)
-      expect(result).toBeInstanceOf(InjectionToken)
+      expect(result).toBeInstanceOf(Token)
       expect(result).toBe(getInjectableToken(TestService))
     })
   })
 
   describe('getRealToken', () => {
-    it('should return InjectionToken as-is', () => {
-      const token = InjectionToken.create<string>('test')
+    it('should return Token as-is', () => {
+      const token = Token.create<string>('test')
       const result = resolver.getRealToken(token)
       expect(result).toBe(token)
     })
 
-    it('should unwrap BoundInjectionToken', () => {
+    it('should unwrap BoundToken', () => {
       const schema = z.object({ value: z.string() })
-      const token = InjectionToken.create<string, typeof schema>('test', schema)
-      const bound = new BoundInjectionToken(token, { value: 'test' })
+      const token = Token.create<string, typeof schema>('test', schema)
+      const bound = new BoundToken(token, { value: 'test' })
       const result = resolver.getRealToken(bound)
       expect(result).toBe(token)
     })
 
-    it('should unwrap FactoryInjectionToken', () => {
+    it('should unwrap FactoryToken', () => {
       const schema = z.object({ value: z.string() })
-      const token = InjectionToken.create<string, typeof schema>('test', schema)
-      const factory = new FactoryInjectionToken(token, async () => ({
+      const token = Token.create<string, typeof schema>('test', schema)
+      const factory = new FactoryToken(token, async () => ({
         value: 'test',
       }))
       const result = resolver.getRealToken(factory)
@@ -80,19 +80,19 @@ describe('TokenResolver', () => {
   })
 
   describe('getRegistryToken', () => {
-    it('should normalize and unwrap class to InjectionToken', () => {
+    it('should normalize and unwrap class to Token', () => {
       @Injectable()
       class TestService {}
 
       const result = resolver.getRegistryToken(TestService)
-      expect(result).toBeInstanceOf(InjectionToken)
+      expect(result).toBeInstanceOf(Token)
       expect(result).toBe(getInjectableToken(TestService))
     })
 
-    it('should normalize and unwrap BoundInjectionToken to InjectionToken', () => {
+    it('should normalize and unwrap BoundToken to Token', () => {
       const schema = z.object({ value: z.string() })
-      const token = InjectionToken.create<string, typeof schema>('test', schema)
-      const bound = new BoundInjectionToken(token, { value: 'test' })
+      const token = Token.create<string, typeof schema>('test', schema)
+      const bound = new BoundToken(token, { value: 'test' })
 
       const result = resolver.getRegistryToken(bound)
       expect(result).toBe(token)
@@ -101,7 +101,7 @@ describe('TokenResolver', () => {
 
   describe('validateAndResolveTokenArgs', () => {
     it('should pass through token without schema', () => {
-      const token = InjectionToken.create<string>('test')
+      const token = Token.create<string>('test')
       const [error, data] = resolver.validateAndResolveTokenArgs(token)
 
       expect(error).toBeUndefined()
@@ -111,7 +111,7 @@ describe('TokenResolver', () => {
 
     it('should pass through token with valid args and schema', () => {
       const schema = z.object({ value: z.string() })
-      const token = InjectionToken.create<string, typeof schema>('test', schema)
+      const token = Token.create<string, typeof schema>('test', schema)
       const args = { value: 'hello' }
 
       const [error, data] = resolver.validateAndResolveTokenArgs(token, args)
@@ -123,7 +123,7 @@ describe('TokenResolver', () => {
 
     it('should return error for invalid args', () => {
       const schema = z.object({ value: z.string() })
-      const token = InjectionToken.create<string, typeof schema>('test', schema)
+      const token = Token.create<string, typeof schema>('test', schema)
       const args = { value: 123 } // Invalid: should be string
 
       const [error] = resolver.validateAndResolveTokenArgs(token, args)
@@ -132,10 +132,10 @@ describe('TokenResolver', () => {
       expect(error?.code).toBe(DIErrorCode.TokenValidationError)
     })
 
-    it('should extract args from BoundInjectionToken', () => {
+    it('should extract args from BoundToken', () => {
       const schema = z.object({ value: z.string() })
-      const token = InjectionToken.create<string, typeof schema>('test', schema)
-      const bound = new BoundInjectionToken(token, { value: 'bound-value' })
+      const token = Token.create<string, typeof schema>('test', schema)
+      const bound = new BoundToken(token, { value: 'bound-value' })
 
       const [error, data] = resolver.validateAndResolveTokenArgs(bound)
 
@@ -144,10 +144,10 @@ describe('TokenResolver', () => {
       expect(data.validatedArgs).toEqual({ value: 'bound-value' })
     })
 
-    it('should return error for unresolved FactoryInjectionToken', () => {
+    it('should return error for unresolved FactoryToken', () => {
       const schema = z.object({ value: z.string() })
-      const token = InjectionToken.create<string, typeof schema>('test', schema)
-      const factory = new FactoryInjectionToken(token, async () => ({
+      const token = Token.create<string, typeof schema>('test', schema)
+      const factory = new FactoryToken(token, async () => ({
         value: 'test',
       }))
 
@@ -157,10 +157,10 @@ describe('TokenResolver', () => {
       expect(error?.code).toBe(DIErrorCode.FactoryTokenNotResolved)
     })
 
-    it('should extract args from resolved FactoryInjectionToken', async () => {
+    it('should extract args from resolved FactoryToken', async () => {
       const schema = z.object({ value: z.string() })
-      const token = InjectionToken.create<string, typeof schema>('test', schema)
-      const factory = new FactoryInjectionToken(token, async () => ({
+      const token = Token.create<string, typeof schema>('test', schema)
+      const factory = new FactoryToken(token, async () => ({
         value: 'factory-value',
       }))
 
@@ -185,7 +185,7 @@ describe('TokenResolver', () => {
       const [error, data] = resolver.validateAndResolveTokenArgs(TestService)
 
       expect(error).toBeUndefined()
-      expect(data.actualToken).toBeInstanceOf(InjectionToken)
+      expect(data.actualToken).toBeInstanceOf(Token)
     })
 
     it('should log validation errors when logger is provided', () => {
@@ -197,7 +197,7 @@ describe('TokenResolver', () => {
 
       const resolverWithLogger = new TokenResolver(mockLogger)
       const schema = z.object({ value: z.string() })
-      const token = InjectionToken.create<string, typeof schema>('test', schema)
+      const token = Token.create<string, typeof schema>('test', schema)
 
       resolverWithLogger.validateAndResolveTokenArgs(token, { value: 123 })
 

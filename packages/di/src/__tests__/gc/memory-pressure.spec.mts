@@ -13,9 +13,9 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { Container } from '../../container/container.mjs'
 import { Injectable } from '../../decorators/injectable.decorator.mjs'
 import { InjectableScope } from '../../enums/injectable-scope.enum.mjs'
-import { InjectionToken } from '../../index.mjs'
+import { Token } from '../../token/token.mjs'
 import { Registry } from '../../token/registry.mjs'
-import { inject } from '../../utils/index.mjs'
+import { Inject } from '../../decorators/inject.decorator.mjs'
 
 import type { OnServiceDestroy } from '../../interfaces/on-service-destroy.interface.mjs'
 
@@ -160,7 +160,7 @@ describe.skipIf(!isGCAvailable)('GC: Memory Pressure', () => {
       // Create request-scoped services
       const services: Array<{ new (): { data: Uint8Array } }> = []
       for (let i = 0; i < SERVICES_PER_REQUEST; i++) {
-        const token = InjectionToken.create<RequestService>(`RequestService${i}`)
+        const token = Token.create<RequestService>(`RequestService${i}`)
         @Injectable({ registry, scope: InjectableScope.Request, token })
         class RequestService {
           public readonly data = new Uint8Array(ALLOCATION_SIZE)
@@ -346,55 +346,55 @@ describe.skipIf(!isGCAvailable)('GC: Memory Pressure', () => {
 
       @Injectable({ registry })
       class Level9 {
-        public readonly next = inject(Level10)
+        @Inject(Level10) accessor next!: Level10
         public readonly data = new Uint8Array(ALLOCATION_SIZE)
       }
 
       @Injectable({ registry })
       class Level8 {
-        public readonly next = inject(Level9)
+        @Inject(Level9) accessor next!: Level9
         public readonly data = new Uint8Array(ALLOCATION_SIZE)
       }
 
       @Injectable({ registry })
       class Level7 {
-        public readonly next = inject(Level8)
+        @Inject(Level8) accessor next!: Level8
         public readonly data = new Uint8Array(ALLOCATION_SIZE)
       }
 
       @Injectable({ registry })
       class Level6 {
-        public readonly next = inject(Level7)
+        @Inject(Level7) accessor next!: Level7
         public readonly data = new Uint8Array(ALLOCATION_SIZE)
       }
 
       @Injectable({ registry })
       class Level5 {
-        public readonly next = inject(Level6)
+        @Inject(Level6) accessor next!: Level6
         public readonly data = new Uint8Array(ALLOCATION_SIZE)
       }
 
       @Injectable({ registry })
       class Level4 {
-        public readonly next = inject(Level5)
+        @Inject(Level5) accessor next!: Level5
         public readonly data = new Uint8Array(ALLOCATION_SIZE)
       }
 
       @Injectable({ registry })
       class Level3 {
-        public readonly next = inject(Level4)
+        @Inject(Level4) accessor next!: Level4
         public readonly data = new Uint8Array(ALLOCATION_SIZE)
       }
 
       @Injectable({ registry })
       class Level2 {
-        public readonly next = inject(Level3)
+        @Inject(Level3) accessor next!: Level3
         public readonly data = new Uint8Array(ALLOCATION_SIZE)
       }
 
       @Injectable({ registry })
       class Level1 {
-        public readonly next = inject(Level2)
+        @Inject(Level2) accessor next!: Level2
         public readonly data = new Uint8Array(ALLOCATION_SIZE)
       }
 
@@ -437,20 +437,20 @@ describe.skipIf(!isGCAvailable)('GC: Memory Pressure', () => {
 
       @Injectable({ registry })
       class ServiceB {
-        public readonly d = inject(ServiceD)
+        @Inject(ServiceD) accessor d!: ServiceD
         public readonly data = new Uint8Array(ALLOCATION_SIZE)
       }
 
       @Injectable({ registry })
       class ServiceC {
-        public readonly d = inject(ServiceD)
+        @Inject(ServiceD) accessor d!: ServiceD
         public readonly data = new Uint8Array(ALLOCATION_SIZE)
       }
 
       @Injectable({ registry })
       class ServiceA {
-        public readonly b = inject(ServiceB)
-        public readonly c = inject(ServiceC)
+        @Inject(ServiceB) accessor b!: ServiceB
+        @Inject(ServiceC) accessor c!: ServiceC
         public readonly data = new Uint8Array(ALLOCATION_SIZE)
       }
 

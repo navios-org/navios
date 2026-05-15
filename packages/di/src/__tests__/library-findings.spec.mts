@@ -11,19 +11,20 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { Container } from '../container/container.mjs'
+import { Inject } from '../decorators/inject.decorator.mjs'
+import { InjectLazy } from '../decorators/inject-lazy.decorator.mjs'
 import { Injectable } from '../decorators/injectable.decorator.mjs'
 import { InjectableScope } from '../enums/index.mjs'
 import { Registry } from '../token/registry.mjs'
-import { getInjectors } from '../utils/get-injectors.mjs'
+import { Token } from '../token/token.mjs'
 
 import type { InstanceHolder } from '../index.mjs'
 import type { OnServiceDestroy } from '../interfaces/on-service-destroy.interface.mjs'
 
 function createTestSetup() {
   const registry = new Registry()
-  const injectors = getInjectors()
-  const container = new Container(registry, null, injectors)
-  return { registry, injectors, container }
+  const container = new Container(registry)
+  return { registry, container }
 }
 
 // ============================================================================
@@ -33,13 +34,11 @@ function createTestSetup() {
 describe('FINDING #1: Circular Dependencies (FIXED)', () => {
   let registry: Registry
   let container: Container
-  let injectors: ReturnType<typeof getInjectors>
 
   beforeEach(() => {
     const setup = createTestSetup()
     registry = setup.registry
     container = setup.container
-    injectors = setup.injectors
   })
 
   afterEach(async () => {
@@ -67,9 +66,15 @@ describe('FINDING #1: Circular Dependencies (FIXED)', () => {
    * which collects dependency promises that are awaited before onServiceInit.
    */
   it('should detect and report circular dependencies instead of hanging', async () => {
-    @Injectable({ scope: InjectableScope.Singleton, registry })
+    // Tokens are declared before the classes so the eager @Inject decorator
+    // (evaluated at class-definition time) can reference the "other side" of
+    // the cycle without a forward-reference error.
+    const TokA = Token.create<ServiceA>('CircularA')
+    const TokB = Token.create<ServiceB>('CircularB')
+
+    @Injectable({ scope: InjectableScope.Singleton, registry, token: TokA })
     class ServiceA {
-      private serviceB = injectors.inject(ServiceB)
+      @Inject(TokB) accessor serviceB!: ServiceB
       name = 'ServiceA'
 
       async getB() {
@@ -77,9 +82,9 @@ describe('FINDING #1: Circular Dependencies (FIXED)', () => {
       }
     }
 
-    @Injectable({ scope: InjectableScope.Singleton, registry })
+    @Injectable({ scope: InjectableScope.Singleton, registry, token: TokB })
     class ServiceB {
-      private serviceA = injectors.inject(ServiceA)
+      @Inject(TokA) accessor serviceA!: ServiceA
       name = 'ServiceB'
 
       async getA() {
@@ -89,55 +94,60 @@ describe('FINDING #1: Circular Dependencies (FIXED)', () => {
 
     // This should throw an error like:
     // "Circular dependency detected: ServiceA -> ServiceB -> ServiceA"
-    // Instead, it hangs forever.
-    await expect(container.get(ServiceA)).rejects.toThrow(/circular/i)
+    await expect(container.get(TokA)).rejects.toThrow(/circular/i)
   }, 1000) // 1 second timeout to detect the hang
 
   /**
    * Related scenario: Self-referential dependency
    */
   it('should detect self-referential dependencies', async () => {
-    @Injectable({ scope: InjectableScope.Singleton, registry })
+    const SelfTok = Token.create<SelfReferentialService>('SelfReferential')
+
+    @Injectable({ scope: InjectableScope.Singleton, registry, token: SelfTok })
     class SelfReferentialService {
-      private self = injectors.inject(SelfReferentialService)
+      @Inject(SelfTok) accessor self!: SelfReferentialService
 
       async getSelf() {
         return this.self
       }
     }
 
-    await expect(container.get(SelfReferentialService)).rejects.toThrow(/circular/i)
+    await expect(container.get(SelfTok)).rejects.toThrow(/circular/i)
   }, 1000)
 
   /**
    * Related scenario: Three-way circular dependency
    */
   it('should detect three-way circular dependencies', async () => {
-    @Injectable({ scope: InjectableScope.Singleton, registry })
+    const TokX = Token.create<ServiceX>('CircularX')
+    const TokY = Token.create<ServiceY>('CircularY')
+    const TokZ = Token.create<ServiceZ>('CircularZ')
+
+    @Injectable({ scope: InjectableScope.Singleton, registry, token: TokX })
     class ServiceX {
-      private y = injectors.inject(ServiceY)
+      @Inject(TokY) accessor y!: ServiceY
       async getY() {
         return this.y
       }
     }
 
-    @Injectable({ scope: InjectableScope.Singleton, registry })
+    @Injectable({ scope: InjectableScope.Singleton, registry, token: TokY })
     class ServiceY {
-      private z = injectors.inject(ServiceZ)
+      @Inject(TokZ) accessor z!: ServiceZ
       async getZ() {
         return this.z
       }
     }
 
-    @Injectable({ scope: InjectableScope.Singleton, registry })
+    @Injectable({ scope: InjectableScope.Singleton, registry, token: TokZ })
     class ServiceZ {
-      private x = injectors.inject(ServiceX)
+      @Inject(TokX) accessor x!: ServiceX
       async getX() {
         return this.x
       }
     }
 
-    await expect(container.get(ServiceX)).rejects.toThrow(/circular/i)
+    await expect(container.get(TokX)).rejects.toThrow(/circular/i)
   }, 1000)
 })
 
@@ -148,13 +158,11 @@ describe('FINDING #1: Circular Dependencies (FIXED)', () => {
 describe('FINDING #2: Request-Scoped Edge Cases (FIXED)', () => {
   let registry: Registry
   let container: Container
-  let injectors: ReturnType<typeof getInjectors>
 
   beforeEach(() => {
     const setup = createTestSetup()
     registry = setup.registry
     container = setup.container
-    injectors = setup.injectors
   })
 
   afterEach(async () => {
@@ -182,7 +190,7 @@ describe('FINDING #2: Request-Scoped Edge Cases (FIXED)', () => {
     @Injectable({ scope: InjectableScope.Singleton, registry })
     class SingletonHolder3 {
       singletonId = Math.random().toString(36).slice(2)
-      private requestData = injectors.inject(RequestData3)
+      @InjectLazy(RequestData3) accessor requestData!: Promise<RequestData3>
 
       async getData() {
         const rd = await this.requestData
@@ -385,13 +393,11 @@ describe('FINDING #4: Concurrent Initialization', () => {
 describe('FINDING #5: Cross-Storage Dependency Invalidation', () => {
   let registry: Registry
   let container: Container
-  let injectors: ReturnType<typeof getInjectors>
 
   beforeEach(() => {
     const setup = createTestSetup()
     registry = setup.registry
     container = setup.container
-    injectors = setup.injectors
   })
 
   afterEach(async () => {
@@ -424,7 +430,7 @@ describe('FINDING #5: Cross-Storage Dependency Invalidation', () => {
     @Injectable({ scope: InjectableScope.Singleton, registry })
     class SingletonConsumer2 implements OnServiceDestroy {
       id = Math.random().toString(36).slice(2)
-      private requestData = injectors.inject(RequestData2)
+      @InjectLazy(RequestData2) accessor requestData!: Promise<RequestData2>
 
       async getData() {
         const rd = await this.requestData
@@ -475,7 +481,7 @@ describe('FINDING #5: Cross-Storage Dependency Invalidation', () => {
 
     @Injectable({ scope: InjectableScope.Singleton, registry })
     class SingletonWithDep {
-      private reqSvc = injectors.inject(RequestService)
+      @InjectLazy(RequestService) accessor reqSvc!: Promise<RequestService>
 
       async getValue() {
         const svc = await this.reqSvc

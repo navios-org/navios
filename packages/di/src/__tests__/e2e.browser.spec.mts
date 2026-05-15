@@ -12,11 +12,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { Container } from '../container/container.mjs'
+import { InjectLazy } from '../decorators/inject-lazy.decorator.mjs'
 import { Injectable } from '../decorators/injectable.decorator.mjs'
 import { InjectableScope } from '../enums/index.mjs'
 import { isUsingNativeAsyncLocalStorage } from '../internal/context/async-local-storage.browser.mjs'
 import { Registry } from '../token/registry.mjs'
-import { getInjectors } from '../utils/get-injectors.mjs'
 
 import type { OnServiceDestroy } from '../interfaces/on-service-destroy.interface.mjs'
 import type { OnServiceInit } from '../interfaces/on-service-init.interface.mjs'
@@ -31,10 +31,9 @@ function delay(ms: number): Promise<void> {
 
 function createTestSetup() {
   const registry = new Registry()
-  const injectors = getInjectors()
-  const container = new Container(registry, null, injectors)
+  const container = new Container(registry)
 
-  return { registry, injectors, container }
+  return { registry, container }
 }
 
 // ============================================================================
@@ -54,13 +53,11 @@ describe('Browser Mode Verification', () => {
 describe('E2E Browser: Basic Setup', () => {
   let registry: Registry
   let container: Container
-  let injectors: ReturnType<typeof getInjectors>
 
   beforeEach(() => {
     const setup = createTestSetup()
     registry = setup.registry
     container = setup.container
-    injectors = setup.injectors
   })
 
   afterEach(async () => {
@@ -119,7 +116,7 @@ describe('E2E Browser: Basic Setup', () => {
 
       @Injectable({ scope: InjectableScope.Singleton, registry })
       class UserRepository {
-        private db = injectors.inject(DatabaseService)
+        @InjectLazy(DatabaseService) accessor db!: Promise<DatabaseService>
 
         async getDatabase() {
           return this.db
@@ -140,7 +137,7 @@ describe('E2E Browser: Basic Setup', () => {
 
       @Injectable({ scope: InjectableScope.Singleton, registry })
       class ServiceLevel2 {
-        private level1 = injectors.inject(ServiceLevel1)
+        @InjectLazy(ServiceLevel1) accessor level1!: Promise<ServiceLevel1>
         name = 'Level2'
 
         async getLevel1() {
@@ -150,7 +147,7 @@ describe('E2E Browser: Basic Setup', () => {
 
       @Injectable({ scope: InjectableScope.Singleton, registry })
       class ServiceLevel3 {
-        private level2 = injectors.inject(ServiceLevel2)
+        @InjectLazy(ServiceLevel2) accessor level2!: Promise<ServiceLevel2>
         name = 'Level3'
 
         async getLevel2() {
@@ -177,13 +174,11 @@ describe('E2E Browser: Basic Setup', () => {
 describe('E2E Browser: Mixed Scopes', () => {
   let registry: Registry
   let container: Container
-  let injectors: ReturnType<typeof getInjectors>
 
   beforeEach(() => {
     const setup = createTestSetup()
     registry = setup.registry
     container = setup.container
-    injectors = setup.injectors
   })
 
   afterEach(async () => {
@@ -259,7 +254,7 @@ describe('E2E Browser: Mixed Scopes', () => {
 
       @Injectable({ scope: InjectableScope.Request, registry })
       class RequestLogger {
-        private db = injectors.inject(DatabaseConnection)
+        @InjectLazy(DatabaseConnection) accessor db!: Promise<DatabaseConnection>
 
         constructor() {
           creationOrder.push('RequestLogger')
@@ -273,7 +268,7 @@ describe('E2E Browser: Mixed Scopes', () => {
 
       @Injectable({ scope: InjectableScope.Transient, registry })
       class ActionHandler {
-        private logger = injectors.inject(RequestLogger)
+        @InjectLazy(RequestLogger) accessor logger!: Promise<RequestLogger>
 
         constructor() {
           creationOrder.push('ActionHandler')
@@ -287,7 +282,7 @@ describe('E2E Browser: Mixed Scopes', () => {
 
       @Injectable({ scope: InjectableScope.Request, registry })
       class RequestProcessor {
-        private action = injectors.inject(ActionHandler)
+        @InjectLazy(ActionHandler) accessor action!: Promise<ActionHandler>
 
         constructor() {
           creationOrder.push('RequestProcessor')
@@ -322,13 +317,11 @@ describe('E2E Browser: Mixed Scopes', () => {
 describe('E2E Browser: Concurrent Requests', () => {
   let registry: Registry
   let container: Container
-  let injectors: ReturnType<typeof getInjectors>
 
   beforeEach(() => {
     const setup = createTestSetup()
     registry = setup.registry
     container = setup.container
-    injectors = setup.injectors
   })
 
   afterEach(async () => {
@@ -355,7 +348,7 @@ describe('E2E Browser: Concurrent Requests', () => {
 
       @Injectable({ scope: InjectableScope.Request, registry })
       class RequestService {
-        private cache = injectors.inject(SharedCache)
+        @InjectLazy(SharedCache) accessor cache!: Promise<SharedCache>
 
         async setInCache(key: string, value: string) {
           const c = await this.cache
@@ -570,13 +563,11 @@ describe('E2E Browser: Service Lifecycle', () => {
 describe('E2E Browser: Service Invalidation', () => {
   let registry: Registry
   let container: Container
-  let injectors: ReturnType<typeof getInjectors>
 
   beforeEach(() => {
     const setup = createTestSetup()
     registry = setup.registry
     container = setup.container
-    injectors = setup.injectors
   })
 
   afterEach(async () => {
@@ -621,7 +612,7 @@ describe('E2E Browser: Service Invalidation', () => {
 
       @Injectable({ scope: InjectableScope.Singleton, registry })
       class DependentService implements OnServiceDestroy {
-        private base = injectors.inject(BaseService)
+        @InjectLazy(BaseService) accessor base!: Promise<BaseService>
 
         async getBase() {
           return this.base
@@ -716,13 +707,11 @@ describe('E2E Browser: Error Handling', () => {
 describe('E2E Browser: Advanced Scenarios', () => {
   let registry: Registry
   let container: Container
-  let injectors: ReturnType<typeof getInjectors>
 
   beforeEach(() => {
     const setup = createTestSetup()
     registry = setup.registry
     container = setup.container
-    injectors = setup.injectors
   })
 
   afterEach(async () => {
@@ -758,7 +747,7 @@ describe('E2E Browser: Advanced Scenarios', () => {
     it('should allow injecting the Container itself', async () => {
       @Injectable({ scope: InjectableScope.Singleton, registry })
       class ContainerAwareService {
-        private container = injectors.inject(Container)
+        @InjectLazy(Container) accessor container!: Promise<Container>
 
         async getContainer() {
           return this.container

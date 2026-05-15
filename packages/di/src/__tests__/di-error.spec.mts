@@ -3,7 +3,7 @@ import { z } from 'zod/v4'
 
 import { InjectableScope, InjectableType } from '../enums/index.mjs'
 import { DIError, DIErrorCode } from '../errors/index.mjs'
-import { InjectionToken } from '../token/token.mjs'
+import { Token } from '../token/token.mjs'
 
 import type { FactoryRecord } from '../token/registry.mjs'
 
@@ -207,7 +207,7 @@ describe('DIError', () => {
 
   describe('priorityConflictError', () => {
     it('should create PriorityConflictError', () => {
-      const token = InjectionToken.create<string>('test')
+      const token = Token.create<string>('test')
       const records: FactoryRecord[] = [
         {
           scope: InjectableScope.Singleton,

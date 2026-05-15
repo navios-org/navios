@@ -1,11 +1,13 @@
 /**
  * Garbage Collection Tests: Circular Dependencies
  *
- * Tests that services with circular dependencies (resolved via asyncInject)
+ * Tests that services with circular dependencies (resolved via @InjectLazy)
  * are properly garbage collected without memory leaks.
  *
- * Note: Direct circular dependencies throw CircularDependencyError.
- * Use asyncInject() to handle circular dependencies correctly.
+ * Note: Direct (eager) circular dependencies throw CircularDependencyError.
+ * Use @InjectLazy to handle circular dependencies correctly. Tokens are
+ * declared before the classes so the decorator can reference the other side
+ * of the cycle without a forward-reference error.
  *
  * Run with: NODE_OPTIONS=--expose-gc yarn nx test @navios/di
  */
@@ -13,11 +15,11 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import { Container } from '../../container/container.mjs'
+import { InjectLazy } from '../../decorators/inject-lazy.decorator.mjs'
 import { Injectable } from '../../decorators/injectable.decorator.mjs'
 import { InjectableScope } from '../../enums/injectable-scope.enum.mjs'
-import { InjectionToken } from '../../index.mjs'
 import { Registry } from '../../token/registry.mjs'
-import { asyncInject } from '../../utils/index.mjs'
+import { Token } from '../../token/token.mjs'
 
 import type { OnServiceDestroy } from '../../interfaces/on-service-destroy.interface.mjs'
 
@@ -42,32 +44,35 @@ describe.skipIf(!isGCAvailable)('GC: Circular Dependencies', () => {
     await container.dispose()
   })
 
-  describe('Two-way circular dependencies with asyncInject', () => {
+  describe('Two-way circular dependencies with @InjectLazy', () => {
     it('should garbage collect mutually dependent services after disposal', async () => {
-      @Injectable({ registry })
+      const TokA = Token.create<ServiceA>('TwoWayA')
+      const TokB = Token.create<ServiceB>('TwoWayB')
+
+      @Injectable({ registry, token: TokA })
       class ServiceA {
         public readonly id = Math.random()
         public readonly data = Array.from({ length: 500 }, () => 'a')
-        private serviceBPromise = asyncInject(ServiceB)
+        @InjectLazy(TokB) accessor serviceBPromise!: Promise<ServiceB>
 
         async getServiceB(): Promise<ServiceB> {
           return this.serviceBPromise
         }
       }
 
-      @Injectable({ registry })
+      @Injectable({ registry, token: TokB })
       class ServiceB {
         public readonly id = Math.random()
         public readonly data = Array.from({ length: 500 }, () => 'b')
-        private serviceAPromise = asyncInject(ServiceA)
+        @InjectLazy(TokA) accessor serviceAPromise!: Promise<ServiceA>
 
         async getServiceA(): Promise<ServiceA> {
           return this.serviceAPromise
         }
       }
 
-      let serviceA: ServiceA | null = await container.get(ServiceA)
-      let serviceB: ServiceB | null = await container.get(ServiceB)
+      let serviceA: ServiceA | null = await container.get(TokA)
+      let serviceB: ServiceB | null = await container.get(TokB)
 
       // Verify circular references are established
       expect(await serviceA.getServiceB()).toBe(serviceB)
@@ -91,20 +96,23 @@ describe.skipIf(!isGCAvailable)('GC: Circular Dependencies', () => {
     })
 
     it('should collect circular services when invalidated', async () => {
-      @Injectable({ registry })
+      const TokA = Token.create<ServiceA>('InvalidA')
+      const TokB = Token.create<ServiceB>('InvalidB')
+
+      @Injectable({ registry, token: TokA })
       class ServiceA {
         public readonly id = Math.random()
-        private _serviceBPromise = asyncInject(ServiceB)
+        @InjectLazy(TokB) accessor _serviceBPromise!: Promise<ServiceB>
       }
 
-      @Injectable({ registry })
+      @Injectable({ registry, token: TokB })
       class ServiceB {
         public readonly id = Math.random()
-        private _serviceAPromise = asyncInject(ServiceA)
+        @InjectLazy(TokA) accessor _serviceAPromise!: Promise<ServiceA>
       }
 
-      let serviceA1: ServiceA | null = await container.get(ServiceA)
-      let serviceB1: ServiceB | null = await container.get(ServiceB)
+      let serviceA1: ServiceA | null = await container.get(TokA)
+      let serviceB1: ServiceB | null = await container.get(TokB)
 
       const trackerA1 = createGCTracker(serviceA1)
       const trackerB1 = createGCTracker(serviceB1)
@@ -121,8 +129,8 @@ describe.skipIf(!isGCAvailable)('GC: Circular Dependencies', () => {
       forceGC()
 
       // Get new instances
-      const serviceA2 = await container.get(ServiceA)
-      const serviceB2 = await container.get(ServiceB)
+      const serviceA2 = await container.get(TokA)
+      const serviceB2 = await container.get(TokB)
 
       // Old instances should be different
       expect(serviceA2.id).not.toBe(id1A)
@@ -136,42 +144,46 @@ describe.skipIf(!isGCAvailable)('GC: Circular Dependencies', () => {
 
   describe('Three-way circular dependencies', () => {
     it('should garbage collect triangular dependency cycle', async () => {
-      @Injectable({ registry })
+      const TokA = Token.create<ServiceA>('TriA')
+      const TokB = Token.create<ServiceB>('TriB')
+      const TokC = Token.create<ServiceC>('TriC')
+
+      @Injectable({ registry, token: TokA })
       class ServiceA {
         public readonly id = 'A'
         public readonly data = Array.from({ length: 300 }, () => 'a')
-        private serviceBPromise = asyncInject(ServiceB)
+        @InjectLazy(TokB) accessor serviceBPromise!: Promise<ServiceB>
 
         async getB(): Promise<ServiceB> {
           return this.serviceBPromise
         }
       }
 
-      @Injectable({ registry })
+      @Injectable({ registry, token: TokB })
       class ServiceB {
         public readonly id = 'B'
         public readonly data = Array.from({ length: 300 }, () => 'b')
-        private serviceCPromise = asyncInject(ServiceC)
+        @InjectLazy(TokC) accessor serviceCPromise!: Promise<ServiceC>
 
         async getC(): Promise<ServiceC> {
           return this.serviceCPromise
         }
       }
 
-      @Injectable({ registry })
+      @Injectable({ registry, token: TokC })
       class ServiceC {
         public readonly id = 'C'
         public readonly data = Array.from({ length: 300 }, () => 'c')
-        private serviceAPromise = asyncInject(ServiceA)
+        @InjectLazy(TokA) accessor serviceAPromise!: Promise<ServiceA>
 
         async getA(): Promise<ServiceA> {
           return this.serviceAPromise
         }
       }
 
-      let a: ServiceA | null = await container.get(ServiceA)
-      let b: ServiceB | null = await container.get(ServiceB)
-      let c: ServiceC | null = await container.get(ServiceC)
+      let a: ServiceA | null = await container.get(TokA)
+      let b: ServiceB | null = await container.get(TokB)
+      let c: ServiceC | null = await container.get(TokC)
 
       // Verify the cycle: A -> B -> C -> A
       expect(await a.getB()).toBe(b)
@@ -202,29 +214,31 @@ describe.skipIf(!isGCAvailable)('GC: Circular Dependencies', () => {
   describe('Circular dependencies with lifecycle hooks', () => {
     it('should call onServiceDestroy for all circular services', async () => {
       const destroyOrder: string[] = []
+      const TokA = Token.create<ServiceA>('HookA')
+      const TokB = Token.create<ServiceB>('HookB')
 
-      @Injectable({ registry })
+      @Injectable({ registry, token: TokA })
       class ServiceA implements OnServiceDestroy {
         public readonly id = 'A'
-        private _serviceBPromise = asyncInject(ServiceB)
+        @InjectLazy(TokB) accessor _serviceBPromise!: Promise<ServiceB>
 
         onServiceDestroy(): void {
           destroyOrder.push('A')
         }
       }
 
-      @Injectable({ registry })
+      @Injectable({ registry, token: TokB })
       class ServiceB implements OnServiceDestroy {
         public readonly id = 'B'
-        private _serviceAPromise = asyncInject(ServiceA)
+        @InjectLazy(TokA) accessor _serviceAPromise!: Promise<ServiceA>
 
         onServiceDestroy(): void {
           destroyOrder.push('B')
         }
       }
 
-      let a: ServiceA | null = await container.get(ServiceA)
-      let b: ServiceB | null = await container.get(ServiceB)
+      let a: ServiceA | null = await container.get(TokA)
+      let b: ServiceB | null = await container.get(TokB)
 
       const trackerA = createGCTracker(a)
       const trackerB = createGCTracker(b)
@@ -249,10 +263,12 @@ describe.skipIf(!isGCAvailable)('GC: Circular Dependencies', () => {
 
     it('should handle async onServiceDestroy in circular services', async () => {
       const destroyCompleted: string[] = []
+      const TokA = Token.create<ServiceA>('AsyncHookA')
+      const TokB = Token.create<ServiceB>('AsyncHookB')
 
-      @Injectable({ registry })
+      @Injectable({ registry, token: TokA })
       class ServiceA implements OnServiceDestroy {
-        private _serviceBPromise = asyncInject(ServiceB)
+        @InjectLazy(TokB) accessor _serviceBPromise!: Promise<ServiceB>
 
         async onServiceDestroy(): Promise<void> {
           await new Promise((resolve) => setTimeout(resolve, 5))
@@ -260,9 +276,9 @@ describe.skipIf(!isGCAvailable)('GC: Circular Dependencies', () => {
         }
       }
 
-      @Injectable({ registry })
+      @Injectable({ registry, token: TokB })
       class ServiceB implements OnServiceDestroy {
-        private _serviceAPromise = asyncInject(ServiceA)
+        @InjectLazy(TokA) accessor _serviceAPromise!: Promise<ServiceA>
 
         async onServiceDestroy(): Promise<void> {
           await new Promise((resolve) => setTimeout(resolve, 5))
@@ -270,8 +286,8 @@ describe.skipIf(!isGCAvailable)('GC: Circular Dependencies', () => {
         }
       }
 
-      let a: ServiceA | null = await container.get(ServiceA)
-      let b: ServiceB | null = await container.get(ServiceB)
+      let a: ServiceA | null = await container.get(TokA)
+      let b: ServiceB | null = await container.get(TokB)
 
       const trackerA = createGCTracker(a)
       const trackerB = createGCTracker(b)
@@ -295,20 +311,23 @@ describe.skipIf(!isGCAvailable)('GC: Circular Dependencies', () => {
 
   describe('Circular dependencies in request scope', () => {
     it('should collect request-scoped circular services on endRequest', async () => {
-      @Injectable({ registry, scope: InjectableScope.Request })
+      const TokA = Token.create<RequestServiceA>('ReqCircA')
+      const TokB = Token.create<RequestServiceB>('ReqCircB')
+
+      @Injectable({ registry, scope: InjectableScope.Request, token: TokA })
       class RequestServiceA {
         public readonly id = Math.random()
-        private serviceBPromise = asyncInject(RequestServiceB)
+        @InjectLazy(TokB) accessor serviceBPromise!: Promise<RequestServiceB>
 
         async getB(): Promise<RequestServiceB> {
           return this.serviceBPromise
         }
       }
 
-      @Injectable({ registry, scope: InjectableScope.Request })
+      @Injectable({ registry, scope: InjectableScope.Request, token: TokB })
       class RequestServiceB {
         public readonly id = Math.random()
-        private serviceAPromise = asyncInject(RequestServiceA)
+        @InjectLazy(TokA) accessor serviceAPromise!: Promise<RequestServiceA>
 
         async getA(): Promise<RequestServiceA> {
           return this.serviceAPromise
@@ -317,8 +336,8 @@ describe.skipIf(!isGCAvailable)('GC: Circular Dependencies', () => {
 
       const scoped = container.beginRequest('circular-request')
 
-      let a: RequestServiceA | null = await scoped.get(RequestServiceA)
-      let b: RequestServiceB | null = await scoped.get(RequestServiceB)
+      let a: RequestServiceA | null = await scoped.get(TokA)
+      let b: RequestServiceB | null = await scoped.get(TokB)
 
       // Verify circular reference
       expect(await a.getB()).toBe(b)
@@ -341,22 +360,25 @@ describe.skipIf(!isGCAvailable)('GC: Circular Dependencies', () => {
 
   describe('Mixed scope circular dependencies', () => {
     it('should handle circular deps between singleton and request scope', async () => {
-      @Injectable({ registry })
+      const SingletonTok = Token.create<SingletonService>('MixedSingleton')
+      const RequestTok = Token.create<RequestService>('MixedRequest')
+
+      @Injectable({ registry, token: SingletonTok })
       class SingletonService {
         public readonly id = 'singleton'
         public readonly data = Array.from({ length: 500 }, () => 's')
-        private requestServicePromise = asyncInject(RequestService)
+        @InjectLazy(RequestTok) accessor requestServicePromise!: Promise<RequestService>
 
         async getRequestService(): Promise<RequestService> {
           return this.requestServicePromise
         }
       }
 
-      @Injectable({ registry, scope: InjectableScope.Request })
+      @Injectable({ registry, scope: InjectableScope.Request, token: RequestTok })
       class RequestService {
         public readonly id = Math.random()
         public readonly data = Array.from({ length: 500 }, () => 'r')
-        private singletonPromise = asyncInject(SingletonService)
+        @InjectLazy(SingletonTok) accessor singletonPromise!: Promise<SingletonService>
 
         async getSingleton(): Promise<SingletonService> {
           return this.singletonPromise
@@ -365,8 +387,8 @@ describe.skipIf(!isGCAvailable)('GC: Circular Dependencies', () => {
 
       const scoped = container.beginRequest('mixed-circular')
 
-      let singleton: SingletonService | null = await scoped.get(SingletonService)
-      let request: RequestService | null = await scoped.get(RequestService)
+      let singleton: SingletonService | null = await scoped.get(SingletonTok)
+      let request: RequestService | null = await scoped.get(RequestTok)
 
       const singletonTracker = createGCTracker(singleton)
       const requestTracker = createGCTracker(request)
@@ -396,21 +418,23 @@ describe.skipIf(!isGCAvailable)('GC: Circular Dependencies', () => {
       for (let i = 0; i < ITERATIONS; i++) {
         const localRegistry = new Registry()
         const localContainer = new Container(localRegistry)
+        const TokA = Token.create<ServiceA>(`LeakA${i}`)
+        const TokB = Token.create<ServiceB>(`LeakB${i}`)
 
-        @Injectable({ registry: localRegistry })
+        @Injectable({ registry: localRegistry, token: TokA })
         class ServiceA {
           public readonly data = new Uint8Array(ALLOCATION_SIZE)
-          private _serviceBPromise = asyncInject(ServiceB)
+          @InjectLazy(TokB) accessor _serviceBPromise!: Promise<ServiceB>
         }
 
-        @Injectable({ registry: localRegistry })
+        @Injectable({ registry: localRegistry, token: TokB })
         class ServiceB {
           public readonly data = new Uint8Array(ALLOCATION_SIZE)
-          private _serviceAPromise = asyncInject(ServiceA)
+          @InjectLazy(TokA) accessor _serviceAPromise!: Promise<ServiceA>
         }
 
-        await localContainer.get(ServiceA)
-        await localContainer.get(ServiceB)
+        await localContainer.get(TokA)
+        await localContainer.get(TokB)
 
         await localContainer.dispose()
       }
@@ -421,79 +445,6 @@ describe.skipIf(!isGCAvailable)('GC: Circular Dependencies', () => {
 
       // Memory growth should be minimal (less than 2 iteration's allocations)
       expect(memoryGrowth).toBeLessThan(ALLOCATION_SIZE * 2 * 2)
-    })
-
-    // This test is Kinda working, but it's not very reliable and V8 optimizations can make it fail.
-    it.skip('should reclaim all memory from complex circular graph', async () => {
-      const ALLOCATION_SIZE = 1024 * 20 // 20KB
-      const NODE_COUNT = 5
-
-      // Create a fully connected circular graph
-      let services: Array<{ new (): object }> = []
-
-      for (let i = 0; i < NODE_COUNT; i++) {
-        const token = InjectionToken.create<GraphNode>(`GraphNode${i}`)
-        @Injectable({ registry, token })
-        class GraphNode implements OnServiceDestroy {
-          public readonly nodeId = i
-          public readonly data = new Uint8Array(ALLOCATION_SIZE)
-          // Each node references all others via asyncInject
-          private _deps = services
-            .filter((S) => S !== GraphNode)
-            .map((S) => asyncInject(S).catch(() => null))
-
-          onServiceDestroy(): void {
-            // Clear the promises array to allow garbage collection
-            // Resolved promises hold references to their resolved values,
-            // so we need to clear them explicitly
-            this._deps.length = 0
-          }
-        }
-        services.push(GraphNode)
-      }
-
-      forceGC()
-      const baselineMemory = getHeapUsed()
-
-      // Resolve all services
-      let instances: object[] = await Promise.all(services.map((S) => container.get(S)))
-
-      forceGC()
-      // Get the memory after the services are allocated
-      const afterAllocationMemory = getHeapUsed()
-      const allocated = afterAllocationMemory - baselineMemory
-      expect(allocated).toBeGreaterThan(ALLOCATION_SIZE * NODE_COUNT * 0.5)
-
-      let trackers = instances.map((inst) => createGCTracker(inst))
-
-      await container.dispose()
-
-      registry = new Registry()
-      container = new Container(registry)
-
-      // Release local references
-      instances = []
-      // services = []
-
-      // All nodes should be collected
-      for (const tracker of trackers) {
-        expect(await waitForGC(tracker().ref)).toBe(true)
-      }
-      // Clear the trackers array to allow garbage collection
-      trackers = []
-      // Force GC again to ensure everything is collected
-      forceGC()
-
-      const afterReleaseMemory = getHeapUsed()
-      const reclaimed = afterAllocationMemory - afterReleaseMemory
-
-      console.log('baselineMemory', baselineMemory)
-      console.log('reclaimed', reclaimed)
-      console.log('allocated', allocated)
-      console.log('afterAllocationMemory', afterAllocationMemory)
-      console.log('afterReleaseMemory', afterReleaseMemory)
-      // Should reclaim most memory
-      expect(reclaimed).toBeGreaterThan(allocated * 0.7)
     })
   })
 })

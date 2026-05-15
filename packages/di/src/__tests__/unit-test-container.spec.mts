@@ -3,7 +3,7 @@ import { z } from 'zod'
 
 import { Injectable } from '../decorators/injectable.decorator.mjs'
 import { UnitTestContainer } from '../testing/unit-test-container.mjs'
-import { InjectionToken } from '../token/token.mjs'
+import { Token } from '../token/token.mjs'
 
 describe('UnitTestContainer', () => {
   describe('Strict Mode (default)', () => {
@@ -39,7 +39,7 @@ describe('UnitTestContainer', () => {
     })
 
     it('should use provided value', async () => {
-      const TOKEN = InjectionToken.create<{ value: string }>('config')
+      const TOKEN = Token.create<{ value: string }>('config')
 
       const container = new UnitTestContainer({
         providers: [{ token: TOKEN, useValue: { value: 'test-config' } }],
@@ -52,7 +52,7 @@ describe('UnitTestContainer', () => {
     })
 
     it('should use provided class', async () => {
-      const TOKEN = InjectionToken.create<{ getName(): string }>('service')
+      const TOKEN = Token.create<{ getName(): string }>('service')
 
       class MockService {
         getName(): string {
@@ -71,7 +71,7 @@ describe('UnitTestContainer', () => {
     })
 
     it('should use provided factory', async () => {
-      const TOKEN = InjectionToken.create<{ id: number }>('factory')
+      const TOKEN = Token.create<{ id: number }>('factory')
 
       const container = new UnitTestContainer({
         providers: [{ token: TOKEN, useFactory: () => ({ id: 42 }) }],
@@ -89,12 +89,12 @@ describe('UnitTestContainer', () => {
         timeout: z.number(),
       })
 
-      const CONFIG_TOKEN = InjectionToken.create<
+      const CONFIG_TOKEN = Token.create<
         { apiUrl: string; timeout: number },
         typeof configSchema
       >('CONFIG', configSchema)
 
-      const BOUND_CONFIG = InjectionToken.bound(CONFIG_TOKEN, {
+      const BOUND_CONFIG = Token.bound(CONFIG_TOKEN, {
         apiUrl: 'https://default.com',
         timeout: 5000,
       })
@@ -120,12 +120,12 @@ describe('UnitTestContainer', () => {
         apiUrl: z.string(),
       })
 
-      const CONFIG_TOKEN = InjectionToken.create<{ apiUrl: string }, typeof configSchema>(
+      const CONFIG_TOKEN = Token.create<{ apiUrl: string }, typeof configSchema>(
         'CONFIG',
         configSchema,
       )
 
-      const BOUND_CONFIG = InjectionToken.bound(CONFIG_TOKEN, {
+      const BOUND_CONFIG = Token.bound(CONFIG_TOKEN, {
         apiUrl: 'https://default.com',
       })
 
@@ -151,12 +151,12 @@ describe('UnitTestContainer', () => {
         apiUrl: z.string(),
       })
 
-      const CONFIG_TOKEN = InjectionToken.create<{ apiUrl: string }, typeof configSchema>(
+      const CONFIG_TOKEN = Token.create<{ apiUrl: string }, typeof configSchema>(
         'CONFIG',
         configSchema,
       )
 
-      const BOUND_CONFIG = InjectionToken.bound(CONFIG_TOKEN, {
+      const BOUND_CONFIG = Token.bound(CONFIG_TOKEN, {
         apiUrl: 'https://default.com',
       })
 
@@ -181,12 +181,12 @@ describe('UnitTestContainer', () => {
         timeout: z.number(),
       })
 
-      const CONFIG_TOKEN = InjectionToken.create<
+      const CONFIG_TOKEN = Token.create<
         { apiUrl: string; timeout: number },
         typeof configSchema
       >('CONFIG', configSchema)
 
-      const BOUND_CONFIG = InjectionToken.bound(CONFIG_TOKEN, {
+      const BOUND_CONFIG = Token.bound(CONFIG_TOKEN, {
         apiUrl: 'https://bound-value.com',
         timeout: 3000,
       })

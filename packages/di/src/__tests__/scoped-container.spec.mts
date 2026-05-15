@@ -14,12 +14,12 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { z } from 'zod/v4'
 
 import { Container } from '../container/container.mjs'
+import { Inject } from '../decorators/inject.decorator.mjs'
 import { Injectable } from '../decorators/injectable.decorator.mjs'
 import { InjectableScope } from '../enums/index.mjs'
 import { DIError, DIErrorCode } from '../errors/di-error.mjs'
-import { InjectionToken } from '../token/token.mjs'
 import { Registry } from '../token/registry.mjs'
-import { getInjectors } from '../utils/get-injectors.mjs'
+import { Token } from '../token/token.mjs'
 
 // ============================================================================
 // TEST UTILITIES
@@ -27,10 +27,9 @@ import { getInjectors } from '../utils/get-injectors.mjs'
 
 function createTestSetup() {
   const registry = new Registry()
-  const injectors = getInjectors()
-  const container = new Container(registry, null, injectors)
+  const container = new Container(registry)
 
-  return { registry, injectors, container }
+  return { registry, container }
 }
 
 // ============================================================================
@@ -252,13 +251,13 @@ describe('ScopedContainer: addInstance Method', () => {
     })
   })
 
-  describe('addInstance with InjectionToken (no schema)', () => {
-    it('should add instance for InjectionToken without schema', async () => {
+  describe('addInstance with Token (no schema)', () => {
+    it('should add instance for Token without schema', async () => {
       interface TestService {
         value: string
       }
 
-      const token = InjectionToken.create<TestService>('TestService')
+      const token = Token.create<TestService>('TestService')
       const instance: TestService = { value: 'test' }
 
       const scoped = container.beginRequest('request-1')
@@ -271,33 +270,7 @@ describe('ScopedContainer: addInstance Method', () => {
       scoped.endRequest()
     })
 
-    it('should add instance for InjectionToken with optional schema', async () => {
-      interface TestService {
-        value: string
-      }
-
-      const optionalSchema = z
-        .object({
-          name: z.string(),
-        })
-        .optional()
-
-      const token = InjectionToken.create<TestService, typeof optionalSchema>(
-        'TestService',
-        optionalSchema,
-      )
-      const instance: TestService = { value: 'test' }
-
-      const scoped = container.beginRequest('request-1')
-      scoped.addInstance(token, instance)
-
-      const retrieved = await scoped.get(token)
-      expect(retrieved).toBe(instance)
-
-      scoped.endRequest()
-    })
-
-    it('should reject InjectionToken with required schema', () => {
+    it('should reject Token with required schema', () => {
       interface TestService {
         value: string
       }
@@ -307,7 +280,7 @@ describe('ScopedContainer: addInstance Method', () => {
         age: z.number(),
       })
 
-      const token = InjectionToken.create<TestService, typeof requiredSchema>(
+      const token = Token.create<TestService, typeof requiredSchema>(
         'TestService',
         requiredSchema,
       )
@@ -334,8 +307,8 @@ describe('ScopedContainer: addInstance Method', () => {
     })
   })
 
-  describe('addInstance with BoundInjectionToken', () => {
-    it('should add instance for BoundInjectionToken with required schema', async () => {
+  describe('addInstance with BoundToken', () => {
+    it('should add instance for BoundToken with required schema', async () => {
       interface TestService {
         value: string
       }
@@ -345,12 +318,12 @@ describe('ScopedContainer: addInstance Method', () => {
         age: z.number(),
       })
 
-      const token = InjectionToken.create<TestService, typeof requiredSchema>(
+      const token = Token.create<TestService, typeof requiredSchema>(
         'TestService',
         requiredSchema,
       )
 
-      const boundToken = InjectionToken.bound(token, {
+      const boundToken = Token.bound(token, {
         name: 'John',
         age: 30,
       })
@@ -377,10 +350,10 @@ describe('ScopedContainer: addInstance Method', () => {
         id: z.string(),
       })
 
-      const token = InjectionToken.create<TestService, typeof schema>('TestService', schema)
+      const token = Token.create<TestService, typeof schema>('TestService', schema)
 
-      const boundToken1 = InjectionToken.bound(token, { id: '1' })
-      const boundToken2 = InjectionToken.bound(token, { id: '2' })
+      const boundToken1 = Token.bound(token, { id: '1' })
+      const boundToken2 = Token.bound(token, { id: '2' })
 
       const instance1: TestService = { value: 'instance1' }
       const instance2: TestService = { value: 'instance2' }
@@ -467,13 +440,11 @@ describe('ScopedContainer: addInstance Method', () => {
 describe('ScopedContainer: Complex Scenarios', () => {
   let registry: Registry
   let container: Container
-  let injectors: ReturnType<typeof getInjectors>
 
   beforeEach(() => {
     const setup = createTestSetup()
     registry = setup.registry
     container = setup.container
-    injectors = setup.injectors
   })
 
   afterEach(async () => {
@@ -482,14 +453,14 @@ describe('ScopedContainer: Complex Scenarios', () => {
 
   describe('Mixed scopes with addInstance', () => {
     it('should handle singleton depending on request-scoped added instance', async () => {
-      @Injectable({ scope: InjectableScope.Singleton, registry })
-      class SingletonService {
-        public requestService = injectors.inject(RequestService)
-      }
-
       @Injectable({ scope: InjectableScope.Request, registry })
       class RequestService {
         value = 'request'
+      }
+
+      @Injectable({ scope: InjectableScope.Singleton, registry })
+      class SingletonService {
+        @Inject(RequestService) accessor requestService!: RequestService
       }
 
       const scoped = container.beginRequest('request-1')
@@ -512,14 +483,14 @@ describe('ScopedContainer: Complex Scenarios', () => {
       interface TokenService {
         value: string
       }
-      const token = InjectionToken.create<TokenService>('TokenService')
+      const token = Token.create<TokenService>('TokenService')
 
       const schema = z.object({ id: z.string() })
       interface BoundService {
         value: string
       }
-      const boundToken = InjectionToken.bound(
-        InjectionToken.create<BoundService, typeof schema>('BoundService', schema),
+      const boundToken = Token.bound(
+        Token.create<BoundService, typeof schema>('BoundService', schema),
         { id: '123' },
       )
 

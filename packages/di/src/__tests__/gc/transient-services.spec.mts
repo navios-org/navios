@@ -13,7 +13,7 @@ import { Container } from '../../container/container.mjs'
 import { Injectable } from '../../decorators/injectable.decorator.mjs'
 import { InjectableScope } from '../../enums/injectable-scope.enum.mjs'
 import { Registry } from '../../token/registry.mjs'
-import { inject } from '../../utils/index.mjs'
+import { Inject } from '../../decorators/inject.decorator.mjs'
 
 import type { OnServiceDestroy } from '../../interfaces/on-service-destroy.interface.mjs'
 
@@ -131,7 +131,7 @@ describe.skipIf(!isGCAvailable)('GC: Transient Services', () => {
 
       @Injectable({ registry, scope: InjectableScope.Transient })
       class TransientWithSingletonDep {
-        public readonly dep = inject(SingletonDep)
+        @Inject(SingletonDep) accessor dep!: SingletonDep
         public readonly id = Math.random()
       }
 
@@ -168,7 +168,7 @@ describe.skipIf(!isGCAvailable)('GC: Transient Services', () => {
 
       @Injectable({ registry, scope: InjectableScope.Transient })
       class TransientParent {
-        public readonly dep = inject(TransientDep)
+        @Inject(TransientDep) accessor dep!: TransientDep
         public readonly data = Array.from({ length: 500 }, () => 'parent')
       }
 
@@ -269,13 +269,13 @@ describe.skipIf(!isGCAvailable)('GC: Transient Services', () => {
 
       @Injectable({ registry, scope: InjectableScope.Transient })
       class TransientA {
-        public readonly singletonA = inject(SingletonA)
+        @Inject(SingletonA) accessor singletonA!: SingletonA
         public readonly data = Array.from({ length: 500 }, () => 'transient-a')
       }
 
       @Injectable({ registry, scope: InjectableScope.Transient })
       class TransientB {
-        public readonly singletonB = inject(SingletonB)
+        @Inject(SingletonB) accessor singletonB!: SingletonB
         public readonly data = Array.from({ length: 500 }, () => 'transient-b')
       }
 
