@@ -53,6 +53,8 @@ export class Token<
   // oxlint-disable-next-line no-unused-vars
   T,
   S extends StandardSchemaV1 | undefined = undefined,
+  // Required is always true for any StandardSchemaV1 schema; per-schema
+  // optionality detection was dropped in v2 (not expressible generically).
   // oxlint-disable-next-line no-unused-vars
   Required extends boolean = S extends StandardSchemaV1 ? true : false,
 > {
@@ -74,7 +76,7 @@ export class Token<
   ): Token<InstanceType<T>, Schema, true>
   static create<T>(name: string | symbol): Token<T, undefined>
   static create<T, Schema extends StandardSchemaV1>(
-    name: string | any,
+    name: string | symbol | ClassType,
     schema: Schema,
   ): Token<T, Schema>
   static create(name: string | symbol, schema?: unknown, customId?: string) {
