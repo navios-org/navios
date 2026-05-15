@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useRef, useSyncExternalStore } from 'react'
 
 import type {
-  BoundInjectionToken,
+  BoundToken,
   ClassType,
   Container,
   Factorable,
-  FactoryInjectionToken,
-  InjectionToken,
-  InjectionTokenSchemaType,
+  FactoryToken,
+  Token,
+  TokenSchemaType,
 } from '@navios/di'
 import type { z, ZodType } from 'zod/v4'
 
@@ -52,7 +52,7 @@ function getCache(container: object): Map<string, CacheEntry<any>> {
 function setupInvalidationSubscription(entry: CacheEntry<any>, rootContainer: Container): void {
   if (entry.unsubscribe || !entry.instanceName) return
 
-  const eventBus = rootContainer.getEventBus()
+  const eventBus = rootContainer.internals.eventBus
   entry.unsubscribe = eventBus.on(entry.instanceName, 'destroy', () => {
     // Clear cache and notify subscribers to re-fetch
     entry.result = undefined
@@ -70,14 +70,14 @@ export function useSuspenseService<T extends ClassType>(
 ): InstanceType<T> extends Factorable<infer R> ? R : InstanceType<T>
 
 // #2 Token with required Schema
-export function useSuspenseService<T, S extends InjectionTokenSchemaType>(
-  token: InjectionToken<T, S>,
+export function useSuspenseService<T, S extends TokenSchemaType>(
+  token: Token<T, S>,
   args: z.input<S>,
 ): T
 
 // #3 Token with optional Schema
-export function useSuspenseService<T, S extends InjectionTokenSchemaType, R extends boolean>(
-  token: InjectionToken<T, S, R>,
+export function useSuspenseService<T, S extends TokenSchemaType, R extends boolean>(
+  token: Token<T, S, R>,
 ): R extends false
   ? T
   : S extends ZodType<infer Type>
@@ -85,18 +85,14 @@ export function useSuspenseService<T, S extends InjectionTokenSchemaType, R exte
     : 'Error: Your token requires args'
 
 // #4 Token with no Schema
-export function useSuspenseService<T>(token: InjectionToken<T, undefined>): T
+export function useSuspenseService<T>(token: Token<T, undefined>): T
 
-export function useSuspenseService<T>(token: BoundInjectionToken<T, any>): T
+export function useSuspenseService<T>(token: BoundToken<T, any>): T
 
-export function useSuspenseService<T>(token: FactoryInjectionToken<T, any>): T
+export function useSuspenseService<T>(token: FactoryToken<T, any>): T
 
 export function useSuspenseService(
-  token:
-    | ClassType
-    | InjectionToken<any, any>
-    | BoundInjectionToken<any, any>
-    | FactoryInjectionToken<any, any>,
+  token: ClassType | Token<any, any> | BoundToken<any, any> | FactoryToken<any, any>,
   args?: unknown,
 ): any {
   // useContainer returns ScopedContainer if inside ScopeProvider, otherwise Container

@@ -1,4 +1,4 @@
-import { Container, Injectable, InjectionToken, Registry } from '@navios/di'
+import { Container, Injectable, Registry, Token } from '@navios/di'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { createElement, useMemo } from 'react'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -13,7 +13,7 @@ describe('useService', () => {
 
   beforeEach(() => {
     registry = new Registry()
-    container = new Container(registry)
+    container = new Container({ registry })
   })
 
   afterEach(async () => {
@@ -115,10 +115,10 @@ describe('useService', () => {
 
   describe('with injection tokens', () => {
     it('should load a service with injection token', async () => {
-      const TestToken = InjectionToken.create<{ value: string }>('TestToken')
+      const TestToken = Token.create<{ value: string }>('TestToken')
 
       @Injectable({ registry, token: TestToken })
-      class TestService {
+      class _TestService {
         value = 'token-value'
       }
 
@@ -135,13 +135,13 @@ describe('useService', () => {
 
     it('should load a service with injection token and args', async () => {
       const UserSchema = z.object({ userId: z.string() })
-      const UserToken = InjectionToken.create<{ userId: string; name: string }, typeof UserSchema>(
+      const UserToken = Token.create<{ userId: string; name: string }, typeof UserSchema>(
         'User',
         UserSchema,
       )
 
       @Injectable({ registry, token: UserToken })
-      class UserService {
+      class _UserService {
         public userId: string
         public name: string
 

@@ -1,4 +1,4 @@
-import { Container, Injectable, InjectionToken, Registry } from '@navios/di'
+import { Container, Injectable, Registry, Token } from '@navios/di'
 import { act, render, screen, waitFor } from '@testing-library/react'
 import { createElement, Suspense, useMemo } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -13,7 +13,7 @@ describe('useSuspenseService', () => {
 
   beforeEach(() => {
     registry = new Registry()
-    container = new Container(registry)
+    container = new Container({ registry })
   })
 
   afterEach(() => {
@@ -69,7 +69,7 @@ describe('useSuspenseService', () => {
 
   describe('with injection tokens', () => {
     it('should load service with injection token', async () => {
-      const ConfigToken = InjectionToken.create<{ apiUrl: string }>('Config')
+      const ConfigToken = Token.create<{ apiUrl: string }>('Config')
 
       @Injectable({ registry, token: ConfigToken })
       class _ConfigService {
@@ -102,7 +102,7 @@ describe('useSuspenseService', () => {
 
     it('should load service with injection token and args', async () => {
       const UserSchema = z.object({ userId: z.string() })
-      const UserToken = InjectionToken.create<
+      const UserToken = Token.create<
         { userId: string; displayName: string },
         typeof UserSchema
       >('User', UserSchema)

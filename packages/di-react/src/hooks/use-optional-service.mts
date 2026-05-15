@@ -2,12 +2,12 @@ import { useCallback, useEffect, useReducer, useRef } from 'react'
 
 import type {
   AnyInjectableType,
-  BoundInjectionToken,
+  BoundToken,
   ClassType,
   Factorable,
-  FactoryInjectionToken,
-  InjectionToken,
-  InjectionTokenSchemaType,
+  FactoryToken,
+  Token,
+  TokenSchemaType,
 } from '@navios/di'
 import type { z, ZodType } from 'zod/v4'
 
@@ -86,14 +86,14 @@ export function useOptionalService<T extends ClassType>(
 ): UseOptionalServiceResult<InstanceType<T> extends Factorable<infer R> ? R : InstanceType<T>>
 
 // #2 Token with required Schema
-export function useOptionalService<T, S extends InjectionTokenSchemaType>(
-  token: InjectionToken<T, S>,
+export function useOptionalService<T, S extends TokenSchemaType>(
+  token: Token<T, S>,
   args: z.input<S>,
 ): UseOptionalServiceResult<T>
 
 // #3 Token with optional Schema
-export function useOptionalService<T, S extends InjectionTokenSchemaType, R extends boolean>(
-  token: InjectionToken<T, S, R>,
+export function useOptionalService<T, S extends TokenSchemaType, R extends boolean>(
+  token: Token<T, S, R>,
 ): R extends false
   ? UseOptionalServiceResult<T>
   : S extends ZodType<infer Type>
@@ -102,15 +102,15 @@ export function useOptionalService<T, S extends InjectionTokenSchemaType, R exte
 
 // #4 Token with no Schema
 export function useOptionalService<T>(
-  token: InjectionToken<T, undefined>,
+  token: Token<T, undefined>,
 ): UseOptionalServiceResult<T>
 
 export function useOptionalService<T>(
-  token: BoundInjectionToken<T, any>,
+  token: BoundToken<T, any>,
 ): UseOptionalServiceResult<T>
 
 export function useOptionalService<T>(
-  token: FactoryInjectionToken<T, any>,
+  token: FactoryToken<T, any>,
 ): UseOptionalServiceResult<T>
 
 /**
@@ -139,11 +139,7 @@ export function useOptionalService<T>(
  * ```
  */
 export function useOptionalService(
-  token:
-    | ClassType
-    | InjectionToken<any, any>
-    | BoundInjectionToken<any, any>
-    | FactoryInjectionToken<any, any>,
+  token: ClassType | Token<any, any> | BoundToken<any, any> | FactoryToken<any, any>,
   args?: unknown,
 ): UseOptionalServiceResult<any> {
   // useContainer returns ScopedContainer if inside ScopeProvider, otherwise Container
@@ -157,10 +153,17 @@ export function useOptionalService(
   const isFirstRenderRef = useRef(true)
 
   if (isFirstRenderRef.current) {
+    // v2 removed the throw-proxy, but tryGetSync still throws for a bare class
+    // that is NOT decorated with @Injectable: AbstractContainer.tryGetSync
+    // calls tokenResolver.getRegistryToken(token) *outside* its internal
+    // try/catch (abstract-container.mts:165), and getInjectableToken throws
+    // for an unregistered class. Since this hook's entire purpose is to
+    // tolerate unregistered services, the defensive guard is required.
     try {
       initialSyncInstanceRef.current = container.tryGetSync(token, args)
     } catch {
-      // Service not registered, leave as undefined
+      // Service not registered — leave as undefined and fall through to the
+      // async fetch, which classifies "not registered" as not-found.
     }
     isFirstRenderRef.current = false
   }
@@ -222,7 +225,7 @@ Example:
 
   // Subscribe to invalidation events
   useEffect(() => {
-    const eventBus = rootContainer.getEventBus()
+    const eventBus = rootContainer.internals.eventBus
     let unsubscribe: (() => void) | undefined
 
     // If we already have a sync instance from initial render, just set up subscription

@@ -13,7 +13,7 @@ describe('useContainer', () => {
 
   beforeEach(() => {
     registry = new Registry(globalRegistry)
-    container = new Container(registry)
+    container = new Container({ registry })
   })
 
   afterEach(async () => {
@@ -80,7 +80,7 @@ describe('useRootContainer', () => {
 
   beforeEach(() => {
     registry = new Registry(globalRegistry)
-    container = new Container(registry)
+    container = new Container({ registry })
   })
 
   afterEach(async () => {

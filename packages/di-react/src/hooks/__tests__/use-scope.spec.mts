@@ -19,7 +19,7 @@ describe('useScope', () => {
 
   beforeEach(() => {
     registry = new Registry(globalRegistry)
-    container = new Container(registry)
+    container = new Container({ registry })
   })
 
   afterEach(async () => {
@@ -78,7 +78,7 @@ describe('useScopeOrThrow', () => {
 
   beforeEach(() => {
     registry = new Registry(globalRegistry)
-    container = new Container(registry)
+    container = new Container({ registry })
   })
 
   afterEach(async () => {
@@ -117,7 +117,7 @@ describe('useScopedContainer', () => {
 
   beforeEach(() => {
     registry = new Registry(globalRegistry)
-    container = new Container(registry)
+    container = new Container({ registry })
   })
 
   afterEach(async () => {
@@ -157,7 +157,7 @@ describe('useScopedContainerOrThrow', () => {
 
   beforeEach(() => {
     registry = new Registry(globalRegistry)
-    container = new Container(registry)
+    container = new Container({ registry })
   })
 
   afterEach(async () => {
@@ -196,7 +196,7 @@ describe('useScopeMetadata', () => {
 
   beforeEach(() => {
     registry = new Registry(globalRegistry)
-    container = new Container(registry)
+    container = new Container({ registry })
   })
 
   afterEach(async () => {
