@@ -2,8 +2,8 @@ import { z } from 'zod/v4'
 
 import { Factory } from '../decorators/index.mjs'
 import { InjectableScope } from '../enums/index.mjs'
-import { InjectionToken } from '../token/token.mjs'
 import { Registry } from '../token/registry.mjs'
+import { Token } from '../token/token.mjs'
 
 import type { Factorable, FactorableWithArgs } from '../interfaces/index.mjs'
 
@@ -24,7 +24,7 @@ class TestFactory2 implements Factorable<number> {
 }
 
 // Test factory with token
-const token = InjectionToken.create('TestToken')
+const token = Token.create('TestToken')
 @Factory({ token })
 class TestFactory3 implements Factorable<boolean> {
   create() {
@@ -34,10 +34,7 @@ class TestFactory3 implements Factorable<boolean> {
 
 // Test factory with token and schema
 const schema = z.object({ name: z.string() })
-const tokenWithSchema = InjectionToken.create<{ name: string }, typeof schema>(
-  'TestTokenWithSchema',
-  schema,
-)
+const tokenWithSchema = Token.create<{ name: string }, typeof schema>('TestTokenWithSchema', schema)
 @Factory({ token: tokenWithSchema })
 class TestFactory4 implements FactorableWithArgs<{ name: string }, typeof schema> {
   create(ctx: any, args: z.output<typeof schema>) {

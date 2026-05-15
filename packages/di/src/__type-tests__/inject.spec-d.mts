@@ -1,216 +1,107 @@
-import { assertType, describe, test } from 'vitest'
+// oxlint-disable no-unused-vars
+import { expectTypeOf, test } from 'vitest'
 import { z } from 'zod/v4'
 
-import { Injectable } from '../decorators/index.mjs'
-import { InjectionToken } from '../token/token.mjs'
-import { asyncInject, inject, optional } from '../utils/default-injectors.mjs'
+import { Inject } from '../decorators/inject.decorator.mjs'
+import { InjectDerived } from '../decorators/inject-derived.decorator.mjs'
+import { InjectLazy } from '../decorators/inject-lazy.decorator.mjs'
+import { InjectOptional } from '../decorators/inject-optional.decorator.mjs'
+import {
+  getInjections,
+  InjectionKind,
+} from '../decorators/injection-metadata.mjs'
+import { Token } from '../token/token.mjs'
+
+import type { InjectionEntry } from '../decorators/injection-metadata.mjs'
+
+// The v1 `inject()` / `asyncInject()` / `optional()` resolver FUNCTIONS were
+// removed in the v2 overhaul (Task 3.2). The v2 injection API is the four
+// field decorators applied to `accessor` members. This file type-tests those
+// decorators and the injection-metadata surface.
 
 interface FooService {
   makeFoo(): string
 }
 
-const simpleObjectSchema = z.object({
-  foo: z.string(),
-})
-const simpleOptionalObjectSchema = z
-  .object({
-    foo: z.string(),
-  })
-  .optional()
+const fooToken = Token.create<FooService>('FooService')
+const schema = z.object({ foo: z.string() })
+const schemaToken = Token.create<FooService, typeof schema>('FooServiceWithSchema', schema)
 
-const typelessObjectToken = InjectionToken.create(
-  Symbol.for('Typeless object token'),
-  simpleObjectSchema,
-)
-const typelessOptionalObjectToken = InjectionToken.create(
-  Symbol.for('Typeless optional object token'),
-  simpleOptionalObjectSchema,
-)
+test('@Inject is an accessor decorator producing a value/void result', () => {
+  class Service {
+    @Inject(fooToken) accessor foo!: FooService
+  }
+  expectTypeOf(new Service().foo).toEqualTypeOf<FooService>()
 
-const typedObjectToken = InjectionToken.create<FooService, typeof simpleObjectSchema>(
-  Symbol.for('Typed object token'),
-  simpleObjectSchema,
-)
-const typedOptionalObjectToken = InjectionToken.create<
-  FooService,
-  typeof simpleOptionalObjectSchema
->(Symbol.for('Typed optional object token'), simpleOptionalObjectSchema)
+  // @Inject also accepts a bare class and optional args.
+  class Dep {}
+  class WithClassDep {
+    @Inject(Dep) accessor dep!: Dep
+  }
+  expectTypeOf(new WithClassDep().dep).toEqualTypeOf<Dep>()
 
-const typedToken = InjectionToken.create<FooService>(Symbol.for('Typed token'))
-
-describe('asyncInject', () => {
-  describe('#1 Classes', () => {
-    test('simple class', async () => {
-      @Injectable()
-      class Foo {
-        makeFoo() {
-          return 'foo'
-        }
-      }
-
-      assertType<Foo>(await asyncInject(Foo))
-    })
-
-    test('class with required argument', async () => {
-      @Injectable({
-        schema: simpleObjectSchema,
-      })
-      class Foo {
-        constructor(public arg: z.infer<typeof simpleObjectSchema>) {}
-      }
-
-      assertType<Foo>(await asyncInject(Foo, { foo: 'bar' }))
-    })
-
-    test('should fail if not compatible', async () => {
-      @Injectable({
-        schema: simpleObjectSchema,
-      })
-      class Foo {
-        constructor(public arg: z.infer<typeof simpleObjectSchema>) {}
-      }
-
-      // @ts-expect-error Should fail if not compatible
-      await asyncInject(Foo, { test: 'bar' })
-    })
-  })
-
-  test('#2 Token with required Schema', async () => {
-    const result = await asyncInject(typelessObjectToken, { foo: 'bar' })
-    assertType<unknown>(result)
-
-    const result2 = await asyncInject(typedObjectToken, { foo: 'bar' })
-    assertType<FooService>(result2)
-
-    // @ts-expect-error We show error when we pass the wrong type
-    await asyncInject(typedObjectToken, undefined)
-  })
-
-  test('#3 Token with optional Schema', async () => {
-    const result = await asyncInject(typelessOptionalObjectToken)
-    assertType<unknown>(result)
-
-    const result2 = await asyncInject(typedOptionalObjectToken)
-    assertType<FooService>(result2)
-
-    const result3 = await asyncInject(typedObjectToken)
-    // Special case when we pass the token without args
-    // We can only return an error string
-    assertType<'Error: Your token requires args: foo'>(result3)
-  })
-
-  test('#4 Token with no Schema', async () => {
-    const result = await asyncInject(typedToken)
-    assertType<FooService>(result)
-  })
+  // Schema-bearing token + args.
+  class WithArgs {
+    @Inject(schemaToken, { foo: 'bar' }) accessor svc!: FooService
+  }
+  expectTypeOf(new WithArgs().svc).toEqualTypeOf<FooService>()
 })
 
-describe('inject (synchronous)', () => {
-  describe('#1 Classes', () => {
-    test('simple class', () => {
-      @Injectable()
-      class Foo {
-        makeFoo() {
-          return 'foo'
-        }
-      }
-
-      assertType<Foo>(inject(Foo))
-    })
-
-    test('class with required argument', () => {
-      @Injectable({
-        schema: simpleObjectSchema,
-      })
-      class Foo {
-        constructor(public arg: z.infer<typeof simpleObjectSchema>) {}
-      }
-
-      assertType<Foo>(inject(Foo, { foo: 'bar' }))
-    })
-
-    test('should fail if not compatible', () => {
-      @Injectable({
-        schema: simpleObjectSchema,
-      })
-      class Foo {
-        constructor(public arg: z.infer<typeof simpleObjectSchema>) {}
-      }
-
-      // @ts-expect-error Should fail if not compatible
-      inject(Foo, { test: 'bar' })
-    })
-  })
-
-  test('#2 Token with required Schema', () => {
-    const result = inject(typelessObjectToken, { foo: 'bar' })
-    assertType<unknown>(result)
-
-    const result2 = inject(typedObjectToken, { foo: 'bar' })
-    assertType<FooService>(result2)
-
-    // @ts-expect-error We show error when we pass the wrong type
-    inject(typedObjectToken, undefined)
-  })
-
-  test('#3 Token with optional Schema', () => {
-    const result = inject(typelessOptionalObjectToken)
-    assertType<unknown>(result)
-
-    const result2 = inject(typedOptionalObjectToken)
-    assertType<FooService>(result2)
-
-    const result3 = inject(typedObjectToken)
-    // Special case when we pass the token without args
-    // We can only return an error string
-    assertType<'Error: Your token requires args: foo'>(result3)
-  })
-
-  test('#4 Token with no Schema', () => {
-    const result = inject(typedToken)
-    assertType<FooService>(result)
-  })
+test('@InjectLazy targets a Promise-typed accessor', () => {
+  class Service {
+    @InjectLazy(fooToken) accessor foo!: Promise<FooService>
+  }
+  expectTypeOf(new Service().foo).toEqualTypeOf<Promise<FooService>>()
 })
 
-describe('optional', () => {
-  describe('#1 Classes', () => {
-    test('simple class returns nullable type', () => {
-      @Injectable()
-      class Foo {
-        makeFoo() {
-          return 'foo'
-        }
-      }
+test('@InjectOptional targets a nullable accessor', () => {
+  class Service {
+    @InjectOptional(fooToken) accessor foo!: FooService | null
+  }
+  expectTypeOf(new Service().foo).toEqualTypeOf<FooService | null>()
+})
 
-      assertType<Foo | null>(optional(Foo))
+test('@InjectDerived takes a derive callback and targets the dependency type', () => {
+  interface HostArgs {
+    size: number
+  }
+  class Service {
+    @InjectDerived<FooService, HostArgs>(schemaToken, (hostArgs) => {
+      expectTypeOf(hostArgs).toEqualTypeOf<HostArgs>()
+      return { foo: String(hostArgs.size) }
     })
+    accessor foo!: FooService
+  }
+  expectTypeOf(new Service().foo).toEqualTypeOf<FooService>()
+})
 
-    // Note: optional() does not have a class + args overload
-    // Classes with required args should use tokens instead
-  })
+test('decorator factories return an accessor decorator', () => {
+  const dec = Inject(fooToken)
+  expectTypeOf(dec).toBeFunction()
+  expectTypeOf(dec).parameter(1).toMatchTypeOf<ClassAccessorDecoratorContext<unknown, unknown>>()
+})
 
-  test('#2 Token with required Schema', () => {
-    const result = optional(typelessObjectToken, { foo: 'bar' })
-    assertType<unknown>(result)
+test('getInjections returns readonly InjectionEntry[]', () => {
+  class Service {
+    @Inject(fooToken) accessor foo!: FooService
+  }
+  const entries = getInjections(Service)
+  expectTypeOf(entries).toEqualTypeOf<readonly InjectionEntry[]>()
+})
 
-    const result2 = optional(typedObjectToken, { foo: 'bar' })
-    assertType<FooService | null>(result2)
-  })
+test('InjectionKind is the discriminant enum', () => {
+  expectTypeOf(InjectionKind).toHaveProperty('Eager')
+  expectTypeOf(InjectionKind).toHaveProperty('Lazy')
+  expectTypeOf(InjectionKind).toHaveProperty('Optional')
+  expectTypeOf(InjectionKind).toHaveProperty('Derived')
 
-  test('#3 Token with optional Schema', () => {
-    const result = optional(typelessOptionalObjectToken)
-    assertType<unknown>(result)
-
-    const result2 = optional(typedOptionalObjectToken)
-    assertType<FooService | null>(result2)
-
-    const result3 = optional(typedObjectToken)
-    // Special case when we pass the token without args
-    assertType<'Error: Your token requires args: foo'>(result3)
-  })
-
-  test('#4 Token with no Schema', () => {
-    const result = optional(typedToken)
-    assertType<FooService | null>(result)
-  })
+  // InjectionEntry is a discriminated union keyed by `kind`; narrowing on
+  // Derived exposes the `derive` callback only.
+  const entry = {} as InjectionEntry
+  if (entry.kind === InjectionKind.Derived) {
+    expectTypeOf(entry.derive).toEqualTypeOf<(hostArgs: unknown) => unknown>()
+  } else if (entry.kind === InjectionKind.Eager) {
+    expectTypeOf(entry).toHaveProperty('token')
+    expectTypeOf(entry).not.toHaveProperty('derive')
+  }
 })

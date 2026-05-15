@@ -4,8 +4,8 @@ import { z } from 'zod/v4'
 
 import { Injectable } from '../decorators/index.mjs'
 import { InjectableScope } from '../enums/index.mjs'
-import { InjectionToken } from '../token/token.mjs'
 import { Registry } from '../token/registry.mjs'
+import { Token } from '../token/token.mjs'
 
 interface FooService {
   makeFoo(): string
@@ -14,34 +14,22 @@ interface FooService {
 const simpleObjectSchema = z.object({
   foo: z.string(),
 })
-const simpleOptionalObjectSchema = z
-  .object({
-    foo: z.string(),
-  })
-  .optional()
 const otherObjectSchema = z.object({
   bar: z.string(),
 })
 
-const typelessObjectToken = InjectionToken.create(
-  Symbol.for('Typeless object token'),
-  simpleObjectSchema,
-)
-const typelessOptionalObjectToken = InjectionToken.create(
-  Symbol.for('Typeless optional object token'),
-  simpleOptionalObjectSchema,
-)
+// v2: a token's schema is always a StandardSchemaV1 and its presence means
+// args are required (the v1 zod-`.optional()` "args optional" branch was
+// dropped — see token.mts `Required` and injectable.decorator.mts overload #3).
+// So there are no "optional schema" token fixtures here anymore.
+const typelessObjectToken = Token.create(Symbol.for('Typeless object token'), simpleObjectSchema)
 
-const typedObjectToken = InjectionToken.create<FooService, typeof simpleObjectSchema>(
+const typedObjectToken = Token.create<FooService, typeof simpleObjectSchema>(
   Symbol.for('Typed object token'),
   simpleObjectSchema,
 )
-const typedOptionalObjectToken = InjectionToken.create<
-  FooService,
-  typeof simpleOptionalObjectSchema
->(Symbol.for('Typed optional object token'), simpleOptionalObjectSchema)
 
-const typedToken = InjectionToken.create<FooService>(Symbol.for('Typed token'))
+const typedToken = Token.create<FooService>(Symbol.for('Typed token'))
 
 test('Injectable types', () => {
   // #1 Simple class without arguments
@@ -63,10 +51,10 @@ test('Injectable types', () => {
     class {},
   ).toBeConstructibleWith()
 
-  // #1 Injectable w/o decorators enabled in project
+  // #3 Injectable w/o decorators enabled in project (typed token, no schema)
   expectTypeOf(
     Injectable({
-      token: typedObjectToken,
+      token: typedToken,
     })(
       class {
         constructor() {}
@@ -84,18 +72,6 @@ test('Injectable types', () => {
     })
     class {
       constructor(public arg: z.infer<typeof simpleObjectSchema>) {}
-    },
-  ).toBeConstructibleWith({
-    foo: 'something',
-  })
-
-  // #2 It's required in schema but optional in class allowed
-  expectTypeOf(
-    @Injectable({
-      schema: simpleObjectSchema,
-    })
-    class {
-      constructor(public arg?: z.infer<typeof simpleObjectSchema>) {}
     },
   ).toBeConstructibleWith({
     foo: 'something',
@@ -122,64 +98,7 @@ test('Injectable types', () => {
     foo: 'something',
   })
 
-  // #3 It's required in token but optional in class allowed
-  expectTypeOf(
-    @Injectable({
-      token: typelessObjectToken,
-    })
-    class {
-      constructor(public arg?: z.infer<typeof simpleObjectSchema>) {}
-    },
-  ).toBeConstructibleWith({
-    foo: 'something',
-  })
-
-  // #3 Optional value but class accepts it
-  expectTypeOf(
-    @Injectable({
-      token: typelessOptionalObjectToken,
-    })
-    class {
-      constructor(public arg: z.infer<typeof simpleOptionalObjectSchema>) {}
-    },
-  ).toBeConstructibleWith({
-    foo: 'something',
-  })
-
-  // #3 Optional value and class accepts undefined
-  expectTypeOf(
-    @Injectable({
-      token: typelessOptionalObjectToken,
-    })
-    class {
-      constructor(public arg: z.infer<typeof simpleOptionalObjectSchema>) {}
-    },
-  ).toBeConstructibleWith(undefined)
-
-  // #3 Compatible schemas
-  expectTypeOf(
-    @Injectable({
-      token: typelessOptionalObjectToken,
-    })
-    class {
-      constructor(public arg?: z.infer<typeof simpleObjectSchema>) {}
-    },
-  ).toBeConstructibleWith(undefined)
-
-  // #3 Token has optional schema, but Class has required, should fail
-  expectTypeOf(
-    // @ts-expect-error token has optional schema, but Class has required, should fail
-    @Injectable({
-      token: typelessOptionalObjectToken,
-    })
-    class {
-      constructor(public arg: z.infer<typeof simpleObjectSchema>) {}
-    },
-  ).toBeConstructibleWith({
-    foo: 'something',
-  })
-
-  // #3 Typed token with required schema - required argument
+  // #3 Typed token with required schema - required argument, instance type checked
   expectTypeOf(
     @Injectable({
       token: typedObjectToken,
@@ -195,30 +114,14 @@ test('Injectable types', () => {
     foo: 'something',
   })
 
-  // #3 Typed token with optional schema
+  // #3 Should fail if class doesn't implement the typed token's instance type
   expectTypeOf(
+    // @ts-expect-error class doesn't implement the token type (missing makeFoo)
     @Injectable({
-      token: typedOptionalObjectToken,
+      token: typedObjectToken,
     })
     class {
-      constructor(public arg?: z.infer<typeof simpleObjectSchema>) {}
-
-      makeFoo() {
-        return this.arg?.foo ?? 'default'
-      }
-    },
-  ).toBeConstructibleWith({
-    foo: 'something',
-  })
-
-  // #3 Should fail if class doesn't implement token type
-  expectTypeOf(
-    // @ts-expect-error class doesn't implement the token type
-    @Injectable({
-      token: typedOptionalObjectToken,
-    })
-    class {
-      constructor(public arg?: z.infer<typeof simpleObjectSchema>) {}
+      constructor(public arg: z.infer<typeof simpleObjectSchema>) {}
     },
   ).toBeConstructibleWith({
     foo: 'something',
@@ -228,13 +131,13 @@ test('Injectable types', () => {
   expectTypeOf(
     // @ts-expect-error class doesn't implement the token type (wrong return type)
     @Injectable({
-      token: typedOptionalObjectToken,
+      token: typedObjectToken,
     })
     class {
-      constructor(public arg?: z.infer<typeof simpleObjectSchema>) {}
+      constructor(public arg: z.infer<typeof simpleObjectSchema>) {}
 
       makeFoo() {
-        return this.arg?.foo
+        return this.arg.foo as string | undefined
       }
     },
   ).toBeConstructibleWith({
@@ -267,73 +170,11 @@ test('Injectable types', () => {
 
   // Function call syntax tests (without decorators)
 
-  // #3 Required argument
+  // #3 Required argument (typeless token w/ schema)
   expectTypeOf(
     Injectable({
       token: typelessObjectToken,
     })(
-      class {
-        constructor(public arg: z.infer<typeof simpleObjectSchema>) {}
-      },
-    ),
-  ).toBeConstructibleWith({
-    foo: 'something',
-  })
-
-  // #3 It's required in token but optional in class allowed
-  expectTypeOf(
-    Injectable({
-      token: typelessObjectToken,
-    })(
-      class {
-        constructor(public arg?: z.infer<typeof simpleObjectSchema>) {}
-      },
-    ),
-  ).toBeConstructibleWith({
-    foo: 'something',
-  })
-
-  // #3 Optional value but class accepts it
-  expectTypeOf(
-    Injectable({
-      token: typelessOptionalObjectToken,
-    })(
-      class {
-        constructor(public arg: z.infer<typeof simpleOptionalObjectSchema>) {}
-      },
-    ),
-  ).toBeConstructibleWith({
-    foo: 'something',
-  })
-
-  // #3 Optional value and class accepts undefined
-  expectTypeOf(
-    Injectable({
-      token: typelessOptionalObjectToken,
-    })(
-      class {
-        constructor(public arg: z.infer<typeof simpleOptionalObjectSchema>) {}
-      },
-    ),
-  ).toBeConstructibleWith(undefined)
-
-  // #3 Compatible schemas
-  expectTypeOf(
-    Injectable({
-      token: typelessOptionalObjectToken,
-    })(
-      class {
-        constructor(public arg?: z.infer<typeof simpleObjectSchema>) {}
-      },
-    ),
-  ).toBeConstructibleWith(undefined)
-
-  // #3 Token has optional schema, but Class has required, should fail
-  expectTypeOf(
-    Injectable({
-      token: typelessOptionalObjectToken,
-    })(
-      // @ts-expect-error token has optional schema, but Class has required, should fail
       class {
         constructor(public arg: z.infer<typeof simpleObjectSchema>) {}
       },
@@ -359,49 +200,14 @@ test('Injectable types', () => {
     foo: 'something',
   })
 
-  // #3 Typed token with optional schema
-  expectTypeOf(
-    Injectable({
-      token: typedOptionalObjectToken,
-    })(
-      class {
-        constructor(public arg?: z.infer<typeof simpleObjectSchema>) {}
-
-        makeFoo() {
-          return this.arg?.foo ?? 'default'
-        }
-      },
-    ),
-  ).toBeConstructibleWith({
-    foo: 'something',
-  })
-
   // #3 Should fail if class doesn't implement token type
   expectTypeOf(
     Injectable({
-      token: typedOptionalObjectToken,
+      token: typedObjectToken,
     })(
       // @ts-expect-error class doesn't implement the token type
       class {
-        constructor(public arg?: z.infer<typeof simpleObjectSchema>) {}
-      },
-    ),
-  ).toBeConstructibleWith({
-    foo: 'something',
-  })
-
-  // #3 Should fail if return type doesn't match
-  expectTypeOf(
-    Injectable({
-      token: typedOptionalObjectToken,
-    })(
-      // @ts-expect-error class doesn't implement the token type
-      class {
-        constructor(public arg?: z.infer<typeof simpleObjectSchema>) {}
-
-        makeFoo() {
-          return this.arg?.foo
-        }
+        constructor(public arg: z.infer<typeof simpleObjectSchema>) {}
       },
     ),
   ).toBeConstructibleWith({

@@ -3,7 +3,7 @@ import { z } from 'zod/v4'
 
 import { Container } from '../container/container.mjs'
 import { Factory, Injectable } from '../decorators/index.mjs'
-import { InjectionToken } from '../token/token.mjs'
+import { Token } from '../token/token.mjs'
 
 import type { Factorable } from '../interfaces/index.mjs'
 
@@ -14,31 +14,15 @@ interface FooService {
 const simpleObjectSchema = z.object({
   foo: z.string(),
 })
-const simpleOptionalObjectSchema = z
-  .object({
-    foo: z.string(),
-  })
-  .optional()
 
-const typelessObjectToken = InjectionToken.create(
-  Symbol.for('Typeless object token'),
-  simpleObjectSchema,
-)
-const typelessOptionalObjectToken = InjectionToken.create(
-  Symbol.for('Typeless optional object token'),
-  simpleOptionalObjectSchema,
-)
+const typelessObjectToken = Token.create(Symbol.for('Typeless object token'), simpleObjectSchema)
 
-const typedObjectToken = InjectionToken.create<FooService, typeof simpleObjectSchema>(
+const typedObjectToken = Token.create<FooService, typeof simpleObjectSchema>(
   Symbol.for('Typed object token'),
   simpleObjectSchema,
 )
-const typedOptionalObjectToken = InjectionToken.create<
-  FooService,
-  typeof simpleOptionalObjectSchema
->(Symbol.for('Typed optional object token'), simpleOptionalObjectSchema)
 
-const typedToken = InjectionToken.create<FooService>(Symbol.for('Typed token'))
+const typedToken = Token.create<FooService>(Symbol.for('Typed token'))
 
 describe('ScopedContainer.get', () => {
   describe('#1 Classes', () => {
@@ -101,6 +85,7 @@ describe('ScopedContainer.get', () => {
     const container = new Container()
     const scopedContainer = container.beginRequest('req-1')
 
+    // Typeless token: T is inferred as unknown.
     const result = await scopedContainer.get(typelessObjectToken, {
       foo: 'bar',
     })
@@ -113,20 +98,16 @@ describe('ScopedContainer.get', () => {
     await scopedContainer.get(typedObjectToken, undefined)
   })
 
-  test('#3 Token with optional Schema', async () => {
+  test('#3 Schema-bearing token resolved without args -> compile error string', async () => {
     const container = new Container()
     const scopedContainer = container.beginRequest('req-1')
 
-    const result = await scopedContainer.get(typelessOptionalObjectToken)
-    assertType<unknown>(result)
-
-    const result2 = await scopedContainer.get(typedOptionalObjectToken)
-    assertType<FooService>(result2)
-
-    const result3 = await scopedContainer.get(typedObjectToken)
-    // Special case when we pass the token without args
-    // We can only return an error string
-    assertType<'Error: Your token requires args: foo'>(result3)
+    // v2: presence of ANY StandardSchemaV1 means args are required. Calling
+    // .get() without args resolves to the TokenArgsRequiredError string type
+    // (the v1 "optional schema => instance" capability was dropped — see
+    // token.mts `Required`). This is the only no-arg result for schema tokens.
+    const result = scopedContainer.get(typedObjectToken)
+    assertType<'Error: Your token requires args: foo'>(result)
   })
 
   test('#4 Token with no Schema', async () => {
@@ -137,20 +118,20 @@ describe('ScopedContainer.get', () => {
     assertType<FooService>(result)
   })
 
-  test('#5 BoundInjectionToken', async () => {
+  test('#5 BoundToken', async () => {
     const container = new Container()
     const scopedContainer = container.beginRequest('req-1')
 
-    const boundToken = InjectionToken.bound(typedObjectToken, { foo: 'bar' })
+    const boundToken = Token.bound(typedObjectToken, { foo: 'bar' })
     const result = await scopedContainer.get(boundToken)
     assertType<FooService>(result)
   })
 
-  test('#6 FactoryInjectionToken', async () => {
+  test('#6 FactoryToken', async () => {
     const container = new Container()
     const scopedContainer = container.beginRequest('req-1')
 
-    const factoryToken = InjectionToken.factory(typedObjectToken, async () => ({
+    const factoryToken = Token.factory(typedObjectToken, async () => ({
       foo: 'bar',
     }))
     const result = await scopedContainer.get(factoryToken)

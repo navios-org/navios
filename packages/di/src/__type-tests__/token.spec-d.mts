@@ -1,11 +1,7 @@
 import { expectTypeOf, test } from 'vitest'
 import { z } from 'zod/v4'
 
-import {
-  BoundInjectionToken,
-  FactoryInjectionToken,
-  InjectionToken,
-} from '../token/token.mjs'
+import { BoundToken, FactoryToken, Token } from '../token/token.mjs'
 
 import type {
   ClassType,
@@ -21,24 +17,19 @@ interface FooService {
 const simpleObjectSchema = z.object({
   foo: z.string(),
 })
-const simpleOptionalObjectSchema = z
-  .object({
-    foo: z.string(),
-  })
-  .optional()
 
-test('InjectionToken.create with class', () => {
+test('Token.create with class', () => {
   class MyService {
     getValue() {
       return 42
     }
   }
 
-  const token = InjectionToken.create(MyService)
-  expectTypeOf(token).toMatchTypeOf<InjectionToken<MyService, undefined>>()
+  const token = Token.create(MyService)
+  expectTypeOf(token).toMatchTypeOf<Token<MyService, undefined>>()
 })
 
-test('InjectionToken.create with class and schema', () => {
+test('Token.create with class and schema', () => {
   class MyService {
     constructor(public config: z.infer<typeof simpleObjectSchema>) {}
     getValue() {
@@ -46,127 +37,122 @@ test('InjectionToken.create with class and schema', () => {
     }
   }
 
-  const token = InjectionToken.create(MyService, simpleObjectSchema)
-  expectTypeOf(token).toMatchTypeOf<InjectionToken<MyService, typeof simpleObjectSchema, true>>()
+  const token = Token.create(MyService, simpleObjectSchema)
+  // v2: any StandardSchemaV1 implies Required=true (the v1 "optional schema"
+  // branch was dropped — see token.mts `Required`).
+  expectTypeOf(token).toMatchTypeOf<Token<MyService, typeof simpleObjectSchema, true>>()
 })
 
-test('InjectionToken.create with class and optional schema', () => {
-  class MyService {
-    constructor(public config?: z.infer<typeof simpleOptionalObjectSchema>) {}
-    getValue() {
-      return 42
-    }
-  }
-
-  const token = InjectionToken.create(MyService, simpleOptionalObjectSchema)
-  expectTypeOf(token).toMatchTypeOf<
-    InjectionToken<MyService, typeof simpleOptionalObjectSchema, false>
-  >()
+test('Token.create with string name', () => {
+  const token = Token.create<FooService>('FooService')
+  expectTypeOf(token).toMatchTypeOf<Token<FooService, undefined>>()
 })
 
-test('InjectionToken.create with string name', () => {
-  const token = InjectionToken.create<FooService>('FooService')
-  expectTypeOf(token).toMatchTypeOf<InjectionToken<FooService, undefined>>()
+test('Token.create with symbol name', () => {
+  const token = Token.create<FooService>(Symbol.for('FooService'))
+  expectTypeOf(token).toMatchTypeOf<Token<FooService, undefined>>()
 })
 
-test('InjectionToken.create with symbol name', () => {
-  const token = InjectionToken.create<FooService>(Symbol.for('FooService'))
-  expectTypeOf(token).toMatchTypeOf<InjectionToken<FooService, undefined>>()
-})
-
-test('InjectionToken.create with string name and schema', () => {
-  const token = InjectionToken.create<FooService, typeof simpleObjectSchema>(
+test('Token.create with string name and schema', () => {
+  const token = Token.create<FooService, typeof simpleObjectSchema>(
     'FooService',
     simpleObjectSchema,
   )
-  expectTypeOf(token).toMatchTypeOf<InjectionToken<FooService, typeof simpleObjectSchema>>()
+  expectTypeOf(token).toMatchTypeOf<Token<FooService, typeof simpleObjectSchema>>()
 })
 
-test('InjectionToken.bound creates BoundInjectionToken', () => {
-  const token = InjectionToken.create<FooService, typeof simpleObjectSchema>(
+test('token.bind() creates a BoundToken', () => {
+  const token = Token.create<FooService, typeof simpleObjectSchema>(
     'FooService',
     simpleObjectSchema,
   )
-  const boundToken = InjectionToken.bound(token, { foo: 'bar' })
-  expectTypeOf(boundToken).toMatchTypeOf<
-    BoundInjectionToken<FooService, typeof simpleObjectSchema>
-  >()
+  const boundToken = token.bind({ foo: 'bar' })
+  expectTypeOf(boundToken).toMatchTypeOf<BoundToken<FooService, typeof simpleObjectSchema>>()
 })
 
-test('InjectionToken.bound requires correct argument type', () => {
-  const token = InjectionToken.create<FooService, typeof simpleObjectSchema>(
+test('Token.bound creates a BoundToken', () => {
+  const token = Token.create<FooService, typeof simpleObjectSchema>(
+    'FooService',
+    simpleObjectSchema,
+  )
+  const boundToken = Token.bound(token, { foo: 'bar' })
+  expectTypeOf(boundToken).toMatchTypeOf<BoundToken<FooService, typeof simpleObjectSchema>>()
+})
+
+test('token.bind() requires correct argument type', () => {
+  const token = Token.create<FooService, typeof simpleObjectSchema>(
     'FooService',
     simpleObjectSchema,
   )
 
   // @ts-expect-error Should fail with wrong argument type
-  InjectionToken.bound(token, { wrong: 'key' })
+  token.bind({ wrong: 'key' })
 
   // @ts-expect-error Should fail with missing required property
-  InjectionToken.bound(token, {})
+  token.bind({})
 })
 
-test('InjectionToken.factory creates FactoryInjectionToken', () => {
-  const token = InjectionToken.create<FooService, typeof simpleObjectSchema>(
+test('token.fromFactory() creates a FactoryToken', () => {
+  const token = Token.create<FooService, typeof simpleObjectSchema>(
     'FooService',
     simpleObjectSchema,
   )
-  const factoryToken = InjectionToken.factory(token, async () => ({
-    foo: 'bar',
-  }))
-  expectTypeOf(factoryToken).toMatchTypeOf<
-    FactoryInjectionToken<FooService, typeof simpleObjectSchema>
-  >()
+  const factoryToken = token.fromFactory(async () => ({ foo: 'bar' }))
+  expectTypeOf(factoryToken).toMatchTypeOf<FactoryToken<FooService, typeof simpleObjectSchema>>()
 })
 
-test('InjectionToken.factory requires correct return type', () => {
-  const token = InjectionToken.create<FooService, typeof simpleObjectSchema>(
+test('Token.factory creates a FactoryToken', () => {
+  const token = Token.create<FooService, typeof simpleObjectSchema>(
+    'FooService',
+    simpleObjectSchema,
+  )
+  const factoryToken = Token.factory(token, async () => ({ foo: 'bar' }))
+  expectTypeOf(factoryToken).toMatchTypeOf<FactoryToken<FooService, typeof simpleObjectSchema>>()
+})
+
+test('token.fromFactory() requires correct return type', () => {
+  const token = Token.create<FooService, typeof simpleObjectSchema>(
     'FooService',
     simpleObjectSchema,
   )
 
   // @ts-expect-error Should fail with wrong return type
-  InjectionToken.factory(token, async () => ({ wrong: 'key' }))
+  token.fromFactory(async () => ({ wrong: 'key' }))
 })
 
-test('InjectionToken.refineType changes BoundInjectionToken type', () => {
+test('Token.refineType changes BoundToken type', () => {
   interface RefinedService {
     doSomething(): void
   }
 
-  const token = InjectionToken.create<unknown, typeof simpleObjectSchema>(
-    'Service',
-    simpleObjectSchema,
-  )
-  const boundToken = InjectionToken.bound(token, { foo: 'bar' })
-  const refinedToken = InjectionToken.refineType<RefinedService>(boundToken)
-  expectTypeOf(refinedToken).toMatchTypeOf<BoundInjectionToken<RefinedService, any>>()
+  const token = Token.create<unknown, typeof simpleObjectSchema>('Service', simpleObjectSchema)
+  const boundToken = token.bind({ foo: 'bar' })
+  const refinedToken = Token.refineType<RefinedService>(boundToken)
+  expectTypeOf(refinedToken).toMatchTypeOf<BoundToken<RefinedService, any>>()
 })
 
-test('BoundInjectionToken has value property with correct type', () => {
-  const token = InjectionToken.create<FooService, typeof simpleObjectSchema>(
+test('BoundToken has value property with correct type', () => {
+  const token = Token.create<FooService, typeof simpleObjectSchema>(
     'FooService',
     simpleObjectSchema,
   )
-  const boundToken = InjectionToken.bound(token, { foo: 'bar' })
+  const boundToken = token.bind({ foo: 'bar' })
 
   expectTypeOf(boundToken.value).toMatchTypeOf<{ foo: string }>()
 })
 
-test('FactoryInjectionToken has factory property', () => {
-  const token = InjectionToken.create<FooService, typeof simpleObjectSchema>(
+test('FactoryToken has factory property', () => {
+  const token = Token.create<FooService, typeof simpleObjectSchema>(
     'FooService',
     simpleObjectSchema,
   )
-  const factoryToken = InjectionToken.factory(token, async () => ({
-    foo: 'bar',
-  }))
+  const factoryToken = token.fromFactory(async () => ({ foo: 'bar' }))
 
   expectTypeOf(factoryToken.factory).toBeFunction()
 })
 
-test('InjectionToken properties', () => {
-  const token = InjectionToken.create<FooService, typeof simpleObjectSchema>(
+test('Token properties', () => {
+  const token = Token.create<FooService, typeof simpleObjectSchema>(
     'FooService',
     simpleObjectSchema,
   )
@@ -176,7 +162,7 @@ test('InjectionToken properties', () => {
   expectTypeOf(token.toString()).toBeString()
 })
 
-test('InjectionToken.create with class that has static fields', () => {
+test('Token.create with class that has static fields', () => {
   class ServiceWithStatics {
     static readonly VERSION = '1.0.0'
     static create() {
@@ -188,11 +174,11 @@ test('InjectionToken.create with class that has static fields', () => {
     }
   }
 
-  const token = InjectionToken.create(ServiceWithStatics)
-  expectTypeOf(token).toMatchTypeOf<InjectionToken<ServiceWithStatics, undefined>>()
+  const token = Token.create(ServiceWithStatics)
+  expectTypeOf(token).toMatchTypeOf<Token<ServiceWithStatics, undefined>>()
 })
 
-test('InjectionToken.create with class that has static fields and schema', () => {
+test('Token.create with class that has static fields and schema', () => {
   class ServiceWithStaticsAndSchema {
     static readonly DEFAULT_CONFIG = { foo: 'default' }
     static validate(config: unknown) {
@@ -206,26 +192,26 @@ test('InjectionToken.create with class that has static fields and schema', () =>
     }
   }
 
-  const token = InjectionToken.create(ServiceWithStaticsAndSchema, simpleObjectSchema)
+  const token = Token.create(ServiceWithStaticsAndSchema, simpleObjectSchema)
   expectTypeOf(token).toMatchTypeOf<
-    InjectionToken<ServiceWithStaticsAndSchema, typeof simpleObjectSchema, true>
+    Token<ServiceWithStaticsAndSchema, typeof simpleObjectSchema, true>
   >()
 })
 
-test('InjectionToken.create with abstract class that has static fields', () => {
+test('Token.create with abstract class that has static fields', () => {
   abstract class AbstractServiceWithStatics {
     static readonly SERVICE_NAME = 'AbstractService'
 
     abstract getValue(): number
   }
 
-  // Abstract classes cannot be used directly with InjectionToken.create
+  // Abstract classes cannot be used directly with Token.create
   // because they are not constructible - this is expected behavior
   // @ts-expect-error Abstract classes are not assignable to ClassType
-  const _token = InjectionToken.create(AbstractServiceWithStatics)
+  const _token = Token.create(AbstractServiceWithStatics)
 })
 
-test('InjectionToken.create with class that has static symbol property', () => {
+test('Token.create with class that has static symbol property', () => {
   const BRAND = Symbol('brand')
 
   class BrandedService {
@@ -237,11 +223,11 @@ test('InjectionToken.create with class that has static symbol property', () => {
     }
   }
 
-  const token = InjectionToken.create(BrandedService)
-  expectTypeOf(token).toMatchTypeOf<InjectionToken<BrandedService, undefined>>()
+  const token = Token.create(BrandedService)
+  expectTypeOf(token).toMatchTypeOf<Token<BrandedService, undefined>>()
 })
 
-test('InjectionToken.create with class that has static getter/setter', () => {
+test('Token.create with class that has static getter/setter', () => {
   class ServiceWithStaticAccessors {
     private static _instance: ServiceWithStaticAccessors | null = null
 
@@ -258,11 +244,11 @@ test('InjectionToken.create with class that has static getter/setter', () => {
     }
   }
 
-  const token = InjectionToken.create(ServiceWithStaticAccessors)
-  expectTypeOf(token).toMatchTypeOf<InjectionToken<ServiceWithStaticAccessors, undefined>>()
+  const token = Token.create(ServiceWithStaticAccessors)
+  expectTypeOf(token).toMatchTypeOf<Token<ServiceWithStaticAccessors, undefined>>()
 })
 
-test('InjectionToken.create with class that has private static fields', () => {
+test('Token.create with class that has private static fields', () => {
   class ServiceWithPrivateStatics {
     static #privateCounter = 0
     private static _secretKey = 'secret'
@@ -276,8 +262,8 @@ test('InjectionToken.create with class that has private static fields', () => {
     }
   }
 
-  const token = InjectionToken.create(ServiceWithPrivateStatics)
-  expectTypeOf(token).toMatchTypeOf<InjectionToken<ServiceWithPrivateStatics, undefined>>()
+  const token = Token.create(ServiceWithPrivateStatics)
+  expectTypeOf(token).toMatchTypeOf<Token<ServiceWithPrivateStatics, undefined>>()
 })
 
 test('ClassType assignability with static fields', () => {
@@ -355,8 +341,8 @@ test('ClassType with generic static methods', () => {
     }
   }
 
-  const token = InjectionToken.create(ServiceWithGenericStatics)
-  expectTypeOf(token).toMatchTypeOf<InjectionToken<ServiceWithGenericStatics, undefined>>()
+  const token = Token.create(ServiceWithGenericStatics)
+  expectTypeOf(token).toMatchTypeOf<Token<ServiceWithGenericStatics, undefined>>()
   expectTypeOf(ServiceWithGenericStatics).toMatchTypeOf<ClassType>()
 })
 
@@ -375,8 +361,8 @@ test('ClassType with static async methods', () => {
     }
   }
 
-  const token = InjectionToken.create(ServiceWithAsyncStatics)
-  expectTypeOf(token).toMatchTypeOf<InjectionToken<ServiceWithAsyncStatics, undefined>>()
+  const token = Token.create(ServiceWithAsyncStatics)
+  expectTypeOf(token).toMatchTypeOf<Token<ServiceWithAsyncStatics, undefined>>()
   expectTypeOf(ServiceWithAsyncStatics).toMatchTypeOf<ClassType>()
 })
 
@@ -394,8 +380,8 @@ test('ClassType with static field that is a class itself', () => {
     }
   }
 
-  const token = InjectionToken.create(OuterService)
-  expectTypeOf(token).toMatchTypeOf<InjectionToken<OuterService, undefined>>()
+  const token = Token.create(OuterService)
+  expectTypeOf(token).toMatchTypeOf<Token<OuterService, undefined>>()
   expectTypeOf(OuterService).toMatchTypeOf<ClassType>()
 })
 
@@ -422,11 +408,11 @@ test('ClassType with inherited static fields', () => {
     }
   }
 
-  const baseToken = InjectionToken.create(BaseService)
-  const derivedToken = InjectionToken.create(DerivedService)
+  const baseToken = Token.create(BaseService)
+  const derivedToken = Token.create(DerivedService)
 
-  expectTypeOf(baseToken).toMatchTypeOf<InjectionToken<BaseService, undefined>>()
-  expectTypeOf(derivedToken).toMatchTypeOf<InjectionToken<DerivedService, undefined>>()
+  expectTypeOf(baseToken).toMatchTypeOf<Token<BaseService, undefined>>()
+  expectTypeOf(derivedToken).toMatchTypeOf<Token<DerivedService, undefined>>()
   expectTypeOf(BaseService).toMatchTypeOf<ClassType>()
   expectTypeOf(DerivedService).toMatchTypeOf<ClassType>()
 })
