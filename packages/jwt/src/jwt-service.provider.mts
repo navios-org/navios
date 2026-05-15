@@ -1,10 +1,8 @@
-import { InjectionToken } from '@navios/core'
-
-import type { BoundInjectionToken, FactoryInjectionToken } from '@navios/core'
-
-import { JwtService, JwtServiceToken } from './jwt.service.mjs'
+import { JwtServiceToken } from './jwt.service.mjs'
 import { JwtServiceOptionsSchema } from './options/jwt-service.options.mjs'
 
+import type { BoundToken, FactoryToken } from '@navios/di'
+import type { JwtService } from './jwt.service.mjs'
 import type { JwtServiceOptions } from './options/jwt-service.options.mjs'
 
 /**
@@ -15,10 +13,12 @@ import type { JwtServiceOptions } from './options/jwt-service.options.mjs'
  * both static configuration and async factory functions for dynamic configuration.
  *
  * @param config - Static JWT service configuration options
- * @returns A bound injection token that can be used with `inject()` or `asyncInject()`
+ * @returns A bound injection token that can be used with `@Inject` or `@InjectLazy`
  *
  * @example
  * ```ts
+ * import { Inject } from '@navios/di'
+ *
  * // Static configuration
  * const JwtService = provideJwtService({
  *   secret: 'your-secret-key',
@@ -27,13 +27,13 @@ import type { JwtServiceOptions } from './options/jwt-service.options.mjs'
  *
  * @Injectable()
  * class AuthService {
- *   jwtService = inject(JwtService)
+ *   @Inject(JwtService) accessor jwtService!: JwtService
  * }
  * ```
  */
 export function provideJwtService(
   config: JwtServiceOptions,
-): BoundInjectionToken<JwtService, typeof JwtServiceOptionsSchema>
+): BoundToken<JwtService, typeof JwtServiceOptionsSchema>
 /**
  * Creates a JWT service provider with async configuration factory.
  *
@@ -47,7 +47,7 @@ export function provideJwtService(
  * ```ts
  * // Async configuration
  * const JwtService = provideJwtService(async () => {
- *   const configService = await inject(ConfigService)
+ *   const configService = await ctx.resolve(ConfigService)
  *   return {
  *     secret: configService.jwt.secret,
  *     signOptions: { expiresIn: configService.jwt.expiresIn },
@@ -56,20 +56,20 @@ export function provideJwtService(
  *
  * @Injectable()
  * class AuthService {
- *   jwtService = inject(JwtService)
+ *   @Inject(JwtService) accessor jwtService!: JwtService
  * }
  * ```
  */
 export function provideJwtService(
   config: () => Promise<JwtServiceOptions>,
-): FactoryInjectionToken<JwtService, typeof JwtServiceOptionsSchema>
+): FactoryToken<JwtService, typeof JwtServiceOptionsSchema>
 export function provideJwtService(
   config: JwtServiceOptions | (() => Promise<JwtServiceOptions>),
 ):
-  | BoundInjectionToken<JwtService, typeof JwtServiceOptionsSchema>
-  | FactoryInjectionToken<JwtService, typeof JwtServiceOptionsSchema> {
+  | BoundToken<JwtService, typeof JwtServiceOptionsSchema>
+  | FactoryToken<JwtService, typeof JwtServiceOptionsSchema> {
   if (typeof config === 'function') {
-    return InjectionToken.factory(JwtServiceToken, config)
+    return JwtServiceToken.fromFactory(config)
   }
-  return InjectionToken.bound(JwtServiceToken, config)
+  return JwtServiceToken.bind(config)
 }

@@ -1,7 +1,10 @@
-import { inject, Injectable, InjectionToken, Logger } from '@navios/core'
+import { Logger } from '@navios/core'
+import { Inject, Injectable, Token } from '@navios/di'
 import jwt from 'jsonwebtoken'
 
 import { JwtServiceOptionsSchema, RequestType } from './options/jwt-service.options.mjs'
+
+import type { LoggerInstance } from '@navios/core'
 
 import type {
   GetSecretKeyResult,
@@ -17,7 +20,7 @@ import type {
  *
  * Used internally by the dependency injection system to register and resolve JwtService instances.
  */
-export const JwtServiceToken = InjectionToken.create(
+export const JwtServiceToken = Token.create(
   Symbol.for('JwtService'),
   JwtServiceOptionsSchema,
 )
@@ -32,7 +35,7 @@ export const JwtServiceToken = InjectionToken.create(
  * @example
  * ```ts
  * import { provideJwtService } from '@navios/jwt'
- * import { inject } from '@navios/core'
+ * import { Inject } from '@navios/di'
  *
  * const JwtService = provideJwtService({
  *   secret: 'your-secret-key',
@@ -41,7 +44,7 @@ export const JwtServiceToken = InjectionToken.create(
  *
  * @Injectable()
  * class AuthService {
- *   jwtService = inject(JwtService)
+ *   @Inject(JwtService) accessor jwtService!: JwtService
  *
  *   async login(userId: string) {
  *     const token = this.jwtService.sign({ userId, role: 'user' })
@@ -54,9 +57,8 @@ export const JwtServiceToken = InjectionToken.create(
   token: JwtServiceToken,
 })
 export class JwtService {
-  logger = inject(Logger, {
-    context: JwtService.name,
-  })
+  @Inject(Logger, { context: 'JwtService' })
+  private accessor logger!: LoggerInstance
 
   /**
    * Creates a new JwtService instance.
