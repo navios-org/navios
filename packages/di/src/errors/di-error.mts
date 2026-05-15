@@ -11,7 +11,7 @@ export enum DIErrorCode {
   TokenSchemaRequiredError = 'TokenSchemaRequiredError',
   ClassNotInjectable = 'ClassNotInjectable',
   ScopeMismatchError = 'ScopeMismatchError',
-  ScopeIncompatible = 'ScopeIncompatible',
+  ScopeIncompatibleError = 'ScopeIncompatibleError',
   PriorityConflictError = 'PriorityConflictError',
   StorageError = 'StorageError',
   InitializationError = 'InitializationError',
@@ -130,7 +130,7 @@ export class DIError extends Error {
         ? `use @InjectLazy(${depName}) for transient dependencies`
         : `mark ${hostName} as @Injectable({ scope: Request }) or wrap the dependency in @InjectLazy(${depName})`
     return new DIError(
-      DIErrorCode.ScopeIncompatible,
+      DIErrorCode.ScopeIncompatibleError,
       `Scope mismatch: ${hostName} is ${hostScope} but eagerly depends on ${depName} (${depScope}). A ${hostScope}-scoped service cannot eagerly hold a ${depScope}-scoped dependency — ${fix}.`,
       { hostName, depName, hostScope, depScope },
     )

@@ -1,6 +1,9 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { Container } from '../container/container.mjs'
+import * as injectionMetadata from '../decorators/injection-metadata.mjs'
+import { validateScopeCompatibility } from '../internal/core/scope-validator.mjs'
+import { TokenResolver } from '../internal/core/token-resolver.mjs'
 import { Inject } from '../decorators/inject.decorator.mjs'
 import { InjectDerived } from '../decorators/inject-derived.decorator.mjs'
 import { InjectLazy } from '../decorators/inject-lazy.decorator.mjs'
@@ -45,7 +48,7 @@ describe('Scope compatibility validation (fail-fast)', () => {
 
     await expect(container.get(Host)).rejects.toThrow(DIError)
     await expect(container.get(Host)).rejects.toMatchObject({
-      code: DIErrorCode.ScopeIncompatible,
+      code: DIErrorCode.ScopeIncompatibleError,
     })
     const error = await captureError(container.get(Host))
     expect(error).toBeInstanceOf(DIError)
@@ -104,7 +107,7 @@ describe('Scope compatibility validation (fail-fast)', () => {
 
     const error = await captureError(container.get(Host))
     expect(error).toBeInstanceOf(DIError)
-    expect(error.code).toBe(DIErrorCode.ScopeIncompatible)
+    expect(error.code).toBe(DIErrorCode.ScopeIncompatibleError)
     expect(error.message).toContain('Host')
     expect(error.message).toContain('TransientSvc')
     expect(error.message).toContain('Transient')
@@ -169,6 +172,58 @@ describe('Scope compatibility validation (fail-fast)', () => {
     expect(second).toBeInstanceOf(Host)
   })
 
+  it('memoizes the walk: a second validation of the same class skips getInjections', () => {
+    // Singleton identity (above) passes even without memoization because the
+    // walk is idempotent, so it cannot prove the memo. To genuinely pin the
+    // memo, call the validator DIRECTLY twice and spy on its expensive walk
+    // step (`getInjections`). Direct calls bypass ServiceInitializer's own
+    // `getInjections` use entirely, so the spy count reflects ONLY the
+    // validator's walk — making the "walk runs at most once" assertion exact
+    // and non-brittle (no dependency on container internals or call order).
+    //
+    // The `validated` WeakMap is module-global; a class defined inside this
+    // test and resolved nowhere else guarantees a clean (un-memoized) start.
+    @Injectable({ registry, scope: InjectableScope.Singleton })
+    class MemoDep {
+      readonly tag = 'memo-dep'
+    }
+
+    @Injectable({ registry, scope: InjectableScope.Singleton })
+    class MemoHost {
+      @Inject(MemoDep) accessor dep!: MemoDep
+    }
+
+    const tokenResolver = new TokenResolver()
+    const walkSpy = vi.spyOn(injectionMetadata, 'getInjections')
+    try {
+      validateScopeCompatibility(
+        MemoHost,
+        InjectableScope.Singleton,
+        registry,
+        tokenResolver,
+      )
+      const callsAfterFirst = walkSpy.mock.calls.filter(
+        ([t]) => t === MemoHost,
+      ).length
+      expect(callsAfterFirst).toBe(1)
+
+      // Second validation of the same class must short-circuit on the memo
+      // BEFORE reaching the walk — so the MemoHost call count stays at 1.
+      validateScopeCompatibility(
+        MemoHost,
+        InjectableScope.Singleton,
+        registry,
+        tokenResolver,
+      )
+      const callsAfterSecond = walkSpy.mock.calls.filter(
+        ([t]) => t === MemoHost,
+      ).length
+      expect(callsAfterSecond).toBe(1)
+    } finally {
+      walkSpy.mockRestore()
+    }
+  })
+
   it('throws when @InjectDerived (eager) on a Request dep from a Singleton', async () => {
     @Injectable({ registry, scope: InjectableScope.Request })
     class RequestSvc {
@@ -182,7 +237,7 @@ describe('Scope compatibility validation (fail-fast)', () => {
 
     const error = await captureError(container.get(Host))
     expect(error).toBeInstanceOf(DIError)
-    expect(error.code).toBe(DIErrorCode.ScopeIncompatible)
+    expect(error.code).toBe(DIErrorCode.ScopeIncompatibleError)
     expect(error.message).toContain('Host')
     expect(error.message).toContain('RequestSvc')
   })
@@ -200,6 +255,6 @@ describe('Scope compatibility validation (fail-fast)', () => {
 
     const error = await captureError(container.get(Host))
     expect(error).toBeInstanceOf(DIError)
-    expect(error.code).not.toBe(DIErrorCode.ScopeIncompatible)
+    expect(error.code).not.toBe(DIErrorCode.ScopeIncompatibleError)
   })
 })

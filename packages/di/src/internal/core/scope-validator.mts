@@ -7,13 +7,15 @@ import type { ClassType } from '../../token/token.mjs'
 import type { TokenResolver } from './token-resolver.mjs'
 
 /**
- * Per-class memo: once a class has passed (or been skipped by) the scope
- * compatibility walk, it is recorded here so subsequent resolutions of the
- * same class skip the walk entirely. Steady-state cost is therefore zero.
+ * Per-class memo: a class is recorded here only after it has completed a
+ * successful Singleton scope-compatibility walk, so subsequent resolutions of
+ * the same class skip the walk entirely. Steady-state cost is therefore zero.
  *
- * Only classes that PASS are memoized — a class that throws never reaches the
- * memo write, so a misconfigured service fails fast on every attempt (and a
- * later registry change that fixes the dep is re-evaluated).
+ * Only the post-successful-walk Singleton case is memoized — a class that
+ * throws never reaches the memo write (so a misconfigured service fails fast
+ * on every attempt, and a later registry change that fixes the dep is
+ * re-evaluated), and non-Singleton hosts early-return without a memo write
+ * (the very next call is an O(1) early-return anyway).
  */
 const validated = new WeakMap<ClassType, true>()
 
@@ -48,7 +50,6 @@ export function validateScopeCompatibility(
   // Only a Singleton host can be over-scoped by an eager shorter-lived dep.
   // Request/Transient hosts may eagerly hold deps of any scope.
   if (hostScope !== InjectableScope.Singleton) {
-    validated.set(target, true)
     return
   }
 
