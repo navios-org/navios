@@ -1,2 +1,7 @@
 export * from './factory.decorator.mjs'
+export * from './inject.decorator.mjs'
+export * from './inject-derived.decorator.mjs'
+export * from './inject-lazy.decorator.mjs'
+export * from './inject-optional.decorator.mjs'
 export * from './injectable.decorator.mjs'
+export * from './injection-metadata.mjs'
