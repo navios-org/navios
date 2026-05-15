@@ -1,4 +1,5 @@
 import type { FactoryContext } from '../internal/context/factory-context.mjs'
+
 import type { StandardSchemaV1 } from './schema.mjs'
 
 export type ClassType = new (...args: any[]) => any
@@ -84,22 +85,42 @@ export class Token<
     return new Token(name, schema, customId)
   }
 
+  /**
+   * Pre-binds a value to this token, producing a callable bound token.
+   *
+   * @param value Raw pre-validation input ({@link StandardSchemaV1.InferInput}).
+   */
+  bind(value: StandardSchemaV1.InferInput<NonNullable<S>>): BoundToken<T, NonNullable<S>> {
+    return new BoundToken(this as Token<T, NonNullable<S>>, value)
+  }
+
+  /**
+   * Produces a lazily-resolving factory token backed by this token.
+   *
+   * @param factory Async factory returning raw pre-validation input.
+   */
+  fromFactory(
+    factory: (ctx: FactoryContext) => Promise<StandardSchemaV1.InferInput<NonNullable<S>>>,
+  ): FactoryToken<T, NonNullable<S>> {
+    return new FactoryToken(this as Token<T, NonNullable<S>>, factory)
+  }
+
   static bound<T, S extends StandardSchemaV1>(
     token: Token<T, S>,
     value: StandardSchemaV1.InferInput<S>,
-  ): BoundInjectionToken<T, S> {
-    return new BoundInjectionToken(token, value)
+  ): BoundToken<T, S> {
+    return token.bind(value)
   }
 
   static factory<T, S extends StandardSchemaV1>(
     token: Token<T, S>,
     factory: (ctx: FactoryContext) => Promise<StandardSchemaV1.InferInput<S>>,
-  ): FactoryInjectionToken<T, S> {
-    return new FactoryInjectionToken(token, factory)
+  ): FactoryToken<T, S> {
+    return token.fromFactory(factory)
   }
 
-  static refineType<T>(token: BoundInjectionToken<any, any>): BoundInjectionToken<T, any> {
-    return token as BoundInjectionToken<T, any>
+  static refineType<T>(token: BoundToken<any, any>): BoundToken<T, any> {
+    return token as BoundToken<T, any>
   }
 
   toString() {
@@ -120,13 +141,15 @@ export class Token<
   }
 }
 
-export class BoundInjectionToken<T, S extends StandardSchemaV1> {
+export class BoundToken<T, S extends StandardSchemaV1> {
   public id: string
   public name: string | symbol | ClassType
   public schema: InjectionTokenSchemaType
 
   constructor(
     public readonly token: Token<T, S>,
+    // Raw pre-validation input; the container validates this to
+    // InferOutput at resolution time (see token-resolver).
     public readonly value: StandardSchemaV1.InferInput<S>,
   ) {
     this.name = token.name
@@ -139,7 +162,7 @@ export class BoundInjectionToken<T, S extends StandardSchemaV1> {
   }
 }
 
-export class FactoryInjectionToken<T, S extends StandardSchemaV1> {
+export class FactoryToken<T, S extends StandardSchemaV1> {
   public value?: StandardSchemaV1.InferInput<S>
   public resolved = false
   public id: string
@@ -155,6 +178,8 @@ export class FactoryInjectionToken<T, S extends StandardSchemaV1> {
     this.schema = token.schema as InjectionTokenSchemaType
   }
 
+  // Returns the raw factory output (pre-validation input); the container
+  // validates this to InferOutput at resolution time (see token-resolver).
   async resolve(ctx: FactoryContext): Promise<StandardSchemaV1.InferInput<S>> {
     if (!this.value) {
       this.value = await this.factory(ctx)
@@ -167,6 +192,30 @@ export class FactoryInjectionToken<T, S extends StandardSchemaV1> {
     return this.token.toString()
   }
 }
+
+/**
+ * @deprecated Use {@link BoundToken} instead. Kept as an alias during the v2
+ * migration; will be removed at the end of phase 1.
+ */
+export const BoundInjectionToken = BoundToken
+
+/**
+ * @deprecated Use {@link BoundToken} instead. Kept as an alias during the v2
+ * migration; will be removed at the end of phase 1.
+ */
+export type BoundInjectionToken<T, S extends StandardSchemaV1> = BoundToken<T, S>
+
+/**
+ * @deprecated Use {@link FactoryToken} instead. Kept as an alias during the v2
+ * migration; will be removed at the end of phase 1.
+ */
+export const FactoryInjectionToken = FactoryToken
+
+/**
+ * @deprecated Use {@link FactoryToken} instead. Kept as an alias during the v2
+ * migration; will be removed at the end of phase 1.
+ */
+export type FactoryInjectionToken<T, S extends StandardSchemaV1> = FactoryToken<T, S>
 
 /**
  * @deprecated Use {@link Token} instead. Kept as an alias during the v2
@@ -187,10 +236,7 @@ export type InjectionToken<
 export type AnyInjectableType =
   | ClassType
   | Token<any, any>
-  | BoundInjectionToken<any, any>
-  | FactoryInjectionToken<any, any>
+  | BoundToken<any, any>
+  | FactoryToken<any, any>
 
-export type InjectionTokenType =
-  | Token<any, any>
-  | BoundInjectionToken<any, any>
-  | FactoryInjectionToken<any, any>
+export type InjectionTokenType = Token<any, any> | BoundToken<any, any> | FactoryToken<any, any>
