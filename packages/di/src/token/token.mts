@@ -11,11 +11,12 @@ export type ClassTypeWithInstance<T> = new (...args: any[]) => T
 export type ClassTypeWithInstanceAndArgument<T, Arg> = new (arg: Arg) => T
 export type ClassTypeWithInstanceAndOptionalArgument<T, Arg> = new (arg?: Arg) => T
 
-export type BaseInjectionTokenSchemaType = StandardSchemaV1
-
-export type OptionalInjectionTokenSchemaType = StandardSchemaV1
-
-export type InjectionTokenSchemaType = StandardSchemaV1
+/**
+ * The schema type accepted by tokens. In v2 a token's schema is always a
+ * {@link StandardSchemaV1}; presence of a schema means args are required
+ * (the zod-optional "args optional" capability was dropped in v2).
+ */
+export type TokenSchemaType = StandardSchemaV1
 
 /**
  * Simple hash function for deterministic ID generation
@@ -148,7 +149,7 @@ export class Token<
 export class BoundToken<T, S extends StandardSchemaV1> {
   public id: string
   public name: string | symbol | ClassType
-  public schema: InjectionTokenSchemaType
+  public schema: TokenSchemaType
 
   constructor(
     public readonly token: Token<T, S>,
@@ -158,7 +159,7 @@ export class BoundToken<T, S extends StandardSchemaV1> {
   ) {
     this.name = token.name
     this.id = token.id
-    this.schema = token.schema as InjectionTokenSchemaType
+    this.schema = token.schema as TokenSchemaType
   }
 
   toString() {
@@ -171,7 +172,7 @@ export class FactoryToken<T, S extends StandardSchemaV1> {
   public resolved = false
   public id: string
   public name: string | symbol | ClassType
-  public schema: InjectionTokenSchemaType
+  public schema: TokenSchemaType
 
   constructor(
     public readonly token: Token<T, S>,
@@ -179,7 +180,7 @@ export class FactoryToken<T, S extends StandardSchemaV1> {
   ) {
     this.name = token.name
     this.id = token.id
-    this.schema = token.schema as InjectionTokenSchemaType
+    this.schema = token.schema as TokenSchemaType
   }
 
   // Returns the raw factory output (pre-validation input); the container
@@ -243,4 +244,4 @@ export type AnyInjectableType =
   | BoundToken<any, any>
   | FactoryToken<any, any>
 
-export type InjectionTokenType = Token<any, any> | BoundToken<any, any> | FactoryToken<any, any>
+export type TokenType = Token<any, any> | BoundToken<any, any> | FactoryToken<any, any>

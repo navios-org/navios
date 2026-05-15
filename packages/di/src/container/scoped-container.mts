@@ -1,8 +1,6 @@
-import type { z, ZodType } from 'zod/v4'
-
 import { InjectableScope } from '../enums/index.mjs'
 import { UnifiedStorage } from '../internal/holder/unified-storage.mjs'
-import { BoundInjectionToken, InjectionToken } from '../token/token.mjs'
+import { BoundToken, Token } from '../token/token.mjs'
 
 import type { Factorable } from '../interfaces/factory.interface.mjs'
 import type { NameResolver } from '../internal/core/name-resolver.mjs'
@@ -11,11 +9,12 @@ import type { TokenResolver } from '../internal/core/token-resolver.mjs'
 import type {
   ClassType,
   ClassTypeWithArgument,
-  FactoryInjectionToken,
-  InjectionTokenSchemaType,
+  FactoryToken,
+  TokenSchemaType,
 } from '../token/token.mjs'
+import type { StandardSchemaV1 } from '../token/schema.mjs'
 import type { Registry } from '../token/registry.mjs'
-import type { Join, UnionToArray } from '../utils/types.mjs'
+import type { TokenArgsRequiredError } from '../utils/types.mjs'
 
 import { AbstractContainer } from './abstract-container.mjs'
 import { Container } from './container.mjs'
@@ -115,29 +114,25 @@ export class ScopedContainer extends AbstractContainer {
   // #1.1 Simple class with args
   get<T extends ClassTypeWithArgument<R>, R>(token: T, args: R): Promise<InstanceType<T>>
   // #2 Token with required Schema
-  get<T, S extends InjectionTokenSchemaType>(
-    token: InjectionToken<T, S>,
-    args: z.input<S>,
+  get<T, S extends TokenSchemaType>(
+    token: Token<T, S>,
+    args: StandardSchemaV1.InferInput<S>,
   ): Promise<T>
-  // #3 Token with optional Schema
-  get<T, S extends InjectionTokenSchemaType, R extends boolean>(
-    token: InjectionToken<T, S, R>,
-  ): R extends false
-    ? Promise<T>
-    : S extends ZodType<infer Type>
-      ? `Error: Your token requires args: ${Join<UnionToArray<keyof Type>, ', '>}`
-      : 'Error: Your token requires args'
+  // #3 Token with schema resolved without args -> compile-time DX error
+  get<T, S extends TokenSchemaType, R extends boolean>(
+    token: Token<T, S, R>,
+  ): R extends false ? Promise<T> : TokenArgsRequiredError<S>
   // #4 Token with no Schema
-  get<T>(token: InjectionToken<T, undefined>): Promise<T>
-  get<T>(token: BoundInjectionToken<T, any>): Promise<T>
-  get<T>(token: FactoryInjectionToken<T, any>): Promise<T>
+  get<T>(token: Token<T, undefined>): Promise<T>
+  get<T>(token: BoundToken<T, any>): Promise<T>
+  get<T>(token: FactoryToken<T, any>): Promise<T>
 
   async get(
     token:
       | ClassType
-      | InjectionToken<any>
-      | BoundInjectionToken<any, any>
-      | FactoryInjectionToken<any, any>,
+      | Token<any>
+      | BoundToken<any, any>
+      | FactoryToken<any, any>,
     args?: unknown,
   ) {
     if (this.disposed) {
@@ -227,7 +222,7 @@ export class ScopedContainer extends AbstractContainer {
    * Overrides base class to check disposed state.
    */
   override addInstance<T>(
-    token: ClassType | InjectionToken<T, any> | BoundInjectionToken<T, any>,
+    token: ClassType | Token<T, any> | BoundToken<T, any>,
     instance: T,
   ): void {
     if (this.disposed) {

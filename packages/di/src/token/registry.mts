@@ -1,10 +1,14 @@
 import { InjectableScope, InjectableType } from '../enums/index.mjs'
 
-import type { ClassType, InjectionToken } from './token.mjs'
+import type { StandardSchemaV1 } from './schema.mjs'
+import type { ClassType, Token } from './token.mjs'
 
-export type FactoryRecord<Instance = any, Schema = any> = {
+export type FactoryRecord<
+  Instance = any,
+  Schema extends StandardSchemaV1 | undefined = StandardSchemaV1 | undefined,
+> = {
   scope: InjectableScope
-  originalToken: InjectionToken<Instance, Schema>
+  originalToken: Token<Instance, Schema>
   target: ClassType
   type: InjectableType
   priority: number
@@ -16,7 +20,7 @@ export class Registry {
 
   constructor(private readonly parent?: Registry) {}
 
-  has(token: InjectionToken<any, any>): boolean {
+  has(token: Token<any, any>): boolean {
     if (this.factories.has(token.id)) {
       return true
     }
@@ -26,7 +30,9 @@ export class Registry {
     return false
   }
 
-  get<Instance, Schema>(token: InjectionToken<Instance, Schema>): FactoryRecord<Instance, Schema> {
+  get<Instance, Schema extends StandardSchemaV1 | undefined>(
+    token: Token<Instance, Schema>,
+  ): FactoryRecord<Instance, Schema> {
     const factory = this.highestPriority.get(token.id)
     if (!factory) {
       if (this.parent) {
@@ -34,11 +40,13 @@ export class Registry {
       }
       throw new Error(`[Registry] No factory found for ${token.toString()}`)
     }
-    return factory
+    // The factories map is keyed by token id and erases per-token generics;
+    // the public signature re-narrows to the caller's token type.
+    return factory as FactoryRecord<Instance, Schema>
   }
 
-  getAll<Instance, Schema>(
-    token: InjectionToken<Instance, Schema>,
+  getAll<Instance, Schema extends StandardSchemaV1 | undefined>(
+    token: Token<Instance, Schema>,
   ): FactoryRecord<Instance, Schema>[] {
     const records = this.factories.get(token.id)
     if (!records || records.length === 0) {
@@ -47,12 +55,16 @@ export class Registry {
       }
       return []
     }
-    // Return sorted by priority (highest first)
-    return [...records].sort((a, b) => b.priority - a.priority)
+    // Return sorted by priority (highest first). The factories map erases
+    // per-token generics; the public signature re-narrows.
+    return [...records].sort((a, b) => b.priority - a.priority) as FactoryRecord<
+      Instance,
+      Schema
+    >[]
   }
 
-  set<Instance, Schema>(
-    token: InjectionToken<Instance, Schema>,
+  set<Instance, Schema extends StandardSchemaV1 | undefined>(
+    token: Token<Instance, Schema>,
     scope: InjectableScope,
     target: ClassType,
     type: InjectableType,
@@ -78,7 +90,7 @@ export class Registry {
     }
   }
 
-  delete(token: InjectionToken<any, any>) {
+  delete(token: Token<any, any>) {
     const records = this.factories.get(token.id)
     if (records) {
       const deletedHighest = this.highestPriority.get(token.id)
@@ -112,7 +124,7 @@ export class Registry {
    * @param scope The new scope to set
    * @returns true if the scope was updated, false if the token was not found
    */
-  updateScope(token: InjectionToken<any, any>, scope: InjectableScope): boolean {
+  updateScope(token: Token<any, any>, scope: InjectableScope): boolean {
     const records = this.factories.get(token.id)
     if (records && records.length > 0) {
       // Update all records

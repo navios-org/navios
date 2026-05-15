@@ -1,7 +1,7 @@
 import { Container } from '../container/container.mjs'
 import { InjectableScope, InjectableType } from '../enums/index.mjs'
 import { DIError } from '../errors/index.mjs'
-import { BoundInjectionToken, InjectionToken } from '../token/token.mjs'
+import { BoundToken, Token } from '../token/token.mjs'
 import { Registry } from '../token/registry.mjs'
 import { getInjectableToken } from '../utils/get-injectable-token.mjs'
 import { defaultInjectors } from '../utils/index.mjs'
@@ -15,8 +15,8 @@ import type {
 } from './types.mjs'
 
 type AnyToken =
-  | InjectionToken<any, any>
-  | BoundInjectionToken<any, any>
+  | Token<any, any>
+  | BoundToken<any, any>
   | (new (...args: any[]) => any)
 
 /**
@@ -169,8 +169,8 @@ export class UnitTestContainer extends Container {
    * Override get to wrap instances in tracking proxies.
    */
   override async get(token: any, args?: unknown): Promise<any> {
-    // Check if token is a BoundInjectionToken and if it's registered
-    const isBoundToken = token instanceof BoundInjectionToken
+    // Check if token is a BoundToken and if it's registered
+    const isBoundToken = token instanceof BoundToken
     const tokenId = isBoundToken ? token.id : undefined
     const realToken = this.resolveToken(token)
 
@@ -454,16 +454,16 @@ export class UnitTestContainer extends Container {
   // INTERNAL HELPERS
   // ============================================================================
 
-  private resolveToken(token: AnyToken): InjectionToken<any, any> {
+  private resolveToken(token: AnyToken): Token<any, any> {
     if (typeof token === 'function') {
       try {
         return getInjectableToken(token)
       } catch {
         // Class doesn't have @Injectable, create a token for it
-        return InjectionToken.create(token)
+        return Token.create(token)
       }
     }
-    if (token instanceof BoundInjectionToken) {
+    if (token instanceof BoundToken) {
       return token.token
     }
     return token
@@ -475,7 +475,7 @@ export class UnitTestContainer extends Container {
 
     // Track both the real token ID and the bound token ID if it's a bound token
     this.registeredTokenIds.add(realToken.id)
-    if (providerToken instanceof BoundInjectionToken) {
+    if (providerToken instanceof BoundToken) {
       this.registeredTokenIds.add(providerToken.id)
     }
 
@@ -495,14 +495,14 @@ export class UnitTestContainer extends Container {
           InjectableType.Class,
           1000, // Higher priority for test overrides
         )
-      } else if (providerToken instanceof BoundInjectionToken) {
+      } else if (providerToken instanceof BoundToken) {
         // If it's a bound token without override, register the bound value
         this.registerValueBinding(realToken, providerToken.value)
       }
     }
   }
 
-  private registerValueBinding<T>(token: InjectionToken<T, any>, value: T): void {
+  private registerValueBinding<T>(token: Token<T, any>, value: T): void {
     const ValueHolder = class {
       create(): T {
         return value
@@ -529,7 +529,7 @@ export class UnitTestContainer extends Container {
   }
 
   private registerClassBinding<T>(
-    token: InjectionToken<T, any>,
+    token: Token<T, any>,
     cls: new (...args: any[]) => T,
   ): void {
     this.testRegistry.set(
@@ -542,7 +542,7 @@ export class UnitTestContainer extends Container {
   }
 
   private registerFactoryBinding<T>(
-    token: InjectionToken<T, any>,
+    token: Token<T, any>,
     factory: () => T | Promise<T>,
   ): void {
     const FactoryWrapper = class {

@@ -1,12 +1,12 @@
 import { DIError } from '../../errors/index.mjs'
 import {
-  BoundInjectionToken,
-  FactoryInjectionToken,
-  InjectionToken,
+  BoundToken,
+  FactoryToken,
+  Token,
 } from '../../token/token.mjs'
 import { getInjectableToken } from '../../utils/index.mjs'
 
-import type { AnyInjectableType, InjectionTokenType } from '../../token/token.mjs'
+import type { AnyInjectableType, TokenType } from '../../token/token.mjs'
 
 /**
  * Handles token validation and resolution.
@@ -22,32 +22,32 @@ export class TokenResolver {
   // ============================================================================
 
   /**
-   * Normalizes a token to an InjectionToken.
+   * Normalizes a token to an Token.
    * Handles class constructors by getting their injectable token.
    *
-   * @param token A class constructor, InjectionToken, BoundInjectionToken, or FactoryInjectionToken
-   * @returns The normalized InjectionTokenType
+   * @param token A class constructor, Token, BoundToken, or FactoryToken
+   * @returns The normalized TokenType
    */
-  normalizeToken(token: AnyInjectableType): InjectionTokenType {
+  normalizeToken(token: AnyInjectableType): TokenType {
     if (typeof token === 'function') {
       return getInjectableToken(token)
     }
-    return token as InjectionTokenType
+    return token as TokenType
   }
 
   /**
    * Gets the underlying "real" token from wrapped tokens.
-   * For BoundInjectionToken and FactoryInjectionToken, returns the wrapped token.
+   * For BoundToken and FactoryToken, returns the wrapped token.
    * For other tokens, returns the token itself.
    *
    * @param token The token to unwrap
-   * @returns The underlying InjectionToken
+   * @returns The underlying Token
    */
-  getRealToken<T = unknown>(token: InjectionTokenType): InjectionToken<T> {
-    if (token instanceof BoundInjectionToken || token instanceof FactoryInjectionToken) {
-      return token.token as InjectionToken<T>
+  getRealToken<T = unknown>(token: TokenType): Token<T> {
+    if (token instanceof BoundToken || token instanceof FactoryToken) {
+      return token.token as Token<T>
     }
-    return token as InjectionToken<T>
+    return token as Token<T>
   }
 
   /**
@@ -55,9 +55,9 @@ export class TokenResolver {
    * Useful for checking registry entries where you need the actual registered token.
    *
    * @param token Any injectable type
-   * @returns The underlying InjectionToken
+   * @returns The underlying Token
    */
-  getRegistryToken<T = unknown>(token: AnyInjectableType): InjectionToken<T> {
+  getRegistryToken<T = unknown>(token: AnyInjectableType): Token<T> {
     return this.getRealToken(this.normalizeToken(token))
   }
 
@@ -75,15 +75,15 @@ export class TokenResolver {
   validateAndResolveTokenArgs(
     token: AnyInjectableType,
     args?: any,
-  ): [DIError | undefined, { actualToken: InjectionTokenType; validatedArgs?: any }] {
-    let actualToken = token as InjectionToken<any, any>
+  ): [DIError | undefined, { actualToken: TokenType; validatedArgs?: any }] {
+    let actualToken = token as Token<any, any>
     if (typeof token === 'function') {
       actualToken = getInjectableToken(token)
     }
     let realArgs = args
-    if (actualToken instanceof BoundInjectionToken) {
+    if (actualToken instanceof BoundToken) {
       realArgs = actualToken.value
-    } else if (actualToken instanceof FactoryInjectionToken) {
+    } else if (actualToken instanceof FactoryToken) {
       if (actualToken.resolved) {
         realArgs = actualToken.value
       } else {

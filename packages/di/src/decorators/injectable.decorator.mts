@@ -1,28 +1,23 @@
-import type { z } from 'zod/v4'
-
 import { InjectableScope, InjectableType } from '../enums/index.mjs'
 import { InjectableTokenMeta } from '../symbols/index.mjs'
-import { InjectionToken } from '../token/token.mjs'
+import { Token } from '../token/token.mjs'
 import { globalRegistry } from '../token/registry.mjs'
 
+import type { StandardSchemaV1 } from '../token/schema.mjs'
 import type {
-  BaseInjectionTokenSchemaType,
   ClassType,
   ClassTypeWithArgument,
   ClassTypeWithInstance,
   ClassTypeWithInstanceAndArgument,
-  ClassTypeWithInstanceAndOptionalArgument,
-  ClassTypeWithOptionalArgument,
   ClassTypeWithoutArguments,
-  InjectionTokenSchemaType,
-  OptionalInjectionTokenSchemaType,
+  TokenSchemaType,
 } from '../token/token.mjs'
 import type { Registry } from '../token/registry.mjs'
 
 export interface InjectableOptions {
   scope?: InjectableScope
-  token?: InjectionToken<any, any>
-  schema?: InjectionTokenSchemaType
+  token?: Token<any, any>
+  schema?: TokenSchemaType
   registry?: Registry
   priority?: number
 }
@@ -42,45 +37,37 @@ export function Injectable(options: {
   priority?: number
 }): <T extends ClassTypeWithoutArguments>(target: T, context?: ClassDecoratorContext) => T
 // #2 Class with schema
-export function Injectable<Schema extends InjectionTokenSchemaType>(options: {
+export function Injectable<Schema extends TokenSchemaType>(options: {
   scope?: InjectableScope
   schema: Schema
   registry?: Registry
   priority?: number
-}): <T extends ClassTypeWithArgument<z.output<Schema>>>(
+}): <T extends ClassTypeWithArgument<StandardSchemaV1.InferOutput<Schema>>>(
   target: T,
   context?: ClassDecoratorContext,
 ) => T
 
 // #3 Class with typeless token and schema
-export function Injectable<Type, Schema>(options: {
+//
+// In v2 a token's schema is always a StandardSchemaV1 and presence of a
+// schema means args are required (the zod-optional "args optional" capability
+// was dropped in v2), so there is no separate "optional schema" branch.
+export function Injectable<Type, Schema extends StandardSchemaV1 | undefined>(options: {
   scope?: InjectableScope
-  token: InjectionToken<Type, Schema>
+  token: Token<Type, Schema>
   registry?: Registry
   priority?: number
-}): Schema extends BaseInjectionTokenSchemaType
+}): Schema extends StandardSchemaV1
   ? Type extends undefined
-    ? <T extends ClassTypeWithArgument<z.output<Schema>>>(
+    ? <T extends ClassTypeWithArgument<StandardSchemaV1.InferOutput<Schema>>>(
         target: T,
         context?: ClassDecoratorContext,
       ) => T
-    : <T extends ClassTypeWithInstanceAndArgument<Type, z.output<Schema>>>(
+    : <T extends ClassTypeWithInstanceAndArgument<Type, StandardSchemaV1.InferOutput<Schema>>>(
         target: T,
         context?: ClassDecoratorContext,
       ) => T
-  : Schema extends OptionalInjectionTokenSchemaType
-    ? Type extends undefined
-      ? <T extends ClassTypeWithOptionalArgument<z.output<Schema>>>(
-          target: T,
-          context?: ClassDecoratorContext,
-        ) => T
-      : <T extends ClassTypeWithInstanceAndOptionalArgument<Type, z.output<Schema>>>(
-          target: T,
-          context?: ClassDecoratorContext,
-        ) => T
-    : Schema extends undefined
-      ? <R extends ClassTypeWithInstance<Type>>(target: R, context?: ClassDecoratorContext) => R
-      : never
+  : <R extends ClassTypeWithInstance<Type>>(target: R, context?: ClassDecoratorContext) => R
 
 export function Injectable({
   scope = InjectableScope.Singleton,
@@ -96,8 +83,8 @@ export function Injectable({
     if (schema && token) {
       throw new Error('[DI] @Injectable decorator cannot have both a token and a schema')
     }
-    let injectableToken: InjectionToken<any, any> =
-      token ?? InjectionToken.create(target, schema as InjectionTokenSchemaType)
+    let injectableToken: Token<any, any> =
+      token ?? Token.create(target, schema as TokenSchemaType)
 
     registry.set(injectableToken, scope, target, InjectableType.Class, priority)
 

@@ -1,4 +1,4 @@
-import type { z, ZodType } from 'zod/v4'
+import type { ZodType } from 'zod/v4'
 
 import { InjectableScope, InjectableType } from '../enums/index.mjs'
 import { DIError, DIErrorCode } from '../errors/index.mjs'
@@ -6,9 +6,9 @@ import { InstanceStatus } from '../internal/holder/instance-holder.mjs'
 import { UnifiedStorage } from '../internal/holder/unified-storage.mjs'
 import { StubFactoryClass } from '../internal/index.mjs'
 import {
-  BoundInjectionToken,
-  FactoryInjectionToken,
-  InjectionToken,
+  BoundToken,
+  FactoryToken,
+  Token,
 } from '../token/token.mjs'
 
 import type { IContainer } from '../interfaces/container.interface.mjs'
@@ -19,10 +19,11 @@ import type { TokenResolver } from '../internal/core/token-resolver.mjs'
 import type {
   ClassType,
   ClassTypeWithArgument,
-  InjectionTokenSchemaType,
+  TokenSchemaType,
 } from '../token/token.mjs'
+import type { StandardSchemaV1 } from '../token/schema.mjs'
 import type { Registry } from '../token/registry.mjs'
-import type { Join, UnionToArray } from '../utils/types.mjs'
+import type { TokenArgsRequiredError } from '../utils/types.mjs'
 
 /**
  * Abstract base class for dependency injection containers.
@@ -80,22 +81,18 @@ export abstract class AbstractContainer implements IContainer {
   // #1.1 Simple class with args
   abstract get<T extends ClassTypeWithArgument<R>, R>(token: T, args: R): Promise<InstanceType<T>>
   // #2 Token with required Schema
-  abstract get<T, S extends InjectionTokenSchemaType>(
-    token: InjectionToken<T, S>,
-    args: z.input<S>,
+  abstract get<T, S extends TokenSchemaType>(
+    token: Token<T, S>,
+    args: StandardSchemaV1.InferInput<S>,
   ): Promise<T>
-  // #3 Token with optional Schema
-  abstract get<T, S extends InjectionTokenSchemaType, R extends boolean>(
-    token: InjectionToken<T, S, R>,
-  ): R extends false
-    ? Promise<T>
-    : S extends ZodType<infer Type>
-      ? `Error: Your token requires args: ${Join<UnionToArray<keyof Type>, ', '>}`
-      : 'Error: Your token requires args'
+  // #3 Token with schema resolved without args -> compile-time DX error
+  abstract get<T, S extends TokenSchemaType, R extends boolean>(
+    token: Token<T, S, R>,
+  ): R extends false ? Promise<T> : TokenArgsRequiredError<S>
   // #4 Token with no Schema
-  abstract get<T>(token: InjectionToken<T, undefined>): Promise<T>
-  abstract get<T>(token: BoundInjectionToken<T, any>): Promise<T>
-  abstract get<T>(token: FactoryInjectionToken<T, any>): Promise<T>
+  abstract get<T>(token: Token<T, undefined>): Promise<T>
+  abstract get<T>(token: BoundToken<T, any>): Promise<T>
+  abstract get<T>(token: FactoryToken<T, any>): Promise<T>
 
   /**
    * Invalidates a service and its dependencies.
@@ -115,16 +112,16 @@ export abstract class AbstractContainer implements IContainer {
    * Calculates the instance name for a given token and optional arguments.
    *
    * @internal
-   * @param token The class type, InjectionToken, BoundInjectionToken, or FactoryInjectionToken
-   * @param args Optional arguments (ignored for BoundInjectionToken which uses its bound value)
-   * @returns The calculated instance name string, or null if the token is a FactoryInjectionToken that is not yet resolved
+   * @param token The class type, Token, BoundToken, or FactoryToken
+   * @param args Optional arguments (ignored for BoundToken which uses its bound value)
+   * @returns The calculated instance name string, or null if the token is a FactoryToken that is not yet resolved
    */
   calculateInstanceName(
     token:
       | ClassType
-      | InjectionToken<any, any>
-      | BoundInjectionToken<any, any>
-      | FactoryInjectionToken<any, any>,
+      | Token<any, any>
+      | BoundToken<any, any>
+      | FactoryToken<any, any>,
     args?: unknown,
   ): string | null {
     const tokenResolver = this.getTokenResolver()
@@ -229,13 +226,13 @@ export abstract class AbstractContainer implements IContainer {
   /**
    * Adds an instance to the container.
    * Accepts class types, InjectionTokens, and BoundInjectionTokens.
-   * Rejects InjectionTokens with required schemas (use BoundInjectionToken instead).
+   * Rejects InjectionTokens with required schemas (use BoundToken instead).
    *
-   * @param token The class type, InjectionToken, or BoundInjectionToken to register the instance for
+   * @param token The class type, Token, or BoundToken to register the instance for
    * @param instance The instance to store
    */
   addInstance<T>(
-    token: ClassType | InjectionToken<T, any> | BoundInjectionToken<T, any>,
+    token: ClassType | Token<T, any> | BoundToken<T, any>,
     instance: T,
   ): void {
     this.addInstanceToStorage(token, instance, this.getStorage(), this.defaultScope, this.requestId)
@@ -246,15 +243,15 @@ export abstract class AbstractContainer implements IContainer {
    * Internal method for adding instances with configurable scope and storage.
    */
   protected addInstanceToStorage<T>(
-    token: ClassType | InjectionToken<T, any> | BoundInjectionToken<T, any>,
+    token: ClassType | Token<T, any> | BoundToken<T, any>,
     instance: T,
     storage: UnifiedStorage,
     scope: InjectableScope,
     requestId?: string,
   ): void {
-    // Check if token is an InjectionToken with required schema
-    // BoundInjectionToken is allowed (it already has a value bound)
-    if (token instanceof InjectionToken) {
+    // Check if token is an Token with required schema
+    // BoundToken is allowed (it already has a value bound)
+    if (token instanceof Token) {
       // Check if schema exists and is required (not optional)
       if (token.schema) {
         const schemaType = (token.schema as ZodType)?.def?.type
@@ -289,7 +286,7 @@ export abstract class AbstractContainer implements IContainer {
     // Generate instance name with the given scope
     const instanceName = this.getNameResolver().generateInstanceName(
       normalizedToken,
-      normalizedToken instanceof BoundInjectionToken ? normalizedToken.value : undefined,
+      normalizedToken instanceof BoundToken ? normalizedToken.value : undefined,
       requestId,
       scope,
     )

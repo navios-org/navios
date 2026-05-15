@@ -1,6 +1,6 @@
 import { InjectableScope } from '../../enums/index.mjs'
 import { DIError, DIErrorCode } from '../../errors/index.mjs'
-import { FactoryInjectionToken, InjectionToken } from '../../token/token.mjs'
+import { FactoryToken, Token } from '../../token/token.mjs'
 import {
   getCurrentResolutionContext,
   withResolutionContext,
@@ -11,7 +11,7 @@ import { CircularDetector } from '../lifecycle/circular-detector.mjs'
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import type { ScopedContainer } from '../../container/scoped-container.mjs'
 import type { IContainer } from '../../interfaces/container.interface.mjs'
-import type { AnyInjectableType, InjectionTokenType } from '../../token/token.mjs'
+import type { AnyInjectableType, TokenType } from '../../token/token.mjs'
 import type { Registry } from '../../token/registry.mjs'
 import type { ServiceInitializationContext } from '../context/service-initialization-context.mjs'
 import type { IHolderStorage } from '../holder/holder-storage.interface.mjs'
@@ -220,8 +220,8 @@ export class InstanceResolver {
         {
           instanceName: string
           validatedArgs: any
-          actualToken: InjectionTokenType
-          realToken: InjectionToken<any, any>
+          actualToken: TokenType
+          realToken: Token<any, any>
           scope: InjectableScope
         },
       ]
@@ -236,7 +236,7 @@ export class InstanceResolver {
     } else if (
       err instanceof DIError &&
       err.code === DIErrorCode.FactoryTokenNotResolved &&
-      actualToken instanceof FactoryInjectionToken
+      actualToken instanceof FactoryToken
     ) {
       this.logger?.log(
         `[InstanceResolver]#resolveTokenAndPrepareInstanceName() Factory token not resolved, resolving it`,
@@ -329,7 +329,7 @@ export class InstanceResolver {
    */
   private async createAndStoreInstance<Instance>(
     instanceName: string,
-    realToken: InjectionToken<Instance, any>,
+    realToken: Token<Instance, any>,
     args: any,
     contextContainer: IContainer,
     storage: IHolderStorage,
@@ -662,7 +662,7 @@ export class InstanceResolver {
     serviceName: string,
     scope: InjectableScope,
     deps: Set<string>,
-    serviceToken: InjectionToken<any, any>,
+    serviceToken: Token<any, any>,
     requestStorage?: IHolderStorage,
     requestId?: string,
   ): ServiceInitializationContext {

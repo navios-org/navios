@@ -1,6 +1,6 @@
 import { Container } from '../container/container.mjs'
 import { InjectableScope, InjectableType } from '../enums/index.mjs'
-import { BoundInjectionToken, InjectionToken } from '../token/token.mjs'
+import { BoundToken, Token } from '../token/token.mjs'
 import { globalRegistry, Registry } from '../token/registry.mjs'
 import { getInjectableToken } from '../utils/get-injectable-token.mjs'
 import { defaultInjectors } from '../utils/index.mjs'
@@ -16,8 +16,8 @@ import type {
 } from './types.mjs'
 
 type AnyToken =
-  | InjectionToken<any, any>
-  | BoundInjectionToken<any, any>
+  | Token<any, any>
+  | BoundToken<any, any>
   | (new (...args: any[]) => any)
 
 /**
@@ -92,7 +92,7 @@ export class TestContainer extends Container {
    * ```
    */
   bind<T>(
-    token: InjectionToken<T, any> | BoundInjectionToken<T, any> | (new (...args: any[]) => T),
+    token: Token<T, any> | BoundToken<T, any> | (new (...args: any[]) => T),
   ): BindingBuilder<T> {
     const realToken = this.resolveToken(token)
     const tokenId = realToken.id
@@ -483,17 +483,17 @@ export class TestContainer extends Container {
   // INTERNAL HELPERS
   // ============================================================================
 
-  private resolveToken(token: AnyToken): InjectionToken<any, any> {
+  private resolveToken(token: AnyToken): Token<any, any> {
     if (typeof token === 'function') {
       return getInjectableToken(token)
     }
-    if (token instanceof BoundInjectionToken) {
+    if (token instanceof BoundToken) {
       return token.token
     }
     return token
   }
 
-  private registerValueBinding<T>(token: InjectionToken<T, any>, value: T): void {
+  private registerValueBinding<T>(token: Token<T, any>, value: T): void {
     // Create a simple class that returns the value
     const ValueHolder = class {
       create(): T {
@@ -522,7 +522,7 @@ export class TestContainer extends Container {
   }
 
   private registerClassBinding<T>(
-    token: InjectionToken<T, any>,
+    token: Token<T, any>,
     cls: new (...args: any[]) => T,
   ): void {
     this.testRegistry.set(
@@ -535,7 +535,7 @@ export class TestContainer extends Container {
   }
 
   private registerFactoryBinding<T>(
-    token: InjectionToken<T, any>,
+    token: Token<T, any>,
     factory: () => T | Promise<T>,
   ): void {
     // Create a factory class wrapper

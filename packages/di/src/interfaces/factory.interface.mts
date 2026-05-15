@@ -1,12 +1,11 @@
-import type { z } from 'zod/v4'
-
 import type { FactoryContext } from '../internal/context/factory-context.mjs'
-import type { InjectionTokenSchemaType } from '../token/token.mjs'
+import type { StandardSchemaV1 } from '../token/schema.mjs'
+import type { TokenSchemaType } from '../token/token.mjs'
 
 export interface Factorable<T> {
   create(ctx?: FactoryContext): Promise<T> | T
 }
 
-export interface FactorableWithArgs<T, A extends InjectionTokenSchemaType> {
-  create(ctx?: FactoryContext, ...args: [z.output<A>]): Promise<T> | T
+export interface FactorableWithArgs<T, A extends TokenSchemaType> {
+  create(ctx?: FactoryContext, ...args: [StandardSchemaV1.InferOutput<A>]): Promise<T> | T
 }

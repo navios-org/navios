@@ -4,7 +4,7 @@ import { Registry } from '../../token/registry.mjs'
 import { InstanceStatus } from '../holder/instance-holder.mjs'
 
 import type { InjectableScope } from '../../enums/index.mjs'
-import type { InjectionToken } from '../../token/token.mjs'
+import type { Token } from '../../token/token.mjs'
 import type { IHolderStorage } from '../holder/holder-storage.interface.mjs'
 
 import { NameResolver } from './name-resolver.mjs'
@@ -41,7 +41,7 @@ export class ScopeTracker {
     currentServiceScope: InjectableScope,
     dependencyName: string,
     dependencyScope: InjectableScope,
-    dependencyToken: InjectionToken<any, any>,
+    dependencyToken: Token<any, any>,
     singletonStorage: IHolderStorage,
     requestStorage?: IHolderStorage,
     requestId?: string,
@@ -96,7 +96,7 @@ export class ScopeTracker {
    */
   async upgradeScopeToRequest(
     serviceName: string,
-    token: InjectionToken<any, any>,
+    token: Token<any, any>,
     singletonStorage: IHolderStorage,
     requestStorage: IHolderStorage,
     requestId: string,
@@ -129,7 +129,7 @@ export class ScopeTracker {
    */
   private upgradeScopeToRequestSync(
     serviceName: string,
-    token: InjectionToken<any, any>,
+    token: Token<any, any>,
     singletonStorage: IHolderStorage,
     requestStorage: IHolderStorage,
     requestId: string,

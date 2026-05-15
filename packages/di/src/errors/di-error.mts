@@ -1,4 +1,4 @@
-import type { InjectionTokenSchemaType } from '../token/token.mjs'
+import type { TokenSchemaType } from '../token/token.mjs'
 import type { FactoryRecord } from '../token/registry.mjs'
 
 export enum DIErrorCode {
@@ -73,7 +73,7 @@ export class DIError extends Error {
 
   static tokenValidationError(
     message: string,
-    schema: InjectionTokenSchemaType | undefined,
+    schema: TokenSchemaType | undefined,
     value: unknown,
   ): DIError {
     return new DIError(DIErrorCode.TokenValidationError, message, {
@@ -85,7 +85,7 @@ export class DIError extends Error {
   static tokenSchemaRequiredError(token: string | symbol | unknown): DIError {
     return new DIError(
       DIErrorCode.TokenSchemaRequiredError,
-      `Token ${token?.toString() ?? 'unknown'} requires schema arguments and cannot be used with addInstance. Use BoundInjectionToken or provide arguments when resolving.`,
+      `Token ${token?.toString() ?? 'unknown'} requires schema arguments and cannot be used with addInstance. Use BoundToken or provide arguments when resolving.`,
       { token },
     )
   }

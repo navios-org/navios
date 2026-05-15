@@ -1,8 +1,9 @@
+import type { StandardSchemaV1 } from '../token/schema.mjs'
 import type {
-  BoundInjectionToken,
+  BoundToken,
   ClassType,
-  FactoryInjectionToken,
-  InjectionToken,
+  FactoryToken,
+  Token,
 } from '../token/token.mjs'
 
 // Utility types for string manipulation and union handling
@@ -32,11 +33,27 @@ export type IsUnion<T> = [T] extends [UnionToIntersection<T>] ? false : true
 export type UnionToArray<T, A extends unknown[] = []> =
   IsUnion<T> extends true ? UnionToArray<Exclude<T, PopUnion<T>>, [PopUnion<T>, ...A]> : [T, ...A]
 
+/**
+ * Compile-time DX error returned by `container.get(token)` when a
+ * schema-bearing token is resolved without its required args.
+ *
+ * The key list is derived from the schema's Standard Schema input type
+ * ({@link StandardSchemaV1.InferInput}). If the keys are not cleanly
+ * string-extractable the message degrades to a generic form.
+ */
+export type TokenArgsRequiredError<S extends StandardSchemaV1> =
+  Extract<keyof StandardSchemaV1.InferInput<S>, string> extends never
+    ? 'Error: Your token requires args'
+    : `Error: Your token requires args: ${Join<
+        UnionToArray<Extract<keyof StandardSchemaV1.InferInput<S>, string>>,
+        ', '
+      >}`
+
 export type InjectRequest = {
   token:
-    | InjectionToken<any>
-    | BoundInjectionToken<any, any>
-    | FactoryInjectionToken<any, any>
+    | Token<any>
+    | BoundToken<any, any>
+    | FactoryToken<any, any>
     | ClassType
   promise: Promise<any>
   readonly result: any

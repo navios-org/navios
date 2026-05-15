@@ -1,14 +1,13 @@
-import type { z, ZodType } from 'zod/v4'
-
+import type { StandardSchemaV1 } from '../token/schema.mjs'
 import type {
-  BoundInjectionToken,
+  BoundToken,
   ClassType,
   ClassTypeWithArgument,
-  FactoryInjectionToken,
-  InjectionToken,
-  InjectionTokenSchemaType,
+  FactoryToken,
+  Token,
+  TokenSchemaType,
 } from '../token/token.mjs'
-import type { Join, UnionToArray } from '../utils/types.mjs'
+import type { TokenArgsRequiredError } from '../utils/types.mjs'
 
 import type { Factorable } from './factory.interface.mjs'
 
@@ -28,22 +27,18 @@ export interface IContainer {
   // #1.1 Simple class with args
   get<T extends ClassTypeWithArgument<R>, R>(token: T, args: R): Promise<InstanceType<T>>
   // #2 Token with required Schema
-  get<T, S extends InjectionTokenSchemaType>(
-    token: InjectionToken<T, S>,
-    args: z.input<S>,
+  get<T, S extends TokenSchemaType>(
+    token: Token<T, S>,
+    args: StandardSchemaV1.InferInput<S>,
   ): Promise<T>
-  // #3 Token with optional Schema
-  get<T, S extends InjectionTokenSchemaType, R extends boolean>(
-    token: InjectionToken<T, S, R>,
-  ): R extends false
-    ? Promise<T>
-    : S extends ZodType<infer Type>
-      ? `Error: Your token requires args: ${Join<UnionToArray<keyof Type>, ', '>}`
-      : 'Error: Your token requires args'
+  // #3 Token with schema resolved without args -> compile-time DX error
+  get<T, S extends TokenSchemaType, R extends boolean>(
+    token: Token<T, S, R>,
+  ): R extends false ? Promise<T> : TokenArgsRequiredError<S>
   // #4 Token with no Schema
-  get<T>(token: InjectionToken<T, undefined>): Promise<T>
-  get<T>(token: BoundInjectionToken<T, any>): Promise<T>
-  get<T>(token: FactoryInjectionToken<T, any>): Promise<T>
+  get<T>(token: Token<T, undefined>): Promise<T>
+  get<T>(token: BoundToken<T, any>): Promise<T>
+  get<T>(token: FactoryToken<T, any>): Promise<T>
 
   /**
    * Invalidates a service and its dependencies.
@@ -58,13 +53,13 @@ export interface IContainer {
   /**
    * Adds an instance to the container.
    * Accepts class types, InjectionTokens, and BoundInjectionTokens.
-   * Rejects InjectionTokens with required schemas (use BoundInjectionToken instead).
+   * Rejects InjectionTokens with required schemas (use BoundToken instead).
    *
-   * @param token The class type, InjectionToken, or BoundInjectionToken to register the instance for
+   * @param token The class type, Token, or BoundToken to register the instance for
    * @param instance The instance to store
    */
   addInstance<T>(
-    token: ClassType | InjectionToken<T, any> | BoundInjectionToken<T, any>,
+    token: ClassType | Token<T, any> | BoundToken<T, any>,
     instance: T,
   ): void
 

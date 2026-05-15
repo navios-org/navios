@@ -1,5 +1,3 @@
-import type { z, ZodType } from 'zod/v4'
-
 import { Injectable } from '../decorators/injectable.decorator.mjs'
 import { InjectableScope, InjectableType } from '../enums/index.mjs'
 import { DIError } from '../errors/index.mjs'
@@ -12,9 +10,9 @@ import { TokenResolver } from '../internal/core/token-resolver.mjs'
 import { UnifiedStorage } from '../internal/holder/unified-storage.mjs'
 import { LifecycleEventBus } from '../internal/lifecycle/lifecycle-event-bus.mjs'
 import {
-  BoundInjectionToken,
-  FactoryInjectionToken,
-  InjectionToken,
+  BoundToken,
+  FactoryToken,
+  Token,
 } from '../token/token.mjs'
 import { globalRegistry } from '../token/registry.mjs'
 import { defaultInjectors } from '../utils/default-injectors.mjs'
@@ -24,11 +22,12 @@ import type { Factorable } from '../interfaces/factory.interface.mjs'
 import type {
   ClassType,
   ClassTypeWithArgument,
-  InjectionTokenSchemaType,
+  TokenSchemaType,
 } from '../token/token.mjs'
+import type { StandardSchemaV1 } from '../token/schema.mjs'
 import type { Registry } from '../token/registry.mjs'
 import type { Injectors } from '../utils/get-injectors.mjs'
-import type { Join, UnionToArray } from '../utils/types.mjs'
+import type { TokenArgsRequiredError } from '../utils/types.mjs'
 
 import { AbstractContainer } from './abstract-container.mjs'
 import { ScopedContainer } from './scoped-container.mjs'
@@ -107,29 +106,25 @@ export class Container extends AbstractContainer {
   // #1.1 Simple class with args
   get<T extends ClassTypeWithArgument<R>, R>(token: T, args: R): Promise<InstanceType<T>>
   // #2 Token with required Schema
-  get<T, S extends InjectionTokenSchemaType>(
-    token: InjectionToken<T, S>,
-    args: z.input<S>,
+  get<T, S extends TokenSchemaType>(
+    token: Token<T, S>,
+    args: StandardSchemaV1.InferInput<S>,
   ): Promise<T>
-  // #3 Token with optional Schema
-  get<T, S extends InjectionTokenSchemaType, R extends boolean>(
-    token: InjectionToken<T, S, R>,
-  ): R extends false
-    ? Promise<T>
-    : S extends ZodType<infer Type>
-      ? `Error: Your token requires args: ${Join<UnionToArray<keyof Type>, ', '>}`
-      : 'Error: Your token requires args'
+  // #3 Token with schema resolved without args -> compile-time DX error
+  get<T, S extends TokenSchemaType, R extends boolean>(
+    token: Token<T, S, R>,
+  ): R extends false ? Promise<T> : TokenArgsRequiredError<S>
   // #4 Token with no Schema
-  get<T>(token: InjectionToken<T, undefined>): Promise<T>
-  get<T>(token: BoundInjectionToken<T, any>): Promise<T>
-  get<T>(token: FactoryInjectionToken<T, any>): Promise<T>
+  get<T>(token: Token<T, undefined>): Promise<T>
+  get<T>(token: BoundToken<T, any>): Promise<T>
+  get<T>(token: FactoryToken<T, any>): Promise<T>
 
   async get(
     token:
       | ClassType
-      | InjectionToken<any>
-      | BoundInjectionToken<any, any>
-      | FactoryInjectionToken<any, any>,
+      | Token<any>
+      | BoundToken<any, any>
+      | FactoryToken<any, any>,
     args?: unknown,
   ) {
     // Check if this is a request-scoped service

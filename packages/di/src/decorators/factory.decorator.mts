@@ -1,15 +1,16 @@
 import { InjectableScope, InjectableType } from '../enums/index.mjs'
 import { InjectableTokenMeta } from '../symbols/index.mjs'
-import { InjectionToken } from '../token/token.mjs'
+import { Token } from '../token/token.mjs'
 import { globalRegistry } from '../token/registry.mjs'
 
 import type { Factorable, FactorableWithArgs } from '../interfaces/index.mjs'
-import type { ClassTypeWithInstance, InjectionTokenSchemaType } from '../token/token.mjs'
+import type { StandardSchemaV1 } from '../token/schema.mjs'
+import type { ClassTypeWithInstance } from '../token/token.mjs'
 import type { Registry } from '../token/registry.mjs'
 
 export interface FactoryOptions {
   scope?: InjectableScope
-  token?: InjectionToken<any, any>
+  token?: Token<any, any>
   registry?: Registry
   priority?: number
 }
@@ -25,24 +26,27 @@ export function Factory<R>(options?: {
 ) => T
 
 // #2 Factory with typed token
-export function Factory<R, S>(options: {
+//
+// In v2 a token's schema is always a StandardSchemaV1 and presence of a
+// schema means args are required (the zod-optional "args optional" capability
+// was dropped in v2), so the branches are exhaustive over StandardSchemaV1
+// vs undefined.
+export function Factory<R, S extends StandardSchemaV1 | undefined>(options: {
   scope?: InjectableScope
-  token: InjectionToken<R, S>
+  token: Token<R, S>
   registry?: Registry
   priority?: number
 }): R extends undefined
   ? never
-  : S extends InjectionTokenSchemaType
+  : S extends StandardSchemaV1
     ? <T extends ClassTypeWithInstance<FactorableWithArgs<R, S>>>(
         target: T,
         context?: ClassDecoratorContext,
       ) => T
-    : S extends undefined
-      ? <T extends ClassTypeWithInstance<Factorable<R>>>(
-          target: T,
-          context?: ClassDecoratorContext,
-        ) => T
-      : never
+    : <T extends ClassTypeWithInstance<Factorable<R>>>(
+        target: T,
+        context?: ClassDecoratorContext,
+      ) => T
 
 export function Factory({
   scope = InjectableScope.Singleton,
@@ -58,7 +62,7 @@ export function Factory({
       throw new Error('[DI] @Factory decorator can only be used on classes.')
     }
 
-    let injectableToken: InjectionToken<any, any> = token ?? InjectionToken.create(target)
+    let injectableToken: Token<any, any> = token ?? Token.create(target)
 
     registry.set(injectableToken, scope, target, InjectableType.Factory, priority)
 

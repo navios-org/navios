@@ -1,6 +1,6 @@
 import { InjectableScope } from '../../enums/index.mjs'
 
-import type { InjectionTokenType } from '../../token/token.mjs'
+import type { TokenType } from '../../token/token.mjs'
 
 /**
  * Simple LRU cache for instance name generation.
@@ -83,7 +83,7 @@ export class NameResolver {
    * @returns The generated instance name
    */
   generateInstanceName(
-    token: InjectionTokenType,
+    token: TokenType,
     args?: any,
     requestId?: string,
     scope?: InjectableScope,

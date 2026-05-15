@@ -1,21 +1,20 @@
-import type { z, ZodObject, ZodType } from 'zod/v4'
-
 import { withoutResolutionContext } from '../internal/context/resolution-context.mjs'
 import { InjectableTokenMeta } from '../symbols/index.mjs'
 
 import type { Factorable, FactorableWithArgs } from '../interfaces/factory.interface.mjs'
 import type { ServiceInitializationContext } from '../internal/context/service-initialization-context.mjs'
+import type { StandardSchemaV1 } from '../token/schema.mjs'
 import type {
-  BoundInjectionToken,
+  BoundToken,
   ClassType,
   ClassTypeWithArgument,
   ClassTypeWithoutArguments,
-  FactoryInjectionToken,
-  InjectionToken,
-  InjectionTokenSchemaType,
+  FactoryToken,
+  Token,
+  TokenSchemaType,
 } from '../token/token.mjs'
 
-import type { InjectRequest, InjectState, Join, UnionToArray } from './types.mjs'
+import type { InjectRequest, InjectState, TokenArgsRequiredError } from './types.mjs'
 
 export interface Injectors {
   // #1 Simple class
@@ -26,50 +25,42 @@ export interface Injectors {
     token: T,
     args: Args,
   ): Promise<InstanceType<T>>
-  asyncInject<Schema extends InjectionTokenSchemaType, R, T extends FactorableWithArgs<R, Schema>>(
+  asyncInject<Schema extends TokenSchemaType, R, T extends FactorableWithArgs<R, Schema>>(
     token: T,
-    args: z.input<Schema>,
+    args: StandardSchemaV1.InferInput<Schema>,
   ): Promise<R>
 
   // #2 Token with required Schema
-  asyncInject<T, S extends InjectionTokenSchemaType>(
-    token: InjectionToken<T, S>,
-    args: z.input<S>,
+  asyncInject<T, S extends TokenSchemaType>(
+    token: Token<T, S>,
+    args: StandardSchemaV1.InferInput<S>,
   ): Promise<T>
-  // #3 Token with optional Schema
-  asyncInject<T, S extends InjectionTokenSchemaType, R extends boolean>(
-    token: InjectionToken<T, S, R>,
-  ): R extends false
-    ? Promise<T>
-    : S extends ZodType<infer Type>
-      ? `Error: Your token requires args: ${Join<UnionToArray<keyof Type>, ', '>}`
-      : 'Error: Your token requires args'
+  // #3 Token with schema resolved without args -> compile-time DX error
+  asyncInject<T, S extends TokenSchemaType, R extends boolean>(
+    token: Token<T, S, R>,
+  ): R extends false ? Promise<T> : TokenArgsRequiredError<S>
   // #4 Token with no Schema
-  asyncInject<T>(token: InjectionToken<T, undefined>): Promise<T>
-  asyncInject<T>(token: BoundInjectionToken<T, any>): Promise<T>
-  asyncInject<T>(token: FactoryInjectionToken<T, any>): Promise<T>
+  asyncInject<T>(token: Token<T, undefined>): Promise<T>
+  asyncInject<T>(token: BoundToken<T, any>): Promise<T>
+  asyncInject<T>(token: FactoryToken<T, any>): Promise<T>
 
   inject<T extends ClassTypeWithoutArguments>(
     token: T,
   ): InstanceType<T> extends Factorable<infer R> ? R : InstanceType<T>
   inject<Args, T extends ClassTypeWithArgument<Args>>(token: T, args: Args): InstanceType<T>
-  inject<Schema extends InjectionTokenSchemaType, R, T extends FactorableWithArgs<R, Schema>>(
+  inject<Schema extends TokenSchemaType, R, T extends FactorableWithArgs<R, Schema>>(
     token: T,
-    args: z.input<Schema>,
+    args: StandardSchemaV1.InferInput<Schema>,
   ): R
 
-  inject<T, S extends InjectionTokenSchemaType>(token: InjectionToken<T, S>, args: z.input<S>): T
-  // #3 Token with optional Schema
-  inject<T, S extends InjectionTokenSchemaType, R extends boolean>(
-    token: InjectionToken<T, S, R>,
-  ): R extends false
-    ? T
-    : S extends ZodType<infer Type>
-      ? `Error: Your token requires args: ${Join<UnionToArray<keyof Type>, ', '>}`
-      : 'Error: Your token requires args'
-  inject<T>(token: InjectionToken<T, undefined>): T
-  inject<T>(token: BoundInjectionToken<T, any>): T
-  inject<T>(token: FactoryInjectionToken<T, any>): T
+  inject<T, S extends TokenSchemaType>(token: Token<T, S>, args: StandardSchemaV1.InferInput<S>): T
+  // #3 Token with schema resolved without args -> compile-time DX error
+  inject<T, S extends TokenSchemaType, R extends boolean>(
+    token: Token<T, S, R>,
+  ): R extends false ? T : TokenArgsRequiredError<S>
+  inject<T>(token: Token<T, undefined>): T
+  inject<T>(token: BoundToken<T, any>): T
+  inject<T>(token: FactoryToken<T, any>): T
 
   /**
    * Optional injection that returns null if the service fails to initialize
@@ -92,20 +83,17 @@ export interface Injectors {
   optional<T extends ClassType>(
     token: T,
   ): (InstanceType<T> extends Factorable<infer R> ? R : InstanceType<T>) | null
-  optional<T, S extends InjectionTokenSchemaType>(
-    token: InjectionToken<T, S>,
-    args: z.input<S>,
+  optional<T, S extends TokenSchemaType>(
+    token: Token<T, S>,
+    args: StandardSchemaV1.InferInput<S>,
   ): T | null
-  optional<T, S extends InjectionTokenSchemaType, R extends boolean>(
-    token: InjectionToken<T, S, R>,
-  ): R extends false
-    ? T | null
-    : S extends ZodType<infer Type>
-      ? `Error: Your token requires args: ${Join<UnionToArray<keyof Type>, ', '>}`
-      : 'Error: Your token requires args'
-  optional<T>(token: InjectionToken<T, undefined>): T | null
-  optional<T>(token: BoundInjectionToken<T, any>): T | null
-  optional<T>(token: FactoryInjectionToken<T, any>): T | null
+  // #3 Token with schema resolved without args -> compile-time DX error
+  optional<T, S extends TokenSchemaType, R extends boolean>(
+    token: Token<T, S, R>,
+  ): R extends false ? T | null : TokenArgsRequiredError<S>
+  optional<T>(token: Token<T, undefined>): T | null
+  optional<T>(token: BoundToken<T, any>): T | null
+  optional<T>(token: FactoryToken<T, any>): T | null
 
   wrapSyncInit(cb: () => any): (injectState?: InjectState) => [any, Promise<any>[], InjectState]
 
@@ -136,7 +124,7 @@ export function getInjectors() {
   let promiseCollector: null | ((promise: Promise<any>) => void) = null
   let injectState: InjectState | null = null
 
-  function getRequest(token: InjectionToken<any>, args?: unknown, skipCycleTracking = false) {
+  function getRequest(token: Token<any>, args?: unknown, skipCycleTracking = false) {
     if (!injectState) {
       throw new Error('[Injector] Trying to make a request outside of a injectable context')
     }
@@ -189,9 +177,9 @@ export function getInjectors() {
   function asyncInject(
     token:
       | ClassType
-      | InjectionToken<any>
-      | BoundInjectionToken<any, any>
-      | FactoryInjectionToken<any, any>,
+      | Token<any>
+      | BoundToken<any, any>
+      | FactoryToken<any, any>,
     args?: unknown,
   ) {
     if (!injectState) {
@@ -242,9 +230,9 @@ export function getInjectors() {
 
   function inject<
     T,
-    Token extends InjectionToken<T> | BoundInjectionToken<T, any> | FactoryInjectionToken<T, any>,
-    S extends ZodObject | unknown = Token['schema'],
-  >(token: Token, args?: S extends ZodObject ? z.input<S> : never): T {
+    TToken extends Token<T> | BoundToken<T, any> | FactoryToken<T, any>,
+    S extends StandardSchemaV1 | unknown = TToken['schema'], // TODO(Task 3.2): file deleted in Phase 3
+  >(token: TToken, args?: S extends StandardSchemaV1 ? StandardSchemaV1.InferInput<S> : never): T {
     // @ts-expect-error In case we have a class
     const realToken = token[InjectableTokenMeta] ?? token
 
@@ -294,9 +282,12 @@ export function getInjectors() {
 
   function optional<
     T,
-    Token extends InjectionToken<T> | BoundInjectionToken<T, any> | FactoryInjectionToken<T, any>,
-    S extends ZodObject | unknown = Token['schema'],
-  >(token: Token, args?: S extends ZodObject ? z.input<S> : never): T | null {
+    TToken extends Token<T> | BoundToken<T, any> | FactoryToken<T, any>,
+    S extends StandardSchemaV1 | unknown = TToken['schema'], // TODO(Task 3.2): file deleted in Phase 3
+  >(
+    token: TToken,
+    args?: S extends StandardSchemaV1 ? StandardSchemaV1.InferInput<S> : never,
+  ): T | null {
     try {
       return inject(token, args)
     } catch {
