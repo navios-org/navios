@@ -1,10 +1,4 @@
 import type { StandardSchemaV1 } from '../token/schema.mjs'
-import type {
-  BoundToken,
-  ClassType,
-  FactoryToken,
-  Token,
-} from '../token/token.mjs'
 
 // Utility types for string manipulation and union handling
 export type Join<TElements, TSeparator extends string> =
@@ -50,21 +44,3 @@ export type TokenArgsRequiredError<S extends StandardSchemaV1> =
           ', '
         >}`
     : 'Error: Your token requires args'
-
-export type InjectRequest = {
-  token:
-    | Token<any>
-    | BoundToken<any, any>
-    | FactoryToken<any, any>
-    | ClassType
-  promise: Promise<any>
-  readonly result: any
-  readonly error: Error | null
-}
-
-// InjectState interface for managing injection state
-export interface InjectState {
-  currentIndex: number
-  isFrozen: boolean
-  requests: InjectRequest[]
-}

@@ -1,6 +1,16 @@
 import type { InjectableScope } from '../../enums/index.mjs'
 import type { IContainer } from '../../interfaces/container.interface.mjs'
-import type { Injectors } from '../../utils/index.mjs'
+
+/**
+ * Async dependency resolver supplied on the initialization context.
+ *
+ * Matches the runtime assignment in
+ * `InstanceResolver#createServiceInitializationContext`, which is
+ * `async (token, args?) => container.get(token, args)` — an async
+ * function taking a token plus optional args and resolving to the
+ * dependency instance.
+ */
+type ContextInject = <T = unknown>(token: any, args?: any) => Promise<T>
 
 /**
  * Context provided to injectors during service initialization.
@@ -10,7 +20,7 @@ import type { Injectors } from '../../utils/index.mjs'
  * Used for scope upgrade tracking and dependency management.
  */
 export interface ServiceInitializationContext {
-  inject: Injectors['asyncInject']
+  inject: ContextInject
   /**
    * The container instance for dependency resolution.
    * This may be either a Container or ScopedContainer.
