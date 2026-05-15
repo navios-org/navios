@@ -5,6 +5,124 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0] - 2026-05-15
+
+Full v2 overhaul. **This is a breaking release with no shims and no
+`legacy-compat/` fallback** — every item below marked **BREAKING** requires a
+code change. See `docs/plans/2026-05-15-di-v2-overhaul-design.md` for the
+design rationale and the full v1 → v2 migration map.
+
+### Added
+
+- **Field-decorator injection**: `@Inject`, `@InjectLazy`, `@InjectOptional`,
+  and `@InjectDerived` accessor decorators replace the v1 class-body injection
+  functions.
+  - `@Inject(Token)` — eager, resolved before construction.
+  - `@InjectLazy(Token)` — field holds `Promise<T>`, resolved on first await
+    (for circular deps and Transient-from-Singleton).
+  - `@InjectOptional(Token)` — field holds `T | null`, null if the dep is
+    unregistered or fails to construct.
+  - `@InjectDerived(Token, (ownArgs) => depArgs)` — eager, with the dep's args
+    computed from the host class's validated instance-time args.
+- **Plugin system**: new `Plugin` interface, `PluginRegistry`, and the
+  `definePlugin()` typed pass-through helper. Plugins provide fire-and-forget
+  lifecycle observers (`onBeforeCreate`, `onAfterCreate`, `onBeforeDestroy`,
+  `onAfterDestroy`, `onContainerDispose`) plus a Koa-style `middleware` chain
+  composed around every resolution. New `CreateContext` / `DestroyContext`
+  types. `Container.use(plugin)` registers a plugin at runtime, and
+  `new Container({ plugins })` registers them at construction.
+- **`Token.bind(value)` / `Token.fromFactory(fn)`**: bound-value and
+  factory-backed tokens are now narrowed subtypes reached via methods on a
+  unified `Token`, instead of separate top-level classes.
+- **Standard Schema support**: token and `@Injectable` schemas now accept any
+  Standard Schema v1 validator. Existing Zod schemas keep working unchanged.
+- **`TestContainer.mockInject(targetClass, fieldName, value)`**: sets a field
+  directly without a registry binding, for isolated unit tests.
+
+### Changed
+
+- **BREAKING**: `InjectionToken` renamed to **`Token`**. `Token.create()`
+  replaces `InjectionToken.create()`.
+- **BREAKING**: `Container` constructor now takes a single options bag —
+  `new Container({ registry?, logger?, plugins? })` — instead of positional
+  arguments.
+- **BREAKING**: the 8 top-level internal component getters
+  (`getStorage()`, `getServiceInitializer()`, `getServiceInvalidator()`,
+  `getTokenResolver()`, `getNameResolver()`, `getEventBus()`,
+  `getInstanceResolver()`, and siblings) are removed. Internals now live behind
+  the `@internal` `container.internals.*` namespace (`registry`, `storage`,
+  `eventBus`, `resolver`, `pluginRegistry`, etc.).
+- **BREAKING**: scope incompatibilities now **fail fast**. A Singleton that
+  eagerly (`@Inject` / `@InjectDerived`) depends on a Request- or
+  Transient-scoped service throws a `scopeMismatch` `DIError` at first
+  resolution instead of being silently upgraded at runtime. Mark the host as
+  Request, or use `@InjectLazy`.
+- **BREAKING**: `ServiceInitializer` rewritten for one-pass,
+  metadata-driven resolution — the class constructor runs exactly **once**.
+  No `wrapSyncInit`, no frozen-replay double-construction, no throw-proxy.
+- `UnitTestContainer` now **auto-mocks unregistered dependencies by default**.
+  Pass `new UnitTestContainer({ strict: true })` to restore v1
+  strict-by-default behavior.
+- Bun now uses native Stage-3 decorators; the decorator-transpilation
+  `bun-plugin.mts` preload is no longer needed.
+
+### Removed
+
+- **BREAKING**: `inject()`, `asyncInject()`, `optional()`, `wrapSyncInit`,
+  and `provideFactoryContext` — replaced by the `@Inject*` field decorators.
+- **BREAKING**: `BoundInjectionToken` and `FactoryInjectionToken` classes
+  (and `InjectionToken.bound()` / `InjectionToken.factory()`) — use
+  `token.bind(value)` / `token.fromFactory(fn)`.
+- **BREAKING**: the `@navios/di/legacy-compat` export and the entire
+  `legacy-compat/` directory (TypeScript experimental-decorator shims).
+- **BREAKING**: runtime scope-upgrade machinery, including the `ScopeTracker`
+  component and `Registry.updateScope()` — replaced by the fail-fast scope
+  compatibility check.
+- **BREAKING**: the hard Zod v4 lock — schemas are now Standard Schema v1.
+
+### Migration
+
+```diff
+- import { InjectionToken, inject, asyncInject, optional } from '@navios/di'
++ import { Token, Inject, InjectLazy, InjectOptional } from '@navios/di'
+
+  @Injectable()
+  class MyService {
+-   private foo = inject(Foo)
+-   private bar = asyncInject(Bar)
+-   private baz = optional(Baz)
++   @Inject(Foo) private foo!: Foo
++   @InjectLazy(Bar) private bar!: Promise<Bar>
++   @InjectOptional(Baz) private baz!: Baz | null
+  }
+
+- const Tok = InjectionToken.create<T>('Tok')
+- const Dev = InjectionToken.bound(Tok, value)
+- const Prod = InjectionToken.factory(Tok, fn)
++ const Tok = Token.create<T>('Tok')
++ const Dev = Tok.bind(value)
++ const Prod = Tok.fromFactory(fn)
+```
+
+```diff
+- const container = new Container(registry, console)
++ const container = new Container({ registry, logger: console, plugins: [] })
+
+- const storage = container.getStorage()
++ const storage = container.internals.storage
+```
+
+```diff
+  // Singleton depending on a Request/Transient service no longer
+  // upgrades silently — it now throws scopeMismatch at first resolution.
+- @Injectable()                                  // was implicitly upgraded
++ @Injectable({ scope: InjectableScope.Request }) // mark explicitly
+  class Controller {
+-   private ctx = inject(RequestContext)
++   @InjectLazy(RequestContext) private ctx!: Promise<RequestContext>
+  }
+```
+
 ## [1.0.0] - 2026-01-08
 
 ### Added
