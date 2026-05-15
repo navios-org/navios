@@ -8,9 +8,9 @@ import {
   provideJwtService,
   TokenExpiredError,
 } from '../index.mjs'
+import { JwtService, JwtServiceToken } from '../jwt.service.mjs'
 
 import type { JwtServiceOptions } from '../index.mjs'
-import type { JwtService } from '../jwt.service.mjs'
 
 // Mock logger output
 const mockLoggerOutput = {
@@ -433,6 +433,41 @@ describe('JwtService', () => {
 
       // Should verify using default algorithms from verifyOptions
       const decoded = service.verify<typeof payload & { iat: number }>(token)
+      expect(decoded.userId).toBe('123')
+    })
+
+    it('should resolve via async factory configuration', async () => {
+      const FactoryTokenForJwt = provideJwtService(async () => ({
+        secret: 'factory-secret',
+      }))
+      const service = (await container.get(FactoryTokenForJwt)) as JwtService
+      const payload = { userId: '123' }
+
+      const token = service.sign(payload)
+
+      const decoded = service.verify<typeof payload & { iat: number }>(token, {
+        secret: 'factory-secret',
+      })
+      expect(decoded.userId).toBe('123')
+    })
+
+    it('should resolve the bare JwtServiceToken with logger wired', async () => {
+      // Resolve via the @Injectable({ token: JwtServiceToken }) registration
+      // directly, instead of through the provideJwtService BoundToken wrapper
+      // the other tests use.
+      const service = (await (container.get(JwtServiceToken, {
+        secret: 'token-secret',
+      }) as unknown)) as JwtService
+      const payload = { userId: '123' }
+
+      expect(service).toBeInstanceOf(JwtService)
+
+      // A working sign+verify round-trip proves construction and the
+      // @Inject(Logger, { context: 'JwtService' }) accessor were wired.
+      const token = service.sign(payload)
+      const decoded = service.verify<typeof payload & { iat: number }>(token, {
+        secret: 'token-secret',
+      })
       expect(decoded.userId).toBe('123')
     })
   })

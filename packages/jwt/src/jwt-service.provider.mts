@@ -46,8 +46,8 @@ export function provideJwtService(
  * @example
  * ```ts
  * // Async configuration
- * const JwtService = provideJwtService(async () => {
- *   const configService = await ctx.resolve(ConfigService)
+ * const JwtService = provideJwtService(async (ctx) => {
+ *   const configService = await ctx.inject(ConfigService)
  *   return {
  *     secret: configService.jwt.secret,
  *     signOptions: { expiresIn: configService.jwt.expiresIn },
