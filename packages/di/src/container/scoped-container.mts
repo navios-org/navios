@@ -177,6 +177,81 @@ export class ScopedContainer extends AbstractContainer {
   }
 
   /**
+   * Explicitly resolves `token` treating its effective host scope as
+   * {@link InjectableScope.Request} for THIS resolution only, within this
+   * ScopedContainer's request scope.
+   *
+   * This is the deliberate, opt-in, non-mutating, race-free successor to the
+   * v1 implicit Singleton -> Request scope-upgrade that v2 deleted:
+   *
+   * - The resolved instance is created and cached in THIS ScopedContainer's
+   *   OWN request storage, keyed for this request — exactly like a normally
+   *   Request-scoped service — and disposed at {@link endRequest}. It is
+   *   never written to the parent/global singleton storage.
+   * - Zero global mutation: the token's registered scope and every shared
+   *   registration are UNCHANGED. Any other code resolving the same token
+   *   via `container.get()` / `scoped.get()` is completely unaffected and
+   *   keeps its declared-scope behavior (a Singleton stays a process
+   *   singleton elsewhere).
+   * - The fail-fast scope-validator passes by construction (the host is
+   *   genuinely resolved with effective scope = Request), without any
+   *   bypass flag and without poisoning the validator's per-class memo: the
+   *   normal `get()` Singleton fail-fast for the same class still throws.
+   * - Idempotent within a request (two calls return the same instance);
+   *   isolated across requests; transitive deps keep their declared scope.
+   *
+   * Use this when a controller-like class is declared Singleton but must be
+   * resolved per-request (e.g. it eagerly depends on Request-scoped state).
+   */
+  // #1 Simple class
+  resolveInScope<T extends ClassType>(
+    token: T,
+  ): InstanceType<T> extends Factorable<infer R> ? Promise<R> : Promise<InstanceType<T>>
+  // #1.1 Simple class with args
+  resolveInScope<T extends ClassTypeWithArgument<R>, R>(
+    token: T,
+    args: R,
+  ): Promise<InstanceType<T>>
+  // #2 Token with required Schema
+  resolveInScope<T, S extends TokenSchemaType>(
+    token: Token<T, S>,
+    args: StandardSchemaV1.InferInput<S>,
+  ): Promise<T>
+  // #3 Token with schema resolved without args -> compile-time DX error
+  resolveInScope<T, S extends TokenSchemaType, R extends boolean>(
+    token: Token<T, S, R>,
+  ): R extends false ? Promise<T> : TokenArgsRequiredError<S>
+  // #4 Token with no Schema
+  resolveInScope<T>(token: Token<T, undefined>): Promise<T>
+  resolveInScope<T>(token: BoundToken<T, any>): Promise<T>
+  resolveInScope<T>(token: FactoryToken<T, any>): Promise<T>
+
+  async resolveInScope(
+    token:
+      | ClassType
+      | Token<any>
+      | BoundToken<any, any>
+      | FactoryToken<any, any>,
+    args?: unknown,
+  ) {
+    if (this.disposed) {
+      throw new Error('ScopedContainer has been disposed')
+    }
+
+    const [error, instance] = await this.internals.resolver.resolveInScopeInstance(
+      token,
+      args,
+      this,
+    )
+
+    if (error) {
+      throw error
+    }
+
+    return instance
+  }
+
+  /**
    * Invalidates a service and its dependencies.
    */
   async invalidate(service: unknown): Promise<void> {

@@ -38,6 +38,21 @@ design rationale and the full v1 → v2 migration map.
   Standard Schema v1 validator. Existing Zod schemas keep working unchanged.
 - **`TestContainer.mockInject(targetClass, fieldName, value)`**: sets a field
   directly without a registry binding, for isolated unit tests.
+- **`ScopedContainer.resolveInScope(token, args?)`**: explicit, opt-in,
+  non-mutating, per-request scope-resolution API. Resolves `token` treating
+  its effective host scope as Request for THAT resolution only, caching the
+  instance in the ScopedContainer's own request storage (disposed at
+  `endRequest()`, never written to global singleton storage). This is the
+  deliberate, race-free successor to the **removed** implicit Singleton →
+  Request scope-upgrade: it leaves the token's registered scope and every
+  shared registration UNCHANGED (any other `get()` keeps declared-scope
+  behavior), passes the fail-fast scope-validator by construction without a
+  bypass flag and without poisoning the validator's per-class memo (the
+  normal `get()` Singleton fail-fast for the same class still throws), is
+  idempotent within a request, isolated across requests, and reuses the real
+  resolver/lifecycle/plugin/cascade path (`onServiceInit`/`onServiceDestroy`,
+  plugin hooks, `@InjectLazy` all work). `@navios/core`'s instance resolver
+  calls this explicitly instead of relying on an implicit upgrade.
 
 ### Changed
 

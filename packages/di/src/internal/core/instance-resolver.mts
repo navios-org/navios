@@ -125,6 +125,56 @@ export class InstanceResolver {
     )
   }
 
+  /**
+   * Explicit opt-in request-scoped resolution (Task 7.1c). Resolves `token`
+   * treating its effective host scope as {@link InjectableScope.Request} for
+   * THIS resolution only, within the given ScopedContainer's request scope.
+   *
+   * This is the deliberate, non-mutating, race-free successor to the deleted
+   * v1 implicit Singleton -> Request scope-upgrade:
+   *
+   * - The instance is created and cached in the ScopedContainer's OWN request
+   *   storage (`scopedContainer.internals.storage`), keyed for this request,
+   *   and disposed at `endRequest()` — never written to the parent/global
+   *   singleton storage.
+   * - The token's registered {@link FactoryRecord.scope} and every shared
+   *   registration are UNCHANGED. Any other code resolving the same token via
+   *   `container.get()` / `scoped.get()` keeps its declared-scope behavior.
+   *   The Request-elevation is purely local to this call.
+   * - Because the effective host scope is Request, the fail-fast
+   *   scope-validator sees a Request host (Request hosts may eagerly hold
+   *   deps of any scope) and naturally does NOT throw — and crucially does
+   *   NOT write its per-class memo (the memo is only written after a
+   *   successful Singleton walk, which the Request-host path early-returns
+   *   before reaching). The normal `container.get()` Singleton fail-fast for
+   *   the same class is therefore completely unaffected.
+   *
+   * Transitive deps keep their declared scope: a Singleton dep resolves to
+   * the shared parent singleton (via parent delegation), a Request dep to
+   * this request's instance, a Transient to a fresh instance — only the
+   * entry token's OWN effective host scope is elevated.
+   *
+   * @param token The injection token
+   * @param args Optional arguments
+   * @param scopedContainer The ScopedContainer that owns the request context
+   */
+  async resolveInScopeInstance(
+    token: AnyInjectableType,
+    args: any,
+    scopedContainer: ScopedContainer,
+  ): Promise<[undefined, any] | [DIError]> {
+    return this.resolveWithStorage(
+      token,
+      args,
+      scopedContainer.getParent(),
+      scopedContainer.getParent().internals.storage,
+      scopedContainer,
+      scopedContainer.internals.storage,
+      scopedContainer.getRequestId(),
+      InjectableScope.Request,
+    )
+  }
+
   // ============================================================================
   // UNIFIED RESOLUTION (Storage Strategy Pattern)
   // ============================================================================
@@ -143,6 +193,11 @@ export class InstanceResolver {
    * @param scopedContainer Optional scoped container for request-scoped services
    * @param requestStorage Optional request storage (for request-scoped resolution)
    * @param requestId Optional request ID (for request-scoped resolution)
+   * @param forceScope Optional effective host scope override for THIS
+   *   resolution only (the explicit opt-in `resolveInScope` path). When set
+   *   the token's REGISTERED scope is left untouched — only the scope used
+   *   to key/store this instance and as the host scope passed to the
+   *   scope-validator + service-initialization context is overridden.
    */
   private async resolveWithStorage(
     token: AnyInjectableType,
@@ -152,6 +207,7 @@ export class InstanceResolver {
     scopedContainer?: ScopedContainer,
     requestStorage?: IHolderStorage,
     requestId?: string,
+    forceScope?: InjectableScope,
   ): Promise<[undefined, any] | [DIError]> {
     // Step 1: Resolve token and prepare instance name
     const [err, data] = await this.resolveTokenAndPrepareInstanceName(
@@ -160,6 +216,7 @@ export class InstanceResolver {
       contextContainer,
       requestId,
       scopedContainer,
+      forceScope,
     )
     if (err) {
       return [err]
@@ -220,7 +277,7 @@ export class InstanceResolver {
       scopedContainer,
       requestStorage,
       requestId,
-      scope,
+      forceScope ?? scope,
     )
     if (createError) {
       return [createError]
@@ -239,6 +296,7 @@ export class InstanceResolver {
     contextContainer: IContainer,
     requestId?: string,
     scopedContainer?: ScopedContainer,
+    forceScope?: InjectableScope,
   ): Promise<
     | [
         undefined,
@@ -279,14 +337,18 @@ export class InstanceResolver {
         contextContainer,
         requestId,
         scopedContainer,
+        forceScope,
       )
     }
 
     // Get the real token for registry lookup
     const realToken = this.tokenResolver.getRealToken(actualToken)
-    // Get scope from registry
+    // Get scope from registry. `forceScope` (the explicit opt-in
+    // `resolveInScope` path) overrides ONLY the scope used to key/store
+    // this resolution — `record.scope` (the registration) is left untouched,
+    // so any other resolution of the same token keeps its declared scope.
     const record = this.registry.get(realToken)
-    const scope = record.scope
+    const scope = forceScope ?? record.scope
 
     // Generate instance name with requestId if needed
     const instanceName = this.nameResolver.generateInstanceName(
@@ -482,12 +544,16 @@ export class InstanceResolver {
         return runConstruction()
       })()
         .then(async (instance: unknown) => {
-          const newScope = record.scope
+          // Use the EFFECTIVE scope (serviceScope), not record.scope: for the
+          // explicit opt-in `resolveInScope` path the instance was stored and
+          // keyed under the forced-Request name, so subscriptions/cascade
+          // lookups must use that same name. For every normal resolution
+          // serviceScope === record.scope, so behavior is unchanged.
           const newName = this.nameResolver.generateInstanceName(
             realToken,
             args,
             requestId,
-            newScope,
+            serviceScope,
           )
           await this.handleInstantiationResult(
             newName,
@@ -501,12 +567,11 @@ export class InstanceResolver {
           )
         })
         .catch(async (error: Error) => {
-          const newScope = record.scope
           const newName = this.nameResolver.generateInstanceName(
             realToken,
             args,
             requestId,
-            newScope,
+            serviceScope,
           )
 
           await this.handleInstantiationError(newName, holder, deferred, error)

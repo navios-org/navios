@@ -279,6 +279,48 @@ At first resolution of any class, walk its `@Inject*` metadata, look up each dep
 
 Memoized via `WeakMap<ClassType, true>` so steady-state cost is zero.
 
+### `ScopedContainer.resolveInScope` — explicit opt-in request resolution
+
+The v1 implicit Singleton→Request scope-upgrade is **deleted** (it silently
+mutated a shared global registration at runtime and had a concurrency race
+when two requests upgraded the same token at once). Its deliberate successor
+is an **explicit, opt-in, non-mutating, per-request** API:
+
+`ScopedContainer.resolveInScope<T>(token, args?): Promise<T>` resolves `token`
+treating its effective host scope as `Request` **for that one resolution
+only**, inside the calling ScopedContainer's request scope. The instance is
+created and cached in that ScopedContainer's own request storage (keyed for
+the request, disposed at `endRequest()`), and is **never** written to the
+parent/global singleton storage. `@navios/core`'s `InstanceResolverService`
+calls this explicitly where a Singleton-declared controller must be resolved
+per-request — replacing the deleted implicit upgrade with an intentional call.
+
+Why it is race-free and non-mutating, unlike the deleted implicit upgrade:
+
+- **No global mutation.** It does not touch `Registry`/`FactoryRecord.scope`
+  or any shared registration. The mechanism is a per-call `forceScope`
+  threaded through the existing `resolveWithStorage` path: only the scope
+  used to key/store *this* resolution and the host scope handed to the
+  service-initialization context + scope-validator is overridden. Any other
+  `container.get()` / `scoped.get()` of the same token keeps its declared
+  scope (a Singleton stays a process singleton elsewhere).
+- **Validator passes by construction, memo not poisoned.** Because the host
+  is genuinely resolved with effective scope = Request, the fail-fast
+  scope-validator's `hostScope !== Singleton` guard early-returns *before*
+  any `validated.set` write (the `WeakMap` memo is only written after a
+  successful Singleton walk, which the Request-host path never reaches). So
+  the normal `get()` Singleton fail-fast for the same class still throws —
+  no bypass flag, no poisoned memo.
+- **Race-free.** Each request is a distinct ScopedContainer with its own
+  request storage; two concurrent `resolveInScope(X)` calls produce two
+  isolated per-request instances with no shared mutable state.
+
+Idempotent within a request (the request-keyed holder is cached), isolated
+across requests, transitive deps keep their declared scopes, and the whole
+real resolver/lifecycle/plugin/cascade path is reused (no parallel
+reimplementation) so `onServiceInit`/`onServiceDestroy`, plugin hooks and
+`@InjectLazy` all behave normally.
+
 ## Testing utilities
 
 - `TestContainer.mockInject(targetClass, fieldName, value)` — new helper, sets a field directly without registry binding. Unit-test services in isolation without registering token-level fakes.
