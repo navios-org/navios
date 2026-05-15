@@ -15,7 +15,6 @@ import {
   Token,
 } from '../token/token.mjs'
 import { globalRegistry } from '../token/registry.mjs'
-import { defaultInjectors } from '../utils/default-injectors.mjs'
 import { getInjectableToken } from '../utils/index.mjs'
 
 import type { Factorable } from '../interfaces/factory.interface.mjs'
@@ -26,7 +25,6 @@ import type {
 } from '../token/token.mjs'
 import type { StandardSchemaV1 } from '../token/schema.mjs'
 import type { Registry } from '../token/registry.mjs'
-import type { Injectors } from '../utils/get-injectors.mjs'
 import type { TokenArgsRequiredError } from '../utils/types.mjs'
 
 import { AbstractContainer } from './abstract-container.mjs'
@@ -57,7 +55,6 @@ export class Container extends AbstractContainer {
   constructor(
     protected readonly registry: Registry = globalRegistry,
     protected readonly logger: Console | null = null,
-    protected readonly injectors: Injectors = defaultInjectors,
   ) {
     super()
     // Initialize components
@@ -66,7 +63,7 @@ export class Container extends AbstractContainer {
     this.nameResolver = new NameResolver(logger)
     this.tokenResolver = new TokenResolver(logger)
     this.scopeTracker = new ScopeTracker(registry, this.nameResolver, logger)
-    this.serviceInitializer = new ServiceInitializer(injectors)
+    this.serviceInitializer = new ServiceInitializer()
     this.serviceInvalidator = new ServiceInvalidator(this.eventBus, logger)
     this.instanceResolver = new InstanceResolver(
       registry,

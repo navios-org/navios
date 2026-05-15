@@ -4,7 +4,6 @@ import { DIError } from '../errors/index.mjs'
 import { BoundToken, Token } from '../token/token.mjs'
 import { Registry } from '../token/registry.mjs'
 import { getInjectableToken } from '../utils/get-injectable-token.mjs'
-import { defaultInjectors } from '../utils/index.mjs'
 
 import type {
   LifecycleRecord,
@@ -137,7 +136,7 @@ export class UnitTestContainer extends Container {
 
   constructor(options: UnitTestContainerOptions) {
     const testRegistry = new Registry()
-    super(testRegistry, options.logger ?? null, defaultInjectors)
+    super(testRegistry, options.logger ?? null)
     this.testRegistry = testRegistry
     this.allowUnregistered = options.allowUnregistered ?? false
 

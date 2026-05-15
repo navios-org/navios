@@ -3,7 +3,6 @@ import { InjectableScope, InjectableType } from '../enums/index.mjs'
 import { BoundToken, Token } from '../token/token.mjs'
 import { globalRegistry, Registry } from '../token/registry.mjs'
 import { getInjectableToken } from '../utils/get-injectable-token.mjs'
-import { defaultInjectors } from '../utils/index.mjs'
 
 import type {
   BindingBuilder,
@@ -72,7 +71,7 @@ export class TestContainer extends Container {
   constructor(options: TestContainerOptions = {}) {
     const { parentRegistry = globalRegistry, logger = null } = options
     const testRegistry = parentRegistry ? new Registry(parentRegistry) : new Registry()
-    super(testRegistry, logger, defaultInjectors)
+    super(testRegistry, logger)
     this.testRegistry = testRegistry
   }
 

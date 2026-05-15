@@ -1,8 +1,10 @@
+import { getInjections, InjectionKind } from '../../decorators/injection-metadata.mjs'
 import { InjectableType } from '../../enums/index.mjs'
 import { DIError } from '../../errors/index.mjs'
 
+import type { InjectionEntry } from '../../decorators/injection-metadata.mjs'
 import type { FactoryRecord } from '../../token/registry.mjs'
-import type { Injectors } from '../../utils/index.mjs'
+import type { ClassType } from '../../token/token.mjs'
 import type { ServiceInitializationContext } from '../context/service-initialization-context.mjs'
 
 /**
@@ -10,10 +12,14 @@ import type { ServiceInitializationContext } from '../context/service-initializa
  *
  * Handles both class-based (@Injectable) and factory-based (@Factory) services,
  * managing the instantiation lifecycle including lifecycle hook invocation.
+ *
+ * v2 model: one-pass, metadata-driven resolution. The class' `@Inject*`
+ * accessor fields are read from injection metadata, the dependencies are
+ * resolved through the resolution context, the instance is constructed
+ * EXACTLY ONCE, and the resolved values are assigned onto the accessor
+ * fields. No constructor re-run, no throw-proxy, no frozen-replay.
  */
 export class ServiceInitializer {
-  constructor(private readonly injectors: Injectors) {}
-
   /**
    * Instantiates a service based on its registry record.
    * @param ctx The factory context for dependency injection
@@ -29,9 +35,9 @@ export class ServiceInitializer {
     try {
       switch (record.type) {
         case InjectableType.Class:
-          return this.instantiateClass(ctx, record, args)
+          return await this.instantiateClass(ctx, record, args)
         case InjectableType.Factory:
-          return this.instantiateFactory(ctx, record, args)
+          return await this.instantiateFactory(ctx, record, args)
         default:
           throw DIError.unknown(`[ServiceInitializer] Unknown service type: ${record.type}`)
       }
@@ -45,136 +51,122 @@ export class ServiceInitializer {
   }
 
   /**
+   * Resolves all `@Inject*` accessor fields declared on a target class
+   * (including inherited ones, via {@link getInjections}).
+   *
+   * - Eager + Derived: resolved in parallel and awaited before construction.
+   * - Optional: resolved, then `.catch(() => null)`, then settled before
+   *   construction (the field holds `Dep | null`).
+   * - Lazy: the field holds a `Promise<Dep>` that is NOT awaited here, so
+   *   construction never blocks on it.
+   *
+   * @returns Map of fieldName -> resolved value (or Promise for Lazy).
+   */
+  private async resolveInjections(
+    ctx: ServiceInitializationContext,
+    target: ClassType,
+    hostArgs: unknown,
+  ): Promise<Map<string | symbol, unknown>> {
+    const entries = getInjections(target)
+    const resolved = new Map<string | symbol, unknown>()
+
+    const eagerOrDerived: InjectionEntry[] = []
+    for (const entry of entries) {
+      if (entry.kind === InjectionKind.Eager || entry.kind === InjectionKind.Derived) {
+        eagerOrDerived.push(entry)
+      }
+    }
+
+    const eagerResults = await Promise.all(
+      eagerOrDerived.map(async (entry) => {
+        const depArgs =
+          entry.kind === InjectionKind.Derived ? entry.derive(hostArgs) : entry.args
+        const value = await ctx.inject(entry.token as any, depArgs as any)
+        return [entry.fieldName, value] as const
+      }),
+    )
+    for (const [fieldName, value] of eagerResults) {
+      resolved.set(fieldName, value)
+    }
+
+    const optionalPending: Array<[string | symbol, Promise<unknown>]> = []
+    for (const entry of entries) {
+      if (entry.kind === InjectionKind.Lazy) {
+        // Lazy: field holds the unresolved promise; do not block construction.
+        resolved.set(entry.fieldName, ctx.inject(entry.token as any, entry.args as any))
+      } else if (entry.kind === InjectionKind.Optional) {
+        optionalPending.push([
+          entry.fieldName,
+          ctx.inject(entry.token as any, entry.args as any).catch(() => null),
+        ])
+      }
+    }
+
+    // Settle the optionals so the field holds `Dep | null` before construction.
+    for (const [fieldName, pending] of optionalPending) {
+      resolved.set(fieldName, await pending)
+    }
+
+    return resolved
+  }
+
+  /**
    * Instantiates a class-based service (Injectable decorator).
-   * @param ctx The factory context for dependency injection
-   * @param record The factory record from the registry
-   * @param args Optional arguments for the service constructor
-   * @returns Promise resolving to [undefined, instance] or [error]
+   *
+   * One-pass: resolve deps, construct ONCE, assign fields, run hooks.
    */
   private async instantiateClass<T>(
     ctx: ServiceInitializationContext,
     record: FactoryRecord<T, any>,
     args: any,
   ): Promise<[undefined, T] | [DIError]> {
-    try {
-      const tryLoad = this.injectors.wrapSyncInit(() => {
-        const original = this.injectors.provideFactoryContext(ctx as ServiceInitializationContext)
-        let result = new record.target(...(args ? [args] : []))
-        this.injectors.provideFactoryContext(original)
-        return result
-      })
+    const resolved = await this.resolveInjections(ctx, record.target, args)
 
-      let [instance, promises, injectState] = tryLoad()
-      if (promises.length > 0) {
-        const results = await Promise.allSettled(promises)
-        if (results.some((result) => result.status === 'rejected')) {
-          throw DIError.initializationError(
-            record.target.name,
-            new Error('Service cannot be instantiated'),
-          )
-        }
-        const newRes = tryLoad(injectState)
-        instance = newRes[0]
-        promises = newRes[1]
-      }
+    const instance = new record.target(...(args !== undefined ? [args] : [])) as any
 
-      if (promises.length > 0) {
-        console.error(
-          `[ServiceInitializer] ${record.target.name} has problem with it's definition.
-
-       One or more of the dependencies are registered as a InjectableScope.Transient and are used with inject.
-
-       Please use asyncInject instead of inject to load those dependencies.`,
-        )
-        throw DIError.initializationError(
-          record.target.name,
-          new Error('Service cannot be instantiated'),
-        )
-      }
-
-      // Handle lifecycle hooks
-      if ('onServiceInit' in instance) {
-        await (instance as any).onServiceInit()
-      }
-      if ('onServiceDestroy' in instance) {
-        ctx.addDestroyListener(async () => {
-          await (instance as any).onServiceDestroy()
-        })
-      }
-
-      return [undefined, instance]
-    } catch (error) {
-      return [
-        error instanceof DIError
-          ? error
-          : DIError.initializationError(record.target.name, error as Error),
-      ]
+    for (const [field, value] of resolved) {
+      instance[field] = value
     }
+
+    if (typeof instance.onServiceInit === 'function') {
+      await instance.onServiceInit()
+    }
+    if (typeof instance.onServiceDestroy === 'function') {
+      ctx.addDestroyListener(async () => {
+        await instance.onServiceDestroy()
+      })
+    }
+
+    return [undefined, instance as T]
   }
 
   /**
    * Instantiates a factory-based service (Factory decorator).
-   * @param ctx The factory context for dependency injection
-   * @param record The factory record from the registry
-   * @param args Optional arguments for the factory
-   * @returns Promise resolving to [undefined, instance] or [error]
+   *
+   * Resolves the factory class' own `@Inject*` fields the same way, then
+   * delegates instance creation to `builder.create(ctx, args)`.
    */
   private async instantiateFactory<T>(
     ctx: ServiceInitializationContext,
     record: FactoryRecord<T, any>,
     args: any,
   ): Promise<[undefined, T] | [DIError]> {
-    try {
-      const tryLoad = this.injectors.wrapSyncInit(() => {
-        const original = this.injectors.provideFactoryContext(ctx)
-        let result = new record.target()
-        this.injectors.provideFactoryContext(original)
-        return result
-      })
+    const resolved = await this.resolveInjections(ctx, record.target, args)
 
-      let [builder, promises, injectState] = tryLoad()
-      if (promises.length > 0) {
-        const results = await Promise.allSettled(promises)
-        if (results.some((result) => result.status === 'rejected')) {
-          throw DIError.initializationError(
-            record.target.name,
-            new Error('Service cannot be instantiated'),
-          )
-        }
-        const newRes = tryLoad(injectState)
-        builder = newRes[0]
-        promises = newRes[1]
-      }
+    const builder = new record.target() as any
 
-      if (promises.length > 0) {
-        console.error(
-          `[ServiceInitializer] ${record.target.name} has problem with it's definition.
-
-       One or more of the dependencies are registered as a InjectableScope.Transient and are used with inject.
-
-       Please use asyncInject instead of inject to load those dependencies.`,
-        )
-        throw DIError.initializationError(
-          record.target.name,
-          new Error('Service cannot be instantiated'),
-        )
-      }
-
-      if (typeof builder.create !== 'function') {
-        throw DIError.initializationError(
-          record.target.name,
-          new Error('Factory does not implement the create method'),
-        )
-      }
-
-      const instance = await builder.create(ctx, args)
-      return [undefined, instance]
-    } catch (error) {
-      return [
-        error instanceof DIError
-          ? error
-          : DIError.initializationError(record.target.name, error as Error),
-      ]
+    for (const [field, value] of resolved) {
+      builder[field] = value
     }
+
+    if (typeof builder.create !== 'function') {
+      throw DIError.initializationError(
+        record.target.name,
+        new Error('Factory does not implement the create method'),
+      )
+    }
+
+    const instance = await builder.create(ctx, args)
+    return [undefined, instance as T]
   }
 }
