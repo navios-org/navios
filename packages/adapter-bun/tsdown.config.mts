@@ -11,6 +11,10 @@ export default defineConfig({
   treeshake: true,
   sourcemap: true,
   platform: 'node',
+  // `bun` is a runtime-provided module whose types ship as ambient `@types/bun`
+  // (`BunRequest`/`Server`/`Serve` are type-only exports). It must stay external
+  // so the dts bundler does not try to resolve it as a value module.
+  external: ['bun'],
   dts: true,
   target: 'es2022',
   plugins: [
