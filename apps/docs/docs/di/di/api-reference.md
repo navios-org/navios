@@ -321,6 +321,8 @@ Context provided to factory `create()` methods and to `Token.fromFactory()` fact
 interface FactoryContext {
   // resolve a dependency from within the factory
   inject<T>(token: AnyTokenOrClass, args?: unknown): Promise<T>
+  // the resolving container (Container or ScopedContainer)
+  container: IContainer
   // register a cleanup tied to the produced instance's lifetime
   addDestroyListener(listener: () => void | Promise<void>): void
 }
