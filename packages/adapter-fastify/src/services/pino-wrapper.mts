@@ -51,6 +51,13 @@ export class PinoWrapper {
     const loggerPromise = this.container.get(Logger, {
       context: newContext,
     })
+    // MUST be `new PinoWrapper()`, NOT `Object.create(PinoWrapper.prototype)`.
+    // Under @navios/di v2, `container`/`logger` are stage-3 `@Inject accessor`
+    // fields whose private backing storage is branded by the constructor.
+    // An `Object.create`d (constructor-skipped) instance is unbranded, so the
+    // manual setter writes below throw `TypeError: Cannot write to private
+    // field`. Manual injection here is intentional (child is not container-
+    // resolved) and works because the setters accept writes once branded.
     const newPinoWrapper = new PinoWrapper()
     newPinoWrapper.container = this.container
     newPinoWrapper.logger = this.logger
