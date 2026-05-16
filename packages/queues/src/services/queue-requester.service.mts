@@ -49,6 +49,11 @@ export class QueueRequester<
     BaseMessageConfig<'request-reply', any, any>['responseSchema']
   >,
 > {
+  // Keystone @InjectDerived case: derive the named QueueClient from THIS
+  // host's schema-validated resolution args (`name`). Faithfully replaces the
+  // v1 in-constructor `inject(QueueClientToken, { name })`; di populates this
+  // accessor after the constructor and before the async `request` reader.
+  // QueueClientToken is a per-`name` singleton (same `name` => shared client).
   @InjectDerived(QueueClientToken, (hostArgs: z.infer<typeof queueRequesterOptionsSchema>) => ({
     name: hostArgs.name,
   }))

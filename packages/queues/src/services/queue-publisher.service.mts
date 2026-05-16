@@ -43,6 +43,11 @@ export const QueuePublisherToken = Token.create<
 export class QueuePublisher<
   MessageDef extends MessageDefinition<'pubsub', BaseMessageConfig<'pubsub', any>['payloadSchema']>,
 > {
+  // Keystone @InjectDerived case: derive the named QueueClient from THIS
+  // host's schema-validated resolution args (`name`). Faithfully replaces the
+  // v1 in-constructor `inject(QueueClientToken, { name })`; di populates this
+  // accessor after the constructor and before the async `publish` reader.
+  // QueueClientToken is a per-`name` singleton (same `name` => shared client).
   @InjectDerived(QueueClientToken, (hostArgs: z.infer<typeof queuePublisherOptionsSchema>) => ({
     name: hostArgs.name,
   }))
