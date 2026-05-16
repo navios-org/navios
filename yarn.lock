@@ -10277,23 +10277,6 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"e2e-fastify-legacy@workspace:examples/e2e-fastify-legacy":
-  version: 0.0.0-use.local
-  resolution: "e2e-fastify-legacy@workspace:examples/e2e-fastify-legacy"
-  dependencies:
-    "@navios/adapter-fastify": "workspace:*"
-    "@navios/builder": "workspace:*"
-    "@navios/core": "workspace:*"
-    "@navios/di": "workspace:*"
-    "@types/supertest": "npm:^6.0.3"
-    supertest: "npm:^7.2.2"
-    tsx: "npm:^4.21.0"
-    typescript: "npm:^5.9.3"
-    vitest: "npm:^4.0.17"
-    zod: "npm:^4.3.5"
-  languageName: unknown
-  linkType: soft
-
 "e2e-fastify-stage3@workspace:examples/e2e-fastify-stage3":
   version: 0.0.0-use.local
   resolution: "e2e-fastify-stage3@workspace:examples/e2e-fastify-stage3"

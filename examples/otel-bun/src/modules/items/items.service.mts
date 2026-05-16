@@ -1,5 +1,5 @@
-import { Injectable } from '@navios/core/legacy-compat'
-import { Traced } from '@navios/otel/legacy-compat'
+import { Injectable } from '@navios/core'
+import { Traced } from '@navios/otel'
 
 import type { Item } from '../../api/endpoints.mjs'
 

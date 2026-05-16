@@ -1,14 +1,18 @@
-import type { AbstractExecutionContext, CanActivate } from '@navios/core'
+import type {
+  AbstractExecutionContext,
+  CanActivate,
+  LoggerInstance,
+} from '@navios/core'
 
-import { AttributeFactory, inject, Injectable, Logger } from '@navios/core'
+import { AttributeFactory, Injectable, Logger } from '@navios/core'
+import { Inject } from '@navios/di'
 
 import { Public } from './public.attribute.mjs'
 
 @Injectable()
 export class AppGuard implements CanActivate {
-  logger = inject(Logger, {
-    context: AppGuard.name,
-  })
+  @Inject(Logger, { context: 'AppGuard' })
+  private accessor logger!: LoggerInstance
 
   canActivate(
     executionContext: AbstractExecutionContext,

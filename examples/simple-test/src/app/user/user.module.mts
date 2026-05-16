@@ -1,4 +1,7 @@
-import { inject, Logger, Module } from '@navios/core'
+import type { LoggerInstance } from '@navios/core'
+
+import { Logger, Module } from '@navios/core'
+import { Inject } from '@navios/di'
 
 import { AclModernGuard } from '../acl/acl-modern.guard.mjs'
 import { UserController } from './user.controller.mjs'
@@ -8,7 +11,9 @@ import { UserController } from './user.controller.mjs'
   guards: [AclModernGuard],
 })
 export class UserModule {
-  logger = inject(Logger)
+  @Inject(Logger) private accessor logger!: LoggerInstance
+
+
   onModuleInit() {
     this.logger.debug('Inside UserModule.onModuleInit')
   }

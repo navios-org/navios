@@ -1,6 +1,7 @@
 import type {
   EndpointParams,
   EndpointResult,
+  LoggerInstance,
   MultipartParams,
   MultipartResult,
 } from '@navios/core'
@@ -8,11 +9,11 @@ import type {
 import {
   Controller,
   Endpoint,
-  inject,
   Logger,
   Multipart,
   UseGuards,
 } from '@navios/core'
+import { Inject } from '@navios/di'
 
 import {
   discriminatorEndpoint,
@@ -28,10 +29,9 @@ import { UserService } from './user.service.mjs'
 @UseGuards(AclGuard)
 @Controller()
 export class UserController {
-  userService = inject(UserService)
-  logger = inject(Logger, {
-    context: UserController.name,
-  })
+  @Inject(UserService) private accessor userService!: UserService
+  @Inject(Logger, { context: 'UserController' })
+  private accessor logger!: LoggerInstance
 
   @Public()
   @UseGuards(OneMoreGuard)

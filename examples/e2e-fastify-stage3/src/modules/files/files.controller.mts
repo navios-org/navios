@@ -1,7 +1,8 @@
 import type { MultipartParams, StreamParams } from '@navios/core'
 import type { FastifyReply } from 'fastify'
 
-import { BadRequestException, Controller, inject, Multipart, NotFoundException, Stream } from '@navios/core'
+import { BadRequestException, Controller, Multipart, NotFoundException, Stream } from '@navios/core'
+import { Inject } from '@navios/di'
 
 import {
   downloadFileEndpoint,
@@ -17,8 +18,8 @@ import { FilesService } from './files.service.mjs'
 
 @Controller()
 export class FilesController {
-  private readonly filesService = inject(FilesService)
-  private readonly usersService = inject(UsersService)
+  @Inject(FilesService) private accessor filesService!: FilesService
+  @Inject(UsersService) private accessor usersService!: UsersService
 
   @Multipart(uploadFileEndpoint)
   async uploadFile(params: MultipartParams<typeof uploadFileEndpoint>) {

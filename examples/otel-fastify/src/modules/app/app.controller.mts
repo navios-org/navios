@@ -1,6 +1,6 @@
 import type { EndpointParams } from '@navios/core'
 
-import { Controller, Endpoint } from '@navios/core/legacy-compat'
+import { Controller, Endpoint } from '@navios/core'
 
 import { healthEndpoint, metricsEndpoint } from '../../api/endpoints.mjs'
 

@@ -1,6 +1,5 @@
-import { inject } from '@navios/core'
-import { Injectable } from '@navios/core/legacy-compat'
-import { Traced, Traceable } from '@navios/otel/legacy-compat'
+import { Injectable } from '@navios/core'
+import { Traced, Traceable } from '@navios/otel'
 
 /**
  * Processing service demonstrating nested spans and custom span attributes.

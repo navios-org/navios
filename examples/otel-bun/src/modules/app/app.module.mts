@@ -1,4 +1,4 @@
-import { Module } from '@navios/core/legacy-compat'
+import { Module } from '@navios/core'
 
 import { ItemsModule } from '../items/items.module.mjs'
 

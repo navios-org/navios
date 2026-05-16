@@ -5,7 +5,7 @@ import {
   renderToXml,
   XmlComponent,
 } from '@navios/adapter-xml'
-import { Container, inject, Injectable } from '@navios/di'
+import { Container, Inject, Injectable } from '@navios/di'
 import { z } from 'zod'
 
 // Define typed tags with Zod validation
@@ -59,7 +59,7 @@ class PostService {
 
 @Component()
 class PostComponent implements XmlComponent {
-  private readonly postService = inject(PostService)
+  @Inject(PostService) private accessor postService!: PostService
 
   async render() {
     return (

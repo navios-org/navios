@@ -1,6 +1,7 @@
 import type { EndpointParams } from '@navios/core'
 
-import { BadRequestException, Controller, Endpoint, HttpCode, inject } from '@navios/core'
+import { BadRequestException, Controller, Endpoint, HttpCode } from '@navios/core'
+import { Inject } from '@navios/di'
 
 import { createPostEndpoint, listPostsEndpoint } from '../../api/endpoints.mjs'
 import { Public } from '../../guards/public.attribute.mjs'
@@ -10,8 +11,8 @@ import { PostsValidationService } from './posts-validation.service.mjs'
 
 @Controller()
 export class PostsController {
-  private readonly postsService = inject(PostsService)
-  private readonly validationService = inject(PostsValidationService)
+  @Inject(PostsService) private accessor postsService!: PostsService
+  @Inject(PostsValidationService) private accessor validationService!: PostsValidationService
 
   @Endpoint(listPostsEndpoint)
   @Public()

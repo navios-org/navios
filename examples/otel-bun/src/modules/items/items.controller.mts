@@ -1,12 +1,14 @@
 import type { EndpointParams } from '@navios/core'
 
-import { inject } from '@navios/core'
 import {
   BadRequestException,
+  Controller,
+  Endpoint,
+  HttpCode,
   InternalServerErrorException,
   NotFoundException,
 } from '@navios/core'
-import { Controller, Endpoint, HttpCode } from '@navios/core/legacy-compat'
+import { Inject } from '@navios/di'
 
 import {
   chainEndpoint,
@@ -24,8 +26,8 @@ import { ProcessingService } from './processing.service.mjs'
 
 @Controller()
 export class ItemsController {
-  private readonly itemsService = inject(ItemsService)
-  private readonly processingService = inject(ProcessingService)
+  @Inject(ItemsService) private accessor itemsService!: ItemsService
+  @Inject(ProcessingService) private accessor processingService!: ProcessingService
 
   @Endpoint(listItemsEndpoint)
   async listItems(params: EndpointParams<typeof listItemsEndpoint>) {

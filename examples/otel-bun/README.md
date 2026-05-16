@@ -120,8 +120,8 @@ cp .env.development .env  # or .env.production, etc.
 The `@Traced` decorator adds manual tracing to services:
 
 ```typescript
-import { Injectable } from '@navios/core/legacy-compat'
-import { Traced } from '@navios/otel/legacy-compat'
+import { Injectable } from '@navios/core'
+import { Traced } from '@navios/otel'
 
 // Trace all methods in the class
 @Injectable()

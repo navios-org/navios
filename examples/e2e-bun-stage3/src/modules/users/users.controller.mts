@@ -1,6 +1,7 @@
 import type { EndpointParams, MultipartParams } from '@navios/core'
 
-import { BadRequestException, Controller, Endpoint, HttpCode, inject, Multipart, NotFoundException } from '@navios/core'
+import { BadRequestException, Controller, Endpoint, HttpCode, Multipart, NotFoundException } from '@navios/core'
+import { Inject } from '@navios/di'
 
 import {
   createUserEndpoint,
@@ -16,7 +17,7 @@ import { UsersService } from './users.service.mjs'
 
 @Controller()
 export class UsersController {
-  private readonly usersService = inject(UsersService)
+  @Inject(UsersService) private accessor usersService!: UsersService
 
   @Endpoint(listUsersEndpoint)
   @Public()

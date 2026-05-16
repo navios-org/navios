@@ -1,7 +1,7 @@
 import type { EndpointParams, EndpointResult } from '@navios/core'
 
 import { Controller, Endpoint, HttpCode, NotFoundException } from '@navios/core'
-import { inject } from '@navios/di'
+import { Inject } from '@navios/di'
 import {
   ApiDeprecated,
   ApiOperation,
@@ -23,7 +23,7 @@ import { UserService } from '../services/user.service.mjs'
 @ApiTag('Users', 'User management operations')
 @Controller()
 export class UserController {
-  private readonly userService = inject(UserService)
+  @Inject(UserService) private accessor userService!: UserService
 
   @Endpoint(listUsers)
   @ApiOperation({

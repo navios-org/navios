@@ -1,7 +1,7 @@
 import type { EndpointParams } from '@navios/core'
 
 import { Controller, Endpoint, HttpCode, NotFoundException } from '@navios/core'
-import { inject } from '@navios/di'
+import { Inject } from '@navios/di'
 import { ApiOperation, ApiSecurity, ApiSummary, ApiTag } from '@navios/openapi'
 
 import { createPost, getPost, listPosts } from '../api.mjs'
@@ -10,7 +10,7 @@ import { PostService } from '../services/post.service.mjs'
 @ApiTag('Posts', 'Blog post operations')
 @Controller()
 export class PostController {
-  private readonly postService = inject(PostService)
+  @Inject(PostService) private accessor postService!: PostService
 
   @Endpoint(listPosts)
   @ApiOperation({
