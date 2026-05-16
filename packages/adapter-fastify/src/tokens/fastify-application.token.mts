@@ -1,4 +1,4 @@
-import { InjectionToken } from '@navios/core'
+import { Token } from '@navios/di'
 
 import type { FastifyApplicationServiceInterface } from '../interfaces/application.interface.mjs'
 
@@ -13,7 +13,7 @@ import type { FastifyApplicationServiceInterface } from '../interfaces/applicati
  * ```ts
  * @Injectable()
  * class MyService {
- *   private appService = inject(FastifyApplicationServiceToken)
+ *   @Inject(FastifyApplicationServiceToken) accessor appService!: FastifyApplicationServiceInterface
  *
  *   getServer() {
  *     return this.appService.getServer()
@@ -22,4 +22,4 @@ import type { FastifyApplicationServiceInterface } from '../interfaces/applicati
  * ```
  */
 export const FastifyApplicationServiceToken =
-  InjectionToken.create<FastifyApplicationServiceInterface>('FastifyApplicationService')
+  Token.create<FastifyApplicationServiceInterface>('FastifyApplicationService')

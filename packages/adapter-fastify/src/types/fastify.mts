@@ -1,4 +1,4 @@
-import type { ScopedContainer } from '@navios/core'
+import type { ScopedContainer } from '@navios/di'
 
 declare module 'fastify' {
   interface FastifyRequest {

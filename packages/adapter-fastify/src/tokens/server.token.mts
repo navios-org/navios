@@ -1,4 +1,4 @@
-import { InjectionToken } from '@navios/core'
+import { Token } from '@navios/di'
 
 import type { FastifyInstance } from 'fastify'
 
@@ -14,7 +14,7 @@ import type { FastifyInstance } from 'fastify'
  * ```ts
  * @Injectable()
  * class PluginService {
- *   private server = inject(FastifyServerToken)
+ *   @Inject(FastifyServerToken) accessor server!: FastifyInstance
  *
  *   async registerStaticFiles() {
  *     await this.server.register(require('@fastify/static'), {
@@ -25,4 +25,4 @@ import type { FastifyInstance } from 'fastify'
  * }
  * ```
  */
-export const FastifyServerToken = InjectionToken.create<FastifyInstance>('FastifyServerToken')
+export const FastifyServerToken = Token.create<FastifyInstance>('FastifyServerToken')

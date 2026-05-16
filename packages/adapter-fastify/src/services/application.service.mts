@@ -1,14 +1,12 @@
 import cors from '@fastify/cors'
 import multipart from '@fastify/multipart'
 import {
-  Container,
   ErrorResponseProducerService,
   FrameworkError,
   HttpException,
-  inject,
-  Injectable,
   Logger,
 } from '@navios/core'
+import { Container, Inject, Injectable } from '@navios/di'
 import { fastify } from 'fastify'
 import { serializerCompiler } from 'fastify-type-provider-zod'
 import { ZodError } from 'zod/v4'
@@ -16,7 +14,7 @@ import { $ZodError } from 'zod/v4/core'
 
 import type { FastifyCorsOptions } from '@fastify/cors'
 import type { FastifyMultipartOptions } from '@fastify/multipart'
-import type { ModuleMetadata } from '@navios/core'
+import type { LoggerInstance, ModuleMetadata } from '@navios/core'
 import type {
   FastifyInstance,
   FastifyListenOptions,
@@ -68,14 +66,17 @@ import { PinoWrapper } from './pino-wrapper.mjs'
   token: FastifyApplicationServiceToken,
 })
 export class FastifyApplicationService implements FastifyApplicationServiceInterface {
-  private logger = inject(Logger, {
-    context: FastifyApplicationService.name,
-  })
-  protected container = inject(Container)
-  private errorProducer = inject(ErrorResponseProducerService)
-  private validatorCompiler = inject(FastifyValidatorCompilerService)
+  @Inject(Logger, { context: 'FastifyApplicationService' })
+  private accessor logger!: LoggerInstance
+  @Inject(Container)
+  protected accessor container!: Container
+  @Inject(ErrorResponseProducerService)
+  private accessor errorProducer!: ErrorResponseProducerService
+  @Inject(FastifyValidatorCompilerService)
+  private accessor validatorCompiler!: FastifyValidatorCompilerService
   private server: FastifyInstance | null = null
-  private controllerAdapter = inject(FastifyControllerAdapterService)
+  @Inject(FastifyControllerAdapterService)
+  private accessor controllerAdapter!: FastifyControllerAdapterService
   private globalPrefix: string = ''
 
   private corsOptions: FastifyCorsOptions | null = null

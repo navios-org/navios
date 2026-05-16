@@ -1,5 +1,5 @@
 import { ErrorResponseProducerService } from '@navios/core'
-import { TestContainer } from '@navios/core/testing'
+import { TestContainer } from '@navios/di/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { FastifyControllerAdapterService, FastifyValidatorCompilerService } from '../index.mjs'

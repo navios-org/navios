@@ -1,28 +1,25 @@
 import {
-  Container,
   ErrorResponseProducerService,
   ExecutionContext,
   extractControllerMetadata,
   FrameworkError,
   GuardRunnerService,
   HttpException,
-  inject,
-  Injectable,
-  InjectionToken,
   InstanceResolverService,
   Logger,
   runWithRequestId,
 } from '@navios/core'
+import { Container, Inject, Injectable, Token } from '@navios/di'
 import { ZodError } from 'zod/v4'
 
 import type {
   CanActivate,
-  ClassType,
   ControllerMetadata,
   HandlerMetadata,
+  LoggerInstance,
   ModuleMetadata,
-  ScopedContainer,
 } from '@navios/core'
+import type { ClassType, ScopedContainer } from '@navios/di'
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify'
 import type { ZodTypeProvider } from 'fastify-type-provider-zod'
 
@@ -66,13 +63,16 @@ interface RouteHandlers {
  */
 @Injectable()
 export class FastifyControllerAdapterService {
-  private guardRunner = inject(GuardRunnerService)
-  private container = inject(Container)
-  private instanceResolver = inject(InstanceResolverService)
-  private errorProducer = inject(ErrorResponseProducerService)
-  private logger = inject(Logger, {
-    context: FastifyControllerAdapterService.name,
-  })
+  @Inject(GuardRunnerService)
+  private accessor guardRunner!: GuardRunnerService
+  @Inject(Container)
+  private accessor container!: Container
+  @Inject(InstanceResolverService)
+  private accessor instanceResolver!: InstanceResolverService
+  @Inject(ErrorResponseProducerService)
+  private accessor errorProducer!: ErrorResponseProducerService
+  @Inject(Logger, { context: 'FastifyControllerAdapterService' })
+  private accessor logger!: LoggerInstance
 
   /**
    * Sets up route handlers for a controller.
@@ -101,7 +101,7 @@ export class FastifyControllerAdapterService {
         throw new Error(`[Navios] Malformed Endpoint ${controller.name}:${classMethod}`)
       }
       const adapter = await this.container.get(
-        adapterToken as InjectionToken<FastifyHandlerAdapterInterface>,
+        adapterToken as Token<FastifyHandlerAdapterInterface>,
       )
 
       // Pre-resolve guards (reversed order: module → controller → endpoint)

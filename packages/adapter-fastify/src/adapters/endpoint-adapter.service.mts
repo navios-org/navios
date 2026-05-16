@@ -1,4 +1,4 @@
-import { Injectable, InjectionToken } from '@navios/core'
+import { Injectable, Token } from '@navios/di'
 
 import type { EndpointOptions } from '@navios/builder'
 import type {
@@ -19,7 +19,7 @@ import { FastifyStreamAdapterService } from './stream-adapter.service.mjs'
  * This token is used to inject the `FastifyEndpointAdapterService` instance
  * into the dependency injection container.
  */
-export const FastifyEndpointAdapterToken = InjectionToken.create<FastifyEndpointAdapterService>(
+export const FastifyEndpointAdapterToken = Token.create<FastifyEndpointAdapterService>(
   Symbol.for('FastifyEndpointAdapterService'),
 )
 

@@ -1,4 +1,4 @@
-import { InjectionToken } from '@navios/core'
+import { Token } from '@navios/di'
 
 import type { FastifyReply } from 'fastify'
 
@@ -13,7 +13,7 @@ import type { FastifyReply } from 'fastify'
  * ```ts
  * @Injectable()
  * class ResponseService {
- *   private reply = inject(FastifyReplyToken)
+ *   @Inject(FastifyReplyToken) accessor reply!: FastifyReply
  *
  *   setHeader(key: string, value: string) {
  *     this.reply.header(key, value)
@@ -25,4 +25,4 @@ import type { FastifyReply } from 'fastify'
  * }
  * ```
  */
-export const FastifyReplyToken = InjectionToken.create<FastifyReply>('FastifyReplyToken')
+export const FastifyReplyToken = Token.create<FastifyReply>('FastifyReplyToken')

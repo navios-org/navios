@@ -2,12 +2,12 @@ import {
   AdapterToken,
   EndpointAdapterToken,
   HttpAdapterToken,
-  InjectionToken,
   MultipartAdapterToken,
   Reply,
   Request,
   StreamAdapterToken,
 } from '@navios/core'
+import { Token } from '@navios/di'
 
 import type { AnyInjectableType } from '@navios/core'
 
@@ -66,7 +66,7 @@ import { FastifyReplyToken, FastifyRequestToken } from './tokens/index.mjs'
  * @see {@link FastifyMultipartAdapterService} The multipart adapter implementation
  */
 export function defineFastifyEnvironment() {
-  const tokens = new Map<InjectionToken<any, undefined>, AnyInjectableType>([
+  const tokens = new Map<Token<any, undefined>, AnyInjectableType>([
     [AdapterToken, FastifyApplicationService],
     [HttpAdapterToken, FastifyApplicationService],
     [EndpointAdapterToken, FastifyEndpointAdapterService],

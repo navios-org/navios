@@ -1,9 +1,14 @@
-import { Container, inject, Injectable, Logger } from '@navios/core'
+import { Logger } from '@navios/core'
+import { Container, Inject, Injectable } from '@navios/di'
+
+import type { LoggerInstance } from '@navios/core'
 
 @Injectable()
 export class PinoWrapper {
-  protected container = inject(Container)
-  protected logger = inject(Logger)
+  @Inject(Container)
+  protected accessor container!: Container
+  @Inject(Logger)
+  protected accessor logger!: LoggerInstance
 
   fatal(message: any, ...optionalParams: any[]) {
     if (this.logger.fatal === undefined) {
@@ -46,7 +51,7 @@ export class PinoWrapper {
     const loggerPromise = this.container.get(Logger, {
       context: newContext,
     })
-    const newPinoWrapper = Object.create(PinoWrapper.prototype)
+    const newPinoWrapper = new PinoWrapper()
     newPinoWrapper.container = this.container
     newPinoWrapper.logger = this.logger
     loggerPromise.then((logger) => {

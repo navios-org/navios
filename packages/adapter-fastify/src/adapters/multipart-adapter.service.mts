@@ -1,4 +1,4 @@
-import { Injectable, InjectionToken } from '@navios/core'
+import { Injectable, Token } from '@navios/di'
 import { ZodArray, ZodObject, ZodOptional } from 'zod/v4'
 
 import type { MultipartFile, MultipartValue } from '@fastify/multipart'
@@ -15,7 +15,7 @@ import { FastifyEndpointAdapterService } from './endpoint-adapter.service.mjs'
  * This token is used to inject the `FastifyMultipartAdapterService` instance
  * into the dependency injection container.
  */
-export const FastifyMultipartAdapterToken = InjectionToken.create<FastifyMultipartAdapterService>(
+export const FastifyMultipartAdapterToken = Token.create<FastifyMultipartAdapterService>(
   Symbol.for('FastifyMultipartAdapterService'),
 )
 

@@ -1,4 +1,4 @@
-import { InjectionToken } from '@navios/core'
+import { Token } from '@navios/di'
 
 import type { FastifyRequest } from 'fastify'
 
@@ -13,7 +13,7 @@ import type { FastifyRequest } from 'fastify'
  * ```ts
  * @Injectable()
  * class RequestService {
- *   private request = inject(FastifyRequestToken)
+ *   @Inject(FastifyRequestToken) accessor request!: FastifyRequest
  *
  *   getUrl() {
  *     return this.request.url
@@ -29,4 +29,4 @@ import type { FastifyRequest } from 'fastify'
  * }
  * ```
  */
-export const FastifyRequestToken = InjectionToken.create<FastifyRequest>('FastifyRequestToken')
+export const FastifyRequestToken = Token.create<FastifyRequest>('FastifyRequestToken')

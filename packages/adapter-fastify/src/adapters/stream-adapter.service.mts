@@ -1,4 +1,4 @@
-import { Injectable, InjectionToken } from '@navios/core'
+import { Injectable, Token } from '@navios/di'
 
 import type { BaseEndpointOptions } from '@navios/builder'
 import type {
@@ -18,7 +18,7 @@ import { AbstractFastifyHandlerAdapterService } from './abstract-fastify-handler
  * This token is used to inject the `FastifyStreamAdapterService` instance
  * into the dependency injection container.
  */
-export const FastifyStreamAdapterToken = InjectionToken.create<FastifyStreamAdapterService>(
+export const FastifyStreamAdapterToken = Token.create<FastifyStreamAdapterService>(
   Symbol.for('FastifyStreamAdapterService'),
 )
 
