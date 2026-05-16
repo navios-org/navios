@@ -3,10 +3,10 @@ import {
   InjectableScope,
   InjectableTokenMeta,
   InjectableType,
-  InjectionToken,
-} from '@navios/core'
+  Token,
+} from '@navios/di'
 
-import type { Registry } from '@navios/core'
+import type { Registry } from '@navios/di'
 import type { z, ZodObject, ZodRawShape } from 'zod/v4'
 
 import type { ComponentClass, XmlComponent } from '../types/component.mjs'
@@ -26,7 +26,7 @@ export const ComponentMeta = Symbol.for('xml.component.meta')
  * ```tsx
  * @Component()
  * class LatestPostsComponent implements XmlComponent {
- *   private readonly postService = inject(PostService)
+ *   @Inject(PostService) private accessor postService!: PostService
  *
  *   async render() {
  *     const posts = await this.postService.getLatestPosts()
@@ -107,8 +107,8 @@ export function Component(
 
     // Create token with schema if provided
     const injectableToken = schema
-      ? InjectionToken.create(target, schema)
-      : InjectionToken.create(target)
+      ? Token.create(target, schema)
+      : Token.create(target)
 
     // Register with Request scope - each render gets fresh instances
     registry.set(injectableToken, InjectableScope.Request, target, InjectableType.Class)

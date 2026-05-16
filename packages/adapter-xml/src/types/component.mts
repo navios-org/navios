@@ -11,7 +11,7 @@ import type { AnyXmlNode } from './xml-node.mjs'
  * ```tsx
  * @Component()
  * class LatestPostsComponent implements XmlComponent {
- *   private readonly postService = inject(PostService)
+ *   @Inject(PostService) private accessor postService!: PostService
  *
  *   async render() {
  *     const posts = await this.postService.getLatestPosts()

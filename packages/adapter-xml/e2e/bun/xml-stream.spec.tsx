@@ -5,14 +5,12 @@ import { builder } from '@navios/builder'
 import {
   Controller,
   Endpoint,
-  inject,
-  Injectable,
-  InjectableScope,
   Module,
   NaviosApplication,
   NaviosFactory,
   type EndpointParams,
 } from '@navios/core'
+import { Inject, Injectable, InjectableScope } from '@navios/di'
 import supertest from 'supertest'
 import { z } from 'zod/v4'
 
@@ -63,8 +61,8 @@ describe('XML Stream with Bun adapter', () => {
   // Class component with DI
   @Component()
   class ItemComponent implements XmlComponent {
-    private dataService = inject(DataService)
-    private tracker = inject(RequestTrackerService)
+    @Inject(DataService) private accessor dataService!: DataService
+    @Inject(RequestTrackerService) private accessor tracker!: RequestTrackerService
 
     constructor(private props: { id: string }) {}
 
@@ -184,8 +182,8 @@ describe('XML Stream with Bun adapter', () => {
 
   @Controller()
   class FeedController {
-    private dataService = inject(DataService)
-    private tracker = inject(RequestTrackerService)
+    @Inject(DataService) private accessor dataService!: DataService
+    @Inject(RequestTrackerService) private accessor tracker!: RequestTrackerService
 
     @XmlStream(getRssFeed)
     async getRssFeed(_params: XmlStreamParams<typeof getRssFeed>) {

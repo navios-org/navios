@@ -1,4 +1,4 @@
-import { Container, Registry } from '@navios/core'
+import { Container, Registry } from '@navios/di'
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod/v4'
 

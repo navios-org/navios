@@ -1,12 +1,13 @@
-import { inject, Injectable, InstanceResolverService, StreamAdapterToken } from '@navios/core'
+import { InstanceResolverService, StreamAdapterToken } from '@navios/core'
+import { Inject, Injectable } from '@navios/di'
 
 import type {
   AbstractHttpHandlerAdapterInterface,
   ClassType,
   HandlerMetadata,
   HandlerResult,
-  ScopedContainer,
 } from '@navios/core'
+import type { ScopedContainer } from '@navios/di'
 
 import { renderToXml } from '../runtime/render-to-xml.mjs'
 
@@ -38,8 +39,10 @@ import type { AnyXmlNode } from '../types/xml-node.mjs'
 @Injectable()
 export class XmlStreamAdapterService implements AbstractHttpHandlerAdapterInterface {
   /** Base stream adapter - we proxy hasSchema, prepareArguments, provideSchema to it */
-  protected streamAdapter = inject(StreamAdapterToken)
-  protected instanceResolver = inject(InstanceResolverService)
+  @Inject(StreamAdapterToken)
+  protected accessor streamAdapter!: AbstractHttpHandlerAdapterInterface
+  @Inject(InstanceResolverService)
+  protected accessor instanceResolver!: InstanceResolverService
 
   /**
    * Prepares argument getters for parsing request data.

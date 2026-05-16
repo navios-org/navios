@@ -1,4 +1,5 @@
-import { InjectionToken, XmlStreamAdapterToken } from '@navios/core'
+import { XmlStreamAdapterToken } from '@navios/core'
+import { Token } from '@navios/di'
 
 import type { AnyInjectableType } from '@navios/core'
 
@@ -30,7 +31,7 @@ import { XmlStreamAdapterService } from './adapters/index.mjs'
  * ```
  */
 export function defineXmlEnvironment() {
-  const tokens = new Map<InjectionToken<any, undefined>, AnyInjectableType>([
+  const tokens = new Map<Token<any, undefined>, AnyInjectableType>([
     [XmlStreamAdapterToken, XmlStreamAdapterService],
   ])
   return { tokens }

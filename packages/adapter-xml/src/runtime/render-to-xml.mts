@@ -1,4 +1,4 @@
-import type { Container, ScopedContainer } from '@navios/core'
+import type { Container, ScopedContainer } from '@navios/di'
 
 import {
   AsyncComponent,
