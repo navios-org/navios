@@ -1,4 +1,4 @@
-import { inject, Injectable, InjectionToken } from '@navios/di'
+import { InjectDerived, Injectable, Token } from '@navios/di'
 import { z } from 'zod/v4'
 
 import { QueueClientToken } from '../tokens/queue-client.token.mjs'
@@ -12,7 +12,7 @@ export const queueRequesterOptionsSchema = z.object({
   name: z.string().default('default'),
 })
 
-export const QueueRequesterToken = InjectionToken.create<
+export const QueueRequesterToken = Token.create<
   QueueRequester<any>,
   typeof queueRequesterOptionsSchema
 >('QueueRequester', queueRequesterOptionsSchema)
@@ -31,9 +31,8 @@ export const QueueRequesterToken = InjectionToken.create<
  *
  * @Injectable()
  * export class UserService {
- *   private getUser = inject(QueueRequester<typeof getUserMessage>, {
- *     format: getUserMessage,
- *   })
+ *   @Inject(QueueRequesterToken, { messageDef: getUserMessage })
+ *   private accessor getUser!: QueueRequester<typeof getUserMessage>
  *
  *   async fetchUser(userId: string) {
  *     const user = await this.getUser.request({ userId })
@@ -50,11 +49,14 @@ export class QueueRequester<
     BaseMessageConfig<'request-reply', any, any>['responseSchema']
   >,
 > {
-  private queueClient: QueueClient
+  @InjectDerived(QueueClientToken, (hostArgs: z.infer<typeof queueRequesterOptionsSchema>) => ({
+    name: hostArgs.name,
+  }))
+  private accessor queueClient!: QueueClient
+
   private messageDef: MessageDef
 
-  constructor({ messageDef, name }: z.infer<typeof queueRequesterOptionsSchema>) {
-    this.queueClient = inject(QueueClientToken, { name })
+  constructor({ messageDef }: z.infer<typeof queueRequesterOptionsSchema>) {
     // @ts-expect-error - messageDef is a request reply message definition
     this.messageDef = messageDef
   }

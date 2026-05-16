@@ -1,6 +1,6 @@
 {
   "name": "@navios/queues",
-  "version": "0.1.0",
+  "version": "2.0.0",
   "description": "Queue adapters for Navios - RabbitMQ, Kafka, and AWS SQS/SNS support",
   "license": "MIT",
   "author": {

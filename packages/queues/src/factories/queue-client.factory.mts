@@ -1,4 +1,4 @@
-import { Factory, inject } from '@navios/di'
+import { Factory, Inject } from '@navios/di'
 
 import type { FactoryContext, OnServiceDestroy, OnServiceInit } from '@navios/di'
 import type { z } from 'zod/v4'
@@ -10,6 +10,7 @@ import { queueClientOptionsSchema, QueueClientToken } from '../tokens/queue-clie
 import { QueueConfigServiceToken } from '../tokens/queue-config-service.token.mjs'
 
 import type { QueueClient } from '../interfaces/queue-client.mjs'
+import type { QueueConfigService } from '../interfaces/queue-config-service.mjs'
 import type { AbstractQueueConfig } from '../types/queue-config.mjs'
 
 type QueueClientWithLifecycle = QueueClient & OnServiceInit & OnServiceDestroy
@@ -24,7 +25,7 @@ type QueueClientWithLifecycle = QueueClient & OnServiceInit & OnServiceDestroy
  */
 @Factory({ token: QueueClientToken })
 export class QueueClientFactory {
-  private configService = inject(QueueConfigServiceToken)
+  @Inject(QueueConfigServiceToken) private accessor configService!: QueueConfigService
 
   async create(
     ctx: FactoryContext,

@@ -1,4 +1,4 @@
-import { inject, Injectable, InjectionToken } from '@navios/di'
+import { InjectDerived, Injectable, Token } from '@navios/di'
 import { z } from 'zod/v4'
 
 import { QueueClientToken } from '../tokens/queue-client.token.mjs'
@@ -12,7 +12,7 @@ export const queuePublisherOptionsSchema = z.object({
   name: z.string().default('default'),
 })
 
-export const QueuePublisherToken = InjectionToken.create<
+export const QueuePublisherToken = Token.create<
   QueuePublisher<any>,
   typeof queuePublisherOptionsSchema
 >('QueuePublisher', queuePublisherOptionsSchema)
@@ -30,9 +30,8 @@ export const QueuePublisherToken = InjectionToken.create<
  *
  * @Injectable()
  * export class UserService {
- *   private publishWelcome = inject(QueuePublisher<typeof welcomeMessage>, {
- *     format: welcomeMessage,
- *   })
+ *   @Inject(QueuePublisherToken, { messageDef: welcomeMessage })
+ *   private accessor publishWelcome!: QueuePublisher<typeof welcomeMessage>
  *
  *   async sendWelcome(user: User) {
  *     await this.publishWelcome.publish({ name: user.name })
@@ -44,11 +43,14 @@ export const QueuePublisherToken = InjectionToken.create<
 export class QueuePublisher<
   MessageDef extends MessageDefinition<'pubsub', BaseMessageConfig<'pubsub', any>['payloadSchema']>,
 > {
-  private queueClient: QueueClient
+  @InjectDerived(QueueClientToken, (hostArgs: z.infer<typeof queuePublisherOptionsSchema>) => ({
+    name: hostArgs.name,
+  }))
+  private accessor queueClient!: QueueClient
+
   private messageDef: MessageDef
 
-  constructor({ messageDef, name }: z.infer<typeof queuePublisherOptionsSchema>) {
-    this.queueClient = inject(QueueClientToken, { name })
+  constructor({ messageDef }: z.infer<typeof queuePublisherOptionsSchema>) {
     // @ts-expect-error - messageDef is a pubsub message definition
     this.messageDef = messageDef
   }

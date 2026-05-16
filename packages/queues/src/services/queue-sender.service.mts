@@ -1,4 +1,4 @@
-import { inject, Injectable, InjectionToken } from '@navios/di'
+import { InjectDerived, Injectable, Token } from '@navios/di'
 import { z } from 'zod/v4'
 
 import { QueueClientToken } from '../tokens/queue-client.token.mjs'
@@ -12,7 +12,7 @@ export const queueSenderOptionsSchema = z.object({
   name: z.string().default('default'),
 })
 
-export const QueueSenderToken = InjectionToken.create<
+export const QueueSenderToken = Token.create<
   QueueSender<any>,
   typeof queueSenderOptionsSchema
 >('QueueSender', queueSenderOptionsSchema)
@@ -30,9 +30,8 @@ export const QueueSenderToken = InjectionToken.create<
  *
  * @Injectable()
  * export class OrderService {
- *   private processOrder = inject(QueueSender<typeof processOrderMessage>, {
- *     format: processOrderMessage,
- *   })
+ *   @Inject(QueueSenderToken, { messageDef: processOrderMessage })
+ *   private accessor processOrder!: QueueSender<typeof processOrderMessage>
  *
  *   async sendOrderForProcessing(orderId: string) {
  *     await this.processOrder.send({ orderId })
@@ -47,11 +46,14 @@ export class QueueSender<
     BaseMessageConfig<'point-to-point', any>['payloadSchema']
   >,
 > {
-  private queueClient: QueueClient
+  @InjectDerived(QueueClientToken, (hostArgs: z.infer<typeof queueSenderOptionsSchema>) => ({
+    name: hostArgs.name,
+  }))
+  private accessor queueClient!: QueueClient
+
   private messageDef: MessageDef
 
-  constructor({ messageDef, name }: z.infer<typeof queueSenderOptionsSchema>) {
-    this.queueClient = inject(QueueClientToken, { name })
+  constructor({ messageDef }: z.infer<typeof queueSenderOptionsSchema>) {
     // @ts-expect-error - messageDef is a point to point message definition
     this.messageDef = messageDef
   }
