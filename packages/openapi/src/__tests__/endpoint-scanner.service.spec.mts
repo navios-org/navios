@@ -82,6 +82,7 @@ describe('EndpointScannerService', () => {
 
       // Create mock controller metadata
       const controllerMeta: ControllerMetadata = {
+        name: 'TestController',
         endpoints: new Set([handler]),
         guards: new Set(),
         customAttributes: new Map(),
@@ -94,6 +95,7 @@ describe('EndpointScannerService', () => {
 
       // Create mock module metadata
       const moduleMetadata: ModuleMetadata = {
+        name: 'TestModule',
         controllers: new Set([TestController as any]),
         imports: new Set(),
         guards: new Set(),
@@ -116,6 +118,7 @@ describe('EndpointScannerService', () => {
       const scanner = await container.get(EndpointScannerService)
 
       const moduleMetadata: ModuleMetadata = {
+        name: 'EmptyModule',
         controllers: new Set(),
         imports: new Set(),
         guards: new Set(),
@@ -135,6 +138,7 @@ describe('EndpointScannerService', () => {
       const scanner = await container.get(EndpointScannerService)
 
       const moduleMetadata: ModuleMetadata = {
+        name: 'NoControllerModule',
         controllers: new Set(),
         imports: new Set(),
         guards: new Set(),
@@ -157,6 +161,7 @@ describe('EndpointScannerService', () => {
       const handler = createHandlerMetadata(undefined, 'noConfigMethod')
 
       const controllerMeta: ControllerMetadata = {
+        name: 'TestController',
         endpoints: new Set([handler]),
         guards: new Set(),
         customAttributes: new Map(),
@@ -167,6 +172,7 @@ describe('EndpointScannerService', () => {
       }
 
       const moduleMetadata: ModuleMetadata = {
+        name: 'TestModule',
         controllers: new Set([TestController as any]),
         imports: new Set(),
         guards: new Set(),
@@ -203,6 +209,7 @@ describe('EndpointScannerService', () => {
       )
 
       const controllerMeta: ControllerMetadata = {
+        name: 'TestController',
         endpoints: new Set([handler]),
         guards: new Set(),
         customAttributes: new Map(),
@@ -213,6 +220,7 @@ describe('EndpointScannerService', () => {
       }
 
       const moduleMetadata: ModuleMetadata = {
+        name: 'TestModule',
         controllers: new Set([TestController as any]),
         imports: new Set(),
         guards: new Set(),
@@ -236,6 +244,7 @@ describe('EndpointScannerService', () => {
       const handler1 = createHandlerMetadata({ method: 'GET', url: '/users' }, 'getUsers')
 
       const controllerMeta1: ControllerMetadata = {
+        name: 'Controller1',
         endpoints: new Set([handler1]),
         guards: new Set(),
         customAttributes: new Map(),
@@ -249,6 +258,7 @@ describe('EndpointScannerService', () => {
       const handler2 = createHandlerMetadata({ method: 'POST', url: '/posts' }, 'createPost')
 
       const controllerMeta2: ControllerMetadata = {
+        name: 'Controller2',
         endpoints: new Set([handler2]),
         guards: new Set(),
         customAttributes: new Map(),
@@ -259,6 +269,7 @@ describe('EndpointScannerService', () => {
       }
 
       const module1: ModuleMetadata = {
+        name: 'Module1',
         controllers: new Set([Controller1 as any, Controller2 as any]),
         imports: new Set(),
         guards: new Set(),
@@ -271,6 +282,7 @@ describe('EndpointScannerService', () => {
       const handler3 = createHandlerMetadata({ method: 'GET', url: '/orders' }, 'getOrders')
 
       const controllerMeta3: ControllerMetadata = {
+        name: 'Controller3',
         endpoints: new Set([handler3]),
         guards: new Set(),
         customAttributes: new Map(),
@@ -281,6 +293,7 @@ describe('EndpointScannerService', () => {
       }
 
       const module2: ModuleMetadata = {
+        name: 'Module2',
         controllers: new Set([Controller3 as any]),
         imports: new Set(),
         guards: new Set(),
@@ -321,6 +334,7 @@ describe('EndpointScannerService', () => {
       const handler = createHandlerMetadata({ method: 'GET', url: '/users' }, 'getUsers')
 
       const controllerMeta: ControllerMetadata = {
+        name: 'TestController',
         endpoints: new Set([handler]),
         guards: new Set(),
         customAttributes: new Map(),
@@ -331,6 +345,7 @@ describe('EndpointScannerService', () => {
       }
 
       const moduleMetadata: ModuleMetadata = {
+        name: 'TestModule',
         controllers: new Set([TestController as any]),
         imports: new Set(),
         guards: new Set(),
