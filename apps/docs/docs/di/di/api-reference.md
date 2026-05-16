@@ -4,7 +4,7 @@ sidebar_position: 4
 
 # API Reference
 
-Complete API reference for Navios DI library.
+Complete API reference for the `@navios/di` v2 library. All symbols below are derived from the real exported v2 source.
 
 ## Core Classes
 
@@ -13,406 +13,383 @@ Complete API reference for Navios DI library.
 The main entry point for dependency injection.
 
 ```typescript
-class Container implements IContainer {
-  constructor(
-    registry?: Registry,
-    logger?: Console | null,
-    injectors?: Injectors
-  )
+interface ContainerOptions {
+  registry?: Registry // defaults to globalRegistry
+  logger?: Console | null // diagnostics + plugin-error sink
+  plugins?: Plugin[] // registered in order at construction
+}
+
+class Container extends AbstractContainer {
+  constructor(options?: ContainerOptions)
+
+  // Plugins
+  use(plugin: Plugin): void
 
   // Service resolution
-  get<T>(token: T): Promise<InstanceType<T>>
-  get<T, S extends InjectionTokenSchemaType>(
-    token: InjectionToken<T, S>,
-    args: z.input<S>,
-  ): Promise<T>
-  get<T>(token: InjectionToken<T, undefined>): Promise<T>
-  get<T>(token: BoundInjectionToken<T, any>): Promise<T>
-  get<T>(token: FactoryInjectionToken<T, any>): Promise<T>
+  get<T extends ClassType>(
+    token: T,
+  ): InstanceType<T> extends Factorable<infer R> ? Promise<R> : Promise<InstanceType<T>>
+  get<T extends ClassTypeWithArgument<R>, R>(token: T, args: R): Promise<InstanceType<T>>
+  get<T, S extends TokenSchemaType>(token: Token<T, S>, args: StandardSchemaV1.InferInput<S>): Promise<T>
+  get<T>(token: Token<T, undefined>): Promise<T>
+  get<T>(token: BoundToken<T, any>): Promise<T>
+  get<T>(token: FactoryToken<T, any>): Promise<T>
 
   // Lifecycle
   invalidate(service: unknown): Promise<void>
   ready(): Promise<void>
   dispose(): Promise<void>
-  clear(): Promise<void>
 
   // Introspection
   isRegistered(token: any): boolean
-  getRegistry(): Registry
-  tryGetSync<T>(token: any, args?: any): T | null
+  calculateInstanceName(token, args?): string | null
 
   // Request Context Management
-  beginRequest(
-    requestId: string,
-    metadata?: Record<string, any>,
-  ): ScopedContainer
+  beginRequest(requestId: string, metadata?: Record<string, any>): ScopedContainer
   getActiveRequestIds(): ReadonlySet<string>
   hasActiveRequest(requestId: string): boolean
   removeRequestId(requestId: string): void
 
-  // Component Access (for advanced usage)
-  getStorage(): UnifiedStorage
-  getServiceInitializer(): ServiceInitializer
-  getServiceInvalidator(): ServiceInvalidator
-  getTokenResolver(): TokenResolver
-  getNameResolver(): NameResolver
-  getScopeTracker(): ScopeTracker
-  getEventBus(): LifecycleEventBus
-  getInstanceResolver(): InstanceResolver
+  // Advanced (frozen, @internal — NOT stable public API)
+  readonly internals: ContainerInternals
 }
 ```
 
-**Constructor Parameters:**
-
-- `registry?: Registry` - Optional registry instance (defaults to global registry)
-- `logger?: Console | null` - Optional logger for debugging
-- `injectors?: Injectors` - Optional custom injectors
+**Constructor:** `new Container(options?: ContainerOptions)` — an options bag. (The v1 positional `new Container(registry, logger, injectors)` was removed.)
 
 **Methods:**
 
-- `get<T>(token: T)` - Get a service instance (throws error for request-scoped services)
-- `invalidate(service: unknown)` - Invalidate a service and its dependencies
-- `ready()` - Wait for all pending operations to complete
-- `dispose()` - Clean up all resources
-- `clear()` - Clear all instances and bindings
-- `isRegistered(token: any)` - Check if a service is registered
-- `getRegistry()` - Get the registry
-- `tryGetSync<T>(token, args?)` - Get instance synchronously if it exists
+- `use(plugin)` — register a plugin after construction
+- `get(token, args?)` — resolve a service (throws a scope-mismatch `DIError` for `Request`-scoped tokens)
+- `invalidate(service)` — invalidate a service and its dependents
+- `ready()` — await all pending operations
+- `dispose()` — clean up all resources and run plugin `onContainerDispose`
+- `isRegistered(token)` — whether a token is registered
+- `calculateInstanceName(token, args?)` — the storage instance name, or `null` for unresolved factory tokens / validation errors
+- `beginRequest(requestId, metadata?)` — start a request context, returns a `ScopedContainer`
 
-**Request Context Management:**
-
-- `beginRequest(requestId, metadata?)` - Begin a new request context, returns `ScopedContainer`
-- `getActiveRequestIds()` - Get set of active request IDs
-- `hasActiveRequest(requestId)` - Check if a request is active
-- `removeRequestId(requestId)` - Remove a request ID from tracking
-
-**Component Access Methods (Advanced):**
-
-- `getStorage()` - Get the UnifiedStorage instance
-- `getServiceInitializer()` - Get the ServiceInitializer instance
-- `getServiceInvalidator()` - Get the ServiceInvalidator instance
-- `getTokenResolver()` - Get the TokenResolver instance
-- `getNameResolver()` - Get the NameResolver instance
-- `getScopeTracker()` - Get the ScopeTracker instance
-- `getEventBus()` - Get the LifecycleEventBus instance
-- `getInstanceResolver()` - Get the InstanceResolver instance
+> `container.internals` (`{ registry, storage, eventBus, resolver, serviceInitializer, serviceInvalidator, tokenResolver, nameResolver, pluginRegistry }`) is a **frozen, `@internal`** escape hatch for plugin authors — not stable public API. It replaces the removed v1 `getRegistry()` / `getStorage()` / `getEventBus()` / `getScopeTracker()` / `get*()` accessor methods.
 
 ### ScopedContainer
 
 Request-scoped container for isolated request-scoped service resolution.
 
 ```typescript
-class ScopedContainer implements IContainer {
+class ScopedContainer extends AbstractContainer {
   readonly requestId: string
 
-  // Service resolution
-  get<T>(token: T): Promise<InstanceType<T>>
-  get<T, S extends InjectionTokenSchemaType>(
-    token: InjectionToken<T, S>,
-    args: z.input<S>,
+  // Service resolution (same overloads as Container.get)
+  get<T extends ClassType>(token: T): Promise<InstanceType<T>>
+  get<T, S extends TokenSchemaType>(token: Token<T, S>, args: StandardSchemaV1.InferInput<S>): Promise<T>
+  // …BoundToken / FactoryToken / no-schema overloads
+
+  // Explicit opt-in request resolution (same overloads as get)
+  resolveInScope<T extends ClassType>(token: T): Promise<InstanceType<T>>
+  resolveInScope<T, S extends TokenSchemaType>(
+    token: Token<T, S>,
+    args: StandardSchemaV1.InferInput<S>,
   ): Promise<T>
 
   // Lifecycle
   invalidate(service: unknown): Promise<void>
   endRequest(): Promise<void>
-  dispose(): Promise<void>  // Alias for endRequest()
+  dispose(): Promise<void> // alias for endRequest()
   ready(): Promise<void>
 
   // Introspection
   isRegistered(token: any): boolean
   getParent(): Container
   getRequestId(): string
-  getStorage(): UnifiedStorage
-  tryGetSync<T>(token: any, args?: any): T | null
 
   // Metadata
   getMetadata(key: string): any | undefined
   setMetadata(key: string, value: any): void
-  addInstance(token: InjectionToken<any, undefined>, instance: any): void
+  addInstance<T>(token: ClassType | Token<T, any> | BoundToken<T, any>, instance: T): void
+
+  // Advanced (frozen, @internal)
+  readonly internals: ContainerInternals
 }
 ```
 
-**Methods:**
-
-- `get<T>(token: T)` - Get a service instance (request-scoped or delegated to parent)
-- `invalidate(service: unknown)` - Invalidate a service
-- `endRequest()` - End request and cleanup all request-scoped instances
-- `dispose()` - Alias for `endRequest()`
-- `ready()` - Wait for pending operations
-- `getMetadata(key)` - Get request metadata
-- `setMetadata(key, value)` - Set request metadata
-- `addInstance(token, instance)` - Add pre-prepared instance to request context
-- `getStorage()` - Get the underlying UnifiedStorage instance
+**`resolveInScope(token, args?)`** — the explicit, opt-in, non-mutating successor to the **removed** v1 implicit Singleton→Request scope-upgrade. It resolves `token` treating its effective host scope as `Request` for that resolution only, caching the instance in **this** ScopedContainer's own request storage (disposed at `endRequest()`); the token's registered scope and all shared registrations are unchanged. Idempotent within a request, isolated across requests.
 
 ## Registry
-
-The `Registry` stores service metadata and factory information.
 
 ```typescript
 class Registry {
   constructor(parent?: Registry)
-  
-  // Registration
+
   set<Instance, Schema>(
-    token: InjectionToken<Instance, Schema>,
+    token: Token<Instance, Schema>,
     scope: InjectableScope,
     target: ClassType,
     type: InjectableType,
-    priority?: number
+    priority?: number,
   ): void
-  
-  // Lookup
-  get<Instance, Schema>(
-    token: InjectionToken<Instance, Schema>
-  ): FactoryRecord<Instance, Schema>
-  
-  getAll<Instance, Schema>(
-    token: InjectionToken<Instance, Schema>
-  ): FactoryRecord<Instance, Schema>[]  // Returns all registrations sorted by priority
-  
-  has(token: InjectionToken<any, any>): boolean
-  
-  // Management
-  delete(token: InjectionToken<any, any>): void
-  updateScope(token: InjectionToken<any, any>, scope: InjectableScope): boolean
+
+  get<Instance, Schema>(token: Token<Instance, Schema>): FactoryRecord<Instance, Schema>
+  getAll<Instance, Schema>(token: Token<Instance, Schema>): FactoryRecord<Instance, Schema>[]
+  has(token: Token<any, any>): boolean
+  delete(token: Token<any, any>): void
 }
+
+const globalRegistry: Registry
 ```
 
-**Methods:**
+- `set(token, scope, target, type, priority?)` — register a factory record
+- `get(token)` — highest-priority factory record for the token
+- `getAll(token)` — all factory records, highest priority first
+- `has(token)` — whether the token is registered (walks parents)
+- `delete(token)` — remove all registrations for the token
 
-- `set(token, scope, target, type, priority?)` - Register a service factory
-- `get(token)` - Get the highest priority factory record for a token
-- `getAll(token)` - Get all factory records for a token (sorted by priority, highest first)
-- `has(token)` - Check if a token is registered
-- `delete(token)` - Remove all registrations for a token
-- `updateScope(token, scope)` - Update the scope of an already registered factory
+> The v1 `Registry.updateScope(token, scope)` was **removed**. A child `new Registry(parent)` shadows parent registrations.
 
-## Injection Tokens
+## Tokens
 
-### InjectionToken
-
-Token-based dependency resolution.
+### Token
 
 ```typescript
-class InjectionToken<T, S extends InjectionTokenSchemaType | unknown = unknown> {
-  public id: string
-  public readonly name: string | symbol | ClassType
-  public readonly schema: ZodObject | undefined
+class Token<T, S extends StandardSchemaV1 | undefined = undefined> {
+  readonly id: string
+  readonly name: string | symbol | ClassType
+  readonly schema: S
 
-  static create<T>(name: string | symbol): InjectionToken<T, undefined>
-  static create<T, S extends InjectionTokenSchemaType>(
-    name: string | symbol,
-    schema: S
-  ): InjectionToken<T, S>
+  constructor(name: string | symbol | ClassType, schema: S, customId?: string)
 
-  static bound<T, S extends InjectionTokenSchemaType>(
-    token: InjectionToken<T, S>,
-    value: z.input<S>
-  ): BoundInjectionToken<T, S>
+  static create<T extends ClassType>(name: T): Token<InstanceType<T>, undefined>
+  static create<T extends ClassType, S extends StandardSchemaV1>(
+    name: T,
+    schema: S,
+  ): Token<InstanceType<T>, S, true>
+  static create<T>(name: string | symbol): Token<T, undefined>
+  static create<T, S extends StandardSchemaV1>(name: string | symbol, schema: S): Token<T, S>
 
-  static factory<T, S extends InjectionTokenSchemaType>(
-    token: InjectionToken<T, S>,
-    factory: (ctx: FactoryContext) => Promise<z.input<S>>
-  ): FactoryInjectionToken<T, S>
+  bind<SS extends StandardSchemaV1>(
+    this: Token<T, SS>,
+    value: StandardSchemaV1.InferInput<SS>,
+  ): BoundToken<T, SS>
+
+  fromFactory<SS extends StandardSchemaV1>(
+    this: Token<T, SS>,
+    factory: (ctx: FactoryContext) => Promise<StandardSchemaV1.InferInput<SS>>,
+  ): FactoryToken<T, SS>
+
+  static bound<T, S extends StandardSchemaV1>(
+    token: Token<T, S>,
+    value: StandardSchemaV1.InferInput<S>,
+  ): BoundToken<T, S>
+  static factory<T, S extends StandardSchemaV1>(
+    token: Token<T, S>,
+    factory: (ctx: FactoryContext) => Promise<StandardSchemaV1.InferInput<S>>,
+  ): FactoryToken<T, S>
 }
 ```
 
-**Static Methods:**
+`Token` is the v2 identity object (renamed from v1's `InjectionToken`). A token with a `schema` requires args at `get()`. `TokenSchemaType` is `StandardSchemaV1` (zod v4 / Valibot / ArkType / …).
 
-- `create<T>(name: string | symbol)` - Create a simple injection token
-- `create<T, S>(name: string | symbol, schema: S)` - Create a token with schema
-- `bound<T, S>(token: InjectionToken<T, S>, value: z.input<S>)` - Create a bound token
-- `factory<T, S>(token: InjectionToken<T, S>, factory: (ctx: FactoryContext) => Promise<z.input<S>>)` - Create a factory token
+### BoundToken
+
+```typescript
+class BoundToken<T, S extends StandardSchemaV1> {
+  readonly token: Token<T, S>
+  readonly value: StandardSchemaV1.InferInput<S>
+}
+```
+
+Produced by `token.bind(value)` (or `Token.bound(token, value)`). Resolves without passing args.
+
+### FactoryToken
+
+```typescript
+class FactoryToken<T, S extends StandardSchemaV1> {
+  readonly token: Token<T, S>
+  readonly factory: (ctx: FactoryContext) => Promise<StandardSchemaV1.InferInput<S>>
+  resolve(ctx: FactoryContext): Promise<StandardSchemaV1.InferInput<S>>
+}
+```
+
+Produced by `token.fromFactory(factory)` (or `Token.factory(token, factory)`). The factory computes the token args lazily.
+
+> The v1 `InjectionToken` / `BoundInjectionToken` / `FactoryInjectionToken` classes were **removed**.
 
 ## Decorators
 
 ### Injectable
 
-Mark a class as injectable service.
-
 ```typescript
 function Injectable(options?: {
   scope?: InjectableScope
-  token?: InjectionToken<any, any>
-  schema?: ZodSchema
+  token?: Token<any, any>
+  schema?: TokenSchemaType
   registry?: Registry
   priority?: number
 }): ClassDecorator
 ```
 
-**Options:**
-
-- `scope?: InjectableScope` - Service scope (default: Singleton)
-- `token?: InjectionToken<any, any>` - Custom injection token
-- `schema?: ZodSchema` - Zod schema for constructor arguments
-- `registry?: Registry` - Custom registry
-- `priority?: number` - Priority level (higher wins when multiple registrations exist, default: 0)
+Marks a class as injectable. Cannot pass both `token` and `schema`. A `schema` makes the class take one validated argument object in its constructor.
 
 ### Factory
-
-Mark a class as factory service.
 
 ```typescript
 function Factory(options?: {
   scope?: InjectableScope
-  token?: InjectionToken<any, any>
+  token?: Token<any, any>
   registry?: Registry
+  priority?: number
 }): ClassDecorator
 ```
 
-**Options:**
+Marks a class as a factory. The class implements `Factorable<R>` (or `FactorableWithArgs<R, S>` when the token has a schema) — a `create()` method that returns the produced value.
 
-- `scope?: InjectableScope` - Factory scope (default: Singleton)
-- `token?: InjectionToken<any, any>` - Custom injection token
-- `registry?: Registry` - Custom registry
+### Field decorators
+
+All four are **stage-3 accessor decorators**. Always applied as `@Decorator(token) accessor field!: Type`. They throw at decoration time if applied to anything other than an `accessor` field, or if decorator metadata is unavailable.
+
+```typescript
+function Inject<T>(token: AnyTokenOrClass, args?: unknown): ClassAccessorDecorator
+function InjectLazy<T>(token: AnyTokenOrClass, args?: unknown): ClassAccessorDecorator
+function InjectOptional<T>(token: AnyTokenOrClass, args?: unknown): ClassAccessorDecorator
+function InjectDerived<TDep, THostArgs>(
+  token: AnyTokenOrClass,
+  derive: (hostArgs: THostArgs) => unknown,
+): ClassAccessorDecorator
+
+// AnyTokenOrClass = Token<any,any> | BoundToken<any,any> | FactoryToken<any,any> | ClassType
+```
+
+| Decorator | Field type | Behavior |
+|---|---|---|
+| `@Inject(Token)` | `accessor x!: T` | Eager. Resolved & assigned before `onServiceInit`. Scope-checked. |
+| `@InjectLazy(Token)` | `accessor x!: Promise<T>` | Deferred. Resolved on first `await`. For circular / cross-scope deps. |
+| `@InjectOptional(Token)` | `accessor x!: T \| null` | `null` when unregistered / fails to resolve. |
+| `@InjectDerived(Token, derive)` | `accessor x!: T` | Resolves `Token` with args from `derive(hostValidatedArgs)`. |
+
+> The v1 runtime helpers `inject()` / `asyncInject()` / `optional()` and `wrapSyncInit()` were **removed** — v2 injection is exclusively these field decorators.
 
 ## Enums
 
 ### InjectableScope
 
-Service lifetime scope.
-
 ```typescript
 enum InjectableScope {
-  Singleton = 'Singleton', // One instance shared across the application
-  Transient = 'Transient', // New instance created for each injection
-  Request = 'Request', // One instance per request context
+  Singleton = 'Singleton', // one instance shared across the container (default)
+  Transient = 'Transient', // a new instance every resolution
+  Request = 'Request', // one instance per request scope (ScopedContainer)
+}
+```
+
+### InjectableType
+
+```typescript
+enum InjectableType {
+  Class = 'Class',
+  Factory = 'Factory',
 }
 ```
 
 ## Interfaces
 
-### OnServiceInit
-
-Service initialization hook.
+### OnServiceInit / OnServiceDestroy
 
 ```typescript
 interface OnServiceInit {
   onServiceInit(): Promise<void> | void
 }
-```
 
-### OnServiceDestroy
-
-Service cleanup hook.
-
-```typescript
 interface OnServiceDestroy {
   onServiceDestroy(): Promise<void> | void
 }
 ```
 
-### Factorable
-
-Factory interface for simple factories.
+### Factorable / FactorableWithArgs
 
 ```typescript
 interface Factorable<T> {
-  create(): T
+  create(ctx?: FactoryContext): Promise<T> | T
 }
-```
 
-### FactorableWithArgs
-
-Factory interface for factories with arguments.
-
-```typescript
-interface FactorableWithArgs<T, S> {
-  create(ctx: FactoryContext, args: z.input<S>): T
+interface FactorableWithArgs<T, A extends TokenSchemaType> {
+  create(ctx?: FactoryContext, ...args: [StandardSchemaV1.InferOutput<A>]): Promise<T> | T
 }
 ```
 
 ### FactoryContext
 
-Context provided to factory methods.
+Context provided to factory `create()` methods and to `Token.fromFactory()` factories.
 
 ```typescript
 interface FactoryContext {
-  inject: typeof asyncInject
-  addDestroyListener: (listener: () => void | Promise<void>) => void
+  // resolve a dependency from within the factory
+  inject<T>(token: AnyTokenOrClass, args?: unknown): Promise<T>
+  // register a cleanup tied to the produced instance's lifetime
+  addDestroyListener(listener: () => void | Promise<void>): void
 }
 ```
+
+### Plugin
+
+```typescript
+interface Plugin {
+  name: string
+  onBeforeCreate?(ctx: CreateContext): void | Promise<void>
+  onAfterCreate?(ctx: CreateContext, instance: unknown): void | Promise<void>
+  onBeforeDestroy?(ctx: DestroyContext, instance: unknown): void | Promise<void>
+  onAfterDestroy?(ctx: DestroyContext): void | Promise<void>
+  onContainerDispose?(container: IContainer): void | Promise<void>
+  middleware?(ctx: CreateContext, next: () => Promise<unknown>): Promise<unknown>
+}
+
+interface CreateContext {
+  readonly token: Token<unknown>
+  readonly target: ClassType
+  readonly scope: InjectableScope
+  readonly args: unknown
+  readonly instanceName: string
+  readonly container: IContainer
+  readonly requestId?: string
+}
+
+interface DestroyContext {
+  readonly instanceName: string
+  readonly container: IContainer
+  readonly requestId?: string
+}
+
+function definePlugin(plugin: Plugin): Plugin
+```
+
+Observer hooks (`onBefore*` / `onAfter*` / `onContainerDispose`) run in registration order, awaited sequentially; their errors are **isolated** and reported (never abort resolution). `middleware` is the single transforming hook, composed Koa-style (first plugin outermost, `core` innermost); call `next()` exactly once and **return** its result. Middleware errors **propagate** (intentional abort). `definePlugin` is a typed identity helper.
 
 ### IContainer
 
-Common interface for Container and ScopedContainer.
-
 ```typescript
 interface IContainer {
-  get<T>(token: T, args?: any): Promise<T>
+  readonly internals: ContainerInternals
+  get<T>(token: any, args?: any): Promise<T> // (typed overloads omitted)
   invalidate(service: unknown): Promise<void>
   isRegistered(token: any): boolean
+  addInstance<T>(token: ClassType | Token<T, any> | BoundToken<T, any>, instance: T): void
   dispose(): Promise<void>
   ready(): Promise<void>
-  tryGetSync<T>(token: any, args?: any): T | null
 }
-```
-
-## Functions
-
-### inject
-
-Synchronous dependency injection.
-
-```typescript
-function inject<T extends ClassType>(token: T): InstanceType<T>
-function inject<T, S extends InjectionTokenSchemaType>(
-  token: InjectionToken<T, S>,
-  args: z.input<S>
-): T
-function inject<T>(token: InjectionToken<T, undefined>): T
-function inject<T>(token: BoundInjectionToken<T, any>): T
-function inject<T>(token: FactoryInjectionToken<T, any>): T
-```
-
-### asyncInject
-
-Asynchronous dependency injection.
-
-```typescript
-function asyncInject<T extends ClassType>(token: T): Promise<InstanceType<T>>
-function asyncInject<T, S extends InjectionTokenSchemaType>(
-  token: InjectionToken<T, S>,
-  args: z.input<S>
-): Promise<T>
-function asyncInject<T>(token: InjectionToken<T, undefined>): Promise<T>
-function asyncInject<T>(token: BoundInjectionToken<T, any>): Promise<T>
-function asyncInject<T>(token: FactoryInjectionToken<T, any>): Promise<T>
-```
-
-### optional
-
-Optional dependency injection (returns null if not registered).
-
-```typescript
-function optional<T extends ClassType>(token: T): InstanceType<T> | null
-function optional<T>(token: InjectionToken<T, any>): T | null
 ```
 
 ## Error Handling
 
-### DIError
-
-Base error class for all DI-related errors.
+### DIError / DIErrorCode
 
 ```typescript
 class DIError extends Error {
   readonly code: DIErrorCode
-
-  constructor(code: DIErrorCode, message: string)
-
-  // Static factory methods
   static factoryNotFound(message: string): DIError
   static instanceNotFound(message: string): DIError
   static instanceDestroying(message: string): DIError
   static circularDependency(message: string): DIError
+  static scopeMismatchError(tokenName, expected, actual): DIError
+  static tokenSchemaRequiredError(tokenName): DIError
   static unknown(message: string): DIError
 }
-```
 
-### DIErrorCode
-
-```typescript
 enum DIErrorCode {
   FactoryNotFound = 'FACTORY_NOT_FOUND',
   FactoryTokenNotResolved = 'FACTORY_TOKEN_NOT_RESOLVED',
@@ -420,7 +397,6 @@ enum DIErrorCode {
   InstanceDestroying = 'INSTANCE_DESTROYING',
   CircularDependency = 'CIRCULAR_DEPENDENCY',
   UnknownError = 'UNKNOWN_ERROR',
-  // New error codes
   TokenValidationError = 'TOKEN_VALIDATION_ERROR',
   TokenSchemaRequiredError = 'TOKEN_SCHEMA_REQUIRED_ERROR',
   ClassNotInjectable = 'CLASS_NOT_INJECTABLE',
@@ -434,39 +410,31 @@ enum DIErrorCode {
 
 ## Testing
 
+Imported from `@navios/di/testing`.
+
 ### TestContainer
 
-Specialized container for testing with enhanced utilities.
-
 ```typescript
+interface TestContainerOptions {
+  parentRegistry?: Registry | null // defaults to globalRegistry; null = fully isolated
+  logger?: Console | null
+  plugins?: Plugin[]
+}
+
 class TestContainer extends Container {
-  // Binding API
-  bind<T>(token: InjectionToken<T, any> | ClassType): BindingBuilder<T>
-  
-  // Assertion helpers
-  expectResolved(token: AnyToken): void
-  expectNotResolved(token: AnyToken): void
-  expectSingleton(token: AnyToken): void
-  expectTransient(token: AnyToken): void
-  expectRequestScoped(token: AnyToken): void
-  expectInitialized(token: AnyToken): void
-  expectDestroyed(token: AnyToken): void
-  expectNotDestroyed(token: AnyToken): void
-  
-  // Method call tracking
-  recordMethodCall(token: AnyToken, method: string, args: any[], result?: any): void
-  expectCalled(token: AnyToken, method: string): void
-  expectCalledWith(token: AnyToken, method: string, args: any[]): void
-  expectCallCount(token: AnyToken, method: string, count: number): void
-  getMethodCalls(token: AnyToken): MethodCallRecord[]
-  getServiceStats(token: AnyToken): MockServiceStats
-  clearMethodCalls(): void
-  
-  // Dependency graph
+  constructor(options?: TestContainerOptions)
+
+  bind<T>(token: Token<T, any> | BoundToken<T, any> | (new (...a: any[]) => T)): BindingBuilder<T>
+  mockInject<T>(target: new (...a: any[]) => T, fieldName: string | symbol, value: unknown): this
+
+  expectResolved/expectNotResolved/expectSingleton/expectTransient/expectRequestScoped(token): void
+  expectInitialized/expectDestroyed/expectNotDestroyed(token): void
+  recordMethodCall(token, method, args, result?, error?): void
+  expectCalled/expectCalledWith/expectCallCount(token, method, …): void
+  getMethodCalls(token): MethodCallRecord[]
+  getServiceStats(token): MockServiceStats
   getDependencyGraph(): DependencyGraph
-  getSimplifiedDependencyGraph(): DependencyGraph
-  
-  // Lifecycle
+  getSimplifiedDependencyGraph(): Record<string, string[]>
   clear(): Promise<void>
 }
 
@@ -477,48 +445,56 @@ interface BindingBuilder<T> {
 }
 ```
 
+`mockInject(target, fieldName, value)` is a field-granular override: it sets a single `@Inject*` accessor field without resolving its real token (no constructor side-effects; the dependency need not be registered).
+
 ### UnitTestContainer
 
-Strict isolated unit testing container with automatic method call tracking.
-
 ```typescript
+interface UnitTestContainerOptions {
+  providers: ProviderConfig[]
+  strict?: boolean // default false → auto-mock unregistered deps
+  allowUnregistered?: boolean // deprecated inverse alias; `strict` wins if both set
+  logger?: Console | null
+  plugins?: Plugin[]
+}
+
+interface ProviderConfig<T = any> {
+  token: Token<T, any> | BoundToken<T, any> | (new (...a: any[]) => T)
+  useValue?: T
+  useClass?: new (...args: any[]) => T
+  useFactory?: () => T | Promise<T>
+}
+
 class UnitTestContainer extends Container {
-  constructor(options?: {
-    providers?: ProviderConfig[]
-    allowUnregistered?: boolean
-    logger?: Console | null
-  })
-  
-  // Auto-tracking assertions (no manual recording needed)
-  expectCalled(token: AnyToken, method: string): void
-  expectCalledWith(token: AnyToken, method: string, args: any[]): void
-  expectNotCalled(token: AnyToken, method: string): void
-  expectAutoMocked(token: AnyToken): void
-  
-  // Auto-mocking
-  enableAutoMocking(): void
-  disableAutoMocking(): void
+  constructor(options: UnitTestContainerOptions)
+  enableAutoMocking(): this
+  disableAutoMocking(): this
+  expectCalled/expectNotCalled/expectCalledWith/expectCallCount(token, method, …): void
+  expectAutoMocked/expectNotAutoMocked(token): void
+  expectResolved/expectNotResolved/expectInitialized/expectDestroyed/expectNotDestroyed(token): void
+  clear(): Promise<void>
 }
 ```
 
+> **v2 behavior change:** auto-mocking unregistered dependencies is the **default**. Pass `{ strict: true }` for the v1 throw-on-unregistered behavior.
+
 ## Scope Compatibility
 
-### Injection Method Compatibility
-
-| Scope     | inject       | asyncInject  | optional     |
-| --------- | ------------ | ------------ | ------------ |
-| Singleton | ✅ Supported | ✅ Supported | ✅ Supported |
-| Transient | ✅ Supported | ✅ Supported | ✅ Supported |
-| Request   | ✅ Supported | ✅ Supported | ✅ Supported |
+| Host scope ↓ / Dependency → | `@Inject` (eager) | `@InjectLazy` | `@InjectOptional` | `@InjectDerived` |
+|---|---|---|---|---|
+| Singleton → Singleton dep | ✅ | ✅ | ✅ | ✅ |
+| Singleton → Request/Transient dep | ❌ throws `ScopeMismatchError` | ✅ | ✅ | ❌ throws |
+| Request → any | ✅ | ✅ | ✅ | ✅ |
+| Transient → any | ✅ | ✅ | ✅ | ✅ |
 
 **Notes:**
-- `inject()` works with all scopes but returns a proxy for dependencies not yet initialized
-- `asyncInject()` is recommended for circular dependencies as it runs outside the resolution context
-- `optional()` returns `null` if the service is not registered
+
+- An eager `@Inject` (or `@InjectDerived`) of a narrower-scoped dependency from a `Singleton` host throws a scope-mismatch `DIError` — use `@InjectLazy` (a `Promise<T>` field) instead.
+- `@InjectLazy` is always safe (deferred resolution) and is the tool for circular dependencies.
+- `@InjectOptional` is always safe (returns `null` when unavailable).
 
 ## Next Steps
 
 - Explore the [guides](/docs/di/di/guides/services) for detailed usage examples
 - Check out [recipes](/docs/di/di/recipes/configuration-services) for common patterns
 - Review [best practices](/docs/di/di/best-practices) for service design
-

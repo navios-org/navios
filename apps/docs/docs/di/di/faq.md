@@ -21,33 +21,36 @@ class MyService {
 
 ### How do I inject a dependency?
 
-Use `inject()`, `asyncInject()`, or `optional()`:
+Use the field decorators on `accessor` fields — `@Inject`, `@InjectLazy`, `@InjectOptional`, or `@InjectDerived`:
 
 ```typescript
 @Injectable()
 class MyService {
-  private readonly dependency = inject(OtherService)
+  @Inject(OtherService)
+  private accessor dependency!: OtherService
 }
 ```
 
-### What's the difference between inject and asyncInject?
+### What's the difference between `@Inject` and `@InjectLazy`?
 
-- `inject()` - Synchronous injection, works with all scopes
-- `asyncInject()` - Asynchronous injection, useful for breaking circular dependencies
+- `@Inject` — eager. The dependency is resolved and assigned before `onServiceInit`. Subject to the scope-compatibility check.
+- `@InjectLazy` — the field is a `Promise<T>` resolved on first `await`. Use it for circular dependencies and to depend on a narrower-scoped service from a wider-scoped host.
 
 ### How do I handle circular dependencies?
 
-Use `asyncInject()` on at least one side of the circular dependency:
+Use `@InjectLazy` on at least one side of the circular dependency:
 
 ```typescript
 @Injectable()
 class ServiceA {
-  private serviceB = asyncInject(ServiceB) // Break cycle here
+  @InjectLazy(ServiceB)
+  private accessor serviceB!: Promise<ServiceB> // Break cycle here
 }
 
 @Injectable()
 class ServiceB {
-  private serviceA = inject(ServiceA) // This side can use inject
+  @Inject(ServiceA)
+  private accessor serviceA!: ServiceA // This side can use @Inject
 }
 ```
 
@@ -83,7 +86,7 @@ Use `TestContainer` for testing:
 import { TestContainer } from '@navios/di/testing'
 
 const container = new TestContainer()
-container.bindValue(API_URL_TOKEN, 'https://test-api.com')
+container.bind(API_URL_TOKEN).toValue('https://test-api.com')
 const service = await container.get(MyService)
 ```
 
@@ -117,12 +120,13 @@ class MyService {}
 
 **Problem**: Services depend on each other in a cycle.
 
-**Solution**: Use `asyncInject()` on at least one side:
+**Solution**: Use `@InjectLazy` on at least one side:
 
 ```typescript
 @Injectable()
 class ServiceA {
-  private serviceB = asyncInject(ServiceB) // Break cycle
+  @InjectLazy(ServiceB)
+  private accessor serviceB!: Promise<ServiceB> // Break cycle
 }
 ```
 
@@ -146,24 +150,14 @@ await scoped.get(RequestService)
 **Problem**: Decorators are not being recognized.
 
 **Solution**:
-- Ensure `experimentalDecorators: false` in `tsconfig.json`
-- Make sure you're using TypeScript 5+
-- Check that your build tool supports ES decorators
+- Ensure `experimentalDecorators` is `false` (or unset) in `tsconfig.json` — v2 uses **stage-3** decorators, not the legacy experimental ones
+- Ensure decorator metadata is available (`Symbol.metadata`); TypeScript 5.2+ targeting a modern lib, or a Babel/SWC stage-3 decorators + decorator-metadata setup
+- Use TypeScript 5.2+ and a build tool that supports ES (stage-3) decorators
+- Declare injected fields as `accessor name!: Type` — `@Inject*` are accessor decorators and throw at decoration time on a plain field
 
-### Can I use Navios DI with experimental decorators?
+### Can I use Navios DI with experimental (legacy) decorators?
 
-Yes! If you cannot use Stage 3 decorators, import from `@navios/di/legacy-compat`:
-
-```typescript
-import { Injectable, Factory } from '@navios/di/legacy-compat'
-import { inject, Container } from '@navios/di'
-```
-
-This is useful when:
-- Your project has `experimentalDecorators: true` and you can't change it
-- Your bundler doesn't fully support Stage 3 decorators
-
-See [Setup - Alternative: Legacy Decorators](/docs/di/di/getting-started/setup#alternative-legacy-decorators) for configuration details.
+No. v2 is **stage-3 decorators only**. The v1 `@navios/di/legacy-compat` entry point and the runtime `inject()` helpers were removed. Configure your toolchain for stage-3 decorators + decorator metadata (set `experimentalDecorators: false`).
 
 ### Service recreated on every access
 
@@ -201,13 +195,14 @@ class MyService {
 // Navios DI
 @Injectable()
 class MyService {
-  private readonly dependency = inject(Dependency)
+  @Inject(Dependency)
+  private accessor dependency!: Dependency
 }
 ```
 
 ### From NestJS
 
-Navios DI has a similar API but simpler:
+Navios DI has a similar API but uses field decorators instead of constructor injection:
 
 ```typescript
 // NestJS
@@ -219,7 +214,8 @@ class MyService {
 // Navios DI
 @Injectable()
 class MyService {
-  private readonly dependency = inject(Dependency)
+  @Inject(Dependency)
+  private accessor dependency!: Dependency
 }
 ```
 

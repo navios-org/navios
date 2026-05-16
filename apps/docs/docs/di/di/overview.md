@@ -8,25 +8,25 @@ A powerful, type-safe dependency injection framework for TypeScript. It provides
 
 **Package:** `@navios/di`
 **License:** MIT
-**Peer Dependencies:** `zod` (^3.25.0 || ^4.0.0)
-**Platforms:** Node.js, Bun, Deno, Browser
+**Peer Dependencies:** a Standard-Schema validator (zod v4, Valibot, ArkType, …) — only if you use schema tokens
+**Platforms:** Node.js, Bun, Deno, Browser (requires stage-3 decorators + decorator metadata)
 
 ## Installation
 
 ```bash
-npm install @navios/di zod
+npm install @navios/di
 # or
-yarn add @navios/di zod
+yarn add @navios/di
 # or
-pnpm add @navios/di zod
+pnpm add @navios/di
 ```
 
-## Foundation: Injection Tokens
+## Foundation: Tokens
 
-**Navios DI is built on Injection Tokens.** Every service and factory has an Injection Token that identifies it in the DI system:
+**Navios DI is built on `Token`s** (renamed from v1's `InjectionToken`). Every service and factory has a `Token` that identifies it in the DI system:
 
 - **Auto-created tokens**: When you use `@Injectable()` or `@Factory()` without a `token` option, the DI system automatically creates a token from the class
-- **Explicit tokens**: You can provide your own token using the `token` option
+- **Explicit tokens**: You can provide your own token using the `token` option (`Token.create(...)`)
 
 The token is what the Registry uses to store service metadata and what the Container uses to resolve services. This token-based system enables:
 - Multiple services per token (with priority-based resolution)
@@ -42,8 +42,8 @@ Dependency Injection (DI) is a design pattern that helps manage dependencies bet
 
 **The DI system follows a registration-resolution pattern:**
 
-1. **Registration** - Services are registered via decorators (`@Injectable`, `@Factory`), each with an Injection Token
-2. **Resolution** - Dependencies are resolved via injection functions (`inject`, `asyncInject`, `optional`) using their tokens
+1. **Registration** - Services are registered via decorators (`@Injectable`, `@Factory`), each with a `Token`
+2. **Resolution** - Dependencies are declared with the field decorators (`@Inject`, `@InjectLazy`, `@InjectOptional`, `@InjectDerived`) on `accessor` fields and resolved by the container using their tokens
 3. **Lifecycle** - Services have scoped lifetimes and lifecycle hooks
 
 **Benefits:**
@@ -56,16 +56,15 @@ Dependency Injection (DI) is a design pattern that helps manage dependencies bet
 
 | Component | Purpose |
 |-----------|---------|
-| `Registry` | Central storage for service metadata, organized by Injection Tokens, with priority support |
-| `Container` | Main entry point for service resolution by Injection Token |
-| `UnifiedStorage` | Unified storage for all service scopes |
-| `ServiceInitializer` | Creates service instances |
-| `InstanceResolver` | Resolves service instances and dependencies |
-| `InjectionToken` | Type-safe tokens that identify services in the DI system |
+| `Registry` | Central storage for service metadata, organized by `Token`s, with priority support |
+| `Container` | Main entry point for service resolution by `Token` |
+| `ScopedContainer` | Per-request container created via `Container.beginRequest()` |
+| `PluginRegistry` | Holds plugins, composes middleware, dispatches lifecycle hooks |
+| `Token` | Type-safe tokens that identify services in the DI system (`BoundToken` / `FactoryToken` variants) |
 
 ## Quick Overview
 
-- **Services**: Classes decorated with `@Injectable()` that have Injection Tokens
+- **Services**: Classes decorated with `@Injectable()` that have `Token`s
 - **Factories**: Classes decorated with `@Factory()` that return created objects
 - **Scopes**: Singleton (default), Transient, or Request lifetime
 - **Priority**: Multiple services can register for the same token; highest priority wins

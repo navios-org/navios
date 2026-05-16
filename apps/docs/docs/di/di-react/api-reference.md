@@ -39,9 +39,8 @@ interface ScopeProviderProps {
 
 **Props:**
 
-- `scopeId?: string` - Optional explicit scope ID. If not provided, a unique ID will be generated
+- `scopeId?: string` - Optional explicit scope ID. If not provided, a unique ID is generated via React's `useId()`
 - `metadata?: Record<string, unknown>` - Optional metadata to attach to the request context
-- `priority?: number` - Priority for service resolution. Higher priority scopes take precedence (default: 100)
 - `children: ReactNode` - Child components
 
 ## Hooks
@@ -51,7 +50,7 @@ interface ScopeProviderProps {
 Access the container directly. Automatically returns the `ScopedContainer` if inside a `ScopeProvider`, otherwise returns the root `Container`.
 
 ```tsx
-function useContainer(): IContainer
+function useContainer(): Container | ScopedContainer
 ```
 
 **Returns:** The container from context. Returns `ScopedContainer` if inside a `ScopeProvider`, otherwise returns the root `Container`. Throws if used outside of `ContainerProvider`.
@@ -71,12 +70,16 @@ function useRootContainer(): Container
 Fetch a service with loading/error states. Automatically re-fetches when the service is invalidated.
 
 ```tsx
-function useService<T>(token: ClassType): UseServiceResult<InstanceType<T>>
-function useService<T, S>(
-  token: InjectionToken<T, S>,
+function useService<T extends ClassType>(
+  token: T,
+): UseServiceResult<InstanceType<T> extends Factorable<infer R> ? R : InstanceType<T>>
+function useService<T, S extends TokenSchemaType>(
+  token: Token<T, S>,
   args: z.input<S>,
 ): UseServiceResult<T>
-function useService<T>(token: InjectionToken<T, undefined>): UseServiceResult<T>
+function useService<T>(token: Token<T, undefined>): UseServiceResult<T>
+function useService<T>(token: BoundToken<T, any>): UseServiceResult<T>
+function useService<T>(token: FactoryToken<T, any>): UseServiceResult<T>
 
 interface UseServiceResult<T> {
   data: T | undefined
@@ -95,12 +98,16 @@ interface UseServiceResult<T> {
 Use with React Suspense for a cleaner loading experience. Also subscribes to service invalidation.
 
 ```tsx
-function useSuspenseService<T>(token: ClassType): InstanceType<T>
-function useSuspenseService<T, S>(
-  token: InjectionToken<T, S>,
+function useSuspenseService<T extends ClassType>(
+  token: T,
+): InstanceType<T> extends Factorable<infer R> ? R : InstanceType<T>
+function useSuspenseService<T, S extends TokenSchemaType>(
+  token: Token<T, S>,
   args: z.input<S>,
 ): T
-function useSuspenseService<T>(token: InjectionToken<T, undefined>): T
+function useSuspenseService<T>(token: Token<T, undefined>): T
+function useSuspenseService<T>(token: BoundToken<T, any>): T
+function useSuspenseService<T>(token: FactoryToken<T, any>): T
 ```
 
 **Returns:** The service instance. Throws a promise during loading and the resolved value on success. Subscribes to invalidation events and triggers re-render when the service is invalidated.
@@ -112,13 +119,16 @@ function useSuspenseService<T>(token: InjectionToken<T, undefined>): T
 Load a service that may not be registered. Unlike `useService`, this hook does NOT throw an error if the service is not registered.
 
 ```tsx
-function useOptionalService<T>(
-  token: ClassType,
-): UseOptionalServiceResult<InstanceType<T>>
-function useOptionalService<T, S>(
-  token: InjectionToken<T, S>,
+function useOptionalService<T extends ClassType>(
+  token: T,
+): UseOptionalServiceResult<InstanceType<T> extends Factorable<infer R> ? R : InstanceType<T>>
+function useOptionalService<T, S extends TokenSchemaType>(
+  token: Token<T, S>,
   args: z.input<S>,
 ): UseOptionalServiceResult<T>
+function useOptionalService<T>(token: Token<T, undefined>): UseOptionalServiceResult<T>
+function useOptionalService<T>(token: BoundToken<T, any>): UseOptionalServiceResult<T>
+function useOptionalService<T>(token: FactoryToken<T, any>): UseOptionalServiceResult<T>
 
 interface UseOptionalServiceResult<T> {
   data: T | undefined

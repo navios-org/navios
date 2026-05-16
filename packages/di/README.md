@@ -1,36 +1,36 @@
 # Navios DI
 
-A powerful, type-safe dependency injection library for TypeScript applications. Navios DI provides a modern, decorator-based approach to dependency injection with support for singletons, transients, request-scoped services, factories, injection tokens, and service lifecycle management.
+A powerful, type-safe dependency injection library for TypeScript applications. Navios DI v2 is a modern, **stage-3 decorator** based container with field-level injection, Standard-Schema validated tokens, a Koa-style plugin pipeline, request scoping, factories, and a rich testing toolkit.
+
+> **v2 at a glance.** Injection is done exclusively with the **field decorators** `@Inject`, `@InjectLazy`, `@InjectOptional`, and `@InjectDerived` applied to `accessor` fields. The runtime helpers `inject()` / `asyncInject()` / `optional()` and the `InjectionToken` class from v1 are **gone**. See [Migrating from v1](#migrating-from-v1) for the full mapping.
 
 ## Features
 
-- **Type-safe**: Full TypeScript support with compile-time type checking
-- **Decorator-based**: Clean, declarative syntax using decorators
-- **Lifecycle Management**: Built-in support for service initialization and cleanup
-- **Factory Pattern**: Create instances using factory classes
-- **Injection Tokens**: Flexible token-based dependency resolution
-- **Scoped Instances**: Singleton, transient, and request scopes
-- **Priority System**: Register multiple services per token with priority levels
-- **Async/Sync Injection**: Both synchronous and asynchronous dependency resolution
-- **Container API**: Simple container-based API for dependency management
-- **Request Context**: Manage request-scoped services with automatic cleanup via ScopedContainer
-- **Circular Dependency Detection**: Automatic detection and helpful error messages for circular dependencies
-- **Enhanced Testing**: Comprehensive test utilities with assertion helpers and auto-tracking
+- **Type-safe** — full TypeScript inference for tokens, schemas, and resolved instances
+- **Stage-3 field decorators** — `@Inject` / `@InjectLazy` / `@InjectOptional` / `@InjectDerived` on `accessor` fields
+- **Standard-Schema tokens** — `Token`, `BoundToken`, `FactoryToken` with schema-validated args
+- **Scopes** — `Singleton`, `Transient`, `Request`
+- **Explicit request scoping** — `Container.beginRequest()` → `ScopedContainer`, plus opt-in `ScopedContainer.resolveInScope()`
+- **Plugin pipeline** — `definePlugin` with observer hooks and Koa-style `middleware`
+- **Lifecycle hooks** — `OnServiceInit` / `OnServiceDestroy`
+- **Factories** — `@Factory` classes with a `create()` method
+- **Priority system** — multiple registrations per token, highest priority wins
+- **Testing** — `TestContainer` / `UnitTestContainer` from `@navios/di/testing`
 
 ## Installation
 
 ```bash
-npm install @navios/di
-# or
 yarn add @navios/di
+# or
+npm install @navios/di
 ```
+
+v2 requires a runtime/toolchain with **stage-3 decorators and decorator metadata** (`Symbol.metadata`). TypeScript 5.2+ with `"useDefineForClassFields": true` (the default for modern targets), or a Babel/SWC setup with the stage-3 decorators + decorator-metadata transforms.
 
 ## Quick Start
 
-### Basic Usage
-
 ```typescript
-import { asyncInject, Container, Injectable } from '@navios/di'
+import { Container, Inject, Injectable } from '@navios/di'
 
 @Injectable()
 class DatabaseService {
@@ -41,376 +41,119 @@ class DatabaseService {
 
 @Injectable()
 class UserService {
-  private readonly db = asyncInject(DatabaseService)
+  // Field injection. The accessor keyword and the `!` are REQUIRED.
+  @Inject(DatabaseService)
+  private accessor db!: DatabaseService
 
   async getUsers() {
-    const dbService = await this.db
-    const connection = await dbService.connect()
+    const connection = await this.db.connect()
     return `Users from ${connection}`
   }
 }
 
-// Using Container
 const container = new Container()
 const userService = await container.get(UserService)
 console.log(await userService.getUsers()) // "Users from Connected to database"
-```
 
-## Core Concepts
-
-### Container
-
-The `Container` class provides a simplified API for dependency injection:
-
-```typescript
-import { Container } from '@navios/di'
-
-const container = new Container()
-
-// Get instances
-const service = await container.get(MyService)
-
-// Invalidate services and their dependencies
-await container.invalidate(service)
-
-// Wait for all pending operations
-await container.ready()
-
-// Clean up all resources
 await container.dispose()
 ```
 
-### ScopedContainer (Request Context)
+The decorated field **must** be declared as `accessor name!: Type`. `@Inject` is a stage-3 accessor decorator and throws at decoration time if applied to a plain field, a method, or a parameter.
 
-For request-scoped services, use `ScopedContainer` which provides isolated service resolution:
+## Core Concepts
 
-```typescript
-import { Container, Injectable, InjectableScope } from '@navios/di'
+### `@Injectable`
 
-@Injectable({ scope: InjectableScope.Request })
-class RequestLogger {
-  constructor() {
-    console.log('New logger for this request')
-  }
-}
-
-const container = new Container()
-
-// Begin a request context - returns a ScopedContainer
-const scopedContainer = container.beginRequest('req-123', { userId: 456 })
-
-// Use the scoped container for request-scoped services
-const logger = await scopedContainer.get(RequestLogger)
-
-// Access metadata
-scopedContainer.setMetadata('correlationId', 'abc-123')
-const corrId = scopedContainer.getMetadata('correlationId')
-
-// End the request (cleanup all request-scoped instances)
-await scopedContainer.endRequest()
-```
-
-### Injectable Decorator
-
-The `@Injectable` decorator marks a class as injectable:
+Marks a class as resolvable by the container.
 
 ```typescript
 import { Injectable, InjectableScope } from '@navios/di'
-import { z } from 'zod'
 
-// Singleton (default)
+// Singleton (default) — one instance shared process-wide
 @Injectable()
 class SingletonService {}
 
-// Transient (new instance each time)
+// Transient — a fresh instance on every resolution
 @Injectable({ scope: InjectableScope.Transient })
 class TransientService {}
 
-// Request-scoped (new instance per request context)
+// Request-scoped — one instance per request scope (see ScopedContainer)
 @Injectable({ scope: InjectableScope.Request })
 class RequestService {}
 
-// With custom injection token
+// Custom token (see Tokens below)
 @Injectable({ token: MyToken })
 class TokenizedService {}
 
-// With priority (higher priority wins when multiple registrations exist)
+// Priority — when several classes register the same token, the
+// highest priority wins (default priority is 0)
 @Injectable({ priority: 100 })
-class DefaultService {}
+class DefaultMailer {}
 
-@Injectable({ priority: 200 }) // This wins
-class OverrideService {}
-
-// With schema for constructor arguments
-const configSchema = z.object({
-  host: z.string(),
-  port: z.number(),
-})
-
-@Injectable({ schema: configSchema })
-class DatabaseConfig {
-  constructor(public readonly config: z.output<typeof configSchema>) {}
-}
+@Injectable({ priority: 200 }) // this one wins
+class OverrideMailer {}
 ```
 
-### Injection Methods
+`@Injectable` options: `scope?`, `token?`, `schema?`, `registry?`, `priority?`. You cannot pass both `token` and `schema` (a token already carries its own schema).
 
-#### `inject` - Synchronous Injection
+#### Constructor arguments via `schema`
 
-Use `inject` for immediate access to dependencies. **Note**: If the dependency is not immediately available, `inject` returns a proxy that will throw an error if accessed before the dependency is ready:
-
-```typescript
-@Injectable()
-class EmailService {
-  sendEmail(message: string) {
-    return `Email sent: ${message}`
-  }
-}
-
-@Injectable()
-class NotificationService {
-  private readonly emailService = inject(EmailService)
-
-  notify(message: string) {
-    // Safe to use if EmailService is already instantiated
-    return this.emailService.sendEmail(message)
-  }
-}
-```
-
-#### `asyncInject` - Asynchronous Injection
-
-Use `asyncInject` for async dependency resolution, especially useful for circular dependencies:
-
-```typescript
-@Injectable()
-class AsyncService {
-  private readonly emailService = asyncInject(EmailService)
-
-  async notify(message: string) {
-    const emailService = await this.emailService
-    return emailService.sendEmail(message)
-  }
-}
-```
-
-#### `optional` - Optional Injection
-
-Use `optional` to inject a dependency only if it's available:
-
-```typescript
-@Injectable()
-class FeatureService {
-  private readonly analytics = optional(AnalyticsService)
-
-  track(event: string) {
-    // Only calls analytics if the service is available
-    this.analytics?.track(event)
-  }
-}
-```
-
-### Factory Decorator
-
-Create instances using factory classes:
-
-```typescript
-import { Factory, Factorable, FactoryContext } from '@navios/di'
-
-@Factory()
-class DatabaseConnectionFactory implements Factorable<Connection> {
-  async create(ctx?: FactoryContext) {
-    const config = await ctx?.inject(ConfigService)
-
-    const connection = {
-      host: config?.host ?? 'localhost',
-      port: config?.port ?? 5432,
-      connected: true,
-    }
-
-    // Register cleanup callback
-    ctx?.addDestroyListener(() => {
-      connection.connected = false
-    })
-
-    return connection
-  }
-}
-
-// Usage
-const connection = await container.get(DatabaseConnectionFactory)
-console.log(connection) // { host: 'localhost', port: 5432, connected: true }
-```
-
-### Service Lifecycle
-
-Implement lifecycle hooks for initialization and cleanup:
-
-```typescript
-import { Injectable, OnServiceDestroy, OnServiceInit } from '@navios/di'
-
-@Injectable()
-class DatabaseService implements OnServiceInit, OnServiceDestroy {
-  private connection: any = null
-
-  async onServiceInit() {
-    console.log('Initializing database connection...')
-    this.connection = await this.connect()
-  }
-
-  async onServiceDestroy() {
-    console.log('Closing database connection...')
-    if (this.connection) {
-      await this.connection.close()
-    }
-  }
-
-  private async connect() {
-    // Database connection logic
-    return { connected: true, close: async () => {} }
-  }
-}
-```
-
-### Injection Tokens
-
-Use injection tokens for flexible dependency resolution:
-
-#### Basic Injection Token
-
-```typescript
-import { Container, Injectable, InjectionToken } from '@navios/di'
-import { z } from 'zod'
-
-const configSchema = z.object({
-  apiUrl: z.string(),
-  timeout: z.number(),
-})
-
-const CONFIG_TOKEN = InjectionToken.create<z.infer<typeof configSchema>, typeof configSchema>(
-  'APP_CONFIG',
-  configSchema,
-)
-
-@Injectable({ token: CONFIG_TOKEN })
-class ConfigService {
-  constructor(private config: z.infer<typeof configSchema>) {}
-
-  getApiUrl() {
-    return this.config.apiUrl
-  }
-}
-
-// Usage
-const container = new Container()
-const config = await container.get(CONFIG_TOKEN, {
-  apiUrl: 'https://api.example.com',
-  timeout: 5000,
-})
-```
-
-#### Bound Injection Token
-
-Pre-bind values to injection tokens:
-
-```typescript
-const BoundConfig = InjectionToken.bound(CONFIG_TOKEN, {
-  apiUrl: 'https://api.example.com',
-  timeout: 5000,
-})
-
-// No need to provide arguments
-const container = new Container()
-const config = await container.get(BoundConfig)
-```
-
-#### Factory Injection Token
-
-Use factories to resolve token values:
-
-```typescript
-const FactoryConfig = InjectionToken.factory(CONFIG_TOKEN, async () => {
-  // Load config from environment or external source
-  return {
-    apiUrl: process.env.API_URL || 'https://api.example.com',
-    timeout: parseInt(process.env.TIMEOUT || '5000'),
-  }
-})
-
-const config = await container.get(FactoryConfig)
-```
-
-### Injectable with Schema
-
-Instead of creating an injection token with a schema, you can directly provide a schema to the `@Injectable` decorator:
+A schema makes the class take **one validated argument object** in its constructor. The container validates the args you pass to `get()` against the schema before constructing.
 
 ```typescript
 import { Injectable } from '@navios/di'
-import { z } from 'zod'
+import { z } from 'zod/v4'
 
 const databaseConfigSchema = z.object({
   host: z.string(),
   port: z.number(),
-  username: z.string(),
-  password: z.string(),
 })
 
 @Injectable({ schema: databaseConfigSchema })
 class DatabaseConfig {
   constructor(public readonly config: z.output<typeof databaseConfigSchema>) {}
 
-  getConnectionString() {
+  get connectionString() {
     return `${this.config.host}:${this.config.port}`
   }
 }
 
-// Usage with arguments
 const container = new Container()
-const config = await container.get(DatabaseConfig, {
-  host: 'localhost',
-  port: 5432,
-  username: 'admin',
-  password: 'secret',
-})
-console.log(config.getConnectionString()) // "localhost:5432"
+const config = await container.get(DatabaseConfig, { host: 'localhost', port: 5432 })
+console.log(config.connectionString) // "localhost:5432"
 ```
 
-#### Using Schema-based Services as Dependencies
+> In v2 a token's schema is always a [Standard Schema](https://standardschema.dev/) (zod v4, Valibot, ArkType, …). Presence of a schema means **args are required** — the v1 "args optional via `.optional()`" behavior is gone for the `get()` typing (passing an optional Zod schema is still accepted at runtime, but the typed overloads treat a schema as required).
+
+### The four field decorators
+
+All four are stage-3 **accessor** decorators. Always: `@DecoratorName(Token) accessor field!: Type`.
+
+#### `@Inject` — eager injection
+
+The dependency is resolved before the host's `onServiceInit` runs and assigned to the field. The scope-compatibility check is enforced: an eager `@Inject` of a `Request`- or `Transient`-scoped dependency from a `Singleton` host throws a `DIError` (use `@InjectLazy` instead).
 
 ```typescript
-const dbConfigSchema = z.object({
-  connectionString: z.string(),
-})
-
-@Injectable({ schema: dbConfigSchema })
-class DatabaseConfig {
-  constructor(public readonly config: z.output<typeof dbConfigSchema>) {}
-}
-
 @Injectable()
-class DatabaseService {
-  // Inject with bound arguments
-  private dbConfig = inject(DatabaseConfig, {
-    connectionString: 'postgres://localhost:5432/myapp',
-  })
+class NotificationService {
+  @Inject(EmailService)
+  private accessor email!: EmailService
 
-  connect() {
-    return `Connecting to ${this.dbConfig.config.connectionString}`
+  notify(message: string) {
+    return this.email.send(message)
   }
 }
 ```
 
-## Advanced Usage
+#### `@InjectLazy` — deferred / circular / cross-scope
 
-### Circular Dependency Detection
-
-The library automatically detects circular dependencies and provides helpful error messages:
+The field is a `Promise<T>` that resolves the dependency on first `await`. Use it for circular dependencies and to safely depend on a narrower-scoped service from a wider-scoped host.
 
 ```typescript
 @Injectable()
 class ServiceA {
-  // Use asyncInject to break circular dependency
-  private serviceB = asyncInject(ServiceB)
+  @InjectLazy(ServiceB)
+  private accessor serviceB!: Promise<ServiceB>
 
   async doSomething() {
     const b = await this.serviceB
@@ -420,7 +163,8 @@ class ServiceA {
 
 @Injectable()
 class ServiceB {
-  private serviceA = inject(ServiceA)
+  @Inject(ServiceA)
+  private accessor serviceA!: ServiceA
 
   getValue() {
     return 'value from B'
@@ -428,158 +172,374 @@ class ServiceB {
 }
 ```
 
-### Custom Registry
+#### `@InjectOptional` — null when unavailable
+
+The field is `T | null`. If the dependency is not registered (or fails to resolve), the field is `null` instead of throwing.
+
+```typescript
+@Injectable()
+class FeatureService {
+  @InjectOptional(AnalyticsService)
+  private accessor analytics!: AnalyticsService | null
+
+  track(event: string) {
+    this.analytics?.track(event)
+  }
+}
+```
+
+#### `@InjectDerived` — args derived from the host's own args
+
+`@InjectDerived(token, derive)` resolves `token` with arguments computed from the host's (schema-validated) resolution args. This is the v2 replacement for the v1 in-constructor `inject(Token, { ...derivedFromArgs })` pattern. The `derive` callback receives the host's validated args and returns the args object for the dependency.
+
+```typescript
+import { Inject, InjectDerived, Injectable, Token } from '@navios/di'
+import { z } from 'zod/v4'
+
+export const queuePublisherOptionsSchema = z.object({
+  messageDef: pubsubMessageConfigSchema,
+  name: z.string().default('default'),
+})
+
+export const QueuePublisherToken = Token.create<
+  QueuePublisher<any>,
+  typeof queuePublisherOptionsSchema
+>('QueuePublisher', queuePublisherOptionsSchema)
+
+@Injectable({ token: QueuePublisherToken })
+export class QueuePublisher<MessageDef> {
+  // Derive the per-`name` QueueClient from THIS host's validated args.
+  // QueueClientToken is a per-name singleton: same `name` => shared client.
+  @InjectDerived(
+    QueueClientToken,
+    (hostArgs: z.infer<typeof queuePublisherOptionsSchema>) => ({ name: hostArgs.name }),
+  )
+  private accessor queueClient!: QueueClient
+
+  constructor({ messageDef }: z.infer<typeof queuePublisherOptionsSchema>) {
+    this.messageDef = messageDef
+  }
+}
+```
+
+(This is the real `@navios/queues` keystone pattern — see `packages/queues/src/services/queue-publisher.service.mts`.)
+
+### Tokens
+
+`Token` is the v2 identity object (renamed from v1's `InjectionToken`). It also produces `BoundToken` and `FactoryToken` via instance methods.
+
+#### `Token.create`
+
+```typescript
+import { Token } from '@navios/di'
+import { z } from 'zod/v4'
+
+// String / symbol token, no schema
+const LoggerToken = Token.create<Logger>('Logger')
+
+// Class token (id derived from the class)
+const ServiceToken = Token.create(MyService) // Token<MyService, undefined>
+
+// Token with a Standard Schema — resolving it REQUIRES validated args
+const configSchema = z.object({
+  apiUrl: z.string(),
+  timeout: z.number(),
+})
+const ConfigToken = Token.create<z.infer<typeof configSchema>, typeof configSchema>(
+  'APP_CONFIG',
+  configSchema,
+)
+
+@Injectable({ token: ConfigToken })
+class ConfigService {
+  constructor(private readonly config: z.output<typeof configSchema>) {}
+  getApiUrl() {
+    return this.config.apiUrl
+  }
+}
+
+const container = new Container()
+const config = await container.get(ConfigToken, {
+  apiUrl: 'https://api.example.com',
+  timeout: 5000,
+})
+```
+
+`Token.create` overloads:
+
+- `Token.create<T extends ClassType>(name: T): Token<InstanceType<T>, undefined>`
+- `Token.create<T extends ClassType, S extends StandardSchemaV1>(name: T, schema: S): Token<InstanceType<T>, S, true>`
+- `Token.create<T>(name: string | symbol): Token<T, undefined>`
+- `Token.create<T, S extends StandardSchemaV1>(name: string | symbol, schema: S): Token<T, S>`
+
+#### `BoundToken` — pre-bound args via `.bind()`
+
+```typescript
+const BoundConfig = ConfigToken.bind({
+  apiUrl: 'https://api.example.com',
+  timeout: 5000,
+})
+
+// No args needed — the value is already bound
+const config = await container.get(BoundConfig)
+```
+
+#### `FactoryToken` — lazily-computed args via `.fromFactory()`
+
+```typescript
+const FactoryConfig = ConfigToken.fromFactory(async (ctx) => ({
+  apiUrl: process.env.API_URL ?? 'https://api.example.com',
+  timeout: Number(process.env.TIMEOUT ?? '5000'),
+}))
+
+const config = await container.get(FactoryConfig)
+```
+
+`Token` also exposes the static helpers `Token.bound(token, value)` and `Token.factory(token, factory)` (equivalent to `token.bind(value)` / `token.fromFactory(factory)`).
+
+### `@Factory`
+
+A factory class owns a `create()` method that produces the instance. Implement `Factorable<R>` (or `FactorableWithArgs<R, S>` when the token has a schema).
+
+```typescript
+import { Factory, Inject } from '@navios/di'
+import type { Factorable, FactoryContext } from '@navios/di'
+
+@Factory({ token: QueueClientToken })
+class QueueClientFactory implements Factorable<QueueClient> {
+  @Inject(QueueConfigServiceToken)
+  private accessor configService!: QueueConfigService
+
+  async create(ctx: FactoryContext): Promise<QueueClient> {
+    const client = makeClient(this.configService.getConfig())
+    await client.connect()
+    // Register cleanup tied to this instance's lifetime
+    ctx.addDestroyListener(async () => {
+      await client.disconnect()
+    })
+    return client
+  }
+}
+
+// Resolving the factory's token returns the CREATED value, not the factory
+const client = await container.get(QueueClientToken)
+```
+
+`@Factory` options: `scope?`, `token?`, `registry?`, `priority?`. Factory fields are injected just like on `@Injectable` classes (`@Inject accessor`). Factories do not run lifecycle hooks on the produced value automatically — register cleanup via `ctx.addDestroyListener` as shown.
+
+### Scopes & containers
+
+`InjectableScope` has three members:
+
+| Scope | Behavior |
+|---|---|
+| `Singleton` (default) | One instance shared across the container |
+| `Transient` | A new instance every resolution |
+| `Request` | One instance per request scope (a `ScopedContainer`) |
+
+#### `Container`
+
+```typescript
+import { Container } from '@navios/di'
+
+const container = new Container() // options bag — see below
+
+const service = await container.get(MyService)
+await container.invalidate(service) // drop it + dependents; recreated on next get
+await container.ready()             // await pending operations
+await container.dispose()           // tear everything down
+```
+
+`new Container(options?: ContainerOptions)` — **options bag** (the v1 positional `new Container(registry, logger)` is gone):
+
+```typescript
+interface ContainerOptions {
+  registry?: Registry      // defaults to the globalRegistry
+  logger?: Console | null  // diagnostics + plugin-error sink
+  plugins?: Plugin[]       // registered in order at construction
+}
+
+const container = new Container({
+  registry: customRegistry,
+  logger: console,
+  plugins: [metricsPlugin],
+})
+```
+
+Resolving a `Request`-scoped service directly from `Container.get()` throws a scope-mismatch `DIError` — use a `ScopedContainer`.
+
+#### `ScopedContainer` (request context)
+
+```typescript
+import { Container, Injectable, InjectableScope } from '@navios/di'
+
+@Injectable({ scope: InjectableScope.Request })
+class RequestLogger {
+  log(msg: string) { /* ... */ }
+}
+
+const container = new Container()
+
+// Begin a request — returns a ScopedContainer
+const scope = container.beginRequest('req-123', { userId: 456 })
+
+const logger = await scope.get(RequestLogger) // request-scoped instance
+
+// Per-request metadata
+scope.setMetadata('correlationId', 'abc-123')
+scope.getMetadata('correlationId')   // 'abc-123'
+scope.getRequestId()                 // 'req-123'
+
+// End the request — disposes all request-scoped instances
+await scope.endRequest()             // dispose() is an alias
+```
+
+`Container.beginRequest(requestId: string, metadata?: Record<string, any>): ScopedContainer`. Singleton/transient resolutions made through a `ScopedContainer` delegate to the parent `Container`; only `Request`-scoped services live in the scope's own storage.
+
+#### `ScopedContainer.resolveInScope` — explicit opt-in request resolution
+
+v2 **deleted** the v1 implicit Singleton→Request scope-upgrade (it silently mutated a shared global registration and had a concurrency race). Its deliberate, opt-in, non-mutating successor is `ScopedContainer.resolveInScope()`:
+
+```typescript
+const scope = container.beginRequest('req-1')
+
+// Resolve a Singleton-declared class AS IF it were Request-scoped,
+// for THIS resolution only, inside this scope.
+const controller = await scope.resolveInScope(SomeController)
+
+await scope.endRequest() // controller is disposed here
+```
+
+`resolveInScope<T>(token, args?): Promise<T>` (same overloads as `get`). The instance is created and cached in **this** ScopedContainer's own request storage and disposed at `endRequest()`; it is **never** written to parent/global singleton storage. The token's registered scope and every shared registration are unchanged — any other `container.get()` / `scope.get()` of the same token keeps its declared scope. It is idempotent within a request and isolated across requests. Use it when a class is declared `Singleton` but must be resolved per-request because it eagerly depends on `Request`-scoped state.
+
+### Lifecycle hooks
+
+```typescript
+import { Injectable } from '@navios/di'
+import type { OnServiceDestroy, OnServiceInit } from '@navios/di'
+
+@Injectable()
+class DatabaseService implements OnServiceInit, OnServiceDestroy {
+  private connection: Connection | null = null
+
+  async onServiceInit() {
+    this.connection = await connect()
+  }
+
+  async onServiceDestroy() {
+    await this.connection?.close()
+  }
+}
+```
+
+`onServiceInit()` runs after the instance is constructed and its eager `@Inject` fields are assigned. `onServiceDestroy()` runs on `invalidate()` / `dispose()` / `endRequest()`. Both may be sync or async.
+
+### Plugins
+
+Plugins are the container-wide policy layer. A plugin has a `name`, optional **observer hooks**, and an optional Koa-style **`middleware`**.
+
+```typescript
+import { Container, definePlugin } from '@navios/di'
+
+const timingPlugin = definePlugin({
+  name: 'timing',
+
+  // Observer hooks: run in registration order, awaited sequentially,
+  // return value ignored. Errors are ISOLATED + reported (never abort
+  // resolution). Use middleware if you must affect/abort resolution.
+  onBeforeCreate(ctx) {
+    console.time(ctx.instanceName)
+  },
+  onAfterCreate(ctx, instance) {
+    console.timeEnd(ctx.instanceName)
+  },
+
+  // The single transforming hook. Composed Koa-style (first plugin is
+  // outermost, `core` is innermost). Call next() exactly once and
+  // RETURN its result. Middleware errors DO propagate (intentional abort).
+  async middleware(ctx, next) {
+    const instance = await next()
+    return instance // optionally wrap/transform
+  },
+})
+
+// Register at construction…
+const container = new Container({ plugins: [timingPlugin] })
+
+// …or after construction (later resolutions observe it)
+container.use(timingPlugin)
+```
+
+`definePlugin(plugin: Plugin): Plugin` is a typed identity helper. The `Plugin` interface:
+
+```typescript
+interface Plugin {
+  name: string
+  onBeforeCreate?(ctx: CreateContext): void | Promise<void>
+  onAfterCreate?(ctx: CreateContext, instance: unknown): void | Promise<void>
+  onBeforeDestroy?(ctx: DestroyContext, instance: unknown): void | Promise<void>
+  onAfterDestroy?(ctx: DestroyContext): void | Promise<void>
+  onContainerDispose?(container: IContainer): void | Promise<void>
+  middleware?(ctx: CreateContext, next: () => Promise<unknown>): Promise<unknown>
+}
+```
+
+`CreateContext` carries `{ token, target, scope, args, instanceName, container, requestId? }`. `DestroyContext` is deliberately minimal: `{ instanceName, container, requestId? }`. Observer-hook errors are isolated and routed to the container `logger` (or `console.error`); middleware errors propagate and abort the `get()`. A real-world example is `@navios/otel`'s tracing plugin (`packages/otel/src/plugins/otel-tracing.plugin.mts`): one `definePlugin({ middleware })` that wraps `@Traced` instances after `await next()`.
+
+### Custom registry & priority
 
 ```typescript
 import { Container, Registry } from '@navios/di'
 
-const customRegistry = new Registry()
-const container = new Container(customRegistry)
+// Child registry — inherits parent registrations, can shadow them
+const registry = new Registry(globalRegistry)
+const container = new Container({ registry })
 
-// Get all registrations for a token (sorted by priority, highest first)
-const allRegistrations = customRegistry.getAll(MyToken)
+// All registrations for a token, highest priority first
+const records = registry.getAll(MyToken)
 ```
 
-### Error Handling
+### `container.internals` (advanced / plugin authors)
+
+`container.internals` is a **frozen, `@internal`** namespace — an escape hatch for plugin authors and internal wiring, **not stable public API**. It exposes `{ registry, storage, eventBus, resolver, serviceInitializer, serviceInvalidator, tokenResolver, nameResolver, pluginRegistry }`. (This replaces v1's `getRegistry()` / `getStorage()` / `getEventBus()` accessor methods, which were removed.) Treat anything reached through `internals` as unstable.
+
+### Error handling
 
 ```typescript
 import { DIError, DIErrorCode } from '@navios/di'
 
 try {
-  const service = await container.get(NonExistentService)
+  await container.get(SomeService)
 } catch (error) {
   if (error instanceof DIError) {
     switch (error.code) {
-      case DIErrorCode.FactoryNotFound:
-        console.error('Service not registered')
-        break
-      case DIErrorCode.InstanceDestroying:
-        console.error('Service is being destroyed')
-        break
-      case DIErrorCode.ScopeMismatchError:
-        console.error('Wrong container for scope')
-        break
-      case DIErrorCode.TokenValidationError:
-        console.error('Token validation failed')
-        break
-      // ... and more error codes
+      case DIErrorCode.FactoryNotFound:        /* not registered */ break
+      case DIErrorCode.ScopeMismatchError:     /* wrong container for scope */ break
+      case DIErrorCode.TokenValidationError:   /* schema validation failed */ break
+      // …more codes
     }
   }
 }
 ```
 
-### Service Invalidation
-
-```typescript
-// Invalidate a specific service and its dependencies
-await container.invalidate(myService)
-
-// The service will be recreated on next access
-const newService = await container.get(MyService)
-```
-
-## API Reference
-
-### Container
-
-- `get<T>(token: T, args?): Promise<T>` - Get an instance
-- `invalidate(service: unknown): Promise<void>` - Invalidate a service
-- `ready(): Promise<void>` - Wait for pending operations
-- `dispose(): Promise<void>` - Clean up all resources
-- `clear(): Promise<void>` - Clear all instances and bindings
-- `isRegistered(token: any): boolean` - Check if service is registered
-- `calculateInstanceName(token, args?): string | null` - Calculate the instance name for a token (returns null for unresolved factory tokens or validation errors)
-- `getRegistry(): Registry` - Get the registry
-- `beginRequest(requestId: string, metadata?, priority?): ScopedContainer` - Begin request context
-- `getActiveRequestIds(): ReadonlySet<string>` - Get active request IDs
-- `hasActiveRequest(requestId: string): boolean` - Check if request is active
-- `removeRequestId(requestId: string): void` - Remove a request ID from tracking
-- **Component Access Methods** (for advanced usage):
-  - `getStorage(): UnifiedStorage` - Get storage instance
-  - `getServiceInitializer(): ServiceInitializer` - Get service initializer
-  - `getServiceInvalidator(): ServiceInvalidator` - Get service invalidator
-  - `getTokenResolver(): TokenResolver` - Get token resolver
-  - `getNameResolver(): NameResolver` - Get name resolver
-  - `getScopeTracker(): ScopeTracker` - Get scope tracker
-  - `getEventBus(): LifecycleEventBus` - Get event bus
-  - `getInstanceResolver(): InstanceResolver` - Get instance resolver
-
-### ScopedContainer
-
-- `get<T>(token: T, args?): Promise<T>` - Get an instance (request-scoped or delegated)
-- `invalidate(service: unknown): Promise<void>` - Invalidate a service
-- `endRequest(): Promise<void>` - End request and cleanup
-- `dispose(): Promise<void>` - Alias for endRequest()
-- `ready(): Promise<void>` - Wait for pending operations
-- `isRegistered(token: any): boolean` - Check if service is registered
-- `calculateInstanceName(token, args?): string | null` - Calculate the instance name for a token (returns null for unresolved factory tokens or validation errors)
-- `getMetadata(key: string): any` - Get request metadata
-- `setMetadata(key: string, value: any): void` - Set request metadata
-- `getRequestId(): string` - Get the request ID
-- `getParent(): Container` - Get the parent container
-- `getStorage(): UnifiedStorage` - Get the underlying storage instance
-
-### Injectable Decorator
-
-- `@Injectable(options?: InjectableOptions)` - Mark class as injectable
-- Options:
-  - `scope?: InjectableScope` - Service scope (Singleton | Transient | Request)
-  - `token?: InjectionToken` - Custom injection token
-  - `schema?: ZodSchema` - Zod schema for constructor arguments
-  - `registry?: Registry` - Custom registry
-  - `priority?: number` - Priority level (higher wins when multiple registrations exist, default: 0)
-- Note: Cannot use both `token` and `schema` options together
-
-### Factory Decorator
-
-- `@Factory(options?: FactoryOptions)` - Mark class as factory
-- Options:
-  - `scope?: InjectableScope` - Factory scope
-  - `token?: InjectionToken` - Custom injection token
-  - `registry?: Registry` - Custom registry
-
-### Injection Methods
-
-- `inject<T>(token: T, args?): T` - Synchronous injection
-- `asyncInject<T>(token: T, args?): Promise<T>` - Asynchronous injection
-- `optional<T>(token: T, args?): T | null` - Optional injection
-- `wrapSyncInit<T>(fn: () => T): T` - Wrap synchronous initialization
-- `provideFactoryContext<T>(ctx: FactoryContext, fn: () => T): T` - Provide factory context
-
-### Injection Tokens
-
-- `InjectionToken.create<T>(name: string | symbol): InjectionToken<T>`
-- `InjectionToken.create<T, S>(name: string | symbol, schema: S): InjectionToken<T, S>`
-- `InjectionToken.bound<T, S>(token: InjectionToken<T, S>, value: z.input<S>): BoundInjectionToken<T, S>`
-- `InjectionToken.factory<T, S>(token: InjectionToken<T, S>, factory: () => Promise<z.input<S>>): FactoryInjectionToken<T, S>`
-
-### Lifecycle Interfaces
-
-- `OnServiceInit` - Implement `onServiceInit(): Promise<void> | void`
-- `OnServiceDestroy` - Implement `onServiceDestroy(): Promise<void> | void`
-
-### Registry
-
-- `set(token, scope, target, type, priority?): void` - Register a service factory
-- `get(token): FactoryRecord` - Get the highest priority factory record for a token
-- `getAll(token): FactoryRecord[]` - Get all factory records for a token (sorted by priority, highest first)
-- `has(token): boolean` - Check if a token is registered
-- `delete(token): void` - Remove all registrations for a token
-- `updateScope(token, scope): boolean` - Update the scope of an already registered factory
-
 ## Testing
 
-### TestContainer
+`@navios/di/testing` ships `TestContainer` (integration/e2e) and `UnitTestContainer` (isolated unit tests).
 
-`TestContainer` extends `Container` with enhanced testing utilities, including fluent binding API, assertion helpers, method call tracking, and dependency graph inspection.
+### `TestContainer`
+
+`TestContainer extends Container` with a fluent binding API, assertion helpers, method-call tracking, and dependency-graph inspection.
 
 ```typescript
 import { TestContainer } from '@navios/di/testing'
+import { describe, it, beforeEach, afterEach, expect, vi } from 'vitest'
 
 describe('UserService', () => {
   let container: TestContainer
 
   beforeEach(() => {
+    // Options: { parentRegistry?, logger?, plugins? }
+    // parentRegistry defaults to globalRegistry; pass `null` for full isolation
     container = new TestContainer()
   })
 
@@ -587,103 +547,95 @@ describe('UserService', () => {
     await container.clear()
   })
 
-  it('should create user', async () => {
-    // Fluent binding API
-    container.bind(DatabaseService).toValue({
-      save: vi.fn().mockResolvedValue({ id: '1' }),
-    })
-
-    // Or bind to class
-    container.bind(UserService).toClass(MockUserService)
-
-    // Or bind to factory
+  it('creates a user', async () => {
+    container.bind(DatabaseService).toValue({ save: vi.fn().mockResolvedValue({ id: '1' }) })
+    container.bind(UserRepo).toClass(MockUserRepo)
     container.bind(ConfigToken).toFactory(() => ({ apiKey: 'test' }))
 
-    const userService = await container.get(UserService)
-    const user = await userService.create({ name: 'John' })
+    // Field-granular override: set ONE @Inject* field without
+    // resolving its real token at all
+    container.mockInject(UserService, 'repo', { findUser: () => fakeUser })
 
+    const service = await container.get(UserService)
+    const user = await service.create({ name: 'John' })
     expect(user.id).toBe('1')
 
-    // Assertion helpers
     container.expectResolved(UserService)
     container.expectSingleton(UserService)
     container.expectInitialized(UserService)
-
-    // Method call tracking
-    container.recordMethodCall(UserService, 'create', [{ name: 'John' }], user)
-    container.expectCalled(UserService, 'create')
-    container.expectCalledWith(UserService, 'create', [{ name: 'John' }])
-    container.expectCallCount(UserService, 'create', 1)
-
-    // Dependency graph inspection
-    const graph = container.getDependencyGraph()
-    console.log(graph)
+    container.expectCalled(DatabaseService, 'save')
   })
 })
 ```
 
-### UnitTestContainer
+### `UnitTestContainer`
 
-`UnitTestContainer` provides strict isolated unit testing with automatic method call tracking via Proxy. Only services explicitly provided can be resolved.
+`UnitTestContainer extends Container` for isolated unit tests with automatic method-call tracking (Proxy). Only services in `providers` are constructed for real.
 
 ```typescript
 import { UnitTestContainer } from '@navios/di/testing'
 
-describe('UserService Unit Tests', () => {
-  let container: UnitTestContainer
-
-  beforeEach(() => {
-    container = new UnitTestContainer({
-      providers: [
-        { token: UserService, useClass: MockUserService },
-        { token: ConfigToken, useValue: { apiUrl: 'test' } },
-        { token: ApiClient, useFactory: () => new MockApiClient() },
-      ],
-    })
-  })
-
-  afterEach(async () => {
-    await container.dispose()
-  })
-
-  it('should track method calls automatically', async () => {
-    const service = await container.get(UserService)
-    await service.findUser('123')
-
-    // Auto-tracked assertions (no manual recording needed)
-    container.expectCalled(UserService, 'findUser')
-    container.expectCalledWith(UserService, 'findUser', ['123'])
-    container.expectNotCalled(UserService, 'deleteUser')
-  })
-
-  it('should throw on unregistered dependencies (strict mode)', async () => {
-    // Strict mode (default): unregistered dependencies throw
-    await expect(container.get(UnregisteredService)).rejects.toThrow(DIError)
-  })
-
-  it('should auto-mock unregistered dependencies', async () => {
-    // Enable auto-mocking mode
-    container.enableAutoMocking()
-    const mock = await container.get(UnregisteredService)
-    container.expectAutoMocked(UnregisteredService)
-    container.disableAutoMocking()
-  })
+const container = new UnitTestContainer({
+  providers: [
+    { token: UserService, useClass: MockUserService },
+    { token: ConfigToken, useValue: { apiUrl: 'test' } },
+    { token: ApiClient, useFactory: () => new MockApiClient() },
+  ],
+  // v2 default: auto-mock unregistered deps. Pass strict: true to throw.
+  // strict: true,
 })
+
+const service = await container.get(UserService)
+await service.findUser('123')
+
+container.expectCalled(UserService, 'findUser')
+container.expectCalledWith(UserService, 'findUser', ['123'])
+container.expectNotCalled(UserService, 'deleteUser')
 ```
 
-## Best Practices
+> **v2 behavior change:** auto-mocking unregistered dependencies is now the **default**. Pass `{ strict: true }` to restore the v1 throw-on-unregistered behavior. (`allowUnregistered` is the deprecated inverse alias; `strict` wins if both are set.)
 
-1. **Use `asyncInject` for circular dependencies** - Breaks circular dependency cycles safely
-2. **Use `inject` for simple dependencies** - When you're certain the dependency is ready
-3. **Use `optional` for feature flags** - Dependencies that may not be available
-4. **Implement lifecycle hooks** - For proper resource management
-5. **Use injection tokens** - For configuration and interface-based dependencies
-6. **Prefer singletons** - Unless you specifically need new instances each time
-7. **Use factories** - For complex object creation logic
-8. **Leverage ScopedContainer** - For request-scoped data and cleanup
-9. **Use priority system** - When you need multiple implementations of the same token, use priority to control which one wins
-10. **Use TestContainer for integration tests** - Provides comprehensive assertion helpers and dependency graph inspection
-11. **Use UnitTestContainer for unit tests** - Provides strict isolation and automatic method call tracking
+## Migrating from v1
+
+The symbols below were **removed** in v2. They appear here only to map old → new — none of them should be used in v2 code.
+
+| v1 (removed) | v2 replacement |
+|---|---|
+| `inject(X)` (runtime helper) | `@Inject(X) accessor x!: X` (field decorator) |
+| `asyncInject(X)` | `@InjectLazy(X) accessor x!: Promise<X>` |
+| `optional(X)` | `@InjectOptional(X) accessor x!: X \| null` |
+| in-constructor `inject(Tok, deriveFromArgs)` | `@InjectDerived(Tok, hostArgs => derivedArgs) accessor x!: T` |
+| `InjectionToken` (class) | `Token` |
+| `InjectionToken.create(...)` | `Token.create(...)` |
+| `InjectionToken.bound(tok, v)` / `BoundInjectionToken` | `tok.bind(v)` / `BoundToken` (or `Token.bound(tok, v)`) |
+| `InjectionToken.factory(tok, f)` / `FactoryInjectionToken` | `tok.fromFactory(f)` / `FactoryToken` (or `Token.factory(tok, f)`) |
+| `new Container(registry, logger)` (positional) | `new Container({ registry, logger, plugins })` (options bag) |
+| `container.getRegistry()` / `getStorage()` / `getEventBus()` / `get*()` accessors | `container.internals.{registry,storage,eventBus,…}` (`@internal`) |
+| `Registry.updateScope(token, scope)` | removed — use explicit scopes / `ScopedContainer.resolveInScope` |
+| implicit Singleton→Request scope-upgrade | explicit `ScopedContainer.resolveInScope(token, args?)` |
+| `wrapSyncInit` / sync-init throw-proxy | none — v2 resolves eager deps before assigning fields |
+| `legacy-compat` module | removed |
+| `UnitTestContainer` strict-by-default | auto-mock by default; `{ strict: true }` to opt in |
+
+Mechanical migration of a service:
+
+```typescript
+// v1
+@Injectable()
+class OrderService {
+  private readonly repo = inject(OrderRepo)
+  private readonly cache = asyncInject(CacheService)
+  private readonly metrics = optional(MetricsService)
+}
+
+// v2
+@Injectable()
+class OrderService {
+  @Inject(OrderRepo)            private accessor repo!: OrderRepo
+  @InjectLazy(CacheService)     private accessor cache!: Promise<CacheService>
+  @InjectOptional(MetricsService) private accessor metrics!: MetricsService | null
+}
+```
 
 ## License
 

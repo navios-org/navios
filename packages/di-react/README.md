@@ -5,8 +5,8 @@ React integration for `@navios/di` dependency injection container. Provides a se
 ## Features
 
 - **🎯 Type-Safe**: Full TypeScript support with compile-time type checking
-- **🎨 Flexible API**: Support for classes, injection tokens, and factory tokens
-- **⚙️ Zod Integration**: Type-safe arguments with Zod schema validation
+- **🎨 Flexible API**: Support for classes, `Token`s, bound tokens, and factory tokens
+- **⚙️ Standard-Schema Integration**: Type-safe arguments with Standard-Schema (zod v4 / Valibot / ArkType) validation
 - **🔄 Automatic Invalidation**: Services automatically re-fetch when invalidated
 - **⚡ React Suspense Support**: Use `useSuspenseService` with React Suspense for declarative loading
 - **🔌 Request Scopes**: Isolate services per request/component tree with `ScopeProvider`
@@ -43,6 +43,8 @@ function App() {
   )
 }
 ```
+
+> **Defining services (`@navios/di` v2).** Services are plain `@Injectable()` classes; dependencies are injected with the **field decorators** `@Inject` / `@InjectLazy` / `@InjectOptional` / `@InjectDerived` on `accessor` fields (e.g. `@Inject(Dep) private accessor dep!: Dep`). The v1 runtime helpers `inject()`/`asyncInject()`/`optional()` and the `InjectionToken` class are gone — see the [`@navios/di` README](../di/README.md). This package's hooks are unchanged conceptually; only the way you author the underlying services differs.
 
 ### 2. Use Services in Components
 
@@ -176,13 +178,13 @@ function MyComponent() {
 #### With Injection Tokens and Arguments
 
 ```tsx
-import { InjectionToken } from '@navios/di'
+import { Token } from '@navios/di'
 import { useService } from '@navios/di-react'
 import { useMemo } from 'react'
-import { z } from 'zod'
+import { z } from 'zod/v4'
 
 const UserSchema = z.object({ userId: z.string() })
-const UserToken = InjectionToken.create<{ userId: string; name: string }, typeof UserSchema>(
+const UserToken = Token.create<{ userId: string; name: string }, typeof UserSchema>(
   'User',
   UserSchema,
 )
@@ -505,15 +507,14 @@ function FeatureComponent() {
 
 | Prop       | Type                       | Description                                                                | Default     |
 | ---------- | -------------------------- | -------------------------------------------------------------------------- | ----------- |
-| `scopeId`  | `string?`                  | Optional explicit scope ID. If not provided, a unique ID will be generated | `undefined` |
+| `scopeId`  | `string?`                  | Optional explicit scope ID. If not provided, a unique ID will be generated (via `useId()`) | `undefined` |
 | `metadata` | `Record<string, unknown>?` | Optional metadata to attach to the request context                         | `undefined` |
-| `priority` | `number?`                  | Priority for service resolution. Higher priority scopes take precedence    | `100`       |
 | `children` | `ReactNode`                | Child components                                                           | -           |
 
 ### useContainer
 
 ```ts
-function useContainer(): IContainer
+function useContainer(): Container | ScopedContainer
 ```
 
 Returns the container from context. Returns `ScopedContainer` if inside a `ScopeProvider`, otherwise returns the root `Container`. Throws if used outside of `ContainerProvider`.
@@ -529,10 +530,16 @@ Returns the root `Container` regardless of whether you're inside a `ScopeProvide
 ### useService
 
 ```ts
-function useService<T>(token: ClassType): UseServiceResult<InstanceType<T>>
-function useService<T, S>(token: InjectionToken<T, S>, args: z.input<S>): UseServiceResult<T>
-function useService<T>(token: InjectionToken<T, undefined>): UseServiceResult<T>
-// ... other overloads
+function useService<T extends ClassType>(
+  token: T,
+): UseServiceResult<InstanceType<T> extends Factorable<infer R> ? R : InstanceType<T>>
+function useService<T, S extends TokenSchemaType>(
+  token: Token<T, S>,
+  args: z.input<S>,
+): UseServiceResult<T>
+function useService<T>(token: Token<T, undefined>): UseServiceResult<T>
+function useService<T>(token: BoundToken<T, any>): UseServiceResult<T>
+function useService<T>(token: FactoryToken<T, any>): UseServiceResult<T>
 
 interface UseServiceResult<T> {
   data: T | undefined
@@ -549,10 +556,13 @@ Fetches a service asynchronously and subscribes to invalidation events. When the
 ### useSuspenseService
 
 ```ts
-function useSuspenseService<T>(token: ClassType): InstanceType<T>
-function useSuspenseService<T, S>(token: InjectionToken<T, S>, args: z.input<S>): T
-function useSuspenseService<T>(token: InjectionToken<T, undefined>): T
-// ... other overloads
+function useSuspenseService<T extends ClassType>(
+  token: T,
+): InstanceType<T> extends Factorable<infer R> ? R : InstanceType<T>
+function useSuspenseService<T, S extends TokenSchemaType>(token: Token<T, S>, args: z.input<S>): T
+function useSuspenseService<T>(token: Token<T, undefined>): T
+function useSuspenseService<T>(token: BoundToken<T, any>): T
+function useSuspenseService<T>(token: FactoryToken<T, any>): T
 ```
 
 Fetches a service using React Suspense. Throws a promise during loading and the resolved value on success. Subscribes to invalidation events and triggers re-render when the service is invalidated.
@@ -562,12 +572,16 @@ Fetches a service using React Suspense. Throws a promise during loading and the 
 ### useOptionalService
 
 ```ts
-function useOptionalService<T>(token: ClassType): UseOptionalServiceResult<InstanceType<T>>
-function useOptionalService<T, S>(
-  token: InjectionToken<T, S>,
+function useOptionalService<T extends ClassType>(
+  token: T,
+): UseOptionalServiceResult<InstanceType<T> extends Factorable<infer R> ? R : InstanceType<T>>
+function useOptionalService<T, S extends TokenSchemaType>(
+  token: Token<T, S>,
   args: z.input<S>,
 ): UseOptionalServiceResult<T>
-// ... other overloads
+function useOptionalService<T>(token: Token<T, undefined>): UseOptionalServiceResult<T>
+function useOptionalService<T>(token: BoundToken<T, any>): UseOptionalServiceResult<T>
+function useOptionalService<T>(token: FactoryToken<T, any>): UseOptionalServiceResult<T>
 
 interface UseOptionalServiceResult<T> {
   data: T | undefined

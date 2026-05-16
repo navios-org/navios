@@ -62,15 +62,18 @@ class RequestContext {
 }
 ```
 
-## Injection Methods
+## Field Injection
 
-### 1. Use inject for Simple Dependencies
+Injection in v2 is done exclusively with the field decorators on `accessor` fields. The `accessor` keyword and the `!` are required.
+
+### 1. Use `@Inject` for Simple Dependencies
 
 ```typescript
-// ✅ Good: Use inject for singleton dependencies
+// ✅ Good: Use @Inject for singleton dependencies
 @Injectable()
 class UserService {
-  private readonly logger = inject(LoggerService)
+  @Inject(LoggerService)
+  private accessor logger!: LoggerService
 
   getUser(id: string) {
     this.logger.log(`Getting user ${id}`)
@@ -79,13 +82,14 @@ class UserService {
 }
 ```
 
-### 2. Use asyncInject for Circular Dependencies
+### 2. Use `@InjectLazy` for Circular Dependencies
 
 ```typescript
-// ✅ Good: Use asyncInject to break circular dependencies
+// ✅ Good: Use @InjectLazy to break circular dependencies
 @Injectable()
 class ServiceA {
-  private serviceB = asyncInject(ServiceB)
+  @InjectLazy(ServiceB)
+  private accessor serviceB!: Promise<ServiceB>
 
   async doSomething() {
     const b = await this.serviceB
@@ -94,18 +98,33 @@ class ServiceA {
 }
 ```
 
-### 3. Use optional for Feature Flags
+### 3. Use `@InjectOptional` for Feature Flags
 
 ```typescript
-// ✅ Good: Use optional for conditionally available services
+// ✅ Good: Use @InjectOptional for conditionally available services
 @Injectable()
 class NotificationService {
-  private readonly analytics = optional(AnalyticsService)
+  @InjectOptional(AnalyticsService)
+  private accessor analytics!: AnalyticsService | null
 
   notify(message: string) {
     this.analytics?.track('notification_sent')
     // Send notification
   }
+}
+```
+
+### 4. Use `@InjectDerived` for Args Derived from the Host
+
+```typescript
+// ✅ Good: derive the dependency's args from THIS host's validated args
+@Injectable({ token: QueuePublisherToken })
+class QueuePublisher {
+  @InjectDerived(
+    QueueClientToken,
+    (hostArgs: z.infer<typeof queuePublisherOptionsSchema>) => ({ name: hostArgs.name }),
+  )
+  private accessor queueClient!: QueueClient
 }
 ```
 
@@ -116,22 +135,21 @@ class NotificationService {
 ```typescript
 // ✅ Good: Group related services
 export const DATABASE_TOKENS = {
-  CONFIG: InjectionToken.create<DatabaseConfig>('DatabaseConfig'),
-  CONNECTION: InjectionToken.create<DatabaseConnection>('DatabaseConnection'),
-  REPOSITORY: InjectionToken.create<UserRepository>('UserRepository'),
+  CONFIG: Token.create<DatabaseConfig>('DatabaseConfig'),
+  CONNECTION: Token.create<DatabaseConnection>('DatabaseConnection'),
+  REPOSITORY: Token.create<UserRepository>('UserRepository'),
 } as const
 ```
 
-### 2. Use Injection Tokens for Interfaces
+### 2. Use Tokens for Interfaces
 
 ```typescript
-// ✅ Good: Use injection tokens for interfaces
+// ✅ Good: Use tokens for interfaces
 interface PaymentProcessor {
   processPayment(amount: number): Promise<string>
 }
 
-const PAYMENT_PROCESSOR_TOKEN =
-  InjectionToken.create<PaymentProcessor>('PaymentProcessor')
+const PAYMENT_PROCESSOR_TOKEN = Token.create<PaymentProcessor>('PaymentProcessor')
 
 @Injectable({ token: PAYMENT_PROCESSOR_TOKEN })
 class StripePaymentProcessor implements PaymentProcessor {
@@ -264,7 +282,7 @@ class MockHttpClient implements HttpClient {
   }
 }
 
-container.bindClass(HTTP_CLIENT_TOKEN, MockHttpClient)
+container.bind(HTTP_CLIENT_TOKEN).toClass(MockHttpClient)
 ```
 
 ## Common Pitfalls to Avoid
@@ -286,31 +304,40 @@ class RequestCache {
 }
 ```
 
-### 2. Accessing Transient Services Too Early
+### 2. Accessing Injected Fields in the Constructor
 
 ```typescript
-// ❌ Problem: Accessing transient service during construction
+// ❌ Problem: @Inject* fields are NOT populated yet in the constructor.
+// The container assigns them AFTER the constructor runs.
 @Injectable()
 class ConsumerService {
-  private readonly service = inject(TransientService)
+  @Inject(SomeService)
+  private accessor service!: SomeService
 
   constructor() {
-    // Error: Service not initialized yet!
+    // Error: field not assigned yet during construction!
     console.log(this.service.getData())
   }
 }
 
-// ✅ Solution: Access in async methods after initialization
+// ✅ Solution: read injected fields in onServiceInit or in methods
 @Injectable()
-class ConsumerService {
-  private readonly service = inject(TransientService)
+class ConsumerService implements OnServiceInit {
+  @Inject(SomeService)
+  private accessor service!: SomeService
+
+  async onServiceInit() {
+    // Eager @Inject fields are assigned before onServiceInit runs
+    console.log(this.service.getData())
+  }
 
   async doSomething() {
-    // Service is available in methods
     console.log(this.service.getData())
   }
 }
 ```
+
+> Note: an eager `@Inject` of a `Transient`- or `Request`-scoped dependency from a `Singleton` host throws a scope-mismatch `DIError`. Use `@InjectLazy` (a `Promise<T>` field) for narrower-scoped dependencies.
 
 ## Next Steps
 

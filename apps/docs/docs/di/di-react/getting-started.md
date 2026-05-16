@@ -65,6 +65,8 @@ class UserService {
 }
 ```
 
+> Services with dependencies use `@navios/di` v2's **field decorators** — e.g. `@Inject(HttpClient) private accessor http!: HttpClient` on an `accessor` field. The v1 runtime helpers `inject()`/`asyncInject()`/`optional()` and the `InjectionToken` class are gone; see the [`@navios/di` API Reference](/docs/di/di/api-reference).
+
 ### 3. Use the Service in a Component
 
 ```tsx

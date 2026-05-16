@@ -15,11 +15,12 @@ A lightweight, type-safe dependency injection container for TypeScript. Features
 
 **Key Features:**
 - Type-safe dependency resolution
+- Stage-3 field decorators (`@Inject` / `@InjectLazy` / `@InjectOptional` / `@InjectDerived`)
 - Hierarchical containers with scope inheritance
 - Request, Singleton, and Transient scopes
 - Async factory support
-- Event bus for inter-service communication
-- Injection tokens with Zod schema validation
+- Plugin pipeline (observer hooks + Koa-style middleware)
+- `Token` with Standard-Schema validation (zod v4 / Valibot / ArkType)
 - Factory pattern support
 - Service lifecycle management
 
