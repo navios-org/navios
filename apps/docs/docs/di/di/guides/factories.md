@@ -20,9 +20,9 @@ The token is what the Registry uses to store factory metadata and what the Conta
 The most common use case for factories is selecting and returning different service implementations based on configuration. This pattern is ideal for scenarios like choosing between different AI providers, email service providers, payment processors, or storage backends.
 
 ```typescript
-import type { FactoryContext } from '@navios/di'
-import { Factory, InjectionToken } from '@navios/di'
-import { z } from 'zod'
+import type { FactorableWithArgs, FactoryContext } from '@navios/di'
+import { Factory, Token } from '@navios/di'
+import { z } from 'zod/v4'
 
 // 1. Define configuration schema
 const aiConfigSchema = z.object({
@@ -31,7 +31,7 @@ const aiConfigSchema = z.object({
   model: z.string().optional(),
 })
 
-type AIConfig = z.infer<typeof aiConfigSchema>
+type AIConfig = z.output<typeof aiConfigSchema>
 
 // 2. Define service interface
 interface AIService {
@@ -39,15 +39,15 @@ interface AIService {
   getProvider(): string
 }
 
-// 3. Create injection token
-const AI_SERVICE_TOKEN = InjectionToken.create<
+// 3. Create token with schema
+const AI_SERVICE_TOKEN = Token.create<
   AIService,
   typeof aiConfigSchema
 >('AI_SERVICE', aiConfigSchema)
 
 // 4. Create factory that selects provider
 @Factory({ token: AI_SERVICE_TOKEN })
-class AIServiceFactory {
+class AIServiceFactory implements FactorableWithArgs<AIService, typeof aiConfigSchema> {
   create(ctx: FactoryContext, config: AIConfig): AIService {
     switch (config.provider) {
       case 'openai':
@@ -161,7 +161,7 @@ class ComplexServiceFactory {
 Factories can inject multiple services:
 
 ```typescript
-import { Factory, inject, Injectable } from '@navios/di'
+import { Factory, Inject, Injectable } from '@navios/di'
 
 @Injectable()
 class LoggerService {
@@ -179,8 +179,10 @@ class ConfigService {
 
 @Factory()
 class DatabaseConnectionFactory {
-  private readonly logger = inject(LoggerService)
-  private readonly config = inject(ConfigService)
+  @Inject(LoggerService)
+  private accessor logger!: LoggerService
+  @Inject(ConfigService)
+  private accessor config!: ConfigService
 
   create() {
     const config = this.config.getConfig()
@@ -204,9 +206,9 @@ class DatabaseConnectionFactory {
 Like services, factories can use priority for overrides:
 
 ```typescript
-import { Factory, InjectionToken } from '@navios/di'
+import { Factory, Token } from '@navios/di'
 
-const SERVICE_TOKEN = InjectionToken.create<Service>('Service')
+const SERVICE_TOKEN = Token.create<Service>('Service')
 
 // Default factory
 @Factory({ token: SERVICE_TOKEN, priority: 100 })
@@ -291,7 +293,7 @@ interface EmailService {
   ): Promise<{ success: boolean }>
 }
 
-const EMAIL_SERVICE_TOKEN = InjectionToken.create<
+const EMAIL_SERVICE_TOKEN = Token.create<
   EmailService,
   typeof emailConfigSchema
 >('EMAIL_SERVICE', emailConfigSchema)
@@ -312,7 +314,7 @@ const configSchema = z.object({
   model: z.string().optional(),
 })
 
-const TOKEN = InjectionToken.create<Service, typeof configSchema>(
+const TOKEN = Token.create<Service, typeof configSchema>(
   'SERVICE',
   configSchema,
 )

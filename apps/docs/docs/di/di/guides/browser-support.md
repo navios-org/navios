@@ -48,7 +48,8 @@ In browsers, Navios DI uses `SyncLocalStorage` - a stack-based polyfill that pro
 // This works the same in browser and Node.js
 @Injectable()
 class ServiceA {
-  private serviceB = inject(ServiceB)
+  @Inject(ServiceB)
+  private accessor serviceB!: ServiceB
 }
 ```
 
@@ -56,28 +57,22 @@ class ServiceA {
 
 ### Async Context Tracking
 
-In browsers, context does NOT propagate across async boundaries:
+In browsers, the circular-dependency tracking context does NOT propagate across async boundaries the way it does with Node's `AsyncLocalStorage`:
 
 ```typescript
-// ❌ Context is lost across async boundaries in browser
-async function asyncOperation() {
-  // Context from outer scope is NOT available here
-  await somePromise
-  // inject() may not work correctly after await
-}
-
-// ✅ Keep DI resolution synchronous
+// Eager @Inject fields are resolved before onServiceInit runs, so the
+// common case is unaffected.
 @Injectable()
 class MyService {
-  // This works - inject() is called synchronously during construction
-  private dependency = inject(OtherService)
+  @Inject(OtherService)
+  private accessor dependency!: OtherService
 }
 ```
 
 This is acceptable because:
-1. Service constructors are typically synchronous
+1. Eager `@Inject` dependencies are resolved before the host's `onServiceInit`
 2. Circular dependency detection mainly needs sync tracking
-3. Dependencies are resolved during instantiation, not async operations
+3. For deferred / circular dependencies use `@InjectLazy` and `await` the `Promise`
 
 ### No async_hooks
 
@@ -138,7 +133,7 @@ esbuild src/index.ts --bundle --platform=browser
 Navios DI works seamlessly with React in browsers. See the [DI React documentation](/docs/di/di-react/getting-started) for React-specific patterns.
 
 ```typescript
-import { Container, inject, Injectable } from '@navios/di'
+import { Container, Injectable } from '@navios/di'
 import { ContainerProvider, useService } from '@navios/di-react'
 
 @Injectable()
@@ -160,11 +155,12 @@ function App() {
 ### Vue
 
 ```typescript
-import { Container, inject, Injectable } from '@navios/di'
+import { Container, Inject, Injectable } from '@navios/di'
 
 @Injectable()
 class UserService {
-  private api = inject(ApiService)
+  @Inject(ApiService)
+  private accessor api!: ApiService
 }
 
 // In setup
@@ -180,7 +176,8 @@ provide('container', container)
 // ✅ Good: Synchronous constructor
 @Injectable()
 class MyService {
-  private dep = inject(OtherService)
+  @Inject(OtherService)
+  private accessor dep!: OtherService
 
   // Async work in lifecycle hook
   async onServiceInit() {
@@ -197,13 +194,14 @@ class MyService {
 }
 ```
 
-### 2. Use asyncInject for Circular Dependencies
+### 2. Use @InjectLazy for Circular Dependencies
 
 ```typescript
 // Works the same in browser and Node.js
 @Injectable()
 class ServiceA {
-  private serviceB = asyncInject(ServiceB)
+  @InjectLazy(ServiceB)
+  private accessor serviceB!: Promise<ServiceB>
 
   async doSomething() {
     const b = await this.serviceB
@@ -249,17 +247,17 @@ resolve: {
 
 **Solution**:
 - Always test with `NODE_ENV=development` first
-- Use `asyncInject()` to explicitly break circular dependencies
+- Use `@InjectLazy` to explicitly break circular dependencies
 - Don't rely on circular detection in production
 
 ### Context Lost in Async Code
 
-**Problem**: `inject()` doesn't work correctly after async operations.
+**Problem**: Circular-dependency tracking doesn't work correctly across async boundaries in the browser.
 
 **Solution**:
-- Keep `inject()` calls synchronous in constructors
-- Use `asyncInject()` for services needed after async boundaries
-- Store injected services in instance properties before async operations
+- Eager `@Inject` fields are resolved before `onServiceInit`, so most code is unaffected
+- Use `@InjectLazy` for services involved in circular dependencies and `await` the `Promise`
+- Read injected accessor fields in methods/lifecycle hooks, never in the constructor
 
 ## Next Steps
 

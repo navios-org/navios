@@ -20,10 +20,10 @@ Services are identified by their Injection Token, not by class. This means:
 Register multiple services for the same token with different priorities:
 
 ```typescript
-import { Injectable, InjectionToken } from '@navios/di'
+import { Container, Injectable, Token } from '@navios/di'
 
 // Create a token
-const USER_SERVICE_TOKEN = InjectionToken.create<UserService>('UserService')
+const USER_SERVICE_TOKEN = Token.create<UserService>('UserService')
 
 // Default service (priority: 0)
 @Injectable({ token: USER_SERVICE_TOKEN, priority: 100 })
@@ -58,7 +58,7 @@ const service = await container.get(USER_SERVICE_TOKEN) // Returns OverrideUserS
 You can retrieve all registrations for a token, sorted by priority:
 
 ```typescript
-const registry = container.getRegistry()
+const registry = container.internals.registry
 const allRegistrations = registry.getAll(USER_SERVICE_TOKEN)
 // Returns both services, sorted by priority (highest first)
 // allRegistrations[0] = OverrideUserService (priority: 200)
@@ -75,9 +75,9 @@ This is useful for:
 Factories can also use priority for overrides:
 
 ```typescript
-import { Factory, InjectionToken } from '@navios/di'
+import { Factory, Token } from '@navios/di'
 
-const SERVICE_TOKEN = InjectionToken.create<Service>('Service')
+const SERVICE_TOKEN = Token.create<Service>('Service')
 
 // Default factory
 @Factory({ token: SERVICE_TOKEN, priority: 100 })
@@ -109,9 +109,9 @@ Service overrides are useful for:
 ## Example: Environment-Specific Override
 
 ```typescript
-import { Injectable, InjectionToken } from '@navios/di'
+import { Container, Injectable, Token } from '@navios/di'
 
-const EMAIL_SERVICE_TOKEN = InjectionToken.create<EmailService>('EmailService')
+const EMAIL_SERVICE_TOKEN = Token.create<EmailService>('EmailService')
 
 // Development email service (logs to console)
 @Injectable({ token: EMAIL_SERVICE_TOKEN, priority: 100 })

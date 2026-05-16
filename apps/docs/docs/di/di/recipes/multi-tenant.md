@@ -34,8 +34,10 @@ class TenantContext {
 ```typescript
 @Injectable({ scope: InjectableScope.Request })
 class TenantDatabaseService {
-  private readonly tenantContext = inject(TenantContext)
-  private readonly db = inject(DatabaseService)
+  @Inject(TenantContext)
+  private accessor tenantContext!: TenantContext
+  @Inject(DatabaseService)
+  private accessor db!: DatabaseService
 
   async query(sql: string) {
     const tenantId = this.tenantContext.getTenantId()
@@ -59,7 +61,7 @@ app.use(async (req, res, next) => {
 
   // Add tenant context to request
   scoped.addInstance(
-    InjectionToken.create<TenantContext>('TenantContext'),
+    Token.create<TenantContext>('TenantContext'),
     new TenantContext(tenantId, tenantConfig)
   )
 

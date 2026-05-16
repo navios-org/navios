@@ -41,7 +41,7 @@ await scoped.endRequest()
 ### Using Request-Scoped Services
 
 ```typescript
-import { Injectable, InjectableScope, inject } from '@navios/di'
+import { Inject, Injectable, InjectableScope } from '@navios/di'
 
 @Injectable({ scope: InjectableScope.Request })
 class RequestLogger {
@@ -65,8 +65,10 @@ class DatabaseService {
 
 @Injectable({ scope: InjectableScope.Request })
 class RequestHandler {
-  private logger = inject(RequestLogger)
-  private db = inject(DatabaseService) // Singleton, shared across requests
+  @Inject(RequestLogger)
+  private accessor logger!: RequestLogger
+  @Inject(DatabaseService) // Singleton, shared across requests
+  private accessor db!: DatabaseService
 
   async handle() {
     this.logger.log('Processing request')
@@ -113,7 +115,7 @@ class ScopedContainer implements IContainer {
   setMetadata(key: string, value: any): void
 
   // Add a pre-prepared instance to the request context
-  addInstance(token: InjectionToken<any>, instance: any): void
+  addInstance<T>(token: ClassType | Token<T, any> | BoundToken<T, any>, instance: T): void
 
   // End the request and cleanup all request-scoped services
   endRequest(): Promise<void>
@@ -127,7 +129,7 @@ class ScopedContainer implements IContainer {
 You can add pre-prepared instances to a request context:
 
 ```typescript
-const REQUEST_TOKEN = InjectionToken.create<{ userId: string }>('RequestData')
+const REQUEST_TOKEN = Token.create<{ userId: string }>('RequestData')
 
 const scoped = container.beginRequest('req-123')
 
@@ -183,7 +185,7 @@ await Promise.all([scoped1.endRequest(), scoped2.endRequest()])
 ### Express.js Example
 
 ```typescript
-import { Container, Injectable, InjectableScope, inject } from '@navios/di'
+import { Container, Injectable, InjectableScope } from '@navios/di'
 import express from 'express'
 
 @Injectable({ scope: InjectableScope.Request })

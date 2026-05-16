@@ -34,7 +34,7 @@ This token-based system enables:
 ### Token Types
 
 - **Class-based tokens**: Auto-created from classes when using `@Injectable()` without a token
-- **Explicit tokens**: Created with `InjectionToken.create()` and provided via the `token` option
+- **Explicit tokens**: Created with `Token.create()` and provided via the `token` option
 - **Schema-based tokens**: Tokens with Zod schemas for type-safe configuration
 - **Bound tokens**: Pre-configured tokens with static values
 - **Factory tokens**: Tokens that provide dynamic default values
@@ -81,7 +81,7 @@ A **Factory** is a class decorated with `@Factory()` that implements a `create()
 - **Has an Injection Token**: Like services, factories have tokens (auto-created or provided)
 - **Returns created objects**: The factory's `create()` method is called, and its return value is what you get
 - **Configuration-based**: Factories can accept configuration via injection tokens with schemas
-- **Dependency injection**: Factories can inject other services using `inject()` or `ctx.container`
+- **Dependency injection**: Factories can inject other services using `@Inject` accessor fields or `ctx.container`
 
 ### Factory Registration
 
@@ -236,7 +236,7 @@ The **Priority System** allows multiple services to register for the same Inject
 ### How It Works
 
 1. **Registration**: Services are registered with the DI container (via decorators)
-2. **Injection**: Dependencies are requested using `inject()`, `asyncInject()`, or `optional()`
+2. **Injection**: Dependencies are requested using the `@Inject` / `@InjectLazy` / `@InjectOptional` / `@InjectDerived` accessor decorators
 3. **Resolution**: The container automatically resolves and provides dependencies
 4. **Lifecycle**: Services have scoped lifetimes and lifecycle hooks
 

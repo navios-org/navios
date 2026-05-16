@@ -9,7 +9,8 @@ This recipe demonstrates how to manage database connections using dependency inj
 ## Basic Database Service
 
 ```typescript
-import { Injectable, OnServiceDestroy, OnServiceInit } from '@navios/di'
+import { Inject, Injectable } from '@navios/di'
+import type { OnServiceDestroy, OnServiceInit } from '@navios/di'
 
 @Injectable()
 class DatabaseService implements OnServiceInit, OnServiceDestroy {
@@ -87,7 +88,8 @@ class DatabasePool implements OnServiceInit, OnServiceDestroy {
 ```typescript
 @Injectable()
 class UserRepository {
-  private readonly db = inject(DatabaseService)
+  @Inject(DatabaseService)
+  private accessor db!: DatabaseService
 
   async findById(id: string) {
     return this.db.query(`SELECT * FROM users WHERE id = ${id}`)

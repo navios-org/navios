@@ -23,7 +23,7 @@ class UserService {
 }
 
 // Explicit token
-const USER_SERVICE_TOKEN = InjectionToken.create<UserService>('UserService')
+const USER_SERVICE_TOKEN = Token.create<UserService>('UserService')
 
 @Injectable({ token: USER_SERVICE_TOKEN })
 class UserService {
@@ -48,9 +48,9 @@ class UserService {}
 @Injectable({ registry: paymentRegistry })
 class PaymentService {}
 
-// Containers can use specific registries
-const userContainer = new Container(userRegistry)
-const paymentContainer = new Container(paymentRegistry)
+// Containers can use specific registries (options bag)
+const userContainer = new Container({ registry: userRegistry })
+const paymentContainer = new Container({ registry: paymentRegistry })
 ```
 
 This is useful for:
@@ -63,9 +63,9 @@ This is useful for:
 Multiple services can register for the same Injection Token. The service with the highest priority is resolved:
 
 ```typescript
-import { Injectable, InjectionToken } from '@navios/di'
+import { Container, Injectable, Token } from '@navios/di'
 
-const USER_SERVICE_TOKEN = InjectionToken.create<UserService>('UserService')
+const USER_SERVICE_TOKEN = Token.create<UserService>('UserService')
 
 // Default service (priority: 100)
 @Injectable({ token: USER_SERVICE_TOKEN, priority: 100 })
@@ -93,7 +93,7 @@ const service = await container.get(USER_SERVICE_TOKEN) // Returns OverrideUserS
 You can retrieve all registrations for a token, sorted by priority:
 
 ```typescript
-const registry = container.getRegistry()
+const registry = container.internals.registry
 const allRegistrations = registry.getAll(USER_SERVICE_TOKEN)
 // Returns both services, sorted by priority (highest first)
 // allRegistrations[0] = OverrideUserService (priority: 200)
@@ -109,12 +109,13 @@ This is useful for:
 
 ### Circular Dependencies
 
-When services depend on each other, use `asyncInject()` to break the cycle:
+When services depend on each other, use `@InjectLazy` to break the cycle:
 
 ```typescript
 @Injectable()
 class ServiceA {
-  private serviceB = asyncInject(ServiceB)
+  @InjectLazy(ServiceB)
+  private accessor serviceB!: Promise<ServiceB>
 
   async doSomething() {
     const b = await this.serviceB
@@ -124,8 +125,9 @@ class ServiceA {
 
 @Injectable()
 class ServiceB {
-  private serviceA = inject(ServiceA) // This side can use inject()
-  
+  @Inject(ServiceA) // This side can use eager @Inject
+  private accessor serviceA!: ServiceA
+
   getValue() {
     return 'value from B'
   }
@@ -136,13 +138,16 @@ See the [Circular Dependencies guide](/docs/di/di/guides/circular-dependencies) 
 
 ### Optional Dependencies
 
-Use `optional()` for dependencies that might not be available:
+Use `@InjectOptional` for dependencies that might not be available:
 
 ```typescript
 @Injectable()
 class NotificationService {
-  private readonly emailService = optional(EmailService)
-  private readonly smsService = optional(SmsService)
+  @InjectOptional(EmailService)
+  private accessor emailService!: EmailService | null
+
+  @InjectOptional(SmsService)
+  private accessor smsService!: SmsService | null
 
   async notify(message: string) {
     // Only calls if available
@@ -159,7 +164,8 @@ Inject different services based on configuration:
 ```typescript
 @Injectable()
 class PaymentService {
-  private readonly processor = inject(PAYMENT_PROCESSOR_TOKEN)
+  @Inject(PAYMENT_PROCESSOR_TOKEN)
+  private accessor processor!: PaymentProcessor
 
   async processPayment(amount: number) {
     // Processor is resolved based on priority/override
@@ -173,8 +179,8 @@ class PaymentService {
 Services can accept constructor arguments validated by Zod schemas:
 
 ```typescript
-import { Injectable } from '@navios/di'
-import { z } from 'zod'
+import { Container, Injectable } from '@navios/di'
+import { z } from 'zod/v4'
 
 const databaseConfigSchema = z.object({
   host: z.string(),
@@ -269,7 +275,7 @@ interface PaymentProcessor {
   processPayment(amount: number): Promise<string>
 }
 
-const PAYMENT_PROCESSOR_TOKEN = InjectionToken.create<PaymentProcessor>('PaymentProcessor')
+const PAYMENT_PROCESSOR_TOKEN = Token.create<PaymentProcessor>('PaymentProcessor')
 
 @Injectable({ token: PAYMENT_PROCESSOR_TOKEN })
 class StripePaymentProcessor implements PaymentProcessor {

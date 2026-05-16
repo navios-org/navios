@@ -60,12 +60,12 @@ function App() {
 
 ```tsx
 import { useMemo } from 'react'
-import { InjectionToken } from '@navios/di'
+import { Token } from '@navios/di'
 import { useSuspenseService } from '@navios/di-react'
-import { z } from 'zod'
+import { z } from 'zod/v4'
 
 const UserSchema = z.object({ userId: z.string() })
-const UserToken = InjectionToken.create<
+const UserToken = Token.create<
   { userId: string; name: string },
   typeof UserSchema
 >('User', UserSchema)

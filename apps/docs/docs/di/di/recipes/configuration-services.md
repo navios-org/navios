@@ -9,8 +9,8 @@ A common pattern in applications is to manage configuration through dependency i
 ## Basic Configuration Service
 
 ```typescript
-import { Injectable, InjectionToken } from '@navios/di'
-import { z } from 'zod'
+import { Container, Injectable, Token } from '@navios/di'
+import { z } from 'zod/v4'
 
 const configSchema = z.object({
   apiUrl: z.string().url(),
@@ -18,14 +18,14 @@ const configSchema = z.object({
   retries: z.number().min(0).max(10),
 })
 
-const CONFIG_TOKEN = InjectionToken.create<ConfigService, typeof configSchema>(
+const CONFIG_TOKEN = Token.create<ConfigService, typeof configSchema>(
   'APP_CONFIG',
   configSchema,
 )
 
 @Injectable({ token: CONFIG_TOKEN })
 class ConfigService {
-  constructor(private config: z.infer<typeof configSchema>) {}
+  constructor(private config: z.output<typeof configSchema>) {}
 
   getApiUrl() {
     return this.config.apiUrl
@@ -54,13 +54,13 @@ const config = await container.get(CONFIG_TOKEN, {
 Use bound tokens for environment-specific configurations:
 
 ```typescript
-const PRODUCTION_CONFIG = InjectionToken.bound(CONFIG_TOKEN, {
+const PRODUCTION_CONFIG = CONFIG_TOKEN.bind({
   apiUrl: 'https://api.production.com',
   timeout: 10000,
   retries: 5,
 })
 
-const DEVELOPMENT_CONFIG = InjectionToken.bound(CONFIG_TOKEN, {
+const DEVELOPMENT_CONFIG = CONFIG_TOKEN.bind({
   apiUrl: 'https://api.dev.com',
   timeout: 5000,
   retries: 3,
@@ -77,7 +77,7 @@ const config = await container.get(
 Use factory tokens for dynamic configuration resolution:
 
 ```typescript
-const DYNAMIC_CONFIG = InjectionToken.factory(CONFIG_TOKEN, async (ctx) => {
+const DYNAMIC_CONFIG = CONFIG_TOKEN.fromFactory(async (ctx) => {
   const env = process.env.NODE_ENV || 'development'
 
   return {
@@ -105,7 +105,7 @@ const databaseConfigSchema = z.object({
   database: z.string(),
 })
 
-const DATABASE_CONFIG_TOKEN = InjectionToken.create<
+const DATABASE_CONFIG_TOKEN = Token.create<
   DatabaseConfig,
   typeof databaseConfigSchema
 >('DATABASE_CONFIG', databaseConfigSchema)
@@ -116,14 +116,14 @@ const emailConfigSchema = z.object({
   fromEmail: z.string().email(),
 })
 
-const EMAIL_CONFIG_TOKEN = InjectionToken.create<
+const EMAIL_CONFIG_TOKEN = Token.create<
   EmailConfig,
   typeof emailConfigSchema
 >('EMAIL_CONFIG', emailConfigSchema)
 
 @Injectable({ token: DATABASE_CONFIG_TOKEN })
 class DatabaseConfig {
-  constructor(private config: z.infer<typeof databaseConfigSchema>) {}
+  constructor(private config: z.output<typeof databaseConfigSchema>) {}
 
   getConnectionString() {
     return `postgresql://${this.config.host}:${this.config.port}/${this.config.database}`
@@ -132,7 +132,7 @@ class DatabaseConfig {
 
 @Injectable({ token: EMAIL_CONFIG_TOKEN })
 class EmailConfig {
-  constructor(private config: z.infer<typeof emailConfigSchema>) {}
+  constructor(private config: z.output<typeof emailConfigSchema>) {}
 
   getSmtpConfig() {
     return {
@@ -147,13 +147,16 @@ class EmailConfig {
 ## Using Configuration in Services
 
 ```typescript
+import { Inject, Injectable } from '@navios/di'
+
 @Injectable()
 class ApiClient {
-  private readonly config = inject(CONFIG_TOKEN, {
+  @Inject(CONFIG_TOKEN, {
     apiUrl: 'https://api.example.com',
     timeout: 5000,
     retries: 3,
   })
+  private accessor config!: ConfigService
 
   async request(path: string) {
     const url = `${this.config.getApiUrl()}${path}`

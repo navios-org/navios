@@ -70,8 +70,10 @@ class CacheFactory {
 ```typescript
 @Injectable()
 class UserService {
-  private readonly cache = inject(CacheService)
-  private readonly db = inject(DatabaseService)
+  @Inject(CacheService)
+  private accessor cache!: CacheService
+  @Inject(DatabaseService)
+  private accessor db!: DatabaseService
 
   async getUser(id: string) {
     // Check cache first

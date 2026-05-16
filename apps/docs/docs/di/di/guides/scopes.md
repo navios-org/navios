@@ -182,17 +182,19 @@ const context = await scoped.get(RequestContext)
 
 ## Scope Compatibility
 
-### Injection Method Compatibility
+### Injection Decorator Compatibility
 
-| Scope     | inject                              | asyncInject  |
-| --------- | ----------------------------------- | ------------ |
-| Singleton | ✅ Supported                        | ✅ Supported |
-| Transient | ✅ Supported (async initialization) | ✅ Supported |
-| Request   | ✅ Supported                        | ✅ Supported |
+| Scope     | `@Inject` (eager)                                | `@InjectLazy` |
+| --------- | ------------------------------------------------ | ------------- |
+| Singleton | ✅ Supported                                     | ✅ Supported  |
+| Transient | ✅ Supported                                     | ✅ Supported  |
+| Request   | ✅ from a Request host; ❌ from a Singleton host (use `@InjectLazy`) | ✅ Supported  |
 
-### Using inject with Transient Services
+An eager `@Inject` of a `Request`- or `Transient`-scoped dependency from a `Singleton` host throws a scope-mismatch `DIError`. Use `@InjectLazy` to safely depend on a narrower-scoped service from a wider-scoped host.
 
-The `inject` helper now supports Transient services through automatic async initialization tracking. When you use `inject` with a Transient service, the DI system tracks the async dependencies and ensures they're resolved before the service is fully initialized.
+### Using `@Inject` with Transient Services
+
+`@Inject` resolves the dependency before the host's `onServiceInit` runs and assigns it to the `accessor` field.
 
 ```typescript
 @Injectable({ scope: InjectableScope.Transient })
@@ -204,11 +206,11 @@ class TransientService {
 
 @Injectable()
 class ConsumerService {
-  // ✅ This now works! The inject helper tracks async initialization
-  private readonly service = inject(TransientService)
+  @Inject(TransientService)
+  private accessor service!: TransientService
 
   async doSomething() {
-    // The service will be available after initialization completes
+    // The field is populated before onServiceInit runs
     this.service.getValue()
   }
 }
@@ -216,9 +218,8 @@ class ConsumerService {
 
 **Important Notes:**
 
-- When using `inject` with Transient services, the dependency won't be immediately available during constructor execution
-- Access the service only in async methods or after the service initialization completes
-- For synchronous access during construction, use `asyncInject` and await it explicitly
+- Injected fields are populated after the constructor and before `onServiceInit` — never read them in the constructor
+- For deferred / circular / cross-scope dependencies, use `@InjectLazy(X) accessor x!: Promise<X>` and `await` it
 
 ## Real-World Examples
 
@@ -272,7 +273,7 @@ class DatabasePool implements OnServiceInit, OnServiceDestroy {
 ### Transient: Request Context
 
 ```typescript
-import { inject, Injectable, InjectableScope } from '@navios/di'
+import { Injectable, InjectableScope } from '@navios/di'
 
 @Injectable({ scope: InjectableScope.Transient })
 class RequestContext {

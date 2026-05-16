@@ -9,23 +9,24 @@ This recipe shows how to create and manage HTTP clients using dependency injecti
 ## Basic HTTP Client Factory
 
 ```typescript
-import { Factory, InjectionToken } from '@navios/di'
-import { z } from 'zod'
+import { Factory, Token } from '@navios/di'
+import type { FactorableWithArgs, FactoryContext } from '@navios/di'
+import { z } from 'zod/v4'
 
 const httpConfigSchema = z.object({
   baseUrl: z.string().url(),
   timeout: z.number().default(5000),
-  headers: z.record(z.string()).optional(),
+  headers: z.record(z.string(), z.string()).optional(),
 })
 
-const HTTP_CONFIG_TOKEN = InjectionToken.create<
+const HTTP_CONFIG_TOKEN = Token.create<
   HttpClient,
   typeof httpConfigSchema
 >('HTTP_CONFIG', httpConfigSchema)
 
 @Factory({ token: HTTP_CONFIG_TOKEN })
-class HttpClientFactory {
-  create(ctx: FactoryContext, config: z.infer<typeof httpConfigSchema>) {
+class HttpClientFactory implements FactorableWithArgs<HttpClient, typeof httpConfigSchema> {
+  create(ctx: FactoryContext, config: z.output<typeof httpConfigSchema>) {
     return {
       baseUrl: config.baseUrl,
       timeout: config.timeout,
@@ -59,12 +60,15 @@ const httpClient = await container.get(HTTP_CONFIG_TOKEN, {
 ## Service Using HTTP Client
 
 ```typescript
+import { Inject, Injectable } from '@navios/di'
+
 @Injectable()
 class ApiService {
-  private readonly httpClient = inject(HTTP_CONFIG_TOKEN, {
+  @Inject(HTTP_CONFIG_TOKEN, {
     baseUrl: 'https://api.example.com',
     timeout: 5000,
   })
+  private accessor httpClient!: HttpClient
 
   async getUsers() {
     return this.httpClient.get('/users')

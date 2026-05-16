@@ -25,7 +25,7 @@ interface PaymentProcessor {
 }
 
 const PAYMENT_PROCESSOR_TOKEN =
-  InjectionToken.create<PaymentProcessor>('PaymentProcessor')
+  Token.create<PaymentProcessor>('PaymentProcessor')
 
 // Stripe implementation
 @Injectable({ token: PAYMENT_PROCESSOR_TOKEN, priority: 100 })
@@ -58,8 +58,8 @@ This pattern is useful for:
 Injection Tokens can use complex Zod schemas for type-safe configuration:
 
 ```typescript
-import { Injectable, InjectionToken } from '@navios/di'
-import { z } from 'zod'
+import { Injectable, Token } from '@navios/di'
+import { z } from 'zod/v4'
 
 // Complex nested schema
 const appConfigSchema = z.object({
@@ -82,14 +82,14 @@ const appConfigSchema = z.object({
   }),
 })
 
-const APP_CONFIG_TOKEN = InjectionToken.create<
+const APP_CONFIG_TOKEN = Token.create<
   AppConfig,
   typeof appConfigSchema
 >('APP_CONFIG', appConfigSchema)
 
 @Injectable({ token: APP_CONFIG_TOKEN })
 class AppConfigService {
-  constructor(private config: z.infer<typeof appConfigSchema>) {}
+  constructor(private config: z.output<typeof appConfigSchema>) {}
 
   getDatabaseHost() {
     return this.config.database.host
@@ -108,7 +108,7 @@ const baseConfigSchema = z.object({
   debug: z.boolean(),
 })
 
-const BASE_CONFIG_TOKEN = InjectionToken.create<
+const BASE_CONFIG_TOKEN = Token.create<
   BaseConfig,
   typeof baseConfigSchema
 >('BASE_CONFIG', baseConfigSchema)
@@ -119,7 +119,7 @@ const extendedConfigSchema = baseConfigSchema.extend({
   apiSecret: z.string(),
 })
 
-const EXTENDED_CONFIG_TOKEN = InjectionToken.create<
+const EXTENDED_CONFIG_TOKEN = Token.create<
   ExtendedConfig,
   typeof extendedConfigSchema
 >('EXTENDED_CONFIG', extendedConfigSchema)
@@ -130,8 +130,8 @@ const EXTENDED_CONFIG_TOKEN = InjectionToken.create<
 You can inject schema-based services with bound arguments:
 
 ```typescript
-import { inject, Injectable } from '@navios/di'
-import { z } from 'zod'
+import { Inject, Injectable } from '@navios/di'
+import { z } from 'zod/v4'
 
 const dbConfigSchema = z.object({
   connectionString: z.string(),
@@ -144,10 +144,11 @@ class DatabaseConfig {
 
 @Injectable()
 class DatabaseService {
-  // Inject with bound arguments
-  private dbConfig = inject(DatabaseConfig, {
+  // @Inject with static bound arguments (second arg)
+  @Inject(DatabaseConfig, {
     connectionString: 'postgres://localhost:5432/myapp',
   })
+  private accessor dbConfig!: DatabaseConfig
 
   connect() {
     return `Connecting to ${this.dbConfig.config.connectionString}`
@@ -161,9 +162,9 @@ Organize related tokens together:
 
 ```typescript
 export const DATABASE_TOKENS = {
-  CONFIG: InjectionToken.create<DatabaseConfig>('DatabaseConfig'),
-  CONNECTION: InjectionToken.create<DatabaseConnection>('DatabaseConnection'),
-  REPOSITORY: InjectionToken.create<UserRepository>('UserRepository'),
+  CONFIG: Token.create<DatabaseConfig>('DatabaseConfig'),
+  CONNECTION: Token.create<DatabaseConnection>('DatabaseConnection'),
+  REPOSITORY: Token.create<UserRepository>('UserRepository'),
 } as const
 
 // Usage
@@ -181,19 +182,19 @@ This improves maintainability and makes token relationships clear.
 ### Environment-Specific Bound Tokens
 
 ```typescript
-const CONFIG_TOKEN = InjectionToken.create<Config, typeof configSchema>(
+const CONFIG_TOKEN = Token.create<Config, typeof configSchema>(
   'APP_CONFIG',
   configSchema,
 )
 
-// Create environment-specific bound tokens
-const PRODUCTION_CONFIG = InjectionToken.bound(CONFIG_TOKEN, {
+// Create environment-specific bound tokens (token.bind(value) -> BoundToken)
+const PRODUCTION_CONFIG = CONFIG_TOKEN.bind({
   apiUrl: 'https://api.production.com',
   timeout: 10000,
   retries: 5,
 })
 
-const DEVELOPMENT_CONFIG = InjectionToken.bound(CONFIG_TOKEN, {
+const DEVELOPMENT_CONFIG = CONFIG_TOKEN.bind({
   apiUrl: 'https://api.dev.com',
   timeout: 5000,
   retries: 3,
@@ -212,7 +213,7 @@ const config = await container.get(configToken)
 ### Dynamic Configuration Based on Dependencies
 
 ```typescript
-const DYNAMIC_CONFIG = InjectionToken.factory(CONFIG_TOKEN, async (ctx) => {
+const DYNAMIC_CONFIG = CONFIG_TOKEN.fromFactory(async (ctx) => {
   // Access other services from the container
   const envService = await ctx.container.get(EnvironmentService)
   const featureFlags = await ctx.container.get(FeatureFlagsService)
@@ -228,7 +229,7 @@ const DYNAMIC_CONFIG = InjectionToken.factory(CONFIG_TOKEN, async (ctx) => {
 ### Conditional Factory Tokens
 
 ```typescript
-const CONDITIONAL_CONFIG = InjectionToken.factory(CONFIG_TOKEN, async (ctx) => {
+const CONDITIONAL_CONFIG = CONFIG_TOKEN.fromFactory(async (ctx) => {
   const env = process.env.NODE_ENV || 'development'
 
   if (env === 'production') {
@@ -259,11 +260,11 @@ Choose clear, descriptive names that indicate the token's purpose:
 ```typescript
 // ✅ Good: Descriptive names
 const USER_REPOSITORY_TOKEN =
-  InjectionToken.create<UserRepository>('UserRepository')
-const EMAIL_SERVICE_TOKEN = InjectionToken.create<EmailService>('EmailService')
+  Token.create<UserRepository>('UserRepository')
+const EMAIL_SERVICE_TOKEN = Token.create<EmailService>('EmailService')
 
 // ❌ Avoid: Generic names
-const SERVICE_TOKEN = InjectionToken.create<Service>('Service')
+const SERVICE_TOKEN = Token.create<Service>('Service')
 ```
 
 ### 2. Define Schemas for Configuration Tokens
@@ -278,7 +279,7 @@ const configSchema = z.object({
   retries: z.number().min(0).max(10),
 })
 
-const CONFIG_TOKEN = InjectionToken.create<Config, typeof configSchema>(
+const CONFIG_TOKEN = Token.create<Config, typeof configSchema>(
   'APP_CONFIG',
   configSchema,
 )
@@ -290,9 +291,9 @@ Organize related tokens together for better maintainability:
 
 ```typescript
 export const DATABASE_TOKENS = {
-  CONFIG: InjectionToken.create<DatabaseConfig>('DatabaseConfig'),
-  CONNECTION: InjectionToken.create<DatabaseConnection>('DatabaseConnection'),
-  REPOSITORY: InjectionToken.create<UserRepository>('UserRepository'),
+  CONFIG: Token.create<DatabaseConfig>('DatabaseConfig'),
+  CONNECTION: Token.create<DatabaseConnection>('DatabaseConnection'),
+  REPOSITORY: Token.create<UserRepository>('UserRepository'),
 } as const
 ```
 
@@ -301,7 +302,7 @@ export const DATABASE_TOKENS = {
 Bound tokens are perfect for environment-specific static configuration:
 
 ```typescript
-const PRODUCTION_CONFIG = InjectionToken.bound(CONFIG_TOKEN, {
+const PRODUCTION_CONFIG = CONFIG_TOKEN.bind({
   apiUrl: 'https://api.production.com',
   timeout: 10000,
   retries: 5,
@@ -313,7 +314,7 @@ const PRODUCTION_CONFIG = InjectionToken.bound(CONFIG_TOKEN, {
 Factory tokens are ideal when configuration depends on runtime values:
 
 ```typescript
-const DYNAMIC_CONFIG = InjectionToken.factory(CONFIG_TOKEN, async () => {
+const DYNAMIC_CONFIG = CONFIG_TOKEN.fromFactory(async () => {
   const env = process.env.NODE_ENV || 'development'
 
   return {

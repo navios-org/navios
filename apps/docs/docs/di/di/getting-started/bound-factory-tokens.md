@@ -4,15 +4,15 @@ sidebar_position: 4
 
 # Bound and Factory Tokens
 
-Bound and Factory Injection Tokens provide default configuration values to services or factories. They don't create services by themselves - the service must still be defined with `@Injectable` or `@Factory` decorators.
+`BoundToken` and `FactoryToken` provide default configuration values to services or factories. They don't create services by themselves - the service must still be defined with `@Injectable` or `@Factory` decorators.
 
-## Bound Injection Tokens
+## Bound Tokens
 
-Bound tokens pre-configure a token with specific static values. Use them for environment-specific configuration:
+Bound tokens pre-configure a token with specific static values via `token.bind(value)`. Use them for environment-specific configuration:
 
 ```typescript
-import { InjectionToken } from '@navios/di'
-import { z } from 'zod'
+import { Container, Injectable, Token } from '@navios/di'
+import { z } from 'zod/v4'
 
 // Define the base token with schema
 const configSchema = z.object({
@@ -20,18 +20,18 @@ const configSchema = z.object({
   timeout: z.number(),
 })
 
-const CONFIG_TOKEN = InjectionToken.create<Config, typeof configSchema>(
+const CONFIG_TOKEN = Token.create<z.infer<typeof configSchema>, typeof configSchema>(
   'APP_CONFIG',
   configSchema
 )
 
-// Create bound tokens with specific values
-const PRODUCTION_CONFIG = InjectionToken.bound(CONFIG_TOKEN, {
+// Create bound tokens with specific values (token.bind(value) -> BoundToken)
+const PRODUCTION_CONFIG = CONFIG_TOKEN.bind({
   apiUrl: 'https://api.production.com',
   timeout: 10000,
 })
 
-const DEVELOPMENT_CONFIG = InjectionToken.bound(CONFIG_TOKEN, {
+const DEVELOPMENT_CONFIG = CONFIG_TOKEN.bind({
   apiUrl: 'https://api.dev.com',
   timeout: 5000,
 })
@@ -39,7 +39,7 @@ const DEVELOPMENT_CONFIG = InjectionToken.bound(CONFIG_TOKEN, {
 // Register the service
 @Injectable({ token: CONFIG_TOKEN })
 class ConfigService {
-  constructor(private config: z.infer<typeof configSchema>) {}
+  constructor(private config: z.output<typeof configSchema>) {}
 
   getApiUrl() {
     return this.config.apiUrl
@@ -54,20 +54,20 @@ const devConfig = await container.get(DEVELOPMENT_CONFIG)
 
 Bound tokens provide **static** configuration values that don't change. They're perfect for environment-specific static configuration.
 
-## Factory Injection Tokens
+## Factory Tokens
 
-Factory tokens provide **default configuration values** dynamically. They compute configuration values at runtime:
+Factory tokens provide **default configuration values** dynamically via `token.fromFactory(fn)`. They compute configuration values at runtime:
 
 ```typescript
-import { InjectionToken } from '@navios/di'
-import { z } from 'zod'
+import { Container, Injectable, Token } from '@navios/di'
+import { z } from 'zod/v4'
 
 const configSchema = z.object({
   apiUrl: z.string(),
   timeout: z.number(),
 })
 
-const CONFIG_TOKEN = InjectionToken.create<Config, typeof configSchema>(
+const CONFIG_TOKEN = Token.create<z.infer<typeof configSchema>, typeof configSchema>(
   'APP_CONFIG',
   configSchema
 )
@@ -75,7 +75,7 @@ const CONFIG_TOKEN = InjectionToken.create<Config, typeof configSchema>(
 // Register the service
 @Injectable({ token: CONFIG_TOKEN })
 class ConfigService {
-  constructor(private config: z.infer<typeof configSchema>) {}
+  constructor(private config: z.output<typeof configSchema>) {}
 
   getApiUrl() {
     return this.config.apiUrl
@@ -83,7 +83,7 @@ class ConfigService {
 }
 
 // Create factory token that provides default configuration values
-const DYNAMIC_CONFIG = InjectionToken.factory(CONFIG_TOKEN, async (ctx) => {
+const DYNAMIC_CONFIG = CONFIG_TOKEN.fromFactory(async (ctx) => {
   const env = process.env.NODE_ENV || 'development'
 
   // Return configuration values that will be passed to ConfigService
@@ -106,20 +106,20 @@ console.log(config.getApiUrl()) // Dynamically resolved based on environment
 
 ## Bound vs Factory Tokens
 
-Both `InjectionToken.bound()` and `InjectionToken.factory()` provide **default configuration values** to services or factories. They don't create services by themselves.
+Both `token.bind()` (→ `BoundToken`) and `token.fromFactory()` (→ `FactoryToken`) provide **default configuration values** to services or factories. They don't create services by themselves. (`Token.bound(token, value)` / `Token.factory(token, fn)` are equivalent static helpers.)
 
 - **Bound Tokens**: Use when you have **static** configuration values that don't change
 - **Factory Tokens**: Use when you need to **dynamically compute** configuration values (e.g., based on environment variables, async operations, or other dependencies)
 
 ```typescript
 // Bound: Static values
-const PROD_CONFIG = InjectionToken.bound(CONFIG_TOKEN, {
+const PROD_CONFIG = CONFIG_TOKEN.bind({
   apiUrl: 'https://api.prod.com',
   timeout: 10000,
 })
 
 // Factory: Dynamic values
-const DYNAMIC_CONFIG = InjectionToken.factory(CONFIG_TOKEN, async (ctx) => {
+const DYNAMIC_CONFIG = CONFIG_TOKEN.fromFactory(async (ctx) => {
   const env = process.env.NODE_ENV || 'development'
   return {
     apiUrl:

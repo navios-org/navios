@@ -88,12 +88,13 @@ The `onServiceInit` method is called after:
 
 1. The service instance is created
 2. All constructor dependencies are injected
-3. All property dependencies (via `asyncInject` or `inject`) are resolved
+3. All eager `@Inject` accessor fields are resolved and assigned
 
 **Why this matters**: Services can be initialized multiple times during dependency resolution. Accessing injected services in the constructor can fail or behave unexpectedly because dependencies may not be fully ready. Always use `onServiceInit()` for initialization logic that depends on other services.
 
 ```typescript
-import { inject, Injectable, OnServiceInit } from '@navios/di'
+import { Inject, Injectable } from '@navios/di'
+import type { OnServiceInit } from '@navios/di'
 
 @Injectable()
 class LoggerService {
@@ -104,7 +105,8 @@ class LoggerService {
 
 @Injectable()
 class DatabaseService implements OnServiceInit {
-  private readonly logger = inject(LoggerService)
+  @Inject(LoggerService)
+  private accessor logger!: LoggerService
   private connection: any = null
 
   async onServiceInit() {
@@ -314,8 +316,10 @@ class ConditionalService implements OnServiceInit, OnServiceDestroy {
 // ❌ Avoid: Accessing services in constructor
 @Injectable()
 class ProblematicService implements OnServiceInit {
-  private readonly logger = inject(LoggerService)
-  private readonly db = inject(DatabaseService)
+  @Inject(LoggerService)
+  private accessor logger!: LoggerService
+  @Inject(DatabaseService)
+  private accessor db!: DatabaseService
 
   constructor() {
     // ❌ Services may not be fully initialized yet
@@ -332,7 +336,8 @@ class ProblematicService implements OnServiceInit {
 // ✅ Good: Only use constructor for simple initialization
 @Injectable()
 class CorrectService implements OnServiceInit {
-  private readonly logger = inject(LoggerService)
+  @Inject(LoggerService)
+  private accessor logger!: LoggerService
   private connection: any = null
 
   constructor() {

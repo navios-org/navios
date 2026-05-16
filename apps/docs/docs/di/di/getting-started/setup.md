@@ -25,8 +25,12 @@ pnpm add @navios/di zod
 ## Prerequisites
 
 - **Runtime**: Node.js 18+, Bun, Deno, or modern browsers
-- **TypeScript**: 5.0 or higher
+- **TypeScript**: 5.2 or higher (stage-3 decorators + decorator metadata)
 - **Modern TypeScript project**: ES2022+ target recommended
+
+:::info
+v2 requires a runtime/toolchain with **stage-3 decorators and decorator metadata** (`Symbol.metadata`). TypeScript 5.2+ with `"useDefineForClassFields": true` (the default for modern targets), or a Babel/SWC setup with the stage-3 decorators + decorator-metadata transforms. The v1 `@navios/di/legacy-compat` module (and `experimentalDecorators` support) was removed in v2.
+:::
 
 :::tip Browser Support
 Navios DI works seamlessly in browser environments. Bundlers like Vite, webpack, and esbuild automatically use the optimized browser build. See the [Browser Support guide](/docs/di/di/guides/browser-support) for details.
@@ -42,43 +46,14 @@ Make sure your `tsconfig.json` has the correct settings for decorators:
     "target": "ES2022",
     "module": "ESNext",
     "moduleResolution": "node16",
+    "useDefineForClassFields": true,
     "experimentalDecorators": false
   }
 }
 ```
 
 :::important
-Navios DI uses native ES decorators, not legacy decorators. Ensure `experimentalDecorators` is set to `false` (or omitted).
-:::
-
-### Alternative: Legacy Decorators
-
-If you cannot disable `experimentalDecorators` (e.g., existing codebase or certain bundler limitations), use the legacy-compatible decorators:
-
-```json title="tsconfig.json"
-{
-  "compilerOptions": {
-    "experimentalDecorators": true,
-    "emitDecoratorMetadata": true
-  }
-}
-```
-
-```typescript
-// Import decorators from legacy-compat
-import { Injectable, Factory } from '@navios/di/legacy-compat'
-
-// Other imports remain the same
-import { inject, asyncInject, Container } from '@navios/di'
-
-@Injectable()
-class UserService {
-  // Works the same as Stage 3 decorators
-}
-```
-
-:::info
-The legacy decorators wrap Stage 3 decorators internally, so all features work identically. Only the TypeScript configuration differs.
+Navios DI v2 uses **native stage-3 decorators**, not legacy decorators. Ensure `experimentalDecorators` is set to `false` (or omitted) and `useDefineForClassFields` is `true`. The v1 legacy-decorator escape hatch (`@navios/di/legacy-compat`) was **removed in v2** — stage-3 is now required.
 :::
 
 ## Troubleshooting

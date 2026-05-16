@@ -14,15 +14,16 @@ A factory is a class decorated with `@Factory()` that implements a `create()` me
 - **Returns created objects**: The factory's `create()` method is called, and its return value is what you get
 - **Has an Injection Token**: Like services, factories have tokens (auto-created or provided)
 - **Configuration-based**: Factories can accept configuration via injection tokens with schemas
-- **Dependency injection**: Factories can inject other services using `inject()` or `ctx.container`
+- **Dependency injection**: Factories can inject other services using `@Inject` accessor fields or `ctx.container`
 
 ## Basic Factory
 
 ```typescript
-import { Factory } from '@navios/di'
+import { Container, Factory } from '@navios/di'
+import type { Factorable } from '@navios/di'
 
 @Factory()
-class DatabaseConnectionFactory {
+class DatabaseConnectionFactory implements Factorable<{ host: string; port: number; connected: boolean; connect: () => void }> {
   create() {
     return {
       host: 'localhost',
@@ -73,10 +74,10 @@ await emailService.sendEmail('user@example.com', 'Hello')
 
 ## Factory with Dependencies
 
-Factories can inject other services using the `inject()` function:
+Factories can inject other services using the `@Inject` accessor field, exactly like `@Injectable` classes:
 
 ```typescript
-import { Factory, inject, Injectable } from '@navios/di'
+import { Factory, Inject, Injectable } from '@navios/di'
 
 @Injectable()
 class LoggerService {
@@ -87,7 +88,8 @@ class LoggerService {
 
 @Factory()
 class DatabaseConnectionFactory {
-  private readonly logger = inject(LoggerService)
+  @Inject(LoggerService)
+  private accessor logger!: LoggerService
 
   create() {
     this.logger.log('Creating database connection...')
@@ -109,8 +111,9 @@ class DatabaseConnectionFactory {
 Factories can accept configuration via Injection Tokens with schemas:
 
 ```typescript
-import { Factory, InjectionToken } from '@navios/di'
-import { z } from 'zod'
+import { Factory, Token } from '@navios/di'
+import type { FactorableWithArgs, FactoryContext } from '@navios/di'
+import { z } from 'zod/v4'
 
 // Define configuration schema
 const aiConfigSchema = z.object({
@@ -119,10 +122,10 @@ const aiConfigSchema = z.object({
   model: z.string().optional(),
 })
 
-type AIConfig = z.infer<typeof aiConfigSchema>
+type AIConfig = z.output<typeof aiConfigSchema>
 
-// Create injection token
-const AI_SERVICE_TOKEN = InjectionToken.create<
+// Create token with schema
+const AI_SERVICE_TOKEN = Token.create<
   AIService,
   typeof aiConfigSchema
 >('AI_SERVICE', aiConfigSchema)
@@ -135,7 +138,7 @@ interface AIService {
 
 // Create factory that selects provider
 @Factory({ token: AI_SERVICE_TOKEN })
-class AIServiceFactory {
+class AIServiceFactory implements FactorableWithArgs<AIService, typeof aiConfigSchema> {
   create(ctx: FactoryContext, config: AIConfig): AIService {
     switch (config.provider) {
       case 'openai':
@@ -164,14 +167,15 @@ Factories receive a `FactoryContext` that provides additional functionality:
 
 ```typescript
 interface FactoryContext {
-  // Inject dependencies asynchronously
-  inject: typeof asyncInject
+  // Resolve dependencies asynchronously
+  inject: <T = unknown>(token: any, args?: any) => Promise<T>
 
   // Access to the container from which the factory is being created
-  container: Container | ScopedContainer
+  // (Container or ScopedContainer)
+  container: IContainer
 
   // Register cleanup callback
-  addDestroyListener: (listener: () => void | Promise<void>) => void
+  addDestroyListener: (listener: () => void) => void
 }
 ```
 

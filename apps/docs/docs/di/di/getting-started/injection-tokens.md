@@ -33,10 +33,10 @@ Internally, the DI system creates a token that represents `UserService`. When yo
 You can create your own Injection Token and use it explicitly:
 
 ```typescript
-import { Injectable, InjectionToken } from '@navios/di'
+import { Container, Injectable, Token } from '@navios/di'
 
-// Create an injection token
-const USER_SERVICE_TOKEN = InjectionToken.create<UserService>('UserService')
+// Create a token (the v2 identity object, renamed from v1's InjectionToken)
+const USER_SERVICE_TOKEN = Token.create<UserService>('UserService')
 
 // Register the service with the token
 @Injectable({ token: USER_SERVICE_TOKEN })
@@ -64,8 +64,8 @@ Explicit tokens are useful when:
 Injection Tokens can include Zod schemas for type-safe configuration:
 
 ```typescript
-import { Injectable, InjectionToken } from '@navios/di'
-import { z } from 'zod'
+import { Container, Injectable, Token } from '@navios/di'
+import { z } from 'zod/v4'
 
 // Define a schema for configuration
 const configSchema = z.object({
@@ -74,7 +74,7 @@ const configSchema = z.object({
 })
 
 // Create a token with schema
-const CONFIG_TOKEN = InjectionToken.create<Config, typeof configSchema>(
+const CONFIG_TOKEN = Token.create<z.infer<typeof configSchema>, typeof configSchema>(
   'APP_CONFIG',
   configSchema
 )
@@ -82,7 +82,7 @@ const CONFIG_TOKEN = InjectionToken.create<Config, typeof configSchema>(
 // Register a service with the token
 @Injectable({ token: CONFIG_TOKEN })
 class ConfigService {
-  constructor(private config: z.infer<typeof configSchema>) {}
+  constructor(private config: z.output<typeof configSchema>) {}
 
   getApiUrl() {
     return this.config.apiUrl

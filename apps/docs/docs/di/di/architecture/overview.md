@@ -42,7 +42,7 @@ The `Registry` stores service metadata and factory information. It acts as a cen
 
 ```typescript
 const registry = new Registry()
-const container = new Container(registry)
+const container = new Container({ registry })
 ```
 
 Services are registered automatically when decorated with `@Injectable()` or `@Factory()`. Each registration is stored with its Injection Token, scope, priority, and other metadata.

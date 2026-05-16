@@ -36,10 +36,10 @@ When you use `@Injectable()`, the DI system automatically creates an Injection T
 
 ## Injecting Dependencies
 
-Services can depend on other services. Use `inject()` to request a dependency:
+Services can depend on other services. Use the `@Inject` field decorator on an `accessor` field to request a dependency:
 
 ```typescript
-import { Injectable, inject, Container } from '@navios/di'
+import { Container, Inject, Injectable } from '@navios/di'
 
 @Injectable()
 class EmailService {
@@ -51,7 +51,8 @@ class EmailService {
 
 @Injectable()
 class UserService {
-  private readonly emailService = inject(EmailService)
+  @Inject(EmailService)
+  private accessor emailService!: EmailService
 
   async createUser(name: string, email: string) {
     console.log(`Creating user: ${name}`)
@@ -60,6 +61,8 @@ class UserService {
   }
 }
 ```
+
+The decorated field **must** be declared as `accessor name!: Type`. `@Inject` is a stage-3 accessor decorator and throws at decoration time if applied to a plain field, a method, or a parameter.
 
 The container automatically resolves `EmailService` when `UserService` is requested.
 
@@ -82,22 +85,26 @@ The `container.get()` method resolves the service and all its dependencies autom
 
 ## Injection Methods
 
-Navios DI provides three ways to inject dependencies:
+Navios DI provides four field decorators to inject dependencies — all applied to `accessor` fields:
 
-- **`inject()`**: Synchronous injection for immediate access (supports all scopes)
-- **`asyncInject()`**: Asynchronous injection, useful for breaking circular dependencies
-- **`optional()`**: Optional injection that returns `null` if the service isn't available
+- **`@Inject`**: Eager injection, resolved before `onServiceInit` (supports all scopes)
+- **`@InjectLazy`**: Lazy `Promise<T>` injection, useful for breaking circular dependencies
+- **`@InjectOptional`**: Optional injection that is `null` if the service isn't available
+- **`@InjectDerived`**: Resolve a token with args derived from the host's own validated args
 
 ```typescript
-// Synchronous injection (most common)
-private readonly emailService = inject(EmailService)
+// Eager injection (most common)
+@Inject(EmailService)
+private accessor emailService!: EmailService
 
-// Asynchronous injection (for circular dependencies)
-private readonly serviceB = asyncInject(ServiceB)
+// Lazy injection (for circular dependencies)
+@InjectLazy(ServiceB)
+private accessor serviceB!: Promise<ServiceB>
 // Later: const b = await this.serviceB
 
 // Optional injection
-private readonly analytics = optional(AnalyticsService)
+@InjectOptional(AnalyticsService)
+private accessor analytics!: AnalyticsService | null
 // Later: this.analytics?.track(event)
 ```
 
@@ -106,12 +113,14 @@ private readonly analytics = optional(AnalyticsService)
 **Critical**: Never access injected services in constructors. Services can be initialized multiple times during dependency resolution, and dependencies may not be fully ready. Use lifecycle methods like `onServiceInit()` for initialization logic instead.
 
 ```typescript
-import { Injectable, OnServiceInit } from '@navios/di'
+import { Inject, Injectable } from '@navios/di'
+import type { OnServiceInit } from '@navios/di'
 
 // ❌ Avoid: Accessing services in constructor
 @Injectable()
 class ProblematicService {
-  private readonly logger = inject(LoggerService)
+  @Inject(LoggerService)
+  private accessor logger!: LoggerService
 
   constructor() {
     this.logger.log('Service created') // ❌ Service may not be ready
@@ -121,7 +130,8 @@ class ProblematicService {
 // ✅ Good: Use lifecycle methods
 @Injectable()
 class CorrectService implements OnServiceInit {
-  private readonly logger = inject(LoggerService)
+  @Inject(LoggerService)
+  private accessor logger!: LoggerService
 
   async onServiceInit() {
     // ✅ All dependencies are fully initialized here
