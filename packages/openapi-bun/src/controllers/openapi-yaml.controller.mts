@@ -1,10 +1,13 @@
 import { builder } from '@navios/builder'
-import { Controller, inject, Stream } from '@navios/core'
+import { Controller, Stream } from '@navios/core'
+import { Inject } from '@navios/di'
 import { ApiExclude, ApiStream } from '@navios/openapi'
 
-import type { ClassType } from '@navios/core'
+import type { ClassType } from '@navios/di'
 
 import { OpenApiDocumentServiceToken } from '../services/openapi-document.service.mjs'
+
+import type { OpenApiDocumentService } from '../services/openapi-document.service.mjs'
 
 /**
  * Creates a customized YAML controller with the correct path.
@@ -24,7 +27,7 @@ export function createOpenApiYamlController(yamlPath: string): ClassType {
   @ApiExclude()
   @Controller()
   class OpenApiYamlController {
-    private documentService = inject(OpenApiDocumentServiceToken)
+    @Inject(OpenApiDocumentServiceToken) private accessor documentService!: OpenApiDocumentService
 
     @Stream(endpoint)
     @ApiStream({ contentType: 'text/yaml' })

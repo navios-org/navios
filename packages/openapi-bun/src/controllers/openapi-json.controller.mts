@@ -1,11 +1,15 @@
 import { builder } from '@navios/builder'
-import { Controller, Endpoint, inject } from '@navios/core'
+import { Controller, Endpoint } from '@navios/core'
+import { Inject } from '@navios/di'
 import { ApiExclude } from '@navios/openapi'
 import { z } from 'zod'
 
-import type { ClassType, EndpointResult } from '@navios/core'
+import type { EndpointResult } from '@navios/core'
+import type { ClassType } from '@navios/di'
 
 import { OpenApiDocumentServiceToken } from '../services/openapi-document.service.mjs'
+
+import type { OpenApiDocumentService } from '../services/openapi-document.service.mjs'
 
 /**
  * Schema for OpenAPI document response.
@@ -32,7 +36,7 @@ export function createOpenApiJsonController(jsonPath: string): ClassType {
   @ApiExclude()
   @Controller()
   class OpenApiJsonController {
-    private documentService = inject(OpenApiDocumentServiceToken)
+    @Inject(OpenApiDocumentServiceToken) private accessor documentService!: OpenApiDocumentService
 
     @Endpoint(endpoint)
     async getJson(): EndpointResult<typeof endpoint> {

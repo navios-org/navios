@@ -1,13 +1,15 @@
 import { builder } from '@navios/builder'
-import { Controller, inject, Stream } from '@navios/core'
+import { Controller, Stream } from '@navios/core'
+import { Inject } from '@navios/di'
 import { ApiExclude, ApiStream } from '@navios/openapi'
 import { getHtmlDocument } from '@scalar/core/libs/html-rendering'
 
-import type { ClassType } from '@navios/core'
+import type { ClassType } from '@navios/di'
 
 import { OpenApiOptionsToken } from '../tokens/openapi-options.token.mjs'
 
 import type { ScalarOptions } from '../schemas/index.mjs'
+import type { BunOpenApiPluginOptions } from '../tokens/openapi-options.token.mjs'
 
 /**
  * Creates a customized Scalar UI controller with the correct path.
@@ -27,7 +29,7 @@ export function createOpenApiUiController(docsPath: string, jsonPath: string): C
   @ApiExclude()
   @Controller()
   class OpenApiUiController {
-    private options = inject(OpenApiOptionsToken)
+    @Inject(OpenApiOptionsToken) private accessor options!: BunOpenApiPluginOptions
     private html: string | null = null
 
     @Stream(endpoint)

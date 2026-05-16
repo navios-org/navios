@@ -1,5 +1,6 @@
 import type { BunApplicationServiceInterface } from '@navios/adapter-bun'
-import type { ClassType, NaviosPlugin, PluginContext, PluginDefinition } from '@navios/core'
+import type { NaviosPlugin, PluginContext, PluginDefinition } from '@navios/core'
+import type { ClassType } from '@navios/di'
 
 import { createOpenApiJsonController } from './controllers/openapi-json.controller.mjs'
 import { createOpenApiUiController } from './controllers/openapi-ui.controller.mjs'

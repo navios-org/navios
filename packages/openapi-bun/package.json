@@ -1,6 +1,6 @@
 {
   "name": "@navios/openapi-bun",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "license": "MIT",
   "author": {
     "name": "Oleksandr Hanzha",
@@ -42,6 +42,7 @@
     "@navios/adapter-bun": "workspace:^",
     "@navios/builder": "workspace:^",
     "@navios/core": "workspace:^",
+    "@navios/di": "workspace:^",
     "@navios/openapi": "workspace:^",
     "typescript": "^5.9.3",
     "zod": "^4.3.5"
@@ -50,6 +51,7 @@
     "@navios/adapter-bun": "workspace:^",
     "@navios/builder": "workspace:^",
     "@navios/core": "workspace:^",
+    "@navios/di": "workspace:^",
     "@navios/openapi": "workspace:^",
     "zod": "^3.25.0 || ^4.0.0"
   }

@@ -4449,6 +4449,7 @@ __metadata:
     "@navios/adapter-bun": "workspace:^"
     "@navios/builder": "workspace:^"
     "@navios/core": "workspace:^"
+    "@navios/di": "workspace:^"
     "@navios/openapi": "workspace:^"
     "@scalar/core": "npm:^0.3.34"
     typescript: "npm:^5.9.3"
@@ -4458,6 +4459,7 @@ __metadata:
     "@navios/adapter-bun": "workspace:^"
     "@navios/builder": "workspace:^"
     "@navios/core": "workspace:^"
+    "@navios/di": "workspace:^"
     "@navios/openapi": "workspace:^"
     zod: ^3.25.0 || ^4.0.0
   languageName: unknown

@@ -1,4 +1,4 @@
-import { InjectionToken } from '@navios/core'
+import { Token } from '@navios/di'
 
 import type { OpenApiGeneratorOptions } from '@navios/openapi'
 
@@ -21,10 +21,10 @@ export interface BunOpenApiPluginOptions
  * ```typescript
  * @Injectable()
  * class OpenApiJsonController {
- *   private options = inject(OpenApiOptionsToken)
+ *   @Inject(OpenApiOptionsToken) accessor options!: BunOpenApiPluginOptions
  * }
  * ```
  */
-export const OpenApiOptionsToken = InjectionToken.create<BunOpenApiPluginOptions>(
+export const OpenApiOptionsToken = Token.create<BunOpenApiPluginOptions>(
   Symbol.for('BunOpenApiPluginOptions'),
 )

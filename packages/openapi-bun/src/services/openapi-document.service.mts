@@ -1,4 +1,4 @@
-import { inject, Injectable, InjectionToken } from '@navios/core'
+import { Inject, Injectable, Token } from '@navios/di'
 import { OpenApiGeneratorService } from '@navios/openapi'
 import { stringify as yamlStringify } from 'yaml'
 
@@ -7,12 +7,14 @@ import type { oas31 } from 'zod-openapi'
 
 import { OpenApiOptionsToken } from '../tokens/openapi-options.token.mjs'
 
+import type { BunOpenApiPluginOptions } from '../tokens/openapi-options.token.mjs'
+
 type OpenAPIObject = oas31.OpenAPIObject
 
 /**
  * Injection token for the document service
  */
-export const OpenApiDocumentServiceToken = InjectionToken.create<OpenApiDocumentService>(
+export const OpenApiDocumentServiceToken = Token.create<OpenApiDocumentService>(
   Symbol.for('OpenApiDocumentService'),
 )
 
@@ -26,8 +28,8 @@ export const OpenApiDocumentServiceToken = InjectionToken.create<OpenApiDocument
   token: OpenApiDocumentServiceToken,
 })
 export class OpenApiDocumentService {
-  private options = inject(OpenApiOptionsToken)
-  private generator = inject(OpenApiGeneratorService)
+  @Inject(OpenApiOptionsToken) private accessor options!: BunOpenApiPluginOptions
+  @Inject(OpenApiGeneratorService) private accessor generator!: OpenApiGeneratorService
 
   private document: OpenAPIObject | null = null
   private yamlDocument: string | null = null
