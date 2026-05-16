@@ -1,6 +1,7 @@
-import { inject, Injectable, Logger } from '@navios/core'
+import { Logger } from '@navios/core'
+import { Inject, Injectable } from '@navios/di'
 
-import type { ModuleMetadata } from '@navios/core'
+import type { LoggerInstance, ModuleMetadata } from '@navios/core'
 import type { oas31 } from 'zod-openapi'
 
 import { EndpointScannerService } from './endpoint-scanner.service.mjs'
@@ -83,12 +84,14 @@ export interface OpenApiGeneratorOptions {
  */
 @Injectable()
 export class OpenApiGeneratorService {
-  private readonly logger = inject(Logger, {
-    context: OpenApiGeneratorService.name,
-  })
+  @Inject(Logger, { context: 'OpenApiGeneratorService' })
+  private accessor logger!: LoggerInstance
 
-  private readonly scanner = inject(EndpointScannerService)
-  private readonly pathBuilder = inject(PathBuilderService)
+  @Inject(EndpointScannerService)
+  private accessor scanner!: EndpointScannerService
+
+  @Inject(PathBuilderService)
+  private accessor pathBuilder!: PathBuilderService
 
   /**
    * Generates an OpenAPI document from loaded modules.

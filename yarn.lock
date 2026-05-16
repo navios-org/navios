@@ -4490,12 +4490,14 @@ __metadata:
   dependencies:
     "@navios/builder": "workspace:^"
     "@navios/core": "workspace:^"
+    "@navios/di": "workspace:^"
     typescript: "npm:^5.9.3"
     yaml: "npm:^2.8.2"
     zod: "npm:^4.3.5"
     zod-openapi: "npm:^5.4.6"
   peerDependencies:
     "@navios/core": "workspace:^"
+    "@navios/di": "workspace:^"
     zod: ^3.25.0 || ^4.0.0
   languageName: unknown
   linkType: soft

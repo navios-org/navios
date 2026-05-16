@@ -1,7 +1,13 @@
-import { extractControllerMetadata, inject, Injectable, Logger } from '@navios/core'
+import { extractControllerMetadata, Logger } from '@navios/core'
+import { Inject, Injectable } from '@navios/di'
 
 import type { BaseEndpointOptions, EndpointOptions } from '@navios/builder'
-import type { ControllerMetadata, HandlerMetadata, ModuleMetadata } from '@navios/core'
+import type {
+  ControllerMetadata,
+  HandlerMetadata,
+  LoggerInstance,
+  ModuleMetadata,
+} from '@navios/core'
 
 import type { OpenApiEndpointMetadata } from '../metadata/openapi.metadata.mjs'
 
@@ -33,11 +39,11 @@ export interface DiscoveredEndpoint {
  */
 @Injectable()
 export class EndpointScannerService {
-  private readonly logger = inject(Logger, {
-    context: EndpointScannerService.name,
-  })
+  @Inject(Logger, { context: 'EndpointScannerService' })
+  private accessor logger!: LoggerInstance
 
-  private readonly metadataExtractor = inject(MetadataExtractorService)
+  @Inject(MetadataExtractorService)
+  private accessor metadataExtractor!: MetadataExtractorService
 
   /**
    * Scans all loaded modules and discovers endpoints.

@@ -1,10 +1,9 @@
 import {
   EndpointAdapterToken,
-  inject,
-  Injectable,
   MultipartAdapterToken,
   StreamAdapterToken,
 } from '@navios/core'
+import { Inject, Injectable } from '@navios/di'
 
 import type { BaseEndpointOptions, EndpointOptions, ErrorSchemaRecord } from '@navios/builder'
 import type { HandlerMetadata } from '@navios/core'
@@ -38,7 +37,8 @@ export interface PathItemResult {
  */
 @Injectable()
 export class PathBuilderService {
-  private readonly schemaConverter = inject(SchemaConverterService)
+  @Inject(SchemaConverterService)
+  private accessor schemaConverter!: SchemaConverterService
 
   /**
    * Generates an OpenAPI path item for a discovered endpoint.

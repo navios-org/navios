@@ -1,4 +1,4 @@
-import { Injectable } from '@navios/core'
+import { Injectable } from '@navios/di'
 import { createSchema } from 'zod-openapi'
 
 import type { oas31 } from 'zod-openapi'

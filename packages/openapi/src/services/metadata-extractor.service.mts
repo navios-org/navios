@@ -1,4 +1,4 @@
-import { Injectable } from '@navios/core'
+import { Injectable } from '@navios/di'
 
 import type { ControllerMetadata, HandlerMetadata } from '@navios/core'
 
