@@ -41,7 +41,7 @@
     "@navios/di": "workspace:^",
     "@types/amqplib": "^0.10.8",
     "amqp-connection-manager": "^5.0.1",
-    "amqplib": "^0.10.9",
+    "amqplib": "^2.4.1",
     "kafkajs": "^2.2.4",
     "typescript": "^5.9.3",
     "zod": "^4.6.7"
@@ -71,7 +71,7 @@
     "@aws-sdk/client-sns": "^3.1175.0",
     "@aws-sdk/client-sqs": "^3.1175.0",
     "amqp-connection-manager": "^5.0.1",
-    "amqplib": "^0.10.9",
+    "amqplib": "^2.4.1",
     "kafkajs": "^2.2.4"
   }
 }
