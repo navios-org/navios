@@ -11,9 +11,6 @@
     "url": "https://github.com/Arilas/navios.git",
     "directory": "packages/adapter-bun"
   },
-  "engines": {
-    "bun": ">=1.3.10"
-  },
   "main": "./lib/index.cjs",
   "module": "./lib/index.mjs",
   "typings": "./lib/index.d.mts",
@@ -49,5 +46,8 @@
   "peerDependencies": {
     "@navios/builder": "workspace:^",
     "@navios/core": "workspace:^"
+  },
+  "engines": {
+    "bun": ">=1.3.10"
   }
 }

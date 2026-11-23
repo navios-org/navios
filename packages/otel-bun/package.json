@@ -12,9 +12,6 @@
     "url": "https://github.com/Arilas/navios.git",
     "directory": "packages/otel-bun"
   },
-  "engines": {
-    "bun": ">=1.3.10"
-  },
   "main": "./lib/index.cjs",
   "module": "./lib/index.mjs",
   "typings": "./lib/index.d.mts",
@@ -53,5 +50,8 @@
     "@navios/di": "workspace:^",
     "@navios/otel": "workspace:^",
     "@opentelemetry/api": "^1.9.0"
+  },
+  "engines": {
+    "bun": ">=1.3.10"
   }
 }
