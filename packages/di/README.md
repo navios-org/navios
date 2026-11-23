@@ -690,8 +690,8 @@ describe('UserService Unit Tests', () => {
 If you cannot use Stage 3 (native ES) decorators—for example, when working with existing TypeScript projects that have `experimentalDecorators` enabled, certain bundler configurations, or Bun—you can use the legacy-compatible decorators:
 
 ```typescript
-import { Injectable, Factory } from '@navios/di/legacy-compat'
 import { inject, asyncInject, Container } from '@navios/di'
+import { Injectable, Factory } from '@navios/di/legacy-compat'
 
 @Injectable()
 class UserService {

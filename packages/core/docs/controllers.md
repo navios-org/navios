@@ -125,7 +125,6 @@ Controllers should orchestrate business logic, not implement it:
 ```typescript
 // api/users.ts
 import { builder } from '@navios/builder'
-
 import { z } from 'zod'
 
 export const api = builder()
@@ -168,7 +167,6 @@ Leverage TypeScript and `@navios/builder` for better type safety:
 ```typescript
 // api/users.ts
 import { builder } from '@navios/builder'
-
 import { z } from 'zod'
 
 export const api = builder()
@@ -274,7 +272,6 @@ Create controllers that follow REST conventions using `@navios/builder`:
 ```typescript
 // api/users.ts
 import { builder } from '@navios/builder'
-
 import { z } from 'zod'
 
 export const api = builder()
@@ -326,11 +323,11 @@ export const deleteUserEndpoint = api.declareEndpoint({
 ```
 
 ```typescript
-// controllers/user.controller.ts
-import type { EndpointParams } from '@navios/core'
-
 import { Controller, Endpoint } from '@navios/core'
 import { inject } from '@navios/di'
+
+// controllers/user.controller.ts
+import type { EndpointParams } from '@navios/core'
 
 import {
   createUserEndpoint,

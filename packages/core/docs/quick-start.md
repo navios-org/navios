@@ -32,7 +32,6 @@ Create a shared API definition file (`api/index.ts`):
 
 ```ts
 import { builder } from '@navios/builder'
-
 import { z } from 'zod'
 
 export const api = builder({
@@ -115,9 +114,9 @@ export class UserService {
 Create a user controller (`controllers/user.controller.ts`):
 
 ```ts
-import type { EndpointParams } from '@navios/core'
-
 import { Controller, Endpoint, inject, NotFoundException } from '@navios/core'
+
+import type { EndpointParams } from '@navios/core'
 
 import { createUserEndpoint, getUserEndpoint } from '../api/index.js'
 import { UserService } from '../services/user.service.js'

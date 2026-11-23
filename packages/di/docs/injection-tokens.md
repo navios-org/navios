@@ -16,7 +16,6 @@ Injection tokens serve as unique identifiers for services and can be used with:
 
 ```typescript
 import { InjectionToken } from '@navios/di'
-
 // Token with schema
 import { z } from 'zod'
 
@@ -77,7 +76,6 @@ await emailService.sendEmail('user@example.com', 'Hello')
 
 ```typescript
 import { Injectable, InjectionToken } from '@navios/di'
-
 import { z } from 'zod'
 
 const databaseConfigSchema = z.object({

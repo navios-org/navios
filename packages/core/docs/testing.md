@@ -222,7 +222,6 @@ Controllers in Navios should use endpoints defined with `@navios/builder` for pr
 ```typescript
 // api/user.endpoints.ts
 import { builder } from '@navios/builder'
-
 import { z } from 'zod'
 
 const userApi = builder()
@@ -260,6 +259,7 @@ import { Controller, Endpoint, EndpointParams } from '@navios/core'
 import { inject } from '@navios/di'
 
 import { createUserEndpoint, getUserByIdEndpoint } from '../api/user.endpoints'
+
 import { UserService } from './user.service'
 
 @Controller()
@@ -285,10 +285,10 @@ export class UserController {
 #### Testing Controllers
 
 ```typescript
-import type { EndpointParams } from '@navios/core'
-
 import { NotFoundException } from '@navios/core'
 import { TestContainer } from '@navios/core/testing'
+
+import type { EndpointParams } from '@navios/core'
 
 import { UserController } from './user.controller'
 import { UserService } from './user.service'
@@ -451,8 +451,8 @@ describe('AuthGuard', () => {
 ### Testing Module Integration
 
 ```typescript
-import { createTestingModule } from '@navios/core/testing'
 import { defineFastifyEnvironment } from '@navios/adapter-fastify'
+import { createTestingModule } from '@navios/core/testing'
 
 import { DatabaseService } from './database.service'
 import { UserModule } from './user.module'
@@ -597,7 +597,6 @@ When testing multipart endpoints defined with `@navios/builder`:
 import { builder } from '@navios/builder'
 // upload.controller.ts
 import { Controller, Multipart, MultipartParams } from '@navios/core'
-
 import { z } from 'zod'
 
 const api = builder()

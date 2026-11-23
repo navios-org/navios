@@ -18,8 +18,8 @@ yarn add @opentelemetry/exporter-metrics-otlp-http  # If using metrics
 ### With Fastify Adapter
 
 ```typescript
-import { NaviosFactory } from '@navios/core'
 import { FastifyApplicationService } from '@navios/adapter-fastify'
+import { NaviosFactory } from '@navios/core'
 import { defineOtelPlugin } from '@navios/otel-fastify'
 
 const app = await NaviosFactory.create(FastifyApplicationService, {
@@ -46,8 +46,8 @@ await app.listen({ port: 3000 })
 ### With Bun Adapter
 
 ```typescript
-import { NaviosFactory } from '@navios/core'
 import { BunApplicationService } from '@navios/adapter-bun'
+import { NaviosFactory } from '@navios/core'
 import { defineOtelPlugin } from '@navios/otel-bun'
 
 const app = await NaviosFactory.create(BunApplicationService, {

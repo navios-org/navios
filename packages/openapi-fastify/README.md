@@ -43,8 +43,8 @@ yarn add @navios/openapi @navios/openapi-fastify
 ```ts
 import { defineFastifyEnvironment } from '@navios/adapter-fastify'
 import { Module, NaviosFactory } from '@navios/core'
-import { defineOpenApiPlugin } from '@navios/openapi-fastify'
 import { ApiTag, ApiOperation } from '@navios/openapi'
+import { defineOpenApiPlugin } from '@navios/openapi-fastify'
 
 import { AppModule } from './app.module.js'
 
@@ -78,8 +78,8 @@ bootstrap()
 import { defineFastifyEnvironment } from '@navios/adapter-fastify'
 import { builder } from '@navios/builder'
 import { Controller, Endpoint, EndpointParams, Module, NaviosFactory } from '@navios/core'
-import { defineOpenApiPlugin } from '@navios/openapi-fastify'
 import { ApiOperation, ApiTag } from '@navios/openapi'
+import { defineOpenApiPlugin } from '@navios/openapi-fastify'
 import { z } from 'zod'
 
 const API = builder()

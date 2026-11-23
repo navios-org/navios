@@ -48,6 +48,7 @@ function App() {
 
 ```tsx
 import { useService } from '@navios/di-react'
+
 import { MyService } from './services/my-service'
 
 function MyComponent() {
@@ -156,6 +157,7 @@ Fetch a service with loading/error states. Automatically re-fetches when the ser
 
 ```tsx
 import { useService } from '@navios/di-react'
+
 import { MyService } from './services/my-service'
 
 function MyComponent() {
@@ -205,8 +207,9 @@ function UserProfile({ userId }: { userId: string }) {
 Use with React Suspense for a cleaner loading experience. Also subscribes to service invalidation.
 
 ```tsx
-import { Suspense } from 'react'
 import { useSuspenseService } from '@navios/di-react'
+import { Suspense } from 'react'
+
 import { MyService } from './services/my-service'
 
 function MyComponent() {
@@ -229,9 +232,9 @@ function App() {
 When using `useSuspenseService`, errors are thrown to the nearest error boundary. Make sure to wrap your components with an error boundary:
 
 ```tsx
-import { ErrorBoundary } from 'react-error-boundary'
-import { Suspense } from 'react'
 import { useSuspenseService } from '@navios/di-react'
+import { Suspense } from 'react'
+import { ErrorBoundary } from 'react-error-boundary'
 
 function ErrorFallback({ error }) {
   return <div>Error: {error.message}</div>

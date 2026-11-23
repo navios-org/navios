@@ -81,8 +81,8 @@ client.get('users').then((response) => {
 `@navios/http` works seamlessly with `@navios/builder` to create type-safe API clients with Zod validation:
 
 ```ts
-import { create } from '@navios/http'
 import { builder } from '@navios/builder'
+import { create } from '@navios/http'
 import { z } from 'zod'
 
 // Create the HTTP client

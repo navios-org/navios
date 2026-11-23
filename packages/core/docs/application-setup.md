@@ -314,7 +314,6 @@ const app = await NaviosFactory.create(AppModule, {
 
 ```typescript
 import { Injectable, Module } from '@navios/core'
-
 import { PrismaClient } from '@prisma/client'
 
 @Injectable()
@@ -352,7 +351,6 @@ Add health check endpoints using `@navios/builder`:
 ```typescript
 // api/health.ts
 import { builder } from '@navios/builder'
-
 import { z } from 'zod'
 
 export const api = builder()
@@ -378,9 +376,9 @@ export const readinessEndpoint = api.declareEndpoint({
 ```
 
 ```typescript
-import type { EndpointParams } from '@navios/core'
-
 import { Controller, Endpoint } from '@navios/core'
+
+import type { EndpointParams } from '@navios/core'
 
 import { healthEndpoint, readinessEndpoint } from '../api/health.js'
 
