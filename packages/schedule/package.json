@@ -45,12 +45,12 @@
     "publish:next": "yarn npm publish --access public --tag next"
   },
   "dependencies": {
-    "cron": "^4.4.0"
+    "cron": "^4.4.2"
   },
   "devDependencies": {
     "@navios/core": "workspace:^",
     "typescript": "^5.9.3",
-    "zod": "^4.3.5"
+    "zod": "^4.6.7"
   },
   "peerDependencies": {
     "@navios/core": "workspace:^",
