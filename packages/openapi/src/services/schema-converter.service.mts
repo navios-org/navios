@@ -41,7 +41,8 @@ export class SchemaConverterService {
    * ```
    */
   convert(schema: ZodType): SchemaConversionResult {
-    return createSchema(schema)
+    // zod-openapi 6 types the result with a broader SchemaObject (OAS 3.1/3.2 union)
+    return createSchema(schema) as SchemaConversionResult
   }
 
   /**
