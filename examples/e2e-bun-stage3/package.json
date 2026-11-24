@@ -17,6 +17,6 @@
     "@types/bun": "^1.4.5",
     "@types/supertest": "^7.2.1",
     "supertest": "^7.3.2",
-    "typescript": "^5.9.3"
+    "typescript": "^7.0.2"
   }
 }
