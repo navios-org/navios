@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import { z } from 'zod/v4'
 
 import { builder } from '../../builder.mjs'
+import { EndpointError } from '../../errors/index.mjs'
 
 import { createMockClient, successResponse, type MockClient } from './mock-client.mjs'
 
@@ -198,6 +199,141 @@ describe('Endpoint Happy Path', () => {
     })
   })
 
+  describe('multipart upload', () => {
+    it('should upload a file as FormData through declareEndpoint', async () => {
+      const uploadAvatar = api.declareEndpoint({
+        method: 'POST',
+        url: '/users/$user_id/avatar',
+        body: 'multipart',
+        requestSchema: z.object({
+          file: z.instanceof(File),
+          caption: z.string(),
+          tags: z.array(z.string()),
+          width: z.number(),
+        }),
+        responseSchema: z.object({ id: z.string(), url: z.string() }),
+      })
+
+      mockClient.mockResponse(
+        'POST',
+        '/users/123/avatar',
+        successResponse({ id: 'a1', url: '/avatars/a1.png' }, 201),
+      )
+
+      const file = new File(['png-bytes'], 'avatar.png', { type: 'image/png' })
+      const result = await uploadAvatar({
+        urlParams: { user_id: 123 },
+        data: { file, caption: 'Me', tags: ['profile', 'public'], width: 256 },
+      })
+
+      expect(result).toEqual({ id: 'a1', url: '/avatars/a1.png' })
+
+      const call = mockClient.getLastCall()
+      expect(call).toMatchObject({ method: 'POST', url: '/users/123/avatar' })
+      expect(call).not.toHaveProperty('responseType')
+
+      const sent = call?.data as FormData
+      expect(sent).toBeInstanceOf(FormData)
+      const sentFile = sent.get('file') as File
+      expect(sentFile).toBeInstanceOf(File)
+      expect(sentFile.name).toBe('avatar.png')
+      expect(sentFile.type).toBe('image/png')
+      await expect(sentFile.text()).resolves.toBe('png-bytes')
+      expect(sent.get('caption')).toBe('Me')
+      expect(sent.getAll('tags')).toEqual(['profile', 'public'])
+      expect(sent.get('width')).toBe('256')
+    })
+
+    it('should not send an upload that fails its request schema', async () => {
+      const upload = api.declareEndpoint({
+        method: 'POST',
+        url: '/files',
+        body: 'multipart',
+        requestSchema: z.object({ file: z.instanceof(File) }),
+        responseSchema: z.object({ id: z.string() }),
+      })
+
+      const result = await upload.safe({ data: { file: 'not a file' as never } })
+
+      expect(result.ok).toBe(false)
+      expect(result.error?.kind).toBe('request-validation')
+      expect(mockClient.calls).toHaveLength(0)
+    })
+  })
+
+  describe('blob download', () => {
+    it('should download a blob through declareEndpoint', async () => {
+      const downloadFile = api.declareEndpoint({
+        method: 'GET',
+        url: '/files/$fileId.pdf',
+        response: 'blob',
+      })
+
+      const blob = new Blob(['%PDF-1.7'], { type: 'application/pdf' })
+      mockClient.mockResponse('GET', '/files/42.pdf', {
+        status: 200,
+        data: blob,
+        headers: { 'content-disposition': 'attachment; filename="report.pdf"' },
+      })
+
+      const result = await downloadFile({ urlParams: { fileId: 42 } })
+
+      expect(result).toBe(blob)
+      await expect(result.text()).resolves.toBe('%PDF-1.7')
+      expect(mockClient.getLastCall()).toMatchObject({
+        method: 'GET',
+        url: '/files/42.pdf',
+        responseType: 'blob',
+      })
+    })
+
+    it('should expose response headers of a download through safe()', async () => {
+      const downloadFile = api.declareEndpoint({
+        method: 'GET',
+        url: '/files/$fileId',
+        response: 'blob',
+      })
+
+      const blob = new Blob(['a,b\n1,2'], { type: 'text/csv' })
+      mockClient.mockResponse('GET', '/files/7', {
+        status: 200,
+        data: blob,
+        headers: { 'content-disposition': 'attachment; filename="export.csv"' },
+      })
+
+      const result = await downloadFile.safe({ urlParams: { fileId: 7 } })
+
+      expect(result.ok).toBe(true)
+      expect(result.data).toBe(blob)
+      expect(result.response?.headers.get('content-disposition')).toBe(
+        'attachment; filename="export.csv"',
+      )
+    })
+
+    it('should report a failed download as an http error instead of a blob', async () => {
+      const downloadFile = api.declareEndpoint({
+        method: 'GET',
+        url: '/files/$fileId',
+        response: 'blob',
+        errorSchema: { 404: z.object({ message: z.string() }) },
+      })
+
+      mockClient.mockResponse('GET', '/files/missing', {
+        status: 404,
+        data: { message: 'File not found' },
+      })
+
+      const result = await downloadFile.safe({ urlParams: { fileId: 'missing' } })
+
+      expect(result.ok).toBe(false)
+      expect(result.error).toMatchObject({
+        kind: 'http',
+        status: 404,
+        body: { message: 'File not found' },
+      })
+    })
+  })
+
   describe('PUT/PATCH requests', () => {
     it('should make PUT request', async () => {
       const updateUser = api.declareEndpoint({
@@ -358,7 +494,10 @@ describe('Endpoint Happy Path', () => {
         }),
       )
 
-      await expect(getUser({ urlParams: { userId: '123' } })).rejects.toThrow()
+      const error = await getUser({ urlParams: { userId: '123' } }).catch((e: unknown) => e)
+
+      expect(error).toBeInstanceOf(EndpointError)
+      expect(error).toMatchObject({ kind: 'response-validation', status: 200, body: { id: '123' } })
     })
   })
 

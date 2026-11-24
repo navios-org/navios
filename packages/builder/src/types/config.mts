@@ -1,107 +1,29 @@
-import type { ZodObject, ZodType } from 'zod/v4'
-import type { $ZodIssue } from 'zod/v4/core'
+import type { EndpointError } from '../errors/endpoint-error.mjs'
 
 import type { Client, HttpMethod } from './common.mjs'
-import type { EnvelopeError } from './envelope-error.mjs'
 import type { ErrorSchemaRecord } from './error-schema.mjs'
+import type { Schema } from './schema.mjs'
 
 // =============================================================================
 // Builder Configuration
 // =============================================================================
 
-/**
- * Variant classification for {@link BuilderErrorEvent}.
- *
- * Covers the three subpackages that share a unified `onError` hook:
- * - Main HTTP builder: `'http' | 'http-unknown' | 'validation' | 'network'`
- *   (matches `EnvelopeError['kind']`).
- * - Socket builder: `'socket-ack-timeout' | 'socket-transport'`.
- * - EventSource builder: `'event-source-transport'`.
- *
- * Validation failures across all three subpackages reuse the shared
- * `'validation'` kind so consumers can branch on a single discriminator.
- */
-export type BuilderErrorKind =
-  | EnvelopeError<ErrorSchemaRecord>['kind']
-  | 'socket-ack-timeout'
-  | 'socket-transport'
-  | 'event-source-transport'
-
-/**
- * Structured event fired by the unified `onError` hook on every error path.
- *
- * Used by all three builder subpackages (main HTTP builder, socket builder,
- * EventSource builder). The base shape (`kind`, `endpoint`, `cause`) is shared;
- * `topic`, `eventName`, and `rawData` are populated only for the subpackages
- * that have those concepts.
- *
- * - In envelope mode (HTTP), fired on validation/http/http-unknown/network
- *   outcomes before the envelope is returned.
- * - In data mode (HTTP), fired before the error is rethrown.
- * - For socket/SSE, fired on validation failures, ack timeouts, or transport
- *   errors raised inside user handlers.
- */
-export interface BuilderErrorEvent {
-  /** Variant classification — see {@link BuilderErrorKind}. */
-  kind: BuilderErrorKind
-
-  /**
-   * Endpoint identification. Both fields are optional so socket and SSE
-   * variants can omit `method` (no HTTP verb) and socket variants can omit
-   * `url` (they use `topic` instead).
-   */
-  endpoint: {
-    method?: HttpMethod
-    url?: string
-  }
-
-  /** HTTP status code, when available (absent for `kind: 'network'`). */
-  status?: number
-
-  /** Zod validation issues, present when `kind === 'validation'`. */
-  zodIssues?: readonly $ZodIssue[]
-
-  /** Original thrown value (e.g. NaviosError, TypeError, AbortError). */
-  cause: unknown
-
-  /** Response body for HTTP errors (raw if `http-unknown`, parsed if `http`). */
-  body?: unknown
-
-  /**
-   * Socket topic/event name. Populated for socket variants
-   * (`'socket-ack-timeout'`, `'socket-transport'`, and `'validation'` from
-   * the socket builder).
-   */
-  topic?: string
-
-  /**
-   * EventSource event name. Populated for EventSource variants
-   * (`'event-source-transport'` and `'validation'` from the EventSource
-   * builder).
-   */
-  eventName?: string
-
-  /**
-   * Raw payload that failed validation, before any Zod parsing. Populated
-   * on `kind === 'validation'` from socket/SSE subpackages.
-   */
-  rawData?: unknown
-}
-
 export interface BuilderConfig {
   /**
-   * Called whenever any error path fires — HTTP error, Zod validation failure,
-   * or network failure. In envelope mode, errors are not thrown but this hook
-   * still fires for telemetry. In data mode, this fires before the error is
-   * rethrown.
+   * HTTP client used by every endpoint declared on this builder. Can also be
+   * supplied later with `provideClient`, or per call with `{ client }`.
    */
-  onError?: (event: BuilderErrorEvent) => void
+  client?: Client
 
-  /** Default behaviour applied to every endpoint declaration unless overridden per-endpoint. */
-  defaults?: {
-    /** Default result mode; per-endpoint `result` overrides. */
-    result?: 'data' | 'envelope'
-  }
+  /**
+   * Called once for every failed call, with the same {@link EndpointError}
+   * the caller receives — whether it is thrown by `endpoint(args)` or
+   * returned by `endpoint.safe(args)`.
+   *
+   * The hook is for telemetry. An exception thrown inside it is caught and
+   * logged; it never changes the outcome of the call.
+   */
+  onError?: (error: EndpointError) => void
 }
 
 export interface BuilderContext {
@@ -110,103 +32,97 @@ export interface BuilderContext {
 }
 
 // =============================================================================
-// Client Options (Per-Endpoint Configuration)
+// Endpoint Options
 // =============================================================================
 
 /**
- * Per-endpoint client configuration options.
+ * Client-specific options for one endpoint (for example axios
+ * `withCredentials` or fetch `credentials`).
  *
- * These options are passed through to the HTTP client and can be used
- * to customize behavior for specific endpoints.
- *
- * @example
- * ```ts
- * const createUser = api.declareEndpoint({
- *   method: 'POST',
- *   url: '/users',
- *   responseSchema: userSchema,
- *   clientOptions: {
- *     timeout: 30000,
- *     transformRequest: {
- *       skipFields: ['metadata'], // Don't transform these fields
- *     },
- *   },
- * })
- * ```
+ * They are merged into the request config handed to the HTTP client. Keys the
+ * builder owns (`method`, `url`, `params`, `data`, `headers`, `signal`,
+ * `timeout`, `responseType`) cannot be overridden from here — use the
+ * endpoint's own `headers` / `timeout` options for those.
  */
 export interface ClientOptions {
-  /** Request timeout in milliseconds */
-  timeout?: number
-
-  /** Additional headers for this endpoint */
-  headers?: Record<string, string>
-
-  /**
-   * Request transformation options.
-   * Use this to skip transformations (like camelCase to snake_case) for specific fields.
-   */
-  transformRequest?: {
-    /** Field names to skip in request transformation */
-    skipFields?: string[]
-    /** Nested paths to skip (e.g., 'data.metadata.raw') */
-    skipPaths?: string[]
-  }
-
-  /**
-   * Response transformation options.
-   * Use this to skip transformations (like snake_case to camelCase) for specific fields.
-   */
-  transformResponse?: {
-    /** Field names to skip in response transformation */
-    skipFields?: string[]
-    /** Nested paths to skip (e.g., 'data.metadata.raw') */
-    skipPaths?: string[]
-  }
-
-  /** Allow arbitrary client-specific options */
   [key: string]: unknown
 }
 
-// =============================================================================
-// Endpoint Options (NEW - Unified Configuration)
-// =============================================================================
+/** How the request body is encoded. */
+export type EndpointBodyKind = 'json' | 'multipart'
 
 /**
- * Base endpoint options interface used for const generic inference.
- * This minimal interface is used as the constraint for declareStream and
- * as a base for EndpointOptions. Does not include responseSchema since
- * streams return Blob directly without schema validation.
+ * What the endpoint resolves to.
  *
- * The actual type inference happens through the const generic pattern.
+ * - `'json'` (default) — parsed and validated with `responseSchema`.
+ * - `'blob'` — a `Blob` (file downloads).
+ * - `'text'` — a `string`.
+ * - `'stream'` — a `ReadableStream<Uint8Array>`.
+ * - `'void'` — `undefined`; the body is ignored (204 and other empty replies).
+ */
+export type EndpointResponseKind = 'json' | 'blob' | 'text' | 'stream' | 'void'
+
+/**
+ * Endpoint options accepted by `declareEndpoint`.
+ *
+ * `responseSchema` is required when `response` is `'json'` (the default) and
+ * unused otherwise. {@link EndpointOptions} is the narrower form that has it.
  */
 export interface BaseEndpointOptions {
   /** HTTP method for the endpoint */
   method: HttpMethod
 
-  /** URL template (use $paramName for path parameters) */
+  /**
+   * URL template. Use `$paramName` for path parameters; a name is a letter
+   * or underscore followed by letters, digits or underscores.
+   */
   url: string
 
-  /** Optional Zod schema for query parameters */
-  querySchema?: ZodObject
+  /** Optional schema for query parameters */
+  querySchema?: Schema
 
-  /** Optional Zod schema for request body */
-  requestSchema?: ZodType
+  /** Optional schema for request body */
+  requestSchema?: Schema
+
+  /** Schema for validating and typing a JSON response */
+  responseSchema?: Schema
 
   /**
-   * Optional mapping of HTTP status codes to Zod schemas for error responses.
+   * Per-status success schemas, for endpoints whose 2xx replies differ by
+   * status. Takes the place of `responseSchema`.
    *
-   * In envelope mode (`result: 'envelope'`), matching status codes are
-   * classified as typed `http` errors with parsed bodies.
+   * - a schema validates and types the body for that status
+   * - `null` means the status has no body; the call resolves to `undefined`
+   *
+   * A 2xx status that is not listed is reported as `response-validation`.
+   *
+   * @example
+   * ```ts
+   * responses: {
+   *   200: userSchema,     // existing user returned
+   *   201: createdSchema,  // user created
+   *   204: null,           // nothing to return
+   * }
+   * ```
+   */
+  responses?: SuccessSchemaRecord
+
+  /**
+   * Optional mapping of HTTP status codes to schemas for error responses.
+   *
+   * A non-2xx response whose status has an entry is parsed with that schema
+   * and reported as an `EndpointError` of kind `'http'` with a typed `body`.
    */
   errorSchema?: ErrorSchemaRecord
 
   /**
-   * Optional Zod schema for URL path parameters.
+   * Optional schema for URL path parameters.
    *
    * When provided:
    * - Types are inferred from the schema instead of defaulting to `string | number`
    * - Runtime validation is performed on URL params
-   * - Schema keys MUST match all `$paramName` patterns in the URL
+   * - Schema keys MUST be exactly the `$paramName` names in the URL; a
+   *   mismatch throws when the endpoint is declared
    *
    * @example
    * ```ts
@@ -216,21 +132,28 @@ export interface BaseEndpointOptions {
    * })
    * ```
    */
-  urlParamsSchema?: ZodObject
+  urlParamsSchema?: Schema
 
   /**
-   * Optional per-endpoint client configuration.
-   * These options are passed through to the HTTP client.
+   * Encoding of the request body. `'multipart'` converts `data` to `FormData`.
+   * @default 'json'
    */
+  body?: EndpointBodyKind
+
+  /**
+   * Kind of value the endpoint resolves to.
+   * @default 'json'
+   */
+  response?: EndpointResponseKind
+
+  /** Headers sent with every call. Per-call `headers` are merged over these. */
+  headers?: Record<string, string>
+
+  /** Timeout in milliseconds. A per-call `timeout` wins. */
+  timeout?: number
+
+  /** Client-specific options merged into the request config. */
   clientOptions?: ClientOptions
-
-  /**
-   * Output mode for this endpoint.
-   * - 'data' (default): returns parsed body; throws on error (current behavior).
-   * - 'envelope': returns { ok, data, error, response } and never throws. Errors are
-   *   classified into typed variants; access status/headers via `response`.
-   */
-  result?: 'data' | 'envelope'
 
   /**
    * When false, skip `responseSchema.parse()` at runtime. The static type is still
@@ -241,10 +164,15 @@ export interface BaseEndpointOptions {
 }
 
 /**
- * Endpoint options interface with responseSchema for typed responses.
- * Extends BaseEndpointOptions with the required responseSchema field.
+ * Endpoint options for a JSON endpoint: {@link BaseEndpointOptions} with a
+ * required `responseSchema`.
  */
 export interface EndpointOptions extends BaseEndpointOptions {
-  /** Zod schema for validating and typing the response */
-  responseSchema: ZodType
+  /** Schema for validating and typing the response */
+  responseSchema: Schema
 }
+
+/**
+ * Per-status success schemas; `null` marks a status without a body.
+ */
+export type SuccessSchemaRecord = Record<number, Schema | null>

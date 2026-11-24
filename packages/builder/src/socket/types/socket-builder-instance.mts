@@ -11,7 +11,7 @@ import type { SendOptions, SubscribeOptions } from './socket-options.mjs'
  * ```ts
  * import { socketBuilder } from '@navios/builder/socket'
  * import { io } from 'socket.io-client'
- * import { z } from 'zod'
+ * // `z` is Zod here; any Standard Schema library works the same way
  *
  * const socket = socketBuilder()
  *

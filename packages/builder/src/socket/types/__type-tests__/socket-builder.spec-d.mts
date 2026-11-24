@@ -3,7 +3,13 @@ import { z as zod } from 'zod/v4'
 
 import type { z } from 'zod/v4'
 
+import { isSocketError } from '../../index.mjs'
+
+import type { NaviosError } from '../../../errors/navios-error.mjs'
+import type { Schema, SchemaIssue } from '../../../types/schema.mjs'
+import type { SocketError, SocketErrorKind } from '../../index.mjs'
 import type {
+  CreateWebSocketHandlerConfig,
   DeclareWebSocketOptions,
   InferWebSocketConnectParams,
   WebSocketHandler,
@@ -11,6 +17,7 @@ import type {
 } from '../../websocket/types.mjs'
 import type { SocketBuilderInstance } from '../socket-builder-instance.mjs'
 import type { SendHandler, SubscribeHandler, Unsubscribe } from '../socket-handlers.mjs'
+import type { SocketBuilderConfig } from '../socket-options.mjs'
 
 // Declare a mock socket builder instance at module level
 declare const socket: SocketBuilderInstance
@@ -572,5 +579,82 @@ describe('Const generic inference', () => {
     })
 
     expectTypeOf(onMessage.config.topic).toEqualTypeOf<'chat.message'>()
+  })
+})
+
+describe('Standard Schema (non-Zod) inference', () => {
+  type Positive = Schema<{ n: number }, { n: number; checked: true }>
+  const positive = null as unknown as Positive
+
+  test('send payload uses the schema input, ack uses the schema output', () => {
+    const send = socket.defineSend({
+      topic: 'numbers',
+      payloadSchema: positive,
+      ackSchema: positive,
+    })
+
+    expectTypeOf(send).parameter(0).toEqualTypeOf<{ n: number }>()
+    expectTypeOf(send).returns.toEqualTypeOf<Promise<{ n: number; checked: true }>>()
+  })
+
+  test('send without ackSchema returns void', () => {
+    const send = socket.defineSend({ topic: 'numbers', payloadSchema: positive })
+
+    expectTypeOf(send).returns.toEqualTypeOf<void>()
+  })
+
+  test('subscribe handler receives the schema output', () => {
+    const onNumber = socket.defineSubscribe({ topic: 'numbers', payloadSchema: positive })
+
+    onNumber((payload) => {
+      expectTypeOf(payload).toEqualTypeOf<{ n: number; checked: true }>()
+    })
+  })
+
+  test('declareWebSocket params use the schema input', () => {
+    type Options = {
+      url: '/ws/$roomId'
+      urlParamsSchema: Schema<{ roomId: number }, { roomId: string }>
+      querySchema: Schema<{ token: string }, { token: string }>
+    }
+
+    expectTypeOf<InferWebSocketConnectParams<Options>>().toEqualTypeOf<{
+      urlParams: { roomId: number }
+      params: { token: string }
+    }>()
+  })
+})
+
+describe('SocketError', () => {
+  test('onError hooks receive a SocketError', () => {
+    expectTypeOf<NonNullable<SocketBuilderConfig['onError']>>()
+      .parameter(0)
+      .toEqualTypeOf<SocketError>()
+    expectTypeOf<NonNullable<CreateWebSocketHandlerConfig['onError']>>()
+      .parameter(0)
+      .toEqualTypeOf<SocketError>()
+  })
+
+  test('a hook that takes unknown is still accepted', () => {
+    assertType<SocketBuilderConfig>({ onError: (error: unknown) => void error })
+  })
+
+  test('fields and kinds', () => {
+    const error = null as unknown as SocketError
+
+    expectTypeOf(error).toExtend<NaviosError>()
+    expectTypeOf(error.kind).toEqualTypeOf<'validation' | 'ack-timeout' | 'transport'>()
+    expectTypeOf<SocketErrorKind>().toEqualTypeOf<'validation' | 'ack-timeout' | 'transport'>()
+    expectTypeOf(error.topic).toEqualTypeOf<string>()
+    expectTypeOf(error.url).toEqualTypeOf<string | undefined>()
+    expectTypeOf(error.issues).toEqualTypeOf<readonly SchemaIssue[] | undefined>()
+    expectTypeOf(error.rawData).toEqualTypeOf<unknown>()
+  })
+
+  test('isSocketError narrows unknown', () => {
+    const value = null as unknown
+    if (isSocketError(value)) {
+      expectTypeOf(value).toEqualTypeOf<SocketError>()
+    }
   })
 })

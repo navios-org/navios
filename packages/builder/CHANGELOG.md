@@ -2,76 +2,176 @@
 
 ## [2.0.0] - 2026-05-15
 
+2.0 reworks how endpoints are declared, called and how they fail. There is one way to declare an endpoint, two ways to call it, and one error type.
+
 ### Added
 
-- **Response envelope mode (`result: 'envelope'`)**: per-endpoint opt-in mode that returns `{ ok, data, error, response }` without throwing. Errors classified into four typed variants (`http`, `http-unknown`, `validation`, `network`).
-- **Builder-level `defaults.result`**: configure the default `result` mode for all endpoints in a builder.
-- **`BuilderErrorEvent`** structured event, fired by the unified `onError` hook on every error path. Includes `kind`, `endpoint`, `status`, `zodIssues`, `cause`, `body`.
-- **New error guards**: `isHttpError(error, status?)`, `isUnknownHttpError`, `isValidationError`, `isNetworkError`, `isResponseEnvelope`.
-- **Header helpers**: `getHeader`, `getCookie`, `getRetryAfterMs`.
-- **`validateResponse: false`** per-endpoint option to skip runtime Zod parsing while keeping the inferred static type.
-- **Composable handler helpers**: `runRequest`, `buildOk`, `buildErr`, `toResponseMeta` exported from `@navios/builder` for advanced use cases.
-- **Typed `AbstractRequestConfig`**: replaced `[key: string]: any` index signature with first-class `timeout`, `responseType`, `clientOptions` fields.
-- **New type exports**: `ResponseEnvelope`, `ResponseEnvelopeOk`, `ResponseEnvelopeErr`, `ResponseMeta`, `EnvelopeError`, `HttpErrorVariant`, `UnknownHttpErrorVariant`, `ValidationErrorVariant`, `NetworkErrorVariant`, `BuilderErrorEvent`.
+- **`endpoint.safe(args)`**: the non-throwing twin of every endpoint. Resolves to a `SafeResult` — `{ ok: true, data, error: null, response }` or `{ ok: false, data: null, error, response }` — and never rejects, including for invalid input and a missing client.
+- **`EndpointError`**: the single error type for a failed call (`extends NaviosError`). Thrown by `endpoint(args)`, returned by `endpoint.safe(args)` and passed to `onError`. Fields: `kind`, `endpoint`, `status`, `body`, `response`, `issues`, `cause`, plus `toJSON()`.
+- **Error kinds**: `http`, `http-unknown`, `request-validation`, `response-validation`, `network`, `timeout`, `aborted`, `config`.
+- **Typed errors**: `EndpointErrorOf<ErrorSchema>` and `EndpointErrorType<typeof endpoint>`. Narrowing on `error.kind === 'http'` and `error.status` narrows `error.body` to the matching `errorSchema` entry.
+- **Guards**: `isEndpointError(error)` and `isHttpError(error, status?)`.
+- **`response` option** on `declareEndpoint`: `'json'` (default), `'blob'`, `'text'`, `'stream'` (`ReadableStream<Uint8Array>`) and `'void'` (resolves `undefined`, for 204). `responseSchema` is required only for `'json'` endpoints that do not declare `responses`.
+- **`body` option** on `declareEndpoint`: `'json'` (default) or `'multipart'` (converts `data` to `FormData`).
+- **Endpoint `headers` and `timeout` options**, and a per-call `timeout` argument. Per-call values win over the endpoint's.
+- **Per-call client**: `endpoint(args, { client })` uses that HTTP client for one call.
+- **`builder({ client })`** and **`api.withClient(client)`**, which returns a new builder with the same configuration and a different client.
+- **Optional arguments**: `endpoint()` can be called without arguments when nothing is required; `params` / `data` are optional when their schema has no required fields.
+- **`ResponseMeta`** (`status`, `statusText`, `headers`) on every `SafeResult` and `EndpointError`, with the helpers `getHeader`, `getCookie` and `getRetryAfterMs`.
+- **`validateResponse: false`** endpoint option to skip the runtime parse of the response while keeping the inferred type.
+- **Standard Schema support**: every schema slot (`requestSchema`, `querySchema`, `urlParamsSchema`, `responseSchema`, `errorSchema`, `responses`) accepts any Standard Schema v1 implementation — Zod, Valibot, ArkType and others. Libraries can be mixed per slot and asynchronous validation is supported. New exports: `Schema`, `SchemaProps`, `SchemaResult`, `SchemaIssue`, `InferSchemaInput`, `InferSchemaOutput`. `EndpointError.issues` is `readonly SchemaIssue[]` (`{ message, path? }`); for a Zod schema the original `ZodError` is on `error.cause`. The declaration-time `urlParamsSchema` check runs for schemas that expose `.shape` (Zod objects).
+- **`zod` is an optional peer dependency.** The builder no longer imports Zod, at runtime or in its types. The Zod-narrowed option types (`ZodBaseEndpointOptions`, `ZodEndpointOptions`, `ZodSchemaSlots`) live in `@navios/core`, which reads Zod schemas directly for controllers and OpenAPI generation.
+- **`responses` option** on `declareEndpoint`: per-status success schemas, e.g. `{ 200: userSchema, 201: createdSchema, 204: null }`, in place of `responseSchema`. The result type is the union of every entry (`null` → `undefined`); a 2xx status that is not listed is reported as `response-validation`. New types: `SuccessSchemaRecord`, `InferSuccessOutput`.
+- **`getUrlParamNames(url)`** helper.
+- **New type exports**: `SafeResult`, `SafeResultOk`, `SafeResultErr`, `ResponseMeta`, `EndpointErrorKind`, `EndpointErrorOf`, `EndpointErrorType`, `EndpointParams`, `EndpointResult`, `EndpointConfig`, `InferEndpointError`, `InferEndpointSafeResult`, `EndpointCallOptions`, `EndpointBodyKind`, `EndpointResponseKind`, `RequireResponseSchema`, `ClientRequestArgs`, `ServerRequestArgs`.
+- **`SocketError`** (`@navios/builder/socket`) and **`EventSourceError`** (`@navios/builder/eventsource`): the error types of the socket and EventSource builders, both `extends NaviosError`. `SocketError` has `kind` (`'validation' | 'ack-timeout' | 'transport'`), `topic`, `url?`, `issues?`, `rawData?`, `cause` and `toJSON()`; `EventSourceError` has `kind` (`'validation' | 'transport'`), `eventName`, `url?`, `issues?`, `rawData?`, `cause` and `toJSON()`. Each entry point also exports its guard (`isSocketError`, `isEventSourceError`) and the `SocketErrorKind` / `SocketErrorInit` / `EventSourceErrorKind` / `EventSourceErrorInit` types.
+- **Standard Schema support in the socket and EventSource builders**: `payloadSchema`, `ackSchema`, `urlParamsSchema` and `querySchema` accept any Standard Schema v1 implementation. Asynchronous schemas are awaited for incoming messages and events, for acknowledgements and for the payload of a send that has an `ackSchema`. A send without `ackSchema` and the `declareWebSocket` / `declareEventSource` connection parameters are synchronous and reject an asynchronous schema.
+- **`url`** on the handles returned by `declareWebSocket` and `declareEventSource`, and an optional `url` on the `SocketClient` / `EventSourceClient` interfaces; when a client has one it is copied to the error's `url`.
 
 ### Changed
 
-- **`onError(error: unknown)`** → **`onError(event: BuilderErrorEvent)`**. The hook receives a structured event with classification, endpoint, status, zodIssues, cause, body.
-- `handleError` signature updated to `(config, error, endpoint) => never`.
-- `BuilderInstance`, `EndpointHandler`, `StreamHandler`, `InferEndpointReturn`, `InferStreamReturn` no longer carry the `UseDiscriminator` generic.
-- `AbstractRequestConfig.data` is now `unknown` (was `any`).
+- **Unknown endpoint options are compile errors.** `declareEndpoint` rejects keys it does not know, so a typo such as `requstSchema` or a removed option such as `result` no longer passes silently.
+
+- **Every failure of `endpoint(args)` is an `EndpointError`.** HTTP errors are no longer the HTTP client's own error, and invalid input is no longer a raw `ZodError` — it is an `EndpointError` of kind `request-validation`, and nothing is sent.
+- **`errorSchema` applies to every call.** A non-2xx response whose status has an entry is parsed and reported as kind `http` with a typed `body`; without an entry it is `http-unknown` with the raw body. `body` is exactly the schema output — nothing is added to it.
+- **`onError(error: unknown)`** → **`onError(error: EndpointError)`**. The hook is called once per failed call with the same instance the caller receives. An exception thrown inside it is caught and logged.
+- **The builder decides what is an error.** A client may resolve or reject on a non-2xx response; any status outside 200–299 is an error. A rejection carrying `response` is treated as an HTTP error; one without it is `network`, `timeout` or `aborted`. A thin `fetch` wrapper is a valid client.
+- **URL parameter grammar**: a parameter is `$` followed by a letter or underscore, then letters, digits or underscores — the same rule in the types and at runtime. `/users/$user_id` and `/files/$id.json` are parsed as `user_id` and `id`.
+- **`urlParamsSchema` keys must equal the URL's parameter names**; a mismatch throws a `NaviosError` when the endpoint is declared.
+- **`clientOptions`** carries client-specific keys only (for example `withCredentials`). It is merged into the request config and cannot override `method`, `url`, `params`, `data`, `signal`, `timeout` or `responseType`, nor any header set through the endpoint's `headers` or the call. Use the endpoint's `headers` / `timeout` options for those.
+- **`makeConfig(request, options, finalUrl)`** takes three arguments; the method comes from `options`.
+- **`EndpointHandler<Options>`** is the only handler type; `endpoint.config` is the declared options object.
+- **`RequestArgs<Url, QuerySchema, RequestSchema, UrlParamsSchema, IsServer>`** is split into `ClientRequestArgs<Options>` (`z.input`) and `ServerRequestArgs<Options>` (`z.output`).
+- **`AbstractRequestConfig.data`** is `unknown` (was `any`); `timeout` and `responseType` are declared fields.
+- **Socket and EventSource builders** use a single `onError` hook that receives a `SocketError` / `EventSourceError`. The hook is called once per failure; an exception thrown inside it is caught and logged.
+- **Send handlers fail with a `SocketError`.** An invalid payload throws kind `validation` (was a raw `ZodError`) and nothing is sent; an invalid acknowledgement rejects with kind `validation`, a timeout with kind `ack-timeout`, and replacing the client while an acknowledgement is pending with kind `transport` (were a `ZodError` and plain `Error`s). The same instance is passed to `onError`, which now also fires for invalid send payloads and replaced clients. For a Zod schema the original `ZodError` is on `error.cause`.
+- **`error.topic` of an acknowledgement validation failure** is the topic of the send (was the internal `__navios_ack:<id>` topic).
+- **`createWebSocketHandler({ onError })` and `createEventSourceHandler({ onError })`** receive a `SocketError` / `EventSourceError` of kind `transport` with the thrown value on `cause` (was the thrown value itself).
 
 ### Removed
 
-- **`useDiscriminatorResponse` config flag** — use `result: 'envelope'` instead.
-- **`onZodError` callback** — use `onError` with `event.kind === 'validation'`.
-- **`isErrorStatus`, `isErrorResponse` guards** — use `isHttpError`, `isEnvelopeError` on the envelope error.
-- **`InferErrorSchemaOutputWithStatus` type** — use `EnvelopeError`.
-- **`__status` injection on parsed error bodies** — envelope mode carries `status` on the response/error variant directly.
-- **`UnknownResponseError` class** — envelope mode classifies these as `http-unknown`.
-- **Legacy `BaseEndpointConfig`, `BaseStreamConfig`, `AnyEndpointConfig`, `AnyStreamConfig`, `StreamOptions` types**.
-- **`AbstractEndpoint`, `AbstractStream` types** — use `EndpointHandler<Options>`, `StreamHandler<Options>`.
-- **`[key: string]: any` index signature on `AbstractRequestConfig`** — extend via the typed `clientOptions` slot.
+- **`declareStream`** — use `declareEndpoint({ response: 'blob' })` (or `'text'` / `'stream'`).
+- **`declareMultipart`** — use `declareEndpoint({ body: 'multipart' })`.
+- **`useDiscriminatorResponse`** builder flag, the **`isErrorStatus`** / **`isErrorResponse`** guards, the **`__status`** field injected into parsed error bodies, the **`InferErrorSchemaOutputWithStatus`** type and the **`UnknownResponseError`** class — use `endpoint.safe()` and narrow on `error.kind` / `error.status`.
+- **`onZodError`** builder callback — use `onError` and check `error.kind === 'request-validation'` / `'response-validation'` (`error.issues` holds the validation issues).
+- **`handleError`** export.
+- **`clientOptions.timeout`** — it is ignored; use the endpoint's `timeout`. (`clientOptions.headers` is still merged underneath the endpoint's `headers`, but `headers` is the place for them.) **`clientOptions.transformRequest` / `transformResponse`** are gone.
+- **Types**: `BaseEndpointConfig`, `BaseStreamConfig`, `AnyEndpointConfig`, `AnyStreamConfig`, `StreamOptions`, `AbstractEndpoint`, `AbstractStream`, `StreamHandler`, `InferStreamReturn`, `InferEndpointParams`, `InferStreamParams`, `EndpointFunctionArgs`, `NaviosZodRequest`, `NaviosZodRequestBase`, `Util_FlatObject`, `RequestArgs`.
+- **Socket `onValidationError` and `onAckTimeout`, EventSource `onValidationError` and the legacy `onError(error)`** — use `onError(error)` and filter on `error.kind`.
 
 ### Migration
+
+Uploads and downloads:
+
+```diff
+- const upload = api.declareMultipart({
++ const upload = api.declareEndpoint({
+    method: 'POST',
+    url: '/files',
++   body: 'multipart',
+    requestSchema: z.object({ file: z.instanceof(File) }),
+    responseSchema: z.object({ id: z.string() }),
+  })
+
+- const download = api.declareStream({
++ const download = api.declareEndpoint({
+    method: 'GET',
+    url: '/files/$fileId',
++   response: 'blob',
+  })
+```
+
+Errors as values:
 
 ```diff
 - const api = builder({ useDiscriminatorResponse: true })
 + const api = builder()
-  const ep = api.declareEndpoint({
+  const getUser = api.declareEndpoint({
     method: 'GET',
     url: '/users/$id',
     responseSchema: userSchema,
     errorSchema: { 404: notFoundSchema },
-+   result: 'envelope',
   })
 
-- const result = await ep({ urlParams: { id: '1' } })
-- if (isErrorStatus(result, 404)) { ... } else { result.name }
-+ const { data, error, response } = await ep({ urlParams: { id: '1' } })
-+ if (isHttpError(error, 404)) { ... } else if (!error) { data.name }
+- const result = await getUser({ urlParams: { id: '1' } })
+- if (isErrorStatus(result, 404)) {
+-   console.log(result.message)
+- } else if (isErrorResponse(result)) {
+-   console.log(result.__status)
+- } else {
+-   console.log(result.name)
+- }
++ const res = await getUser.safe({ urlParams: { id: '1' } })
++ if (res.ok) {
++   console.log(res.data.name)
++ } else if (res.error.kind === 'http' && res.error.status === 404) {
++   console.log(res.error.body.message)
++ } else {
++   console.log(res.error.kind, res.error.status)
++ }
 ```
+
+Errors as exceptions:
 
 ```diff
-- onError: (error) => log(error)
-+ onError: (event) => log(event.cause, event.kind, event.status)
+  try {
+    await getUser({ urlParams: { id: '1' } })
+  } catch (error) {
+-   if (error instanceof ZodError) { ... }
+-   else if (error.response?.status === 404) { ... }
++   if (!isEndpointError(error)) throw error
++   if (error.kind === 'request-validation') { ... }
++   else if (error.status === 404) { ... }
+  }
 ```
+
+Builder hooks:
 
 ```diff
-- onZodError: (error, response, originalError) => report(error)
-+ onError: (event) => { if (event.kind === 'validation') report(event.zodIssues) }
+  const api = builder({
+-   onError: (error) => log(error),
+-   onZodError: (zodError, response, originalError) => report(zodError),
++   onError: (error) => {
++     log(error.kind, error.endpoint, error.status)
++     if (error.kind === 'response-validation') report(error.issues)
++   },
+  })
 ```
 
-### Changed (round 2)
+Endpoint headers and timeout:
 
-- **Socket and EventSource builders** now use the unified `onError(BuilderErrorEvent)` hook. The `BuilderErrorKind` union extends with `'socket-ack-timeout'`, `'socket-transport'`, `'event-source-transport'`. The event gains optional `topic`, `eventName`, `rawData` fields.
-- **`RequestArgs<Url, QuerySchema, RequestSchema, UrlParamsSchema, IsServer>`** split into `ClientRequestArgs<Options>` (uses `z.input`) and `ServerRequestArgs<Options>` (uses `z.output`). The `IsServer` boolean generic is removed; pick the variant that matches the surface.
+```diff
+  const createUser = api.declareEndpoint({
+    method: 'POST',
+    url: '/users',
+    requestSchema: createUserSchema,
+    responseSchema: userSchema,
+-   clientOptions: {
+-     timeout: 30000,
+-     headers: { 'X-Custom-Header': 'value' },
+-   },
++   timeout: 30000,
++   headers: { 'X-Custom-Header': 'value' },
+  })
+```
 
-### Removed (round 2)
+Client:
 
-- **Socket `onValidationError`, `onAckTimeout` configs** — use the unified `onError(event)` and filter on `event.kind === 'validation'` / `'socket-ack-timeout'`.
-- **EventSource legacy `onError(error)`, `onValidationError` configs** — use the unified `onError(event)` and filter on `event.kind === 'validation'` / `'event-source-transport'`.
-- **`RequestArgs<...IsServer>`** — replaced by `ClientRequestArgs<Options>` / `ServerRequestArgs<Options>`.
+```diff
+- const api = builder()
+- api.provideClient(client)
++ const api = builder({ client })
+```
+
+`provideClient` still works for setting the client at start-up. For a per-request client, pass it to the call:
+
+```diff
+- api.provideClient(requestClient)
+- const user = await getUser({ urlParams: { id: '1' } })
++ const user = await getUser({ urlParams: { id: '1' } }, { client: requestClient })
+```
+
+Socket and EventSource hooks:
 
 ```diff
 - socketBuilder({
@@ -79,11 +179,36 @@
 -   onAckTimeout: (topic) => reportTimeout(topic),
 - })
 + socketBuilder({
-+   onError: (event) => {
-+     if (event.kind === 'validation') reportZod(event.zodIssues)
-+     if (event.kind === 'socket-ack-timeout') reportTimeout(event.topic)
++   onError: (error) => {
++     if (error.kind === 'validation') reportIssues(error.issues) // ZodError is on error.cause
++     if (error.kind === 'ack-timeout') reportTimeout(error.topic)
 +   },
 + })
+```
+
+```diff
+- eventSourceBuilder({
+-   onValidationError: (err, eventName) => reportZod(err, eventName),
+-   onError: (err) => reportHandlerFailure(err),
+- })
++ eventSourceBuilder({
++   onError: (error) => {
++     if (error.kind === 'validation') reportIssues(error.issues, error.eventName)
++     if (error.kind === 'transport') reportHandlerFailure(error.cause)
++   },
++ })
+```
+
+Send handlers reject with a `SocketError`:
+
+```diff
+  try {
+    await createRoom({ name })
+  } catch (error) {
+-   if (error instanceof ZodError) showInvalid(error.issues)
++   if (isSocketError(error) && error.kind === 'validation') showInvalid(error.issues)
++   if (isSocketError(error) && error.kind === 'ack-timeout') showTimeout()
+  }
 ```
 
 ## [1.0.0] - 2026-01-08

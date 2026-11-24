@@ -23,22 +23,19 @@ export interface AbstractResponse<T> {
 }
 
 /**
- * HTTP request configuration.
+ * HTTP request configuration handed to the {@link Client}.
  *
- * This interface defines the shape of request configurations accepted by HTTP clients.
- * Compatible with axios, @navios/http, and other standard HTTP clients.
- *
- * Common fields are first-class. Anything genuinely client-specific (e.g. axios
- * `adapter`, fetch `credentials` overrides) should be routed through
- * `clientOptions` rather than relying on an open index signature, so consumer
- * sites stay strongly typed.
+ * The builder owns the keys declared here. Anything an endpoint passes in its
+ * `clientOptions` is merged into the same object, so client-specific keys
+ * (axios `withCredentials`, fetch `credentials`, ...) reach the client under
+ * their own names. Builder-owned keys always win over `clientOptions`.
  */
 export interface AbstractRequestConfig {
   /** Query parameters (will be appended to URL) */
   params?: Record<string, unknown> | URLSearchParams
   /** HTTP method */
   method?: HttpMethod
-  /** Request URL (can include path parameters) */
+  /** Request URL with path parameters already bound */
   url: string
   /** Request body data */
   data?: unknown
@@ -49,23 +46,30 @@ export interface AbstractRequestConfig {
   /** Request timeout in milliseconds (recognised by axios, @navios/http, etc.) */
   timeout?: number
   /**
-   * Expected response body type. Standard fetch/axios-style hint used by
-   * streaming endpoints to request a `Blob` body and by clients that need
-   * the raw bytes/text instead of JSON.
+   * Expected response body type. Set by the builder from the endpoint's
+   * `response` option (`'blob'`, `'text'`, `'stream'`); absent for JSON.
    */
   responseType?: 'json' | 'text' | 'blob' | 'arrayBuffer' | 'formData' | 'stream'
-  /**
-   * Additional client-specific options forwarded verbatim to the underlying
-   * HTTP client. Use this for keys the abstract config does not model.
-   */
-  clientOptions?: Record<string, unknown>
+  /** Client-specific keys merged in from the endpoint's `clientOptions`. */
+  [key: string]: unknown
 }
 
 /**
  * HTTP client interface.
  *
  * Any HTTP client that implements this interface can be used with the builder.
- * Compatible with axios, @navios/http, and other standard HTTP clients.
+ *
+ * ## Contract
+ *
+ * - `request` may **resolve or reject** for a non-2xx response. The builder
+ *   checks `status` itself and treats anything outside 200–299 as an error.
+ * - A rejection that carries a `response` property shaped like
+ *   {@link AbstractResponse} (the axios / @navios/http convention) is handled
+ *   exactly like a resolved non-2xx response.
+ * - A rejection without `response` is a transport failure and is classified
+ *   as `network`, `timeout` or `aborted`.
+ *
+ * A thin `fetch` wrapper is therefore a valid client:
  *
  * @example
  * ```ts
@@ -73,14 +77,15 @@ export interface AbstractRequestConfig {
  *   request: async (config) => {
  *     const response = await fetch(config.url, {
  *       method: config.method,
- *       body: config.data,
- *       headers: config.headers
+ *       body: config.data ? JSON.stringify(config.data) : undefined,
+ *       headers: config.headers,
+ *       signal: config.signal,
  *     })
  *     return {
  *       data: await response.json(),
  *       status: response.status,
  *       statusText: response.statusText,
- *       headers: Object.fromEntries(response.headers.entries())
+ *       headers: response.headers,
  *     }
  *   }
  * }

@@ -1,11 +1,16 @@
 import { NaviosError } from '../errors/index.mjs'
 
-import { createSendHandler, type CreateSendContext } from './handlers/create-send.mjs'
+import {
+  createSendHandler,
+  type CreateSendContext,
+  type PendingAck,
+} from './handlers/create-send.mjs'
 import {
   createGlobalMessageHandler,
   createSubscribeHandler,
   type CreateSubscribeContext,
 } from './handlers/create-subscribe.mjs'
+import { reportSocketError } from './report-error.mjs'
 
 import type { SocketBuilderInstance } from './types/socket-builder-instance.mjs'
 import type { SocketClient } from './types/socket-client.mjs'
@@ -15,9 +20,9 @@ import type { SendOptions, SocketBuilderConfig, SubscribeOptions } from './types
 /**
  * Creates a socket builder instance for declarative WebSocket/Socket.IO messaging.
  *
- * The builder allows you to define type-safe send and subscribe handlers with
- * Zod schema validation. It uses a Socket.IO-compatible interface, so it works
- * with socket.io-client or any WebSocket wrapper implementing the SocketClient interface.
+ * The builder allows you to define type-safe send and subscribe handlers
+ * validated by any Standard Schema (Zod, Valibot, ArkType, ...). It uses a
+ * Socket.IO-compatible interface, so it works with socket.io-client or any WebSocket wrapper implementing the SocketClient interface.
  *
  * @param config - Optional configuration for message formatting and error handling
  * @returns A SocketBuilderInstance with methods to define send/subscribe handlers
@@ -26,12 +31,12 @@ import type { SendOptions, SocketBuilderConfig, SubscribeOptions } from './types
  * ```ts
  * import { socketBuilder } from '@navios/builder/socket'
  * import { io } from 'socket.io-client'
- * import { z } from 'zod'
+ * // `z` is Zod here; any Standard Schema library works the same way
  *
  * // Create builder
  * const socket = socketBuilder({
- *   onError: (event) => {
- *     console.error(`Socket error (${event.kind}) on ${event.topic ?? '?'}:`, event.cause)
+ *   onError: (error) => {
+ *     console.error(`Socket error (${error.kind}) on ${error.topic}:`, error.message)
  *   }
  * })
  *
@@ -61,14 +66,7 @@ export function socketBuilder(config: SocketBuilderConfig = {}): SocketBuilderIn
 
   // State for message handling
   const topicHandlers = new Map<string, Set<(payload: unknown) => void>>()
-  const ackHandlers = new Map<
-    string,
-    {
-      resolve: (value: unknown) => void
-      reject: (error: Error) => void
-      timeoutId: ReturnType<typeof setTimeout>
-    }
-  >()
+  const ackHandlers = new Map<string, PendingAck>()
 
   // Track if global listener is set up
   let globalListenerSetup = false
@@ -121,9 +119,17 @@ export function socketBuilder(config: SocketBuilderConfig = {}): SocketBuilderIn
 
       // Clear all pending acknowledgement handlers to prevent memory leaks
       // and avoid calling off() on the wrong client during timeout
-      ackHandlers.forEach(({ timeoutId, reject }) => {
+      const previousUrl = client.url
+      ackHandlers.forEach(({ topic, timeoutId, reject }) => {
         clearTimeout(timeoutId)
-        reject(new Error('[Navios-Socket]: Client was replaced while acknowledgement pending'))
+        reject(
+          reportSocketError(config.onError, {
+            kind: 'transport',
+            topic,
+            url: previousUrl,
+            message: '[Navios-Socket]: Client was replaced while acknowledgement pending',
+          }),
+        )
       })
       ackHandlers.clear()
     }

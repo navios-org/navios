@@ -1,7 +1,7 @@
-import type { z, ZodObject } from 'zod/v4'
-
-import type { HasProperty, SafeGet } from '../../types/builder-instance.mjs'
+import type { SocketError } from '../../errors/socket-error.mjs'
+import type { HasProperty, SafeGet } from '../../types/request.mjs'
 import type { Simplify, UrlHasParams, UrlParams } from '../../types/request.mjs'
+import type { InferSchemaInput, Schema } from '../../types/schema.mjs'
 import type { SocketClient } from '../types/socket-client.mjs'
 
 /**
@@ -13,13 +13,13 @@ export type WebSocketHandleState = 'connecting' | 'open' | 'closing' | 'closed'
  * Options for declareWebSocket.
  *
  * @template Url - URL template string (e.g., 'wss://api.example.com/ws/$roomId')
- * @template QuerySchema - Optional Zod schema for query parameters
- * @template UrlParamsSchema - Optional Zod schema for URL parameter validation
+ * @template QuerySchema - Optional schema for query parameters
+ * @template UrlParamsSchema - Optional schema for URL parameter validation
  */
 export interface DeclareWebSocketOptions<
   Url extends string = string,
-  QuerySchema extends ZodObject | undefined = ZodObject | undefined,
-  UrlParamsSchema extends ZodObject | undefined = ZodObject | undefined,
+  QuerySchema extends Schema | undefined = Schema | undefined,
+  UrlParamsSchema extends Schema | undefined = Schema | undefined,
 > {
   /**
    * WebSocket URL (can include $param placeholders).
@@ -29,12 +29,17 @@ export interface DeclareWebSocketOptions<
   url: Url
 
   /**
-   * Optional Zod schema for query parameters.
+   * Optional schema (any Standard Schema) for query parameters. Its output
+   * must be a plain object; each entry becomes one query parameter.
+   *
+   * The connection is opened synchronously, so the schema must validate
+   * synchronously.
    */
   querySchema?: QuerySchema
 
   /**
-   * Optional Zod schema for URL parameter validation.
+   * Optional schema (any Standard Schema) for URL parameter validation.
+   * Must validate synchronously, like `querySchema`.
    */
   urlParamsSchema?: UrlParamsSchema
 
@@ -54,9 +59,14 @@ export interface CreateWebSocketHandlerConfig {
   baseUrl?: string
 
   /**
-   * Callback for errors during message parsing/sending.
+   * Called with a {@link SocketError} of kind `'transport'` when a listener
+   * registered on the handle throws or the underlying `WebSocket` fails to
+   * send. `topic` is the event name, `url` the connection URL and `cause`
+   * the original error.
+   *
+   * An exception thrown inside the hook is caught and logged.
    */
-  onError?: (error: unknown) => void
+  onError?: (error: SocketError) => void
 }
 
 /**
@@ -66,12 +76,12 @@ export type InferWebSocketConnectParams<Options extends DeclareWebSocketOptions>
   // URL Parameters
   (UrlHasParams<Options['url']> extends true
     ? HasProperty<Options, 'urlParamsSchema'> extends true
-      ? { urlParams: z.input<SafeGet<Options, 'urlParamsSchema'> & ZodObject> }
+      ? { urlParams: InferSchemaInput<SafeGet<Options, 'urlParamsSchema'>> }
       : { urlParams: UrlParams<Options['url']> }
     : {}) &
     // Query Parameters
     (HasProperty<Options, 'querySchema'> extends true
-      ? { params: z.input<SafeGet<Options, 'querySchema'> & ZodObject> }
+      ? { params: InferSchemaInput<SafeGet<Options, 'querySchema'>> }
       : {})
 >
 
@@ -113,6 +123,11 @@ export interface WebSocketSocketHandle extends SocketClient {
    * Alias for disconnect().
    */
   close(code?: number, reason?: string): void
+
+  /**
+   * Full URL the WebSocket was opened with.
+   */
+  readonly url: string
 
   /**
    * Whether the socket is currently connected.

@@ -1,6 +1,6 @@
-import type { ZodObject } from 'zod/v4'
-
 import { bindUrlParams } from '../../request/bind-url-params.mjs'
+import { parseSync } from '../../request/validate.mjs'
+import { reportEventSourceError } from '../report-error.mjs'
 
 import type {
   CreateEventSourceHandlerConfig,
@@ -22,7 +22,7 @@ import type {
  * @example
  * ```ts
  * import { createEventSourceHandler } from '@navios/builder/eventsource'
- * import { z } from 'zod'
+ * // `z` is Zod here; any Standard Schema library works the same way
  *
  * const declareEventSource = createEventSourceHandler({
  *   baseUrl: 'https://api.example.com',
@@ -52,13 +52,13 @@ export function createEventSourceHandler(config: CreateEventSourceHandlerConfig 
       const urlPart = bindUrlParams(
         options.url,
         params as { urlParams?: Record<string, string | number> },
-        options.urlParamsSchema as ZodObject | undefined,
+        options.urlParamsSchema,
       )
 
       // Build query string
       let queryString = ''
       if (options.querySchema && 'params' in params && params.params) {
-        const parsed = (options.querySchema as ZodObject).parse(params.params)
+        const parsed = parseSync(options.querySchema, params.params)
         const searchParams = new URLSearchParams()
         for (const [key, value] of Object.entries(parsed as Record<string, unknown>)) {
           if (value !== undefined && value !== null) {
@@ -79,6 +79,16 @@ export function createEventSourceHandler(config: CreateEventSourceHandlerConfig 
 
       // Track state
       let currentState: EventSourceHandleState = 'connecting'
+
+      // A throwing listener must not stop its siblings; it is reported instead.
+      const reportHandlerError = (eventName: string, cause: unknown) => {
+        reportEventSourceError(config.onError, {
+          kind: 'transport',
+          eventName,
+          url: fullUrl,
+          cause,
+        })
+      }
 
       // Event listener management
       type Handler = (data: unknown) => void
@@ -111,8 +121,8 @@ export function createEventSourceHandler(config: CreateEventSourceHandlerConfig 
         openHandlers.forEach((handler) => {
           try {
             handler(event)
-          } catch (error) {
-            config.onError?.(error)
+          } catch (cause) {
+            reportHandlerError('open', cause)
           }
         })
       }
@@ -121,8 +131,8 @@ export function createEventSourceHandler(config: CreateEventSourceHandlerConfig 
         errorHandlers.forEach((handler) => {
           try {
             handler(event)
-          } catch (error) {
-            config.onError?.(error)
+          } catch (cause) {
+            reportHandlerError('error', cause)
           }
         })
         if (eventSource.readyState === EventSource.CLOSED) {
@@ -138,8 +148,8 @@ export function createEventSourceHandler(config: CreateEventSourceHandlerConfig 
           handlers.forEach((handler) => {
             try {
               handler(data)
-            } catch (error) {
-              config.onError?.(error)
+            } catch (cause) {
+              reportHandlerError('message', cause)
             }
           })
         }
@@ -162,8 +172,8 @@ export function createEventSourceHandler(config: CreateEventSourceHandlerConfig 
             handlers.forEach((handler) => {
               try {
                 handler(data)
-              } catch (error) {
-                config.onError?.(error)
+              } catch (cause) {
+                reportHandlerError(eventName, cause)
               }
             })
           }
@@ -202,8 +212,8 @@ export function createEventSourceHandler(config: CreateEventSourceHandlerConfig 
           if (eventSource.readyState === EventSource.OPEN) {
             try {
               handler(new Event('open'))
-            } catch (error) {
-              config.onError?.(error)
+            } catch (cause) {
+              reportHandlerError('open', cause)
             }
           }
           return () => {
@@ -222,6 +232,10 @@ export function createEventSourceHandler(config: CreateEventSourceHandlerConfig 
           errorHandlers.clear()
           openHandlers.clear()
           eventSource.close()
+        },
+
+        get url(): string {
+          return fullUrl
         },
 
         get connected(): boolean {

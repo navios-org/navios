@@ -1,19 +1,17 @@
 # Navios Builder
 
-`Navios Builder` is a helper library on top of `zod` to provide a more declarative way to create an API client with type safety and validation. It allows you to define your API endpoints, request and response schemas, and automatically generates the necessary code to make API requests.
+`@navios/builder` is a declarative, type-safe API client builder. Schemas come from `zod` or any other [Standard Schema](https://standardschema.dev) library. You describe each endpoint once — method, URL, schemas — and get back a typed function that validates what it sends and what it receives.
 
 ## Why?
 
-- **Type Safety**: By using Zod schemas, you can ensure that the data you receive from your API matches the expected structure. This helps catch errors early in the development process.
-- **Validation**: Zod provides powerful validation capabilities, allowing you to define complex validation rules for your data. This ensures that the data you work with is always valid and meets your requirements.
-- **Integration with @navios/http**: @navios/http is a powerful HTTP client that simplifies API requests. By combining it with Zod, you can create a robust and type-safe API client.
-- **Declarative API**: The API is designed to be declarative, allowing you to define your API endpoints and their schemas in a clear and concise manner. This makes it easy to understand and maintain your API client.
-- **Discriminated Union Support**: The package supports discriminated unions, allowing you to handle different response types based on a common property. This is useful for APIs that return different data structures based on the request.
-- **Envelope Mode**: Opt endpoints into a non-throwing return shape (`{ ok, data, error, response }`) with typed error variants (`http`, `http-unknown`, `validation`, `network`) via `result: 'envelope'`.
-- **Error Schema Support**: Define different Zod schemas for different HTTP error status codes with type-safe discrimination using `isHttpError()` and the other envelope guards.
-- **URL Parameter Validation**: Validate URL parameters at runtime using Zod schemas with `urlParamsSchema` option.
-- **Customizable**: The package allows you to customize the behavior of the API client, such as using a custom client.
-- **Error Handling**: The package provides built-in error handling capabilities, allowing you to handle API errors gracefully and provide meaningful feedback to users.
+- **Type safety**: arguments, response data and error bodies are all inferred from your schemas and the URL template.
+- **Validation**: input is validated before a request is sent; responses are validated before your code sees them.
+- **One error type**: every failed call produces an `EndpointError` with a `kind` you can switch on. Throw it (`endpoint()`) or receive it as a value (`endpoint.safe()`).
+- **Typed error bodies**: map HTTP status codes to schemas with `errorSchema` and narrow with `error.kind` / `error.status`.
+- **Any schema library**: every schema slot accepts a Standard Schema v1 implementation — Zod, Valibot, ArkType and others — and libraries can be mixed.
+- **Any HTTP client**: `@navios/http`, `axios`, or a ten-line `fetch` wrapper.
+- **More than JSON**: multipart uploads, and blob / text / stream / empty responses, from the same `declareEndpoint`.
+- **Shared contracts**: the same declarations drive `@navios/core` controllers and `@navios/react-query` hooks.
 
 ## Installation
 
@@ -27,461 +25,442 @@ or
 yarn add @navios/builder zod
 ```
 
+`zod` is an optional peer dependency and the library used throughout this README; the builder itself does not import it. See [Schema libraries](#schema-libraries) for using another one.
+
 ## Usage
 
 ```ts
 import { builder } from '@navios/builder'
 import { create } from '@navios/http'
-// or
-import { create } from 'axios'
 import { z } from 'zod/v4'
 
-const API = builder()
-
-const client = create({
-  baseURL: 'https://example.com/api/',
+const API = builder({
+  client: create({ baseURL: 'https://example.com/api' }),
 })
 
-// We can provide the client to the API
-API.provideClient(client)
-
-const GetUserResponseSchema = z.object({
+const userSchema = z.object({
   id: z.number(),
   name: z.string(),
 })
 
 const getUser = API.declareEndpoint({
-  method: 'get',
-  url: 'user',
-  responseSchema: GetUserResponseSchema,
+  method: 'GET',
+  url: '/users/$userId',
+  responseSchema: userSchema,
 })
-```
-
-Or a more complex example with the request schema:
-
-```ts
-import { builder } from '@navios/builder'
-import { z } from 'zod/v4'
-
-import { GetUsersResponseSchema } from './schemas/GetUsersResponseSchema.js'
-
-const API = builder()
-
-const UpdateUserRequestSchema = z.object({
-  id: z.number(),
-  name: z.string(),
-})
-
-const UpdateUserResponseSchema = z.discriminatedUnion('status', [
-  z.object({
-    status: z.literal('success'),
-    data: GetUsersResponseSchema,
-  }),
-  z.object({
-    status: z.literal('error'),
-    error: z.string(),
-  }),
-])
 
 const updateUser = API.declareEndpoint({
   method: 'PUT',
-  url: 'user/$userId',
-  requestSchema: UpdateUserRequestSchema,
-  responseSchema: UpdateUserResponseSchema,
-})
-
-// In another file you can set the API client
-
-// Use @navios/http client or axios
-const client = create({
-  baseURL: 'https://example.com/api/',
-  headers: {
-    Authorization: 'Bearer token',
-  },
-})
-
-API.provideClient(client)
-
-// Usage
-
-const result = await updateUser({
-  urlParams: {
-    userId: 1,
-  },
-  data: {
-    id: 1,
-    name: 'John Doe',
-  },
-})
-
-if (result.status === 'success') {
-  console.log(result.data)
-} else {
-  console.error(result.error)
-}
-```
-
-## API
-
-### `builder`
-
-`builder` is a function that creates an API object. It accepts an object with the following properties:
-
-- `defaults` - default settings applied to every endpoint declared by this builder. Currently supports `defaults.result: 'data' | 'envelope'`.
-- `onError` - global error hook. Receives a structured `BuilderErrorEvent` (`kind`, `endpoint`, `status`, `zodIssues`, `cause`, `body`) on every failure path. Use `event.kind === 'validation'` to react to Zod failures specifically.
-
-The function returns an API object with the following methods:
-
-#### `declareEndpoint` - creates an endpoint with the specified options.
-
-```ts
-declareEndpoint({
-  method: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH' | 'HEAD' | 'OPTIONS',
-  url: string,
-  responseSchema: z.ZodSchema<unknown>, // Required
-  // optional
-  requestSchema: z.ZodSchema<unknown>, // Only for POST, PUT, PATCH methods
-  querySchema: z.ZodSchema<unknown>, // For query parameters
-  errorSchema: Record<number, z.ZodSchema<unknown>>, // Map status codes to schemas
-  urlParamsSchema: z.ZodObject<unknown>, // Validate URL params at runtime
-  clientOptions: ClientOptions, // Per-endpoint configuration
-})
-```
-
-Returns a function that makes the HTTP request. The function accepts:
-
-- `urlParams`: Object with URL parameter values (when URL contains `$paramName`)
-- `data`: Request body data (when `requestSchema` is provided)
-- `params`: Query parameters (when `querySchema` is provided)
-- `headers`: Additional headers
-- `signal`: AbortSignal for request cancellation
-
-The function returns a Promise that resolves to the parsed response data (validated by `responseSchema`).
-
-#### `declareStream` - creates a stream endpoint for downloading files.
-
-```ts
-declareStream({
-  method: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH' | 'HEAD' | 'OPTIONS',
-  url: string,
-  // optional
-  requestSchema: z.ZodSchema<unknown>, // Only for POST, PUT, PATCH methods
-  querySchema: z.ZodSchema<unknown>, // For query parameters
-})
-```
-
-Returns a function that makes the HTTP request and returns a `Blob`.
-
-#### `declareMultipart` - creates a multipart/form-data endpoint for file uploads.
-
-```ts
-declareMultipart({
-  method: 'POST' | 'PUT' | 'PATCH',
-  url: string,
-  responseSchema: z.ZodSchema<unknown>, // Required
-  // optional
-  requestSchema: z.ZodSchema<unknown>, // Should include File instances
-  querySchema: z.ZodSchema<unknown>, // For query parameters
-})
-```
-
-Returns a function that automatically converts the request data to `FormData` and makes the HTTP request.
-
-#### `provideClient` - sets the HTTP client for the API.
-
-```ts
-provideClient(client) // client is an instance of axios or @navios/http client
-```
-
-The client must implement the `Client` interface with a `request` method that accepts `AbstractRequestConfig` and returns `Promise<AbstractResponse<T>>`.
-
-#### `getClient` - gets the current HTTP client.
-
-```ts
-getClient() // Returns the current client or throws NaviosError if not set
-```
-
-## Advanced Features
-
-### Error Schema
-
-Define different response schemas for different HTTP error status codes. Combine `errorSchema` with `result: 'envelope'` for type-safe error discrimination:
-
-```ts
-import { builder, isHttpError } from '@navios/builder'
-
-const API = builder()
-
-const getUser = API.declareEndpoint({
-  method: 'GET',
   url: '/users/$userId',
-  responseSchema: z.object({
-    id: z.string(),
-    name: z.string(),
-  }),
-  errorSchema: {
-    400: z.object({ error: z.string(), field: z.string() }),
-    404: z.object({ error: z.literal('Not Found') }),
-    500: z.object({ error: z.string() }),
-  },
-  result: 'envelope',
+  querySchema: z.object({ notify: z.boolean().optional() }),
+  requestSchema: z.object({ name: z.string() }),
+  responseSchema: userSchema,
 })
 
-const { data, error } = await getUser({ urlParams: { userId: '123' } })
+const user = await getUser({ urlParams: { userId: 1 } })
 
-// Use type guards to narrow the type
-if (isHttpError(error, 404)) {
-  console.log('Not found:', error.body.error) // TypeScript knows this is the 404 schema
-} else if (isHttpError(error)) {
-  console.log('Error:', error.status, error.body)
-} else if (!error) {
-  console.log('User:', data.name) // TypeScript knows this is the success response
+const updated = await updateUser({
+  urlParams: { userId: 1 },
+  data: { name: 'John Doe' },
+})
+```
+
+## Calling an endpoint
+
+Every endpoint can be called in two ways. Both run the same pipeline and produce the same error for the same failure.
+
+```ts
+// Throws an EndpointError on any failure
+const user = await getUser({ urlParams: { userId: 1 } })
+
+// Never throws: resolves to a SafeResult
+const res = await getUser.safe({ urlParams: { userId: 1 } })
+if (res.ok) {
+  res.data // typed from responseSchema
+  res.response // { status, statusText, headers }
+} else {
+  res.error // EndpointError
+  res.response // ResponseMeta | null
 }
 ```
 
-With `result: 'envelope'` and `errorSchema` defined:
+Call arguments:
 
-- Error responses matching a status code in `errorSchema` are parsed and returned on `error.body` (not thrown)
-- The typed `error` variant carries `status`, `body`, and `kind`
-- Unmatched status codes surface as the `http-unknown` variant with `body: unknown`
+- `urlParams` — values for the `$name` placeholders in the URL (required when the URL has any)
+- `params` — query parameters (when `querySchema` is declared)
+- `data` — request body (when `requestSchema` is declared)
+- `headers`, `timeout`, `signal` — per-call request options
 
-### URL Parameter Validation
-
-Validate URL parameters at runtime using Zod schemas:
+The arguments object is optional when nothing in it is required, and `params` / `data` are optional when their schema has no required fields:
 
 ```ts
-const getUser = API.declareEndpoint({
+const listUsers = API.declareEndpoint({
+  method: 'GET',
+  url: '/users',
+  querySchema: z.object({ page: z.number().optional() }),
+  responseSchema: z.array(userSchema),
+})
+
+await listUsers()
+await listUsers({ params: { page: 2 } })
+```
+
+A second argument selects the HTTP client for a single call — useful for per-request clients in SSR:
+
+```ts
+await getUser({ urlParams: { userId: 1 } }, { client: requestScopedClient })
+```
+
+`getUser.config` is the options object the endpoint was declared with.
+
+## Declaring endpoints
+
+```ts
+API.declareEndpoint({
+  method: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH' | 'HEAD' | 'OPTIONS',
+  url: string, // '$name' marks a URL parameter
+
+  responseSchema, // required for JSON responses, unless `responses` is given
+  responses, // { [status]: schema | null } per-status success schemas
+  requestSchema, // request body
+  querySchema, // query parameters (an object schema)
+  urlParamsSchema, // runtime validation of URL parameters (an object schema)
+  errorSchema, // { [status]: schema } for typed error bodies
+
+  body: 'json' | 'multipart', // default 'json'
+  response: 'json' | 'blob' | 'text' | 'stream' | 'void', // default 'json'
+
+  headers, // sent with every call; per-call headers are merged over them
+  timeout, // milliseconds; a per-call timeout wins
+  clientOptions, // client-specific keys, e.g. { withCredentials: true }
+  validateResponse, // false skips the runtime parse of the response
+})
+```
+
+### URL parameters
+
+A parameter is `$` followed by a letter or underscore, then letters, digits or underscores. The same rule is applied by the type system and at runtime, so `/users/$user_id` and `/files/$id.json` both work as you would expect. Values are URL-encoded.
+
+`urlParamsSchema` adds runtime validation and lets you narrow the parameter types. Its keys must be exactly the parameter names in the URL — a mismatch throws a `NaviosError` when the endpoint is declared. (The declaration-time check needs the schema's keys, so it runs for schemas that expose `.shape`, i.e. Zod objects.)
+
+```ts
+const getPost = API.declareEndpoint({
   method: 'GET',
   url: '/users/$userId/posts/$postId',
-  responseSchema: postSchema,
   urlParamsSchema: z.object({
-    userId: z.string().uuid(), // Must be a valid UUID
-    postId: z.coerce.number().int().positive(), // Coerced to positive integer
+    userId: z.uuid(),
+    postId: z.coerce.number().int().positive(),
   }),
-})
-
-// This will throw a validation error if userId is not a valid UUID
-await getUser({
-  urlParams: {
-    userId: '550e8400-e29b-41d4-a716-446655440000',
-    postId: '42',
-  },
+  responseSchema: postSchema,
 })
 ```
 
-### Per-Endpoint Client Options
+### File upload
 
-Configure timeout, headers, and transformation options per endpoint:
+`body: 'multipart'` converts `data` to `FormData`. `File` values (and arrays of them) are appended as files, dates as ISO strings, other objects as JSON.
 
 ```ts
-const createUser = API.declareEndpoint({
+const uploadAvatar = API.declareEndpoint({
   method: 'POST',
-  url: '/users',
-  requestSchema: userCreateSchema,
-  responseSchema: userSchema,
-  clientOptions: {
-    timeout: 30000, // 30 second timeout
-    headers: {
-      'X-Custom-Header': 'value',
-    },
-    transformRequest: {
-      skipFields: ['rawData'], // Skip transformation for these fields
-      skipPaths: ['metadata.custom'], // Skip transformation for nested paths
-    },
-    transformResponse: {
-      skipFields: ['rawResponse'],
-    },
+  url: '/users/$userId/avatar',
+  body: 'multipart',
+  requestSchema: z.object({
+    file: z.instanceof(File),
+    caption: z.string().optional(),
+  }),
+  responseSchema: z.object({ url: z.string() }),
+})
+
+await uploadAvatar({ urlParams: { userId: 1 }, data: { file } })
+```
+
+### Non-JSON responses
+
+```ts
+// Blob — file downloads
+const downloadFile = API.declareEndpoint({
+  method: 'GET',
+  url: '/files/$fileId',
+  response: 'blob',
+})
+
+// string
+const getReadme = API.declareEndpoint({ method: 'GET', url: '/readme', response: 'text' })
+
+// ReadableStream<Uint8Array>
+const tailLogs = API.declareEndpoint({ method: 'GET', url: '/logs', response: 'stream' })
+
+// undefined — 204 and other empty replies
+const deleteFile = API.declareEndpoint({
+  method: 'DELETE',
+  url: '/files/$fileId',
+  response: 'void',
+})
+```
+
+`responseSchema` is required for `'json'` — unless the endpoint declares `responses` — and unused for the other kinds.
+
+### Per-status responses
+
+When the success body depends on the status, declare `responses` in place of `responseSchema`. A schema validates and types the body for its status; `null` marks a status without a body.
+
+```ts
+const saveUser = API.declareEndpoint({
+  method: 'PUT',
+  url: '/users/$userId',
+  requestSchema: z.object({ name: z.string() }),
+  responses: {
+    200: userSchema, // existing user updated
+    201: z.object({ id: z.number(), created: z.literal(true) }), // user created
+    204: null, // nothing to return
   },
 })
-```
 
-## Envelope mode (`result: 'envelope'`)
+// { id: number; name: string } | { id: number; created: true } | undefined
+const data = await saveUser({ urlParams: { userId: 1 }, data: { name: 'Ada' } })
 
-### Why
-
-Opting an endpoint into envelope mode swaps the "parsed body or thrown error" return shape for a single value that carries the parsed body, a typed error, and the response metadata (status code, status text, headers). Reading a pagination cursor, an `ETag`, a `Retry-After`, or a typed `errorSchema` body becomes a destructuring expression rather than a `try`/`catch` plus a side-trip to the raw HTTP client. Envelope endpoints never throw — every failure is surfaced as a value on `error`.
-
-### Quick example
-
-```typescript
-import { builder, isHttpError } from '@navios/builder'
-
-import { z } from 'zod/v4'
-
-const API = builder()
-
-const getUser = API.declareEndpoint({
-  method: 'GET',
-  url: '/users/$userId',
-  responseSchema: z.object({ id: z.string(), name: z.string() }),
-  errorSchema: {
-    404: z.object({ error: z.literal('Not Found') }),
-    401: z.object({ error: z.string() }),
-  },
-  result: 'envelope',
-})
-
-const { data, error, response } = await getUser({ urlParams: { userId: '1' } })
-
-if (error) {
-  if (isHttpError(error, 404)) {
-    // error.body is typed as the 404 schema output
-    console.warn('missing user', error.body.error)
-  }
-  return
-}
-
-// data is typed as { id: string; name: string }
-// response is ResponseMeta (status / statusText / headers)
-console.log(`got ${data.name} as status ${response.status}`)
-console.log('etag:', response.headers.get('etag'))
-```
-
-### The four error variants
-
-Envelope `error` is a discriminated union keyed on `kind`:
-
-```typescript
-import {
-  isEnvelopeError,
-  isHttpError,
-  isNetworkError,
-  isUnknownHttpError,
-  isValidationError,
-} from '@navios/builder'
-
-if (isHttpError(error, 404)) {
-  // kind: 'http' — status matched errorSchema, body is the parsed schema output
-} else if (isUnknownHttpError(error)) {
-  // kind: 'http-unknown' — HTTP non-2xx with no matching errorSchema entry; body is unknown
-} else if (isValidationError(error)) {
-  // kind: 'validation' — response status was handled but Zod failed; carries issues + raw body
-} else if (isNetworkError(error)) {
-  // kind: 'network' — request never produced a response (DNS, abort, timeout, ...)
-}
-
-// or just check it is any envelope error:
-if (isEnvelopeError(error)) {
-  // narrowed to EnvelopeError union
+// safe() exposes the status that came back
+const res = await saveUser.safe({ urlParams: { userId: 1 }, data: { name: 'Ada' } })
+if (res.ok && res.response.status === 201) {
+  // created
 }
 ```
 
-`isHttpError(error, status)` narrows both `kind` and `status`, which in turn narrows `body` to the matching `errorSchema` entry.
+The result type is the union of every entry (`null` contributes `undefined`). A 2xx status that is not listed, or a body that does not match the schema of its status, fails the call with kind `response-validation`.
 
-### Builder-level default
+### Headers, timeout and client options
 
-To make envelope mode the default for every endpoint declared by a builder, set `defaults.result`:
-
-```typescript
-const API = builder({
-  defaults: { result: 'envelope' },
+```ts
+const exportReport = API.declareEndpoint({
+  method: 'POST',
+  url: '/reports/export',
+  requestSchema: exportSchema,
+  responseSchema: reportSchema,
+  headers: { 'X-Feature': 'reports' },
+  timeout: 30_000,
+  clientOptions: { withCredentials: true },
 })
 
-// inherits result: 'envelope'
-const getUser = API.declareEndpoint({
-  method: 'GET',
-  url: '/users/$userId',
-  responseSchema: UserSchema,
-})
-
-// per-endpoint override still wins
-const ping = API.declareEndpoint({
-  method: 'GET',
-  url: '/ping',
-  responseSchema: z.literal('pong'),
-  result: 'data',
-})
+// Per-call values win over the endpoint's
+await exportReport({ data, timeout: 60_000, headers: { 'X-Trace': traceId } })
 ```
 
-### Header helpers
-
-`response.headers` is a native `Headers` instance. Three thin helpers cover the common cases without having to remember the casing:
-
-```typescript
-import { getCookie, getHeader, getRetryAfterMs } from '@navios/builder'
-
-const etag = getHeader(response, 'etag') // string | null
-const session = getCookie(response, 'sid') // string | null (parsed from Set-Cookie)
-const retryMs = getRetryAfterMs(response) // number | null (seconds or HTTP-date -> ms)
-```
-
-All helpers accept `ResponseMeta | null`, so they are safe to call on an error envelope where `response` may be absent.
-
-### Subtle behaviour to be aware of
-
-- **`builder({ defaults: { result: 'envelope' } })` is a global contract change.** Every endpoint declared on that builder returns an envelope instead of throwing. `try` / `catch` blocks that previously caught HTTP failures will silently stop catching — failing assignments will surface as runtime errors at the destructuring site. Prefer per-endpoint opt-in unless you're rewriting your whole call site.
-
-- **`response.headers` is a Fetch `Headers` instance**, not a plain object. It is **not JSON-serializable**. SSR hydration, React Query's persister, and `localStorage` will silently lose headers. If you need to persist envelopes, convert with `Object.fromEntries(envelope.response.headers.entries())` first.
-
-- **`Object.freeze` is applied to `EnvelopeError['http']` bodies only.** Other variants (`http-unknown`, `validation`) leave their `body` mutable. Don't rely on freezing for runtime safety.
-
-### Migration from v1 (`useDiscriminatorResponse`)
-
-In v1 you discriminated error responses with `useDiscriminatorResponse: true` and the `isErrorStatus` / `isErrorResponse` guards. v2 removes that mode entirely; use `result: 'envelope'` with `isHttpError` instead:
-
-```typescript
-// v1
-import { builder, isErrorResponse, isErrorStatus } from '@navios/builder'
-
-const API = builder({ useDiscriminatorResponse: true })
-
-const getUser = API.declareEndpoint({
-  method: 'GET',
-  url: '/users/$userId',
-  responseSchema: UserSchema,
-  errorSchema: { 404: NotFoundSchema },
-})
-
-const result = await getUser({ urlParams: { userId: '1' } })
-if (isErrorStatus(result, 404)) {
-  console.log(result.error)
-} else if (isErrorResponse(result)) {
-  console.log(result.__status)
-} else {
-  console.log(result.name)
-}
-
-// v2
-import { builder, isHttpError } from '@navios/builder'
-
-const API = builder()
-
-const getUser = API.declareEndpoint({
-  method: 'GET',
-  url: '/users/$userId',
-  responseSchema: UserSchema,
-  errorSchema: { 404: NotFoundSchema },
-  result: 'envelope',
-})
-
-const { data, error } = await getUser({ urlParams: { userId: '1' } })
-if (isHttpError(error, 404)) {
-  console.log(error.body)
-} else if (!error) {
-  console.log(data.name)
-}
-```
-
-The legacy flag, `isErrorStatus`, `isErrorResponse`, and `__status` injection are removed in v2.
+`clientOptions` is merged into the request config for keys your HTTP client understands. It cannot override the keys the builder owns (`method`, `url`, `params`, `data`, `headers`, `signal`, `timeout`, `responseType`).
 
 ### `validateResponse: false`
 
-For trusted servers where the runtime Zod parse on the success body is overhead, set `validateResponse: false` per endpoint. The inferred static type is still taken from `responseSchema`, but the response body is returned as-is without a `parse()` call.
+For high-volume reads against a trusted server, skip the runtime parse and keep the static type:
 
-```typescript
+```ts
 const listFeedItems = API.declareEndpoint({
   method: 'GET',
   url: '/feed',
-  responseSchema: FeedItemArraySchema, // still used for the TYPE
-  validateResponse: false, // but not for runtime parsing
+  responseSchema: feedItemsSchema,
+  validateResponse: false,
 })
 ```
 
-This is independent of envelope mode and can be combined with it.
+## Errors
+
+A failed call produces one `EndpointError` (`extends NaviosError extends Error`). It is thrown by `endpoint()`, returned as `result.error` by `endpoint.safe()`, and passed to the builder's `onError` hook.
+
+| `kind`                | Meaning                                                                                                                                               | `status` / `body`            |
+| --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------- |
+| `http`                | Non-2xx status with an `errorSchema` entry; the body parsed                                                                                           | status, parsed schema output |
+| `http-unknown`        | Non-2xx status with no `errorSchema` entry                                                                                                            | status, raw body             |
+| `request-validation`  | `urlParams`, `params` or `data` failed its schema — nothing was sent                                                                                  | —                            |
+| `response-validation` | A 2xx body failed `responseSchema` / its `responses` entry, a 2xx status is missing from `responses`, or an error body failed its `errorSchema` entry | status, raw body             |
+| `network`             | No response was received                                                                                                                              | —                            |
+| `timeout`             | The request timed out                                                                                                                                 | —                            |
+| `aborted`             | The request was cancelled through its `AbortSignal`                                                                                                   | —                            |
+| `config`              | The call could not be made: no client, or a missing URL parameter                                                                                     | —                            |
+
+Other fields: `endpoint` (`{ method, url }`), `response` (`ResponseMeta | null`), `issues` (`readonly SchemaIssue[]` — `{ message, path? }` — for the validation kinds), `cause` (the original thrown value; the `ZodError` when a Zod schema rejected the value), and `toJSON()` for logging and serialization.
+
+### Typed error bodies
+
+```ts
+import { isEndpointError, isHttpError } from '@navios/builder'
+
+import type { EndpointErrorType } from '@navios/builder'
+
+const getUser = API.declareEndpoint({
+  method: 'GET',
+  url: '/users/$userId',
+  responseSchema: userSchema,
+  errorSchema: {
+    404: z.object({ message: z.string() }),
+    409: z.object({ conflictWith: z.string() }),
+  },
+})
+
+const res = await getUser.safe({ urlParams: { userId: 1 } })
+if (!res.ok) {
+  const { error } = res
+  if (error.kind === 'http' && error.status === 404) {
+    error.body.message // typed from errorSchema[404]
+  } else if (error.kind === 'http-unknown') {
+    error.status // number
+    error.body // unknown
+  }
+}
+
+// In a catch block the value is unknown — use the guards
+try {
+  await getUser({ urlParams: { userId: 1 } })
+} catch (error) {
+  if (isHttpError<typeof getUser.config.errorSchema, 404>(error, 404)) {
+    error.body.message
+  } else if (isEndpointError(error) && error.kind === 'aborted') {
+    // cancelled — nothing to report
+  } else {
+    throw error
+  }
+}
+
+// The full typed union for one endpoint
+type GetUserError = EndpointErrorType<typeof getUser>
+```
+
+`error.body` is exactly what the matching schema produced; the builder never adds fields to it.
+
+### `onError`
+
+`onError` is a telemetry hook. It is called once per failed call with the same `EndpointError` instance the caller receives. An exception thrown inside it is caught and logged.
+
+```ts
+const API = builder({
+  client,
+  onError: (error) => {
+    logger.warn(error.toJSON())
+  },
+})
+```
+
+### Response metadata
+
+`res.response` and `error.response` are `ResponseMeta` objects (`status`, `statusText`, and a `Headers` instance). Three helpers read common headers and accept `null`:
+
+```ts
+import { getCookie, getHeader, getRetryAfterMs } from '@navios/builder'
+
+const res = await getUser.safe({ urlParams: { userId: 1 } })
+
+const etag = getHeader(res.response, 'etag') // string | null
+const session = getCookie(res.response, 'sid') // string | null, from Set-Cookie
+const retryMs = getRetryAfterMs(res.response) // number | null
+```
+
+## Schema libraries
+
+Every schema slot — `requestSchema`, `querySchema`, `urlParamsSchema`, `responseSchema`, `errorSchema`, `responses` — accepts any [Standard Schema](https://standardschema.dev) v1 implementation: Zod, Valibot, ArkType and others. The builder exports the interface as `Schema<Input, Output>`.
+
+- Call arguments are typed from a schema's input type; results and error bodies from its output type. `InferSchemaInput<S>` and `InferSchemaOutput<S>` extract them for any library.
+- Schemas that validate asynchronously are supported.
+- Libraries can be mixed: each slot is validated on its own.
+- A rejected value produces the same `EndpointError` (`request-validation` / `response-validation`) with `issues: readonly SchemaIssue[]`. For a Zod schema `error.cause` is the original `ZodError`; for other libraries it is `undefined`.
+
+A library's schemas are passed as they are. Written by hand, a Standard Schema looks like this:
+
+```ts
+import type { Schema } from '@navios/builder'
+
+const slugSchema: Schema<{ slug: string }> = {
+  '~standard': {
+    version: 1,
+    vendor: 'my-app',
+    validate: (value) => {
+      const slug = (value as { slug?: unknown } | null)?.slug
+      return typeof slug === 'string' && /^[a-z0-9-]+$/.test(slug)
+        ? { value: { slug } }
+        : { issues: [{ message: 'Expected a lower-case slug', path: ['slug'] }] }
+    },
+  },
+}
+
+const renameProject = API.declareEndpoint({
+  method: 'PUT',
+  url: '/projects/$projectId/slug',
+  requestSchema: slugSchema, // hand-written
+  responseSchema: z.object({ id: z.string(), slug: z.string() }), // Zod
+})
+
+const res = await renameProject.safe({
+  urlParams: { projectId: 1 },
+  data: { slug: 'Not A Slug' },
+})
+if (!res.ok && res.error.kind === 'request-validation') {
+  res.error.issues // [{ message: 'Expected a lower-case slug', path: ['slug'] }]
+}
+```
+
+Where Zod is still required:
+
+- `@navios/core` controllers and OpenAPI generation read Zod schemas directly. Endpoints shared with the server must use Zod in every slot; `@navios/core` exports `ZodBaseEndpointOptions` and `ZodEndpointOptions`, the option types narrowed to Zod.
+- The declaration-time `urlParamsSchema` check (see [URL parameters](#url-parameters)).
+
+## HTTP client
+
+```ts
+const API = builder({ client })
+
+API.provideClient(client) // set or replace the client at start-up
+API.getClient() // the current client; throws NaviosError when none is set
+API.withClient(other) // a new builder with the same config and another client
+```
+
+A client is any object with a `request(config)` method that returns `{ data, status, statusText, headers }`:
+
+- `request` may resolve **or** reject for a non-2xx response; the builder checks `status` itself.
+- A rejection that carries a `response` property (the axios / `@navios/http` convention) is handled like a non-2xx response.
+- A rejection without `response` is classified as `network`, `timeout` or `aborted`.
+
+So a thin `fetch` wrapper is a valid client:
+
+```ts
+import type { Client } from '@navios/builder'
+
+const client: Client = {
+  request: async (config) => {
+    const query = new URLSearchParams(config.params as Record<string, string>).toString()
+    const response = await fetch(
+      `https://example.com/api${config.url}${query ? `?${query}` : ''}`,
+      {
+        method: config.method,
+        headers: { 'content-type': 'application/json', ...config.headers },
+        body: config.data === undefined ? undefined : JSON.stringify(config.data),
+        signal: config.signal,
+      },
+    )
+    return {
+      data: await response.json(),
+      status: response.status,
+      statusText: response.statusText,
+      headers: response.headers,
+    }
+  },
+}
+```
+
+## Type helpers
+
+```ts
+import type {
+  EndpointConfig,
+  EndpointErrorType,
+  EndpointParams,
+  EndpointResult,
+} from '@navios/builder'
+
+type Args = EndpointParams<typeof getUser> // call arguments
+type User = EndpointResult<typeof getUser> // resolved data
+type Failure = EndpointErrorType<typeof getUser> // typed EndpointError union
+type Config = EndpointConfig<typeof getUser> // declared options
+```
 
 ## WebSocket Support
 
-`@navios/builder` includes full WebSocket and Socket.IO support through the `@navios/builder/socket` export. This provides type-safe, bidirectional messaging with Zod schema validation.
+`@navios/builder` includes WebSocket and Socket.IO support through the `@navios/builder/socket` export. This provides type-safe, bidirectional messaging validated by any Standard Schema (the examples use Zod).
 
 ### Quick Start
 
@@ -515,6 +494,40 @@ const unsubscribe = onMessage((msg) => {
 })
 ```
 
+### Errors
+
+Every failure is a `SocketError` (`extends NaviosError`). Send handlers throw it or reject with it, and the builder's `onError` hook receives the same instance.
+
+```ts
+import { isSocketError, socketBuilder } from '@navios/builder/socket'
+
+const socket = socketBuilder({
+  onError: (error) => {
+    // error.kind: 'validation' | 'ack-timeout' | 'transport'
+    report(error.kind, error.topic, error.issues ?? error.cause)
+  },
+})
+
+try {
+  await createRoom({ name: 'My Room' })
+} catch (error) {
+  if (isSocketError(error) && error.kind === 'ack-timeout') {
+    // no acknowledgement arrived in time
+  }
+}
+```
+
+| Field     | Description                                                                    |
+| --------- | ------------------------------------------------------------------------------ |
+| `kind`    | `'validation'`, `'ack-timeout'` or `'transport'`                               |
+| `topic`   | Topic the handler was defined with                                             |
+| `url`     | Connection URL, when the client exposes one (`declareWebSocket` handles do)    |
+| `issues`  | `readonly SchemaIssue[]`, for `validation`                                     |
+| `rawData` | The value that failed validation                                               |
+| `cause`   | The schema library's error (a `ZodError` for Zod) or the value a handler threw |
+
+An exception thrown inside `onError` is caught and logged; it never interrupts message handling.
+
 ### Using with Native WebSocket
 
 You can also use native WebSocket connections:
@@ -541,7 +554,7 @@ For detailed documentation, see the [WebSocket Guide](/docs/builder/builder/adva
 
 ## Server-Sent Events (SSE) Support
 
-`@navios/builder` includes Server-Sent Events support through the `@navios/builder/eventsource` export. This provides type-safe, unidirectional event streaming with Zod schema validation.
+`@navios/builder` includes Server-Sent Events support through the `@navios/builder/eventsource` export. This provides type-safe, unidirectional event streaming validated by any Standard Schema (the examples use Zod).
 
 ### Quick Start
 
@@ -577,5 +590,31 @@ const unsubscribe = onMessage((msg) => {
   console.log(`${msg.from}: ${msg.text}`)
 })
 ```
+
+### Errors
+
+An event that fails `payloadSchema` is skipped, and a handler that throws does not stop the other handlers. Both are reported to the builder's `onError` hook as an `EventSourceError` (`extends NaviosError`).
+
+```ts
+import { eventSourceBuilder } from '@navios/builder/eventsource'
+
+const sse = eventSourceBuilder({
+  onError: (error) => {
+    // error.kind: 'validation' | 'transport'
+    report(error.kind, error.eventName, error.issues ?? error.cause)
+  },
+})
+```
+
+| Field       | Description                                                                    |
+| ----------- | ------------------------------------------------------------------------------ |
+| `kind`      | `'validation'` or `'transport'`                                                |
+| `eventName` | Event the handler was defined for                                              |
+| `url`       | Connection URL, when the client exposes one (`declareEventSource` handles do)  |
+| `issues`    | `readonly SchemaIssue[]`, for `validation`                                     |
+| `rawData`   | The event data that failed validation                                          |
+| `cause`     | The schema library's error (a `ZodError` for Zod) or the value a handler threw |
+
+`isEventSourceError(value)` is the matching type guard. An exception thrown inside `onError` is caught and logged.
 
 For detailed documentation, see the [EventSource Guide](/docs/builder/builder/advanced/eventsource).

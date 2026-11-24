@@ -1,252 +1,296 @@
-import { ZodError } from 'zod/v4'
-
-import type { ZodObject, ZodType } from 'zod/v4'
-
-import { buildErrorEvent } from '../errors/build-error-event.mjs'
-import { classifyError } from '../errors/classify-error.mjs'
-import { handleError } from '../errors/handle-error.mjs'
-import { bindUrlParams } from '../request/bind-url-params.mjs'
+import { callErrorHook } from '../errors/call-error-hook.mjs'
+import { EndpointError } from '../errors/endpoint-error.mjs'
+import { NaviosError } from '../errors/navios-error.mjs'
+import { bindUrlParams, getUrlParamNames } from '../request/bind-url-params.mjs'
 import { makeConfig } from '../request/make-config.mjs'
+import { validate } from '../request/validate.mjs'
 
+import type { EndpointErrorInit } from '../errors/endpoint-error.mjs'
 import type { AbstractRequestConfig, AbstractResponse, Client } from '../types/common.mjs'
-import type { EnvelopeError } from '../types/envelope-error.mjs'
-import type { ResponseEnvelopeErr, ResponseEnvelopeOk, ResponseMeta } from '../types/envelope.mjs'
-import type { ErrorSchemaRecord } from '../types/error-schema.mjs'
-import type { BaseEndpointOptions, BuilderContext } from '../types/index.mjs'
+import type { BaseEndpointOptions, BuilderContext } from '../types/config.mjs'
+import type { ResponseMeta, SafeResult } from '../types/result.mjs'
+import type { Schema } from '../types/schema.mjs'
 
 /**
- * Base request type for handler functions.
- * Includes urlParams, params (query), data (body), and request options.
+ * Loosely-typed call arguments, as the runtime sees them.
  */
 export interface HandlerRequest {
-  urlParams?: Record<string, string | number>
+  urlParams?: Record<string, unknown>
   params?: Record<string, unknown>
   data?: unknown
   signal?: AbortSignal | null
   headers?: Record<string, string>
-  [key: string]: unknown
+  timeout?: number
 }
 
-export interface CreateHandlerOptions<Options extends BaseEndpointOptions> {
-  options: Options
-  context: BuilderContext
-  isMultipart?: boolean
-  responseSchema?: ZodType
-  errorSchema?: ErrorSchemaRecord
-  /** Optional Zod schema for validating URL parameters at runtime */
-  urlParamsSchema?: ZodObject
-  transformRequest?: (request: HandlerRequest) => HandlerRequest
-  transformResponse?: (data: unknown) => unknown
+/** Loosely-typed per-call options, as the runtime sees them. */
+export interface HandlerCallOptions {
+  client?: Client
 }
 
-// =============================================================================
-// Composers (exported for direct testing and reuse)
-// =============================================================================
+type ResponseLike = Pick<AbstractResponse<unknown>, 'status' | 'statusText' | 'headers'>
 
 /**
- * Result of {@link runRequest}: a discriminated union of either a successful
- * response or an unknown thrown value.
+ * Normalizes response metadata into the canonical {@link ResponseMeta}
+ * shape. Plain-object header bags are upgraded to a `Headers` instance.
  */
-export type RunResult =
-  | { ok: true; response: AbstractResponse<unknown> }
-  | { ok: false; error: unknown }
+export function toResponseMeta(r: ResponseLike): ResponseMeta {
+  const headers = r.headers instanceof Headers ? r.headers : new Headers(r.headers ?? {})
+  return { status: r.status, statusText: r.statusText ?? '', headers }
+}
 
-/**
- * Execute a single HTTP request against the client and convert the
- * resolve/reject outcome into a discriminated {@link RunResult}.
- */
-export async function runRequest(
-  client: Client,
-  config: AbstractRequestConfig,
-): Promise<RunResult> {
-  try {
-    const response = await client.request(config)
-    return { ok: true, response }
-  } catch (error) {
-    return { ok: false, error }
-  }
+function getResponse(error: unknown): AbstractResponse<unknown> | null {
+  if (typeof error !== 'object' || error === null) return null
+  if (!('response' in error) || !error.response) return null
+  const response = error.response as AbstractResponse<unknown>
+  return typeof response.status === 'number' ? response : null
+}
+
+function errorName(value: unknown): string | undefined {
+  return typeof value === 'object' && value !== null && 'name' in value
+    ? String(value.name)
+    : undefined
+}
+
+function errorCode(value: unknown): string | undefined {
+  return typeof value === 'object' && value !== null && 'code' in value
+    ? String(value.code)
+    : undefined
 }
 
 /**
- * Normalize the response-meta carried on a successful (or error-with-response)
- * HTTP outcome into the canonical {@link ResponseMeta} shape. Plain-object
- * header bags are upgraded to a `Headers` instance; an existing `Headers` is
- * passed through.
+ * Classifies a rejection that carries no HTTP response.
+ *
+ * Timeouts are checked first because `AbortSignal.timeout()` also leaves the
+ * signal in the aborted state.
  */
-export function toResponseMeta(r: {
-  status: number
-  statusText: string
-  headers: Headers | Record<string, string>
-}): ResponseMeta {
-  const headers = r.headers instanceof Headers ? r.headers : new Headers(r.headers)
-  return { status: r.status, statusText: r.statusText, headers }
-}
-
-/**
- * Construct a success envelope from already-parsed data plus the raw response.
- */
-export function buildOk<TData>(
-  data: TData,
-  response: { status: number; statusText: string; headers: Headers | Record<string, string> },
-): ResponseEnvelopeOk<TData> {
-  return { ok: true, data, error: null, response: toResponseMeta(response) }
-}
-
-/**
- * Construct an error envelope by classifying an unknown thrown value into an
- * {@link EnvelopeError} variant. If the thrown value carries an HTTP
- * `response`, that response is normalized and preserved on the envelope;
- * otherwise `response` is `null` (network variant).
- */
-export function buildErr(
+export function classifyTransportFailure(
   error: unknown,
-  errorSchema: ErrorSchemaRecord | undefined,
-): ResponseEnvelopeErr<EnvelopeError<ErrorSchemaRecord>> {
-  const envError = classifyError(error, errorSchema) as EnvelopeError<ErrorSchemaRecord>
-  const resp = (
-    error as {
-      response?: { status: number; statusText: string; headers: Headers | Record<string, string> }
-    }
-  ).response
-  return {
-    ok: false,
-    data: null,
-    error: envError,
-    response: resp ? toResponseMeta(resp) : null,
+  signal: AbortSignal | null | undefined,
+): 'timeout' | 'aborted' | 'network' {
+  const name = errorName(error)
+  const code = errorCode(error)
+  if (
+    name === 'TimeoutError' ||
+    code === 'ECONNABORTED' ||
+    code === 'ETIMEDOUT' ||
+    (signal?.aborted && errorName(signal.reason) === 'TimeoutError')
+  ) {
+    return 'timeout'
   }
+  if (name === 'AbortError' || code === 'ERR_CANCELED' || signal?.aborted) {
+    return 'aborted'
+  }
+  return 'network'
 }
 
-// =============================================================================
-// Mode-specific composers (private)
-// =============================================================================
-
-async function runEnvelope<Options extends BaseEndpointOptions, TResponse>(
-  opts: CreateHandlerOptions<Options>,
-  request: HandlerRequest,
-  shouldValidate: boolean,
-): Promise<TResponse> {
-  const {
-    options,
-    context: { getClient, config },
-    isMultipart = false,
-    responseSchema,
-    errorSchema,
-    urlParamsSchema,
-    transformRequest,
-    transformResponse,
-  } = opts
-  const { method, url } = options
-
-  const client = getClient()
-  const finalUrlPart = bindUrlParams<Options['url']>(url, request, urlParamsSchema)
-  const finalRequest = transformRequest ? transformRequest(request) : request
-
-  const result = await runRequest(
-    client,
-    makeConfig(finalRequest, options, method, finalUrlPart, isMultipart),
-  )
-
-  if (!result.ok) {
-    if (config.onError) {
-      const classified = classifyError(result.error, errorSchema)
-      config.onError(buildErrorEvent(classified, { method, url }, result.error))
-    }
-    return buildErr(result.error, errorSchema) as TResponse
-  }
-
-  const raw = transformResponse ? transformResponse(result.response.data) : result.response.data
-  try {
-    const data = shouldValidate && responseSchema ? responseSchema.parse(raw) : raw
-    return buildOk(data, result.response) as TResponse
-  } catch (zerr) {
-    // Validation or transform failed on a 2xx body. We already have a
-    // successful HTTP response in hand, so any throw here is a validation
-    // variant — keep Zod issues when available, empty list otherwise.
-    const validationVariant: EnvelopeError = {
-      kind: 'validation' as const,
-      status: result.response.status,
-      issues: zerr instanceof ZodError ? zerr.issues : [],
-      body: raw,
-    }
-    if (config.onError) {
-      config.onError(buildErrorEvent(validationVariant, { method, url }, zerr))
-    }
-    return {
-      ok: false,
-      data: null,
-      error: validationVariant,
-      response: toResponseMeta(result.response),
-    } as TResponse
-  }
+function isSuccessStatus(status: unknown): boolean {
+  // A client that reports no numeric status is trusted: it resolved, so it succeeded.
+  return typeof status !== 'number' || (status >= 200 && status < 300)
 }
 
-async function runData<Options extends BaseEndpointOptions, TResponse>(
-  opts: CreateHandlerOptions<Options>,
-  request: HandlerRequest,
-  shouldValidate: boolean,
-): Promise<TResponse> {
-  const {
-    options,
-    context: { getClient, config },
-    isMultipart = false,
-    responseSchema,
-    urlParamsSchema,
-    transformRequest,
-    transformResponse,
-  } = opts
-  const { method, url } = options
+/**
+ * Checks, once, that an endpoint's declaration is internally consistent.
+ *
+ * @throws {NaviosError} when `urlParamsSchema` keys differ from the URL's
+ *   `$param` names.
+ */
+export function assertValidDeclaration(options: BaseEndpointOptions): void {
+  const { urlParamsSchema, url, method } = options
+  if (!urlParamsSchema) return
 
-  const client = getClient()
-  const finalUrlPart = bindUrlParams<Options['url']>(url, request, urlParamsSchema)
-  const finalRequest = transformRequest ? transformRequest(request) : request
+  const urlNames = getUrlParamNames(url)
+  // Only schemas that expose their keys (Zod objects) can be checked.
+  const shape = (urlParamsSchema as { shape?: unknown }).shape
+  if (typeof shape !== 'object' || shape === null) return
+  const schemaNames = Object.keys(shape)
+  const missing = urlNames.filter((name) => !schemaNames.includes(name))
+  const extra = schemaNames.filter((name) => !urlNames.includes(name))
 
-  let response: AbstractResponse<unknown>
-  try {
-    response = await client.request(
-      makeConfig(finalRequest, options, method, finalUrlPart, isMultipart),
+  if (missing.length > 0 || extra.length > 0) {
+    const parts = [
+      missing.length > 0 ? `missing in schema: ${missing.join(', ')}` : null,
+      extra.length > 0 ? `not in URL: ${extra.join(', ')}` : null,
+    ].filter(Boolean)
+    throw new NaviosError(
+      `[Navios-API]: urlParamsSchema of ${method} ${url} does not match its URL parameters (${parts.join('; ')})`,
     )
-  } catch (error) {
-    // HTTP failure path: classify (http / http-unknown / network), fire onError, rethrow.
-    handleError(config, error, { method, url })
-  }
-
-  // 2xx path: a raw-body transform or schema validation failure here is a
-  // validation outcome, not a network error. Mirror runEnvelope's handling so
-  // the unified hook reports kind: 'validation' with the real HTTP status.
-  const raw = transformResponse ? transformResponse(response.data) : response.data
-  try {
-    return (shouldValidate && responseSchema ? responseSchema.parse(raw) : raw) as TResponse
-  } catch (zerr) {
-    if (config.onError) {
-      const validationVariant: EnvelopeError = {
-        kind: 'validation' as const,
-        status: response.status,
-        issues: zerr instanceof ZodError ? zerr.issues : [],
-        body: raw,
-      }
-      config.onError(buildErrorEvent(validationVariant, { method, url }, zerr))
-    }
-    throw zerr
   }
 }
 
-// =============================================================================
-// Selector
-// =============================================================================
-
-export function createHandler<Options extends BaseEndpointOptions, TResponse>(
-  opts: CreateHandlerOptions<Options>,
+/**
+ * Creates the handler for one endpoint: a throwing function with a
+ * non-throwing `safe` twin and the declaration attached as `config`.
+ *
+ * Both call styles run the same pipeline and produce the same
+ * {@link EndpointError} for a given failure; they differ only in whether it is
+ * thrown or returned.
+ */
+export function createHandler<Options extends BaseEndpointOptions>(
+  options: Options,
+  context: BuilderContext,
 ) {
-  const resultMode = opts.options.result ?? opts.context.config.defaults?.result ?? 'data'
-  const shouldValidate = opts.options.validateResponse !== false
+  assertValidDeclaration(options)
 
-  const handler = async (request: HandlerRequest = {} as HandlerRequest): Promise<TResponse> => {
-    return resultMode === 'envelope'
-      ? runEnvelope<Options, TResponse>(opts, request, shouldValidate)
-      : runData<Options, TResponse>(opts, request, shouldValidate)
+  const { method, url, errorSchema } = options
+  const endpoint = { method, url }
+  const responseKind = options.response ?? 'json'
+  const shouldValidate = options.validateResponse !== false
+  const { responses } = options
+  // The request is validated here, so the config helpers get options without
+  // the request schemas and never validate a second time.
+  const configOptions = { ...options, querySchema: undefined, requestSchema: undefined }
+
+  function fail(init: Omit<EndpointErrorInit, 'endpoint'>): SafeResult<never, EndpointError> {
+    const error = new EndpointError({ ...init, endpoint })
+    callErrorHook(context.config.onError, error, 'Navios-API')
+    return { ok: false, data: null, error, response: error.response }
   }
 
-  handler.config = opts.options
+  async function failHttp(response: AbstractResponse<unknown>, cause: unknown) {
+    const meta = toResponseMeta(response)
+    const status = response.status
+    const schema = errorSchema?.[status]
+
+    if (!schema) {
+      return fail({ kind: 'http-unknown', status, body: response.data, response: meta, cause })
+    }
+
+    const parsed = await validate(schema, response.data)
+    if (parsed.ok) {
+      return fail({ kind: 'http', status, body: parsed.value, response: meta, cause })
+    }
+    return fail({
+      kind: 'response-validation',
+      status,
+      body: response.data,
+      issues: parsed.issues,
+      response: meta,
+      cause: parsed.cause,
+    })
+  }
+
+  /** Validates one part of the input; `undefined` schema passes it through. */
+  async function validateInput(schema: Schema | undefined, value: unknown) {
+    return schema ? validate(schema, value) : ({ ok: true, value } as const)
+  }
+
+  /** Picks the schema for a successful response, or reports why there is none. */
+  function successSchema(status: number): { schema: Schema | null } | { unexpected: true } {
+    if (!responses) return { schema: options.responseSchema ?? null }
+    return status in responses ? { schema: responses[status] ?? null } : { unexpected: true }
+  }
+
+  async function run(
+    request: HandlerRequest = {},
+    callOptions: HandlerCallOptions = {},
+  ): Promise<SafeResult<unknown, EndpointError>> {
+    // 1. Resolve the client.
+    let client: Client
+    try {
+      client = callOptions.client ?? context.getClient()
+    } catch (cause) {
+      return fail({
+        kind: 'config',
+        message: cause instanceof Error ? cause.message : undefined,
+        cause,
+      })
+    }
+
+    // 2. Validate input and build the request. Nothing is sent on failure.
+    const urlParams = await validateInput(options.urlParamsSchema, request.urlParams)
+    const params = await validateInput(options.querySchema, request.params ?? {})
+    const data = await validateInput(options.requestSchema, request.data)
+    const invalid = [urlParams, params, data].find((part) => !part.ok)
+    if (invalid && !invalid.ok) {
+      return fail({ kind: 'request-validation', issues: invalid.issues, cause: invalid.cause })
+    }
+
+    let config: AbstractRequestConfig
+    try {
+      const validated = {
+        ...request,
+        urlParams: (urlParams as { value: unknown }).value as Record<string, unknown>,
+        params: (params as { value: unknown }).value as Record<string, unknown>,
+        data: (data as { value: unknown }).value,
+      }
+      const finalUrl = bindUrlParams(url, validated)
+      config = makeConfig(validated, configOptions, finalUrl)
+    } catch (cause) {
+      return fail({
+        kind: 'config',
+        message: cause instanceof Error ? `${method} ${url}: ${cause.message}` : undefined,
+        cause,
+      })
+    }
+
+    // 3. Send it.
+    let response: AbstractResponse<unknown>
+    try {
+      response = await client.request(config)
+    } catch (cause) {
+      const errorResponse = getResponse(cause)
+      if (errorResponse) {
+        return failHttp(errorResponse, cause)
+      }
+      return fail({ kind: classifyTransportFailure(cause, request.signal), cause })
+    }
+
+    // 4. The builder, not the client, decides what counts as success.
+    if (!isSuccessStatus(response.status)) {
+      return failHttp(response, undefined)
+    }
+
+    // 5. Shape the body.
+    const meta = toResponseMeta(response)
+    if (responseKind === 'void') {
+      return { ok: true, data: undefined, error: null, response: meta }
+    }
+    if (responseKind !== 'json') {
+      return { ok: true, data: response.data, error: null, response: meta }
+    }
+
+    const success = successSchema(response.status)
+    if ('unexpected' in success) {
+      return fail({
+        kind: 'response-validation',
+        status: response.status,
+        body: response.data,
+        issues: [{ message: `Status ${response.status} is not declared in \`responses\`` }],
+        response: meta,
+      })
+    }
+    if (responses && success.schema === null) {
+      return { ok: true, data: undefined, error: null, response: meta }
+    }
+    if (!success.schema || !shouldValidate) {
+      return { ok: true, data: response.data, error: null, response: meta }
+    }
+
+    const parsed = await validate(success.schema, response.data)
+    if (parsed.ok) {
+      return { ok: true, data: parsed.value, error: null, response: meta }
+    }
+    return fail({
+      kind: 'response-validation',
+      status: response.status,
+      body: response.data,
+      issues: parsed.issues,
+      response: meta,
+      cause: parsed.cause,
+    })
+  }
+
+  const handler = async (request?: HandlerRequest, callOptions?: HandlerCallOptions) => {
+    const result = await run(request, callOptions)
+    if (!result.ok) {
+      throw result.error
+    }
+    return result.data
+  }
+
+  handler.safe = run
+  handler.config = options
 
   return handler
 }

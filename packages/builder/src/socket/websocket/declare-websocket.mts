@@ -1,6 +1,6 @@
-import type { ZodObject } from 'zod/v4'
-
 import { bindUrlParams } from '../../request/bind-url-params.mjs'
+import { parseSync } from '../../request/validate.mjs'
+import { reportSocketError } from '../report-error.mjs'
 
 import type {
   CreateWebSocketHandlerConfig,
@@ -22,7 +22,7 @@ import type {
  * @example
  * ```ts
  * import { createWebSocketHandler } from '@navios/builder/socket'
- * import { z } from 'zod'
+ * // `z` is Zod here; any Standard Schema library works the same way
  *
  * const declareWebSocket = createWebSocketHandler({
  *   baseUrl: 'wss://api.example.com',
@@ -52,13 +52,13 @@ export function createWebSocketHandler(config: CreateWebSocketHandlerConfig = {}
       const urlPart = bindUrlParams(
         options.url,
         params as { urlParams?: Record<string, string | number> },
-        options.urlParamsSchema as ZodObject | undefined,
+        options.urlParamsSchema,
       )
 
       // Build query string
       let queryString = ''
       if (options.querySchema && 'params' in params && params.params) {
-        const parsed = (options.querySchema as ZodObject).parse(params.params)
+        const parsed = parseSync(options.querySchema, params.params)
         const searchParams = new URLSearchParams()
         for (const [key, value] of Object.entries(parsed as Record<string, unknown>)) {
           if (value !== undefined && value !== null) {
@@ -99,8 +99,13 @@ export function createWebSocketHandler(config: CreateWebSocketHandlerConfig = {}
           handlers.forEach((handler) => {
             try {
               handler(...args)
-            } catch (error) {
-              config.onError?.(error)
+            } catch (cause) {
+              reportSocketError(config.onError, {
+                kind: 'transport',
+                topic: event,
+                url: fullUrl,
+                cause,
+              })
             }
           })
         }
@@ -182,8 +187,14 @@ export function createWebSocketHandler(config: CreateWebSocketHandlerConfig = {}
           // Send as JSON
           try {
             ws.send(JSON.stringify(dataToSend))
-          } catch (error) {
-            config.onError?.(error)
+          } catch (cause) {
+            reportSocketError(config.onError, {
+              kind: 'transport',
+              topic: event,
+              url: fullUrl,
+              message: `Failed to send "${event}" over the WebSocket`,
+              cause,
+            })
           }
 
           // If callback provided, set up one-time listener for ack
@@ -217,6 +228,10 @@ export function createWebSocketHandler(config: CreateWebSocketHandlerConfig = {}
 
         close(code = 1000, reason?: string): void {
           this.disconnect(code, reason)
+        },
+
+        get url(): string {
+          return fullUrl
         },
 
         get connected(): boolean {

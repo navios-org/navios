@@ -1,83 +1,95 @@
-import type { ZodType } from 'zod/v4'
-
 import type {
   AbstractRequestConfig,
   BaseEndpointOptions,
-  ClientOptions,
-  HttpMethod,
+  EndpointResponseKind,
 } from '../types/index.mjs'
+
+import { parseSync } from './validate.mjs'
 
 /**
  * Request type for config creation.
  */
 export interface ConfigRequest {
-  urlParams?: Record<string, string | number>
+  urlParams?: Record<string, unknown>
   params?: Record<string, unknown>
   data?: unknown
   signal?: AbortSignal | null
   headers?: Record<string, string>
-  [key: string]: unknown
+  timeout?: number
 }
 
-function parseWithSchema(schema: ZodType | undefined, value: unknown): unknown {
-  return schema ? schema.parse(value) : value
-}
+const RESPONSE_TYPES = {
+  blob: 'blob',
+  text: 'text',
+  stream: 'stream',
+} as const satisfies Partial<Record<EndpointResponseKind, AbstractRequestConfig['responseType']>>
 
 /**
- * Creates a request configuration object for the HTTP client.
+ * Creates the request configuration object handed to the HTTP client.
  *
- * This function:
- * - Validates and parses query parameters using `querySchema` (if provided)
- * - Validates and parses request body data using `requestSchema` (if provided)
- * - Converts request data to FormData if `isMultipart` is true
- * - Merges all request properties (headers, signal, etc.) into the final config
- * - Merges clientOptions into the final config for per-endpoint customization
+ * - Validates and parses query parameters with `querySchema` (if provided)
+ * - Validates and parses the body with `requestSchema` (if provided)
+ * - Converts the body to FormData when the endpoint declares `body: 'multipart'`
+ * - Merges endpoint and per-call `headers` / `timeout`
+ * - Merges `clientOptions` underneath the keys the builder owns
  *
- * @param request - The request parameters object
- * @param options - Endpoint configuration containing schemas
- * @param method - HTTP method to use
- * @param finalUrlPart - The final URL with parameters bound
- * @param isMultipart - Whether to convert the request data to FormData
- * @returns A request configuration object compatible with the Client interface
+ * Only the keys listed in `AbstractRequestConfig` plus the endpoint's
+ * `clientOptions` reach the client. Call arguments the builder consumes
+ * itself (`urlParams`) are never forwarded.
+ *
+ * @param request - The call arguments
+ * @param options - Endpoint configuration
+ * @param finalUrlPart - The URL with parameters bound
+ * @throws If the query or body fails its schema (a `ZodError` for Zod schemas)
  *
  * @internal
  */
 export function makeConfig<Options extends BaseEndpointOptions>(
   request: ConfigRequest,
   options: Options,
-  method: HttpMethod,
   finalUrlPart: string,
-  isMultipart = false,
-) {
-  // Extract clientOptions from endpoint options
-  const clientOptions = (options as Options & { clientOptions?: ClientOptions }).clientOptions
-
-  // Build base config from request, spreading clientOptions first so request can override
-  const baseConfig = {
-    ...clientOptions,
-    ...request,
+): AbstractRequestConfig {
+  // Builder-owned keys are stripped from clientOptions so they can never be
+  // set from there, even when the builder itself has no value for them.
+  const {
+    headers: clientHeaders,
+    method: _method,
+    url: _url,
+    params: _params,
+    data: _data,
+    signal: _signal,
+    timeout: _timeout,
+    responseType: _responseType,
+    ...clientOptions
+  } = (options.clientOptions ?? {}) as Record<string, unknown> & {
+    headers?: Record<string, string>
   }
 
-  // Merge headers from clientOptions and request
-  const mergedHeaders = {
-    ...clientOptions?.headers,
+  const headers = {
+    ...clientHeaders,
+    ...options.headers,
     ...request.headers,
   }
+  const timeout = request.timeout ?? options.timeout
+  const responseType =
+    options.response && options.response in RESPONSE_TYPES
+      ? RESPONSE_TYPES[options.response as keyof typeof RESPONSE_TYPES]
+      : undefined
 
   return {
-    ...baseConfig,
-    params: parseWithSchema(
-      options.querySchema as ZodType | undefined,
-      request.params ?? {},
-    ) as Record<string, unknown>,
-    method,
+    ...clientOptions,
+    method: options.method,
     url: finalUrlPart,
-    data: isMultipart
-      ? makeFormData(request, options)
-      : parseWithSchema(options.requestSchema as ZodType | undefined, request.data),
-    // Only include headers if there are any
-    ...(Object.keys(mergedHeaders).length > 0 ? { headers: mergedHeaders } : {}),
-  } satisfies AbstractRequestConfig
+    params: parseSync(options.querySchema, request.params ?? {}) as Record<string, unknown>,
+    data:
+      options.body === 'multipart'
+        ? makeFormData(request, options)
+        : parseSync(options.requestSchema, request.data),
+    ...(Object.keys(headers).length > 0 ? { headers } : {}),
+    ...(request.signal !== undefined ? { signal: request.signal } : {}),
+    ...(timeout !== undefined ? { timeout } : {}),
+    ...(responseType !== undefined ? { responseType } : {}),
+  }
 }
 
 /**
@@ -155,10 +167,7 @@ export function makeFormData<Options extends BaseEndpointOptions>(
   options: Options,
 ) {
   const formData = new FormData()
-  const validatedRequest = parseWithSchema(
-    options.requestSchema as ZodType | undefined,
-    request.data,
-  ) as Record<string, unknown>
+  const validatedRequest = parseSync(options.requestSchema, request.data) as Record<string, unknown>
   if (!validatedRequest || typeof validatedRequest !== 'object') {
     return formData
   }

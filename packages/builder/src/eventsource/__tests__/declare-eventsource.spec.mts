@@ -5,6 +5,9 @@ import {
   createEventSourceHandler,
   declareEventSource,
 } from '../eventsource/declare-eventsource.mjs'
+import { EventSourceError } from '../index.mjs'
+
+import type { Schema } from '../../types/schema.mjs'
 
 // Mock EventSource for Node.js environment
 class MockEventSource {
@@ -124,7 +127,67 @@ describe('declareEventSource', () => {
       // Simulate message
       getMock(handle.source).simulateMessage('{}')
 
-      expect(onError).toHaveBeenCalledWith(error)
+      expect(onError).toHaveBeenCalledTimes(1)
+      const reported = onError.mock.calls[0]![0] as EventSourceError
+      expect(reported).toBeInstanceOf(EventSourceError)
+      expect(reported.kind).toBe('transport')
+      expect(reported.eventName).toBe('message')
+      expect(reported.url).toBe('/events')
+      expect(reported.cause).toBe(error)
+    })
+
+    it('should keep calling sibling listeners when onError throws', () => {
+      const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
+      const factory = createEventSourceHandler({
+        onError: () => {
+          throw new Error('hook exploded')
+        },
+      })
+      const handle = factory({ url: '/events' })()
+
+      const sibling = vi.fn()
+      handle.on('message', () => {
+        throw new Error('Test error')
+      })
+      handle.on('message', sibling)
+
+      expect(() => getMock(handle.source).simulateMessage('{}')).not.toThrow()
+      expect(sibling).toHaveBeenCalledTimes(1)
+      expect(consoleError).toHaveBeenCalled()
+      consoleError.mockRestore()
+    })
+
+    it('should accept non-Zod schemas for URL and query parameters', () => {
+      const urlParamsSchema: Schema<{ roomId: string }, { roomId: string }> = {
+        '~standard': {
+          version: 1,
+          vendor: 'test',
+          validate: (value) => {
+            const roomId = (value as { roomId?: unknown }).roomId
+            return typeof roomId === 'string' && roomId.length > 0
+              ? { value: { roomId: roomId.toUpperCase() } }
+              : { issues: [{ message: 'roomId is required' }] }
+          },
+        },
+      }
+      const querySchema: Schema<{ token: string }, { token: string }> = {
+        '~standard': {
+          version: 1,
+          vendor: 'test',
+          validate: (value) => ({ value: value as { token: string } }),
+        },
+      }
+      const chatEvents = declareEventSource({
+        url: '/events/$roomId',
+        urlParamsSchema,
+        querySchema,
+      })
+
+      const handle = chatEvents({ urlParams: { roomId: 'abc' }, params: { token: 't' } })
+      expect(handle.url).toBe('/events/ABC?token=t')
+      expect(() => chatEvents({ urlParams: { roomId: '' }, params: { token: 't' } })).toThrow(
+        'roomId is required',
+      )
     })
   })
 

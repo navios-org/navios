@@ -250,6 +250,22 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@ark/schema@npm:0.56.9":
+  version: 0.56.9
+  resolution: "@ark/schema@npm:0.56.9"
+  dependencies:
+    "@ark/util": "npm:0.56.9"
+  checksum: 10c0/2ca60f319ee68615bff551a0b387746393624080e0c4fcea4d5c39127b9b389d7cc1067bce99fd9bfd91f4c74ab9fe9d210602144a93e34276eb9b244028347b
+  languageName: node
+  linkType: hard
+
+"@ark/util@npm:0.56.9":
+  version: 0.56.9
+  resolution: "@ark/util@npm:0.56.9"
+  checksum: 10c0/9d41d41a8b13d372db704562fbca80c0a19f499ee8485019faa73dfb3131515856b257b9a4325faae58bef3667f44c0a3866cce13b997abd24d9a4ed8bc51edb
+  languageName: node
+  linkType: hard
+
 "@aws-sdk/client-sns@npm:^3.1175.0":
   version: 3.1175.0
   resolution: "@aws-sdk/client-sns@npm:3.1175.0"
@@ -3950,10 +3966,15 @@ __metadata:
   resolution: "@navios/builder@workspace:packages/builder"
   dependencies:
     "@navios/http": "workspace:^"
+    arktype: "npm:^2.2.10"
     typescript: "npm:^7.0.2"
+    valibot: "npm:^1.5.0"
     zod: "npm:^4.6.7"
   peerDependencies:
     zod: ^3.25.0 || ^4.0.0
+  peerDependenciesMeta:
+    zod:
+      optional: true
   languageName: unknown
   linkType: soft
 
@@ -4296,8 +4317,11 @@ __metadata:
     zod: "npm:^4.6.7"
   peerDependencies:
     "@navios/builder": "workspace:^"
-    "@tanstack/react-query": ^5.51.21
+    "@tanstack/react-query": ^5.102.0
     zod: ^3.25.0 || ^4.0.0
+  peerDependenciesMeta:
+    zod:
+      optional: true
   languageName: unknown
   linkType: soft
 
@@ -7835,6 +7859,26 @@ __metadata:
   dependencies:
     dequal: "npm:^2.0.3"
   checksum: 10c0/2bff0d4eba5852a9dd578ecf47eaef0e82cc52569b48469b0aac2db5145db0b17b7a58d9e01237706d1e14b7a1b0ac9b78e9c97027ad97679dd8f91b85da1469
+  languageName: node
+  linkType: hard
+
+"arkregex@npm:0.0.15":
+  version: 0.0.15
+  resolution: "arkregex@npm:0.0.15"
+  dependencies:
+    "@ark/util": "npm:0.56.9"
+  checksum: 10c0/08b8ea16febd1bd5b00b883ff76c6f7f178266ce773cf63e4e629f494c8b40fc7a3510c1ece02086c2b2647577bde4c3304456e1800f94f8022c7967d85a1ad7
+  languageName: node
+  linkType: hard
+
+"arktype@npm:^2.2.10":
+  version: 2.2.10
+  resolution: "arktype@npm:2.2.10"
+  dependencies:
+    "@ark/schema": "npm:0.56.9"
+    "@ark/util": "npm:0.56.9"
+    arkregex: "npm:0.0.15"
+  checksum: 10c0/a57db28a318df7d1f1a8a89dd38ed4e07502b082f43e0a3c96e655896837b81131d84c919ea34aadbd17040398097bda2779044b90276787dd302066ff3872a0
   languageName: node
   linkType: hard
 
@@ -19012,6 +19056,18 @@ __metadata:
   bin:
     uuid: dist/bin/uuid
   checksum: 10c0/bcbb807a917d374a49f475fae2e87fdca7da5e5530820ef53f65ba1d12131bd81a92ecf259cc7ce317cbe0f289e7d79fdfebcef9bfa3087c8c8a2fa304c9be54
+  languageName: node
+  linkType: hard
+
+"valibot@npm:^1.5.0":
+  version: 1.5.0
+  resolution: "valibot@npm:1.5.0"
+  peerDependencies:
+    typescript: ">=5"
+  peerDependenciesMeta:
+    typescript:
+      optional: true
+  checksum: 10c0/d49dab2b2fcbb477c894def73466de598b602859a47ab92b26d387c4d2a472cbfd4ef57b49eea91aeeff143c38f5a9523914dc5a73469ec93c7cfd4326eb5fbf
   languageName: node
   linkType: hard
 

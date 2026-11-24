@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { bindUrlParams } from '../index.mjs'
+import { bindUrlParams, getUrlParamNames } from '../index.mjs'
 
 describe('bindUrlParams', () => {
   describe('basic replacements', () => {
@@ -176,5 +176,69 @@ describe('bindUrlParams', () => {
       expect(params.params).toEqual({ page: 1 })
       expect(params.headers).toEqual({ Authorization: 'Bearer token' })
     })
+  })
+
+  describe('parameter grammar', () => {
+    it('should allow underscores in param names', () => {
+      const url = bindUrlParams('/u/$user_id', { urlParams: { user_id: 7 } })
+
+      expect(url).toBe('/u/7')
+    })
+
+    it('should allow a leading underscore', () => {
+      const url = bindUrlParams('/u/$_id', { urlParams: { _id: 'x' } })
+
+      expect(url).toBe('/u/x')
+    })
+
+    it('should end a param name at a dot', () => {
+      const url = bindUrlParams('/f/$id.json', { urlParams: { id: 'report' } })
+
+      expect(url).toBe('/f/report.json')
+    })
+
+    it('should end a param name at a dash', () => {
+      const url = bindUrlParams('/range/$a-$b', { urlParams: { a: 1, b: 20 } })
+
+      expect(url).toBe('/range/1-20')
+    })
+
+    it('should keep a $ followed by a digit literal', () => {
+      expect(bindUrlParams('/price/$5', {})).toBe('/price/$5')
+      expect(bindUrlParams('/price/$5/$id', { urlParams: { id: 3 } })).toBe('/price/$5/3')
+    })
+
+    it('should keep a trailing or doubled $ literal', () => {
+      expect(bindUrlParams('/cash$', {})).toBe('/cash$')
+      expect(bindUrlParams('/a/$$id', { urlParams: { id: 1 } })).toBe('/a/$1')
+    })
+  })
+})
+
+describe('getUrlParamNames', () => {
+  it('should return an empty list for a URL without params', () => {
+    expect(getUrlParamNames('/users')).toEqual([])
+  })
+
+  it('should list names in order of first appearance', () => {
+    expect(getUrlParamNames('/users/$userId/posts/$postId')).toEqual(['userId', 'postId'])
+  })
+
+  it('should list a repeated name once', () => {
+    expect(getUrlParamNames('/a/$id/b/$other/c/$id')).toEqual(['id', 'other'])
+  })
+
+  it('should follow the identifier grammar', () => {
+    expect(getUrlParamNames('/u/$user_id/f/$name.json/$a-$b/$_x9')).toEqual([
+      'user_id',
+      'name',
+      'a',
+      'b',
+      '_x9',
+    ])
+  })
+
+  it('should ignore a $ that does not start an identifier', () => {
+    expect(getUrlParamNames('/price/$5/$-x/$')).toEqual([])
   })
 })

@@ -1,55 +1,36 @@
 import { NaviosError } from './errors/index.mjs'
-import { createEndpoint, createMultipart, createStream } from './handlers/index.mjs'
+import { createHandler } from './handlers/index.mjs'
 
-import type {
-  BaseEndpointOptions,
-  BuilderConfig,
-  BuilderInstance,
-  Client,
-  EndpointOptions,
-} from './types/index.mjs'
+import type { BaseEndpointOptions, BuilderConfig, BuilderInstance, Client } from './types/index.mjs'
 
 /**
- * Creates a new API builder instance with the specified configuration.
+ * Creates a new API builder instance.
  *
- * The builder allows you to declaratively define API endpoints with type-safe
- * request and response schemas using Zod. It supports envelope-mode responses,
- * error handling callbacks, and various HTTP methods.
+ * The builder declares API endpoints with type-safe request and response
+ * schemas using Zod. Every endpoint can be called in two ways: `endpoint(args)`
+ * throws an `EndpointError` on failure, `endpoint.safe(args)` returns a
+ * `SafeResult` and never throws.
  *
  * @param config - Configuration options for the builder
- * @param config.onError - Optional callback fired on every error path with a
- *   structured `BuilderErrorEvent`. Covers HTTP errors, Zod validation
- *   failures (both on error responses and 2xx bodies), and network failures.
- *   In envelope mode the hook fires before the error envelope is returned;
- *   in data mode it fires before the error is rethrown.
- * @param config.defaults - Default behaviour applied to every endpoint declaration
- *   unless overridden per-endpoint (e.g. `defaults: { result: 'envelope' }`).
- *
- * @returns A BuilderInstance with methods to declare endpoints and manage the HTTP client
+ * @param config.client - HTTP client used by every endpoint
+ * @param config.onError - Telemetry hook, called once per failed call with the
+ *   `EndpointError` the caller receives
  *
  * @example
  * ```ts
- * // Default mode: errors are thrown, return type is the success response
- * const API = builder()
+ * import { create } from '@navios/http'
  *
- * // Envelope-by-default
- * const API = builder({
- *   defaults: { result: 'envelope' },
- *   onError: (event) => {
- *     console.error('Request failed:', event.kind, event.endpoint, event.cause)
+ * const api = builder({
+ *   client: create({ baseURL: 'https://api.example.com' }),
+ *   onError: (error) => {
+ *     console.error(error.kind, error.endpoint.method, error.endpoint.url)
  *   },
  * })
  * ```
  */
 export function builder(config: BuilderConfig = {}): BuilderInstance {
-  let client: Client | null = null
+  let client: Client | null = config.client ?? null
 
-  /**
-   * Gets the current HTTP client instance.
-   *
-   * @returns The configured HTTP client
-   * @throws {NaviosError} If no client has been provided via `provideClient`
-   */
   function getClient() {
     if (!client) {
       throw new NaviosError('[Navios-API]: Client was not provided')
@@ -57,38 +38,18 @@ export function builder(config: BuilderConfig = {}): BuilderInstance {
     return client
   }
 
-  const context = { getClient, config }
-
-  /**
-   * Sets or replaces the HTTP client instance used by all endpoints.
-   *
-   * The client must implement the `Client` interface with a `request` method.
-   * Compatible with axios, @navios/http, and any client that follows the same interface.
-   *
-   * @param newClient - The HTTP client instance to use for all requests
-   *
-   * @example
-   * ```ts
-   * import { create } from '@navios/http'
-   * const client = create({ baseURL: 'https://api.example.com' })
-   * API.provideClient(client)
-   * ```
-   */
   function provideClient(newClient: Client) {
     client = newClient
   }
 
-  // The implementation uses BaseEndpointOptions/EndpointOptions internally.
-  // TypeScript's const generic inference happens at the call site, and the runtime
-  // behavior is identical. We use type assertions here because:
-  // 1. The runtime implementation handles all schema combinations correctly
-  // 2. The type inference happens through the BuilderInstance interface
-  // 3. The handler functions already handle optional schemas via conditional logic
+  const context = { getClient, config }
+
+  // The implementation is loosely typed; inference happens at the call site
+  // through the `BuilderInstance` interface.
   return {
-    declareEndpoint: (options: EndpointOptions) => createEndpoint(options, context),
-    declareStream: (options: BaseEndpointOptions) => createStream(options, context),
-    declareMultipart: (options: EndpointOptions) => createMultipart(options, context),
+    declareEndpoint: (options: BaseEndpointOptions) => createHandler(options, context),
     provideClient,
     getClient,
+    withClient: (newClient: Client) => builder({ ...config, client: newClient }),
   } as BuilderInstance
 }

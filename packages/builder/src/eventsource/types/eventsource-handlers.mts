@@ -1,4 +1,4 @@
-import type { z, ZodType } from 'zod/v4'
+import type { InferSchemaOutput, Schema } from '../../types/schema.mjs'
 
 import type { EventOptions } from './eventsource-options.mjs'
 
@@ -10,11 +10,11 @@ export type EventUnsubscribe = () => void
 /**
  * Infers the handler payload type from EventOptions.
  *
- * If payloadSchema is provided, uses z.output of the schema.
+ * If payloadSchema is provided, uses the schema's output type.
  * Otherwise, defaults to unknown.
  */
 export type InferEventPayload<Options extends EventOptions> =
-  Options['payloadSchema'] extends ZodType ? z.output<Options['payloadSchema']> : unknown
+  Options['payloadSchema'] extends Schema ? InferSchemaOutput<Options['payloadSchema']> : unknown
 
 /**
  * The handler function type returned by defineEvent.

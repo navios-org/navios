@@ -12,5 +12,9 @@ export {
   defaultParseMessage,
 } from './handlers/create-subscribe.mjs'
 
+// Errors
+export { SocketError, isSocketError } from '../errors/socket-error.mjs'
+export type { SocketErrorInit, SocketErrorKind } from '../errors/socket-error.mjs'
+
 // WebSocket wrapper
 export * from './websocket/index.mjs'

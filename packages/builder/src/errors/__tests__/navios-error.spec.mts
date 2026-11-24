@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
+import * as errors from '../index.mjs'
 import { NaviosError } from '../navios-error.mjs'
 
 describe('NaviosError', () => {
@@ -26,6 +27,38 @@ describe('NaviosError', () => {
       const exception = new NaviosError('Test error')
 
       expect(exception).toBeInstanceOf(NaviosError)
+    })
+  })
+
+  describe('cause', () => {
+    it('should have no cause by default', () => {
+      const error = new NaviosError('No cause')
+
+      expect(error.cause).toBeUndefined()
+      expect('cause' in error).toBe(false)
+    })
+
+    it('should keep the original error as cause', () => {
+      const original = new TypeError('fetch failed')
+      const error = new NaviosError('Wrapped', { cause: original })
+
+      expect(error.cause).toBe(original)
+      expect(error.message).toBe('Wrapped')
+      expect(error.name).toBe('NaviosError')
+    })
+
+    it('should accept a non-Error cause', () => {
+      const cause = { code: 'E_CUSTOM' }
+      const error = new NaviosError('Wrapped', { cause })
+
+      expect(error.cause).toBe(cause)
+    })
+  })
+
+  describe('exports', () => {
+    it('should no longer export the NaviosException alias', () => {
+      expect(errors).not.toHaveProperty('NaviosException')
+      expect(errors.NaviosError).toBe(NaviosError)
     })
   })
 

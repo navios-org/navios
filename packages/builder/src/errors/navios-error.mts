@@ -1,29 +1,13 @@
 /**
- * Custom error class for Navios Builder errors.
+ * Base error class for everything thrown by Navios Builder.
  *
- * This error is thrown when:
- * - No HTTP client has been provided via `provideClient`
- * - Other builder-specific errors occur
- *
- * @example
- * ```ts
- * try {
- *   API.getClient()
- * } catch (error) {
- *   if (error instanceof NaviosError) {
- *     console.error('Navios error:', error.message)
- *   }
- * }
- * ```
+ * Request failures are reported as {@link EndpointError}, which extends this
+ * class. A bare `NaviosError` is thrown for mistakes in a declaration (for
+ * example a `urlParamsSchema` that does not match the URL).
  */
 export class NaviosError extends Error {
-  constructor(message: string) {
-    super(message)
+  constructor(message: string, options?: { cause?: unknown }) {
+    super(message, options)
     this.name = 'NaviosError'
   }
 }
-
-/**
- * @deprecated Use NaviosError instead. Will be removed in next major version.
- */
-export const NaviosException = NaviosError

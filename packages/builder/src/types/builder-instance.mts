@@ -1,209 +1,132 @@
-import type { z, ZodObject, ZodType } from 'zod/v4'
+import type { EndpointErrorOf } from '../errors/endpoint-error.mjs'
 
 import type { Client } from './common.mjs'
-import type { BaseEndpointOptions, EndpointOptions } from './config.mjs'
-import type { EnvelopeError } from './envelope-error.mjs'
-import type { ResponseEnvelope } from './envelope.mjs'
+import type { BaseEndpointOptions, SuccessSchemaRecord } from './config.mjs'
 import type { ErrorSchemaRecord } from './error-schema.mjs'
-import type { Simplify, UrlHasParams, UrlParams } from './request.mjs'
+import type { ClientRequestArgs } from './request.mjs'
+import type { SafeResult } from './result.mjs'
+import type { InferSchemaOutput, Schema } from './schema.mjs'
 
 // =============================================================================
-// Inference Types for const Generic Pattern
+// Inference
 // =============================================================================
 
 /**
- * Helper to check if a property key exists in the inferred object type
- * and is not undefined. This handles the case where const generic inference
- * doesn't include optional properties that weren't provided.
- *
- * @example
- * ```ts
- * type Test = HasProperty<{ foo: string }, 'foo'> // true
- * type Test2 = HasProperty<{ foo?: string }, 'foo'> // true (when provided)
- * type Test3 = HasProperty<{}, 'foo'> // false
- * ```
+ * The value an endpoint resolves to, derived from its `response` kind and
+ * `responseSchema`.
  */
-export type HasProperty<T, K extends string> = K extends keyof T
-  ? undefined extends T[K]
-    ? T[K] extends undefined
-      ? false
-      : true
-    : true
-  : false
+export type InferEndpointReturn<Options extends BaseEndpointOptions> = Options extends {
+  response: 'blob'
+}
+  ? Blob
+  : Options extends { response: 'text' }
+    ? string
+    : Options extends { response: 'stream' }
+      ? ReadableStream<Uint8Array>
+      : Options extends { response: 'void' }
+        ? undefined
+        : Options['responses'] extends SuccessSchemaRecord
+          ? InferSuccessOutput<Options['responses']>
+          : Options['responseSchema'] extends Schema
+            ? InferSchemaOutput<Options['responseSchema']>
+            : unknown
 
 /**
- * Safely extract a property type, returning never if not present.
- *
- * @example
- * ```ts
- * type Test = SafeGet<{ foo: string }, 'foo'> // string
- * type Test2 = SafeGet<{}, 'foo'> // never
- * ```
+ * Union of what each status in a `responses` map resolves to: the schema's
+ * output, or `undefined` for a `null` entry.
  */
-export type SafeGet<T, K extends string> = K extends keyof T ? T[K] : never
+export type InferSuccessOutput<R extends SuccessSchemaRecord> = {
+  [K in keyof R]: R[K] extends Schema ? InferSchemaOutput<R[K]> : undefined
+}[keyof R]
 
 /**
- * Infers the function parameters from endpoint options.
- * Uses urlParamsSchema if provided, otherwise defaults to string | number.
- *
- * @example
- * ```ts
- * const options = {
- *   method: 'GET',
- *   url: '/users/$userId',
- *   querySchema: z.object({ page: z.number() }),
- *   responseSchema: userSchema,
- * } as const
- *
- * type Params = InferEndpointParams<typeof options>
- * // { urlParams: { userId: string | number }, params: { page: number }, signal?: ... }
- * ```
+ * The error an endpoint throws (and `safe()` returns), typed from its
+ * `errorSchema`.
  */
-export type InferEndpointParams<Options extends EndpointOptions> = Simplify<
-  // URL Parameters
-  (UrlHasParams<Options['url']> extends true
-    ? HasProperty<Options, 'urlParamsSchema'> extends true
-      ? { urlParams: z.input<SafeGet<Options, 'urlParamsSchema'>> }
-      : { urlParams: UrlParams<Options['url']> }
-    : {}) &
-    // Query Parameters
-    (HasProperty<Options, 'querySchema'> extends true
-      ? { params: z.input<SafeGet<Options, 'querySchema'>> }
-      : {}) &
-    // Request Body
-    (HasProperty<Options, 'requestSchema'> extends true
-      ? { data: z.input<SafeGet<Options, 'requestSchema'>> }
-      : {}) &
-    // Base request options (signal, headers)
-    { signal?: AbortSignal | null; headers?: Record<string, string> }
+export type InferEndpointError<Options extends BaseEndpointOptions> = EndpointErrorOf<
+  Options['errorSchema'] extends ErrorSchemaRecord ? Options['errorSchema'] : undefined
 >
 
-/**
- * Infers the function parameters from stream options.
- *
- * @example
- * ```ts
- * const options = {
- *   method: 'GET',
- *   url: '/files/$fileId/download',
- * } as const
- *
- * type Params = InferStreamParams<typeof options>
- * // { urlParams: { fileId: string | number }, signal?: ... }
- * ```
- */
-export type InferStreamParams<Options extends BaseEndpointOptions> = Simplify<
-  // URL Parameters
-  (UrlHasParams<Options['url']> extends true
-    ? HasProperty<Options, 'urlParamsSchema'> extends true
-      ? { urlParams: z.input<SafeGet<Options, 'urlParamsSchema'> & ZodObject> }
-      : { urlParams: UrlParams<Options['url']> }
-    : {}) &
-    // Query Parameters
-    (HasProperty<Options, 'querySchema'> extends true
-      ? { params: z.input<SafeGet<Options, 'querySchema'> & ZodObject> }
-      : {}) &
-    // Request Body
-    (HasProperty<Options, 'requestSchema'> extends true
-      ? { data: z.input<SafeGet<Options, 'requestSchema'> & ZodType> }
-      : {}) &
-    // Base request options
-    { signal?: AbortSignal | null; headers?: Record<string, string> }
+/** What `endpoint.safe(args)` resolves to. */
+export type InferEndpointSafeResult<Options extends BaseEndpointOptions> = SafeResult<
+  InferEndpointReturn<Options>,
+  InferEndpointError<Options>
 >
 
+/** Options accepted as the second argument of an endpoint call. */
+export interface EndpointCallOptions {
+  /**
+   * HTTP client for this call only. Use it for per-request clients in SSR
+   * (cookies, auth) without touching the builder's shared client.
+   */
+  client?: Client
+}
+
+type RequiredKeys<T> = { [K in keyof T]-?: {} extends Pick<T, K> ? never : K }[keyof T]
+
 /**
- * Infers the return type based on responseSchema and result mode.
+ * Call signature of an endpoint: the args object is optional when the
+ * endpoint has no URL params, query schema or request schema.
+ */
+export type EndpointCallArgs<Options extends BaseEndpointOptions> = [
+  RequiredKeys<ClientRequestArgs<Options>>,
+] extends [never]
+  ? [args?: ClientRequestArgs<Options>, options?: EndpointCallOptions]
+  : [args: ClientRequestArgs<Options>, options?: EndpointCallOptions]
+
+/**
+ * The handler returned by `declareEndpoint`.
  *
- * When `result: 'envelope'` is set on the endpoint, the return type becomes a
- * `ResponseEnvelope<Data, EnvelopeError<ErrorSchema>>` and the function never
- * throws. Otherwise the return type is the parsed response data and the
- * function throws on error.
+ * - `endpoint(args)` resolves to the data and **throws** an `EndpointError`
+ *   on any failure.
+ * - `endpoint.safe(args)` **never throws**: it resolves to a `SafeResult`
+ *   carrying either the data or the same `EndpointError`.
+ * - `endpoint.config` is the options object the endpoint was declared with.
  *
  * @example
  * ```ts
- * const options = {
- *   method: 'GET',
- *   url: '/users/$userId',
- *   responseSchema: userSchema,
- *   errorSchema: { 404: notFoundSchema },
- * } as const
+ * const user = await getUser({ urlParams: { userId: '123' } })
  *
- * type Result = InferEndpointReturn<typeof options>
- * // z.output<userSchema>
+ * const res = await getUser.safe({ urlParams: { userId: '123' } })
+ * if (res.ok) res.data
+ * else res.error.kind
  * ```
  */
-export type InferEndpointReturn<Options extends EndpointOptions> =
-  Options['result'] extends 'envelope'
-    ? ResponseEnvelope<
-        z.output<Options['responseSchema']>,
-        EnvelopeError<
-          Options['errorSchema'] extends ErrorSchemaRecord ? Options['errorSchema'] : undefined
-        >
-      >
-    : z.output<Options['responseSchema']>
-
-/**
- * Infers the return type for stream endpoints.
- *
- * Streams return `Blob` by default. When `result: 'envelope'` is set on the
- * endpoint, the return type becomes a `ResponseEnvelope<Blob, EnvelopeError<ErrorSchema>>`
- * and the function never throws.
- */
-export type InferStreamReturn<Options extends BaseEndpointOptions> =
-  Options['result'] extends 'envelope'
-    ? ResponseEnvelope<
-        Blob,
-        EnvelopeError<
-          Options['errorSchema'] extends ErrorSchemaRecord ? Options['errorSchema'] : undefined
-        >
-      >
-    : Blob
-
-/**
- * The handler function type returned by declareEndpoint.
- *
- * This is the type of the function returned by `api.declareEndpoint()`.
- * It includes both the callable function and the attached config.
- *
- * @example
- * ```ts
- * const getUser: EndpointHandler<typeof options> = api.declareEndpoint(options)
- * const result = await getUser({ urlParams: { userId: '123' } })
- * const config = getUser.config // Access the original config
- * ```
- */
-export type EndpointHandler<Options extends EndpointOptions> = ((
-  params: InferEndpointParams<Options>,
+export type EndpointHandler<Options extends BaseEndpointOptions> = ((
+  ...args: EndpointCallArgs<Options>
 ) => Promise<InferEndpointReturn<Options>>) & {
+  safe: (...args: EndpointCallArgs<Options>) => Promise<InferEndpointSafeResult<Options>>
   config: Options
 }
 
 /**
- * The handler function type returned by declareStream.
- *
- * Similar to EndpointHandler but for streaming endpoints that return Blob.
+ * `responseSchema` is required unless the endpoint declares a non-JSON
+ * `response` kind or a per-status `responses` map.
  */
-export type StreamHandler<Options extends BaseEndpointOptions> = ((
-  params: InferStreamParams<Options>,
-) => Promise<InferStreamReturn<Options>>) & {
-  config: Options
+export type RequireResponseSchema<Options> = Options extends
+  | { response: 'blob' | 'text' | 'stream' | 'void' }
+  | { responses: SuccessSchemaRecord }
+  ? {}
+  : { responseSchema: Schema }
+
+/**
+ * Rejects option keys the builder does not know. Inference through a generic
+ * parameter skips TypeScript's excess-property check, so without this a typo
+ * (`requstSchema`) or a removed option would be accepted and silently ignored.
+ */
+export type NoUnknownOptions<Options, Known = BaseEndpointOptions> = {
+  [K in Exclude<keyof Options, keyof Known>]: never
 }
 
 // =============================================================================
-// Builder Instance Interface (NEW - Using const Generic Pattern)
+// Builder Instance
 // =============================================================================
 
-/**
- * The main builder instance interface.
- *
- * Uses TypeScript's `const` type parameter inference to reduce overloads
- * while maintaining full type safety. All schema combinations are handled
- * by a single generic method per endpoint type.
- */
 export interface BuilderInstance {
   /**
-   * Provides the HTTP client instance to use for requests.
-   * Must be called before making any API calls.
+   * Sets or replaces the HTTP client used by every endpoint declared on this
+   * builder. Meant for application start-up; prefer `builder({ client })`.
+   * For a per-request client, pass `{ client }` as the second call argument.
    */
   provideClient(client: Client): void
 
@@ -214,105 +137,87 @@ export interface BuilderInstance {
   getClient(): Client
 
   /**
+   * Returns a new builder with the same configuration and a different
+   * client. Endpoints declared on the returned builder use that client;
+   * endpoints already declared on this builder are not affected.
+   */
+  withClient(client: Client): BuilderInstance
+
+  /**
    * Declares a type-safe API endpoint.
    *
-   * Uses `const` type parameter inference to automatically infer types
-   * from the configuration object. All schema fields are optional except
-   * `method`, `url`, and `responseSchema`.
+   * Uses `const` type parameter inference to derive every type from the
+   * options object.
    *
    * @example
    * ```ts
-   * // Simple GET endpoint
-   * const getUsers = api.declareEndpoint({
+   * // JSON endpoint
+   * const getUser = api.declareEndpoint({
    *   method: 'GET',
-   *   url: '/users',
-   *   responseSchema: z.array(userSchema),
-   * })
-   *
-   * // POST with URL params, query, body, and error handling
-   * const updateUser = api.declareEndpoint({
-   *   method: 'PATCH',
    *   url: '/users/$userId',
-   *   querySchema: z.object({ notify: z.boolean().optional() }),
-   *   requestSchema: z.object({ name: z.string() }),
    *   responseSchema: userSchema,
-   *   urlParamsSchema: z.object({ userId: z.string().uuid() }),
-   *   errorSchema: {
-   *     404: z.object({ error: z.literal('User not found') }),
-   *     403: z.object({ error: z.literal('Forbidden') }),
-   *   },
+   *   errorSchema: { 404: z.object({ message: z.string() }) },
    * })
-   * ```
-   */
-  declareEndpoint<const Options extends EndpointOptions>(options: Options): EndpointHandler<Options>
-
-  /**
-   * Declares a multipart/form-data endpoint for file uploads.
    *
-   * Similar to `declareEndpoint`, but the request body is automatically
-   * converted to FormData. Files can be passed directly in the data object.
-   *
-   * @example
-   * ```ts
-   * const uploadFile = api.declareMultipart({
+   * // File upload
+   * const upload = api.declareEndpoint({
    *   method: 'POST',
    *   url: '/files',
-   *   requestSchema: z.object({
-   *     file: z.instanceof(File),
-   *     description: z.string().optional(),
-   *   }),
-   *   responseSchema: z.object({ fileId: z.string() }),
+   *   body: 'multipart',
+   *   requestSchema: z.object({ file: z.instanceof(File) }),
+   *   responseSchema: z.object({ id: z.string() }),
    * })
-   * ```
-   */
-  declareMultipart<const Options extends EndpointOptions>(
-    options: Options,
-  ): EndpointHandler<Options>
-
-  /**
-   * Declares a streaming endpoint that returns a Blob.
    *
-   * Use this for file downloads or binary data. The response is returned
-   * as a Blob without schema validation.
-   *
-   * @example
-   * ```ts
-   * const downloadFile = api.declareStream({
+   * // File download
+   * const download = api.declareEndpoint({
    *   method: 'GET',
-   *   url: '/files/$fileId/download',
+   *   url: '/files/$fileId',
+   *   response: 'blob',
    * })
    *
-   * const blob = await downloadFile({ urlParams: { fileId: '123' } })
+   * // No response body (204)
+   * const remove = api.declareEndpoint({
+   *   method: 'DELETE',
+   *   url: '/files/$fileId',
+   *   response: 'void',
+   * })
    * ```
    */
-  declareStream<const Options extends BaseEndpointOptions>(options: Options): StreamHandler<Options>
+  declareEndpoint<const Options extends BaseEndpointOptions>(
+    options: Options & RequireResponseSchema<Options> & NoUnknownOptions<Options>,
+  ): EndpointHandler<Options>
 }
 
 // =============================================================================
-// Export Helper Types for External Use
+// Helper Types for External Use
 // =============================================================================
 
 /**
- * Extracts the parameter type from an endpoint declaration.
+ * Extracts the args type from an endpoint declaration.
  *
  * @example
  * ```ts
  * const getUser = api.declareEndpoint({ ... })
- * type Params = EndpointParams<typeof getUser>
+ * type Args = EndpointParams<typeof getUser>
  * ```
  */
-export type EndpointParams<T> = T extends (params: infer P) => any ? P : never
+export type EndpointParams<T> = T extends { config: infer C extends BaseEndpointOptions }
+  ? ClientRequestArgs<C>
+  : never
 
 /**
- * Extracts the return type from an endpoint declaration.
- *
- * @example
- * ```ts
- * const getUser = api.declareEndpoint({ ... })
- * type Result = EndpointResult<typeof getUser>
- * ```
+ * Extracts the resolved data type from an endpoint declaration.
  */
-export type EndpointResult<T> = T extends (params: any) => Promise<infer R> ? R : never
+export type EndpointResult<T> = T extends { config: infer C extends BaseEndpointOptions }
+  ? InferEndpointReturn<C>
+  : never
+
+/**
+ * Extracts the typed error from an endpoint declaration.
+ */
+export type EndpointErrorType<T> = T extends { config: infer C extends BaseEndpointOptions }
+  ? InferEndpointError<C>
+  : never
 
 /**
  * Extracts the config type from an endpoint declaration.

@@ -1,7 +1,7 @@
-import type { z, ZodObject } from 'zod/v4'
-
-import type { HasProperty, SafeGet } from '../../types/builder-instance.mjs'
+import type { EventSourceError } from '../../errors/eventsource-error.mjs'
+import type { HasProperty, SafeGet } from '../../types/request.mjs'
 import type { Simplify, UrlHasParams, UrlParams } from '../../types/request.mjs'
+import type { InferSchemaInput, Schema } from '../../types/schema.mjs'
 import type { EventSourceClient } from '../types/eventsource-client.mjs'
 
 /**
@@ -13,13 +13,13 @@ export type EventSourceHandleState = 'connecting' | 'open' | 'closed'
  * Options for declareEventSource.
  *
  * @template Url - URL template string (e.g., '/events/$roomId')
- * @template QuerySchema - Optional Zod schema for query parameters
- * @template UrlParamsSchema - Optional Zod schema for URL parameter validation
+ * @template QuerySchema - Optional schema for query parameters
+ * @template UrlParamsSchema - Optional schema for URL parameter validation
  */
 export interface DeclareEventSourceOptions<
   Url extends string = string,
-  QuerySchema extends ZodObject | undefined = ZodObject | undefined,
-  UrlParamsSchema extends ZodObject | undefined = ZodObject | undefined,
+  QuerySchema extends Schema | undefined = Schema | undefined,
+  UrlParamsSchema extends Schema | undefined = Schema | undefined,
 > {
   /**
    * EventSource URL (can include $param placeholders).
@@ -29,12 +29,17 @@ export interface DeclareEventSourceOptions<
   url: Url
 
   /**
-   * Optional Zod schema for query parameters.
+   * Optional schema (any Standard Schema) for query parameters. Its output
+   * must be a plain object; each entry becomes one query parameter.
+   *
+   * The connection is opened synchronously, so the schema must validate
+   * synchronously.
    */
   querySchema?: QuerySchema
 
   /**
-   * Optional Zod schema for URL parameter validation.
+   * Optional schema (any Standard Schema) for URL parameter validation.
+   * Must validate synchronously, like `querySchema`.
    */
   urlParamsSchema?: UrlParamsSchema
 
@@ -54,9 +59,15 @@ export interface CreateEventSourceHandlerConfig {
   baseUrl?: string
 
   /**
-   * Callback for errors during connection or message handling.
+   * Called with an {@link EventSourceError} of kind `'transport'` when a
+   * listener registered on the handle throws. `eventName` is the event the
+   * listener was registered for (`'open'` and `'error'` for `onOpen` /
+   * `onError` listeners), `url` the connection URL and `cause` the thrown
+   * value.
+   *
+   * An exception thrown inside the hook is caught and logged.
    */
-  onError?: (error: unknown) => void
+  onError?: (error: EventSourceError) => void
 }
 
 /**
@@ -66,12 +77,12 @@ export type InferEventSourceConnectParams<Options extends DeclareEventSourceOpti
   // URL Parameters
   (UrlHasParams<Options['url']> extends true
     ? HasProperty<Options, 'urlParamsSchema'> extends true
-      ? { urlParams: z.input<SafeGet<Options, 'urlParamsSchema'> & ZodObject> }
+      ? { urlParams: InferSchemaInput<SafeGet<Options, 'urlParamsSchema'>> }
       : { urlParams: UrlParams<Options['url']> }
     : {}) &
     // Query Parameters
     (HasProperty<Options, 'querySchema'> extends true
-      ? { params: z.input<SafeGet<Options, 'querySchema'> & ZodObject> }
+      ? { params: InferSchemaInput<SafeGet<Options, 'querySchema'>> }
       : {})
 >
 
@@ -107,6 +118,11 @@ export interface EventSourceHandle extends EventSourceClient {
    * Close the EventSource connection.
    */
   close(): void
+
+  /**
+   * Full URL the EventSource was opened with.
+   */
+  readonly url: string
 
   /**
    * Whether the EventSource is currently connected.

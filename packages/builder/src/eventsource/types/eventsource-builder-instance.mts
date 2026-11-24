@@ -10,7 +10,7 @@ import type { EventOptions } from './eventsource-options.mjs'
  * @example
  * ```ts
  * import { eventSourceBuilder, declareEventSource } from '@navios/builder/eventsource'
- * import { z } from 'zod'
+ * // `z` is Zod here; any Standard Schema library works the same way
  *
  * const sse = eventSourceBuilder()
  *

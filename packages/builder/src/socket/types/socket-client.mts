@@ -37,6 +37,12 @@ export interface SocketClient {
   off(event: string, handler?: (...args: unknown[]) => void): void
 
   /**
+   * Optional: URL of the connection. When present it is copied to
+   * `SocketError.url`.
+   */
+  readonly url?: string
+
+  /**
    * Optional: Check if the socket is connected.
    */
   connected?: boolean

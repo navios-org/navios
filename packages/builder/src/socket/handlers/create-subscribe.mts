@@ -1,5 +1,7 @@
-import { ZodError, type ZodType } from 'zod/v4'
+import { isPendingOutcome, validateEager } from '../../request/validate.mjs'
+import { reportSocketError } from '../report-error.mjs'
 
+import type { ValidationOutcome } from '../../request/validate.mjs'
 import type { SocketClient } from '../types/socket-client.mjs'
 import type { SubscribeHandler, Unsubscribe } from '../types/socket-handlers.mjs'
 import type {
@@ -44,41 +46,60 @@ export function createSubscribeHandler<Options extends SubscribeOptions>(
   context: CreateSubscribeContext,
 ): SubscribeHandler<Options> {
   const { topic, payloadSchema } = options
-  const { config, topicHandlers, setupGlobalListener } = context
+  const { getClient, config, topicHandlers, setupGlobalListener } = context
+
+  const connectionUrl = (): string | undefined => {
+    try {
+      return getClient().url
+    } catch {
+      return undefined
+    }
+  }
 
   const handler = ((userHandler: (payload: unknown) => void): Unsubscribe => {
     // Ensure global listener is set up
     setupGlobalListener()
 
-    // Create wrapper that validates payload and isolates handler errors
+    let subscribed = true
+
+    // Wrapper that validates the payload and isolates handler errors. It never throws.
     const wrappedHandler = (payload: unknown) => {
-      let validatedPayload = payload
-      if (payloadSchema) {
-        try {
-          validatedPayload = (payloadSchema as ZodType).parse(payload)
-        } catch (error) {
-          config.onError?.({
+      const url = connectionUrl()
+
+      const deliver = (outcome: ValidationOutcome) => {
+        if (!outcome.ok) {
+          reportSocketError(config.onError, {
             kind: 'validation',
-            endpoint: {},
-            cause: error,
-            zodIssues: error instanceof ZodError ? error.issues : undefined,
-            body: payload,
             topic,
+            url,
+            issues: outcome.issues,
             rawData: payload,
+            cause: outcome.cause,
           })
           return
         }
+
+        try {
+          userHandler(outcome.value)
+        } catch (cause) {
+          reportSocketError(config.onError, { kind: 'transport', topic, url, cause })
+        }
       }
 
-      try {
-        userHandler(validatedPayload)
-      } catch (error) {
-        config.onError?.({
-          kind: 'socket-transport',
-          endpoint: {},
-          cause: error,
-          topic,
+      if (!payloadSchema) {
+        deliver({ ok: true, value: payload })
+        return
+      }
+
+      // A synchronous schema delivers within the same tick. An asynchronous
+      // one is awaited first, unless the handler unsubscribed in the meantime.
+      const outcome = validateEager(payloadSchema, payload)
+      if (isPendingOutcome(outcome)) {
+        void outcome.then((resolved) => {
+          if (subscribed) deliver(resolved)
         })
+      } else {
+        deliver(outcome)
       }
     }
 
@@ -92,6 +113,7 @@ export function createSubscribeHandler<Options extends SubscribeOptions>(
 
     // Return unsubscribe function
     return () => {
+      subscribed = false
       const currentHandlers = topicHandlers.get(topic)
       if (currentHandlers) {
         currentHandlers.delete(wrappedHandler)

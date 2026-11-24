@@ -1,7 +1,7 @@
-import type { z, ZodType } from 'zod/v4'
+import type { InferSchemaOutput, Schema } from './schema.mjs'
 
 /**
- * Record mapping HTTP status codes to Zod schemas for error responses.
+ * Record mapping HTTP status codes to schemas for error responses.
  *
  * @example
  * ```ts
@@ -12,7 +12,7 @@ import type { z, ZodType } from 'zod/v4'
  * } satisfies ErrorSchemaRecord
  * ```
  */
-export type ErrorSchemaRecord = Record<number, ZodType>
+export type ErrorSchemaRecord = Record<number, Schema>
 
 /**
  * Extracts the union of all output types from an ErrorSchemaRecord.
@@ -27,5 +27,5 @@ export type ErrorSchemaRecord = Record<number, ZodType>
  * ```
  */
 export type InferErrorSchemaOutput<T extends ErrorSchemaRecord> = {
-  [K in keyof T]: T[K] extends ZodType ? z.output<T[K]> : never
+  [K in keyof T]: T[K] extends Schema ? InferSchemaOutput<T[K]> : never
 }[keyof T]

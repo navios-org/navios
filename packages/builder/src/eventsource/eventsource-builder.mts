@@ -1,6 +1,9 @@
-import { ZodError, type ZodType } from 'zod/v4'
+import { NaviosError } from '../errors/navios-error.mjs'
+import { isPendingOutcome, validateEager } from '../request/validate.mjs'
 
-import { NaviosError } from '../errors/index.mjs'
+import type { ValidationOutcome } from '../request/validate.mjs'
+
+import { reportEventSourceError } from './report-error.mjs'
 
 import type { EventSourceBuilderInstance } from './types/eventsource-builder-instance.mjs'
 import type { EventSourceClient } from './types/eventsource-client.mjs'
@@ -10,8 +13,8 @@ import type { EventSourceBuilderConfig, EventOptions } from './types/eventsource
 /**
  * Creates an EventSource builder instance for declarative SSE event handling.
  *
- * The builder allows you to define type-safe event handlers with Zod schema
- * validation. It works with any EventSource client implementing the
+ * The builder allows you to define type-safe event handlers validated by any
+ * Standard Schema (Zod, Valibot, ArkType, ...). It works with any EventSource client implementing the
  * EventSourceClient interface, including the native EventSource wrapped with
  * declareEventSource.
  *
@@ -21,12 +24,12 @@ import type { EventSourceBuilderConfig, EventOptions } from './types/eventsource
  * @example
  * ```ts
  * import { eventSourceBuilder, declareEventSource } from '@navios/builder/eventsource'
- * import { z } from 'zod'
+ * // `z` is Zod here; any Standard Schema library works the same way
  *
  * // Create builder
  * const sse = eventSourceBuilder({
- *   onError: (event) => {
- *     console.error(`SSE error (${event.kind}) on ${event.eventName ?? '?'}:`, event.cause)
+ *   onError: (error) => {
+ *     console.error(`SSE error (${error.kind}) on ${error.eventName}:`, error.message)
  *   }
  * })
  *
@@ -99,18 +102,8 @@ export function eventSourceBuilder(
     const listener = (data: unknown): void => {
       const handlers = eventHandlers.get(eventName)
       if (handlers) {
-        handlers.forEach((handler) => {
-          try {
-            handler(data)
-          } catch (error) {
-            config.onError?.({
-              kind: 'event-source-transport',
-              endpoint: {},
-              cause: error,
-              eventName,
-            })
-          }
-        })
+        // Registered handlers validate, isolate and report on their own; they never throw.
+        handlers.forEach((handler) => handler(data))
       }
     }
 
@@ -158,29 +151,47 @@ export function eventSourceBuilder(
         eventHandlers.set(eventName, handlers)
       }
 
-      // Create a wrapper that validates and calls the original handler
-      const wrappedHandler = (rawData: unknown): void => {
-        let data = rawData
+      let subscribed = true
 
-        // Validate if schema is provided
-        if (payloadSchema) {
-          try {
-            data = (payloadSchema as ZodType).parse(rawData)
-          } catch (error) {
-            config.onError?.({
+      // Wrapper that validates the event and isolates handler errors. It never throws.
+      const wrappedHandler = (rawData: unknown): void => {
+        const url = client?.url
+
+        const deliver = (outcome: ValidationOutcome): void => {
+          if (!outcome.ok) {
+            reportEventSourceError(config.onError, {
               kind: 'validation',
-              endpoint: {},
-              cause: error,
-              zodIssues: error instanceof ZodError ? error.issues : undefined,
-              body: rawData,
               eventName,
+              url,
+              issues: outcome.issues,
               rawData,
+              cause: outcome.cause,
             })
             return // Skip handler if validation fails
           }
+
+          try {
+            handler(outcome.value)
+          } catch (cause) {
+            reportEventSourceError(config.onError, { kind: 'transport', eventName, url, cause })
+          }
         }
 
-        handler(data)
+        if (!payloadSchema) {
+          deliver({ ok: true, value: rawData })
+          return
+        }
+
+        // A synchronous schema delivers within the same tick. An asynchronous
+        // one is awaited first, unless the handler unsubscribed in the meantime.
+        const outcome = validateEager(payloadSchema, rawData)
+        if (isPendingOutcome(outcome)) {
+          void outcome.then((resolved) => {
+            if (subscribed) deliver(resolved)
+          })
+        } else {
+          deliver(outcome)
+        }
       }
 
       handlers.add(wrappedHandler)
@@ -192,6 +203,7 @@ export function eventSourceBuilder(
 
       // Return unsubscribe function
       return () => {
+        subscribed = false
         handlers?.delete(wrappedHandler)
       }
     }

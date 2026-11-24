@@ -32,6 +32,12 @@ export interface EventSourceClient {
    * Whether the EventSource is currently connected.
    */
   readonly connected: boolean
+
+  /**
+   * Optional: URL of the connection. When present it is copied to
+   * `EventSourceError.url`.
+   */
+  readonly url?: string
 }
 
 /**

@@ -2,9 +2,40 @@ import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod/v4'
 
 import { NaviosError } from '../../errors/index.mjs'
+import { isSocketError, SocketError } from '../index.mjs'
 import { socketBuilder } from '../socket-builder.mjs'
 
+import type { Schema } from '../../types/schema.mjs'
 import type { SocketClient } from '../types/socket-client.mjs'
+
+/** A hand-written Standard Schema, standing in for any non-Zod library. */
+function standard<Input, Output>(
+  check: (value: unknown) => Output | Error,
+  options: { async?: boolean } = {},
+): Schema<Input, Output> {
+  return {
+    '~standard': {
+      version: 1,
+      vendor: 'test',
+      validate: (value) => {
+        const outcome = check(value)
+        const result =
+          outcome instanceof Error
+            ? { issues: [{ message: outcome.message, path: ['field'] }] }
+            : { value: outcome }
+        return options.async ? Promise.resolve(result) : result
+      },
+    },
+  }
+}
+
+/** Accepts `{ n: number > 0 }` and adds `checked: true` to its output. */
+function positive(options: { async?: boolean } = {}) {
+  return standard<{ n: number }, { n: number; checked: true }>((value) => {
+    const n = (value as { n?: unknown } | null)?.n
+    return typeof n === 'number' && n > 0 ? { n, checked: true } : new Error('n must be positive')
+  }, options)
+}
 
 describe('socketBuilder', () => {
   const payloadSchema = z.object({
@@ -150,6 +181,8 @@ describe('socketBuilder', () => {
 
       // Promise should reject
       await expect(promise).rejects.toThrow('Client was replaced')
+      await expect(promise).rejects.toMatchObject({ kind: 'transport', topic: 'test' })
+      await expect(promise).rejects.toBeInstanceOf(SocketError)
     })
   })
 
@@ -233,6 +266,34 @@ describe('socketBuilder', () => {
       expect(client.emitMock).not.toHaveBeenCalled()
     })
 
+    it('should throw a SocketError with the ZodError as cause and report it to onError', () => {
+      const onError = vi.fn()
+      const socket = socketBuilder({ onError })
+      const client = createMockClient()
+      socket.provideClient(client)
+
+      const sendMessage = socket.defineSend({ topic: 'chat.message', payloadSchema })
+      const invalid = { text: 123 }
+
+      let thrown: unknown
+      try {
+        sendMessage(invalid as any)
+      } catch (error) {
+        thrown = error
+      }
+
+      expect(isSocketError(thrown)).toBe(true)
+      const error = thrown as SocketError
+      expect(error).toBeInstanceOf(NaviosError)
+      expect(error.kind).toBe('validation')
+      expect(error.topic).toBe('chat.message')
+      expect(error.rawData).toBe(invalid)
+      expect(error.issues?.length).toBeGreaterThan(0)
+      expect(error.cause).toBeInstanceOf(z.ZodError)
+      expect(onError).toHaveBeenCalledTimes(1)
+      expect(onError.mock.calls[0]![0]).toBe(error)
+    })
+
     it('should return void for fire-and-forget send', () => {
       const socket = socketBuilder()
       const client = createMockClient()
@@ -275,7 +336,7 @@ describe('socketBuilder', () => {
       expect(result).toEqual({ id: 'room-123', createdAt: '2024-01-01' })
     })
 
-    it('should timeout ack and fire onError with kind socket-ack-timeout', async () => {
+    it('should timeout ack and fire onError with kind ack-timeout', async () => {
       vi.useFakeTimers()
 
       const onError = vi.fn()
@@ -298,16 +359,17 @@ describe('socketBuilder', () => {
       vi.advanceTimersByTime(1100)
 
       await expect(promise).rejects.toThrow('Acknowledgement timeout')
-      expect(onError).toHaveBeenCalledWith(
-        expect.objectContaining({
-          kind: 'socket-ack-timeout',
-          topic: 'room.create',
-          endpoint: {},
-        }),
-      )
-      const event = onError.mock.calls[0]![0] as { cause: Error }
-      expect(event.cause).toBeInstanceOf(Error)
-      expect((event.cause as Error).message).toContain('Acknowledgement timeout')
+      expect(onError).toHaveBeenCalledTimes(1)
+      const error = onError.mock.calls[0]![0] as SocketError
+      expect(error).toBeInstanceOf(SocketError)
+      expect(error.kind).toBe('ack-timeout')
+      expect(error.topic).toBe('room.create')
+      expect(error.message).toContain('Acknowledgement timeout')
+      expect(error.cause).toBeUndefined()
+      expect('issues' in error).toBe(false)
+      expect('rawData' in error).toBe(false)
+      // The caller and the hook get the same instance.
+      await expect(promise).rejects.toBe(error)
 
       vi.useRealTimers()
     })
@@ -353,7 +415,6 @@ describe('socketBuilder', () => {
       const emitCall = client.emitMock.mock.calls[0]
       const message = emitCall[1] as unknown[]
       const ackId = message[2] as string
-      const ackTopic = `__navios_ack:${ackId}`
       const invalidAck = { invalid: 'data' }
 
       // Simulate invalid ack response
@@ -363,15 +424,16 @@ describe('socketBuilder', () => {
       expect(onError).toHaveBeenCalledWith(
         expect.objectContaining({
           kind: 'validation',
-          topic: ackTopic,
+          topic: 'room.create',
           rawData: invalidAck,
-          body: invalidAck,
-          endpoint: {},
         }),
       )
-      const event = onError.mock.calls[0]![0] as { zodIssues: unknown[] }
-      expect(Array.isArray(event.zodIssues)).toBe(true)
-      expect(event.zodIssues.length).toBeGreaterThan(0)
+      const error = onError.mock.calls[0]![0] as SocketError
+      expect(error).toBeInstanceOf(SocketError)
+      expect(Array.isArray(error.issues)).toBe(true)
+      expect(error.issues!.length).toBeGreaterThan(0)
+      expect(error.cause).toBeInstanceOf(z.ZodError)
+      await expect(promise).rejects.toBe(error)
     })
 
     it('should cleanup ack handler after success', async () => {
@@ -490,15 +552,16 @@ describe('socketBuilder', () => {
           kind: 'validation',
           topic: 'chat.message',
           rawData: invalidPayload,
-          body: invalidPayload,
-          endpoint: {},
         }),
       )
-      const event = onError.mock.calls[0]![0] as { zodIssues: unknown[] }
-      expect(Array.isArray(event.zodIssues)).toBe(true)
+      const error = onError.mock.calls[0]![0] as SocketError
+      expect(error).toBeInstanceOf(SocketError)
+      expect(error).toBeInstanceOf(NaviosError)
+      expect(Array.isArray(error.issues)).toBe(true)
+      expect(error.cause).toBeInstanceOf(z.ZodError)
     })
 
-    it('should fire onError with kind socket-transport when handler throws', () => {
+    it('should fire onError with kind transport when handler throws', () => {
       const onError = vi.fn()
       const socket = socketBuilder({ onError })
       const client = createMockClient()
@@ -520,12 +583,12 @@ describe('socketBuilder', () => {
       expect(throwingHandler).toHaveBeenCalled()
       expect(onError).toHaveBeenCalledWith(
         expect.objectContaining({
-          kind: 'socket-transport',
+          kind: 'transport',
           topic: 'chat.message',
           cause: handlerError,
-          endpoint: {},
         }),
       )
+      expect(onError.mock.calls[0]![0]).toBeInstanceOf(SocketError)
     })
 
     it('should not let one throwing handler stop sibling handlers', () => {
@@ -552,7 +615,7 @@ describe('socketBuilder', () => {
       expect(okHandler).toHaveBeenCalled()
       expect(onError).toHaveBeenCalledTimes(1)
       expect(onError).toHaveBeenCalledWith(
-        expect.objectContaining({ kind: 'socket-transport', topic: 'chat.message' }),
+        expect.objectContaining({ kind: 'transport', topic: 'chat.message' }),
       )
     })
 
@@ -708,6 +771,342 @@ describe('socketBuilder', () => {
       simulateMessage(client, ['chat.message', { text: 'Hello' }])
 
       expect(handler).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('Standard Schema support', () => {
+    it('should validate a send payload with a non-Zod schema and send its output', () => {
+      const socket = socketBuilder()
+      const client = createMockClient()
+      socket.provideClient(client)
+
+      const send = socket.defineSend({ topic: 'numbers', payloadSchema: positive() })
+
+      send({ n: 2 })
+      expect(client.emitMock).toHaveBeenCalledWith('numbers', ['numbers', { n: 2, checked: true }])
+    })
+
+    it('should throw a SocketError carrying the schema issues for a non-Zod schema', () => {
+      const onError = vi.fn()
+      const socket = socketBuilder({ onError })
+      const client = createMockClient()
+      socket.provideClient(client)
+
+      const send = socket.defineSend({ topic: 'numbers', payloadSchema: positive() })
+
+      let thrown: unknown
+      try {
+        send({ n: -1 })
+      } catch (error) {
+        thrown = error
+      }
+
+      expect(thrown).toBeInstanceOf(SocketError)
+      const error = thrown as SocketError
+      expect(error.kind).toBe('validation')
+      expect(error.issues).toEqual([{ message: 'n must be positive', path: ['field'] }])
+      expect(error.rawData).toEqual({ n: -1 })
+      expect(error.cause).toBeUndefined()
+      expect(onError).toHaveBeenCalledWith(error)
+      expect(client.emitMock).not.toHaveBeenCalled()
+    })
+
+    it('should validate incoming messages with a non-Zod schema', () => {
+      const onError = vi.fn()
+      const socket = socketBuilder({ onError })
+      const client = createMockClient()
+      socket.provideClient(client)
+
+      const onNumber = socket.defineSubscribe({ topic: 'numbers', payloadSchema: positive() })
+      const handler = vi.fn()
+      onNumber(handler)
+
+      simulateMessage(client, ['numbers', { n: 3 }])
+      simulateMessage(client, ['numbers', { n: 0 }])
+
+      expect(handler).toHaveBeenCalledTimes(1)
+      expect(handler).toHaveBeenCalledWith({ n: 3, checked: true })
+      expect(onError).toHaveBeenCalledTimes(1)
+      const error = onError.mock.calls[0]![0] as SocketError
+      expect(error).toBeInstanceOf(SocketError)
+      expect(error.kind).toBe('validation')
+      expect(error.topic).toBe('numbers')
+      expect(error.rawData).toEqual({ n: 0 })
+      expect(error.issues).toEqual([{ message: 'n must be positive', path: ['field'] }])
+    })
+
+    it('should validate an ack with a non-Zod schema', async () => {
+      const socket = socketBuilder()
+      const client = createMockClient()
+      socket.provideClient(client)
+
+      const send = socket.defineSend({ topic: 'numbers', ackSchema: positive() })
+      const promise = send('anything')
+      const ackId = (client.emitMock.mock.calls[0]![1] as unknown[])[2] as string
+      simulateAck(client, ackId, { n: 5 })
+
+      await expect(promise).resolves.toEqual({ n: 5, checked: true })
+    })
+  })
+
+  describe('asynchronous schemas', () => {
+    it('should await an async payloadSchema before calling the subscriber', async () => {
+      const onError = vi.fn()
+      const socket = socketBuilder({ onError })
+      const client = createMockClient()
+      socket.provideClient(client)
+
+      const onNumber = socket.defineSubscribe({
+        topic: 'numbers',
+        payloadSchema: positive({ async: true }),
+      })
+      const handler = vi.fn()
+      onNumber(handler)
+
+      simulateMessage(client, ['numbers', { n: 3 }])
+      simulateMessage(client, ['numbers', { n: -3 }])
+      expect(handler).not.toHaveBeenCalled()
+
+      await Promise.resolve()
+      await Promise.resolve()
+
+      expect(handler).toHaveBeenCalledTimes(1)
+      expect(handler).toHaveBeenCalledWith({ n: 3, checked: true })
+      expect(onError).toHaveBeenCalledTimes(1)
+      expect(onError.mock.calls[0]![0]).toMatchObject({ kind: 'validation', topic: 'numbers' })
+    })
+
+    it('should not deliver a message whose async validation finishes after unsubscribe', async () => {
+      const socket = socketBuilder()
+      const client = createMockClient()
+      socket.provideClient(client)
+
+      const onNumber = socket.defineSubscribe({
+        topic: 'numbers',
+        payloadSchema: positive({ async: true }),
+      })
+      const handler = vi.fn()
+      const unsubscribe = onNumber(handler)
+
+      simulateMessage(client, ['numbers', { n: 3 }])
+      unsubscribe()
+      await Promise.resolve()
+      await Promise.resolve()
+
+      expect(handler).not.toHaveBeenCalled()
+    })
+
+    it('should support a Zod schema with an async refinement on subscribe', async () => {
+      const socket = socketBuilder()
+      const client = createMockClient()
+      socket.provideClient(client)
+
+      const onMessage = socket.defineSubscribe({
+        topic: 'chat.message',
+        payloadSchema: z.object({ text: z.string().refine(async (text) => text.length > 0) }),
+      })
+      const handler = vi.fn()
+      onMessage(handler)
+
+      simulateMessage(client, ['chat.message', { text: 'Hello' }])
+      await vi.waitFor(() => expect(handler).toHaveBeenCalledWith({ text: 'Hello' }))
+    })
+
+    it('should await async payload and ack schemas on a send with ackSchema', async () => {
+      const socket = socketBuilder()
+      const client = createMockClient()
+      socket.provideClient(client)
+
+      const send = socket.defineSend({
+        topic: 'numbers',
+        payloadSchema: positive({ async: true }),
+        ackSchema: positive({ async: true }),
+      })
+
+      const promise = send({ n: 1 })
+      // Nothing is sent until the payload has been validated.
+      expect(client.emitMock).not.toHaveBeenCalled()
+      await vi.waitFor(() => expect(client.emitMock).toHaveBeenCalled())
+
+      const message = client.emitMock.mock.calls[0]![1] as unknown[]
+      expect(message[1]).toEqual({ n: 1, checked: true })
+      simulateAck(client, message[2] as string, { n: 7 })
+
+      await expect(promise).resolves.toEqual({ n: 7, checked: true })
+    })
+
+    it('should reject with a SocketError when an async payloadSchema fails on a send with ackSchema', async () => {
+      const onError = vi.fn()
+      const socket = socketBuilder({ onError })
+      const client = createMockClient()
+      socket.provideClient(client)
+
+      const send = socket.defineSend({
+        topic: 'numbers',
+        payloadSchema: positive({ async: true }),
+        ackSchema: positive(),
+      })
+
+      const promise = send({ n: -1 })
+      await expect(promise).rejects.toBeInstanceOf(SocketError)
+      await expect(promise).rejects.toMatchObject({ kind: 'validation', topic: 'numbers' })
+      expect(client.emitMock).not.toHaveBeenCalled()
+      expect(onError).toHaveBeenCalledTimes(1)
+    })
+
+    it('should reject with a SocketError when an async ackSchema fails', async () => {
+      const onError = vi.fn()
+      const socket = socketBuilder({ onError })
+      const client = createMockClient()
+      socket.provideClient(client)
+
+      const send = socket.defineSend({ topic: 'numbers', ackSchema: positive({ async: true }) })
+      const promise = send('anything')
+      const ackId = (client.emitMock.mock.calls[0]![1] as unknown[])[2] as string
+      simulateAck(client, ackId, { n: -7 })
+
+      await expect(promise).rejects.toMatchObject({
+        kind: 'validation',
+        topic: 'numbers',
+        rawData: { n: -7 },
+      })
+      expect(onError).toHaveBeenCalledTimes(1)
+    })
+
+    it('should refuse an async payloadSchema on a fire-and-forget send', () => {
+      const onError = vi.fn()
+      const socket = socketBuilder({ onError })
+      const client = createMockClient()
+      socket.provideClient(client)
+
+      const send = socket.defineSend({
+        topic: 'numbers',
+        payloadSchema: positive({ async: true }),
+      })
+
+      let thrown: unknown
+      try {
+        send({ n: 1 })
+      } catch (error) {
+        thrown = error
+      }
+
+      expect(thrown).toBeInstanceOf(SocketError)
+      expect((thrown as SocketError).kind).toBe('validation')
+      expect((thrown as SocketError).message).toContain('validates asynchronously')
+      expect(client.emitMock).not.toHaveBeenCalled()
+      expect(onError).toHaveBeenCalledWith(thrown)
+    })
+  })
+
+  describe('onError hook protection', () => {
+    it('should keep delivering messages when onError throws', () => {
+      const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
+      const hookError = new Error('hook exploded')
+      const socket = socketBuilder({
+        onError: () => {
+          throw hookError
+        },
+      })
+      const client = createMockClient()
+      socket.provideClient(client)
+
+      const onMessage = socket.defineSubscribe({
+        topic: 'chat.message',
+        payloadSchema: subscribePayloadSchema,
+      })
+      const throwing = vi.fn(() => {
+        throw new Error('handler exploded')
+      })
+      const sibling = vi.fn()
+      onMessage(throwing)
+      onMessage(sibling)
+
+      // Invalid message, then a valid one whose first handler throws.
+      expect(() => simulateMessage(client, ['chat.message', { text: 'Hi' }])).not.toThrow()
+      expect(() =>
+        simulateMessage(client, ['chat.message', { text: 'Hi', from: 'A', timestamp: 1 }]),
+      ).not.toThrow()
+
+      expect(sibling).toHaveBeenCalledTimes(1)
+      expect(consoleError).toHaveBeenCalledWith('[Navios-Socket]: onError hook threw', hookError)
+      consoleError.mockRestore()
+    })
+
+    it('should still reject a send with the SocketError when onError throws', async () => {
+      vi.useFakeTimers()
+      const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
+      const socket = socketBuilder({
+        ackTimeout: 100,
+        onError: () => {
+          throw new Error('hook exploded')
+        },
+      })
+      const client = createMockClient()
+      socket.provideClient(client)
+
+      const send = socket.defineSend({ topic: 'room.create', ackSchema })
+      const promise = send({})
+      vi.advanceTimersByTime(150)
+
+      await expect(promise).rejects.toMatchObject({ kind: 'ack-timeout', topic: 'room.create' })
+      expect(consoleError).toHaveBeenCalled()
+      consoleError.mockRestore()
+      vi.useRealTimers()
+    })
+  })
+
+  describe('SocketError', () => {
+    it('should serialize without the cause', () => {
+      const error = new SocketError({
+        kind: 'validation',
+        topic: 'chat.message',
+        url: 'wss://example.com/ws',
+        issues: [{ message: 'bad' }],
+        rawData: { text: 1 },
+        cause: new Error('original'),
+      })
+
+      expect(error.name).toBe('SocketError')
+      expect((error.cause as Error).message).toBe('original')
+      expect(JSON.parse(JSON.stringify(error))).toEqual({
+        name: 'SocketError',
+        message: 'Socket message on "chat.message" failed validation',
+        kind: 'validation',
+        topic: 'chat.message',
+        url: 'wss://example.com/ws',
+        issues: [{ message: 'bad' }],
+        rawData: { text: 1 },
+      })
+    })
+
+    it('should omit unset optional fields', () => {
+      const error = new SocketError({ kind: 'transport', topic: 'chat.message' })
+
+      expect(error.toJSON()).toEqual({
+        name: 'SocketError',
+        message: 'Socket handler for "chat.message" failed',
+        kind: 'transport',
+        topic: 'chat.message',
+      })
+      expect(isSocketError(error)).toBe(true)
+      expect(isSocketError(new NaviosError('other'))).toBe(false)
+    })
+
+    it('should copy the url of the client when it exposes one', () => {
+      const onError = vi.fn()
+      const socket = socketBuilder({ onError })
+      const client = { ...createMockClient(), url: 'wss://example.com/ws' }
+      socket.provideClient(client)
+
+      const onMessage = socket.defineSubscribe({
+        topic: 'chat.message',
+        payloadSchema: subscribePayloadSchema,
+      })
+      onMessage(vi.fn())
+      simulateMessage(client, ['chat.message', {}])
+
+      expect((onError.mock.calls[0]![0] as SocketError).url).toBe('wss://example.com/ws')
     })
   })
 })

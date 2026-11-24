@@ -17,7 +17,6 @@ describe('makeConfig', () => {
           url: '/users',
           responseSchema,
         } as any,
-        'GET',
         '/users',
       )
 
@@ -25,7 +24,7 @@ describe('makeConfig', () => {
       expect(config.url).toBe('/users')
     })
 
-    it('should preserve extra request properties', () => {
+    it('should forward per-call headers and signal', () => {
       const config = makeConfig(
         {
           headers: { Authorization: 'Bearer token' },
@@ -36,13 +35,78 @@ describe('makeConfig', () => {
           url: '/users',
           responseSchema,
         } as any,
-        'GET',
         '/users',
       )
 
       expect(config.headers).toEqual({ Authorization: 'Bearer token' })
       expect(config.signal).toBeNull()
     })
+  })
+
+  describe('forwarded keys', () => {
+    it('should not spread unknown request keys or urlParams into the config', () => {
+      const config = makeConfig(
+        { urlParams: { id: '1' }, params: { a: 1 }, data: { b: 2 }, extra: 'nope' } as any,
+        { method: 'POST', url: '/users/$id', responseSchema } as any,
+        '/users/1',
+      )
+
+      expect(config).toEqual({
+        method: 'POST',
+        url: '/users/1',
+        params: { a: 1 },
+        data: { b: 2 },
+      })
+    })
+
+    it('should read the method from the endpoint options', () => {
+      const config = makeConfig({}, { method: 'PATCH', url: '/users', responseSchema }, '/users')
+
+      expect(config.method).toBe('PATCH')
+    })
+
+    it('should layer headers: clientOptions, then endpoint, then call', () => {
+      const config = makeConfig(
+        { headers: { c: 'call' } },
+        {
+          method: 'GET',
+          url: '/users',
+          responseSchema,
+          headers: { b: 'endpoint', c: 'endpoint' },
+          clientOptions: { headers: { a: 'client', b: 'client', c: 'client' } },
+        },
+        '/users',
+      )
+
+      expect(config.headers).toEqual({ a: 'client', b: 'endpoint', c: 'call' })
+    })
+
+    it('should omit signal and timeout when neither call nor endpoint sets them', () => {
+      const config = makeConfig({}, { method: 'GET', url: '/users', responseSchema }, '/users')
+
+      expect(config).not.toHaveProperty('signal')
+      expect(config).not.toHaveProperty('timeout')
+      expect(config).not.toHaveProperty('headers')
+    })
+
+    it.each([
+      ['blob', 'blob'],
+      ['text', 'text'],
+      ['stream', 'stream'],
+    ] as const)('should map response %s to responseType %s', (response, responseType) => {
+      const config = makeConfig({}, { method: 'GET', url: '/f', response }, '/f')
+
+      expect(config.responseType).toBe(responseType)
+    })
+
+    it.each(['void', 'json'] as const)(
+      'should not set responseType for response %s',
+      (response) => {
+        const config = makeConfig({}, { method: 'GET', url: '/f', response }, '/f')
+
+        expect(config).not.toHaveProperty('responseType')
+      },
+    )
   })
 
   describe('with querySchema', () => {
@@ -60,7 +124,6 @@ describe('makeConfig', () => {
           querySchema,
           responseSchema,
         } as any,
-        'GET',
         '/users',
       )
 
@@ -81,7 +144,6 @@ describe('makeConfig', () => {
           querySchema: schemaWithCoercion,
           responseSchema,
         } as any,
-        'GET',
         '/users',
       )
 
@@ -96,7 +158,6 @@ describe('makeConfig', () => {
           url: '/users',
           responseSchema,
         } as any,
-        'GET',
         '/users',
       )
 
@@ -119,7 +180,6 @@ describe('makeConfig', () => {
           requestSchema,
           responseSchema,
         } as any,
-        'POST',
         '/users',
       )
 
@@ -140,7 +200,6 @@ describe('makeConfig', () => {
           requestSchema: schemaWithTransform,
           responseSchema,
         } as any,
-        'POST',
         '/users',
       )
 
@@ -155,7 +214,6 @@ describe('makeConfig', () => {
           url: '/users',
           responseSchema,
         } as any,
-        'GET',
         '/users',
       )
 
@@ -169,7 +227,7 @@ describe('makeConfig', () => {
       file: z.instanceof(File),
     })
 
-    it('should create FormData when isMultipart is true', () => {
+    it("should create FormData when the endpoint declares body: 'multipart'", () => {
       const file = new File(['content'], 'test.txt', { type: 'text/plain' })
 
       const config = makeConfig(
@@ -177,12 +235,11 @@ describe('makeConfig', () => {
         {
           method: 'POST',
           url: '/upload',
+          body: 'multipart',
           requestSchema,
           responseSchema,
         } as any,
-        'POST',
         '/upload',
-        true,
       )
 
       expect(config.data).toBeInstanceOf(FormData)
@@ -209,7 +266,6 @@ describe('makeConfig', () => {
           requestSchema,
           responseSchema,
         } as any,
-        'POST',
         '/users',
       )
 

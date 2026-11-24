@@ -1,4 +1,4 @@
-import type { z, ZodType } from 'zod/v4'
+import type { InferSchemaInput, InferSchemaOutput, Schema } from '../../types/schema.mjs'
 
 import type { SendOptions, SubscribeOptions } from './socket-options.mjs'
 
@@ -10,31 +10,31 @@ export type Unsubscribe = () => void
 /**
  * Type inference for send handler payload parameter.
  *
- * - If payloadSchema is provided: z.input<PayloadSchema>
+ * - If payloadSchema is provided: the schema's input type
  * - Otherwise: unknown
  */
-export type InferSendPayload<Options extends SendOptions> = Options['payloadSchema'] extends ZodType
-  ? z.input<Options['payloadSchema']>
+export type InferSendPayload<Options extends SendOptions> = Options['payloadSchema'] extends Schema
+  ? InferSchemaInput<Options['payloadSchema']>
   : unknown
 
 /**
  * Type inference for send handler return type.
  *
- * - If ackSchema is provided: Promise<z.output<AckSchema>>
+ * - If ackSchema is provided: a Promise of the schema's output type
  * - Otherwise: void
  */
-export type InferSendReturn<Options extends SendOptions> = Options['ackSchema'] extends ZodType
-  ? Promise<z.output<Options['ackSchema']>>
+export type InferSendReturn<Options extends SendOptions> = Options['ackSchema'] extends Schema
+  ? Promise<InferSchemaOutput<Options['ackSchema']>>
   : void
 
 /**
  * Type inference for subscribe handler callback parameter.
  *
- * - If payloadSchema is provided: z.output<PayloadSchema>
+ * - If payloadSchema is provided: the schema's output type
  * - Otherwise: unknown
  */
 export type InferSubscribePayload<Options extends SubscribeOptions> =
-  Options['payloadSchema'] extends ZodType ? z.output<Options['payloadSchema']> : unknown
+  Options['payloadSchema'] extends Schema ? InferSchemaOutput<Options['payloadSchema']> : unknown
 
 /**
  * Send handler function type.

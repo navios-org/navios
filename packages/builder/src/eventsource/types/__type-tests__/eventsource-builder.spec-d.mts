@@ -3,14 +3,21 @@ import { z as zod } from 'zod/v4'
 
 import type { z } from 'zod/v4'
 
+import { isEventSourceError } from '../../index.mjs'
+
+import type { NaviosError } from '../../../errors/navios-error.mjs'
+import type { Schema, SchemaIssue } from '../../../types/schema.mjs'
 import type {
+  CreateEventSourceHandlerConfig,
   DeclareEventSourceOptions,
   InferEventSourceConnectParams,
   EventSourceHandler,
   EventSourceHandle,
 } from '../../eventsource/types.mjs'
+import type { EventSourceError, EventSourceErrorKind } from '../../index.mjs'
 import type { EventSourceBuilderInstance } from '../eventsource-builder-instance.mjs'
 import type { EventHandler, EventUnsubscribe } from '../eventsource-handlers.mjs'
+import type { EventSourceBuilderConfig } from '../eventsource-options.mjs'
 
 // Declare a mock eventsource builder instance at module level
 declare const sse: EventSourceBuilderInstance
@@ -386,5 +393,65 @@ describe('Const generic inference', () => {
 
     type Options = typeof options
     expectTypeOf<Options['url']>().toEqualTypeOf<'/events/$roomId'>()
+  })
+})
+
+describe('Standard Schema (non-Zod) inference', () => {
+  type Positive = Schema<{ n: number }, { n: number; checked: true }>
+  const positive = null as unknown as Positive
+
+  test('event handler receives the schema output', () => {
+    const onNumber = sse.defineEvent({ eventName: 'number', payloadSchema: positive })
+
+    onNumber((payload) => {
+      expectTypeOf(payload).toEqualTypeOf<{ n: number; checked: true }>()
+    })
+  })
+
+  test('declareEventSource params use the schema input', () => {
+    type Options = {
+      url: '/events/$roomId'
+      urlParamsSchema: Schema<{ roomId: number }, { roomId: string }>
+      querySchema: Schema<{ token: string }, { token: string }>
+    }
+
+    expectTypeOf<InferEventSourceConnectParams<Options>>().toEqualTypeOf<{
+      urlParams: { roomId: number }
+      params: { token: string }
+    }>()
+  })
+})
+
+describe('EventSourceError', () => {
+  test('onError hooks receive an EventSourceError', () => {
+    expectTypeOf<NonNullable<EventSourceBuilderConfig['onError']>>()
+      .parameter(0)
+      .toEqualTypeOf<EventSourceError>()
+    expectTypeOf<NonNullable<CreateEventSourceHandlerConfig['onError']>>()
+      .parameter(0)
+      .toEqualTypeOf<EventSourceError>()
+  })
+
+  test('a hook that takes unknown is still accepted', () => {
+    assertType<EventSourceBuilderConfig>({ onError: (error: unknown) => void error })
+  })
+
+  test('fields and kinds', () => {
+    const error = null as unknown as EventSourceError
+
+    expectTypeOf(error).toExtend<NaviosError>()
+    expectTypeOf(error.kind).toEqualTypeOf<'validation' | 'transport'>()
+    expectTypeOf<EventSourceErrorKind>().toEqualTypeOf<'validation' | 'transport'>()
+    expectTypeOf(error.eventName).toEqualTypeOf<string>()
+    expectTypeOf(error.url).toEqualTypeOf<string | undefined>()
+    expectTypeOf(error.issues).toEqualTypeOf<readonly SchemaIssue[] | undefined>()
+    expectTypeOf(error.rawData).toEqualTypeOf<unknown>()
+  })
+
+  test('isEventSourceError narrows unknown', () => {
+    const value = null as unknown
+    if (isEventSourceError(value)) {
+      expectTypeOf(value).toEqualTypeOf<EventSourceError>()
+    }
   })
 })

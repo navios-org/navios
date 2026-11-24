@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from 'vitest'
-import { z } from 'zod/v4'
+import { z, ZodError } from 'zod/v4'
 
 import { builder } from '../builder.mjs'
-import { NaviosError } from '../errors/index.mjs'
+import { EndpointError, NaviosError } from '../errors/index.mjs'
 
 import type { Client } from '../types/index.mjs'
 
@@ -38,10 +38,11 @@ describe('builder', () => {
       const api = builder()
 
       expect(api).toHaveProperty('declareEndpoint')
-      expect(api).toHaveProperty('declareMultipart')
-      expect(api).toHaveProperty('declareStream')
       expect(api).toHaveProperty('provideClient')
       expect(api).toHaveProperty('getClient')
+      expect(api).toHaveProperty('withClient')
+      expect(api).not.toHaveProperty('declareMultipart')
+      expect(api).not.toHaveProperty('declareStream')
     })
 
     it('should accept optional config', () => {
@@ -51,13 +52,11 @@ describe('builder', () => {
       expect(api).toBeDefined()
     })
 
-    it('should accept full config', () => {
-      const api = builder({
-        onError: vi.fn(),
-        defaults: { result: 'envelope' },
-      })
+    it('should accept a client in the config', () => {
+      const client = createMockClient({ id: '1', name: 'Test' })
+      const api = builder({ client, onError: vi.fn() })
 
-      expect(api).toBeDefined()
+      expect(api.getClient()).toBe(client)
     })
   })
 
@@ -205,46 +204,17 @@ describe('builder', () => {
     })
   })
 
-  describe('declareMultipart', () => {
-    it('should create a multipart endpoint', async () => {
-      const api = builder()
-      const client = createMockClient({ id: '1', name: 'uploaded.txt' })
-      api.provideClient(client)
-
-      const multipartSchema = z.object({
-        name: z.string(),
-        file: z.instanceof(File),
-      })
-
-      const endpoint = api.declareMultipart({
-        method: 'POST',
-        url: '/upload',
-        requestSchema: multipartSchema,
-        responseSchema,
-      })
-
-      const file = new File(['content'], 'test.txt', { type: 'text/plain' })
-      const result = await endpoint({ data: { name: 'Test', file } })
-
-      expect(result).toEqual({ id: '1', name: 'uploaded.txt' })
-
-      const call = (client.request as ReturnType<typeof vi.fn>).mock.calls[0][0]
-      expect(call.data).toBeInstanceOf(FormData)
-    })
-
-    it('should create multipart endpoint with URL params', async () => {
+  describe("declareEndpoint with body: 'multipart'", () => {
+    it('should bind URL params on a multipart endpoint', async () => {
       const api = builder()
       const client = createMockClient({ id: '1', name: 'avatar.png' })
       api.provideClient(client)
 
-      const multipartSchema = z.object({
-        file: z.instanceof(File),
-      })
-
-      const endpoint = api.declareMultipart({
+      const endpoint = api.declareEndpoint({
         method: 'POST',
         url: '/users/$userId/avatar',
-        requestSchema: multipartSchema,
+        body: 'multipart',
+        requestSchema: z.object({ file: z.instanceof(File) }),
         responseSchema,
       })
 
@@ -257,33 +227,51 @@ describe('builder', () => {
       expect(client.request).toHaveBeenCalledWith(
         expect.objectContaining({
           url: '/users/123/avatar',
+          data: expect.any(FormData),
         }),
       )
     })
 
-    it('should attach config to multipart endpoint', () => {
+    it('should send an empty FormData when there is no requestSchema and no data', async () => {
       const api = builder()
       const client = createMockClient({ id: '1', name: 'Test' })
       api.provideClient(client)
 
-      const endpoint = api.declareMultipart({
+      const endpoint = api.declareEndpoint({
         method: 'POST',
         url: '/upload',
+        body: 'multipart',
+        responseSchema,
+      })
+
+      await endpoint()
+
+      const call = vi.mocked(client.request).mock.calls[0]![0]
+      expect(call.data).toBeInstanceOf(FormData)
+      expect([...(call.data as FormData).keys()]).toEqual([])
+    })
+
+    it('should attach config to multipart endpoint', () => {
+      const api = builder()
+
+      const endpoint = api.declareEndpoint({
+        method: 'POST',
+        url: '/upload',
+        body: 'multipart',
         responseSchema,
       })
 
       expect(endpoint.config).toMatchObject({
         method: 'POST',
         url: '/upload',
+        body: 'multipart',
       })
     })
   })
 
-  describe('declareStream', () => {
-    it('should create a stream endpoint', async () => {
-      const blob = new Blob(['file content'], { type: 'text/plain' })
-      const api = builder()
-      const client: Client = {
+  describe("declareEndpoint with response: 'blob'", () => {
+    function createBlobClient(blob: Blob): Client {
+      return {
         request: vi.fn().mockResolvedValue({
           data: blob,
           status: 200,
@@ -291,67 +279,41 @@ describe('builder', () => {
           headers: {},
         }),
       }
+    }
+
+    it('should parse query params on a blob endpoint', async () => {
+      const blob = new Blob(['csv content'], { type: 'text/csv' })
+      const api = builder()
+      const client = createBlobClient(blob)
       api.provideClient(client)
 
-      const endpoint = api.declareStream({
+      const endpoint = api.declareEndpoint({
         method: 'GET',
-        url: '/download',
+        url: '/export',
+        response: 'blob',
+        querySchema,
       })
 
-      const result = await endpoint({})
+      await expect(endpoint({ params: { page: 1, limit: 100 } })).resolves.toBe(blob)
 
-      expect(result).toBe(blob)
       expect(client.request).toHaveBeenCalledWith(
         expect.objectContaining({
+          params: { page: 1, limit: 100 },
           responseType: 'blob',
         }),
       )
     })
 
-    it('should create stream endpoint with query params', async () => {
-      const blob = new Blob(['csv content'], { type: 'text/csv' })
-      const api = builder()
-      const client: Client = {
-        request: vi.fn().mockResolvedValue({
-          data: blob,
-          status: 200,
-          statusText: 'OK',
-          headers: {},
-        }),
-      }
-      api.provideClient(client)
-
-      const endpoint = api.declareStream({
-        method: 'GET',
-        url: '/export',
-        querySchema,
-      })
-
-      await endpoint({ params: { page: 1, limit: 100 } })
-
-      expect(client.request).toHaveBeenCalledWith(
-        expect.objectContaining({
-          params: { page: 1, limit: 100 },
-        }),
-      )
-    })
-
-    it('should create POST stream endpoint', async () => {
+    it('should send a validated body on a POST blob endpoint', async () => {
       const blob = new Blob(['generated report'], { type: 'application/pdf' })
       const api = builder()
-      const client: Client = {
-        request: vi.fn().mockResolvedValue({
-          data: blob,
-          status: 200,
-          statusText: 'OK',
-          headers: {},
-        }),
-      }
+      const client = createBlobClient(blob)
       api.provideClient(client)
 
-      const endpoint = api.declareStream({
+      const endpoint = api.declareEndpoint({
         method: 'POST',
         url: '/reports/generate',
+        response: 'blob',
         requestSchema,
       })
 
@@ -360,42 +322,37 @@ describe('builder', () => {
       expect(client.request).toHaveBeenCalledWith(
         expect.objectContaining({
           method: 'POST',
+          data: { name: 'Report', email: 'test@example.com' },
+          responseType: 'blob',
         }),
       )
     })
 
-    it('should attach config to stream endpoint', () => {
+    it('should attach config to blob endpoint', () => {
       const api = builder()
-      const client: Client = {
-        request: vi.fn().mockResolvedValue({
-          data: new Blob(),
-          status: 200,
-          statusText: 'OK',
-          headers: {},
-        }),
-      }
-      api.provideClient(client)
 
-      const endpoint = api.declareStream({
+      const endpoint = api.declareEndpoint({
         method: 'GET',
         url: '/download',
+        response: 'blob',
       })
 
-      expect(endpoint.config).toMatchObject({
+      expect(endpoint.config).toEqual({
         method: 'GET',
         url: '/download',
+        response: 'blob',
       })
     })
   })
 
   describe('error handling with config', () => {
-    it('should call onError with structured event when request fails', async () => {
-      const onError = vi.fn()
-      const api = builder({ onError })
+    it('should wrap a transport failure in an EndpointError and pass it to onError', async () => {
+      const onError = vi.fn<(error: EndpointError) => void>()
+      const cause = new Error('Network error')
       const client: Client = {
-        request: vi.fn().mockRejectedValue(new Error('Network error')),
+        request: vi.fn().mockRejectedValue(cause),
       }
-      api.provideClient(client)
+      const api = builder({ client, onError })
 
       const endpoint = api.declareEndpoint({
         method: 'GET',
@@ -403,11 +360,37 @@ describe('builder', () => {
         responseSchema,
       })
 
-      await expect(endpoint({})).rejects.toThrow('Network error')
+      const thrown = await endpoint({}).catch((e: unknown) => e)
+
+      expect(thrown).toBeInstanceOf(EndpointError)
+      expect(thrown).toMatchObject({
+        kind: 'network',
+        cause,
+        endpoint: { method: 'GET', url: '/users' },
+      })
+      expect((thrown as EndpointError).message).not.toBe('Network error')
       expect(onError).toHaveBeenCalledTimes(1)
-      const event = onError.mock.calls[0][0]
-      expect(event.kind).toBe('network')
-      expect(event.endpoint).toEqual({ method: 'GET', url: '/users' })
+      expect(onError.mock.calls[0]![0]).toBe(thrown)
+    })
+
+    it('should report invalid request data as request-validation, not a raw ZodError', async () => {
+      const client = createMockClient({ id: '1', name: 'Test' })
+      const api = builder({ client })
+
+      const endpoint = api.declareEndpoint({
+        method: 'POST',
+        url: '/users',
+        requestSchema,
+        responseSchema,
+      })
+
+      const thrown = await endpoint({ data: { name: 'John' } as never }).catch((e: unknown) => e)
+
+      expect(thrown).toBeInstanceOf(EndpointError)
+      expect(thrown).not.toBeInstanceOf(ZodError)
+      expect((thrown as EndpointError).kind).toBe('request-validation')
+      expect((thrown as EndpointError).cause).toBeInstanceOf(ZodError)
+      expect(client.request).not.toHaveBeenCalled()
     })
   })
 

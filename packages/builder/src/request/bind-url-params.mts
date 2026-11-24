@@ -1,92 +1,92 @@
-import type { ZodObject } from 'zod/v4'
+import type { Schema } from '../types/schema.mjs'
+
+import { parseSync } from './validate.mjs'
 
 /**
  * Request parameters containing optional URL parameters.
  */
 export interface UrlParamsRequest {
-  urlParams?: Record<string, string | number>
+  urlParams?: Record<string, unknown>
+}
+
+/**
+ * The one definition of a URL parameter: `$` followed by a letter or
+ * underscore, then letters, digits or underscores. The type-level
+ * `ParsePathParams` follows the same rule.
+ */
+const URL_PARAM_PATTERN = /\$([A-Za-z_][A-Za-z0-9_]*)/g
+
+/**
+ * Lists the parameter names in a URL template, in order of first appearance.
+ *
+ * @example
+ * ```ts
+ * getUrlParamNames('/users/$user_id/files/$name.json') // ['user_id', 'name']
+ * ```
+ */
+export function getUrlParamNames(urlPart: string): string[] {
+  const names: string[] = []
+  for (const [, name] of urlPart.matchAll(URL_PARAM_PATTERN)) {
+    if (name !== undefined && !names.includes(name)) names.push(name)
+  }
+  return names
 }
 
 /**
  * Binds URL parameters to a URL template string.
  *
- * Replaces placeholders in the format `$paramName` with actual values from `urlParams`.
- * All parameter values are URL-encoded to ensure safe inclusion in URLs.
+ * Replaces `$paramName` placeholders with values from `urlParams`. All values
+ * are URL-encoded.
  *
- * When `urlParamsSchema` is provided, the URL parameters are validated and transformed
- * using the schema before being bound to the URL. This enables:
- * - Type coercion (e.g., `z.coerce.number()` to convert string to number)
- * - Validation (e.g., `z.string().uuid()` to ensure valid UUID format)
- * - Default values and transformations
+ * When `urlParamsSchema` is provided, the URL parameters are validated and
+ * transformed by the schema before being bound.
  *
- * @param urlPart - URL template with parameter placeholders (e.g., '/users/$userId/posts/$postId')
- * @param params - Request parameters object containing `urlParams` with parameter values
- * @param urlParamsSchema - Optional Zod schema for validating and transforming URL parameters
+ * @param urlPart - URL template (e.g., '/users/$userId/posts/$postId')
+ * @param params - Request parameters object containing `urlParams`
+ * @param urlParamsSchema - Optional schema for validating and transforming URL parameters
  * @returns The URL with parameters replaced and URL-encoded
  * @throws {Error} If required URL parameters are missing
- * @throws {ZodError} If urlParamsSchema is provided and validation fails
+ * @throws If urlParamsSchema is provided and validation fails (a `ZodError` for Zod schemas)
  *
  * @example
  * ```ts
- * // Basic usage
- * const url = bindUrlParams('/users/$userId/posts/$postId', {
+ * bindUrlParams('/users/$userId/posts/$postId', {
  *   urlParams: { userId: '123', postId: '456' }
  * })
- * // Returns: '/users/123/posts/456'
- *
- * // With special characters (automatically encoded)
- * const url2 = bindUrlParams('/search/$query', {
- *   urlParams: { query: 'hello world' }
- * })
- * // Returns: '/search/hello%20world'
- *
- * // With schema validation
- * const url3 = bindUrlParams(
- *   '/users/$userId',
- *   { urlParams: { userId: '123e4567-e89b-12d3-a456-426614174000' } },
- *   z.object({ userId: z.string().uuid() })
- * )
- * // Validates UUID format, returns: '/users/123e4567-e89b-12d3-a456-426614174000'
+ * // '/users/123/posts/456'
  * ```
  */
 export function bindUrlParams<Url extends string>(
   urlPart: Url,
   params: UrlParamsRequest,
-  urlParamsSchema?: ZodObject,
+  urlParamsSchema?: Schema,
 ) {
-  const placement = /\$([a-zA-Z0-9]+)/g
-  const matches = Array.from(urlPart.matchAll(placement))
+  const requiredParams = getUrlParamNames(urlPart)
 
-  if (matches.length === 0) {
+  if (requiredParams.length === 0) {
     return urlPart
   }
 
-  // Extract all required param names
-  const requiredParams = matches.map(([, group]) => group)
-
-  // Validate that urlParams exists and contains all required params
   if (!params.urlParams) {
     throw new Error(`Missing urlParams. Required parameters: ${requiredParams.join(', ')}`)
   }
 
-  // If urlParamsSchema is provided, validate and transform the URL params
-  // This allows for type coercion, validation, and transformations
-  let urlParamsToUse = params.urlParams as Record<string, unknown>
+  let urlParamsToUse = params.urlParams
   if (urlParamsSchema) {
-    urlParamsToUse = urlParamsSchema.parse(urlParamsToUse) as Record<string, unknown>
+    urlParamsToUse = parseSync(urlParamsSchema, urlParamsToUse) as Record<string, unknown>
   }
 
-  // Validate that all required params are present (after schema transformation)
-  const missingParams = requiredParams.filter((param) => urlParamsToUse[param] === undefined)
+  const missingParams = requiredParams.filter(
+    (param) => urlParamsToUse[param] === undefined || urlParamsToUse[param] === null,
+  )
   if (missingParams.length > 0) {
     throw new Error(`Missing required URL parameters: ${missingParams.join(', ')}`)
   }
 
   // Single-pass replacement using callback to avoid issues with values containing $
-  const result = urlPart.replace(placement, (_, paramName: string) => {
-    const value = urlParamsToUse[paramName]
-    return encodeURIComponent(String(value))
-  })
+  const result = urlPart.replace(URL_PARAM_PATTERN, (_, paramName: string) =>
+    encodeURIComponent(String(urlParamsToUse[paramName])),
+  )
 
   return result as Url
 }

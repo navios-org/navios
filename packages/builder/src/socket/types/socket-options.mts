@@ -1,6 +1,5 @@
-import type { ZodType } from 'zod/v4'
-
-import type { BuilderErrorEvent } from '../../types/config.mjs'
+import type { SocketError } from '../../errors/socket-error.mjs'
+import type { Schema } from '../../types/schema.mjs'
 
 /**
  * Message formatter function type.
@@ -72,22 +71,24 @@ export interface SocketBuilderConfig {
   parseMessage?: MessageParser
 
   /**
-   * Unified structured-error hook. Fires on every error path:
+   * Called once for every failure, with a {@link SocketError}:
    *
-   * - `kind: 'validation'` when an incoming payload or ack response fails
-   *   Zod validation. `topic` and `rawData` are populated; `cause` is the
-   *   raw error (usually a `ZodError`).
-   * - `kind: 'socket-ack-timeout'` when an acknowledgement times out.
-   *   `topic` is the original send topic; `cause` is an `Error` describing
-   *   the timeout.
-   * - `kind: 'socket-transport'` when a user-supplied subscribe handler
-   *   throws synchronously. `topic` is the subscription topic; `cause` is
-   *   the thrown value.
+   * - `kind: 'validation'` when a schema rejects a send payload, an incoming
+   *   message or an acknowledgement. `issues` and `rawData` are set; `cause`
+   *   is the schema library's own error when it has one (a `ZodError` for Zod).
+   * - `kind: 'ack-timeout'` when an acknowledgement does not arrive in time.
+   * - `kind: 'transport'` when a subscribe handler throws (`cause` is the
+   *   thrown value) or the client is replaced while an acknowledgement is
+   *   pending.
    *
-   * The shared {@link BuilderErrorEvent} shape lets consumers route socket,
-   * SSE, and HTTP errors through a single telemetry pipeline.
+   * `topic` is always the topic the handler was defined with. Failures of a
+   * send handler are also thrown or used as the rejection reason; the hook
+   * receives that same instance.
+   *
+   * The hook is for telemetry. An exception thrown inside it is caught and
+   * logged; it never changes how a message is handled.
    */
-  onError?: (event: BuilderErrorEvent) => void
+  onError?: (error: SocketError) => void
 
   /**
    * Default timeout for acknowledgements in milliseconds.
@@ -101,13 +102,13 @@ export interface SocketBuilderConfig {
  * Options for defineSend.
  *
  * @template Topic - Literal string type for the topic
- * @template PayloadSchema - Zod schema for outgoing payload validation
- * @template AckSchema - Optional Zod schema for acknowledgement response
+ * @template PayloadSchema - Schema for outgoing payload validation
+ * @template AckSchema - Optional schema for the acknowledgement response
  */
 export interface SendOptions<
   Topic extends string = string,
-  PayloadSchema extends ZodType | undefined = ZodType | undefined,
-  AckSchema extends ZodType | undefined = ZodType | undefined,
+  PayloadSchema extends Schema | undefined = Schema | undefined,
+  AckSchema extends Schema | undefined = Schema | undefined,
 > {
   /**
    * Topic/event name for this message type.
@@ -117,17 +118,25 @@ export interface SendOptions<
   topic: Topic
 
   /**
-   * Optional Zod schema for validating outgoing payload.
+   * Optional schema (any Standard Schema) for validating the outgoing payload.
    *
-   * When provided, the payload is validated before sending.
+   * When provided, the payload is validated before sending and the schema's
+   * output is what goes on the wire. An invalid payload throws a
+   * `SocketError` of kind `'validation'` and nothing is sent.
+   *
+   * A schema that validates asynchronously is awaited when `ackSchema` is
+   * set (the call returns a promise anyway). Without `ackSchema` the call
+   * is synchronous, so an asynchronous schema is rejected with a
+   * `SocketError`.
    */
   payloadSchema?: PayloadSchema
 
   /**
-   * Optional Zod schema for acknowledgement response.
+   * Optional schema (any Standard Schema) for the acknowledgement response.
    *
    * When provided, the send function returns a Promise that resolves
-   * with the validated acknowledgement response.
+   * with the validated acknowledgement response. Asynchronous schemas are
+   * supported.
    */
   ackSchema?: AckSchema
 
@@ -143,11 +152,11 @@ export interface SendOptions<
  * Options for defineSubscribe.
  *
  * @template Topic - Literal string type for the topic
- * @template PayloadSchema - Zod schema for incoming payload validation
+ * @template PayloadSchema - Schema for incoming payload validation
  */
 export interface SubscribeOptions<
   Topic extends string = string,
-  PayloadSchema extends ZodType | undefined = ZodType | undefined,
+  PayloadSchema extends Schema | undefined = Schema | undefined,
 > {
   /**
    * Topic/event name to subscribe to.
@@ -157,11 +166,12 @@ export interface SubscribeOptions<
   topic: Topic
 
   /**
-   * Optional Zod schema for validating incoming payload.
+   * Optional schema (any Standard Schema) for validating incoming payloads.
    *
    * When provided, incoming messages are validated before calling handlers.
    * Invalid messages trigger the `onError` hook with `kind: 'validation'`
-   * and are skipped.
+   * and are skipped. A schema that validates asynchronously is awaited
+   * before the handler runs.
    */
   payloadSchema?: PayloadSchema
 }
