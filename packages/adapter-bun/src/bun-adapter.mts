@@ -271,10 +271,15 @@ export class BunAdapter implements HttpAdapter<BunEnvironment> {
   private inFlight = 0
   private idle: (() => void) | null = null
 
+  private readonly options: BunAdapterOptions
+
   constructor(
-    private readonly options: BunAdapterOptions,
+    options: BunAdapterOptions,
     private readonly context: AdapterContext,
-  ) {}
+  ) {
+    // Like @fastify/cors: enabling CORS without an origin allows any origin.
+    this.options = options.cors ? { ...options, cors: { origin: '*', ...options.cors } } : options
+  }
 
   get server(): BunServer {
     if (this.bunServer === null) {

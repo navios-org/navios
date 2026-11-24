@@ -22,9 +22,12 @@ function fieldShapes(schema: SchemaLike | undefined): Record<string, FieldShape>
   if (typeof converter !== 'function') {
     return shapes
   }
+  // Files and other values without a JSON representation must not make the
+  // whole conversion fail; only the field shapes are needed. Vendors take
+  // that request under `libraryOptions`.
   let json: any
   try {
-    json = converter({ target: 'draft-2020-12', unrepresentable: 'any' })
+    json = converter({ target: 'draft-2020-12', libraryOptions: { unrepresentable: 'any' } })
   } catch {
     try {
       json = converter({ target: 'draft-2020-12' })

@@ -2,20 +2,15 @@ import { afterAll, beforeAll, describe, expect, it } from 'bun:test'
 
 import supertest from 'supertest'
 
-import type { BunEnvironment } from '@navios/adapter-bun'
-import type { NaviosApplication } from '@navios/core'
-
 import { createApp } from '../src/bootstrap.mjs'
 
 describe('Posts API', () => {
-  let server: NaviosApplication<BunEnvironment>
+  let server: Awaited<ReturnType<typeof createApp>>
   let baseUrl: string
 
   beforeAll(async () => {
     server = await createApp()
-    await server.init()
-    await server.listen({ port: 0, hostname: 'localhost' })
-    baseUrl = server.getServer().url.origin
+    baseUrl = await server.listen({ port: 0, hostname: '127.0.0.1' })
   })
 
   afterAll(async () => {
@@ -96,8 +91,10 @@ describe('Posts API', () => {
           authorId: 'author-789',
         })
 
-      // Bun adapter doesn't convert validation errors to 400
-      expect(response.status).toBeGreaterThanOrEqual(400)
+      expect(response.status).toBe(400)
+      expect(response.headers['content-type']).toContain('application/problem+json')
+      expect(response.body.source).toBe('body')
+      expect(response.body.errors).toEqual([{ path: 'title', message: expect.any(String) }])
     })
 
     it('should reject invalid content (validation error)', async () => {
@@ -110,8 +107,10 @@ describe('Posts API', () => {
           authorId: 'author-789',
         })
 
-      // Bun adapter doesn't convert validation errors to 400
-      expect(response.status).toBeGreaterThanOrEqual(400)
+      expect(response.status).toBe(400)
+      expect(response.headers['content-type']).toContain('application/problem+json')
+      expect(response.body.source).toBe('body')
+      expect(response.body.errors).toEqual([{ path: 'content', message: expect.any(String) }])
     })
 
     it('should reject without authorization', async () => {

@@ -2,20 +2,15 @@ import { afterAll, beforeAll, describe, expect, it } from 'bun:test'
 
 import supertest from 'supertest'
 
-import type { BunEnvironment } from '@navios/adapter-bun'
-import type { NaviosApplication } from '@navios/core'
-
 import { createApp } from '../src/bootstrap.mjs'
 
 describe('Users API', () => {
-  let server: NaviosApplication<BunEnvironment>
+  let server: Awaited<ReturnType<typeof createApp>>
   let baseUrl: string
 
   beforeAll(async () => {
     server = await createApp()
-    await server.init()
-    await server.listen({ port: 0, hostname: 'localhost' })
-    baseUrl = server.getServer().url.origin
+    baseUrl = await server.listen({ port: 0, hostname: '127.0.0.1' })
   })
 
   afterAll(async () => {
@@ -83,6 +78,14 @@ describe('Users API', () => {
         })
 
       expect(response.status).toBe(400)
+      expect(response.headers['content-type']).toContain('application/problem+json')
+      expect(response.body).toMatchObject({
+        type: 'about:blank',
+        title: 'Bad Request',
+        status: 400,
+        source: 'body',
+        errors: [{ path: 'email', message: expect.any(String) }],
+      })
     })
 
     it('should return 400 for missing required fields', async () => {
@@ -129,6 +132,8 @@ describe('Users API', () => {
       const response = await request().get('/users/non-existent-id')
 
       expect(response.status).toBe(404)
+      // 404 is declared in the endpoint's errorSchema, so the body is the declared one
+      expect(response.body).toEqual({ message: 'User not found' })
     })
   })
 

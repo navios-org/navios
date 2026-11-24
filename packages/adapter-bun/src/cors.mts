@@ -12,6 +12,7 @@ export type OriginFunction = (
  * Extends the core AbstractHttpCorsOptions with support for function-based origin.
  */
 export interface BunCorsOptions {
+  /** Allowed origin(s). @default '*' */
   origin?: string | boolean | RegExp | (string | boolean | RegExp)[] | OriginFunction
   credentials?: boolean
   exposedHeaders?: string | string[]
