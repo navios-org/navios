@@ -19,9 +19,10 @@ import type { ScalarOptions } from '../schemas/index.mjs'
 export function createOpenApiUiController(docsPath: string, jsonPath: string): ClassType {
   const API = builder()
 
-  const endpoint = API.declareStream({
+  const endpoint = API.declareEndpoint({
     method: 'GET',
     url: docsPath,
+    response: 'blob',
   })
 
   @ApiExclude()

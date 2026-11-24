@@ -59,7 +59,7 @@
   "scripts": {
     "check": "tsc -b",
     "lint": "yarn run -T oxlint --fix && yarn run -T oxfmt",
-    "test:ci": "vitest run",
+    "test:ci": "vitest run && vitest run -c vitest.e2e.fastify.config.mts && bun test e2e/bun",
     "build": "tsdown",
     "publish": "yarn npm publish --access public",
     "publish:next": "yarn npm publish --access public --tag next"

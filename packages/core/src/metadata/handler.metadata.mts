@@ -24,6 +24,36 @@ export interface HandlerMetadata<Config = null> {
   customAttributes: Map<string | symbol, any>
 }
 
+/** Handlers whose success status was set explicitly (e.g. with `@HttpCode`). */
+const explicitStatusCodes = new WeakSet<HandlerMetadata<any>>()
+
+/**
+ * Sets the success status of a handler on the user's behalf (`@HttpCode`).
+ * An explicit status always wins over a default one.
+ */
+export function setSuccessStatusCode(metadata: HandlerMetadata<any>, code: number): void {
+  metadata.successStatusCode = code
+  explicitStatusCodes.add(metadata)
+}
+
+/**
+ * Sets the status a handler answers with when the user has not chosen one
+ * (for example 204 for an endpoint without a response body). Does nothing
+ * if a status was already set with {@link setSuccessStatusCode}, and a later
+ * explicit status still overrides it — so the order of decorators does not
+ * matter.
+ */
+export function setDefaultSuccessStatusCode(metadata: HandlerMetadata<any>, code: number): void {
+  if (!explicitStatusCodes.has(metadata)) {
+    metadata.successStatusCode = code
+  }
+}
+
+/** Whether the handler's success status was set explicitly (with `@HttpCode`). */
+export function hasExplicitSuccessStatusCode(metadata: HandlerMetadata<any>): boolean {
+  return explicitStatusCodes.has(metadata)
+}
+
 export function getAllEndpointMetadata(
   context: ClassMethodDecoratorContext | ClassDecoratorContext,
 ): Set<HandlerMetadata<any>> {

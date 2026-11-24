@@ -48,9 +48,10 @@ const createUserEndpoint = api.declareEndpoint({
   responseSchema,
 })
 
-const downloadFileEndpoint = api.declareStream({
+const downloadFileEndpoint = api.declareEndpoint({
   method: 'GET',
   url: '/files/$fileId',
+  response: 'blob',
   querySchema,
 })
 

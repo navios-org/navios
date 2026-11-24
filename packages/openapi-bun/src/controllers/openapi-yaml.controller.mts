@@ -16,9 +16,10 @@ import { OpenApiDocumentServiceToken } from '../services/openapi-document.servic
 export function createOpenApiYamlController(yamlPath: string): ClassType {
   const API = builder()
 
-  const endpoint = API.declareStream({
+  const endpoint = API.declareEndpoint({
     method: 'GET',
     url: yamlPath,
+    response: 'blob',
   })
 
   @ApiExclude()

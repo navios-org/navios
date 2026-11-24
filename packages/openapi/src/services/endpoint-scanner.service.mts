@@ -1,7 +1,11 @@
 import { extractControllerMetadata, inject, Injectable, Logger } from '@navios/core'
 
-import type { BaseEndpointOptions, EndpointOptions } from '@navios/builder'
-import type { ControllerMetadata, HandlerMetadata, ModuleMetadata } from '@navios/core'
+import type {
+  ControllerMetadata,
+  HandlerMetadata,
+  ModuleMetadata,
+  ZodBaseEndpointOptions,
+} from '@navios/core'
 
 import type { OpenApiEndpointMetadata } from '../metadata/openapi.metadata.mjs'
 
@@ -19,8 +23,11 @@ export interface DiscoveredEndpoint {
   controller: ControllerMetadata
   /** Handler (endpoint) metadata */
   handler: HandlerMetadata<any>
-  /** Endpoint configuration from @navios/builder */
-  config: EndpointOptions | BaseEndpointOptions
+  /**
+   * Endpoint configuration from @navios/builder. The server decorators only
+   * accept Zod schemas, which is what the OpenAPI conversion reads.
+   */
+  config: ZodBaseEndpointOptions
   /** Extracted OpenAPI metadata */
   openApiMetadata: OpenApiEndpointMetadata
 }
@@ -99,7 +106,7 @@ export class EndpointScannerService {
         controllerClass,
         controller: controllerMeta,
         handler,
-        config: handler.config as EndpointOptions | BaseEndpointOptions,
+        config: handler.config as ZodBaseEndpointOptions,
         openApiMetadata,
       })
     }

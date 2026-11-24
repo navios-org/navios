@@ -1,12 +1,12 @@
 import { Injectable, InjectionToken } from '@navios/core'
 
-import type { BaseEndpointOptions } from '@navios/builder'
 import type {
   AbstractDynamicHandler,
   AbstractStaticHandler,
   FormatArgumentsFn,
   HandlerContext,
   InstanceResolution,
+  ZodBaseEndpointOptions,
 } from '@navios/core'
 import type { FastifyReply, FastifyRequest } from 'fastify'
 
@@ -29,7 +29,7 @@ export const FastifyStreamAdapterToken = InjectionToken.create<FastifyStreamAdap
  * handling for stream-based endpoints. Handlers receive the Fastify reply
  * object for direct control over the response stream.
  *
- * @extends {AbstractFastifyHandlerAdapterService<BaseEndpointOptions>}
+ * @extends {AbstractFastifyHandlerAdapterService<ZodBaseEndpointOptions>}
  *
  * @example
  * ```ts
@@ -48,7 +48,7 @@ export const FastifyStreamAdapterToken = InjectionToken.create<FastifyStreamAdap
 @Injectable({
   token: FastifyStreamAdapterToken,
 })
-export class FastifyStreamAdapterService extends AbstractFastifyHandlerAdapterService<BaseEndpointOptions> {
+export class FastifyStreamAdapterService extends AbstractFastifyHandlerAdapterService<ZodBaseEndpointOptions> {
   /**
    * Creates a static handler for singleton controllers.
    *
@@ -63,7 +63,7 @@ export class FastifyStreamAdapterService extends AbstractFastifyHandlerAdapterSe
   protected override createStaticHandler(
     boundMethod: (...args: any[]) => Promise<any>,
     formatArguments: FormatArgumentsFn<FastifyRequest>,
-    context: HandlerContext<BaseEndpointOptions>,
+    context: HandlerContext<ZodBaseEndpointOptions>,
   ): AbstractStaticHandler<FastifyRequest, FastifyReply> {
     if (context.hasArguments) {
       return {
@@ -98,7 +98,7 @@ export class FastifyStreamAdapterService extends AbstractFastifyHandlerAdapterSe
   protected override createDynamicHandler(
     resolution: InstanceResolution,
     formatArguments: FormatArgumentsFn<FastifyRequest>,
-    context: HandlerContext<BaseEndpointOptions>,
+    context: HandlerContext<ZodBaseEndpointOptions>,
   ): AbstractDynamicHandler<FastifyRequest, FastifyReply> {
     const { methodName, hasArguments } = context
 

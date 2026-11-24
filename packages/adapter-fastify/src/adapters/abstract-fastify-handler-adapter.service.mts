@@ -1,7 +1,6 @@
 import { AbstractHandlerAdapterService, type ArgumentGetter } from '@navios/core'
 
-import type { BaseEndpointOptions } from '@navios/builder'
-import type { HandlerMetadata } from '@navios/core'
+import type { HandlerMetadata, ZodBaseEndpointOptions } from '@navios/core'
 import type { FastifyReply, FastifyRequest } from 'fastify'
 
 /**
@@ -15,10 +14,13 @@ import type { FastifyReply, FastifyRequest } from 'fastify'
  * Concrete adapters (Endpoint, Stream) implement response handling
  * via createStaticHandler and createDynamicHandler.
  *
+ * The schemas are handed to Fastify's Zod validator and serializer compilers,
+ * so the endpoint configuration is constrained to Zod schemas.
+ *
  * @typeParam TConfig - Endpoint configuration type
  */
 export abstract class AbstractFastifyHandlerAdapterService<
-  TConfig extends BaseEndpointOptions = BaseEndpointOptions,
+  TConfig extends ZodBaseEndpointOptions = ZodBaseEndpointOptions,
 > extends AbstractHandlerAdapterService<FastifyRequest, FastifyReply, TConfig> {
   /**
    * Creates argument getters for Fastify request parsing.
@@ -66,7 +68,7 @@ export abstract class AbstractFastifyHandlerAdapterService<
     return (
       !!config.requestSchema ||
       !!config.querySchema ||
-      (!!this.options.validateResponses && !!config.errorSchema)
+      (this.options.validateResponses !== false && !!config.errorSchema)
     )
   }
 
@@ -89,7 +91,7 @@ export abstract class AbstractFastifyHandlerAdapterService<
     if (requestSchema) {
       schema.body = requestSchema
     }
-    if (this.options.validateResponses && errorSchema) {
+    if (this.options.validateResponses !== false && errorSchema) {
       schema.response = {
         ...errorSchema,
       }

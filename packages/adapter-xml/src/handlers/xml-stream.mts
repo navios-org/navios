@@ -1,4 +1,4 @@
-import type { ServerRequestArgs, StreamHandler } from '@navios/builder'
+import type { ServerRequestArgs, EndpointHandler } from '@navios/builder'
 
 import type { XmlStreamConfig } from '../types/config.mjs'
 
@@ -43,10 +43,11 @@ import type { XmlStreamConfig } from '../types/config.mjs'
  */
 export function declareXmlStream<const Config extends XmlStreamConfig>(
   config: Config,
-): StreamHandler<Config> {
+): EndpointHandler<Config> {
   const handler = async (_params: ServerRequestArgs<Config>) => {
     throw new Error('Not implemented')
   }
   handler.config = config
-  return handler as unknown as StreamHandler<Config>
+  handler.safe = handler
+  return handler as unknown as EndpointHandler<Config>
 }

@@ -1,8 +1,13 @@
-import type { BaseEndpointOptions, ServerRequestArgs, StreamHandler } from '@navios/builder'
+import type { ServerRequestArgs } from '@navios/builder'
 import type { ZodObject, ZodType } from 'zod/v4'
 
 import { getEndpointMetadata } from '../metadata/index.mjs'
 import { StreamAdapterToken } from '../tokens/index.mjs'
+
+import { assertDeclarationMatchesDecorator } from './endpoint-declaration.mjs'
+
+import type { StreamDecoratorConfig } from './endpoint-declaration.mjs'
+import type { ZodBaseEndpointOptions } from './zod-endpoint-options.mjs'
 
 /**
  * Extracts the typed parameters for a stream endpoint handler function.
@@ -12,10 +17,10 @@ import { StreamAdapterToken } from '../tokens/index.mjs'
  * @typeParam EndpointDeclaration - The stream endpoint declaration from @navios/builder
  */
 export type StreamParams<
-  EndpointDeclaration extends StreamHandler<Config>,
-  Config extends BaseEndpointOptions = EndpointDeclaration['config'],
-  Url extends string = EndpointDeclaration['config']['url'],
-  QuerySchema = EndpointDeclaration['config']['querySchema'],
+  EndpointDeclaration extends { config: ZodBaseEndpointOptions },
+  Config extends ZodBaseEndpointOptions = EndpointDeclaration['config'],
+  Url extends string = Config['url'],
+  QuerySchema = Config['querySchema'],
 > = QuerySchema extends ZodObject
   ? EndpointDeclaration['config']['requestSchema'] extends ZodType
     ? ServerRequestArgs<{
@@ -44,16 +49,20 @@ export type StreamParams<
  * Decorator that marks a method as a streaming endpoint.
  *
  * Use this decorator for endpoints that stream data (e.g., file downloads, SSE).
- * The endpoint must be defined using @navios/builder's `declareStream` method.
+ * The endpoint must be defined using @navios/builder's `declareEndpoint` method with
+ * `response: 'blob'`, `'text'` or `'stream'`. Any other declaration (a JSON or
+ * `response: 'void'` endpoint, which belong to `@Endpoint`) does not compile, and
+ * throws when the decorator is applied. The schemas must be Zod schemas.
  *
  * @param endpoint - The stream endpoint declaration from @navios/builder
  * @returns A method decorator
  *
  * @example
  * ```typescript
- * const downloadFileEndpoint = api.declareStream({
+ * const downloadFileEndpoint = api.declareEndpoint({
  *   method: 'get',
  *   url: '/files/$fileId',
+ *   response: 'blob',
  * })
  *
  * @Controller()
@@ -66,23 +75,23 @@ export type StreamParams<
  * }
  * ```
  */
-export function Stream<Config extends BaseEndpointOptions>(endpoint: {
+export function Stream<Config extends StreamDecoratorConfig>(endpoint: {
   config: Config
 }): (
   target: (params: ServerRequestArgs<Config>, reply: any) => any,
   context: ClassMethodDecoratorContext,
 ) => void
 // Bun doesn't support reply parameter
-export function Stream<Config extends BaseEndpointOptions>(endpoint: {
+export function Stream<Config extends StreamDecoratorConfig>(endpoint: {
   config: Config
 }): (
   target: (params: ServerRequestArgs<Config>) => any,
   context: ClassMethodDecoratorContext,
 ) => void
-export function Stream<Config extends BaseEndpointOptions>(endpoint: {
+export function Stream<Config extends StreamDecoratorConfig>(endpoint: {
   config: Config
 }): (target: () => any, context: ClassMethodDecoratorContext) => void
-export function Stream<Config extends BaseEndpointOptions>(endpoint: { config: Config }) {
+export function Stream<Config extends StreamDecoratorConfig>(endpoint: { config: Config }) {
   type Params = ServerRequestArgs<Config>
 
   type Handler = ((params: Params, reply: any) => any) | ((params: Params) => any) | (() => any)
@@ -92,8 +101,9 @@ export function Stream<Config extends BaseEndpointOptions>(endpoint: { config: C
       throw new Error('[Navios] Endpoint decorator can only be used on methods.')
     }
     const config = endpoint.config
+    assertDeclarationMatchesDecorator('Stream', config)
     if (context.metadata) {
-      let endpointMetadata = getEndpointMetadata<BaseEndpointOptions>(target, context)
+      let endpointMetadata = getEndpointMetadata<StreamDecoratorConfig>(target, context)
       if (endpointMetadata.config && endpointMetadata.config.url) {
         throw new Error(
           `[Navios] Endpoint ${config.method} ${config.url} already exists. Please use a different method or url.`,

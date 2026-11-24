@@ -4,8 +4,7 @@ import {
   type HandlerContext,
 } from '@navios/core'
 
-import type { BaseEndpointOptions } from '@navios/builder'
-import type { HandlerMetadata } from '@navios/core'
+import type { HandlerMetadata, ZodBaseEndpointOptions } from '@navios/core'
 import type { BunRequest } from 'bun'
 
 /**
@@ -19,10 +18,13 @@ import type { BunRequest } from 'bun'
  * Concrete adapters (Endpoint, Stream) implement response handling
  * via createStaticHandler and createDynamicHandler.
  *
+ * Query and body are validated with the schemas' Zod `parse`, so the endpoint
+ * configuration is constrained to Zod schemas.
+ *
  * @typeParam TConfig - Endpoint configuration type
  */
 export abstract class AbstractBunHandlerAdapterService<
-  TConfig extends BaseEndpointOptions = BaseEndpointOptions,
+  TConfig extends ZodBaseEndpointOptions = ZodBaseEndpointOptions,
 > extends AbstractHandlerAdapterService<BunRequest, void, TConfig> {
   /**
    * Creates argument getters for Bun request parsing.

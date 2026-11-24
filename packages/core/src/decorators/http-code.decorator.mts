@@ -1,9 +1,19 @@
-import { getEndpointMetadata } from '../metadata/index.mjs'
+import { getEndpointMetadata, setSuccessStatusCode } from '../metadata/index.mjs'
+import { EndpointAdapterToken, MultipartAdapterToken } from '../tokens/index.mjs'
+
+import { httpCodeOnResponsesEndpoint } from './http-code-on-responses.error.mjs'
 
 /**
  * Decorator that sets a custom HTTP status code for successful responses.
  *
- * By default, endpoints return 200 OK. Use this decorator to return a different status code.
+ * By default, endpoints return 200 OK (204 No Content for an endpoint declared
+ * with `response: 'void'`). Use this decorator to return a different status code.
+ * It wins over the default wherever it is placed relative to `@Endpoint` or
+ * `@Multipart`.
+ *
+ * It cannot be used on an endpoint declared with a per-status `responses`
+ * map: there the method picks the status with `reply(status, body)`, and
+ * combining the two throws when the decorators are applied.
  *
  * @param code - The HTTP status code to return (e.g., 201, 204, 202)
  * @returns A method decorator
@@ -26,7 +36,13 @@ export function HttpCode(code: number) {
       throw new Error('[Navios] HttpCode decorator can only be used on methods.')
     }
     const metadata = getEndpointMetadata(target, context)
-    metadata.successStatusCode = code
+    const servesResponsesMap =
+      metadata.adapterToken === EndpointAdapterToken ||
+      metadata.adapterToken === MultipartAdapterToken
+    if (servesResponsesMap && metadata.config?.responses) {
+      throw httpCodeOnResponsesEndpoint(metadata.config)
+    }
+    setSuccessStatusCode(metadata, code)
 
     return target
   }

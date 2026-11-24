@@ -1,4 +1,5 @@
-import type { BaseEndpointOptions, HttpMethod } from '@navios/builder'
+import type { HttpMethod } from '@navios/builder'
+import type { ZodBaseEndpointOptions } from '@navios/core'
 import type { ZodObject, ZodType } from 'zod/v4'
 
 /**
@@ -23,7 +24,18 @@ import type { ZodObject, ZodType } from 'zod/v4'
  * }
  * ```
  */
-export interface XmlStreamConfig extends BaseEndpointOptions {
+export interface XmlStreamConfig extends ZodBaseEndpointOptions {
+  /**
+   * XML endpoints read a JSON request body (when they have a `requestSchema`).
+   * Multipart bodies are not supported.
+   */
+  body?: 'json'
+  /**
+   * How a client reads the reply. The server always answers with rendered XML,
+   * so only the byte/text kinds make sense; `'json'` and `'void'` are rejected.
+   * `declareXmlStream` configs normally leave this out.
+   */
+  response?: 'text' | 'blob' | 'stream'
   contentType?: 'application/xml' | 'text/xml' | 'application/rss+xml' | 'application/atom+xml'
   xmlDeclaration?: boolean
   encoding?: string

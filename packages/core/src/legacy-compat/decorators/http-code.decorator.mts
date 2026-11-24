@@ -7,6 +7,10 @@ import { HttpCode as OriginalHttpCode } from '../../decorators/http-code.decorat
  *
  * Works with TypeScript experimental decorators (legacy API).
  *
+ * Cannot be used on an endpoint declared with a per-status `responses` map,
+ * where the method picks the status with `reply(status, body)`; combining the
+ * two throws when the decorators are applied.
+ *
  * @param code - The HTTP status code to return (e.g., 201, 204, 202)
  * @returns A method decorator compatible with legacy decorator API
  *

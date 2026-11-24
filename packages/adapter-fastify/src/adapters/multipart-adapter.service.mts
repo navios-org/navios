@@ -2,8 +2,7 @@ import { Injectable, InjectionToken } from '@navios/core'
 import { ZodArray, ZodObject, ZodOptional } from 'zod/v4'
 
 import type { MultipartFile, MultipartValue } from '@fastify/multipart'
-import type { EndpointOptions } from '@navios/builder'
-import type { ArgumentGetter, HandlerMetadata } from '@navios/core'
+import type { ArgumentGetter, HandlerMetadata, ZodBaseEndpointOptions } from '@navios/core'
 import type { FastifyRequest } from 'fastify'
 import type { ZodRawShape } from 'zod/v4'
 
@@ -26,6 +25,11 @@ export const FastifyMultipartAdapterToken = InjectionToken.create<FastifyMultipa
  * handling for file uploads and multipart form data. It automatically parses
  * multipart streams, handles file uploads, converts files to File objects,
  * and validates the data against Zod schemas.
+ *
+ * The response side is inherited unchanged from the endpoint adapter: a JSON
+ * reply validated with `responseSchema`, an empty reply for `response: 'void'`
+ * (204 unless `@HttpCode` set another status), or the status and body picked
+ * with `reply(status, body)` for a per-status `responses` map.
  *
  * @extends {FastifyEndpointAdapterService}
  *
@@ -66,7 +70,7 @@ export class FastifyMultipartAdapterService extends FastifyEndpointAdapterServic
    * @returns An array of getter functions that populate request arguments.
    */
   protected override createArgumentGetters(
-    handlerMetadata: HandlerMetadata<EndpointOptions>,
+    handlerMetadata: HandlerMetadata<ZodBaseEndpointOptions>,
   ): ArgumentGetter<FastifyRequest>[] {
     const config = handlerMetadata.config
     const getters: ArgumentGetter<FastifyRequest>[] = []
@@ -101,27 +105,19 @@ export class FastifyMultipartAdapterService extends FastifyEndpointAdapterServic
   /**
    * Provides Fastify schema information for multipart handlers.
    *
-   * Creates a Fastify route schema object that includes query string and
-   * response schemas. Note that multipart body schemas are handled separately
-   * during request parsing.
+   * The same schema as a plain endpoint — query string, error schemas and the
+   * success schemas (`responseSchema` under 200, every schema of a per-status
+   * `responses` map under its own status, none for `response: 'void'`) —
+   * without the request body: a multipart body is parsed and validated while
+   * the parts are read, not by Fastify.
    *
    * @param handlerMetadata - The handler metadata containing configuration and schemas.
    * @returns A Fastify route schema object.
    */
-  override provideSchema(handlerMetadata: HandlerMetadata<EndpointOptions>): Record<string, any> {
-    const schema: Record<string, any> = {}
-    const { querySchema, responseSchema } = handlerMetadata.config
-
-    if (querySchema) {
-      schema.querystring = querySchema
-    }
-    if (this.options.validateResponses && responseSchema) {
-      schema.response = {
-        ...handlerMetadata.config.errorSchema,
-        200: responseSchema,
-      }
-    }
-
+  override provideSchema(
+    handlerMetadata: HandlerMetadata<ZodBaseEndpointOptions>,
+  ): Record<string, any> {
+    const { body: _body, ...schema } = super.provideSchema(handlerMetadata)
     return schema
   }
 

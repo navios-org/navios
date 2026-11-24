@@ -1,3 +1,4 @@
+/** @jsxImportSource @navios/adapter-xml */
 import { afterAll, beforeAll, describe, expect, it } from 'bun:test'
 
 import { defineBunEnvironment, type BunEnvironment } from '@navios/adapter-bun'

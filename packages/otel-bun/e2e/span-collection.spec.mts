@@ -149,7 +149,7 @@ describe('Span Collection Verification', () => {
 
     await server.init()
     await server.listen({ port: 3004, hostname: 'localhost' })
-    realServer = server.getServer().url.href
+    realServer = server.getServer().url.origin
   })
 
   afterAll(async () => {

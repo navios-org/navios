@@ -42,7 +42,21 @@ export class SchemaConverterService {
    */
   convert(schema: ZodType): SchemaConversionResult {
     // zod-openapi 6 types the result with a broader SchemaObject (OAS 3.1/3.2 union)
-    return createSchema(schema) as SchemaConversionResult
+    return createSchema(schema, {
+      opts: {
+        // `z.instanceof(File)` — the usual way to declare an upload field — is
+        // a Zod `custom` schema, which has no JSON Schema form and would make
+        // the whole conversion throw. Files and Blobs are described as binary
+        // strings; any other custom schema becomes an unconstrained schema.
+        allowEmptySchema: { custom: true },
+        override: (context) => {
+          if (isBinaryInstanceSchema(context.zodSchema)) {
+            context.jsonSchema.type = 'string'
+            context.jsonSchema.format = 'binary'
+          }
+        },
+      },
+    }) as SchemaConversionResult
   }
 
   /**
@@ -92,4 +106,17 @@ export class SchemaConverterService {
 
     return result
   }
+}
+
+/**
+ * True for `z.instanceof(File)` / `z.instanceof(Blob)` (and subclasses).
+ */
+function isBinaryInstanceSchema(schema: unknown): boolean {
+  const internals = (
+    schema as { _zod?: { def?: { type?: string }; bag?: { Class?: unknown } } } | undefined
+  )?._zod
+  if (internals?.def?.type !== 'custom') return false
+  const instanceClass = internals.bag?.Class
+  if (typeof instanceClass !== 'function' || typeof Blob === 'undefined') return false
+  return instanceClass === Blob || instanceClass.prototype instanceof Blob
 }

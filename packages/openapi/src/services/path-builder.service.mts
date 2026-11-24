@@ -6,8 +6,7 @@ import {
   StreamAdapterToken,
 } from '@navios/core'
 
-import type { BaseEndpointOptions, EndpointOptions, ErrorSchemaRecord } from '@navios/builder'
-import type { HandlerMetadata } from '@navios/core'
+import type { HandlerMetadata, ZodBaseEndpointOptions } from '@navios/core'
 import type { oas31 } from 'zod-openapi'
 
 import { SchemaConverterService } from './schema-converter.service.mjs'
@@ -60,8 +59,8 @@ export class PathBuilderService {
       deprecated: openApiMetadata.deprecated || undefined,
       externalDocs: openApiMetadata.externalDocs,
       security: openApiMetadata.security,
-      parameters: this.buildParameters(config as EndpointOptions),
-      requestBody: this.buildRequestBody(config as EndpointOptions, handler),
+      parameters: this.buildParameters(config),
+      requestBody: this.buildRequestBody(config, handler),
       responses: this.buildResponses(endpoint),
     }
 
@@ -112,7 +111,7 @@ export class PathBuilderService {
   /**
    * Builds OpenAPI parameters from endpoint config
    */
-  private buildParameters(config: EndpointOptions): ParameterObject[] {
+  private buildParameters(config: ZodBaseEndpointOptions): ParameterObject[] {
     const params: ParameterObject[] = []
 
     // URL parameters (from $paramName in URL)
@@ -150,7 +149,7 @@ export class PathBuilderService {
    * Builds request body based on endpoint type
    */
   private buildRequestBody(
-    config: EndpointOptions,
+    config: ZodBaseEndpointOptions,
     handler: HandlerMetadata<any>,
   ): RequestBodyObject | undefined {
     const type = this.getEndpointType(handler)
@@ -169,7 +168,7 @@ export class PathBuilderService {
   /**
    * Builds request body for JSON endpoints
    */
-  private buildJsonRequestBody(config: EndpointOptions): RequestBodyObject | undefined {
+  private buildJsonRequestBody(config: ZodBaseEndpointOptions): RequestBodyObject | undefined {
     if (!config.requestSchema) {
       return undefined
     }
@@ -189,7 +188,7 @@ export class PathBuilderService {
   /**
    * Builds request body for multipart endpoints
    */
-  private buildMultipartRequestBody(config: EndpointOptions): RequestBodyObject {
+  private buildMultipartRequestBody(config: ZodBaseEndpointOptions): RequestBodyObject {
     if (!config.requestSchema) {
       return {
         required: true,
@@ -234,7 +233,7 @@ export class PathBuilderService {
         return this.buildStreamResponses(endpoint)
       case 'multipart':
       case 'endpoint':
-        return this.buildJsonResponses(config as EndpointOptions, handler)
+        return this.buildJsonResponses(config, handler)
       case 'unknown':
         return this.buildUnknownResponses(config)
       default:
@@ -248,7 +247,9 @@ export class PathBuilderService {
    * @param errorSchema - Optional record mapping status codes to Zod schemas
    * @returns ResponsesObject with error responses, or empty object if no errorSchema
    */
-  private buildErrorResponses(errorSchema?: ErrorSchemaRecord): ResponsesObject {
+  private buildErrorResponses(
+    errorSchema?: ZodBaseEndpointOptions['errorSchema'],
+  ): ResponsesObject {
     if (!errorSchema) {
       return {}
     }
@@ -271,17 +272,32 @@ export class PathBuilderService {
   }
 
   /**
-   * Builds responses for JSON endpoints
+   * Builds responses for `@Endpoint` and `@Multipart` handlers. The two differ
+   * in the request body only, so their responses are described the same way.
+   *
+   * An endpoint declared with `response: 'void'` gets a success response
+   * without `content`, under the status the server answers with (204 by default).
+   *
+   * An endpoint declared with a per-status `responses` map gets one response
+   * per declared status: its schema, or no `content` for a `null` entry.
    */
   private buildJsonResponses(
-    config: EndpointOptions,
+    config: ZodBaseEndpointOptions,
     handler: HandlerMetadata<any>,
   ): ResponsesObject {
     const successCode = handler.successStatusCode?.toString() ?? '200'
     const responses: ResponsesObject = {}
 
     // Build success response
-    if (!config.responseSchema) {
+    if (config.responses && config.response !== 'void') {
+      // The handler picks one of the declared statuses with reply()
+      Object.assign(responses, this.buildPerStatusResponses(config.responses))
+    } else if (config.response === 'void') {
+      // No body: the status alone is the answer (204 unless @HttpCode changed it)
+      responses[successCode] = {
+        description: 'No content',
+      }
+    } else if (!config.responseSchema) {
       responses[successCode] = {
         description: 'Successful response',
       }
@@ -299,6 +315,36 @@ export class PathBuilderService {
 
     // Add error responses from errorSchema
     Object.assign(responses, this.buildErrorResponses(config.errorSchema))
+
+    return responses
+  }
+
+  /**
+   * Builds the success responses of a per-status `responses` map: the schema
+   * of each status, or a response without `content` for a `null` entry.
+   */
+  private buildPerStatusResponses(
+    perStatus: NonNullable<ZodBaseEndpointOptions['responses']>,
+  ): ResponsesObject {
+    const responses: ResponsesObject = {}
+
+    for (const [statusCode, responseSchema] of Object.entries(perStatus)) {
+      if (responseSchema === null) {
+        responses[statusCode] = {
+          description: 'No content',
+        }
+        continue
+      }
+      const { schema } = this.schemaConverter.convert(responseSchema)
+      responses[statusCode] = {
+        description: 'Successful response',
+        content: {
+          'application/json': {
+            schema,
+          },
+        },
+      }
+    }
 
     return responses
   }
@@ -332,7 +378,7 @@ export class PathBuilderService {
    * Builds responses for unknown endpoint types.
    * Unknown types have no success response but can have error responses.
    */
-  private buildUnknownResponses(config: EndpointOptions | BaseEndpointOptions): ResponsesObject {
+  private buildUnknownResponses(config: ZodBaseEndpointOptions): ResponsesObject {
     // Only include error responses, no success response
     return this.buildErrorResponses(config.errorSchema)
   }

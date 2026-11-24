@@ -4,8 +4,12 @@ import { TestContainer } from '@navios/di/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { z } from 'zod/v4'
 
-import type { BaseEndpointOptions } from '@navios/builder'
-import type { HandlerMetadata, InstanceResolution, NaviosApplicationOptions } from '@navios/core'
+import type {
+  HandlerMetadata,
+  InstanceResolution,
+  NaviosApplicationOptions,
+  ZodBaseEndpointOptions,
+} from '@navios/core'
 
 import { BunStreamAdapterService } from '../adapters/stream-adapter.service.mjs'
 import { BunStreamAdapterToken } from '../adapters/stream-adapter.service.mjs'
@@ -22,16 +26,16 @@ const bindNaviosOptions = (
 }
 
 const createHandlerMetadata = (
-  config: Partial<BaseEndpointOptions>,
+  config: Partial<ZodBaseEndpointOptions>,
   classMethod = 'test',
-): HandlerMetadata<BaseEndpointOptions> => ({
+): HandlerMetadata<ZodBaseEndpointOptions> => ({
   classMethod,
   url: config.url ?? '',
   successStatusCode: 200,
   adapterToken: null,
   headers: {},
   httpMethod: config.method ?? 'GET',
-  config: config as BaseEndpointOptions,
+  config: config as ZodBaseEndpointOptions,
   guards: new Set(),
   customAttributes: new Map(),
 })

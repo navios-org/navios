@@ -25,6 +25,38 @@ describe('OpenAPI Services', () => {
       expect(result.schema).toEqual({ type: 'string' })
     })
 
+    it('should describe z.instanceof(File) upload fields as binary strings', async () => {
+      const service = await container.get(SchemaConverterService)
+      const schema = z.object({
+        file: z.instanceof(File),
+        blob: z.instanceof(Blob),
+        files: z.array(z.instanceof(File)),
+        name: z.string(),
+      })
+
+      const result = service.convert(schema)
+
+      expect(result.schema).toMatchObject({
+        type: 'object',
+        properties: {
+          file: { type: 'string', format: 'binary' },
+          blob: { type: 'string', format: 'binary' },
+          files: { type: 'array', items: { type: 'string', format: 'binary' } },
+          name: { type: 'string' },
+        },
+      })
+    })
+
+    it('should not throw for other custom schemas', async () => {
+      const service = await container.get(SchemaConverterService)
+      const schema = z.object({ when: z.instanceof(Date), odd: z.custom<number>() })
+
+      const result = service.convert(schema) as { schema: { properties: Record<string, object> } }
+
+      expect(result.schema.properties.when).not.toMatchObject({ format: 'binary' })
+      expect(result.schema.properties.odd).toBeDefined()
+    })
+
     it('should convert number schema', async () => {
       const service = await container.get(SchemaConverterService)
       const schema = z.number()

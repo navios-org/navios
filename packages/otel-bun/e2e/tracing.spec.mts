@@ -94,7 +94,7 @@ describe('OpenTelemetry Bun Integration', () => {
 
     await server.init()
     await server.listen({ port: 3002, hostname: 'localhost' })
-    realServer = server.getServer().url.href
+    realServer = server.getServer().url.origin
   })
 
   afterAll(async () => {

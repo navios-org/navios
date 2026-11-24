@@ -1,8 +1,10 @@
 import { createMethodContext } from '@navios/di/legacy-compat'
 
-import type { BaseEndpointOptions, ServerRequestArgs, StreamHandler } from '@navios/builder'
+import type { EndpointHandler, ServerRequestArgs } from '@navios/builder'
 
 import { Stream as OriginalStream } from '../../decorators/stream.decorator.mjs'
+
+import type { StreamDecoratorConfig } from '../../decorators/endpoint-declaration.mjs'
 
 /**
  * Type helper to constrain a PropertyDescriptor's value to match a stream endpoint signature.
@@ -10,7 +12,7 @@ import { Stream as OriginalStream } from '../../decorators/stream.decorator.mjs'
  * Note: In legacy decorators, type constraints are checked when the decorator is applied,
  * but may not be preserved perfectly when decorators are stacked.
  */
-type StreamMethodDescriptor<Config extends BaseEndpointOptions> =
+type StreamMethodDescriptor<Config extends StreamDecoratorConfig> =
   | TypedPropertyDescriptor<(params: ServerRequestArgs<Config>, reply: any) => any>
   | TypedPropertyDescriptor<(params: ServerRequestArgs<Config>) => any>
 
@@ -19,6 +21,9 @@ type StreamMethodDescriptor<Config extends BaseEndpointOptions> =
  *
  * Works with TypeScript experimental decorators (legacy API).
  * Provides type safety by ensuring method signatures match the endpoint configuration.
+ *
+ * The endpoint must be declared with `response: 'blob'`, `'text'` or `'stream'`;
+ * anything else does not compile and throws when the decorator is applied.
  *
  * @param endpoint - The stream endpoint declaration from @navios/builder
  * @returns A method decorator compatible with legacy decorator API
@@ -35,7 +40,9 @@ type StreamMethodDescriptor<Config extends BaseEndpointOptions> =
  * }
  * ```
  */
-export function Stream<const Config extends BaseEndpointOptions>(endpoint: StreamHandler<Config>) {
+export function Stream<const Config extends StreamDecoratorConfig>(
+  endpoint: EndpointHandler<Config>,
+) {
   return function (
     target: any,
     propertyKey: string | symbol,

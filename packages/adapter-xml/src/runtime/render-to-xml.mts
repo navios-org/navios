@@ -180,7 +180,7 @@ async function renderNode(
   const newline = indent >= 0 ? '\n' : ''
 
   const attrs = Object.entries(props)
-    .filter(([_, v]) => v != null)
+    .filter(([, v]) => v != null)
     .map(([k, v]) => ` ${k}="${escapeAttr(String(v))}"`)
     .join('')
 

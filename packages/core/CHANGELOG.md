@@ -7,8 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [2.0.0] - 2026-05-15
 
+### Added
+
+- **`response: 'void'` endpoints**: `@Endpoint` and `@Multipart` serve an endpoint declared with `response: 'void'`; the method returns nothing and the default status is 204.
+- **Per-status responses**: `@Endpoint` and `@Multipart` serve an endpoint declared with a `responses` map. The method picks the status with the new `reply(status, body)` helper (also exported from `@navios/core/legacy-compat`), and `EndpointResult` is the union of the allowed replies.
+- **`ZodBaseEndpointOptions` / `ZodEndpointOptions` / `ZodSchemaSlots`**: endpoint option types with every schema slot narrowed to Zod. `@navios/builder` is schema-library neutral, so the server constrains its endpoints with these.
+
 ### Changed
 
+- **Decorators are checked against the declaration.** `@Endpoint`, `@Multipart` and `@Stream` reject a declaration whose `body` / `response` does not fit them, at compile time and when the decorator is applied. `declareStream` / `declareMultipart` are gone from the builder: declare with `declareEndpoint({ response: 'blob' })` / `({ body: 'multipart' })`.
+- **Legacy decorators accept narrower return types.** `@Endpoint` and `@Multipart` from `legacy-compat` are generic over the method type, so a method returning a subset of the declared results needs no annotation.
+- `@HttpCode` throws on an endpoint declared with a `responses` map, since the status comes from `reply()`.
+- Stage-3 `@Multipart` takes an `EndpointHandler`, like `@Endpoint`; `StreamHandler` is replaced by `EndpointHandler`.
 - **Decorator type signatures aligned with `@navios/builder` v2**: `EndpointHandler<Options>`, `StreamHandler<Options>`, `MultipartHandler<Options>` are now single-generic. The `@Endpoint`, `@Stream`, `@Multipart` decorators, plus their legacy-compat siblings, propagate the new shape.
 - **Server-side request args**: `EndpointParams<T>`, `MultipartParams<T>`, `StreamParams<T>` now derive from `ServerRequestArgs<Options>` (uses `z.output`, no `RequestBase`). Adapter-xml `XmlStreamParams<T>` follows the same pattern.
 

@@ -2,8 +2,12 @@ import { Logger } from '@navios/core'
 import { TestContainer } from '@navios/di/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { BaseEndpointOptions } from '@navios/builder'
-import type { ControllerMetadata, HandlerMetadata, ModuleMetadata } from '@navios/core'
+import type {
+  ControllerMetadata,
+  HandlerMetadata,
+  ModuleMetadata,
+  ZodBaseEndpointOptions,
+} from '@navios/core'
 
 import { EndpointScannerService } from '../services/endpoint-scanner.service.mjs'
 import { MetadataExtractorService } from '../services/metadata-extractor.service.mjs'
@@ -38,7 +42,7 @@ vi.mock('@navios/core', async () => {
 })
 
 const createHandlerMetadata = (
-  config: Partial<BaseEndpointOptions> | undefined,
+  config: Partial<ZodBaseEndpointOptions> | undefined,
   classMethod = 'test',
 ): HandlerMetadata<any> => ({
   classMethod,
@@ -47,7 +51,7 @@ const createHandlerMetadata = (
   adapterToken: null,
   headers: {},
   httpMethod: config?.method ?? 'GET',
-  config: config as BaseEndpointOptions,
+  config: config as ZodBaseEndpointOptions,
   guards: new Set(),
   customAttributes: new Map(),
 })

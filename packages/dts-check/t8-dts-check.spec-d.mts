@@ -38,7 +38,7 @@ expectTypeOf(asyncInject(Foo)).toEqualTypeOf<Promise<Foo>>()
 
 // ------------------------------------------------------------ @navios/builder
 const api = builder()
-expectTypeOf(api).toEqualTypeOf<Builder.BuilderInstance<false>>()
+expectTypeOf(api).toEqualTypeOf<Builder.BuilderInstance>()
 
 const responseSchema = z.object({ id: z.string(), name: z.string() })
 const querySchema = z.object({ page: z.number() })
@@ -46,7 +46,9 @@ type Response = { id: string; name: string }
 
 const simple = api.declareEndpoint({ method: 'GET', url: '/users', responseSchema })
 expectTypeOf<ReturnType<typeof simple>>().toEqualTypeOf<Promise<Response>>()
-expectTypeOf<keyof Parameters<typeof simple>[0]>().toEqualTypeOf<'headers' | 'signal'>()
+expectTypeOf<keyof NonNullable<Parameters<typeof simple>[0]>>().toEqualTypeOf<
+  'headers' | 'signal' | 'timeout'
+>()
 expectTypeOf(simple.config.url).toEqualTypeOf<'/users'>()
 
 const withUrl = api.declareEndpoint({
@@ -63,6 +65,10 @@ expectTypeOf<Parameters<typeof withUrl>[0]['params']>().toEqualTypeOf<{ page: nu
 expectTypeOf(withUrl.config.method).toEqualTypeOf<'GET'>()
 expectTypeOf<Builder.UrlHasParams<'/users/$userId'>>().toEqualTypeOf<true>()
 expectTypeOf<Builder.UrlHasParams<'/users'>>().toEqualTypeOf<false>()
+
+const download = api.declareEndpoint({ method: 'GET', url: '/files/$fileId', response: 'blob' })
+expectTypeOf<ReturnType<typeof download>>().toEqualTypeOf<Promise<Blob>>()
+expectTypeOf<Awaited<ReturnType<typeof simple.safe>>['ok']>().toEqualTypeOf<boolean>()
 
 // --------------------------------------------------------------- @navios/core
 expectTypeOf<ReturnType<Core.CanActivate['canActivate']>>().toEqualTypeOf<
@@ -94,12 +100,5 @@ expectTypeOf<Fastify.FastifyApplicationServiceInterface['initServer']>().toEqual
 >()
 
 // --------------------------------------------------------- @navios/react-query
-expectTypeOf<ReturnType<typeof declareClient<false>>>().toEqualTypeOf<
-  ReactQuery.ClientInstance<false>
->()
-expectTypeOf<ReturnType<typeof declareClient<true>>>().toEqualTypeOf<
-  ReactQuery.ClientInstance<true>
->()
-expectTypeOf<Parameters<typeof declareClient<false>>[0]>().toEqualTypeOf<
-  ReactQuery.ClientOptions<false>
->()
+expectTypeOf<ReturnType<typeof declareClient>>().toEqualTypeOf<ReactQuery.ClientInstance>()
+expectTypeOf<Parameters<typeof declareClient>[0]>().toEqualTypeOf<ReactQuery.ClientOptions>()

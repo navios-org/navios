@@ -26,6 +26,10 @@ export type {
   StreamParams,
 } from '../decorators/index.mjs'
 
+// reply() works the same with either decorator flavour
+export { reply, isEndpointReply } from '../utils/reply.mjs'
+export type { EndpointReply } from '../utils/reply.mjs'
+
 // Export legacy-compatible decorators (core-specific)
 export {
   Module,

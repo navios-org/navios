@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- `response: 'void'` endpoints are described as `No content`, and per-status `responses` endpoints get one response entry per declared status.
+
+### Fixed
+
+- **`z.instanceof(File)` no longer breaks generation.** Upload fields declared with `z.instanceof(File)` or `z.instanceof(Blob)` are described as binary strings; other custom schemas become unconstrained schemas instead of throwing.
+
 ## [1.0.0] - 2026-01-09
 
 ### Added

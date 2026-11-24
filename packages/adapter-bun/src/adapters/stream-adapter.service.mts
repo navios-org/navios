@@ -1,12 +1,12 @@
 import { Injectable, InjectionToken } from '@navios/core'
 
-import type { BaseEndpointOptions } from '@navios/builder'
 import type {
   AbstractDynamicHandler,
   AbstractStaticHandler,
   FormatArgumentsFn,
   HandlerContext,
   InstanceResolution,
+  ZodBaseEndpointOptions,
 } from '@navios/core'
 import type { BunRequest } from 'bun'
 
@@ -29,7 +29,7 @@ export const BunStreamAdapterToken = InjectionToken.create<BunStreamAdapterServi
  * handling for stream-based endpoints. Handlers receive a streamWriter
  * stub and can return Response objects directly for streaming.
  *
- * @extends {AbstractBunHandlerAdapterService<BaseEndpointOptions>}
+ * @extends {AbstractBunHandlerAdapterService<ZodBaseEndpointOptions>}
  *
  * @example
  * ```ts
@@ -49,7 +49,7 @@ export const BunStreamAdapterToken = InjectionToken.create<BunStreamAdapterServi
 @Injectable({
   token: BunStreamAdapterToken,
 })
-export class BunStreamAdapterService extends AbstractBunHandlerAdapterService<BaseEndpointOptions> {
+export class BunStreamAdapterService extends AbstractBunHandlerAdapterService<ZodBaseEndpointOptions> {
   /**
    * Creates a static handler for singleton controllers.
    *
@@ -63,7 +63,7 @@ export class BunStreamAdapterService extends AbstractBunHandlerAdapterService<Ba
   protected override createStaticHandler(
     boundMethod: (...args: any[]) => Promise<any>,
     formatArguments: FormatArgumentsFn<BunRequest>,
-    context: HandlerContext<BaseEndpointOptions>,
+    context: HandlerContext<ZodBaseEndpointOptions>,
   ): AbstractStaticHandler<BunRequest, void> {
     const headersTemplate = this.buildHeaders(context)
     const handleStreamResult = this.createStreamResultHandler(context, headersTemplate)
@@ -92,7 +92,7 @@ export class BunStreamAdapterService extends AbstractBunHandlerAdapterService<Ba
   protected override createDynamicHandler(
     resolution: InstanceResolution,
     formatArguments: FormatArgumentsFn<BunRequest>,
-    context: HandlerContext<BaseEndpointOptions>,
+    context: HandlerContext<ZodBaseEndpointOptions>,
   ): AbstractDynamicHandler<BunRequest, void> {
     const headersTemplate = this.buildHeaders(context)
     const handleStreamResult = this.createStreamResultHandler(context, headersTemplate)
@@ -127,7 +127,7 @@ export class BunStreamAdapterService extends AbstractBunHandlerAdapterService<Ba
    * Otherwise, wraps the result in a new Response.
    */
   protected createStreamResultHandler(
-    context: HandlerContext<BaseEndpointOptions>,
+    context: HandlerContext<ZodBaseEndpointOptions>,
     headersTemplate: Record<string, string>,
   ) {
     return (result: any) => {

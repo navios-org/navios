@@ -1,7 +1,6 @@
 import { Injectable, InjectionToken } from '@navios/core'
 
-import type { EndpointOptions } from '@navios/builder'
-import type { ArgumentGetter, HandlerMetadata } from '@navios/core'
+import type { ArgumentGetter, HandlerMetadata, ZodBaseEndpointOptions } from '@navios/core'
 import type { BunRequest } from 'bun'
 
 import { BunEndpointAdapterService } from './endpoint-adapter.service.mjs'
@@ -23,6 +22,11 @@ export const BunMultipartAdapterToken = InjectionToken.create<BunMultipartAdapte
  * handling for file uploads and multipart form data. It automatically parses
  * FormData objects, handles file uploads, and validates the data against
  * Zod schemas.
+ *
+ * The response side is inherited unchanged from the endpoint adapter: a JSON
+ * reply validated with `responseSchema`, an empty reply for `response: 'void'`
+ * (204 unless `@HttpCode` set another status), or the status and body picked
+ * with `reply(status, body)` for a per-status `responses` map.
  *
  * @extends {BunEndpointAdapterService}
  *
@@ -63,7 +67,7 @@ export class BunMultipartAdapterService extends BunEndpointAdapterService {
    * @returns An array of getter functions that populate request arguments.
    */
   protected override createArgumentGetters(
-    handlerMetadata: HandlerMetadata<EndpointOptions>,
+    handlerMetadata: HandlerMetadata<ZodBaseEndpointOptions>,
   ): ArgumentGetter<BunRequest>[] {
     const config = handlerMetadata.config
     const getters: ArgumentGetter<BunRequest>[] = []
