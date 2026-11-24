@@ -1,9 +1,5 @@
-import type { InjectionTokenSchemaType } from '../token/injection-token.mjs'
-import type { FactoryRecord } from '../token/registry.mjs'
-
 export enum DIErrorCode {
   FactoryNotFound = 'FactoryNotFound',
-  FactoryTokenNotResolved = 'FactoryTokenNotResolved',
   InstanceNotFound = 'InstanceNotFound',
   InstanceDestroying = 'InstanceDestroying',
   CircularDependency = 'CircularDependency',
@@ -11,10 +7,10 @@ export enum DIErrorCode {
   TokenSchemaRequiredError = 'TokenSchemaRequiredError',
   ClassNotInjectable = 'ClassNotInjectable',
   ScopeMismatchError = 'ScopeMismatchError',
-  PriorityConflictError = 'PriorityConflictError',
-  StorageError = 'StorageError',
+  ProviderConflict = 'ProviderConflict',
+  AsyncInitRequired = 'AsyncInitRequired',
+  ContainerDisposed = 'ContainerDisposed',
   InitializationError = 'InitializationError',
-  DependencyResolutionError = 'DependencyResolutionError',
   UnknownError = 'UnknownError',
 }
 
@@ -23,25 +19,17 @@ export class DIError extends Error {
 
   constructor(
     public readonly code: DIErrorCode,
-    public readonly message: string,
+    message: string,
     context?: Record<string, unknown>,
+    options?: { cause?: unknown },
   ) {
-    super(message)
+    super(message, options)
     this.context = context
     this.name = 'DIError'
   }
 
-  // Static factory methods for common error types
   static factoryNotFound(name: string): DIError {
     return new DIError(DIErrorCode.FactoryNotFound, `Factory ${name} not found`, { name })
-  }
-
-  static factoryTokenNotResolved(token: string | symbol | unknown): DIError {
-    return new DIError(
-      DIErrorCode.FactoryTokenNotResolved,
-      `Factory token not resolved: ${token?.toString() ?? 'unknown'}`,
-      { token },
-    )
   }
 
   static instanceNotFound(name: string): DIError {
@@ -54,10 +42,12 @@ export class DIError extends Error {
 
   static unknown(message: string | Error, context?: Record<string, unknown>): DIError {
     if (message instanceof Error) {
-      return new DIError(DIErrorCode.UnknownError, message.message, {
-        ...context,
-        parent: message,
-      })
+      return new DIError(
+        DIErrorCode.UnknownError,
+        message.message,
+        { ...context, parent: message },
+        { cause: message },
+      )
     }
     return new DIError(DIErrorCode.UnknownError, message, context)
   }
@@ -73,13 +63,11 @@ export class DIError extends Error {
 
   static tokenValidationError(
     message: string,
-    schema: InjectionTokenSchemaType | undefined,
+    schema: unknown,
     value: unknown,
+    issues?: unknown[],
   ): DIError {
-    return new DIError(DIErrorCode.TokenValidationError, message, {
-      schema,
-      value,
-    })
+    return new DIError(DIErrorCode.TokenValidationError, message, { schema, value, issues })
   }
 
   static tokenSchemaRequiredError(token: string | symbol | unknown): DIError {
@@ -110,41 +98,47 @@ export class DIError extends Error {
     )
   }
 
-  static priorityConflictError(
-    token: string | symbol | unknown,
-    records: FactoryRecord[],
-  ): DIError {
+  /**
+   * A request-scoped service was reached from the root container, either
+   * directly or through the dependencies of a singleton.
+   */
+  static requestScopeFromRoot(name: string, path: string[]): DIError {
+    const via = path.length > 0 ? ` (${[...path, name].join(' -> ')})` : ''
     return new DIError(
-      DIErrorCode.PriorityConflictError,
-      `Priority conflict for ${token?.toString() ?? 'unknown'}: multiple bindings with same priority`,
-      { token, records },
+      DIErrorCode.ScopeMismatchError,
+      `Scope mismatch: ${name} is request-scoped and cannot be resolved from the root container${via}. ` +
+        `Resolve it from a scope created with container.createScope(), and do not inject it into a singleton.`,
+      { name, path },
     )
   }
 
-  static storageError(message: string, operation: string, instanceName?: string): DIError {
-    return new DIError(DIErrorCode.StorageError, `Storage error: ${message}`, {
-      operation,
-      instanceName,
-    })
+  static providerConflict(token: string, existing: string, incoming: string): DIError {
+    return new DIError(
+      DIErrorCode.ProviderConflict,
+      `Token ${token} already has a default provider (${existing}); ${incoming} cannot become a second default. ` +
+        `Use provide(token, ${incoming}) on the container to replace it.`,
+      { token, existing, incoming },
+    )
   }
 
-  static initializationError(serviceName: string, error: Error | string): DIError {
+  static asyncInitRequired(name: string): DIError {
+    return new DIError(
+      DIErrorCode.AsyncInitRequired,
+      `${name} or one of its dependencies has an asynchronous initializer and cannot be resolved synchronously. Use the async resolution method instead.`,
+      { name },
+    )
+  }
+
+  static containerDisposed(kind: string): DIError {
+    return new DIError(DIErrorCode.ContainerDisposed, `${kind} has been disposed`, { kind })
+  }
+
+  static initializationError(serviceName: string, error: unknown): DIError {
     return new DIError(
       DIErrorCode.InitializationError,
-      `Service ${serviceName} initialization failed: ${error instanceof Error ? error.message : error}`,
+      `Service ${serviceName} initialization failed: ${error instanceof Error ? error.message : String(error)}`,
       { serviceName, error },
-    )
-  }
-
-  static dependencyResolutionError(
-    serviceName: string,
-    dependencyName: string,
-    error: Error | string,
-  ): DIError {
-    return new DIError(
-      DIErrorCode.DependencyResolutionError,
-      `Failed to resolve dependency ${dependencyName} for service ${serviceName}: ${error instanceof Error ? error.message : error}`,
-      { serviceName, dependencyName, error },
+      { cause: error },
     )
   }
 }
