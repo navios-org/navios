@@ -16,8 +16,9 @@ A type-safe API declaration builder that enables sharing endpoint definitions be
 **Key Features:**
 - Declarative endpoint definitions
 - Shared types between client and server
-- Zod schema validation
-- Support for REST, streams, and multipart uploads
+- Schema validation with Zod or any Standard Schema library
+- One error model: typed `EndpointError`, thrown or returned
+- Support for JSON, file downloads, streams, and multipart uploads
 
 [Get Started with Builder](/docs/builder/builder/overview)
 

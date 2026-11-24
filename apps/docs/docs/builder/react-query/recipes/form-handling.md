@@ -4,39 +4,54 @@ sidebar_position: 2
 
 # Form Handling
 
-Common patterns for handling forms with mutations.
+Patterns for submitting forms with mutations and showing validation errors.
+
+The examples use this mutation:
+
+```typescript
+const createUserSchema = z.object({
+  name: z.string().min(1, 'Name is required'),
+  email: z.string().email('Invalid email'),
+})
+
+const createUser = client.mutation({
+  method: 'POST',
+  url: '/users',
+  requestSchema: createUserSchema,
+  responseSchema: userSchema,
+  errorSchema: {
+    409: z.object({ reason: z.string() }),
+    422: z.object({ fields: z.record(z.string(), z.string()) }),
+  },
+  invalidates: [listUsers],
+})
+```
 
 ## Basic Form
 
 ```typescript
-import { createUser } from '../api/mutations/users'
+function CreateUserForm() {
+  const { mutate, isPending, error } = createUser()
 
-export function CreateUserForm() {
-  const { mutate, isPending, isError, error } = createUser()
-
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault()
-    const formData = new FormData(e.currentTarget)
+  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    const form = new FormData(event.currentTarget)
     mutate({
       data: {
-        name: formData.get('name') as string,
-        email: formData.get('email') as string,
+        name: String(form.get('name') ?? ''),
+        email: String(form.get('email') ?? ''),
       },
     })
   }
 
   return (
     <form onSubmit={handleSubmit}>
-      <input name="name" placeholder="Name" required />
-      <input name="email" type="email" placeholder="Email" required />
-      {isError && (
-        <div className="error">
-          {error instanceof NaviosError ? error.message : 'An error occurred'}
-        </div>
-      )}
+      <input name="name" />
+      <input name="email" type="email" />
       <button type="submit" disabled={isPending}>
         {isPending ? 'Creating...' : 'Create User'}
       </button>
+      {error && <div>Error: {error.message}</div>}
     </form>
   )
 }
@@ -46,191 +61,155 @@ export function CreateUserForm() {
 
 ```typescript
 import { useState } from 'react'
-import { createUser } from '../api/mutations/users'
 
-export function CreateUserForm() {
+function CreateUserForm() {
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const { mutate, isPending } = createUser()
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    mutate({
-      data: { name, email },
-    })
-  }
-
-  return (
-    <form onSubmit={handleSubmit}>
-      <input
-        value={name}
-        onChange={(e) => setName(e.target.value)}
-        placeholder="Name"
-        required
-      />
-      <input
-        value={email}
-        onChange={(e) => setEmail(e.target.value)}
-        type="email"
-        placeholder="Email"
-        required
-      />
-      <button type="submit" disabled={isPending}>
-        {isPending ? 'Creating...' : 'Create User'}
-      </button>
-    </form>
-  )
-}
-```
-
-## Form with Validation
-
-```typescript
-import { useState } from 'react'
-import { createUser } from '../api/mutations/users'
-import { z } from 'zod'
-
-const formSchema = z.object({
-  name: z.string().min(1, 'Name is required'),
-  email: z.string().email('Invalid email'),
-})
-
-export function CreateUserForm() {
-  const [formData, setFormData] = useState({ name: '', email: '' })
-  const [errors, setErrors] = useState<Record<string, string>>({})
-  const { mutate, isPending } = createUser()
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    
-    const result = formSchema.safeParse(formData)
-    if (!result.success) {
-      const fieldErrors: Record<string, string> = {}
-      result.error.errors.forEach((err) => {
-        if (err.path[0]) {
-          fieldErrors[err.path[0] as string] = err.message
-        }
-      })
-      setErrors(fieldErrors)
-      return
-    }
-
-    setErrors({})
-    mutate({
-      data: result.data,
-    })
-  }
-
-  return (
-    <form onSubmit={handleSubmit}>
-      <div>
-        <input
-          value={formData.name}
-          onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-          placeholder="Name"
-        />
-        {errors.name && <span className="error">{errors.name}</span>}
-      </div>
-      <div>
-        <input
-          value={formData.email}
-          onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-          type="email"
-          placeholder="Email"
-        />
-        {errors.email && <span className="error">{errors.email}</span>}
-      </div>
-      <button type="submit" disabled={isPending}>
-        {isPending ? 'Creating...' : 'Create User'}
-      </button>
-    </form>
-  )
-}
-```
-
-## Form with Success Handling
-
-```typescript
-import { useState } from 'react'
-import { createUser } from '../api/mutations/users'
-
-export function CreateUserForm() {
-  const [formData, setFormData] = useState({ name: '', email: '' })
-  const { mutate, isPending, isSuccess } = createUser()
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
+  const handleSubmit = (event: React.FormEvent) => {
+    event.preventDefault()
     mutate(
-      { data: formData },
+      { data: { name, email } },
       {
         onSuccess: () => {
-          setFormData({ name: '', email: '' })
+          setName('')
+          setEmail('')
         },
-      }
+      },
     )
   }
 
-  if (isSuccess) {
-    return <div>User created successfully!</div>
+  return (
+    <form onSubmit={handleSubmit}>
+      <input value={name} onChange={(event) => setName(event.target.value)} />
+      <input type="email" value={email} onChange={(event) => setEmail(event.target.value)} />
+      <button type="submit" disabled={isPending}>
+        Create User
+      </button>
+    </form>
+  )
+}
+```
+
+## Showing Validation Errors
+
+Two kinds of validation failure arrive through the same `error`:
+
+- `request-validation` — the input failed `requestSchema`; nothing was sent. `error.issues` are the schema's issues.
+- `http` with a status from `errorSchema` — the server rejected the input. `error.body` is typed from the schema.
+
+```typescript
+function fieldErrorsOf(
+  error: ReturnType<typeof createUser>['error'],
+): Record<string, string> {
+  if (!error) return {}
+  if (error.kind === 'request-validation') {
+    return Object.fromEntries(
+      error.issues.map((issue) => [issue.path?.join('.') ?? '', issue.message]),
+    )
+  }
+  if (error.kind === 'http' && error.status === 422) return error.body.fields
+  return {}
+}
+
+function CreateUserForm() {
+  const { mutate, isPending, error } = createUser()
+  const fieldErrors = fieldErrorsOf(error)
+
+  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    const form = new FormData(event.currentTarget)
+    mutate({
+      data: {
+        name: String(form.get('name') ?? ''),
+        email: String(form.get('email') ?? ''),
+      },
+    })
   }
 
   return (
     <form onSubmit={handleSubmit}>
-      <input
-        value={formData.name}
-        onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-        placeholder="Name"
-        required
-      />
-      <input
-        value={formData.email}
-        onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-        type="email"
-        placeholder="Email"
-        required
-      />
+      <div>
+        <input name="name" />
+        {fieldErrors.name && <span>{fieldErrors.name}</span>}
+      </div>
+      <div>
+        <input name="email" type="email" />
+        {fieldErrors.email && <span>{fieldErrors.email}</span>}
+      </div>
+      {error?.kind === 'http' && error.status === 409 && <div>{error.body.reason}</div>}
       <button type="submit" disabled={isPending}>
-        {isPending ? 'Creating...' : 'Create User'}
+        Create User
       </button>
     </form>
   )
+}
+```
+
+:::tip
+To validate before submitting — on blur, or with a form library — run the same schema yourself: `createUserSchema.safeParse(values)`.
+:::
+
+## Success Handling
+
+Put what always follows a success in the declaration, and what belongs to one form at the call site:
+
+```typescript
+const createUser = client.mutation({
+  method: 'POST',
+  url: '/users',
+  requestSchema: createUserSchema,
+  responseSchema: userSchema,
+  useContext: () => ({ navigate: useNavigate() }),
+  invalidates: [listUsers],
+  onSuccess: (user, _variables, context) => {
+    context.navigate(`/users/${user.id}`)
+  },
+})
+
+function CreateUserForm({ onCreated }: { onCreated: () => void }) {
+  const { mutate } = createUser()
+
+  const submit = (data: z.input<typeof createUserSchema>) => {
+    mutate({ data }, { onSuccess: onCreated })
+  }
+
+  // ...
 }
 ```
 
 ## Edit Form
 
+Load the current values with a query and save with a mutation:
+
 ```typescript
-import { updateUser } from '../api/mutations/users'
+const updateUser = client.mutation({
+  method: 'PATCH',
+  url: '/users/$userId',
+  requestSchema: z.object({ name: z.string().min(1) }),
+  responseSchema: userSchema,
+  invalidates: [listUsers],
+  onSuccess: (user, variables, context) => {
+    getUser.setData(context.client, { urlParams: variables.urlParams }, user)
+  },
+})
 
-export function EditUserForm({ user }: { user: User }) {
-  const [formData, setFormData] = useState({ name: user.name, email: user.email })
-  const { mutate, isPending, isUpdating } = updateUser({
-    urlParams: { userId: user.id },
-  })
-  const isUpdatingItem = updateUser.useIsMutating({ userId: user.id })
+function EditUserForm({ userId }: { userId: string }) {
+  const { data: user } = getUser.useSuspense({ urlParams: { userId } })
+  const { mutate, isPending } = updateUser()
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    mutate({ data: formData })
+  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    const form = new FormData(event.currentTarget)
+    mutate({ urlParams: { userId }, data: { name: String(form.get('name') ?? '') } })
   }
 
   return (
     <form onSubmit={handleSubmit}>
-      <input
-        value={formData.name}
-        onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-        placeholder="Name"
-        required
-      />
-      <input
-        value={formData.email}
-        onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-        type="email"
-        placeholder="Email"
-        required
-      />
-      <button type="submit" disabled={isPending || isUpdating || isUpdatingItem}>
-        {(isPending || isUpdating || isUpdatingItem) ? 'Saving...' : 'Save'}
+      <input name="name" defaultValue={user.name} />
+      <button type="submit" disabled={isPending}>
+        {isPending ? 'Saving...' : 'Save'}
       </button>
     </form>
   )
@@ -239,6 +218,6 @@ export function EditUserForm({ user }: { user: User }) {
 
 ## Next Steps
 
-- [Complete Example](/docs/builder/react-query/recipes/complete-example) - Full CRUD example
-- [Mutations](/docs/builder/react-query/guides/mutations) - Learn about mutations
-
+- [Mutations](/docs/builder/react-query/guides/mutations) - Mutation settings
+- [Typed Errors](/docs/builder/react-query/advanced/error-schemas) - Every error kind
+- [Optimistic Updates](/docs/builder/react-query/guides/optimistic-updates) - Update UI optimistically

@@ -4,18 +4,22 @@ sidebar_position: 1
 
 # Complete Example
 
-A complete CRUD example showing queries, mutations, optimistic updates, and error handling.
+A small todo application showing queries, mutations, invalidation, optimistic updates and typed errors together.
 
 ## Setup
 
 ```typescript
-// api/index.ts
+// api/client.ts
 import { builder } from '@navios/builder'
 import { create } from '@navios/http'
 import { declareClient } from '@navios/react-query'
 
-const api = builder()
-api.provideClient(create({ baseURL: 'https://api.example.com' }))
+export const api = builder({
+  client: create({ baseURL: 'https://api.example.com' }),
+  onError: (error) => {
+    if (error.kind !== 'aborted') console.error(error.toJSON())
+  },
+})
 
 export const client = declareClient({ api })
 ```
@@ -23,133 +27,97 @@ export const client = declareClient({ api })
 ## Schemas
 
 ```typescript
-// api/schemas/user.ts
+// api/schemas.ts
 import { z } from 'zod'
 
-export const userSchema = z.object({
+export const todoSchema = z.object({
   id: z.string(),
-  name: z.string(),
-  email: z.string().email(),
-  createdAt: z.string().datetime(),
+  title: z.string(),
+  done: z.boolean(),
 })
 
-export type User = z.output<typeof userSchema>
+export const createTodoSchema = z.object({
+  title: z.string().min(1),
+})
+
+export const updateTodoSchema = z.object({
+  title: z.string().min(1).optional(),
+  done: z.boolean().optional(),
+})
+
+export type Todo = z.output<typeof todoSchema>
 ```
 
 ## Queries
 
 ```typescript
-// api/queries/users.ts
-import { client } from '../index'
-import { userSchema } from '../schemas/user'
+// api/todos.ts
 import { z } from 'zod'
 
-export const getUser = client.query({
+import { client } from './client'
+import { createTodoSchema, todoSchema, updateTodoSchema } from './schemas'
+
+export const listTodos = client.query({
   method: 'GET',
-  url: '/users/$userId',
-  responseSchema: userSchema,
+  url: '/todos',
+  responseSchema: z.array(todoSchema),
 })
 
-export const getUsers = client.query({
+export const getTodo = client.query({
   method: 'GET',
-  url: '/users',
-  querySchema: z.object({
-    page: z.number().optional(),
-    limit: z.number().optional(),
-  }),
-  responseSchema: z.object({
-    users: z.array(userSchema),
-    total: z.number(),
-  }),
+  url: '/todos/$todoId',
+  responseSchema: todoSchema,
+  errorSchema: {
+    404: z.object({ message: z.string() }),
+  },
 })
 ```
 
 ## Mutations
 
 ```typescript
-// api/mutations/users.ts
-import { client } from '../index'
-import { userSchema } from '../schemas/user'
-import { getUser, getUsers } from '../queries/users'
-import { useQueryClient } from '@tanstack/react-query'
-import { z } from 'zod'
-
-export const createUser = client.mutation({
+// api/todos.ts (continued)
+export const createTodo = client.mutation({
   method: 'POST',
-  url: '/users',
-  requestSchema: userSchema.omit({ id: true, createdAt: true }),
-  responseSchema: userSchema,
-  useContext: () => ({ queryClient: useQueryClient() }),
-  onSuccess: (data, variables, context) => {
-    context.queryClient.invalidateQueries({
-      queryKey: getUsers.queryKey.filterKey({}),
-    })
+  url: '/todos',
+  requestSchema: createTodoSchema,
+  responseSchema: todoSchema,
+  errorSchema: {
+    422: z.object({ message: z.string() }),
   },
+  invalidates: [listTodos],
 })
 
-export const updateUser = client.mutation({
-  method: 'PUT',
-  url: '/users/$userId',
-  requestSchema: userSchema.partial().omit({ id: true, createdAt: true }),
-  responseSchema: userSchema,
-  useContext: () => ({ queryClient: useQueryClient() }),
-  useKey: true,
-  onMutate: async (variables, context) => {
-    await context.queryClient.cancelQueries({
-      queryKey: getUser.queryKey.filterKey({
-        urlParams: { userId: variables.urlParams.userId },
-      }),
-    })
-
-    const previous = context.queryClient.getQueryData(
-      getUser.queryKey.dataTag({
-        urlParams: { userId: variables.urlParams.userId },
-      })
-    )
-
-    context.queryClient.setQueryData(
-      getUser.queryKey.dataTag({
-        urlParams: { userId: variables.urlParams.userId },
-      }),
-      { ...previous, ...variables.data }
-    )
-
-    return { previous }
-  },
-  onError: (error, variables, context) => {
-    if (context.onMutateResult?.previous) {
-      context.queryClient.setQueryData(
-        getUser.queryKey.dataTag({
-          urlParams: { userId: variables.urlParams.userId },
-        }),
-        context.onMutateResult.previous
-      )
-    }
-  },
-  onSuccess: (data, variables, context) => {
-    context.queryClient.setQueryData(
-      getUser.queryKey.dataTag({
-        urlParams: { userId: data.id },
-      }),
-      data
-    )
-  },
+export const updateTodo = client.mutation({
+  method: 'PATCH',
+  url: '/todos/$todoId',
+  requestSchema: updateTodoSchema,
+  responseSchema: todoSchema,
+  optimistic: (update) => [
+    update(getTodo, {
+      args: (variables) => ({ urlParams: variables.urlParams }),
+      update: (current, variables) => current && { ...current, ...variables.data },
+    }),
+    update(listTodos, {
+      update: (current, variables) =>
+        current?.map((todo) =>
+          todo.id === String(variables.urlParams.todoId) ? { ...todo, ...variables.data } : todo,
+        ),
+    }),
+  ],
 })
 
-export const deleteUser = client.mutation({
+export const deleteTodo = client.mutation({
   method: 'DELETE',
-  url: '/users/$userId',
-  responseSchema: z.object({ success: z.boolean() }),
-  useContext: () => ({ queryClient: useQueryClient() }),
-  onSuccess: (data, variables, context) => {
-    context.queryClient.removeQueries({
-      queryKey: getUser.queryKey.filterKey({
-        urlParams: { userId: variables.urlParams.userId },
-      }),
-    })
-    context.queryClient.invalidateQueries({
-      queryKey: getUsers.queryKey.filterKey({}),
-    })
+  url: '/todos/$todoId',
+  response: 'void',
+  optimistic: (update) =>
+    update(listTodos, {
+      update: (current, variables) =>
+        current?.filter((todo) => todo.id !== String(variables.urlParams.todoId)),
+    }),
+  onSuccess: (_data, variables, context) => {
+    context.client.removeQueries({ queryKey: getTodo.key({ urlParams: variables.urlParams }) })
   },
 })
 ```
@@ -157,129 +125,79 @@ export const deleteUser = client.mutation({
 ## Components
 
 ```typescript
-// components/UserList.tsx
-import { Suspense } from 'react'
-import { getUsers } from '../api/queries/users'
-import { UserCard } from './UserCard'
+// components/TodoList.tsx
+import { createTodo, deleteTodo, listTodos, updateTodo } from '../api/todos'
 
-function UserListContent() {
-  const { users, total } = getUsers.useSuspense({ params: { page: 1, limit: 10 } })
+import type { Todo } from '../api/schemas'
+
+export function TodoList() {
+  const { data: todos } = listTodos.useSuspense()
 
   return (
     <div>
-      <h1>Users ({total})</h1>
-      <div>
-        {users.map((user) => (
-          <UserCard key={user.id} user={user} />
+      <AddTodo />
+      <ul>
+        {todos.map((todo) => (
+          <TodoItem key={todo.id} todo={todo} />
         ))}
-      </div>
+      </ul>
     </div>
   )
 }
 
-export function UserList() {
-  return (
-    <Suspense fallback={<div>Loading users...</div>}>
-      <UserListContent />
-    </Suspense>
-  )
-}
-```
-
-```typescript
-// components/UserCard.tsx
-import { updateUser, deleteUser } from '../api/mutations/users'
-
-export function UserCard({ user }: { user: User }) {
-  const { mutate: updateUserMutate, isPending: isUpdating } = updateUser({
-    urlParams: { userId: user.id },
-  })
-  const isUpdatingItem = updateUser.useIsMutating({ userId: user.id })
-  const { mutate: deleteUserMutate, isPending: isDeleting } = deleteUser()
-
-  const handleUpdate = () => {
-    updateUserMutate({
-      data: { name: 'Updated Name' },
-    })
-  }
-
-  const handleDelete = () => {
-    if (confirm('Delete this user?')) {
-      deleteUserMutate({
-        urlParams: { userId: user.id },
-      })
-    }
-  }
+function TodoItem({ todo }: { todo: Todo }) {
+  const args = { urlParams: { todoId: todo.id } }
+  const { mutate: update } = updateTodo()
+  const { mutate: remove } = deleteTodo()
+  const isDeleting = deleteTodo.useIsMutating(args)
 
   return (
-    <div>
-      <h2>{user.name}</h2>
-      <p>{user.email}</p>
-      <button onClick={handleUpdate} disabled={isUpdating || isUpdatingItem}>
-        {isUpdatingItem ? 'Saving...' : 'Update'}
+    <li>
+      <input
+        type="checkbox"
+        checked={todo.done}
+        onChange={() => update({ ...args, data: { done: !todo.done } })}
+      />
+      <span>{todo.title}</span>
+      <button onClick={() => remove(args)} disabled={isDeleting}>
+        Delete
       </button>
-      <button onClick={handleDelete} disabled={isDeleting}>
-        {isDeleting ? 'Deleting...' : 'Delete'}
-      </button>
-    </div>
-  )
-}
-```
-
-```typescript
-// components/UserProfile.tsx
-import { Suspense } from 'react'
-import { getUser } from '../api/queries/users'
-import { UserForm } from './UserForm'
-
-function UserProfileContent({ userId }: { userId: string }) {
-  const user = getUser.useSuspense({ urlParams: { userId } })
-
-  return (
-    <div>
-      <h1>{user.name}</h1>
-      <p>{user.email}</p>
-      <UserForm user={user} />
-    </div>
+    </li>
   )
 }
 
-export function UserProfile({ userId }: { userId: string }) {
-  return (
-    <Suspense fallback={<div>Loading profile...</div>}>
-      <UserProfileContent userId={userId} />
-    </Suspense>
-  )
-}
-```
+function AddTodo() {
+  const { mutate, isPending, error } = createTodo()
 
-```typescript
-// components/CreateUserForm.tsx
-import { createUser } from '../api/mutations/users'
-
-export function CreateUserForm() {
-  const { mutate, isPending } = createUser()
-
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault()
-    const formData = new FormData(e.currentTarget)
-    mutate({
-      data: {
-        name: formData.get('name') as string,
-        email: formData.get('email') as string,
-      },
-    })
+  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    const form = event.currentTarget
+    const title = String(new FormData(form).get('title') ?? '')
+    mutate({ data: { title } }, { onSuccess: () => form.reset() })
   }
 
   return (
     <form onSubmit={handleSubmit}>
-      <input name="name" placeholder="Name" required />
-      <input name="email" type="email" placeholder="Email" required />
+      <input name="title" placeholder="Add todo..." disabled={isPending} />
       <button type="submit" disabled={isPending}>
-        {isPending ? 'Creating...' : 'Create User'}
+        {isPending ? 'Adding...' : 'Add'}
       </button>
+      {error && <p>{describe(error)}</p>}
     </form>
   )
+}
+```
+
+The error of `createTodo` is typed from its `errorSchema`:
+
+```typescript
+import type { EndpointErrorType } from '@navios/builder'
+
+function describe(error: EndpointErrorType<typeof createTodo.endpoint>): string {
+  if (error.kind === 'http' && error.status === 422) return error.body.message
+  if (error.kind === 'request-validation') return error.issues[0]?.message ?? 'Invalid input'
+  if (error.kind === 'network') return 'You appear to be offline'
+  return 'Something went wrong'
 }
 ```
 
@@ -288,16 +206,23 @@ export function CreateUserForm() {
 ```typescript
 // App.tsx
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { UserList } from './components/UserList'
-import { CreateUserForm } from './components/CreateUserForm'
+import { Suspense } from 'react'
+import { ErrorBoundary } from 'react-error-boundary'
 
-const queryClient = new QueryClient()
+import { TodoList } from './components/TodoList'
 
-function App() {
+const queryClient = new QueryClient({
+  defaultOptions: { queries: { staleTime: 30_000 } },
+})
+
+export function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <CreateUserForm />
-      <UserList />
+      <ErrorBoundary fallback={<div>Something went wrong</div>}>
+        <Suspense fallback={<div>Loading...</div>}>
+          <TodoList />
+        </Suspense>
+      </ErrorBoundary>
     </QueryClientProvider>
   )
 }
@@ -305,6 +230,7 @@ function App() {
 
 ## Next Steps
 
-- [Form Handling](/docs/builder/react-query/recipes/form-handling) - More form patterns
-- [Real-time Updates](/docs/builder/react-query/recipes/realtime-updates) - Polling and refetching
-
+- [Queries](/docs/builder/react-query/guides/queries) - Learn about queries
+- [Mutations](/docs/builder/react-query/guides/mutations) - Learn about mutations
+- [Optimistic Updates](/docs/builder/react-query/guides/optimistic-updates) - Update UI optimistically
+- [Form Handling](/docs/builder/react-query/recipes/form-handling) - Forms and server validation

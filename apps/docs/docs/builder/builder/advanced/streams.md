@@ -2,32 +2,43 @@
 sidebar_position: 1
 ---
 
-# Streams
+# Non-JSON Responses
 
-Stream endpoints allow you to download binary data (files, images, PDFs, etc.) as `Blob` objects. Builder provides `declareStream` for handling file downloads.
+Not every endpoint answers with JSON. The `response` option of `declareEndpoint` selects what an endpoint resolves to: a `Blob` for file downloads, a `string`, a `ReadableStream`, or nothing at all.
 
-## Basic Usage
+## Response Kinds
 
-Declare a stream endpoint:
+| `response`         | Resolves to                  | `responseSchema` |
+| ------------------ | ---------------------------- | ---------------- |
+| `'json'` (default) | `z.output<responseSchema>`   | required         |
+| `'blob'`           | `Blob`                       | not used         |
+| `'text'`           | `string`                     | not used         |
+| `'stream'`         | `ReadableStream<Uint8Array>` | not used         |
+| `'void'`           | `undefined`                  | not used         |
+
+Everything else about the endpoint is unchanged: URL parameters, `querySchema`, `requestSchema`, `errorSchema`, `safe()`, and the error model all work the same way.
 
 ```typescript
-const downloadFile = API.declareStream({
+const downloadFile = API.declareEndpoint({
   method: 'GET',
   url: '/files/$fileId/download',
+  response: 'blob',
 })
 
-// Usage
 const blob = await downloadFile({ urlParams: { fileId: '123' } })
 ```
+
+For `'blob'`, `'text'` and `'stream'` the builder passes a matching `responseType` to the HTTP client, which is responsible for reading the body in that form.
 
 ## Downloading Files
 
 ### Basic Download
 
 ```typescript
-const downloadFile = API.declareStream({
+const downloadFile = API.declareEndpoint({
   method: 'GET',
   url: '/files/$fileId/download',
+  response: 'blob',
 })
 
 async function download(fileId: string) {
@@ -46,142 +57,59 @@ async function download(fileId: string) {
 ### With Query Parameters
 
 ```typescript
-const downloadFile = API.declareStream({
+const downloadFile = API.declareEndpoint({
   method: 'GET',
   url: '/files/$fileId/download',
   querySchema: z.object({
     format: z.enum(['pdf', 'docx']).optional(),
     quality: z.enum(['low', 'high']).optional(),
   }),
+  response: 'blob',
 })
 
-// Usage
 const blob = await downloadFile({
   urlParams: { fileId: '123' },
   params: { format: 'pdf', quality: 'high' },
 })
 ```
 
-### With Request Body
+### With a Request Body
 
 ```typescript
-const generateReport = API.declareStream({
+const generateReport = API.declareEndpoint({
   method: 'POST',
   url: '/reports/generate',
   requestSchema: z.object({
-    type: z.enum(['pdf', 'excel']),
-    dateRange: z.object({
-      start: z.string().datetime(),
-      end: z.string().datetime(),
-    }),
+    startDate: z.string(),
+    endDate: z.string(),
+    format: z.enum(['pdf', 'xlsx']),
   }),
+  response: 'blob',
 })
 
-// Usage
 const blob = await generateReport({
-  data: {
-    type: 'pdf',
-    dateRange: {
-      start: '2024-01-01T00:00:00Z',
-      end: '2024-12-31T23:59:59Z',
-    },
-  },
+  data: { startDate: '2024-01-01', endDate: '2024-12-31', format: 'pdf' },
 })
 ```
 
-## Handling Different File Types
+### Using the Server's File Name
 
-### Images
-
-```typescript
-const getImage = API.declareStream({
-  method: 'GET',
-  url: '/images/$imageId',
-})
-
-async function displayImage(imageId: string) {
-  const blob = await getImage({ urlParams: { imageId } })
-  const url = URL.createObjectURL(blob)
-
-  // Use in img tag
-  const img = document.createElement('img')
-  img.src = url
-  document.body.appendChild(img)
-}
-```
-
-### PDFs
+`safe()` gives you the response headers next to the data, so you can honour `Content-Disposition`:
 
 ```typescript
-const getPDF = API.declareStream({
-  method: 'GET',
-  url: '/documents/$docId/pdf',
-})
+import { getHeader } from '@navios/builder'
 
-async function viewPDF(docId: string) {
-  const blob = await getPDF({ urlParams: { docId } })
-  const url = URL.createObjectURL(blob)
-
-  // Open in new window
-  window.open(url, '_blank')
-}
-```
-
-### CSV/Excel
-
-```typescript
-const exportData = API.declareStream({
-  method: 'GET',
-  url: '/data/export',
-  querySchema: z.object({
-    format: z.enum(['csv', 'xlsx']),
-  }),
-})
-
-async function downloadExport(format: 'csv' | 'xlsx') {
-  const blob = await exportData({ params: { format } })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = `export.${format}`
-  a.click()
-  URL.revokeObjectURL(url)
-}
-```
-
-## Error Handling
-
-Stream endpoints throw errors just like regular endpoints:
-
-```typescript
-const downloadFile = API.declareStream({
-  method: 'GET',
-  url: '/files/$fileId/download',
-})
-
-try {
-  const blob = await downloadFile({ urlParams: { fileId: '123' } })
-  // Handle blob
-} catch (error) {
-  if (error instanceof NaviosError) {
-    console.error('Download failed:', error.message)
+async function download(fileId: string) {
+  const result = await downloadFile.safe({ urlParams: { fileId } })
+  if (!result.ok) {
+    showError('Download failed')
+    return
   }
-}
-```
 
-## Common Patterns
+  const disposition = getHeader(result.response, 'content-disposition')
+  const filename = disposition?.match(/filename="?([^"]+)"?/)?.[1] ?? 'download'
 
-### File Download with Filename
-
-```typescript
-const downloadFile = API.declareStream({
-  method: 'GET',
-  url: '/files/$fileId/download',
-})
-
-async function downloadWithName(fileId: string, filename: string) {
-  const blob = await downloadFile({ urlParams: { fileId } })
-  const url = URL.createObjectURL(blob)
+  const url = URL.createObjectURL(result.data)
   const a = document.createElement('a')
   a.href = url
   a.download = filename
@@ -190,57 +118,112 @@ async function downloadWithName(fileId: string, filename: string) {
 }
 ```
 
-### Preview Before Download
+### Preview in the Browser
 
 ```typescript
-const getFilePreview = API.declareStream({
+const getImage = API.declareEndpoint({
   method: 'GET',
-  url: '/files/$fileId/preview',
+  url: '/images/$imageId',
+  response: 'blob',
 })
 
-async function previewFile(fileId: string) {
-  const blob = await getFilePreview({ urlParams: { fileId } })
-  const url = URL.createObjectURL(blob)
+const blob = await getImage({ urlParams: { imageId: '123' } })
 
-  // Show preview
-  const previewWindow = window.open(url, '_blank')
+const img = document.createElement('img')
+img.src = URL.createObjectURL(blob)
+img.onload = () => URL.revokeObjectURL(img.src)
+document.body.appendChild(img)
+```
 
-  // Download after preview
-  setTimeout(() => {
-    const a = document.createElement('a')
-    a.href = url
-    a.download = 'file.pdf'
-    a.click()
-  }, 2000)
+## Text
+
+```typescript
+const exportCsv = API.declareEndpoint({
+  method: 'GET',
+  url: '/reports/$reportId.csv',
+  response: 'text',
+})
+
+const csv = await exportCsv({ urlParams: { reportId: '123' } })
+const rows = csv.split('\n')
+```
+
+## Streams
+
+`response: 'stream'` resolves to a `ReadableStream<Uint8Array>`, so you can process the body while it downloads:
+
+```typescript
+const tailLogs = API.declareEndpoint({
+  method: 'GET',
+  url: '/jobs/$jobId/logs',
+  response: 'stream',
+})
+
+const controller = new AbortController()
+
+const stream = await tailLogs({
+  urlParams: { jobId: '42' },
+  signal: controller.signal,
+})
+
+const reader = stream.getReader()
+const decoder = new TextDecoder()
+
+while (true) {
+  const { done, value } = await reader.read()
+  if (done) break
+  appendToConsole(decoder.decode(value, { stream: true }))
 }
 ```
 
-### Multiple File Downloads
+Call `controller.abort()` to stop reading early.
+
+:::tip
+For Server-Sent Events, use the dedicated [EventSource builder](/docs/builder/builder/advanced/eventsource), which adds typed events and reconnection handling.
+:::
+
+## Empty Responses
+
+Use `response: 'void'` for endpoints that answer without a body, such as `204 No Content`. The endpoint resolves to `undefined` and the body, if any, is ignored:
 
 ```typescript
-const downloadFile = API.declareStream({
+const deleteFile = API.declareEndpoint({
+  method: 'DELETE',
+  url: '/files/$fileId',
+  response: 'void',
+})
+
+await deleteFile({ urlParams: { fileId: '123' } })
+```
+
+## Error Handling
+
+A non-2xx status fails the call like on any other endpoint, and `errorSchema` gives the error body a type:
+
+```typescript
+const downloadFile = API.declareEndpoint({
   method: 'GET',
   url: '/files/$fileId/download',
+  response: 'blob',
+  errorSchema: {
+    404: z.object({ message: z.string() }),
+  },
 })
 
-async function downloadMultiple(fileIds: string[]) {
-  const downloads = fileIds.map((fileId) =>
-    downloadFile({ urlParams: { fileId } }),
-  )
+const result = await downloadFile.safe({ urlParams: { fileId: '123' } })
 
-  const blobs = await Promise.all(downloads)
-
-  // Download each file
-  blobs.forEach((blob, index) => {
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `file-${fileIds[index]}.pdf`
-    a.click()
-    URL.revokeObjectURL(url)
-  })
+if (!result.ok) {
+  if (result.error.kind === 'http' && result.error.status === 404) {
+    showError(result.error.body.message)
+  } else {
+    showError('Download failed')
+  }
 }
 ```
+
+:::note
+`errorSchema` validates the error body as your HTTP client delivers it. If your client returns error bodies of a blob endpoint as a `Blob` rather than parsed JSON, the body will not match the schema and the failure is reported as `response-validation`.
+:::
 
 ## Best Practices
 
@@ -259,63 +242,23 @@ const url = URL.createObjectURL(blob)
 // Never revokes URL
 ```
 
-### Handle Large Files
+### Prefer `'stream'` for Large Payloads
+
+A `'blob'` endpoint buffers the whole body in memory before it resolves. For large files, read a `'stream'` endpoint chunk by chunk instead.
+
+### Give Slow Downloads a Timeout
 
 ```typescript
-const downloadLargeFile = API.declareStream({
+const downloadArchive = API.declareEndpoint({
   method: 'GET',
-  url: '/files/$fileId/download',
+  url: '/archives/$archiveId',
+  response: 'blob',
+  timeout: 120000,
 })
-
-async function downloadWithProgress(fileId: string) {
-  try {
-    // Show loading indicator
-    showLoading('Downloading file...')
-
-    const blob = await downloadLargeFile({ urlParams: { fileId } })
-
-    // Hide loading indicator
-    hideLoading()
-
-    // Handle blob
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = 'file.pdf'
-    a.click()
-    URL.revokeObjectURL(url)
-  } catch (error) {
-    hideLoading()
-    showError('Download failed')
-  }
-}
-```
-
-### Validate File Types
-
-```typescript
-const downloadFile = API.declareStream({
-  method: 'GET',
-  url: '/files/$fileId/download',
-  querySchema: z.object({
-    type: z.enum(['pdf', 'docx', 'xlsx']),
-  }),
-})
-
-// Usage
-const blob = await downloadFile({
-  urlParams: { fileId: '123' },
-  params: { type: 'pdf' },
-})
-
-// Validate blob type
-if (blob.type !== 'application/pdf') {
-  throw new Error('Invalid file type')
-}
 ```
 
 ## Next Steps
 
 - [Multipart Uploads](/docs/builder/builder/advanced/multipart) - Upload files
 - [Defining Endpoints](/docs/builder/builder/guides/defining-endpoints) - Review endpoint basics
-- [Error Handling](/docs/builder/builder/guides/error-handling) - Handle stream errors
+- [Error Handling](/docs/builder/builder/guides/error-handling) - The error model

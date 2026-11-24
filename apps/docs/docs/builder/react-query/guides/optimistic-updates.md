@@ -4,417 +4,207 @@ sidebar_position: 10
 
 # Optimistic Updates
 
-Optimistic updates allow you to update the UI immediately before the server responds, providing a better user experience. If the mutation fails, you can rollback the changes.
+An optimistic update writes the expected result to the cache before the request is sent, so the UI responds immediately. If the mutation fails the previous value is restored; when it settles the entry is invalidated so the server's state wins.
 
-## Using the Helper
+## The `optimistic` Setting
 
-:::warning Experimental API
-The `createOptimisticUpdate` and `createMultiOptimisticUpdate` helpers are **experimental** and may change in future versions. For production applications, we recommend using the [manual pattern](#manual-pattern) below until these helpers stabilize.
-:::
-
-The `createOptimisticUpdate` helper simplifies the optimistic update pattern by handling the boilerplate:
+`optimistic` receives an `update` function. Call it with a query and a description of the change:
 
 ```typescript
-import { createOptimisticUpdate } from '@navios/react-query'
-
 const updateUser = client.mutation({
-  method: 'PUT',
+  method: 'PATCH',
   url: '/users/$userId',
-  requestSchema: userUpdateSchema,
+  requestSchema: z.object({ name: z.string() }),
   responseSchema: userSchema,
-  useContext: () => ({
-    queryClient: useQueryClient(),
-  }),
-  ...createOptimisticUpdate({
-    queryKey: ['users', userId],
-    updateFn: (oldData, variables) => ({
-      ...oldData,
-      ...variables.data,
+  optimistic: (update) =>
+    update(getUser, {
+      // Which cache entry: the query's args, computed from the mutation's variables
+      args: (variables) => ({ urlParams: variables.urlParams }),
+      // The new cached value
+      update: (current, variables) => current && { ...current, ...variables.data },
     }),
-  }),
 })
 ```
 
-### Configuration Options
+`variables` is typed from the mutation's endpoint, `current` from the query's data (`User | undefined`), and `args` must return valid arguments for the query.
 
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `queryKey` | `readonly unknown[]` | Required | The query key to optimistically update |
-| `updateFn` | `(oldData, variables) => newData` | Required | Function to compute the new cache value |
-| `rollbackOnError` | `boolean` | `true` | Whether to rollback on error |
-| `invalidateOnSettled` | `boolean` | `true` | Whether to invalidate the query after mutation settles |
+`args` is required whenever the query has required inputs — URL params, or a `querySchema` / `requestSchema` with required fields. `getUser` needs a `userId`, so leaving `args` out is a type error; without it the update would land on the bare endpoint key, which is no entry at all. For a query that requires nothing (a list without required params), `args` is optional and the update targets the entry without inputs.
 
-### Multi-Query Updates
+For each update, when `mutate` is called:
 
-:::warning Experimental API
-`createMultiOptimisticUpdate` is **experimental** and may change in future versions.
-:::
+1. In-flight fetches of the entry are cancelled, so they cannot overwrite the optimistic value
+2. The current value is saved
+3. The entry is replaced with `update(current, variables)`
+4. If the mutation fails, the saved value is restored
+5. When the mutation settles, the entry is invalidated
 
-When a mutation affects multiple cached queries, use `createMultiOptimisticUpdate`:
+Concurrent mutations keep their snapshots apart: a failure of one does not roll back another.
+
+### Options
+
+| Option                | Default  | Description                                                                 |
+| --------------------- | -------- | --------------------------------------------------------------------------- |
+| `args`                | —        | `(variables) => args` of the entry to update. Required when the query has required inputs; optional otherwise |
+| `update`              | required | `(current, variables) => next`. Return `current` unchanged to skip          |
+| `rollbackOnError`     | `true`   | Restore the previous value when the mutation fails                          |
+| `invalidateOnSettled` | `true`   | Invalidate the entry when the mutation settles                              |
+
+`current` is `undefined` when nothing is cached for the entry yet. `current && { ... }` leaves such an entry empty.
+
+## Several Queries
+
+Return an array to update more than one entry:
 
 ```typescript
-import { createMultiOptimisticUpdate } from '@navios/react-query'
-
 const updateUser = client.mutation({
-  method: 'PUT',
+  method: 'PATCH',
   url: '/users/$userId',
-  requestSchema: userUpdateSchema,
+  requestSchema: z.object({ name: z.string() }),
   responseSchema: userSchema,
-  useContext: () => ({
-    queryClient: useQueryClient(),
-  }),
-  ...createMultiOptimisticUpdate([
-    {
-      // Update individual user cache
-      queryKey: ['users', userId],
-      updateFn: (oldData, variables) => ({
-        ...oldData,
-        ...variables.data,
-      }),
-    },
-    {
-      // Update user in the list
-      queryKey: ['users'],
-      updateFn: (oldList, variables) =>
-        (oldList ?? []).map((user) =>
-          user.id === userId ? { ...user, ...variables.data } : user
+  optimistic: (update) => [
+    update(getUser, {
+      args: (variables) => ({ urlParams: variables.urlParams }),
+      update: (current, variables) => current && { ...current, ...variables.data },
+    }),
+    update(listUsers, {
+      update: (current, variables) =>
+        current?.map((user) =>
+          user.id === String(variables.urlParams.userId) ? { ...user, ...variables.data } : user,
         ),
-    },
-  ]),
+    }),
+  ],
 })
 ```
 
-### Common Patterns with Helpers
+## Lists
 
-**Optimistic Delete:**
+### Adding
+
+```typescript
+const createTodo = client.mutation({
+  method: 'POST',
+  url: '/todos',
+  requestSchema: z.object({ title: z.string() }),
+  responseSchema: todoSchema,
+  optimistic: (update) =>
+    update(listTodos, {
+      update: (current, variables) => [
+        ...(current ?? []),
+        { id: `temp-${Date.now()}`, title: variables.data.title, done: false },
+      ],
+    }),
+})
+```
+
+The temporary item is replaced by the server's when the list is refetched on settle.
+
+### Removing
 
 ```typescript
 const deleteTodo = client.mutation({
   method: 'DELETE',
   url: '/todos/$todoId',
-  responseSchema: z.object({ success: z.boolean() }),
-  useContext: () => ({ queryClient: useQueryClient() }),
-  ...createOptimisticUpdate({
-    queryKey: ['todos'],
-    updateFn: (oldData, variables) =>
-      (oldData ?? []).filter((t) => t.id !== variables.urlParams.todoId),
-  }),
+  response: 'void',
+  optimistic: (update) =>
+    update(listTodos, {
+      update: (current, variables) =>
+        current?.filter((todo) => todo.id !== String(variables.urlParams.todoId)),
+    }),
 })
 ```
 
-**Optimistic Add:**
+### Toggling
 
 ```typescript
-const addTodo = client.mutation({
-  method: 'POST',
-  url: '/todos',
-  requestSchema: createTodoSchema,
+const toggleTodo = client.mutation({
+  method: 'PATCH',
+  url: '/todos/$todoId',
+  requestSchema: z.object({ done: z.boolean() }),
   responseSchema: todoSchema,
-  useContext: () => ({ queryClient: useQueryClient() }),
-  ...createOptimisticUpdate({
-    queryKey: ['todos'],
-    updateFn: (oldData, variables) => [
-      ...(oldData ?? []),
-      { id: 'temp-' + Date.now(), ...variables.data, createdAt: new Date() },
-    ],
-  }),
+  optimistic: (update) =>
+    update(listTodos, {
+      update: (current, variables) =>
+        current?.map((todo) =>
+          todo.id === String(variables.urlParams.todoId)
+            ? { ...todo, done: variables.data.done }
+            : todo,
+        ),
+    }),
 })
 ```
 
-## Manual Pattern (Recommended)
+:::note
+URL param values are typed `string | number`, so compare them with `String(...)` against string IDs.
+:::
 
-For production applications, we recommend implementing the optimistic update pattern manually. This gives you full control and doesn't depend on experimental APIs.
+## Combining with Other Settings
 
-### Pattern Overview
-
-The manual optimistic update pattern involves:
-
-1. **onMutate**: Cancel queries, snapshot previous value, optimistically update
-2. **onError**: Rollback to previous value
-3. **onSuccess/onSettled**: Refetch to ensure consistency
-
-### Manual Example
+`optimistic` runs before your own `onMutate`, and works alongside `invalidates` and the callbacks:
 
 ```typescript
 const updateUser = client.mutation({
-  method: 'PUT',
+  method: 'PATCH',
   url: '/users/$userId',
-  requestSchema: userUpdateSchema,
+  requestSchema: z.object({ name: z.string() }),
   responseSchema: userSchema,
-  useContext: () => ({
-    queryClient: useQueryClient(),
-  }),
-  onMutate: async (variables, context) => {
-    // 1. Cancel outgoing queries
-    await context.queryClient.cancelQueries({
-      queryKey: getUser.queryKey.filterKey({
-        urlParams: { userId: variables.urlParams.userId },
-      }),
-    })
-
-    // 2. Snapshot previous value
-    const previous = context.queryClient.getQueryData(
-      getUser.queryKey.dataTag({
-        urlParams: { userId: variables.urlParams.userId },
-      })
-    )
-
-    // 3. Optimistically update
-    context.queryClient.setQueryData(
-      getUser.queryKey.dataTag({
-        urlParams: { userId: variables.urlParams.userId },
-      }),
-      { ...previous, ...variables.data }
-    )
-
-    // 4. Return context for rollback
-    return { previous }
-  },
-  onError: (error, variables, context) => {
-    // Rollback on error
-    if (context.onMutateResult?.previous) {
-      context.queryClient.setQueryData(
-        getUser.queryKey.dataTag({
-          urlParams: { userId: variables.urlParams.userId },
-        }),
-        context.onMutateResult.previous
-      )
-    }
-  },
-  onSuccess: (data, variables, context) => {
-    // Optionally refetch to ensure consistency
-    context.queryClient.invalidateQueries({
-      queryKey: getUser.queryKey.filterKey({
-        urlParams: { userId: data.id },
-      }),
-    })
+  useContext: () => ({ toast: useToast() }),
+  optimistic: (update) =>
+    update(getUser, {
+      args: (variables) => ({ urlParams: variables.urlParams }),
+      update: (current, variables) => current && { ...current, ...variables.data },
+    }),
+  invalidates: [listUsers],
+  onError: (_error, _variables, context) => {
+    context.toast.error('Could not save, your change was reverted')
   },
 })
 ```
 
-## Updating Lists
+## Keeping the Optimistic Value
 
-Optimistically update items in a list:
+Turn off the refetch when the optimistic value is known to be final, or the rollback when a later sync will reconcile:
+
+```typescript
+optimistic: (update) =>
+  update(getSettings, {
+    update: (current, variables) => current && { ...current, ...variables.data },
+    invalidateOnSettled: false,
+  }),
+```
+
+## Manual Pattern
+
+For flows the setting does not cover, write the steps yourself with `onMutate` and the callback context:
 
 ```typescript
 const updateUser = client.mutation({
-  method: 'PUT',
+  method: 'PATCH',
   url: '/users/$userId',
-  requestSchema: userUpdateSchema,
+  requestSchema: z.object({ name: z.string() }),
   responseSchema: userSchema,
-  useContext: () => ({
-    queryClient: useQueryClient(),
-  }),
   onMutate: async (variables, context) => {
-    await context.queryClient.cancelQueries({
-      queryKey: getUsers.queryKey.filterKey({}),
-    })
-
-    const previous = context.queryClient.getQueryData(
-      getUsers.queryKey.dataTag({})
-    )
-
-    // Update item in list
-    context.queryClient.setQueryData(
-      getUsers.queryKey.dataTag({}),
-      (old: { users: User[] } | undefined) => {
-        if (!old) return old
-        return {
-          ...old,
-          users: old.users.map((user) =>
-            user.id === variables.urlParams.userId
-              ? { ...user, ...variables.data }
-              : user
-          ),
-        }
-      }
-    )
-
+    const args = { urlParams: variables.urlParams }
+    await context.client.cancelQueries({ queryKey: getUser.key(args) })
+    const previous = getUser.getData(context.client, args)
+    getUser.setData(context.client, args, (old) => old && { ...old, ...variables.data })
     return { previous }
   },
-  onError: (error, variables, context) => {
+  onError: (_error, variables, context) => {
     if (context.onMutateResult?.previous) {
-      context.queryClient.setQueryData(
-        getUsers.queryKey.dataTag({}),
-        context.onMutateResult.previous
+      getUser.setData(
+        context.client,
+        { urlParams: variables.urlParams },
+        context.onMutateResult.previous,
       )
     }
   },
+  onSettled: (_data, _error, variables, context) =>
+    getUser.invalidate(context.client, { urlParams: variables.urlParams }),
 })
-```
-
-## Adding to Lists
-
-Optimistically add items to a list:
-
-```typescript
-const createUser = client.mutation({
-  method: 'POST',
-  url: '/users',
-  requestSchema: userCreateSchema,
-  responseSchema: userSchema,
-  useContext: () => ({
-    queryClient: useQueryClient(),
-  }),
-  onMutate: async (variables, context) => {
-    await context.queryClient.cancelQueries({
-      queryKey: getUsers.queryKey.filterKey({}),
-    })
-
-    const previous = context.queryClient.getQueryData(
-      getUsers.queryKey.dataTag({})
-    )
-
-    // Optimistically add new user
-    const optimisticUser = {
-      id: 'temp-' + Date.now(),
-      ...variables.data,
-      createdAt: new Date().toISOString(),
-    }
-
-    context.queryClient.setQueryData(
-      getUsers.queryKey.dataTag({}),
-      (old: { users: User[] } | undefined) => {
-        if (!old) return { users: [optimisticUser] }
-        return {
-          ...old,
-          users: [optimisticUser, ...old.users],
-        }
-      }
-    )
-
-    return { previous, optimisticUser }
-  },
-  onError: (error, variables, context) => {
-    if (context.onMutateResult?.previous) {
-      context.queryClient.setQueryData(
-        getUsers.queryKey.dataTag({}),
-        context.onMutateResult.previous
-      )
-    }
-  },
-  onSuccess: (data, variables, context) => {
-    // Replace optimistic user with real data
-    context.queryClient.setQueryData(
-      getUsers.queryKey.dataTag({}),
-      (old: { users: User[] } | undefined) => {
-        if (!old) return old
-        return {
-          ...old,
-          users: old.users.map((user) =>
-            user.id === context.onMutateResult?.optimisticUser.id
-              ? data
-              : user
-          ),
-        }
-      }
-    )
-  },
-})
-```
-
-## Removing from Lists
-
-Optimistically remove items from a list:
-
-```typescript
-const deleteUser = client.mutation({
-  method: 'DELETE',
-  url: '/users/$userId',
-  responseSchema: z.object({ success: z.boolean() }),
-  useContext: () => ({
-    queryClient: useQueryClient(),
-  }),
-  onMutate: async (variables, context) => {
-    await context.queryClient.cancelQueries({
-      queryKey: getUsers.queryKey.filterKey({}),
-    })
-
-    const previous = context.queryClient.getQueryData(
-      getUsers.queryKey.dataTag({})
-    )
-
-    // Optimistically remove user
-    context.queryClient.setQueryData(
-      getUsers.queryKey.dataTag({}),
-      (old: { users: User[] } | undefined) => {
-        if (!old) return old
-        return {
-          ...old,
-          users: old.users.filter(
-            (user) => user.id !== variables.urlParams.userId
-          ),
-        }
-      }
-    )
-
-    return { previous }
-  },
-  onError: (error, variables, context) => {
-    if (context.onMutateResult?.previous) {
-      context.queryClient.setQueryData(
-        getUsers.queryKey.dataTag({}),
-        context.onMutateResult.previous
-      )
-    }
-  },
-})
-```
-
-## Best Practices
-
-### Always Cancel Queries
-
-```typescript
-// ✅ Good - cancel queries first
-onMutate: async (variables, context) => {
-  await context.queryClient.cancelQueries({ queryKey: ['users'] })
-  // ... rest of logic
-}
-
-// ❌ Bad - may cause race conditions
-onMutate: async (variables, context) => {
-  // Missing cancelQueries
-  context.queryClient.setQueryData(/* ... */)
-}
-```
-
-### Snapshot Previous Value
-
-```typescript
-// ✅ Good - save previous for rollback
-onMutate: async (variables, context) => {
-  const previous = context.queryClient.getQueryData(/* ... */)
-  // ... update
-  return { previous }
-}
-
-// ❌ Bad - can't rollback
-onMutate: async (variables, context) => {
-  context.queryClient.setQueryData(/* ... */)
-  // No previous value saved
-}
-```
-
-### Rollback on Error
-
-```typescript
-// ✅ Good - rollback on error
-onError: (error, variables, context) => {
-  if (context.onMutateResult?.previous) {
-    context.queryClient.setQueryData(/* ... */, context.onMutateResult.previous)
-  }
-}
-
-// ❌ Bad - no rollback
-onError: (error, variables, context) => {
-  // UI stays in optimistic state even on error
-}
 ```
 
 ## Next Steps
 
-- [Context in Mutations](/docs/builder/react-query/guides/mutation-context) - Access QueryClient
-- [Mutations](/docs/builder/react-query/guides/mutations) - Basic mutations
-- [Query Keys](/docs/builder/react-query/guides/query-keys) - Understand query keys
-
+- [Mutations](/docs/builder/react-query/guides/mutations) - Mutation settings
+- [Context in Mutations](/docs/builder/react-query/guides/mutation-context) - What callbacks receive
+- [Invalidation](/docs/builder/react-query/guides/invalidation) - Refresh cached data

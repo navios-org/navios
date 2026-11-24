@@ -4,381 +4,237 @@ sidebar_position: 3
 
 # SSR & Prefetching
 
-Server-side rendering and React Server Components require prefetching data on the server. `@navios/react-query` provides utilities to simplify this process.
+Prefetching fills the cache before a component needs the data: on the server, so the first render already has it, or on the client, ahead of a navigation. Every query and infinite query has helpers for it.
 
-## Overview
+## Helpers
 
-When rendering on the server, you need to:
+All of them take the `QueryClient` first and the query's arguments second:
 
-1. Create a `QueryClient` instance
-2. Prefetch data before rendering
-3. Dehydrate the cache state
-4. Hydrate on the client
-
-The prefetch helpers abstract away the boilerplate and provide a type-safe API.
-
-## Basic Usage
-
-### Creating a Prefetch Helper
+| Helper                        | Resolves with | On failure | Uses the cache                                    |
+| ----------------------------- | ------------- | ---------- | ------------------------------------------------- |
+| `query.prefetch(qc, args)`    | nothing       | resolves   | Skips the request when fresh data is cached       |
+| `query.fetch(qc, args)`       | the data      | rejects    | Skips the request when fresh data is cached       |
+| `query.ensure(qc, args)`      | the data      | rejects    | Returns cached data however stale; fetches if empty |
 
 ```typescript
-import { createPrefetchHelper } from '@navios/react-query'
+await getUser.prefetch(queryClient, { urlParams: { userId } })
 
-// Your existing query
-const getUser = client.query({
-  method: 'GET',
-  url: '/users/$userId',
-  responseSchema: userSchema,
-})
+const user = await getUser.fetch(queryClient, { urlParams: { userId } })
 
-// Create prefetch helper
-const userPrefetch = createPrefetchHelper(getUser)
+const cachedOrFetched = await getUser.ensure(queryClient, { urlParams: { userId } })
 ```
 
-### Using in Server Components (Next.js App Router)
+:::info
+The helpers are built on TanStack's `queryClient.query()` (and `queryClient.infiniteQuery()` for infinite queries), because `fetchQuery`, `prefetchQuery` and `ensureQueryData` are deprecated upstream. `@navios/react-query` requires `@tanstack/react-query ^5.102.0`.
+:::
 
-```tsx
+To pass TanStack options such as `staleTime`, call the query for its options and hand them to the `QueryClient`:
+
+```typescript
+await queryClient.query(getUser({ urlParams: { userId } }, { staleTime: 60_000 }))
+```
+
+## Server Rendering
+
+The pattern is the standard TanStack one: create a `QueryClient` per request, prefetch, `dehydrate`, and wrap the client components in a `HydrationBoundary`.
+
+### Next.js App Router
+
+```typescript
+// app/users/[userId]/page.tsx
 import { dehydrate, HydrationBoundary, QueryClient } from '@tanstack/react-query'
 
-async function UserPage({ params }: { params: { userId: string } }) {
+import { getUser, getUserPosts } from '@/api/users'
+
+import { UserProfile } from './user-profile'
+
+export default async function UserPage({ params }: { params: Promise<{ userId: string }> }) {
+  const { userId } = await params
   const queryClient = new QueryClient()
 
-  await userPrefetch.prefetch(queryClient, {
-    urlParams: { userId: params.userId },
-  })
+  await Promise.all([
+    getUser.prefetch(queryClient, { urlParams: { userId } }),
+    getUserPosts.prefetch(queryClient, { urlParams: { userId } }),
+  ])
 
   return (
     <HydrationBoundary state={dehydrate(queryClient)}>
-      <UserProfile userId={params.userId} />
+      <UserProfile userId={userId} />
     </HydrationBoundary>
   )
 }
 ```
 
-### Using in getServerSideProps (Next.js Pages Router)
+```typescript
+// app/users/[userId]/user-profile.tsx
+'use client'
 
-```tsx
-export async function getServerSideProps({ params }) {
+import { getUser } from '@/api/users'
+
+export function UserProfile({ userId }: { userId: string }) {
+  // Served from the hydrated cache, no loading state on first render
+  const { data } = getUser.useSuspense({ urlParams: { userId } })
+
+  return <h1>{data.name}</h1>
+}
+```
+
+### Next.js Pages Router
+
+```typescript
+// pages/users/[userId].tsx
+import { dehydrate, QueryClient } from '@tanstack/react-query'
+
+import type { GetServerSideProps } from 'next'
+
+export const getServerSideProps: GetServerSideProps = async ({ params }) => {
+  const userId = String(params?.userId)
   const queryClient = new QueryClient()
 
-  await userPrefetch.prefetch(queryClient, {
-    urlParams: { userId: params.userId },
-  })
+  await getUser.prefetch(queryClient, { urlParams: { userId } })
 
   return {
     props: {
+      userId,
       dehydratedState: dehydrate(queryClient),
     },
   }
 }
-
-function UserPage({ dehydratedState }) {
-  return (
-    <HydrationBoundary state={dehydratedState}>
-      <UserProfile />
-    </HydrationBoundary>
-  )
-}
 ```
 
-## Prefetch Helper Methods
+### Arguments Must Match
 
-### prefetch
-
-Prefetch data into the query cache. Does not return data.
-
-```typescript
-await userPrefetch.prefetch(queryClient, {
-  urlParams: { userId: '123' },
-})
-```
-
-### ensureData
-
-Ensure data exists in cache. Returns the data if found, otherwise fetches it.
-
-```typescript
-const userData = await userPrefetch.ensureData(queryClient, {
-  urlParams: { userId: '123' },
-})
-
-console.log('User:', userData.name)
-```
-
-### getQueryOptions
-
-Get raw query options for advanced use cases.
-
-```typescript
-const options = userPrefetch.getQueryOptions({
-  urlParams: { userId: '123' },
-})
-
-// Customize before prefetching
-await queryClient.prefetchQuery({
-  ...options,
-  staleTime: 60000, // Custom stale time for prefetch
-})
-```
-
-### prefetchMany
-
-Prefetch multiple queries with the same helper in parallel.
-
-```typescript
-await userPrefetch.prefetchMany(queryClient, [
-  { urlParams: { userId: '1' } },
-  { urlParams: { userId: '2' } },
-  { urlParams: { userId: '3' } },
-])
-```
-
-## Batch Prefetching
-
-### createPrefetchHelpers
-
-Create multiple prefetch helpers at once from a record of queries.
-
-```typescript
-import { createPrefetchHelpers } from '@navios/react-query'
-
-const queries = {
-  user: client.query({
-    method: 'GET',
-    url: '/users/$userId',
-    responseSchema: userSchema,
-  }),
-  posts: client.query({
-    method: 'GET',
-    url: '/users/$userId/posts',
-    responseSchema: postsSchema,
-  }),
-  profile: client.query({
-    method: 'GET',
-    url: '/users/$userId/profile',
-    responseSchema: profileSchema,
-  }),
-}
-
-const prefetchers = createPrefetchHelpers(queries)
-
-// Use each prefetcher
-await prefetchers.user.prefetch(queryClient, { urlParams: { userId } })
-await prefetchers.posts.prefetch(queryClient, { urlParams: { userId } })
-```
-
-### prefetchAll
-
-Prefetch multiple different queries in parallel.
-
-```typescript
-import { prefetchAll } from '@navios/react-query'
-
-const userPrefetch = createPrefetchHelper(getUser)
-const postsPrefetch = createPrefetchHelper(getUserPosts)
-const profilePrefetch = createPrefetchHelper(getUserProfile)
-
-async function DashboardPage({ userId }: { userId: string }) {
-  const queryClient = new QueryClient()
-
-  await prefetchAll(queryClient, [
-    { helper: userPrefetch, params: { urlParams: { userId } } },
-    { helper: postsPrefetch, params: { urlParams: { userId }, params: { limit: 10 } } },
-    { helper: profilePrefetch, params: { urlParams: { userId } } },
-  ])
-
-  return (
-    <HydrationBoundary state={dehydrate(queryClient)}>
-      <Dashboard userId={userId} />
-    </HydrationBoundary>
-  )
-}
-```
-
-## Complete Example
-
-Here's a complete example with Next.js App Router:
-
-```tsx
-// lib/queries.ts
-import { builder } from '@navios/builder'
-import { create } from '@navios/http'
-import { declareClient, createPrefetchHelper } from '@navios/react-query'
-import { z } from 'zod'
-
-const api = builder({})
-api.provideClient(create({ baseURL: process.env.API_URL }))
-
-const client = declareClient({ api })
-
-export const getUser = client.query({
-  method: 'GET',
-  url: '/users/$userId',
-  responseSchema: z.object({
-    id: z.string(),
-    name: z.string(),
-    email: z.string(),
-  }),
-})
-
-export const getUserPosts = client.query({
-  method: 'GET',
-  url: '/users/$userId/posts',
-  querySchema: z.object({
-    page: z.number().default(1),
-    limit: z.number().default(10),
-  }),
-  responseSchema: z.object({
-    posts: z.array(z.object({
-      id: z.string(),
-      title: z.string(),
-    })),
-    total: z.number(),
-  }),
-})
-
-export const userPrefetch = createPrefetchHelper(getUser)
-export const postsPrefetch = createPrefetchHelper(getUserPosts)
-```
-
-```tsx
-// app/users/[userId]/page.tsx
-import { dehydrate, HydrationBoundary, QueryClient } from '@tanstack/react-query'
-import { userPrefetch, postsPrefetch } from '@/lib/queries'
-import { UserProfile } from '@/components/UserProfile'
-
-export default async function UserPage({ params }: { params: { userId: string } }) {
-  const queryClient = new QueryClient()
-
-  // Prefetch in parallel
-  await Promise.all([
-    userPrefetch.prefetch(queryClient, {
-      urlParams: { userId: params.userId },
-    }),
-    postsPrefetch.prefetch(queryClient, {
-      urlParams: { userId: params.userId },
-      params: { page: 1, limit: 10 },
-    }),
-  ])
-
-  return (
-    <HydrationBoundary state={dehydrate(queryClient)}>
-      <UserProfile userId={params.userId} />
-    </HydrationBoundary>
-  )
-}
-```
-
-```tsx
-// components/UserProfile.tsx
-'use client'
-
-import { getUser, getUserPosts } from '@/lib/queries'
-
-export function UserProfile({ userId }: { userId: string }) {
-  // Data is already in cache from server prefetch
-  const user = getUser.useSuspense({ urlParams: { userId } })
-  const posts = getUserPosts.useSuspense({
-    urlParams: { userId },
-    params: { page: 1, limit: 10 },
-  })
-
-  return (
-    <div>
-      <h1>{user.name}</h1>
-      <p>{user.email}</p>
-      <h2>Posts ({posts.total})</h2>
-      <ul>
-        {posts.posts.map((post) => (
-          <li key={post.id}>{post.title}</li>
-        ))}
-      </ul>
-    </div>
-  )
-}
-```
-
-## Error Handling
-
-Errors during prefetch can be handled in several ways:
-
-### Silent Failures
-
-Let errors fail silently - the client will re-fetch:
-
-```typescript
-try {
-  await userPrefetch.prefetch(queryClient, { urlParams: { userId } })
-} catch {
-  // Ignore - client will fetch
-}
-```
-
-### Use ensureData with Error Boundary
-
-```typescript
-try {
-  const user = await userPrefetch.ensureData(queryClient, { urlParams: { userId } })
-} catch (error) {
-  // Handle error (e.g., redirect to 404)
-  notFound()
-}
-```
-
-## Best Practices
-
-### Parallel Prefetching
-
-Always prefetch independent queries in parallel:
-
-```typescript
-// ✅ Good - parallel
-await Promise.all([
-  userPrefetch.prefetch(queryClient, { urlParams: { userId } }),
-  postsPrefetch.prefetch(queryClient, { urlParams: { userId } }),
-])
-
-// ❌ Bad - sequential
-await userPrefetch.prefetch(queryClient, { urlParams: { userId } })
-await postsPrefetch.prefetch(queryClient, { urlParams: { userId } })
-```
-
-### Create New QueryClient Per Request
-
-```typescript
-// ✅ Good - new QueryClient per request
-async function Page() {
-  const queryClient = new QueryClient()
-  // ...
-}
-
-// ❌ Bad - shared QueryClient
-const queryClient = new QueryClient()
-async function Page() {
-  // Uses shared instance
-}
-```
-
-### Match Server and Client Parameters
-
-Ensure the same parameters are used on server and client:
+The server and the client must use the same arguments, because the arguments are the cache key. URL param values are stringified in the key, so a number on one side and a string on the other is fine; different query params are different entries.
 
 ```typescript
 // Server
-await userPrefetch.prefetch(queryClient, {
-  urlParams: { userId },
-  params: { page: 1 },
-})
+await listUsers.prefetch(queryClient, { params: { page: 1, limit: 20 } })
 
-// Client - must match
-const user = getUser.useSuspense({
-  urlParams: { userId },
-  params: { page: 1 }, // Same params
-})
+// Client: same params, so the hydrated entry is used
+listUsers.use({ params: { page: 1, limit: 20 } })
 ```
+
+## Per-Request HTTP Client
+
+On a server, requests made for one user must carry that user's cookies or token. `setHttpClient` binds an HTTP client to a `QueryClient`: every query, infinite query and mutation that runs through that `QueryClient` uses the bound client instead of the builder's shared one.
+
+```typescript
+import { create } from '@navios/http'
+import { getHttpClient, setHttpClient } from '@navios/react-query'
+import { dehydrate, HydrationBoundary, QueryClient } from '@tanstack/react-query'
+import { cookies } from 'next/headers'
+
+export default async function UserPage({ params }: { params: Promise<{ userId: string }> }) {
+  const { userId } = await params
+  const queryClient = new QueryClient()
+
+  // One HTTP client for this request, bound to this request's QueryClient
+  setHttpClient(
+    queryClient,
+    create({
+      baseURL: process.env.API_URL,
+      headers: { cookie: (await cookies()).toString() },
+    }),
+  )
+
+  await getUser.prefetch(queryClient, { urlParams: { userId } })
+
+  return (
+    <HydrationBoundary state={dehydrate(queryClient)}>
+      <UserProfile userId={userId} />
+    </HydrationBoundary>
+  )
+}
+```
+
+Since a server creates one `QueryClient` per request, the binding isolates requests without touching global state. The same query objects are used on the server and in the browser; only the `QueryClient` differs.
+
+- `setHttpClient(queryClient, client)` binds a client; `setHttpClient(queryClient, null)` removes the binding.
+- `getHttpClient(queryClient)` returns the bound client, or `undefined`.
+- A `QueryClient` without a binding uses the builder's client.
+
+## Handling Prefetch Failures
+
+`prefetch` never rejects. A failed prefetch leaves the entry in the error state; the component then fetches on the client and reports the error through its hook or error boundary.
+
+Use `fetch` or `ensure` when the server must react to the failure:
+
+```typescript
+import { isHttpError } from '@navios/builder'
+import { notFound } from 'next/navigation'
+
+export default async function UserPage({ params }: { params: Promise<{ userId: string }> }) {
+  const { userId } = await params
+  const queryClient = new QueryClient()
+
+  try {
+    await getUser.fetch(queryClient, { urlParams: { userId } })
+  } catch (error) {
+    if (isHttpError(error, 404)) notFound()
+    throw error
+  }
+
+  // ...
+}
+```
+
+## Infinite Queries
+
+`prefetch` on an infinite query loads the first page:
+
+```typescript
+await listPosts.prefetch(queryClient, { params: { limit: 20 } })
+
+// Client
+const { data, fetchNextPage } = listPosts.use({ params: { limit: 20 } })
+```
+
+## Client-Side Prefetching
+
+### On Hover
+
+```typescript
+function UserLink({ userId, children }: { userId: string; children: React.ReactNode }) {
+  const queryClient = useQueryClient()
+
+  return (
+    <Link
+      to={`/users/${userId}`}
+      onMouseEnter={() => void getUser.prefetch(queryClient, { urlParams: { userId } })}
+    >
+      {children}
+    </Link>
+  )
+}
+```
+
+### In Route Loaders
+
+`ensure` suits loaders: it returns cached data immediately and fetches only when nothing is cached.
+
+```typescript
+// React Router
+export const loader =
+  (queryClient: QueryClient) =>
+  async ({ params }: LoaderFunctionArgs) =>
+    getUser.ensure(queryClient, { urlParams: { userId: params.userId! } })
+```
+
+## Persisted Caches
+
+:::warning
+Cache keys have the shape `[...keyPrefix, method, urlTemplate, ...keySuffix, 'with-response'?, 'infinite'?, inputs?]`. A cache persisted by `@navios/react-query` 1.x uses a different shape and matches nothing: discard it when upgrading, for example by changing the persister's `buster`.
+:::
+
+## Best Practices
+
+- **Create a `QueryClient` per request** on the server, never a module-level one.
+- **Prefetch in parallel** with `Promise.all`.
+- **Bind a per-request HTTP client** with `setHttpClient` whenever requests depend on the user.
+- **Set a `staleTime`** on the client's `QueryClient` so hydrated data is not refetched immediately.
 
 ## Next Steps
 
-- [Queries](/docs/builder/react-query/guides/queries) - Learn about queries
-- [Suspense](/docs/builder/react-query/guides/suspense) - Use Suspense for data fetching
-- [API Reference](/docs/builder/react-query/api-reference) - Full API documentation
+- [Suspense](/docs/builder/react-query/guides/suspense) - Use Suspense with prefetched data
+- [Query Keys](/docs/builder/react-query/guides/query-keys) - How arguments become keys
+- [Queries](/docs/builder/react-query/guides/queries) - Cache helpers on a query

@@ -32,7 +32,7 @@ Bun natively supports multipart form data - no additional configuration needed. 
 
 ## Defining Upload Endpoints
 
-Use `declareMultipart` from `@navios/builder` to define multipart endpoints:
+Declare the endpoint with `body: 'multipart'` in `@navios/builder`:
 
 ```typescript
 import { builder } from '@navios/builder'
@@ -41,8 +41,10 @@ import { z } from 'zod'
 
 const API = builder()
 
-const uploadFile = API.declareMultipart({
+const uploadFile = API.declareEndpoint({
+  method: 'POST',
   url: '/files/upload',
+  body: 'multipart',
   responseSchema: z.object({
     fileId: z.string(),
     filename: z.string(),
@@ -50,6 +52,10 @@ const uploadFile = API.declareMultipart({
   }),
 })
 ```
+
+:::warning
+`body: 'multipart'` is required. `@Multipart()` rejects a declaration without it, at compile time and with an error at startup, because the client would send JSON to a handler that expects form data. See [Matching Decorators and Declarations](/docs/server/guides/controllers#matching-decorators-and-declarations).
+:::
 
 ## Handling Uploads
 
@@ -80,13 +86,85 @@ class FileController {
 }
 ```
 
+## Responses
+
+On the response side `@Multipart()` accepts exactly what `@Endpoint()` accepts. Only the request body differs.
+
+| Declaration                | The method returns                          | Status                               |
+| -------------------------- | ------------------------------------------- | ------------------------------------ |
+| `responseSchema`           | the response body                           | 200, or the one set by `@HttpCode()` |
+| `response: 'void'`         | nothing                                     | 204, or the one set by `@HttpCode()` |
+| `responses: { status: … }` | `reply(status, body)` for a declared status | the one passed to `reply()`          |
+
+### Uploads Without a Response Body
+
+Declare `response: 'void'` when there is nothing to send back. The reply is **204 No Content** with an empty body:
+
+```typescript
+const uploadAvatar = API.declareEndpoint({
+  method: 'PUT',
+  url: '/users/$userId/avatar',
+  body: 'multipart',
+  response: 'void',
+  requestSchema: z.object({ file: z.instanceof(File) }),
+})
+
+@Controller()
+class UserController {
+  @Multipart(uploadAvatar)
+  async uploadAvatar(params: MultipartParams<typeof uploadAvatar>) {
+    await this.avatars.save(params.urlParams.userId, params.data.file)
+  }
+}
+```
+
+`@HttpCode()` still overrides the status, for example `@HttpCode(202)` for an upload that is processed later.
+
+### Uploads With a Response per Status
+
+Declare a `responses` map instead of `responseSchema` and pick the status with `reply(status, body)`. The body is validated with the schema of that status, and a `null` entry has no body:
+
+```typescript
+import { Controller, Multipart, reply } from '@navios/core'
+
+import type { MultipartParams } from '@navios/core'
+
+const importUsers = API.declareEndpoint({
+  method: 'POST',
+  url: '/users/import',
+  body: 'multipart',
+  requestSchema: z.object({ file: z.instanceof(File) }),
+  responses: {
+    201: z.object({ imported: z.number() }),
+    204: null,
+  },
+})
+
+@Controller()
+class UserController {
+  @Multipart(importUsers)
+  async importUsers(params: MultipartParams<typeof importUsers>) {
+    const imported = await this.users.import(params.data.file)
+    return imported === 0 ? reply(204) : reply(201, { imported })
+  }
+}
+```
+
+`@HttpCode()` cannot be combined with a `responses` map: the status comes from `reply()`, and applying both throws at startup. Returning anything but a `reply()` for a declared status is a compile error, and a 500 at runtime.
+
+:::note
+`response: 'blob'`, `'text'` and `'stream'` are not served by `@Multipart()`: such a declaration is rejected at compile time and with an error at startup.
+:::
+
 ## Multiple Files
 
 Handle multiple file uploads:
 
 ```typescript
-const uploadMultiple = API.declareMultipart({
+const uploadMultiple = API.declareEndpoint({
+  method: 'POST',
   url: '/files/batch',
+  body: 'multipart',
   responseSchema: z.array(
     z.object({
       fileId: z.string(),
@@ -117,8 +195,10 @@ class FileController {
 Combine file uploads with form data:
 
 ```typescript
-const createPost = API.declareMultipart({
+const createPost = API.declareEndpoint({
+  method: 'POST',
   url: '/posts',
+  body: 'multipart',
   requestSchema: z.object({
     title: z.string(),
     content: z.string(),

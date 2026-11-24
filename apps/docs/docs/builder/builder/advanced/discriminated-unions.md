@@ -4,9 +4,9 @@ sidebar_position: 3
 
 # Discriminated Unions
 
-Discriminated unions in your `responseSchema` let you model APIs that return different shapes based on a tag field. This is a Zod feature, not a builder-level mode — it works on every endpoint regardless of `result` mode.
+Discriminated unions in your `responseSchema` let you model APIs that return different shapes based on a tag field. This is a Zod feature and works on every endpoint.
 
-If you instead want to discriminate **error responses by HTTP status code**, see [Error Handling](/docs/builder/builder/guides/error-handling) for the envelope mode + `errorSchema` flow.
+If you instead want to discriminate **error responses by HTTP status code**, use `errorSchema` — see [Error Handling](/docs/builder/builder/guides/error-handling). If the **success body depends on the 2xx status** (`200` vs `201` vs `204`), use `responses` — see [Per-Status Responses](/docs/builder/builder/guides/defining-endpoints#per-status-responses).
 
 ## When to Use
 
@@ -79,25 +79,22 @@ switch (account.type) {
 }
 ```
 
-## Discriminated Unions vs `errorSchema` + Envelope Mode
+## Discriminated Unions vs `errorSchema`
 
-In v1, the `useDiscriminatorResponse: true` builder flag re-routed error responses through `responseSchema`, encouraging APIs to embed success and error in one discriminated union. **That flag was removed in v2.** Today the choice is:
+Both give you a tagged value to branch on. Which one fits depends on where the tag lives.
 
 ### Use a `responseSchema` discriminated union when
 
 - The success body itself has multiple shapes
 - The discriminator is a field inside the 2xx response body
-- You don't need access to the HTTP status, headers, or the network-layer error path
 
-### Use envelope mode + `errorSchema` when
+### Use `errorSchema` when
 
 - The discriminator is the HTTP status code
 - Different statuses carry different body shapes
-- You want one place to catch validation, network, and HTTP errors
+- You want HTTP, validation and network failures in one place
 
 ```typescript
-import { isHttpError } from '@navios/builder'
-
 const getUser = API.declareEndpoint({
   method: 'GET',
   url: '/users/$userId',
@@ -105,33 +102,28 @@ const getUser = API.declareEndpoint({
   errorSchema: {
     400: z.object({ error: z.string(), field: z.string() }),
     404: z.object({ error: z.literal('Not Found') }),
-    500: z.object({ error: z.string() }),
   },
-  result: 'envelope',
 })
 
-const { data, error } = await getUser({ urlParams: { userId: '123' } })
+const result = await getUser.safe({ urlParams: { userId: '123' } })
 
-if (isHttpError(error, 404)) {
+if (result.ok) {
+  console.log('User:', result.data.name)
+} else if (result.error.kind === 'http' && result.error.status === 404) {
   console.log('Not found')
-} else if (isHttpError(error, 400)) {
-  console.log('Bad request:', error.body.field)
-} else if (!error) {
-  console.log('User:', data.name)
+} else if (result.error.kind === 'http' && result.error.status === 400) {
+  console.log('Bad request:', result.error.body.field)
 }
 ```
 
 ### Side-by-side
 
-| Concern                | `responseSchema` union          | Envelope mode + `errorSchema`                |
-|------------------------|---------------------------------|----------------------------------------------|
-| Discriminator          | Field in the body               | HTTP status code                             |
-| Status access          | Not exposed on the body         | `error.status`, plus full `response` meta    |
-| Errors as data         | Yes (no throwing)               | Yes (no throwing)                            |
-| Unmodeled error status | Lands as a Zod validation throw | Surfaces as the `http-unknown` variant       |
-| Network failure        | Throws                          | Surfaces as the `network` variant            |
-
-The v1 `__status` injection, `isErrorStatus`, `isErrorResponse`, and `UnknownResponseError` are removed in v2; envelope mode replaces them.
+| Concern                | `responseSchema` union                    | `errorSchema`                                |
+|------------------------|-------------------------------------------|----------------------------------------------|
+| Discriminator          | Field in the body                         | `error.kind` and `error.status`              |
+| Applies to             | 2xx responses                             | Non-2xx responses                            |
+| Where the value lands  | The endpoint's data                       | `EndpointError` (thrown, or `result.error`)  |
+| Unmodeled shape        | `response-validation` error               | `http-unknown` error with the raw body       |
 
 ## Mutation Example
 
@@ -182,12 +174,12 @@ const responseSchema = z.discriminatedUnion('s', [
 ])
 ```
 
-### Prefer Envelope Mode for HTTP-Status-Based Errors
+### Keep HTTP Errors in `errorSchema`
 
-If your only motivation for a `responseSchema` discriminated union is "I want errors to come back as data rather than throw," switch to envelope mode. The envelope already gives you `data | error` discrimination with the full HTTP `response` attached, no extra schema modeling needed.
+If the server signals a failure with a non-2xx status, model its body in `errorSchema` rather than in a `responseSchema` union: a non-2xx response never reaches `responseSchema`. To receive errors as data instead of exceptions, call the endpoint with `safe()`.
 
 ## Next Steps
 
-- [Error Handling](/docs/builder/builder/guides/error-handling) - The unified `onError(event)` hook plus envelope mode
+- [Error Handling](/docs/builder/builder/guides/error-handling) - `EndpointError`, `safe()` and `errorSchema`
 - [Request & Response Schemas](/docs/builder/builder/guides/schemas) - Zod schema essentials
 - [Defining Endpoints](/docs/builder/builder/guides/defining-endpoints) - Endpoint basics

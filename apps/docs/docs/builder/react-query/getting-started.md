@@ -4,20 +4,20 @@ sidebar_position: 1
 
 # Getting Started
 
-Get up and running with `@navios/react-query` in minutes. This guide will walk you through installation, setup, and your first type-safe query.
+Get up and running with `@navios/react-query` in minutes. This guide walks you through installation, setup, and your first type-safe query and mutation.
 
 ## Installation
 
 ```bash
-npm install @navios/react-query @navios/builder @tanstack/react-query zod
+npm install @navios/react-query @navios/builder @navios/http @tanstack/react-query zod
 # or
-yarn add @navios/react-query @navios/builder @tanstack/react-query zod
+yarn add @navios/react-query @navios/builder @navios/http @tanstack/react-query zod
 # or
-pnpm add @navios/react-query @navios/builder @tanstack/react-query zod
+pnpm add @navios/react-query @navios/builder @navios/http @tanstack/react-query zod
 ```
 
 :::tip
-`@navios/react-query` requires `@navios/builder`, `@tanstack/react-query`, and `zod` as peer dependencies.
+`@navios/react-query` requires `@navios/builder`, `@tanstack/react-query` (`^5.102.0`) as peer dependencies; `zod` is an optional peer, used throughout these docs. `@navios/http` is one possible HTTP client; any client accepted by the builder works.
 :::
 
 ## Setup QueryClient
@@ -41,8 +41,6 @@ function App() {
 
 ## Quick Start
 
-Here's a complete example:
-
 ```typescript
 // 1. Setup API builder
 import { builder } from '@navios/builder'
@@ -50,8 +48,7 @@ import { create } from '@navios/http'
 import { declareClient } from '@navios/react-query'
 import { z } from 'zod'
 
-const api = builder()
-api.provideClient(create({ baseURL: 'https://api.example.com' }))
+const api = builder({ client: create({ baseURL: 'https://api.example.com' }) })
 
 // 2. Create React Query client
 const client = declareClient({ api })
@@ -72,37 +69,90 @@ const getUser = client.query({
 
 // 5. Use in component
 function UserProfile({ userId }: { userId: string }) {
-  const { data, isLoading, error } = getUser.use({
-    urlParams: { userId },
-  })
+  const { data, isPending, error } = getUser.use({ urlParams: { userId } })
 
-  if (isLoading) return <div>Loading...</div>
+  if (isPending) return <div>Loading...</div>
   if (error) return <div>Error: {error.message}</div>
-  
+
   return <div>{data.name}</div>
 }
 ```
 
 ## What Just Happened?
 
-1. **API Builder**: Created a builder instance and configured the HTTP client
-2. **React Query Client**: Created a client that bridges Builder with React Query
+1. **API Builder**: Created a builder instance with an HTTP client
+2. **React Query Client**: `declareClient` returned `query`, `infiniteQuery` and `mutation` factories bound to that builder
 3. **Schema Definition**: Used Zod to define the user data shape
-4. **Query Creation**: Created a typed query with automatic query key generation
-5. **Component Usage**: Used the query hook in a React component
+4. **Query Creation**: `client.query` declared the endpoint and returned a query object with hooks, a cache key and cache helpers attached
+5. **Component Usage**: `getUser.use(args)` is `useQuery` with the key, the request and the types filled in
+
+## Your First Mutation
+
+```typescript
+const updateUser = client.mutation({
+  method: 'PATCH',
+  url: '/users/$userId',
+  requestSchema: z.object({ name: z.string() }),
+  responseSchema: userSchema,
+  // Refetch this user after a successful update
+  invalidates: [(_data, variables) => getUser.key({ urlParams: variables.urlParams })],
+})
+
+function RenameButton({ userId }: { userId: string }) {
+  const { mutate, isPending } = updateUser()
+
+  return (
+    <button
+      disabled={isPending}
+      onClick={() => mutate({ urlParams: { userId }, data: { name: 'Ada' } })}
+    >
+      Rename
+    </button>
+  )
+}
+```
+
+## Handling Errors
+
+A failed request rejects with the endpoint's `EndpointError`, so it shows up as `error` on the hook result. Declare an `errorSchema` to get typed error bodies:
+
+```typescript
+const getUser = client.query({
+  method: 'GET',
+  url: '/users/$userId',
+  responseSchema: userSchema,
+  errorSchema: {
+    404: z.object({ message: z.string() }),
+  },
+})
+
+function UserProfile({ userId }: { userId: string }) {
+  const { data, isPending, error } = getUser.use({ urlParams: { userId } })
+
+  if (isPending) return <div>Loading...</div>
+  if (error) {
+    if (error.kind === 'http' && error.status === 404) {
+      return <div>{error.body.message}</div> // typed from errorSchema[404]
+    }
+    return <div>Something went wrong</div>
+  }
+
+  return <div>{data.name}</div>
+}
+```
+
+See [Typed Errors](/docs/builder/react-query/advanced/error-schemas) for every error kind.
 
 ## Using Suspense
-
-For a cleaner API, use Suspense:
 
 ```typescript
 import { Suspense } from 'react'
 
 function UserProfile({ userId }: { userId: string }) {
-  // useSuspense throws on error, so you need ErrorBoundary
-  const user = getUser.useSuspense({ urlParams: { userId } })
-  
-  return <div>{user.name}</div>
+  // Suspends while loading and throws to the nearest ErrorBoundary on failure
+  const { data } = getUser.useSuspense({ urlParams: { userId } })
+
+  return <div>{data.name}</div>
 }
 
 function App() {
@@ -116,17 +166,7 @@ function App() {
 }
 ```
 
-## Next Steps
-
-- [Overview](/docs/builder/react-query/overview) - Learn about key concepts
-- [Queries](/docs/builder/react-query/guides/queries) - Deep dive into queries
-- [Mutations](/docs/builder/react-query/guides/mutations) - Learn about mutations
-- [Query Keys](/docs/builder/react-query/guides/query-keys) - Understand query key management
-- [Invalidation](/docs/builder/react-query/guides/invalidation) - Learn about cache invalidation
-
-## Example: Complete Setup
-
-Here's a complete setup example:
+## Suggested File Layout
 
 ```typescript
 // api/index.ts
@@ -134,14 +174,13 @@ import { builder } from '@navios/builder'
 import { create } from '@navios/http'
 import { declareClient } from '@navios/react-query'
 
-const api = builder()
-api.provideClient(create({ baseURL: 'https://api.example.com' }))
-
+export const api = builder({ client: create({ baseURL: 'https://api.example.com' }) })
 export const client = declareClient({ api })
 
-// api/queries/users.ts
-import { client } from '../index'
+// api/users.ts
 import { z } from 'zod'
+
+import { client } from './index'
 
 const userSchema = z.object({
   id: z.string(),
@@ -156,16 +195,14 @@ export const getUser = client.query({
 })
 
 // components/UserProfile.tsx
-import { getUser } from '../api/queries/users'
+import { getUser } from '../api/users'
 
 export function UserProfile({ userId }: { userId: string }) {
-  const { data, isLoading, error } = getUser.use({
-    urlParams: { userId },
-  })
+  const { data, isPending, error } = getUser.use({ urlParams: { userId } })
 
-  if (isLoading) return <div>Loading...</div>
+  if (isPending) return <div>Loading...</div>
   if (error) return <div>Error: {error.message}</div>
-  
+
   return (
     <div>
       <h1>{data.name}</h1>
@@ -175,3 +212,10 @@ export function UserProfile({ userId }: { userId: string }) {
 }
 ```
 
+## Next Steps
+
+- [Overview](/docs/builder/react-query/overview) - Learn about key concepts
+- [Queries](/docs/builder/react-query/guides/queries) - Deep dive into queries
+- [Mutations](/docs/builder/react-query/guides/mutations) - Learn about mutations
+- [Query Keys](/docs/builder/react-query/guides/query-keys) - Understand query key management
+- [Invalidation](/docs/builder/react-query/guides/invalidation) - Learn about cache invalidation

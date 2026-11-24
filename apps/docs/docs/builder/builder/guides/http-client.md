@@ -8,28 +8,42 @@ Builder works with any HTTP client that implements the `Client` interface. This 
 
 ## Client Interface
 
-Any HTTP client that implements this interface can be used with Builder:
+A client is an object with one method, `request`:
 
 ```typescript
 interface Client {
-  request<T>(config: AbstractRequestConfig): Promise<AbstractResponse<T>>
+  request<T = unknown>(config: AbstractRequestConfig): Promise<AbstractResponse<T>>
 }
 
 interface AbstractRequestConfig {
-  method: string
-  url: string
-  data?: any
-  params?: any
+  method?: HttpMethod
+  url: string // URL parameters already bound
+  params?: Record<string, unknown> | URLSearchParams
+  data?: unknown
   headers?: Record<string, string>
-  responseType?: 'json' | 'blob'
+  signal?: AbortSignal | null
+  timeout?: number
+  responseType?: 'json' | 'text' | 'blob' | 'arrayBuffer' | 'formData' | 'stream'
+  [key: string]: unknown // keys from the endpoint's clientOptions
 }
 
 interface AbstractResponse<T> {
   data: T
   status: number
-  headers: Record<string, string>
+  statusText: string
+  headers: Record<string, string> | Headers
 }
 ```
+
+### Contract
+
+The builder, not the client, decides whether a call succeeded:
+
+- `request` may **resolve or reject** for a non-2xx response. The builder checks `status` itself; anything outside 200–299 is an error.
+- A rejection that carries a `response` property shaped like `AbstractResponse` (the axios / `@navios/http` convention) is handled exactly like a resolved non-2xx response.
+- A rejection without `response` is a transport failure and is reported as `network`, `timeout` or `aborted`.
+
+`responseType` is set from the endpoint's `response` option (`'blob'`, `'text'`, `'stream'`) and is absent for JSON endpoints. For `body: 'multipart'` endpoints, `data` is a `FormData` instance.
 
 ## @navios/http (Recommended)
 
@@ -47,9 +61,6 @@ npm install @navios/http
 import { builder } from '@navios/builder'
 import { create } from '@navios/http'
 
-const API = builder()
-
-// Create and configure the client
 const client = create({
   baseURL: 'https://api.example.com',
   headers: {
@@ -57,7 +68,7 @@ const client = create({
   },
 })
 
-API.provideClient(client)
+const API = builder({ client })
 ```
 
 ### Advanced Configuration
@@ -94,7 +105,7 @@ const client = create({
   },
 })
 
-API.provideClient(client)
+const API = builder({ client })
 ```
 
 ### Next.js Support
@@ -109,7 +120,7 @@ const client = create({
   // Next.js will automatically cache requests
 })
 
-API.provideClient(client)
+const API = builder({ client })
 ```
 
 ## Axios
@@ -128,9 +139,6 @@ npm install axios
 import { builder } from '@navios/builder'
 import axios from 'axios'
 
-const API = builder()
-
-// Create axios instance
 const client = axios.create({
   baseURL: 'https://api.example.com',
   headers: {
@@ -138,7 +146,7 @@ const client = axios.create({
   },
 })
 
-API.provideClient(client)
+const API = builder({ client })
 ```
 
 ### With Interceptors
@@ -171,115 +179,157 @@ client.interceptors.response.use(
   }
 )
 
-API.provideClient(client)
+const API = builder({ client })
 ```
 
 ## Custom Client
 
-You can create a custom client by implementing the `Client` interface:
+Because the builder checks the status itself, a thin `fetch` wrapper is a complete client — it does not need to throw on error statuses:
 
 ```typescript
 import { builder } from '@navios/builder'
-import type { Client } from '@navios/builder'
 
-class CustomClient implements Client {
-  async request<T>(config: {
-    method: string
-    url: string
-    data?: any
-    params?: any
-    headers?: Record<string, string>
-    responseType?: 'json' | 'blob'
-  }): Promise<{
-    data: T
-    status: number
-    headers: Record<string, string>
-  }> {
-    // Implement your custom request logic
-    const response = await fetch(config.url, {
-      method: config.method,
-      headers: config.headers,
-      body: config.data ? JSON.stringify(config.data) : undefined,
-    })
-    
-    const data = config.responseType === 'blob'
-      ? await response.blob()
-      : await response.json()
-    
-    return {
-      data,
-      status: response.status,
-      headers: Object.fromEntries(response.headers.entries()),
-    }
+import type { AbstractRequestConfig, AbstractResponse, Client } from '@navios/builder'
+
+const baseURL = 'https://api.example.com'
+
+async function request<T>(config: AbstractRequestConfig): Promise<AbstractResponse<T>> {
+  const query = new URLSearchParams(config.params as Record<string, string>).toString()
+  const isFormData = config.data instanceof FormData
+
+  const response = await fetch(`${baseURL}${config.url}${query ? `?${query}` : ''}`, {
+    method: config.method,
+    headers: isFormData
+      ? config.headers
+      : { 'Content-Type': 'application/json', ...config.headers },
+    body:
+      config.data === undefined
+        ? undefined
+        : isFormData
+          ? (config.data as FormData)
+          : JSON.stringify(config.data),
+    signal: config.signal,
+  })
+
+  let data: unknown
+  if (config.responseType === 'blob') data = await response.blob()
+  else if (config.responseType === 'stream') data = response.body
+  else if (config.responseType === 'text') data = await response.text()
+  else data = await response.json().catch(() => null)
+
+  return {
+    data: data as T,
+    status: response.status,
+    statusText: response.statusText,
+    headers: response.headers,
   }
 }
 
-const API = builder()
-API.provideClient(new CustomClient())
+const client: Client = { request }
+
+const API = builder({ client })
 ```
 
-## Client Lifecycle
+:::tip
+`fetch` has no `timeout` option. To honour `config.timeout`, pass `AbortSignal.timeout(config.timeout)` (combined with `config.signal` through `AbortSignal.any` when both are set). The builder reports the resulting `TimeoutError` as kind `timeout`.
+:::
 
-### Providing the Client
+## Providing the Client
 
-You can provide the client at any time, but it must be provided before making requests:
+### At Creation
+
+Pass the client when you create the builder:
 
 ```typescript
-const API = builder()
+const API = builder({
+  client: create({ baseURL: 'https://api.example.com' }),
+})
+```
 
-// Provide client immediately
+### At Start-Up
+
+When the client is not available where the endpoints are declared (for example in a shared contract package), create the builder without one and provide it when the application starts:
+
+```typescript
+// shared/api.ts
+export const API = builder()
+
+// app/main.ts
 API.provideClient(create({ baseURL: 'https://api.example.com' }))
+```
 
-// Or provide it later
-async function setupAPI() {
-  const token = await getAuthToken()
+`provideClient` replaces the client for every endpoint declared on the builder. Calling an endpoint before a client is available fails with an `EndpointError` of kind `config`.
+
+### Per Call
+
+Pass `{ client }` as the second argument to use a client for one call only. The builder's shared client is not touched, which makes this the right tool for per-request clients on the server (forwarded cookies, per-user auth):
+
+```typescript
+export async function loadUser(request: Request, userId: string) {
   const client = create({
     baseURL: 'https://api.example.com',
-    headers: { Authorization: `Bearer ${token}` },
+    headers: { cookie: request.headers.get('cookie') ?? '' },
   })
-  API.provideClient(client)
+
+  return getUser({ urlParams: { userId } }, { client })
 }
+```
+
+`getUser.safe(args, { client })` accepts the same option.
+
+### A Second Builder
+
+`withClient` returns a new builder with the same configuration and a different client. Endpoints declared on the new builder use that client; endpoints already declared on the original are not affected:
+
+```typescript
+const API = builder({ client: publicClient, onError: reportError })
+const adminAPI = API.withClient(adminClient)
+
+const listAuditLog = adminAPI.declareEndpoint({
+  method: 'GET',
+  url: '/admin/audit-log',
+  responseSchema: auditLogSchema,
+})
 ```
 
 ### Getting the Client
 
-You can retrieve the current client:
-
 ```typescript
-const API = builder()
-API.provideClient(create({ baseURL: 'https://api.example.com' }))
-
 const client = API.getClient()
-// Use client directly if needed
 ```
 
-### Replacing the Client
+`getClient` throws a `NaviosError` when no client has been provided.
 
-You can replace the client at any time:
+## Per-Endpoint Request Options
+
+Headers, a timeout and client-specific options can be set on an endpoint:
 
 ```typescript
-const API = builder()
+const exportReport = API.declareEndpoint({
+  method: 'POST',
+  url: '/reports/export',
+  requestSchema: exportRequestSchema,
+  responseSchema: reportSchema,
+  headers: { 'X-Feature': 'reports' },
+  timeout: 30000,
+  clientOptions: { withCredentials: true },
+})
 
-// Initial client
-API.provideClient(create({ baseURL: 'https://api.example.com' }))
-
-// Replace with new client (e.g., after authentication)
-function updateClientWithToken(token: string) {
-  const newClient = create({
-    baseURL: 'https://api.example.com',
-    headers: { Authorization: `Bearer ${token}` },
-  })
-  API.provideClient(newClient)
-}
+// Per-call headers are merged over the endpoint's; a per-call timeout wins
+await exportReport({
+  data: { format: 'csv' },
+  headers: { 'X-Trace-Id': traceId },
+  timeout: 60000,
+})
 ```
+
+`clientOptions` is for keys only your HTTP client understands (axios `withCredentials`, fetch `credentials`, ...). They are merged into the request config under their own names. The keys the builder owns — `method`, `url`, `params`, `data`, `headers`, `signal`, `timeout`, `responseType` — cannot be overridden from `clientOptions`.
 
 ## Environment-Specific Configuration
 
 ### Development vs Production
 
 ```typescript
-const API = builder()
-
 const baseURL = process.env.NODE_ENV === 'production'
   ? 'https://api.example.com'
   : 'http://localhost:3000'
@@ -306,7 +356,7 @@ if (process.env.NODE_ENV === 'development') {
   )
 }
 
-API.provideClient(client)
+const API = builder({ client })
 ```
 
 ### Multiple Environments
@@ -330,8 +380,7 @@ const getClient = () => {
   return create(configs[env])
 }
 
-const API = builder()
-API.provideClient(getClient())
+const API = builder({ client: getClient() })
 ```
 
 ## Authentication
@@ -346,7 +395,7 @@ const client = create({
   },
 })
 
-API.provideClient(client)
+const API = builder({ client })
 ```
 
 ### Dynamic Token
@@ -365,7 +414,7 @@ client.interceptors.request.use((config) => {
   return config
 })
 
-API.provideClient(client)
+const API = builder({ client })
 ```
 
 ### Token Refresh
@@ -420,44 +469,26 @@ client.interceptors.response.use(
   }
 )
 
-API.provideClient(client)
+const API = builder({ client })
 ```
 
 ## Error Handling
 
-### Global Error Handler
+Interceptors are a good place for transport concerns such as token refresh. For reporting and reacting to failures, prefer the builder's `onError` hook: it sees every failure — including validation failures that never reach the client — as a classified `EndpointError`:
 
 ```typescript
-const client = create({
-  baseURL: 'https://api.example.com',
-})
-
-client.interceptors.response.use(
-  (response) => response,
-  (error) => {
-    // Handle errors globally
-    if (error.response) {
-      switch (error.response.status) {
-        case 401:
-          // Unauthorized
-          break
-        case 403:
-          // Forbidden
-          break
-        case 404:
-          // Not found
-          break
-        case 500:
-          // Server error
-          break
-      }
+const API = builder({
+  client,
+  onError: (error) => {
+    if (error.status === 401) {
+      redirectToLogin()
     }
-    return Promise.reject(error)
-  }
-)
-
-API.provideClient(client)
+    logger.warn(error.toJSON())
+  },
+})
 ```
+
+See [Error Handling](/docs/builder/builder/guides/error-handling) for details.
 
 ## Best Practices
 
@@ -465,9 +496,8 @@ API.provideClient(client)
 
 ```typescript
 // ✅ Good - single client instance
-const API = builder()
 const client = create({ baseURL: 'https://api.example.com' })
-API.provideClient(client)
+const API = builder({ client })
 
 // ❌ Bad - creating new client for each request
 function getClient() {
@@ -483,9 +513,9 @@ const client = create({
   baseURL: 'https://api.example.com',
   headers: { 'Content-Type': 'application/json' },
 })
-API.provideClient(client)
+const API = builder({ client })
 
-// ❌ Bad - reconfiguring for each request
+// ❌ Bad - building a new client inside every function that calls an endpoint
 ```
 
 ### Use Interceptors

@@ -4,147 +4,127 @@ sidebar_position: 3
 
 # Real-time Updates
 
-Patterns for keeping data fresh with polling, refetching, and WebSocket integration.
+Patterns for keeping cached data up to date: polling, refetching on focus, and applying pushed events to the cache.
 
 ## Polling
 
-Refetch queries at regular intervals:
+`refetchInterval` is a TanStack option, passed as the hook's second argument:
 
 ```typescript
-function UserProfile({ userId }: { userId: string }) {
-  const { data } = getUser.use({
-    urlParams: { userId },
-    refetchInterval: 5000, // Refetch every 5 seconds
-  })
+function NotificationList() {
+  const { data } = listNotifications.use({}, { refetchInterval: 5000 })
 
-  return <div>{data.name}</div>
+  return <div>{/* Render notifications */}</div>
 }
 ```
 
 ## Conditional Polling
 
-Poll only when certain conditions are met:
+`refetchInterval` may be a function of the query; return `false` to stop:
 
 ```typescript
-function UserProfile({ userId, isActive }: { userId: string; isActive: boolean }) {
-  const { data } = getUser.use({
-    urlParams: { userId },
-    refetchInterval: isActive ? 5000 : false, // Only poll when active
-  })
+function JobStatus({ jobId }: { jobId: string }) {
+  const { data } = getJob.use(
+    { urlParams: { jobId } },
+    {
+      refetchInterval: (query) =>
+        query.state.data?.status === 'running' ? 2000 : false,
+    },
+  )
 
-  return <div>{data.name}</div>
+  return <div>{data?.status}</div>
 }
 ```
 
 ## Refetch on Window Focus
 
-Automatically refetch when window regains focus:
-
 ```typescript
-function UserProfile({ userId }: { userId: string }) {
-  const { data } = getUser.use({
-    urlParams: { userId },
-    refetchOnWindowFocus: true,
-  })
-
-  return <div>{data.name}</div>
-}
+const { data } = getUser.use(
+  { urlParams: { userId } },
+  { refetchOnWindowFocus: true, staleTime: 10_000 },
+)
 ```
 
-## Manual Refetch
-
-Refetch manually with a button:
+## Manual Refresh
 
 ```typescript
-function UserProfile({ userId }: { userId: string }) {
-  const { data, refetch, isRefetching } = getUser.use({
-    urlParams: { userId },
-  })
+function RefreshableUser({ userId }: { userId: string }) {
+  const { data, refetch, isFetching } = getUser.use({ urlParams: { userId } })
 
   return (
     <div>
-      <div>{data.name}</div>
-      <button onClick={() => refetch()} disabled={isRefetching}>
-        {isRefetching ? 'Refreshing...' : 'Refresh'}
+      <div>{data?.name}</div>
+      <button onClick={() => refetch()} disabled={isFetching}>
+        {isFetching ? 'Refreshing...' : 'Refresh'}
       </button>
     </div>
   )
 }
 ```
 
-## Refetch on Interval with Condition
-
-Refetch at intervals, but only if data is stale:
+From anywhere else, invalidate through the query:
 
 ```typescript
-function UserProfile({ userId }: { userId: string }) {
-  const { data } = getUser.use({
-    urlParams: { userId },
-    refetchInterval: (query) => {
-      // Only refetch if data is stale
-      return query.state.dataUpdatedAt < Date.now() - 30000 ? 5000 : false
-    },
-  })
+const queryClient = useQueryClient()
 
-  return <div>{data.name}</div>
-}
+await getUser.invalidate(queryClient, { urlParams: { userId } })
 ```
 
 ## WebSocket Integration
 
-Integrate with WebSocket for real-time updates:
+Apply pushed events to the cache with the typed helpers. Write the entry when the event carries the data, invalidate when it only says that something changed:
 
 ```typescript
-function UserProfile({ userId }: { userId: string }) {
+import { useQueryClient } from '@tanstack/react-query'
+import { useEffect } from 'react'
+
+function useUserEvents() {
   const queryClient = useQueryClient()
 
   useEffect(() => {
-    const ws = new WebSocket(`wss://api.example.com/users/${userId}`)
+    const socket = new WebSocket('wss://api.example.com/events')
 
-    ws.onmessage = (event) => {
-      const updatedUser = JSON.parse(event.data)
-      // Update cache when WebSocket message received
-      queryClient.setQueryData(
-        getUser.queryKey.dataTag({ urlParams: { userId } }),
-        updatedUser
-      )
+    socket.onmessage = (message) => {
+      const event = JSON.parse(message.data)
+
+      switch (event.type) {
+        case 'user.updated': {
+          // The event carries the new user: write it to the cache
+          const user = userSchema.parse(event.user)
+          getUser.setData(queryClient, { urlParams: { userId: user.id } }, user)
+          void listUsers.invalidate(queryClient)
+          break
+        }
+        case 'user.deleted':
+          queryClient.removeQueries({
+            queryKey: getUser.key({ urlParams: { userId: event.userId } }),
+          })
+          void listUsers.invalidate(queryClient)
+          break
+      }
     }
 
-    return () => {
-      ws.close()
-    }
-  }, [userId, queryClient])
-
-  const user = getUser.useSuspense({ urlParams: { userId } })
-  return <div>{user.name}</div>
+    return () => socket.close()
+  }, [queryClient])
 }
 ```
 
-## Invalidate on Interval
+`@navios/builder` also provides typed WebSocket and EventSource builders; see [WebSocket](/docs/builder/builder/advanced/websocket) and [EventSource](/docs/builder/builder/advanced/eventsource).
 
-Invalidate queries at regular intervals:
+## Appending to a List
 
 ```typescript
-function UserProfile({ userId }: { userId: string }) {
-  const queryClient = useQueryClient()
+socket.onmessage = (message) => {
+  const notification = notificationSchema.parse(JSON.parse(message.data))
 
-  useEffect(() => {
-    const interval = setInterval(() => {
-      getUser.invalidate(queryClient, {
-        urlParams: { userId },
-      })
-    }, 30000) // Every 30 seconds
-
-    return () => clearInterval(interval)
-  }, [userId, queryClient])
-
-  const user = getUser.useSuspense({ urlParams: { userId } })
-  return <div>{user.name}</div>
+  listNotifications.setData(queryClient, {}, (current) =>
+    current ? [notification, ...current] : current,
+  )
 }
 ```
 
 ## Next Steps
 
-- [Queries](/docs/builder/react-query/guides/queries) - Learn about queries
-- [Invalidation](/docs/builder/react-query/guides/invalidation) - Cache invalidation
-
+- [Queries](/docs/builder/react-query/guides/queries) - Query options
+- [Invalidation](/docs/builder/react-query/guides/invalidation) - Invalidation scopes
+- [Query Keys](/docs/builder/react-query/guides/query-keys) - Building keys

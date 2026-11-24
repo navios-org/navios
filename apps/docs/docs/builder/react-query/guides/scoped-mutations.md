@@ -4,229 +4,116 @@ sidebar_position: 4
 
 # Scoped Mutations
 
-Scoped mutations allow you to track mutation state per item using URL parameters. This is useful when you have multiple instances of the same mutation (e.g., updating different users in a list).
+When the same mutation runs for many items — one "Save" button per row of a list — you usually want loading state per item rather than per mutation. Every mutation has a `mutationKey` and a `useIsMutating` hook for exactly that.
 
-## Basic Scoped Mutation
+## Mutation Key
 
-Enable `useKey` to scope mutations by URL parameters:
-
-```typescript
-const updateUser = client.mutation({
-  method: 'PUT',
-  url: '/users/$userId',
-  requestSchema: userUpdateSchema,
-  responseSchema: userSchema,
-  useKey: true, // Enable scoping
-})
-```
-
-## Usage
-
-When `useKey` is enabled, you must pass URL params to the hook:
-
-```typescript
-function UserCard({ userId }: { userId: string }) {
-  // Must pass urlParams to hook
-  const { mutate, isPending } = updateUser({ urlParams: { userId } })
-
-  // Check if THIS specific user is being updated
-  const isUpdating = updateUser.useIsMutating({ userId })
-
-  return (
-    <div>
-      <button
-        onClick={() => mutate({ data: { name: 'New Name' } })}
-        disabled={isPending || isUpdating}
-      >
-        {isUpdating ? 'Saving...' : 'Update'}
-      </button>
-    </div>
-  )
-}
-```
-
-## useIsMutating Hook
-
-Check if a specific mutation is in progress:
-
-```typescript
-function UserList() {
-  const { data: users } = getUsers.use({})
-
-  return (
-    <div>
-      {users.map((user) => (
-        <UserCard key={user.id} userId={user.id} />
-      ))}
-    </div>
-  )
-}
-
-function UserCard({ userId }: { userId: string }) {
-  const { mutate } = updateUser({ urlParams: { userId } })
-  const isUpdating = updateUser.useIsMutating({ userId })
-
-  return (
-    <div>
-      {isUpdating && <span>Saving...</span>}
-      <button onClick={() => mutate({ data: { name: 'New' } })}>
-        Update
-      </button>
-    </div>
-  )
-}
-```
-
-## Multiple Scoped Mutations
-
-You can have multiple scoped mutations in the same component:
-
-```typescript
-function UserCard({ userId }: { userId: string }) {
-  const { mutate: updateUser } = updateUserMutation({ urlParams: { userId } })
-  const { mutate: deleteUser } = deleteUserMutation({ urlParams: { userId } })
-
-  const isUpdating = updateUserMutation.useIsMutating({ userId })
-  const isDeleting = deleteUserMutation.useIsMutating({ userId })
-
-  return (
-    <div>
-      <button
-        onClick={() => updateUser({ data: { name: 'New' } })}
-        disabled={isUpdating || isDeleting}
-      >
-        {isUpdating ? 'Saving...' : 'Update'}
-      </button>
-      <button
-        onClick={() => deleteUser({})}
-        disabled={isUpdating || isDeleting}
-      >
-        {isDeleting ? 'Deleting...' : 'Delete'}
-      </button>
-    </div>
-  )
-}
-```
-
-## Without useKey
-
-If `useKey` is not enabled, mutations are global:
+Every mutation created with `client.mutation` has a key shared by all mutations of its endpoint:
 
 ```typescript
 const updateUser = client.mutation({
-  method: 'PUT',
+  method: 'PATCH',
   url: '/users/$userId',
-  requestSchema: userUpdateSchema,
+  requestSchema: z.object({ name: z.string() }),
   responseSchema: userSchema,
-  // useKey: false (default)
 })
 
-function UserCard({ userId }: { userId: string }) {
-  const { mutate, isPending } = updateUser()
-  // isPending is true if ANY user is being updated
+updateUser.mutationKey // ['PATCH', '/users/$userId']
+```
 
-  return (
-    <button
-      onClick={() => mutate({ urlParams: { userId }, data: { name: 'New' } })}
-      disabled={isPending}
-    >
-      {isPending ? 'Saving...' : 'Update'}
-    </button>
-  )
+With a `keyPrefix` / `keySuffix` the key is `[...keyPrefix, method, url, ...keySuffix]`.
+
+## useIsMutating
+
+`useIsMutating()` returns `true` while any mutation of the endpoint is in flight, in any component:
+
+```typescript
+function SaveIndicator() {
+  const isSaving = updateUser.useIsMutating()
+  return isSaving ? <span>Saving...</span> : null
 }
 ```
 
-## When to Use
-
-### Use Scoped Mutations When:
-
-- You have multiple instances of the same mutation (e.g., list items)
-- You need to show per-item loading states
-- You want to track which specific item is being mutated
-
-### Use Global Mutations When:
-
-- You have a single mutation instance (e.g., create form)
-- You don't need per-item tracking
-- Simpler API is preferred
-
-## Common Patterns
-
-### List with Per-Item Actions
+Pass `urlParams` to count only the mutations running for those params:
 
 ```typescript
-function UserList() {
-  const { data: users } = getUsers.use({})
+function UserRow({ user }: { user: User }) {
+  const { mutate } = updateUser()
+  const isSaving = updateUser.useIsMutating({ urlParams: { userId: user.id } })
 
   return (
-    <div>
-      {users.map((user) => (
-        <UserListItem key={user.id} user={user} />
-      ))}
-    </div>
-  )
-}
-
-function UserListItem({ user }: { user: User }) {
-  const { mutate: updateUser, isPending } = updateUserMutation({
-    urlParams: { userId: user.id },
-  })
-  const isUpdating = updateUserMutation.useIsMutating({ userId: user.id })
-
-  return (
-    <div>
-      <span>{user.name}</span>
-      {isUpdating && <span> (Saving...)</span>}
-      <button
-        onClick={() => updateUser({ data: { name: 'Updated' } })}
-        disabled={isPending || isUpdating}
-      >
-        Update
-      </button>
-    </div>
-  )
-}
-```
-
-### Bulk Actions with Individual Tracking
-
-```typescript
-function UserList() {
-  const { data: users } = getUsers.use({})
-
-  return (
-    <div>
-      {users.map((user) => (
-        <UserCheckbox key={user.id} user={user} />
-      ))}
-    </div>
-  )
-}
-
-function UserCheckbox({ user }: { user: User }) {
-  const { mutate: toggleUser } = toggleUserMutation({
-    urlParams: { userId: user.id },
-  })
-  const isToggling = toggleUserMutation.useIsMutating({ userId: user.id })
-
-  return (
-    <label>
-      <input
-        type="checkbox"
-        checked={user.active}
-        onChange={() => toggleUser({ data: { active: !user.active } })}
-        disabled={isToggling}
-      />
+    <li>
       {user.name}
-      {isToggling && <span> (Updating...)</span>}
-    </label>
+      <button
+        disabled={isSaving}
+        onClick={() => mutate({ urlParams: { userId: user.id }, data: { name: 'New name' } })}
+      >
+        {isSaving ? 'Saving...' : 'Rename'}
+      </button>
+    </li>
   )
 }
+```
+
+The match is on the variables of the running mutations, so it works wherever the mutation was started. Values are compared as strings: `{ userId: 1 }` and `{ userId: '1' }` match the same mutations. With several URL params you may pass only some of them:
+
+```typescript
+const updateComment = client.mutation({
+  method: 'PATCH',
+  url: '/posts/$postId/comments/$commentId',
+  requestSchema: z.object({ text: z.string() }),
+  responseSchema: commentSchema,
+})
+
+updateComment.useIsMutating({ urlParams: { postId } }) // any comment of this post
+updateComment.useIsMutating({ urlParams: { postId, commentId } }) // this comment
+```
+
+## isPending vs useIsMutating
+
+- `isPending` from `updateUser()` describes the mutations started through **that hook instance**. In a row component it is already per-row.
+- `useIsMutating` describes **every** running mutation of the endpoint, wherever it was started. Use it when the trigger and the indicator live in different components, or when a mutation can outlive the component that started it.
+
+```typescript
+function UserRow({ user }: { user: User }) {
+  const args = { urlParams: { userId: user.id } }
+  const { mutate: rename } = updateUser()
+  const { mutate: remove } = deleteUser()
+
+  const isRenaming = updateUser.useIsMutating(args)
+  const isRemoving = deleteUser.useIsMutating(args)
+  const busy = isRenaming || isRemoving
+
+  return (
+    <li>
+      {user.name}
+      <button disabled={busy} onClick={() => rename({ ...args, data: { name: 'New name' } })}>
+        {isRenaming ? 'Saving...' : 'Rename'}
+      </button>
+      <button disabled={busy} onClick={() => remove(args)}>
+        {isRemoving ? 'Deleting...' : 'Delete'}
+      </button>
+    </li>
+  )
+}
+```
+
+## Running Mutations in Series
+
+TanStack's `scope` option is passed through. Mutations with the same `scope.id` run one after another instead of in parallel:
+
+```typescript
+const reorderItems = client.mutation({
+  method: 'POST',
+  url: '/lists/$listId/reorder',
+  requestSchema: z.object({ order: z.array(z.string()) }),
+  response: 'void',
+  scope: { id: 'reorder' },
+})
 ```
 
 ## Next Steps
 
 - [Mutations](/docs/builder/react-query/guides/mutations) - Basic mutations
-- [Optimistic Updates](/docs/builder/react-query/guides/optimistic-updates) - Update UI before server responds
-- [Context in Mutations](/docs/builder/react-query/guides/mutation-context) - Access QueryClient
-
+- [Optimistic Updates](/docs/builder/react-query/guides/optimistic-updates) - Update UI before the server responds
+- [Context in Mutations](/docs/builder/react-query/guides/mutation-context) - What callbacks receive

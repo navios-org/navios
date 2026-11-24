@@ -54,7 +54,7 @@ const sidebars: SidebarsConfig = {
             'react-query/guides/infinite-queries',
             'react-query/guides/mutations',
             'react-query/guides/scoped-mutations',
-            'react-query/guides/multipart-mutations',
+            'react-query/guides/file-uploads',
             'react-query/guides/query-keys',
             'react-query/guides/invalidation',
             'react-query/guides/suspense',
@@ -67,7 +67,7 @@ const sidebars: SidebarsConfig = {
           label: 'Advanced',
           collapsed: true,
           items: [
-            'react-query/advanced/streams',
+            'react-query/advanced/file-downloads',
             'react-query/advanced/ssr-prefetch',
             'react-query/advanced/error-schemas',
             'react-query/advanced/query-client-config',

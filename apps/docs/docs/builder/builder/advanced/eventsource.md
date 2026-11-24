@@ -4,13 +4,13 @@ sidebar_position: 4
 
 # Server-Sent Events (SSE)
 
-Server-Sent Events support in `@navios/builder` provides type-safe, unidirectional event streaming with Zod schema validation. Perfect for live updates, notifications, and real-time data feeds.
+Server-Sent Events support in `@navios/builder` provides type-safe, unidirectional event streaming with schema validation. Perfect for live updates, notifications, and real-time data feeds.
 
 ## Overview
 
 The EventSource builder (`@navios/builder/eventsource`) allows you to:
 
-- Define type-safe event handlers with Zod schemas
+- Define type-safe event handlers with Zod or any other Standard Schema library
 - Handle multiple event types from a single connection
 - Validate incoming events at runtime
 - Get full TypeScript type inference from your schemas
@@ -32,15 +32,13 @@ yarn add @navios/builder
 import { eventSourceBuilder, declareEventSource } from '@navios/builder/eventsource'
 import { z } from 'zod'
 
-// 1. Create a builder instance — `onError` receives a structured BuilderErrorEvent
+// 1. Create a builder instance — `onError` receives an EventSourceError
 const sse = eventSourceBuilder({
-  onError: (event) => {
-    if (event.kind === 'validation') {
-      console.error(`Validation failed for ${event.eventName}:`, event.zodIssues)
-    } else if (event.kind === 'event-source-transport') {
-      console.error('Transport error:', event.cause)
+  onError: (error) => {
+    if (error.kind === 'validation') {
+      console.error(`Validation failed for ${error.eventName}:`, error.issues)
     } else {
-      console.error('Handler error:', event.cause)
+      console.error(`Handler for ${error.eventName} failed:`, error.cause)
     }
   },
 })
@@ -98,9 +96,7 @@ Creates a new EventSource builder instance.
 
 | Option | Type | Description |
 |--------|------|-------------|
-| `onError` | `(event: BuilderErrorEvent) => void` | Unified error hook fired on every failure path. Filter on `event.kind`: `'validation'` (Zod failure — `event.eventName`, `event.rawData`, `event.zodIssues` are populated) or `'event-source-transport'` (network/EventSource transport failure). |
-
-The v1 separate `onValidationError` and legacy `onError(error)` callbacks were removed in v2 — both flow through the unified `onError(event)` now.
+| `onError` | `(error: EventSourceError) => void` | Called once for every failure. Filter on `error.kind`: `'validation'` (an event failed `payloadSchema` — `error.issues` and `error.rawData` are set) or `'transport'` (a handler threw — the thrown value is on `error.cause`). See [Error Handling](#error-handling). |
 
 #### Returns: `EventSourceBuilderInstance`
 
@@ -119,8 +115,8 @@ Declares an EventSource endpoint. Returns a handler function that creates connec
 | Option | Type | Description |
 |--------|------|-------------|
 | `url` | `string` | EventSource URL (supports `$param` placeholders) |
-| `urlParamsSchema` | `ZodObject` | Optional schema for URL parameter validation |
-| `querySchema` | `ZodObject` | Optional schema for query parameters |
+| `urlParamsSchema` | `Schema` | Optional schema for URL parameter validation (any Standard Schema, synchronous) |
+| `querySchema` | `Schema` | Optional schema for query parameters (any Standard Schema, synchronous) |
 | `withCredentials` | `boolean` | Include credentials (cookies) in requests |
 
 #### Usage
@@ -155,7 +151,8 @@ Factory function for creating `declareEventSource` with shared configuration.
 ```typescript
 const declareEventSource = createEventSourceHandler({
   baseUrl: 'https://api.example.com',
-  onError: (error) => console.error('Connection error:', error),
+  // EventSourceError of kind 'transport': a listener registered on the handle threw
+  onError: (error) => console.error(`Listener for ${error.eventName} failed:`, error.cause),
 })
 
 const chatEvents = declareEventSource({
@@ -172,7 +169,7 @@ Defines a typed event handler on the builder instance.
 | Option | Type | Description |
 |--------|------|-------------|
 | `eventName` | `string` | SSE event name to listen for |
-| `payloadSchema` | `ZodType` | Optional schema for payload validation |
+| `payloadSchema` | `Schema` | Optional schema for payload validation (any Standard Schema) |
 
 #### Returns
 
@@ -219,6 +216,9 @@ interface EventSourceHandle {
   readonly connected: boolean
   readonly state: 'connecting' | 'open' | 'closed'
 
+  // Full URL the connection was opened with
+  readonly url: string
+
   // Access underlying EventSource
   readonly source: EventSource
 }
@@ -245,6 +245,23 @@ onUser((user) => {
   // user.joinedAt: number
 })
 ```
+
+## Schemas
+
+Every schema slot — `payloadSchema` on `defineEvent`, `urlParamsSchema` and `querySchema` on `declareEventSource` — accepts any [Standard Schema](https://standardschema.dev) v1 implementation: Zod, Valibot, ArkType and others. Handlers receive the schema's output type; connection parameters take its input type.
+
+```typescript
+import * as v from 'valibot'
+
+const onPrice = sse.defineEvent({
+  eventName: 'price',
+  payloadSchema: v.object({ symbol: v.string(), value: v.number() }),
+})
+```
+
+A `payloadSchema` that validates asynchronously (for example a Zod schema with an async refinement) is awaited before the handler runs. With a synchronous schema, handlers are called in the same tick the event arrives; with an asynchronous one they are called when its validation resolves, so two events may be delivered in a different order than they arrived if their validations take different times. An event whose validation finishes after the handler unsubscribed is dropped.
+
+`urlParamsSchema` and `querySchema` must validate synchronously, because the connection is opened synchronously; an asynchronous schema there throws a `NaviosError`.
 
 ## Common Patterns
 
@@ -326,42 +343,70 @@ const handle = filteredEvents({
 
 ## Error Handling
 
-All errors flow through the unified `onError(event)` hook. Filter on `event.kind`:
+An event that fails `payloadSchema` is skipped, and a handler that throws does not stop the other handlers. Both are reported to the builder's `onError` hook as an `EventSourceError` (`extends NaviosError extends Error`). Discriminate on `error.kind`.
 
-### Validation Errors (`event.kind === 'validation'`)
+```typescript
+import { eventSourceBuilder } from '@navios/builder/eventsource'
 
-When incoming event data fails Zod validation, the event is skipped and `onError` fires with `event.kind === 'validation'`:
+const sse = eventSourceBuilder({
+  onError: (error) => {
+    console.error(`[sse] ${error.kind} on ${error.eventName}: ${error.message}`)
+  },
+})
+```
+
+### `EventSourceError`
+
+| Field       | Type                                  | Description                                                                             |
+| ----------- | ------------------------------------- | --------------------------------------------------------------------------------------- |
+| `kind`      | `'validation' \| 'transport'`         | Why it failed                                                                           |
+| `eventName` | `string`                              | Event the handler was defined for                                                       |
+| `url`       | `string \| undefined`                 | Connection URL, when the client has a `url` property (`declareEventSource` handles do)  |
+| `issues`    | `readonly SchemaIssue[] \| undefined` | Validation issues (`{ message, path? }`), for `validation`                              |
+| `rawData`   | `unknown`                             | The event data that failed validation, for `validation`                                 |
+| `cause`     | `unknown`                             | The schema library's own error (a `ZodError` for Zod), or the value a handler threw     |
+| `message`   | `string`                              | Human-readable description                                                              |
+
+`error.toJSON()` returns the same fields as a plain object without `cause`. `isEventSourceError(value)` is the type guard.
+
+### Validation Errors (`error.kind === 'validation'`)
 
 ```typescript
 const sse = eventSourceBuilder({
-  onError: (event) => {
-    if (event.kind === 'validation') {
-      console.error(`Invalid ${event.eventName} event:`, {
-        zodIssues: event.zodIssues,
-        rawData: event.rawData,
+  onError: (error) => {
+    if (error.kind === 'validation') {
+      console.error(`Invalid ${error.eventName} event:`, {
+        issues: error.issues,
+        rawData: error.rawData,
       })
     }
   },
 })
 ```
 
-### Transport Errors (`event.kind === 'event-source-transport'`)
+### Handler Errors (`error.kind === 'transport'`)
 
-Network or EventSource transport failures fire with `event.kind === 'event-source-transport'`:
+A handler registered through `defineEvent` that throws is reported with the thrown value on `error.cause`:
 
 ```typescript
 const sse = eventSourceBuilder({
-  onError: (event) => {
-    if (event.kind === 'event-source-transport') {
-      console.error('SSE transport error:', event.cause)
+  onError: (error) => {
+    if (error.kind === 'transport') {
+      console.error(`Handler for ${error.eventName} failed:`, error.cause)
     }
   },
 })
 ```
 
+### The `onError` Hook
+
+The hook is for telemetry. An exception thrown inside it is caught and logged with `console.error`; it never interrupts event handling.
+
+`createEventSourceHandler({ onError })` has the same contract for the handle itself: a listener registered with `handle.on()`, `handle.onOpen()` or `handle.onError()` that throws is reported as an `EventSourceError` of kind `transport`, with `eventName` set to the event (`'open'` and `'error'` for the last two) and `url` to the connection URL.
+
 ### Connection Errors
 
-Handle connection errors using the EventSource handle:
+Connection failures are browser `Event`s delivered by the `EventSource` itself. Listen for them on the handle:
 
 ```typescript
 const handle = chatEvents({ urlParams: { roomId: '123' } })
@@ -402,7 +447,7 @@ The EventSource builder follows the same pattern as the WebSocket/Socket builder
 
 1. **Define event handlers before connecting** - This ensures handlers are registered when the connection opens.
 
-2. **Use schemas for validation** - Zod schemas provide runtime validation and TypeScript types.
+2. **Use schemas for validation** - Schemas provide runtime validation and TypeScript types.
 
 3. **Handle cleanup properly** - Always unsubscribe from events and close connections when done.
 
@@ -414,15 +459,15 @@ unsubMessage()
 sse.getClient().close()
 ```
 
-4. **Use the unified `onError` hook for debugging** - Log validation failures by filtering on `event.kind === 'validation'`.
+4. **Use the `onError` hook for debugging** - Log validation failures by filtering on `error.kind === 'validation'`.
 
 ```typescript
 const sse = eventSourceBuilder({
-  onError: (event) => {
-    if (event.kind === 'validation') {
-      console.error(`Invalid ${event.eventName} event:`, {
-        zodIssues: event.zodIssues,
-        rawData: event.rawData,
+  onError: (error) => {
+    if (error.kind === 'validation') {
+      console.error(`Invalid ${error.eventName} event:`, {
+        issues: error.issues,
+        rawData: error.rawData,
       })
     }
   },

@@ -32,7 +32,7 @@ const users = await getUsers({
 
 ## Optional Parameters
 
-By default, all query parameters are optional unless you mark them as required:
+Mark a query parameter as optional with `.optional()`. When no field of the schema is required, `params` itself — and, if nothing else is required, the whole argument object — can be left out:
 
 ```typescript
 const getUsers = API.declareEndpoint({
@@ -47,14 +47,14 @@ const getUsers = API.declareEndpoint({
 })
 
 // All of these are valid
-await getUsers({}) // No params
+await getUsers() // No params
 await getUsers({ params: { page: 1 } }) // Only page
 await getUsers({ params: { page: 1, limit: 20 } }) // Multiple params
 ```
 
 ## Required Parameters
 
-Use `.required()` or remove `.optional()` to make parameters required:
+A field without `.optional()` is required, and so is `params`:
 
 ```typescript
 const searchUsers = API.declareEndpoint({
@@ -71,8 +71,11 @@ const searchUsers = API.declareEndpoint({
 // ✅ Valid
 await searchUsers({ params: { query: 'john' } })
 
-// ❌ Error: query is required
+// ❌ Type error: query is required
 await searchUsers({ params: {} })
+
+// ❌ Type error: params is required
+await searchUsers()
 ```
 
 ## Type Validation
@@ -93,7 +96,7 @@ const getUsers = API.declareEndpoint({
 // ✅ Valid
 await getUsers({ params: { page: 1, limit: 20 } })
 
-// ❌ Validation error: limit must be <= 100
+// ❌ Fails with an EndpointError of kind 'request-validation'; nothing is sent
 await getUsers({ params: { page: 1, limit: 200 } })
 ```
 
@@ -196,7 +199,7 @@ const getUsers = API.declareEndpoint({
 })
 
 // If params are omitted, defaults are used
-await getUsers({}) // Uses page=1, limit=20, sortBy='name'
+await getUsers() // Uses page=1, limit=20, sortBy='name'
 ```
 
 ## Combining with URL Parameters
@@ -294,7 +297,7 @@ const getUsers = API.declareEndpoint({
 })
 
 // Type is inferred
-type QueryParams = Parameters<typeof getUsers>[0]['params']
+type QueryParams = EndpointParams<typeof getUsers>['params']
 // QueryParams = { page?: number; limit?: number } | undefined
 ```
 

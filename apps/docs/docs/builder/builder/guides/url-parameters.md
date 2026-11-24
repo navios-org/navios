@@ -21,6 +21,20 @@ const getUser = API.declareEndpoint({
 const user = await getUser({ urlParams: { userId: '123' } })
 ```
 
+## Parameter Names
+
+A parameter is `$` followed by a letter or underscore, then any number of letters, digits or underscores. The name ends at the first character outside that set, so a parameter can be followed by a file extension or a separator. The type system and the runtime apply the same rule.
+
+| URL template            | Parameters |
+| ----------------------- | ---------- |
+| `/users/$userId`        | `userId`   |
+| `/users/$user_id/posts` | `user_id`  |
+| `/files/$id.json`       | `id`       |
+| `/ranges/$from-$to`     | `from`, `to` |
+| `/price/$5/$id`         | `id` (`$5` is literal text) |
+
+Values are URL-encoded when they are placed into the URL.
+
 ## Single Parameter
 
 The simplest case is a single parameter:
@@ -102,7 +116,7 @@ const getUser = API.declareEndpoint({
 })
 
 // TypeScript knows the exact parameter names
-type Params = Parameters<typeof getUser>[0]['urlParams']
+type Params = EndpointParams<typeof getUser>['urlParams']
 // Params = { userId: string | number }
 ```
 
@@ -149,10 +163,10 @@ await getUser({
   },
 })
 
-// This throws a validation error at runtime
+// This fails before any request is sent
 await getUser({
   urlParams: {
-    userId: 'not-a-uuid', // ❌ Throws ZodError
+    userId: 'not-a-uuid', // ❌ EndpointError with kind 'request-validation'
     postId: '42',
   },
 })
@@ -167,7 +181,7 @@ await getUser({
 
 ### Schema Must Match URL Parameters
 
-The schema keys must match all `$paramName` patterns in the URL:
+The schema keys must be exactly the `$paramName` names in the URL. A missing or extra key throws a `NaviosError` when the endpoint is declared, so the mistake surfaces at start-up rather than on the first call:
 
 ```typescript
 // ✅ Correct - schema matches URL params
@@ -181,7 +195,7 @@ const endpoint = API.declareEndpoint({
   }),
 })
 
-// ❌ Wrong - missing postId in schema
+// ❌ Throws at declaration - missing postId in schema
 const endpoint = API.declareEndpoint({
   method: 'GET',
   url: '/users/$userId/posts/$postId',
@@ -252,20 +266,34 @@ const updated = await updateUser({
 You can extract URL parameter types for use elsewhere:
 
 ```typescript
+import type { EndpointParams } from '@navios/builder'
+
 const getUser = API.declareEndpoint({
   method: 'GET',
   url: '/users/$userId',
   responseSchema: userSchema,
 })
 
-// Extract parameter type
-type UserId = Parameters<typeof getUser>[0]['urlParams']['userId']
-// UserId = string
+type UserId = EndpointParams<typeof getUser>['urlParams']['userId']
+// UserId = string | number
 
-// Use in other functions
-function validateUserId(userId: UserId): boolean {
-  return userId.length > 0
+function userLink(userId: UserId): string {
+  return `/users/${userId}`
 }
+```
+
+`getUrlParamNames` and `bindUrlParams` expose the same parsing at runtime:
+
+```typescript
+import { bindUrlParams, getUrlParamNames } from '@navios/builder'
+
+getUrlParamNames('/users/$userId/posts/$postId')
+// ['userId', 'postId']
+
+bindUrlParams('/users/$userId/posts/$postId', {
+  urlParams: { userId: '123', postId: '456' },
+})
+// '/users/123/posts/456'
 ```
 
 ## Best Practices
@@ -340,8 +368,8 @@ const getUser = API.declareEndpoint({
   responseSchema: userSchema,
 })
 
-// ❌ Error: Missing required parameter
-await getUser({})
+// ❌ Type error: urlParams is required
+await getUser()
 
 // ✅ Correct
 await getUser({ urlParams: { userId: '123' } })

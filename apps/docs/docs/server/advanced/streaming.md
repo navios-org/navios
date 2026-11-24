@@ -9,17 +9,21 @@ Handle streaming responses for real-time data, Server-Sent Events (SSE), and lar
 
 ## Stream Endpoints
 
-Use `declareStream` from `@navios/builder` and the `@Stream()` decorator:
+Declare the endpoint with `response: 'stream'` in `@navios/builder` and handle it with the `@Stream()` decorator:
 
 ```typescript
 import { builder } from '@navios/builder'
 
 const API = builder()
 
-const streamEvents = API.declareStream({
+const streamEvents = API.declareEndpoint({
+  method: 'GET',
   url: '/events/stream',
+  response: 'stream',
 })
 ```
+
+`@Stream()` serves declarations whose `response` is `'stream'`, `'blob'` or `'text'`. A JSON endpoint or a `response: 'void'` endpoint belongs to `@Endpoint()`; attaching one with `@Stream()` is a type error and throws at startup. See [Matching Decorators and Declarations](/docs/server/guides/controllers#matching-decorators-and-declarations).
 
 ## Adapter Differences
 
@@ -103,8 +107,10 @@ class EventController {
 Stream large files efficiently:
 
 ```typescript
-const downloadFile = API.declareStream({
+const downloadFile = API.declareEndpoint({
+  method: 'GET',
   url: '/files/$fileId/download',
+  response: 'blob',
 })
 
 @Controller()
@@ -170,10 +176,11 @@ class FileController {
 Stream progress updates:
 
 ```typescript
-const processTask = API.declareStream({
+const processTask = API.declareEndpoint({
   method: 'POST',
   url: '/tasks/process',
   requestSchema: z.object({ taskId: z.string() }),
+  response: 'stream',
 })
 
 @Controller()

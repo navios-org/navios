@@ -228,8 +228,8 @@ export class UserController {
   @Endpoint(listUsers)
   async listUsers(params: EndpointParams<typeof listUsers>) {
     return this.userService.findAll({
-      skip: (params.query.page - 1) * params.query.limit,
-      take: params.query.limit,
+      skip: (params.params.page - 1) * params.params.limit,
+      take: params.params.limit,
     })
   }
 

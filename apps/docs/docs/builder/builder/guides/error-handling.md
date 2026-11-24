@@ -4,503 +4,354 @@ sidebar_position: 5
 
 # Error Handling
 
-Builder provides comprehensive error handling capabilities, from validation errors to HTTP errors. This guide covers all the ways to handle errors gracefully.
+Every failed endpoint call produces one error type, `EndpointError`. You choose per call whether it is thrown or returned as a value, and you tell failures apart by `error.kind`.
 
-## Error Types
-
-### NaviosError
-
-`NaviosError` is the base error class for all Builder errors:
+## Two Ways to Call
 
 ```typescript
-import { NaviosError } from '@navios/builder'
-
-try {
-  await getUser({ urlParams: { userId: '123' } })
-} catch (error) {
-  if (error instanceof NaviosError) {
-    console.error('Navios Error:', error.message)
-    console.error('Original error:', error.cause)
-  }
-}
-```
-
-### ZodError
-
-When response validation fails, a `ZodError` is thrown:
-
-```typescript
-import { ZodError } from 'zod'
-
-try {
-  const user = await getUser({ urlParams: { userId: '123' } })
-} catch (error) {
-  if (error instanceof ZodError) {
-    console.error('Validation failed:', error.errors)
-    // error.errors is an array of validation issues
-    error.errors.forEach((err) => {
-      console.error(`Field ${err.path.join('.')}: ${err.message}`)
-    })
-  }
-}
-```
-
-### HTTP Errors
-
-HTTP errors (4xx, 5xx) are typically wrapped in `NaviosError`:
-
-```typescript
-try {
-  await getUser({ urlParams: { userId: '123' } })
-} catch (error) {
-  if (error instanceof NaviosError) {
-    // Check if it's an HTTP error
-    if (error.cause && 'status' in error.cause) {
-      const status = (error.cause as any).status
-      if (status === 404) {
-        console.error('User not found')
-      } else if (status === 500) {
-        console.error('Server error')
-      }
-    }
-  }
-}
-```
-
-## Unified Global `onError` Hook
-
-In v2, every error path — HTTP, Zod validation (on both error responses and 2xx bodies), and network failures — flows through one `onError(event: BuilderErrorEvent)` hook. The event carries `kind`, `endpoint`, `status`, `zodIssues`, `cause`, `body`. Filter on `event.kind` instead of registering separate callbacks.
-
-```typescript
-const API = builder({
-  onError: (event) => {
-    // Every failure path lands here.
-    console.error('API Error:', event.kind, event.endpoint, event.status)
-
-    if (event.kind === 'validation') {
-      console.error('Validation failed:', event.zodIssues, 'body:', event.body)
-      showToast('Invalid response from server. Please try again.')
-    } else if (event.kind === 'network') {
-      showToast('Network error. Check your connection.')
-    } else if (event.kind === 'http' && event.status === 401) {
-      redirectToLogin()
-    }
-
-    // Log to error tracking service
-    if (typeof window !== 'undefined' && window.Sentry) {
-      window.Sentry.captureException(event.cause, {
-        tags: { kind: event.kind, url: event.endpoint?.url },
-      })
-    }
-  },
+const getUser = API.declareEndpoint({
+  method: 'GET',
+  url: '/users/$userId',
+  responseSchema: userSchema,
 })
+
+// Throws an EndpointError on any failure
+const user = await getUser({ urlParams: { userId: '123' } })
+
+// Never throws - resolves to a SafeResult
+const result = await getUser.safe({ urlParams: { userId: '123' } })
 ```
 
-The v1 `onZodError` callback was removed in v2 — filter on `event.kind === 'validation'` inside the unified `onError`.
+Both styles run the same pipeline and produce the same `EndpointError` for the same failure. Use the throwing call when a failure should propagate (to an error boundary, a framework, React Query); use `safe()` when you want to handle the failure right where you make the call.
 
-## Error Handling Patterns
+## `safe()` and `SafeResult`
 
-### Try-Catch
-
-Basic error handling:
+`safe()` resolves to a discriminated union. Narrow on `ok`:
 
 ```typescript
-async function fetchUser(userId: string) {
-  try {
-    const user = await getUser({ urlParams: { userId } })
-    return { success: true, data: user }
-  } catch (error) {
-    if (error instanceof NaviosError) {
-      return { success: false, error: error.message }
-    }
-    return { success: false, error: 'Unknown error' }
-  }
-}
-```
+const result = await getUser.safe({ urlParams: { userId: '123' } })
 
-### Error Type Checking
-
-```typescript
-async function fetchUser(userId: string) {
-  try {
-    const user = await getUser({ urlParams: { userId } })
-    return user
-  } catch (error) {
-    if (error instanceof ZodError) {
-      // Handle validation error
-      console.error('Invalid response format')
-      throw new Error('Server returned invalid data')
-    } else if (error instanceof NaviosError) {
-      // Handle Navios error
-      if (error.cause && 'status' in error.cause) {
-        const status = (error.cause as any).status
-        if (status === 404) {
-          throw new Error('User not found')
-        }
-      }
-      throw error
-    } else {
-      // Handle unknown error
-      throw new Error('Failed to fetch user')
-    }
-  }
-}
-```
-
-### Error Wrapper Function
-
-Create a reusable error handler:
-
-```typescript
-async function handleRequest<T>(
-  request: () => Promise<T>
-): Promise<{ data?: T; error?: string }> {
-  try {
-    const data = await request()
-    return { data }
-  } catch (error) {
-    if (error instanceof ZodError) {
-      return { error: 'Invalid response format' }
-    } else if (error instanceof NaviosError) {
-      return { error: error.message }
-    }
-    return { error: 'Unknown error occurred' }
-  }
-}
-
-// Usage
-const result = await handleRequest(() => getUser({ urlParams: { userId: '123' } }))
-if (result.error) {
-  console.error(result.error)
+if (result.ok) {
+  result.data // z.output<typeof userSchema>
+  result.response // ResponseMeta: { status, statusText, headers }
 } else {
-  console.log(result.data)
+  result.error // EndpointError
+  result.response // ResponseMeta | null (null when no response was received)
 }
 ```
 
-## Error Schema + Envelope Mode
+`safe()` never rejects. Invalid input, a missing client and a missing URL parameter all arrive as `ok: false`.
 
-For APIs that return different error shapes by HTTP status code, combine `errorSchema` with `result: 'envelope'`. Error responses are surfaced as typed variants on `envelope.error` instead of thrown, with the full `response` meta attached.
+## EndpointError
 
 ```typescript
-import { builder, isHttpError } from '@navios/builder'
+class EndpointError extends NaviosError {
+  kind: EndpointErrorKind
+  endpoint: { method: HttpMethod; url: string } // url is the template, e.g. '/users/$userId'
+  status?: number
+  body?: unknown
+  response: ResponseMeta | null
+  issues?: readonly SchemaIssue[]
+  cause?: unknown
+  toJSON(): object
+}
+```
 
-const API = builder()
+### Error Kinds
 
+| `kind`                | When                                                                                | `status` | `body`               |
+| --------------------- | ----------------------------------------------------------------------------------- | -------- | -------------------- |
+| `http`                | Non-2xx status that has an `errorSchema` entry, and the body parsed                 | yes      | parsed schema output |
+| `http-unknown`        | Non-2xx status without an `errorSchema` entry                                       | yes      | raw response body    |
+| `request-validation`  | `urlParams`, `params` or `data` failed its schema. No request was sent              | no       | no                   |
+| `response-validation` | A 2xx body failed `responseSchema` (or its `responses` entry), a 2xx status is not listed in `responses`, or an error body failed its `errorSchema` entry | yes | raw response body |
+| `network`             | No response was received and the request was not cancelled                          | no       | no                   |
+| `timeout`             | The request timed out                                                               | no       | no                   |
+| `aborted`             | The request was cancelled through its `AbortSignal`                                 | no       | no                   |
+| `config`              | The call could not be made: no client was provided, or a URL parameter is missing   | no       | no                   |
+
+`issues` holds the validation issues for the two validation kinds. Each one is a `SchemaIssue`:
+
+```typescript
+interface SchemaIssue {
+  readonly message: string
+  readonly path?: readonly (PropertyKey | { readonly key: PropertyKey })[]
+}
+```
+
+That is the issue shape of Standard Schema, so it is the same whichever schema library produced it. Zod's issues satisfy it and keep their extra fields (`code`, `expected`, ...) at runtime.
+
+`cause` is the original thrown value — for a transport failure, the client's error. For a validation failure of a Zod schema it is the `ZodError`, which is the place to go for Zod-specific helpers; schemas from other libraries leave it `undefined`:
+
+```typescript
+import { z } from 'zod'
+
+if (error.kind === 'request-validation' && error.cause instanceof z.ZodError) {
+  console.log(z.flattenError(error.cause).fieldErrors)
+}
+```
+
+## Typed Error Bodies with `errorSchema`
+
+`errorSchema` maps HTTP status codes to schemas. When a response arrives with one of those statuses, its body is parsed with the matching schema and reported as kind `http`:
+
+```typescript
 const getUser = API.declareEndpoint({
   method: 'GET',
   url: '/users/$userId',
   responseSchema: userSchema,
   errorSchema: {
     400: z.object({ error: z.string(), field: z.string() }),
-    404: z.object({ error: z.literal('Not Found') }),
-    500: z.object({ error: z.string() }),
+    404: z.object({ message: z.string() }),
   },
-  result: 'envelope',
 })
 
-const { data, error, response } = await getUser({ urlParams: { userId: '123' } })
+const result = await getUser.safe({ urlParams: { userId: '123' } })
 
-if (isHttpError(error, 404)) {
-  console.log('Not found') // error.body is the 404 schema
-} else if (isHttpError(error, 400)) {
-  console.log('Invalid:', error.body.field)
-} else if (error) {
-  console.log('Other error:', error.kind, error.status) // includes http-unknown / validation / network
-} else {
-  console.log('User:', data.name) // success
+if (!result.ok) {
+  const { error } = result
+
+  if (error.kind === 'http' && error.status === 404) {
+    console.log(error.body.message) // typed from errorSchema[404]
+  } else if (error.kind === 'http' && error.status === 400) {
+    console.log(error.body.field) // typed from errorSchema[400]
+  } else if (error.kind === 'http-unknown') {
+    console.log(error.status, error.body) // number, unknown
+  }
 }
 ```
 
-### How errorSchema Works in Envelope Mode
+Narrowing on `kind === 'http'` narrows `status` to the declared codes; narrowing on `status` narrows `body` to that schema's output.
 
-1. **Successful responses** (2xx) are validated against `responseSchema` and land in `envelope.data`.
-2. **Error responses** matching a status code in `errorSchema` are validated against that schema and land on `envelope.error.body`, with `error.kind === 'http'`.
-3. **Unmatched error status codes** become the `http-unknown` envelope variant; `error.body` is the raw payload.
-4. **Network failures** become the `network` envelope variant.
-5. **Validation failures** become the `validation` envelope variant; `error.zodIssues` carries the issues.
+- `error.body` is exactly what the schema produced. Nothing is added to it or renamed in it.
+- A status with no entry is reported as `http-unknown` with the raw body.
+- An error body that does not match its schema is reported as `response-validation`.
 
-### Type Guards
+`errorSchema` works the same for the throwing call — the thrown error carries the parsed `body`.
 
-Builder provides narrowing guards for the envelope `error` variants:
+## Handling Thrown Errors
+
+In a `catch` block the value is `unknown`. Use the guards to get back to a typed error:
 
 ```typescript
-import { isHttpError, isValidationError, isNetworkError, isUnknownHttpError } from '@navios/builder'
+import { isEndpointError, isHttpError } from '@navios/builder'
 
-if (isHttpError(error, 404)) {
-  // error.body is narrowed to the 404 schema
-}
-if (isValidationError(error)) {
-  // error.zodIssues is available
+try {
+  const user = await getUser({ urlParams: { userId: '123' } })
+} catch (error) {
+  if (!isEndpointError(error)) throw error
+
+  switch (error.kind) {
+    case 'aborted':
+      return
+    case 'network':
+    case 'timeout':
+      showToast('Connection problem. Please try again.')
+      break
+    case 'http':
+    case 'http-unknown':
+      showToast(`Request failed (${error.status})`)
+      break
+    default:
+      throw error
+  }
 }
 ```
 
-The v1 `isErrorStatus`, `isErrorResponse`, `__status` injection, and `UnknownResponseError` class were removed in v2 — envelope mode replaces them.
-
-## Discriminated Union Responses
-
-For APIs that return different shapes for success/error in the same 2xx response body, use a Zod discriminated union on `responseSchema`:
+`isHttpError(error, status?)` checks for kind `http`, optionally for one status. Pass the endpoint's error schema as the type argument to get a typed `body`:
 
 ```typescript
-const API = builder()
+try {
+  await getUser({ urlParams: { userId: '123' } })
+} catch (error) {
+  if (isHttpError<typeof getUser.config.errorSchema, 404>(error, 404)) {
+    console.log(error.body.message) // typed from errorSchema[404]
+  }
+}
+```
 
-const responseSchema = z.discriminatedUnion('status', [
-  z.object({
-    status: z.literal('success'),
-    data: userSchema,
-  }),
-  z.object({
-    status: z.literal('error'),
-    error: z.string(),
-  }),
-])
+To name an endpoint's full error type — for a helper function or a component prop — use `EndpointErrorType`:
 
-const getUser = API.declareEndpoint({
-  method: 'GET',
-  url: '/users/$userId',
-  responseSchema,
+```typescript
+import type { EndpointErrorType } from '@navios/builder'
+
+type GetUserError = EndpointErrorType<typeof getUser>
+
+function describeGetUserError(error: GetUserError): string {
+  if (error.kind === 'http' && error.status === 404) return error.body.message
+  if (error.kind === 'timeout') return 'The server took too long to answer'
+  return 'Something went wrong'
+}
+```
+
+## Validation Errors
+
+Input is validated before anything is sent. A failure in `urlParamsSchema`, `querySchema` or `requestSchema` is reported as `request-validation`:
+
+```typescript
+const result = await createUser.safe({ data: { name: '', email: 'not-an-email' } })
+
+if (!result.ok && result.error.kind === 'request-validation') {
+  for (const issue of result.error.issues) {
+    console.log(issue.path?.join('.'), issue.message)
+  }
+}
+```
+
+A response that does not match its schema is reported as `response-validation`, and so is a 2xx status missing from an endpoint's [`responses`](/docs/builder/builder/guides/defining-endpoints#per-status-responses) map. `error.body` holds the raw body and `error.issues` explains what did not match — usually a sign that the client and the server disagree about the contract.
+
+## Cancellation and Timeouts
+
+```typescript
+const controller = new AbortController()
+
+const result = await getUser.safe({
+  urlParams: { userId: '123' },
+  signal: controller.signal,
+  timeout: 5000,
 })
 
-const result = await getUser({ urlParams: { userId: '123' } })
-if (result.status === 'success') {
-  console.log(result.data)
-} else {
-  console.error(result.error)
+if (!result.ok && result.error.kind === 'aborted') {
+  // cancelled by controller.abort()
+}
+if (!result.ok && result.error.kind === 'timeout') {
+  // no answer within 5 seconds
 }
 ```
 
-This is a pure Zod feature — there is no builder-level mode to enable. See [Discriminated Unions](/docs/builder/builder/advanced/discriminated-unions) for the full comparison with envelope mode.
+`timeout` can also be set on the endpoint declaration; the per-call value wins.
 
-## HTTP Status Code Handling
+## Response Metadata
 
-### Status Code Checking
+`result.response` and `error.response` expose the status line and headers of the response. `headers` is a `Headers` instance. Three helpers cover common reads and accept `null`:
 
 ```typescript
-async function fetchUser(userId: string) {
-  try {
-    const user = await getUser({ urlParams: { userId } })
-    return user
-  } catch (error) {
-    if (error instanceof NaviosError && error.cause) {
-      const httpError = error.cause as { status?: number }
-      switch (httpError.status) {
-        case 400:
-          throw new Error('Invalid request')
-        case 401:
-          throw new Error('Unauthorized')
-        case 403:
-          throw new Error('Forbidden')
-        case 404:
-          throw new Error('User not found')
-        case 500:
-          throw new Error('Server error')
-        default:
-          throw error
-      }
-    }
-    throw error
-  }
+import { getCookie, getHeader, getRetryAfterMs } from '@navios/builder'
+
+const result = await listUsers.safe({ params: { page: 1 } })
+
+const total = getHeader(result.response, 'x-total-count') // string | null
+const session = getCookie(result.response, 'sid') // string | null, from Set-Cookie
+
+if (!result.ok && result.error.status === 429) {
+  const retryMs = getRetryAfterMs(result.response) // number | null
 }
 ```
 
-### Retry Logic
+## Global `onError` Hook
 
-```typescript
-async function fetchUserWithRetry(userId: string, retries = 3) {
-  for (let i = 0; i < retries; i++) {
-    try {
-      return await getUser({ urlParams: { userId } })
-    } catch (error) {
-      if (error instanceof NaviosError && error.cause) {
-        const httpError = error.cause as { status?: number }
-        // Don't retry on client errors
-        if (httpError.status && httpError.status < 500) {
-          throw error
-        }
-      }
-      
-      // Last retry
-      if (i === retries - 1) {
-        throw error
-      }
-      
-      // Wait before retrying
-      await new Promise((resolve) => setTimeout(resolve, 1000 * (i + 1)))
-    }
-  }
-}
-```
-
-## User-Friendly Error Messages
-
-### Error Message Mapping
-
-```typescript
-function getErrorMessage(error: unknown): string {
-  if (error instanceof ZodError) {
-    return 'Invalid data received from server'
-  } else if (error instanceof NaviosError) {
-    if (error.cause && 'status' in error.cause) {
-      const status = (error.cause as any).status
-      switch (status) {
-        case 400:
-          return 'Invalid request. Please check your input.'
-        case 401:
-          return 'You are not authorized. Please log in.'
-        case 403:
-          return 'You do not have permission to perform this action.'
-        case 404:
-          return 'The requested resource was not found.'
-        case 500:
-          return 'Server error. Please try again later.'
-        default:
-          return 'An error occurred. Please try again.'
-      }
-    }
-    return error.message
-  }
-  return 'An unexpected error occurred'
-}
-```
-
-### React Error Display
-
-```typescript
-function UserProfile({ userId }: { userId: string }) {
-  const [error, setError] = useState<string | null>(null)
-  
-  useEffect(() => {
-    getUser({ urlParams: { userId } })
-      .then((user) => {
-        // Handle success
-        setError(null)
-      })
-      .catch((err) => {
-        setError(getErrorMessage(err))
-      })
-  }, [userId])
-  
-  if (error) {
-    return <div className="error">{error}</div>
-  }
-  
-  // ...
-}
-```
-
-## Logging Errors
-
-### Error Logging Service
+`onError` is called once for every failed call, with the same `EndpointError` instance the caller receives — whether it is thrown or returned by `safe()`:
 
 ```typescript
 const API = builder({
-  onError: (event) => {
-    // Log to console in development
-    if (process.env.NODE_ENV === 'development') {
-      console.error('API Error:', event.kind, event.endpoint, event.cause)
-    }
+  client,
+  onError: (error) => {
+    if (error.kind === 'aborted') return
 
-    // Log validation errors with structured detail
-    if (event.kind === 'validation') {
-      console.error('Validation Error:', {
-        zodIssues: event.zodIssues,
-        body: event.body,
-      })
-    }
+    logger.warn('API call failed', error.toJSON())
 
-    // Log to error tracking service in production
-    if (typeof window !== 'undefined' && window.Sentry) {
-      window.Sentry.captureException(event.cause, {
-        tags: { source: 'navios-builder', kind: event.kind, url: event.endpoint?.url },
-      })
+    if (error.status === 401) {
+      redirectToLogin()
     }
   },
 })
 ```
+
+The hook is for telemetry and cross-cutting reactions. It cannot change the outcome of a call: its return value is ignored, and an exception thrown inside it is caught and logged.
+
+`error.toJSON()` returns a plain object without `cause` and with headers flattened to a record, so it is safe to pass to `JSON.stringify` and to loggers.
+
+## Patterns
+
+### Retry
+
+```typescript
+import { getRetryAfterMs } from '@navios/builder'
+
+const RETRYABLE = new Set(['network', 'timeout'])
+
+async function getUserWithRetry(userId: string, attempts = 3) {
+  for (let attempt = 1; ; attempt++) {
+    const result = await getUser.safe({ urlParams: { userId } })
+    if (result.ok) return result.data
+
+    const { error } = result
+    const retryable =
+      RETRYABLE.has(error.kind) || (error.status !== undefined && error.status >= 500)
+    if (!retryable || attempt === attempts) throw error
+
+    const delay = getRetryAfterMs(error.response) ?? 1000 * attempt
+    await new Promise((resolve) => setTimeout(resolve, delay))
+  }
+}
+```
+
+### User-Friendly Messages
+
+```typescript
+import type { EndpointError } from '@navios/builder'
+
+function getErrorMessage(error: EndpointError): string {
+  switch (error.kind) {
+    case 'request-validation':
+      return 'Please check your input and try again.'
+    case 'network':
+      return 'Unable to connect. Please check your internet connection.'
+    case 'timeout':
+      return 'The server took too long to respond.'
+    case 'http':
+    case 'http-unknown':
+      if (error.status === 401) return 'Please log in to continue.'
+      if (error.status === 403) return 'You do not have permission to do this.'
+      if (error.status === 404) return 'The requested resource was not found.'
+      return 'The server reported an error. Please try again later.'
+    default:
+      return 'An unexpected error occurred.'
+  }
+}
+```
+
+### React
+
+```tsx
+function UserProfile({ userId }: { userId: string }) {
+  const [user, setUser] = useState<User | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    const controller = new AbortController()
+
+    getUser.safe({ urlParams: { userId }, signal: controller.signal }).then((result) => {
+      if (result.ok) {
+        setUser(result.data)
+      } else if (result.error.kind !== 'aborted') {
+        setError(getErrorMessage(result.error))
+      }
+    })
+
+    return () => controller.abort()
+  }, [userId])
+
+  if (error) return <div>Error: {error}</div>
+  if (!user) return <div>Loading...</div>
+  return <div>{user.name}</div>
+}
+```
+
+## Errors at Declaration
+
+A mistake in a declaration is reported immediately, as a plain `NaviosError` thrown by `declareEndpoint` — for example a `urlParamsSchema` whose keys do not match the URL's parameters. `EndpointError` extends `NaviosError`, so `error instanceof NaviosError` matches everything the builder throws.
 
 ## Best Practices
 
-### Always Handle Errors
-
-```typescript
-// ✅ Good - error handling
-async function fetchUser(userId: string) {
-  try {
-    return await getUser({ urlParams: { userId } })
-  } catch (error) {
-    // Handle error appropriately
-    console.error('Failed to fetch user:', error)
-    throw error
-  }
-}
-
-// ❌ Bad - unhandled errors
-async function fetchUser(userId: string) {
-  return await getUser({ urlParams: { userId } })
-}
-```
-
-### Use Specific Error Types
-
-```typescript
-// ✅ Good - check error type
-try {
-  await getUser({ urlParams: { userId: '123' } })
-} catch (error) {
-  if (error instanceof ZodError) {
-    // Handle validation error
-  } else if (error instanceof NaviosError) {
-    // Handle Navios error
-  }
-}
-
-// ❌ Bad - generic error handling
-try {
-  await getUser({ urlParams: { userId: '123' } })
-} catch (error) {
-  console.error(error) // Too generic
-}
-```
-
-### Provide User-Friendly Messages
-
-```typescript
-// ✅ Good - user-friendly message
-catch (error) {
-  if (error instanceof NaviosError) {
-    showToast('Failed to load user. Please try again.')
-  }
-}
-
-// ❌ Bad - technical error message
-catch (error) {
-  showToast(error.message) // May be too technical
-}
-```
-
-### Use Global Error Handlers
-
-```typescript
-// ✅ Good - global error handling
-const API = builder({
-  onError: (error) => {
-    // Centralized error handling
-    logError(error)
-  },
-})
-
-// ❌ Bad - error handling in every function
-async function fetchUser() {
-  try {
-    // ...
-  } catch (error) {
-    logError(error) // Duplicated everywhere
-  }
-}
-```
+- **Pick the call style per call site.** `safe()` for expected failures you handle locally, the throwing call when a boundary further up deals with it.
+- **Declare `errorSchema` for statuses you act on.** A 404 or 409 you branch on deserves a typed body; everything else can stay `http-unknown`.
+- **Switch on `kind`, then on `status`.** `status` alone is `undefined` for failures that never produced a response.
+- **Ignore `aborted` in the UI.** A cancelled request is rarely something to show the user.
+- **Keep `onError` for reporting.** Put recovery logic next to the call.
 
 ## Next Steps
 
-- [Discriminated Unions](/docs/builder/builder/advanced/discriminated-unions) - Handle multiple response types
-- [HTTP Client Setup](/docs/builder/builder/guides/http-client) - Configure your HTTP client
-- [Best Practices](/docs/builder/builder/best-practices) - More error handling patterns
-
+- [HTTP Client Setup](/docs/builder/builder/guides/http-client) - The client contract and how failures are classified
+- [Defining Endpoints](/docs/builder/builder/guides/defining-endpoints) - Declare endpoints with error schemas
+- [API Reference](/docs/builder/builder/api-reference) - `EndpointError`, `SafeResult` and the guards

@@ -347,6 +347,8 @@ Declares an XML stream endpoint with the following options:
 
 Decorator for controller methods that return XML JSX.
 
+`declareXmlStream()` configs carry no `response` option: the reply is always the rendered XML document. `@XmlStream()` also accepts a `declareEndpoint()` declaration whose `response` is `'text'`, `'blob'` or `'stream'`, which is how a client reads XML. It rejects `response: 'json'`, `response: 'void'` and `body: 'multipart'`, at compile time and with an error at startup.
+
 ### @Component(options?)
 
 Decorator for class-based XML components with DI support.

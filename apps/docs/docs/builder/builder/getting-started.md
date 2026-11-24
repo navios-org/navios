@@ -8,11 +8,12 @@ Get up and running with `@navios/builder` in minutes. This guide will walk you t
 
 ## What is Builder?
 
-Builder is a library for creating type-safe API clients and server endpoints. It uses Zod schemas to define API contracts, providing:
+Builder is a library for creating type-safe API clients and server endpoints. It uses schemas to define API contracts, providing:
 
 - **Type safety**: TypeScript types inferred from schemas
 - **Runtime validation**: Automatic request/response validation
 - **Client generation**: Type-safe HTTP clients from endpoint definitions
+- **Predictable errors**: One typed `EndpointError`, thrown or returned as a value
 - **Flexibility**: Works with any HTTP client implementation
 
 ## Installation
@@ -26,7 +27,7 @@ pnpm add @navios/builder zod
 ```
 
 :::tip
-`@navios/builder` requires `zod` as a peer dependency. Make sure you have it installed.
+`zod` is an optional peer dependency: install it to follow these docs, which use Zod throughout. The builder itself does not import it, and endpoints accept schemas from any other [Standard Schema](https://standardschema.dev) library — see [Other Schema Libraries](/docs/builder/builder/guides/schemas#other-schema-libraries).
 :::
 
 ## Choose Your HTTP Client
@@ -55,15 +56,17 @@ You can use any client that implements the `Client` interface. See [HTTP Client 
 
 ## Quick Start
 
-Builder follows a simple pattern: create a builder instance, declare endpoints with schemas, provide an HTTP client, and use the endpoints.
+Builder follows a simple pattern: create a builder instance with an HTTP client, declare endpoints with schemas, and use the endpoints.
 
 ```typescript
 import { builder } from '@navios/builder'
 import { create } from '@navios/http'
 import { z } from 'zod'
 
-// 1. Create a builder instance
-const API = builder()
+// 1. Create a builder instance with an HTTP client
+const API = builder({
+  client: create({ baseURL: 'https://api.example.com' }),
+})
 
 // 2. Define your data schemas
 const userSchema = z.object({
@@ -79,25 +82,39 @@ export const getUser = API.declareEndpoint({
   responseSchema: userSchema,
 })
 
-// 4. Provide the HTTP client
-API.provideClient(create({ baseURL: 'https://api.example.com' }))
-
-// 5. Use the endpoint
+// 4. Use the endpoint
 async function fetchUser() {
   const user = await getUser({ urlParams: { userId: '123' } })
   console.log(user.name) // TypeScript knows this is a string!
 }
 ```
 
+## Handling Failures
+
+Calling an endpoint throws an `EndpointError` when anything goes wrong. Every endpoint also has a `safe()` twin that never throws and returns the outcome as a value:
+
+```typescript
+const result = await getUser.safe({ urlParams: { userId: '123' } })
+
+if (result.ok) {
+  console.log(result.data.name)
+} else {
+  // 'http' | 'http-unknown' | 'network' | 'timeout' | ...
+  console.error(result.error.kind, result.error.status)
+}
+```
+
+See [Error Handling](/docs/builder/builder/guides/error-handling) for the full picture.
+
 ## How It Works
 
-1. **Builder Instance**: `builder()` creates a new API builder that manages your endpoints and their types.
+1. **Builder Instance**: `builder({ client })` creates a new API builder that manages your endpoints and the HTTP client they use.
 
-2. **Schema Definition**: Zod schemas define the shape of request and response data. These schemas provide both runtime validation and TypeScript types.
+2. **Schema Definition**: Schemas (Zod, in these docs) define the shape of request and response data. These schemas provide both runtime validation and TypeScript types.
 
 3. **Endpoint Declaration**: `declareEndpoint()` creates a typed function that makes HTTP requests. The function signature is inferred from your schemas.
 
-4. **Client Setup**: `provideClient()` tells the builder which HTTP client to use for making requests.
+4. **Calling**: `endpoint(args)` resolves to validated data and throws on failure; `endpoint.safe(args)` returns a result object instead.
 
 5. **Type Safety**: TypeScript automatically infers types from your schemas, ensuring compile-time type checking and excellent IDE support.
 

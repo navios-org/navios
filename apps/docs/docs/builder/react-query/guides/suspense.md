@@ -4,19 +4,17 @@ sidebar_position: 8
 
 # Suspense
 
-Suspense provides a cleaner API for handling loading states by throwing promises that Suspense boundaries can catch. Builder's React Query integration provides first-class Suspense support.
+`useSuspense()` is TanStack's `useSuspenseQuery` for an endpoint: the component suspends while the data loads and throws to the nearest error boundary when the request fails, so `data` is always defined.
 
 ## Basic Usage
 
-Use `useSuspense` instead of `use`:
-
 ```typescript
+import { Suspense } from 'react'
+
 function UserProfile({ userId }: { userId: string }) {
-  // useSuspense throws on loading/error, so Suspense/ErrorBoundary handles it
-  const user = getUser.useSuspense({ urlParams: { userId } })
-  
-  // No loading/error checks needed!
-  return <div>{user.name}</div>
+  const { data } = getUser.useSuspense({ urlParams: { userId } })
+
+  return <div>{data.name}</div>
 }
 
 function App() {
@@ -30,220 +28,163 @@ function App() {
 }
 ```
 
-## Suspense Boundaries
-
-Wrap components using `useSuspense` in Suspense boundaries:
+`useSuspense(args, options?)` accepts every `useSuspenseQuery` option except `queryKey` and `queryFn`:
 
 ```typescript
-function App() {
-  return (
-    <Suspense fallback={<LoadingSpinner />}>
-      <UserProfile userId="123" />
-    </Suspense>
-  )
-}
+const { data: name } = getUser.useSuspense(
+  { urlParams: { userId } },
+  { staleTime: 60_000, select: (user) => user.name },
+)
 ```
 
 ## Error Boundaries
 
-Use ErrorBoundary to catch errors:
+The value thrown to the boundary is the endpoint's `EndpointError`. Use `isEndpointError` / `isHttpError` from `@navios/builder` to narrow it, since a boundary receives `unknown`:
 
 ```typescript
-class QueryErrorBoundary extends React.Component {
-  state = { hasError: false, error: null }
+import { isEndpointError, isHttpError } from '@navios/builder'
+import { QueryErrorResetBoundary } from '@tanstack/react-query'
+import { ErrorBoundary } from 'react-error-boundary'
 
-  static getDerivedStateFromError(error: Error) {
-    return { hasError: true, error }
+function ErrorFallback({
+  error,
+  resetErrorBoundary,
+}: {
+  error: unknown
+  resetErrorBoundary: () => void
+}) {
+  if (isHttpError(error, 404)) return <div>Not found</div>
+  if (isEndpointError(error) && error.kind === 'network') {
+    return (
+      <div>
+        <p>You appear to be offline</p>
+        <button onClick={resetErrorBoundary}>Try again</button>
+      </div>
+    )
   }
 
-  render() {
-    if (this.state.hasError) {
-      return <div>Error: {this.state.error.message}</div>
-    }
-    return this.props.children
-  }
+  return (
+    <div>
+      <p>Something went wrong</p>
+      <button onClick={resetErrorBoundary}>Try again</button>
+    </div>
+  )
 }
 
 function App() {
   return (
-    <QueryErrorBoundary>
-      <Suspense fallback={<div>Loading...</div>}>
-        <UserProfile userId="123" />
-      </Suspense>
-    </QueryErrorBoundary>
+    <QueryErrorResetBoundary>
+      {({ reset }) => (
+        <ErrorBoundary FallbackComponent={ErrorFallback} onReset={reset}>
+          <Suspense fallback={<div>Loading...</div>}>
+            <UserProfile userId="123" />
+          </Suspense>
+        </ErrorBoundary>
+      )}
+    </QueryErrorResetBoundary>
   )
 }
 ```
 
 ## Multiple Queries
 
-Multiple queries in the same component:
+Several `useSuspense()` calls in one component run one after another: the second starts when the first has resolved.
 
 ```typescript
 function UserDashboard({ userId }: { userId: string }) {
-  const user = getUser.useSuspense({ urlParams: { userId } })
-  const posts = getUserPosts.useSuspense({ urlParams: { userId } })
-  const comments = getUserComments.useSuspense({ urlParams: { userId } })
+  const { data: user } = getUser.useSuspense({ urlParams: { userId } })
+  const { data: posts } = getUserPosts.useSuspense({ urlParams: { userId } })
 
-  // All queries suspend until ready
   return (
     <div>
       <h1>{user.name}</h1>
       <PostsList posts={posts} />
-      <CommentsList comments={comments} />
     </div>
   )
 }
 ```
 
-## Nested Suspense
-
-Use nested Suspense boundaries for granular loading states:
+To load in parallel, pass the query options to `useSuspenseQueries`:
 
 ```typescript
-function UserProfile({ userId }: { userId: string }) {
-  const user = getUser.useSuspense({ urlParams: { userId } })
+import { useSuspenseQueries } from '@tanstack/react-query'
 
+function UserDashboard({ userId }: { userId: string }) {
+  const [{ data: user }, { data: posts }] = useSuspenseQueries({
+    queries: [getUser({ urlParams: { userId } }), getUserPosts({ urlParams: { userId } })],
+  })
+  // ...
+}
+```
+
+Or prefetch before rendering:
+
+```typescript
+void getUser.prefetch(queryClient, { urlParams: { userId } })
+void getUserPosts.prefetch(queryClient, { urlParams: { userId } })
+```
+
+## Nested Suspense
+
+Separate boundaries let parts of a page appear independently:
+
+```typescript
+function UserPage({ userId }: { userId: string }) {
   return (
-    <div>
-      <h1>{user.name}</h1>
+    <Suspense fallback={<div>Loading user...</div>}>
+      <UserProfile userId={userId} />
       <Suspense fallback={<div>Loading posts...</div>}>
         <UserPosts userId={userId} />
       </Suspense>
-    </div>
+    </Suspense>
   )
-}
-
-function UserPosts({ userId }: { userId: string }) {
-  const posts = getUserPosts.useSuspense({ urlParams: { userId } })
-  return <div>{/* ... */}</div>
 }
 ```
 
 ## Infinite Queries with Suspense
 
 ```typescript
-function InfiniteUserList() {
-  const data = getUsers.useSuspense({ params: { limit: 20 } })
+function UserList() {
+  const { data, fetchNextPage, hasNextPage } = listUsers.useSuspense({
+    params: { limit: 20 },
+  })
 
   return (
     <div>
       {data.pages.flatMap((page) =>
-        page.users.map((user) => (
-          <UserCard key={user.id} user={user} />
-        ))
+        page.users.map((user) => <div key={user.id}>{user.name}</div>),
       )}
+      {hasNextPage && <button onClick={() => fetchNextPage()}>Load More</button>}
     </div>
   )
 }
 ```
 
-## Conditional Suspense
+## Conditional Rendering
 
-Use `enabled` to conditionally suspend:
-
-```typescript
-function UserProfile({ userId }: { userId?: string }) {
-  if (!userId) {
-    return <div>No user selected</div>
-  }
-
-  // Only suspends if userId exists
-  const user = getUser.useSuspense({
-    urlParams: { userId },
-    enabled: !!userId,
-  })
-
-  return <div>{user.name}</div>
-}
-```
-
-## Loading States
-
-Suspense handles loading automatically:
+A suspense query always fetches: `useSuspense()` does not accept `skipToken` and has no `enabled` option. Render the component conditionally instead:
 
 ```typescript
-// ❌ Not needed with Suspense
-function UserProfile({ userId }: { userId: string }) {
-  const { data, isLoading } = getUser.use({ urlParams: { userId } })
-  if (isLoading) return <div>Loading...</div>
-  return <div>{data.name}</div>
-}
+function UserSection({ userId }: { userId: string | null }) {
+  if (!userId) return <div>Select a user</div>
 
-// ✅ Cleaner with Suspense
-function UserProfile({ userId }: { userId: string }) {
-  const user = getUser.useSuspense({ urlParams: { userId } })
-  return <div>{user.name}</div>
-}
-```
-
-## Error Handling
-
-ErrorBoundary handles errors:
-
-```typescript
-// ❌ Manual error handling
-function UserProfile({ userId }: { userId: string }) {
-  const { data, error, isError } = getUser.use({ urlParams: { userId } })
-  if (isError) return <div>Error: {error.message}</div>
-  return <div>{data.name}</div>
-}
-
-// ✅ ErrorBoundary handles it
-function UserProfile({ userId }: { userId: string }) {
-  const user = getUser.useSuspense({ urlParams: { userId } })
-  return <div>{user.name}</div>
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <UserProfile userId={userId} />
+    </Suspense>
+  )
 }
 ```
 
 ## Best Practices
 
-### Use Suspense for Cleaner Code
-
-```typescript
-// ✅ Good - cleaner with Suspense
-function UserProfile({ userId }: { userId: string }) {
-  const user = getUser.useSuspense({ urlParams: { userId } })
-  return <div>{user.name}</div>
-}
-
-// ❌ More verbose without Suspense
-function UserProfile({ userId }: { userId: string }) {
-  const { data, isLoading, error } = getUser.use({ urlParams: { userId } })
-  if (isLoading) return <div>Loading...</div>
-  if (error) return <div>Error: {error.message}</div>
-  return <div>{data.name}</div>
-}
-```
-
-### Provide Meaningful Fallbacks
-
-```typescript
-// ✅ Good - specific fallback
-<Suspense fallback={<UserProfileSkeleton />}>
-  <UserProfile userId="123" />
-</Suspense>
-
-// ❌ Bad - generic fallback
-<Suspense fallback={<div>Loading...</div>}>
-  <UserProfile userId="123" />
-</Suspense>
-```
-
-### Use ErrorBoundary
-
-```typescript
-// ✅ Good - error handling
-<ErrorBoundary fallback={<ErrorDisplay />}>
-  <Suspense fallback={<LoadingSpinner />}>
-    <UserProfile userId="123" />
-  </Suspense>
-</ErrorBoundary>
-```
+- **Pair every `Suspense` with an error boundary.** A failed suspense query throws.
+- **Place boundaries around meaningful units** so a slow section does not blank the whole page.
+- **Use skeletons as fallbacks** to avoid layout shifts.
+- **Prefetch on the server or on hover** so the boundary rarely shows; see [SSR & Prefetching](/docs/builder/react-query/advanced/ssr-prefetch).
 
 ## Next Steps
 
-- [Queries](/docs/builder/react-query/guides/queries) - Learn about queries
-- [Error Handling](/docs/builder/react-query/guides/queries#error-handling) - More error handling patterns
-- [Best Practices](/docs/builder/react-query/best-practices) - More Suspense patterns
-
+- [Queries](/docs/builder/react-query/guides/queries) - The non-suspense hook
+- [Typed Errors](/docs/builder/react-query/advanced/error-schemas) - Narrowing errors
+- [SSR & Prefetching](/docs/builder/react-query/advanced/ssr-prefetch) - Fill the cache before rendering

@@ -4,16 +4,17 @@ sidebar_position: 2
 
 # Multipart Uploads
 
-Multipart endpoints handle file uploads using `multipart/form-data` encoding. Builder automatically converts your request data to `FormData` and handles file serialization.
+Set `body: 'multipart'` on an endpoint to send its request body as `multipart/form-data`. Builder validates `data` against `requestSchema`, converts it to `FormData` and handles file serialization.
 
 ## Basic Usage
 
-Declare a multipart endpoint:
+Declare an endpoint with `body: 'multipart'`:
 
 ```typescript
-const uploadFile = API.declareMultipart({
+const uploadFile = API.declareEndpoint({
   method: 'POST',
   url: '/files',
+  body: 'multipart',
   requestSchema: z.object({
     file: z.instanceof(File),
     name: z.string(),
@@ -33,14 +34,30 @@ const result = await uploadFile({
 })
 ```
 
+Everything else works as on any other endpoint: URL parameters, `querySchema`, `errorSchema`, `safe()` and the error model.
+
+## How Data Is Serialized
+
+Each top-level key of the validated `data` becomes a form field:
+
+| Value                         | Sent as                                   |
+| ----------------------------- | ----------------------------------------- |
+| `File`                        | A file part, with the file's name         |
+| Array                         | One part per item, all under the same key |
+| `string`, `number`, `boolean`, `bigint` | Its string form                 |
+| `Date`                        | ISO 8601 string                           |
+| `null`, `undefined`           | Empty string                              |
+| Other objects                 | JSON string                               |
+
 ## Single File Upload
 
 ### Basic Upload
 
 ```typescript
-const uploadAvatar = API.declareMultipart({
+const uploadAvatar = API.declareEndpoint({
   method: 'POST',
   url: '/users/$userId/avatar',
+  body: 'multipart',
   requestSchema: z.object({
     file: z.instanceof(File),
   }),
@@ -64,9 +81,10 @@ console.log('Avatar URL:', result.url)
 ### With Additional Fields
 
 ```typescript
-const uploadDocument = API.declareMultipart({
+const uploadDocument = API.declareEndpoint({
   method: 'POST',
   url: '/documents',
+  body: 'multipart',
   requestSchema: z.object({
     file: z.instanceof(File),
     title: z.string(),
@@ -95,9 +113,10 @@ const result = await uploadDocument({
 ### Array of Files
 
 ```typescript
-const uploadFiles = API.declareMultipart({
+const uploadFiles = API.declareEndpoint({
   method: 'POST',
   url: '/files',
+  body: 'multipart',
   requestSchema: z.object({
     files: z.array(z.instanceof(File)),
     folder: z.string().optional(),
@@ -122,9 +141,10 @@ const result = await uploadFiles({
 ### Named File Fields
 
 ```typescript
-const uploadMultiple = API.declareMultipart({
+const uploadMultiple = API.declareEndpoint({
   method: 'POST',
   url: '/upload',
+  body: 'multipart',
   requestSchema: z.object({
     avatar: z.instanceof(File),
     cover: z.instanceof(File),
@@ -154,9 +174,10 @@ const result = await uploadMultiple({
 ```typescript
 const MAX_FILE_SIZE = 5 * 1024 * 1024 // 5MB
 
-const uploadFile = API.declareMultipart({
+const uploadFile = API.declareEndpoint({
   method: 'POST',
   url: '/files',
+  body: 'multipart',
   requestSchema: z.object({
     file: z.instanceof(File).refine(
       (file) => file.size <= MAX_FILE_SIZE,
@@ -174,9 +195,10 @@ const uploadFile = API.declareMultipart({
 ```typescript
 const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/gif']
 
-const uploadImage = API.declareMultipart({
+const uploadImage = API.declareEndpoint({
   method: 'POST',
   url: '/images',
+  body: 'multipart',
   requestSchema: z.object({
     file: z.instanceof(File).refine(
       (file) => ALLOWED_TYPES.includes(file.type),
@@ -193,9 +215,10 @@ const uploadImage = API.declareMultipart({
 ### Combined Validation
 
 ```typescript
-const uploadDocument = API.declareMultipart({
+const uploadDocument = API.declareEndpoint({
   method: 'POST',
   url: '/documents',
+  body: 'multipart',
   requestSchema: z.object({
     file: z.instanceof(File)
       .refine((file) => file.size <= 10 * 1024 * 1024, {
@@ -304,58 +327,62 @@ function DragDropUpload() {
 
 ## Progress Tracking
 
-While Builder doesn't provide built-in progress tracking, you can implement it with your HTTP client:
+Builder does not track upload progress itself. If your HTTP client supports it, pass its option through `clientOptions` — for example axios' `onUploadProgress`:
 
 ```typescript
-// Using @navios/http with XMLHttpRequest for progress
-import { create } from '@navios/http'
-
-const client = create({
-  baseURL: 'https://api.example.com',
-  // Custom implementation with progress
-})
-
-// Or use axios which supports progress
-import axios from 'axios'
-
-const client = axios.create({
-  baseURL: 'https://api.example.com',
-  onUploadProgress: (progressEvent) => {
-    const percentCompleted = Math.round(
-      (progressEvent.loaded * 100) / progressEvent.total
-    )
-    console.log(`Upload progress: ${percentCompleted}%`)
-  },
-})
-
-API.provideClient(client)
-```
-
-## Error Handling
-
-Multipart endpoints throw errors just like regular endpoints:
-
-```typescript
-const uploadFile = API.declareMultipart({
+const uploadFile = API.declareEndpoint({
   method: 'POST',
   url: '/files',
+  body: 'multipart',
   requestSchema: z.object({
     file: z.instanceof(File),
   }),
   responseSchema: z.object({
     id: z.string(),
   }),
+  clientOptions: {
+    onUploadProgress: (event: { loaded: number; total?: number }) => {
+      if (event.total) {
+        console.log(`Upload progress: ${Math.round((event.loaded * 100) / event.total)}%`)
+      }
+    },
+  },
+})
+```
+
+## Error Handling
+
+Uploads fail like any other endpoint: with an `EndpointError`. A file that does not pass `requestSchema` is rejected before anything is sent:
+
+```typescript
+const uploadFile = API.declareEndpoint({
+  method: 'POST',
+  url: '/files',
+  body: 'multipart',
+  requestSchema: z.object({
+    file: z.instanceof(File).refine((file) => file.size <= 5 * 1024 * 1024, {
+      message: 'File must be less than 5MB',
+    }),
+  }),
+  responseSchema: z.object({
+    id: z.string(),
+  }),
+  errorSchema: {
+    413: z.object({ maxSize: z.number() }),
+  },
 })
 
-try {
-  const result = await uploadFile({
-    data: { file: selectedFile },
-  })
-} catch (error) {
-  if (error instanceof NaviosError) {
-    console.error('Upload failed:', error.message)
-  } else if (error instanceof ZodError) {
-    console.error('Validation failed:', error.errors)
+const result = await uploadFile.safe({ data: { file: selectedFile } })
+
+if (!result.ok) {
+  const { error } = result
+
+  if (error.kind === 'request-validation') {
+    showError(error.issues[0]?.message ?? 'Invalid file')
+  } else if (error.kind === 'http' && error.status === 413) {
+    showError(`File exceeds ${error.body.maxSize} bytes`)
+  } else {
+    showError('Upload failed')
   }
 }
 ```
@@ -365,9 +392,10 @@ try {
 ### Image Upload with Preview
 
 ```typescript
-const uploadImage = API.declareMultipart({
+const uploadImage = API.declareEndpoint({
   method: 'POST',
   url: '/images',
+  body: 'multipart',
   requestSchema: z.object({
     file: z.instanceof(File),
   }),
@@ -420,9 +448,10 @@ function ImageUpload() {
 ### Multiple File Upload with Progress
 
 ```typescript
-const uploadFiles = API.declareMultipart({
+const uploadFiles = API.declareEndpoint({
   method: 'POST',
   url: '/files',
+  body: 'multipart',
   requestSchema: z.object({
     files: z.array(z.instanceof(File)),
   }),
@@ -509,7 +538,7 @@ await uploadFile({ data: { file } })
 
 ## Next Steps
 
-- [Streams](/docs/builder/builder/advanced/streams) - Download files
+- [Non-JSON Responses](/docs/builder/builder/advanced/streams) - Download files
 - [Defining Endpoints](/docs/builder/builder/guides/defining-endpoints) - Review endpoint basics
 - [Error Handling](/docs/builder/builder/guides/error-handling) - Handle upload errors
 

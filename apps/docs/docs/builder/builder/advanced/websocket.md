@@ -4,13 +4,13 @@ sidebar_position: 3
 
 # WebSocket
 
-WebSocket support in `@navios/builder` provides type-safe, bidirectional messaging with Zod schema validation. It works with Socket.IO clients or native WebSocket connections.
+WebSocket support in `@navios/builder` provides type-safe, bidirectional messaging with schema validation. It works with Socket.IO clients or native WebSocket connections.
 
 ## Overview
 
 The WebSocket builder (`@navios/builder/socket`) allows you to:
 
-- Define type-safe send and subscribe handlers with Zod schemas
+- Define type-safe send and subscribe handlers with Zod or any other Standard Schema library
 - Use Socket.IO or native WebSocket connections
 - Handle acknowledgements for request-response patterns
 - Validate incoming and outgoing messages at runtime
@@ -78,14 +78,14 @@ const socket = socketBuilder({
     ackId: data[2],
   }),
 
-  // Unified error hook — receives a structured BuilderErrorEvent on every failure path
-  onError: (event) => {
-    if (event.kind === 'validation') {
-      console.error(`Validation failed for ${event.topic}:`, event.zodIssues)
-    } else if (event.kind === 'socket-ack-timeout') {
-      console.warn(`Ack timeout for ${event.topic}`)
-    } else if (event.kind === 'socket-transport') {
-      console.error('Socket transport error:', event.cause)
+  // Optional: error hook — receives a SocketError for every failure
+  onError: (error) => {
+    if (error.kind === 'validation') {
+      console.error(`Validation failed for ${error.topic}:`, error.issues)
+    } else if (error.kind === 'ack-timeout') {
+      console.warn(`Ack timeout for ${error.topic}`)
+    } else {
+      console.error(`Handler for ${error.topic} failed:`, error.cause)
     }
   },
 
@@ -207,6 +207,8 @@ handle.disconnect()
 handle.close()
 ```
 
+The handle also exposes `url` (the full URL it connected to), `connected`, `state` and the underlying `socket`.
+
 ### WebSocket Handler Factory
 
 For multiple WebSocket connections with shared configuration:
@@ -216,7 +218,8 @@ import { createWebSocketHandler } from '@navios/builder/socket'
 
 const declareWebSocket = createWebSocketHandler({
   baseUrl: 'wss://api.example.com',
-  onError: (error) => console.error('WebSocket error:', error),
+  // SocketError of kind 'transport': a listener threw or a send failed
+  onError: (error) => console.error(`WebSocket error on ${error.topic}:`, error.cause),
 })
 
 const chatSocket = declareWebSocket({
@@ -228,6 +231,31 @@ const notificationSocket = declareWebSocket({
   url: '/ws/notifications',
 })
 ```
+
+## Schemas
+
+Every schema slot — `payloadSchema` and `ackSchema` on handlers, `urlParamsSchema` and `querySchema` on `declareWebSocket` — accepts any [Standard Schema](https://standardschema.dev) v1 implementation: Zod, Valibot, ArkType and others. Types are inferred from the schema: what you pass is its input type, what you receive is its output type.
+
+```typescript
+import * as v from 'valibot'
+
+const onPrice = socket.defineSubscribe({
+  topic: 'price',
+  payloadSchema: v.object({ symbol: v.string(), value: v.number() }),
+})
+```
+
+Schemas that validate asynchronously (for example a Zod schema with an async refinement):
+
+| Where                                                  | Asynchronous schema                                                             |
+| ------------------------------------------------------ | ------------------------------------------------------------------------------- |
+| `defineSubscribe` `payloadSchema`                      | Awaited; the handler runs once validation finishes                              |
+| `defineSend` `ackSchema`                               | Awaited before the promise settles                                              |
+| `defineSend` `payloadSchema` with an `ackSchema`       | Awaited; the message is sent once validation finishes                           |
+| `defineSend` `payloadSchema` without an `ackSchema`    | Not supported: the call is synchronous, so it throws a `SocketError`            |
+| `declareWebSocket` `urlParamsSchema` / `querySchema`   | Not supported: the connection is opened synchronously, so it throws a `NaviosError` |
+
+With a synchronous schema, subscribers are called in the same tick the message arrives. With an asynchronous one they are called when its validation resolves, so two messages may be delivered in a different order than they arrived if their validations take different times. A message whose validation finishes after the handler unsubscribed is dropped.
 
 ## Wire Format
 
@@ -311,53 +339,100 @@ onUpdate((data) => {
 
 ## Error Handling
 
-All errors flow through the unified `onError(event)` hook. Filter on `event.kind`. The v1 separate `onValidationError` and `onAckTimeout` callbacks were removed in v2.
+Every failure is a `SocketError` (`extends NaviosError extends Error`). Send handlers throw it or reject with it, and the builder's `onError` hook receives the same instance. Discriminate on `error.kind`.
 
-### Validation Errors (`event.kind === 'validation'`)
+```typescript
+import { isSocketError, socketBuilder } from '@navios/builder/socket'
 
-When incoming messages fail Zod validation, the message is skipped and `onError` fires with `event.kind === 'validation'`:
+const socket = socketBuilder({
+  onError: (error) => {
+    console.error(`[socket] ${error.kind} on ${error.topic}: ${error.message}`)
+  },
+})
+```
+
+### `SocketError`
+
+| Field     | Type                                          | Description                                                                             |
+| --------- | --------------------------------------------- | --------------------------------------------------------------------------------------- |
+| `kind`    | `'validation' \| 'ack-timeout' \| 'transport'` | Why it failed                                                                           |
+| `topic`   | `string`                                      | Topic the send or subscribe handler was defined with                                    |
+| `url`     | `string \| undefined`                         | Connection URL, when the client has a `url` property (`declareWebSocket` handles do)    |
+| `issues`  | `readonly SchemaIssue[] \| undefined`         | Validation issues (`{ message, path? }`), for `validation`                              |
+| `rawData` | `unknown`                                     | The value that failed validation, for `validation`                                      |
+| `cause`   | `unknown`                                     | The schema library's own error (a `ZodError` for Zod), or the value a handler threw     |
+| `message` | `string`                                      | Human-readable description                                                              |
+
+`error.toJSON()` returns the same fields as a plain object without `cause`. `isSocketError(value)` is the type guard for `catch` blocks.
+
+### Kinds
+
+| Kind          | When                                                                                             | What happens                                              |
+| ------------- | ------------------------------------------------------------------------------------------------ | --------------------------------------------------------- |
+| `validation`  | `payloadSchema` rejects the payload passed to a send handler                                     | The send handler throws; nothing is sent                  |
+| `validation`  | `payloadSchema` rejects an incoming message                                                      | The message is skipped; subscribers are not called        |
+| `validation`  | `ackSchema` rejects an acknowledgement                                                           | The send promise rejects                                  |
+| `ack-timeout` | No acknowledgement arrived within `ackTimeout`                                                   | The send promise rejects                                  |
+| `transport`   | A subscribe handler threw (`cause` is the thrown value)                                          | The other subscribers of the topic still run              |
+| `transport`   | `provideClient` replaced the client while an acknowledgement was pending                         | The send promise rejects                                  |
+
+`onError` is called once for each of these.
+
+### Validation Errors
 
 ```typescript
 const socket = socketBuilder({
-  onError: (event) => {
-    if (event.kind === 'validation') {
-      console.error(`Invalid message on ${event.topic}:`, {
-        zodIssues: event.zodIssues,
-        rawData: event.rawData,
+  onError: (error) => {
+    if (error.kind === 'validation') {
+      console.error(`Invalid data on ${error.topic}:`, {
+        issues: error.issues,
+        rawData: error.rawData,
       })
     }
   },
 })
 ```
 
-### Acknowledgement Timeouts (`event.kind === 'socket-ack-timeout'`)
-
-When an acknowledgement times out, the Promise rejects and `onError` fires with `event.kind === 'socket-ack-timeout'`:
+A send handler reports an invalid payload to the caller as well:
 
 ```typescript
-const socket = socketBuilder({
-  ackTimeout: 5000, // 5 seconds
-  onError: (event) => {
-    if (event.kind === 'socket-ack-timeout') {
-      console.warn(`Request to ${event.topic} timed out`)
-    }
-  },
-})
+try {
+  sendMessage({ text: 123 as never })
+} catch (error) {
+  if (isSocketError(error) && error.kind === 'validation') {
+    error.issues // [{ message: 'Invalid input: expected string, received number', path: ['text'], ... }]
+    error.cause // the ZodError
+  }
+}
+```
+
+### Acknowledgement Timeouts
+
+```typescript
+const socket = socketBuilder({ ackTimeout: 5000 })
 
 try {
   const result = await createRoom({ name: 'Test' })
 } catch (error) {
-  // Error: Acknowledgement timeout for topic "room.create" (ackId: ...)
+  if (isSocketError(error) && error.kind === 'ack-timeout') {
+    // error.message: Acknowledgement timeout for topic "room.create" (ackId: ...)
+  }
 }
 ```
 
-### Transport Errors (`event.kind === 'socket-transport'`)
+### Handler Errors
 
-Underlying socket transport failures (disconnects, send errors) fire with `event.kind === 'socket-transport'`.
+A subscribe handler that throws does not affect the other handlers of the topic. The thrown value is reported as `kind: 'transport'` with the original on `error.cause`.
+
+### The `onError` Hook
+
+The hook is for telemetry. An exception thrown inside it is caught and logged with `console.error`; it never interrupts message handling and never changes what a send handler throws.
+
+`createWebSocketHandler({ onError })` has the same contract for the handle itself: a listener registered with `handle.on()` that throws, or a failed `WebSocket.send`, is reported as a `SocketError` of kind `transport` with `topic` set to the event name and `url` to the connection URL.
 
 ### Client Not Provided
 
-Calling handlers before `provideClient()` throws an error:
+Calling handlers before `provideClient()` throws a `NaviosError`:
 
 ```typescript
 const socket = socketBuilder()
@@ -403,11 +478,11 @@ console.log(sendMessage.config.payloadSchema) // ZodObject
 
 1. **Define handlers before connecting** - This ensures handlers are registered when the connection opens.
 
-2. **Use schemas for validation** - Zod schemas provide runtime validation and TypeScript types.
+2. **Use schemas for validation** - Schemas provide runtime validation and TypeScript types.
 
 3. **Handle cleanup properly** - Always unsubscribe from events and close connections when done.
 
-4. **Use the unified `onError` hook for debugging** - Filter `event.kind === 'validation'` to catch schema mismatches and report `event.zodIssues` / `event.rawData`.
+4. **Use the `onError` hook for debugging** - Filter `error.kind === 'validation'` to catch schema mismatches and report `error.issues` / `error.rawData`.
 
 5. **Separate connection declaration from usage** - Declare connections once, use multiple times:
 

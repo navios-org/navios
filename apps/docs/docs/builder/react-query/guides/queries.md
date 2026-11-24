@@ -4,407 +4,318 @@ sidebar_position: 1
 
 # Queries
 
-Queries are used to fetch data from your API. Builder's React Query integration provides type-safe hooks with automatic query key generation and cache management.
+Queries fetch data from your API and cache it. `client.query` returns a query object: call it to get TanStack query options, or use the hooks and cache helpers attached to it.
 
 ## Basic Query
 
-Create a query with inline configuration:
-
 ```typescript
+import { z } from 'zod'
+
+const userSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  email: z.string().email(),
+})
+
 const getUser = client.query({
   method: 'GET',
   url: '/users/$userId',
   responseSchema: userSchema,
 })
 
-// Use in component
 function UserProfile({ userId }: { userId: string }) {
-  const { data, isLoading, error } = getUser.use({
-    urlParams: { userId },
-  })
+  const { data, isPending, error } = getUser.use({ urlParams: { userId } })
 
-  if (isLoading) return <div>Loading...</div>
+  if (isPending) return <div>Loading...</div>
   if (error) return <div>Error: {error.message}</div>
-  
+
   return <div>{data.name}</div>
 }
 ```
 
-## Query from Endpoint
+## Query from an Existing Endpoint
 
-Create a query from a pre-declared endpoint:
+When an endpoint is already declared with the builder (for example in a package shared with the server), pass the handler instead of an inline config:
 
 ```typescript
 // shared/endpoints/users.ts
-import { builder } from '@navios/builder'
-
-const API = builder()
-
-export const getUserEndpoint = API.declareEndpoint({
+export const getUserEndpoint = api.declareEndpoint({
   method: 'GET',
   url: '/users/$userId',
   responseSchema: userSchema,
 })
-```
 
-```typescript
 // client/queries/users.ts
-import { client } from '../index'
-import { getUserEndpoint } from '../../shared/endpoints/users'
-
 const getUser = client.query(getUserEndpoint)
 
-// Usage is the same
-const { data } = getUser.use({ urlParams: { userId: '123' } })
+getUser.endpoint // the same handler, for direct calls outside React
 ```
 
-## use() vs useSuspense()
+Both forms produce the same query object.
 
-### use() Hook
+## Arguments
 
-Returns a query result object with loading and error states:
-
-```typescript
-const { data, isLoading, error, refetch } = getUser.use({
-  urlParams: { userId: '123' },
-})
-
-if (isLoading) return <div>Loading...</div>
-if (error) return <div>Error: {error.message}</div>
-return <div>{data.name}</div>
-```
-
-### useSuspense() Hook
-
-Returns data directly and throws on error (requires Suspense boundary):
+The arguments are the endpoint's call arguments. The object is optional when the endpoint requires nothing.
 
 ```typescript
-function UserProfile({ userId }: { userId: string }) {
-  const user = getUser.useSuspense({ urlParams: { userId } })
-  // No loading/error checks needed - Suspense handles it
-  return <div>{user.name}</div>
-}
-
-function App() {
-  return (
-    <Suspense fallback={<div>Loading...</div>}>
-      <ErrorBoundary fallback={<div>Error!</div>}>
-        <UserProfile userId="123" />
-      </ErrorBoundary>
-    </Suspense>
-  )
-}
-```
-
-## Query Options
-
-### Enabled
-
-Conditionally enable/disable queries:
-
-```typescript
-const { data } = getUser.use({
-  urlParams: { userId },
-  enabled: !!userId, // Only fetch if userId exists
-})
-```
-
-### Stale Time
-
-Control how long data is considered fresh:
-
-```typescript
-const { data } = getUser.use({
-  urlParams: { userId },
-  staleTime: 5 * 60 * 1000, // 5 minutes
-})
-```
-
-### Cache Time
-
-Control how long unused data stays in cache:
-
-```typescript
-const { data } = getUser.use({
-  urlParams: { userId },
-  gcTime: 10 * 60 * 1000, // 10 minutes (formerly cacheTime)
-})
-```
-
-### Refetch Options
-
-```typescript
-const { data } = getUser.use({
-  urlParams: { userId },
-  refetchOnWindowFocus: false,
-  refetchOnMount: true,
-  refetchOnReconnect: true,
-})
-```
-
-## Query Parameters
-
-### URL Parameters
-
-```typescript
-const getUser = client.query({
-  method: 'GET',
-  url: '/users/$userId',
-  responseSchema: userSchema,
-})
-
-const { data } = getUser.use({
-  urlParams: { userId: '123' },
-})
-```
-
-### Query String Parameters
-
-```typescript
-const getUsers = client.query({
+const listUsers = client.query({
   method: 'GET',
   url: '/users',
   querySchema: z.object({
     page: z.number().optional(),
-    limit: z.number().optional(),
+    search: z.string().optional(),
   }),
   responseSchema: z.array(userSchema),
 })
 
-const { data } = getUsers.use({
-  params: { page: 1, limit: 20 },
-})
+listUsers.use() // nothing is required
+listUsers.use({ params: { page: 2, search: 'ada' } })
+
+getUser.use({ urlParams: { userId: '123' } }) // urlParams is required
 ```
 
-### Combined Parameters
+| Key         | Source                         |
+| ----------- | ------------------------------ |
+| `urlParams` | `$name` segments of the URL    |
+| `params`    | `querySchema`                  |
+| `data`      | `requestSchema` (POST queries) |
+| `headers`   | Per-call headers               |
+| `timeout`   | Per-call timeout               |
 
-```typescript
-const getUserPosts = client.query({
-  method: 'GET',
-  url: '/users/$userId/posts',
-  querySchema: z.object({
-    page: z.number().optional(),
-  }),
-  responseSchema: z.array(postSchema),
-})
+`urlParams`, `params` and `data` identify the request and are part of the cache key. `headers` and `timeout` are not.
 
-const { data } = getUserPosts.use({
-  urlParams: { userId: '123' },
-  params: { page: 1 },
-})
-```
+### POST Queries
 
-## POST Queries
-
-You can use POST for queries (useful for complex search):
+Some APIs use POST for reads (search, reports). The request body is part of the cache key, so different bodies are different cache entries:
 
 ```typescript
 const searchUsers = client.query({
   method: 'POST',
   url: '/users/search',
-  requestSchema: z.object({
-    query: z.string(),
-    filters: z.array(z.string()).optional(),
-  }),
+  requestSchema: z.object({ query: z.string() }),
   responseSchema: z.array(userSchema),
 })
 
-const { data } = searchUsers.use({
-  data: {
-    query: 'john',
-    filters: ['active'],
+const { data } = searchUsers.use({ data: { query: 'ada' } })
+```
+
+## Hooks
+
+### use()
+
+`use(args, options?)` is `useQuery`. The second argument accepts every TanStack Query option except `queryKey` and `queryFn`:
+
+```typescript
+const { data } = getUser.use(
+  { urlParams: { userId } },
+  {
+    staleTime: 60_000,
+    gcTime: 5 * 60_000,
+    refetchOnWindowFocus: false,
+    refetchInterval: 30_000,
+    enabled: isVisible,
   },
+)
+```
+
+### useSuspense()
+
+`useSuspense(args, options?)` is `useSuspenseQuery`: it suspends while loading and throws to the nearest error boundary on failure, so `data` is always defined.
+
+```typescript
+function UserProfile({ userId }: { userId: string }) {
+  const { data } = getUser.useSuspense({ urlParams: { userId } })
+  return <div>{data.name}</div>
+}
+```
+
+See [Suspense](/docs/builder/react-query/guides/suspense).
+
+### Query Options
+
+Calling the query object returns TanStack query options. Use them with `useQuery`, `useSuspenseQuery`, `useQueries` or `queryClient.query`:
+
+```typescript
+import { useQueries, useQuery } from '@tanstack/react-query'
+
+const user = useQuery(getUser({ urlParams: { userId } }))
+
+const users = useQueries({
+  queries: userIds.map((userId) => getUser({ urlParams: { userId } })),
 })
 ```
 
 ## Projecting with `select`
 
-Transform response data per-consumer using TanStack Query's `select` option. The endpoint-level `processResponse` callback was removed in v2; pass `select` to `use` / `useSuspense` instead. `select` runs on read (not in the cache-write path), so multiple consumers can project the same cached value differently.
+`select` transforms the cached data for one call site; the hook's `data` takes the selected type:
+
+```typescript
+const { data: name } = getUser.use(
+  { urlParams: { userId } },
+  { select: (user) => user.name },
+)
+// name: string | undefined
+```
+
+## Conditional and Dependent Queries
+
+Pass `skipToken` instead of the arguments while an input is not known yet. The query stays disabled and nothing is fetched:
+
+```typescript
+import { skipToken } from '@tanstack/react-query'
+
+function UserProfile({ userId }: { userId: string | null }) {
+  const { data } = getUser.use(userId ? { urlParams: { userId } } : skipToken)
+  // ...
+}
+```
+
+A query that depends on another query's result works the same way:
+
+```typescript
+function UserTeam({ userId }: { userId: string }) {
+  const { data: user } = getUser.use({ urlParams: { userId } })
+  const { data: team } = getTeam.use(
+    user ? { urlParams: { teamId: user.teamId } } : skipToken,
+  )
+  // ...
+}
+```
+
+When the arguments are known and you only want to pause fetching, use `enabled`:
+
+```typescript
+const { data } = getUser.use({ urlParams: { userId } }, { enabled: isOpen })
+```
+
+:::note
+`skipToken` is not accepted by `useSuspense()` — a suspense query always fetches.
+:::
+
+## Error Handling
+
+A failed query rejects with the endpoint's `EndpointError`. With `use()` it is the hook's `error`; with `useSuspense()` it is thrown to the error boundary.
 
 ```typescript
 const getUser = client.query({
   method: 'GET',
   url: '/users/$userId',
   responseSchema: userSchema,
-})
-
-// Project to a derived shape
-const { data } = getUser.use(
-  { urlParams: { userId: '123' } },
-  {
-    select: (data) => ({
-      ...data,
-      displayName: `${data.firstName} ${data.lastName}`,
-      isActive: data.status === 'active',
-    }),
+  errorSchema: {
+    404: z.object({ message: z.string() }),
   },
-)
-```
-
-## Error Handling
-
-### With use()
-
-```typescript
-const { data, error, isError } = getUser.use({
-  urlParams: { userId: '123' },
 })
 
-if (isError) {
-  if (error instanceof NaviosError) {
-    console.error('API Error:', error.message)
-  } else {
-    console.error('Unknown error:', error)
-  }
-}
-```
+function UserProfile({ userId }: { userId: string }) {
+  const { data, isPending, error } = getUser.use({ urlParams: { userId } })
 
-### With useSuspense()
-
-Use ErrorBoundary:
-
-```typescript
-class QueryErrorBoundary extends React.Component {
-  state = { hasError: false }
-
-  static getDerivedStateFromError(error: Error) {
-    return { hasError: true, error }
-  }
-
-  render() {
-    if (this.state.hasError) {
-      return <div>Error: {this.state.error.message}</div>
+  if (isPending) return <div>Loading...</div>
+  if (error) {
+    if (error.kind === 'http' && error.status === 404) {
+      return <div>{error.body.message}</div>
     }
-    return this.props.children
+    if (error.kind === 'network') return <div>You appear to be offline</div>
+    return <div>Something went wrong</div>
   }
-}
 
-function App() {
-  return (
-    <QueryErrorBoundary>
-      <Suspense fallback={<div>Loading...</div>}>
-        <UserProfile userId="123" />
-      </Suspense>
-    </QueryErrorBoundary>
-  )
-}
-```
-
-## Query States
-
-### Loading States
-
-```typescript
-const {
-  data,
-  isLoading,        // Initial load
-  isFetching,       // Any fetch (including background)
-  isRefetching,     // Refetching
-  isPending,        // Alias for isLoading (v5)
-} = getUser.use({ urlParams: { userId: '123' } })
-```
-
-### Error States
-
-```typescript
-const {
-  error,
-  isError,
-  failureCount,
-  failureReason,
-} = getUser.use({ urlParams: { userId: '123' } })
-```
-
-### Success States
-
-```typescript
-const {
-  data,
-  isSuccess,
-  dataUpdatedAt,
-  status,
-} = getUser.use({ urlParams: { userId: '123' } })
-```
-
-## Refetching
-
-### Manual Refetch
-
-```typescript
-const { data, refetch } = getUser.use({
-  urlParams: { userId: '123' },
-})
-
-// Refetch manually
-<button onClick={() => refetch()}>Refresh</button>
-```
-
-### Refetch on Interval
-
-```typescript
-const { data } = getUser.use({
-  urlParams: { userId: '123' },
-  refetchInterval: 5000, // Refetch every 5 seconds
-})
-```
-
-### Refetch on Window Focus
-
-```typescript
-const { data } = getUser.use({
-  urlParams: { userId: '123' },
-  refetchOnWindowFocus: true,
-})
-```
-
-## Common Patterns
-
-### Conditional Queries
-
-```typescript
-function UserProfile({ userId }: { userId?: string }) {
-  const { data } = getUser.use({
-    urlParams: { userId: userId! },
-    enabled: !!userId, // Only fetch if userId exists
-  })
-
-  if (!userId) return <div>No user selected</div>
   return <div>{data.name}</div>
 }
 ```
 
-### Dependent Queries
+Invalid arguments are reported the same way: the request is not sent and the query fails with `error.kind === 'request-validation'` instead of throwing while rendering.
+
+See [Typed Errors](/docs/builder/react-query/advanced/error-schemas) for all error kinds.
+
+## Response Metadata
+
+Sometimes a header matters to the UI: an `ETag`, a pagination total, a rate limit. Declare the query with `withResponse: true` and its data becomes `{ data, response }`:
 
 ```typescript
-function UserPosts({ userId }: { userId: string }) {
-  const { data: user } = getUser.use({ urlParams: { userId } })
-  
-  const { data: posts } = getPosts.use({
-    urlParams: { userId },
-    enabled: !!user, // Only fetch posts after user is loaded
-  })
+const listUsers = client.query({
+  method: 'GET',
+  url: '/users',
+  querySchema: z.object({ page: z.number() }),
+  responseSchema: z.array(userSchema),
+  withResponse: true,
+})
 
-  return <div>{/* ... */}</div>
+function UserList({ page }: { page: number }) {
+  const { data } = listUsers.use({ params: { page } })
+
+  if (!data) return <div>Loading...</div>
+
+  const total = Number(data.response.headers['x-total-count'] ?? 0)
+
+  return (
+    <div>
+      <p>{total} users</p>
+      {data.data.map((user) => (
+        <div key={user.id}>{user.name}</div>
+      ))}
+    </div>
+  )
 }
 ```
 
-### Parallel Queries
+With an existing endpoint it goes in the second argument:
 
 ```typescript
-function Dashboard({ userId }: { userId: string }) {
-  const { data: user } = getUser.use({ urlParams: { userId } })
-  const { data: posts } = getPosts.use({ urlParams: { userId } })
-  const { data: comments } = getComments.use({ urlParams: { userId } })
+const getUser = client.query(getUserEndpoint, { withResponse: true })
+```
 
-  // All queries run in parallel
-  return <div>{/* ... */}</div>
-}
+- **`data`** is what the query would deliver without the option.
+- **`response`** is `{ status, statusText, headers }`. `headers` is a plain record with lower-cased names (`headers.etag`, `headers['x-total-count']`), not a `Headers` instance, so the cached value is serializable and safe for SSR dehydration and cache persistence.
+- **Every surface of the query uses the wrapped shape**: `use`, `useSuspense`, `select`, `fetch`, `ensure`, `getData` and `setData`.
+- **Failures are unchanged.** A failed request still lands in `error` as the endpoint's `EndpointError`; `error.response` has the metadata of a failed response.
+- **The entries have their own cache key.** The key carries a `'with-response'` marker, so the same endpoint declared with and without the option never share an entry. See [Query Keys](/docs/builder/react-query/guides/query-keys#key-structure).
+
+The option is also available on [infinite queries](/docs/builder/react-query/guides/infinite-queries#withresponse) and [mutations](/docs/builder/react-query/guides/mutations#withresponse).
+
+## Cache Helpers
+
+Every helper takes the `QueryClient` first, then the same arguments as the hook.
+
+```typescript
+const queryClient = useQueryClient()
+const args = { urlParams: { userId } }
+
+// Fetch through the cache: resolves with data, rejects with the EndpointError
+const user = await getUser.fetch(queryClient, args)
+
+// Warm the cache: resolves with nothing and never rejects
+await getUser.prefetch(queryClient, args)
+
+// Cached data if there is any, however stale; otherwise fetch
+const cached = await getUser.ensure(queryClient, args)
+
+// Read and write the cache entry
+getUser.getData(queryClient, args) // User | undefined
+getUser.setData(queryClient, args, (old) => old && { ...old, name: 'Ada' })
+
+// Invalidate
+await getUser.invalidate(queryClient, args)
+```
+
+:::info
+`fetch`, `prefetch` and `ensure` are built on TanStack's `queryClient.query()`, because `fetchQuery`, `prefetchQuery` and `ensureQueryData` are deprecated upstream. This is why the peer dependency is `@tanstack/react-query ^5.102.0`.
+:::
+
+## Refetching
+
+The hook result is TanStack's, so `refetch` and the refetch options work as usual:
+
+```typescript
+const { data, refetch, isFetching } = getUser.use(
+  { urlParams: { userId } },
+  { refetchInterval: 5000 },
+)
+
+<button onClick={() => refetch()} disabled={isFetching}>Refresh</button>
 ```
 
 ## Next Steps
 
 - [Infinite Queries](/docs/builder/react-query/guides/infinite-queries) - Paginated data
-- [Mutations](/docs/builder/react-query/guides/mutations) - Data modifications
-- [Query Keys](/docs/builder/react-query/guides/query-keys) - Query key management
-- [Invalidation](/docs/builder/react-query/guides/invalidation) - Cache invalidation
-
+- [Query Keys](/docs/builder/react-query/guides/query-keys) - How keys are built
+- [Invalidation](/docs/builder/react-query/guides/invalidation) - Refresh cached data
+- [Suspense](/docs/builder/react-query/guides/suspense) - Use Suspense for cleaner code

@@ -17,8 +17,8 @@ function builder(config?: BuilderConfig): BuilderInstance
 ### Parameters
 
 - `config` (optional): Configuration options
-  - `defaults?: { result?: 'data' | 'envelope' }` - Default settings applied to every endpoint; per-endpoint values override
-  - `onError?: (event: BuilderErrorEvent) => void` - Unified error hook fired on every failure path. The event carries `kind`, `endpoint`, `status`, `zodIssues`, `cause`, `body`, plus optional `topic` / `eventName` / `rawData` on socket / SSE builders
+  - `client?: Client` - HTTP client used by every endpoint declared on this builder. Can also be supplied later with `provideClient`, or per call with `{ client }`
+  - `onError?: (error: EndpointError) => void` - Called once for every failed call with the same `EndpointError` the caller receives. An exception thrown inside the hook is caught and logged; it never changes the outcome of the call
 
 ### Returns
 
@@ -27,194 +27,188 @@ A `BuilderInstance` with methods to declare endpoints and manage the HTTP client
 ### Example
 
 ```typescript
+import { builder } from '@navios/builder'
+import { create } from '@navios/http'
+
 const API = builder({
-  defaults: { result: 'envelope' },
-  onError: (event) => {
-    if (event.kind === 'validation') {
-      console.error('Validation failed:', event.zodIssues)
-    } else {
-      console.error('Request failed:', event.endpoint, event.cause)
-    }
+  client: create({ baseURL: 'https://api.example.com' }),
+  onError: (error) => {
+    console.error(error.kind, error.endpoint.method, error.endpoint.url)
   },
 })
 ```
-
-The v1 `useDiscriminatorResponse` flag and `onZodError` callback were removed in v2. Use per-endpoint `result: 'envelope'` (or `defaults: { result: 'envelope' }`) for the discriminator-mode replacement, and filter on `event.kind === 'validation'` inside the unified `onError`.
 
 ## BuilderInstance
 
 The instance returned by `builder()`.
 
-### Methods
+### declareEndpoint
 
-#### declareEndpoint
-
-Declares a typed HTTP endpoint for JSON responses.
+Declares a typed HTTP endpoint.
 
 ```typescript
-declareEndpoint<Config>(options: BaseEndpointConfig): EndpointFunction
+declareEndpoint<const Options extends BaseEndpointOptions>(
+  options: Options & RequireResponseSchema<Options>,
+): EndpointHandler<Options>
 ```
 
 **Options:**
 
-- `method`: `'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH' | 'HEAD' | 'OPTIONS'`
-- `url`: `string` - Endpoint URL (supports `$paramName` syntax)
-- `responseSchema`: `ZodType` - **Required** - Schema for response validation
-- `requestSchema`: `ZodType` - **Optional** - Schema for request body (POST, PUT, PATCH)
-- `querySchema`: `ZodType` - **Optional** - Schema for query parameters
-- `errorSchema`: `ErrorSchemaRecord` - **Optional** - Map of HTTP status codes to Zod schemas for error responses
-- `urlParamsSchema`: `ZodObject` - **Optional** - Schema for runtime validation of URL parameters
-- `clientOptions`: `ClientOptions` - **Optional** - Per-endpoint client configuration (timeout, headers, etc.)
+| Option             | Type                                                          | Description                                                                                         |
+| ------------------ | ------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| `method`           | `'GET' \| 'POST' \| 'PUT' \| 'DELETE' \| 'PATCH' \| 'HEAD' \| 'OPTIONS'` | **Required.** HTTP method                                                                |
+| `url`              | `string`                                                      | **Required.** URL template; `$paramName` marks a URL parameter                                      |
+| `responseSchema`   | `Schema`                                                      | Schema for a JSON response. **Required** unless `responses` is given or `response` is `'blob'`, `'text'`, `'stream'` or `'void'` |
+| `responses`        | `Record<number, Schema \| null>`                              | Per-status success schemas; takes the place of `responseSchema`. `null` marks a status without a body. See [SuccessSchemaRecord](#successschemarecord) |
+| `requestSchema`    | `Schema`                                                      | Schema for the request body                                                                         |
+| `querySchema`      | `Schema`                                                      | Schema for query parameters (an object schema)                                                      |
+| `urlParamsSchema`  | `Schema`                                                      | Schema for URL parameters (an object schema). Its keys must be exactly the URL's parameter names    |
+| `errorSchema`      | `Record<number, Schema>`                                      | Schemas for error bodies, by HTTP status code                                                       |
+| `body`             | `'json' \| 'multipart'`                                       | Encoding of the request body. `'multipart'` converts `data` to `FormData`. Default `'json'`         |
+| `response`         | `'json' \| 'blob' \| 'text' \| 'stream' \| 'void'`            | What the endpoint resolves to. Default `'json'`                                                     |
+| `headers`          | `Record<string, string>`                                      | Headers sent with every call. Per-call `headers` are merged over these                              |
+| `timeout`          | `number`                                                      | Timeout in milliseconds. A per-call `timeout` wins                                                  |
+| `clientOptions`    | `Record<string, unknown>`                                     | Client-specific options merged into the request config. Cannot override builder-owned keys          |
+| `validateResponse` | `boolean`                                                     | `false` skips the runtime parse of the response; the type is still inferred. Default `true`         |
 
-**Returns:** A function that makes the HTTP request and returns validated response data.
+A [`Schema`](#schema) is any [Standard Schema](https://standardschema.dev) v1 implementation: Zod, Valibot, ArkType and others. Each slot takes its own schema, so libraries can be mixed within one endpoint.
 
-**Example:**
+**Returns:** an [`EndpointHandler`](#endpoint-handler).
+
+**Throws:** `NaviosError` when `urlParamsSchema` keys do not match the URL's parameters. The check runs for schemas that expose their keys as `.shape` (Zod objects); other schemas are validated on each call only.
+
+**Examples:**
 
 ```typescript
+// JSON endpoint
 const getUser = API.declareEndpoint({
   method: 'GET',
   url: '/users/$userId',
   responseSchema: userSchema,
+  errorSchema: { 404: z.object({ message: z.string() }) },
 })
 
-const user = await getUser({ urlParams: { userId: '123' } })
-```
-
-#### declareStream
-
-Declares an endpoint that returns binary data (Blob).
-
-```typescript
-declareStream<Config>(options: BaseStreamConfig): StreamFunction
-```
-
-**Options:**
-
-- `method`: `'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH' | 'HEAD' | 'OPTIONS'`
-- `url`: `string` - Endpoint URL (supports `$paramName` syntax)
-- `requestSchema`: `ZodType` - **Optional** - Schema for request body
-- `querySchema`: `ZodType` - **Optional** - Schema for query parameters
-- `errorSchema`: `ErrorSchemaRecord` - **Optional** - Map of HTTP status codes to Zod schemas for error responses
-- `urlParamsSchema`: `ZodObject` - **Optional** - Schema for runtime validation of URL parameters
-- `clientOptions`: `ClientOptions` - **Optional** - Per-endpoint client configuration
-
-**Returns:** A function that makes the HTTP request and returns a `Blob`.
-
-**Example:**
-
-```typescript
-const downloadFile = API.declareStream({
-  method: 'GET',
-  url: '/files/$fileId/download',
-})
-
-const blob = await downloadFile({ urlParams: { fileId: '123' } })
-```
-
-#### declareMultipart
-
-Declares an endpoint for multipart/form-data uploads.
-
-```typescript
-declareMultipart<Config>(options: BaseEndpointConfig): MultipartFunction
-```
-
-**Options:**
-
-- `method`: `'POST' | 'PUT' | 'PATCH'`
-- `url`: `string` - Endpoint URL (supports `$paramName` syntax)
-- `responseSchema`: `ZodType` - **Required** - Schema for response validation
-- `requestSchema`: `ZodType` - **Optional** - Schema for request body (should include File instances)
-- `querySchema`: `ZodType` - **Optional** - Schema for query parameters
-- `errorSchema`: `ErrorSchemaRecord` - **Optional** - Map of HTTP status codes to Zod schemas for error responses
-- `urlParamsSchema`: `ZodObject` - **Optional** - Schema for runtime validation of URL parameters
-- `clientOptions`: `ClientOptions` - **Optional** - Per-endpoint client configuration
-
-**Returns:** A function that automatically converts the request data to `FormData` and makes the HTTP request.
-
-**Example:**
-
-```typescript
-const uploadFile = API.declareMultipart({
+// File upload
+const uploadFile = API.declareEndpoint({
   method: 'POST',
   url: '/files',
-  requestSchema: z.object({
-    file: z.instanceof(File),
-    name: z.string(),
-  }),
-  responseSchema: z.object({
-    id: z.string(),
-    url: z.string(),
-  }),
+  body: 'multipart',
+  requestSchema: z.object({ file: z.instanceof(File) }),
+  responseSchema: z.object({ id: z.string() }),
 })
 
-const result = await uploadFile({
-  data: {
-    file: selectedFile,
-    name: 'document.pdf',
+// File download
+const downloadFile = API.declareEndpoint({
+  method: 'GET',
+  url: '/files/$fileId',
+  response: 'blob',
+})
+
+// No response body (204)
+const deleteFile = API.declareEndpoint({
+  method: 'DELETE',
+  url: '/files/$fileId',
+  response: 'void',
+})
+
+// A different body per success status
+const saveUser = API.declareEndpoint({
+  method: 'PUT',
+  url: '/users/$userId',
+  requestSchema: z.object({ name: z.string() }),
+  responses: {
+    200: userSchema,
+    201: z.object({ id: z.string(), created: z.literal(true) }),
+    204: null,
   },
 })
 ```
 
-#### provideClient
+### provideClient
 
-Sets the HTTP client for the API.
+Sets or replaces the HTTP client used by every endpoint declared on this builder. Meant for application start-up.
 
 ```typescript
 provideClient(client: Client): void
 ```
 
-**Parameters:**
-
-- `client`: An HTTP client instance that implements the `Client` interface
-
-**Example:**
-
 ```typescript
-import { create } from '@navios/http'
-
-const client = create({ baseURL: 'https://api.example.com' })
-API.provideClient(client)
+API.provideClient(create({ baseURL: 'https://api.example.com' }))
 ```
 
-#### getClient
+### getClient
 
-Gets the current HTTP client.
+Returns the configured HTTP client.
 
 ```typescript
 getClient(): Client
 ```
 
-**Returns:** The configured HTTP client.
-
 **Throws:** `NaviosError` if no client has been provided.
 
-**Example:**
+### withClient
+
+Returns a new builder with the same configuration and a different client. Endpoints declared on the returned builder use that client; endpoints already declared on this builder are not affected.
 
 ```typescript
-const client = API.getClient()
-// Use client directly if needed
+withClient(client: Client): BuilderInstance
 ```
 
-## Endpoint Function
+```typescript
+const adminAPI = API.withClient(adminClient)
+```
 
-The function returned by `declareEndpoint()`, `declareStream()`, or `declareMultipart()`.
+## Endpoint Handler
 
-### Parameters
+The function returned by `declareEndpoint()`.
 
-The endpoint function accepts an object with:
+```typescript
+type EndpointHandler<Options> = {
+  (args, options?: EndpointCallOptions): Promise<Data>
+  safe(args, options?: EndpointCallOptions): Promise<SafeResult<Data, Error>>
+  config: Options
+}
+```
 
-- `urlParams?`: `Record<string, string>` - URL path parameters (when URL has `$params`)
-- `params?`: `z.infer<QuerySchema>` - Query parameters (when `querySchema` defined)
-- `data?`: `z.infer<RequestSchema>` - Request body (when `requestSchema` defined)
-- `headers?`: `Record<string, string>` - Additional headers
-- `signal?`: `AbortSignal` - AbortSignal for request cancellation
+### Arguments
 
-### Returns
+The first argument is an object with:
 
-- `declareEndpoint`: `Promise<z.output<ResponseSchema>>`
-- `declareStream`: `Promise<Blob>`
-- `declareMultipart`: `Promise<z.output<ResponseSchema>>`
+- `urlParams` - URL path parameters. Present when the URL has `$params`; typed `string | number` each, or from the input type of `urlParamsSchema`
+- `params` - Query parameters, the input type of `querySchema`. Present when `querySchema` is declared
+- `data` - Request body, the input type of `requestSchema`. Present when `requestSchema` is declared
+- `headers?`: `Record<string, string>` - Merged over the endpoint's `headers`
+- `timeout?`: `number` - Milliseconds; wins over the endpoint's `timeout`
+- `signal?`: `AbortSignal | null` - For request cancellation
+
+The input type of a schema is what it accepts before validation (`z.input` for Zod, [`InferSchemaInput`](#schema) in general); the output type is what it produces (`z.output`, `InferSchemaOutput`).
+
+`params` and `data` are optional when their schema has no required fields. The whole argument object is optional when nothing in it is required.
+
+The second argument is optional:
+
+- `client?`: `Client` - HTTP client for this call only
+
+### Return Value
+
+| `response` option  | `endpoint(args)` resolves to    |
+| ------------------ | ------------------------------- |
+| `'json'` (default) | The output type of `responseSchema`; with `responses`, the union of every entry's output type, where a `null` entry contributes `undefined` |
+| `'blob'`           | `Blob`                          |
+| `'text'`           | `string`                        |
+| `'stream'`         | `ReadableStream<Uint8Array>`    |
+| `'void'`           | `undefined`                     |
+
+`endpoint(args)` rejects with an [`EndpointError`](#endpointerror) on any failure. `endpoint.safe(args)` never rejects and resolves to a [`SafeResult`](#saferesult).
+
+### config
+
+The options object the endpoint was declared with.
+
+```typescript
+getUser.config.method // 'GET'
+getUser.config.url // '/users/$userId'
+```
 
 ### Example
 
@@ -232,27 +226,233 @@ const user = await updateUser({
   params: { notify: true },
   data: { name: 'John Doe' },
   headers: { 'X-Custom-Header': 'value' },
+  timeout: 10000,
   signal: abortController.signal,
 })
+
+const result = await updateUser.safe(
+  { urlParams: { userId: '123' }, data: { name: 'John Doe' } },
+  { client: requestClient },
+)
 ```
 
-## Endpoint Configuration
+## SafeResult
 
-Each endpoint function has a `config` property that exposes its configuration:
+What `endpoint.safe()` resolves to.
 
 ```typescript
-const getUser = API.declareEndpoint({
-  method: 'GET',
-  url: '/users/$userId',
-  responseSchema: userSchema,
-})
+type SafeResult<TData, TError> =
+  | { ok: true; data: TData; error: null; response: ResponseMeta }
+  | { ok: false; data: null; error: TError; response: ResponseMeta | null }
 
-console.log(getUser.config)
-// {
-//   method: 'GET',
-//   url: '/users/$userId',
-//   responseSchema: ZodObject { ... }
-// }
+interface ResponseMeta {
+  status: number
+  statusText: string
+  headers: Headers
+}
+```
+
+`response` is `null` on a failure where no response was received (network failure, abort, timeout, request validation, missing client).
+
+## Errors
+
+### EndpointError
+
+The single error type for a failed endpoint call. It is thrown by `endpoint(args)`, returned as `result.error` by `endpoint.safe(args)`, and passed to the builder's `onError` hook.
+
+```typescript
+class EndpointError extends NaviosError {
+  readonly kind: EndpointErrorKind
+  readonly endpoint: { method: HttpMethod; url: string }
+  readonly status?: number
+  readonly body?: unknown
+  readonly response: ResponseMeta | null
+  readonly issues?: readonly SchemaIssue[]
+  readonly cause?: unknown
+
+  toJSON(): object
+}
+```
+
+- `endpoint` - Method and URL template of the endpoint that failed
+- `status` - HTTP status, when a response was received
+- `body` - The schema output for kind `http`, the raw response body for `http-unknown` and `response-validation`
+- `response` - Response metadata, or `null` when no response was received
+- `issues` - [`SchemaIssue`](#schema) objects (`{ message, path? }`), for `request-validation` and `response-validation`
+- `cause` - The original thrown value. For a validation failure of a Zod schema it is the `ZodError`; for other schema libraries it is `undefined`
+- `toJSON()` - Plain-object form without `cause` and with headers flattened to a record
+
+### EndpointErrorKind
+
+```typescript
+type EndpointErrorKind =
+  | 'http'
+  | 'http-unknown'
+  | 'request-validation'
+  | 'response-validation'
+  | 'network'
+  | 'timeout'
+  | 'aborted'
+  | 'config'
+```
+
+| Kind                  | Meaning                                                                             |
+| --------------------- | ----------------------------------------------------------------------------------- |
+| `http`                | Non-2xx status that matched `errorSchema`; `body` is the parsed schema output       |
+| `http-unknown`        | Non-2xx status with no schema; `body` is the raw payload                            |
+| `request-validation`  | `urlParamsSchema`, `querySchema` or `requestSchema` rejected the input. No request was sent |
+| `response-validation` | A 2xx body failed `responseSchema` or its `responses` entry, a 2xx status is not listed in `responses`, or an error body failed its `errorSchema` entry |
+| `network`             | No response was received and the request was not cancelled                          |
+| `timeout`             | The request timed out                                                               |
+| `aborted`             | The request was cancelled through its `AbortSignal`                                 |
+| `config`              | The call could not be made: no client was provided, or a required URL parameter is missing |
+
+### EndpointErrorOf
+
+The typed view of `EndpointError` for an error schema: a discriminated union in which narrowing on `kind` and `status` narrows `body`. Every member is an `EndpointError` instance at runtime.
+
+```typescript
+type EndpointErrorOf<E extends ErrorSchemaRecord | undefined = undefined>
+```
+
+This is the error type of `endpoint.safe()`. To get it from an endpoint, use [`EndpointErrorType`](#endpoint-type-helpers).
+
+```typescript
+const result = await getUser.safe({ urlParams: { userId: '123' } })
+
+if (!result.ok && result.error.kind === 'http' && result.error.status === 404) {
+  result.error.body // typed from errorSchema[404]
+}
+```
+
+### NaviosError
+
+Base class of everything Builder throws. `EndpointError` extends it; a bare `NaviosError` is thrown for mistakes in a declaration and by `getClient()` when no client is set.
+
+```typescript
+class NaviosError extends Error {
+  constructor(message: string, options?: { cause?: unknown })
+}
+```
+
+## Type Guards
+
+### isEndpointError
+
+```typescript
+function isEndpointError(error: unknown): error is EndpointError
+```
+
+```typescript
+import { isEndpointError } from '@navios/builder'
+
+try {
+  await getUser({ urlParams: { userId: '123' } })
+} catch (error) {
+  if (isEndpointError(error) && error.kind === 'aborted') return
+  throw error
+}
+```
+
+### isHttpError
+
+Checks for the `http` kind: the server answered with a status declared in `errorSchema` and the body parsed. With a `status` argument it also checks the status, which narrows `body` to the matching schema output.
+
+```typescript
+function isHttpError<E extends ErrorSchemaRecord, S extends keyof E & number>(
+  error: unknown,
+  status?: S,
+): error is HttpEndpointError<E> & { status: S }
+```
+
+```typescript
+import { isHttpError } from '@navios/builder'
+
+try {
+  await getUser({ urlParams: { userId: '123' } })
+} catch (error) {
+  if (isHttpError<typeof getUser.config.errorSchema, 404>(error, 404)) {
+    console.log('Not found:', error.body.message)
+  }
+}
+```
+
+## Response Helpers
+
+Helpers for reading response metadata. All accept `ResponseMeta | null`.
+
+```typescript
+function getHeader(meta: ResponseMeta | null, name: string): string | null
+function getCookie(meta: ResponseMeta | null, name: string): string | null
+function getRetryAfterMs(meta: ResponseMeta | null): number | null
+```
+
+- `getHeader` - Reads one header (case-insensitive)
+- `getCookie` - Reads one cookie value from the response's `Set-Cookie` headers
+- `getRetryAfterMs` - Parses `Retry-After` (seconds or an HTTP date) into milliseconds
+
+```typescript
+const result = await getUser.safe({ urlParams: { userId: '123' } })
+const etag = getHeader(result.response, 'etag')
+```
+
+## Request Utilities
+
+### bindUrlParams
+
+Binds URL parameters to a URL template. Values are URL-encoded.
+
+```typescript
+function bindUrlParams(
+  url: string,
+  params: { urlParams?: Record<string, unknown> },
+  urlParamsSchema?: Schema,
+): string
+```
+
+```typescript
+import { bindUrlParams } from '@navios/builder'
+
+const url = bindUrlParams('/users/$userId/posts/$postId', {
+  urlParams: { userId: '123', postId: '456' },
+})
+// Returns: '/users/123/posts/456'
+```
+
+**Throws:** `Error` when a parameter is missing. When `urlParamsSchema` rejects the values: the `ZodError` for a Zod schema, a `NaviosError` for any other schema. The helper is synchronous, so a schema that validates asynchronously throws a `NaviosError` here.
+
+### getUrlParamNames
+
+Lists the parameter names in a URL template, in order of first appearance.
+
+```typescript
+function getUrlParamNames(url: string): string[]
+```
+
+```typescript
+getUrlParamNames('/users/$user_id/files/$name.json') // ['user_id', 'name']
+```
+
+### makeConfig
+
+Creates the request configuration handed to the HTTP client.
+
+```typescript
+function makeConfig(
+  request: { params?; data?; headers?; timeout?; signal? },
+  options: BaseEndpointOptions,
+  finalUrl: string,
+): AbstractRequestConfig
+```
+
+**Throws:** when the query or body fails its schema: the `ZodError` for a Zod schema, a `NaviosError` for any other schema. Like `bindUrlParams`, it does not support schemas that validate asynchronously. (Endpoints themselves do: they validate before calling these helpers.)
+
+### createHandler
+
+The function behind `declareEndpoint`. Loosely typed; see [Custom Handlers](/docs/builder/builder/advanced/custom-handlers#createhandler).
+
+```typescript
+function createHandler(options: BaseEndpointOptions, context: BuilderContext): handler
 ```
 
 ## Types
@@ -261,84 +461,105 @@ console.log(getUser.config)
 
 ```typescript
 interface BuilderConfig {
-  defaults?: { result?: 'data' | 'envelope' }
-  onError?: (event: BuilderErrorEvent) => void
+  client?: Client
+  onError?: (error: EndpointError) => void
 }
 ```
 
-### BuilderErrorEvent
+### BaseEndpointOptions / EndpointOptions
 
-Structured event passed to `onError`:
-
-```typescript
-interface BuilderErrorEvent {
-  kind: BuilderErrorKind
-  endpoint?: { method: HttpMethod; url: string }
-  status?: number
-  zodIssues?: readonly $ZodIssue[]
-  cause: unknown
-  body?: unknown
-  topic?: string       // socket builder only
-  eventName?: string   // eventsource builder only
-  rawData?: unknown    // socket / SSE raw payload
-}
-
-type BuilderErrorKind =
-  | 'http'
-  | 'http-unknown'
-  | 'validation'
-  | 'network'
-  | 'socket-ack-timeout'
-  | 'socket-transport'
-  | 'event-source-transport'
-```
-
-### EndpointOptions
+`BaseEndpointOptions` is the options object accepted by `declareEndpoint`. `EndpointOptions` is the same with a required `responseSchema`.
 
 ```typescript
-interface EndpointOptions {
+interface BaseEndpointOptions {
   method: HttpMethod
   url: string
-  responseSchema: ZodType
-  requestSchema?: ZodType
-  querySchema?: ZodType
+  responseSchema?: Schema
+  responses?: SuccessSchemaRecord
+  requestSchema?: Schema
+  querySchema?: Schema
+  urlParamsSchema?: Schema
   errorSchema?: ErrorSchemaRecord
-  urlParamsSchema?: ZodObject
+  body?: 'json' | 'multipart'
+  response?: 'json' | 'blob' | 'text' | 'stream' | 'void'
+  headers?: Record<string, string>
+  timeout?: number
   clientOptions?: ClientOptions
-  result?: 'data' | 'envelope'
   validateResponse?: boolean
 }
 ```
 
-The v1 `BaseEndpointConfig`, `BaseStreamConfig`, `AnyEndpointConfig`, `AnyStreamConfig`, `StreamOptions` (legacy), `AbstractEndpoint`, `AbstractStream` types were removed in v2. Use `EndpointOptions`, `StreamOptions`, and `EndpointHandler<Options>` / `StreamHandler<Options>`.
+### ZodBaseEndpointOptions / ZodEndpointOptions
+
+`BaseEndpointOptions` and `EndpointOptions` with every schema slot narrowed to Zod (`ZodType`, and `ZodObject` for `querySchema` and `urlParamsSchema`). They are exported by `@navios/core`, not by the builder: controllers and OpenAPI generation read Zod schemas directly, so the server constrains its endpoints with these types. Use them for your own helpers that need the same guarantee:
+
+```typescript
+import type { EndpointHandler } from '@navios/builder'
+import type { ZodEndpointOptions } from '@navios/core'
+
+function describe<Options extends ZodEndpointOptions>(endpoint: EndpointHandler<Options>) {
+  return endpoint.config.responseSchema.description
+}
+```
+
+An endpoint declared with a schema from another library is not assignable to them.
+
+### Schema
+
+The schema type every slot accepts: the [Standard Schema](https://standardschema.dev) v1 interface. The builder declares it itself and has no runtime dependency on a schema library.
+
+```typescript
+interface Schema<Input = unknown, Output = Input> {
+  readonly '~standard': {
+    readonly version: 1
+    readonly vendor: string
+    readonly validate: (value: unknown) => SchemaResult<Output> | Promise<SchemaResult<Output>>
+    readonly types?: { readonly input: Input; readonly output: Output }
+  }
+}
+
+type SchemaResult<Output> =
+  | { readonly value: Output; readonly issues?: undefined }
+  | { readonly issues: readonly SchemaIssue[] }
+
+interface SchemaIssue {
+  readonly message: string
+  readonly path?: readonly (PropertyKey | { readonly key: PropertyKey })[]
+}
+
+type InferSchemaInput<S> // the type a schema accepts
+type InferSchemaOutput<S> // the type a schema produces
+```
+
+`validate` may return a promise; endpoints await it. Zod's issues satisfy `SchemaIssue` and keep their extra fields (`code`, `expected`, ...) at runtime.
+
+See [Other Schema Libraries](/docs/builder/builder/guides/schemas#other-schema-libraries).
+
+### SuccessSchemaRecord
+
+```typescript
+type SuccessSchemaRecord = Record<number, Schema | null>
+```
+
+The type of the `responses` option: success status codes mapped to the schema for that status, or `null` for a status without a body. `InferSuccessOutput<R>` is the union the endpoint resolves to.
 
 ### ErrorSchemaRecord
 
 ```typescript
-type ErrorSchemaRecord = Record<number, ZodType>
+type ErrorSchemaRecord = Record<number, Schema>
 ```
 
-Maps HTTP status codes to Zod schemas for error responses. Use with `result: 'envelope'` to flow typed error variants through the envelope `error` channel.
+Maps HTTP status codes to schemas for error responses.
 
 ### ClientOptions
 
 ```typescript
 interface ClientOptions {
-  timeout?: number
-  headers?: Record<string, string>
-  transformRequest?: {
-    skipFields?: string[]
-    skipPaths?: string[]
-  }
-  transformResponse?: {
-    skipFields?: string[]
-    skipPaths?: string[]
-  }
   [key: string]: unknown
 }
 ```
 
-Per-endpoint configuration options passed through to the HTTP client.
+Client-specific options for one endpoint (for example axios `withCredentials`). They are merged into the request config handed to the HTTP client. Keys the builder owns — `method`, `url`, `params`, `data`, `headers`, `signal`, `timeout`, `responseType` — cannot be overridden from here.
 
 ### HttpMethod
 
@@ -350,181 +571,64 @@ type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH' | 'HEAD' | 'OPTION
 
 ```typescript
 interface Client {
-  request<T>(config: AbstractRequestConfig): Promise<AbstractResponse<T>>
+  request<T = unknown>(config: AbstractRequestConfig): Promise<AbstractResponse<T>>
 }
 
 interface AbstractRequestConfig {
-  method: string
+  method?: HttpMethod
   url: string
-  data?: any
-  params?: any
+  params?: Record<string, unknown> | URLSearchParams
+  data?: unknown
   headers?: Record<string, string>
-  responseType?: 'json' | 'blob'
+  signal?: AbortSignal | null
+  timeout?: number
+  responseType?: 'json' | 'text' | 'blob' | 'arrayBuffer' | 'formData' | 'stream'
+  [key: string]: unknown
 }
 
 interface AbstractResponse<T> {
   data: T
   status: number
-  headers: Record<string, string>
+  statusText: string
+  headers: Record<string, string> | Headers
 }
 ```
 
-## Errors
+`request` may resolve or reject for a non-2xx response; the builder checks `status` itself. A rejection carrying a `response` property is handled like a non-2xx response; a rejection without it is classified as `network`, `timeout` or `aborted`. See [HTTP Client Setup](/docs/builder/builder/guides/http-client#contract).
 
-### NaviosError
+### Endpoint Type Helpers
 
-Base error class for all Builder errors.
+Extract types from a declared endpoint:
 
 ```typescript
-class NaviosError extends Error {
-  constructor(message: string, cause?: unknown)
-  cause?: unknown
-}
+type Args = EndpointParams<typeof getUser> // call arguments
+type Data = EndpointResult<typeof getUser> // resolved data
+type Failure = EndpointErrorType<typeof getUser> // typed EndpointError union
+type Config = EndpointConfig<typeof getUser> // declared options
 ```
 
-**Example:**
+The same derivations are available from an options type:
+
+| Type                               | Description                                              |
+| ---------------------------------- | -------------------------------------------------------- |
+| `EndpointHandler<Options>`         | The handler type for an options object                   |
+| `ClientRequestArgs<Options>`       | Call arguments (schema input types)                      |
+| `ServerRequestArgs<Options>`       | Arguments as a server handler sees them (schema output types, URL params are `string`) |
+| `InferEndpointReturn<Options>`     | Resolved data                                            |
+| `InferEndpointError<Options>`      | Typed error                                              |
+| `InferEndpointSafeResult<Options>` | What `safe()` resolves to                                |
+
+### URL Types
 
 ```typescript
-import { NaviosError } from '@navios/builder'
+// Union of parameter names in a URL template
+type Names = ParsePathParams<'/users/$userId/posts/$postId'> // 'userId' | 'postId'
 
-try {
-  await getUser({ urlParams: { userId: '123' } })
-} catch (error) {
-  if (error instanceof NaviosError) {
-    console.error('Navios Error:', error.message)
-    console.error('Original error:', error.cause)
-  }
-}
-```
+// Whether a URL template has parameters
+type Has = UrlHasParams<'/users/$userId'> // true
 
-### Unknown HTTP errors (envelope mode)
-
-In envelope mode, an error response whose status doesn't match any `errorSchema` key is surfaced as the `http-unknown` variant on `envelope.error` rather than thrown. The v1 `UnknownResponseError` class was removed.
-
-```typescript
-const { data, error } = await getUser({ urlParams: { userId: '123' } })
-
-if (error && error.kind === 'http-unknown') {
-  console.error('Unhandled status:', error.status, error.body)
-}
-```
-
-## Type Guards
-
-### isHttpError
-
-Narrows an envelope `error` to the typed HTTP variant for a specific status (or any status if you omit the second arg).
-
-```typescript
-function isHttpError(error: EnvelopeError, status?: number): boolean
-```
-
-**Example:**
-
-```typescript
-import { isHttpError } from '@navios/builder'
-
-const { data, error } = await getUser({ urlParams: { userId: '123' } })
-
-if (isHttpError(error, 404)) {
-  // error.body is narrowed to the 404 schema
-  console.log('Not found:', error.body)
-}
-```
-
-### isValidationError / isNetworkError / isUnknownHttpError
-
-Narrow an envelope `error` to the corresponding variant.
-
-```typescript
-function isValidationError(error: EnvelopeError): boolean
-function isNetworkError(error: EnvelopeError): boolean
-function isUnknownHttpError(error: EnvelopeError): boolean
-```
-
-The v1 `isErrorStatus` / `isErrorResponse` guards and `__status` injection were removed in v2.
-
-## Low-Level API
-
-### createHandler
-
-Create a custom handler with full control.
-
-```typescript
-function createHandler(options: {
-  options: BaseEndpointConfig
-  context: BuilderContext
-  transformRequest?: (request: any) => any
-  transformResponse?: (data: any) => any
-}): HandlerFunction
-```
-
-### createEndpoint
-
-Create a custom endpoint handler.
-
-```typescript
-function createEndpoint(
-  options: BaseEndpointConfig,
-  context: BuilderContext,
-  transforms?: {
-    transformRequest?: (request: any) => any
-    transformResponse?: (data: any) => any
-  }
-): EndpointFunction
-```
-
-### makeConfig
-
-Create request configuration manually.
-
-```typescript
-function makeConfig(
-  args: EndpointFunctionArgs,
-  options: BaseEndpointConfig,
-  method: HttpMethod,
-  url: string
-): AbstractRequestConfig
-```
-
-### bindUrlParams
-
-Bind URL parameters to a URL pattern.
-
-```typescript
-function bindUrlParams(url: string, params: Record<string, string>): string
-```
-
-**Example:**
-
-```typescript
-import { bindUrlParams } from '@navios/builder'
-
-const url = bindUrlParams('/users/$userId/posts/$postId', {
-  userId: '123',
-  postId: '456',
-})
-// Returns: '/users/123/posts/456'
-```
-
-## Type Utilities
-
-### UrlParams
-
-Extracts URL parameter object type from a URL string.
-
-```typescript
-type UrlParams<Url extends string> = {
-  [K in ExtractUrlParams<Url>]: string
-}
-```
-
-### UrlHasParams
-
-Checks if a URL has parameters.
-
-```typescript
-type UrlHasParams<Url extends string> = boolean
+// Object type for the parameters
+type Params = UrlParams<'/users/$userId'> // { userId: string | number }
 ```
 
 ## Compatible Clients
@@ -533,11 +637,11 @@ Builder works with any HTTP client that implements the `Client` interface:
 
 - `@navios/http` (recommended)
 - `axios`
-- Custom clients implementing the `Client` interface
+- Custom clients, including a thin `fetch` wrapper
 
 ## See Also
 
 - [Getting Started](/docs/builder/builder/getting-started) - Quick start guide
 - [Defining Endpoints](/docs/builder/builder/guides/defining-endpoints) - How to declare endpoints
+- [Error Handling](/docs/builder/builder/guides/error-handling) - The error model
 - [Best Practices](/docs/builder/builder/best-practices) - Best practices and patterns
-

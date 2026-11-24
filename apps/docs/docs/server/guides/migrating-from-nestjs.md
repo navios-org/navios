@@ -535,7 +535,7 @@ NestJS decorators like `@Body()`, `@Param()`, `@Query()` are replaced by the `En
 | ----------------------- | -------------------------------------------------------------------------- |
 | `@Body() dto`           | `params.data`                                                              |
 | `@Param('id') id`       | `params.urlParams.id`                                                      |
-| `@Query('page') page`   | `params.query.page`                                                        |
+| `@Query('page') page`   | `params.params.page`                                                        |
 | `@Headers('auth') auth` | `private request = inject(FastifyRequest)` and `this.request.headers.auth` |
 
 For headers, inject the raw request:

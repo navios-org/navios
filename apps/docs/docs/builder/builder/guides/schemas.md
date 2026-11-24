@@ -4,7 +4,9 @@ sidebar_position: 4
 
 # Request & Response Schemas
 
-Schemas are the foundation of type safety in Builder. Using Zod schemas, you define the shape of your request and response data, and Builder automatically validates and types everything.
+Schemas are the foundation of type safety in Builder. You define the shape of your request and response data with schemas, and Builder automatically validates and types everything.
+
+This guide uses [Zod](https://zod.dev). Every schema slot also accepts a schema from any other library that implements [Standard Schema](https://standardschema.dev) — see [Other Schema Libraries](#other-schema-libraries).
 
 ## Why Schemas?
 
@@ -337,7 +339,20 @@ const errorSchema = z.object({
 const errorResponseSchema = z.object({
   error: errorSchema,
 })
+
+// Attach it to the statuses that return it
+const getUser = API.declareEndpoint({
+  method: 'GET',
+  url: '/users/$userId',
+  responseSchema: userSchema,
+  errorSchema: {
+    404: errorResponseSchema,
+    422: errorResponseSchema,
+  },
+})
 ```
+
+A response with one of those statuses fails the call with an `EndpointError` whose `body` is typed from the schema. See [Error Handling](/docs/builder/builder/guides/error-handling#typed-error-bodies-with-errorschema).
 
 ## Organizing Schemas
 
@@ -394,6 +409,130 @@ function processUser(user: User) {
   // user is fully typed
 }
 ```
+
+Or extract them from an endpoint:
+
+```typescript
+import type { EndpointErrorType, EndpointParams, EndpointResult } from '@navios/builder'
+
+type GetUserArgs = EndpointParams<typeof getUser> // call arguments
+type GetUserData = EndpointResult<typeof getUser> // resolved data
+type GetUserError = EndpointErrorType<typeof getUser> // typed EndpointError
+```
+
+## Other Schema Libraries
+
+Every schema slot of an endpoint — `requestSchema`, `querySchema`, `urlParamsSchema`, `responseSchema`, `errorSchema` and `responses` — accepts any [Standard Schema](https://standardschema.dev) v1 implementation: Zod, Valibot, ArkType and others. Builder exports the interface as `Schema`:
+
+```typescript
+interface Schema<Input = unknown, Output = Input> {
+  readonly '~standard': {
+    readonly version: 1
+    readonly vendor: string
+    readonly validate: (value: unknown) => SchemaResult<Output> | Promise<SchemaResult<Output>>
+    readonly types?: { readonly input: Input; readonly output: Output }
+  }
+}
+```
+
+What holds for every library:
+
+- **Types are inferred the same way.** Call arguments use the schema's input type, results and error bodies its output type.
+- **The validated value is what is used.** The request is built from the schema's output, and the call resolves to the output of the response schema.
+- **Asynchronous validation is supported.** `validate` may return a promise; the endpoint awaits it.
+- **Libraries can be mixed.** Each slot is validated on its own, so one endpoint can take its `requestSchema` from one library and its `errorSchema` entries from another.
+- **Failures look the same.** A rejected value fails the call with an `EndpointError` of kind `request-validation` or `response-validation`, and `error.issues` holds the schema's issues as `{ message, path? }` objects.
+
+For example, with [Valibot](https://valibot.dev) and [ArkType](https://arktype.io), and all three libraries on one endpoint:
+
+```typescript
+import { type } from 'arktype'
+import * as v from 'valibot'
+import { z } from 'zod/v4'
+
+// Valibot
+const createUser = api.declareEndpoint({
+  method: 'POST',
+  url: '/users',
+  requestSchema: v.object({ name: v.pipe(v.string(), v.minLength(2)) }),
+  responseSchema: v.object({ id: v.string(), name: v.string() }),
+  errorSchema: { 409: v.object({ reason: v.string() }) },
+})
+
+// ArkType
+const listUsers = api.declareEndpoint({
+  method: 'GET',
+  url: '/users',
+  querySchema: type({ 'page?': 'number >= 1' }),
+  responseSchema: type({ id: 'string', name: 'string' }).array(),
+})
+
+// One library per slot
+const renameUser = api.declareEndpoint({
+  method: 'PUT',
+  url: '/users/$userId',
+  urlParamsSchema: z.object({ userId: z.coerce.number().int() }),
+  requestSchema: v.object({ name: v.string() }),
+  responseSchema: type({ id: 'string', name: 'string' }),
+})
+```
+
+A library's schema objects are passed as they are. The interface is small enough to write by hand, which shows everything Builder relies on:
+
+```typescript
+import type { Schema } from '@navios/builder'
+
+const slugSchema: Schema<{ slug: string }> = {
+  '~standard': {
+    version: 1,
+    vendor: 'my-app',
+    validate: (value) => {
+      const slug = (value as { slug?: unknown } | null)?.slug
+      return typeof slug === 'string' && /^[a-z0-9-]+$/.test(slug)
+        ? { value: { slug } }
+        : { issues: [{ message: 'Expected a lower-case slug', path: ['slug'] }] }
+    },
+  },
+}
+
+const renameProject = API.declareEndpoint({
+  method: 'PUT',
+  url: '/projects/$projectId/slug',
+  requestSchema: slugSchema, // hand-written Standard Schema
+  responseSchema: z.object({ id: z.string(), slug: z.string() }), // Zod
+})
+
+// data is typed { slug: string }
+await renameProject({ urlParams: { projectId: '1' }, data: { slug: 'my-project' } })
+
+const result = await renameProject.safe({
+  urlParams: { projectId: '1' },
+  data: { slug: 'Not A Slug' },
+})
+
+if (!result.ok && result.error.kind === 'request-validation') {
+  result.error.issues // [{ message: 'Expected a lower-case slug', path: ['slug'] }]
+}
+```
+
+The static types come from the schema's `Input` and `Output` type parameters (the optional `types` property exists only to carry them), so give a hand-written schema an explicit `Schema<Input, Output>` type.
+
+To extract the types of any schema, use the vendor-neutral helpers:
+
+```typescript
+import type { InferSchemaInput, InferSchemaOutput } from '@navios/builder'
+
+type SlugInput = InferSchemaInput<typeof slugSchema> // { slug: string }
+type SlugOutput = InferSchemaOutput<typeof slugSchema> // { slug: string }
+```
+
+### What Depends on Zod
+
+`zod` is an optional peer dependency: the builder, including the socket and EventSource builders, never imports it. Three things still behave differently for Zod schemas:
+
+- **The declaration-time `urlParamsSchema` check.** Comparing the schema's keys with the URL's `$param` names needs the keys, which Zod objects expose as `.shape`. A schema without `.shape` skips the check and is validated on each call only.
+- **`error.cause` for validation failures.** For a Zod schema it is the original `ZodError`; for other libraries it is `undefined`. `error.issues` is filled in both cases.
+- **Server-side packages.** `@navios/core` controllers and OpenAPI generation read Zod schemas directly. An endpoint that is shared with the server must use Zod in every slot; the `ZodBaseEndpointOptions` and `ZodEndpointOptions` types exported by `@navios/core` describe such an endpoint.
 
 ## Best Practices
 

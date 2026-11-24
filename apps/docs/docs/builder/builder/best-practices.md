@@ -17,8 +17,9 @@ Create a centralized API structure:
 import { builder } from '@navios/builder'
 import { create } from '@navios/http'
 
-export const API = builder()
-API.provideClient(create({ baseURL: 'https://api.example.com' }))
+export const API = builder({
+  client: create({ baseURL: 'https://api.example.com' }),
+})
 
 // api/endpoints/users.ts
 import { API } from '../index'
@@ -125,66 +126,94 @@ export type User = z.output<typeof userSchema>
 
 ## Error Handling
 
-### Use Global Error Handlers
+### Report Failures in One Place
 
 ```typescript
-// ✅ Good - centralized error handling via the unified onError hook
+// ✅ Good - centralized reporting via the onError hook
 const API = builder({
-  onError: (event) => {
-    logError(event.cause, { kind: event.kind, endpoint: event.endpoint, status: event.status })
+  client,
+  onError: (error) => {
+    if (error.kind === 'aborted') return
 
-    if (event.kind === 'http' && event.status === 401) {
+    logError(error.toJSON())
+
+    if (error.status === 401) {
       redirectToLogin()
-    }
-
-    if (event.kind === 'validation') {
-      logValidationError(event.zodIssues)
-      showUserFriendlyError('Invalid data received from server')
     }
   },
 })
 
-// ❌ Bad - error handling in every function
+// ❌ Bad - the same reporting in every function
 async function fetchUser() {
   try {
     return await getUser({ urlParams: { userId: '123' } })
   } catch (error) {
     logError(error) // Duplicated everywhere
-    if (error instanceof NaviosError) {
-      if (error.cause?.status === 401) {
-        redirectToLogin()
-      }
-    }
     throw error
   }
+}
+```
+
+### Use `safe()` for Failures You Expect
+
+```typescript
+// ✅ Good - an expected failure is handled as a value
+const result = await getUser.safe({ urlParams: { userId } })
+if (!result.ok && result.error.status === 404) {
+  return null
+}
+
+// ❌ Bad - try/catch around a single call just to inspect the error
+try {
+  return await getUser({ urlParams: { userId } })
+} catch (error) {
+  if (isEndpointError(error) && error.status === 404) return null
+  throw error
+}
+```
+
+### Declare `errorSchema` for Statuses You Act On
+
+```typescript
+const createUser = API.declareEndpoint({
+  method: 'POST',
+  url: '/users',
+  requestSchema: createUserSchema,
+  responseSchema: userSchema,
+  errorSchema: {
+    409: z.object({ existingUserId: z.string() }),
+    422: z.object({ fields: z.record(z.string(), z.string()) }),
+  },
+})
+
+const result = await createUser.safe({ data })
+if (!result.ok && result.error.kind === 'http' && result.error.status === 422) {
+  showFieldErrors(result.error.body.fields) // typed
 }
 ```
 
 ### Provide User-Friendly Messages
 
 ```typescript
+import { isEndpointError } from '@navios/builder'
+
 function getErrorMessage(error: unknown): string {
-  if (error instanceof ZodError) {
-    return 'Invalid data received from server'
-  } else if (error instanceof NaviosError) {
-    if (error.cause && 'status' in error.cause) {
-      const status = (error.cause as any).status
-      switch (status) {
-        case 400:
-          return 'Invalid request. Please check your input.'
-        case 401:
-          return 'You are not authorized. Please log in.'
-        case 404:
-          return 'The requested resource was not found.'
-        case 500:
-          return 'Server error. Please try again later.'
-        default:
-          return 'An error occurred. Please try again.'
-      }
-    }
-    return error.message
+  if (!isEndpointError(error)) return 'An unexpected error occurred'
+
+  switch (error.kind) {
+    case 'request-validation':
+      return 'Invalid request. Please check your input.'
+    case 'network':
+    case 'timeout':
+      return 'Connection problem. Please try again.'
+    case 'http':
+    case 'http-unknown':
+      if (error.status === 401) return 'You are not authorized. Please log in.'
+      if (error.status === 404) return 'The requested resource was not found.'
+      return 'Server error. Please try again later.'
+    default:
+      return 'An error occurred. Please try again.'
   }
-  return 'An unexpected error occurred'
 }
 ```
 
@@ -211,6 +240,8 @@ const user: User = await getUser({ urlParams: { userId: '123' } })
 ### Extract Parameter Types
 
 ```typescript
+import type { EndpointErrorType, EndpointParams, EndpointResult } from '@navios/builder'
+
 const getUser = API.declareEndpoint({
   method: 'GET',
   url: '/users/$userId',
@@ -218,12 +249,13 @@ const getUser = API.declareEndpoint({
 })
 
 // Extract types for reuse
-type GetUserParams = Parameters<typeof getUser>[0]['urlParams']
-type GetUserResponse = Awaited<ReturnType<typeof getUser>>
+type GetUserParams = EndpointParams<typeof getUser>
+type GetUserResponse = EndpointResult<typeof getUser>
+type GetUserError = EndpointErrorType<typeof getUser>
 
 // Use in other functions
-function validateUserId(userId: GetUserParams['userId']): boolean {
-  return userId.length > 0
+function userLink(userId: GetUserParams['urlParams']['userId']): string {
+  return `/users/${userId}`
 }
 ```
 
@@ -233,14 +265,24 @@ function validateUserId(userId: GetUserParams['userId']): boolean {
 
 ```typescript
 // ✅ Good - single client instance
-const API = builder()
 const client = create({ baseURL: 'https://api.example.com' })
-API.provideClient(client)
+const API = builder({ client })
 
 // ❌ Bad - creating new client for each request
 function getClient() {
   return create({ baseURL: 'https://api.example.com' })
 }
+```
+
+### Per-Request Clients on the Server
+
+```typescript
+// ✅ Good - the client is scoped to one call
+const user = await getUser({ urlParams: { userId } }, { client: requestClient })
+
+// ❌ Bad - replacing the shared client while other requests are in flight
+API.provideClient(requestClient)
+const user = await getUser({ urlParams: { userId } })
 ```
 
 ### Configure Interceptors
@@ -259,7 +301,7 @@ client.interceptors.request.use((config) => {
   return config
 })
 
-API.provideClient(client)
+const API = builder({ client })
 
 // ❌ Bad - adding headers in every endpoint call
 const user = await getUser({
@@ -395,29 +437,39 @@ controller.abort()
 
 ## Testing
 
-### Mock Endpoints
+### Use a Fake Client
+
+A client is an object with a `request` method, so tests need no mocking library for the transport. Pass a fake client per call and the full pipeline — URL binding, validation, error classification — runs for real:
 
 ```typescript
-// In tests
-const mockGetUser = vi.fn()
-const getUser = API.declareEndpoint({
-  method: 'GET',
-  url: '/users/$userId',
-  responseSchema: userSchema,
-})
+import type { Client } from '@navios/builder'
 
-// Mock the endpoint
-vi.spyOn(API, 'declareEndpoint').mockReturnValue(mockGetUser)
+function fakeClient(status: number, data: unknown): Client {
+  return {
+    request: async () => ({ data: data as never, status, statusText: '', headers: {} }),
+  }
+}
+
+it('returns the user', async () => {
+  const client = fakeClient(200, { id: '123', name: 'John', email: 'john@example.com' })
+
+  const user = await getUser({ urlParams: { userId: '123' } }, { client })
+
+  expect(user.name).toBe('John')
+})
 ```
 
 ### Test Error Cases
 
 ```typescript
-it('handles 404 errors', async () => {
-  const error = new NaviosError('Not found', { status: 404 })
-  mockGetUser.mockRejectedValue(error)
-  
-  await expect(getUser({ urlParams: { userId: '123' } })).rejects.toThrow()
+it('reports a 404', async () => {
+  const client = fakeClient(404, { message: 'Not found' })
+
+  const result = await getUser.safe({ urlParams: { userId: '123' } }, { client })
+
+  expect(result.ok).toBe(false)
+  expect(result.error?.kind).toBe('http-unknown')
+  expect(result.error?.status).toBe(404)
 })
 ```
 
@@ -491,7 +543,7 @@ const updateUser = API.declareEndpoint({
 const deleteUser = API.declareEndpoint({
   method: 'DELETE',
   url: '/users/$userId',
-  responseSchema: z.object({ success: z.boolean() }),
+  response: 'void',
 })
 ```
 

@@ -4,286 +4,151 @@ sidebar_position: 7
 
 # Invalidation
 
-Invalidation is the process of marking cached queries as stale, causing them to refetch. Builder provides convenient methods for invalidating queries based on your endpoint definitions.
+Invalidation marks cached data as stale and refetches the queries that are in use. Every query has an `invalidate` helper, and mutations can declare what they invalidate.
 
-## Invalidate Specific Query
+## The Three Scopes
 
-Invalidate a query with exact parameters:
-
-```typescript
-const getUser = client.query({
-  method: 'GET',
-  url: '/users/$userId',
-  querySchema: z.object({
-    include: z.string().optional(),
-  }),
-  responseSchema: userSchema,
-})
-
-// Invalidate specific query
-await getUser.invalidate(queryClient, {
-  urlParams: { userId: '123' },
-  params: { include: 'posts' },
-})
-```
-
-## Invalidate All Matching Queries
-
-Invalidate all queries for an endpoint (ignores query params):
+`invalidate(queryClient, args?, filters?)` returns a promise that resolves when the refetches are done.
 
 ```typescript
-// Invalidate all queries for this user (ignores query params)
-await getUser.invalidateAll(queryClient, {
-  urlParams: { userId: '123' },
-})
+const queryClient = useQueryClient()
+
+// Whole endpoint: every user
+await getUser.invalidate(queryClient)
+
+// Partial args: every entry for this user, whatever the query params
+await getUser.invalidate(queryClient, { urlParams: { userId } })
+
+// Exact: only the entry for these arguments
+await getUser.invalidate(queryClient, { urlParams: { userId } }, { exact: true })
 ```
 
-## Using in Components
+Invalidating a whole endpoint never touches another endpoint: `listUsers.invalidate(queryClient)` on `/users` leaves the `/users/$userId` entries alone.
 
-### After Mutation
+The third argument takes TanStack's invalidation filters (`exact`, `refetchType`, `predicate`, `stale`, ...):
 
 ```typescript
-const updateUser = client.mutation({
-  method: 'PUT',
-  url: '/users/$userId',
-  requestSchema: userUpdateSchema,
-  responseSchema: userSchema,
-  useContext: () => ({ queryClient: useQueryClient() }),
-  onSuccess: (data, variables, context) => {
-    // Invalidate user query after update
-    getUser.invalidate(context.queryClient, {
-      urlParams: { userId: variables.urlParams.userId },
-    })
-  },
-})
+// Mark as stale without refetching now
+await listUsers.invalidate(queryClient, undefined, { refetchType: 'none' })
 ```
 
-### Manual Invalidation
+:::note
+A query and an infinite query declared on the same endpoint have separate cache entries, but the query's whole-endpoint scope is a prefix of the infinite entries: `query.invalidate(queryClient)` invalidates both. `infiniteQuery.invalidate(queryClient)` invalidates the infinite entries only.
+:::
 
-```typescript
-function UserProfile({ userId }: { userId: string }) {
-  const queryClient = useQueryClient()
+## After a Mutation
 
-  const handleRefresh = async () => {
-    await getUser.invalidate(queryClient, {
-      urlParams: { userId },
-    })
-  }
+### invalidates
 
-  return <button onClick={handleRefresh}>Refresh</button>
-}
-```
-
-## Invalidation Patterns
-
-### After Create
+Declare the queries a mutation makes stale. They are invalidated after the mutation succeeds, and not when it fails:
 
 ```typescript
 const createUser = client.mutation({
   method: 'POST',
   url: '/users',
-  requestSchema: userCreateSchema,
+  requestSchema: createUserSchema,
   responseSchema: userSchema,
-  useContext: () => ({ queryClient: useQueryClient() }),
-  onSuccess: (data, variables, context) => {
-    // Invalidate users list
-    getUsers.invalidateAll(context.queryClient, {})
-  },
+  // A query object: every entry of that endpoint
+  invalidates: [listUsers],
+})
+
+const updateUser = client.mutation({
+  method: 'PATCH',
+  url: '/users/$userId',
+  requestSchema: updateUserSchema,
+  responseSchema: userSchema,
+  invalidates: [
+    listUsers,
+    // A function: the key it returns, computed from the result and the variables
+    (_data, variables) => getUser.key({ urlParams: variables.urlParams }),
+  ],
 })
 ```
 
-### After Update
+A function may return `undefined` to skip the invalidation:
 
 ```typescript
-const updateUser = client.mutation({
-  method: 'PUT',
-  url: '/users/$userId',
-  requestSchema: userUpdateSchema,
-  responseSchema: userSchema,
-  useContext: () => ({ queryClient: useQueryClient() }),
-  onSuccess: (data, variables, context) => {
-    // Invalidate specific user
-    getUser.invalidate(context.queryClient, {
-      urlParams: { userId: data.id },
-    })
-    // Invalidate users list
-    getUsers.invalidateAll(context.queryClient, {})
-  },
-})
+invalidates: [
+  (data) => (data.teamId ? getTeam.key({ urlParams: { teamId: data.teamId } }) : undefined),
+],
 ```
 
-### After Delete
+### In a Callback
+
+For anything `invalidates` cannot express, use the `QueryClient` from the callback context:
 
 ```typescript
 const deleteUser = client.mutation({
   method: 'DELETE',
   url: '/users/$userId',
-  responseSchema: z.object({ success: z.boolean() }),
-  useContext: () => ({ queryClient: useQueryClient() }),
-  onSuccess: (data, variables, context) => {
-    // Remove from cache
-    context.queryClient.removeQueries({
-      queryKey: getUser.queryKey.filterKey({
-        urlParams: { userId: variables.urlParams.userId },
-      }),
-    })
-    // Invalidate users list
-    getUsers.invalidateAll(context.queryClient, {})
+  response: 'void',
+  onSuccess: async (_data, variables, context) => {
+    // Drop the deleted user's entries instead of refetching a 404
+    context.client.removeQueries({ queryKey: getUser.key({ urlParams: variables.urlParams }) })
+    await listUsers.invalidate(context.client)
   },
 })
 ```
 
 ## Manual Invalidation
 
-### Using Query Keys
-
 ```typescript
-import { useQueryClient } from '@tanstack/react-query'
-
-function UserProfile({ userId }: { userId: string }) {
+function RefreshButton({ userId }: { userId: string }) {
   const queryClient = useQueryClient()
 
-  const handleInvalidate = () => {
-    // Manual invalidation with filter key
-    queryClient.invalidateQueries({
-      queryKey: getUser.queryKey.filterKey({ urlParams: { userId } }),
-    })
-  }
-
-  return <button onClick={handleInvalidate}>Invalidate</button>
+  return (
+    <button onClick={() => getUser.invalidate(queryClient, { urlParams: { userId } })}>
+      Refresh
+    </button>
+  )
 }
 ```
 
-### Invalidate Multiple Endpoints
+### Several Endpoints
 
 ```typescript
-function UserProfile({ userId }: { userId: string }) {
-  const queryClient = useQueryClient()
-
-  const handleRefreshAll = async () => {
-    // Invalidate all user-related queries
-    await Promise.all([
-      getUser.invalidateAll(queryClient, { urlParams: { userId } }),
-      getUserPosts.invalidateAll(queryClient, { urlParams: { userId } }),
-      getUserSettings.invalidateAll(queryClient, { urlParams: { userId } }),
-    ])
-  }
-
-  return <button onClick={handleRefreshAll}>Refresh All</button>
-}
+await Promise.all([
+  listUsers.invalidate(queryClient),
+  getUser.invalidate(queryClient, { urlParams: { userId } }),
+  getUserPosts.invalidate(queryClient, { urlParams: { userId } }),
+])
 ```
 
-## Common Patterns
+### With the QueryClient Directly
 
-### Invalidate on Window Focus
+`query.key(...)` gives the key for any `queryClient` method:
 
 ```typescript
-function UserProfile({ userId }: { userId: string }) {
-  const queryClient = useQueryClient()
-
-  useEffect(() => {
-    const handleFocus = () => {
-      getUser.invalidate(queryClient, {
-        urlParams: { userId },
-      })
-    }
-
-    window.addEventListener('focus', handleFocus)
-    return () => window.removeEventListener('focus', handleFocus)
-  }, [userId, queryClient])
-
-  return <div>{/* ... */}</div>
-}
+await queryClient.invalidateQueries({ queryKey: getUser.key({ urlParams: { userId } }) })
+await queryClient.refetchQueries({ queryKey: listUsers.key() })
 ```
 
-### Invalidate on Interval
+## Updating Instead of Refetching
 
-```typescript
-function UserProfile({ userId }: { userId: string }) {
-  const queryClient = useQueryClient()
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      getUser.invalidate(queryClient, {
-        urlParams: { userId },
-      })
-    }, 30000) // Every 30 seconds
-
-    return () => clearInterval(interval)
-  }, [userId, queryClient])
-
-  return <div>{/* ... */}</div>
-}
-```
-
-### Invalidate After Timeout
+When the mutation's response already contains the new data, write it to the cache and skip the request:
 
 ```typescript
 const updateUser = client.mutation({
-  method: 'PUT',
+  method: 'PATCH',
   url: '/users/$userId',
-  requestSchema: userUpdateSchema,
+  requestSchema: updateUserSchema,
   responseSchema: userSchema,
-  useContext: () => ({ queryClient: useQueryClient() }),
-  onSuccess: (data, variables, context) => {
-    // Invalidate after a delay
-    setTimeout(() => {
-      getUser.invalidate(context.queryClient, {
-        urlParams: { userId: data.id },
-      })
-    }, 1000)
+  invalidates: [listUsers],
+  onSuccess: (user, variables, context) => {
+    getUser.setData(context.client, { urlParams: variables.urlParams }, user)
   },
 })
 ```
 
 ## Best Practices
 
-### Invalidate Related Queries
-
-```typescript
-// ✅ Good - invalidate related queries
-const updateUser = client.mutation({
-  // ...
-  onSuccess: (data, variables, context) => {
-    getUser.invalidate(context.queryClient, {
-      urlParams: { userId: data.id },
-    })
-    getUsers.invalidateAll(context.queryClient, {})
-  },
-})
-```
-
-### Use invalidateAll for Lists
-
-```typescript
-// ✅ Good - invalidate all list queries
-const createUser = client.mutation({
-  // ...
-  onSuccess: (data, variables, context) => {
-    getUsers.invalidateAll(context.queryClient, {})
-  },
-})
-```
-
-### Remove Queries on Delete
-
-```typescript
-// ✅ Good - remove deleted items from cache
-const deleteUser = client.mutation({
-  // ...
-  onSuccess: (data, variables, context) => {
-    context.queryClient.removeQueries({
-      queryKey: getUser.queryKey.filterKey({
-        urlParams: { userId: variables.urlParams.userId },
-      }),
-    })
-  },
-})
-```
+- **Invalidate what the mutation changes.** A create invalidates lists; an update invalidates the item and the lists that show it; a delete removes the item's entries and invalidates lists.
+- **Prefer `invalidates` to callbacks.** It keeps the relationship between a mutation and its queries next to the declaration.
+- **Use `query.key(...)`.** Hand-written keys do not match the cache; see [Query Keys](/docs/builder/react-query/guides/query-keys).
+- **Pick the narrowest scope that is correct.** Partial args cover "everything about this user" without refetching every user.
 
 ## Next Steps
 
-- [Query Keys](/docs/builder/react-query/guides/query-keys) - Understand query key structure
-- [Mutations](/docs/builder/react-query/guides/mutations) - Invalidate after mutations
-- [Optimistic Updates](/docs/builder/react-query/guides/optimistic-updates) - Update cache optimistically
-
+- [Query Keys](/docs/builder/react-query/guides/query-keys) - How keys and scopes work
+- [Mutations](/docs/builder/react-query/guides/mutations) - Mutation settings
+- [Optimistic Updates](/docs/builder/react-query/guides/optimistic-updates) - Update UI before the server responds

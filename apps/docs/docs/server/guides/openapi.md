@@ -379,14 +379,30 @@ The OpenAPI generator automatically handles different endpoint types:
 
 Standard JSON request/response endpoints are documented with `application/json` content type.
 
-### Multipart Endpoints
+An endpoint declared with `response: 'void'` is documented with a `204` response that has no content (or the status set with `@HttpCode()`).
 
-Multipart endpoints (declared with `API.declareMultipart()`) are documented with `multipart/form-data`:
+An endpoint declared with a per-status `responses` map is documented with one response per declared status: the schema of that status, or a response without content for a `null` entry. Responses from `errorSchema` are added as usual.
 
 ```typescript
-const uploadFile = API.declareMultipart({
+const putUser = API.declareEndpoint({
+  method: 'PUT',
+  url: '/users/$userId',
+  requestSchema: userInputSchema,
+  responses: { 200: userSchema, 201: createdSchema, 204: null },
+  errorSchema: { 404: notFoundSchema },
+})
+// responses: 200 and 201 with their schemas, 204 "No content", 404 error response
+```
+
+### Multipart Endpoints
+
+Multipart endpoints (declared with `body: 'multipart'`) are documented with `multipart/form-data`:
+
+```typescript
+const uploadFile = API.declareEndpoint({
   method: 'POST',
   url: '/files',
+  body: 'multipart',
   requestSchema: z.object({
     file: z.instanceof(File),
     description: z.string().optional(),
@@ -400,12 +416,13 @@ const uploadFile = API.declareMultipart({
 
 ### Stream Endpoints
 
-Stream endpoints (declared with `API.declareStream()`) use the content type from `@ApiStream`:
+Stream endpoints (declared with a non-JSON `response` kind and handled with `@Stream()`) use the content type from `@ApiStream`:
 
 ```typescript
-const downloadFile = API.declareStream({
+const downloadFile = API.declareEndpoint({
   method: 'GET',
   url: '/files/$fileId/download',
+  response: 'blob',
 })
 
 @Stream(downloadFile)

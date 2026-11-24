@@ -4,54 +4,60 @@ sidebar_position: 4
 
 # Best Practices
 
-This guide covers best practices for using `@navios/react-query` effectively in your React applications.
+Recommended patterns for using `@navios/react-query`.
 
 ## Organizing Queries and Mutations
 
 ### Separate Endpoints from Queries
 
+Declare endpoints in a shared location when they are also used outside React (server code, scripts, tests), and create queries from them in the client:
+
 ```typescript
-// ✅ Good - endpoints in shared package
 // shared/endpoints/users.ts
-export const getUserEndpoint = API.declareEndpoint({
+export const getUserEndpoint = api.declareEndpoint({
   method: 'GET',
   url: '/users/$userId',
   responseSchema: userSchema,
 })
 
 // client/queries/users.ts
-const getUser = client.query(getUserEndpoint)
+export const getUser = client.query(getUserEndpoint)
 ```
+
+When an endpoint is used only through React Query, the inline form is shorter and `getUser.endpoint` still gives you the handler.
 
 ### Group by Resource
 
 ```typescript
-// ✅ Good - organized by resource
-// client/queries/users.ts
-export const getUser = client.query(...)
-export const getUsers = client.query(...)
+// client/users.ts
+export const getUser = client.query(getUserEndpoint)
+export const listUsers = client.query(listUsersEndpoint)
 
-// client/mutations/users.ts
-export const createUser = client.mutation(...)
-export const updateUser = client.mutation(...)
-export const deleteUser = client.mutation(...)
+export const createUser = client.mutation(createUserEndpoint, {
+  invalidates: [listUsers],
+})
+export const updateUser = client.mutation(updateUserEndpoint, {
+  invalidates: [listUsers, (_data, v) => getUser.key({ urlParams: v.urlParams })],
+})
 ```
+
+Declare queries before the mutations that reference them.
 
 ## Query Patterns
 
 ### Use Suspense When Possible
 
 ```typescript
-// ✅ Good - cleaner with Suspense
+// Good - data is always defined
 function UserProfile({ userId }: { userId: string }) {
-  const user = getUser.useSuspense({ urlParams: { userId } })
-  return <div>{user.name}</div>
+  const { data } = getUser.useSuspense({ urlParams: { userId } })
+  return <div>{data.name}</div>
 }
 
-// ❌ More verbose without Suspense
+// More verbose - manual loading and error states
 function UserProfile({ userId }: { userId: string }) {
-  const { data, isLoading, error } = getUser.use({ urlParams: { userId } })
-  if (isLoading) return <div>Loading...</div>
+  const { data, isPending, error } = getUser.use({ urlParams: { userId } })
+  if (isPending) return <div>Loading...</div>
   if (error) return <div>Error: {error.message}</div>
   return <div>{data.name}</div>
 }
@@ -59,194 +65,169 @@ function UserProfile({ userId }: { userId: string }) {
 
 ### Use `select` for Read-Side Projections
 
+Keep the cached value as the server returned it and derive what a component needs:
+
 ```typescript
-const getUser = client.query({
-  method: 'GET',
-  url: '/users/$userId',
-  responseSchema: userSchema,
-})
-
-// ✅ Good - project on read; runs outside the cache-write path
-function Component({ userId }: { userId: string }) {
-  const { data } = getUser.use(
-    { urlParams: { userId } },
-    { select: (data) => ({ ...data, displayName: `${data.firstName} ${data.lastName}` }) },
-  )
-  return <div>{data.displayName}</div>
-}
-
-// ❌ Bad - reshape inline in the component body (re-runs on every render)
-function ComponentBad({ userId }: { userId: string }) {
-  const { data } = getUser.use({ urlParams: { userId } })
-  const displayName = `${data.firstName} ${data.lastName}`
-}
+const { data: names } = listUsers.use(
+  {},
+  { select: (users) => users.map((user) => user.name) },
+)
 ```
 
-The endpoint-level `processResponse` callback was removed in v2 — `select` is the supported way to project read-side data. For mutations, transform inside `onSuccess` or in the caller.
+### Use `skipToken` for Missing Inputs
+
+```typescript
+import { skipToken } from '@tanstack/react-query'
+
+// Good - no placeholder arguments
+const { data } = getUser.use(userId ? { urlParams: { userId } } : skipToken)
+
+// Avoid - a fake key for a request that must never happen
+const { data } = getUser.use({ urlParams: { userId: userId ?? '' } }, { enabled: !!userId })
+```
 
 ## Mutation Patterns
 
-### Always Invalidate Related Queries
+### Declare What a Mutation Invalidates
 
 ```typescript
-// ✅ Good - invalidate after mutation
 const createUser = client.mutation({
-  // ...
-  useContext: () => ({ queryClient: useQueryClient() }),
-  onSuccess: (data, variables, context) => {
-    context.queryClient.invalidateQueries({ queryKey: ['users'] })
+  method: 'POST',
+  url: '/users',
+  requestSchema: createUserSchema,
+  responseSchema: userSchema,
+  invalidates: [listUsers],
+})
+```
+
+### Use `optimistic` for Instant Feedback
+
+```typescript
+const toggleTodo = client.mutation({
+  method: 'PATCH',
+  url: '/todos/$todoId',
+  requestSchema: z.object({ done: z.boolean() }),
+  responseSchema: todoSchema,
+  optimistic: (update) =>
+    update(getTodo, {
+      args: (variables) => ({ urlParams: variables.urlParams }),
+      update: (current, variables) => current && { ...current, ...variables.data },
+    }),
+})
+```
+
+### Use `context.client` in Callbacks
+
+The `QueryClient` is part of the callback context; `useContext` is for other hooks:
+
+```typescript
+const updateUser = client.mutation(updateUserEndpoint, {
+  useContext: () => ({ toast: useToast() }),
+  onSuccess: (user, variables, context) => {
+    getUser.setData(context.client, { urlParams: variables.urlParams }, user)
+    context.toast.success('Saved')
   },
 })
 ```
 
-### Use Optimistic Updates
+### Track List Items with `useIsMutating`
 
 ```typescript
-// ✅ Good - optimistic updates for better UX
-const updateUser = client.mutation({
-  // ...
-  onMutate: async (variables, context) => {
-    await context.queryClient.cancelQueries({ queryKey: ['users'] })
-    const previous = context.queryClient.getQueryData(['users', variables.urlParams.userId])
-    context.queryClient.setQueryData(['users', variables.urlParams.userId], {
-      ...previous,
-      ...variables.data,
-    })
-    return { previous }
-  },
-  onError: (error, variables, context) => {
-    if (context.onMutateResult?.previous) {
-      context.queryClient.setQueryData(
-        ['users', variables.urlParams.userId],
-        context.onMutateResult.previous
-      )
-    }
-  },
-})
-```
-
-### Use Scoped Mutations for Lists
-
-```typescript
-// ✅ Good - track mutations per item
-const updateUser = client.mutation({
-  // ...
-  useKey: true,
-})
-
-function UserList() {
-  return users.map((user) => (
-    <UserCard key={user.id} user={user} />
-  ))
-}
-
-function UserCard({ user }: { user: User }) {
-  const { mutate } = updateUser({ urlParams: { userId: user.id } })
-  const isUpdating = updateUser.useIsMutating({ userId: user.id })
+function UserRow({ user }: { user: User }) {
+  const { mutate } = updateUser()
+  const isSaving = updateUser.useIsMutating({ urlParams: { userId: user.id } })
   // ...
 }
 ```
 
 ## Query Key Management
 
-### Use Helper Methods
+### Never Write Keys by Hand
 
 ```typescript
-// ✅ Good - use helper methods
-await getUser.invalidate(queryClient, { urlParams: { userId: '123' } })
-await getUser.invalidateAll(queryClient, { urlParams: { userId: '123' } })
+// Good
+await getUser.invalidate(queryClient, { urlParams: { userId } })
+queryClient.removeQueries({ queryKey: getUser.key({ urlParams: { userId } }) })
 
-// ❌ Bad - manual key construction
-await queryClient.invalidateQueries({
-  queryKey: ['users', '123'], // May not match actual key structure
-})
+// Bad - matches nothing
+await queryClient.invalidateQueries({ queryKey: ['users', userId] })
 ```
 
-### Invalidate Related Queries
+### Pick the Narrowest Correct Scope
 
 ```typescript
-// ✅ Good - invalidate all related queries
-const updateUser = client.mutation({
-  // ...
-  onSuccess: (data, variables, context) => {
-    getUser.invalidateAll(context.queryClient, {
-      urlParams: { userId: data.id },
-    })
-    getUserPosts.invalidateAll(context.queryClient, {
-      urlParams: { userId: data.id },
-    })
-  },
-})
+await getUser.invalidate(queryClient) // every user
+await getUser.invalidate(queryClient, { urlParams: { userId } }) // this user
+await getUser.invalidate(queryClient, { urlParams: { userId } }, { exact: true }) // one entry
 ```
 
 ## Error Handling
 
+### Declare Error Schemas for What the UI Handles
+
+```typescript
+const createUser = client.mutation({
+  method: 'POST',
+  url: '/users',
+  requestSchema: createUserSchema,
+  responseSchema: userSchema,
+  errorSchema: {
+    409: z.object({ reason: z.string() }),
+  },
+})
+
+const { error } = createUser()
+
+const message =
+  error?.kind === 'http' && error.status === 409
+    ? error.body.reason
+    : error
+      ? 'Something went wrong'
+      : null
+```
+
 ### Use Error Boundaries with Suspense
 
 ```typescript
-// ✅ Good - ErrorBoundary handles errors
-<ErrorBoundary fallback={<ErrorDisplay />}>
-  <Suspense fallback={<LoadingSpinner />}>
-    <UserProfile userId="123" />
+<ErrorBoundary FallbackComponent={ErrorFallback}>
+  <Suspense fallback={<Loading />}>
+    <UserProfile userId={userId} />
   </Suspense>
 </ErrorBoundary>
 ```
 
-### Provide User-Friendly Messages
+### Report Globally, React Locally
+
+Log every failure once in the builder's `onError`; show feedback in components:
 
 ```typescript
-// ✅ Good - user-friendly error messages
-const createUser = client.mutation({
-  // ...
-  onError: (error, variables, context) => {
-    if (error instanceof NaviosError) {
-      context.toast.error('Failed to create user. Please try again.')
-    } else {
-      context.toast.error('An unexpected error occurred.')
-    }
-  },
+const api = builder({
+  client: httpClient,
+  onError: (error) => reportError(error.toJSON()),
 })
 ```
 
 ## Performance
 
-### Use Stale Time
+### Set a Stale Time
 
 ```typescript
-// ✅ Good - prevent unnecessary refetches
-const { data } = getUser.use({
-  urlParams: { userId },
-  staleTime: 5 * 60 * 1000, // 5 minutes
+const queryClient = new QueryClient({
+  defaultOptions: { queries: { staleTime: 30_000 } },
 })
+
+// Or per call
+getUser.use({ urlParams: { userId } }, { staleTime: 5 * 60_000 })
 ```
 
-### Prefetch Data
+### Prefetch
 
 ```typescript
-// ✅ Good - prefetch on hover
-function UserList() {
-  const queryClient = useQueryClient()
+// Server
+await getUser.prefetch(queryClient, { urlParams: { userId } })
 
-  const handleMouseEnter = (userId: string) => {
-    queryClient.prefetchQuery({
-      queryKey: getUser.queryKey.dataTag({ urlParams: { userId } }),
-      queryFn: () => getUser({ urlParams: { userId } }),
-    })
-  }
-
-  return (
-    <div>
-      {users.map((user) => (
-        <div
-          key={user.id}
-          onMouseEnter={() => handleMouseEnter(user.id)}
-        >
-          {user.name}
-        </div>
-      ))}
-    </div>
-  )
-}
+// Client, on hover
+onMouseEnter={() => void getUser.prefetch(queryClient, { urlParams: { userId } })}
 ```
 
 ## Type Safety
@@ -254,52 +235,25 @@ function UserList() {
 ### Let TypeScript Infer Types
 
 ```typescript
-// ✅ Good - let TypeScript infer
-const user = getUser.useSuspense({ urlParams: { userId: '123' } })
-// user is automatically typed
+// Good - types are inferred from the endpoint
+const { data, error } = getUser.use({ urlParams: { userId } })
 
-// ❌ Bad - unnecessary type annotations
-const user: User = getUser.useSuspense({ urlParams: { userId: '123' } })
+// Avoid - annotations that can drift from the schema
+const result: UseQueryResult<User> = getUser.use({ urlParams: { userId } })
 ```
 
-### Extract Types When Needed
+### Derive Types from Schemas and Endpoints
 
 ```typescript
-// ✅ Good - extract types for reuse
-type GetUserParams = Parameters<typeof getUser.use>[0]
-type GetUserResponse = Awaited<ReturnType<typeof getUser.use>>['data']
-```
+import type { EndpointErrorType } from '@navios/builder'
 
-## Common Patterns
-
-### Conditional Queries
-
-```typescript
-// ✅ Good - use enabled option
-const { data } = getUser.use({
-  urlParams: { userId: userId! },
-  enabled: !!userId,
-})
-```
-
-### Dependent Queries
-
-```typescript
-// ✅ Good - chain queries
-function UserPosts({ userId }: { userId: string }) {
-  const { data: user } = getUser.use({ urlParams: { userId } })
-  const { data: posts } = getPosts.use({
-    urlParams: { userId },
-    enabled: !!user,
-  })
-  // ...
-}
+type User = z.output<typeof userSchema>
+type GetUserError = EndpointErrorType<typeof getUser.endpoint>
 ```
 
 ## Next Steps
 
-- [Getting Started](/docs/builder/react-query/getting-started) - Quick start guide
-- [Queries](/docs/builder/react-query/guides/queries) - Learn about queries
-- [Mutations](/docs/builder/react-query/guides/mutations) - Learn about mutations
-- [API Reference](/docs/builder/react-query/api-reference) - Complete API documentation
-
+- [Queries](/docs/builder/react-query/guides/queries) - Query usage
+- [Mutations](/docs/builder/react-query/guides/mutations) - Mutation usage
+- [Query Keys](/docs/builder/react-query/guides/query-keys) - Key structure and scopes
+- [Typed Errors](/docs/builder/react-query/advanced/error-schemas) - Error handling
