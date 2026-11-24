@@ -96,6 +96,14 @@ export class RequestContext<Env extends AdapterEnvironment = RegisteredEnvironme
   private headersView: RequestHeaders | null = null
   private cookiesView: RequestCookies | null = null
   private replyView: ReplyControls | null = null
+  private finishers: Array<() => void | Promise<void>> | null = null
+  /**
+   * The status of the response, once it is known: after the handler, response
+   * validation and error mapping. `undefined` before that. Read it in an
+   * `onFinish` callback to learn the final status, including the status an
+   * error was mapped to.
+   */
+  responseStatus: number | undefined = undefined
   /** @internal */
   responseHeaders: Record<string, string> | null = null
   /** @internal */
@@ -302,6 +310,17 @@ export class RequestContext<Env extends AdapterEnvironment = RegisteredEnvironme
    */
   declare resolve: ScopedContainer['get']
 
+  /**
+   * Runs `callback` when the response has finished: after the body has been
+   * sent, a stream has ended, or the client has gone away. Callbacks run in
+   * reverse registration order, before request values and the DI scope are
+   * disposed. An interceptor uses this to end a span or record a duration
+   * with the final `responseStatus`.
+   */
+  onFinish(callback: () => void | Promise<void>): void {
+    ;(this.finishers ??= []).push(callback)
+  }
+
   // --------------------------------------------------------------------------
   // Disposal
   // --------------------------------------------------------------------------
@@ -311,7 +330,7 @@ export class RequestContext<Env extends AdapterEnvironment = RegisteredEnvironme
    * @internal
    */
   get needsRelease(): boolean {
-    return this.scope !== null || this.disposers !== null
+    return this.scope !== null || this.disposers !== null || this.finishers !== null
   }
 
   /**
@@ -320,6 +339,17 @@ export class RequestContext<Env extends AdapterEnvironment = RegisteredEnvironme
    * @internal
    */
   async release(): Promise<void> {
+    const finishers = this.finishers
+    this.finishers = null
+    if (finishers !== null) {
+      for (let i = finishers.length - 1; i >= 0; i--) {
+        try {
+          await finishers[i]()
+        } catch {
+          // A failing callback must not stop the others.
+        }
+      }
+    }
     const disposers = this.disposers
     this.disposers = null
     if (disposers !== null) {

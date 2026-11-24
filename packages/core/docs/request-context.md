@@ -58,6 +58,25 @@ ctx.reply.cookie('sid', sessionId, { httpOnly: true, secure: true, sameSite: 'la
 
 There is no `ctx.reply.status()`. The status comes from the declaration: return `reply(status, body)` for a declared status, or throw an `HttpException`.
 
+## When the response has finished
+
+`ctx.onFinish(callback)` runs a callback once the response is done: after the body has been sent, a stream has ended, or the client has gone away. `ctx.responseStatus` holds the final status by then, including the status an error was mapped to. An interceptor uses the pair to end a span or record a duration:
+
+```ts
+@Injectable()
+export class TimingInterceptor implements Interceptor {
+  intercept(ctx: RequestContext, next: () => Promise<RouteResult>) {
+    const started = performance.now()
+    ctx.onFinish(() => {
+      metrics.record(ctx.route.path, ctx.responseStatus, performance.now() - started)
+    })
+    return next()
+  }
+}
+```
+
+Callbacks run in reverse registration order, before request values and the DI scope are disposed. `ctx.responseStatus` is `undefined` until the response is known.
+
 ## Per-request state
 
 `ctx.get`, `ctx.find`, `ctx.set` and `ctx.has` read and write typed per-request slots. `ctx.use` and `ctx.resolve` reach request-scoped services. Both are described in [Per-request state](./request-state.md).

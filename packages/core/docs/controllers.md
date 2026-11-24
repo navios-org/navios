@@ -117,6 +117,24 @@ export class AccountController {}
 
 A controller has no path of its own. Path prefixes belong to [modules](./modules.md).
 
+### Without decorator syntax
+
+Library code that is built without a decorator transform registers controllers and modules with functions. Handlers are `handler()` fields:
+
+```ts
+import { handler, registerController, registerModule } from '@navios/core'
+
+class DocsController {
+  spec = handler(specEndpoint, () => document)
+}
+registerController(DocsController, { attributes: [Public()] })
+
+class DocsModule {}
+registerModule(DocsModule, { controllers: [DocsController] })
+```
+
+`registerController` and `registerModule` take the same options as `@Controller` and `@Module`. Both option sets accept `attributes`, an array of attribute values such as `[Public()]`.
+
 ## What a handler returns
 
 What a handler may return depends on the declaration.

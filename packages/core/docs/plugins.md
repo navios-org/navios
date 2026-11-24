@@ -58,7 +58,7 @@ Plugins are set up in dependency order regardless of the order they were registe
 | `api.intercept(InterceptorClass)`  | Adds an interceptor around every route.                                                                          |
 | `api.mapError(ErrorClass, mapper)` | Maps an error class to a response.                                                                               |
 | `api.addModule(ModuleClass)`       | Adds a module, and so its routes, to the application.                                                            |
-| `api.encoder(kind, encoder)`       | Registers a function that rewrites every `RouteResult` of the given `kind` before the adapter writes it.         |
+| `api.encoder(kind, encoder)`       | Registers a function that turns every `RouteResult` of the given custom `kind` into one an adapter can write.    |
 | `api.onBootstrap(hook)`            | Runs after routes are compiled and before the server listens. The hook receives `app.routes()`.                  |
 | `api.onShutdown(hook)`             | Runs during `close()`, in reverse registration order. The hook receives the signal name, if any.                 |
 | `api.container`                    | The DI container.                                                                                                |
@@ -100,15 +100,31 @@ On Bun the native server does not exist until `listen()`, so `api.adapter.server
 
 ### Response encoders
 
-An adapter writes the result kinds `json`, `text`, `blob`, `stream`, `sse` and `empty`. An encoder converts a result of another kind into one of those:
+An adapter writes the result kinds `json`, `text`, `blob`, `stream`, `sse` and `empty`. An encoder converts a result of another kind into one of those. A handler of an endpoint declared with `response: 'text'`, `'stream'` or `'blob'` produces a result of a custom kind with `result(kind, body)`, which a package usually wraps in its own helper:
 
 ```ts
-api.encoder('xml', (result) => ({
-  ...result,
-  kind: 'text',
-  body: renderXml(result.body),
-  headers: { ...result.headers, 'content-type': 'application/xml' },
-}))
+import { definePlugin, result } from '@navios/core'
+
+export const csv = (rows: string[][]) => result('csv', rows)
+
+export const csvPlugin = definePlugin({
+  name: 'csv',
+  setup(api) {
+    api.encoder('csv', (value, ctx) => ({
+      ...value,
+      kind: 'text',
+      headers: { ...value.headers, 'content-type': 'text/csv; charset=utf-8' },
+      body: (value.body as string[][])
+        .map((row) => row.join(ctx.headers.get('x-separator') ?? ','))
+        .join('\n'),
+    }))
+  },
+})
+
+// in a controller
+exportUsers = handler(exportUsersEndpoint, () => csv(this.users.rows()))
 ```
 
-A result gets a custom kind when an interceptor or an error mapper returns one. Encoders are applied to route results only, not to the not-found response.
+An encoder runs inside the pipeline: after the handler's value has become a result, and before interceptors exit. It receives the request context, so it can read request state, and an error it throws is mapped to a response like any other error. `result()` also accepts `{ status, headers }`.
+
+Encoders are applied to route results only, not to the not-found response. There is one encoder per kind; registering a second one for the same kind replaces the first.

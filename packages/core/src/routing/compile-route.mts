@@ -338,6 +338,7 @@ async function primeGenerator(
 // ----------------------------------------------------------------------------
 
 function seal(result: RouteResult, ctx: RequestContext): RouteResult {
+  ctx.responseStatus = result.status
   const headers = ctx.responseHeaders
   const cookies = ctx.responseCookies
   if (headers === null && cookies === null && !ctx.needsRelease) {

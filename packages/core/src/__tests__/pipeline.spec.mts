@@ -595,3 +595,35 @@ describe('compileRoute: taking the response over', () => {
     expect(unhandled).toEqual([])
   })
 })
+
+describe('RequestContext: onFinish', () => {
+  it('runs callbacks at release with the final status, including a mapped error status', async () => {
+    const seen: Array<number | undefined> = []
+    const observer: Interceptor = {
+      intercept(ctx, next) {
+        ctx.onFinish(() => {
+          seen.push(ctx.responseStatus)
+        })
+        return next()
+      },
+    }
+    class Conflict extends Error {}
+    const failing = setup(
+      {},
+      () => {
+        throw new Conflict('taken')
+      },
+      { interceptors: [observer] },
+    )
+    failing.errors.add(Conflict, () => reply(409, { reason: 'taken' }))
+    const failed = await failing.execute(input())
+    expect(failed.status).toBe(409)
+    expect(seen).toEqual([])
+    await failed.release!()
+    expect(seen).toEqual([409])
+
+    const ok = setup({}, () => 'fine', { interceptors: [observer] })
+    await (await ok.execute(input())).release!()
+    expect(seen).toEqual([409, 200])
+  })
+})

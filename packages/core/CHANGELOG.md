@@ -96,6 +96,12 @@ Measured with `yarn bench --check` in `packages/adapter-fastify`: Node 24.22, pr
 
 - ESM output is 78 KB, down from 298 KB.
 
+### Added after the first 2.0 draft
+
+- `result(kind, body)` for custom response kinds; response encoders run inside the pipeline and receive the request context.
+- `registerController` and `registerModule` for code built without a decorator transform; `attributes` in controller and module options.
+- `ctx.onFinish(callback)` and `ctx.responseStatus`.
+
 ### Known limitations
 
 - `headersSchema` and `cookiesSchema` are validated by core when a declaration carries them, but `@navios/builder` does not accept them yet.
