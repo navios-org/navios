@@ -1,7 +1,3 @@
----
-sidebar_position: 3
----
-
 # Providers
 
 Navios DI React provides two providers: `ContainerProvider` and `ScopeProvider`.

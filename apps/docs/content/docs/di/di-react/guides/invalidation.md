@@ -1,7 +1,3 @@
----
-sidebar_position: 5
----
-
 # Invalidation
 
 Both `useService` and `useSuspenseService` automatically subscribe to service invalidation events. When a service is invalidated, the hooks will automatically re-fetch the service.

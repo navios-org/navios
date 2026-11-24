@@ -1,7 +1,3 @@
----
-sidebar_position: 6
----
-
 # Testing
 
 Testing CLI commands is essential for ensuring your commands work correctly. Navios Commander provides programmatic command execution, making it easy to test commands in isolation.

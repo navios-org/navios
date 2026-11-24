@@ -1,7 +1,3 @@
----
-sidebar_position: 3
----
-
 # Injection Tokens
 
 Injection Tokens are the foundation of Navios DI. Every service and factory has an Injection Token that identifies it in the DI system.

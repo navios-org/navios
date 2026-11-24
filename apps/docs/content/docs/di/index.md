@@ -1,7 +1,3 @@
----
-sidebar_position: 1
----
-
 # Dependency Injection Documentation
 
 Welcome to the Navios DI documentation. This section covers the dependency injection system that powers Navios applications.

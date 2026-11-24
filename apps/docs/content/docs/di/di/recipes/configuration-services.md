@@ -1,7 +1,3 @@
----
-sidebar_position: 1
----
-
 # Configuration Services
 
 A common pattern in applications is to manage configuration through dependency injection. This recipe shows how to create type-safe configuration services using injection tokens and Zod schemas.

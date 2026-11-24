@@ -1,7 +1,3 @@
----
-sidebar_position: 4
----
-
 # API Reference
 
 Complete API reference for Navios DI library.

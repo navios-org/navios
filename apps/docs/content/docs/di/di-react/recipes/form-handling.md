@@ -1,7 +1,3 @@
----
-sidebar_position: 1
----
-
 # Form Handling
 
 This recipe demonstrates how to handle forms with dependency injection in React.

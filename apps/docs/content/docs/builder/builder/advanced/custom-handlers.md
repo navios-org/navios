@@ -1,7 +1,3 @@
----
-sidebar_position: 4
----
-
 # Custom Handlers
 
 `declareEndpoint` covers most needs. When you want behaviour on top of it — transformed data, extra headers on every request, retries, a client resolved at call time — compose it from plain functions and the low-level utilities Builder exports.

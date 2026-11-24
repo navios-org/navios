@@ -1,7 +1,3 @@
----
-sidebar_position: 2
----
-
 # File Operations
 
 This recipe shows how to create CLI commands for file operations like reading, writing, processing, and managing files.

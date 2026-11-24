@@ -1,7 +1,3 @@
----
-sidebar_position: 1
----
-
 # Queries
 
 Queries fetch data from your API and cache it. `client.query` returns a query object: call it to get TanStack query options, or use the hooks and cache helpers attached to it.

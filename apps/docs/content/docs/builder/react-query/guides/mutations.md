@@ -1,7 +1,3 @@
----
-sidebar_position: 3
----
-
 # Mutations
 
 Mutations create, update or delete data. `client.mutation` returns a hook: call it without arguments inside a component to get TanStack's mutation result.

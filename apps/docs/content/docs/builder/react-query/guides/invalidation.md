@@ -1,7 +1,3 @@
----
-sidebar_position: 7
----
-
 # Invalidation
 
 Invalidation marks cached data as stale and refetches the queries that are in use. Every query has an `invalidate` helper, and mutations can declare what they invalidate.

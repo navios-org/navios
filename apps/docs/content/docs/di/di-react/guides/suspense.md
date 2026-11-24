@@ -1,7 +1,3 @@
----
-sidebar_position: 6
----
-
 # Suspense
 
 Navios DI React provides first-class support for React Suspense through the `useSuspenseService` hook.

@@ -1,7 +1,3 @@
----
-sidebar_position: 2
----
-
 # Exporters
 
 Navios OTel supports multiple exporters for sending traces to different backends.

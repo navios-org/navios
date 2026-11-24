@@ -1,7 +1,3 @@
----
-sidebar_position: 6
----
-
 # Query Key Management
 
 Every query has a cache key built from its endpoint and its inputs. You never write keys by hand: `query.key(args)` builds them, typed with the data stored under them.

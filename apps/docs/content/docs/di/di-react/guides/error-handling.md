@@ -1,7 +1,3 @@
----
-sidebar_position: 7
----
-
 # Error Handling
 
 This guide covers error handling patterns in Navios DI React.

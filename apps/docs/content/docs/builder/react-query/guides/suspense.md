@@ -1,7 +1,3 @@
----
-sidebar_position: 8
----
-
 # Suspense
 
 `useSuspense()` is TanStack's `useSuspenseQuery` for an endpoint: the component suspends while the data loads and throws to the nearest error boundary when the request fails, so `data` is always defined.

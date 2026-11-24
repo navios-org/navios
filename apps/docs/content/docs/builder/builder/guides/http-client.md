@@ -1,7 +1,3 @@
----
-sidebar_position: 6
----
-
 # HTTP Client Setup
 
 Builder works with any HTTP client that implements the `Client` interface. This guide covers setting up different HTTP clients and configuring them for your needs.

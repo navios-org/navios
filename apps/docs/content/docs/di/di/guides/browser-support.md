@@ -1,7 +1,3 @@
----
-sidebar_position: 9
----
-
 # Browser Support
 
 Navios DI fully supports browser environments with automatic optimizations. This guide covers how browser support works and what to consider when using DI in the browser.

@@ -1,7 +1,3 @@
----
-sidebar_position: 5
----
-
 # Lifecycle
 
 Navios DI provides built-in support for service lifecycle management through the `OnServiceInit` and `OnServiceDestroy` interfaces. These hooks allow services to perform initialization and cleanup operations when they are created or destroyed.

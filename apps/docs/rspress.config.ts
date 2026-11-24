@@ -1,6 +1,8 @@
 import { defineConfig } from '@rspress/core'
 import mermaid from 'rspress-plugin-mermaid'
 
+import { sidebar } from './sidebars.mts'
+
 const siteUrl = 'https://navios.tech'
 
 export default defineConfig({
@@ -28,6 +30,7 @@ export default defineConfig({
       { text: 'DI', link: '/docs/di/', activeMatch: '^/docs/di/' },
       { text: 'Commander', link: '/docs/commander/getting-started', activeMatch: '^/docs/commander/' },
     ],
+    sidebar,
     socialLinks: [{ icon: 'github', mode: 'link', content: 'https://github.com/Arilas/navios' }],
     editLink: { docRepoBaseUrl: 'https://github.com/Arilas/navios/tree/main/apps/docs/content' },
   },

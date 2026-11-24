@@ -1,7 +1,3 @@
----
-sidebar_position: 4
----
-
 # Scoped Mutations
 
 When the same mutation runs for many items — one "Save" button per row of a list — you usually want loading state per item rather than per mutation. Every mutation has a `mutationKey` and a `useIsMutating` hook for exactly that.

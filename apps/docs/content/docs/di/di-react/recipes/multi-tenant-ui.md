@@ -1,7 +1,3 @@
----
-sidebar_position: 6
----
-
 # Multi-Tenant UI
 
 This recipe shows how to handle multi-tenant scenarios in React using `ScopeProvider`.

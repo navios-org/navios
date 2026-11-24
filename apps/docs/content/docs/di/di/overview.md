@@ -1,7 +1,3 @@
----
-sidebar_position: 1
----
-
 # @navios/di
 
 A powerful, type-safe dependency injection framework for TypeScript. It provides decorator-based service registration, multiple injection scopes, lifecycle management, and comprehensive async support.

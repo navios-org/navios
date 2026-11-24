@@ -1,7 +1,3 @@
----
-sidebar_position: 2
----
-
 # Factories
 
 This guide covers advanced factory patterns and scenarios. For basic factory creation, see the [Getting Started guide](/docs/di/di/getting-started/factories).

@@ -1,7 +1,3 @@
----
-sidebar_position: 1
----
-
 # Services
 
 This guide covers advanced service patterns and scenarios. For basic service creation, see the [Getting Started guide](/docs/di/di/getting-started/first-service).

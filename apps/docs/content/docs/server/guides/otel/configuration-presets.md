@@ -1,7 +1,3 @@
----
-sidebar_position: 1
----
-
 # Configuration Presets
 
 Choose a preset based on your environment and observability needs. Each preset balances detail against performance overhead.

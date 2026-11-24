@@ -1,7 +1,3 @@
----
-sidebar_position: 4
----
-
 # Scopes in React
 
 This guide covers how to use request scopes in React applications with `ScopeProvider`.

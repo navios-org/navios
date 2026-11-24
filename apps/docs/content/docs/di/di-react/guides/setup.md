@@ -1,7 +1,3 @@
----
-sidebar_position: 1
----
-
 # Setup
 
 This guide covers how to set up Navios DI React in your application.

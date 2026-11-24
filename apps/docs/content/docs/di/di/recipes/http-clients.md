@@ -1,7 +1,3 @@
----
-sidebar_position: 3
----
-
 # HTTP Clients
 
 This recipe shows how to create and manage HTTP clients using dependency injection.

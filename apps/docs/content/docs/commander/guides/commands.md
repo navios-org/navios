@@ -1,7 +1,3 @@
----
-sidebar_position: 1
----
-
 # Commands
 
 Commands are the core building blocks of Navios Commander. This guide covers everything you need to know about creating and structuring commands.

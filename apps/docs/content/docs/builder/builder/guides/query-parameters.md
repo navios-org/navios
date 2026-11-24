@@ -1,7 +1,3 @@
----
-sidebar_position: 3
----
-
 # Query Parameters
 
 Query parameters allow you to add optional or required query string parameters to your endpoints. Builder uses Zod schemas to validate and type query parameters, just like request and response bodies.

@@ -1,7 +1,3 @@
----
-sidebar_position: 3
----
-
 # API Reference
 
 Complete API reference for Navios Commander.

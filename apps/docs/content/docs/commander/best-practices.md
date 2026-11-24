@@ -1,7 +1,3 @@
----
-sidebar_position: 4
----
-
 # Best Practices
 
 This guide covers best practices for building CLI applications with Navios Commander.

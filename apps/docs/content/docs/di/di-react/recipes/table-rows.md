@@ -1,7 +1,3 @@
----
-sidebar_position: 4
----
-
 # Table Rows
 
 This recipe shows how to use `ScopeProvider` to create isolated service instances for each table row.

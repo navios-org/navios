@@ -1,7 +1,3 @@
----
-sidebar_position: 2
----
-
 # Client Configuration
 
 `declareClient` takes the builder whose endpoints the client uses and optional key defaults applied to every query and mutation it creates.

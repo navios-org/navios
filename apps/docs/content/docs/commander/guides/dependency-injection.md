@@ -1,7 +1,3 @@
----
-sidebar_position: 3
----
-
 # Dependency Injection
 
 Navios Commander has full integration with `@navios/di`, allowing you to inject services into commands and use all DI features. This guide covers how to use dependency injection in your CLI commands.

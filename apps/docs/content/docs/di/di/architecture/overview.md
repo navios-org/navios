@@ -1,7 +1,3 @@
----
-sidebar_position: 1
----
-
 # Architecture Overview
 
 Understanding the architecture of Navios DI helps you make better decisions about how to structure your services and dependencies.

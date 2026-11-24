@@ -1,7 +1,3 @@
----
-sidebar_position: 3
----
-
 # Discriminated Unions
 
 Discriminated unions in your `responseSchema` let you model APIs that return different shapes based on a tag field. This is a Zod feature and works on every endpoint.

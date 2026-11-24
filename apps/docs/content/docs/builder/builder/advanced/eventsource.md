@@ -1,7 +1,3 @@
----
-sidebar_position: 4
----
-
 # Server-Sent Events (SSE)
 
 Server-Sent Events support in `@navios/builder` provides type-safe, unidirectional event streaming with schema validation. Perfect for live updates, notifications, and real-time data feeds.

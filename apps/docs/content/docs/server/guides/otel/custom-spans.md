@@ -1,7 +1,3 @@
----
-sidebar_position: 4
----
-
 # Custom Spans
 
 While auto-instrumentation handles most tracing needs, you can create custom spans for fine-grained control.

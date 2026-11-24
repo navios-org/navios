@@ -1,7 +1,3 @@
----
-sidebar_position: 2
----
-
 # Overview
 
 `@navios/react-query` is a type-safe React Query integration that bridges TanStack Query v5 with the `@navios/builder` API client. You declare an endpoint once and get hooks, cache keys and cache helpers that are typed from its Zod schemas.

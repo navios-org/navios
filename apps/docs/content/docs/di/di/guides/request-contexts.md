@@ -1,7 +1,3 @@
----
-sidebar_position: 6
----
-
 # Request Contexts
 
 Request contexts in Navios DI provide a powerful way to manage request-scoped services with automatic cleanup. This is particularly useful in web applications where you need to maintain request-specific data and ensure proper cleanup after each request.

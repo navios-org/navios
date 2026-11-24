@@ -1,7 +1,3 @@
----
-sidebar_position: 3
----
-
 # Injection Tokens
 
 This guide covers advanced injection token patterns. For basic token creation and usage, see the [Getting Started guide](/docs/di/di/getting-started/injection-tokens).

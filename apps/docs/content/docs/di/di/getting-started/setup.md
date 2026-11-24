@@ -1,7 +1,3 @@
----
-sidebar_position: 1
----
-
 # Setup
 
 Get Navios DI installed and configured in your project.

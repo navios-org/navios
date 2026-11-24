@@ -1,7 +1,3 @@
----
-sidebar_position: 4
----
-
 # Bound and Factory Tokens
 
 Bound and Factory Injection Tokens provide default configuration values to services or factories. They don't create services by themselves - the service must still be defined with `@Injectable` or `@Factory` decorators.

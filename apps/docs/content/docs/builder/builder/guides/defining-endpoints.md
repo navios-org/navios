@@ -1,7 +1,3 @@
----
-sidebar_position: 1
----
-
 # Defining Endpoints
 
 Endpoints are the core building blocks of your API client. This guide covers everything you need to know about declaring and using endpoints with `@navios/builder`.

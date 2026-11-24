@@ -1,7 +1,3 @@
----
-sidebar_position: 4
----
-
 # Request & Response Schemas
 
 Schemas are the foundation of type safety in Builder. You define the shape of your request and response data with schemas, and Builder automatically validates and types everything.

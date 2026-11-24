@@ -1,7 +1,3 @@
----
-sidebar_position: 5
----
-
 # Factories
 
 Factories provide a way to create instances using factory classes rather than direct instantiation. Like services, factories have Injection Tokens that identify them in the DI system.

@@ -1,7 +1,3 @@
----
-sidebar_position: 4
----
-
 # Best Practices
 
 Recommended patterns for using `@navios/react-query`.

@@ -1,7 +1,3 @@
----
-sidebar_position: 1
----
-
 # Getting Started with OpenTelemetry
 
 Navios provides first-class OpenTelemetry integration through three packages:

@@ -1,7 +1,3 @@
----
-sidebar_position: 2
----
-
 # Data Fetching
 
 This recipe shows different patterns for data fetching with Navios DI React.

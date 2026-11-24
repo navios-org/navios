@@ -1,7 +1,3 @@
----
-sidebar_position: 5
----
-
 # File Uploads
 
 An upload is a regular mutation on an endpoint declared with `body: 'multipart'`. The request body is sent as `multipart/form-data`; everything else — variables, callbacks, `invalidates`, typed errors — works as in any other [mutation](/docs/builder/react-query/guides/mutations).

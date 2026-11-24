@@ -1,7 +1,3 @@
----
-sidebar_position: 4
----
-
 # Caching Patterns
 
 This recipe demonstrates different caching patterns using dependency injection.

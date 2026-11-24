@@ -1,7 +1,3 @@
----
-sidebar_position: 4
----
-
 # Multi-Command Workflows
 
 This recipe shows how to create workflows that execute multiple commands in sequence, handle dependencies, and manage complex operations.

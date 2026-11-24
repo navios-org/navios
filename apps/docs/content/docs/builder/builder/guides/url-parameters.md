@@ -1,7 +1,3 @@
----
-sidebar_position: 2
----
-
 # URL Parameters
 
 URL parameters allow you to create dynamic endpoints with type-safe parameter extraction. Builder automatically extracts parameters from your URL pattern and enforces them at the type level.

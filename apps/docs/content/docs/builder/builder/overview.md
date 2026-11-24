@@ -1,7 +1,3 @@
----
-sidebar_position: 2
----
-
 # Overview
 
 `@navios/builder` is a type-safe HTTP API client builder for TypeScript. It provides a declarative way to define API endpoints with full schema validation for requests, responses, and URL parameters. The documentation uses Zod; any library that implements [Standard Schema](https://standardschema.dev) (Valibot, ArkType, ...) works in its place.

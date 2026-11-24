@@ -1,7 +1,3 @@
----
-sidebar_position: 5
----
-
 # Modal Dialogs
 
 This recipe demonstrates how to use `ScopeProvider` to create isolated service instances for modal dialogs.

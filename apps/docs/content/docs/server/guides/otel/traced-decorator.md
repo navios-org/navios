@@ -1,7 +1,3 @@
----
-sidebar_position: 1
----
-
 # @Traced Decorator
 
 The `@Traced` decorator provides a declarative way to add tracing to your classes and methods.

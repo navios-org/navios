@@ -1,7 +1,3 @@
----
-sidebar_position: 2
----
-
 # Modules
 
 Modules organize commands and provide a way to structure your CLI application. This guide covers how to create and use modules effectively.

@@ -1,7 +1,3 @@
----
-sidebar_position: 6
----
-
 # FAQ
 
 Frequently asked questions and troubleshooting guide for Navios DI React.

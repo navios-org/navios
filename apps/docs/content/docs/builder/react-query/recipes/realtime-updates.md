@@ -1,7 +1,3 @@
----
-sidebar_position: 3
----
-
 # Real-time Updates
 
 Patterns for keeping cached data up to date: polling, refetching on focus, and applying pushed events to the cache.

@@ -1,7 +1,3 @@
----
-sidebar_position: 2
----
-
 # Database Connections
 
 This recipe demonstrates how to manage database connections using dependency injection with proper lifecycle management.

@@ -1,7 +1,3 @@
----
-sidebar_position: 9
----
-
 # Context in Mutations
 
 Mutation callbacks are declared outside React, next to the endpoint. The context object they receive gives them what they need at run time: the `QueryClient`, and the result of any hooks you ask for through `useContext`.

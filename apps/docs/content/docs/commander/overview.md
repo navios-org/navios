@@ -1,7 +1,3 @@
----
-sidebar_position: 2
----
-
 # Overview
 
 Navios Commander is a CLI command framework built on `@navios/di` that provides a decorator-based approach to building command-line applications, similar to how `@navios/core` works for HTTP applications.

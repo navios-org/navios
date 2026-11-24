@@ -1,7 +1,3 @@
----
-sidebar_position: 1
----
-
 # Non-JSON Responses
 
 Not every endpoint answers with JSON. The `response` option of `declareEndpoint` selects what an endpoint resolves to: a `Blob` for file downloads, a `string`, a `ReadableStream`, or nothing at all.

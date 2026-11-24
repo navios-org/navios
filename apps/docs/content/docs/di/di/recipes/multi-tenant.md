@@ -1,7 +1,3 @@
----
-sidebar_position: 5
----
-
 # Multi-Tenant Applications
 
 This recipe shows how to handle multi-tenant scenarios using request-scoped services.

@@ -1,7 +1,3 @@
----
-sidebar_position: 1
----
-
 # Builder Documentation
 
 Welcome to the Navios Builder documentation. This section covers packages for building type-safe API clients and integrations.

@@ -1,7 +1,3 @@
----
-sidebar_position: 2
----
-
 # Your First Service
 
 Learn how to create and use your first service with Navios DI.

@@ -1,7 +1,3 @@
----
-sidebar_position: 4
----
-
 # Execution Context
 
 The `CommandExecutionContext` provides access to information about the current command execution, including the command metadata, path, and validated options. This is useful for middleware, guards, or any service that needs context about the current command execution.

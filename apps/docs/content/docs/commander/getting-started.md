@@ -1,7 +1,3 @@
----
-sidebar_position: 1
----
-
 # Getting Started
 
 Get up and running with Navios Commander in minutes. This guide will walk you through installation, basic setup, and your first CLI command.

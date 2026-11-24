@@ -1,7 +1,3 @@
----
-sidebar_position: 5
----
-
 # Best Practices
 
 This guide covers best practices for using Navios DI effectively in your applications.

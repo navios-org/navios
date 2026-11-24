@@ -1,7 +1,3 @@
----
-sidebar_position: 10
----
-
 # Optimistic Updates
 
 An optimistic update writes the expected result to the cache before the request is sent, so the UI responds immediately. If the mutation fails the previous value is restored; when it settles the entry is invalidated so the server's state wins.

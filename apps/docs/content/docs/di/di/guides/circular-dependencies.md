@@ -1,7 +1,3 @@
----
-sidebar_position: 7
----
-
 # Circular Dependencies
 
 Circular dependencies occur when services depend on each other in a cycle. Navios DI automatically detects circular dependencies and provides helpful error messages. This guide shows you how to identify and resolve them.

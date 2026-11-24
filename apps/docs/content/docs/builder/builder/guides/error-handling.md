@@ -1,7 +1,3 @@
----
-sidebar_position: 5
----
-
 # Error Handling
 
 Every failed endpoint call produces one error type, `EndpointError`. You choose per call whether it is thrown or returned as a value, and you tell failures apart by `error.kind`.

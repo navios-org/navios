@@ -1,7 +1,3 @@
----
-sidebar_position: 3
----
-
 # Real-Time Updates
 
 This recipe demonstrates how to implement real-time updates using service invalidation.

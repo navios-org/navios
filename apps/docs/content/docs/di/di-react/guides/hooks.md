@@ -1,7 +1,3 @@
----
-sidebar_position: 2
----
-
 # Hooks
 
 Navios DI React provides several hooks for accessing services in your React components.

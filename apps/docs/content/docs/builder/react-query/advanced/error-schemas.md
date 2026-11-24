@@ -1,7 +1,3 @@
----
-sidebar_position: 4
----
-
 # Typed Errors
 
 Queries and mutations call the throwing form of the endpoint. Every failure reaches React Query's error channel as an `EndpointError`, typed from the endpoint's `errorSchema` — retries, `isError`, `onError` and error boundaries work as in plain TanStack Query.

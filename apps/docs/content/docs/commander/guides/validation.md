@@ -1,7 +1,3 @@
----
-sidebar_position: 5
----
-
 # Validation
 
 Navios Commander uses Zod schemas to validate command options. This ensures type safety and provides helpful error messages when options are invalid.

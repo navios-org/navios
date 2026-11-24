@@ -1,7 +1,3 @@
----
-sidebar_position: 1
----
-
 # Complete Example
 
 A small todo application showing queries, mutations, invalidation, optimistic updates and typed errors together.

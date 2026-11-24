@@ -1,7 +1,3 @@
----
-sidebar_position: 2
----
-
 # Infinite Queries
 
 Infinite queries load paginated data page by page. `client.infiniteQuery` returns an infinite query object with the same hooks and helpers as a [query](/docs/builder/react-query/guides/queries); the cached value is TanStack's `InfiniteData<Page, PageParam>`.

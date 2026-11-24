@@ -1,7 +1,3 @@
----
-sidebar_position: 1
----
-
 # File Downloads
 
 An endpoint that does not return JSON declares its `response` kind instead of a `responseSchema`. The data type follows from it:

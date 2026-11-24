@@ -1,7 +1,3 @@
----
-sidebar_position: 2
----
-
 # Form Handling
 
 Patterns for submitting forms with mutations and showing validation errors.

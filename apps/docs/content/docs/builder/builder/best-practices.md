@@ -1,7 +1,3 @@
----
-sidebar_position: 6
----
-
 # Best Practices
 
 This guide covers best practices for using `@navios/builder` effectively in your projects.

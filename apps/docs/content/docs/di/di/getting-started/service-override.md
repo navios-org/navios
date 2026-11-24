@@ -1,7 +1,3 @@
----
-sidebar_position: 6
----
-
 # Service Override
 
 Navios DI allows multiple services to register for the same Injection Token. The service with the highest priority is resolved when the token is requested.

@@ -1,7 +1,3 @@
----
-sidebar_position: 8
----
-
 # Testing
 
 Navios DI provides a `TestContainer` class specifically designed for testing. It extends the base `Container` with additional methods that make it easy to mock dependencies and set up test scenarios.

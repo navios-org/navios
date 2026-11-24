@@ -1,7 +1,3 @@
----
-sidebar_position: 3
----
-
 # Metrics
 
 Navios OTel supports OpenTelemetry metrics for monitoring your application's performance.

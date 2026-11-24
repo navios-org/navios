@@ -1,7 +1,3 @@
----
-sidebar_position: 1
----
-
 # Database Commands
 
 This recipe shows how to create CLI commands for database operations like migrations, seeding, and queries.

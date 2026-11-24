@@ -1,7 +1,3 @@
----
-sidebar_position: 1
----
-
 # Getting Started
 
 Get up and running with `@navios/react-query` in minutes. This guide walks you through installation, setup, and your first type-safe query and mutation.

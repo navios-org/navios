@@ -1,7 +1,3 @@
----
-sidebar_position: 1
----
-
 # @navios/di-react
 
 React integration for the `@navios/di` dependency injection system. Provides React-specific providers, hooks, and contexts that enable seamless integration of dependency injection into React applications.

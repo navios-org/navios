@@ -1,7 +1,3 @@
----
-sidebar_position: 4
----
-
 # Scopes
 
 Service scopes determine the lifetime and sharing behavior of service instances in Navios DI. Understanding scopes is crucial for managing resources efficiently and avoiding common pitfalls.

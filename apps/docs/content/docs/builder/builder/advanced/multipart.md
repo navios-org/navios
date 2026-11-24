@@ -1,7 +1,3 @@
----
-sidebar_position: 2
----
-
 # Multipart Uploads
 
 Set `body: 'multipart'` on an endpoint to send its request body as `multipart/form-data`. Builder validates `data` against `requestSchema`, converts it to `FormData` and handles file serialization.

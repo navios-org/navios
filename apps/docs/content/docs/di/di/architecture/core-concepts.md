@@ -1,7 +1,3 @@
----
-sidebar_position: 2
----
-
 # Core Concepts
 
 Understanding these core concepts is essential for effectively using Navios DI. This section provides detailed descriptions of the fundamental building blocks of the DI system.

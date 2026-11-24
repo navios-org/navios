@@ -1,7 +1,3 @@
----
-sidebar_position: 3
----
-
 # SSR & Prefetching
 
 Prefetching fills the cache before a component needs the data: on the server, so the first render already has it, or on the client, ahead of a navigation. Every query and infinite query has helpers for it.

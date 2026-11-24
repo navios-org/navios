@@ -1,7 +1,3 @@
----
-sidebar_position: 3
----
-
 # WebSocket
 
 WebSocket support in `@navios/builder` provides type-safe, bidirectional messaging with schema validation. It works with Socket.IO clients or native WebSocket connections.

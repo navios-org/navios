@@ -1,7 +1,3 @@
----
-sidebar_position: 3
----
-
 # API Clients
 
 This recipe shows how to create CLI commands that interact with REST APIs, including authentication, request handling, and response formatting.
