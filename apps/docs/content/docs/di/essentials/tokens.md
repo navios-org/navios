@@ -113,7 +113,7 @@ export const TENANT_BUCKET = InjectionToken.factory(BUCKET, async (ctx) => {
 const bucket = await container.get(TENANT_BUCKET)
 ```
 
-The function runs at most once per root container, and always against the root container, even when the token is first resolved through a scope. Two containers compute the value separately.
+The function runs at most once per root container, and always against the root container, even when the token is first resolved through a scope. The value is stored on the container, not on the token: two containers compute it separately, and a container that was disposed computes it again on next use.
 
 An async function makes the first resolution asynchronous: use `get()`, or `inject()` it from a service that is itself resolved with `get()`.
 
@@ -145,4 +145,4 @@ export const REQUEST_ID = InjectionToken.create<string>('RequestId', {
 })
 ```
 
-Declaring the scope makes misuse visible: resolving `REQUEST_ID` from the root container, or injecting it into a singleton, reports a scope mismatch instead of a missing provider. [Scopes](/docs/di/essentials/scopes#values-supplied-per-scope) shows it in use. The options object also accepts `schema`.
+Declaring the scope makes misuse visible: resolving `REQUEST_ID` from the root container, or injecting it into a singleton, reports a scope mismatch instead of a missing provider. In a scope where no value was added, resolving it fails with `FactoryNotFound`. [Scopes](/docs/di/essentials/scopes#values-supplied-per-scope) shows it in use. The options object also accepts `schema`.

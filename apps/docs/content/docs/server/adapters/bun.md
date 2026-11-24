@@ -33,7 +33,7 @@ const url = await app.listen({ port: 3000, hostname: '0.0.0.0' })
 
 `app.listen({ port?, hostname? })` defaults to port 3000 on `localhost` and resolves to the server's base URL. Pass `port: 0` for an ephemeral port. `app.getServer()` returns the Bun `Server`; Bun creates it when it starts listening, so the call throws before `listen()`.
 
-In tests, `app.inject()` builds a `Request` and runs it through the same route handlers and CORS handling without opening a socket. See [Testing](/docs/server/essentials/testing).
+In tests, `app.inject()` builds a `Request` and runs it through the same route handlers and CORS handling without opening a socket. It chooses the route as `Bun.serve` does: a static segment is preferred to a URL parameter, and a path with a trailing slash matches no route. See [Testing](/docs/server/essentials/testing).
 
 ## Options
 
@@ -69,10 +69,10 @@ Write this once in the application, usually next to `NaviosFactory.create`. It t
 
 ## What `ctx.raw` contains
 
-| Member            | Type                               |
-| ----------------- | ---------------------------------- |
-| `ctx.raw.request` | the web `Request`                  |
-| `ctx.raw.server`  | the Bun `Server`, or `null`        |
+| Member            | Type                        |
+| ----------------- | --------------------------- |
+| `ctx.raw.request` | the web `Request`           |
+| `ctx.raw.server`  | the Bun `Server`, or `null` |
 
 `ctx.raw.server` is `null` for requests handled through `app.inject()` before `app.listen()` has been called.
 
@@ -111,15 +111,15 @@ defineBunEnvironment({
 })
 ```
 
-| Option           | Type                                                        | Meaning                                                                                                                                                                                                                                                             |
-| ---------------- | ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Option           | Type                                                        | Meaning                                                                                                                                                                                                                                                                                |
+| ---------------- | ----------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `origin`         | `string \| boolean \| RegExp \| array of those \| function` | `true` reflects the request's origin, `'*'` allows any origin, a string must match exactly, a `RegExp` is tested against the origin. A function receives `(origin, callback)` and calls `callback(error, allow)`, where `allow` is a boolean or the origin to send. Defaults to `'*'`. |
-| `credentials`    | `boolean`                                                   | Sends `Access-Control-Allow-Credentials: true`.                                                                                                                                                                                                                     |
-| `methods`        | `string \| string[]`                                        | Allowed methods for preflight. Defaults to `GET,HEAD,PUT,PATCH,POST,DELETE`.                                                                                                                                                                                        |
-| `allowedHeaders` | `string \| string[]`                                        | Allowed request headers for preflight. When omitted, the headers the browser asks for are allowed.                                                                                                                                                                  |
-| `exposedHeaders` | `string \| string[]`                                        | Response headers scripts may read.                                                                                                                                                                                                                                  |
-| `maxAge`         | `number`                                                    | Seconds a preflight result may be cached.                                                                                                                                                                                                                           |
-| `cacheControl`   | `number \| string`                                          | `Cache-Control` for preflight responses. A number is sent as `max-age=<number>`.                                                                                                                                                                                    |
+| `credentials`    | `boolean`                                                   | Sends `Access-Control-Allow-Credentials: true`.                                                                                                                                                                                                                                        |
+| `methods`        | `string \| string[]`                                        | Allowed methods for preflight. Defaults to `GET,HEAD,PUT,PATCH,POST,DELETE`.                                                                                                                                                                                                           |
+| `allowedHeaders` | `string \| string[]`                                        | Allowed request headers for preflight. When omitted, the headers the browser asks for are allowed.                                                                                                                                                                                     |
+| `exposedHeaders` | `string \| string[]`                                        | Response headers scripts may read.                                                                                                                                                                                                                                                     |
+| `maxAge`         | `number`                                                    | Seconds a preflight result may be cached.                                                                                                                                                                                                                                              |
+| `cacheControl`   | `number \| string`                                          | `Cache-Control` for preflight responses. A number is sent as `max-age=<number>`.                                                                                                                                                                                                       |
 
 A request from an origin that is not allowed is still handled; it gets no CORS headers, and the browser blocks the response. A preflight request from such an origin gets the not-found response.
 
@@ -136,8 +136,19 @@ The body is parsed with `request.formData()`, which reads the whole body into me
 - The body is read only when the pipeline asks for it, which is after guards have passed.
 - A body with a JSON content type, or with no content type, is parsed as JSON. An empty body is `undefined`.
 - A body with any other content type is passed to validation as a string.
-- `serve.maxRequestBodySize` (128 MiB by default) limits the size of a request body. The adapter enforces it and answers a larger body with a 413 problem response. A body with a `content-length` over the limit is rejected before guards run; a chunked body is counted while it is read, which is after guards, and is not limited on a route that never reads it.
 - A malformed JSON body is a 400 problem response with `source: 'body'`, like the errors described in [Errors](/docs/server/essentials/errors).
+
+### Body size limit
+
+`serve.maxRequestBodySize` (128 MiB by default, as in Bun) limits the size of a request body, whatever its content type. A larger body is answered with a 413 problem response.
+
+The adapter enforces the limit itself and starts `Bun.serve` without one, because Bun answers an oversize body with an empty 413 that no handler or `error` hook can replace. When the limit applies depends on whether the request declares its length:
+
+| Request                                                            | When it is rejected                                                                                                               |
+| ------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------- |
+| `content-length` over the limit                                    | Before guards run, on any route, including one that reads no body and a path that matches no route.                               |
+| No `content-length` (chunked transfer encoding, or `app.inject()`) | When the pipeline asks for the body, which is after guards. The body is counted while it is read, and reading stops at the limit. |
+| No `content-length`, on a route that never reads the body          | Never. Bun discards the body as it arrives and does not buffer it.                                                                |
 
 ## Shutdown
 

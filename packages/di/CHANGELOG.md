@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [2.0.0] - Unreleased
 
-The resolution engine was rewritten. See the [migration guide](./docs/migration.md) for old and new API side by side.
+The resolution engine was rewritten. See the [migration guide](https://navios.tech/docs/di/reference/migrating-to-2) for old and new API side by side.
 
 ### Breaking
 
@@ -348,7 +348,7 @@ The ESM output of the main entry went from roughly 98 KB to 47 KB.
 
 ### Migration
 
-- See [Migration Guide](./docs/migration.md) for detailed migration steps
+- See [Migration Guide](https://navios.tech/docs/di/reference/migrating-to-2) for detailed migration steps
 - Old request context API is no longer available
 - Update middleware code to use `ScopedContainer` pattern
 

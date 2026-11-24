@@ -6,7 +6,7 @@ title: Legacy decorators
 
 Navios is written for standard (TC39) decorators, and the rest of these docs assume them. A project that keeps TypeScript's `experimentalDecorators` option on, for example because another library in the same code base needs it, imports its decorators from the `legacy-compat` entry points instead.
 
-Each legacy decorator adapts the legacy call signature and then calls the same implementation as the standard decorator of the same name. Behaviour and metadata are identical, so everything else on this site applies unchanged.
+Each legacy decorator adapts the legacy call signature and then calls the same implementation as the standard decorator of the same name. Behaviour and metadata are identical, so everything else on this site applies unchanged, and both kinds can be used in one application.
 
 ```json title="tsconfig.json"
 {

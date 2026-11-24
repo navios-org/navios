@@ -12,6 +12,8 @@ title: XML responses
 yarn add @navios/adapter-xml
 ```
 
+`@navios/core` 2.x is a peer dependency.
+
 Point TypeScript's JSX transform at the package. Files that contain JSX use the `.tsx` extension.
 
 ```json title="tsconfig.json"
@@ -22,6 +24,8 @@ Point TypeScript's JSX transform at the package. Files that contain JSX use the 
   }
 }
 ```
+
+These two options are enough. The JSX types, including the ones for lower-case tags such as `<rss>`, are exported by `@navios/adapter-xml/jsx-runtime`, which TypeScript loads through `jsxImportSource`, so no `types` entry is needed. A setup that does not use `jsxImportSource` gets the same types as a global `JSX` namespace from `"types": ["@navios/adapter-xml/jsx"]`.
 
 Then add the plugin:
 
@@ -94,13 +98,35 @@ The options of `xml()` are the plugin options plus `status` (default 200), and t
 
 What happens to the returned value:
 
-- `xml()` only wraps the tree. The plugin registers a [response encoder](/docs/server/guides/plugins) that renders it after the handler returns, with the request context, and sends the result as text with the XML content type. Routes that return anything else are not touched.
+- `xml()` only wraps the tree: it returns `result('xml', ...)`, a result of the custom response kind `xml`. The plugin registers a [response encoder](/docs/server/guides/plugins#response-encoders) for that kind with `api.encoder('xml', ...)`. The encoder renders the tree after the handler returns, with the request context, and sends the result as text with the XML content type. Routes that return anything else are not touched.
 - The whole document is rendered before the response starts, whatever the declared response kind, so a client never receives half a document.
 - An error thrown by a component is handled like an error thrown by the handler: an `HttpException` becomes its status, anything else a 500 problem response. See [Errors](/docs/server/essentials/errors).
 
 :::warning
 `xmlPlugin()` is required. Without it nothing renders the value `xml()` returns, and the adapter is handed the unrendered tree.
 :::
+
+### Without the plugin
+
+`renderToXml` returns a string, which the handler of a `response: 'text'` endpoint can return directly. Pass it the request context, and the container when the tree has class components:
+
+```tsx
+import { renderToXml } from '@navios/adapter-xml'
+import { Container, Controller, Endpoint, inject } from '@navios/core'
+
+import type { HandlerParams, RequestContext } from '@navios/core'
+
+@Controller()
+export class FeedController {
+  private readonly container = inject(Container)
+
+  @Endpoint(getFeed)
+  async feed(_params: HandlerParams<typeof getFeed>, ctx: RequestContext) {
+    ctx.reply.header('content-type', 'application/rss+xml; charset=utf-8')
+    return renderToXml(<Feed />, { ctx, container: this.container })
+  }
+}
+```
 
 ## Components
 
@@ -265,3 +291,14 @@ const sitemap = await renderToXml(<Sitemap />, { container: app.container, prett
 The options are `declaration`, `encoding` and `pretty`, as for the plugin, plus `container`, the DI container that builds class components, and `ctx`, the `RequestContext` passed to components.
 
 It throws `MissingContainerError` when the tree contains a class component and no container was given, and `MissingContextError` when a component uses a context that was not given.
+
+## Other exports
+
+| Export                                    | What it is                                                                                                  |
+| ----------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `XmlComponent`                            | The interface of a class component: `render(ctx: RequestContext): XmlRenderable \| Promise<XmlRenderable>`. |
+| `XmlResponse`                             | The type `xml()` returns, a `CustomResult<'xml', XmlPayload>`.                                              |
+| `isXmlResponse(value)`                    | Whether a value was created by `xml()`.                                                                     |
+| `defineTag(name)`                         | Without a schema, a tag component that accepts any attributes. Every tag component has a `tagName`.         |
+| `Fragment`                                | The symbol behind `<>...</>`.                                                                               |
+| `createElement(type, props, ...children)` | The classic element factory, for code that does not use JSX.                                                |

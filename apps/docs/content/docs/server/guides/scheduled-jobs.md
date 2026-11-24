@@ -83,7 +83,7 @@ export class MaintenanceModule {
 }
 ```
 
-Both ways give the same lifecycle. A class registered after the application has started has its jobs started at once.
+Both ways give the same lifecycle, because the scheduler starts and stops itself through application hooks. Those hooks run only on a `SchedulerService` that exists at the end of `init()`: when the plugin is not used and nothing injects the service, there is no scheduler and nothing starts. A class registered after the application has started has its jobs started at once.
 
 ## Cron expressions
 

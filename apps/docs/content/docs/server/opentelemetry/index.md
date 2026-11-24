@@ -148,7 +148,7 @@ With `registerGlobally: false` the plugin still creates its own tracer provider 
 - an incoming `traceparent` header is not read;
 - the span of a `@Traced` method has no parent and starts a new trace.
 
-The `asyncContext` option of the application is a separate `AsyncLocalStorage` that holds the request context, described in [Request context](/docs/server/essentials/request-context). This package does not need it. When it is on and no context manager is registered, the plugin uses it as a fallback: a `@Traced` method called during a request becomes a child of the request span. Spans nested deeper than that are still parented to the request span, not to each other.
+The `asyncContext` option of the application is a separate `AsyncLocalStorage` that holds the request context, described in [Request context](/docs/server/essentials/request-context). This package does not need it. When it is on and no context manager is registered, the plugin uses it as a fallback: a `@Traced` method called during a request becomes a child of the request span, and `getCurrentSpan()` returns the request span. Spans nested deeper than that are still parented to the request span, not to each other.
 
 ## Metrics
 
@@ -187,3 +187,5 @@ app.enableShutdownHooks() // closes the application on SIGTERM and SIGINT
 [Application setup](/docs/server/essentials/application) describes shutdown hooks and the order of `close()`.
 
 To export without shutting down, for example at the end of a job, inject `OtelSetupService` and call `forceFlush()`.
+
+`@navios/otel-fastify` and `@navios/otel-bun` are deprecated packages that re-export this plugin so that 1.x imports resolve; import from `@navios/otel` directly.

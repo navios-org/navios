@@ -17,7 +17,7 @@ Every public export of `@navios/di-react`, with signatures. This page is for loo
 | `container`              | `Container` | The root container. Must be the same object on every render |
 | `children`               | `ReactNode` | The tree that can use the hooks                             |
 
-Every hook on this page throws when there is no `ContainerProvider` above it, except the [scope hooks](#scope-hooks) that return `null` or `undefined`.
+Every hook on this page throws when there is no `ContainerProvider` above it, with a message such as `useContainer must be used within a ContainerProvider`, except the [scope hooks](#scope-hooks) that return `null` or `undefined`.
 
 ## ScopeProvider
 

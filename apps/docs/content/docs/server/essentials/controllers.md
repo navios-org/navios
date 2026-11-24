@@ -131,7 +131,8 @@ Prefer `reply()` in a handler. Throwing is for code that cannot return a respons
 - a parameter type that is not the declared one,
 - a returned value of the wrong shape,
 - `reply()` with a status the endpoint does not declare, or with the wrong body for that status,
-- a bare value from an endpoint declared with `responses`.
+- a bare value from an endpoint declared with `responses`,
+- a value that is not a stream from a `response: 'stream'` endpoint.
 
 Literal types are widened in this check: a field declared as `'low' | 'high'` is checked as `string`. TypeScript does not pass an expected type into the body of a decorated method, so `return { priority: 'high' }` is inferred as `{ priority: string }`, and a check against the literal type would reject correct code.
 
@@ -154,6 +155,8 @@ Without the annotation, a wrong literal is still caught at run time by response 
 Both directions are validated against the declaration, with whichever Standard Schema library wrote the schemas.
 
 **Requests.** URL parameters (when the declaration has a `urlParamsSchema`), then the query, then the body. The body is read from the connection only after guards have passed and the earlier parts are valid. A failure answers 400 with a [validation error body](/docs/server/essentials/errors#validation-errors) and the handler does not run.
+
+Headers and cookies are not validated: `declareEndpoint` has no schema option for them, so read them from [`ctx.headers` and `ctx.cookies`](/docs/server/essentials/request-context#request-data). Core does validate a `headersSchema` and a `cookiesSchema` when a declaration's `config` carries them, reporting failures with `source: 'headers'` or `'cookies'`, but the handler types do not include the results.
 
 **Responses.** A JSON body is validated against the schema for its status before it is sent. This removes fields the schema does not declare, which keeps internal fields such as a password hash from leaking. A body that does not match its schema is a 500, and the error is logged. `text`, `blob` and `stream` responses are not validated.
 
@@ -203,11 +206,12 @@ export class UsersController {
 
 - Both arguments of the function are inferred from the declaration. Nothing is annotated.
 - The return value is checked against the declaration including literal values, because TypeScript passes the expected type into the function.
-- `this` inside an arrow function is the controller, so `inject()` fields work. A `function` expression has no `this`.
+- `this` inside an arrow function is the controller, so `inject()` fields work. A `function` or an `async function*` passed to `handler()` has no `this`; to stream from controller fields, return a generator from an arrow function: `handler(tailLogs, ({ params }) => this.follow(params.service))`.
 - An options object between the endpoint and the function takes `guards`, `interceptors` and `attributes` for that handler.
+- `@UseGuards`, `@UseInterceptors` and attribute decorators also work on a `handler()` field. Guards and interceptors from decorators run before those from the options, and when the same attribute is set both ways the value from the options wins.
 - Navios finds these handlers on the controller instance, so the field must be assigned by the time the constructor finishes. A static property is not found.
 
-Use `handler()` when you prefer inferred parameters to the `HandlerParams` annotation, or when the code is built without a decorator transform. For the second case, `registerController(Class, options?)` and `registerModule(Class, options?)` replace `@Controller` and `@Module`:
+Use `handler()` when you prefer inferred parameters to the `HandlerParams` annotation, or when the code is built without a decorator transform. For the second case, `registerController(Class, options?)` and `registerModule(Class, options?)` replace `@Controller` and `@Module` and take the same options, and [`registerInjectable`](/docs/di/essentials/services#registering-without-decorators) does the same for services:
 
 ```ts
 import { handler, registerController, registerModule } from '@navios/core'
@@ -232,7 +236,9 @@ Navios builds the route table during `init()` and rejects it when a rule is brok
 | A controller cannot inject a request-scoped service                  | `Scope mismatch: UnitOfWork is request-scoped … (UsersController -> UnitOfWork)`        |
 | A module with controllers is mounted under one prefix                | `Module UsersModule is imported under two different prefixes`                           |
 
-After `init()`, `app.routes()` returns every route as a `RouteInfo`: `method`, `path`, `endpoint` (the declaration's `config`), `module`, `controller`, `handlerName`, `guards`, `interceptors` and `attributes`. `ctx.route` is the same object for the route being handled.
+One rule is checked earlier, when the class is defined: a method serves one endpoint. A second `@Endpoint` with another declaration on the same method throws `getUser already serves GET /users/$userId; a method can serve one endpoint.`
+
+After `init()`, `app.routes()` returns every route as a `RouteInfo`: `method`, `path`, `endpoint` (the declaration's `config`), `module`, `controller`, `handlerName` (the name of the method or of the `handler()` field), `guards`, `interceptors` and `attributes`. `ctx.route` is the same object for the route being handled.
 
 ```ts
 for (const route of app.routes()) {

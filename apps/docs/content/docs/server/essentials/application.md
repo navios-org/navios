@@ -127,7 +127,7 @@ The hooks are called on the instances the container holds at that moment. A serv
 4. Runs plugin shutdown hooks in reverse registration order.
 5. Disposes the container, which runs `onServiceDestroy` in reverse creation order.
 
-An error thrown by a shutdown hook is logged and does not stop the remaining hooks. Calling `close()` a second time does nothing.
+An error thrown by a shutdown hook is logged and does not stop the remaining hooks. Calling `close()` a second time does nothing. A closed application cannot be started again; create a new one.
 
 To shut down when the process is asked to stop, opt in:
 

@@ -1,370 +1,78 @@
 # @navios/schedule
 
-A powerful and type-safe job scheduling library for Navios applications, built on top of the popular `cron` package. Schedule and manage recurring tasks with decorator-based configuration and dependency injection support.
+Cron jobs for [Navios](https://navios.tech) applications. Mark a method with `@Cron` and it runs on a schedule, in a service that injects the same dependencies your handlers do. Jobs start when the application is ready and stop when it closes. Built on the [`cron`](https://github.com/kelektiv/node-cron) package.
 
-## Why @navios/schedule?
+**[Documentation](https://navios.tech/docs/server/guides/scheduled-jobs)**
 
-- **Type Safety**: Full TypeScript support with strict typing for cron expressions and job methods
-- **Decorator-Based**: Clean, declarative API using decorators for defining schedulable services and cron jobs
-- **Dependency Injection**: Seamless integration with Navios's dependency injection container
-- **Error Handling**: Built-in error handling that logs errors without crashing the scheduler
-- **Flexible Configuration**: Support for custom cron expressions and job-specific options
-- **Application Lifecycle**: Jobs start when the application has been initialised and stop on `app.close()`
-- **Per-Run Isolation**: Every run of a job gets its own DI scope
-- **Runtime Control**: Start, stop, and manage individual jobs or all jobs at once
-- **Pre-defined Schedules**: Common scheduling patterns available as constants
-
-## Installation
+## Install
 
 ```bash
-npm install --save @navios/schedule @navios/core cron
+npm install @navios/schedule
 ```
 
-or
+`@navios/core` is a peer dependency. The example also uses `@navios/adapter-fastify`; any adapter works.
 
-```bash
-yarn add @navios/schedule @navios/core cron
-```
+## Example
 
-## Basic Usage
+```ts
+import { defineFastifyEnvironment } from '@navios/adapter-fastify'
+import { inject, Injectable, Logger, Module, NaviosFactory } from '@navios/core'
+import { Cron, Schedulable, Schedule, schedulePlugin } from '@navios/schedule'
 
-### 1. Create a Schedulable Service
-
-```typescript
-import { Cron, Schedulable, Schedule } from '@navios/schedule'
-
-@Schedulable()
-class TaskService {
-  @Cron('0 0 * * *') // Run daily at midnight
-  async dailyCleanup() {
-    console.log('Running daily cleanup...')
-    // Your cleanup logic here
-  }
-
-  @Cron(Schedule.EveryFiveMinutes)
-  async healthCheck() {
-    console.log('Performing health check...')
-    // Your health check logic here
-  }
-
-  @Cron('*/30 * * * * *', { disabled: true })
-  async disabledJob() {
-    // This job won't run automatically
-    console.log('This job is disabled')
+@Injectable()
+class SessionsService {
+  async deleteExpired() {
+    return 0
   }
 }
-```
 
-### 2. Register Schedulable Services
+@Schedulable()
+class MaintenanceJobs {
+  private readonly sessions = inject(SessionsService)
+  private readonly logger = inject(Logger, { context: 'MaintenanceJobs' })
 
-Either list the services in the plugin:
+  @Cron(Schedule.EveryHour)
+  async purgeSessions() {
+    const removed = await this.sessions.deleteExpired()
+    this.logger.log(`Removed ${removed} expired sessions`)
+  }
 
-```typescript
-import { defineFastifyEnvironment } from '@navios/adapter-fastify'
-import { NaviosFactory } from '@navios/core'
-import { schedulePlugin } from '@navios/schedule'
+  @Cron('0 4 * * *', { disabled: true })
+  async rebuildSearchIndex() {
+    // created but not started: start it by hand through SchedulerService
+  }
+}
+
+@Module()
+class AppModule {}
 
 const app = await NaviosFactory.create(AppModule, {
   adapter: defineFastifyEnvironment(),
-  plugins: [schedulePlugin({ services: [TaskService] })],
+  plugins: [schedulePlugin({ services: [MaintenanceJobs] })],
 })
 
 await app.listen({ port: 3000 })
 ```
 
-or register them in a module's `onModuleInit`:
+`@Schedulable()` registers the class as a service, so it takes no `@Injectable()`. Jobs start at the end of `app.init()`; `app.close()` stops them and waits for the runs in progress. An error thrown by a job is logged and the job stays on its schedule.
 
-```typescript
-import { inject, Module } from '@navios/core'
-import { SchedulerService } from '@navios/schedule'
+## What else it does
 
-@Module()
-export class AppModule {
-  private readonly schedulerService = inject(SchedulerService)
+| Need                                     | How                                                         | Docs                                                                                                                       |
+| ---------------------------------------- | ----------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| Five- and six-field expressions, presets | `@Cron('*/30 * * * * *')`, the `Schedule` enum              | [Cron expressions](https://navios.tech/docs/server/guides/scheduled-jobs#cron-expressions)                                 |
+| Keep a feature's jobs in its module      | `inject(SchedulerService).register(Jobs)` in `onModuleInit` | [Running them with an application](https://navios.tech/docs/server/guides/scheduled-jobs#running-them-with-an-application) |
+| Fresh services for every run             | `@Schedulable({ scope: InjectableScope.Request })`          | [A DI scope per run](https://navios.tech/docs/server/guides/scheduled-jobs#a-di-scope-per-run)                             |
+| Start, stop or trigger a job at run time | `SchedulerService`: `getJob()`, `startAll()`, `stopAll()`   | [Managing jobs at run time](https://navios.tech/docs/server/guides/scheduled-jobs#managing-jobs-at-run-time)               |
+| Know what happens when a job throws      | logged, not retried, other jobs unaffected                  | [Errors](https://navios.tech/docs/server/guides/scheduled-jobs#errors)                                                     |
+| Jobs without an HTTP application         | `new Container()`, `scheduler.start()`                      | [Without an application](https://navios.tech/docs/server/guides/scheduled-jobs#without-an-application)                     |
 
-  onModuleInit() {
-    this.schedulerService.register(TaskService)
-  }
-}
-```
+Runs of one job are not serialised: a run that outlasts its interval overlaps with the next one. Projects that keep `experimentalDecorators` on import `Schedulable` and `Cron` from `@navios/schedule/legacy-compat`; see [Legacy decorators](https://navios.tech/docs/server/reference/legacy-decorators).
 
-Both do the same thing. Registering only creates the jobs; see the next section for when they run.
+## Upgrading from 1.x
 
-## Lifecycle
+Jobs now follow the application lifecycle instead of starting on `register()`, and every run has its own DI scope. See [Migrating to 2.0](https://navios.tech/docs/server/reference/migrating-to-2#naviosschedule), or [CHANGELOG.md](./CHANGELOG.md) for the full list.
 
-`SchedulerService` follows the application:
+## License
 
-| When                                           | What happens                                                                                              |
-| ---------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
-| `register(Service)`                            | The cron jobs are created. They are not running yet.                                                      |
-| end of `app.init()` (`onApplicationBootstrap`) | Every registered job that is not `disabled` starts. Routes are compiled, the server is not listening yet. |
-| `register(Service)` after that                 | The jobs of that service start immediately.                                                               |
-| `app.close()` (`onApplicationShutdown`)        | Every job stops, and `close()` waits for the runs that are in progress.                                   |
-
-So a job never runs before the application is fully built, and never after `app.close()` has returned.
-
-The lifecycle is implemented by hooks on `SchedulerService` itself, not by the plugin, so it works the same with either way of registering. Navios calls `onApplicationBootstrap` only on services that exist at the end of `init()`: if nothing injects `SchedulerService` and the plugin is not used, there is no scheduler and nothing starts. Calling `register()` from a request handler long after bootstrap is fine, because a started scheduler starts new services at once.
-
-`close()` waits for running jobs without a time limit. A job that never finishes keeps `close()` from returning, so give long jobs their own timeout.
-
-### Without an application
-
-With a bare container there is no bootstrap hook, so start the scheduler yourself:
-
-```typescript
-import { Container } from '@navios/core'
-import { SchedulerService } from '@navios/schedule'
-
-const container = new Container()
-const schedulerService = await container.get(SchedulerService)
-
-schedulerService.register(TaskService)
-schedulerService.start()
-
-// later: stops the jobs and waits for running ones
-await container.dispose()
-```
-
-## Per-Run DI Scope
-
-Each run of a job happens in its own DI scope, created with `container.createScope()` and disposed when the run ends, whether it succeeded or threw.
-
-A `@Schedulable()` class is a singleton by default: one instance handles every run, and can keep state between runs. Make it request-scoped to get a fresh instance, and fresh request-scoped dependencies, for every run:
-
-```typescript
-import { inject, Injectable, InjectableScope } from '@navios/core'
-import { Cron, Schedulable, Schedule } from '@navios/schedule'
-
-@Injectable({ scope: InjectableScope.Request })
-class UnitOfWork {
-  onServiceDestroy() {
-    // runs after each run of the job
-  }
-}
-
-@Schedulable({ scope: InjectableScope.Request })
-class ReportService {
-  private readonly unitOfWork = inject(UnitOfWork)
-
-  @Cron(Schedule.EveryHour)
-  async buildReport() {
-    // this.unitOfWork belongs to this run only
-  }
-}
-```
-
-A singleton schedulable class cannot inject a request-scoped service; `@navios/di` reports that as a scope mismatch. Singleton dependencies are shared between runs in both cases.
-
-Runs of the same job are not serialised: if a run takes longer than the interval, the next one starts while it is still going, in its own scope.
-
-## Cron Expression Format
-
-Cron expressions follow the standard 5 or 6 field format:
-
-```
-# ┌────────────── second (optional, 0-59)
-# │ ┌──────────── minute (0-59)
-# │ │ ┌────────── hour (0-23)
-# │ │ │ ┌──────── day of month (1-31)
-# │ │ │ │ ┌────── month (1-12)
-# │ │ │ │ │ ┌──── day of week (0-6, Sunday to Saturday)
-# │ │ │ │ │ │
-# │ │ │ │ │ │
-# * * * * * *
-```
-
-### Examples:
-
-- `'0 0 * * *'` - Daily at midnight
-- `'*/5 * * * *'` - Every 5 minutes
-- `'0 9 * * 1-5'` - Every weekday at 9 AM
-- `'0 0 1 * *'` - First day of every month at midnight
-- `'*/30 * * * * *'` - Every 30 seconds (6-field format)
-
-## Pre-defined Schedule Constants
-
-For common scheduling patterns, use the `Schedule` enum:
-
-```typescript
-import { Schedule } from '@navios/schedule'
-
-@Schedulable()
-class ExampleService {
-  @Cron(Schedule.EveryMinute)
-  async everyMinute() {}
-
-  @Cron(Schedule.EveryFiveMinutes)
-  async everyFiveMinutes() {}
-
-  @Cron(Schedule.EveryHour)
-  async hourly() {}
-
-  @Cron(Schedule.EveryDay)
-  async daily() {}
-
-  @Cron(Schedule.EveryWeek)
-  async weekly() {}
-
-  @Cron(Schedule.EveryMonth)
-  async monthly() {}
-}
-```
-
-Available constants:
-
-- `EveryMinute` - `'*/1 * * * *'`
-- `EveryFiveMinutes` - `'*/5 * * * *'`
-- `EveryTenMinutes` - `'*/10 * * * *'`
-- `EveryFifteenMinutes` - `'*/15 * * * *'`
-- `EveryThirtyMinutes` - `'*/30 * * * *'`
-- `EveryHour` - `'0 * * * *'`
-- `EveryTwoHours` - `'0 */2 * * *'`
-- `EveryThreeHours` - `'0 */3 * * *'`
-- `EveryFourHours` - `'0 */4 * * *'`
-- `EverySixHours` - `'0 */6 * * *'`
-- `EveryTwelveHours` - `'0 */12 * * *'`
-- `EveryDay` - `'0 0 * * *'`
-- `EveryWeek` - `'0 0 * * 0'`
-- `EveryMonth` - `'0 0 1 * *'`
-
-## Advanced Usage
-
-### Cron Options
-
-```typescript
-@Schedulable()
-class ConfigurableService {
-  @Cron('0 2 * * *', { disabled: true })
-  async maintenanceJob() {
-    // This job is disabled by default
-    console.log('Running maintenance...')
-  }
-}
-```
-
-### Runtime Job Management
-
-```typescript
-// Get a specific job
-const job = schedulerService.getJob(TaskService, 'dailyCleanup')
-console.log('Job is active:', job?.isActive)
-
-// Start all jobs, including the ones declared with `disabled: true`
-schedulerService.startAll()
-
-// Stop all jobs (runs in progress are not awaited)
-schedulerService.stopAll()
-
-// Start one disabled job by hand
-schedulerService.getJob(TaskService, 'disabledJob')?.start()
-```
-
-### Multiple Jobs in One Service
-
-```typescript
-@Schedulable()
-class DataProcessingService {
-  @Cron('0 1 * * *') // 1 AM daily
-  async processUserData() {
-    console.log('Processing user data...')
-  }
-
-  @Cron('0 3 * * *') // 3 AM daily
-  async generateReports() {
-    console.log('Generating reports...')
-  }
-
-  @Cron(Schedule.EveryFifteenMinutes)
-  async syncExternalData() {
-    console.log('Syncing external data...')
-  }
-}
-```
-
-### Error Handling
-
-The scheduler automatically handles errors in job execution:
-
-```typescript
-@Schedulable()
-class RobustService {
-  @Cron(Schedule.EveryMinute)
-  async riskyJob() {
-    try {
-      // Your job logic here
-      await someRiskyOperation()
-    } catch (error) {
-      // Handle specific errors if needed
-      console.error('Job failed:', error)
-      throw error // Re-throw to let scheduler log it
-    }
-  }
-}
-```
-
-Jobs that throw errors will:
-
-- Be logged automatically by the scheduler
-- Continue running on their schedule (errors don't stop the job)
-- Not affect other jobs in the same or different services
-
-## API Reference
-
-### Decorators
-
-#### `@Schedulable(options?)`
-
-Marks a class as schedulable and makes it injectable. Required for any class that contains `@Cron` decorated methods. Do not add `@Injectable()` to the same class.
-
-**Parameters:**
-
-- `options?: SchedulableOptions`
-  - `scope?: InjectableScope` - `Singleton` (default) or `Request` for one instance per run
-
-#### `@Cron(cronTime, options?)`
-
-Decorates a method to run on a cron schedule.
-
-**Parameters:**
-
-- `cronTime: string` - Cron expression (5 or 6 fields)
-- `options?: CronOptions` - Optional configuration
-  - `disabled?: boolean` - Whether the job should be disabled by default
-
-### SchedulerService
-
-#### Methods
-
-- `register(service: ClassType)` - Register a schedulable service. Registering the same class again does nothing
-- `getJob<T>(service: T, method: keyof InstanceType<T>): CronJob | undefined` - Get a specific job instance
-- `start()` - Start every job that is not `disabled`, and start services registered later at once. Called by `onApplicationBootstrap`
-- `stop(): Promise<void>` - Stop every job and wait for running ones. Called by `onApplicationShutdown` and when the container is disposed
-- `startAll()` - Start all registered jobs, including disabled ones
-- `stopAll()` - Stop all registered jobs without waiting for running ones
-
-### `schedulePlugin(options)`
-
-A Navios plugin. `options.services` is the list of `@Schedulable()` classes to register.
-
-### Legacy decorators
-
-Projects compiled with `experimentalDecorators` import `Schedulable` and `Cron` from `@navios/schedule/legacy-compat`. Everything else is the same.
-
-## Best Practices
-
-1. **Registration**: Register schedulable services with `schedulePlugin` or in a module's `onModuleInit`, so that they are known before the application starts
-
-2. **Error Handling**: Implement proper error handling within your job methods, but let the scheduler handle logging
-
-3. **Resource Management**: Be mindful of long-running jobs that might overlap with subsequent executions
-
-4. **Testing**: Replace the dependencies of a schedulable service with `provide(Token, Mock)` in the application or container `providers`
-
-5. **Monitoring**: Consider adding logging or monitoring to track job execution and failures
-
-## Requirements
-
-- Node.js 18+
-- TypeScript 5.0+
-- `@navios/core` 2.0 for dependency injection and the application lifecycle
-- `cron` package for job scheduling
+MIT

@@ -43,6 +43,38 @@ export const Jwt = provideJwtService(async (ctx) => {
 })
 ```
 
+The configuration is checked when the service is first resolved. One of the wrong shape, such as a `secret` that is not a string, rejects with a `DIError` whose code is `TokenValidationError`. The check needs no schema library.
+
+### Asymmetric keys
+
+With an RSA or ECDSA key pair the private key signs and the public key verifies, so services that only verify need only the public key:
+
+```ts
+import { readFileSync } from 'node:fs'
+
+export const Jwt = provideJwtService({
+  privateKey: readFileSync('private.pem'),
+  publicKey: readFileSync('public.pem'),
+  signOptions: { algorithm: 'RS256', expiresIn: '15m' },
+  verifyOptions: { algorithms: ['RS256'] },
+})
+```
+
+### Choosing the key per token
+
+`secretOrKeyProvider` picks the key for each call, for example by the `kid` header of the token when keys are rotated. `requestType` is `RequestType.Sign` or `RequestType.Verify`; the second argument is the payload when signing and the token when verifying. The function is synchronous.
+
+```ts
+import { provideJwtService, RequestType } from '@navios/jwt'
+
+export const Jwt = provideJwtService({
+  secretOrKeyProvider: (requestType, tokenOrPayload) =>
+    requestType === RequestType.Sign ? currentSigningKey() : publicKeyFor(tokenOrPayload),
+  signOptions: { algorithm: 'RS256' },
+  verifyOptions: { algorithms: ['RS256'] },
+})
+```
+
 ## Sign a token at login
 
 The login endpoint is new, so it gets a declaration. A failed login is a declared 401.
@@ -214,6 +246,35 @@ app.mapError(JsonWebTokenError, () => problem(401, 'Invalid or expired token'))
 ```
 
 `app.mapError` is described in [Errors](/docs/server/essentials/errors).
+
+## Types
+
+| Export                                 | Description                                                                                   |
+| -------------------------------------- | --------------------------------------------------------------------------------------------- |
+| `JwtServiceOptions`                    | The configuration `provideJwtService` takes                                                   |
+| `SignOptions`, `VerifyOptions`         | The options of `jsonwebtoken` for signing and verifying                                       |
+| `JwtSignOptions`                       | `SignOptions` plus `secret` and `privateKey`: the per-call options of `sign` and `signAsync`  |
+| `JwtVerifyOptions`                     | `VerifyOptions` plus `secret` and `publicKey`: the per-call options of `verify` and `verifyAsync` |
+| `RequestType`                          | Enum with `Sign` and `Verify`, the first argument of `secretOrKeyProvider`                    |
+| `Algorithm`, `JwtHeader`, `Secret`     | The algorithm names, the token header and the accepted key types                              |
+| `JwtServiceToken`                      | The injection token `JwtService` is registered under                                          |
+| `JwtServiceOptionsSchema`              | The [Standard Schema](https://standardschema.dev) of `JwtServiceOptions`, the argument schema of `JwtServiceToken` |
+
+## Replacing the service
+
+`JwtService` is the default provider of `JwtServiceToken`, and the token `provideJwtService` returns is bound to it. To use another implementation, for example a fake in a test, bind it with `provide()`:
+
+```ts
+import { NaviosFactory, provide } from '@navios/core'
+import { JwtServiceToken } from '@navios/jwt'
+
+const app = await NaviosFactory.create(AppModule, {
+  adapter,
+  providers: [provide(JwtServiceToken, FakeJwtService)],
+})
+```
+
+The same entry works in `@Module({ providers })`. [Providers](/docs/di/essentials/providers) describes the mechanism.
 
 ## Testing protected routes
 

@@ -104,9 +104,10 @@ A request that never asks for the tenant never loads it. That is the difference 
 - `ctx.set(X, value)` fills the slot directly and `resolve` is not called for that request. `ctx.get(X)` then returns the plain value, so always `await` the result of an asynchronous request value.
 - `resolve` may read other slots with `ctx.get(...)`.
 - When `resolve` throws synchronously nothing is stored, and the next read calls it again. A returned promise that rejects is stored, and every reader in that request gets the same rejection.
+- A `resolve` that returns a thenable of another kind, such as a query builder, counts as asynchronous: it is stored as a promise, so it runs once per request.
 - The class needs a constructor without parameters.
 
-Two request values that `await` each other are not detected as a cycle; the request waits forever. A cycle between synchronous values is reported with its path.
+Two request values that `await` each other are not detected as a cycle; the request waits forever. A cycle between values that read each other synchronously inside `resolve` is reported with its path: `Circular request values: A -> B -> A`.
 
 ### Listing values in a module
 
@@ -143,6 +144,8 @@ export class ReportCursor {
 ```
 
 `dispose` receives the awaited value. It is not called for a value placed with `ctx.set`. An error it throws is swallowed so that the other hooks still run; log inside the hook if you need to know.
+
+Once the response has finished, for example in a stream that is still running after its client has gone, a value with a `dispose` hook can no longer be computed: the read throws, because nothing would release it.
 
 Without decorator syntax, register the class with `registerRequestValue(TheClass)`.
 

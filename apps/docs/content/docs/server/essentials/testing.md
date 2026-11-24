@@ -153,6 +153,8 @@ expect(response.status).toBe(404)
 
 A token that holds a value is replaced with `provide(Token, { value })`. To inspect a service after a request, resolve it from the application: `await app.get(UsersService)` returns the instance the controller used.
 
+A [`TestContainer`](/docs/di/guides/testing#testcontainer) from `@navios/di/testing` can also back an application: pass it as the `container` option of `NaviosFactory.create`.
+
 For state that a guard normally establishes, send what the guard reads (a header, a cookie) or replace the service the guard depends on. That exercises the guard instead of bypassing it.
 
 ## Testing a guard alone

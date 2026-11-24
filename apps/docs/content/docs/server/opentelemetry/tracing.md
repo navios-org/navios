@@ -79,8 +79,8 @@ Parenting depends on the context manager described in [Context propagation](/doc
 
 ## How instrumentation works
 
-- Decorating a class adds it to a module-level set. The plugin reads the set once, during `init()`, and asks the container to instrument instances of each class as they are built. A class must therefore be imported before `init()`; importing the application's root module normally does that. A class first imported later is not traced.
-- The instance is instrumented in place. The object the container hands out is the service itself: `instanceof` and `#private` members work, and a traced method calling another one through `this` produces a nested span.
+- Decorating a class adds it to a module-level set. The plugin reads the set once, during `init()`, and asks the container to instrument instances of each class as they are built, with [`container.decorate`](/docs/di/essentials/providers#decorating-instances). A class must therefore be imported before `init()`; importing the application's root module normally does that. A class first imported later is not traced.
+- The instance is instrumented in place: each traced method is shadowed by a non-enumerable property on the instance. The object the container hands out is the service itself: `instanceof` and `#private` members work, and a traced method calling another one through `this` produces a nested span.
 - `constructor`, `onServiceInit` and `onServiceDestroy` are never traced.
 - It works for singleton, request-scoped and transient services.
 - A class that is marked but not injectable is ignored.
@@ -110,6 +110,8 @@ export class ReportsService {
 ```
 
 `traceInstance(object, Class, tracer)` is the same operation as a function, for code that already holds a tracer.
+
+Projects compiled with `experimentalDecorators` import `Traced` and `Traceable` from `@navios/otel/legacy-compat`; see [Legacy decorators](/docs/server/reference/legacy-decorators).
 
 ## Custom spans
 

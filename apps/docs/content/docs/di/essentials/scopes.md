@@ -27,6 +27,8 @@ One instance serves the whole container. `DatabaseService` and `UserService` fro
 
 A singleton is always built against the root container, even when it is first requested through a scope. It can therefore never see a value that belongs to one scope.
 
+Concurrent `get()` calls for a singleton that is still initialising all receive the same instance; it is built once.
+
 ## Transient
 
 Each resolution builds a new instance. Two `inject()` calls in one class give two instances:
@@ -45,6 +47,8 @@ class Stats {
   readonly misses = inject(Counter) // a different Counter
 }
 ```
+
+A transient injected into a singleton is built once, together with the singleton, and lives as long as it does. A method that needs a new one on every call [injects the `Container`](/docs/di/essentials/services#inject) and resolves the transient there.
 
 A transient is not stored, so it is owned by whatever created it:
 
@@ -87,6 +91,8 @@ With TypeScript 5.2 or newer, `await using` disposes the scope at the end of the
 ```
 
 Scopes are independent of each other. Any number can be open at once, each with its own `RequestState`, all sharing the root's singletons. Creating one is cheap; request-scoped services are built only when something asks for them.
+
+A request-scoped service is found through the scope object it is resolved from. There is no ambient context and no `AsyncLocalStorage`, so pass the scope to the code that resolves from it.
 
 After `dispose()`, `get()` rejects and `getSync()` and `addInstance()` throw a `DIError` with code `ContainerDisposed`. Disposing twice does nothing.
 
@@ -146,7 +152,7 @@ await scope.get(AuditService)
 // container.createScope(), and do not inject it into a singleton.
 ```
 
-The error is the same whether `AuditService` is requested from the root or from a scope, and a transient in between does not hide it. Resolving a request-scoped service directly from the root container is the same error without a path.
+The error is the same whether `AuditService` is requested from the root or from a scope, and whether it uses `inject()` or `optional()`. A transient in between does not hide it. Resolving a request-scoped service directly from the root container is the same error without a path.
 
 There are three ways out:
 

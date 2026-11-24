@@ -42,6 +42,8 @@ An application opts in to these types with the `Register` declaration described 
 
 Server features such as CORS, body limits and multipart are options of the definition function, because the application has no methods for them.
 
+A body over the adapter's limit must be answered with a 413 problem response: write `problem(413, detail)` from `@navios/core` when the server reports it before the executor runs, or throw `new HttpException(413, detail)` from `body()`. Do not let the server answer with a page of its own.
+
 ## The `HttpAdapter` contract
 
 ```ts
@@ -58,7 +60,7 @@ interface HttpAdapter<Env extends HttpAdapterEnvironment = HttpAdapterEnvironmen
 
 | Member                 | Contract                                                                                                                                                                 |
 | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `register(route)`      | Called once per route, before `ready()`. `route.info` is the `RouteInfo`; `route.execute` is the executor. `route.info.path` uses the builder's form, `/users/$userId`. Routes arrive in no particular order: a static segment must win over a URL parameter, a path with a trailing slash must not match, and a URL parameter is never empty (`/users/` does not match `/users/$userId`). |
+| `register(route)`      | Called once per route, before `ready()`. `route.info` is the `RouteInfo`; `route.execute` is the executor. `route.info.path` uses the builder's form, `/users/$userId`. Routes arrive in no particular order: a static segment must win over a URL parameter, a path with a trailing slash must not match (a registered path never ends with one, except the root path `/`), and a URL parameter is never empty (`/users/` does not match `/users/$userId`). |
 | `setNotFound(execute)` | The executor for requests that match no route. Call it with a `RouteInput` like any other; it returns the not-found response.                                            |
 | `ready()`              | Called once after all routes are registered.                                                                                                                             |
 | `listen(options)`      | Starts the server and resolves to its base URL.                                                                                                                          |
@@ -185,6 +187,6 @@ runAdapterConformance({
 | `name`          | Shown in the suite title.                                                     |
 | `adapter`       | Creates the adapter definition under test. Multipart support must be enabled. |
 | `listenOptions` | Passed to `app.listen()`. It must bind an ephemeral local port.               |
-| `bodyLimit`     | Optional. The largest request body in bytes the adapter under test accepts, 16 KiB or more. Enables the 413 cases. |
+| `bodyLimit`     | Optional. The largest request body in bytes the adapter under test accepts, 16 KiB or more: a JSON or text body, and one file of a multipart body. Enables the 413 cases, which run with and without a declared length and through `inject()`. |
 
 An adapter is expected to pass every test. The suite is the definition of "behaves the same on every adapter".

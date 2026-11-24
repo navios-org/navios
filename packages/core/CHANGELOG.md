@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [2.0.0] - Unreleased
 
-The request pipeline, the application class and the adapter contract are rewritten. Endpoint declarations made with `@navios/builder` are unchanged. See [docs/migration.md](./docs/migration.md) for a 1.x to 2.0 guide.
+The request pipeline, the application class and the adapter contract are rewritten. Endpoint declarations made with `@navios/builder` are unchanged. See [Migrating to 2.0](https://navios.tech/docs/server/reference/migrating-to-2) for a 1.x to 2.0 guide.
 
 ### Breaking
 

@@ -95,6 +95,8 @@ class AppModule {}
 // Routes of SharedModule run TenantGuard and AuditGuard
 ```
 
+The effective lists are computed per application at `init()` and nothing is written back to the classes. Two applications in one process that import the same module under different parents do not affect each other, and the result does not depend on the order in which files are imported.
+
 `@UseGuards` and `@UseInterceptors` placed above `@Module` add to the same lists. How guards at different levels are ordered is covered in [Guards and interceptors](/docs/server/essentials/guards-and-interceptors#attaching-guards).
 
 ## Providers

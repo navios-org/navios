@@ -49,8 +49,9 @@ For each route, from its declaration:
 
 | Declaration                              | In the document                                                                         |
 | ---------------------------------------- | --------------------------------------------------------------------------------------- |
-| `url: '/users/$userId'`                  | Path `/users/{userId}` and a required `path` parameter                                  |
+| `url: '/users/$userId'`                  | Path `/users/{userId}` and a required `path` parameter: a string, or its entry in `urlParamsSchema` |
 | `querySchema`                            | One `query` parameter per property                                                      |
+| `headersSchema`, `cookiesSchema` in a hand-built `config` | `header` and `cookie` parameters. `declareEndpoint` has no such options; see [Validation](/docs/server/essentials/controllers#validation) |
 | `requestSchema`                          | An `application/json` request body                                                      |
 | `body: 'multipart'`                      | A `multipart/form-data` request body; file fields are binary strings                    |
 | `responseSchema`                         | `200` with an `application/json` body                                                   |
@@ -63,7 +64,7 @@ For each route, from its declaration:
 
 Declarations hold Standard Schemas, and OpenAPI needs JSON Schema. The plugin gets it in this order:
 
-1. From the schema itself, when the library implements the Standard JSON Schema extension. Zod 4 and ArkType do, so they need no configuration.
+1. From the schema itself, when the library implements the Standard JSON Schema extension (`~standard.jsonSchema`). The plugin asks for the input form of request parts and the output form of responses, in the `draft-2020-12` dialect that OpenAPI 3.1 uses. Zod 4 and ArkType implement the extension, so they need no configuration.
 2. From the `toJsonSchema` option, for libraries that do not:
 
    ```ts
@@ -91,7 +92,7 @@ const userSchema = z
   .meta({ id: 'User' })
 ```
 
-A schema with an `id` becomes a shared entry in `components.schemas`, and every use of it is a reference:
+A schema with an `id` becomes a shared entry in `components.schemas`, and every use of it is a reference. In general, the `$defs` of a converted schema move to `components.schemas` and its `$schema` key is removed.
 
 ```json
 {
@@ -103,6 +104,8 @@ A schema with an `id` becomes a shared entry in `components.schemas`, and every 
   }
 }
 ```
+
+The `zod-openapi` form `.meta({ openapi: { description } })` is understood as well: the keys under `openapi` are merged into the schema.
 
 Types that JSON Schema cannot express, such as `z.date()`, `z.instanceof(File)` and `z.custom()`, are documented as unconstrained instead of failing. In a multipart body an unconstrained field is taken to be a file, which is how `z.instanceof(File)` and arrays of it end up documented as uploads.
 
@@ -216,5 +219,18 @@ await app.close()
 ```
 
 The in-memory adapter opens no port, so the script needs nothing but the application's modules.
+
+## Other exports
+
+| Export                                                   | Description                                                                                              |
+| -------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| `extractOpenApiMetadata(route)`                          | What the attributes say about a `RouteInfo` (`ctx.route` or an entry of `app.routes()`), as `OpenApiEndpointMetadata` |
+| `SchemaConverter`                                        | The class that turns Standard Schemas into JSON Schema and collects shared components                    |
+| `describeMultipartFields`, `isBinarySchema`              | The multipart rule above: marks unconstrained fields as binary strings, and tests for one                |
+| `toOpenApiPath`, `extractUrlParamNames`                  | `/users/$userId` to `/users/{userId}`, and the parameter names of a URL                                  |
+| `ApiTagToken`, `ApiOperationToken`, `ApiSummaryToken`, `ApiDeprecatedToken`, `ApiSecurityToken`, `ApiExcludeToken`, `ApiStreamToken` | The symbols the attributes are stored under |
+| `OpenApiPluginOptions`, `OpenApiDocumentOptions`, `ScalarOptions`, `ToJsonSchema`, `OpenApiDocument` and the other document types | Types |
+
+`defineOpenApiPlugin` is the deprecated name of `openApiPlugin`. `@navios/core` is the only peer dependency; no schema library is needed at run time.
 
 `@navios/openapi-fastify` and `@navios/openapi-bun` are deprecated packages that re-export `@navios/openapi`; import from `@navios/openapi` directly.

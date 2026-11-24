@@ -37,7 +37,7 @@ Three things follow from this pipeline:
 
 - **Dependencies are discovered by running the constructor.** Nothing is declared ahead of time. An `inject()` call re-enters the same pipeline for its own token, which is why conditional `inject()` calls work.
 - **The scope decides where the instance is stored.** A singleton goes to the root container, a request-scoped instance to the scope that asked, and a transient is not stored at all. [Scopes](/docs/di/essentials/scopes) has the rules.
-- **Every failure is a `DIError`** with a `code`. An error thrown by your constructor, factory or `onServiceInit` is wrapped as `InitializationError`, with the original in `cause`. The [API reference](/docs/di/reference/api#error-codes) lists the codes.
+- **Every failure is a `DIError`** with a `code`. An error thrown by your constructor, factory or `onServiceInit` is wrapped as `InitializationError`, with the original in `cause`. A `DIError` raised while building a dependency passes through unchanged, so the error names the innermost service that failed. The [API reference](/docs/di/reference/api#error-codes) lists the codes.
 
 While an instance is being built, the container records which stored instances it injected. [Invalidation](/docs/di/guides/invalidation) uses those links to destroy dependents together with the thing they depend on.
 
@@ -89,6 +89,8 @@ container.getSync(SearchIndex) // now returns the instance
 ```
 
 Once the asynchronous work has finished, the instance is stored like any other and every later resolution of it is synchronous again.
+
+A `getSync()` that throws `AsyncInitRequired` does not cancel the build. It keeps running in the background, so the same call succeeds after [`await container.ready()`](/docs/di/essentials/lifecycle#ready).
 
 ## Constructor replay
 

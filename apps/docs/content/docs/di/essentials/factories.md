@@ -40,6 +40,8 @@ const redis = await container.get(RedisFactory)
 
 A produced value has no [lifecycle hooks](/docs/di/essentials/lifecycle#onservicedestroy). Initialise it inside `create()` and register cleanup with `ctx.addDestroyListener()`.
 
+An error thrown by `create()` reaches the caller as a `DIError` with code `InitializationError` and the original in `cause`. Nothing is stored, so the next resolution calls `create()` again.
+
 ## Providing a token
 
 Most consumers should not know that a factory exists. Give the value a token and let them inject that:

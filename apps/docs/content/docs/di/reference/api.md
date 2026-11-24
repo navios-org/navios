@@ -194,7 +194,7 @@ Helpers behind `MissingArgsError`: `Join`, `UnionToIntersection`, `UnionToOvlds`
 
 ## EventEmitter
 
-A small typed event emitter, registered as a transient injectable so that each `inject(EventEmitter)` gets its own.
+A small typed event emitter, registered as a transient injectable so that each `inject(EventEmitter)` gets its own. It is a utility for application code; the container does not use it.
 
 ```ts
 class EventEmitter<Events extends EventsConfig = {}> {
@@ -237,7 +237,27 @@ class DIError extends Error {
 
 `InstanceNotFound` and `InstanceDestroying` exist in the enum and are not raised by the container.
 
-Calling `inject()`, `optional()` or `asyncInject()` outside a construction throws a plain `Error`, not a `DIError`.
+The messages, for matching against logs. In code, compare `code`.
+
+| `DIErrorCode`              | Message                                                                                                     |
+| -------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `FactoryNotFound`          | `Factory <name> not found`                                                                                  |
+| `ClassNotInjectable`       | `Class <name> is not decorated with @Injectable.`                                                           |
+| `ScopeMismatchError`       | `Scope mismatch: <name> is request-scoped and cannot be resolved from the root container (<path>). …`       |
+| `CircularDependency`       | `Circular dependency detected: A -> B -> A`                                                                 |
+| `ProviderConflict`         | `Token <token> already has a default provider (<existing>); <incoming> cannot become a second default. …`   |
+| `TokenValidationError`     | `Validation failed for <token>`, followed by `: token args schemas must validate synchronously` for an asynchronous schema |
+| `TokenSchemaRequiredError` | `Token <token> requires schema arguments and cannot be used with addInstance. …`                            |
+| `AsyncInitRequired`        | `<name> or one of its dependencies has an asynchronous initializer and cannot be resolved synchronously. …` |
+| `InitializationError`      | `Service <name> initialization failed: <original message>`                                                  |
+| `ContainerDisposed`        | `ScopedContainer has been disposed`                                                                         |
+
+Two failures are a plain `Error`, not a `DIError`:
+
+| Raised when                                                          | Message                                                                                                    |
+| -------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `inject()`, `optional()` or `asyncInject()` is called outside a construction | `[Injector] Trying to access <function> outside of a injectable context`                           |
+| A constructor uses a [placeholder](/docs/di/how-it-works#constructor-replay) | `[Injector] Trying to access <name> before it's initialized, please move the code to a onServiceInit method` |
 
 ```ts
 import { DIError, DIErrorCode } from '@navios/di'

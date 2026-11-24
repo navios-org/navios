@@ -46,9 +46,11 @@ class SmtpMailer implements Mailer {
 }
 ```
 
-`inject(MAILER)` now returns an `SmtpMailer`, typed as `Mailer`. The decorator checks that the class matches the token's type.
+`inject(MAILER)` now returns an `SmtpMailer`, typed as `Mailer`. The decorator checks that the class matches the token's type. The class uses the token as its own, so `container.get(MAILER)` and `container.get(SmtpMailer)` return the same instance.
 
 A token has one default. A second class declaring `token: MAILER` throws a `DIError` with code `ProviderConflict` when it is decorated. Register alternatives with plain `@Injectable()` and select one per container with [`provide()`](/docs/di/essentials/providers#provide).
+
+The one exception is a class with the same name as the current default: it replaces the default without an error. That is what happens when a module is evaluated again during hot reload.
 
 ### Constructor arguments
 
