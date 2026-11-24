@@ -1,4 +1,4 @@
-import { inject, Injectable } from '@navios/di'
+import { inject, registerInjectable } from '@navios/di'
 
 import { Logger, LoggerOutput } from './logger.tokens.mjs'
 
@@ -24,16 +24,13 @@ import type { LoggerOptions } from './logger.tokens.mjs'
  * }
  * ```
  */
-@Injectable({
-  token: Logger,
-})
 export class LoggerInstance implements LoggerService {
   protected localInstance = inject(LoggerOutput)
 
   protected context?: string
 
   constructor(config: LoggerOptions = {}) {
-    this.context = config.context
+    this.context = config?.context
   }
 
   /**
@@ -99,3 +96,5 @@ export class LoggerInstance implements LoggerService {
     this.localInstance?.fatal?.(message, ...optionalParams)
   }
 }
+
+registerInjectable(LoggerInstance, { token: Logger })

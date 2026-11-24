@@ -1,9 +1,9 @@
 import type { InspectOptions } from 'util'
 import { inspect } from 'util'
 
-import { Injectable } from '@navios/di'
+import { registerInjectable } from '@navios/di'
 
-import { getRequestId } from '../stores/request-id.store.mjs'
+import { currentContext } from '../context/async-context.mjs'
 
 import { LoggerOutput } from './logger.tokens.mjs'
 import {
@@ -149,9 +149,6 @@ const dateTimeFormatter = new Intl.DateTimeFormat(undefined, {
 /**
  * @publicApi
  */
-@Injectable({
-  token: LoggerOutput,
-})
 export class ConsoleLogger implements LoggerService {
   /**
    * Creates a new ConsoleLogger instance with the given options.
@@ -354,7 +351,7 @@ export class ConsoleLogger implements LoggerService {
     if (!this.options.requestId) {
       return undefined
     }
-    return getRequestId()
+    return currentContext()?.id
   }
 
   protected getTimestamp(): string {
@@ -683,3 +680,5 @@ export class ConsoleLogger implements LoggerService {
     }
   }
 }
+
+registerInjectable(ConsoleLogger, { token: LoggerOutput })

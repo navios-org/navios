@@ -167,6 +167,18 @@ export class Container implements IContainer, RootHost {
     return new ScopedContainer(this, metadata)
   }
 
+  /**
+   * Every instance this container currently holds, in creation order. The
+   * container itself is not included.
+   */
+  instances(): unknown[] {
+    return this.store
+      .entries()
+      .filter((entry) => entry.status === EntryStatus.Ready && entry.instance !== this)
+      .sort((left, right) => left.seq - right.seq)
+      .map((entry) => entry.instance)
+  }
+
   async invalidate(service: unknown): Promise<void> {
     const entry = this.store.findByInstance(service)
     if (entry === undefined || entry.status !== EntryStatus.Ready) {

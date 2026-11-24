@@ -4,24 +4,17 @@
  */
 type IsAny<T> = unknown extends T ? ([keyof T] extends [never] ? false : true) : false
 
-type ExcludedParts = 'services' | 'mailer' | 'aws' | 'computedTimeRates' | 'aiModelsRates'
-type ExcludedKeys = 'computedTimeRates' | 'aiModelsRates' | 'aiModel'
-
 export type PathImpl<T, Key extends keyof T> = Key extends string
-  ? Key extends ExcludedKeys
+  ? IsAny<T[Key]> extends true
     ? never
-    : IsAny<T[Key]> extends true
+    : T[Key] extends string
       ? never
-      : T[Key] extends string
+      : T[Key] extends any[]
         ? never
-        : T[Key] extends any[]
-          ? never
-          : T[Key] extends Record<string, any>
-            ? Key extends ExcludedParts
-              ? `${Key}.${Exclude<keyof T[Key], keyof any[]> & string}`
-              : | `${Key}.${PathImpl<T[Key], Exclude<keyof T[Key], keyof any[]>> & string}`
-                | `${Key}.${Exclude<keyof T[Key], keyof any[]> & string}`
-            : never
+        : T[Key] extends Record<string, any>
+          ? | `${Key}.${PathImpl<T[Key], Exclude<keyof T[Key], keyof any[]>> & string}`
+            | `${Key}.${Exclude<keyof T[Key], keyof any[]> & string}`
+          : never
   : never
 
 export type PathImpl2<T> = PathImpl<T, keyof T> | keyof T
