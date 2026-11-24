@@ -117,6 +117,21 @@ const app = await NaviosFactory.create(AppModule, {
 })
 ```
 
+## Stacks of client errors
+
+Capturing a stack costs more than the rest of the request pipeline, and nothing in the framework reads the stack of an error that is answered with a 4xx status. In production, these errors therefore have none: an `HttpException` below 500, a denied guard, and a request that fails validation. Every other error has its stack, including an `HttpException` of 500 or above and a response that does not match its schema.
+
+The `clientErrorStacks` application option changes that. `'development'`, the default, captures stacks unless `NODE_ENV` is `production` when the application initialises; `'always'` and `'never'` do not look at the environment. To find out where a 404 comes from in production:
+
+```ts
+const app = await NaviosFactory.create(AppModule, {
+  adapter: defineFastifyEnvironment(),
+  clientErrorStacks: process.env.CLIENT_ERROR_STACKS ? 'always' : 'development',
+})
+```
+
+An exception is constructed by code that does not know which application will answer it, so the option applies to the process from `init()` until `close()`. With several applications in one process, stacks are captured while any of them wants them.
+
 ## Validation errors
 
 A request that fails [validation](/docs/server/essentials/controllers#validation) gets a 400 problem with two extra fields:

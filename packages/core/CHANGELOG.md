@@ -35,6 +35,8 @@ The request pipeline, the application class and the adapter contract are rewritt
 - **Request values**: `@RequestValue()` classes whose `resolve(ctx)` computes a value at most once per request on first `ctx.get()`, with an optional `dispose(value, ctx)`. `@Module({ requestValues })` builds them while the application initialises.
 - **`ctx.use(Token)` and `ctx.resolve(Token)`** for request-scoped services. The DI scope is created on first use, so requests that do not use one have no scope. `RequestContextToken` gives the context inside such a service.
 - **`requestScopedServices: 'allow' | 'warn' | 'forbid'`** application option.
+- **`clientErrorStacks: 'always' | 'development' | 'never'`** application option. In production, errors that are answered with a 4xx status (`HttpException` below 500, a denied guard, a request that fails validation) no longer capture a stack by default.
+- **`RouteInput.headerRecord()`**, optional for an adapter, gives a `headersSchema` the request headers without building a web `Headers` object.
 - **Interceptors**: `Interceptor.intercept(ctx, next)`, attached with `app.intercept()`, `@Module({ interceptors })`, `@Controller({ interceptors })`, `@UseInterceptors()` or `handler()` options.
 - **`app.mapError(ErrorClass, mapper)`** maps domain errors to responses; the most specific registered class wins.
 - **`reply(status, body)` for declared error statuses.** A status in `errorSchema` can be returned with a type-checked body.
@@ -79,6 +81,7 @@ The request pipeline, the application class and the adapter contract are rewritt
 
 - **Guards run before validation on every adapter.** On Fastify 1.x an unauthenticated request with an invalid body received the 400 validation response and the guard was never called.
 - **A response body is validated for the status actually sent.** With `@HttpCode(201)` on Fastify 1.x the schema was registered for 200 only and a non-conforming 201 body was sent unvalidated.
+- **An asynchronous zod refinement that rejects no longer ends the process.** Zod's `~standard.validate` validates synchronously first and drops that attempt when it meets an asynchronous check, so a rejection of the dropped check was unhandled. Core now validates such schemas with `safeParseAsync`, which also runs every check once per request instead of twice.
 - **`app.close()` disposes the container**, so `onServiceDestroy` hooks run.
 - **Declaring the same method and path twice is an error at `init()`** that names both handlers.
 - **Importing a module no longer changes another application's guards.**

@@ -91,6 +91,7 @@ interface RouteInput {
   readonly id?: string // the server's request id, if it has one
   header(name: string): string | undefined
   headers(): Headers
+  headerRecord?(): Record<string, string | undefined>
   readonly urlParams: Record<string, string>
   query(): unknown
   body(): unknown | Promise<unknown>
@@ -110,6 +111,7 @@ Requirements:
 - A malformed body is reported by throwing `new ValidationError('body', [{ message }])` from `body()`, so that it becomes a 400 like any other validation failure.
 - For an endpoint with `body: 'multipart'` (`route.info.endpoint.body`), build the body with `createMultipartCollector(route.info.endpoint.requestSchema)`: call `add(field, value)` for every part, with a string for a text field and a `File` for a file, and return `result()`.
 - `signal()` returns a signal that aborts when the client disconnects before the response is complete. It must not abort because the request body has been read, and it must already be aborted when it is first read after the client has gone.
+- `headerRecord()` is optional. Implement it when the native request has its headers as a record already: it is what a `headersSchema` validates, and without it core builds a record from `headers()`. Names are lower-case, a repeated header is joined with `, `, and the record is the caller's to change, so return a copy.
 - `responded()` is optional. Implement it when `raw` exposes a native reply a handler can write to, and return `true` once the handler has done so. Core then skips response validation and hands back a result the adapter must not write. The Fastify adapter returns `reply.sent`.
 
 ## `RouteResult`
