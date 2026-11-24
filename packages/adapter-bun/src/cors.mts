@@ -1,5 +1,3 @@
-import type { AbstractHttpCorsOptions } from '@navios/core'
-
 /**
  * Function type for dynamic origin validation.
  * Called with the request origin and a callback to return the validation result.
@@ -13,12 +11,14 @@ export type OriginFunction = (
  * Extended CORS options for the Bun adapter.
  * Extends the core AbstractHttpCorsOptions with support for function-based origin.
  */
-export interface BunCorsOptions extends Omit<AbstractHttpCorsOptions, 'origin' | 'logLevel'> {
-  /**
-   * Configures the Access-Control-Allow-Origin CORS header.
-   * Can be a string, boolean, RegExp, array of these, or a function for dynamic validation.
-   */
+export interface BunCorsOptions {
   origin?: string | boolean | RegExp | (string | boolean | RegExp)[] | OriginFunction
+  credentials?: boolean
+  exposedHeaders?: string | string[]
+  allowedHeaders?: string | string[]
+  methods?: string | string[]
+  maxAge?: number
+  cacheControl?: number | string
 }
 
 /**
