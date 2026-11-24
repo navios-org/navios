@@ -67,7 +67,7 @@ describe('CORS support', () => {
       })
       await server.init()
       await server.listen({ port: 3010, hostname: 'localhost' })
-      realServer = server.getServer().url.href
+      realServer = server.getServer().url.origin
     })
 
     afterAll(async () => {
@@ -171,7 +171,7 @@ describe('CORS support', () => {
       })
       await server.init()
       await server.listen({ port: 3011, hostname: 'localhost' })
-      realServer = server.getServer().url.href
+      realServer = server.getServer().url.origin
     })
 
     afterAll(async () => {
@@ -242,7 +242,7 @@ describe('CORS support', () => {
       })
       await server.init()
       await server.listen({ port: 3012, hostname: 'localhost' })
-      realServer = server.getServer().url.href
+      realServer = server.getServer().url.origin
     })
 
     afterAll(async () => {
@@ -311,7 +311,7 @@ describe('CORS support', () => {
       })
       await server.init()
       await server.listen({ port: 3013, hostname: 'localhost' })
-      realServer = server.getServer().url.href
+      realServer = server.getServer().url.origin
     })
 
     afterAll(async () => {
@@ -395,7 +395,7 @@ describe('CORS support', () => {
       })
       await server.init()
       await server.listen({ port: 3014, hostname: 'localhost' })
-      realServer = server.getServer().url.href
+      realServer = server.getServer().url.origin
     })
 
     afterAll(async () => {
@@ -465,7 +465,7 @@ describe('CORS support', () => {
       })
       await server.init()
       await server.listen({ port: 3015, hostname: 'localhost' })
-      realServer = server.getServer().url.href
+      realServer = server.getServer().url.origin
     })
 
     afterAll(async () => {
@@ -516,7 +516,7 @@ describe('CORS support', () => {
       })
       await server.init()
       await server.listen({ port: 3016, hostname: 'localhost' })
-      realServer = server.getServer().url.href
+      realServer = server.getServer().url.origin
     })
 
     afterAll(async () => {
@@ -567,7 +567,7 @@ describe('CORS support', () => {
       // Note: enableCors is NOT called
       await server.init()
       await server.listen({ port: 3017, hostname: 'localhost' })
-      realServer = server.getServer().url.href
+      realServer = server.getServer().url.origin
     })
 
     afterAll(async () => {

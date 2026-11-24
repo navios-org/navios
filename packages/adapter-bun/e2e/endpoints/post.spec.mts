@@ -76,7 +76,7 @@ describe('POST variants', () => {
     })
     await server.init()
     await server.listen({ port: 4000, hostname: 'localhost' })
-    realServer = server.getServer().url.href
+    realServer = server.getServer().url.origin
   })
 
   afterAll(async () => {
