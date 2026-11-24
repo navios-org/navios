@@ -1,9 +1,12 @@
-import { withFilter } from 'rolldown/filter'
 import { defineConfig } from 'tsdown'
-import swc from 'unplugin-swc'
 
 export default defineConfig({
-  entry: ['src/index.mts', 'src/testing/index.mts', 'src/legacy-compat/index.mts'],
+  entry: [
+    'src/index.mts',
+    'src/testing/index.mts',
+    'src/legacy-compat/index.mts',
+    'src/conformance/index.mts',
+  ],
   outDir: 'lib',
   format: ['esm', 'cjs'],
   clean: true,
@@ -11,25 +14,7 @@ export default defineConfig({
   treeshake: true,
   sourcemap: true,
   platform: 'node',
-  external: ['@navios/di'],
+  external: ['@navios/di', '@navios/di/legacy-compat', '@navios/builder'],
   dts: true,
   target: 'es2022',
-  plugins: [
-    withFilter(
-      swc.rolldown({
-        jsc: {
-          target: 'es2022',
-          parser: {
-            syntax: 'typescript',
-            decorators: true,
-          },
-          transform: {
-            decoratorVersion: '2022-03',
-          },
-        },
-      }),
-      // Only run this transform if the file contains a decorator.
-      { transform: { code: '@' } },
-    ),
-  ],
 })

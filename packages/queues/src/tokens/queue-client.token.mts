@@ -7,7 +7,10 @@ export const queueClientOptionsSchema = z
   .object({
     name: z.string().default('default'),
   })
-  .optional()
+  // Normalise "no arguments" to the default name: the container keys instances
+  // by the validated arguments, so `inject(QueueClientToken)` and
+  // `inject(QueueClientToken, { name: 'default' })` share one client.
+  .default({ name: 'default' })
 /**
  * Injection token for QueueClient.
  * The QueueClientFactory registers the created client with this token.

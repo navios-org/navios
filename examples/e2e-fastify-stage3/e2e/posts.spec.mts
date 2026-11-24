@@ -1,13 +1,12 @@
 import supertest from 'supertest'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 
-import type { FastifyEnvironment } from '@navios/adapter-fastify'
 import type { NaviosApplication } from '@navios/core'
 
 import { createApp } from '../src/bootstrap.mjs'
 
 describe('Posts API', () => {
-  let server: NaviosApplication<FastifyEnvironment>
+  let server: NaviosApplication
 
   beforeAll(async () => {
     server = await createApp()
@@ -93,6 +92,8 @@ describe('Posts API', () => {
         })
 
       expect(response.status).toBe(400)
+      expect(response.body.source).toBe('body')
+      expect(response.body.errors).toEqual([{ path: 'title', message: expect.any(String) }])
     })
 
     it('should return 400 for content too short', async () => {

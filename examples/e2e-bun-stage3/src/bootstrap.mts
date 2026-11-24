@@ -2,29 +2,34 @@ import { defineBunEnvironment } from '@navios/adapter-bun'
 import { NaviosFactory } from '@navios/core'
 
 import type { BunEnvironment } from '@navios/adapter-bun'
-import type { NaviosApplication } from '@navios/core'
 
 import { AppModule } from './modules/app/app.module.mjs'
 
-export async function createApp(): Promise<NaviosApplication<BunEnvironment>> {
-  const app = await NaviosFactory.create<BunEnvironment>(AppModule, {
-    adapter: defineBunEnvironment(),
+declare module '@navios/core' {
+  interface Register {
+    environment: BunEnvironment
+  }
+}
+
+export function createApp() {
+  // Multipart needs no option: Bun parses multipart bodies natively.
+  return NaviosFactory.create(AppModule, {
+    adapter: defineBunEnvironment({
+      cors: {
+        origin: true,
+        methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+      },
+    }),
+    // PostsValidationService is deliberately request-scoped.
+    requestScopedServices: 'allow',
+    logger: process.env.NODE_ENV === 'test' ? false : undefined,
   })
-
-  app.enableCors({
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  })
-
-  // No enableMultipart(): Bun parses multipart bodies natively.
-
-  return app
 }
 
 // Run if executed directly
 const isMainModule = import.meta.url === `file://${Bun.main}`
 if (isMainModule) {
   const app = await createApp()
-  await app.init()
-  await app.listen({ port: 3000, hostname: 'localhost' })
-  console.log('Server running at http://localhost:3000')
+  const url = await app.listen({ port: 3000, hostname: 'localhost' })
+  console.log(`Server running at ${url}`)
 }

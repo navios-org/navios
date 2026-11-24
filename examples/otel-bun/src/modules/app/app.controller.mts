@@ -1,5 +1,3 @@
-import type { EndpointParams } from '@navios/core'
-
 import { Controller, Endpoint } from '@navios/core/legacy-compat'
 
 import { healthEndpoint, metricsEndpoint } from '../../api/endpoints.mjs'
@@ -21,7 +19,7 @@ const startTime = Date.now()
 @Controller()
 export class AppController {
   @Endpoint(healthEndpoint)
-  async health(params: EndpointParams<typeof healthEndpoint>) {
+  async health() {
     return {
       status: 'healthy',
       timestamp: new Date().toISOString(),
@@ -30,7 +28,7 @@ export class AppController {
   }
 
   @Endpoint(metricsEndpoint)
-  async metrics(params: EndpointParams<typeof metricsEndpoint>) {
+  async metrics() {
     return {
       requestCount,
       errorCount,

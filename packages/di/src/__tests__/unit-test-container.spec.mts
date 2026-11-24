@@ -2,8 +2,10 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { z } from 'zod'
 
 import { Injectable } from '../decorators/injectable.decorator.mjs'
+import { inject } from '../injectors.mjs'
 import { UnitTestContainer } from '../testing/unit-test-container.mjs'
 import { InjectionToken } from '../token/injection-token.mjs'
+import { getInjectableToken } from '../utils/get-injectable-token.mjs'
 
 describe('UnitTestContainer', () => {
   describe('Strict Mode (default)', () => {
@@ -34,6 +36,69 @@ describe('UnitTestContainer', () => {
       })
 
       await expect(container.get(NotProvided)).rejects.toThrow(/not in the providers list/)
+
+      await container.dispose()
+    })
+
+    it('should not resolve a nested dependency that is not in the providers list', async () => {
+      @Injectable()
+      class Dependency {}
+
+      @Injectable()
+      class Service {
+        readonly dependency = inject(Dependency)
+      }
+
+      const container = new UnitTestContainer({
+        providers: [{ token: Service }],
+        allowUnregistered: true,
+      })
+
+      await expect(container.get(Service)).rejects.toThrow(/Dependency/)
+
+      await container.dispose()
+    })
+
+    it('should resolve a nested dependency from the providers list', async () => {
+      @Injectable()
+      class Dependency {
+        getValue(): string {
+          return 'real'
+        }
+      }
+
+      @Injectable()
+      class Service {
+        readonly dependency = inject(Dependency)
+      }
+
+      const container = new UnitTestContainer({
+        providers: [
+          { token: Service },
+          { token: Dependency, useValue: { getValue: () => 'mock' } },
+        ],
+      })
+
+      const service = await container.get(Service)
+      expect(service.dependency.getValue()).toBe('mock')
+
+      await container.dispose()
+    })
+
+    it('should accept a class without @Injectable as a provider token', async () => {
+      class Plain {
+        getValue(): string {
+          return 'plain'
+        }
+      }
+
+      const container = new UnitTestContainer({
+        providers: [{ token: Plain }],
+      })
+
+      const service = await container.get(Plain)
+      expect(service.getValue()).toBe('plain')
+      container.expectCalled(Plain, 'getValue')
 
       await container.dispose()
     })
@@ -354,6 +419,29 @@ describe('UnitTestContainer', () => {
       await localContainer.dispose()
     })
 
+    it('should track calls on instances returned by getSync', async () => {
+      @Injectable()
+      class SyncService {
+        process(data: string): string {
+          return data
+        }
+      }
+
+      @Injectable()
+      class NotProvided {}
+
+      const localContainer = new UnitTestContainer({
+        providers: [{ token: SyncService }],
+      })
+
+      localContainer.getSync(SyncService).process('test')
+
+      localContainer.expectCalledWith(SyncService, 'process', ['test'])
+      expect(() => localContainer.getSync(NotProvided)).toThrow(/not in the providers list/)
+
+      await localContainer.dispose()
+    })
+
     it('should assert method was NOT called', async () => {
       @Injectable()
       class SomeService {
@@ -460,7 +548,7 @@ describe('UnitTestContainer', () => {
       await container.dispose()
     })
 
-    it('should get registered token IDs', async () => {
+    it('should get registered tokens', async () => {
       @Injectable()
       class Service1 {}
 
@@ -471,13 +559,15 @@ describe('UnitTestContainer', () => {
         providers: [{ token: Service1 }, { token: Service2 }],
       })
 
-      const tokenIds = container.getRegisteredTokenIds()
-      expect(tokenIds.size).toBe(2)
+      const tokens = container.getRegisteredTokens()
+      expect(tokens.size).toBe(2)
+      expect(tokens.has(getInjectableToken(Service1))).toBe(true)
+      expect(tokens.has(getInjectableToken(Service2))).toBe(true)
 
       await container.dispose()
     })
 
-    it('should get auto-mocked token IDs', async () => {
+    it('should get auto-mocked tokens', async () => {
       @Injectable()
       class Mock1 {}
 
@@ -492,8 +582,10 @@ describe('UnitTestContainer', () => {
       await container.get(Mock1)
       await container.get(Mock2)
 
-      const autoMocked = container.getAutoMockedTokenIds()
+      const autoMocked = container.getAutoMockedTokens()
       expect(autoMocked.size).toBe(2)
+      expect(autoMocked.has(getInjectableToken(Mock1))).toBe(true)
+      expect(autoMocked.has(getInjectableToken(Mock2))).toBe(true)
 
       await container.dispose()
     })

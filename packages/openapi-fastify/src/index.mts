@@ -1,41 +1,11 @@
-// Plugin
-export {
-  defineOpenApiPlugin,
-  OpenApiFastifyPlugin,
-  type FastifyOpenApiPluginOptions,
-  type ScalarOptions,
-  type ScalarTheme,
-} from './openapi-fastify.plugin.mjs'
+/**
+ * @deprecated `@navios/openapi` serves the document and the Scalar page on
+ * every adapter. Import `openApiPlugin` from `@navios/openapi` instead; this
+ * package only re-exports it.
+ */
+import type { OpenApiPluginOptions } from '@navios/openapi'
 
-// Schemas
-export {
-  fastifyOpenApiPluginOptionsSchema,
-  scalarOptionsSchema,
-  scalarThemeSchema,
-  scalarMetaDataSchema,
-} from './schemas/index.mjs'
+export * from '@navios/openapi'
 
-// Utils
-export { applyGlobalPrefix } from './utils/index.mjs'
-
-// Re-export core OpenAPI types for convenience
-export type {
-  OpenApiGeneratorOptions,
-  OpenApiEndpointMetadata,
-  ApiOperationOptions,
-  ApiTagOptions,
-  ApiStreamOptions,
-  ApiDeprecatedOptions,
-  ApiSecurityRequirement,
-} from '@navios/openapi'
-
-// Re-export decorators for convenience
-export {
-  ApiTag,
-  ApiOperation,
-  ApiSummary,
-  ApiDeprecated,
-  ApiSecurity,
-  ApiExclude,
-  ApiStream,
-} from '@navios/openapi'
+/** @deprecated Use `OpenApiPluginOptions` from `@navios/openapi`. */
+export type FastifyOpenApiPluginOptions = OpenApiPluginOptions

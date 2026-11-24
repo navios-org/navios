@@ -1,14 +1,14 @@
-import { inject, Injectable, InjectionToken } from '@navios/di'
+import { inject, InjectionToken, registerInjectable } from '@navios/di'
 import { z } from 'zod/v4'
 
 import { QueueClientToken } from '../tokens/queue-client.token.mjs'
-import { requestReplyMessageConfigSchema } from '../types/message-config.mjs'
+import { requestReplyMessageDefinitionSchema } from '../types/message-config.mjs'
 
 import type { QueueClient } from '../interfaces/queue-client.mjs'
 import type { BaseMessageConfig, MessageDefinition } from '../types/message-config.mjs'
 
 export const queueRequesterOptionsSchema = z.object({
-  messageDef: requestReplyMessageConfigSchema,
+  messageDef: requestReplyMessageDefinitionSchema,
   name: z.string().default('default'),
 })
 
@@ -42,7 +42,6 @@ export const QueueRequesterToken = InjectionToken.create<
  * }
  * ```
  */
-@Injectable({ token: QueueRequesterToken })
 export class QueueRequester<
   MessageDef extends MessageDefinition<
     'request-reply',
@@ -92,3 +91,5 @@ export class QueueRequester<
     return responseSchema.parse(response) as z.output<MessageDef['config']['responseSchema']>
   }
 }
+
+registerInjectable(QueueRequester, { token: QueueRequesterToken })

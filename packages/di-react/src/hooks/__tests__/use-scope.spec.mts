@@ -1,4 +1,4 @@
-import { Container, globalRegistry, Registry } from '@navios/di'
+import { Container } from '@navios/di'
 import { renderHook } from '@testing-library/react'
 import { createElement } from 'react'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -15,11 +15,9 @@ import {
 
 describe('useScope', () => {
   let container: Container
-  let registry: Registry
 
   beforeEach(() => {
-    registry = new Registry(globalRegistry)
-    container = new Container(registry)
+    container = new Container()
   })
 
   afterEach(async () => {
@@ -74,11 +72,9 @@ describe('useScope', () => {
 
 describe('useScopeOrThrow', () => {
   let container: Container
-  let registry: Registry
 
   beforeEach(() => {
-    registry = new Registry(globalRegistry)
-    container = new Container(registry)
+    container = new Container()
   })
 
   afterEach(async () => {
@@ -113,11 +109,9 @@ describe('useScopeOrThrow', () => {
 
 describe('useScopedContainer', () => {
   let container: Container
-  let registry: Registry
 
   beforeEach(() => {
-    registry = new Registry(globalRegistry)
-    container = new Container(registry)
+    container = new Container()
   })
 
   afterEach(async () => {
@@ -147,17 +141,15 @@ describe('useScopedContainer', () => {
     const { result } = renderHook(() => useScopedContainer(), { wrapper })
 
     expect(result.current).not.toBeNull()
-    expect(result.current?.getRequestId()).toBe('test-scope')
+    expect(result.current?.getMetadata('scopeId')).toBe('test-scope')
   })
 })
 
 describe('useScopedContainerOrThrow', () => {
   let container: Container
-  let registry: Registry
 
   beforeEach(() => {
-    registry = new Registry(globalRegistry)
-    container = new Container(registry)
+    container = new Container()
   })
 
   afterEach(async () => {
@@ -186,17 +178,15 @@ describe('useScopedContainerOrThrow', () => {
 
     const { result } = renderHook(() => useScopedContainerOrThrow(), { wrapper })
 
-    expect(result.current.getRequestId()).toBe('test-scope')
+    expect(result.current.getMetadata('scopeId')).toBe('test-scope')
   })
 })
 
 describe('useScopeMetadata', () => {
   let container: Container
-  let registry: Registry
 
   beforeEach(() => {
-    registry = new Registry(globalRegistry)
-    container = new Container(registry)
+    container = new Container()
   })
 
   afterEach(async () => {

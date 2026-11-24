@@ -5,6 +5,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0] - Unreleased
+
+Ported to `@navios/core` 2.0 and `@navios/di` 2.0.
+
+### Changed
+
+- **BREAKING**: `zod` is no longer used or required. `SignOptions`, `VerifyOptions`, `JwtHeader`, `Secret` and `JwtServiceOptions` are plain TypeScript types with the same fields as before.
+- **BREAKING**: `JwtServiceOptionsSchema` is now a hand-written [Standard Schema](https://standardschema.dev) that checks the shape of the service configuration. It no longer has zod methods such as `.parse()`, and it does not strip unknown keys.
+- **BREAKING**: The configuration factory given to `provideJwtService()` receives a `FactoryContext`. Replace `await inject(ConfigService)` inside the factory with `await ctx.inject(ConfigService)`. The factory may now also be synchronous, and its result is cached per container instead of globally.
+- `JwtServiceToken` is named `'JwtService'` instead of `Symbol.for('JwtService')`. Tokens are identified by the token object, so this only changes error messages.
+- `JwtService` is registered with `registerInjectable()` instead of the `@Injectable()` decorator, so the package is built without a decorator transform.
+
+### Removed
+
+- **BREAKING**: The zod schemas `AlgorithmType`, `JwtHeaderSchema`, `SignOptionsSchema`, `VerifyOptionsSchema` and `SecretSchema`. Use the types `Algorithm`, `JwtHeader`, `SignOptions`, `VerifyOptions` and `Secret`. Options of individual `sign()` and `verify()` calls are validated by `jsonwebtoken`, as before.
+- `zod` from `peerDependencies`.
+
+### Added
+
+- The `Algorithm` type.
+- `JwtService` is the default provider of `JwtServiceToken` and can be replaced with `provide(JwtServiceToken, Impl)` in application or module `providers`.
+
 ## [1.0.0] - 2026-01-09
 
 ### Added

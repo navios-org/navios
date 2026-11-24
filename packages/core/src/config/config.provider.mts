@@ -1,61 +1,62 @@
 import { env } from 'node:process'
 
-import { FactoryInjectionToken, InjectionToken } from '@navios/di'
-import { z } from 'zod/v4'
+import { InjectionToken, validateSync } from '@navios/di'
 
-import { ConfigService, ConfigServiceOptionsSchema, ConfigServiceToken } from './config.service.mjs'
+import type {
+  BoundInjectionToken,
+  FactoryInjectionToken,
+  InferOutput,
+  StandardSchemaV1,
+} from '@navios/di'
 
-import type { ConfigServiceOptions } from './config.service.mjs'
+import { ConfigServiceToken } from './config.service.mjs'
 
-/**
- * Schema for configuration provider options.
- */
-export const ConfigProviderOptions = z.object({
-  load: z.function({ output: ConfigServiceOptionsSchema }),
-})
+import type {
+  ConfigService,
+  ConfigServiceOptions,
+  ConfigServiceOptionsSchema,
+} from './config.service.mjs'
 
-/**
- * Creates a factory injection token for ConfigService that loads configuration asynchronously.
- *
- * Use this when you need to load configuration from a file, database, or other async source.
- *
- * @param options - Configuration provider options
- * @param options.load - Async function that loads and returns the configuration object
- * @returns A factory injection token for ConfigService
- *
- * @example
- * ```typescript
- * const MyConfigService = provideConfig({
- *   load: async () => {
- *     const config = await loadConfigFromFile('config.json')
- *     return config
- *   },
- * })
- *
- * // Use in module setup
- * container.bind(ConfigServiceToken).toFactory(configProvider)
- * ```
- */
-export function provideConfig<ConfigMap extends ConfigServiceOptions>(
-  options: z.input<typeof ConfigProviderOptions>,
-): FactoryInjectionToken<ConfigService<ConfigMap>, typeof ConfigServiceOptionsSchema> {
-  return InjectionToken.factory(ConfigServiceToken, async () => options.load())
+export interface ConfigProviderOptions<ConfigMap extends ConfigServiceOptions> {
+  /** Loads the raw configuration. */
+  load: () => ConfigMap | Promise<ConfigMap>
+}
+
+export interface ValidatedConfigProviderOptions<Schema extends StandardSchemaV1> {
+  /** Loads the raw configuration. */
+  load: () => unknown | Promise<unknown>
+  /**
+   * Validates what `load` returned and types the service. Must validate
+   * synchronously.
+   */
+  schema: Schema
 }
 
 /**
- * Pre-configured ConfigService provider that uses environment variables.
- *
- * Provides a ConfigService instance bound to `process.env`.
- *
- * @example
- * ```typescript
- * // Use environment variables as configuration
- * container.bind(ConfigServiceToken).toValue(EnvConfigProvider)
- * ```
+ * Creates the token for a `ConfigService` whose content comes from `load`.
+ * With a `schema`, the loaded value is validated and the service is typed
+ * from the schema's output.
  */
-export const EnvConfigProvider = InjectionToken.bound<
-  ConfigService<Record<string, string>>,
+export function provideConfig<Schema extends StandardSchemaV1<any, ConfigServiceOptions>>(
+  options: ValidatedConfigProviderOptions<Schema>,
+): FactoryInjectionToken<ConfigService<InferOutput<Schema>>, typeof ConfigServiceOptionsSchema>
+export function provideConfig<ConfigMap extends ConfigServiceOptions>(
+  options: ConfigProviderOptions<ConfigMap>,
+): FactoryInjectionToken<ConfigService<ConfigMap>, typeof ConfigServiceOptionsSchema>
+export function provideConfig(options: {
+  load: () => unknown | Promise<unknown>
+  schema?: StandardSchemaV1
+}): FactoryInjectionToken<any, any> {
+  return InjectionToken.factory(ConfigServiceToken as InjectionToken<any, any>, async () => {
+    const loaded = await options.load()
+    return options.schema ? validateSync(options.schema, loaded, 'ConfigService') : loaded
+  })
+}
+
+/**
+ * A `ConfigService` holding a snapshot of `process.env`, taken at import.
+ */
+export const EnvConfigProvider: BoundInjectionToken<
+  ConfigService<Record<string, string | undefined>>,
   typeof ConfigServiceOptionsSchema
->(ConfigServiceToken, {
-  ...env,
-})
+> = InjectionToken.bound(ConfigServiceToken as InjectionToken<any, any>, { ...env })

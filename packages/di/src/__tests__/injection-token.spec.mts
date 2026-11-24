@@ -1,13 +1,16 @@
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { z } from 'zod/v4'
 
+import { Container } from '../container/container.mjs'
+import { Injectable } from '../decorators/index.mjs'
+import { InjectableScope } from '../enums/index.mjs'
 import {
   BoundInjectionToken,
   FactoryInjectionToken,
   InjectionToken,
 } from '../token/injection-token.mjs'
 
-import type { FactoryContext } from '../internal/context/factory-context.mjs'
+import type { FactoryContext } from '../token/injection-token.mjs'
 
 describe('InjectionToken', () => {
   describe('constructor', () => {
@@ -37,26 +40,6 @@ describe('InjectionToken', () => {
       const token = new InjectionToken('TestToken', schema)
 
       expect(token.schema).toBe(schema)
-    })
-
-    it('should generate deterministic id', () => {
-      const token1 = InjectionToken.create<string>('TestToken')
-      const token2 = InjectionToken.create<string>('TestToken')
-
-      expect(token1.id).toBe(token2.id)
-    })
-
-    it('should generate different ids for different names', () => {
-      const token1 = InjectionToken.create<string>('TokenA')
-      const token2 = InjectionToken.create<string>('TokenB')
-
-      expect(token1.id).not.toBe(token2.id)
-    })
-
-    it('should use custom id when provided', () => {
-      const token = new InjectionToken('TestToken', undefined, 'custom-id')
-
-      expect(token.id).toBe('custom-id')
     })
   })
 
@@ -130,30 +113,30 @@ describe('InjectionToken', () => {
   })
 
   describe('toString', () => {
-    it('should format string name with id', () => {
+    it('should format string name', () => {
       const token = InjectionToken.create<string>('TestToken')
 
       const str = token.toString()
 
-      expect(str).toMatch(/TestToken\([^)]+\)/)
+      expect(str).toBe('TestToken')
     })
 
-    it('should format symbol name with id', () => {
+    it('should format symbol name', () => {
       const sym = Symbol('TestSymbol')
       const token = InjectionToken.create<string>(sym)
 
       const str = token.toString()
 
-      expect(str).toMatch(/Symbol\(TestSymbol\)\([^)]+\)/)
+      expect(str).toBe('Symbol(TestSymbol)')
     })
 
-    it('should format class name with id', () => {
+    it('should format class name', () => {
       class TestClass {}
       const token = InjectionToken.create(TestClass)
 
       const str = token.toString()
 
-      expect(str).toMatch(/TestClass\([^)]+\)/)
+      expect(str).toBe('TestClass')
     })
 
     it('should cache formatted name', () => {
@@ -185,7 +168,6 @@ describe('BoundInjectionToken', () => {
 
       const bound = new BoundInjectionToken(token, { config: 'value' })
 
-      expect(bound.id).toBe(token.id)
       expect(bound.name).toBe(token.name)
       expect(bound.schema).toBe(token.schema)
     })
@@ -213,8 +195,6 @@ describe('FactoryInjectionToken', () => {
 
       expect(factoryToken.token).toBe(token)
       expect(factoryToken.factory).toBe(factory)
-      expect(factoryToken.resolved).toBe(false)
-      expect(factoryToken.value).toBeUndefined()
     })
 
     it('should copy properties from wrapped token', () => {
@@ -224,92 +204,109 @@ describe('FactoryInjectionToken', () => {
 
       const factoryToken = new FactoryInjectionToken(token, factory)
 
-      expect(factoryToken.id).toBe(token.id)
       expect(factoryToken.name).toBe(token.name)
       expect(factoryToken.schema).toBe(token.schema)
     })
   })
 
-  describe('resolve', () => {
-    it('should call factory and store value', async () => {
-      const schema = z.object({ config: z.string() })
-      const token = InjectionToken.create<string, typeof schema>('TestToken', schema)
-      const factory = vi.fn(async () => ({ config: 'resolved' }))
-      const factoryToken = new FactoryInjectionToken(token, factory)
+  describe('resolution through a container', () => {
+    let container: Container
 
-      const mockCtx: FactoryContext = {
-        inject: vi.fn(),
-        container: {} as any,
-        addDestroyListener: vi.fn(),
+    beforeEach(() => {
+      container = new Container()
+    })
+
+    afterEach(async () => {
+      await container.dispose()
+    })
+
+    it('should call factory and pass its value as args', async () => {
+      const schema = z.object({ config: z.string() })
+      const token = InjectionToken.create<{ args: unknown }, typeof schema>('TestToken', schema)
+
+      @Injectable({ token })
+      class ConfiguredImpl {
+        constructor(public readonly args: z.output<typeof schema>) {}
       }
 
-      const result = await factoryToken.resolve(mockCtx)
+      const factory = vi.fn(async (_ctx: FactoryContext) => ({ config: 'resolved' }))
+      const factoryToken = new FactoryInjectionToken(token, factory)
 
-      expect(result).toEqual({ config: 'resolved' })
-      expect(factoryToken.value).toEqual({ config: 'resolved' })
-      expect(factoryToken.resolved).toBe(true)
-      expect(factory).toHaveBeenCalledWith(mockCtx)
+      const result = await container.get(factoryToken)
+
+      expect(result).toBeInstanceOf(ConfiguredImpl)
+      expect(result.args).toEqual({ config: 'resolved' })
+      expect(factory).toHaveBeenCalledTimes(1)
+      const ctx = factory.mock.calls[0][0]
+      expect(ctx.container).toBe(container)
+      expect(typeof ctx.inject).toBe('function')
+      expect(typeof ctx.addDestroyListener).toBe('function')
     })
 
     it('should only call factory once', async () => {
       const schema = z.object({ config: z.string() })
-      const token = InjectionToken.create<string, typeof schema>('TestToken', schema)
+      const token = InjectionToken.create<{ args: unknown }, typeof schema>('TestToken', schema)
+
+      @Injectable({ token, scope: InjectableScope.Transient })
+      class Impl {
+        constructor(public readonly args: z.output<typeof schema>) {}
+      }
+
       const factory = vi.fn(async () => ({ config: 'resolved' }))
       const factoryToken = new FactoryInjectionToken(token, factory)
 
-      const mockCtx: FactoryContext = {
-        inject: vi.fn(),
-        container: {} as any,
-        addDestroyListener: vi.fn(),
-      }
+      await container.get(factoryToken)
+      await container.get(factoryToken)
+      await container.get(factoryToken)
 
-      await factoryToken.resolve(mockCtx)
-      await factoryToken.resolve(mockCtx)
-      await factoryToken.resolve(mockCtx)
-
+      expect(Impl).toBeDefined()
       expect(factory).toHaveBeenCalledTimes(1)
     })
 
     it('should return cached value on subsequent calls', async () => {
       const schema = z.object({ config: z.string() })
-      const token = InjectionToken.create<string, typeof schema>('TestToken', schema)
+      const token = InjectionToken.create<{ args: unknown }, typeof schema>('TestToken', schema)
+
+      @Injectable({ token, scope: InjectableScope.Transient })
+      class Impl {
+        constructor(public readonly args: z.output<typeof schema>) {}
+      }
+
       let callCount = 0
       const factory = async () => ({ config: `call-${++callCount}` })
       const factoryToken = new FactoryInjectionToken(token, factory)
 
-      const mockCtx: FactoryContext = {
-        inject: vi.fn(),
-        container: {} as any,
-        addDestroyListener: vi.fn(),
-      }
+      const result1 = await container.get(factoryToken)
+      const result2 = await container.get(factoryToken)
 
-      const result1 = await factoryToken.resolve(mockCtx)
-      const result2 = await factoryToken.resolve(mockCtx)
-
-      expect(result1).toEqual({ config: 'call-1' })
-      expect(result2).toEqual({ config: 'call-1' })
+      expect(result1).toBeInstanceOf(Impl)
+      expect(result1).not.toBe(result2)
+      expect(result1.args).toEqual({ config: 'call-1' })
+      expect(result2.args).toEqual({ config: 'call-1' })
     })
 
     it('should allow factory to use inject', async () => {
       const schema = z.object({ config: z.string() })
-      const token = InjectionToken.create<string, typeof schema>('TestToken', schema)
+      const token = InjectionToken.create<{ args: unknown }, typeof schema>('TestToken', schema)
+      const dependency = InjectionToken.create<string>('Dependency')
+      container.addInstance(dependency, 'dep-value')
+
+      @Injectable({ token })
+      class Impl {
+        constructor(public readonly args: z.output<typeof schema>) {}
+      }
 
       const factory = async (ctx: FactoryContext) => {
-        await ctx.inject(InjectionToken.create<string>('Dependency'))
-        return { config: 'with-dep' }
+        const dep = await ctx.inject<string>(dependency)
+        return { config: `with-${dep}` }
       }
 
       const factoryToken = new FactoryInjectionToken(token, factory)
-      const mockInject = vi.fn().mockResolvedValue('dep-value')
-      const mockCtx: FactoryContext = {
-        inject: mockInject,
-        container: {} as any,
-        addDestroyListener: vi.fn(),
-      }
 
-      await factoryToken.resolve(mockCtx)
+      const result = await container.get(factoryToken)
 
-      expect(mockInject).toHaveBeenCalled()
+      expect(result).toBeInstanceOf(Impl)
+      expect(result.args).toEqual({ config: 'with-dep-value' })
     })
   })
 
@@ -337,7 +334,5 @@ describe('token identity', () => {
 
     expect(bound.token).toBe(original)
     expect(factory.token).toBe(original)
-    expect(bound.id).toBe(original.id)
-    expect(factory.id).toBe(original.id)
   })
 })

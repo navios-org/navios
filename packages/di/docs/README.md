@@ -1,50 +1,49 @@
 # Navios DI Documentation
 
-Welcome to the comprehensive documentation for Navios DI, a powerful dependency injection library for TypeScript applications.
+This is the documentation for Navios DI 2.0, a dependency injection library for TypeScript applications.
 
 ## Table of Contents
 
 - [Getting Started](./getting-started.md) - Installation and basic setup
-- [Container](./container.md) - Container API and usage patterns
-- [Injectable Decorator](./injectable.md) - Service registration and configuration
-- [Factory Decorator](./factory.md) - Factory pattern implementation
+- [Container](./container.md) - Container API, providers and usage patterns
+- [Injectable Decorator](./injectable.md) - Service registration and injection functions
+- [Factory Decorator](./factory.md) - Factory classes
 - [Injection Tokens](./injection-tokens.md) - Token-based dependency resolution
-- [Request Contexts](./request-contexts.md) - Request-scoped services and cleanup
+- [Scoped Containers](./request-contexts.md) - Scopes created with `createScope()`
 - [Service Lifecycle](./lifecycle.md) - Initialization and cleanup hooks
-- [Scopes](./scopes.md) - Singleton, transient, and request service scopes
-- [API Reference](./api-reference.md) - Complete API documentation
-- [Migration Guide](./migration.md) - Upgrading from older versions
+- [Scopes](./scopes.md) - Singleton, transient and request service scopes
+- [API Reference](./api-reference.md) - The exported API
+- [Migration Guide](./migration.md) - Upgrading from 1.x to 2.0
 
 ## Quick Links
 
 ### Core Concepts
 
-- **[Container](./container.md)** - The main entry point for dependency injection
-- **[Injectable](./injectable.md)** - Decorator for marking classes as injectable services
-- **[Factory](./factory.md)** - Decorator for creating factory classes
-- **[Injection Tokens](./injection-tokens.md)** - Flexible token-based dependency resolution
-- **[Request Contexts](./request-contexts.md)** - Request-scoped services with automatic cleanup
+- **[Container](./container.md)** - Holds singletons, resolves services and creates scopes
+- **[Injectable](./injectable.md)** - Decorator that registers a class as a service
+- **[Factory](./factory.md)** - Decorator that registers a factory class
+- **[Injection Tokens](./injection-tokens.md)** - Resolution by token instead of by class
+- **[Scoped Containers](./request-contexts.md)** - Request-scoped services with cleanup
 
 ### Key Features
 
-- **Type Safety** - Full TypeScript support with compile-time checking
-- **Lifecycle Management** - Built-in hooks for service initialization and cleanup
-- **Multiple Scopes** - Singleton, transient, and request service lifetimes
-- **Async/Sync Injection** - Both synchronous and asynchronous dependency resolution
-- **Circular Dependency Detection** - Automatic detection with clear error messages
-- **Factory Pattern** - Complex object creation with factory classes
-- **Request Contexts** - Request-scoped services with priority resolution and automatic cleanup
-- **Cross-Platform** - Works in Node.js, Bun, Deno, and browsers
+- **Type safety** - Resolved types are inferred from classes and tokens
+- **Sync-first resolution** - A constructor runs once and `inject()` returns the real instance
+- **Explicit providers** - `provide()` replaces an implementation per container
+- **Three scopes** - Singleton, transient and request
+- **Lifecycle hooks** - `onServiceInit()` and `onServiceDestroy()`
+- **Circular dependency detection** - Reported with the full path
+- **Standard Schema** - Token args are validated with zod, valibot, arktype or any other Standard Schema library
 
 ### Getting Started
 
-```typescript
-import { inject, Container, Injectable } from '@navios/di'
+```ts
+import { Container, inject, Injectable } from '@navios/di'
 
 @Injectable()
 class DatabaseService {
-  async connect() {
-    return 'Connected to database'
+  async query(sql: string) {
+    return [{ id: 1 }]
   }
 }
 
@@ -53,12 +52,10 @@ class UserService {
   private readonly db = inject(DatabaseService)
 
   async getUsers() {
-    const users = await this.db.query('SELECT * FROM users')
-    return users
+    return this.db.query('SELECT * FROM users')
   }
 }
 
-// Using Container
 const container = new Container()
 const userService = await container.get(UserService)
 console.log(await userService.getUsers())
@@ -66,39 +63,25 @@ console.log(await userService.getUsers())
 
 ## Architecture Overview
 
-Navios DI follows a modern, decorator-based architecture:
-
-1. **Services** are marked with `@Injectable()` decorator
-2. **Dependencies** are injected using `inject()` or `asyncInject()`
-3. **Container** manages service instances and their lifecycle
-4. **ScopedContainer** provides request-scoped isolation
-5. **Injection Tokens** provide flexible dependency resolution
-6. **Factories** handle complex object creation
-7. **CircularDetector** prevents circular dependency deadlocks
+1. **Services** are registered with `@Injectable()` or `@Factory()`. Each class has its own token; the decorator attaches a default provider to it.
+2. **Dependencies** are requested with `inject()`, `optional()` or `asyncInject()` while a class is being constructed.
+3. **The container** looks up the provider for a token (its own providers first, then the token's default), builds the instance and stores it by token and args.
+4. **A scope**, created with `container.createScope()`, stores request-scoped instances and resolves singletons from its parent.
+5. **Injection tokens** name a dependency that is not a class, such as an interface or a configuration value.
 
 ## Design Principles
 
-- **Type Safety First** - Leverage TypeScript's type system for compile-time safety
-- **Declarative Configuration** - Use decorators for clean, readable service definitions
-- **Flexible Resolution** - Support both class-based and token-based injection
-- **Lifecycle Awareness** - Built-in support for service initialization and cleanup
-- **Performance Optimized** - Efficient instance management and caching
-- **Safe by Default** - Automatic circular dependency detection
-
-## Platform Support
-
-| Platform | AsyncLocalStorage | Notes                                 |
-| -------- | ----------------- | ------------------------------------- |
-| Node.js  | Native            | Full async tracking support           |
-| Bun      | Native            | Full async tracking support           |
-| Deno     | Native            | Via Node compatibility layer          |
-| Browser  | Polyfill          | Sync-only tracking (SyncLocalStorage) |
+- **Identity, not names.** A token is identified by the token object. Two classes with the same name or the same source are different services.
+- **Synchronous when possible.** A service whose dependencies are ready is built without awaiting anything. Only an `onServiceInit()` that returns a promise, an async factory or a factory token makes resolution asynchronous.
+- **Declared scope only.** A service is built in the scope it declares. A scope conflict is an error, never a silent change of scope.
+- **Explicit replacement.** A token has one default provider. Anything else is bound on a container with `provide()`.
+- **Errors are not hidden.** `optional()` returns `null` only when nothing provides the token.
 
 ## Examples
 
 ### Basic Service Injection
 
-```typescript
+```ts
 @Injectable()
 class EmailService {
   sendEmail(to: string, subject: string) {
@@ -118,7 +101,8 @@ class NotificationService {
 
 ### Configuration with Injection Tokens
 
-```typescript
+```ts
+import { Injectable, InjectionToken } from '@navios/di'
 import { z } from 'zod'
 
 const configSchema = z.object({
@@ -126,11 +110,14 @@ const configSchema = z.object({
   timeout: z.number(),
 })
 
-const CONFIG_TOKEN = InjectionToken.create<Config, typeof configSchema>('APP_CONFIG', configSchema)
+const CONFIG_TOKEN = InjectionToken.create<ConfigService, typeof configSchema>(
+  'APP_CONFIG',
+  configSchema,
+)
 
 @Injectable({ token: CONFIG_TOKEN })
 class ConfigService {
-  constructor(private config: z.infer<typeof configSchema>) {}
+  constructor(private readonly config: z.output<typeof configSchema>) {}
 
   getApiUrl() {
     return this.config.apiUrl
@@ -140,32 +127,37 @@ class ConfigService {
 
 ### Service Lifecycle
 
-```typescript
+```ts
 @Injectable()
 class DatabaseService implements OnServiceInit, OnServiceDestroy {
-  private connection: any = null
+  private connection: Connection | null = null
 
   async onServiceInit() {
-    console.log('Initializing database...')
-    this.connection = await this.connect()
+    this.connection = await connect()
   }
 
   async onServiceDestroy() {
-    console.log('Closing database...')
-    if (this.connection) {
-      await this.connection.close()
-    }
+    await this.connection?.close()
   }
 }
 ```
 
+### Replacing an Implementation
+
+```ts
+import { Container, provide } from '@navios/di'
+
+const container = new Container({
+  providers: [provide(DatabaseService, InMemoryDatabaseService)],
+})
+```
+
 ### Handling Circular Dependencies
 
-```typescript
-// Use asyncInject to break circular dependencies
+```ts
 @Injectable()
 class ServiceA {
-  private serviceB = asyncInject(ServiceB) // Use asyncInject to break cycle
+  private readonly serviceB = asyncInject(ServiceB) // breaks the cycle
 
   async doSomething() {
     const b = await this.serviceB
@@ -175,7 +167,7 @@ class ServiceA {
 
 @Injectable()
 class ServiceB {
-  private serviceA = inject(ServiceA) // This side can use inject()
+  private readonly serviceA = inject(ServiceA)
 
   process() {
     return 'processed'
@@ -185,28 +177,21 @@ class ServiceB {
 
 ### Request-Scoped Services
 
-```typescript
+```ts
 @Injectable({ scope: InjectableScope.Request })
-class RequestContext {
+class RequestState {
   userId?: string
-  correlationId?: string
 }
 
 // In HTTP middleware
 app.use(async (req, res, next) => {
-  const scoped = container.beginRequest(req.id, { userId: req.userId })
-  req.container = scoped
-
-  try {
-    await next()
-  } finally {
-    await scoped.endRequest()
-  }
+  await using scope = container.createScope({ userId: req.userId })
+  req.scope = scope
+  await next()
 })
 ```
 
 ## Need Help?
 
-- Check the [API Reference](./api-reference.md) for detailed method documentation
-- Review the [Migration Guide](./migration.md) if upgrading from older versions
-- See the [Examples](./examples/) folder for complete working examples
+- Check the [API Reference](./api-reference.md) for the exported API
+- Read the [Migration Guide](./migration.md) if you are upgrading from 1.x

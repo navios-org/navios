@@ -1,27 +1,11 @@
-// Plugin
-export {
-  OpenApiBunPlugin,
-  defineOpenApiPlugin,
-  type BunOpenApiPluginOptions,
-  type ScalarOptions,
-  type ScalarTheme,
-} from './openapi-bun.plugin.mjs'
+/**
+ * @deprecated `@navios/openapi` serves the document and the Scalar page on
+ * every adapter. Import `openApiPlugin` from `@navios/openapi` instead; this
+ * package only re-exports it.
+ */
+import type { OpenApiPluginOptions } from '@navios/openapi'
 
-// Schemas (for advanced use cases)
-export {
-  bunOpenApiPluginOptionsSchema,
-  scalarOptionsSchema,
-  scalarThemeSchema,
-  type BunOpenApiPluginOptionsBase,
-} from './schemas/index.mjs'
+export * from '@navios/openapi'
 
-// Tokens (for advanced use cases)
-export { OpenApiOptionsToken } from './tokens/index.mjs'
-
-// Services (for advanced use cases)
-export { OpenApiDocumentService, OpenApiDocumentServiceToken } from './services/index.mjs'
-
-// Controller factories (for custom setups)
-export { createOpenApiJsonController } from './controllers/openapi-json.controller.mjs'
-export { createOpenApiYamlController } from './controllers/openapi-yaml.controller.mjs'
-export { createOpenApiUiController } from './controllers/openapi-ui.controller.mjs'
+/** @deprecated Use `OpenApiPluginOptions` from `@navios/openapi`. */
+export type BunOpenApiPluginOptions = OpenApiPluginOptions

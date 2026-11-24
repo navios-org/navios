@@ -1,14 +1,14 @@
-import { inject, Injectable, InjectionToken } from '@navios/di'
+import { inject, InjectionToken, registerInjectable } from '@navios/di'
 import { z } from 'zod/v4'
 
 import { QueueClientToken } from '../tokens/queue-client.token.mjs'
-import { pubsubMessageConfigSchema } from '../types/message-config.mjs'
+import { pubsubMessageDefinitionSchema } from '../types/message-config.mjs'
 
 import type { QueueClient } from '../interfaces/queue-client.mjs'
 import type { BaseMessageConfig, MessageDefinition } from '../types/message-config.mjs'
 
 export const queuePublisherOptionsSchema = z.object({
-  messageDef: pubsubMessageConfigSchema,
+  messageDef: pubsubMessageDefinitionSchema,
   name: z.string().default('default'),
 })
 
@@ -40,7 +40,6 @@ export const QueuePublisherToken = InjectionToken.create<
  * }
  * ```
  */
-@Injectable({ token: QueuePublisherToken })
 export class QueuePublisher<
   MessageDef extends MessageDefinition<'pubsub', BaseMessageConfig<'pubsub', any>['payloadSchema']>,
 > {
@@ -73,3 +72,5 @@ export class QueuePublisher<
     await this.queueClient.publish(topic, validatedPayload)
   }
 }
+
+registerInjectable(QueuePublisher, { token: QueuePublisherToken })

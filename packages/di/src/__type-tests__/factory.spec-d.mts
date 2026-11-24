@@ -4,7 +4,6 @@ import { z } from 'zod/v4'
 import { Factory } from '../decorators/index.mjs'
 import { InjectableScope } from '../enums/index.mjs'
 import { InjectionToken } from '../token/injection-token.mjs'
-import { Registry } from '../token/registry.mjs'
 
 import type { Factorable, FactorableWithArgs } from '../interfaces/index.mjs'
 
@@ -46,15 +45,6 @@ class TestFactory4 implements FactorableWithArgs<{ name: string }, typeof schema
   }
 }
 
-// Test factory with custom registry
-const registry = new Registry()
-@Factory({ registry })
-class TestFactory5 implements Factorable<object> {
-  create() {
-    return {}
-  }
-}
-
 // Test factory with async create
 @Factory()
 class TestFactory6 implements Factorable<string[]> {
@@ -70,11 +60,10 @@ const test3: boolean = new TestFactory3().create()
 const test4: { name: string } = new TestFactory4().create(undefined, {
   name: 'test',
 })
-const test5: object = new TestFactory5().create()
 const test6: Promise<string[]> = new TestFactory6().create()
 
 // Vitest 5 requires each spec-d file to register at least one test; the
 // assertions above are enforced by the type checker.
 test('factory return types', () => {})
 
-export { test1, test2, test3, test4, test5, test6 }
+export { test1, test2, test3, test4, test6 }

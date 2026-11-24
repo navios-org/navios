@@ -1,5 +1,1 @@
-export * from './adapters/index.mjs'
-export * from './interfaces/index.mjs'
-export * from './services/index.mjs'
-export * from './tokens/index.mjs'
-export * from './define-environment.mjs'
+export * from './fastify-adapter.mjs'

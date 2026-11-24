@@ -1,7 +1,8 @@
 import { Injectable } from '@navios/core'
 
-import type { createUserSchema, updateUserSchema, userSchema } from '../api.mjs'
 import type { z } from 'zod'
+
+import type { createUserSchema, updateUserSchema, userSchema } from '../api.mjs'
 
 type User = z.infer<typeof userSchema>
 type CreateUserInput = z.infer<typeof createUserSchema>
@@ -48,9 +49,7 @@ export class UserService {
     if (options.search) {
       const search = options.search.toLowerCase()
       users = users.filter(
-        (u) =>
-          u.name.toLowerCase().includes(search) ||
-          u.email.toLowerCase().includes(search),
+        (u) => u.name.toLowerCase().includes(search) || u.email.toLowerCase().includes(search),
       )
     }
 

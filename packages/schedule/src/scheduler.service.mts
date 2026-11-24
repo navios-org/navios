@@ -1,28 +1,47 @@
-import { Container, inject, Injectable, Logger } from '@navios/core'
+import { Container, inject, Logger, registerInjectable } from '@navios/core'
 import { CronJob } from 'cron'
 
-import type { ClassType } from '@navios/core'
+import type {
+  ClassType,
+  OnApplicationBootstrap,
+  OnApplicationShutdown,
+  OnServiceDestroy,
+} from '@navios/core'
 
 import { extractScheduleMetadata, hasScheduleMetadata } from './metadata/index.mjs'
 
-import type { ScheduleMetadata } from './metadata/index.mjs'
+interface RegisteredJob {
+  name: string
+  job: CronJob
+  disabled: boolean
+}
 
 /**
  * Service responsible for managing and executing scheduled cron jobs.
  *
- * The SchedulerService registers schedulable services decorated with `@Schedulable()`
- * and automatically starts their cron jobs based on the `@Cron()` decorator configuration.
+ * Schedulable services decorated with `@Schedulable()` are registered with
+ * `register()`. Their cron jobs follow the application lifecycle:
+ *
+ * - they start in `onApplicationBootstrap`, at the end of `app.init()`;
+ * - they stop in `onApplicationShutdown`, during `app.close()`, which also
+ *   waits for the runs that are in progress.
+ *
+ * Without a Navios application, call `start()` after registering and `stop()`
+ * (or dispose the container) when done.
+ *
+ * Every run of a job happens in its own DI scope, which is disposed when the
+ * run ends.
  *
  * @example
  * ```typescript
- * import { inject, Injectable } from '@navios/core'
+ * import { inject, Module } from '@navios/core'
  * import { SchedulerService } from '@navios/schedule'
  *
- * @Injectable()
+ * @Module()
  * class AppModule {
  *   private readonly scheduler = inject(SchedulerService)
  *
- *   async onModuleInit() {
+ *   onModuleInit() {
  *     this.scheduler.register(MySchedulableService)
  *   }
  * }
@@ -30,21 +49,28 @@ import type { ScheduleMetadata } from './metadata/index.mjs'
  *
  * @public
  */
-@Injectable()
-export class SchedulerService {
+export class SchedulerService
+  implements OnApplicationBootstrap, OnApplicationShutdown, OnServiceDestroy
+{
   private readonly logger = inject(Logger, {
-    context: SchedulerService.name,
+    context: 'SchedulerService',
   })
   private readonly container = inject(Container)
-  private readonly jobs: Map<string, CronJob> = new Map()
+  private readonly services = new Map<ClassType, Map<string, RegisteredJob>>()
+  private readonly runs = new Set<Promise<void>>()
+  private started = false
 
   /**
-   * Registers a schedulable service and starts all its cron jobs.
+   * Registers a schedulable service and creates its cron jobs.
    *
-   * The service must be decorated with `@Schedulable()` and contain methods
-   * decorated with `@Cron()` to be registered successfully.
+   * The jobs start when the scheduler starts: in `onApplicationBootstrap`, or
+   * when `start()` is called. A service registered while the scheduler is
+   * already started has its jobs started immediately. Jobs declared with
+   * `disabled: true` are created but not started.
    *
-   * @param service - The schedulable service class to register
+   * Registering the same class again does nothing.
+   *
+   * @param service - The schedulable service class to register. Must be decorated with `@Schedulable()`.
    * @throws {Error} If the service is not decorated with `@Schedulable()`
    *
    * @example
@@ -53,7 +79,7 @@ export class SchedulerService {
    * class TaskService {
    *   @Cron('0 0 * * *')
    *   async dailyTask() {
-   *     // Runs daily at midnight
+   *     // Task logic
    *   }
    * }
    *
@@ -68,9 +94,33 @@ export class SchedulerService {
         `[Navios-Schedule] Service ${service.name} is not schedulable. Make sure to use @Schedulable decorator.`,
       )
     }
+    if (this.services.has(service)) {
+      this.logger.debug('Service is already scheduled', service.name)
+      return
+    }
     const metadata = extractScheduleMetadata(service)
     this.logger.debug('Scheduling service', metadata.name)
-    this.registerJobs(service, metadata)
+
+    const jobs = new Map<string, RegisteredJob>()
+    this.services.set(service, jobs)
+    for (const job of metadata.jobs) {
+      if (!job.cronTime) {
+        this.logger.debug('Skipping job', job.classMethod)
+        continue
+      }
+      const name = `${metadata.name}.${job.classMethod}()`
+      const method = job.classMethod
+      const cronJob = CronJob.from({
+        cronTime: job.cronTime,
+        name,
+        onTick: () => this.track(this.run(service, method, name)),
+        start: false,
+      })
+      jobs.set(method, { name, job: cronJob, disabled: job.disabled })
+      if (this.started && !job.disabled) {
+        cronJob.start()
+      }
+    }
   }
 
   /**
@@ -93,89 +143,133 @@ export class SchedulerService {
    * @public
    */
   getJob<T extends ClassType>(service: T, method: keyof InstanceType<T>): CronJob | undefined {
-    const metadata = extractScheduleMetadata(service)
-    const jobName = `${metadata.name}.${method as string}()`
-    return this.jobs.get(jobName)
+    return this.services.get(service)?.get(method as string)?.job
   }
 
-  private registerJobs(service: ClassType, metadata: ScheduleMetadata) {
-    const jobs = metadata.jobs
-    for (const job of jobs) {
-      if (!job.cronTime) {
-        this.logger.debug('Skipping job', job.classMethod)
-        continue
+  /**
+   * Starts the scheduler: starts every registered job that is not declared
+   * with `disabled: true`, and makes services registered later start at once.
+   *
+   * Called by `onApplicationBootstrap`. Call it yourself only when the
+   * scheduler is used without a Navios application. Calling it again does
+   * nothing new.
+   *
+   * @public
+   */
+  start() {
+    this.started = true
+    for (const { job, disabled } of this.allJobs()) {
+      if (!disabled && !job.isActive) {
+        job.start()
       }
-      const name = `${metadata.name}.${job.classMethod}()`
-      const self = this
-      const defaultDisabled = false
-      const cronJob = CronJob.from({
-        cronTime: job.cronTime,
-        name,
-        async onTick() {
-          try {
-            self.logger.debug('Executing job', name)
-            const instance = await self.container.get(service)
-            await instance[job.classMethod]()
-          } catch (error) {
-            self.logger.error('Error executing job', name, error)
-          }
-        },
-        start: !(defaultDisabled || job.disabled),
-      })
-      this.jobs.set(name, cronJob)
     }
   }
 
   /**
-   * Starts all registered cron jobs that are currently inactive.
+   * Stops the scheduler: stops every job and waits for the runs that are in
+   * progress. Services registered afterwards are not started until `start()`
+   * is called again.
    *
-   * Only jobs that are not already active will be started. This method
-   * is useful for resuming all jobs after calling `stopAll()`.
+   * Called by `onApplicationShutdown` and when the container is disposed.
+   *
+   * @public
+   */
+  async stop() {
+    this.started = false
+    this.stopAll()
+    while (this.runs.size > 0) {
+      await Promise.all(this.runs)
+    }
+  }
+
+  /**
+   * Starts all registered cron jobs that are currently inactive, including
+   * the ones declared with `disabled: true`.
    *
    * @example
    * ```typescript
-   * // Stop all jobs
-   * schedulerService.stopAll()
-   *
-   * // Later, resume all jobs
+   * // Start all jobs
    * schedulerService.startAll()
    * ```
    *
    * @public
    */
   startAll() {
-    for (const job of this.jobs.values()) {
-      if (job.isActive) {
-        continue
+    for (const { job } of this.allJobs()) {
+      if (!job.isActive) {
+        job.start()
       }
-      job.start()
     }
   }
 
   /**
-   * Stops all registered cron jobs that are currently active.
-   *
-   * Only jobs that are currently active will be stopped. This method
-   * is useful for pausing all scheduled tasks, for example during
-   * application shutdown or maintenance.
+   * Stops all registered cron jobs that are currently active. Runs that are
+   * in progress are not awaited; use `stop()` for that.
    *
    * @example
    * ```typescript
-   * // Pause all scheduled jobs
+   * // Stop all jobs
    * schedulerService.stopAll()
-   *
-   * // Jobs can be resumed later with startAll()
-   * schedulerService.startAll()
    * ```
    *
    * @public
    */
   stopAll() {
-    for (const job of this.jobs.values()) {
-      if (!job.isActive) {
-        continue
+    for (const { job } of this.allJobs()) {
+      if (job.isActive) {
+        job.stop()
       }
-      job.stop()
+    }
+  }
+
+  /** Starts the jobs when the application has been initialised. */
+  onApplicationBootstrap() {
+    this.start()
+  }
+
+  /** Stops the jobs and waits for runs in progress during `app.close()`. */
+  async onApplicationShutdown() {
+    await this.stop()
+  }
+
+  /** Stops the jobs when the container is disposed without an application. */
+  async onServiceDestroy() {
+    await this.stop()
+  }
+
+  private *allJobs(): Generator<RegisteredJob> {
+    for (const jobs of this.services.values()) {
+      yield* jobs.values()
+    }
+  }
+
+  private track(run: Promise<void>): Promise<void> {
+    this.runs.add(run)
+    void run.finally(() => this.runs.delete(run))
+    return run
+  }
+
+  /**
+   * One run of a job. It gets its own DI scope, so request-scoped services,
+   * including a request-scoped schedulable class, are created for this run
+   * and destroyed after it. Never rejects: errors are logged.
+   */
+  private async run(service: ClassType, method: string, name: string): Promise<void> {
+    const scope = this.container.createScope()
+    try {
+      this.logger.debug('Executing job', name)
+      const instance = await scope.get(service)
+      await instance[method]()
+    } catch (error) {
+      this.logger.error('Error executing job', name, error)
+    } finally {
+      try {
+        await scope.dispose()
+      } catch (error) {
+        this.logger.error('Error disposing the scope of job', name, error)
+      }
     }
   }
 }
+
+registerInjectable(SchedulerService)

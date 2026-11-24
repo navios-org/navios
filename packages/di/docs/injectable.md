@@ -1,12 +1,12 @@
 # Injectable Decorator
 
-The `@Injectable` decorator is the primary way to mark classes as injectable services in Navios DI. It registers the class with the dependency injection container and makes it available for injection into other services.
+The `@Injectable` decorator registers a class as a service that a container can build and inject.
 
 ## Basic Usage
 
 ### Simple Service Registration
 
-```typescript
+```ts
 import { Injectable } from '@navios/di'
 
 @Injectable()
@@ -19,81 +19,129 @@ class UserService {
 
 ### Service with Dependencies
 
-```typescript
-import { asyncInject, Injectable } from '@navios/di'
+```ts
+import { inject, Injectable } from '@navios/di'
 
 @Injectable()
 class DatabaseService {
-  async connect() {
-    return 'Connected to database'
+  async query(sql: string) {
+    return [{ id: 1, name: 'Alice' }]
   }
 }
 
 @Injectable()
 class UserService {
-  private readonly db = asyncInject(DatabaseService)
+  private readonly db = inject(DatabaseService)
 
   async getUsers() {
-    const dbService = await this.db
-    const connection = await dbService.connect()
-    return `Users from ${connection}`
+    return this.db.query('SELECT * FROM users')
   }
 }
 ```
 
 ## Configuration Options
 
-The `@Injectable` decorator accepts an options object with the following properties:
+`@Injectable` accepts `scope`, `token` and `schema`.
 
 ### Scope Configuration
 
-```typescript
+```ts
 import { Injectable, InjectableScope } from '@navios/di'
 
-// Singleton (default) - one instance shared across the application
+// Singleton (default): one instance per container
 @Injectable({ scope: InjectableScope.Singleton })
 class SingletonService {}
 
-// Transient - new instance created for each injection
+// Transient: a new instance for each injection
 @Injectable({ scope: InjectableScope.Transient })
 class TransientService {}
+
+// Request: one instance per scope created with container.createScope()
+@Injectable({ scope: InjectableScope.Request })
+class RequestService {}
 ```
 
 ### Custom Injection Token
 
-```typescript
+A class can be the default implementation of a token:
+
+```ts
 import { Injectable, InjectionToken } from '@navios/di'
 
-const USER_SERVICE_TOKEN = InjectionToken.create<UserService>('UserService')
+interface UserRepository {
+  findById(id: string): Promise<User | null>
+}
 
-@Injectable({ token: USER_SERVICE_TOKEN })
-class UserService {
-  getUsers() {
-    return ['Alice', 'Bob']
+const USER_REPOSITORY = InjectionToken.create<UserRepository>('UserRepository')
+
+@Injectable({ token: USER_REPOSITORY })
+class SqlUserRepository implements UserRepository {
+  async findById(id: string) {
+    return null
   }
 }
 ```
 
-### Custom Registry
+Both `container.get(USER_REPOSITORY)` and `container.get(SqlUserRepository)` resolve the same instance, because the class uses the token as its own.
 
-```typescript
-import { Injectable, Registry } from '@navios/di'
+### One Default per Token
 
-const customRegistry = new Registry()
+A token has at most one default implementation. Registering a second class for the same token throws at decoration time:
 
-@Injectable({ registry: customRegistry })
-class CustomService {}
+```ts
+@Injectable({ token: USER_REPOSITORY })
+class MongoUserRepository implements UserRepository {
+  async findById(id: string) {
+    return null
+  }
+}
+// DIError (ProviderConflict): Token UserRepository already has a default provider
+// (SqlUserRepository); MongoUserRepository cannot become a second default.
+// Use provide(token, MongoUserRepository) on the container to replace it.
 ```
+
+Register the alternative with a plain `@Injectable()` and bind it on the container:
+
+```ts
+import { Container, Injectable, provide } from '@navios/di'
+
+@Injectable()
+class MongoUserRepository implements UserRepository {
+  async findById(id: string) {
+    return null
+  }
+}
+
+const container = new Container({
+  providers: [provide(USER_REPOSITORY, MongoUserRepository)],
+})
+```
+
+A class with the same name as the current default replaces it without an error. This is what happens when a module is evaluated again during hot reload.
+
+### Registration without Decorators
+
+`registerInjectable()` does what `@Injectable()` does and takes the same options. `@Injectable()` calls it, so both paths behave identically.
+
+```ts
+import { InjectableScope, registerInjectable } from '@navios/di'
+
+class ReportBuilder {}
+
+registerInjectable(ReportBuilder, { scope: InjectableScope.Transient })
+```
+
+It returns the token of the class.
 
 ## Injection Methods
 
-### Synchronous Injection with `inject`
+All three functions must be called while an injectable class is being constructed: in a field initialiser or in the constructor. Calling them anywhere else throws.
 
-Use `inject` when you need immediate access to a dependency:
+### `inject`
 
-```typescript
-import { inject, Injectable } from '@navios/di'
+`inject()` returns the instance. If the dependency does not exist yet, it is built immediately, inside the constructor that asked for it.
 
+```ts
 @Injectable()
 class EmailService {
   sendEmail(to: string, subject: string) {
@@ -106,379 +154,237 @@ class NotificationService {
   private readonly emailService = inject(EmailService)
 
   notify(user: string, message: string) {
-    // Direct access - no await needed
     return this.emailService.sendEmail(user, `Notification: ${message}`)
   }
 }
 ```
 
-**Important:** The `inject` helper now supports all service scopes including Transient. When using `inject` with Transient services, the dependency is tracked for async initialization and will be available in your service methods after initialization completes.
+`inject()` works for every scope. For a transient, each call returns its own instance:
 
-### Asynchronous Injection with `asyncInject`
-
-Use `asyncInject` when you need explicit async control over dependency resolution:
-
-```typescript
-import { asyncInject, Injectable, InjectableScope } from '@navios/di'
-
+```ts
 @Injectable({ scope: InjectableScope.Transient })
-class TransientService {
-  constructor() {
-    console.log('Creating new transient instance')
-  }
-
-  getValue() {
-    return Math.random()
-  }
+class Counter {
+  value = 0
 }
 
 @Injectable()
-class ConsumerService {
-  private readonly transientService = asyncInject(TransientService)
+class Stats {
+  private readonly hits = inject(Counter)
+  private readonly misses = inject(Counter) // a different instance
+}
+```
 
-  async getRandomValue() {
-    const service = await this.transientService
-    return service.getValue()
+Conditional calls are allowed:
+
+```ts
+@Injectable()
+class Storage {
+  private readonly backend = process.env.S3_BUCKET ? inject(S3Backend) : inject(DiskBackend)
+}
+```
+
+### `optional`
+
+`optional()` returns the instance, or `null` when nothing provides the token: no default provider, no provider on the container and no instance added with `addInstance()`.
+
+```ts
+const TRACER = InjectionToken.create<Tracer>('Tracer')
+
+@Injectable()
+class OrderService {
+  private readonly tracer = optional(TRACER)
+
+  placeOrder(order: Order) {
+    this.tracer?.record('order.placed')
   }
 }
 ```
 
-### Using `inject` with Transient Services
+`optional()` does not catch errors. If a provider exists and its constructor throws, the error propagates as it would with `inject()`.
 
-You can now use `inject` with Transient services. The dependency will be tracked for async initialization:
+### `asyncInject`
 
-```typescript
-import { inject, Injectable, InjectableScope } from '@navios/di'
+`asyncInject()` returns a promise of the instance. The dependency starts resolving after the current constructor has returned. Use it to break a circular dependency on purpose:
 
-@Injectable({ scope: InjectableScope.Transient })
-class TransientService {
-  getValue() {
-    return Math.random()
+```ts
+@Injectable()
+class ServiceA {
+  private readonly serviceB = asyncInject(ServiceB)
+
+  async doSomething() {
+    const b = await this.serviceB
+    return b.getValue()
   }
 }
 
 @Injectable()
-class ConsumerService {
-  private readonly transientService = inject(TransientService)
+class ServiceB {
+  private readonly serviceA = inject(ServiceA)
 
-  async getRandomValue() {
-    // Service is available in async methods after initialization
-    return this.transientService.getValue()
+  getValue() {
+    return 'value from B'
   }
 }
 ```
+
+There is no other reason to prefer it over `inject()`.
+
+## How a Class is Constructed
+
+Resolution is synchronous first:
+
+- A constructor runs once. Each `inject()` call returns a real, initialised instance.
+- A dependency that is missing is built on the spot. If its `onServiceInit()` returns nothing or a non-promise value, it is ready at once.
+- If a dependency has an `onServiceInit()` that returns a promise which has not settled, the current construction cannot finish. The container discards this construction pass, waits for the dependency and constructs the class again. This replay happens only on the first build of the class. On later builds the container remembers which dependencies the class asks for, waits for them first and constructs once.
+
+Two rules follow from the replay:
+
+1. Keep constructors and field initialisers free of side effects. They may run a second time on the first build.
+2. Do not read properties of an injected service in the constructor. In a discarded pass, a dependency that is not ready is a placeholder that throws when it is accessed. Use `onServiceInit()`, where every dependency is initialised.
+
+```ts
+@Injectable()
+class ReportService implements OnServiceInit {
+  private readonly db = inject(DatabaseService) // has an async onServiceInit
+  private tables: string[] = []
+
+  async onServiceInit() {
+    this.tables = await this.db.listTables()
+  }
+}
+```
+
+Transients injected during a discarded pass are reused by the replay, so a transient is not constructed twice either.
 
 ## Advanced Patterns
 
 ### Service with Configuration Schema
 
-```typescript
-import { Injectable, InjectionToken } from '@navios/di'
+A `schema` makes the class take validated args. Each distinct args value has its own instance.
+
+```ts
+import { Container, inject, Injectable } from '@navios/di'
 import { z } from 'zod'
 
-const configSchema = z.object({
-  apiUrl: z.string(),
-  timeout: z.number(),
-  retries: z.number().optional(),
+const databaseConfigSchema = z.object({
+  host: z.string(),
+  port: z.number(),
 })
 
-const CONFIG_TOKEN = InjectionToken.create<ConfigService, typeof configSchema>(
-  'APP_CONFIG',
-  configSchema,
-)
+@Injectable({ schema: databaseConfigSchema })
+class DatabaseConfig {
+  constructor(public readonly config: z.output<typeof databaseConfigSchema>) {}
 
-@Injectable({ token: CONFIG_TOKEN })
-class ConfigService {
-  constructor(private config: z.infer<typeof configSchema>) {}
-
-  getApiUrl() {
-    return this.config.apiUrl
-  }
-
-  getTimeout() {
-    return this.config.timeout
-  }
-
-  getRetries() {
-    return this.config.retries ?? 3
+  getConnectionString() {
+    return `${this.config.host}:${this.config.port}`
   }
 }
-```
 
-### Service with Multiple Dependencies
-
-```typescript
-import { inject, Injectable } from '@navios/di'
-
-@Injectable()
-class LoggerService {
-  log(message: string) {
-    console.log(`[LOG] ${message}`)
-  }
-}
+const container = new Container()
+const config = await container.get(DatabaseConfig, { host: 'localhost', port: 5432 })
 
 @Injectable()
 class DatabaseService {
-  async query(sql: string) {
-    return `Query result: ${sql}`
-  }
-}
-
-@Injectable()
-class CacheService {
-  set(key: string, value: any) {
-    console.log(`Cache set: ${key}`)
-  }
-
-  get(key: string) {
-    return `Cached value for ${key}`
-  }
-}
-
-@Injectable()
-class UserService {
-  private readonly logger = inject(LoggerService)
-  private readonly db = inject(DatabaseService)
-  private readonly cache = inject(CacheService)
-
-  async getUser(id: string) {
-    this.logger.log(`Getting user ${id}`)
-
-    // Check cache first
-    const cached = this.cache.get(`user:${id}`)
-    if (cached) {
-      return cached
-    }
-
-    // Query database
-    const user = await this.db.query(`SELECT * FROM users WHERE id = ${id}`)
-
-    // Cache the result
-    this.cache.set(`user:${id}`, user)
-
-    return user
-  }
+  private readonly config = inject(DatabaseConfig, { host: 'localhost', port: 5432 })
 }
 ```
+
+The schema can come from any Standard Schema library and must validate synchronously. `schema` and `token` cannot be used together; attach the schema to the token instead (see [Injection Tokens](./injection-tokens.md)).
 
 ### Service with Lifecycle Hooks
 
-```typescript
-import { Injectable, OnServiceDestroy, OnServiceInit } from '@navios/di'
+```ts
+import { Injectable } from '@navios/di'
+
+import type { OnServiceDestroy, OnServiceInit } from '@navios/di'
 
 @Injectable()
 class DatabaseService implements OnServiceInit, OnServiceDestroy {
-  private connection: any = null
+  private connection: Connection | null = null
 
   async onServiceInit() {
-    console.log('Initializing database connection...')
-    this.connection = await this.connect()
-    console.log('Database connected successfully')
+    this.connection = await connect()
   }
 
   async onServiceDestroy() {
-    console.log('Closing database connection...')
-    if (this.connection) {
-      await this.connection.close()
-      console.log('Database connection closed')
-    }
-  }
-
-  private async connect() {
-    // Simulate database connection
-    return new Promise((resolve) => {
-      setTimeout(() => resolve({ connected: true }), 100)
-    })
-  }
-
-  async query(sql: string) {
-    if (!this.connection) {
-      throw new Error('Database not connected')
-    }
-    return `Query result: ${sql}`
+    await this.connection?.close()
   }
 }
 ```
 
-## Scopes and Injection Compatibility
+See [Service Lifecycle](./lifecycle.md).
 
-### Singleton Services
+## Scopes and Injection
 
-```typescript
-@Injectable({ scope: InjectableScope.Singleton })
-class SingletonService {
-  private readonly id = Math.random()
+| Consumer scope | May inject                                      |
+| -------------- | ----------------------------------------------- |
+| Singleton      | Singleton, Transient                            |
+| Request        | Singleton, Request, Transient                   |
+| Transient      | whatever the service that injects it may inject |
 
-  getId() {
-    return this.id
-  }
-}
-
-@Injectable()
-class ConsumerService {
-  // Both injection methods work with singletons
-  private readonly syncService = inject(SingletonService)
-  private readonly asyncService = asyncInject(SingletonService)
-
-  async demonstrate() {
-    // Both return the same instance
-    console.log(this.syncService.getId()) // Same ID
-    const asyncInstance = await this.asyncService
-    console.log(asyncInstance.getId()) // Same ID
-  }
-}
-```
-
-### Transient Services
-
-```typescript
-@Injectable({ scope: InjectableScope.Transient })
-class TransientService {
-  private readonly id = Math.random()
-
-  getId() {
-    return this.id
-  }
-}
-
-@Injectable()
-class ConsumerService {
-  // Both inject() and asyncInject() now work with transient services
-  private readonly transientService = inject(TransientService)
-  private readonly asyncTransientService = asyncInject(TransientService)
-
-  async demonstrate() {
-    // Using inject with transient services (available after initialization)
-    console.log(this.transientService.getId())
-
-    // Using asyncInject for explicit async access
-    const instance1 = await this.asyncTransientService
-    const instance2 = await this.asyncTransientService
-    console.log(instance1.getId()) // Same as first call
-    console.log(instance2.getId()) // Same as first call
-  }
-}
-```
+A singleton that injects a request-scoped service fails with `ScopeMismatchError`, also when a transient sits between them. The scope of a service never changes automatically. See [Scopes](./scopes.md#scope-rules).
 
 ## Error Handling
 
 ### Common Errors
 
-```typescript
-import { inject, Injectable } from '@navios/di'
+```ts
+// Not registered
+class Plain {}
+await container.get(Plain)
+// DIError (ClassNotInjectable): Class Plain is not decorated with @Injectable.
 
+// A token without a provider
+const TOKEN = InjectionToken.create<Service>('Service')
+await container.get(TOKEN)
+// DIError (FactoryNotFound): Factory Service not found
+
+// A constructor that throws
 @Injectable()
-class ProblematicService {
-  private readonly nonExistentService = inject(NonExistentService)
-  // Error: NonExistentService is not registered
-}
-
-@Injectable({ scope: InjectableScope.Transient })
-class TransientService {}
-
-@Injectable()
-class WrongInjectionService {
-  private readonly transientService = inject(TransientService)
-  // Error: Cannot use inject with transient services
-}
-```
-
-### Proper Error Handling
-
-```typescript
-import { inject, Injectable } from '@navios/di'
-
-@Injectable()
-class SafeService {
-  private readonly optionalService = asyncInject(OptionalService).catch(() => null)
-
-  async doSomething() {
-    try {
-      const service = await this.optionalService
-      if (service) {
-        return service.doSomething()
-      }
-      return 'Service not available'
-    } catch (error) {
-      console.error('Error accessing service:', error)
-      return 'Error occurred'
-    }
+class Broken {
+  constructor() {
+    throw new Error('boom')
   }
 }
+await container.get(Broken)
+// DIError (InitializationError): Service Broken initialization failed: boom
 ```
+
+An `InitializationError` keeps the original error in `cause`. When services are nested, the error of the innermost failing service propagates unchanged. A failed service is not cached; the next `get()` constructs it again.
 
 ## Best Practices
 
-### 1. Use Appropriate Injection Method
+### 1. Use `inject` by default
 
-```typescript
-// ✅ Good: Use inject for singleton dependencies
+```ts
 @Injectable()
 class UserService {
-  private readonly logger = inject(LoggerService)
-
-  getUser(id: string) {
-    this.logger.log(`Getting user ${id}`)
-    // ...
-  }
+  private readonly db = inject(DatabaseService)
+  private readonly mailer = inject(MailerToken)
 }
+```
 
-// ✅ Good: Use inject or asyncInject for transient dependencies
+### 2. Prefer singletons for stateless services
+
+```ts
 @Injectable()
-class RequestService {
-  // inject now works with transient services
-  private readonly transientService = inject(TransientService)
-
-  async handleRequest() {
-    return this.transientService.process()
-  }
-}
-
-// ✅ Also good: Use asyncInject for explicit async control
-@Injectable()
-class RequestService {
-  private readonly transientService = asyncInject(TransientService)
-
-  async handleRequest() {
-    const service = await this.transientService
-    return service.process()
+class PriceCalculator {
+  total(items: Item[]) {
+    return items.reduce((sum, item) => sum + item.price, 0)
   }
 }
 ```
 
-### 2. Prefer Singleton for Stateless Services
+### 3. Use injection tokens for interfaces
 
-```typescript
-// ✅ Good: Stateless service as singleton
-@Injectable({ scope: InjectableScope.Singleton })
-class EmailService {
-  sendEmail(to: string, subject: string) {
-    // No state, safe to share
-  }
-}
-
-// ❌ Avoid: Stateful service as singleton
-@Injectable({ scope: InjectableScope.Singleton })
-class UserSessionService {
-  private currentUser: User | null = null // State!
-
-  setCurrentUser(user: User) {
-    this.currentUser = user // Shared state can cause issues
-  }
-}
-```
-
-### 3. Use Injection Tokens for Interfaces
-
-```typescript
-// ✅ Good: Use injection tokens for interfaces
+```ts
 interface PaymentProcessor {
   processPayment(amount: number): Promise<string>
 }
 
-const PAYMENT_PROCESSOR_TOKEN = InjectionToken.create<PaymentProcessor>('PaymentProcessor')
+const PAYMENT_PROCESSOR = InjectionToken.create<PaymentProcessor>('PaymentProcessor')
 
-@Injectable({ token: PAYMENT_PROCESSOR_TOKEN })
+@Injectable({ token: PAYMENT_PROCESSOR })
 class StripePaymentProcessor implements PaymentProcessor {
   async processPayment(amount: number) {
     return `Processed $${amount} via Stripe`
@@ -486,23 +392,18 @@ class StripePaymentProcessor implements PaymentProcessor {
 }
 ```
 
-### 4. Implement Lifecycle Hooks for Resource Management
+### 4. Do work in `onServiceInit`, not in the constructor
 
-```typescript
-// ✅ Good: Proper resource management
+```ts
 @Injectable()
-class DatabaseService implements OnServiceInit, OnServiceDestroy {
-  private connection: any = null
+class SearchIndex implements OnServiceInit {
+  private readonly db = inject(DatabaseService)
 
   async onServiceInit() {
-    this.connection = await this.connect()
+    await this.rebuild()
   }
 
-  async onServiceDestroy() {
-    if (this.connection) {
-      await this.connection.close()
-    }
-  }
+  private async rebuild() {}
 }
 ```
 
@@ -510,24 +411,31 @@ class DatabaseService implements OnServiceInit, OnServiceDestroy {
 
 ### Injectable Options
 
-```typescript
+```ts
 interface InjectableOptions {
   scope?: InjectableScope
   token?: InjectionToken<any, any>
-  registry?: Registry
+  schema?: InjectionTokenSchemaType // any Standard Schema
 }
 ```
 
 ### InjectableScope Enum
 
-```typescript
+```ts
 enum InjectableScope {
-  Singleton = 'Singleton', // One instance shared across the application
-  Transient = 'Transient', // New instance created for each injection
+  Singleton = 'Singleton',
+  Transient = 'Transient',
+  Request = 'Request',
 }
 ```
 
 ### Injection Methods
 
-- `inject<T>(token: T): T` - Synchronous injection (singleton only)
-- `asyncInject<T>(token: T): Promise<T>` - Asynchronous injection (all scopes)
+- `inject<T>(token, args?): T`
+- `optional<T>(token, args?): T | null`
+- `asyncInject<T>(token, args?): Promise<T>`
+
+### Registration Functions
+
+- `registerInjectable(target, options?): InjectionToken`
+- `getInjectableToken(target): InjectionToken` - the token of a registered class; throws `ClassNotInjectable` otherwise

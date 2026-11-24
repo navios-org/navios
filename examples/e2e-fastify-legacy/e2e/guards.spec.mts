@@ -1,13 +1,12 @@
 import supertest from 'supertest'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 
-import type { FastifyEnvironment } from '@navios/adapter-fastify'
 import type { NaviosApplication } from '@navios/core'
 
 import { createApp } from '../src/bootstrap.mjs'
 
 describe('Guards and Authentication', () => {
-  let server: NaviosApplication<FastifyEnvironment>
+  let server: NaviosApplication
 
   beforeAll(async () => {
     server = await createApp()
@@ -53,6 +52,14 @@ describe('Guards and Authentication', () => {
       const response = await request().get('/test/protected')
 
       expect(response.status).toBe(401)
+      // 2.0: errors are RFC 9457 problem details
+      expect(response.headers['content-type']).toContain('application/problem+json')
+      expect(response.body).toEqual({
+        type: 'about:blank',
+        title: 'Unauthorized',
+        status: 401,
+        detail: 'Missing authorization header',
+      })
     })
 
     it('should allow access to protected endpoint with valid token', async () => {
@@ -62,6 +69,8 @@ describe('Guards and Authentication', () => {
 
       expect(response.status).toBe(200)
       expect(response.body.data).toBe('secret data')
+      // Set by the guard with ctx.set(CurrentUser), read by the handler
+      expect(response.body.userId).toBe('user-from-token')
     })
 
     it('should reject with invalid token format', async () => {
@@ -70,6 +79,7 @@ describe('Guards and Authentication', () => {
         .set('Authorization', 'InvalidFormat token')
 
       expect(response.status).toBe(401)
+      expect(response.body.detail).toBe('Invalid authorization format')
     })
 
     it('should reject with invalid token value', async () => {
@@ -78,6 +88,7 @@ describe('Guards and Authentication', () => {
         .set('Authorization', 'Bearer invalid-token')
 
       expect(response.status).toBe(401)
+      expect(response.body.detail).toBe('Invalid token')
     })
   })
 
@@ -86,6 +97,14 @@ describe('Guards and Authentication', () => {
       const response = await request().post('/test/validation-error').send({}) // Missing requiredField
 
       expect(response.status).toBe(400)
+      // 2.0: validation errors are problem details with `source` and `errors`
+      expect(response.headers['content-type']).toContain('application/problem+json')
+      expect(response.body).toMatchObject({
+        title: 'Bad Request',
+        status: 400,
+        source: 'body',
+        errors: [{ path: 'requiredField', message: expect.any(String) }],
+      })
     })
 
     it('should return 200 for valid request', async () => {
@@ -101,6 +120,13 @@ describe('Guards and Authentication', () => {
       const response = await request().get('/test/not-found/any-id')
 
       expect(response.status).toBe(404)
+      expect(response.headers['content-type']).toContain('application/problem+json')
+      expect(response.body).toEqual({
+        type: 'about:blank',
+        title: 'Not Found',
+        status: 404,
+        detail: 'Resource with id any-id not found',
+      })
     })
   })
 

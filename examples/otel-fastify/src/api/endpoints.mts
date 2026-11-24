@@ -66,7 +66,7 @@ export const createItemEndpoint = api.declareEndpoint({
     price: z.number().positive(),
     category: z.string().min(1),
   }),
-  responseSchema: ItemSchema,
+  responses: { 201: ItemSchema },
 })
 
 export const updateItemEndpoint = api.declareEndpoint({

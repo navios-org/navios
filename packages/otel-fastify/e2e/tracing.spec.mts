@@ -1,184 +1,237 @@
 import { defineFastifyEnvironment } from '@navios/adapter-fastify'
 import { builder } from '@navios/builder'
-import { Controller, Endpoint, Module, NaviosApplication, NaviosFactory } from '@navios/core'
-import { trace, context as otelContext } from '@opentelemetry/api'
-import supertest from 'supertest'
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import {
+  Controller,
+  handler,
+  inject,
+  Injectable,
+  Module,
+  NaviosFactory,
+  NotFoundException,
+} from '@navios/core'
+import { RequestSpan, Traced } from '@navios/otel'
+import { SpanKind, SpanStatusCode, trace } from '@opentelemetry/api'
+import { BatchSpanProcessor, SimpleSpanProcessor } from '@opentelemetry/sdk-trace-node'
+import { afterEach, describe, expect, it } from 'vitest'
 import { z } from 'zod/v4'
 
-import type { FastifyEnvironment } from '@navios/adapter-fastify'
-import type { EndpointParams } from '@navios/core'
+import type { NaviosApplication } from '@navios/core'
+import type { ReadableSpan, SpanExporter, SpanProcessor } from '@opentelemetry/sdk-trace-node'
 
 import { defineOtelPlugin } from '../src/index.mjs'
 
-describe('OpenTelemetry Fastify Integration', () => {
-  let server: NaviosApplication<FastifyEnvironment>
+// The plugin is adapter-neutral. These tests run it on the real Fastify
+// adapter, through Fastify's own router and request objects.
 
-  const healthEndpoint = builder().declareEndpoint({
-    url: '/health',
-    method: 'GET',
-    responseSchema: z.object({
-      status: z.string(),
-    }),
-  })
+const api = builder()
 
-  const userEndpoint = builder().declareEndpoint({
-    url: '/users/$id',
-    method: 'GET',
-    responseSchema: z.object({
-      id: z.string(),
-      name: z.string(),
-    }),
-  })
+const getUser = api.declareEndpoint({
+  method: 'GET',
+  url: '/users/$id',
+  responseSchema: z.object({ id: z.string(), name: z.string() }),
+})
 
-  const echoEndpoint = builder().declareEndpoint({
-    url: '/echo',
-    method: 'POST',
-    requestSchema: z.object({
-      message: z.string(),
-    }),
-    responseSchema: z.object({
-      message: z.string(),
-      traced: z.boolean(),
-    }),
-  })
+const failing = api.declareEndpoint({
+  method: 'GET',
+  url: '/fail/$kind',
+  responseSchema: z.object({ ok: z.boolean() }),
+})
 
-  @Controller()
-  class AppController {
-    @Endpoint(healthEndpoint)
-    async health(_req: EndpointParams<typeof healthEndpoint>) {
-      return { status: 'ok' }
-    }
+const health = api.declareEndpoint({
+  method: 'GET',
+  url: '/health',
+  responseSchema: z.object({ status: z.string() }),
+})
 
-    @Endpoint(userEndpoint)
-    async getUser(req: EndpointParams<typeof userEndpoint>) {
-      return {
-        id: req.urlParams.id as string,
-        name: 'Test User',
-      }
-    }
+class CollectingExporter implements SpanExporter {
+  readonly spans: ReadableSpan[] = []
+  shutdowns = 0
 
-    @Endpoint(echoEndpoint)
-    async echo(req: EndpointParams<typeof echoEndpoint>) {
-      return {
-        message: req.data.message,
-        traced: true,
-      }
-    }
+  export(spans: ReadableSpan[], done: (result: { code: number }) => void): void {
+    this.spans.push(...spans)
+    done({ code: 0 })
   }
 
-  @Module({
-    controllers: [AppController],
+  async shutdown(): Promise<void> {
+    this.shutdowns++
+  }
+}
+
+@Traced({ name: 'user-service' })
+@Injectable()
+class UserService {
+  async findName(id: string) {
+    await new Promise((resolve) => setTimeout(resolve, 1))
+    return `user-${id}`
+  }
+}
+
+@Controller()
+class AppController {
+  private readonly users = inject(UserService)
+
+  getUser = handler(getUser, async ({ urlParams }, ctx) => {
+    ctx.get(RequestSpan).setAttribute('user.id', String(urlParams.id))
+    return { id: String(urlParams.id), name: await this.users.findName(String(urlParams.id)) }
   })
-  class AppModule {}
 
-  beforeAll(async () => {
-    // Disable any existing global tracer provider to ensure test isolation
-    trace.disable()
-    otelContext.disable()
+  failing = handler(failing, ({ urlParams }) => {
+    if (urlParams.kind === 'missing') {
+      throw new NotFoundException('Nothing here')
+    }
+    throw new Error('unexpected failure')
+  })
 
-    server = await NaviosFactory.create<FastifyEnvironment>(AppModule, {
+  health = handler(health, () => ({ status: 'ok' }))
+}
+
+@Module({ controllers: [AppController] })
+class AppModule {}
+
+describe('otel plugin on the Fastify adapter', () => {
+  let app: NaviosApplication<any> | null = null
+
+  async function start(exporter: CollectingExporter, processor?: SpanProcessor) {
+    app = await NaviosFactory.create(AppModule, {
       adapter: defineFastifyEnvironment(),
+      logger: false,
+      plugins: [
+        defineOtelPlugin({
+          serviceName: 'otel-fastify-test',
+          exporter: 'none',
+          spanProcessors: [processor ?? new SimpleSpanProcessor(exporter)],
+          ignoreRoutes: ['/health'],
+        }),
+      ],
+    })
+    await app.init()
+    return app
+  }
+
+  afterEach(async () => {
+    await app?.close()
+    app = null
+  })
+
+  it('creates a server span per request with the route name and status', async () => {
+    const exporter = new CollectingExporter()
+    const server = await start(exporter)
+
+    const response = await server.inject({ method: 'GET', url: '/users/42?verbose=1' })
+    expect(response.status).toBe(200)
+    expect(response.body).toEqual({ id: '42', name: 'user-42' })
+
+    const request = exporter.spans.find((span) => span.kind === SpanKind.SERVER)!
+    expect(request.name).toBe('HTTP GET /users/$id')
+    expect(request.attributes).toMatchObject({
+      'http.method': 'GET',
+      'http.route': '/users/$id',
+      'http.url': '/users/42',
+      'http.status_code': 200,
+      'user.id': '42',
+    })
+    expect(request.status.code).toBe(SpanStatusCode.OK)
+  })
+
+  it('parents the span of a traced service method to the request span', async () => {
+    const exporter = new CollectingExporter()
+    const server = await start(exporter)
+
+    await server.inject({ method: 'GET', url: '/users/7' })
+
+    const [child, request] = exporter.spans
+    expect(child.name).toBe('user-service.findName')
+    expect(request.name).toBe('HTTP GET /users/$id')
+    expect(child.parentSpanContext?.spanId).toBe(request.spanContext().spanId)
+    expect(child.spanContext().traceId).toBe(request.spanContext().traceId)
+  })
+
+  it('records the error for a 500 and for a thrown HttpException', async () => {
+    const exporter = new CollectingExporter()
+    const server = await start(exporter)
+
+    expect((await server.inject({ method: 'GET', url: '/fail/crash' })).status).toBe(500)
+    expect((await server.inject({ method: 'GET', url: '/fail/missing' })).status).toBe(404)
+
+    const [crash, missing] = exporter.spans
+    expect(crash.name).toBe('HTTP GET /fail/$kind')
+    expect(crash.attributes['http.status_code']).toBe(500)
+    expect(crash.status).toEqual({ code: SpanStatusCode.ERROR, message: 'unexpected failure' })
+    expect(crash.events[0].name).toBe('exception')
+    expect(missing.attributes['http.status_code']).toBe(404)
+    expect(missing.status).toEqual({ code: SpanStatusCode.ERROR, message: 'Nothing here' })
+    expect(missing.events[0].attributes?.['exception.type']).toBe('NotFoundException')
+  })
+
+  it('continues the trace of an incoming traceparent header', async () => {
+    const exporter = new CollectingExporter()
+    const server = await start(exporter)
+
+    await server.inject({
+      method: 'GET',
+      url: '/users/1',
+      headers: { traceparent: '00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01' },
     })
 
-    // Register OTel plugin
-    server.usePlugin(
-      defineOtelPlugin({
-        serviceName: 'test-otel-fastify',
-        exporter: 'none', // Don't export, just verify tracing setup
-        autoInstrument: {
-          http: true,
-          handlers: true,
-        },
-        ignoreRoutes: ['/health'],
-      }),
+    const request = exporter.spans.find((span) => span.kind === SpanKind.SERVER)!
+    expect(request.spanContext().traceId).toBe('0af7651916cd43dd8448eb211c80319c')
+    expect(request.parentSpanContext?.spanId).toBe('b7ad6b7169203331')
+  })
+
+  it('does not trace ignored paths', async () => {
+    const exporter = new CollectingExporter()
+    const server = await start(exporter)
+
+    expect((await server.inject({ method: 'GET', url: '/health' })).status).toBe(200)
+    expect(exporter.spans).toHaveLength(0)
+  })
+
+  it('creates no span for a request that matches no route', async () => {
+    const exporter = new CollectingExporter()
+    const server = await start(exporter)
+
+    expect((await server.inject({ method: 'GET', url: '/nonexistent' })).status).toBe(404)
+    expect(exporter.spans).toHaveLength(0)
+  })
+
+  it('keeps concurrent requests in separate traces', async () => {
+    const exporter = new CollectingExporter()
+    const server = await start(exporter)
+
+    await Promise.all(
+      ['1', '2', '3'].map((id) => server.inject({ method: 'GET', url: `/users/${id}` })),
     )
 
-    await server.init()
+    const requests = exporter.spans.filter((span) => span.kind === SpanKind.SERVER)
+    const children = exporter.spans.filter((span) => span.kind === SpanKind.INTERNAL)
+    expect(requests).toHaveLength(3)
+    expect(new Set(requests.map((span) => span.spanContext().traceId)).size).toBe(3)
+    for (const child of children) {
+      const parent = requests.find(
+        (span) => span.spanContext().spanId === child.parentSpanContext?.spanId,
+      )
+      expect(parent?.spanContext().traceId).toBe(child.spanContext().traceId)
+    }
   })
 
-  afterAll(async () => {
+  it('flushes buffered spans and shuts the SDK down on close', async () => {
+    const exporter = new CollectingExporter()
+    const server = await start(
+      exporter,
+      new BatchSpanProcessor(exporter, { scheduledDelayMillis: 60_000 }),
+    )
+
+    await server.inject({ method: 'GET', url: '/users/1' })
+    expect(exporter.spans).toHaveLength(0)
+
     await server.close()
-  })
+    app = null
 
-  describe('HTTP request handling', () => {
-    it('should handle GET requests correctly with tracing enabled', async () => {
-      const response = await supertest(server.getServer().server).get('/users/123')
-      expect(response.status).toBe(200)
-      expect(response.body).toEqual({
-        id: '123',
-        name: 'Test User',
-      })
-    })
-
-    it('should handle POST requests correctly with tracing enabled', async () => {
-      const response = await supertest(server.getServer().server)
-        .post('/echo')
-        .send({ message: 'Hello, Tracing!' })
-        .set('Content-Type', 'application/json')
-
-      expect(response.status).toBe(200)
-      expect(response.body).toEqual({
-        message: 'Hello, Tracing!',
-        traced: true,
-      })
-    })
-
-    it('should handle ignored routes without tracing errors', async () => {
-      // /health is in ignoreRoutes, should still work
-      const response = await supertest(server.getServer().server).get('/health')
-      expect(response.status).toBe(200)
-      expect(response.body).toEqual({ status: 'ok' })
-    })
-
-    it('should return 404 for unknown routes', async () => {
-      const response = await supertest(server.getServer().server).get('/unknown')
-      expect(response.status).toBe(404)
-    })
-  })
-
-  describe('Concurrent request handling', () => {
-    it('should handle multiple concurrent GET requests', async () => {
-      // Run requests sequentially to avoid ECONNRESET with supertest inject
-      const responses = []
-      for (let i = 0; i < 5; i++) {
-        const response = await supertest(server.getServer().server).get(`/users/${i + 1}`)
-        responses.push(response)
-      }
-
-      responses.forEach((response, i) => {
-        expect(response.status).toBe(200)
-        expect(response.body.id).toBe(String(i + 1))
-      })
-    })
-
-    it('should handle mixed request types', async () => {
-      // Run requests sequentially to avoid ECONNRESET with supertest inject
-      const response1 = await supertest(server.getServer().server).get('/users/1')
-      expect(response1.status).toBe(200)
-      expect(response1.body.id).toBe('1')
-
-      const response2 = await supertest(server.getServer().server).get('/health')
-      expect(response2.status).toBe(200)
-      expect(response2.body.status).toBe('ok')
-
-      const response3 = await supertest(server.getServer().server)
-        .post('/echo')
-        .send({ message: 'test1' })
-        .set('Content-Type', 'application/json')
-      expect(response3.status).toBe(200)
-      expect(response3.body.message).toBe('test1')
-
-      const response4 = await supertest(server.getServer().server).get('/users/2')
-      expect(response4.status).toBe(200)
-      expect(response4.body.id).toBe('2')
-
-      const response5 = await supertest(server.getServer().server)
-        .post('/echo')
-        .send({ message: 'test2' })
-        .set('Content-Type', 'application/json')
-      expect(response5.status).toBe(200)
-      expect(response5.body.message).toBe('test2')
-    })
+    expect(exporter.spans.map((span) => span.name).sort()).toEqual([
+      'HTTP GET /users/$id',
+      'user-service.findName',
+    ])
+    expect(exporter.shutdowns).toBe(1)
+    expect(trace.getActiveSpan()).toBeUndefined()
   })
 })

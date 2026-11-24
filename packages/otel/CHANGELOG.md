@@ -5,6 +5,41 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0] - Unreleased
+
+Ported to the 2.0 APIs of `@navios/di` and `@navios/core`. The package is now adapter-neutral and complete on its own: it no longer needs `@navios/otel-fastify` or `@navios/otel-bun`.
+
+### Breaking
+
+- **One plugin, `otelPlugin(options)`.** It starts the SDK, traces HTTP requests, traces `@Traced` services and shuts the SDK down. It replaces `defineOtelPlugin` from the adapter packages and `defineOtelTracingPlugin` from this one; `defineOtelTracingPlugin` and `OtelTracingPluginOptions` are removed.
+- **HTTP requests are traced by an interceptor**, `OtelHttpInterceptor`, on every adapter. A request that matches no route gets no span (1.x on Fastify created one). The span ends when the response has finished, including a streamed body, and reports the final status, including one produced by an `app.mapError()` mapper. The status is set as `http.status_code` and `http.response.status_code`.
+- **Removed options that did nothing or can no longer be honoured:** `autoInstrument.handlers`, `autoInstrument.guards`, `propagateContext`, `metrics.requestDuration` and `metrics.errorCount`. A request has one server span covering guards, validation and the handler.
+- **The OpenTelemetry SDK is no longer bundled into the build.** `@opentelemetry/resources`, `sdk-metrics`, `sdk-trace-node` and `semantic-conventions` are regular dependencies; the two OTLP exporters are optional peer dependencies.
+- **`http.url` is the request path** without the query string.
+- **`@Traced` services are instrumented in place** through `container.decorate` instead of being re-registered under a `:original` token behind a wrapper factory. `createTracedWrapperFactory` is removed. The object the container returns is the service itself rather than a `Proxy` around it.
+- **The package's own `AsyncLocalStorage` store is removed**, with `getSpanContextStore()`. The active span lives in the OpenTelemetry context. `getCurrentSpan()`, `getCurrentSpanContext()` and `runWithSpanContext()` remain and read or write that context.
+- **`OtelSetupService` no longer registers tokens itself** and takes no injected dependencies. The plugin creates it and provides it; `initialize(config, logger?)` takes an optional logger.
+- `SpanFactoryService` and `TracedProxyFactory` use the tracer provided by the plugin instead of the global one.
+
+### Added
+
+- `RequestSpan`: a request-context key holding the request's server span (`ctx.find(RequestSpan)`).
+- The request span is the active OpenTelemetry span while the request is handled, and each traced method runs with its own span active, so nested spans get the right parent.
+- `ignoreRoutes` is part of `OtelConfig`. `*` may appear anywhere in a pattern.
+- `spanProcessors`: extra span processors, for custom exporters and for tests.
+- `registerGlobally`: set to `false` to keep the provider, context manager and propagators out of the process-wide registration.
+- `MeterToken` is always provided; it is a no-op meter unless metrics are enabled.
+- `OtelSetupService.forceFlush()` and `getConfig()`.
+- `traceInstance()`, `extractTraceContext()`, `parentContext()`, `recordSpanError()`, `resolveOtelConfig()`, `compileIgnoreRoutes()`.
+- `TraceContextService.extractFromHeaders()` accepts a web `Headers` object and `ctx.headers` as well as a plain record.
+- Without a context manager, a `@Traced` method called during a request is parented to the request span when the application runs with `asyncContext: true`.
+
+### Changed
+
+- Shutting down takes back the process-wide tracer provider, context manager and propagators if this package registered them.
+- `#private` members work on traced services.
+- The package's own classes are registered with `registerInjectable`; the build no longer needs a decorator transform.
+
 ## [1.0.0-alpha.3] - 2026-01-18
 
 ### Added

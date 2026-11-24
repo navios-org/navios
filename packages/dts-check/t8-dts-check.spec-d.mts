@@ -71,33 +71,58 @@ expectTypeOf<ReturnType<typeof download>>().toEqualTypeOf<Promise<Blob>>()
 expectTypeOf<Awaited<ReturnType<typeof simple.safe>>['ok']>().toEqualTypeOf<boolean>()
 
 // --------------------------------------------------------------- @navios/core
-expectTypeOf<ReturnType<Core.CanActivate['canActivate']>>().toEqualTypeOf<
-  boolean | Promise<boolean>
->()
-expectTypeOf<Parameters<Core.CanActivate['canActivate']>>().toEqualTypeOf<
-  [executionContext: Core.AbstractExecutionContext]
->()
-expectTypeOf<ReturnType<typeof NaviosFactory.create>>().toEqualTypeOf<
-  Promise<Core.NaviosApplication<Core.DefaultAdapterEnvironment>>
->()
-expectTypeOf<Parameters<typeof NaviosFactory.create>[1]>().toEqualTypeOf<
-  Core.NaviosApplicationOptions | undefined
+declare const handler: typeof Core.handler
+declare const reply: typeof Core.reply
+declare const createContextKey: typeof Core.createContextKey
+
+expectTypeOf<ReturnType<Core.Guard['canActivate']>>().toEqualTypeOf<boolean | Promise<boolean>>()
+expectTypeOf<Parameters<Core.Guard['canActivate']>>().toEqualTypeOf<[ctx: Core.RequestContext]>()
+expectTypeOf<Parameters<Core.Interceptor['intercept']>>().toEqualTypeOf<
+  [ctx: Core.RequestContext, next: () => Promise<Core.RouteResult>]
 >()
 expectTypeOf<InstanceType<typeof Core.NotFoundException>['statusCode']>().toEqualTypeOf<number>()
+expectTypeOf<InstanceType<typeof Core.NotFoundException>>().toMatchTypeOf<Error>()
+
+// Without a `Register` declaration, the native objects are `unknown`, never `any`.
+expectTypeOf<Core.RequestContext['raw']>().toEqualTypeOf<unknown>()
+expectTypeOf<Core.RequestContext['headers']['get']>().toEqualTypeOf<
+  (name: string) => string | undefined
+>()
+
+const CurrentUser = createContextKey<{ name: string }>('CurrentUser')
+declare const ctx: Core.RequestContext
+expectTypeOf(ctx.get(CurrentUser)).toEqualTypeOf<{ name: string }>()
+expectTypeOf(ctx.find(CurrentUser)).toEqualTypeOf<{ name: string } | undefined>()
+
+const getUser = api.declareEndpoint({
+  method: 'GET',
+  url: '/users/$id',
+  responseSchema: z.object({ id: z.string() }),
+  errorSchema: { 404: z.object({ message: z.string() }) },
+})
+// The field form infers its parameters from the built declarations.
+handler(getUser, (params, context) => {
+  expectTypeOf(params.urlParams.id).toEqualTypeOf<string>()
+  expectTypeOf(context).toEqualTypeOf<Core.RequestContext>()
+  return params.urlParams.id === '0' ? reply(404, { message: 'missing' }) : { id: '1' }
+})
+// @ts-expect-error the response is missing `id`
+handler(getUser, () => ({}))
+expectTypeOf<Core.HandlerParams<typeof getUser>>().toEqualTypeOf<{ urlParams: { id: string } }>()
 
 // ---------------------------------------------------- @navios/adapter-fastify
-expectTypeOf<ReturnType<typeof defineFastifyEnvironment>>().toEqualTypeOf<{
-  tokens: Map<Di.InjectionToken<any, undefined, false>, Di.AnyInjectableType>
-}>()
-expectTypeOf<typeof Fastify.FastifyApplicationServiceToken>().toEqualTypeOf<
-  Di.InjectionToken<Fastify.FastifyApplicationServiceInterface, undefined, false>
+expectTypeOf<ReturnType<typeof defineFastifyEnvironment>>().toEqualTypeOf<
+  Core.AdapterDefinition<Fastify.FastifyEnvironment>
 >()
-expectTypeOf<typeof Fastify.FastifyEndpointAdapterToken>().toEqualTypeOf<
-  Di.InjectionToken<Fastify.FastifyEndpointAdapterService, undefined, false>
+expectTypeOf<Fastify.FastifyEnvironment['raw']['request']>().toEqualTypeOf<
+  import('fastify').FastifyRequest
 >()
-expectTypeOf<Fastify.FastifyApplicationServiceInterface['initServer']>().toEqualTypeOf<
-  () => Promise<void>
->()
+expectTypeOf<
+  Awaited<ReturnType<typeof NaviosFactory.create<Fastify.FastifyEnvironment>>>
+>().toEqualTypeOf<Core.NaviosApplication<Fastify.FastifyEnvironment>>()
+expectTypeOf<
+  ReturnType<Core.NaviosApplication<Fastify.FastifyEnvironment>['getServer']>
+>().toEqualTypeOf<import('fastify').FastifyInstance>()
 
 // --------------------------------------------------------- @navios/react-query
 expectTypeOf<ReturnType<typeof declareClient>>().toEqualTypeOf<ReactQuery.ClientInstance>()

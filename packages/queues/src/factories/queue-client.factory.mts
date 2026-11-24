@@ -1,4 +1,4 @@
-import { Factory, inject } from '@navios/di'
+import { inject, registerFactory } from '@navios/di'
 
 import type { FactoryContext, OnServiceDestroy, OnServiceInit } from '@navios/di'
 import type { z } from 'zod/v4'
@@ -19,10 +19,11 @@ type QueueClientWithLifecycle = QueueClient & OnServiceInit & OnServiceDestroy
  * The factory injects QueueConfigService to get the configuration,
  * then creates the appropriate client implementation.
  *
- * Since factories don't automatically call lifecycle hooks on created instances,
- * this factory manually initializes the client and registers cleanup handlers.
+ * The container calls `onServiceInit` and `onServiceDestroy` only on instances
+ * it constructs itself (class providers). A client is the product of this
+ * factory, so the factory connects it and registers its cleanup: the destroy
+ * listener runs when the client is invalidated or the container is disposed.
  */
-@Factory({ token: QueueClientToken })
 export class QueueClientFactory {
   private configService = inject(QueueConfigServiceToken)
 
@@ -51,10 +52,10 @@ export class QueueClientFactory {
         break
     }
 
-    // Initialize the client
+    // Connect the client
     await client.onServiceInit()
 
-    // Register cleanup handler for when the container is disposed
+    // Disconnect when the client is invalidated or the container is disposed
     ctx.addDestroyListener(async () => {
       await client.onServiceDestroy()
     })
@@ -62,3 +63,5 @@ export class QueueClientFactory {
     return client
   }
 }
+
+registerFactory(QueueClientFactory, { token: QueueClientToken })

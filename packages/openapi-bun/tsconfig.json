@@ -5,11 +5,23 @@
     "outDir": "dist"
   },
   "references": [
-    { "path": "./tsconfig.lib.json" },
-    { "path": "../core" },
-    { "path": "../di" },
-    { "path": "../openapi" },
-    { "path": "../adapter-bun" },
-    { "path": "../builder" }
+    {
+      "path": "./tsconfig.lib.json"
+    },
+    {
+      "path": "./tsconfig.spec.json"
+    },
+    {
+      "path": "../core"
+    },
+    {
+      "path": "../di"
+    },
+    {
+      "path": "../openapi"
+    },
+    {
+      "path": "../builder"
+    }
   ]
 }

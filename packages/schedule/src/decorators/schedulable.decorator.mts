@@ -1,15 +1,29 @@
-import { globalRegistry, Injectable, Registry } from '@navios/core'
+import { registerInjectable } from '@navios/core'
 
-import type { ClassType } from '@navios/core'
+import type { ClassType, InjectableScope } from '@navios/core'
 
 import { getScheduleMetadata } from '../metadata/index.mjs'
 
 /**
+ * Options for the `@Schedulable()` decorator.
+ *
+ * @public
+ */
+export interface SchedulableOptions {
+  /**
+   * DI scope of the class. Defaults to `InjectableScope.Singleton`: one
+   * instance runs every tick. With `InjectableScope.Request` each tick gets
+   * its own instance, created in that tick's DI scope and destroyed after it.
+   */
+  scope?: InjectableScope
+}
+
+/**
  * Decorator that marks a class as schedulable and makes it injectable.
  *
- * Classes decorated with `@Schedulable()` can contain methods decorated with `@Cron()`
- * that will be automatically scheduled and executed. This decorator also applies
- * the `@Injectable()` decorator, making the class available for dependency injection.
+ * Classes decorated with `@Schedulable()` can contain methods decorated with `@Cron()`.
+ * The decorator also registers the class for dependency injection, as
+ * `@Injectable()` does, so do not apply `@Injectable()` as well.
  *
  * @example
  * ```typescript
@@ -29,14 +43,15 @@ import { getScheduleMetadata } from '../metadata/index.mjs'
  *
  * @public
  */
-export function Schedulable({ registry }: { registry?: Registry } = {}) {
-  return (target: ClassType, context: ClassDecoratorContext) => {
+export function Schedulable({ scope }: SchedulableOptions = {}) {
+  return <T extends ClassType>(target: T, context: ClassDecoratorContext): T => {
     if (context.kind !== 'class') {
       throw new Error(`SchedulableDecorator can only be applied to classes, not ${context.kind}`)
     }
     if (context.metadata) {
       getScheduleMetadata(target, context)
     }
-    return Injectable({ registry: registry ?? globalRegistry })(target, context)
+    registerInjectable(target, { scope })
+    return target
   }
 }

@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0] - Unreleased
+
+**This package is deprecated.** The OpenTelemetry plugin is adapter-neutral in 2.0 and lives in `@navios/otel`. This package re-exports it so that existing imports resolve.
+
+### Breaking
+
+- `defineOtelPlugin` is now `otelPlugin` from `@navios/otel` under its old name. `app.usePlugin(defineOtelPlugin(options))` keeps working.
+- Removed `OtelFastifyPlugin`, `createOnRequestHook`, `createOnResponseHook` and `createOnErrorHook`. Requests are traced by an interceptor, not by Fastify hooks.
+- Removed `request.otelSpan`. Use `ctx.find(RequestSpan)` with `RequestSpan` from `@navios/otel`.
+- A request that matches no route no longer gets a span.
+- `http.response_content_length` is no longer set on request spans.
+
+### Changed
+
+- The peer dependencies are `@navios/core` and `@navios/otel` only.
+- `FastifyOtelPluginOptions` is an alias of `OtelPluginOptions` from `@navios/otel`.
+
 ## [1.0.0-alpha.3] - 2026-01-18
 
 ### Changed

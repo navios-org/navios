@@ -1,5 +1,4 @@
 import type { BoundInjectionToken, InjectionToken } from '../token/injection-token.mjs'
-import type { Registry } from '../token/registry.mjs'
 
 /**
  * Tracks method calls on a mocked service.
@@ -18,6 +17,7 @@ export interface MethodCallRecord {
 export interface LifecycleRecord {
   event: 'created' | 'initialized' | 'destroyed'
   timestamp: number
+  /** The token's name (`token.toString()`), or whatever the recorder passed. */
   instanceName: string
 }
 
@@ -34,7 +34,9 @@ export interface MockServiceStats {
  * A node in the dependency graph.
  */
 export interface DependencyNode {
+  /** The token's name (`token.toString()`). */
   token: string
+  /** The token's name, followed by `:<args key>` for an instance with args. */
   instanceName: string
   scope: string
   dependencies: string[]
@@ -83,12 +85,6 @@ export interface ProviderConfig<T = any> {
  * Options for TestContainer.
  */
 export interface TestContainerOptions {
-  /**
-   * Parent registry. Defaults to globalRegistry.
-   * Pass `null` to create a completely isolated container.
-   */
-  parentRegistry?: Registry | null
-
   /**
    * Logger for debugging.
    */

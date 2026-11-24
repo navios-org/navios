@@ -40,11 +40,9 @@
   },
   "devDependencies": {
     "@navios/core": "workspace:^",
-    "@types/jsonwebtoken": "^9.0.10",
-    "zod": "^4.6.7"
+    "@types/jsonwebtoken": "^9.0.10"
   },
   "peerDependencies": {
-    "@navios/core": "workspace:^",
-    "zod": "^3.25.0 || ^4.0.0"
+    "@navios/core": "workspace:^"
   }
 }

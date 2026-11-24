@@ -1,4 +1,4 @@
-import { inject, Injectable, InjectionToken, Logger } from '@navios/core'
+import { inject, InjectionToken, Logger, registerInjectable } from '@navios/core'
 import jwt from 'jsonwebtoken'
 
 import { JwtServiceOptionsSchema, RequestType } from './options/jwt-service.options.mjs'
@@ -11,16 +11,6 @@ import type {
   SignOptions,
   VerifyOptions,
 } from './options/jwt-service.options.mjs'
-
-/**
- * Injection token for JwtService.
- *
- * Used internally by the dependency injection system to register and resolve JwtService instances.
- */
-export const JwtServiceToken = InjectionToken.create(
-  Symbol.for('JwtService'),
-  JwtServiceOptionsSchema,
-)
 
 /**
  * Service for signing, verifying, and decoding JSON Web Tokens (JWTs).
@@ -50,12 +40,9 @@ export const JwtServiceToken = InjectionToken.create(
  * }
  * ```
  */
-@Injectable({
-  token: JwtServiceToken,
-})
 export class JwtService {
   logger = inject(Logger, {
-    context: JwtService.name,
+    context: 'JwtService',
   })
 
   /**
@@ -298,3 +285,16 @@ export class JwtService {
     return secret as GetSecretKeyResult
   }
 }
+
+/**
+ * Injection token for JwtService.
+ *
+ * Its argument is the service configuration (`JwtServiceOptions`). Use
+ * `provideJwtService()` to get a token with the configuration attached.
+ */
+export const JwtServiceToken = InjectionToken.create<JwtService, typeof JwtServiceOptionsSchema>(
+  'JwtService',
+  JwtServiceOptionsSchema,
+)
+
+registerInjectable(JwtService, { token: JwtServiceToken })

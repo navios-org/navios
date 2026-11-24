@@ -1,823 +1,223 @@
-# Testing Guide
+# Testing
 
-This guide covers testing strategies and best practices for Navios applications, including unit testing, integration testing, and end-to-end testing.
+There are three levels, from fastest to most realistic:
 
-## Testing Philosophy
+1. The whole application on the in-memory adapter, with no server and no socket.
+2. The whole application on a real adapter, through `app.inject()`.
+3. The application listening on an ephemeral port, called with `fetch`.
 
-Navios promotes a testing-first approach with:
+Services that do not involve HTTP are tested with a DI container alone.
 
-- **Unit Tests** - Test individual components in isolation
-- **Integration Tests** - Test component interactions
-- **End-to-End Tests** - Test complete user workflows
+## The in-memory adapter
 
-## Setting Up Testing
+`defineInMemoryEnvironment()` from `@navios/core/testing` is an adapter without a server. It runs the same compiled routes as a real adapter, so guards, validation, error mapping and request state behave the same.
 
-### Test Dependencies
-
-```bash
-npm install --save-dev vitest supertest @navios/builder
-```
-
-## Testing Module
-
-Navios provides a dedicated testing module that simplifies setting up test environments with mock dependencies.
-
-### Creating a Testing Module
-
-The `createTestingModule` function is the main entry point for setting up tests:
-
-```typescript
-import { createTestingModule } from '@navios/core/testing'
-
-import { AppModule } from './app.module'
-import { DatabaseService } from './database.service'
-
-describe('AppModule', () => {
-  it('should create application with mocked dependencies', async () => {
-    const mockDatabase = {
-      query: vi.fn().mockResolvedValue([]),
-    }
-
-    const testingModule = createTestingModule(AppModule, {
-      adapter: [], // No HTTP adapter for unit tests
-    })
-      .overrideProvider(DatabaseService)
-      .useValue(mockDatabase)
-
-    const app = await testingModule.compile()
-
-    // App is ready to use with mocked DatabaseService
-    expect(app).toBeDefined()
-
-    await testingModule.close()
-  })
-})
-```
-
-### TestingModule API
-
-#### `createTestingModule(appModule, options)`
-
-Creates a new testing module builder.
-
-```typescript
-const testingModule = createTestingModule(AppModule, {
-  adapter: [], // Required: HTTP adapter configuration
-  logger: false, // Optional: Disable logging for tests
-  overrides: [
-    // Optional: Initial overrides
-    { token: SomeService, useValue: mockService },
-  ],
-})
-```
-
-#### `.overrideProvider(token)`
-
-Returns a builder for overriding a provider:
-
-```typescript
-testingModule.overrideProvider(DatabaseService).useValue(mockDatabaseService) // Use a mock value
-
-testingModule.overrideProvider(CacheService).useClass(MockCacheService) // Use a mock class
-```
-
-#### `.compile()`
-
-Compiles the testing module and returns the `NaviosApplication`:
-
-```typescript
-const app = await testingModule.compile()
-```
-
-#### `.init()`
-
-Compiles and initializes the application (equivalent to calling `compile()` then `app.init()`):
-
-```typescript
-const app = await testingModule.init()
-```
-
-#### `.get(token)`
-
-Gets an instance from the container:
-
-```typescript
-const userService = await testingModule.get(UserService)
-```
-
-#### `.getContainer()`
-
-Gets the underlying `TestContainer` for direct manipulation:
-
-```typescript
-const container = testingModule.getContainer()
-container.bind(SomeToken).toValue(someValue)
-```
-
-#### `.close()`
-
-Disposes the testing module and cleans up resources:
-
-```typescript
-await testingModule.close()
-```
-
-### Custom Container Support
-
-You can also pass a custom container directly to `NaviosFactory.create()`:
-
-```typescript
+```ts
 import { NaviosFactory } from '@navios/core'
-import { TestContainer } from '@navios/core/testing'
+import { createTestClient, defineInMemoryEnvironment } from '@navios/core/testing'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
-const container = new TestContainer()
-container.bind(DatabaseService).toValue(mockDatabase)
+import type { NaviosApplication } from '@navios/core'
 
-const app = await NaviosFactory.create(AppModule, {
-  adapter: [],
-  container, // Use custom container
-})
-```
+import { createUser, getUser } from '../src/api.mjs'
+import { AppModule } from '../src/app.module.mjs'
 
-This is useful when you need more control over the container setup or when integrating with existing test infrastructure.
-
-## Unit Testing
-
-### Testing Services
-
-```typescript
-import { TestContainer } from '@navios/core/testing'
-
-import { DatabaseService } from './database.service.js'
-import { UserService } from './user.service.js'
-
-describe('UserService', () => {
-  let userService: UserService
-  let mockDatabase: vi.Mocked<DatabaseService>
-
-  beforeEach(() => {
-    const container = new TestContainer()
-
-    // Create mock database
-    mockDatabase = {
-      users: {
-        findUnique: vi.fn(),
-        findMany: vi.fn(),
-        create: vi.fn(),
-        update: vi.fn(),
-        delete: vi.fn(),
-      },
-    } as any
-
-    container.bind(DatabaseService).toValue(mockDatabase)
-    userService = container.get(UserService)
-  })
-
-  describe('findById', () => {
-    it('should return user when found', async () => {
-      const mockUser = { id: '1', name: 'John', email: 'john@test.com' }
-      mockDatabase.users.findUnique.mockResolvedValue(mockUser)
-
-      const result = await userService.findById('1')
-
-      expect(result).toEqual(mockUser)
-      expect(mockDatabase.users.findUnique).toHaveBeenCalledWith({
-        where: { id: '1' },
-      })
-    })
-
-    it('should return null when user not found', async () => {
-      mockDatabase.users.findUnique.mockResolvedValue(null)
-
-      const result = await userService.findById('1')
-
-      expect(result).toBeNull()
-    })
-  })
-
-  describe('create', () => {
-    it('should create and return new user', async () => {
-      const userData = { name: 'John', email: 'john@test.com' }
-      const createdUser = { id: '1', ...userData }
-
-      mockDatabase.users.create.mockResolvedValue(createdUser)
-
-      const result = await userService.create(userData)
-
-      expect(result).toEqual(createdUser)
-      expect(mockDatabase.users.create).toHaveBeenCalledWith({
-        data: userData,
-      })
-    })
-  })
-})
-```
-
-### Testing Controllers
-
-Controllers in Navios should use endpoints defined with `@navios/builder` for proper type safety and schema validation.
-
-#### Endpoint Definitions
-
-```typescript
-// api/user.endpoints.ts
-import { builder } from '@navios/builder'
-import { z } from 'zod'
-
-const userApi = builder()
-
-export const getUserByIdEndpoint = userApi.declareEndpoint({
-  method: 'GET',
-  url: '/users/$id',
-  responseSchema: z.object({
-    id: z.string(),
-    name: z.string(),
-    email: z.string().email(),
-  }),
-})
-
-export const createUserEndpoint = userApi.declareEndpoint({
-  method: 'POST',
-  url: '/users',
-  requestSchema: z.object({
-    name: z.string().min(1),
-    email: z.string().email(),
-  }),
-  responseSchema: z.object({
-    id: z.string(),
-    name: z.string(),
-    email: z.string().email(),
-  }),
-})
-```
-
-#### Controller Implementation
-
-```typescript
-// user.controller.ts
-import { Controller, Endpoint, EndpointParams } from '@navios/core'
-import { inject } from '@navios/di'
-
-import { createUserEndpoint, getUserByIdEndpoint } from '../api/user.endpoints'
-
-import { UserService } from './user.service'
-
-@Controller()
-export class UserController {
-  private userService = inject(UserService)
-
-  @Endpoint(getUserByIdEndpoint)
-  async getUserById(params: EndpointParams<typeof getUserByIdEndpoint>) {
-    const user = await this.userService.findById(params.params.id)
-    if (!user) {
-      throw new NotFoundException('User not found')
-    }
-    return user
-  }
-
-  @Endpoint(createUserEndpoint)
-  async createUser(params: EndpointParams<typeof createUserEndpoint>) {
-    return this.userService.create(params.data)
-  }
-}
-```
-
-#### Testing Controllers
-
-```typescript
-import { NotFoundException } from '@navios/core'
-import { TestContainer } from '@navios/core/testing'
-
-import type { EndpointParams } from '@navios/core'
-
-import { UserController } from './user.controller'
-import { UserService } from './user.service'
-
-describe('UserController', () => {
-  let container: TestContainer
-  let controller: UserController
-  let userService: vi.Mocked<UserService>
+describe('users', () => {
+  let app: NaviosApplication<any>
 
   beforeEach(async () => {
-    userService = {
-      findById: vi.fn(),
-      findAll: vi.fn(),
-      create: vi.fn(),
-      update: vi.fn(),
-      delete: vi.fn(),
-    } as any
-
-    container = new TestContainer()
-    // Use dependency injection or manual injection
-    controller = await container.get(UserController)
-    // Inject mocked service (implementation depends on your DI setup)
-  })
-
-  describe('getUserById', () => {
-    it('should return user when found', async () => {
-      const mockUser = { id: '1', name: 'John', email: 'john@test.com' }
-      userService.findById.mockResolvedValue(mockUser)
-
-      const result = await controller.getUserById({
-        params: { id: '1' },
-        query: {},
-        data: {},
-        headers: {},
-        request: {} as any,
-        response: {} as any,
-      })
-
-      expect(result).toEqual(mockUser)
-      expect(userService.findById).toHaveBeenCalledWith('1')
-    })
-
-    it('should throw NotFoundException when user not found', async () => {
-      userService.findById.mockResolvedValue(null)
-
-      await expect(
-        controller.getUserById({
-          params: { id: '1' },
-          query: {},
-          data: {},
-          headers: {},
-          request: {} as any,
-          response: {} as any,
-        }),
-      ).rejects.toThrow(NotFoundException)
+    app = await NaviosFactory.create(AppModule, {
+      adapter: defineInMemoryEnvironment(),
+      logger: false,
     })
   })
 
-  describe('createUser', () => {
-    it('should create and return new user', async () => {
-      const userData = { name: 'John', email: 'john@test.com' }
-      const createdUser = { id: '1', ...userData }
+  afterEach(async () => {
+    await app.close()
+  })
 
-      userService.create.mockResolvedValue(createdUser)
+  it('returns a user', async () => {
+    const call = createTestClient(app)
 
-      const result = await controller.createUser({
-        params: {},
-        query: {},
-        data: userData,
-        headers: {},
-        request: {} as any,
-        response: {} as any,
-      })
+    const found = await call(getUser, { urlParams: { id: '1' } })
+    expect(found.status).toBe(200)
+    expect(found.body).toEqual({ id: '1', name: 'Ann' })
 
-      expect(result).toEqual(createdUser)
-      expect(userService.create).toHaveBeenCalledWith(userData)
-    })
+    const invalid = await call(createUser, { data: { name: '' } })
+    expect(invalid.status).toBe(400)
+    expect(invalid.headers['content-type']).toBe('application/problem+json')
   })
 })
 ```
 
-### Testing Guards
+Create a new application for each test and close it afterwards. `close()` disposes the container, which keeps tests independent.
 
-```typescript
-import { TestContainer } from '@navios/core/testing'
+Limitations of the in-memory adapter:
 
-import { AuthGuard } from './auth.guard'
-import { JwtService } from './jwt.service'
-import { UserService } from './user.service'
+- `app.listen()` throws; there is no server.
+- A request body that is not a string is handed to the pipeline as is. A multipart endpoint is tested by passing an object with strings and `File` values as `data`; no multipart encoding or parsing takes place.
+- A malformed JSON string body produces a 400 problem response with `source: 'body'`, as on the Fastify and Bun adapters.
+- `ctx.signal` never aborts.
 
-describe('AuthGuard', () => {
-  let guard: AuthGuard
-  let jwtService: vi.Mocked<JwtService>
-  let userService: vi.Mocked<UserService>
+## `createTestClient`
 
-  beforeEach(() => {
-    const container = new TestContainer()
+`createTestClient(app, options?)` returns a function that calls a builder endpoint against the application in process.
 
-    jwtService = {
-      verify: vi.fn(),
-    } as any
-
-    userService = {
-      findById: vi.fn(),
-    } as any
-
-    container.bind(JwtService).toValue(jwtService)
-    container.bind(UserService).toValue(userService)
-
-    guard = container.get(AuthGuard)
-  })
-
-  describe('canActivate', () => {
-    it('should return true for valid token', async () => {
-      const mockUser = { id: '1', isActive: true }
-      const context = {
-        headers: { authorization: 'Bearer valid-token' },
-        request: {},
-      } as any
-
-      jwtService.verify.mockResolvedValue({ sub: '1' })
-      userService.findById.mockResolvedValue(mockUser)
-
-      const result = await guard.canActivate(context)
-
-      expect(result).toBe(true)
-      expect(context.request.user).toEqual(mockUser)
-    })
-
-    it('should return false for invalid token', async () => {
-      const context = {
-        headers: { authorization: 'Bearer invalid-token' },
-        request: {},
-      } as any
-
-      jwtService.verify.mockRejectedValue(new Error('Invalid token'))
-
-      const result = await guard.canActivate(context)
-
-      expect(result).toBe(false)
-      expect(context.request.user).toBeUndefined()
-    })
-
-    it('should return false when no token provided', async () => {
-      const context = {
-        headers: {},
-        request: {},
-      } as any
-
-      const result = await guard.canActivate(context)
-
-      expect(result).toBe(false)
-    })
-  })
+```ts
+const call = createTestClient(app, {
+  headers: { authorization: 'Bearer test-token' }, // sent with every call
+  prefix: '/api', // the path prefix of the routes under test
 })
+
+const response = await call(listUsers, { params: { limit: 5 }, headers: { 'x-trace': '1' } })
 ```
 
-## Integration Testing
+- Arguments are typed from the declaration: `urlParams`, `params` (query) and `data` (body), plus optional per-call `headers`.
+- The result is a `TestResponse`: `status`, `headers`, `text` (the raw body) and `body` (the body parsed as JSON when the content type is JSON, otherwise `undefined`).
+- The client builds the path from the declaration's `url` only. When the routes are mounted under a `globalPrefix` or module prefixes, pass the combined prefix as `prefix`.
 
-### Testing Module Integration
+Limitation: this is a thin typed wrapper over `app.inject()`. It is not the `@navios/builder` client: it does not validate the response against the declaration, does not type `body`, and does not throw on error statuses. Assert on `status` and `body` yourself.
 
-```typescript
-import { defineFastifyEnvironment } from '@navios/adapter-fastify'
-import { createTestingModule } from '@navios/core/testing'
+## `app.inject`
 
-import { DatabaseService } from './database.service'
-import { UserModule } from './user.module'
-import { UserService } from './user.service'
+`app.inject(request)` handles one request in process on whatever adapter the application uses. It initialises the application if needed.
 
-describe('UserModule', () => {
-  let testingModule: ReturnType<typeof createTestingModule>
-  let userService: UserService
-  let databaseService: DatabaseService
-
-  beforeAll(async () => {
-    testingModule = createTestingModule(UserModule, {
-      adapter: defineFastifyEnvironment(),
-    })
-
-    await testingModule.init()
-
-    userService = await testingModule.get(UserService)
-    databaseService = await testingModule.get(DatabaseService)
-  })
-
-  afterAll(async () => {
-    await testingModule.close()
-  })
-
-  it('should be defined', () => {
-    expect(userService).toBeDefined()
-    expect(databaseService).toBeDefined()
-  })
-
-  it('should inject dependencies correctly', () => {
-    expect(userService).toBeInstanceOf(UserService)
-  })
-})
-```
-
-### Testing HTTP Endpoints
-
-When testing HTTP endpoints, ensure your endpoints are defined using `@navios/builder` for proper validation and type safety.
-
-```typescript
-import { defineFastifyEnvironment } from '@navios/adapter-fastify'
-import { createTestingModule } from '@navios/core/testing'
-
-import * as request from 'supertest'
-
-import { AppModule } from '../app.module'
-
-describe('UserController (e2e)', () => {
-  let testingModule: ReturnType<typeof createTestingModule>
-  let httpServer: any
-
-  beforeAll(async () => {
-    testingModule = createTestingModule(AppModule, {
-      adapter: defineFastifyEnvironment(),
-    })
-
-    const app = await testingModule.init()
-    httpServer = app.getServer()
-  })
-
-  afterAll(async () => {
-    await testingModule.close()
-  })
-
-  describe('/users (GET)', () => {
-    it('should return array of users', () => {
-      return request(httpServer)
-        .get('/users')
-        .expect(200)
-        .expect((res) => {
-          expect(Array.isArray(res.body)).toBe(true)
-        })
-    })
-  })
-
-  describe('/users/:id (GET)', () => {
-    it('should return user by id', () => {
-      return request(httpServer)
-        .get('/users/1')
-        .expect(200)
-        .expect((res) => {
-          expect(res.body).toHaveProperty('id')
-          expect(res.body.id).toBe('1')
-        })
-    })
-
-    it('should return 404 for non-existent user', () => {
-      return request(httpServer).get('/users/999').expect(404)
-    })
-  })
-
-  describe('/users (POST)', () => {
-    it('should create new user', () => {
-      const userData = {
-        name: 'John Doe',
-        email: 'john@test.com',
-      }
-
-      return request(httpServer)
-        .post('/users')
-        .send(userData)
-        .expect(201)
-        .expect((res) => {
-          expect(res.body).toHaveProperty('id')
-          expect(res.body.name).toBe(userData.name)
-          expect(res.body.email).toBe(userData.email)
-        })
-    })
-
-    it('should return 400 for invalid data', () => {
-      return request(httpServer)
-        .post('/users')
-        .send({ name: '' }) // Invalid data
-        .expect(400)
-    })
-  })
-})
-
-  describe('/upload (POST) - Multipart', () => {
-    it('should handle file uploads', () => {
-      return request(httpServer)
-        .post('/upload')
-        .attach('file', Buffer.from('test file content'), 'test.txt')
-        .field('description', 'Test file upload')
-        .expect(201)
-        .expect((res) => {
-          expect(res.body).toHaveProperty('filename')
-          expect(res.body).toHaveProperty('size')
-        })
-    })
-  })
-})
-```
-
-### Testing Multipart Endpoints
-
-When testing multipart endpoints defined with `@navios/builder`:
-
-```typescript
-// api/upload.endpoints.ts
-import { builder } from '@navios/builder'
-// upload.controller.ts
-import { Controller, Multipart, MultipartParams } from '@navios/core'
-import { z } from 'zod'
-
-const api = builder()
-
-export const uploadEndpoint = api.declareMultipart({
+```ts
+const response = await app.inject({
   method: 'POST',
-  url: '/upload',
-  requestSchema: z.object({
-    files: z.array(z.instanceof(File)),
-    description: z.string(),
-  }),
-  responseSchema: z.object({
-    filename: z.string(),
-    size: z.number(),
-  }),
+  url: '/api/users?notify=true',
+  headers: { authorization: 'Bearer test-token' },
+  body: { name: 'Bob' },
 })
 
-@Controller()
-export class UploadController {
-  @Multipart(uploadEndpoint)
-  async uploadFile(params: MultipartParams<typeof uploadEndpoint>) {
-    const { files, description } = params.data
-    // Handle file upload logic
-    return {
-      filename: files[0].name,
-      size: files[0].size,
-    }
-  }
-}
+expect(response.status).toBe(201)
+expect(response.body).toEqual({ id: '2', name: 'Bob' })
 ```
 
-## Testing with Authentication
+`body` is sent as JSON unless it is a string, `FormData`, `Blob` or stream. On Fastify this goes through `fastify.inject()`, so Fastify's own parsing, hooks and plugins take part.
 
-### Testing Protected Endpoints
+## Over real HTTP
 
-```typescript
-describe('Protected Endpoints', () => {
-  let authToken: string
+To include the network layer, listen on port 0 and use `fetch`:
 
-  beforeAll(async () => {
-    // Login and get auth token
-    const loginResponse = await request(httpServer)
-      .post('/auth/login')
-      .send({
-        email: 'test@example.com',
-        password: 'password',
-      })
-      .expect(200)
-
-    authToken = loginResponse.body.token
-  })
-
-  describe('/profile (GET)', () => {
-    it('should return user profile with valid token', () => {
-      return request(httpServer)
-        .get('/profile')
-        .set('Authorization', `Bearer ${authToken}`)
-        .expect(200)
-    })
-
-    it('should return 401 without token', () => {
-      return request(httpServer).get('/profile').expect(401)
-    })
-
-    it('should return 401 with invalid token', () => {
-      return request(httpServer)
-        .get('/profile')
-        .set('Authorization', `Bearer invalid-token`)
-        .expect(401)
-    })
-  })
+```ts
+const app = await NaviosFactory.create(AppModule, {
+  adapter: defineFastifyEnvironment(),
+  logger: false,
 })
+const base = await app.listen({ port: 0, host: '127.0.0.1' })
+
+const response = await fetch(`${base}/users/1`)
 ```
 
-## Mock Strategies
+`listen` returns the base URL. On Bun the options are `{ port: 0, hostname: '127.0.0.1' }`.
 
-### Creating Service Mocks
+## Replacing dependencies
 
-```typescript
-// test/mocks/user.service.mock.ts
-export const mockUserService = {
-  findById: vi.fn(),
-  findAll: vi.fn(),
-  create: vi.fn(),
-  update: vi.fn(),
-  delete: vi.fn(),
-}
+Pass providers to the application. They win over everything declared in modules.
 
-// Reset mocks between tests
-beforeEach(() => {
-  vi.clearAllMocks()
-})
-```
-
-### Factory Pattern for Test Data
-
-```typescript
-// test/factories/user.factory.ts
-export class UserFactory {
-  static create(overrides: Partial<User> = {}): User {
-    return {
-      id: '1',
-      name: 'John Doe',
-      email: 'john@test.com',
-      createdAt: new Date(),
-      updatedAt: new Date(),
-      ...overrides,
-    }
-  }
-
-  static createMany(count: number, overrides: Partial<User> = {}): User[] {
-    return Array.from({ length: count }, (_, i) =>
-      this.create({
-        id: String(i + 1),
-        ...overrides,
-      }),
-    )
+```ts
+@Injectable()
+class FakeMailer {
+  sent: string[] = []
+  send(to: string) {
+    this.sent.push(to)
   }
 }
 
-// Usage in tests
-describe('UserService', () => {
-  it('should handle multiple users', async () => {
-    const users = UserFactory.createMany(3)
-    mockDatabase.users.findMany.mockResolvedValue(users)
-
-    const result = await userService.findAll()
-
-    expect(result).toHaveLength(3)
-    expect(result).toEqual(users)
-  })
+const app = await NaviosFactory.create(AppModule, {
+  adapter: defineInMemoryEnvironment(),
+  logger: false,
+  providers: [provide(Mailer, FakeMailer), provide(ApiKey, { value: 'test-key' })],
 })
+
+const mailer = (await app.get(Mailer)) as FakeMailer
 ```
 
-## Test Organization
+Request state can be set up the same way a real request would: send the header your guard reads, or replace the guard's dependency with a fake.
 
-### Folder Structure
+## Testing services with a DI container
 
-```
-src/
-├── user/
-│   ├── user.controller.ts
-│   ├── user.service.ts
-│   ├── user.module.ts
-│   └── __tests__/
-│       ├── user.controller.spec.ts
-│       ├── user.service.spec.ts
-└── test/
-    ├── fixtures/
-    ├── mocks/
-    ├── factories/
-    └── e2e/
-        └── user.e2e-spec.ts
-```
+A service that does not need HTTP is tested with a container from `@navios/di`:
 
-## Best Practices
+```ts
+import { Container, inject, Injectable } from '@navios/core'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
-### 1. Test Isolation
+describe('Greeter', () => {
+  let container: Container
 
-Ensure tests don't depend on each other:
-
-```typescript
-describe('UserService', () => {
   beforeEach(() => {
-    // Reset state before each test
-    vi.clearAllMocks()
+    container = new Container()
   })
 
-  // Each test should be independent
-})
-```
-
-### 2. Use Descriptive Test Names
-
-```typescript
-// ✅ Good - Descriptive names
-it('should throw NotFoundException when user does not exist', () => {})
-it('should return user data when valid ID is provided', () => {})
-
-// ❌ Avoid - Vague names
-it('should work', () => {})
-it('should fail', () => {})
-```
-
-### 3. Test Edge Cases
-
-```typescript
-describe('UserService.findById', () => {
-  it('should return user for valid ID', async () => {
-    // Happy path
+  afterEach(async () => {
+    await container.dispose()
   })
 
-  it('should return null for non-existent ID', async () => {
-    // Edge case
-  })
+  it('greets', async () => {
+    @Injectable()
+    class Names {
+      pick() {
+        return 'Ann'
+      }
+    }
 
-  it('should handle database connection errors', async () => {
-    // Error case
-  })
+    @Injectable()
+    class Greeter {
+      private readonly names = inject(Names)
+      greet() {
+        return `Hello, ${this.names.pick()}`
+      }
+    }
 
-  it('should validate ID format', async () => {
-    // Input validation
+    const greeter = await container.get(Greeter)
+    expect(greeter.greet()).toBe('Hello, Ann')
   })
 })
 ```
 
-### 4. Keep Tests Simple
+`TestContainer` from `@navios/di/testing` adds bindings and assertions:
 
-```typescript
-// ✅ Good - Simple and focused
-it('should create user with valid data', async () => {
-  const userData = { name: 'John', email: 'john@test.com' }
-  mockDatabase.users.create.mockResolvedValue({ id: '1', ...userData })
+```ts
+import { TestContainer } from '@navios/di/testing'
 
-  const result = await userService.create(userData)
+const container = new TestContainer()
+container.bind(Mailer).toValue(fakeMailer)
+container.bind(Clock).toClass(FixedClock)
+container.bind(ApiKey).toFactory(() => 'test-key')
 
-  expect(result).toMatchObject(userData)
-})
+const service = await container.get(SignupService)
+container.expectResolved(Mailer)
 
-// ❌ Avoid - Testing multiple things
-it('should create user and send email and log event', async () => {
-  // Too many responsibilities
+await container.clear()
+```
+
+A `TestContainer` can also back an application: pass it as the `container` option of `NaviosFactory.create`. The `@navios/di` documentation describes the test containers in full.
+
+## Testing a guard or a request value in isolation
+
+Guards and request values take a `RequestContext`, which is built by the pipeline. The practical way to test one is through a small module on the in-memory adapter:
+
+```ts
+it('rejects a request without a token', async () => {
+  @Controller()
+  class ProbeController {
+    @Endpoint(probe)
+    async probe() {
+      return { ok: true }
+    }
+  }
+
+  @Module({ controllers: [ProbeController], guards: [AuthGuard] })
+  class ProbeModule {}
+
+  const app = await NaviosFactory.create(ProbeModule, {
+    adapter: defineInMemoryEnvironment(),
+    logger: false,
+  })
+
+  expect((await createTestClient(app)(probe)).status).toBe(401)
+  await app.close()
 })
 ```

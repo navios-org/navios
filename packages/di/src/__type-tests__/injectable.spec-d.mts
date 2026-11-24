@@ -5,7 +5,6 @@ import { z } from 'zod/v4'
 import { Injectable } from '../decorators/index.mjs'
 import { InjectableScope } from '../enums/index.mjs'
 import { InjectionToken } from '../token/injection-token.mjs'
-import { Registry } from '../token/registry.mjs'
 
 interface FooService {
   makeFoo(): string
@@ -53,13 +52,6 @@ test('Injectable types', () => {
   // #1 Injectable with scope
   expectTypeOf(
     @Injectable({ scope: InjectableScope.Transient })
-    class {},
-  ).toBeConstructibleWith()
-
-  // #1 Injectable with registry
-  const registry = new Registry()
-  expectTypeOf(
-    @Injectable({ registry })
     class {},
   ).toBeConstructibleWith()
 
@@ -607,4 +599,46 @@ test('Injectable with static object fields and schema works with explicit type a
   ).toBeConstructibleWith({
     foo: 'something',
   })
+})
+
+test('Injectable with a schema whose input and output differ takes the output', () => {
+  const transformSchema = z.object({ foo: z.string() }).transform((value) => ({
+    length: value.foo.length,
+  }))
+  const transformToken = InjectionToken.create<FooService, typeof transformSchema>(
+    Symbol.for('Transform token'),
+    transformSchema,
+  )
+
+  expectTypeOf(
+    @Injectable({ schema: transformSchema })
+    class {
+      constructor(public arg: z.output<typeof transformSchema>) {}
+    },
+  ).toBeConstructibleWith({ length: 3 })
+
+  // @ts-expect-error the constructor receives the schema output, not its input
+  @Injectable({ schema: transformSchema })
+  class FailWithSchemaInput {
+    constructor(public arg: z.input<typeof transformSchema>) {}
+  }
+
+  expectTypeOf(
+    @Injectable({ token: transformToken })
+    class {
+      constructor(public arg: z.output<typeof transformSchema>) {}
+      makeFoo() {
+        return 'foo'
+      }
+    },
+  ).toBeConstructibleWith({ length: 3 })
+
+  // @ts-expect-error the constructor receives the schema output, not its input
+  @Injectable({ token: transformToken })
+  class FailWithTokenSchemaInput {
+    constructor(public arg: z.input<typeof transformSchema>) {}
+    makeFoo() {
+      return 'foo'
+    }
+  }
 })

@@ -1,521 +1,317 @@
 # Service Lifecycle
 
-Navios DI provides built-in support for service lifecycle management through the `OnServiceInit` and `OnServiceDestroy` interfaces. These hooks allow services to perform initialization and cleanup operations when they are created or destroyed.
+Navios DI has two lifecycle hooks: `onServiceInit()` runs after a service is constructed, and `onServiceDestroy()` runs when it is destroyed.
 
 ## Overview
 
-Service lifecycle hooks are called automatically by the DI container:
-
-- `onServiceInit()` - Called after the service is instantiated and all dependencies are injected
-- `onServiceDestroy()` - Called when the service is being destroyed (e.g., during container invalidation)
+1. **Construction** - the constructor runs and dependencies are injected.
+2. **Initialization** - `onServiceInit()` is called, if the class has one.
+3. **Use** - the instance is stored and handed out.
+4. **Destruction** - `onServiceDestroy()` is called when the instance is invalidated or its container or scope is disposed.
 
 ## Basic Usage
 
 ### Service with Lifecycle Hooks
 
-```typescript
-import { Injectable, OnServiceDestroy, OnServiceInit } from '@navios/di'
+```ts
+import { Injectable } from '@navios/di'
+
+import type { OnServiceDestroy, OnServiceInit } from '@navios/di'
 
 @Injectable()
 class DatabaseService implements OnServiceInit, OnServiceDestroy {
-  private connection: any = null
+  private connection: Connection | null = null
 
   async onServiceInit() {
-    console.log('Initializing database connection...')
-    this.connection = await this.connect()
-    console.log('Database connected successfully')
+    this.connection = await connect('postgres://localhost:5432/app')
   }
 
   async onServiceDestroy() {
-    console.log('Closing database connection...')
-    if (this.connection) {
-      await this.connection.close()
-      console.log('Database connection closed')
-    }
-  }
-
-  private async connect() {
-    // Simulate database connection
-    return new Promise((resolve) => {
-      setTimeout(() => resolve({ connected: true }), 100)
-    })
+    await this.connection?.close()
+    this.connection = null
   }
 
   async query(sql: string) {
     if (!this.connection) {
       throw new Error('Database not connected')
     }
-    return `Query result: ${sql}`
+    return this.connection.query(sql)
   }
 }
 ```
 
 ### Using the Service
 
-```typescript
+```ts
 import { Container } from '@navios/di'
 
 const container = new Container()
 
-// Service initialization happens automatically
-const dbService = await container.get(DatabaseService)
-// Output: "Initializing database connection..."
-// Output: "Database connected successfully"
+// Constructed and initialised before get() resolves
+const db = await container.get(DatabaseService)
+await db.query('SELECT 1')
 
-// Use the service
-const result = await dbService.query('SELECT * FROM users')
-console.log(result) // "Query result: SELECT * FROM users"
-
-// Service destruction happens when invalidated
-await container.invalidate(dbService)
-// Output: "Closing database connection..."
-// Output: "Database connection closed"
+// Calls onServiceDestroy()
+await container.dispose()
 ```
 
 ## Lifecycle Hook Details
 
 ### OnServiceInit
 
-The `onServiceInit` method is called after:
+```ts
+interface OnServiceInit {
+  onServiceInit(): Promise<void> | void
+}
+```
 
-1. The service instance is created
-2. All constructor dependencies are injected
-3. All property dependencies (via `asyncInject` or `inject`) are resolved
+`onServiceInit()` is called once per instance, after the constructor has returned. At that point every dependency obtained with `inject()` is constructed and initialised.
 
-```typescript
-import { inject, Injectable, OnServiceInit } from '@navios/di'
+The return value decides whether the service is ready at once:
 
+- If it returns anything that is not a promise, the instance is ready immediately. The service can be resolved with `getSync()` and injected without any waiting.
+- If it returns a promise, the instance is pending until the promise settles. `get()` waits for it, and so does every service that injects it. `getSync()` throws `AsyncInitRequired` while it is pending.
+
+An instance is never visible to other services before its `onServiceInit()` has finished:
+
+```ts
 @Injectable()
-class LoggerService {
-  log(message: string) {
-    console.log(`[LOG] ${message}`)
+class Slow implements OnServiceInit {
+  ready = false
+
+  async onServiceInit() {
+    await loadSomething()
+    this.ready = true
   }
 }
 
 @Injectable()
-class DatabaseService implements OnServiceInit {
-  private readonly logger = inject(LoggerService)
-  private connection: any = null
+class Consumer implements OnServiceInit {
+  private readonly slow = inject(Slow)
 
-  async onServiceInit() {
-    // Logger is already available here
-    this.logger.log('Starting database initialization...')
-
-    this.connection = await this.connect()
-
-    this.logger.log('Database initialization complete')
-  }
-
-  private async connect() {
-    // Simulate connection
-    return new Promise((resolve) => {
-      setTimeout(() => resolve({ connected: true }), 100)
-    })
+  onServiceInit() {
+    console.log(this.slow.ready) // always true
   }
 }
 ```
 
+If `onServiceInit()` throws or rejects, resolution fails with a `DIError` with code `InitializationError` whose `cause` is the original error. The instance is not stored, so the next resolution constructs and initialises a new one.
+
 ### OnServiceDestroy
 
-The `onServiceDestroy` method is called when:
+```ts
+interface OnServiceDestroy {
+  onServiceDestroy(): Promise<void> | void
+}
+```
 
-1. The service is explicitly invalidated via `container.invalidate()`
-2. The container is being destroyed
-3. The service instance is being garbage collected
+`onServiceDestroy()` is called when:
 
-```typescript
-import { Injectable, OnServiceDestroy } from '@navios/di'
+- the instance is passed to `container.invalidate()`
+- a service it depends on is invalidated
+- the container that holds it is disposed (singletons), or its scope is disposed (request-scoped services)
 
+An error thrown by a destroy hook does not prevent other instances from being destroyed.
+
+Values produced by a `@Factory` class or a function provider have no `onServiceDestroy()` hook. Register their cleanup with `ctx.addDestroyListener()`; see [Factory Decorator](./factory.md#factory-context). A value stored with `addInstance()` that has an `onServiceDestroy()` method gets it called on destruction.
+
+## Destruction Order
+
+### On dispose
+
+`dispose()` destroys instances in reverse creation order. A service is always created after the dependencies it injects, so it is destroyed before them:
+
+```ts
 @Injectable()
-class CacheService implements OnServiceDestroy {
-  private cache = new Map()
-  private cleanupInterval: NodeJS.Timeout | null = null
-
-  async onServiceDestroy() {
-    console.log('Cleaning up cache service...')
-
-    // Clear the cache
-    this.cache.clear()
-
-    // Clear any intervals
-    if (this.cleanupInterval) {
-      clearInterval(this.cleanupInterval)
-      this.cleanupInterval = null
-    }
-
-    console.log('Cache service cleanup complete')
-  }
-
-  set(key: string, value: any) {
-    this.cache.set(key, value)
-  }
-
-  get(key: string) {
-    return this.cache.get(key)
+class First implements OnServiceDestroy {
+  onServiceDestroy() {
+    console.log('first')
   }
 }
+
+@Injectable()
+class Second implements OnServiceDestroy {
+  private readonly first = inject(First)
+
+  onServiceDestroy() {
+    console.log('second')
+  }
+}
+
+await container.get(Second)
+await container.dispose()
+// second
+// first
+```
+
+### On invalidate
+
+`invalidate(instance)` destroys the services that depend on the instance first, then the instance, then the transients the instance injected:
+
+```ts
+await container.get(Second)
+
+await container.invalidate(await container.get(First))
+// second
+// first
+
+const again = await container.get(Second) // a new Second with a new First
+```
+
+### Listening for destruction
+
+`onInvalidate()` calls a listener when a particular instance is destroyed:
+
+```ts
+const stop = container.onInvalidate(Second, undefined, () => {
+  console.log('Second was destroyed')
+})
+
+stop() // remove the listener
+```
+
+On a scope, the listener is attached to whichever container owns the instance: the scope for a request-scoped service, the root container for a singleton.
+
+## Transients
+
+A transient is owned by whatever created it:
+
+- A transient injected into a service is destroyed together with that service.
+- A transient resolved directly from a scope (`scope.get()` or `scope.getSync()`) is destroyed when the scope is disposed.
+- A transient resolved directly from the root container is not tracked. Its `onServiceDestroy()` is not called by `dispose()`; the caller is responsible for it.
+
+```ts
+@Injectable({ scope: InjectableScope.Transient })
+class TempFile implements OnServiceDestroy {
+  onServiceDestroy() {
+    // remove the file
+  }
+}
+
+@Injectable()
+class Exporter {
+  private readonly input = inject(TempFile)
+  private readonly output = inject(TempFile)
+}
+
+const exporter = await container.get(Exporter)
+await container.invalidate(exporter) // both TempFile instances are destroyed
 ```
 
 ## Advanced Patterns
 
 ### Service with Multiple Resources
 
-```typescript
-import { Injectable, OnServiceDestroy, OnServiceInit } from '@navios/di'
-
+```ts
 @Injectable()
-class ResourceManager implements OnServiceInit, OnServiceDestroy {
-  private resources: Array<{ name: string; cleanup: () => Promise<void> }> = []
+class MessagingService implements OnServiceInit, OnServiceDestroy {
+  private publisher: Publisher | null = null
+  private subscriber: Subscriber | null = null
 
   async onServiceInit() {
-    console.log('Initializing resources...')
-
-    // Initialize multiple resources
-    await this.initializeDatabase()
-    await this.initializeCache()
-    await this.initializeFileSystem()
-
-    console.log('All resources initialized')
+    this.publisher = await createPublisher()
+    try {
+      this.subscriber = await createSubscriber()
+    } catch (error) {
+      // onServiceDestroy is not called for an instance that failed to initialise
+      await this.publisher.close()
+      throw error
+    }
   }
 
   async onServiceDestroy() {
-    console.log('Cleaning up resources...')
-
-    // Clean up in reverse order
-    for (let i = this.resources.length - 1; i >= 0; i--) {
-      const resource = this.resources[i]
-      try {
-        console.log(`Cleaning up ${resource.name}...`)
-        await resource.cleanup()
-        console.log(`${resource.name} cleaned up successfully`)
-      } catch (error) {
-        console.error(`Error cleaning up ${resource.name}:`, error)
-      }
-    }
-
-    this.resources = []
-    console.log('All resources cleaned up')
-  }
-
-  private async initializeDatabase() {
-    const connection = { connected: true }
-    this.resources.push({
-      name: 'Database',
-      cleanup: async () => {
-        connection.connected = false
-        console.log('Database connection closed')
-      },
-    })
-  }
-
-  private async initializeCache() {
-    const cache = new Map()
-    this.resources.push({
-      name: 'Cache',
-      cleanup: async () => {
-        cache.clear()
-        console.log('Cache cleared')
-      },
-    })
-  }
-
-  private async initializeFileSystem() {
-    const files = ['temp1.txt', 'temp2.txt']
-    this.resources.push({
-      name: 'FileSystem',
-      cleanup: async () => {
-        // Simulate file cleanup
-        console.log(`Cleaned up files: ${files.join(', ')}`)
-      },
-    })
+    // Close in reverse order of creation
+    await this.subscriber?.close()
+    await this.publisher?.close()
   }
 }
 ```
 
-### Service with Conditional Initialization
+### Service with Synchronous Initialization
 
-```typescript
-import { Injectable, OnServiceDestroy, OnServiceInit } from '@navios/di'
+When the work is synchronous, do not mark `onServiceInit()` as `async`. A synchronous hook keeps the whole resolution synchronous:
 
+```ts
 @Injectable()
-class ConditionalService implements OnServiceInit, OnServiceDestroy {
-  private initialized = false
-  private resources: any[] = []
+class RouteTable implements OnServiceInit {
+  private readonly routes = new Map<string, Handler>()
+  private readonly registry = inject(HandlerRegistry)
 
-  async onServiceInit() {
-    console.log('Checking initialization conditions...')
-
-    // Check if we should initialize
-    if (await this.shouldInitialize()) {
-      await this.performInitialization()
-      this.initialized = true
-      console.log('Service initialized successfully')
-    } else {
-      console.log('Skipping initialization due to conditions')
-    }
-  }
-
-  async onServiceDestroy() {
-    if (this.initialized) {
-      console.log('Cleaning up initialized service...')
-      await this.performCleanup()
-      this.initialized = false
-      console.log('Service cleanup complete')
-    } else {
-      console.log('No cleanup needed - service was not initialized')
-    }
-  }
-
-  private async shouldInitialize(): Promise<boolean> {
-    // Check environment variables, configuration, etc.
-    return process.env.NODE_ENV !== 'test'
-  }
-
-  private async performInitialization() {
-    // Initialize resources
-    this.resources.push(await this.createResource('Resource1'))
-    this.resources.push(await this.createResource('Resource2'))
-  }
-
-  private async performCleanup() {
-    // Clean up resources
-    for (const resource of this.resources) {
-      await resource.cleanup()
-    }
-    this.resources = []
-  }
-
-  private async createResource(name: string) {
-    return {
-      name,
-      cleanup: async () => console.log(`Cleaned up ${name}`),
+  onServiceInit() {
+    for (const handler of this.registry.all()) {
+      this.routes.set(handler.path, handler)
     }
   }
 }
-```
 
-### Service with Error Handling
-
-```typescript
-import { Injectable, OnServiceDestroy, OnServiceInit } from '@navios/di'
-
-@Injectable()
-class RobustService implements OnServiceInit, OnServiceDestroy {
-  private connection: any = null
-  private retryCount = 0
-  private maxRetries = 3
-
-  async onServiceInit() {
-    console.log('Initializing robust service...')
-
-    try {
-      await this.initializeWithRetry()
-      console.log('Service initialized successfully')
-    } catch (error) {
-      console.error('Failed to initialize service:', error)
-      // Don't throw - let the service be created but mark it as failed
-      this.connection = null
-    }
-  }
-
-  async onServiceDestroy() {
-    console.log('Cleaning up robust service...')
-
-    try {
-      if (this.connection) {
-        await this.connection.close()
-        console.log('Connection closed successfully')
-      }
-    } catch (error) {
-      console.error('Error during cleanup:', error)
-      // Don't throw - cleanup should be best effort
-    }
-  }
-
-  private async initializeWithRetry(): Promise<void> {
-    for (let i = 0; i < this.maxRetries; i++) {
-      try {
-        this.connection = await this.connect()
-        this.retryCount = i
-        return
-      } catch (error) {
-        console.log(`Initialization attempt ${i + 1} failed:`, error.message)
-        if (i === this.maxRetries - 1) {
-          throw error
-        }
-        // Wait before retry
-        await new Promise((resolve) => setTimeout(resolve, 1000 * (i + 1)))
-      }
-    }
-  }
-
-  private async connect() {
-    // Simulate connection that might fail
-    return new Promise((resolve, reject) => {
-      setTimeout(() => {
-        if (Math.random() > 0.3) {
-          // 70% success rate
-          resolve({ connected: true })
-        } else {
-          reject(new Error('Connection failed'))
-        }
-      }, 100)
-    })
-  }
-
-  async performOperation() {
-    if (!this.connection) {
-      throw new Error('Service not properly initialized')
-    }
-    return 'Operation completed'
-  }
-}
+const table = container.getSync(RouteTable)
 ```
 
 ## Lifecycle with Dependencies
 
-### Service Depending on Other Services with Lifecycle
-
-```typescript
-import { inject, Injectable, OnServiceDestroy, OnServiceInit } from '@navios/di'
-
-@Injectable()
-class LoggerService implements OnServiceInit, OnServiceDestroy {
-  private logFile: any = null
-
-  async onServiceInit() {
-    console.log('Initializing logger...')
-    this.logFile = { name: 'app.log', open: true }
-    console.log('Logger initialized')
-  }
-
-  async onServiceDestroy() {
-    console.log('Closing logger...')
-    if (this.logFile) {
-      this.logFile.open = false
-      console.log('Logger closed')
-    }
-  }
-
-  log(message: string) {
-    console.log(`[LOG] ${message}`)
-  }
-}
-
+```ts
 @Injectable()
 class DatabaseService implements OnServiceInit, OnServiceDestroy {
-  private readonly logger = inject(LoggerService)
-  private connection: any = null
-
   async onServiceInit() {
-    // Logger is already initialized at this point
-    this.logger.log('Initializing database...')
-
-    this.connection = await this.connect()
-
-    this.logger.log('Database initialized')
+    console.log('database: init')
   }
 
   async onServiceDestroy() {
-    this.logger.log('Closing database...')
-
-    if (this.connection) {
-      await this.connection.close()
-      this.logger.log('Database closed')
-    }
-  }
-
-  private async connect() {
-    return new Promise((resolve) => {
-      setTimeout(() => resolve({ connected: true }), 100)
-    })
+    console.log('database: destroy')
   }
 }
+
+@Injectable()
+class UserService implements OnServiceInit, OnServiceDestroy {
+  private readonly db = inject(DatabaseService)
+
+  async onServiceInit() {
+    console.log('users: init')
+  }
+
+  async onServiceDestroy() {
+    console.log('users: destroy')
+  }
+}
+
+const container = new Container()
+await container.get(UserService)
+await container.dispose()
+// database: init
+// users: init
+// users: destroy
+// database: destroy
 ```
+
+`DatabaseService` has an asynchronous `onServiceInit()`. On the first build of `UserService` the container therefore discards the first construction pass, waits for the database and constructs `UserService` again. This is why constructors should have no side effects; see [How a Class is Constructed](./injectable.md#how-a-class-is-constructed).
 
 ## Best Practices
 
-### 1. Always Check Resource State
+### 1. Put setup in `onServiceInit`, not in the constructor
 
-```typescript
-// ✅ Good: Check if resource exists before cleanup
-async onServiceDestroy() {
-  if (this.connection) {
-    await this.connection.close()
-    this.connection = null
-  }
-}
+The constructor may run twice on the first build, and dependencies with asynchronous initialisers are not usable inside it.
 
-// ❌ Avoid: Assuming resource exists
-async onServiceDestroy() {
-  await this.connection.close() // Might throw if connection is null
-}
-```
+### 2. Keep `onServiceInit` synchronous when the work is synchronous
 
-### 2. Handle Errors Gracefully
+An `async` hook makes every dependent service wait and rules out `getSync()` until it settles.
 
-```typescript
-// ✅ Good: Handle errors without throwing
-async onServiceDestroy() {
-  try {
-    if (this.connection) {
-      await this.connection.close()
-    }
-  } catch (error) {
-    console.error('Error during cleanup:', error)
-    // Don't throw - cleanup should be best effort
-  }
-}
-```
+### 3. Release what you acquire
 
-### 3. Use Async/Await Consistently
+Everything opened in `onServiceInit()` should be closed in `onServiceDestroy()`, in reverse order.
 
-```typescript
-// ✅ Good: Use async/await for consistency
-async onServiceInit() {
-  this.connection = await this.connect()
-  this.cache = await this.initializeCache()
-}
+### 4. Clean up after a partial initialisation
 
-// ❌ Avoid: Mixing promises and async/await
-async onServiceInit() {
-  this.connection = await this.connect()
-  this.cache = this.initializeCache() // Missing await
-}
-```
+If `onServiceInit()` fails halfway, release what was already acquired before rethrowing. `onServiceDestroy()` is not called for an instance that never became ready.
 
-### 4. Clean Up in Reverse Order
+### 5. Wait for pending work before reading state
 
-```typescript
-// ✅ Good: Clean up in reverse order of initialization
-async onServiceDestroy() {
-  // Clean up in reverse order
-  await this.cleanupResource3()
-  await this.cleanupResource2()
-  await this.cleanupResource1()
-}
-```
-
-### 5. Don't Block Initialization
-
-```typescript
-// ✅ Good: Don't block on non-critical operations
-async onServiceInit() {
-  // Critical initialization
-  this.connection = await this.connect()
-
-  // Non-critical operations can be done asynchronously
-  this.initializeMetrics().catch(error => {
-    console.error('Failed to initialize metrics:', error)
-  })
-}
-```
+`await container.ready()` resolves when no service is still initialising.
 
 ## API Reference
 
 ### OnServiceInit Interface
 
-```typescript
+```ts
 interface OnServiceInit {
   onServiceInit(): Promise<void> | void
 }
@@ -523,7 +319,7 @@ interface OnServiceInit {
 
 ### OnServiceDestroy Interface
 
-```typescript
+```ts
 interface OnServiceDestroy {
   onServiceDestroy(): Promise<void> | void
 }
@@ -531,9 +327,8 @@ interface OnServiceDestroy {
 
 ### Lifecycle Order
 
-1. **Service Creation**: Constructor is called
-2. **Dependency Injection**: Dependencies are injected
-3. **onServiceInit**: Called after all dependencies are resolved
-4. **Service Usage**: Service is ready for use
-5. **onServiceDestroy**: Called when service is being destroyed
-6. **Cleanup**: Resources are cleaned up
+1. Constructor and field initialisers
+2. `onServiceInit()`
+3. Container decorators (`container.decorate()`)
+4. The instance is stored and returned
+5. `onServiceDestroy()` on invalidation or disposal, dependents first

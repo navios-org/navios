@@ -63,6 +63,31 @@ export interface MessageDefinition<
   config: BaseMessageConfig<Pattern, PayloadSchema, ResponseSchema>
 }
 
+/** What `declarePubSub()` returns: a definition whose `topic` is known to be set. */
+export interface PubSubMessageDefinition<
+  PayloadSchema extends ZodType = ZodType,
+> extends MessageDefinition<'pubsub', PayloadSchema> {
+  config: BaseMessageConfig<'pubsub', PayloadSchema, never> & { topic: string }
+}
+
+/** What `declarePointToPoint()` returns: a definition whose `queue` is known to be set. */
+export interface PointToPointMessageDefinition<
+  PayloadSchema extends ZodType = ZodType,
+> extends MessageDefinition<'point-to-point', PayloadSchema> {
+  config: BaseMessageConfig<'point-to-point', PayloadSchema, never> & { queue: string }
+}
+
+/** What `declareRequestReply()` returns: `topic` and `responseSchema` are known to be set. */
+export interface RequestReplyMessageDefinition<
+  PayloadSchema extends ZodType = ZodType,
+  ResponseSchema extends ZodType = ZodType,
+> extends MessageDefinition<'request-reply', PayloadSchema, ResponseSchema> {
+  config: BaseMessageConfig<'request-reply', PayloadSchema, ResponseSchema> & {
+    topic: string
+    responseSchema: ResponseSchema
+  }
+}
+
 export const pubsubMessageDefinitionSchema = z.object({
   config: pubsubMessageConfigSchema,
 })
@@ -75,7 +100,9 @@ export const requestReplyMessageDefinitionSchema = z.object({
   config: requestReplyMessageConfigSchema,
 })
 
-export const abstractMessageDefinitionSchema = z.discriminatedUnion('pattern', [
+// The discriminator (`pattern`) is nested under `config`, so this is a plain
+// union: `z.discriminatedUnion('pattern', ...)` throws when the module loads.
+export const abstractMessageDefinitionSchema = z.union([
   pubsubMessageDefinitionSchema,
   pointToPointMessageDefinitionSchema,
   requestReplyMessageDefinitionSchema,

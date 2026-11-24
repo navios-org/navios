@@ -1,13 +1,12 @@
 import supertest from 'supertest'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 
-import type { FastifyEnvironment } from '@navios/adapter-fastify'
 import type { NaviosApplication } from '@navios/core'
 
 import { createApp } from '../src/bootstrap.mjs'
 
 describe('Files API', () => {
-  let server: NaviosApplication<FastifyEnvironment>
+  let server: NaviosApplication
 
   beforeAll(async () => {
     server = await createApp()
@@ -43,6 +42,7 @@ describe('Files API', () => {
         .field('description', 'no file provided')
 
       expect(response.status).toBe(400)
+      expect(response.body).toMatchObject({ title: 'Bad Request', detail: 'File is required' })
     })
 
     it('should reject without authorization', async () => {
@@ -68,6 +68,21 @@ describe('Files API', () => {
       expect(response.body.total).toBe(3)
       expect(response.body.uploaded[0]).toHaveProperty('id')
       expect(response.body.uploaded[0]).toHaveProperty('filename')
+    })
+
+    // FRAMEWORK: createMultipartCollector asks zod for JSON Schema with
+    // `unrepresentable: 'any'` at the top level instead of under
+    // `libraryOptions`, so the conversion throws for `z.instanceof(File)`,
+    // the array shape of `files` is unknown and a single file arrives as a
+    // File instead of [File]. Remove `.fails` once that is fixed.
+    it('should accept a single file for an array field', async () => {
+      const response = await request()
+        .post('/files/upload-multiple')
+        .set('Authorization', 'Bearer valid-token')
+        .attach('files', Buffer.from('only file'), 'only.txt')
+
+      expect(response.status).toBe(200)
+      expect(response.body.total).toBe(1)
     })
 
     it('should reject without files', async () => {
@@ -133,6 +148,7 @@ describe('Files API', () => {
       const response = await request().get('/files/non-existent/download')
 
       expect(response.status).toBe(404)
+      expect(response.headers['content-type']).toContain('application/problem+json')
     })
   })
 

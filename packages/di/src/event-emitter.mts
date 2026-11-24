@@ -2,8 +2,8 @@
 /* eslint-disable @typescript-eslint/no-empty-object-type */
 /* eslint-disable @typescript-eslint/no-unsafe-function-type */
 
-import { Injectable } from './decorators/index.mjs'
 import { InjectableScope } from './enums/index.mjs'
+import { registerInjectable } from './token/provider.mjs'
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 export type EventsConfig = {
@@ -15,7 +15,6 @@ export type EventsArgs<
   Name extends EventsNames<Events>,
 > = Events[Name] extends any[] ? Events[Name] : []
 
-@Injectable({ scope: InjectableScope.Transient })
 export class EventEmitter<Events extends EventsConfig = {}> {
   private listeners: Map<EventsNames<Events>, Set<Function>> = new Map()
 
@@ -72,3 +71,5 @@ export class EventEmitter<Events extends EventsConfig = {}> {
     return Promise.all(Array.from(this.listeners.get(event)!).map((listener) => listener(...args)))
   }
 }
+
+registerInjectable(EventEmitter, { scope: InjectableScope.Transient })

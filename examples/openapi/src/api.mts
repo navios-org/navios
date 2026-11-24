@@ -7,38 +7,31 @@ export const API = builder()
 // Schemas with OpenAPI metadata
 // ============================================================================
 
-export const userSchema = z.object({
-  id: z.string().meta({
-    openapi: {
+export const userSchema = z
+  .object({
+    id: z.string().meta({
       description: 'Unique user identifier',
       example: 'usr_abc123',
-    },
-  }),
-  name: z.string().min(1).max(100).meta({
-    openapi: {
+    }),
+    name: z.string().min(1).max(100).meta({
       description: 'User display name',
       example: 'John Doe',
-    },
-  }),
-  email: z.string().email().meta({
-    openapi: {
+    }),
+    email: z.string().email().meta({
       description: 'User email address',
       example: 'john@example.com',
-    },
-  }),
-  role: z.enum(['user', 'admin', 'moderator']).meta({
-    openapi: {
+    }),
+    role: z.enum(['user', 'admin', 'moderator']).meta({
       description: 'User role in the system',
       example: 'user',
-    },
-  }),
-  createdAt: z.string().meta({
-    openapi: {
+    }),
+    createdAt: z.string().meta({
       description: 'When the user was created',
       example: '2024-01-15T10:30:00Z',
-    },
-  }),
-})
+    }),
+  })
+  // A schema with an id becomes a shared entry of components.schemas
+  .meta({ id: 'User' })
 
 export const createUserSchema = userSchema.omit({ id: true, createdAt: true })
 
@@ -77,17 +70,20 @@ export const listUsers = API.declareEndpoint({
   responseSchema: userListSchema,
 })
 
+export const errorSchema = z.object({ message: z.string() })
+
 export const getUser = API.declareEndpoint({
   method: 'GET',
   url: '/users/$userId',
   responseSchema: userSchema,
+  errorSchema: { 404: errorSchema },
 })
 
 export const createUser = API.declareEndpoint({
   method: 'POST',
   url: '/users',
   requestSchema: createUserSchema,
-  responseSchema: userSchema,
+  responses: { 201: userSchema },
 })
 
 export const updateUser = API.declareEndpoint({
@@ -127,7 +123,7 @@ export const createPost = API.declareEndpoint({
   method: 'POST',
   url: '/posts',
   requestSchema: createPostSchema,
-  responseSchema: postSchema,
+  responses: { 201: postSchema },
 })
 
 // ============================================================================

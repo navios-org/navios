@@ -1,13 +1,16 @@
 import { isComponentClass } from '../decorators/component.decorator.mjs'
-import { AsyncComponent, ClassComponent, Fragment } from '../types/xml-node.mjs'
+import { ClassComponent, Fragment, FunctionComponentSymbol } from '../types/xml-node.mjs'
 
-import type { ComponentClass } from '../types/component.mjs'
-import type { AnyXmlNode, AsyncXmlNode, ClassComponentNode, XmlNode } from '../types/xml-node.mjs'
+import type { ComponentClass, FunctionComponent } from '../types/component.mjs'
+import type {
+  AnyXmlNode,
+  ClassComponentNode,
+  FunctionComponentNode,
+  XmlNode,
+} from '../types/xml-node.mjs'
 
-type SyncComponent = (props: any) => XmlNode | AsyncXmlNode | ClassComponentNode
-type AsyncComponentFn = (props: any) => Promise<XmlNode | AsyncXmlNode | ClassComponentNode>
-type FunctionalComponent = SyncComponent | AsyncComponentFn
-type ComponentType = FunctionalComponent | ComponentClass
+type ComponentType = FunctionComponent | ComponentClass
+type ElementNode = XmlNode | ClassComponentNode | FunctionComponentNode
 
 function flattenChildren(children: any): AnyXmlNode[] {
   if (children == null || children === false) {
@@ -19,6 +22,27 @@ function flattenChildren(children: any): AnyXmlNode[] {
   return [children]
 }
 
+function element(
+  type: string | typeof Fragment | ComponentType,
+  props: Record<string, unknown>,
+  children: AnyXmlNode[],
+): ElementNode {
+  // Components are not run here. The renderer builds class components through
+  // the DI container and calls function components, passing both the request
+  // context.
+  if (isComponentClass(type)) {
+    return { type: ClassComponent, componentClass: type, props: { ...props, children } }
+  }
+  if (typeof type === 'function') {
+    return {
+      type: FunctionComponentSymbol,
+      component: type as FunctionComponent,
+      props: { ...props, children },
+    }
+  }
+  return { type, props, children }
+}
+
 /**
  * JSX automatic runtime function.
  * Used by the JSX transformer when jsxImportSource is set.
@@ -27,39 +51,9 @@ function flattenChildren(children: any): AnyXmlNode[] {
 export function jsx(
   type: string | typeof Fragment | ComponentType,
   props: Record<string, unknown> | null,
-): XmlNode | AsyncXmlNode | ClassComponentNode {
+): ElementNode {
   const { children, ...restProps } = props ?? {}
-  const flatChildren = flattenChildren(children)
-
-  // Handle class components - create ClassComponentNode for later resolution
-  if (isComponentClass(type)) {
-    return {
-      type: ClassComponent,
-      componentClass: type,
-      props: { ...restProps, children: flatChildren },
-    }
-  }
-
-  // Handle function components (sync or async)
-  if (typeof type === 'function') {
-    const result = type({ ...restProps, children: flatChildren })
-
-    // If component returns a Promise, wrap it in AsyncXmlNode
-    if (result instanceof Promise) {
-      return {
-        type: AsyncComponent,
-        promise: result,
-      }
-    }
-
-    return result
-  }
-
-  return {
-    type,
-    props: restProps,
-    children: flatChildren,
-  }
+  return element(type, restProps, flattenChildren(children))
 }
 
 /**
@@ -76,38 +70,8 @@ export function createElement(
   type: string | typeof Fragment | ComponentType,
   props: Record<string, unknown> | null,
   ...children: any[]
-): XmlNode | AsyncXmlNode | ClassComponentNode {
-  const flatChildren = flattenChildren(children)
-
-  // Handle class components - create ClassComponentNode for later resolution
-  if (isComponentClass(type)) {
-    return {
-      type: ClassComponent,
-      componentClass: type,
-      props: { ...props, children: flatChildren },
-    }
-  }
-
-  // Handle function components (sync or async)
-  if (typeof type === 'function') {
-    const result = type({ ...props, children: flatChildren })
-
-    // If component returns a Promise, wrap it in AsyncXmlNode
-    if (result instanceof Promise) {
-      return {
-        type: AsyncComponent,
-        promise: result,
-      }
-    }
-
-    return result
-  }
-
-  return {
-    type,
-    props: props ?? {},
-    children: flatChildren,
-  }
+): ElementNode {
+  return element(type, props ?? {}, flattenChildren(children))
 }
 
 export { Fragment }

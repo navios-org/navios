@@ -1,8 +1,12 @@
 {
   "extends": "./tsconfig.json",
   "compilerOptions": {
-    "outDir": "./dist",
-    "types": ["vitest/globals"]
+    "outDir": "./dist"
   },
-  "include": ["src/**/*.spec.mts", "src/**/*.spec-d.mts"]
+  "include": ["src/**/*.spec.mts", "src/**/*.spec-d.mts", "vitest.config.mts"],
+  "references": [
+    {
+      "path": "./tsconfig.lib.json"
+    }
+  ]
 }

@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0] - Unreleased
+
+### Deprecated
+
+- **The whole package.** `@navios/openapi` 2.0 serves the document and the Scalar page on every adapter. This package now only re-exports `@navios/openapi`; import `openApiPlugin` from there.
+
+### Changed
+
+- **Breaking:** `defineOpenApiPlugin` is the adapter-neutral `openApiPlugin` of `@navios/openapi`. `FastifyOpenApiPluginOptions` is an alias of `OpenApiPluginOptions`.
+- **Breaking:** the documentation routes get the application's global prefix, and documented paths include it; `servers` is no longer filled from the prefix.
+- Dependencies reduced to peers `@navios/core` and `@navios/openapi`.
+
+### Removed
+
+- **Breaking:** `OpenApiFastifyPlugin`, the Zod option schemas (`fastifyOpenApiPluginOptionsSchema`, `scalarOptionsSchema`, `scalarThemeSchema`, `scalarMetaDataSchema`) and `applyGlobalPrefix`.
+
 ## [1.0.0] - 2026-01-09
 
 ### Added

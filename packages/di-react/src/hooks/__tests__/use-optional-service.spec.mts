@@ -1,4 +1,4 @@
-import { Container, Injectable, InjectionToken, Registry } from '@navios/di'
+import { Container, Injectable, InjectionToken } from '@navios/di'
 import { render, screen, waitFor } from '@testing-library/react'
 import { createElement, useMemo } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -9,11 +9,9 @@ import { useOptionalService } from '../use-optional-service.mjs'
 
 describe('useOptionalService', () => {
   let container: Container
-  let registry: Registry
 
   beforeEach(() => {
-    registry = new Registry()
-    container = new Container(registry)
+    container = new Container()
   })
 
   afterEach(async () => {
@@ -26,7 +24,7 @@ describe('useOptionalService', () => {
 
   describe('when service is registered', () => {
     it('should load the service successfully', async () => {
-      @Injectable({ registry })
+      @Injectable()
       class TestService {
         getValue() {
           return 'test-value'
@@ -67,7 +65,7 @@ describe('useOptionalService', () => {
         UserSchema,
       )
 
-      @Injectable({ registry, token: UserToken })
+      @Injectable({ token: UserToken })
       class _UserService {
         public userId: string
         public name: string
@@ -185,7 +183,7 @@ describe('useOptionalService', () => {
     it('should allow manual refetch', async () => {
       let instanceCount = 0
 
-      @Injectable({ registry })
+      @Injectable()
       class CounterService {
         public readonly id: number
 

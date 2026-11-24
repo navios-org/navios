@@ -5,18 +5,20 @@ export type {
   CDataNode,
   RawXmlNode,
   ClassComponentNode,
+  FunctionComponentNode,
   AnyXmlNode,
-  BaseXmlStreamConfig,
+  XmlRenderable,
   XmlComponent,
   ComponentClass,
+  FunctionComponent,
 } from './types/index.mjs'
-
 export {
   Fragment,
   AsyncComponent,
   CDataSymbol,
   RawXmlSymbol,
   ClassComponent,
+  FunctionComponentSymbol,
 } from './types/index.mjs'
 
 // Runtime
@@ -26,6 +28,7 @@ export {
   DangerouslyInsertRawXml,
   renderToXml,
   MissingContainerError,
+  MissingContextError,
 } from './runtime/index.mjs'
 export type { RenderOptions } from './runtime/index.mjs'
 
@@ -33,15 +36,14 @@ export type { RenderOptions } from './runtime/index.mjs'
 export { defineTag } from './tags/index.mjs'
 export type { TagComponent } from './tags/index.mjs'
 
-// Decorators
-export { XmlStream, Component, isComponentClass } from './decorators/index.mjs'
-export type { XmlStreamParams } from './decorators/index.mjs'
+// Components
+export { Component, isComponentClass } from './decorators/index.mjs'
+export type { ComponentOptions } from './decorators/index.mjs'
 
-// Handlers
-export { declareXmlStream } from './handlers/index.mjs'
+// Responses
+export { xml, isXmlResponse, XML_RESULT_KIND } from './response/index.mjs'
+export type { XmlPayload, XmlResponse, XmlResponseOptions } from './response/index.mjs'
 
-// Adapters
-export { XmlStreamAdapterService } from './adapters/index.mjs'
-
-// Environment
-export { defineXmlEnvironment } from './define-environment.mjs'
+// Plugin
+export { xmlPlugin } from './plugin/index.mjs'
+export type { XmlPluginOptions } from './plugin/index.mjs'

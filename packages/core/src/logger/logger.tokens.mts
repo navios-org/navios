@@ -1,5 +1,6 @@
 import { InjectionToken } from '@navios/di'
-import z from 'zod/v4'
+
+import { schemaFromGuard } from '../schema/simple-schema.mjs'
 
 import type { LoggerService } from './logger-service.interface.mjs'
 import type { LoggerInstance } from './logger.service.mjs'
@@ -15,16 +16,17 @@ export const LoggerOutput = InjectionToken.create<LoggerService>('LoggerOutput')
 /**
  * Schema for logger options.
  */
-export const loggerOptionsSchema = z
-  .object({
-    context: z.string().optional(),
-  })
-  .optional()
+export type LoggerOptions = { context?: string } | undefined
 
-/**
- * Options for creating a logger instance.
- */
-export type LoggerOptions = z.infer<typeof loggerOptionsSchema>
+export const loggerOptionsSchema = schemaFromGuard<LoggerOptions>(
+  (value): value is LoggerOptions =>
+    value === undefined ||
+    (typeof value === 'object' &&
+      value !== null &&
+      ((value as { context?: unknown }).context === undefined ||
+        typeof (value as { context?: unknown }).context === 'string')),
+  'Logger options must be an object with an optional string `context`',
+)
 
 /**
  * Injection token for the Logger service.

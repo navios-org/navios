@@ -1,458 +1,272 @@
-# Migration Guide
+# Migration Guide: 1.x to 2.0
 
-This guide helps you migrate between different versions of Navios DI.
+Version 2.0 replaces the resolution engine. Resolution is synchronous first, tokens are identified by the token object, the global registry and priorities are replaced by explicit providers, and a service is always built in its declared scope.
 
-## Migrating to v0.6.0 (Circular Dependency Detection & Browser Support & ScopedContainer)
+This guide lists every public change and shows the ones most applications will meet. Notes for versions before 1.0 are in the [changelog](../CHANGELOG.md).
 
-### New Features
+## What Changed
 
-#### Circular Dependency Detection
+| 1.x                                                                                                                                                                                      | 2.0                                                                                                                                                                                                                                       |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `new Container(registry, logger, injectors)`                                                                                                                                             | `new Container({ providers?, strict?, logger? })`                                                                                                                                                                                         |
+| `Registry`, `globalRegistry`, `@Injectable({ registry })`, `@Factory({ registry })`                                                                                                      | Removed. A class's token is its own identity. Isolation comes from using a new `Container`.                                                                                                                                               |
+| `@Injectable({ priority })`, `registry.getAll()`, override by priority                                                                                                                   | Removed. Use `provide(TokenOrClass, Impl)` in `new Container({ providers })` or `container.provide()`.                                                                                                                                    |
+| A second `@Injectable({ token })` for the same token                                                                                                                                     | Throws `ProviderConflict` at decoration unless the class has the same name as the current default.                                                                                                                                        |
+| `container.beginRequest(id, metadata)`                                                                                                                                                   | `container.createScope(metadata?)`. Scopes have no ids.                                                                                                                                                                                   |
+| `container.getActiveRequestIds()`, `container.hasActiveRequest()`                                                                                                                        | Removed. The container does not track its scopes.                                                                                                                                                                                         |
+| `scoped.endRequest()`                                                                                                                                                                    | `scoped.dispose()`, or `await using scope = container.createScope()`. `endRequest()` remains as a deprecated alias.                                                                                                                       |
+| `scoped.getRequestId()`                                                                                                                                                                  | Removed.                                                                                                                                                                                                                                  |
+| Using a disposed scope threw `Error`                                                                                                                                                     | Throws `DIError` with code `ContainerDisposed`.                                                                                                                                                                                           |
+| Automatic scope upgrade: a singleton that injected a request-scoped service became request-scoped                                                                                        | Removed. It is a `DIError` with code `ScopeMismatchError`.                                                                                                                                                                                |
+| `inject(TransientService)` was an error ("use asyncInject")                                                                                                                              | Returns a fresh instance for each call.                                                                                                                                                                                                   |
+| Conditional `inject()` threw "Wrong token order"                                                                                                                                         | Allowed.                                                                                                                                                                                                                                  |
+| A constructor ran twice when a dependency was not created yet                                                                                                                            | Runs once. It runs twice only on the first build of a class when a dependency has an unfinished asynchronous `onServiceInit()`.                                                                                                           |
+| `optional()` returned `null` on any failure                                                                                                                                              | Returns `null` only when nothing provides the token. Other errors propagate.                                                                                                                                                              |
+| An error thrown in a constructor or `onServiceInit()` was wrapped on some code paths only                                                                                                | Always a `DIError` with code `InitializationError` and the message `Service <Name> initialization failed: <original message>`; the original is in `cause`.                                                                                |
+| `token.id`, `InjectionToken.create(name, schema, customId)`                                                                                                                              | Removed. `InjectionToken.create(name, schema?)` or `create(name, { schema?, scope? })`. `toString()` returns the name.                                                                                                                    |
+| Zod-only schema types (`ZodObject`, `z.input<S>`), zod as a peer dependency                                                                                                              | Any Standard Schema (`StandardSchemaV1`, `InferInput<S>`, `InferOutput<S>`). Zod still works and is no longer required. Args must validate synchronously.                                                                                 |
+| `BaseInjectionTokenSchemaType`, `OptionalInjectionTokenSchemaType`                                                                                                                       | Removed. `InjectionTokenSchemaType` is `StandardSchemaV1`.                                                                                                                                                                                |
+| `FactoryInjectionToken#value`, `#resolved`, `#resolve()`                                                                                                                                 | Removed. The value is cached per root container.                                                                                                                                                                                          |
+| `container.getEventBus()` and event bus subscriptions, `container.calculateInstanceName()`                                                                                               | `container.onInvalidate(token, args, listener)`                                                                                                                                                                                           |
+| `container.getStorage()`, `getRegistry()`, `getInstanceResolver()`, `getNameResolver()`, `getScopeTracker()`, `getServiceInitializer()`, `getTokenResolver()`, `getServiceInvalidator()` | Removed. `container.getProvider(token)` returns the provider that would be used for a token.                                                                                                                                              |
+| `getInjectors()`, `defaultInjectors`, `wrapSyncInit`, `provideFactoryContext`, `InjectableType`                                                                                          | Removed.                                                                                                                                                                                                                                  |
+| `DIErrorCode.FactoryTokenNotResolved`, `PriorityConflictError`, `StorageError`, `DependencyResolutionError`                                                                              | Removed.                                                                                                                                                                                                                                  |
+| Separate browser entry and the `AsyncLocalStorage` polyfill                                                                                                                              | Removed. There is one build, and it does not use `AsyncLocalStorage`.                                                                                                                                                                     |
+| -                                                                                                                                                                                        | New: `container.getSync()`, `container.provide()`, `container.decorate()`, `provide()`, `registerInjectable()`, `registerFactory()`, `ContainerOptions.strict`, `DIErrorCode.ProviderConflict`, `AsyncInitRequired`, `ContainerDisposed`. |
 
-v0.5.x adds automatic circular dependency detection. When services form a circular dependency using `inject()`, the system now throws a clear error instead of hanging:
+Unchanged: `@Injectable({ scope, token, schema })`, `@Factory({ scope, token })`, `inject`, `asyncInject`, `optional`, `InjectionToken.bound`, `InjectionToken.factory`, `InjectionToken.refineType`, `onServiceInit` and `onServiceDestroy`, `container.get`, `invalidate`, `dispose`, `ready`, `tryGetSync`, `addInstance`, `isRegistered`, `InjectableScope`, `getInjectableToken`, the factory `create(ctx, args)` signature with `ctx.inject`, `ctx.container` and `ctx.addDestroyListener`, and `@navios/di/legacy-compat`.
 
-```typescript
-@Injectable()
-class ServiceA {
-  private serviceB = inject(ServiceB)
-}
+## Common Changes
 
-@Injectable()
-class ServiceB {
-  private serviceA = inject(ServiceA)
-}
+### 1. Registries and priorities become providers
 
-// Error: Circular dependency detected: ServiceA -> ServiceB -> ServiceA
-await container.get(ServiceA)
+Before:
+
+```ts
+const registry = new Registry()
+
+@Injectable({ token: MailerToken, registry })
+class SmtpMailer {}
+
+@Injectable({ token: MailerToken, registry, priority: 100 })
+class SesMailer {}
+
+const container = new Container(registry)
 ```
 
-**Breaking circular dependencies** - Use `asyncInject()` on at least one side:
+After:
 
-```typescript
-@Injectable()
-class ServiceA {
-  private serviceB = asyncInject(ServiceB) // Break cycle with asyncInject
+```ts
+import { Container, Injectable, provide } from '@navios/di'
 
-  async doSomething() {
-    const b = await this.serviceB
-    return b.process()
-  }
-}
+@Injectable({ token: MailerToken }) // the default
+class SmtpMailer {}
 
-@Injectable()
-class ServiceB {
-  private serviceA = inject(ServiceA) // This side can use inject()
-}
+@Injectable() // an alternative, not a second default
+class SesMailer {}
+
+const container = new Container({
+  providers: [provide(MailerToken, SesMailer)],
+})
 ```
 
-#### Browser Support
+A token accepts one default provider. If two classes declare the same token, the second one throws `ProviderConflict` when it is decorated. Remove `token` from the alternative and bind it with `provide()`.
 
-The library now supports browser environments with a dedicated entry point:
+A custom registry that existed only to isolate tests needs no replacement. Each `Container` has its own instances, and a class registered with `@Injectable()` can be resolved from any container.
 
-```typescript
-// Bundlers automatically select the browser entry via package.json exports
-import { Container, inject } from '@navios/di'
+To override a provider on an existing container, call `container.provide(token, impl)` before the token is first resolved there.
+
+Code that re-registered a service with a higher priority to wrap it should use `container.decorate()`:
+
+```ts
+container.decorate(HttpClient, (client) => withTracing(client))
 ```
 
-The browser build uses `SyncLocalStorage` instead of `AsyncLocalStorage`, which works for synchronous dependency tracking.
+### 2. Request contexts become scopes
 
-#### Cross-Storage Invalidation
+Before:
 
-Singletons that depend on request-scoped services are now properly invalidated when the request ends:
-
-```typescript
-@Injectable({ scope: InjectableScope.Request })
-class RequestData {}
-
-@Injectable({ scope: InjectableScope.Singleton })
-class SingletonConsumer {
-  private requestData = inject(RequestData)
-}
-
-// When the request ends:
-await scopedContainer.endRequest()
-// SingletonConsumer is automatically invalidated
-```
-
-### Renamed Types (Deprecated Aliases Available)
-
-For cleaner naming, many internal types have been renamed. Deprecated aliases are provided for backward compatibility:
-
-| Old Name                                | New Name                  |
-| --------------------------------------- | ------------------------- |
-| `ServiceLocatorInstanceHolder`          | `InstanceHolder`          |
-| `ServiceLocatorInstanceHolderStatus`    | `InstanceStatus`          |
-| `ServiceLocatorInstanceEffect`          | `InstanceEffect`          |
-| `ServiceLocatorInstanceDestroyListener` | `InstanceDestroyListener` |
-| `BaseInstanceHolderManager`             | `BaseHolderManager`       |
-| `ServiceLocatorManager`                 | `HolderManager`           |
-| `SingletonHolderStorage`                | `SingletonStorage`        |
-| `RequestHolderStorage`                  | `RequestStorage`          |
-| `ServiceLocatorEventBus`                | `LifecycleEventBus`       |
-| `CircularDependencyDetector`            | `CircularDetector`        |
-| `ServiceInstantiator`                   | `Instantiator`            |
-| `RequestContextHolder`                  | `RequestContext`          |
-| `DefaultRequestContextHolder`           | `DefaultRequestContext`   |
-| `createRequestContextHolder`            | `createRequestContext`    |
-
-### Migration Steps
-
-1. **Update circular dependencies**: If your code hangs during startup, you likely have circular dependencies. Add `asyncInject()` to break the cycle.
-
-2. **Update type imports**: While deprecated aliases work, consider updating to new names:
-
-   ```typescript
-   // Before
-   // After
-   import { InstanceHolder, ServiceLocatorInstanceHolder } from '@navios/di'
-   ```
-
-3. **Browser builds**: No changes needed - bundlers automatically select the correct entry point.
-
----
-
-## ScopedContainer
-
-### Breaking Changes
-
-v0.4.x introduces `ScopedContainer` for request context management. This is a **breaking change** that fixes race conditions in concurrent request handling.
-
-#### Removed Methods
-
-The following `Container` methods have been **removed**:
-
-- `Container.setCurrentRequestContext(requestId)` - removed
-- `Container.getCurrentRequestContext()` - removed
-- `Container.endRequest(requestId)` - removed (use `ScopedContainer.endRequest()`)
-
-#### Changed Return Type
-
-- `Container.beginRequest()` now returns a `ScopedContainer` instead of `RequestContextHolder`
-
-#### New API
-
-```typescript
-// OLD (v0.3.x) - no longer works
-const context = container.beginRequest('req-123')
-container.setCurrentRequestContext('req-123')
-const service = await container.get(RequestService)
-await container.endRequest('req-123')
-
-// NEW (v0.4.x) - use ScopedContainer
-const scoped = container.beginRequest('req-123')
-const service = await scoped.get(RequestService)
-await scoped.endRequest()
-```
-
-### Migration Steps
-
-#### 1. Update Request Context Creation
-
-**Before:**
-
-```typescript
-const context = container.beginRequest('req-123', { userId: 456 })
-container.setCurrentRequestContext('req-123')
-```
-
-**After:**
-
-```typescript
+```ts
 const scoped = container.beginRequest('req-123', { userId: 456 })
-```
-
-#### 2. Update Service Resolution
-
-**Before:**
-
-```typescript
-container.setCurrentRequestContext('req-123')
-const service = await container.get(RequestService)
-```
-
-**After:**
-
-```typescript
-const scoped = container.beginRequest('req-123')
-const service = await scoped.get(RequestService)
-```
-
-#### 3. Update Cleanup
-
-**Before:**
-
-```typescript
-await container.endRequest('req-123')
-```
-
-**After:**
-
-```typescript
-await scoped.endRequest()
-// or
-await scoped.dispose()
-```
-
-#### 4. Update Middleware (Express/Fastify)
-
-**Before:**
-
-```typescript
-app.use(async (req, res, next) => {
-  const requestId = `req-${Date.now()}`
-  const context = container.beginRequest(requestId)
-  container.setCurrentRequestContext(requestId)
-
-  res.on('finish', () => container.endRequest(requestId))
-  next()
-})
-
-app.get('/', async (req, res) => {
-  const service = await container.get(RequestService)
-  res.json(service.getData())
-})
-```
-
-**After:**
-
-```typescript
-app.use(async (req, res, next) => {
-  const requestId = `req-${Date.now()}`
-  const scoped = container.beginRequest(requestId)
-  ;(req as any).scoped = scoped
-
-  res.on('finish', () => scoped.endRequest())
-  next()
-})
-
-app.get('/', async (req, res) => {
-  const scoped = (req as any).scoped
-  const service = await scoped.get(RequestService)
-  res.json(service.getData())
-})
-```
-
-### Why This Change?
-
-The old API had a race condition:
-
-```typescript
-// Request A starts
-container.setCurrentRequestContext('req-A')
-const serviceA = await container.get(RequestService) // async...
-
-// Request B starts while A is still resolving
-container.setCurrentRequestContext('req-B')
-
-// Service A might get Request B's context! Bug!
-```
-
-The new API eliminates this by giving each request its own container:
-
-```typescript
-// Request A
-const scopedA = container.beginRequest('req-A')
-const serviceA = await scopedA.get(RequestService) // Always gets A's context
-
-// Request B
-const scopedB = container.beginRequest('req-B')
-const serviceB = await scopedB.get(RequestService) // Always gets B's context
-
-// No race condition possible
-```
-
-### New Features
-
-#### IContainer Interface
-
-Both `Container` and `ScopedContainer` implement `IContainer`:
-
-```typescript
-interface IContainer {
-  get<T>(token, args?): Promise<T>
-  invalidate(service: unknown): Promise<void>
-  isRegistered(token): boolean
-  dispose(): Promise<void>
-  ready(): Promise<void>
-  tryGetSync<T>(token, args?): T | null
-}
-```
-
-#### Request-Scoped Error Protection
-
-Attempting to get a request-scoped service from Container now throws a helpful error:
-
-```typescript
-await container.get(RequestService)
-// Error: Cannot resolve request-scoped service "RequestService" from Container.
-// Use beginRequest() to create a ScopedContainer for request-scoped services.
-```
-
-#### Active Request Tracking
-
-```typescript
-const scoped = container.beginRequest('req-123')
-container.hasActiveRequest('req-123') // true
-await scoped.endRequest()
-container.hasActiveRequest('req-123') // false
-```
-
----
-
-## Migrating to v0.3.x
-
-### New Features
-
-#### Request Context Management (Legacy)
-
-> **Note:** This section documents the v0.3.x API which is deprecated in v0.4.x. See "Migrating to v0.4.x" above for the current API.
-
-**Old APIs (deprecated in v0.4.x):**
-
-- `Container.beginRequest(requestId, metadata?, priority?)` - returns `RequestContextHolder` in v0.3.x
-- `Container.endRequest(requestId)` - removed in v0.4.x
-- `Container.getCurrentRequestContext()` - removed in v0.4.x
-- `Container.setCurrentRequestContext(requestId)` - removed in v0.4.x
-
-### Recommended Changes
-
-#### Prefer `asyncInject` over `inject`
-
-While `inject` still works, `asyncInject` is now the recommended approach for most use cases as it's safer and handles async dependencies better.
-
-**Before:**
-
-```typescript
-@Injectable()
-class UserService {
-  private readonly db = inject(DatabaseService)
-}
-```
-
-**After:**
-
-```typescript
-@Injectable()
-class UserService {
-  private readonly db = asyncInject(DatabaseService)
-
-  async getUsers() {
-    const database = await this.db
-    return database.query('SELECT * FROM users')
-  }
-}
-```
-
-### Breaking Changes
-
-None in v0.3.x - this is a feature release with full backward compatibility.
-
-## Migrating from v0.2.x to v0.3.x
-
-### New Dependencies
-
-No new peer dependencies were added.
-
-### Updated Type Definitions
-
-Some internal type definitions were improved for better TypeScript support, but no breaking changes to public APIs.
-
-## Future Migration Notes
-
-### Planned for v0.4.x
-
-- Enhanced request context lifecycle hooks
-- Performance optimizations for high-throughput scenarios
-- Additional factory pattern improvements
-
-### Best Practices for Forward Compatibility
-
-1. **Use `asyncInject` for new code** - This is the future-preferred injection method
-2. **Implement lifecycle hooks** - `OnServiceInit` and `OnServiceDestroy` for proper resource management
-3. **Use request contexts** - For web applications and request-scoped data
-4. **Prefer injection tokens** - For configuration and interface-based dependencies
-
-## Common Migration Issues
-
-### Issue: Services not found in request context
-
-**Problem:** Services can't be resolved when using request contexts.
-
-**Solution:** Use a `ScopedContainer` for request-scoped services:
-
-```typescript
-const scoped = container.beginRequest('your-request-id')
-const service = await scoped.get(RequestService)
-```
-
-### Issue: Async dependencies not ready
-
-**Problem:** Using `inject` with dependencies that aren't immediately available.
-
-**Solution:** Switch to `asyncInject`:
-
-```typescript
-// Instead of this:
-private readonly service = inject(AsyncService)
-
-// Use this:
-private readonly service = asyncInject(AsyncService)
-```
-
-### Issue: Memory leaks with request contexts
-
-**Problem:** Request contexts not being cleaned up.
-
-**Solution:** Always call `endRequest()` on the ScopedContainer:
-
-```typescript
-const scoped = container.beginRequest('req-123')
 try {
-  const service = await scoped.get(RequestService)
-  // ... process request
+  const handler = await scoped.get(RequestHandler)
+  await handler.run()
 } finally {
   await scoped.endRequest()
 }
 ```
 
-## Getting Help
+After:
 
-If you encounter issues during migration:
+```ts
+{
+  await using scope = container.createScope({ userId: 456 })
+  const handler = await scope.get(RequestHandler)
+  await handler.run()
+}
+```
 
-1. Check the [API Reference](./api-reference.md) for detailed method signatures
-2. Review the [examples](./examples/) for common patterns
-3. Check the GitHub issues for known migration problems
-4. Create a new issue if you find a bug or need help
+Or, without `await using`:
 
-## Changelog Summary
+```ts
+const scope = container.createScope({ userId: 456 })
+try {
+  const handler = await scope.get(RequestHandler)
+  await handler.run()
+} finally {
+  await scope.dispose()
+}
+```
 
-### v0.5.x
+Scopes have no id. If you need a request id, keep it in the metadata or add it to the scope as a value:
 
-- **Circular Dependency Detection**: Automatic detection with clear error messages
-- **Browser Support**: Dedicated browser entry point with `SyncLocalStorage` polyfill
-- **Cross-Storage Invalidation**: Singletons depending on request-scoped services are properly invalidated
-- **Resolution Context**: Uses `AsyncLocalStorage` to track resolution across async boundaries
-- **Type Renames**: Cleaner names for internal types (with deprecated aliases)
-- **Platform Support**: Node.js, Bun, Deno, and browser environments
+```ts
+const REQUEST_ID = InjectionToken.create<string>('RequestId', { scope: InjectableScope.Request })
 
-### v0.4.x
+scope.addInstance(REQUEST_ID, 'req-123')
+```
 
-- **ScopedContainer**: New request context management API
-- **Race Condition Fix**: Eliminates concurrency issues with request-scoped services
-- **IContainer Interface**: Common interface for `Container` and `ScopedContainer`
-- **Request-Scoped Errors**: Clear error when resolving request-scoped from `Container`
-- **Active Request Tracking**: `hasActiveRequest()` and `getActiveRequestIds()` methods
+### 3. Scope mismatches are errors
 
-### v0.3.x
+Before, this singleton was silently turned into a request-scoped service:
 
-- Added request context management
-- Improved TypeScript type definitions
-- Enhanced container API with request context methods
-- New `RequestContextHolder` interface
-- Better error messages for injection failures
+```ts
+@Injectable({ scope: InjectableScope.Request })
+class RequestState {}
 
-### v0.2.x
+@Injectable()
+class AuditService {
+  private readonly state = inject(RequestState)
+}
+```
 
-- Basic dependency injection functionality
-- Injectable and Factory decorators
-- Injection tokens with Zod validation
-- Service lifecycle hooks
+After, resolving `AuditService` fails:
+
+```
+Scope mismatch: RequestState is request-scoped and cannot be resolved from the root container
+(AuditService -> RequestState). Resolve it from a scope created with container.createScope(),
+and do not inject it into a singleton.
+```
+
+The check also applies through a transient. Declare what the old version did implicitly:
+
+```ts
+@Injectable({ scope: InjectableScope.Request })
+class AuditService {
+  private readonly state = inject(RequestState)
+}
+```
+
+If the service has to stay a singleton, pass the request-scoped object to its methods instead of injecting it.
+
+### 4. `inject()` works for transients; `asyncInject()` is for cycles
+
+Before:
+
+```ts
+@Injectable()
+class ReportService {
+  private readonly builder = asyncInject(QueryBuilder) // transient
+
+  async run() {
+    const builder = await this.builder
+    return builder.build()
+  }
+}
+```
+
+After:
+
+```ts
+@Injectable()
+class ReportService {
+  private readonly builder = inject(QueryBuilder)
+
+  run() {
+    return this.builder.build()
+  }
+}
+```
+
+Each `inject()` call of a transient returns its own instance. Existing `asyncInject()` calls keep working; they are only needed to break a circular dependency.
+
+### 5. `optional()` no longer hides errors
+
+Before, `optional(Service)` returned `null` when `Service` failed to construct. After, it returns `null` only when nothing provides the token, and a failing constructor throws.
+
+If code relied on `optional()` to tolerate a failing service, handle the failure where it happens, for example inside the service's `onServiceInit()`, or resolve the service with `container.get()` in a `try` block.
+
+### 6. Tokens have no ids, and schemas are Standard Schema
+
+Before:
+
+```ts
+import type { z, ZodObject } from 'zod/v4'
+
+const TOKEN = InjectionToken.create<Service, typeof schema>('Service', schema, 'custom-id')
+console.log(TOKEN.id)
+
+function register<S extends ZodObject>(schema: S, args: z.input<S>) {}
+```
+
+After:
+
+```ts
+import type { InferInput, StandardSchemaV1 } from '@navios/di'
+
+const TOKEN = InjectionToken.create<Service, typeof schema>('Service', schema)
+
+function register<S extends StandardSchemaV1>(schema: S, args: InferInput<S>) {}
+```
+
+A token is identified by the object. Code that looked services up by `token.id` or by a name string must hold on to the token itself. Two tokens created with the same name are different tokens.
+
+Existing zod schemas work unchanged. A schema with asynchronous validation, such as an async refinement, is rejected with `TokenValidationError`; validate such input before resolving the token.
+
+### 7. Internal accessors and the event bus are gone
+
+Before:
+
+```ts
+const name = container.calculateInstanceName(UserService, args)
+const unsubscribe = container.getEventBus().on(name, 'destroy', listener)
+```
+
+After:
+
+```ts
+const unsubscribe = container.onInvalidate(UserService, args, listener)
+```
+
+The storage, registry, resolver and tracker accessors have no public replacement. To ask which implementation a container would use for a token, call `container.getProvider(token)`; it returns a record with `kind`, `scope` and `target`.
+
+### 8. Errors from constructors are always wrapped
+
+An error that is not a `DIError` and is thrown by a constructor, a factory or `onServiceInit()` now always reaches the caller as a `DIError`:
+
+```ts
+const error = await container.get(Broken).catch((e) => e)
+
+expect(error.code).toBe(DIErrorCode.InitializationError)
+expect(error.message).toBe('Service Broken initialization failed: boom')
+expect(error.cause).toBe(originalError)
+```
+
+A test that compared the rejection with the original error by identity must read `error.cause`. The message still contains the original message, so assertions such as `rejects.toThrow('boom')` keep passing. A `DIError` thrown by a nested dependency propagates unchanged.
+
+## Behaviour Changes to Check
+
+- **Constructors run once.** Code that compensated for double construction, such as guards against running twice, can be removed. Constructors should still be free of side effects, because the first build of a class is replayed once when a dependency has an unfinished asynchronous `onServiceInit()`.
+- **Do not read injected services in a constructor.** In a replayed pass a dependency that is not ready is a placeholder. Move such code to `onServiceInit()`.
+- **Singletons are built against the root container.** A value added to a scope with `scope.addInstance()` is not visible to a singleton, even when the singleton is first requested through that scope.
+- **Factory token values are per container.** A `FactoryInjectionToken` used to cache its value on the token, shared by all containers. Each root container now computes it once.
+- **Transients resolved directly from the root container are not tracked.** Their `onServiceDestroy()` is not called by `dispose()`. Transients injected into a service are destroyed with it, and transients resolved from a scope are destroyed with the scope.
+- **Falsy values are injected as they are.** A token bound to `0`, `''`, `false` or `null` resolves to that value.
+- **Classes with identical source are distinct.** Token ids derived from the class source are gone, so two classes produced by the same function no longer collide.
+
+## Testing
+
+- Replace `new Container(new Registry())` with `new Container()`.
+- Replace priority-based overrides with `new Container({ providers: [provide(Token, Mock)] })` or `TestContainer#bind()`.
+- `TestContainer` and `UnitTestContainer` keep their API. `UnitTestContainer` is a strict container: only its `providers` can be resolved.
+- Tests that asserted removed behaviour (priorities, scope upgrade, request ids, token ids, "Wrong token order", double construction) should be deleted.

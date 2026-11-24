@@ -1,40 +1,70 @@
 /**
- * Legacy-compatible decorators for projects that cannot use Stage 3 decorators.
+ * The documentation attributes for projects that compile with
+ * `experimentalDecorators`. They store the same values under the same tokens
+ * as the standard ones, so the generated document is identical.
  *
- * These decorators use the TypeScript experimental decorator API and convert
- * the arguments to Stage 3 format internally.
+ * ```ts
+ * import { ApiSummary, ApiTag } from '@navios/openapi/legacy-compat'
  *
- * @example
- * ```typescript
- * import { ApiTag, ApiOperation, ApiSummary } from '@navios/openapi/legacy-compat'
- *
+ * @ApiTag('Users')
  * @Controller()
- * @ApiTag('Users', 'User management operations')
- * export class UserController {
+ * export class UsersController {
+ *   @ApiSummary('Get a user')
  *   @Endpoint(getUser)
- *   @ApiSummary('Get user by ID')
  *   async getUser() {}
  * }
  * ```
  */
+import { AttributeFactory } from '@navios/core/legacy-compat'
 
-// Export legacy-compatible decorators
-export {
-  ApiTag,
-  ApiOperation,
-  ApiSummary,
-  ApiDeprecated,
-  ApiSecurity,
-  ApiExclude,
-  ApiStream,
-  type ApiTagOptions,
-  type ApiOperationOptions,
-  type ApiDeprecatedOptions,
-  type ApiSecurityRequirement,
-  type ApiStreamOptions,
-} from './decorators/index.mjs'
+import {
+  ApiDeprecatedSchema,
+  ApiOperationSchema,
+  ApiSecuritySchema,
+  ApiStreamSchema,
+  ApiSummarySchema,
+  ApiTagSchema,
+} from '../attributes.mjs'
+import {
+  ApiDeprecatedToken,
+  ApiExcludeToken,
+  ApiOperationToken,
+  ApiSecurityToken,
+  ApiStreamToken,
+  ApiSummaryToken,
+  ApiTagToken,
+} from '../tokens.mjs'
 
-// Re-export tokens for attribute access
+const BaseApiTag = AttributeFactory.createAttribute(ApiTagToken, ApiTagSchema)
+
+export function ApiTag(name: string, description?: string) {
+  return BaseApiTag(description === undefined ? { name } : { name, description })
+}
+
+export const ApiOperation = AttributeFactory.createAttribute(ApiOperationToken, ApiOperationSchema)
+
+export const ApiSummary = AttributeFactory.createAttribute(ApiSummaryToken, ApiSummarySchema)
+
+const BaseApiDeprecated = AttributeFactory.createAttribute(ApiDeprecatedToken, ApiDeprecatedSchema)
+
+export function ApiDeprecated(message?: string) {
+  return BaseApiDeprecated(message === undefined ? {} : { message })
+}
+
+export const ApiSecurity = AttributeFactory.createAttribute(ApiSecurityToken, ApiSecuritySchema)
+
+export const ApiExclude = AttributeFactory.createAttribute(ApiExcludeToken)
+
+export const ApiStream = AttributeFactory.createAttribute(ApiStreamToken, ApiStreamSchema)
+
+export type {
+  ApiDeprecatedOptions,
+  ApiOperationOptions,
+  ApiSecurityRequirement,
+  ApiStreamOptions,
+  ApiTagOptions,
+} from '../attributes.mjs'
+
 export {
   ApiTagToken,
   ApiOperationToken,
@@ -43,16 +73,8 @@ export {
   ApiSecurityToken,
   ApiExcludeToken,
   ApiStreamToken,
-} from '../tokens/index.mjs'
+} from '../tokens.mjs'
 
-// Re-export services (they don't need legacy compatibility)
-export {
-  OpenApiGeneratorService,
-  EndpointScannerService,
-  MetadataExtractorService,
-  SchemaConverterService,
-  PathBuilderService,
-} from '../services/index.mjs'
-
-// Re-export metadata types
-export type { OpenApiEndpointMetadata } from '../metadata/index.mjs'
+export { openApiPlugin } from '../plugin.mjs'
+export { generateOpenApiDocument } from '../document.mjs'
+export { extractOpenApiMetadata } from '../metadata.mjs'

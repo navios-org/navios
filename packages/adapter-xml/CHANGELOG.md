@@ -5,12 +5,33 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [2.0.0] - Unreleased
+
+Ported to `@navios/core` 2.0 and `@navios/di` 2.0. See "Migrating from 1.x" in the README.
+
+### Added
+
+- `xmlPlugin(options?)`: a plugin that registers the encoder of the `xml` response kind, so XML responses work on every adapter. Routes that do not return XML are not affected. Options are defaults for all XML responses: `contentType`, `declaration`, `encoding`, `pretty`.
+- `xml(tree, options?)`: the value a handler returns from an endpoint declared with `response: 'text'`, `'stream'` or `'blob'`. It is a core `result('xml', ...)`. Options: `contentType`, `declaration`, `encoding`, `pretty`, `status`.
+- Components receive the `RequestContext`: function components as second argument, class components in `render(ctx)`. `renderToXml` takes it as the `ctx` option. `MissingContextError` is thrown when a component uses a context that was not given.
+- `Component()(TheClass)` registers a class component without decorator syntax.
+- `isXmlResponse`, `XML_RESULT_KIND`, and the types `XmlResponse`, `XmlPayload`, `FunctionComponent`, `FunctionComponentNode`, `XmlRenderable`, `XmlResponseOptions`, `XmlPluginOptions`, `ComponentOptions`.
 
 ### Changed
 
-- `@XmlStream` checks its declaration: `body: 'multipart'` and `response: 'json' | 'void'` are rejected.
-- The e2e suites (Fastify and Bun) run as part of `test:ci`.
+- **Breaking:** function components are called when the tree is rendered, not when the JSX expression is evaluated. `createElement(fn, props)` returns a `FunctionComponentNode`.
+- **Breaking:** class components are transient and built against the root container instead of being request-scoped. `inject()` in a component reaches singletons only; request values and request-scoped services come from `ctx`.
+- **Breaking:** the response content type gets `; charset=utf-8` when it names no charset; the default is `application/xml; charset=utf-8`.
+- An error thrown while rendering goes through the application's error handling: an `HttpException` thrown by a component becomes its status.
+- `defineTag` and `Component({ schema })` accept any Standard Schema. `defineTag` reports invalid props with an error naming the tag and the prop instead of rethrowing the schema library's error.
+- Pretty printing decides an element's layout after its child components have run, so a component that yields text, CDATA or raw XML stays on the element's line.
+- `zod` and `@navios/builder` are no longer dependencies of the package.
+- The test suite runs the same cases against the in-memory, Fastify and Bun adapters through `app.inject()`.
+
+### Removed
+
+- **Breaking:** `@XmlStream`, `XmlStreamParams`, `declareXmlStream`, `defineXmlEnvironment`, `XmlStreamAdapterService` and `BaseXmlStreamConfig`. Use a builder declaration with `response: 'text'`, `handler()` or `@Endpoint`, `xml()` and `xmlPlugin()`.
+- **Breaking:** the `registry` option of `@Component`.
 
 ## [1.0.0] - 2026-01-09
 
