@@ -3,9 +3,8 @@
   <path d="M12 28V12L28 28V12" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
   <defs>
     <linearGradient id="gradient" x1="0" y1="0" x2="40" y2="40" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#22d3ee"/>
-      <stop offset="0.5" stop-color="#3b82f6"/>
-      <stop offset="1" stop-color="#8b5cf6"/>
+      <stop stop-color="#fb923c"/>
+      <stop offset="1" stop-color="#f43f5e"/>
     </linearGradient>
   </defs>
 </svg>

@@ -1,9 +1,19 @@
 .footer {
-  padding: 3rem 1.5rem 2rem;
-  border-top: 1px solid var(--rp-c-divider);
-  background: var(--rp-c-bg-soft);
+  max-width: 1480px;
+  margin: 48px var(--nv-gutter) var(--nv-gutter);
+  padding: 40px 32px 28px;
+  border: 1px solid var(--nv-line);
+  border-radius: 24px;
+  background: color-mix(in srgb, var(--nv-panel) 70%, transparent);
   color: var(--rp-c-text-2);
   font-size: 0.9rem;
+}
+
+@media (width >= 1512px) {
+  .footer {
+    margin-right: auto;
+    margin-left: auto;
+  }
 }
 
 .columns {
@@ -33,16 +43,22 @@
 .copyright {
   max-width: 1140px;
   margin: 2.5rem auto 0;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--nv-line);
   text-align: center;
 }
 
-@media screen and (max-width: 996px) {
+@media (width <= 996px) {
   .columns {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
-@media screen and (max-width: 480px) {
+@media (width <= 480px) {
+  .footer {
+    padding: 28px 20px 20px;
+  }
+
   .columns {
     grid-template-columns: minmax(0, 1fr);
   }
