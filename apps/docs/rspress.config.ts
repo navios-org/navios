@@ -28,8 +28,8 @@ export default defineConfig({
   themeConfig: {
     darkMode: 'dark',
     nav: [
-      { text: 'Server', link: '/docs/server/', activeMatch: '^/docs/server/' },
       { text: 'Builder', link: '/docs/builder/', activeMatch: '^/docs/builder/' },
+      { text: 'Server', link: '/docs/server/', activeMatch: '^/docs/server/' },
       { text: 'DI', link: '/docs/di/', activeMatch: '^/docs/di/' },
       { text: 'Commander', link: '/docs/commander/getting-started', activeMatch: '^/docs/commander/' },
     ],

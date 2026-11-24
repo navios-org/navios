@@ -63,7 +63,7 @@ Endpoints are defined using `@navios/builder` with Zod schemas, providing:
 - **Response validation** - Responses are checked against the schema
 - **Full TypeScript types** - Complete autocompletion and type checking
 
-For endpoint definition syntax, see the [Builder documentation](/docs/builder/builder/guides/defining-endpoints). For controller patterns, see the [Controllers guide](/docs/server/guides/controllers).
+For endpoint definition syntax, see the [Builder documentation](/docs/builder/essentials/endpoints). For controller patterns, see the [Controllers guide](/docs/server/guides/controllers).
 
 ## Guards
 

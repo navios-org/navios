@@ -75,7 +75,7 @@ export const createUser = API.declareEndpoint({
 })
 ```
 
-For complete endpoint definition syntax including URL parameters, query parameters, headers, and advanced options, see the [Builder documentation](/docs/builder/builder/guides/defining-endpoints).
+For complete endpoint definition syntax including URL parameters, query parameters, headers, and advanced options, see the [Builder documentation](/docs/builder/essentials/endpoints).
 
 ## EndpointParams
 

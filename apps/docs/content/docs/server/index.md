@@ -155,5 +155,5 @@ curl http://localhost:3000/users/123
 
 ## Related Documentation
 
-- [Builder: Defining Endpoints](/docs/builder/builder/guides/defining-endpoints) - Learn how to define type-safe endpoints
+- [Builder: Defining Endpoints](/docs/builder/essentials/endpoints) - Learn how to define type-safe endpoints
 - [DI: Getting Started](/docs/di/di/getting-started/setup) - Learn about dependency injection

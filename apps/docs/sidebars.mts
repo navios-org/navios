@@ -127,79 +127,67 @@ const server: Entry[] = [
 
 const builder: Entry[] = [
   'builder/',
+  'builder/quick-start',
+  'builder/how-it-works',
   group(
-    'Builder',
+    'Essentials',
     [
-      'builder/builder/getting-started',
-      'builder/builder/overview',
-      group(
-        'Guides',
-        [
-          'builder/builder/guides/defining-endpoints',
-          'builder/builder/guides/url-parameters',
-          'builder/builder/guides/query-parameters',
-          'builder/builder/guides/schemas',
-          'builder/builder/guides/error-handling',
-          'builder/builder/guides/http-client',
-        ],
-      ),
-      group(
-        'Advanced',
-        [
-          'builder/builder/advanced/streams',
-          'builder/builder/advanced/multipart',
-          'builder/builder/advanced/websocket',
-          'builder/builder/advanced/eventsource',
-          'builder/builder/advanced/discriminated-unions',
-          'builder/builder/advanced/custom-handlers',
-        ],
-      ),
-      'builder/builder/api-reference',
-      'builder/builder/best-practices',
+      'builder/essentials/endpoints',
+      'builder/essentials/inputs',
+      'builder/essentials/responses',
+      'builder/essentials/errors',
+      'builder/essentials/schemas',
+      'builder/essentials/http-client',
     ],
     { collapsed: false },
   ),
   group(
+    'Guides',
+    [
+      'builder/guides/file-uploads',
+      'builder/guides/downloads-and-streams',
+      'builder/guides/navios-server',
+      'builder/guides/organizing',
+      'builder/guides/testing',
+    ],
+    { collapsed: false },
+  ),
+  group(
+    'Realtime',
+    [
+      'builder/realtime/websocket',
+      'builder/realtime/server-sent-events',
+    ],
+  ),
+  group(
     'React Query',
     [
-      'builder/react-query/getting-started',
-      'builder/react-query/overview',
-      group(
-        'Guides',
-        [
-          'builder/react-query/guides/queries',
-          'builder/react-query/guides/infinite-queries',
-          'builder/react-query/guides/mutations',
-          'builder/react-query/guides/scoped-mutations',
-          'builder/react-query/guides/file-uploads',
-          'builder/react-query/guides/query-keys',
-          'builder/react-query/guides/invalidation',
-          'builder/react-query/guides/suspense',
-          'builder/react-query/guides/mutation-context',
-          'builder/react-query/guides/optimistic-updates',
-        ],
-      ),
-      group(
-        'Advanced',
-        [
-          'builder/react-query/advanced/file-downloads',
-          'builder/react-query/advanced/ssr-prefetch',
-          'builder/react-query/advanced/error-schemas',
-          'builder/react-query/advanced/query-client-config',
-        ],
-      ),
-      'builder/react-query/api-reference',
-      'builder/react-query/best-practices',
+      'builder/react-query/',
+      'builder/react-query/queries',
+      'builder/react-query/infinite-queries',
+      'builder/react-query/mutations',
+      'builder/react-query/optimistic-updates',
+      'builder/react-query/keys-and-invalidation',
+      'builder/react-query/errors',
+      'builder/react-query/uploads-and-downloads',
+      'builder/react-query/ssr',
       group(
         'Recipes',
         [
-          'builder/react-query/recipes/complete-example',
-          'builder/react-query/recipes/form-handling',
+          'builder/react-query/recipes/forms',
           'builder/react-query/recipes/realtime-updates',
         ],
       ),
     ],
     { collapsed: false },
+  ),
+  group(
+    'Reference',
+    [
+      'builder/reference/builder',
+      'builder/reference/react-query',
+      'builder/reference/migrating-to-2',
+    ],
   ),
 ]
 
