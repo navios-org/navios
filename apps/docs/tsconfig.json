@@ -1,8 +1,15 @@
 {
-  // This file is not used in compilation. It is here just for a nice editor experience.
-  "extends": "@docusaurus/tsconfig",
   "compilerOptions": {
-    "baseUrl": "."
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "jsx": "react-jsx",
+    "strict": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "allowImportingTsExtensions": true,
+    "types": ["node"]
   },
-  "exclude": [".docusaurus", "build"]
+  "include": ["rspress.config.ts", "content/**/*.tsx", "theme", "scripts", "env.d.ts"],
+  "exclude": ["build", "node_modules"]
 }
