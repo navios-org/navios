@@ -1,3 +1,161 @@
+/* Landing page. Dark values are the defaults; light mode overrides them under html:not(.dark). */
+.home {
+  --home-font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  --home-surface: #0f172a;
+  --home-text-500: #64748b;
+  --home-text-600: #94a3b8;
+  --home-text-700: #cbd5e1;
+  --home-text-800: #e2e8f0;
+  --home-text-900: #f1f5f9;
+}
+
+:global(html:not(.dark)) .home {
+  --home-surface: #ffffff;
+  --home-text-500: #94a3b8;
+  --home-text-600: #64748b;
+  --home-text-700: #475569;
+  --home-text-800: #334155;
+  --home-text-900: #1e293b;
+}
+
+/* Layout grid */
+.container {
+  width: 100%;
+  max-width: 1140px;
+  margin: 0 auto;
+  padding: 0 1rem;
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  margin: 0 -1rem;
+}
+
+.col {
+  flex: 1 0;
+  max-width: 100%;
+  padding: 0 1rem;
+}
+
+.col4 {
+  flex: 0 0 33.3333%;
+  max-width: 33.3333%;
+}
+
+.col6 {
+  flex: 0 0 50%;
+  max-width: 50%;
+}
+
+@media screen and (max-width: 996px) {
+  .col4,
+  .col6 {
+    flex: 0 0 100%;
+    max-width: 100%;
+  }
+}
+
+/* Hero */
+.hero {
+  background: linear-gradient(135deg, #020617 0%, #0f172a 50%, #020617 100%);
+}
+
+:global(html:not(.dark)) .hero {
+  background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 50%, #f8fafc 100%);
+}
+
+.heroTitle {
+  font-size: 3.5rem;
+  font-weight: 700;
+  line-height: 1.2;
+  background: linear-gradient(135deg, #22d3ee 0%, #3b82f6 50%, #8b5cf6 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+:global(html:not(.dark)) .heroTitle {
+  background-image: linear-gradient(135deg, #1d4ed8 0%, #2563eb 50%, #7c3aed 100%);
+}
+
+.heroSubtitle {
+  max-width: 600px;
+  margin: 0 auto;
+  font-size: 1.5rem;
+  color: #94a3b8;
+}
+
+:global(html:not(.dark)) .heroSubtitle {
+  color: #475569;
+}
+
+@media screen and (max-width: 996px) {
+  .heroTitle {
+    font-size: 2.5rem;
+  }
+
+  .heroSubtitle {
+    font-size: 1.25rem;
+  }
+}
+
+/* Buttons */
+.button {
+  display: inline-block;
+  padding: 0.75rem 2rem;
+  border-radius: 0.4rem;
+  font-size: 1.125rem;
+  font-weight: 700;
+  line-height: 1.5;
+  text-decoration: none;
+  transition: all 0.2s ease;
+}
+
+.button:hover {
+  transform: translateY(-2px);
+}
+
+.buttonPrimary {
+  color: #020617;
+  background: linear-gradient(135deg, #22d3ee 0%, #3b82f6 100%);
+}
+
+.buttonPrimary:hover {
+  background: linear-gradient(135deg, #67e8f9 0%, #60a5fa 100%);
+  box-shadow: 0 10px 25px -10px rgba(34, 211, 238, 0.4);
+}
+
+:global(html:not(.dark)) .buttonPrimary {
+  color: #ffffff;
+  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+}
+
+:global(html:not(.dark)) .buttonPrimary:hover {
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+  box-shadow: 0 10px 25px -10px rgba(37, 99, 235, 0.4);
+}
+
+.buttonSecondary {
+  border: 2px solid #22d3ee;
+  color: #22d3ee;
+  background: transparent;
+}
+
+.buttonSecondary:hover {
+  background: rgba(34, 211, 238, 0.1);
+}
+
+:global(html:not(.dark)) .buttonSecondary {
+  border-color: #3b82f6;
+  color: #3b82f6;
+}
+
+:global(html:not(.dark)) .buttonSecondary:hover {
+  background: rgba(59, 130, 246, 0.1);
+}
+
+/* Sections */
 .heroBanner {
   min-height: calc(100vh - 60px);
   display: flex;
@@ -36,7 +194,7 @@
   border-radius: 8px;
   padding: 0.75rem 1rem;
   margin-top: 2.5rem;
-  font-family: var(--ifm-font-family-monospace);
+  font-family: var(--home-font-mono);
   font-size: 0.9rem;
 }
 
@@ -49,7 +207,7 @@
   border: 1px solid rgba(255, 255, 255, 0.2);
   border-radius: 4px;
   padding: 0.25rem 0.75rem;
-  color: var(--ifm-color-emphasis-700);
+  color: var(--home-text-700);
   cursor: pointer;
   font-size: 0.8rem;
   transition: all 0.2s ease;
@@ -57,7 +215,7 @@
 
 .copyButton:hover {
   background: rgba(255, 255, 255, 0.2);
-  color: var(--ifm-color-emphasis-900);
+  color: var(--home-text-900);
 }
 
 /* Hero diagram */
@@ -87,7 +245,7 @@
   font-size: 0.75rem;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: var(--ifm-color-emphasis-600);
+  color: var(--home-text-600);
 }
 
 .diagramBox code {
@@ -105,7 +263,7 @@
 
 .diagramArrow span {
   font-size: 0.7rem;
-  color: var(--ifm-color-emphasis-500);
+  color: var(--home-text-500);
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
@@ -137,7 +295,7 @@
 
 .sectionSubtitle {
   text-align: center;
-  color: var(--ifm-color-emphasis-600);
+  color: var(--home-text-600);
   margin-bottom: 2.5rem;
   font-size: 1.1rem;
 }
@@ -192,7 +350,7 @@
 }
 
 .featureDescription {
-  color: var(--ifm-color-emphasis-700);
+  color: var(--home-text-700);
   font-size: 0.95rem;
   line-height: 1.6;
   margin: 0;
@@ -201,7 +359,7 @@
 /* Code example section */
 .codeSection {
   padding: 4rem 0;
-  background: var(--ifm-background-surface-color);
+  background: var(--home-surface);
 }
 
 .codeContainer {
@@ -221,7 +379,7 @@
   background: transparent;
   border: none;
   padding: 0.75rem 1.25rem;
-  color: var(--ifm-color-emphasis-600);
+  color: var(--home-text-600);
   cursor: pointer;
   font-size: 0.9rem;
   font-weight: 500;
@@ -231,7 +389,7 @@
 }
 
 .codeTab:hover {
-  color: var(--ifm-color-emphasis-800);
+  color: var(--home-text-800);
 }
 
 .codeTabActive {
@@ -246,7 +404,7 @@
 
 .benefitsList li {
   margin-bottom: 0.5rem;
-  color: var(--ifm-color-emphasis-700);
+  color: var(--home-text-700);
 }
 
 /* Comparison section */
@@ -296,7 +454,7 @@
 /* Ecosystem section */
 .ecosystemSection {
   padding: 4rem 0;
-  background: var(--ifm-background-surface-color);
+  background: var(--home-surface);
 }
 
 .ecosystemCategory {
@@ -335,11 +493,11 @@
 
 .ecosystemName {
   font-weight: 600;
-  color: var(--ifm-color-emphasis-900);
+  color: var(--home-text-900);
 }
 
 .ecosystemDesc {
-  color: var(--ifm-color-emphasis-600);
+  color: var(--home-text-600);
   font-size: 0.9rem;
 }
 
@@ -382,7 +540,7 @@
   border-radius: 9999px;
   font-size: 0.875rem;
   color: #22d3ee;
-  font-family: var(--ifm-font-family-monospace);
+  font-family: var(--home-font-mono);
 }
 
 .npmBadge {
@@ -395,98 +553,98 @@
 }
 
 .packageCard p {
-  color: var(--ifm-color-emphasis-700);
+  color: var(--home-text-700);
   margin-bottom: 1rem;
   font-size: 0.95rem;
 }
 
 .packageCard a {
-  color: var(--ifm-color-primary);
+  color: var(--rp-c-brand);
   font-weight: 500;
 }
 
 /* Light theme adjustments */
-[data-theme='light'] .installCommand {
+:global(html:not(.dark)) .installCommand {
   background: rgba(0, 0, 0, 0.05);
   border-color: #e2e8f0;
 }
 
-[data-theme='light'] .copyButton {
+:global(html:not(.dark)) .copyButton {
   background: rgba(0, 0, 0, 0.05);
   border-color: #e2e8f0;
 }
 
-[data-theme='light'] .diagramBox {
+:global(html:not(.dark)) .diagramBox {
   background: #f8fafc;
   border-color: #e2e8f0;
 }
 
-[data-theme='light'] .featureCard {
+:global(html:not(.dark)) .featureCard {
   background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
   border-color: #e2e8f0;
 }
 
-[data-theme='light'] .featureCard:hover {
+:global(html:not(.dark)) .featureCard:hover {
   border-color: #3b82f6;
   box-shadow: 0 20px 40px -20px rgba(59, 130, 246, 0.15);
 }
 
-[data-theme='light'] .codeTabs {
+:global(html:not(.dark)) .codeTabs {
   border-bottom-color: #e2e8f0;
 }
 
-[data-theme='light'] .codeTabActive {
+:global(html:not(.dark)) .codeTabActive {
   color: #3b82f6;
   border-bottom-color: #3b82f6;
 }
 
-[data-theme='light'] .comparisonTable th {
+:global(html:not(.dark)) .comparisonTable th {
   background: #f8fafc;
 }
 
-[data-theme='light'] .comparisonTable th,
-[data-theme='light'] .comparisonTable td {
+:global(html:not(.dark)) .comparisonTable th,
+:global(html:not(.dark)) .comparisonTable td {
   border-bottom-color: #e2e8f0;
 }
 
-[data-theme='light'] .ecosystemItem {
+:global(html:not(.dark)) .ecosystemItem {
   background: #f8fafc;
   border-color: #e2e8f0;
 }
 
-[data-theme='light'] .ecosystemItem:hover {
+:global(html:not(.dark)) .ecosystemItem:hover {
   border-color: #3b82f6;
   background: #f1f5f9;
 }
 
-[data-theme='light'] .packageCard {
+:global(html:not(.dark)) .packageCard {
   background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
   border-color: #e2e8f0;
 }
 
-[data-theme='light'] .packageCard:hover {
+:global(html:not(.dark)) .packageCard:hover {
   border-color: #3b82f6;
 }
 
-[data-theme='light'] .packageBadge {
+:global(html:not(.dark)) .packageBadge {
   background: rgba(59, 130, 246, 0.1);
   border-color: rgba(59, 130, 246, 0.3);
   color: #3b82f6;
 }
 
-[data-theme='light'] .installCommand code {
+:global(html:not(.dark)) .installCommand code {
   color: #3b82f6;
 }
 
-[data-theme='light'] .diagramBox code {
+:global(html:not(.dark)) .diagramBox code {
   color: #3b82f6;
 }
 
-[data-theme='light'] .arrowLine {
+:global(html:not(.dark)) .arrowLine {
   background: linear-gradient(90deg, rgba(59, 130, 246, 0.3), rgba(59, 130, 246, 0.8), rgba(59, 130, 246, 0.3));
 }
 
-[data-theme='light'] .arrowLine::after {
+:global(html:not(.dark)) .arrowLine::after {
   border-color: rgba(59, 130, 246, 0.8);
 }
 

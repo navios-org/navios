@@ -1,0 +1,20 @@
+/* Navios brand colours on Rspress's theme variables. */
+:root {
+  --rp-c-brand: #2563eb;
+  --rp-c-brand-dark: #1d4ed8;
+  --rp-c-brand-darker: #1e40af;
+  --rp-c-brand-light: #3b82f6;
+  --rp-c-brand-lighter: #60a5fa;
+  --rp-c-brand-tint: rgba(37, 99, 235, 0.12);
+}
+
+.dark {
+  --rp-c-brand: #22d3ee;
+  --rp-c-brand-dark: #06b6d4;
+  --rp-c-brand-darker: #0891b2;
+  --rp-c-brand-light: #67e8f9;
+  --rp-c-brand-lighter: #a5f3fc;
+  --rp-c-brand-tint: rgba(34, 211, 238, 0.12);
+  --rp-c-bg: #020617;
+  --rp-c-bg-soft: #0f172a;
+}

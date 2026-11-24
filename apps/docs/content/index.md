@@ -1,5 +1,0 @@
----
-pageType: custom
----
-
-# Navios Framework

@@ -1,3 +1,5 @@
+import { join } from 'node:path'
+
 import { defineConfig } from '@rspress/core'
 import mermaid from 'rspress-plugin-mermaid'
 
@@ -15,6 +17,7 @@ export default defineConfig({
   logoText: 'Navios',
   siteOrigin: siteUrl,
   sitemap: { siteUrl },
+  globalStyles: join(import.meta.dirname, 'theme/brand.css'),
   plugins: [mermaid()],
   markdown: {
     // A broken link or anchor fails the build.

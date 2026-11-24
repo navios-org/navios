@@ -1,26 +1,24 @@
 import type { ReactNode } from 'react'
 import { useState } from 'react'
+import { CodeBlockRuntime, Link } from '@rspress/core/theme'
 import clsx from 'clsx'
-import Link from '@docusaurus/Link'
-import useDocusaurusContext from '@docusaurus/useDocusaurusContext'
-import Layout from '@theme/Layout'
-import Heading from '@theme/Heading'
-import CodeBlock from '@theme/CodeBlock'
 
-import styles from './index.module.css'
+import styles from '../theme/home.module.css'
+
+const siteTitle = 'Navios Framework'
+const siteTagline = 'Type-safe, decorator-based framework for building modern APIs'
 
 const installCommand =
   'npm install @navios/core @navios/adapter-fastify @navios/builder zod'
 
 function HomepageHeader() {
-  const { siteConfig } = useDocusaurusContext()
   return (
-    <header className={clsx('hero', styles.heroBanner)}>
+    <header className={clsx(styles.hero, styles.heroBanner)}>
       <div className={styles.heroContent}>
-        <Heading as="h1" className="hero__title">
-          {siteConfig.title}
-        </Heading>
-        <p className="hero__subtitle">{siteConfig.tagline}</p>
+        <h1 className={styles.heroTitle}>
+          {siteTitle}
+        </h1>
+        <p className={styles.heroSubtitle}>{siteTagline}</p>
 
         {/* Install command */}
         <div className={styles.installCommand}>
@@ -35,12 +33,12 @@ function HomepageHeader() {
         </div>
 
         <div className={styles.buttons}>
-          <Link className="button button--primary button--lg" to="/docs/server">
+          <Link className={clsx(styles.button, styles.buttonPrimary)} href="/docs/server">
             Get Started
           </Link>
           <Link
-            className="button button--secondary button--lg"
-            to="https://github.com/Arilas/navios"
+            className={clsx(styles.button, styles.buttonSecondary)}
+            href="https://github.com/Arilas/navios"
           >
             View on GitHub
           </Link>
@@ -152,13 +150,13 @@ const FeatureList: FeatureItem[] = [
 
 function Feature({ title, icon, description, link }: FeatureItem) {
   return (
-    <div className={clsx('col col--4')}>
-      <Link to={link} className={styles.featureLink}>
+    <div className={clsx(styles.col, styles.col4)}>
+      <Link href={link} className={styles.featureLink}>
         <div className={styles.featureCard}>
           <div className={styles.featureIcon}>{icon}</div>
-          <Heading as="h3" className={styles.featureTitle}>
+          <h3 className={styles.featureTitle}>
             {title}
-          </Heading>
+          </h3>
           <p className={styles.featureDescription}>{description}</p>
         </div>
       </Link>
@@ -169,14 +167,14 @@ function Feature({ title, icon, description, link }: FeatureItem) {
 function HomepageFeatures(): ReactNode {
   return (
     <section className={styles.features}>
-      <div className="container">
-        <Heading as="h2" className={styles.sectionTitle}>
+      <div className={styles.container}>
+        <h2 className={styles.sectionTitle}>
           Why Navios?
-        </Heading>
+        </h2>
         <p className={styles.sectionSubtitle}>
           A modern approach to building type-safe APIs with TypeScript
         </p>
-        <div className={clsx('row', styles.featuresRow)}>
+        <div className={clsx(styles.row, styles.featuresRow)}>
           {FeatureList.map((props, idx) => (
             <Feature key={idx} {...props} />
           ))}
@@ -247,10 +245,10 @@ function CodeExample(): ReactNode {
 
   return (
     <section className={styles.codeSection}>
-      <div className="container">
-        <Heading as="h2" className={styles.sectionTitle}>
+      <div className={styles.container}>
+        <h2 className={styles.sectionTitle}>
           Define Once, Use Everywhere
-        </Heading>
+        </h2>
         <p className={styles.sectionSubtitle}>
           Create type-safe API definitions that work seamlessly on both client
           and server
@@ -270,7 +268,7 @@ function CodeExample(): ReactNode {
               </button>
             ))}
           </div>
-          <CodeBlock language="typescript">{codeExamples[activeTab]}</CodeBlock>
+          <CodeBlockRuntime lang="typescript" code={codeExamples[activeTab]} />
         </div>
       </div>
     </section>
@@ -280,10 +278,10 @@ function CodeExample(): ReactNode {
 function ComparisonSection(): ReactNode {
   return (
     <section className={styles.comparisonSection}>
-      <div className="container">
-        <Heading as="h2" className={styles.sectionTitle}>
+      <div className={styles.container}>
+        <h2 className={styles.sectionTitle}>
           How Navios Compares
-        </Heading>
+        </h2>
         <p className={styles.sectionSubtitle}>
           See how Navios stacks up against other popular frameworks
         </p>
@@ -383,22 +381,22 @@ function EcosystemSection(): ReactNode {
 
   return (
     <section className={styles.ecosystemSection}>
-      <div className="container">
-        <Heading as="h2" className={styles.sectionTitle}>
+      <div className={styles.container}>
+        <h2 className={styles.sectionTitle}>
           Ecosystem
-        </Heading>
+        </h2>
         <p className={styles.sectionSubtitle}>
           Adapters, plugins, and integrations to build your application
         </p>
-        <div className="row">
-          <div className="col col--6">
+        <div className={styles.row}>
+          <div className={clsx(styles.col, styles.col6)}>
             <div className={styles.ecosystemCategory}>
-              <Heading as="h3">Adapters</Heading>
+              <h3>Adapters</h3>
               <div className={styles.ecosystemList}>
                 {ecosystem.adapters.map((item) => (
                   <Link
                     key={item.name}
-                    to={item.link}
+                    href={item.link}
                     className={styles.ecosystemItem}
                   >
                     <span className={styles.ecosystemName}>{item.name}</span>
@@ -410,14 +408,14 @@ function EcosystemSection(): ReactNode {
               </div>
             </div>
           </div>
-          <div className="col col--6">
+          <div className={clsx(styles.col, styles.col6)}>
             <div className={styles.ecosystemCategory}>
-              <Heading as="h3">Recipes</Heading>
+              <h3>Recipes</h3>
               <div className={styles.ecosystemList}>
                 {ecosystem.recipes.map((item) => (
                   <Link
                     key={item.name}
-                    to={item.link}
+                    href={item.link}
                     className={styles.ecosystemItem}
                   >
                     <span className={styles.ecosystemName}>{item.name}</span>
@@ -462,13 +460,13 @@ function PackagesSection(): ReactNode {
 
   return (
     <section className={styles.packagesSection}>
-      <div className="container">
-        <Heading as="h2" className={styles.sectionTitle}>
+      <div className={styles.container}>
+        <h2 className={styles.sectionTitle}>
           Packages
-        </Heading>
-        <div className="row">
+        </h2>
+        <div className={styles.row}>
           {packages.map((pkg) => (
-            <div key={pkg.name} className="col col--4">
+            <div key={pkg.name} className={clsx(styles.col, styles.col4)}>
               <div className={styles.packageCard}>
                 <div className={styles.packageHeader}>
                   <span className={styles.packageBadge}>{pkg.name}</span>
@@ -485,7 +483,7 @@ function PackagesSection(): ReactNode {
                   </a>
                 </div>
                 <p>{pkg.description}</p>
-                <Link to={pkg.link}>Learn more →</Link>
+                <Link href={pkg.link}>Learn more →</Link>
               </div>
             </div>
           ))}
@@ -495,13 +493,11 @@ function PackagesSection(): ReactNode {
   )
 }
 
+export const frontmatter = { pageType: 'custom' }
+
 export default function Home(): ReactNode {
-  const { siteConfig } = useDocusaurusContext()
   return (
-    <Layout
-      title="Home"
-      description="Type-safe, decorator-based framework for building modern APIs"
-    >
+    <div className={styles.home}>
       <HomepageHeader />
       <main>
         <HomepageFeatures />
@@ -510,6 +506,6 @@ export default function Home(): ReactNode {
         <EcosystemSection />
         <PackagesSection />
       </main>
-    </Layout>
+    </div>
   )
 }
