@@ -1,151 +1,190 @@
+import type { BaseEndpointOptions, EndpointHandler } from '@navios/builder'
 import type {
-  ClientRequestArgs,
-  EndpointOptions,
-  ErrorSchemaRecord,
-  InferErrorSchemaOutput,
-  UrlHasParams,
-  UrlParams,
-} from '@navios/builder'
-import type { DataTag, MutationFunctionContext, UseMutationOptions } from '@tanstack/react-query'
-import type { z, ZodObject, ZodType } from 'zod/v4'
+  MutationFunctionContext,
+  UseMutationOptions,
+  UseMutationResult,
+} from '@tanstack/react-query'
 
-import type { ComputeResponseInput } from '../common/types.mjs'
-import type { UnwrapMode } from '../query/types.mjs'
+import type {
+  EndpointArgs,
+  EndpointData,
+  EndpointFailure,
+  EndpointInputs,
+  SurfaceOptions,
+  RequiredKeys,
+} from '../common/types.mjs'
+import type { AnyQueryObject } from '../query/types.mjs'
 
 /**
- * Arguments for mutation functions based on URL params, request schema, and query schema.
- * Uses ClientRequestArgs from builder for consistency.
+ * Variables passed to `mutate`. Optional when the endpoint requires nothing.
  */
-export type MutationArgs<
-  Url extends string = string,
-  RequestSchema extends ZodType | undefined = undefined,
-  QuerySchema extends ZodObject | undefined = undefined,
-> = ClientRequestArgs<{ url: Url; querySchema: QuerySchema; requestSchema: RequestSchema }>
+export type MutationVariables<Options extends BaseEndpointOptions> = [
+  RequiredKeys<EndpointArgs<Options>>,
+] extends [never]
+  ? EndpointArgs<Options> | void
+  : EndpointArgs<Options>
 
 /**
- * Helper methods attached to mutation hooks.
+ * Context handed to every mutation callback: TanStack's own context
+ * (`client`, `meta`, `mutationKey`) merged with whatever `useContext` returns.
+ */
+export type MutationCallbackContext<TContext> = TContext & MutationFunctionContext
+
+/**
+ * What to invalidate after a successful mutation.
  *
- * @template Url - The URL template string
- * @template Result - The mutation result type
+ * - a query (or infinite query): every cache entry of that endpoint
+ * - a function: the key it returns, computed from the mutation's result and
+ *   variables — return `undefined` to skip
  */
-export type MutationHelpers<Url extends string, Result = unknown> =
-  UrlHasParams<Url> extends true
-    ? {
-        /**
-         * Generates a mutation key for the given URL parameters.
-         * Useful for tracking mutations or invalidating related queries.
-         */
-        mutationKey: (params: { urlParams: UrlParams<Url> }) => DataTag<[Url], Result, Error>
-        /**
-         * Returns true if a mutation with the given URL parameters is currently in progress.
-         * Requires `useKey: true` to be set when creating the mutation.
-         */
-        useIsMutating: (keyParams: { urlParams: UrlParams<Url> }) => boolean
-      }
-    : {
-        /**
-         * Generates a mutation key.
-         * Useful for tracking mutations or invalidating related queries.
-         */
-        mutationKey: () => DataTag<[Url], Result, Error>
-        /**
-         * Returns true if a mutation is currently in progress.
-         * Requires `useKey: true` to be set when creating the mutation.
-         */
-        useIsMutating: () => boolean
-      }
+export type InvalidateTarget<TData, TVariables> =
+  | AnyQueryObject
+  | ((data: TData, variables: TVariables) => readonly unknown[] | undefined)
 
 /**
- * Base parameters for mutation configuration.
+ * One optimistic cache update, produced by the function the `optimistic`
+ * option receives.
  */
-export interface MutationParams<
-  Config extends EndpointOptions,
-  TData = unknown,
-  TVariables = ClientRequestArgs<Config>,
-  _TResponse = ComputeResponseInput<Config['responseSchema'], Config['errorSchema']>,
-  TOnMutateResult = unknown,
-  TContext = unknown,
-  UseKey extends boolean = false,
-  TError = Config['errorSchema'] extends ErrorSchemaRecord
-    ? InferErrorSchemaOutput<Config['errorSchema']> | Error
-    : Error,
-> extends Omit<
-  UseMutationOptions<TData, TError, TVariables>,
-  'mutationKey' | 'mutationFn' | 'onMutate' | 'onSuccess' | 'onError' | 'onSettled' | 'scope'
-> {
-  /**
-   * React hooks that will prepare the context for the mutation onSuccess and onError
-   * callbacks. This is useful for when you want to use the context in the callbacks
-   */
-  useContext?: () => TContext
-  onSuccess?: (
-    data: TData,
-    variables: TVariables,
-    context: TContext & MutationFunctionContext & { onMutateResult: TOnMutateResult | undefined },
-  ) => void | Promise<void>
-  onError?: (
-    err: TError,
-    variables: TVariables,
-    context: TContext & MutationFunctionContext & { onMutateResult: TOnMutateResult | undefined },
-  ) => void | Promise<void>
-  onMutate?: (
-    variables: TVariables,
-    context: TContext & MutationFunctionContext,
-  ) => TOnMutateResult | Promise<TOnMutateResult>
-  onSettled?: (
-    data: TData | undefined,
-    error: TError | null,
-    variables: TVariables,
-    context: TContext & MutationFunctionContext & { onMutateResult: TOnMutateResult | undefined },
-  ) => void | Promise<void>
-
-  /**
-   * For endpoints declared with `result: 'envelope'`, controls how the
-   * envelope is delivered to React Query's mutation channel.
-   *
-   * - `'none'` (default): the `ResponseEnvelope` is returned from
-   *   `mutationFn` as-is. React Query's `error` channel is unused — even
-   *   on `envelope.ok === false`, `onSuccess` fires with the envelope.
-   * - `'throw-on-error'`: on `envelope.ok === false`, the `envelope.error`
-   *   is thrown from `mutationFn` so React Query's `onError` channel fires;
-   *   on success, the unwrapped `envelope.data` is delivered to `onSuccess`.
-   *
-   * Has no effect for non-envelope endpoints.
-   */
-  unwrap?: UnwrapMode
-  /**
-   * If true, we will create a mutation key that can be shared across the project.
-   */
-  useKey?: UseKey
-  keyPrefix?: UseKey extends true
-    ? UrlHasParams<Config['url']> extends true
-      ? string[]
-      : never
-    : never
-  keySuffix?: UseKey extends true
-    ? UrlHasParams<Config['url']> extends true
-      ? string[]
-      : never
-    : never
+export interface OptimisticUpdate<TVariables> {
+  /** @internal */
+  readonly key: (variables: TVariables) => readonly unknown[]
+  /** @internal */
+  readonly update: (current: unknown, variables: TVariables) => unknown
+  readonly rollbackOnError: boolean
+  readonly invalidateOnSettled: boolean
 }
 
-// Legacy type aliases for backwards compatibility
-/** @deprecated Use MutationArgs instead */
-export type ClientMutationArgs<
-  Url extends string = string,
-  RequestSchema extends ZodType | undefined = undefined,
-  QuerySchema extends ZodObject | undefined = undefined,
-> = MutationArgs<Url, RequestSchema, QuerySchema>
+type OptimisticData<Q> = Q extends { getData: (...args: any[]) => infer D }
+  ? Exclude<D, undefined>
+  : unknown
+type OptimisticArgs<Q> = Q extends {
+  setData: (queryClient: any, args: infer A, ...rest: any[]) => any
+}
+  ? A
+  : never
 
-/** @deprecated Use MutationParams instead */
-export type BaseMutationParams<
-  Config extends EndpointOptions,
-  TData = unknown,
-  TVariables = ClientRequestArgs<Config>,
-  TResponse = z.output<Config['responseSchema']>,
+/**
+ * `args` selects the cache entry to update. It is required when the query
+ * has required inputs, so an update can never land on the bare endpoint key
+ * by accident.
+ */
+type OptimisticArgsField<Q, TVariables> =
+  {} extends OptimisticArgs<Q>
+    ? { args?: (variables: TVariables) => OptimisticArgs<Q> }
+    : { args: (variables: TVariables) => OptimisticArgs<Q> }
+
+/** Description of one optimistic update against query `Q`. */
+export type OptimisticUpdateSpec<Q, TVariables> = OptimisticArgsField<Q, TVariables> & {
+  /** Returns the new cached value. Return `current` unchanged to skip. */
+  update: (
+    current: OptimisticData<Q> | undefined,
+    variables: TVariables,
+  ) => OptimisticData<Q> | undefined
+  /** Restore the previous value when the mutation fails. @default true */
+  rollbackOnError?: boolean
+  /** Invalidate the entry when the mutation settles. @default true */
+  invalidateOnSettled?: boolean
+}
+
+/** The function handed to the `optimistic` option. */
+export type OptimisticUpdater<TVariables> = <Q extends AnyQueryObject>(
+  query: Q,
+  spec: OptimisticUpdateSpec<Q, TVariables>,
+) => OptimisticUpdate<TVariables>
+
+/**
+ * Options for `client.mutation`: every TanStack `useMutation` option except
+ * the ones this library owns, plus `invalidates`, `optimistic` and
+ * `useContext`.
+ */
+export type MutationSettings<
+  Options extends BaseEndpointOptions,
+  TOnMutateResult = unknown,
   TContext = unknown,
-  UseKey extends boolean = false,
-> = MutationParams<Config, TData, TVariables, TResponse, TContext, UseKey>
+  TData = EndpointData<Options>,
+  TError = EndpointFailure<Options>,
+  TVariables = MutationVariables<Options>,
+  WithResponse extends boolean = boolean,
+> = Omit<
+  UseMutationOptions<TData, TError, TVariables, TOnMutateResult>,
+  'mutationFn' | 'mutationKey' | 'onMutate' | 'onSuccess' | 'onError' | 'onSettled'
+> &
+  SurfaceOptions<WithResponse> & {
+    /**
+     * A hook called inside the mutation hook; its return value is merged
+     * into the context of every callback. Use it for other hooks the
+     * callbacks need (navigation, toasts). The `QueryClient` is already
+     * available as `context.client`.
+     */
+    useContext?: () => TContext
 
-/** @deprecated Use ClientRequestArgs from @navios/builder instead */
-export type BaseMutationArgs<Config extends EndpointOptions> = ClientRequestArgs<Config>
+    /** Queries to invalidate after the mutation succeeds. */
+    invalidates?: readonly InvalidateTarget<NoInfer<TData>, NoInfer<TVariables>>[]
+
+    /**
+     * Optimistic cache updates applied before the request is sent.
+     *
+     * The callback receives a function that describes one update against a
+     * query; return one description or an array of them.
+     *
+     * @example
+     * ```ts
+     * optimistic: (update) =>
+     *   update(getUser, {
+     *     args: (variables) => ({ urlParams: variables.urlParams }),
+     *     update: (current, variables) => current && { ...current, ...variables.data },
+     *   }),
+     * ```
+     */
+    optimistic?: (
+      update: OptimisticUpdater<TVariables>,
+    ) => OptimisticUpdate<TVariables> | readonly OptimisticUpdate<TVariables>[]
+
+    onMutate?: (
+      variables: TVariables,
+      context: MutationCallbackContext<TContext>,
+    ) => TOnMutateResult | Promise<TOnMutateResult>
+    onSuccess?: (
+      data: NoInfer<TData>,
+      variables: TVariables,
+      context: MutationCallbackContext<TContext> & { onMutateResult: TOnMutateResult | undefined },
+    ) => void | Promise<void>
+    onError?: (
+      error: NoInfer<TError>,
+      variables: TVariables,
+      context: MutationCallbackContext<TContext> & { onMutateResult: TOnMutateResult | undefined },
+    ) => void | Promise<void>
+    onSettled?: (
+      data: NoInfer<TData> | undefined,
+      error: NoInfer<TError> | null,
+      variables: TVariables,
+      context: MutationCallbackContext<TContext> & { onMutateResult: TOnMutateResult | undefined },
+    ) => void | Promise<void>
+  }
+
+/**
+ * A mutation bound to one endpoint: a hook with a few helpers attached.
+ */
+export type MutationObject<
+  Options extends BaseEndpointOptions,
+  TOnMutateResult = unknown,
+  TData = EndpointData<Options>,
+  TError = EndpointFailure<Options>,
+  TVariables = MutationVariables<Options>,
+> = (() => UseMutationResult<TData, TError, TVariables, TOnMutateResult>) & {
+  /** Key shared by every mutation of this endpoint: `[...prefix, method, url]`. */
+  mutationKey: readonly unknown[]
+
+  /**
+   * True while a mutation of this endpoint is in flight. Pass `urlParams` to
+   * count only mutations for those params (e.g. one row of a list).
+   */
+  useIsMutating: (
+    match?: EndpointInputs<Options> extends { urlParams: infer P }
+      ? { urlParams?: Partial<P> }
+      : never,
+  ) => boolean
+
+  /** The endpoint this mutation calls. */
+  endpoint: EndpointHandler<Options>
+}

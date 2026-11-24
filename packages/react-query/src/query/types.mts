@@ -1,248 +1,283 @@
 import type {
-  ClientRequestArgs,
-  EndpointOptions,
-  EnvelopeError,
-  ErrorSchemaRecord,
-  InferEndpointReturn,
-  ResponseEnvelope,
-  Simplify,
-  UrlHasParams,
-  UrlParams,
+  BaseEndpointOptions,
+  EndpointHandler,
+  InferSchemaInput,
+  Schema,
 } from '@navios/builder'
 import type {
   DataTag,
   InfiniteData,
+  InvalidateQueryFilters,
   QueryClient,
+  SkipToken,
+  Updater,
+  UseInfiniteQueryOptions,
+  UseInfiniteQueryResult,
+  UseQueryOptions,
   UseQueryResult,
+  UseSuspenseInfiniteQueryOptions,
+  UseSuspenseInfiniteQueryResult,
+  UseSuspenseQueryOptions,
   UseSuspenseQueryResult,
 } from '@tanstack/react-query'
-import type { z, ZodObject, ZodType } from 'zod/v4'
 
-import type { Split } from '../common/types.mjs'
+import type {
+  ArgsWith,
+  EndpointArgs,
+  EndpointData,
+  EndpointFailure,
+  SurfaceOptions,
+  PartialEndpointInputs,
+  RequiredKeys,
+} from '../common/types.mjs'
 
-/**
- * Controls how `@navios/react-query` handles `result: 'envelope'` endpoints.
- *
- * - `'none'` (default): the `ResponseEnvelope` is stored verbatim as the
- *   cached `data`; React Query's error channel is unused.
- * - `'throw-on-error'`: on `envelope.ok === false` the `envelope.error` is
- *   thrown from the queryFn so React Query's `error` channel fires. On
- *   success, the unwrapped `envelope.data` is cached.
- *
- * Has no effect on non-envelope endpoints.
- */
-export type UnwrapMode = 'none' | 'throw-on-error'
+/** A cache key tagged with the data and error types stored under it. */
+export type TaggedKey<TData, TError> = DataTag<readonly unknown[], TData, TError>
 
-/**
- * Like {@link UnwrapMode} but with an extra `'pages'` mode for infinite
- * queries.
- *
- * - `'none'` (default): each entry in `data.pages[i]` is the full
- *   `ResponseEnvelope`.
- * - `'throw-on-error'`: each page's envelope is unwrapped; on
- *   `envelope.ok === false` the `envelope.error` is thrown from the queryFn
- *   so React Query's `error` channel fires and pagination stops.
- * - `'pages'`: recommended mode for infinite queries. Currently behaves
- *   identically to `'throw-on-error'` — success pages are unwrapped to the
- *   `envelope.data` body and errors throw. The separate name leaves room to
- *   diverge later (e.g. surface per-page errors without aborting the page
- *   chain) and signals intent at the call site.
- *
- * Has no effect on non-envelope endpoints.
- */
-export type InfiniteUnwrapMode = 'none' | 'throw-on-error' | 'pages'
+/** `[args | skipToken, ...Rest]`, with `args` optional when nothing is required. */
+type HookArgsWith<Options extends BaseEndpointOptions, Rest extends unknown[]> = [
+  RequiredKeys<EndpointArgs<Options>>,
+] extends [never]
+  ? [args?: EndpointArgs<Options> | SkipToken, ...rest: Rest]
+  : [args: EndpointArgs<Options> | SkipToken, ...rest: Rest]
+
+/** Filters accepted by `invalidate`, minus the key this library builds. */
+export type InvalidateFilters = Omit<InvalidateQueryFilters, 'queryKey'>
+
+// =============================================================================
+// Query
+// =============================================================================
 
 /**
- * Result type for an envelope-mode endpoint given an `UnwrapMode`.
- *
- * - `'throw-on-error'` → unwrapped success data (envelope.data on the ok branch).
- * - `'none'` (default) → full `ResponseEnvelope` discriminated union.
+ * Every TanStack `useQuery` option except the two this library owns.
  */
-export type EnvelopeQueryResult<
-  Options extends EndpointOptions,
-  Unwrap extends UnwrapMode = 'none',
-> = Unwrap extends 'throw-on-error'
-  ? z.output<Options['responseSchema']>
-  : ResponseEnvelope<
-      z.output<Options['responseSchema']>,
-      EnvelopeError<
-        Options['errorSchema'] extends ErrorSchemaRecord ? Options['errorSchema'] : undefined
-      >
-    >
-
-/**
- * The error type produced by the queryFn for an envelope-mode endpoint when
- * `unwrap: 'throw-on-error'`. Non-envelope endpoints fall back to `Error`.
- */
-export type EnvelopeQueryError<Options extends EndpointOptions> = EnvelopeError<
-  Options['errorSchema'] extends ErrorSchemaRecord ? Options['errorSchema'] : undefined
+export type QueryHookOptions<TData, TError, TSelected = TData> = Omit<
+  UseQueryOptions<TData, TError, TSelected, TaggedKey<TData, TError>>,
+  'queryKey' | 'queryFn'
 >
 
 /**
- * Helper type that resolves the data-channel type for an endpoint.
+ * Every TanStack `useSuspenseQuery` option except the two this library owns.
+ */
+export type SuspenseQueryHookOptions<TData, TError, TSelected = TData> = Omit<
+  UseSuspenseQueryOptions<TData, TError, TSelected, TaggedKey<TData, TError>>,
+  'queryKey' | 'queryFn'
+>
+
+/** Options object produced by calling a query; accepted by `useQuery`, `useSuspenseQuery`, `useQueries` and `queryClient.query`. */
+export type QueryOptionsResult<TData, TError> = UseSuspenseQueryOptions<
+  TData,
+  TError,
+  TData,
+  TaggedKey<TData, TError>
+> & { queryKey: TaggedKey<TData, TError> }
+
+/**
+ * A query bound to one endpoint.
  *
- * This is the inferred endpoint return type — kept as a named alias so
- * downstream surfaces can reference a single canonical name.
+ * Call it to get TanStack query options; use the attached helpers for hooks
+ * and typed cache access.
  */
-export type QueryResult<Options extends EndpointOptions> = InferEndpointReturn<Options>
-
-/**
- * Arguments for query functions based on URL params and query schema.
- * Uses ClientRequestArgs from builder for consistency.
- */
-export type QueryArgs<
-  Url extends string = string,
-  QuerySchema extends ZodObject | undefined = undefined,
-  RequestSchema extends ZodType | undefined = undefined,
-> = ClientRequestArgs<{ url: Url; querySchema: QuerySchema; requestSchema: RequestSchema }>
-
-/**
- * Arguments containing only URL params (for invalidateAll operations).
- */
-export type QueryUrlParamsArgs<Url extends string = string> =
-  UrlHasParams<Url> extends true ? { urlParams: UrlParams<Url> } : {} | undefined
-
-/**
- * Base parameters for query configuration.
- */
-export type QueryParams<_Options extends EndpointOptions> = {
-  keyPrefix?: string[]
-  keySuffix?: string[]
-}
-
-/**
- * Result type from the query key creator function.
- */
-export type QueryKeyCreatorResult<
-  QuerySchema = undefined,
-  Url extends string = string,
-  Result = unknown,
-  IsInfinite extends boolean = false,
-  HasParams extends UrlHasParams<Url> = UrlHasParams<Url>,
+export type QueryObject<
+  Options extends BaseEndpointOptions,
+  TData = EndpointData<Options>,
+  TError = EndpointFailure<Options>,
 > = {
-  template: Split<Url, '/'>
-  dataTag: (
-    params: (HasParams extends true ? { urlParams: UrlParams<Url> } : {}) &
-      (QuerySchema extends ZodObject ? { params: z.input<QuerySchema> } : {}),
-  ) => DataTag<Split<Url, '/'>, IsInfinite extends true ? InfiniteData<Result> : Result, Error>
-  filterKey: (
-    params: HasParams extends true ? { urlParams: UrlParams<Url> } : {},
-  ) => DataTag<Split<Url, '/'>, IsInfinite extends true ? InfiniteData<Result> : Result, Error>
-  bindToUrl: (
-    params: (HasParams extends true ? { urlParams: UrlParams<Url> } : {}) &
-      (QuerySchema extends ZodObject ? { params: z.infer<QuerySchema> } : {}),
-  ) => string
-}
+  /**
+   * Builds TanStack query options for these args. Pass the result to
+   * `useQuery`, `useSuspenseQuery`, `useQueries` or `queryClient.query`.
+   */
+  (
+    ...args: ArgsWith<Options, [options?: QueryHookOptions<TData, TError>]>
+  ): QueryOptionsResult<TData, TError>
 
-/**
- * Per-call options accepted by `use` / `useSuspense`.
- *
- * Conservative subset of TanStack's query options. Currently only `select`
- * is supported — it transforms the cached `Result` into `TSelected` and
- * narrows the hook's `data` type accordingly. The transform runs after the
- * queryFn (and after any envelope unwrap), letting components pull
- * component-specific projections without redeclaring the query.
- *
- * If a per-call `select` is provided it overrides any construction-time
- * `baseQuery.select`. We may widen this surface (e.g. `enabled`,
- * `staleTime`) later — start conservative.
- */
-export type UseQueryCallOptions<Result, TSelected> = {
-  select?: (data: Result) => TSelected
-}
+  /**
+   * Cache key for the given args.
+   *
+   * - no args: prefix of every entry of this endpoint
+   * - partial args: prefix of every entry that matches them
+   * - full args: the exact key
+   */
+  key: (args?: PartialEndpointInputs<Options>) => TaggedKey<TData, TError>
 
-/**
- * Helper methods attached to query options.
- */
-export type QueryHelpers<
-  Url extends string,
-  QuerySchema extends ZodObject | undefined = undefined,
-  Result = undefined,
-  IsInfinite extends boolean = false,
-  RequestSchema extends ZodType | undefined = undefined,
-> = {
-  queryKey: QueryKeyCreatorResult<QuerySchema, Url, Result, IsInfinite>
-  use: <TSelected = Result>(
-    params: Simplify<QueryArgs<Url, QuerySchema, RequestSchema>>,
-    opts?: UseQueryCallOptions<Result, TSelected>,
-  ) => UseQueryResult<TSelected, Error>
-  useSuspense: <TSelected = Result>(
-    params: Simplify<QueryArgs<Url, QuerySchema, RequestSchema>>,
-    opts?: UseQueryCallOptions<Result, TSelected>,
-  ) => UseSuspenseQueryResult<TSelected, Error>
+  /**
+   * `useQuery` for this endpoint. Accepts every TanStack option except
+   * `queryKey` / `queryFn`. Pass `skipToken` as args to disable the query
+   * until its inputs are known.
+   */
+  use: <TSelected = TData>(
+    ...args: HookArgsWith<Options, [options?: QueryHookOptions<TData, TError, TSelected>]>
+  ) => UseQueryResult<TSelected, TError>
+
+  /** `useSuspenseQuery` for this endpoint. */
+  useSuspense: <TSelected = TData>(
+    ...args: ArgsWith<Options, [options?: SuspenseQueryHookOptions<TData, TError, TSelected>]>
+  ) => UseSuspenseQueryResult<TSelected, TError>
+
+  /**
+   * Fetches through the cache and resolves with the data; rejects with the
+   * endpoint's error. Fresh cached data is returned without a request.
+   */
+  fetch: (queryClient: QueryClient, ...args: ArgsWith<Options>) => Promise<TData>
+
+  /**
+   * Like `fetch`, but resolves with nothing and never rejects. For warming
+   * the cache in loaders and on hover.
+   */
+  prefetch: (queryClient: QueryClient, ...args: ArgsWith<Options>) => Promise<void>
+
+  /**
+   * Resolves with cached data when there is any, however old, and fetches
+   * only when the cache is empty.
+   */
+  ensure: (queryClient: QueryClient, ...args: ArgsWith<Options>) => Promise<TData>
+
+  /** Reads the cached data for these args. */
+  getData: (queryClient: QueryClient, ...args: ArgsWith<Options>) => TData | undefined
+
+  /** Writes the cached data for these args. */
+  setData: (
+    queryClient: QueryClient,
+    args: EndpointArgs<Options>,
+    updater: Updater<TData | undefined, TData | undefined>,
+  ) => TData | undefined
+
+  /**
+   * Invalidates entries of this endpoint: all of them without args, the
+   * matching ones with partial args. Pass `{ exact: true }` to hit one entry.
+   */
   invalidate: (
     queryClient: QueryClient,
-    params: Simplify<QueryArgs<Url, QuerySchema, RequestSchema>>,
-  ) => () => Promise<void>
-  invalidateAll: (
-    queryClient: QueryClient,
-    params: Simplify<QueryUrlParamsArgs<Url>>,
-  ) => () => Promise<void>
+    args?: PartialEndpointInputs<Options>,
+    filters?: InvalidateFilters,
+  ) => Promise<void>
+
+  /** The endpoint this query calls. */
+  endpoint: EndpointHandler<Options>
 }
+
+// =============================================================================
+// Infinite query
+// =============================================================================
+
+/** Endpoint options usable for an infinite query: a `querySchema` is required. */
+export type InfiniteEndpointOptions = BaseEndpointOptions & { querySchema: Schema }
 
 /**
- * Options for infinite query configuration.
+ * The page param: query params merged over the call's `params` for each page.
  */
-export type InfiniteQueryOptions<
-  Config extends EndpointOptions & {
-    querySchema: ZodObject
-  },
-  Res = z.output<Config['responseSchema']>,
-> = {
-  keyPrefix?: string[]
-  keySuffix?: string[]
+export type PageParam<Options extends InfiniteEndpointOptions> = InferSchemaInput<
+  Options['querySchema']
+>
+
+/** Pagination settings for an infinite query. */
+export type InfiniteQuerySettings<
+  Options extends InfiniteEndpointOptions,
+  TPage = EndpointData<Options>,
+  WithResponse extends boolean = boolean,
+> = SurfaceOptions<WithResponse> & {
   /**
-   * For endpoints declared with `result: 'envelope'`, controls how each page
-   * is delivered to React Query.
-   *
-   * - `'none'` (default): each `data.pages[i]` is the full `ResponseEnvelope`.
-   * - `'throw-on-error'`: each page's envelope is unwrapped; on
-   *   `envelope.ok === false` the `envelope.error` is thrown from the queryFn
-   *   so the React Query `error` channel fires and pagination stops.
-   * - `'pages'`: recommended for infinite queries. Currently identical to
-   *   `'throw-on-error'` at runtime — success pages are unwrapped to
-   *   `envelope.data` and errors throw. The separate name signals intent and
-   *   leaves room for divergence later.
-   *
-   * Has no effect on non-envelope endpoints. Note: `getNextPageParam` /
-   * `getPreviousPageParam` receive whatever shape this mode produces — the
-   * full envelope under `'none'`, the unwrapped body under `'throw-on-error'`
-   * / `'pages'`.
+   * Returns the query params for the next page, or `undefined` / `null` when
+   * there are no more pages. The returned object is merged over the call's
+   * `params`.
    */
-  unwrap?: InfiniteUnwrapMode
   getNextPageParam: (
-    lastPage: Res,
-    allPages: Res[],
-    lastPageParam: z.infer<Config['querySchema']> | undefined,
-    allPageParams: z.infer<Config['querySchema']>[] | undefined,
-  ) => z.input<Config['querySchema']> | z.infer<Config['querySchema']> | undefined
+    lastPage: TPage,
+    allPages: TPage[],
+    lastPageParam: PageParam<Options>,
+    allPageParams: PageParam<Options>[],
+  ) => PageParam<Options> | undefined | null
   getPreviousPageParam?: (
-    firstPage: Res,
-    allPages: Res[],
-    lastPageParam: z.infer<Config['querySchema']> | undefined,
-    allPageParams: z.infer<Config['querySchema']>[] | undefined,
-  ) => z.input<Config['querySchema']>
-  initialPageParam?: z.input<Config['querySchema']> | z.infer<Config['querySchema']>
+    firstPage: TPage,
+    allPages: TPage[],
+    firstPageParam: PageParam<Options>,
+    allPageParams: PageParam<Options>[],
+  ) => PageParam<Options> | undefined | null
+  /** Defaults to the call's `params`. */
+  initialPageParam?: PageParam<Options>
 }
 
-// Legacy type aliases for backwards compatibility
-/** @deprecated Use QueryArgs instead */
-export type ClientQueryArgs<
-  Url extends string = string,
-  QuerySchema extends ZodObject = ZodObject,
-  RequestSchema extends ZodType | undefined = undefined,
-> = QueryArgs<Url, QuerySchema, RequestSchema>
+export type InfiniteQueryHookOptions<TPage, TError, TPageParam, TSelected> = Omit<
+  UseInfiniteQueryOptions<
+    TPage,
+    TError,
+    TSelected,
+    TaggedKey<InfiniteData<TPage, TPageParam>, TError>,
+    TPageParam
+  >,
+  'queryKey' | 'queryFn' | 'getNextPageParam' | 'getPreviousPageParam' | 'initialPageParam'
+>
 
-/** @deprecated Use QueryUrlParamsArgs instead */
-export type ClientQueryUrlParamsArgs<Url extends string = string> = QueryUrlParamsArgs<Url>
+export type SuspenseInfiniteQueryHookOptions<TPage, TError, TPageParam, TSelected> = Omit<
+  UseSuspenseInfiniteQueryOptions<
+    TPage,
+    TError,
+    TSelected,
+    TaggedKey<InfiniteData<TPage, TPageParam>, TError>,
+    TPageParam
+  >,
+  'queryKey' | 'queryFn' | 'getNextPageParam' | 'getPreviousPageParam' | 'initialPageParam'
+>
 
-/** @deprecated Use QueryParams instead */
-export type BaseQueryParams<Options extends EndpointOptions> = QueryParams<Options>
+export type InfiniteQueryOptionsResult<TPage, TError, TPageParam> = UseSuspenseInfiniteQueryOptions<
+  TPage,
+  TError,
+  InfiniteData<TPage, TPageParam>,
+  TaggedKey<InfiniteData<TPage, TPageParam>, TError>,
+  TPageParam
+> & { queryKey: TaggedKey<InfiniteData<TPage, TPageParam>, TError> }
 
-/** @deprecated Use QueryArgs instead */
-export type BaseQueryArgs<Options extends EndpointOptions> = (UrlHasParams<
-  Options['url']
-> extends true
-  ? { urlParams: UrlParams<Options['url']> }
-  : {}) &
-  (Options['querySchema'] extends ZodObject ? { params: z.input<Options['querySchema']> } : {})
+/**
+ * An infinite query bound to one endpoint. Same helpers as {@link QueryObject};
+ * the cached value is `InfiniteData<Page, PageParam>`.
+ */
+export type InfiniteQueryObject<
+  Options extends InfiniteEndpointOptions,
+  TPage = EndpointData<Options>,
+  TError = EndpointFailure<Options>,
+  TPageParam = PageParam<Options>,
+  TData = InfiniteData<TPage, TPageParam>,
+> = {
+  (
+    ...args: ArgsWith<
+      Options,
+      [options?: InfiniteQueryHookOptions<TPage, TError, TPageParam, TData>]
+    >
+  ): InfiniteQueryOptionsResult<TPage, TError, TPageParam>
+
+  key: (args?: PartialEndpointInputs<Options>) => TaggedKey<TData, TError>
+
+  use: <TSelected = TData>(
+    ...args: HookArgsWith<
+      Options,
+      [options?: InfiniteQueryHookOptions<TPage, TError, TPageParam, TSelected>]
+    >
+  ) => UseInfiniteQueryResult<TSelected, TError>
+
+  useSuspense: <TSelected = TData>(
+    ...args: ArgsWith<
+      Options,
+      [options?: SuspenseInfiniteQueryHookOptions<TPage, TError, TPageParam, TSelected>]
+    >
+  ) => UseSuspenseInfiniteQueryResult<TSelected, TError>
+
+  fetch: (queryClient: QueryClient, ...args: ArgsWith<Options>) => Promise<TData>
+  prefetch: (queryClient: QueryClient, ...args: ArgsWith<Options>) => Promise<void>
+  ensure: (queryClient: QueryClient, ...args: ArgsWith<Options>) => Promise<TData>
+  getData: (queryClient: QueryClient, ...args: ArgsWith<Options>) => TData | undefined
+  setData: (
+    queryClient: QueryClient,
+    args: EndpointArgs<Options>,
+    updater: Updater<TData | undefined, TData | undefined>,
+  ) => TData | undefined
+  invalidate: (
+    queryClient: QueryClient,
+    args?: PartialEndpointInputs<Options>,
+    filters?: InvalidateFilters,
+  ) => Promise<void>
+
+  endpoint: EndpointHandler<Options>
+}
+
+/** Anything that can produce a cache key: a query or an infinite query. */
+export type AnyQueryObject = { key: (args?: any) => readonly unknown[] }

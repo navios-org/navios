@@ -1,340 +1,96 @@
-import type {
-  BaseEndpointOptions,
-  EndpointHandler,
-  EndpointOptions,
-  ErrorSchemaRecord,
-  HttpMethod,
-  StreamHandler,
-} from '@navios/builder'
-import type { MutationFunctionContext } from '@tanstack/react-query'
-import type { z, ZodObject, ZodType } from 'zod/v4'
+import type { BaseEndpointOptions, EndpointHandler } from '@navios/builder'
 
-import { makeMutation } from '../mutation/make-hook.mjs'
-import { makeInfiniteQueryOptions } from '../query/make-infinite-options.mjs'
-import { makeQueryOptions } from '../query/make-options.mjs'
+import { makeMutation } from '../mutation/make-mutation.mjs'
+import { makeInfiniteQuery } from '../query/make-infinite-query.mjs'
+import { makeQuery } from '../query/make-query.mjs'
 
 import type { ClientOptions } from '../common/types.mjs'
-import type { MutationArgs } from '../mutation/types.mjs'
-import type { InfiniteUnwrapMode, UnwrapMode } from '../query/types.mjs'
 
 import type { ClientInstance } from './types.mjs'
 
-/**
- * Configuration for declaring a query endpoint.
- */
-export interface QueryConfig<
-  Method extends HttpMethod = HttpMethod,
-  Url extends string = string,
-  QuerySchema extends ZodObject | undefined = undefined,
-  Response extends ZodType = ZodType,
-  ErrorSchema extends ErrorSchemaRecord | undefined = undefined,
-  RequestSchema extends ZodType | undefined = undefined,
-> {
-  method: Method
-  url: Url
-  querySchema?: QuerySchema
-  responseSchema: Response
-  errorSchema?: ErrorSchema
-  requestSchema?: RequestSchema
-  unwrap?: UnwrapMode
-  result?: 'data' | 'envelope'
-  validateResponse?: boolean
-  keyPrefix?: string[]
-  keySuffix?: string[]
-}
+/** Keys of an inline config that belong to the endpoint declaration. */
+const ENDPOINT_KEYS = [
+  'method',
+  'url',
+  'querySchema',
+  'requestSchema',
+  'responseSchema',
+  'responses',
+  'errorSchema',
+  'urlParamsSchema',
+  'body',
+  'response',
+  'headers',
+  'timeout',
+  'clientOptions',
+  'validateResponse',
+] as const satisfies readonly (keyof BaseEndpointOptions)[]
 
-/**
- * Configuration for declaring an infinite query endpoint.
- */
-export type InfiniteQueryConfig<
-  Method extends HttpMethod = HttpMethod,
-  Url extends string = string,
-  QuerySchema extends ZodObject = ZodObject,
-  Response extends ZodType = ZodType,
-  ErrorSchema extends ErrorSchemaRecord | undefined = undefined,
-  PageResult = z.output<Response>,
-  RequestSchema extends ZodType | undefined = undefined,
-> = {
-  method: Method
-  url: Url
-  querySchema: QuerySchema
-  responseSchema: Response
-  errorSchema?: ErrorSchema
-  requestSchema?: RequestSchema
-  unwrap?: InfiniteUnwrapMode
-  result?: 'data' | 'envelope'
-  validateResponse?: boolean
-  keyPrefix?: string[]
-  keySuffix?: string[]
-  getNextPageParam: (
-    lastPage: PageResult,
-    allPages: PageResult[],
-    lastPageParam: z.infer<QuerySchema> | undefined,
-    allPageParams: z.infer<QuerySchema>[] | undefined,
-  ) => z.input<QuerySchema> | undefined
-  getPreviousPageParam?: (
-    firstPage: PageResult,
-    allPages: PageResult[],
-    lastPageParam: z.infer<QuerySchema> | undefined,
-    allPageParams: z.infer<QuerySchema>[] | undefined,
-  ) => z.input<QuerySchema>
-  initialPageParam?: z.input<QuerySchema>
-}
+type AnyHandler = EndpointHandler<BaseEndpointOptions>
 
-/**
- * Configuration for declaring a mutation endpoint.
- */
-export interface MutationConfig<
-  Method extends 'POST' | 'PUT' | 'PATCH' | 'DELETE' = 'POST' | 'PUT' | 'PATCH' | 'DELETE',
-  Url extends string = string,
-  RequestSchema extends ZodType | undefined = Method extends 'DELETE' ? undefined : ZodType,
-  QuerySchema extends ZodObject | undefined = undefined,
-  Response extends ZodType = ZodType,
-  ErrorSchema extends ErrorSchemaRecord | undefined = undefined,
-  Result = z.output<Response>,
-  TOnMutateResult = unknown,
-  Context = unknown,
-  UseKey extends boolean = false,
-> {
-  method: Method
-  url: Url
-  querySchema?: QuerySchema
-  responseSchema: Response
-  errorSchema?: ErrorSchema
-  requestSchema?: RequestSchema
-  unwrap?: UnwrapMode
-  result?: 'data' | 'envelope'
-  validateResponse?: boolean
-  useContext?: () => Context
-  onSuccess?: (
-    data: Result,
-    variables: MutationArgs<Url, RequestSchema, QuerySchema>,
-    context: Context & MutationFunctionContext & { onMutateResult: TOnMutateResult | undefined },
-  ) => void | Promise<void>
-  onError?: (
-    err: unknown,
-    variables: MutationArgs<Url, RequestSchema, QuerySchema>,
-    context: Context & MutationFunctionContext & { onMutateResult: TOnMutateResult | undefined },
-  ) => void | Promise<void>
-  onMutate?: (
-    variables: MutationArgs<Url, RequestSchema, QuerySchema>,
-    context: Context & MutationFunctionContext,
-  ) => TOnMutateResult | Promise<TOnMutateResult>
-  onSettled?: (
-    data: Result | undefined,
-    error: Error | null,
-    variables: MutationArgs<Url, RequestSchema, QuerySchema>,
-    context: Context & MutationFunctionContext & { onMutateResult: TOnMutateResult | undefined },
-  ) => void | Promise<void>
-  useKey?: UseKey
-  meta?: Record<string, unknown>
-}
-
-/**
- * Type guard: distinguishes an existing endpoint handler from an inline config.
- *
- * Endpoint handlers from `api.declareEndpoint` / `api.declareMultipart` /
- * `api.declareStream` are callable functions with an attached `config`
- * property. Inline configs are plain objects.
- */
-function isEndpointHandler(
-  input: unknown,
-): input is EndpointHandler<EndpointOptions> | StreamHandler<BaseEndpointOptions> {
+function isEndpointHandler(input: unknown): input is AnyHandler {
   return typeof input === 'function' && 'config' in input
 }
 
 /**
- * Extract the underlying `EndpointOptions` from an inline config, dropping
- * surface-specific fields (`unwrap`, `keyPrefix`, `keySuffix`, mutation
- * callbacks, `useContext`, `useKey`, `meta`, infinite-query pagination
- * callbacks) which `api.declareEndpoint` does not understand.
+ * Splits an inline config into the endpoint declaration and everything else
+ * (the surface-specific fields).
  */
-function extractEndpointOptions(config: Record<string, unknown>): EndpointOptions {
-  return {
-    method: config.method,
-    url: config.url,
-    querySchema: config.querySchema,
-    requestSchema: config.requestSchema,
-    responseSchema: config.responseSchema,
-    errorSchema: config.errorSchema,
-    urlParamsSchema: config.urlParamsSchema,
-    result: config.result,
-    validateResponse: config.validateResponse,
-    clientOptions: config.clientOptions,
-  } as EndpointOptions
+function splitInline(config: Record<string, unknown>) {
+  const endpointOptions: Record<string, unknown> = {}
+  const surface: Record<string, unknown> = {}
+  for (const key of Object.keys(config)) {
+    if ((ENDPOINT_KEYS as readonly string[]).includes(key)) {
+      endpointOptions[key] = config[key]
+    } else {
+      surface[key] = config[key]
+    }
+  }
+  return { endpointOptions: endpointOptions as never, surface }
 }
 
 /**
- * Creates a client instance for making type-safe queries and mutations.
+ * Creates a client for declaring type-safe queries and mutations.
  *
- * Each surface method (`query`, `infiniteQuery`, `mutation`, `multipart`)
- * accepts either an inline endpoint config or an existing endpoint handler
- * produced by `api.declareEndpoint` / `api.declareMultipart`.
- *
- * @param options - Client configuration including the API builder and defaults
- * @returns A client instance with `query`, `infiniteQuery`, `mutation`, and
- *   `multipart` methods.
+ * @param options.api - The builder whose endpoints the client uses
+ * @param options.defaults - `keyPrefix` / `keySuffix` applied to every key
  *
  * @example
- * ```typescript
- * const api = builder({});
- * const client = declareClient({ api });
+ * ```ts
+ * const api = builder({ client: httpClient })
+ * const client = declareClient({ api })
  *
- * // Inline config
  * const getUser = client.query({
  *   method: 'GET',
- *   url: '/users/$id',
- *   responseSchema: UserSchema,
- * });
- *
- * // From an existing endpoint
- * const getUserEndpoint = api.declareEndpoint({
- *   method: 'GET',
- *   url: '/users/$id',
- *   responseSchema: UserSchema,
- * });
- * const getUserFromEndpoint = client.query(getUserEndpoint);
+ *   url: '/users/$userId',
+ *   responseSchema: userSchema,
+ * })
  * ```
  */
 export function declareClient({ api, defaults = {} }: ClientOptions): ClientInstance {
-  function query(input: any, options: any = {}) {
-    let endpoint: EndpointHandler<EndpointOptions>
-    let unwrap: UnwrapMode | undefined
-    let keyPrefix: string[] | undefined
-    let keySuffix: string[] | undefined
-
+  function resolve(input: unknown, options: Record<string, unknown> | undefined) {
     if (isEndpointHandler(input)) {
-      endpoint = input as EndpointHandler<EndpointOptions>
-      unwrap = options?.unwrap
-      keyPrefix = options?.keyPrefix
-      keySuffix = options?.keySuffix
-    } else {
-      endpoint = api.declareEndpoint(extractEndpointOptions(input))
-      unwrap = input.unwrap ?? options?.unwrap
-      keyPrefix = input.keyPrefix ?? options?.keyPrefix
-      keySuffix = input.keySuffix ?? options?.keySuffix
+      return { endpoint: input, surface: { ...defaults, ...options } }
     }
-
-    const queryOptions = makeQueryOptions(endpoint, {
-      ...defaults,
-      ...(keyPrefix !== undefined ? { keyPrefix } : {}),
-      ...(keySuffix !== undefined ? { keySuffix } : {}),
-      unwrap,
-    })
-    return Object.assign(queryOptions, { endpoint })
+    const { endpointOptions, surface } = splitInline(input as Record<string, unknown>)
+    return {
+      endpoint: api.declareEndpoint(endpointOptions) as unknown as AnyHandler,
+      surface: { ...defaults, ...surface, ...options },
+    }
   }
 
-  function infiniteQuery(input: any, options: any = {}) {
-    let endpoint: EndpointHandler<EndpointOptions>
-    let unwrap: InfiniteUnwrapMode | undefined
-    let keyPrefix: string[] | undefined
-    let keySuffix: string[] | undefined
-    let getNextPageParam: any
-    let getPreviousPageParam: any
-    let initialPageParam: any
-
-    if (isEndpointHandler(input)) {
-      endpoint = input as EndpointHandler<EndpointOptions>
-      unwrap = options?.unwrap
-      keyPrefix = options?.keyPrefix
-      keySuffix = options?.keySuffix
-      getNextPageParam = options.getNextPageParam
-      getPreviousPageParam = options?.getPreviousPageParam
-      initialPageParam = options?.initialPageParam
-    } else {
-      endpoint = api.declareEndpoint(extractEndpointOptions(input))
-      unwrap = input.unwrap ?? options?.unwrap
-      keyPrefix = input.keyPrefix ?? options?.keyPrefix
-      keySuffix = input.keySuffix ?? options?.keySuffix
-      getNextPageParam = input.getNextPageParam ?? options?.getNextPageParam
-      getPreviousPageParam = input.getPreviousPageParam ?? options?.getPreviousPageParam
-      initialPageParam = input.initialPageParam ?? options?.initialPageParam
-    }
-
-    const infiniteQueryOptions = makeInfiniteQueryOptions(endpoint as any, {
-      ...defaults,
-      ...(keyPrefix !== undefined ? { keyPrefix } : {}),
-      ...(keySuffix !== undefined ? { keySuffix } : {}),
-      unwrap,
-      getNextPageParam,
-      getPreviousPageParam,
-      initialPageParam,
-    })
-
-    return Object.assign(infiniteQueryOptions, { endpoint })
-  }
-
-  function mutation(input: any, options: any = {}) {
-    let endpoint: EndpointHandler<EndpointOptions> | StreamHandler<BaseEndpointOptions>
-    let surfaceFields: Record<string, unknown>
-
-    if (isEndpointHandler(input)) {
-      endpoint = input
-      surfaceFields = options ?? {}
-    } else {
-      endpoint = api.declareEndpoint(extractEndpointOptions(input))
-      surfaceFields = input
-    }
-
-    // `makeMutation` is overloaded on whether the endpoint has an
-    // `errorSchema`; this call site passes a union of both shapes (or a
-    // `StreamHandler`) and untyped `surfaceFields` from runtime dispatch,
-    // so we cast both arguments to `never` to bypass overload resolution.
-    // The implementation accepts any endpoint config + options bag.
-    const mutationOptions = {
-      unwrap: surfaceFields.unwrap,
-      useContext: surfaceFields.useContext,
-      onMutate: surfaceFields.onMutate,
-      onSuccess: surfaceFields.onSuccess,
-      onError: surfaceFields.onError,
-      onSettled: surfaceFields.onSettled,
-      useKey: surfaceFields.useKey,
-      meta: surfaceFields.meta,
-      ...defaults,
-    } as never
-    const useMutation = makeMutation(endpoint as never, mutationOptions)
-
-    return Object.assign(useMutation, { endpoint })
-  }
-
-  function multipart(input: any, options: any = {}) {
-    let endpoint: EndpointHandler<EndpointOptions>
-    let surfaceFields: Record<string, unknown>
-
-    if (isEndpointHandler(input)) {
-      endpoint = input as EndpointHandler<EndpointOptions>
-      surfaceFields = options ?? {}
-    } else {
-      endpoint = api.declareMultipart(extractEndpointOptions(input))
-      surfaceFields = input
-    }
-
-    // Same overload-bypass pattern as `mutation` above.
-    const mutationOptions = {
-      unwrap: surfaceFields.unwrap,
-      useContext: surfaceFields.useContext,
-      onSuccess: surfaceFields.onSuccess,
-      onError: surfaceFields.onError,
-      onMutate: surfaceFields.onMutate,
-      onSettled: surfaceFields.onSettled,
-      useKey: surfaceFields.useKey,
-      meta: surfaceFields.meta,
-      ...defaults,
-    } as never
-    const useMutation = makeMutation(endpoint as never, mutationOptions)
-
-    return Object.assign(useMutation, { endpoint })
-  }
-
-  // The four local functions use `any` parameters internally for runtime
-  // dispatch (inline-config vs. existing-handler), so their inferred types
-  // are looser than the overloaded `ClientInstance` interface. The runtime
-  // behaviour matches the interface — cast via `unknown` to assert the
-  // narrow public type.
   return {
-    query,
-    infiniteQuery,
-    mutation,
-    multipart,
+    query(input: unknown, options?: Record<string, unknown>) {
+      const { endpoint, surface } = resolve(input, options)
+      return makeQuery(endpoint, surface)
+    },
+    infiniteQuery(input: unknown, options?: Record<string, unknown>) {
+      const { endpoint, surface } = resolve(input, options)
+      return makeInfiniteQuery(endpoint as never, surface as never)
+    },
+    mutation(input: unknown, options?: Record<string, unknown>) {
+      const { endpoint, surface } = resolve(input, options)
+      return makeMutation(endpoint, surface as never)
+    },
   } as unknown as ClientInstance
 }

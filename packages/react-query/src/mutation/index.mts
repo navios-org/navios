@@ -1,4 +1,3 @@
-export * from './types.mjs'
-export * from './key-creator.mjs'
-export * from './make-hook.mjs'
+export * from './make-mutation.mjs'
 export * from './optimistic.mjs'
+export * from './types.mjs'

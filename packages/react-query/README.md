@@ -1,24 +1,27 @@
 # @navios/react-query
 
-Type-safe React Query integration for Navios API client with Zod schema validation.
+Type-safe React Query integration for Navios API client with schema validation (Zod, or any Standard Schema library).
 
 ## Features
 
-- **Type Safety** - Full TypeScript support with Zod schema inference
-- **Schema Validation** - Request and response validation using Zod schemas
-- **React Query Integration** - Seamless integration with TanStack Query v5
+- **Type Safety** - Arguments, data and errors are inferred from the endpoint's schemas
+- **Schema Validation** - Request and response validation with Zod or any other Standard Schema library
+- **React Query Integration** - A thin layer over TanStack Query v5; every TanStack option is still available
 - **Declarative API** - Define endpoints once, use everywhere
-- **URL Parameters** - Built-in support for parameterized URLs (`/users/$userId`)
-- **Optimistic Updates** - First-class helpers via `createOptimisticUpdate`
-- **SSR/RSC Support** - Built-in prefetch helpers for server-side rendering
-- **Error Schema Support** - Type-safe error handling with discriminated unions
-- **Stream Support** - Handle file downloads and blob responses
+- **Typed Errors** - Failures are `EndpointError`s in React Query's error channel, typed from `errorSchema`
+- **Predictable Keys** - One key shape, three invalidation scopes, no hand-written keys
+- **Declarative Cache Updates** - `invalidates` and `optimistic` settings on mutations
+- **Response Metadata** - `withResponse: true` delivers the status and headers next to the data
+- **SSR/RSC Support** - `prefetch` / `ensure` helpers and per-request HTTP clients
+- **Uploads and Downloads** - `body: 'multipart'` and `response: 'blob'` endpoints work as regular mutations and queries
 
 ## Installation
 
 ```bash
 npm install @navios/react-query @navios/builder @navios/http zod @tanstack/react-query
 ```
+
+Peer dependencies: `@navios/builder`, `@tanstack/react-query` `^5.102.0`, `zod` `^3.25.0 || ^4.0.0`.
 
 ## Quick Start
 
@@ -28,591 +31,420 @@ import { create } from '@navios/http'
 import { declareClient } from '@navios/react-query'
 import { z } from 'zod/v4'
 
-// Create the API builder
-const api = builder({})
-api.provideClient(create({ baseURL: 'https://api.example.com' }))
+const api = builder({ client: create({ baseURL: 'https://api.example.com' }) })
 
-// Create the client with optional defaults
-const client = declareClient({
-  api,
+// Returns { query, infiniteQuery, mutation }
+const client = declareClient({ api })
+
+const userSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  email: z.string().email(),
 })
+
+const getUser = client.query({
+  method: 'GET',
+  url: '/users/$userId',
+  responseSchema: userSchema,
+  errorSchema: {
+    404: z.object({ message: z.string() }),
+  },
+})
+
+function UserProfile({ userId }: { userId: string }) {
+  const { data, isPending, error } = getUser.use({ urlParams: { userId } })
+
+  if (isPending) return <div>Loading...</div>
+  if (error) {
+    if (error.kind === 'http' && error.status === 404) {
+      return <div>{error.body.message}</div> // typed from errorSchema[404]
+    }
+    return <div>Something went wrong</div>
+  }
+
+  return <div>{data.name}</div>
+}
+```
+
+Each client method accepts either an inline endpoint declaration (as above) or an endpoint already declared with `api.declareEndpoint`:
+
+```typescript
+const getUserEndpoint = api.declareEndpoint({
+  method: 'GET',
+  url: '/users/$userId',
+  responseSchema: userSchema,
+})
+
+const getUser = client.query(getUserEndpoint)
+getUser.endpoint // the same handler
 ```
 
 ## Queries
 
-### Basic Query
+### Hooks
 
 ```typescript
-const getUsers = client.query({
+const listUsers = client.query({
   method: 'GET',
   url: '/users',
-  responseSchema: z.array(z.object({
-    id: z.string(),
-    name: z.string(),
-    email: z.string().email(),
-  })),
+  querySchema: z.object({
+    page: z.number().optional(),
+    search: z.string().optional(),
+  }),
+  responseSchema: z.array(userSchema),
 })
 
-// In a component
-function UsersList() {
-  const { data } = getUsers.useSuspense({})
-  return (
-    <ul>
-      {data.map(user => <li key={user.id}>{user.name}</li>)}
-    </ul>
-  )
-}
+// useQuery — args are optional when the endpoint requires nothing
+const { data } = listUsers.use()
+const { data: page2 } = listUsers.use({ params: { page: 2 } })
+
+// useSuspenseQuery — data is always defined
+const { data: users } = listUsers.useSuspense({ params: { page: 1 } })
 ```
 
-### Query with URL Parameters
+The second argument of `use` / `useSuspense` accepts every TanStack option except `queryKey` and `queryFn`:
 
 ```typescript
-const getUser = client.query({
-  method: 'GET',
-  url: '/users/$userId',
-  responseSchema: z.object({
-    id: z.string(),
-    name: z.string(),
-  }),
-})
-
-function UserProfile({ userId }: { userId: string }) {
-  const { data } = getUser.useSuspense({
-    urlParams: { userId },
-  })
-  return <h1>{data.name}</h1>
-}
+const { data: name } = getUser.use(
+  { urlParams: { userId } },
+  { staleTime: 60_000, enabled: isOpen, select: (user) => user.name },
+)
 ```
 
-### Query with Query Parameters
+Pass `skipToken` instead of the arguments while an input is unknown:
+
+```typescript
+import { skipToken } from '@tanstack/react-query'
+
+const { data } = getUser.use(userId ? { urlParams: { userId } } : skipToken)
+```
+
+### Query Options
+
+Calling the query returns TanStack query options, for `useQuery`, `useSuspenseQuery`, `useQueries` and `queryClient.query`:
+
+```typescript
+const results = useQueries({
+  queries: userIds.map((userId) => getUser({ urlParams: { userId } })),
+})
+```
+
+### Response Metadata
+
+`withResponse: true` makes a query deliver `{ data, response }`, where `response` is `{ status, statusText, headers }` of the HTTP reply. Use it when a header matters to the UI (ETag, pagination totals, rate limits).
+
+```typescript
+const listUsers = client.query({
+  method: 'GET',
+  url: '/users',
+  responseSchema: z.array(userSchema),
+  withResponse: true,
+})
+
+// or, from an existing endpoint
+const getUser = client.query(getUserEndpoint, { withResponse: true })
+
+const { data } = listUsers.use()
+data?.data // User[]
+data?.response.status // 200
+data?.response.headers['x-total-count']
+```
+
+- `headers` is a plain record with lower-cased names, so the cached value is serializable — safe for SSR dehydration and cache persistence.
+- Failures are not wrapped: they stay in the error channel as the endpoint's `EndpointError`.
+- Such entries live under their own cache key (a `'with-response'` marker), apart from the same endpoint declared without the option.
+- The option is available on `client.query`, `client.infiniteQuery` (every page is wrapped) and `client.mutation` (the mutation's data, `onSuccess` and `onSettled` receive the wrapped value).
+
+### Cache Helpers
+
+```typescript
+const queryClient = useQueryClient()
+const args = { urlParams: { userId } }
+
+await getUser.fetch(queryClient, args) // data; rejects with the EndpointError
+await getUser.prefetch(queryClient, args) // void; never rejects
+await getUser.ensure(queryClient, args) // cached data however stale, else fetch
+
+getUser.getData(queryClient, args) // User | undefined
+getUser.setData(queryClient, args, (old) => old && { ...old, name: 'Ada' })
+
+await getUser.invalidate(queryClient, args)
+```
+
+`fetch`, `prefetch` and `ensure` are built on TanStack's `queryClient.query()`, because `fetchQuery`, `prefetchQuery` and `ensureQueryData` are deprecated upstream. This is why `@tanstack/react-query ^5.102.0` is required.
+
+### POST Queries
 
 ```typescript
 const searchUsers = client.query({
-  method: 'GET',
-  url: '/users',
-  querySchema: z.object({
-    page: z.number().default(1),
-    limit: z.number().default(10),
-    search: z.string().optional(),
-  }),
-  responseSchema: z.object({
-    users: z.array(UserSchema),
-    total: z.number(),
-  }),
+  method: 'POST',
+  url: '/users/search',
+  requestSchema: z.object({ query: z.string() }),
+  responseSchema: z.array(userSchema),
 })
 
-function UsersPage() {
-  const { data } = searchUsers.useSuspense({
-    params: { page: 1, limit: 20, search: 'john' },
-  })
-  return <div>Found {data.total} users</div>
-}
+// The body is part of the cache key
+const { data } = searchUsers.use({ data: { query: 'ada' } })
 ```
 
-### Query with Response Projection (`select`)
+## Query Keys and Invalidation
 
-Read-side projections live on the call site, not the endpoint declaration. Pass `select` to `use`, `useSuspense`, or the underlying `useQuery` options — it runs after data is in the cache, so different consumers can project the same cached response differently without invalidating each other.
+Keys have one shape:
+
+```
+[...keyPrefix, method, urlTemplate, ...keySuffix, 'with-response'?, 'infinite'?, inputs?]
+```
+
+`inputs` is `{ urlParams?, params?, data? }`. URL param values are stringified, empty parts are dropped, and `signal` / `headers` / `timeout` are never included. `'with-response'` marks queries declared with `withResponse: true` and `'infinite'` marks infinite queries, so each form of an endpoint has its own entries.
 
 ```typescript
-const getUsers = client.query({
-  method: 'GET',
-  url: '/users',
-  responseSchema: z.array(UserSchema),
-})
-
-// Project to just names in one consumer
-function UserNames() {
-  const { data: names } = getUsers.useSuspense(
-    {},
-    { select: (users) => users.map((u) => u.name) },
-  )
-  return <ul>{names.map((n) => <li key={n}>{n}</li>)}</ul>
-}
-
-// Project to a map keyed by id in another
-function UsersById() {
-  const { data: byId } = getUsers.useSuspense(
-    {},
-    { select: (users) => new Map(users.map((u) => [u.id, u])) },
-  )
-  return <pre>{byId.size}</pre>
-}
+getUser.key({ urlParams: { userId: 42 }, params: { expand: 'team' } })
+// ['GET', '/users/$userId', { urlParams: { userId: '42' }, params: { expand: 'team' } }]
 ```
 
-For mutations, transform in your `onSuccess` callback or in the caller — there is no read-side `select` for the mutation surface.
-
-### Query with Error Handling
-
-Register error handling on the underlying builder (`builder({ onError })`) rather than per-helper. Every failure path — network, HTTP, validation — flows through that hook with a structured `BuilderErrorEvent`. For envelope endpoints, prefer `unwrap: 'throw-on-error'` to route envelope errors through TanStack Query's standard `error` channel.
+Because the endpoint comes first and the inputs last, `key` and `invalidate` have three scopes:
 
 ```typescript
-const api = builder({
-  onError: (event) => {
-    if (event.kind === 'validation') {
-      reportValidationFailure(event.endpoint, event.zodIssues)
-    } else if (event.kind === 'network') {
-      console.error('Network failure', event.cause)
-    }
-  },
-})
+// Whole endpoint: every entry of GET /users/$userId, and nothing from another endpoint
+await getUser.invalidate(queryClient)
+
+// Partial args: every entry for this user, whatever the query params
+await getUser.invalidate(queryClient, { urlParams: { userId } })
+
+// Exact: one entry
+await getUser.invalidate(queryClient, { urlParams: { userId } }, { exact: true })
 ```
 
-### Query Helpers
+Always build keys with `query.key(...)` instead of writing them by hand. Keys carry the data type, so `queryClient.getQueryData(getUser.key(args))` is typed.
+
+`keyPrefix` / `keySuffix` can be set for a whole client or per declaration:
 
 ```typescript
-// Get query options for use with useQuery
-const options = getUsers({ params: { page: 1 } })
+const client = declareClient({ api, defaults: { keyPrefix: ['tenant-1'] } })
 
-// Helper hooks
-const { data } = getUsers.use({ params: { page: 1 } })
-const { data } = getUsers.useSuspense({ params: { page: 1 } })
-
-// Invalidation
-const queryClient = useQueryClient()
-getUsers.invalidate(queryClient, { params: { page: 1 } })
-getUsers.invalidateAll(queryClient, {}) // Invalidate all pages
-
-// Access query key creator
-const queryKey = getUsers.queryKey.dataTag({ params: { page: 1 } })
-// Use with queryClient.getQueryData(queryKey), etc.
+const getUser = client.query(getUserEndpoint, { keySuffix: ['v2'] })
+// ['tenant-1', 'GET', '/users/$userId', 'v2', ...]
 ```
-
-## Envelope mode and unwrap
-
-When an endpoint is declared with `result: 'envelope'` (see the [@navios/builder README](../builder/README.md) for the underlying envelope shape), every helper in this package detects that and surfaces the full envelope by default. The envelope carries the raw `Response`, parsed `data`, optional `error`, and HTTP `status` — useful when you need access to headers, status codes, or want to discriminate success and error in a single value.
-
-The `unwrap` option controls how the envelope is delivered to TanStack Query:
-
-| Surface         | Allowed values                          | Default  |
-| --------------- | --------------------------------------- | -------- |
-| `query`         | `'none' \| 'throw-on-error'`            | `'none'` |
-| `infiniteQuery` | `'none' \| 'throw-on-error' \| 'pages'` | `'none'` |
-| `mutation`      | `'none' \| 'throw-on-error'`            | `'none'` |
-| `multipart`     | `'none' \| 'throw-on-error'`            | `'none'` |
-
-- `'none'` — the envelope is passed through unchanged. `data` is the envelope, `error` is null. You can discriminate `envelope.error` yourself.
-- `'throw-on-error'` — if the envelope carries an error, it's thrown so TanStack Query routes it through `error`. On success `data` is the unwrapped body. Best when you want classic React Query ergonomics without giving up envelope-typed errors.
-- `'pages'` (infinite queries only) — each page is unwrapped before being stored, so `data.pages[i]` is the body. `getNextPageParam` also receives the unwrapped body. Envelope errors are still thrown.
-
-The `unwrap` field is ignored for endpoints that aren't envelope mode, so it's safe to add prophylactically.
-
-### Classic React Query ergonomics with `throw-on-error`
-
-```typescript
-const userQuery = client.query({
-  method: 'GET',
-  url: '/users/$id',
-  responseSchema: UserSchema,
-  errorSchema: { 404: NotFoundSchema },
-  result: 'envelope',
-  unwrap: 'throw-on-error',
-})
-
-function UserView({ id }: { id: string }) {
-  const { data: user, error } = userQuery.use({ urlParams: { id } })
-  // data is User | undefined, error is EnvelopeError | null
-}
-```
-
-### Envelope passthrough with header access
-
-```typescript
-const userQuery = client.query({
-  method: 'GET',
-  url: '/users/$id',
-  responseSchema: UserSchema,
-  result: 'envelope',
-})
-
-function UserView({ id }: { id: string }) {
-  const { data: envelope } = userQuery.useSuspense({ urlParams: { id } })
-  if (envelope.error) return <Err err={envelope.error} />
-  const etag = envelope.response.headers.get('etag')
-  return <p>{envelope.data.name} (etag: {etag})</p>
-}
-```
-
-### Infinite queries with `'pages'`
-
-```typescript
-// unwrap: 'pages' — getNextPageParam receives the unwrapped body
-const usersQuery = client.infiniteQuery({
-  method: 'GET',
-  url: '/users',
-  querySchema: z.object({ cursor: z.string().optional() }),
-  responseSchema: PageSchema,
-  result: 'envelope',
-  unwrap: 'pages',
-  getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
-})
-
-// unwrap: 'none' — getNextPageParam receives the full envelope
-const usersEnvelopeQuery = client.infiniteQuery({
-  method: 'GET',
-  url: '/users',
-  querySchema: z.object({ cursor: z.string().optional() }),
-  responseSchema: PageSchema,
-  result: 'envelope',
-  getNextPageParam: (lastEnvelope) => lastEnvelope.data?.nextCursor ?? undefined,
-})
-```
-
-### Subtle behaviour
-
-- The `error` channel on TanStack Query hooks is typed as `Error`. To get the typed `EnvelopeError`, either use `unwrap: 'throw-on-error'` (envelope errors flow through RQ's error channel typed as `EnvelopeError`) or destructure the envelope from `data` in `unwrap: 'none'` mode.
-
-- In envelope mode + `unwrap: 'none'`, the full envelope is what lands in the cache. To project to a single field on the consumer, pass `select` to `use` / `useSuspense` — it runs on read without re-writing the cache.
 
 ## Infinite Queries
 
+The endpoint needs a `querySchema`; the page param is a set of query params.
+
 ```typescript
-const getUsers = client.infiniteQuery({
+const listPosts = client.infiniteQuery({
   method: 'GET',
-  url: '/users',
+  url: '/posts',
   querySchema: z.object({
     cursor: z.string().optional(),
-    limit: z.number().default(20),
+    limit: z.number().optional(),
   }),
   responseSchema: z.object({
-    users: z.array(UserSchema),
+    posts: z.array(postSchema),
     nextCursor: z.string().nullable(),
   }),
-  getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
+  getNextPageParam: (lastPage, allPages, lastPageParam, allPageParams) =>
+    lastPage.nextCursor ? { cursor: lastPage.nextCursor } : undefined,
 })
 
-function InfiniteUsersList() {
-  const { data, fetchNextPage, hasNextPage } = getUsers.useSuspense({
-    params: { limit: 20 },
-  })
+function PostList() {
+  const { data, fetchNextPage, hasNextPage } = listPosts.use({ params: { limit: 20 } })
 
   return (
     <div>
-      {data.pages.flatMap(page =>
-        page.users.map(user => <UserCard key={user.id} user={user} />)
-      )}
-      {hasNextPage && (
-        <button onClick={() => fetchNextPage()}>Load More</button>
-      )}
+      {data?.pages.flatMap((page) => page.posts.map((post) => <Post key={post.id} post={post} />))}
+      {hasNextPage && <button onClick={() => fetchNextPage()}>Load More</button>}
     </div>
   )
 }
 ```
 
+- Each page is requested with the page param merged over the call's `params`.
+- The first page param defaults to the call's `params`, exactly as passed (it is not run through `querySchema`, so schema defaults do not appear in it); set `initialPageParam` to override it.
+- `getNextPageParam` returns the query params for the next page, or `undefined` when there are no more. `getPreviousPageParam` is optional.
+- An infinite query has the same helpers as a query; its data is `InfiniteData<Page, PageParam>` and its key carries an `'infinite'` marker.
+
 ## Mutations
 
-### Basic Mutation
-
-```typescript
-const createUser = client.mutation({
-  method: 'POST',
-  url: '/users',
-  requestSchema: z.object({
-    name: z.string(),
-    email: z.string().email(),
-  }),
-  responseSchema: z.object({
-    id: z.string(),
-    name: z.string(),
-  }),
-})
-
-function CreateUserForm() {
-  const { mutateAsync, isPending } = createUser()
-
-  const handleSubmit = async (formData: FormData) => {
-    await mutateAsync({
-      data: {
-        name: formData.get('name') as string,
-        email: formData.get('email') as string,
-      },
-    })
-  }
-
-  return <form onSubmit={handleSubmit}>...</form>
-}
-```
-
-### Mutation with URL Parameters
+`client.mutation` returns a hook that takes no arguments:
 
 ```typescript
 const updateUser = client.mutation({
-  method: 'PUT',
-  url: '/users/$userId',
-  requestSchema: z.object({
-    name: z.string(),
-  }),
-  responseSchema: UserSchema,
-})
-
-function EditUserForm({ userId }: { userId: string }) {
-  const { mutateAsync } = updateUser()
-
-  const handleSubmit = async (name: string) => {
-    await mutateAsync({
-      urlParams: { userId },
-      data: { name },
-    })
-  }
-
-  return <form>...</form>
-}
-```
-
-### Mutation with Callbacks and Optimistic Updates
-
-```typescript
-const updateUser = client.mutation({
-  method: 'PUT',
+  method: 'PATCH',
   url: '/users/$userId',
   requestSchema: z.object({ name: z.string() }),
-  responseSchema: UserSchema,
-
-  // Provide context (e.g., queryClient) via hook
-  useContext: () => {
-    const queryClient = useQueryClient()
-    return { queryClient }
-  },
-
-  // Called before mutation - return value available as context.onMutateResult
-  onMutate: async (variables, context) => {
-    // Cancel outgoing queries
-    await context.queryClient.cancelQueries({
-      queryKey: ['users', variables.urlParams.userId],
-    })
-
-    // Snapshot previous value
-    const previousUser = context.queryClient.getQueryData(['users', variables.urlParams.userId])
-
-    // Optimistically update
-    context.queryClient.setQueryData(['users', variables.urlParams.userId], {
-      ...previousUser,
-      name: variables.data.name,
-    })
-
-    return { previousUser }
-  },
-
-  // Called on success
-  onSuccess: (data, variables, context) => {
-    context.queryClient.invalidateQueries({ queryKey: ['users'] })
-  },
-
-  // Called on error - rollback optimistic update
-  onError: (error, variables, context) => {
-    if (context.onMutateResult?.previousUser) {
-      context.queryClient.setQueryData(
-        ['users', variables.urlParams.userId],
-        context.onMutateResult.previousUser,
-      )
-    }
-  },
-
-  // Called on both success and error
-  onSettled: (data, error, variables, context) => {
-    context.queryClient.invalidateQueries({
-      queryKey: ['users', variables.urlParams.userId],
-    })
+  responseSchema: userSchema,
+  errorSchema: {
+    409: z.object({ reason: z.string() }),
   },
 })
+
+function EditUser({ userId }: { userId: string }) {
+  const { mutate, isPending, error } = updateUser()
+
+  return (
+    <div>
+      <button
+        disabled={isPending}
+        onClick={() => mutate({ urlParams: { userId }, data: { name: 'Ada' } })}
+      >
+        Rename
+      </button>
+      {error?.kind === 'http' && error.status === 409 && <p>{error.body.reason}</p>}
+    </div>
+  )
+}
 ```
 
-### DELETE Mutation
+Endpoints without a response body use `response: 'void'`:
 
 ```typescript
 const deleteUser = client.mutation({
   method: 'DELETE',
   url: '/users/$userId',
-  responseSchema: z.object({ success: z.boolean() }),
+  response: 'void',
 })
-
-const { mutateAsync } = deleteUser()
-await mutateAsync({ urlParams: { userId: '123' } })
 ```
 
-### Mutation with useKey (Scoped Mutations)
+### Settings
 
-When `useKey` is true, mutations are scoped by URL parameters, preventing parallel mutations to the same resource:
-
-```typescript
-const updateUser = client.mutation({
-  method: 'PUT',
-  url: '/users/$userId',
-  useKey: true,
-  requestSchema: UpdateUserSchema,
-  responseSchema: UserSchema,
-})
-
-// With useKey, you must pass urlParams when calling the hook
-const { mutateAsync, isPending } = updateUser({
-  urlParams: { userId: '123' },
-})
-
-// Check if any mutation for this user is in progress
-const isMutating = updateUser.useIsMutating({ userId: '123' })
-```
-
-## Stream Endpoints (File Downloads)
+Any TanStack mutation option (`retry`, `scope`, `meta`, `gcTime`, ...) plus:
 
 ```typescript
-// Define stream endpoint
-const downloadFile = api.declareStream({
-  method: 'GET',
-  url: '/files/$fileId/download',
-})
-
-// Create mutation from stream endpoint — `mutation` is the unified entrypoint;
-// it accepts either an inline config or an existing endpoint handler.
-const useDownloadFile = client.mutation(downloadFile, {
-  // Transform the Blob in onSuccess (mutations have no select).
-  onSuccess: (blob, variables, context) => {
-    const url = URL.createObjectURL(blob)
-    window.open(url)
-  },
-})
-
-function DownloadButton({ fileId }: { fileId: string }) {
-  const { mutate, isPending } = useDownloadFile()
-
-  return (
-    <button
-      onClick={() => mutate({ urlParams: { fileId } })}
-      disabled={isPending}
-    >
-      {isPending ? 'Downloading...' : 'Download'}
-    </button>
-  )
-}
-```
-
-## Using Existing Endpoints
-
-If you have endpoints defined separately, pass them to the same `client.query`, `client.infiniteQuery`, or `client.mutation` method. Each accepts either an inline config or an existing endpoint handler — the dedicated `*FromEndpoint` siblings were folded in for v2.
-
-### Query from Endpoint
-
-```typescript
-// Define endpoint separately
-const getUserEndpoint = api.declareEndpoint({
-  method: 'GET',
-  url: '/users/$userId',
-  responseSchema: UserSchema,
-})
-
-// Create query from endpoint
-const getUser = client.query(getUserEndpoint)
-
-// Use in component (read-side projection via `select`)
-function UserProfile({ userId }: { userId: string }) {
-  const { data } = getUser.useSuspense(
-    { urlParams: { userId } },
-    { select: (user) => user.name },
-  )
-  return <div>{data}</div>
-}
-```
-
-### Infinite Query from Endpoint
-
-```typescript
-const getUsersEndpoint = api.declareEndpoint({
-  method: 'GET',
-  url: '/users',
-  querySchema: z.object({
-    cursor: z.string().optional(),
-    limit: z.number().default(20),
-  }),
-  responseSchema: z.object({
-    users: z.array(UserSchema),
-    nextCursor: z.string().nullable(),
-  }),
-})
-
-const getUsers = client.infiniteQuery(getUsersEndpoint, {
-  getNextPageParam: (lastPage, allPages) => lastPage.nextCursor ?? undefined,
-})
-
-function InfiniteUsersList() {
-  const { data, fetchNextPage } = getUsers.useSuspense({
-    params: { limit: 20 },
-  })
-  // ... use data
-}
-```
-
-### Mutation from Endpoint
-
-```typescript
-const updateUserEndpoint = api.declareEndpoint({
-  method: 'PUT',
-  url: '/users/$userId',
-  requestSchema: z.object({ name: z.string() }),
-  responseSchema: UserSchema,
-})
-
 const updateUser = client.mutation(updateUserEndpoint, {
-  useContext: () => {
-    const queryClient = useQueryClient()
-    return { queryClient }
-  },
+  // Invalidated after success: a query (whole endpoint) or a function returning a key
+  invalidates: [listUsers, (data, variables) => getUser.key({ urlParams: variables.urlParams })],
+
+  // Applied before the request, rolled back on failure, invalidated on settle
+  optimistic: (update) =>
+    update(getUser, {
+      args: (variables) => ({ urlParams: variables.urlParams }),
+      update: (current, variables) => current && { ...current, ...variables.data },
+    }),
+
+  // A hook; its result is merged into the context of every callback
+  useContext: () => ({ toast: useToast() }),
+
+  onMutate: (variables, context) => ({ startedAt: Date.now() }),
   onSuccess: (data, variables, context) => {
-    // Transform on the consumer side or in onSuccess — there's no select for mutations
-    context.queryClient.invalidateQueries({ queryKey: ['users'] })
-    console.log('Updated:', data)
+    context.toast.success('Saved')
   },
   onError: (error, variables, context) => {
-    console.error('Update failed:', error)
+    context.toast.error(error.message)
+  },
+  onSettled: (data, error, variables, context) => {
+    console.log(Date.now() - (context.onMutateResult?.startedAt ?? 0))
   },
 })
 ```
 
-## Multipart Mutations (File Uploads)
+The callback context is the result of `useContext()` merged with TanStack's `{ client, meta, mutationKey }`, plus `onMutateResult` in `onSuccess` / `onError` / `onSettled`. The `QueryClient` is `context.client`:
 
 ```typescript
-const uploadAvatar = client.multipart({
+onSuccess: (user, variables, context) => {
+  getUser.setData(context.client, { urlParams: variables.urlParams }, user)
+},
+```
+
+`optimistic` may return an array to update several queries; each update accepts `rollbackOnError` and `invalidateOnSettled` (both default to `true`). `args` is required when the target query has required inputs (as `getUser` does) and optional otherwise.
+
+`withResponse: true` is accepted here too: the mutation's data becomes `{ data, response: { status, statusText, headers } }` in the hook result and in `onSuccess` / `onSettled`.
+
+### Mutation Key and In-Flight State
+
+```typescript
+updateUser.mutationKey // ['PATCH', '/users/$userId']
+
+const isSavingAny = updateUser.useIsMutating()
+const isSavingThis = updateUser.useIsMutating({ urlParams: { userId } })
+```
+
+## File Uploads
+
+An upload is a mutation on an endpoint declared with `body: 'multipart'`:
+
+```typescript
+const uploadAvatar = client.mutation({
   method: 'POST',
   url: '/users/$userId/avatar',
-  requestSchema: z.object({
-    file: z.instanceof(File),
-  }),
-  responseSchema: z.object({
-    url: z.string(),
-  }),
+  body: 'multipart',
+  requestSchema: z.object({ file: z.instanceof(File) }),
+  responseSchema: z.object({ url: z.string() }),
 })
 
-function AvatarUpload({ userId }: { userId: string }) {
-  const { mutateAsync } = uploadAvatar()
+const { mutate } = uploadAvatar()
+mutate({ urlParams: { userId }, data: { file } })
+```
 
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (file) {
-      const result = await mutateAsync({
-        urlParams: { userId },
-        data: { file },
-      })
-      console.log('Uploaded to:', result.url)
-    }
+## File Downloads
+
+Declare the response kind instead of a `responseSchema`: `'blob'`, `'text'`, `'stream'` or `'void'`.
+
+```typescript
+const downloadFile = client.mutation({
+  method: 'GET',
+  url: '/files/$fileId/download',
+  response: 'blob',
+})
+
+const { mutateAsync } = downloadFile()
+const blob = await mutateAsync({ urlParams: { fileId } }) // Blob
+```
+
+## Error Handling
+
+Queries and mutations call the throwing form of the endpoint. Every failure is an `EndpointError` in React Query's error channel — `error` on the hook result, the argument of `onError`, the value thrown to an error boundary by `useSuspense`.
+
+```typescript
+const { error } = getUser.use({ urlParams: { userId } })
+
+if (error) {
+  switch (error.kind) {
+    case 'http': // status declared in errorSchema; body is the schema output
+      if (error.status === 404) error.body.message
+      break
+    case 'http-unknown': // any other non-2xx status; body is unknown
+    case 'request-validation': // args failed their schema, nothing was sent; error.issues
+    case 'response-validation': // the response failed its schema; error.issues
+    case 'network':
+    case 'timeout':
+    case 'aborted':
+    case 'config':
+      break
   }
-
-  return <input type="file" onChange={handleFileChange} />
 }
 ```
 
-## SSR/RSC Prefetch Helpers
-
-For server-side rendering and React Server Components, use the prefetch helpers:
+Where the value is `unknown` (a `catch` block, an error boundary), use the guards from `@navios/builder`:
 
 ```typescript
-import { createPrefetchHelper, prefetchAll } from '@navios/react-query'
+import { isEndpointError, isHttpError } from '@navios/builder'
+
+if (isHttpError(error, 404)) {
+  // ...
+}
+```
+
+For logging, register `onError` on the builder; it receives the same `EndpointError`:
+
+```typescript
+const api = builder({
+  client: httpClient,
+  onError: (error) => reportError(error.toJSON()),
+})
+```
+
+## SSR and Prefetching
+
+```typescript
 import { dehydrate, HydrationBoundary, QueryClient } from '@tanstack/react-query'
 
-// Create prefetch helper from your query
-const userPrefetch = createPrefetchHelper(getUser)
-
-// Server Component
 async function UserPage({ userId }: { userId: string }) {
   const queryClient = new QueryClient()
 
-  await userPrefetch.prefetch(queryClient, { urlParams: { userId } })
+  await Promise.all([
+    getUser.prefetch(queryClient, { urlParams: { userId } }),
+    listPosts.prefetch(queryClient, { params: { limit: 20 } }),
+  ])
 
   return (
     <HydrationBoundary state={dehydrate(queryClient)}>
@@ -622,228 +454,106 @@ async function UserPage({ userId }: { userId: string }) {
 }
 ```
 
-### Batch Prefetching
+`prefetch` never rejects. Use `fetch` or `ensure` when the server needs the data or must react to a failure.
+
+### Per-Request HTTP Client
+
+`setHttpClient` binds an HTTP client to a `QueryClient`. Every query, infinite query and mutation that runs through that `QueryClient` uses it instead of the builder's shared client — the way to carry one request's cookies or token on a server:
 
 ```typescript
-// Create multiple helpers at once
-const prefetchers = createPrefetchHelpers({
-  user: getUser,
-  posts: getUserPosts,
-})
+import { getHttpClient, setHttpClient } from '@navios/react-query'
 
-// Or prefetch different queries in parallel
-await prefetchAll(queryClient, [
-  { helper: userPrefetch, params: { urlParams: { userId } } },
-  { helper: postsPrefetch, params: { urlParams: { userId }, params: { limit: 10 } } },
-])
-```
+const queryClient = new QueryClient()
+setHttpClient(queryClient, create({ baseURL, headers: { cookie } }))
 
-### Helper Methods
+await getUser.prefetch(queryClient, { urlParams: { userId } })
 
-- `prefetch(queryClient, params)` - Prefetch data on the server
-- `ensureData(queryClient, params)` - Ensure data exists, returns the data
-- `getQueryOptions(params)` - Get raw query options for customization
-- `prefetchMany(queryClient, paramsList)` - Prefetch multiple queries in parallel
-
-## Optimistic Update Helpers
-
-Simplify optimistic updates with the `createOptimisticUpdate` helper:
-
-```typescript
-import { createOptimisticUpdate } from '@navios/react-query'
-
-const updateUser = client.mutation({
-  method: 'PATCH',
-  url: '/users/$userId',
-  requestSchema: updateUserSchema,
-  responseSchema: userSchema,
-  useContext: () => ({ queryClient: useQueryClient() }),
-  ...createOptimisticUpdate({
-    queryKey: ['users', userId],
-    updateFn: (oldData, variables) => ({
-      ...oldData,
-      ...variables.data,
-    }),
-    rollbackOnError: true, // default
-    invalidateOnSettled: true, // default
-  }),
-})
-```
-
-### Multi-Query Optimistic Updates
-
-When a mutation affects multiple cached queries:
-
-```typescript
-import { createMultiOptimisticUpdate } from '@navios/react-query'
-
-const updateUser = client.mutation({
-  // ...config
-  ...createMultiOptimisticUpdate([
-    {
-      queryKey: ['users', userId],
-      updateFn: (oldData, variables) => ({ ...oldData, ...variables.data }),
-    },
-    {
-      queryKey: ['users'],
-      updateFn: (oldList, variables) =>
-        (oldList ?? []).map((u) => (u.id === userId ? { ...u, ...variables.data } : u)),
-    },
-  ]),
-})
-```
-
-## Error Schema Support
-
-Combine `result: 'envelope'` with `errorSchema` for type-safe error discrimination. The envelope `error` is a typed variant; `isHttpError(error, status)` narrows both the status and the parsed `body`.
-
-```typescript
-import { isHttpError } from '@navios/builder'
-
-const getUser = client.query({
-  method: 'GET',
-  url: '/users/$userId',
-  responseSchema: userSchema,
-  errorSchema: {
-    400: z.object({ error: z.string(), code: z.number() }),
-    404: z.object({ notFound: z.literal(true) }),
-    500: z.object({ serverError: z.string() }),
-  },
-  result: 'envelope',
-})
-
-// In your component
-function UserProfile({ userId }: { userId: string }) {
-  const envelope = getUser.useSuspense({ urlParams: { userId } })
-
-  if (envelope.error) {
-    if (isHttpError(envelope.error, 404)) {
-      return <ErrorMessage error="User not found" />
-    }
-    if (isHttpError(envelope.error, 400)) {
-      return <ErrorMessage error={envelope.error.body.error} />
-    }
-    return <ErrorMessage error="Unknown error" />
-  }
-
-  return <div>{envelope.data.name}</div>
-}
-```
-
-If you prefer classic React Query ergonomics (typed `data` and `error` channels), add `unwrap: 'throw-on-error'`:
-
-```typescript
-const getUser = client.query({
-  method: 'GET',
-  url: '/users/$userId',
-  responseSchema: userSchema,
-  errorSchema: { 404: z.object({ notFound: z.literal(true) }) },
-  result: 'envelope',
-  unwrap: 'throw-on-error',
-})
-
-// data is User | undefined, error is EnvelopeError | null
-const { data, error } = getUser.use({ urlParams: { userId } })
+getHttpClient(queryClient) // the bound client, or undefined
+setHttpClient(queryClient, null) // remove the binding
 ```
 
 ## API Reference
 
 ### `declareClient(options)`
 
-Creates a client instance for making type-safe queries and mutations.
+- `api` - The builder created with `@navios/builder`
+- `defaults` - Optional `{ keyPrefix?, keySuffix? }` applied to every key
 
-**Options:**
+Returns `{ query, infiniteQuery, mutation }`.
 
-- `api` - The API builder created with `@navios/builder`
-- `defaults` - Optional default options applied to all queries/mutations:
-  - `keyPrefix?: string[]` - Prefix added to all query/mutation keys
-  - `keySuffix?: string[]` - Suffix added to all query/mutation keys
+| Method                                               | Returns               |
+| ---------------------------------------------------- | --------------------- |
+| `client.query(config \| endpoint, options?)`         | `QueryObject`         |
+| `client.infiniteQuery(config \| endpoint, settings)` | `InfiniteQueryObject` |
+| `client.mutation(config \| endpoint, settings?)`     | `MutationObject`      |
 
-**Example:**
+The inline `config` is the builder's endpoint options (`method`, `url`, `querySchema`, `requestSchema`, `responseSchema`, `responses`, `errorSchema`, `urlParamsSchema`, `body`, `response`, `headers`, `timeout`, `clientOptions`, `validateResponse`) plus the method's own settings. Every method also accepts `keyPrefix`, `keySuffix` and `withResponse`.
 
-```typescript
-const client = declareClient({
-  api,
-  defaults: {
-    keyPrefix: ['api', 'v1'], // All keys will start with ['api', 'v1']
-    keySuffix: ['cache'], // All keys will end with ['cache']
-  },
-})
-```
+### Query Object
 
-**Returns:** `ClientInstance` with the following methods:
+| Member                                           | Description                                              |
+| ------------------------------------------------ | -------------------------------------------------------- |
+| `query(args, options?)`                          | TanStack query options                                   |
+| `query.use(args \| skipToken, options?)`         | `useQuery`                                               |
+| `query.useSuspense(args, options?)`              | `useSuspenseQuery`                                       |
+| `query.key(args?)`                               | Cache key: whole endpoint, partial args or exact         |
+| `query.fetch(queryClient, args)`                 | Data through the cache; rejects with the `EndpointError` |
+| `query.prefetch(queryClient, args)`              | Warms the cache; never rejects                           |
+| `query.ensure(queryClient, args)`                | Cached data however stale, else fetch                    |
+| `query.getData(queryClient, args)`               | Reads the cache entry                                    |
+| `query.setData(queryClient, args, updater)`      | Writes the cache entry                                   |
+| `query.invalidate(queryClient, args?, filters?)` | Invalidates matching entries; returns a promise          |
+| `query.endpoint`                                 | The endpoint handler                                     |
 
-### Query Methods
+### Mutation Object
 
-- `client.query(config | endpoint, options?)` - Create a query from an inline config or an existing endpoint handler
-- `client.infiniteQuery(config | endpoint, options?)` - Create an infinite query from an inline config or an existing endpoint handler
+| Member                                   | Description                                   |
+| ---------------------------------------- | --------------------------------------------- |
+| `mutation()`                             | The hook; returns `UseMutationResult`         |
+| `mutation.mutationKey`                   | `[...keyPrefix, method, url, ...keySuffix]`   |
+| `mutation.useIsMutating({ urlParams? })` | `true` while a matching mutation is in flight |
+| `mutation.endpoint`                      | The endpoint handler                          |
 
-### Mutation Methods
+### Mutation Settings
 
-- `client.mutation(config | endpoint, options?)` - Create a mutation from an inline config or an existing endpoint handler
-- `client.multipart(config)` - Create a multipart/form-data mutation
+| Setting                  | Description                                                                                                                                  |
+| ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `invalidates`            | Queries, or `(data, variables) => key`, invalidated after success                                                                            |
+| `optimistic`             | `(update) => update(query, { args, update, rollbackOnError?, invalidateOnSettled? })`; `args` is required when the query has required inputs |
+| `useContext`             | Hook whose result is merged into the callback context                                                                                        |
+| `onMutate`               | `(variables, context) => onMutateResult`                                                                                                     |
+| `onSuccess`              | `(data, variables, context) => void`                                                                                                         |
+| `onError`                | `(error, variables, context) => void`                                                                                                        |
+| `onSettled`              | `(data, error, variables, context) => void`                                                                                                  |
+| `keyPrefix`, `keySuffix` | Key segments                                                                                                                                 |
+| `withResponse`           | `true` delivers `{ data, response }` instead of the bare data                                                                                |
+| ...                      | Any TanStack `useMutation` option except `mutationKey` / `mutationFn`                                                                        |
 
-### Query Config
+### Other Exports
 
-| Property           | Type                                     | Required | Description                                                                              |
-| ------------------ | ---------------------------------------- | -------- | ---------------------------------------------------------------------------------------- |
-| `method`           | `'GET' \| 'POST' \| 'HEAD' \| 'OPTIONS'` | Yes      | HTTP method                                                                              |
-| `url`              | `string`                                 | Yes      | URL pattern (e.g., `/users/$userId`)                                                     |
-| `responseSchema`   | `ZodSchema`                              | Yes      | Zod schema for response validation                                                       |
-| `querySchema`      | `ZodObject`                              | No       | Zod schema for query parameters                                                          |
-| `requestSchema`    | `ZodSchema`                              | No       | Zod schema for request body (POST queries)                                               |
-| `errorSchema`      | `Record<number, ZodSchema>`              | No       | Per-status error schemas (combine with `result: 'envelope'`)                             |
-| `result`           | `'data' \| 'envelope'`                   | No       | Endpoint return shape; envelope returns `{ ok, data, error, response }` without throwing |
-| `unwrap`           | `'none' \| 'throw-on-error'`             | No       | How envelopes are surfaced to TanStack Query (default `'none'`)                          |
-| `validateResponse` | `boolean`                                | No       | Skip runtime `responseSchema.parse()` when `false` (default `true`)                      |
-| `keyPrefix`        | `string[]`                               | No       | Prefix to add to query keys (useful for namespacing)                                     |
-| `keySuffix`        | `string[]`                               | No       | Suffix to add to query keys                                                              |
-
-Read-side projections live on the call site: pass `select` to `getUser.use(params, { select })` or `getUser.useSuspense(params, { select })`. The endpoint-level `processResponse` option was removed in v2.
-
-Error handling is configured globally via the builder's `onError` hook (`builder({ onError })`); the per-helper `onFail` callback was removed in v2.
-
-### Mutation Config
-
-| Property           | Type                                        | Required | Description                                |
-| ------------------ | ------------------------------------------- | -------- | ------------------------------------------ |
-| `method`           | `'POST' \| 'PUT' \| 'PATCH' \| 'DELETE'`    | Yes      | HTTP method                                |
-| `url`              | `string`                                    | Yes      | URL pattern (e.g., `/users/$userId`)       |
-| `responseSchema`   | `ZodSchema`                                 | Yes      | Zod schema for response validation         |
-| `requestSchema`    | `ZodSchema`                                 | No       | Zod schema for request body                |
-| `querySchema`      | `ZodObject`                                 | No       | Zod schema for query parameters            |
-| `errorSchema`      | `Record<number, ZodSchema>`                 | No       | Per-status error schemas (envelope mode)   |
-| `result`           | `'data' \| 'envelope'`                      | No       | Endpoint return shape                      |
-| `unwrap`           | `'none' \| 'throw-on-error'`                | No       | Envelope delivery mode (default `'none'`)  |
-| `validateResponse` | `boolean`                                   | No       | Skip runtime response parsing when `false` |
-| `useKey`           | `boolean`                                   | No       | Enable mutation key for scoping            |
-| `useContext`       | `() => Context`                             | No       | Hook to provide context to callbacks       |
-| `onMutate`         | `(variables, context) => onMutateResult`    | No       | Called before mutation                     |
-| `onSuccess`        | `(data, variables, context) => void`        | No       | Called on success                          |
-| `onError`          | `(error, variables, context) => void`       | No       | Called on error                            |
-| `onSettled`        | `(data, error, variables, context) => void` | No       | Called on completion                       |
-
-### Context Object
-
-The context passed to mutation callbacks includes:
-
-- Properties from `useContext()` return value
-- `mutationId` - TanStack Query mutation ID
-- `meta` - Mutation metadata
-- `onMutateResult` - Return value from `onMutate` (in `onSuccess`, `onError`, `onSettled`)
+- `setHttpClient(queryClient, client | null)`, `getHttpClient(queryClient)` - bind an HTTP client to a `QueryClient`
+- `makeQuery(endpoint, options?)`, `makeInfiniteQuery(endpoint, settings)`, `makeMutation(endpoint, settings?)` - the factories behind the client methods, for use without a client instance
+- `DataWithResponse<Data>`, `SurfaceOptions` - the data shape and the options type of `withResponse`
 
 ## Migration to 2.0.0
 
-See [CHANGELOG.md](./CHANGELOG.md) for the full migration guide.
+See [CHANGELOG.md](./CHANGELOG.md) for the full list with before → after examples.
 
 ### From 1.x
 
-- **`onFail` removed** — register `onError` on the builder instead (`builder({ onError: (event) => ... })`).
-- **`UseDiscriminator` generic removed** from every client method and from `declareClient`. Endpoints declared with `useDiscriminatorResponse: true` no longer compile — switch them to `result: 'envelope'`.
-- **`processResponse` removed** — for queries / infinite queries, use TanStack Query's per-call `select`. For mutations / multipart, transform in `onSuccess` or in the caller.
-- **`client.queryFromEndpoint`, `client.mutationFromEndpoint`, `client.infiniteQueryFromEndpoint` removed** — pass the endpoint as the first argument to `client.query`, `client.mutation`, or `client.infiniteQuery`.
-- **`client.multipartMutation` renamed to `client.multipart`** for consistency with the other shorter method names.
-- **Envelope mode**: opt endpoints into `result: 'envelope'` to receive `{ ok, data, error, response }` instead of the raw body, and pick an `unwrap` mode (`'none'`, `'throw-on-error'`, or `'pages'` for infinite queries).
+- **Errors**: failures are always in React Query's error channel as the endpoint's `EndpointError`. Narrow on `error.kind` / `error.status`; `error.body` is typed from `errorSchema`. `useDiscriminatorResponse` and the per-helper `onFail` are gone; register `onError` on the builder for logging.
+- **Uploads**: `client.multipartMutation(config)` → `client.mutation({ ...config, body: 'multipart' })`.
+- **Downloads**: endpoints declared with `declareStream` → `declareEndpoint({ ..., response: 'blob' })`, used with `client.mutation` or `client.query`.
+- **From-endpoint methods**: `client.queryFromEndpoint` / `mutationFromEndpoint` / `infiniteQueryFromEndpoint` → pass the endpoint to `client.query` / `client.mutation` / `client.infiniteQuery`.
+- **`processResponse`** → TanStack's `select` on the hook call.
+- **Keys**: `query.queryKey.dataTag(args)` / `filterKey(args)` → `query.key(args)`. Every key changed shape, so hand-written keys must be replaced and persisted caches discarded.
+- **Invalidation**: `invalidateAll(queryClient, args)` → `invalidate(queryClient, args)`; `invalidate` returns the promise directly.
+- **Scoped mutations**: `useKey: true` and `mutation({ urlParams })` → `mutation()` plus `mutation.useIsMutating({ urlParams })`.
+- **Mutation context**: `context.queryClient` from `useContext: () => ({ queryClient: useQueryClient() })` → `context.client`.
+- **Optimistic helpers**: `createOptimisticUpdate` / `createMultiOptimisticUpdate` → the `optimistic` setting.
+- **Prefetch helpers**: `createPrefetchHelper(query).prefetch(queryClient, args)` → `query.prefetch(queryClient, args)`; `ensureData` → `query.ensure`.
+- **Standalone factories**: `makeQueryOptions` / `makeInfiniteQueryOptions` → `makeQuery` / `makeInfiniteQuery`.
+- **Peer dependency**: `@tanstack/react-query ^5.102.0`.
 
 ## License
 

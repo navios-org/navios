@@ -1,75 +1,79 @@
 import type {
+  BaseEndpointOptions,
   BuilderInstance,
-  EndpointHandler,
-  ErrorSchemaRecord,
-  InferErrorSchemaOutput,
+  ClientRequestArgs,
+  InferEndpointError,
+  InferEndpointReturn,
 } from '@navios/builder'
-import type { z, ZodType } from 'zod/v4'
-
-/**
- * Splits a string by a delimiter into a tuple type.
- * Used for parsing URL paths into segments for query keys.
- */
-export type Split<S extends string, D extends string> = string extends S
-  ? string[]
-  : S extends ''
-    ? []
-    : S extends `${infer T}${D}${infer U}`
-      ? [T, ...Split<U, D>]
-      : [S]
-
-/**
- * Compute the response input type.
- * In the data-mode default (errors are thrown), this is just `z.output<ResponseSchema>`.
- *
- * @template ResponseSchema - The success response schema
- * @template ErrorSchema - The error schema record (unused; kept for backwards compatibility)
- */
-export type ComputeResponseInput<
-  ResponseSchema extends ZodType,
-  _ErrorSchema extends ErrorSchemaRecord | undefined = undefined,
-> = z.output<ResponseSchema>
 
 /**
  * Options for creating a client instance.
  */
 export type ClientOptions = {
   api: BuilderInstance
-  defaults?: {
-    keyPrefix?: string[]
-    keySuffix?: string[]
-  }
+  defaults?: KeyOptions
 }
 
 /**
- * Infers the full response type from an endpoint configuration.
- * Returns `ResponseType | ErrorTypes` if errorSchema exists,
- * otherwise just `ResponseType`.
- *
- * @example
- * ```ts
- * type Response = InferEndpointResponse<{
- *   responseSchema: z.ZodObject<{ data: z.ZodString }>,
- *   errorSchema: { 400: z.ZodObject<{ error: z.ZodString }> }
- * }>
- * // Result: { data: string } | { error: string }
- * ```
+ * Extra segments placed around an endpoint's identity in every cache key.
  */
-export type InferEndpointResponse<
-  Config extends {
-    responseSchema: ZodType
-    errorSchema?: ErrorSchemaRecord
-  },
-> = Config['errorSchema'] extends ErrorSchemaRecord
-  ? z.output<Config['responseSchema']> | InferErrorSchemaOutput<Config['errorSchema']>
-  : z.output<Config['responseSchema']>
+export type KeyOptions = {
+  /** Segments placed before `[method, url]`. */
+  keyPrefix?: readonly unknown[]
+  /** Segments placed right after `[method, url]`. */
+  keySuffix?: readonly unknown[]
+}
 
 /**
- * Returns true if an endpoint handler was declared with `result: 'envelope'`.
- *
- * Used by react-query helpers to switch type inference and unwrap behaviour
- * (see `unwrap` option) when the endpoint produces a `ResponseEnvelope` rather
- * than a parsed body.
+ * Options shared by every query and mutation surface.
  */
-export type IsEnvelope<E> =
-  E extends EndpointHandler<infer O> ? (O extends { result: 'envelope' } ? true : false) : false
+export type SurfaceOptions<WithResponse extends boolean = boolean> = KeyOptions & {
+  /**
+   * Deliver `{ data, response }` instead of the bare data, where `response`
+   * has the status and headers of the HTTP reply. Use it when a header
+   * matters to the UI (ETag, pagination totals, rate limits).
+   *
+   * Entries declared with and without it are stored under different keys.
+   *
+   * @default false
+   */
+  withResponse?: WithResponse
+}
+
+/** Keys of `T` that must be provided. */
+export type RequiredKeys<T> = { [K in keyof T]-?: {} extends Pick<T, K> ? never : K }[keyof T]
+
+/** The full call arguments of an endpoint. */
+export type EndpointArgs<Options extends BaseEndpointOptions> = ClientRequestArgs<Options>
+
+/**
+ * `[args, ...Rest]`, with `args` optional when the endpoint requires nothing.
+ */
+export type ArgsWith<Options extends BaseEndpointOptions, Rest extends unknown[] = []> = [
+  RequiredKeys<EndpointArgs<Options>>,
+] extends [never]
+  ? [args?: EndpointArgs<Options>, ...rest: Rest]
+  : [args: EndpointArgs<Options>, ...rest: Rest]
+
+/**
+ * The part of the call arguments that identifies a request and therefore
+ * goes into the cache key: `urlParams`, `params` and `data`.
+ */
+export type EndpointInputs<Options extends BaseEndpointOptions> = Pick<
+  EndpointArgs<Options>,
+  Extract<keyof EndpointArgs<Options>, 'urlParams' | 'params' | 'data'>
+>
+
+/**
+ * Any subset of an endpoint's inputs. Used to address a group of cache
+ * entries, e.g. every entry for one `userId` regardless of query params.
+ */
+export type PartialEndpointInputs<Options extends BaseEndpointOptions> = {
+  [K in keyof EndpointInputs<Options>]?: Partial<EndpointInputs<Options>[K]>
+}
+
+/** Data an endpoint resolves to. */
+export type EndpointData<Options extends BaseEndpointOptions> = InferEndpointReturn<Options>
+
+/** The typed `EndpointError` an endpoint fails with. */
+export type EndpointFailure<Options extends BaseEndpointOptions> = InferEndpointError<Options>

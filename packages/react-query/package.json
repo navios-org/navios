@@ -44,7 +44,12 @@
   },
   "peerDependencies": {
     "@navios/builder": "workspace:^",
-    "@tanstack/react-query": "^5.51.21",
+    "@tanstack/react-query": "^5.102.0",
     "zod": "^3.25.0 || ^4.0.0"
+  },
+  "peerDependenciesMeta": {
+    "zod": {
+      "optional": true
+    }
   }
 }
