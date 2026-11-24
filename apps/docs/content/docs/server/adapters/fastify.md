@@ -151,6 +151,7 @@ defineFastifyEnvironment({
 An endpoint declared with `body: 'multipart'` then receives text fields as strings and files as `File` objects, validated by the endpoint's `requestSchema`. [File uploads](/docs/server/guides/file-uploads) covers the handler side.
 
 - Each file is read into memory before the handler runs. Set `limits.fileSize`.
+- A request over any of the `limits` is answered with a 413 problem response. That includes a text field longer than `fieldSize`, which is rejected rather than truncated.
 - Without the `multipart` option, Fastify rejects a multipart request with 415.
 
 ## Request bodies

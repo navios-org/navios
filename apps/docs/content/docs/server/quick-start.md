@@ -151,10 +151,6 @@ console.log(`Listening on ${url}`)
 npx tsx main.mts
 ```
 
-:::info
-If you compile with `tsc` and run the output on Node.js instead, the runtime has to define `Symbol.metadata` before any decorated class is loaded. Import a file containing `Symbol.metadata ??= Symbol('Symbol.metadata')` first in `main.mts`. `tsx` and Bun do this for you.
-:::
-
 ### On Bun
 
 The same code runs on Bun. Install `@navios/adapter-bun` instead of the Fastify packages and change two lines of `main.mts`:

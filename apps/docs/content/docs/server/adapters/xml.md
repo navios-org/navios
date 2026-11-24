@@ -12,14 +12,13 @@ title: XML responses
 yarn add @navios/adapter-xml
 ```
 
-Point TypeScript's JSX transform at the package, and add its JSX types so that lower-case tags such as `<rss>` are accepted. Files that contain JSX use the `.tsx` extension.
+Point TypeScript's JSX transform at the package. Files that contain JSX use the `.tsx` extension.
 
 ```json title="tsconfig.json"
 {
   "compilerOptions": {
     "jsx": "react-jsx",
-    "jsxImportSource": "@navios/adapter-xml",
-    "types": ["node", "@navios/adapter-xml/jsx"]
+    "jsxImportSource": "@navios/adapter-xml"
   }
 }
 ```

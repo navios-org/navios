@@ -126,7 +126,7 @@ const imageSchema = z
 
 The schema runs after the body has been received, so it does not protect the server's memory.
 
-**In the adapter**, for how much the server is willing to read at all: `multipart.limits` on Fastify and `serve.maxRequestBodySize` on Bun. Set them a little above the largest upload any schema allows. See the adapter pages linked above.
+**In the adapter**, for how much the server is willing to read at all: `multipart.limits` on Fastify and `serve.maxRequestBodySize` on Bun. Set them a little above the largest upload any schema allows. A request over the limit is answered with 413: as a problem document on Fastify, with an empty body on Bun. See the adapter pages linked above.
 
 Guards run before the body is read. An upload from a caller who is not allowed to upload is rejected without reading the file.
 

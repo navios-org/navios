@@ -147,7 +147,7 @@ export class UsersController {
 | `ApiTag(name, description?)`               | Adds a tag                                                                          | Module, controller and handler, combined         |
 | `ApiSummary(text)`                         | The operation's summary                                                             | Handler                                          |
 | `ApiOperation({ ... })`                    | `summary`, `description`, `operationId`, `deprecated`, `externalDocs`. Its `summary` wins over `ApiSummary` | Handler                  |
-| `ApiDeprecated()`                          | Marks operations as deprecated                                                      | The most specific of handler, controller, module |
+| `ApiDeprecated(message?)`                  | Marks operations as deprecated. A message is written as `x-deprecated-message`      | The most specific of handler, controller, module |
 | `ApiSecurity({ scheme: scopes })`          | The security requirement, replacing the plugin's `security` default                 | The most specific of handler, controller, module |
 | `ApiExclude()`                             | Leaves operations out of the document                                               | Handler, controller or module                    |
 | `ApiStream({ contentType, description? })` | Content type of a `stream`, `blob` or `text` response                               | Handler                                          |

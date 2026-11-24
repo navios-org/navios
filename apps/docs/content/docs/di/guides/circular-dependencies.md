@@ -31,7 +31,7 @@ The error is a `DIError` with code `CircularDependency`. `error.context.cycle` h
 
 While a service is being constructed it is marked as in progress. An `inject()` call that reaches a service already in progress on the current construction stack has found a cycle, and throws on the spot. This costs nothing when there is no cycle, so it is always on, in production too.
 
-Cycles can also form across asynchronous work: one service waits for another's `onServiceInit`, which in turn waits for the first through a factory's `ctx.inject()`. The container tracks who is waiting for whom and fails the resolution that would close the loop, with the same error code. Such a cycle is reported between the two services that closed it rather than with the full path.
+Cycles can also form across asynchronous work: one service waits for another's `onServiceInit`, which in turn waits for the first through a factory's `ctx.inject()` or an awaited `asyncInject()` promise. The container tracks who is waiting for whom and fails the resolution that would close the loop, with the same error code and the path of services that wait on each other.
 
 A cycle of any length is detected, not just two services.
 
@@ -100,5 +100,5 @@ class BillingService {
 Rules for using it:
 
 - **One side is enough.** Keep `inject()` on the other side so only one service pays for the `await`.
-- **Await the promise in methods, never in `onServiceInit`.** If `OrderService.onServiceInit` awaits `this.billing`, `OrderService` is not ready until `BillingService` is, and `BillingService` is waiting for `OrderService`. `asyncInject()` is deliberately invisible to cycle detection, so this is not reported: both resolutions hang.
+- **Await the promise in methods, never in `onServiceInit`.** If `OrderService.onServiceInit` awaits `this.billing`, `OrderService` is not ready until `BillingService` is, and `BillingService` is waiting for `OrderService`. The cycle is back, and both resolutions fail with `CircularDependency`. The one case that is not detected is a promise chained in the constructor (`this.ready = asyncInject(B).then(...)`) and awaited later in `onServiceInit`: that still hangs.
 - **Do not use it for anything else.** `inject()` already handles transients and services with asynchronous initialisers.

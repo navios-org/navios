@@ -78,7 +78,7 @@ interface UseServiceResult<T> {
 | `isError`   | `error` is set                                                                                   |
 | `refetch`   | Calls `container.get()` again. Returns the existing instance when there is one                   |
 
-`args` is compared by reference; a new object restarts the resolution. See [Using services in components](/docs/di/react/using-services#useservice).
+`args` is compared by its JSON form; a new object with the same content does not restart the resolution. See [Using services in components](/docs/di/react/using-services#useservice).
 
 ### useSuspenseService
 

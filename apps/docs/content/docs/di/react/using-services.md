@@ -95,11 +95,9 @@ export class UserProfile {
 
 ```tsx
 import { useService } from '@navios/di-react'
-import { useMemo } from 'react'
 
 function ProfileCard({ userId }: { userId: string }) {
-  const args = useMemo(() => ({ userId }), [userId])
-  const { data: profile } = useService(USER_PROFILE, args)
+  const { data: profile } = useService(USER_PROFILE, { userId })
 
   return <h2>{profile?.user.name ?? '…'}</h2>
 }
@@ -107,11 +105,7 @@ function ProfileCard({ userId }: { userId: string }) {
 
 Leaving the arguments out turns the hook's return type into an error string that names the missing keys (`'Error: Your token requires args: userId'`), so the first use of the result fails to compile.
 
-:::warning
-`useService` and `useOptionalService` compare the arguments by reference. An object literal written in the call is a new object on every render, and the hook starts over each time and never settles. Memoize the object, or use a schema whose value is a primitive (`z.string()`), which needs no memoization. In development the hooks log a warning when two consecutive values serialize to the same JSON but are different objects.
-:::
-
-`useSuspenseService` finds its entry by the JSON form of the arguments, so an inline object works there.
+All three hooks compare arguments by their JSON form, so an object literal written in the call needs no memoization. Pass plain data: two values that differ only in a function, a class instance, a `Map` or a `Set` count as the same arguments.
 
 When the arguments change, `useService` returns the previous instance for one render, then goes through `isLoading` to the new one. Render from the instance (`profile.user`) rather than from the prop when the two must agree.
 

@@ -66,11 +66,14 @@ describe('users', () => {
 
 Create a new application for each test and close it afterwards. `close()` disposes the container, which keeps tests independent.
 
-What the in-memory adapter does not do:
+How the in-memory adapter differs from a real one:
 
 - `app.listen()` throws; there is no server.
 - A request body that is not a string is handed to the pipeline as is. A multipart endpoint is tested by passing an object with strings and `File` values as `data`; no multipart encoding or parsing takes place.
 - `ctx.signal` never aborts.
+- A trailing slash is ignored, so `/users/` matches `/users`. The real adapters do not match it.
+
+Routes are matched as on the real adapters: a static segment wins over a URL parameter whatever the order of registration.
 
 ## The test client
 

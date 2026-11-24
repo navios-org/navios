@@ -45,8 +45,10 @@ Singletons are unaffected: inside a scope `useService(UserService)` still return
 
 A `ScopeProvider` inside another one starts an independent scope. Components see the innermost one, and the outer scope's request-scoped instances are not visible through it.
 
+The scope is disposed one microtask after the provider unmounts, so the simulated unmount of React's `<StrictMode>` does not lose it. An `<Activity>` that hides the provider does dispose the scope, and showing it again starts a new one.
+
 :::warning
-Under React's `<StrictMode>` in development, React simulates an unmount right after the first mount. `ScopeProvider` disposes its scope at that point and keeps using it, so hooks inside fail with `ScopedContainer has been disposed`. Production builds are not affected. Until this is fixed in the package, a tree that contains a `ScopeProvider` cannot be wrapped in `StrictMode`.
+Put a `<Suspense>` boundary for `useSuspenseService` inside the `ScopeProvider`, not around it. A boundary outside makes React discard and retry the provider, which starts a new scope on every attempt, so a request-scoped service never settles.
 :::
 
 ## Scope id and metadata
