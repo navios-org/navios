@@ -16,7 +16,7 @@
     "@navios/di": "workspace:*",
     "@navios/otel": "workspace:*",
     "@navios/otel-bun": "workspace:*",
-    "@opentelemetry/api": "^1.9.0",
+    "@opentelemetry/api": "^1.10.0",
     "zod": "^4.6.7"
   },
   "devDependencies": {

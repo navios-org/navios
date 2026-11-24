@@ -4181,7 +4181,7 @@ __metadata:
     "@navios/core": "workspace:^"
     "@navios/di": "workspace:^"
     "@navios/otel": "workspace:^"
-    "@opentelemetry/api": "npm:^1.9.0"
+    "@opentelemetry/api": "npm:^1.10.0"
     "@types/bun": "npm:^1.4.5"
     typescript: "npm:^7.0.2"
   peerDependencies:
@@ -4189,7 +4189,7 @@ __metadata:
     "@navios/core": "workspace:^"
     "@navios/di": "workspace:^"
     "@navios/otel": "workspace:^"
-    "@opentelemetry/api": ^1.9.0
+    "@opentelemetry/api": ^1.10.0
   languageName: unknown
   linkType: soft
 
@@ -4201,7 +4201,7 @@ __metadata:
     "@navios/core": "workspace:^"
     "@navios/di": "workspace:^"
     "@navios/otel": "workspace:^"
-    "@opentelemetry/api": "npm:^1.9.0"
+    "@opentelemetry/api": "npm:^1.10.0"
     fastify: "npm:^5.12.8"
     typescript: "npm:^7.0.2"
   peerDependencies:
@@ -4209,7 +4209,7 @@ __metadata:
     "@navios/core": "workspace:^"
     "@navios/di": "workspace:^"
     "@navios/otel": "workspace:^"
-    "@opentelemetry/api": ^1.9.0
+    "@opentelemetry/api": ^1.10.0
     fastify: ^5.0.0
   languageName: unknown
   linkType: soft
@@ -4220,7 +4220,7 @@ __metadata:
   dependencies:
     "@navios/core": "workspace:^"
     "@navios/di": "workspace:^"
-    "@opentelemetry/api": "npm:^1.9.0"
+    "@opentelemetry/api": "npm:^1.10.0"
     "@opentelemetry/exporter-metrics-otlp-http": "npm:^0.301.2"
     "@opentelemetry/exporter-trace-otlp-http": "npm:^0.301.2"
     "@opentelemetry/resources": "npm:^3.1.1"
@@ -4358,10 +4358,10 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@opentelemetry/api@npm:^1.9.0":
-  version: 1.9.0
-  resolution: "@opentelemetry/api@npm:1.9.0"
-  checksum: 10c0/9aae2fe6e8a3a3eeb6c1fdef78e1939cf05a0f37f8a4fae4d6bf2e09eb1e06f966ece85805626e01ba5fab48072b94f19b835449e58b6d26720ee19a58298add
+"@opentelemetry/api@npm:^1.10.0":
+  version: 1.10.0
+  resolution: "@opentelemetry/api@npm:1.10.0"
+  checksum: 10c0/c666f89d882e2e3ea3780b4e419de3ba7e00a80bf334269c3c8507a5e2b4e453e2bc8368f6230f894d789b206c14dde313ea6f51fa7bc629f0eff8480b5d356b
   languageName: node
   linkType: hard
 
@@ -14693,7 +14693,7 @@ __metadata:
     "@navios/di": "workspace:*"
     "@navios/otel": "workspace:*"
     "@navios/otel-bun": "workspace:*"
-    "@opentelemetry/api": "npm:^1.9.0"
+    "@opentelemetry/api": "npm:^1.10.0"
     "@types/bun": "npm:^1.4.5"
     typescript: "npm:^7.0.2"
     zod: "npm:^4.6.7"
@@ -14710,7 +14710,7 @@ __metadata:
     "@navios/di": "workspace:*"
     "@navios/otel": "workspace:*"
     "@navios/otel-fastify": "workspace:*"
-    "@opentelemetry/api": "npm:^1.9.0"
+    "@opentelemetry/api": "npm:^1.10.0"
     dotenv: "npm:^17.2.3"
     tsx: "npm:^4.23.15"
     typescript: "npm:^7.0.2"

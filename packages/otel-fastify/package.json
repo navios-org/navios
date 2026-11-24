@@ -40,7 +40,7 @@
     "@navios/core": "workspace:^",
     "@navios/di": "workspace:^",
     "@navios/otel": "workspace:^",
-    "@opentelemetry/api": "^1.9.0",
+    "@opentelemetry/api": "^1.10.0",
     "fastify": "^5.12.8",
     "typescript": "^7.0.2"
   },
@@ -49,7 +49,7 @@
     "@navios/core": "workspace:^",
     "@navios/di": "workspace:^",
     "@navios/otel": "workspace:^",
-    "@opentelemetry/api": "^1.9.0",
+    "@opentelemetry/api": "^1.10.0",
     "fastify": "^5.0.0"
   }
 }
