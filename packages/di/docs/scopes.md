@@ -4,11 +4,11 @@ A scope decides how long an instance lives and who shares it. Navios DI has thre
 
 ## Overview
 
-| Scope       | Instances                              | Stored in          | Destroyed when                         |
-| ----------- | -------------------------------------- | ------------------ | -------------------------------------- |
-| `Singleton` | one per container                      | the root container | the container is disposed              |
-| `Request`   | one per scope from `createScope()`     | the scope          | the scope is disposed                  |
-| `Transient` | a new one for each injection or `get()` | its owner          | its owner is destroyed                 |
+| Scope       | Instances                               | Stored in          | Destroyed when            |
+| ----------- | --------------------------------------- | ------------------ | ------------------------- |
+| `Singleton` | one per container                       | the root container | the container is disposed |
+| `Request`   | one per scope from `createScope()`      | the scope          | the scope is disposed     |
+| `Transient` | a new one for each injection or `get()` | its owner          | its owner is destroyed    |
 
 A service is always built in the scope it declares. The scope is never changed automatically.
 
@@ -194,11 +194,11 @@ See [Scoped Containers](./request-contexts.md) for the scope API.
 
 A service can only depend on services that live at least as long as it does.
 
-| Consumer  | Singleton | Request | Transient                                  |
-| --------- | --------- | ------- | ------------------------------------------ |
-| Singleton | yes       | **no**  | yes, if the transient needs nothing scoped |
-| Request   | yes       | yes     | yes                                        |
-| Transient | yes       | same as the service that injects it | yes            |
+| Consumer  | Singleton | Request                             | Transient                                  |
+| --------- | --------- | ----------------------------------- | ------------------------------------------ |
+| Singleton | yes       | **no**                              | yes, if the transient needs nothing scoped |
+| Request   | yes       | yes                                 | yes                                        |
+| Transient | yes       | same as the service that injects it | yes                                        |
 
 ### ScopeMismatchError
 

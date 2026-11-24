@@ -410,7 +410,11 @@ Binds a token or a registered class to an implementation class, a value or a fac
 ```ts
 function registerInjectable<T extends ClassType>(
   target: T,
-  options?: { scope?: InjectableScope; token?: InjectionToken<any, any>; schema?: StandardSchemaV1 },
+  options?: {
+    scope?: InjectableScope
+    token?: InjectionToken<any, any>
+    schema?: StandardSchemaV1
+  },
 ): InjectionToken<InstanceType<T>, any>
 ```
 
@@ -510,10 +514,10 @@ type InjectionTokenType =
 
 ## Scope Compatibility
 
-| Consumer  | May depend on                                    |
-| --------- | ------------------------------------------------ |
-| Singleton | Singleton, Transient                             |
-| Request   | Singleton, Request, Transient                    |
+| Consumer  | May depend on                                      |
+| --------- | -------------------------------------------------- |
+| Singleton | Singleton, Transient                               |
+| Request   | Singleton, Request, Transient                      |
 | Transient | whatever the service that injects it may depend on |
 
 `inject()`, `optional()` and `asyncInject()` all work with every scope. A singleton that reaches a request-scoped service, directly or through a transient, fails with `ScopeMismatchError`.
@@ -530,19 +534,19 @@ class DIError extends Error {
 }
 ```
 
-| Code                       | Message                                                                                         | Context                               |
-| -------------------------- | ----------------------------------------------------------------------------------------------- | ------------------------------------- |
-| `FactoryNotFound`          | `Factory <name> not found`                                                                      | `name`                                |
-| `ClassNotInjectable`       | `Class <name> is not decorated with @Injectable.`                                               | `className`                           |
-| `ScopeMismatchError`       | `Scope mismatch: <name> is request-scoped and cannot be resolved from the root container (<path>). ...` | `name`, `path`                |
-| `CircularDependency`       | `Circular dependency detected: A -> B -> A`                                                     | `cycle`                               |
-| `ProviderConflict`         | `Token <token> already has a default provider (<existing>); <incoming> cannot become a second default. ...` | `token`, `existing`, `incoming` |
-| `TokenValidationError`     | `Validation failed for <token>`                                                                 | `schema`, `value`, `issues`           |
-| `TokenSchemaRequiredError` | `Token <token> requires schema arguments and cannot be used with addInstance. ...`              | `token`                               |
-| `AsyncInitRequired`        | `<name> or one of its dependencies has an asynchronous initializer and cannot be resolved synchronously. ...` | `name`                  |
-| `InitializationError`      | `Service <name> initialization failed: <original message>`                                      | `serviceName`, `error`; `cause` is set |
-| `ContainerDisposed`        | `ScopedContainer has been disposed`                                                             | `kind`                                |
-| `UnknownError`             | varies                                                                                          | varies                                |
+| Code                       | Message                                                                                                       | Context                                |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------- | -------------------------------------- |
+| `FactoryNotFound`          | `Factory <name> not found`                                                                                    | `name`                                 |
+| `ClassNotInjectable`       | `Class <name> is not decorated with @Injectable.`                                                             | `className`                            |
+| `ScopeMismatchError`       | `Scope mismatch: <name> is request-scoped and cannot be resolved from the root container (<path>). ...`       | `name`, `path`                         |
+| `CircularDependency`       | `Circular dependency detected: A -> B -> A`                                                                   | `cycle`                                |
+| `ProviderConflict`         | `Token <token> already has a default provider (<existing>); <incoming> cannot become a second default. ...`   | `token`, `existing`, `incoming`        |
+| `TokenValidationError`     | `Validation failed for <token>`                                                                               | `schema`, `value`, `issues`            |
+| `TokenSchemaRequiredError` | `Token <token> requires schema arguments and cannot be used with addInstance. ...`                            | `token`                                |
+| `AsyncInitRequired`        | `<name> or one of its dependencies has an asynchronous initializer and cannot be resolved synchronously. ...` | `name`                                 |
+| `InitializationError`      | `Service <name> initialization failed: <original message>`                                                    | `serviceName`, `error`; `cause` is set |
+| `ContainerDisposed`        | `ScopedContainer has been disposed`                                                                           | `kind`                                 |
+| `UnknownError`             | varies                                                                                                        | varies                                 |
 
 `InstanceNotFound` and `InstanceDestroying` exist in the enum but are not raised by the container in 2.0.
 

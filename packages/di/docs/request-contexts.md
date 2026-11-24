@@ -162,8 +162,8 @@ Resolution does not use `AsyncLocalStorage`. A request-scoped service is found t
 ### Express Example
 
 ```ts
-import express from 'express'
 import { Container } from '@navios/di'
+import express from 'express'
 
 import type { ScopedContainer } from '@navios/di'
 
@@ -198,8 +198,8 @@ app.get('/users', async (req, res) => {
 ### Fastify Example
 
 ```ts
-import Fastify from 'fastify'
 import { Container } from '@navios/di'
+import Fastify from 'fastify'
 
 import type { ScopedContainer } from '@navios/di'
 
