@@ -19,6 +19,54 @@ function withoutUndefined(value: Record<string, unknown>): Record<string, unknow
 }
 
 /**
+ * Rewrites a value into plain JSON-like data that hashes by content.
+ *
+ * TanStack Query hashes keys with `JSON.stringify`, which turns
+ * `URLSearchParams`, `FormData`, `Map`, `Set`, `File` and `Blob` into `{}` —
+ * so two different requests would share one cache entry — and throws on a
+ * `bigint`. Each of those is replaced by a tagged plain form instead.
+ *
+ * A `Blob` has no cheap content identity; it is described by its size and
+ * type (plus name and modification time for a `File`).
+ */
+export function normalizeKeyValue(value: unknown): unknown {
+  if (value === null || typeof value !== 'object') {
+    return typeof value === 'bigint' ? { $bigint: value.toString() } : value
+  }
+  if (Array.isArray(value)) return value.map(normalizeKeyValue)
+  if (value instanceof Date) return value
+  if (value instanceof URLSearchParams) return { $searchParams: [...value.entries()] }
+  if (typeof FormData !== 'undefined' && value instanceof FormData) {
+    return { $formData: [...value.entries()].map(([k, v]) => [k, normalizeKeyValue(v)]) }
+  }
+  if (value instanceof Map) {
+    return {
+      $map: [...value.entries()].map(([k, v]) => [normalizeKeyValue(k), normalizeKeyValue(v)]),
+    }
+  }
+  if (value instanceof Set) return { $set: [...value].map(normalizeKeyValue) }
+  if (typeof File !== 'undefined' && value instanceof File) {
+    return {
+      $file: {
+        name: value.name,
+        size: value.size,
+        type: value.type,
+        lastModified: value.lastModified,
+      },
+    }
+  }
+  if (typeof Blob !== 'undefined' && value instanceof Blob) {
+    return { $blob: { size: value.size, type: value.type } }
+  }
+  if (!isPlainObject(value)) return value
+  const out: Record<string, unknown> = {}
+  for (const key of Object.keys(value)) {
+    if (value[key] !== undefined) out[key] = normalizeKeyValue(value[key])
+  }
+  return out
+}
+
+/**
  * Reduces call arguments to the inputs that identify a request.
  *
  * - Only `urlParams`, `params` and `data` are kept; `signal`, `headers` and
@@ -26,6 +74,8 @@ function withoutUndefined(value: Record<string, unknown>): Record<string, unknow
  * - URL param values are stringified, so `{ id: 1 }` and `{ id: '1' }` are
  *   the same entry (they produce the same URL).
  * - Empty parts are dropped, so `{}` and `{ params: {} }` are the same entry.
+ * - Non-plain values are normalized with {@link normalizeKeyValue}, so they
+ *   are told apart by content.
  *
  * Returns `undefined` when nothing is left.
  */
@@ -37,13 +87,16 @@ export function pickInputs(args: unknown): Record<string, unknown> | undefined {
     let value = args[key]
     if (value === undefined || value === null) continue
     if (isPlainObject(value)) {
-      value = withoutUndefined(value)
       if (key === 'urlParams') {
         value = Object.fromEntries(
-          Object.entries(value as Record<string, unknown>).map(([k, v]) => [k, String(v)]),
+          Object.entries(withoutUndefined(value)).map(([k, v]) => [k, String(v)]),
         )
+      } else {
+        value = normalizeKeyValue(value)
       }
       if (Object.keys(value as object).length === 0) continue
+    } else {
+      value = normalizeKeyValue(value)
     }
     inputs[key] = value
   }

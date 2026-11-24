@@ -10,8 +10,10 @@ import { createMutationKey } from '../query/key.mjs'
 import type { MaybeWithResponse } from '../common/call.mjs'
 import type { EndpointData, EndpointFailure } from '../common/types.mjs'
 
+import { applyOptimisticUpdate, settleOptimisticUpdate } from './optimistic-registry.mjs'
 import { optimisticUpdate } from './optimistic.mjs'
 
+import type { PendingUpdate } from './optimistic-registry.mjs'
 import type {
   InvalidateTarget,
   MutationObject,
@@ -19,12 +21,6 @@ import type {
   MutationVariables,
   OptimisticUpdate,
 } from './types.mjs'
-
-interface Snapshot {
-  key: readonly unknown[]
-  previous: unknown
-  spec: OptimisticUpdate<unknown>
-}
 
 function toArray<T>(value: T | readonly T[] | undefined): readonly T[] {
   if (value === undefined) return []
@@ -82,8 +78,8 @@ export function makeMutation<
 
   // TanStack creates one context object per mutation execution and hands the
   // same object to every callback, which makes it a reliable handle for the
-  // snapshots taken in onMutate.
-  const snapshots = new WeakMap<MutationFunctionContext, Snapshot[]>()
+  // optimistic updates applied in onMutate.
+  const applied = new WeakMap<MutationFunctionContext, PendingUpdate[]>()
 
   const useHook = () => {
     const ownContext = (useContext?.() ?? {}) as object
@@ -96,14 +92,12 @@ export function makeMutation<
 
       onMutate: async (variables: unknown, context: MutationFunctionContext) => {
         if (optimisticSpecs.length > 0) {
-          const taken: Snapshot[] = []
-          snapshots.set(context, taken)
+          const updates: PendingUpdate[] = []
+          applied.set(context, updates)
           for (const spec of optimisticSpecs) {
             const key = spec.key(variables)
             await context.client.cancelQueries({ queryKey: key })
-            const previous = context.client.getQueryData(key)
-            context.client.setQueryData(key, (current: unknown) => spec.update(current, variables))
-            taken.push({ key, previous, spec })
+            updates.push(applyOptimisticUpdate(context.client, key, spec, variables))
           }
         }
         return onMutate?.(variables, { ...ownContext, ...context })
@@ -132,10 +126,12 @@ export function makeMutation<
         onMutateResult: unknown,
         context: MutationFunctionContext,
       ) => {
-        for (const { key, previous, spec } of snapshots.get(context) ?? []) {
-          if (spec.rollbackOnError) {
-            context.client.setQueryData(key, previous)
-          }
+        for (const update of applied.get(context) ?? []) {
+          settleOptimisticUpdate(
+            context.client,
+            update,
+            update.spec.rollbackOnError ? 'rollback' : 'commit',
+          )
         }
         await onError?.(error, variables, { ...ownContext, ...context, onMutateResult })
       },
@@ -147,10 +143,14 @@ export function makeMutation<
         onMutateResult: unknown,
         context: MutationFunctionContext,
       ) => {
-        const taken = snapshots.get(context) ?? []
-        snapshots.delete(context)
+        const updates = applied.get(context) ?? []
+        applied.delete(context)
+        for (const update of updates) {
+          // After a failure this is a no-op: onError already settled it.
+          settleOptimisticUpdate(context.client, update, 'commit')
+        }
         await Promise.all([
-          ...taken
+          ...updates
             .filter(({ spec }) => spec.invalidateOnSettled)
             .map(({ key }) => context.client.invalidateQueries({ queryKey: key })),
           onSettled?.(data, error, variables, { ...ownContext, ...context, onMutateResult }),

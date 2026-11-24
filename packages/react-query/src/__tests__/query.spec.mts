@@ -1,5 +1,5 @@
 import { EndpointError } from '@navios/builder'
-import { QueryClient, skipToken } from '@tanstack/react-query'
+import { hashKey, QueryClient, skipToken } from '@tanstack/react-query'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { z } from 'zod/v4'
 
@@ -102,6 +102,65 @@ describe('client.query', () => {
       expect(getUser({ urlParams: { id: 1 } }).queryKey).toEqual(
         getUser({ urlParams: { id: '1' } }).queryKey,
       )
+    })
+
+    it('tells non-plain inputs apart by content', async () => {
+      const search = ctx.client.query({
+        method: 'POST',
+        url: '/search',
+        querySchema: z.any(),
+        requestSchema: z.any(),
+        responseSchema: z.any(),
+      })
+      const hash = (args: Parameters<typeof search>[0]) => hashKey(search(args).queryKey)
+      const different = (a: Parameters<typeof search>[0], b: Parameters<typeof search>[0]) =>
+        expect(hash(a)).not.toBe(hash(b))
+
+      different(
+        { params: new URLSearchParams('q=1') as never },
+        { params: new URLSearchParams('q=2') as never },
+      )
+      different(
+        { data: { f: new File(['a'], 'a.txt') } },
+        { data: { f: new File(['bbb'], 'b.txt') } },
+      )
+      const one = new FormData()
+      one.append('a', '1')
+      const two = new FormData()
+      two.append('a', '2')
+      different({ data: one }, { data: two })
+      different({ data: new Set([1]) }, { data: new Set([2]) })
+      different({ data: new Map([['a', 1]]) }, { data: new Map([['a', 2]]) })
+      different({ params: { id: 10n } }, { params: { id: 11n } })
+
+      // Same content still means the same entry.
+      expect(hash({ params: new URLSearchParams('q=1') as never })).toBe(
+        hash({ params: new URLSearchParams('q=1') as never }),
+      )
+      expect(hash({ data: { nested: { list: [1, { a: 1 }] } } })).toBe(
+        hash({ data: { nested: { list: [1, { a: 1 }] } } }),
+      )
+    })
+
+    it('fetches again for a different URLSearchParams query', async () => {
+      const list = ctx.client.query({
+        method: 'GET',
+        url: '/items',
+        querySchema: z.instanceof(URLSearchParams),
+        responseSchema: z.any(),
+      })
+      ctx.http.respond((config) => ({ data: String(config.params) }))
+
+      const apples = await list.ensure(ctx.queryClient, {
+        params: new URLSearchParams('q=apples') as never,
+      })
+      const pears = await list.ensure(ctx.queryClient, {
+        params: new URLSearchParams('q=pears') as never,
+      })
+
+      expect(apples).toBe('q=apples')
+      expect(pears).toBe('q=pears')
+      expect(ctx.http.calls).toHaveLength(2)
     })
 
     it('applies keyPrefix and keySuffix from client defaults and per query', () => {

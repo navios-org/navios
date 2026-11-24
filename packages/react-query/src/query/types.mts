@@ -10,6 +10,7 @@ import type {
   InvalidateQueryFilters,
   QueryClient,
   SkipToken,
+  UnusedSkipTokenOptions,
   Updater,
   UseInfiniteQueryOptions,
   UseInfiniteQueryResult,
@@ -64,8 +65,16 @@ export type SuspenseQueryHookOptions<TData, TError, TSelected = TData> = Omit<
   'queryKey' | 'queryFn'
 >
 
-/** Options object produced by calling a query; accepted by `useQuery`, `useSuspenseQuery`, `useQueries` and `queryClient.query`. */
-export type QueryOptionsResult<TData, TError> = UseSuspenseQueryOptions<
+/**
+ * Options object produced by calling a query; accepted by `useQuery`,
+ * `useSuspenseQuery`, `useQueries`, `useSuspenseQueries` and
+ * `queryClient.query`.
+ *
+ * It is the type TanStack's own `queryOptions()` returns. That matters for
+ * `useQueries`, which reads the error type off `throwOnError` — a property
+ * the suspense-only options type does not have.
+ */
+export type QueryOptionsResult<TData, TError> = UnusedSkipTokenOptions<
   TData,
   TError,
   TData,

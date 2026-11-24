@@ -271,6 +271,100 @@ describe('client.mutation', () => {
     })
   })
 
+  describe('optimistic rollback edge cases', () => {
+    it('empties an entry again when it had no data before the mutation', async () => {
+      const list = ctx.client.query({
+        method: 'GET',
+        url: '/todos',
+        responseSchema: z.array(z.string()),
+      })
+      const create = ctx.client.mutation({
+        method: 'POST',
+        url: '/todos',
+        requestSchema: z.object({ title: z.string() }),
+        responseSchema: z.any(),
+        optimistic: (update) =>
+          update(list, { update: (current, v) => [...(current ?? []), v.data.title] }),
+      })
+      ctx.http.respond(() => ({ status: 500 }))
+
+      await run(create, { data: { title: 'never saved' } }).catch(() => {})
+
+      expect(list.getData(ctx.queryClient)).toBeUndefined()
+    })
+
+    it('restores the original value when two overlapping mutations on one entry both fail', async () => {
+      const getUser = ctx.client.query({
+        method: 'GET',
+        url: '/users/$userId',
+        responseSchema: userSchema,
+      })
+      const updateUser = ctx.client.mutation({
+        method: 'PATCH',
+        url: '/users/$userId',
+        requestSchema: z.object({ name: z.string() }),
+        responseSchema: userSchema,
+        optimistic: (update) =>
+          update(getUser, {
+            args: (variables) => ({ urlParams: variables.urlParams }),
+            update: (current, variables) => current && { ...current, ...variables.data },
+            invalidateOnSettled: false,
+          }),
+      })
+      const args = { urlParams: { userId: 1 } }
+      getUser.setData(ctx.queryClient, args, { id: '1', name: 'Before' })
+      ctx.http.respond(() => ({ status: 500 }))
+
+      await Promise.allSettled([
+        run(updateUser, { ...args, data: { name: 'A' } }),
+        run(updateUser, { ...args, data: { name: 'B' } }),
+      ])
+
+      expect(getUser.getData(ctx.queryClient, args)).toEqual({ id: '1', name: 'Before' })
+    })
+
+    it('keeps a still-pending update when an overlapping one fails', async () => {
+      const list = ctx.client.query({
+        method: 'GET',
+        url: '/todos',
+        responseSchema: z.array(z.string()),
+      })
+      const create = ctx.client.mutation({
+        method: 'POST',
+        url: '/todos',
+        requestSchema: z.object({ title: z.string() }),
+        responseSchema: z.any(),
+        optimistic: (update) =>
+          update(list, {
+            update: (current, v) => [...(current ?? []), v.data.title],
+            invalidateOnSettled: false,
+          }),
+      })
+      list.setData(ctx.queryClient, {}, ['kept'])
+      let release!: () => void
+      const gate = new Promise<void>((resolve) => {
+        release = resolve
+      })
+      ctx.http.respond((config) =>
+        (config.data as { title: string }).title === 'fails' ? { status: 500 } : { data: {} },
+      )
+      const slow = ctx.http.client.request
+      ctx.http.client.request = (async (config: never) => {
+        if ((config as { data: { title: string } }).data.title === 'slow') await gate
+        return slow(config)
+      }) as never
+
+      const pending = run(create, { data: { title: 'slow' } })
+      await run(create, { data: { title: 'fails' } }).catch(() => {})
+
+      // The failed update is gone; the one still in flight stays applied.
+      expect(list.getData(ctx.queryClient)).toEqual(['kept', 'slow'])
+      release()
+      await pending
+      expect(list.getData(ctx.queryClient)).toEqual(['kept', 'slow'])
+    })
+  })
+
   describe('useIsMutating', () => {
     it('filters by the endpoint key', () => {
       const create = ctx.client.mutation({ method: 'POST', url: '/users', responseSchema: z.any() })

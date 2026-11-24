@@ -26,6 +26,10 @@
 
 ### Changed
 
+- **Optimistic rollback** restores the right value when the entry was empty before the mutation and when several mutations overlap on one entry.
+- **Cache keys tell non-plain inputs apart**: `URLSearchParams`, `FormData`, `File`, `Blob`, `Map`, `Set` and `bigint` are keyed by content instead of collapsing to one entry.
+- **Query options work with `useQueries` and `useSuspenseQueries`**, with the endpoint's typed error.
+
 - **Unknown options are compile errors** on inline `client.query`, `client.infiniteQuery` and `client.mutation` declarations, so removed options such as `unwrap` and `useKey` are reported by the compiler.
 
 - **`declareClient({ api, defaults })` returns `{ query, infiniteQuery, mutation }`.** Each method accepts an inline endpoint declaration or an existing endpoint handler (with options as the second argument).

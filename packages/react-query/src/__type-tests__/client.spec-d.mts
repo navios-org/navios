@@ -1,5 +1,11 @@
 import { builder } from '@navios/builder'
-import { skipToken } from '@tanstack/react-query'
+import {
+  skipToken,
+  useQueries,
+  useQuery,
+  useSuspenseQueries,
+  useSuspenseQuery,
+} from '@tanstack/react-query'
 import { describe, expectTypeOf, test } from 'vitest'
 import { z } from 'zod/v4'
 
@@ -119,6 +125,38 @@ describe('client.query', () => {
   test('non-JSON endpoints', () => {
     const download = client.query({ method: 'GET', url: '/files/$id', response: 'blob' })
     expectTypeOf(download.use({ urlParams: { id: 1 } }).data).toEqualTypeOf<Blob | undefined>()
+  })
+})
+
+describe('query options with the multi-query hooks', () => {
+  test('are accepted by useQueries and useSuspenseQueries', () => {
+    // Type-level only: hooks cannot run outside a component.
+    const component = () => {
+      const [user, users] = useQueries({
+        queries: [getUser({ urlParams: { userId: 1 } }), listUsers()],
+      })
+      expectTypeOf(user.data).toEqualTypeOf<User | undefined>()
+      expectTypeOf(users.data).toEqualTypeOf<User[] | undefined>()
+      if (user.error?.kind === 'http') {
+        expectTypeOf(user.error.status).toEqualTypeOf<404>()
+      }
+
+      const [suspended] = useSuspenseQueries({
+        queries: [getUser({ urlParams: { userId: 1 } })],
+      })
+      expectTypeOf(suspended.data).toEqualTypeOf<User>()
+
+      const mapped = useQueries({
+        queries: [1, 2].map((userId) => getUser({ urlParams: { userId } })),
+      })
+      expectTypeOf(mapped[0]?.data).toEqualTypeOf<User | undefined>()
+
+      const single = useQuery(getUser({ urlParams: { userId: 1 } }))
+      expectTypeOf(single.data).toEqualTypeOf<User | undefined>()
+      const singleSuspense = useSuspenseQuery(getUser({ urlParams: { userId: 1 } }))
+      expectTypeOf(singleSuspense.data).toEqualTypeOf<User>()
+    }
+    expectTypeOf(component).toBeFunction()
   })
 })
 
