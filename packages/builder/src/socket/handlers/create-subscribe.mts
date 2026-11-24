@@ -10,6 +10,8 @@ import type {
   SubscribeOptions,
 } from '../types/socket-options.mjs'
 
+import type { PendingAck } from './create-send.mjs'
+
 /**
  * Default message parser for Socket.IO array format.
  *
@@ -133,13 +135,19 @@ export function createSubscribeHandler<Options extends SubscribeOptions>(
 /**
  * Creates the global message listener that routes messages to topic handlers.
  *
- * @param client - Socket client
+ * A parsed message whose `ackId` belongs to a pending acknowledgement is that
+ * acknowledgement: it settles the waiting send and is not passed on to the
+ * topic's subscribers. This is how acknowledgements arrive in a custom wire
+ * format.
+ *
  * @param config - Socket builder config
  * @param topicHandlers - Map of topic to handler sets
+ * @param ackHandlers - Pending acknowledgements by ackId
  */
 export function createGlobalMessageHandler(
   config: SocketBuilderConfig,
   topicHandlers: Map<string, Set<(payload: unknown) => void>>,
+  ackHandlers?: Map<string, Pick<PendingAck, 'settle'>>,
 ): (data: unknown) => void {
   const parseMessage = config.parseMessage ?? defaultParseMessage
 
@@ -149,7 +157,14 @@ export function createGlobalMessageHandler(
       return
     }
 
-    const { topic, payload } = parsed
+    const { topic, payload, ackId } = parsed
+
+    const pendingAck = typeof ackId === 'string' ? ackHandlers?.get(ackId) : undefined
+    if (pendingAck) {
+      pendingAck.settle(payload)
+      return
+    }
+
     const handlers = topicHandlers.get(topic)
     if (handlers) {
       handlers.forEach((handler) => handler(payload))

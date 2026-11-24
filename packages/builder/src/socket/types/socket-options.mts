@@ -67,6 +67,10 @@ export interface SocketBuilderConfig {
    * Custom message parser for incoming messages.
    *
    * Default: Expects Socket.IO array format `[topic, payload, ackId?]`
+   *
+   * When the returned `ackId` belongs to a send that is waiting for its
+   * acknowledgement, `payload` is that acknowledgement: it settles the send
+   * and is not delivered to the topic's subscribers.
    */
   parseMessage?: MessageParser
 
@@ -77,9 +81,10 @@ export interface SocketBuilderConfig {
    *   message or an acknowledgement. `issues` and `rawData` are set; `cause`
    *   is the schema library's own error when it has one (a `ZodError` for Zod).
    * - `kind: 'ack-timeout'` when an acknowledgement does not arrive in time.
-   * - `kind: 'transport'` when a subscribe handler throws (`cause` is the
-   *   thrown value) or the client is replaced while an acknowledgement is
-   *   pending.
+   * - `kind: 'transport'` when a subscribe handler throws, when
+   *   `formatMessage` or the client throws while sending (`cause` is the
+   *   thrown value), or when the client is replaced while an acknowledgement
+   *   is pending.
    *
    * `topic` is always the topic the handler was defined with. Failures of a
    * send handler are also thrown or used as the rejection reason; the hook

@@ -86,7 +86,8 @@ export function socketBuilder(config: SocketBuilderConfig = {}): SocketBuilderIn
 
   /**
    * Sets up the global message listener on the client.
-   * This is called lazily when the first subscribe handler is created.
+   * This is called lazily when the first subscribe handler is created or the
+   * first send waits for an acknowledgement.
    */
   function setupGlobalListener(): void {
     if (globalListenerSetup) {
@@ -94,7 +95,7 @@ export function socketBuilder(config: SocketBuilderConfig = {}): SocketBuilderIn
     }
 
     const currentClient = getClient()
-    globalMessageHandler = createGlobalMessageHandler(config, topicHandlers)
+    globalMessageHandler = createGlobalMessageHandler(config, topicHandlers, ackHandlers)
 
     // Listen for the 'message' event (common pattern)
     currentClient.on('message', globalMessageHandler)
@@ -117,11 +118,11 @@ export function socketBuilder(config: SocketBuilderConfig = {}): SocketBuilderIn
         globalMessageHandler = null
       }
 
-      // Clear all pending acknowledgement handlers to prevent memory leaks
-      // and avoid calling off() on the wrong client during timeout
+      // Stop waiting for acknowledgements on the old client: clear the timers,
+      // remove their listeners from it and reject the sends
       const previousUrl = client.url
-      ackHandlers.forEach(({ topic, timeoutId, reject }) => {
-        clearTimeout(timeoutId)
+      for (const { topic, release, reject } of ackHandlers.values()) {
+        release()
         reject(
           reportSocketError(config.onError, {
             kind: 'transport',
@@ -130,7 +131,7 @@ export function socketBuilder(config: SocketBuilderConfig = {}): SocketBuilderIn
             message: '[Navios-Socket]: Client was replaced while acknowledgement pending',
           }),
         )
-      })
+      }
       ackHandlers.clear()
     }
 
@@ -147,6 +148,7 @@ export function socketBuilder(config: SocketBuilderConfig = {}): SocketBuilderIn
     getClient,
     config,
     ackHandlers,
+    setupGlobalListener,
   }
 
   // Context for subscribe handlers

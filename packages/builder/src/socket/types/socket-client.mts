@@ -37,6 +37,21 @@ export interface SocketClient {
   off(event: string, handler?: (...args: unknown[]) => void): void
 
   /**
+   * Optional: send a message that is already in its wire format.
+   *
+   * When present, `socketBuilder` calls this instead of `emit` for every
+   * message it sends, with the result of `formatMessage` (by default
+   * `[topic, payload]` or `[topic, payload, ackId]`). The client must
+   * transmit `message` as it is, without wrapping it in an event envelope.
+   * `declareWebSocket` handles implement it; socket.io-client does not, so
+   * with Socket.IO the formatted message is passed to `emit(topic, message)`.
+   *
+   * @param topic - Topic the message belongs to, for error reporting
+   * @param message - The formatted message
+   */
+  sendRaw?(topic: string, message: unknown): void
+
+  /**
    * Optional: URL of the connection. When present it is copied to
    * `SocketError.url`.
    */

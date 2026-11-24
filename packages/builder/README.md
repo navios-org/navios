@@ -249,7 +249,7 @@ await exportReport({ data, timeout: 60_000, headers: { 'X-Trace': traceId } })
 
 ### `validateResponse: false`
 
-For high-volume reads against a trusted server, skip the runtime parse and keep the static type:
+For high-volume reads against a trusted server, skip the runtime parse. The result is then typed as the schema's input, since transforms and defaults are not applied:
 
 ```ts
 const listFeedItems = API.declareEndpoint({

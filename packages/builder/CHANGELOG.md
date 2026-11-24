@@ -30,6 +30,13 @@
 
 ### Changed
 
+- **`data` and `params` are optional whenever their schema accepts an empty object or `undefined`**, in the types and at runtime.
+- **`validateResponse: false` types the result as the schema's input**, because transforms and defaults are not applied.
+- **Multipart bodies**: `Blob` values are sent as binary parts, a `FormData` instance is sent as it is, and `undefined` fields are left out.
+- **An empty-string URL parameter counts as missing** instead of producing a shorter path.
+- **`safe()` never rejects**, including for header bags `Headers` refuses, a client that resolves with nothing, and `null` args. Array-valued headers such as `set-cookie` keep every value.
+- **Socket and EventSource**: acks resolve with custom wire formats, a throwing `emit` is a `SocketError` of kind `transport`, query strings serialize dates and arrays correctly, and server topics can no longer trigger lifecycle listeners.
+
 - **Unknown endpoint options are compile errors.** `declareEndpoint` rejects keys it does not know, so a typo such as `requstSchema` or a removed option such as `result` no longer passes silently.
 
 - **Every failure of `endpoint(args)` is an `EndpointError`.** HTTP errors are no longer the HTTP client's own error, and invalid input is no longer a raw `ZodError` — it is an `EndpointError` of kind `request-validation`, and nothing is sent.

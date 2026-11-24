@@ -5,7 +5,7 @@ import type { BaseEndpointOptions, SuccessSchemaRecord } from './config.mjs'
 import type { ErrorSchemaRecord } from './error-schema.mjs'
 import type { ClientRequestArgs } from './request.mjs'
 import type { SafeResult } from './result.mjs'
-import type { InferSchemaOutput, Schema } from './schema.mjs'
+import type { InferSchemaInput, InferSchemaOutput, Schema } from './schema.mjs'
 
 // =============================================================================
 // Inference
@@ -25,11 +25,27 @@ export type InferEndpointReturn<Options extends BaseEndpointOptions> = Options e
       ? ReadableStream<Uint8Array>
       : Options extends { response: 'void' }
         ? undefined
-        : Options['responses'] extends SuccessSchemaRecord
-          ? InferSuccessOutput<Options['responses']>
-          : Options['responseSchema'] extends Schema
-            ? InferSchemaOutput<Options['responseSchema']>
-            : unknown
+        : Options extends { validateResponse: false }
+          ? // Validation is skipped, so the body arrives as the server sent it:
+            // the schemas' input shape, without their transforms or defaults.
+            Options['responses'] extends SuccessSchemaRecord
+            ? InferSuccessInput<Options['responses']>
+            : Options['responseSchema'] extends Schema
+              ? InferSchemaInput<Options['responseSchema']>
+              : unknown
+          : Options['responses'] extends SuccessSchemaRecord
+            ? InferSuccessOutput<Options['responses']>
+            : Options['responseSchema'] extends Schema
+              ? InferSchemaOutput<Options['responseSchema']>
+              : unknown
+
+/**
+ * Like {@link InferSuccessOutput}, with each schema's input type: what the
+ * call resolves to when `validateResponse` is `false`.
+ */
+export type InferSuccessInput<R extends SuccessSchemaRecord> = {
+  [K in keyof R]: R[K] extends Schema ? InferSchemaInput<R[K]> : undefined
+}[keyof R]
 
 /**
  * Union of what each status in a `responses` map resolves to: the schema's

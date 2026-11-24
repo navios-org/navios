@@ -302,10 +302,48 @@ describe('makeFormData', () => {
       expect(formData.get('value')).toBe('')
     })
 
-    it('should handle undefined values as empty string', () => {
-      const formData = makeFormData({ data: { value: undefined } } as any, {} as any)
+    it('should leave undefined values out', () => {
+      const formData = makeFormData(
+        { data: { value: undefined, list: ['a', undefined], kept: null } } as any,
+        {} as any,
+      )
 
-      expect(formData.get('value')).toBe('')
+      expect(formData.has('value')).toBe(false)
+      expect(formData.getAll('list')).toEqual(['a'])
+      expect(formData.get('kept')).toBe('')
+    })
+
+    it('should send a Blob as a binary part', async () => {
+      const formData = makeFormData(
+        { data: { file: new Blob(['hello']), files: [new Blob(['a']), new Blob(['b'])] } } as any,
+        {} as any,
+      )
+
+      const part = formData.get('file') as Blob
+      expect(part).toBeInstanceOf(Blob)
+      expect(await part.text()).toBe('hello')
+      expect(formData.getAll('files')).toHaveLength(2)
+      expect(formData.getAll('files')[0]).toBeInstanceOf(Blob)
+    })
+
+    it('should send a FormData instance as it is', () => {
+      const input = new FormData()
+      input.append('a', '1')
+      input.append('a', '2')
+
+      const formData = makeFormData({ data: input } as any, {} as any)
+
+      expect(formData).toBe(input)
+      expect([...formData.keys()]).toEqual(['a', 'a'])
+    })
+
+    it('should not pick up inherited properties', () => {
+      const data = Object.create({ inherited: 'no' })
+      data.own = 'yes'
+
+      const formData = makeFormData({ data } as any, {} as any)
+
+      expect([...formData.keys()]).toEqual(['own'])
     })
   })
 

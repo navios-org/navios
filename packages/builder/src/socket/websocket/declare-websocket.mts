@@ -1,5 +1,6 @@
 import { bindUrlParams } from '../../request/bind-url-params.mjs'
 import { parseSync } from '../../request/validate.mjs'
+import { appendQuery } from '../append-query.mjs'
 import { reportSocketError } from '../report-error.mjs'
 
 import type {
@@ -9,6 +10,20 @@ import type {
   WebSocketHandleState,
   WebSocketSocketHandle,
 } from './types.mjs'
+
+/**
+ * Events of the connection itself. `handle.on()` with one of these names
+ * registers a lifecycle listener; a server message can never trigger it.
+ */
+const LIFECYCLE_EVENTS: ReadonlySet<string> = new Set([
+  'open',
+  'connect',
+  'close',
+  'disconnect',
+  'error',
+  'connect_error',
+  'message',
+])
 
 /**
  * Creates a WebSocket handler factory function.
@@ -55,22 +70,14 @@ export function createWebSocketHandler(config: CreateWebSocketHandlerConfig = {}
         options.urlParamsSchema,
       )
 
-      // Build query string
-      let queryString = ''
-      if (options.querySchema && 'params' in params && params.params) {
-        const parsed = parseSync(options.querySchema, params.params)
-        const searchParams = new URLSearchParams()
-        for (const [key, value] of Object.entries(parsed as Record<string, unknown>)) {
-          if (value !== undefined && value !== null) {
-            searchParams.append(key, String(value))
-          }
-        }
-        queryString = searchParams.toString()
-      }
+      // Validate query parameters
+      const query =
+        options.querySchema && 'params' in params && params.params
+          ? (parseSync(options.querySchema, params.params) as Record<string, unknown>)
+          : undefined
 
       // Construct full WebSocket URL
-      const baseUrl = config.baseUrl ?? ''
-      const fullUrl = `${baseUrl}${urlPart}${queryString ? `?${queryString}` : ''}`
+      const fullUrl = appendQuery(`${config.baseUrl ?? ''}${urlPart}`, query)
 
       // Create WebSocket
       const ws = new WebSocket(fullUrl, options.protocols)
@@ -78,23 +85,28 @@ export function createWebSocketHandler(config: CreateWebSocketHandlerConfig = {}
       // Track state
       let currentState: WebSocketHandleState = 'connecting'
 
-      // Event listener management (Socket.IO compatible)
+      // Listener management (Socket.IO compatible). Lifecycle events of the
+      // connection and topics of server messages are kept apart, so a server
+      // topic named like a lifecycle event can never run a lifecycle listener.
       type Handler = (...args: unknown[]) => void
-      const eventHandlers = new Map<string, Set<Handler>>()
+      const lifecycleHandlers = new Map<string, Set<Handler>>()
+      const topicHandlers = new Map<string, Set<Handler>>()
 
-      // Helper to get or create handler set
-      const getHandlers = (event: string): Set<Handler> => {
-        let handlers = eventHandlers.get(event)
+      const handlersFor = (event: string) =>
+        LIFECYCLE_EVENTS.has(event) ? lifecycleHandlers : topicHandlers
+
+      const addHandler = (registry: Map<string, Set<Handler>>, event: string, handler: Handler) => {
+        let handlers = registry.get(event)
         if (!handlers) {
           handlers = new Set()
-          eventHandlers.set(event, handlers)
+          registry.set(event, handlers)
         }
-        return handlers
+        handlers.add(handler)
       }
 
-      // Helper to dispatch event to handlers
-      const dispatch = (event: string, ...args: unknown[]) => {
-        const handlers = eventHandlers.get(event)
+      // Helper to dispatch to the listeners of one registry
+      const dispatch = (registry: Map<string, Set<Handler>>, event: string, ...args: unknown[]) => {
+        const handlers = registry.get(event)
         if (handlers) {
           handlers.forEach((handler) => {
             try {
@@ -114,19 +126,19 @@ export function createWebSocketHandler(config: CreateWebSocketHandlerConfig = {}
       // Set up WebSocket event handlers
       ws.onopen = (event) => {
         currentState = 'open'
-        dispatch('open', event)
-        dispatch('connect') // Socket.IO compatibility
+        dispatch(lifecycleHandlers, 'open', event)
+        dispatch(lifecycleHandlers, 'connect') // Socket.IO compatibility
       }
 
       ws.onclose = (event) => {
         currentState = 'closed'
-        dispatch('close', event)
-        dispatch('disconnect', event.reason) // Socket.IO compatibility
+        dispatch(lifecycleHandlers, 'close', event)
+        dispatch(lifecycleHandlers, 'disconnect', event.reason) // Socket.IO compatibility
       }
 
       ws.onerror = (event) => {
-        dispatch('error', event)
-        dispatch('connect_error', event) // Socket.IO compatibility
+        dispatch(lifecycleHandlers, 'error', event)
+        dispatch(lifecycleHandlers, 'connect_error', event) // Socket.IO compatibility
       }
 
       ws.onmessage = (event) => {
@@ -141,30 +153,35 @@ export function createWebSocketHandler(config: CreateWebSocketHandlerConfig = {}
           }
         }
 
-        // Dispatch to 'message' handlers (for socketBuilder compatibility)
-        dispatch('message', data)
+        // Every frame goes to the 'message' listeners once (socketBuilder
+        // listens here and routes by its own parseMessage)
+        dispatch(lifecycleHandlers, 'message', data)
 
-        // Also dispatch to topic-specific handlers if data is array format
+        // A frame in the array format also goes to the listeners of its topic.
         // This handles both regular messages and acknowledgement responses
         if (Array.isArray(data) && data.length >= 2 && typeof data[0] === 'string') {
-          const topic = data[0]
-          const payload = data[1]
-          dispatch(topic, payload)
+          dispatch(topicHandlers, data[0], data[1])
+        }
+      }
+
+      // Serializes and sends one frame
+      const transmit = (event: string, data: unknown) => {
+        try {
+          ws.send(JSON.stringify(data))
+        } catch (cause) {
+          reportSocketError(config.onError, {
+            kind: 'transport',
+            topic: event,
+            url: fullUrl,
+            message: `Failed to send "${event}" over the WebSocket`,
+            cause,
+          })
         }
       }
 
       // Create Socket.IO-compatible handle
       const handle: WebSocketSocketHandle = {
         emit(event: string, ...args: unknown[]): void {
-          // When used with socketBuilder, the first arg is already the formatted message
-          // (e.g., [topic, payload, ackId?]). We send it directly to avoid double-wrapping.
-          //
-          // When used directly (Socket.IO style), args contain the raw payload.
-          // We detect this by checking if the first arg is already an array with the event.
-          const firstArg = args[0]
-          const isPreformatted =
-            Array.isArray(firstArg) && firstArg.length >= 2 && typeof firstArg[0] === 'string'
-
           // Check if last arg is a callback (for ack support in direct usage)
           let callback: Handler | undefined
           let messageArgs = args
@@ -173,29 +190,9 @@ export function createWebSocketHandler(config: CreateWebSocketHandlerConfig = {}
             messageArgs = args.slice(0, -1)
           }
 
-          // Determine what to send
-          let dataToSend: unknown
-          if (isPreformatted) {
-            // Used by socketBuilder - data is already formatted
-            dataToSend = firstArg
-          } else {
-            // Direct usage - create Socket.IO format [event, ...args]
-            dataToSend =
-              messageArgs.length === 1 ? [event, messageArgs[0]] : [event, ...messageArgs]
-          }
-
-          // Send as JSON
-          try {
-            ws.send(JSON.stringify(dataToSend))
-          } catch (cause) {
-            reportSocketError(config.onError, {
-              kind: 'transport',
-              topic: event,
-              url: fullUrl,
-              message: `Failed to send "${event}" over the WebSocket`,
-              cause,
-            })
-          }
+          // Socket.IO format [event, ...args], whatever the arguments look like.
+          // Messages that are already formatted go through sendRaw instead.
+          transmit(event, [event, ...messageArgs])
 
           // If callback provided, set up one-time listener for ack
           if (callback) {
@@ -209,15 +206,27 @@ export function createWebSocketHandler(config: CreateWebSocketHandlerConfig = {}
           }
         },
 
+        sendRaw(topic: string, message: unknown): void {
+          transmit(topic, message)
+        },
+
         on(event: string, handler: Handler): void {
-          getHandlers(event).add(handler)
+          addHandler(handlersFor(event), event, handler)
         },
 
         off(event: string, handler?: Handler): void {
+          const registry = handlersFor(event)
           if (handler) {
-            eventHandlers.get(event)?.delete(handler)
+            registry.get(event)?.delete(handler)
           } else {
-            eventHandlers.delete(event)
+            registry.delete(event)
+          }
+        },
+
+        onTopic(topic: string, handler: (payload: unknown) => void): () => void {
+          addHandler(topicHandlers, topic, handler)
+          return () => {
+            topicHandlers.get(topic)?.delete(handler)
           }
         },
 

@@ -130,6 +130,30 @@ describe('declareEndpoint', () => {
     }>()
   })
 
+  test('validateResponse: false resolves to the schema input, not its output', () => {
+    const schema = z.object({ at: z.coerce.date(), n: z.number().default(1) })
+    const validated = api.declareEndpoint({ method: 'GET', url: '/e', responseSchema: schema })
+    expectTypeOf(validated).returns.resolves.toEqualTypeOf<{ at: Date; n: number }>()
+
+    const raw = api.declareEndpoint({
+      method: 'GET',
+      url: '/e',
+      responseSchema: schema,
+      validateResponse: false,
+    })
+    expectTypeOf(raw).returns.resolves.toEqualTypeOf<{ at: unknown; n?: number | undefined }>()
+
+    const rawResponses = api.declareEndpoint({
+      method: 'GET',
+      url: '/e',
+      responses: { 200: schema, 204: null },
+      validateResponse: false,
+    })
+    expectTypeOf(rawResponses).returns.resolves.toEqualTypeOf<
+      { at: unknown; n?: number | undefined } | undefined
+    >()
+  })
+
   test('config is the declared options', () => {
     const ep = api.declareEndpoint({ method: 'GET', url: '/users', responseSchema: userSchema })
     expectTypeOf(ep.config.method).toEqualTypeOf<'GET'>()

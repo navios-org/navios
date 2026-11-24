@@ -277,6 +277,39 @@ describe('declareEventSource', () => {
 
       expect(handle.source.url).toBe('/rooms/123/events?token=secret')
     })
+
+    it('should serialize dates as ISO strings and arrays as repeated keys', () => {
+      const events = declareEventSource({
+        url: '/events',
+        querySchema: z.object({
+          since: z.date(),
+          tag: z.array(z.string()),
+          skipped: z.string().optional(),
+          empty: z.string().nullable(),
+        }),
+      })
+      const handle = events({
+        params: {
+          since: new Date('2024-01-02T03:04:05.678Z'),
+          tag: ['urgent', 'bug'],
+          skipped: undefined,
+          empty: null,
+        },
+      })
+
+      expect(handle.url).toBe('/events?since=2024-01-02T03%3A04%3A05.678Z&tag=urgent&tag=bug')
+      expect(handle.source.url).toBe(handle.url)
+    })
+
+    it('should append to a query string the URL template already has', () => {
+      const events = createEventSourceHandler({ baseUrl: 'https://api.example.com' })({
+        url: '/rooms/$roomId/events?v=2',
+        querySchema: z.object({ token: z.string() }),
+      })
+      const handle = events({ urlParams: { roomId: '123' }, params: { token: 'secret' } })
+
+      expect(handle.url).toBe('https://api.example.com/rooms/123/events?v=2&token=secret')
+    })
   })
 
   describe('withCredentials option', () => {

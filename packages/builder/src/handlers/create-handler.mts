@@ -35,8 +35,33 @@ type ResponseLike = Pick<AbstractResponse<unknown>, 'status' | 'statusText' | 'h
  * shape. Plain-object header bags are upgraded to a `Headers` instance.
  */
 export function toResponseMeta(r: ResponseLike): ResponseMeta {
-  const headers = r.headers instanceof Headers ? r.headers : new Headers(r.headers ?? {})
-  return { status: r.status, statusText: r.statusText ?? '', headers }
+  return { status: r.status, statusText: r.statusText ?? '', headers: toHeaders(r.headers) }
+}
+
+/**
+ * Builds a `Headers` instance from whatever header bag a client reports.
+ *
+ * `new Headers(bag)` throws on a name or value the Fetch spec rejects and
+ * joins array values into one string. Headers are metadata, so a bad entry
+ * must not turn a finished request into a failure: entries are appended one
+ * by one, array values (axios reports `set-cookie` this way) once per item,
+ * and anything `Headers` refuses is skipped.
+ */
+function toHeaders(source: unknown): Headers {
+  if (source instanceof Headers) return source
+  const headers = new Headers()
+  if (typeof source !== 'object' || source === null) return headers
+  for (const [name, value] of Object.entries(source)) {
+    for (const item of Array.isArray(value) ? value : [value]) {
+      if (item === undefined || item === null) continue
+      try {
+        headers.append(name, String(item))
+      } catch {
+        // Not representable as a header; leave it out.
+      }
+    }
+  }
+  return headers
 }
 
 function getResponse(error: unknown): AbstractResponse<unknown> | null {
@@ -175,15 +200,48 @@ export function createHandler<Options extends BaseEndpointOptions>(
     return schema ? validate(schema, value) : ({ ok: true, value } as const)
   }
 
+  /**
+   * Validates the request body. `data` may be left out when its schema has no
+   * required fields (the call signature makes it optional in that case), so
+   * an omitted body is also tried as an empty object before it is rejected.
+   */
+  async function validateBody(data: unknown) {
+    const outcome = await validateInput(options.requestSchema, data)
+    if (outcome.ok || data !== undefined || !options.requestSchema) return outcome
+    const asEmpty = await validate(options.requestSchema, {})
+    return asEmpty.ok ? asEmpty : outcome
+  }
+
   /** Picks the schema for a successful response, or reports why there is none. */
   function successSchema(status: number): { schema: Schema | null } | { unexpected: true } {
     if (!responses) return { schema: options.responseSchema ?? null }
     return status in responses ? { schema: responses[status] ?? null } : { unexpected: true }
   }
 
+  /**
+   * The `safe()` contract is that the promise never rejects. The pipeline
+   * below reports every failure it knows about; this wrapper turns anything
+   * it did not anticipate (a client resolving with nonsense, a getter that
+   * throws) into a failed result as well.
+   */
   async function run(
-    request: HandlerRequest = {},
-    callOptions: HandlerCallOptions = {},
+    request?: HandlerRequest | null,
+    callOptions?: HandlerCallOptions | null,
+  ): Promise<SafeResult<unknown, EndpointError>> {
+    try {
+      return await execute(request ?? {}, callOptions ?? {})
+    } catch (cause) {
+      return fail({
+        kind: 'network',
+        message: `${method} ${url} failed: ${cause instanceof Error ? cause.message : 'unexpected error'}`,
+        cause,
+      })
+    }
+  }
+
+  async function execute(
+    request: HandlerRequest,
+    callOptions: HandlerCallOptions,
   ): Promise<SafeResult<unknown, EndpointError>> {
     // 1. Resolve the client.
     let client: Client
@@ -200,7 +258,7 @@ export function createHandler<Options extends BaseEndpointOptions>(
     // 2. Validate input and build the request. Nothing is sent on failure.
     const urlParams = await validateInput(options.urlParamsSchema, request.urlParams)
     const params = await validateInput(options.querySchema, request.params ?? {})
-    const data = await validateInput(options.requestSchema, request.data)
+    const data = await validateBody(request.data)
     const invalid = [urlParams, params, data].find((part) => !part.ok)
     if (invalid && !invalid.ok) {
       return fail({ kind: 'request-validation', issues: invalid.issues, cause: invalid.cause })
@@ -234,6 +292,14 @@ export function createHandler<Options extends BaseEndpointOptions>(
         return failHttp(errorResponse, cause)
       }
       return fail({ kind: classifyTransportFailure(cause, request.signal), cause })
+    }
+
+    if (typeof response !== 'object' || response === null) {
+      return fail({
+        kind: 'network',
+        message: `${method} ${url} failed: the HTTP client resolved without a response`,
+        cause: response,
+      })
     }
 
     // 4. The builder, not the client, decides what counts as success.

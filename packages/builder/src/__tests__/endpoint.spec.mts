@@ -3,6 +3,7 @@ import { z } from 'zod/v4'
 
 import { builder } from '../builder.mjs'
 import { EndpointError, isEndpointError, isHttpError, NaviosError } from '../errors/index.mjs'
+import { getCookie } from '../response/headers.mjs'
 
 import type { AbstractRequestConfig, AbstractResponse, Client } from '../types/index.mjs'
 
@@ -499,6 +500,144 @@ describe('endpoint handler', () => {
       expect(() => bare.getClient()).toThrow(NaviosError)
       bare.provideClient(client)
       expect(bare.getClient()).toBe(client)
+    })
+  })
+
+  describe('review regressions', () => {
+    it('accepts an omitted body when the request schema has no required fields', async () => {
+      const ep = api.declareEndpoint({
+        method: 'POST',
+        url: '/things',
+        requestSchema: z.object({ note: z.string().optional() }),
+        responseSchema: z.any(),
+      })
+
+      expect((await ep.safe()).ok).toBe(true)
+      expect((await ep.safe({})).ok).toBe(true)
+      await expect(ep()).resolves.toBeDefined()
+      expect(client.calls).toHaveLength(3)
+
+      const optionalBody = api.declareEndpoint({
+        method: 'POST',
+        url: '/maybe',
+        requestSchema: z.string().optional(),
+        responseSchema: z.any(),
+      })
+      await optionalBody()
+      expect(client.calls[3]?.data).toBeUndefined()
+    })
+
+    it('still rejects an omitted body when the schema requires fields', async () => {
+      const ep = api.declareEndpoint({
+        method: 'POST',
+        url: '/things',
+        requestSchema: z.object({ note: z.string() }),
+        responseSchema: z.any(),
+      })
+
+      const res = await ep.safe({} as never)
+
+      expect(res.error?.kind).toBe('request-validation')
+      // The reported issue is for the value that was actually passed.
+      expect(res.error?.issues?.[0]?.path).toEqual([])
+    })
+
+    it('safe() never rejects on header bags that Headers refuses', async () => {
+      const ep = api.declareEndpoint({ method: 'GET', url: '/u', responseSchema: z.any() })
+
+      client.reply({
+        data: { ok: true },
+        headers: { 'x-name': 'Zoë — ☃', 'bad header': 'x', etag: 'e' },
+      })
+      const ok = await ep.safe()
+      expect(ok.ok).toBe(true)
+      expect(ok.response?.headers.get('etag')).toBe('e')
+      expect(ok.response?.headers.has('x-name')).toBe(false)
+
+      client.reply(() => {
+        throw Object.assign(new Error('http'), {
+          response: { status: 500, statusText: '', data: null, headers: { 'x-msg': 'ошибка' } },
+        })
+      })
+      const failed = await ep.safe()
+      expect(failed.error).toMatchObject({ kind: 'http-unknown', status: 500 })
+    })
+
+    it('keeps every set-cookie value when the client reports an array', async () => {
+      client.reply({ headers: { 'set-cookie': ['a=1; Path=/', 'b=2; Path=/'] } as never })
+      const ep = api.declareEndpoint({ method: 'GET', url: '/u', response: 'void' })
+
+      const res = await ep.safe()
+
+      expect(res.response?.headers.getSetCookie()).toEqual(['a=1; Path=/', 'b=2; Path=/'])
+      expect(getCookie(res.response, 'b')).toBe('2')
+    })
+
+    it('safe() never rejects on null args or a client that resolves with nothing', async () => {
+      const ep = api.declareEndpoint({ method: 'GET', url: '/u', responseSchema: z.any() })
+
+      expect((await ep.safe(null as never)).ok).toBe(true)
+
+      const empty = { request: async () => undefined as never }
+      const res = await ep.safe({}, { client: empty })
+      expect(res.ok).toBe(false)
+      expect(res.error?.kind).toBe('network')
+      expect(res.error?.message).toContain('resolved without a response')
+
+      const hostile = {
+        request: async () =>
+          ({
+            get status(): number {
+              throw new Error('boom')
+            },
+          }) as never,
+      }
+      const thrown = await ep.safe({}, { client: hostile })
+      expect(thrown.ok).toBe(false)
+      expect(thrown.error).toBeInstanceOf(EndpointError)
+      await expect(ep({}, { client: hostile })).rejects.toBeInstanceOf(EndpointError)
+    })
+
+    it('treats an empty-string URL parameter as missing', async () => {
+      const ep = api.declareEndpoint({ method: 'DELETE', url: '/users/$userId', response: 'void' })
+
+      const res = await ep.safe({ urlParams: { userId: '' } })
+
+      expect(res.error?.kind).toBe('config')
+      expect(res.error?.message).toContain('userId')
+      expect(client.calls).toHaveLength(0)
+    })
+
+    it('multipart: sends Blob parts, passes FormData through, omits undefined', async () => {
+      const upload = api.declareEndpoint({
+        method: 'POST',
+        url: '/files',
+        body: 'multipart',
+        requestSchema: z.object({
+          file: z.instanceof(Blob),
+          caption: z.string().optional(),
+          tags: z.array(z.string()),
+        }),
+        response: 'void',
+      })
+      await upload({ data: { file: new Blob(['hello']), caption: undefined, tags: [] } })
+      const sent = client.calls[0]?.data as FormData
+      expect(sent.get('file')).toBeInstanceOf(Blob)
+      expect(sent.has('caption')).toBe(false)
+
+      const raw = api.declareEndpoint({
+        method: 'POST',
+        url: '/raw',
+        body: 'multipart',
+        requestSchema: z.instanceof(FormData),
+        response: 'void',
+      })
+      const input = new FormData()
+      input.append('a', '1')
+      await raw({ data: input })
+      const passedThrough = client.calls[1]?.data
+      expect(passedThrough).toBeInstanceOf(FormData)
+      expect([...(passedThrough as FormData).keys()]).toEqual(['a'])
     })
   })
 

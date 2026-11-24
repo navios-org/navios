@@ -76,8 +76,13 @@ export function bindUrlParams<Url extends string>(
     urlParamsToUse = parseSync(urlParamsSchema, urlParamsToUse) as Record<string, unknown>
   }
 
+  // An empty string would silently collapse the path (`/users/$id` -> `/users/`)
+  // and hit a different route, so it counts as missing.
   const missingParams = requiredParams.filter(
-    (param) => urlParamsToUse[param] === undefined || urlParamsToUse[param] === null,
+    (param) =>
+      urlParamsToUse[param] === undefined ||
+      urlParamsToUse[param] === null ||
+      urlParamsToUse[param] === '',
   )
   if (missingParams.length > 0) {
     throw new Error(`Missing required URL parameters: ${missingParams.join(', ')}`)

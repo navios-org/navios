@@ -130,12 +130,14 @@ export interface RequestArgsOptions {
 
 /**
  * `{ [Key]: Value }`, with the key optional when `Value` has no required
- * fields — a query schema whose fields are all optional does not force the
- * caller to pass `params: {}`.
+ * fields or accepts `undefined` — a query schema whose fields are all optional
+ * does not force the caller to pass `params: {}`.
  */
 type OptionalIfEmpty<Key extends string, Value> = {} extends Value
   ? { [K in Key]?: Value }
-  : { [K in Key]: Value }
+  : undefined extends Value
+    ? { [K in Key]?: Value }
+    : { [K in Key]: Value }
 
 /**
  * Client-side request arguments derived from an endpoint's options.

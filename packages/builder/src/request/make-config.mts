@@ -93,24 +93,16 @@ export function makeConfig<Options extends BaseEndpointOptions>(
 }
 
 /**
- * Serializes a value for inclusion in FormData.
+ * Serializes a non-binary value for inclusion in FormData.
  *
- * Handles various types:
- * - File instances are returned as-is
- * - null/undefined become empty strings
- * - Dates are converted to ISO strings
- * - Objects with toISOString or toJSON methods are serialized appropriately
- * - Other objects are JSON stringified
+ * - null becomes an empty string
+ * - Dates (and anything with `toISOString`) become ISO strings
+ * - Objects with `toJSON` use it; other objects are JSON stringified
  * - Primitives are converted to strings
  *
- * @param value - The value to serialize
- * @returns A string representation or File instance
  * @internal
  */
-function serializeFormDataValue(value: unknown): string | File {
-  if (value instanceof File) {
-    return value
-  }
+function serializeFormDataValue(value: unknown): string {
   if (value == null) {
     return ''
   }
@@ -127,7 +119,6 @@ function serializeFormDataValue(value: unknown): string | File {
     if ('toISOString' in value && typeof value.toISOString === 'function') {
       return value.toISOString()
     }
-    // For toJSON:
     if ('toJSON' in value && typeof value.toJSON === 'function') {
       const jsonValue = value.toJSON()
       return typeof jsonValue === 'string' ? jsonValue : JSON.stringify(jsonValue)
@@ -137,16 +128,26 @@ function serializeFormDataValue(value: unknown): string | File {
   return String(value)
 }
 
+/** Appends one field value: binary data as-is, everything else serialized. */
+function appendFormDataValue(formData: FormData, key: string, value: unknown): void {
+  if (typeof File !== 'undefined' && value instanceof File) {
+    formData.append(key, value, value.name)
+  } else if (value instanceof Blob) {
+    formData.append(key, value)
+  } else {
+    formData.append(key, serializeFormDataValue(value))
+  }
+}
+
 /**
  * Converts request data to FormData for multipart/form-data requests.
  *
- * The function:
  * - Validates the request data against `requestSchema` (if provided)
- * - Creates a FormData instance
- * - Appends all fields, handling File instances, arrays, and other types appropriately
- * - Files are appended with their name property
- * - Arrays of files are appended individually
- * - Other values are serialized using `serializeFormDataValue`
+ * - A `FormData` instance is sent as it is
+ * - `File` and `Blob` values are appended as binary parts
+ * - Arrays are appended once per item under the same key
+ * - `undefined` fields are left out; `null` becomes an empty string
+ * - Other values are serialized with `serializeFormDataValue`
  *
  * @param request - The request parameters object
  * @param options - Endpoint configuration containing request schema
@@ -166,31 +167,26 @@ export function makeFormData<Options extends BaseEndpointOptions>(
   request: ConfigRequest,
   options: Options,
 ) {
+  const validatedRequest = parseSync(options.requestSchema, request.data)
+  if (validatedRequest instanceof FormData) {
+    return validatedRequest
+  }
+
   const formData = new FormData()
-  const validatedRequest = parseSync(options.requestSchema, request.data) as Record<string, unknown>
   if (!validatedRequest || typeof validatedRequest !== 'object') {
     return formData
   }
 
-  for (const key in validatedRequest) {
-    const value = validatedRequest[key]
-    if (value instanceof File) {
-      formData.append(key, value, value.name)
-    } else if (Array.isArray(value)) {
+  const fields = validatedRequest as Record<string, unknown>
+  for (const key of Object.keys(fields)) {
+    const value = fields[key]
+    if (value === undefined) continue
+    if (Array.isArray(value)) {
       for (const item of value) {
-        if (item instanceof File) {
-          formData.append(key, item, item.name)
-        } else {
-          formData.append(key, serializeFormDataValue(item))
-        }
+        if (item !== undefined) appendFormDataValue(formData, key, item)
       }
     } else {
-      const serialized = serializeFormDataValue(value)
-      if (serialized instanceof File) {
-        formData.append(key, serialized, serialized.name)
-      } else {
-        formData.append(key, serialized)
-      }
+      appendFormDataValue(formData, key, value)
     }
   }
   return formData

@@ -1,5 +1,6 @@
 import { bindUrlParams } from '../../request/bind-url-params.mjs'
 import { parseSync } from '../../request/validate.mjs'
+import { appendQuery } from '../../socket/append-query.mjs'
 import { reportEventSourceError } from '../report-error.mjs'
 
 import type {
@@ -55,22 +56,14 @@ export function createEventSourceHandler(config: CreateEventSourceHandlerConfig 
         options.urlParamsSchema,
       )
 
-      // Build query string
-      let queryString = ''
-      if (options.querySchema && 'params' in params && params.params) {
-        const parsed = parseSync(options.querySchema, params.params)
-        const searchParams = new URLSearchParams()
-        for (const [key, value] of Object.entries(parsed as Record<string, unknown>)) {
-          if (value !== undefined && value !== null) {
-            searchParams.append(key, String(value))
-          }
-        }
-        queryString = searchParams.toString()
-      }
+      // Validate query parameters
+      const query =
+        options.querySchema && 'params' in params && params.params
+          ? (parseSync(options.querySchema, params.params) as Record<string, unknown>)
+          : undefined
 
       // Construct full EventSource URL
-      const baseUrl = config.baseUrl ?? ''
-      const fullUrl = `${baseUrl}${urlPart}${queryString ? `?${queryString}` : ''}`
+      const fullUrl = appendQuery(`${config.baseUrl ?? ''}${urlPart}`, query)
 
       // Create EventSource
       const eventSource = new EventSource(fullUrl, {

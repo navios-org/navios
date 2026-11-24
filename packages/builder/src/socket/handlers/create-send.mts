@@ -1,7 +1,7 @@
 import { isPendingOutcome, validateEager } from '../../request/validate.mjs'
 import { reportSocketError } from '../report-error.mjs'
 
-import type { SocketErrorInit } from '../../errors/socket-error.mjs'
+import type { SocketError, SocketErrorInit } from '../../errors/socket-error.mjs'
 import type { ValidationOutcome } from '../../request/validate.mjs'
 import type { SocketClient } from '../types/socket-client.mjs'
 import type { SendHandler } from '../types/socket-handlers.mjs'
@@ -38,12 +38,29 @@ export interface PendingAck {
   resolve: (value: unknown) => void
   reject: (error: Error) => void
   timeoutId: ReturnType<typeof setTimeout>
+  /**
+   * Validates the acknowledgement data and settles the send with it. Only the
+   * first call for a pending acknowledgement has an effect, whichever way the
+   * acknowledgement arrived.
+   */
+  settle: (ackData: unknown) => void
+  /**
+   * Stops waiting without settling: clears the timer, removes the
+   * `__navios_ack:<id>` listener from the client it was registered on and
+   * forgets the record.
+   */
+  release: () => void
 }
 
 export interface CreateSendContext {
   getClient: () => SocketClient
   config: SocketBuilderConfig
   ackHandlers: Map<string, PendingAck>
+  /**
+   * Makes sure the builder listens to the client's `'message'` event, so an
+   * acknowledgement whose `ackId` comes out of `parseMessage` is seen.
+   */
+  setupGlobalListener?: () => void
 }
 
 /**
@@ -58,7 +75,7 @@ export function createSendHandler<Options extends SendOptions>(
   context: CreateSendContext,
 ): SendHandler<Options> {
   const { topic, payloadSchema, ackSchema, ackTimeout: optionAckTimeout } = options
-  const { getClient, config, ackHandlers } = context
+  const { getClient, config, ackHandlers, setupGlobalListener } = context
   const formatMessage = config.formatMessage ?? defaultFormatMessage
   const defaultTimeout = config.ackTimeout ?? 30000
   const timeout = optionAckTimeout ?? defaultTimeout
@@ -82,6 +99,31 @@ export function createSendHandler<Options extends SendOptions>(
     })
   }
 
+  /**
+   * Formats and transmits one message. A client with `sendRaw` gets the
+   * formatted message as it is; otherwise it goes through `emit`.
+   *
+   * Anything thrown by `formatMessage` or the client is reported and returned
+   * as a `SocketError` of kind `transport`.
+   */
+  function transmit(client: SocketClient, payload: unknown, ackId?: string): SocketError | null {
+    try {
+      const message = ackId ? formatMessage(topic, payload, ackId) : formatMessage(topic, payload)
+      if (typeof client.sendRaw === 'function') {
+        client.sendRaw(topic, message)
+      } else {
+        client.emit(topic, message)
+      }
+      return null
+    } catch (cause) {
+      return fail(client, {
+        kind: 'transport',
+        message: `Failed to send "${topic}"; nothing was sent`,
+        cause,
+      })
+    }
+  }
+
   function sendWithAck(client: SocketClient, validatedPayload: unknown): Promise<unknown> {
     const schema = ackSchema!
     return new Promise<unknown>((resolve, reject) => {
@@ -89,15 +131,21 @@ export function createSendHandler<Options extends SendOptions>(
       // Use reserved namespace to avoid collision with user-defined topics
       const ackTopic = `__navios_ack:${ackId}`
 
-      // Define the ack handler first so we can reference it in timeout cleanup
+      // Stops waiting: timer, listener and record all go together
+      const release = () => {
+        clearTimeout(timeoutId)
+        ackHandlers.delete(ackId)
+        client.off(ackTopic, ackHandler)
+      }
+
+      // Runs for an acknowledgement that arrives as a `__navios_ack:<id>` event
+      // or as a parsed message carrying this ackId; only the first one counts.
       const ackHandler = (ackData: unknown) => {
         const pending = ackHandlers.get(ackId)
         if (!pending) {
           return
         }
-        clearTimeout(pending.timeoutId)
-        ackHandlers.delete(ackId)
-        client.off(ackTopic, ackHandler)
+        release()
 
         const settle = (outcome: ValidationOutcome) => {
           if (outcome.ok) {
@@ -124,10 +172,8 @@ export function createSendHandler<Options extends SendOptions>(
         }
       }
 
-      // Set up timeout with proper cleanup of the specific handler
       const timeoutId = setTimeout(() => {
-        ackHandlers.delete(ackId)
-        client.off(ackTopic, ackHandler) // Remove specific handler to prevent leak
+        release()
         reject(
           fail(client, {
             kind: 'ack-timeout',
@@ -136,15 +182,27 @@ export function createSendHandler<Options extends SendOptions>(
         )
       }, timeout)
 
-      // Store handler for cleanup
-      ackHandlers.set(ackId, { topic, resolve, reject, timeoutId })
+      ackHandlers.set(ackId, { topic, resolve, reject, timeoutId, settle: ackHandler, release })
 
-      // Listen for acknowledgement
-      client.on(ackTopic, ackHandler)
-
-      // Send message with ackId
-      const message = formatMessage(topic, validatedPayload, ackId)
-      client.emit(topic, message)
+      // Listen for the acknowledgement, then send. If either throws, the send
+      // never left: stop waiting now instead of reporting an ack-timeout later.
+      let error: SocketError | null
+      try {
+        client.on(ackTopic, ackHandler)
+        setupGlobalListener?.()
+        error = null
+      } catch (cause) {
+        error = fail(client, {
+          kind: 'transport',
+          message: `Failed to listen for the acknowledgement of "${topic}"; nothing was sent`,
+          cause,
+        })
+      }
+      error ??= transmit(client, validatedPayload, ackId)
+      if (error) {
+        release()
+        reject(error)
+      }
     })
   }
 
@@ -165,7 +223,10 @@ export function createSendHandler<Options extends SendOptions>(
       if (!outcome.ok) {
         throw invalidPayload(client, payload, outcome)
       }
-      client.emit(topic, formatMessage(topic, outcome.value))
+      const error = transmit(client, outcome.value)
+      if (error) {
+        throw error
+      }
       return
     }
 

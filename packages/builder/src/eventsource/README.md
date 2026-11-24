@@ -130,6 +130,8 @@ const filteredEvents = declareEventSource({
 const handle = filteredEvents({ params: { since: '2024-01-01' } })
 ```
 
+Query parameters are appended after validation: `undefined` and `null` are skipped, a `Date` is written as `toISOString()`, an array repeats its key once per item (`tag=a&tag=b`), and a URL that already contains a query string is continued with `&`.
+
 ### `createEventSourceHandler(config?)`
 
 Factory function for creating `declareEventSource` with shared configuration.
