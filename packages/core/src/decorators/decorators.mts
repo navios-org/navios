@@ -22,6 +22,20 @@ import type { EndpointDeclaration, HandlerFunction } from './handler-types.mjs'
 export interface ControllerOptions {
   guards?: ClassType[]
   interceptors?: ClassType[]
+  /** Attribute values for the whole controller: `[Public()]`. */
+  attributes?: AttributeValue[]
+}
+
+/** An attribute value as returned by calling an attribute. */
+export type AttributeValue = { readonly token: symbol; readonly value: unknown }
+
+function applyAttributes(
+  target: Map<symbol, unknown>,
+  attributes: AttributeValue[] | undefined,
+): void {
+  for (const attribute of attributes ?? []) {
+    target.set(attribute.token, attribute.value)
+  }
 }
 
 /**
@@ -33,10 +47,37 @@ export function Controller(options: ControllerOptions = {}) {
     if (context.kind !== 'class') {
       throw new Error('[Navios] @Controller can only be used on classes.')
     }
-    defineControllerMetadata(target, context, options)
+    applyAttributes(
+      defineControllerMetadata(target, context, options).attributes,
+      options.attributes,
+    )
     registerInjectable(target, { scope: InjectableScope.Singleton })
     return target
   }
+}
+
+/**
+ * Registers a class as a controller without decorator syntax. Meant for
+ * library code that is built without a decorator transform; its handlers are
+ * `handler()` fields.
+ *
+ * ```ts
+ * class DocsController {
+ *   spec = handler(specEndpoint, () => document)
+ * }
+ * registerController(DocsController)
+ * ```
+ */
+export function registerController<T extends ClassType>(
+  target: T,
+  options: ControllerOptions = {},
+): T {
+  applyAttributes(
+    defineControllerMetadata(target, { metadata: {} }, options).attributes,
+    options.attributes,
+  )
+  registerInjectable(target, { scope: InjectableScope.Singleton })
+  return target
 }
 
 export interface ModuleOptions {
@@ -49,6 +90,8 @@ export interface ModuleOptions {
   interceptors?: ClassType[]
   /** Providers for the whole application (modules do not encapsulate them). */
   providers?: Provider[]
+  /** Attribute values for every route of this module: `[Public()]`. */
+  attributes?: AttributeValue[]
 }
 
 /**
@@ -60,10 +103,22 @@ export function Module(options: ModuleOptions = {}) {
     if (context.kind !== 'class') {
       throw new Error('[Navios] @Module can only be used on classes.')
     }
-    defineModuleMetadata(target, context, options)
+    applyAttributes(defineModuleMetadata(target, context, options).attributes, options.attributes)
     registerInjectable(target, { scope: InjectableScope.Singleton })
     return target
   }
+}
+
+/**
+ * Registers a class as a module without decorator syntax.
+ */
+export function registerModule<T extends ClassType>(target: T, options: ModuleOptions = {}): T {
+  applyAttributes(
+    defineModuleMetadata(target, { metadata: {} }, options).attributes,
+    options.attributes,
+  )
+  registerInjectable(target, { scope: InjectableScope.Singleton })
+  return target
 }
 
 /**

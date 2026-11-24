@@ -2,7 +2,7 @@ import type { BaseEndpointOptions, ServerRequestArgs } from '@navios/builder'
 import type { InferInput, StandardSchemaV1 } from '@navios/di'
 
 import type { RequestContext } from '../context/request-context.mjs'
-import type { EndpointReply } from '../routing/reply.mjs'
+import type { CustomResult, EndpointReply } from '../routing/reply.mjs'
 import type { SseStream } from '../routing/sse.mjs'
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -32,11 +32,11 @@ type SuccessReturnOf<Config> = Config extends { response: 'void' }
   : Config extends { responses: infer Responses extends Record<number, StandardSchemaV1 | null> }
     ? RepliesOf<Responses>
     : Config extends { response: 'stream' }
-      ? ReadableStream | AsyncIterable<unknown> | SseStream
+      ? ReadableStream | AsyncIterable<unknown> | SseStream | CustomResult
       : Config extends { response: 'text' }
-        ? string | ReadableStream | AsyncIterable<unknown>
+        ? string | ReadableStream | AsyncIterable<unknown> | CustomResult
         : Config extends { response: 'blob' }
-          ? Blob | ArrayBuffer | Uint8Array | ReadableStream
+          ? Blob | ArrayBuffer | Uint8Array | ReadableStream | CustomResult
           : Config extends { responseSchema: infer Schema extends StandardSchemaV1 }
             ? InferInput<Schema>
             : unknown

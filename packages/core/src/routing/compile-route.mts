@@ -5,7 +5,7 @@ import { GuardDeniedError } from '../errors/http-exception.mjs'
 import type { ContextHost } from '../context/request-context.mjs'
 import type { ErrorPipeline } from '../errors/error-pipeline.mjs'
 
-import { isEndpointReply } from './reply.mjs'
+import { isCustomResult, isEndpointReply } from './reply.mjs'
 import { encodeSseStream, isSseStream } from './sse.mjs'
 import { validateSchema } from './validation.mjs'
 
@@ -44,6 +44,15 @@ export interface CompileOptions {
   host: ContextHost
   errors: ErrorPipeline
   validateResponses: boolean
+  /**
+   * Encoders for custom response kinds. An encoder runs inside the pipeline,
+   * after the handler's value has become a result and before interceptors
+   * exit, so an error it throws is mapped like any other.
+   */
+  encoders?: ReadonlyMap<
+    string,
+    (result: RouteResult, ctx: RequestContext) => RouteResult | Promise<RouteResult>
+  >
   /** Run each request inside the async context, for `currentContext()`. */
   asyncContext?: boolean
 }
@@ -251,6 +260,11 @@ function compileFinalizer(
       if (isEndpointReply(value)) {
         return fromReply(value)
       }
+      if (isCustomResult(value)) {
+        return value.headers === undefined
+          ? { status: value.status, body: value.body, kind: value.kind }
+          : { status: value.status, headers: value.headers, body: value.body, kind: value.kind }
+      }
       if (isSseStream(value)) {
         return {
           status: 200,
@@ -390,12 +404,27 @@ export function compileRoute(definition: RouteDefinition, options: CompileOption
     return isPromise(produced) ? produced.then(finish) : finish(produced)
   }
 
-  const guarded =
-    guards.length === 0
+  const encoders = options.encoders
+  const encoded =
+    encoders === undefined || encoders.size === 0
       ? handle
       : (ctx: RequestContext, input: RouteInput): MaybePromise<RouteResult> => {
+          const encode = (result: RouteResult): MaybePromise<RouteResult> => {
+            const encoder = encoders.get(result.kind)
+            return encoder === undefined ? result : encoder(result, ctx)
+          }
+          const produced = handle(ctx, input)
+          return isPromise(produced) ? produced.then(encode) : encode(produced)
+        }
+
+  const guarded =
+    guards.length === 0
+      ? encoded
+      : (ctx: RequestContext, input: RouteInput): MaybePromise<RouteResult> => {
           const pending = runGuards(guards, 0, ctx)
-          return pending === undefined ? handle(ctx, input) : pending.then(() => handle(ctx, input))
+          return pending === undefined
+            ? encoded(ctx, input)
+            : pending.then(() => encoded(ctx, input))
         }
 
   let pipeline = guarded

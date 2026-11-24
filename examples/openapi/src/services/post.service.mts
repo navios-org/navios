@@ -1,7 +1,8 @@
 import { Injectable } from '@navios/core'
 
-import type { createPostSchema, postSchema } from '../api.mjs'
 import type { z } from 'zod'
+
+import type { createPostSchema, postSchema } from '../api.mjs'
 
 type Post = z.infer<typeof postSchema>
 type CreatePostInput = z.infer<typeof createPostSchema>

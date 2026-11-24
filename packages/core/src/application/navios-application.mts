@@ -30,13 +30,7 @@ import type { LoggerService } from '../logger/logger-service.interface.mjs'
 import type { LoggerInstance } from '../logger/logger.service.mjs'
 import type { ControllerMetadata } from '../metadata/metadata.mjs'
 import type { Guard, Interceptor, RouteDefinition } from '../routing/compile-route.mjs'
-import type {
-  CompiledRoute,
-  RouteEndpointConfig,
-  RouteExecutor,
-  RouteInfo,
-  RouteResult,
-} from '../routing/types.mjs'
+import type { CompiledRoute, RouteEndpointConfig, RouteInfo } from '../routing/types.mjs'
 
 import { buildModuleGraph, joinPaths } from './module-graph.mjs'
 import { orderPlugins } from './plugin.mjs'
@@ -459,33 +453,18 @@ export class NaviosApplication<Env extends HttpAdapterEnvironment = ApplicationE
               'intercept',
             ),
           }
-          let execute = compileRoute(definition, {
+          const execute = compileRoute(definition, {
             host,
             errors: this.errors,
             validateResponses,
             asyncContext: this.options.asyncContext ?? false,
+            encoders: this.encoders,
           })
-          execute = this.withEncoders(execute)
           compiled.push({ info, execute })
         }
       }
     }
     return compiled
-  }
-
-  private withEncoders(execute: RouteExecutor): RouteExecutor {
-    if (this.encoders.size === 0) {
-      return execute
-    }
-    const encoders = this.encoders
-    const encode = (result: RouteResult): RouteResult | Promise<RouteResult> => {
-      const encoder = encoders.get(result.kind)
-      return encoder ? encoder(result) : result
-    }
-    return (input) => {
-      const result = execute(input)
-      return result instanceof Promise ? result.then(encode) : encode(result)
-    }
   }
 
   private collectHandlers(

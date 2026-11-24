@@ -3,5 +3,10 @@
   "compilerOptions": {
     "outDir": "./dist"
   },
-  "include": ["src/**/*.mts"]
+  "include": ["src/**/*.spec.mts", "src/**/*.spec-d.mts", "vitest.config.mts"],
+  "references": [
+    {
+      "path": "./tsconfig.lib.json"
+    }
+  ]
 }

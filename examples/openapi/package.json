@@ -4,7 +4,8 @@
   "type": "module",
   "scripts": {
     "start:bun": "bun run src/bun.mts",
-    "start:fastify": "yarn tsx src/fastify.mts"
+    "start:fastify": "yarn tsx src/main.mts",
+    "check": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
     "@navios/adapter-bun": "workspace:*",
@@ -13,8 +14,6 @@
     "@navios/core": "workspace:*",
     "@navios/di": "workspace:*",
     "@navios/openapi": "workspace:*",
-    "@navios/openapi-bun": "workspace:*",
-    "@navios/openapi-fastify": "workspace:*",
     "zod": "^4.6.7"
   },
   "devDependencies": {

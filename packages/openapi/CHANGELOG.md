@@ -5,15 +5,35 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [2.0.0] - Unreleased
 
 ### Added
 
+- **`openApiPlugin(options)`**, one adapter-neutral plugin made with `definePlugin`. It builds the document from `app.routes()` and serves it as JSON, optionally YAML, with the Scalar page, through ordinary Navios routes. No adapter package is needed.
+- **Any Standard Schema.** JSON Schema comes from the Standard JSON Schema extension (`~standard.jsonSchema`, implemented by Zod 4 and ArkType), `input` for request slots and `output` for responses; otherwise from the new `toJsonSchema(schema, io)` option; otherwise the slot is an unconstrained schema and one warning naming the endpoint is logged at `init()`.
+- `generateOpenApiDocument(routes, options)`, `extractOpenApiMetadata(route)`, `SchemaConverter`, `describeMultipartFields`, `toOpenApiPath`, `extractUrlParamNames`.
+- Options `disableJson` and `transformDocument`.
 - `response: 'void'` endpoints are described as `No content`, and per-status `responses` endpoints get one response entry per declared status.
+- Upload fields declared with `z.instanceof(File)` or `z.instanceof(Blob)` are described as binary strings; other custom schemas become unconstrained schemas instead of failing generation.
+- `headersSchema`, `cookiesSchema` and `urlParamsSchema` are documented as parameters.
+- Named schemas (`$defs`, for example Zod's `.meta({ id })`) are shared through `components.schemas`.
+- Attributes work on modules, on `handler()` fields and in `handler(endpoint, { attributes: [...] }, fn)`. `ApiExclude`, `ApiSecurity` and `ApiDeprecated` on a controller or module apply to every handler below; `ApiTag` descriptions reach the document's tag list.
 
-### Fixed
+### Changed
 
-- **`z.instanceof(File)` no longer breaks generation.** Upload fields declared with `z.instanceof(File)` or `z.instanceof(Blob)` are described as binary strings; other custom schemas become unconstrained schemas instead of throwing.
+- **Breaking:** requires `@navios/core` 2.0. Routes are read from `RouteInfo` instead of module and controller metadata.
+- **Breaking:** documented paths are full route paths (global and module prefixes included). `servers` is no longer filled from the global prefix.
+- **Breaking:** the routes serving the document get the application's global prefix on every adapter.
+- **Breaking:** the response of a route follows its declaration (`responses`, `response: 'void' | 'stream' | 'blob' | 'text'`), as core answers it. `@HttpCode` no longer exists, so there is no status override.
+- **Breaking:** `ApiDeprecated()` without a message stores `{}` and `ApiTag(name)` stores `{ name }` (no `undefined` keys).
+- Attribute values are validated by hand-written Standard Schemas. `zod` and `zod-openapi` are no longer dependencies; `@scalar/core` is.
+- Upload fields are recognised from JSON Schema instead of Zod internals: in a multipart body, an unconstrained field is a binary string.
+- No decorator syntax in the sources; the SWC plugin is gone from the build.
+
+### Removed
+
+- **Breaking:** `OpenApiGeneratorService`, `EndpointScannerService`, `MetadataExtractorService`, `PathBuilderService`, `SchemaConverterService` and `DiscoveredEndpoint`. Use the functions listed above.
+- **Breaking:** the `oas31` types of `zod-openapi` in the public API; the package exports its own document types.
 
 ## [1.0.0] - 2026-01-09
 

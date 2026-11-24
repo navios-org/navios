@@ -665,3 +665,55 @@ describe('lifecycle, errors and plugins', () => {
     expect(order.at(-1)).toBe('shutdown')
   })
 })
+
+describe('response encoders', () => {
+  it('encodes a custom result inside the pipeline, with the request context', async () => {
+    const { result } = await import('../index.mjs')
+    const csv = api.declareEndpoint({ method: 'GET', url: '/csv', response: 'text' })
+    const broken = api.declareEndpoint({ method: 'GET', url: '/broken', response: 'text' })
+
+    @Controller()
+    class Ctl {
+      csv = handler(csv, () =>
+        result('csv', [
+          ['a', 'b'],
+          ['1', '2'],
+        ]),
+      )
+      broken = handler(broken, () => result('csv', null))
+    }
+
+    @Module({ controllers: [Ctl] })
+    class Root {}
+
+    const csvPlugin = definePlugin({
+      name: 'csv',
+      setup(pluginApi) {
+        pluginApi.encoder('csv', (value, ctx) => {
+          if (value.body === null) {
+            throw new NotFoundException('nothing to export')
+          }
+          const separator = ctx.headers.get('x-separator') ?? ','
+          return {
+            ...value,
+            kind: 'text',
+            headers: { ...value.headers, 'content-type': 'text/csv' },
+            body: (value.body as string[][]).map((row) => row.join(separator)).join('\n'),
+          }
+        })
+      },
+    })
+
+    const app = await createApp(Root)
+    app.usePlugin(csvPlugin())
+    const call = createTestClient(app)
+
+    const response = await call(csv, { headers: { 'x-separator': ';' } })
+    expect(response.headers['content-type']).toBe('text/csv')
+    expect(response.text).toBe('a;b\n1;2')
+
+    const failed = await call(broken)
+    expect(failed.status).toBe(404)
+    expect(failed.body).toMatchObject({ detail: 'nothing to export' })
+  })
+})

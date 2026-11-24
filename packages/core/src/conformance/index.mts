@@ -1,11 +1,9 @@
 import { InjectableScope, registerInjectable } from '@navios/di'
 
-import type { ClassType } from '@navios/di'
-
 import { NaviosFactory } from '../application/navios-factory.mjs'
 import { createContextKey, registerRequestValue } from '../context/context-key.mjs'
 import { AttributeFactory } from '../decorators/attribute.mjs'
-import { Controller, Module } from '../decorators/decorators.mjs'
+import { registerController, registerModule } from '../decorators/decorators.mjs'
 import { handler } from '../decorators/handler.mjs'
 import { HttpException, UnauthorizedException } from '../errors/http-exception.mjs'
 import { reply } from '../routing/reply.mjs'
@@ -38,11 +36,6 @@ export interface ConformanceOptions {
   adapter: () => AdapterDefinition<any>
   /** Options for `app.listen()` that bind an ephemeral local port. */
   listenOptions: unknown
-}
-
-function decorateClass<T extends ClassType>(target: T, decorator: (t: T, c: any) => any): T {
-  decorator(target, { kind: 'class', name: target.name, metadata: {} })
-  return target
 }
 
 const endpoint = <Config extends Record<string, unknown>>(config: Config) => ({ config }) as any
@@ -290,13 +283,7 @@ export function runAdapterConformance(options: ConformanceOptions): void {
         },
       )
     }
-    for (const name of Object.keys(new PublicController())) {
-      void name
-    }
-    decorateClass(PublicController, (target, context) => {
-      Public()(target, context)
-      return Controller()(target, context)
-    })
+    registerController(PublicController, { attributes: [Public()] })
 
     class PrivateController {
       me = handler(
@@ -314,16 +301,17 @@ export function runAdapterConformance(options: ConformanceOptions): void {
         ({ data }: any) => data,
       )
     }
-    decorateClass(PrivateController, Controller())
+    registerController(PrivateController)
 
     class PrivateModule {}
-    decorateClass(PrivateModule, Module({ controllers: [PrivateController], guards: [AuthGuard] }))
+    registerModule(PrivateModule, { controllers: [PrivateController], guards: [AuthGuard] })
 
     class AppModule {}
-    decorateClass(
-      AppModule,
-      Module({ controllers: [PublicController], imports: [PrivateModule], prefix: '/api' }),
-    )
+    registerModule(AppModule, {
+      controllers: [PublicController],
+      imports: [PrivateModule],
+      prefix: '/api',
+    })
 
     const url = (path: string) => `${base}/api${path}`
     const json = (body: unknown, headers: Record<string, string> = {}) => ({
