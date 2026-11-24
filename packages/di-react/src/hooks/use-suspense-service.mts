@@ -13,6 +13,8 @@ import type {
   ScopedContainer,
 } from '@navios/di'
 
+import { trackSuspense } from '../providers/pending-scopes.mjs'
+
 import { getArgsKey } from './args-key.mjs'
 import { useContainer } from './use-container.mjs'
 
@@ -158,6 +160,10 @@ export function useSuspenseService(
         currentEntry.status = 'rejected'
         throw error
       })
+
+    // A provider that has not committed yet may be thrown away by this
+    // suspension; its next attempt finds the scope through this promise.
+    trackSuspense(container, currentEntry.promise!)
 
     return currentEntry.promise
   }, [container, token, args])

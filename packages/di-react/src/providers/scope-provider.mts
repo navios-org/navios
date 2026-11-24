@@ -1,10 +1,21 @@
-import { useContext, useEffect, useId, useReducer, useRef } from 'react'
-import { jsx } from 'react/jsx-runtime'
+import { useContext, useEffect, useId, useLayoutEffect, useReducer, useRef } from 'react'
+import { Fragment, jsx } from 'react/jsx-runtime'
 
 import type { ScopedContainer } from '@navios/di'
 import type { ReactNode } from 'react'
 
 import { ContainerContext, ScopedContainerContext } from './context.mjs'
+import {
+  acquireScope,
+  commitScope,
+  createCommittedScope,
+  disposeScope,
+  isScopeDisposed,
+  sweepPendingScopes,
+} from './pending-scopes.mjs'
+
+// `useLayoutEffect` warns during server rendering on React 18.
+const useIsomorphicLayoutEffect = typeof window === 'undefined' ? useEffect : useLayoutEffect
 
 export interface ScopeProviderProps {
   /**
@@ -43,41 +54,59 @@ export interface ScopeProviderProps {
  * ))}
  * ```
  */
-export function ScopeProvider({ scopeId, metadata, children }: ScopeProviderProps) {
+export function ScopeProvider(props: ScopeProviderProps) {
+  const { scopeId, metadata, children } = props
   const container = useContext(ContainerContext)
   if (!container) {
     throw new Error('ScopeProvider must be used within a ContainerProvider')
   }
 
   const generatedId = useId()
-  const effectiveScopeId = scopeId ?? generatedId
   const scopedContainerRef = useRef<ScopedContainer | null>(null)
   // True between an effect setup and its cleanup.
   const isMountedRef = useRef(false)
   // True once the scope in the ref has been disposed.
   const isDisposedRef = useRef(false)
   const [, rerender] = useReducer((count: number) => count + 1, 0)
+  // Changes when the children have to start over in a new scope.
+  const [generation, remount] = useReducer((count: number) => count + 1, 0)
 
-  // DI scopes have no ids, so the effective scope id lives in the scope's
-  // metadata under `scopeId`.
-  const createScope = () => container.createScope({ ...metadata, scopeId: effectiveScopeId })
+  // A scope for this provider once it is committed. The ref object stands for
+  // the provider instance: it exists once per committed provider.
+  const createScope = () =>
+    createCommittedScope(container, scopeId, metadata, generatedId, scopedContainerRef)
   const createScopeRef = useRef(createScope)
   createScopeRef.current = createScope
 
-  // Create the ScopedContainer once per mounted provider.
-  // The ref keeps it stable across re-renders.
-  if (!scopedContainerRef.current) {
-    scopedContainerRef.current = createScope()
+  // The scope is needed during render, where the children resolve from it,
+  // and the ref keeps it stable across re-renders. Until this provider
+  // commits, the scope is pending: React may throw this render away, and a
+  // later attempt picks the scope up again. See `pending-scopes.mts`.
+  //
+  // A provider can also render after its scope was disposed: inside an
+  // `<Activity>` that is hidden, where no effect is mounted. It takes a new
+  // pending scope then, so its children never resolve from a disposed one.
+  if (!scopedContainerRef.current || isScopeDisposed(scopedContainerRef.current)) {
+    scopedContainerRef.current = acquireScope(container, props, generatedId)
   }
 
-  useEffect(() => {
+  // A layout effect, so that every provider of a commit owns its scope before
+  // the passive effects below look for scopes nobody committed.
+  useIsomorphicLayoutEffect(() => {
     isMountedRef.current = true
-    // React re-ran the effect after the scope was disposed (an `<Activity>`
-    // shown again): the old scope is gone for good, so start a new one.
-    if (isDisposedRef.current) {
-      isDisposedRef.current = false
+    isDisposedRef.current = false
+    const outcome = commitScope(scopedContainerRef.current!, scopedContainerRef)
+    if (outcome !== 'committed') {
       scopedContainerRef.current = createScopeRef.current()
-      rerender()
+      if (outcome === 'taken') {
+        // Another provider committed with the same pending scope, so the
+        // children rendered against its instances: they start over.
+        remount()
+      } else {
+        // The scope was disposed and the provider has not rendered since: an
+        // `<Activity>` shown again, or a hidden one shown for the first time.
+        rerender()
+      }
     }
     return () => {
       isMountedRef.current = false
@@ -89,13 +118,22 @@ export function ScopeProvider({ scopeId, metadata, children }: ScopeProviderProp
           return
         }
         isDisposedRef.current = true
-        void scopedContainerRef.current?.dispose()
+        if (scopedContainerRef.current) {
+          disposeScope(scopedContainerRef.current)
+        }
       })
     }
   }, [])
 
+  // Every commit and unmount of a provider is a chance to dispose the scopes
+  // of renders that never committed.
+  useEffect(() => {
+    sweepPendingScopes(container)
+    return () => sweepPendingScopes(container)
+  }, [container])
+
   return jsx(ScopedContainerContext.Provider, {
     value: scopedContainerRef.current,
-    children,
+    children: jsx(Fragment, { children }, generation),
   })
 }
