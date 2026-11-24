@@ -8,6 +8,13 @@ import { defineFastifyEnvironment } from '../src/index.mjs'
 
 import type { FastifyEnvironment } from '../src/index.mjs'
 
+// What an application does once, to type `ctx.raw` and `app.getServer()`.
+declare module '@navios/core' {
+  interface Register {
+    environment: FastifyEnvironment
+  }
+}
+
 describe('fastify adapter: native reply', () => {
   let app: NaviosApplication<FastifyEnvironment>
   const logger = { log: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() }
@@ -19,7 +26,7 @@ describe('fastify adapter: native reply', () => {
         {
           config: { method: 'GET', url: '/raw', responseSchema: z.object({ ok: z.boolean() }) },
         } as never,
-        (_params: unknown, ctx: RequestContext<FastifyEnvironment>) => {
+        (_params: unknown, ctx: RequestContext) => {
           ctx.raw.reply.code(202).header('x-native', 'yes').send('written natively')
         },
       )

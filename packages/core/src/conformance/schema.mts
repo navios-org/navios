@@ -29,34 +29,34 @@ type Checked<T> = StandardSchemaV1<unknown, T> & { check: Check<T> }
  */
 export const s = {
   string: (options: { min?: number } = {}): Checked<string> =>
-    schema((value, path) =>
+    schema<string>((value, path) =>
       typeof value === 'string' && value.length >= (options.min ?? 0)
         ? { value }
         : { issues: [{ message: 'Expected a string', path }] },
     ),
   number: (options: { coerce?: boolean } = {}): Checked<number> =>
-    schema((value, path) => {
+    schema<number>((value, path) => {
       const candidate = options.coerce && typeof value === 'string' ? Number(value) : value
       return typeof candidate === 'number' && !Number.isNaN(candidate)
         ? { value: candidate }
         : { issues: [{ message: 'Expected a number', path }] }
     }),
   boolean: (): Checked<boolean> =>
-    schema((value, path) =>
+    schema<boolean>((value, path) =>
       typeof value === 'boolean'
         ? { value }
         : { issues: [{ message: 'Expected a boolean', path }] },
     ),
   file: (): Checked<File> =>
-    schema((value, path) =>
+    schema<File>((value, path) =>
       value instanceof File ? { value } : { issues: [{ message: 'Expected a file', path }] },
     ),
   optional: <T,>(inner: Checked<T>): Checked<T | undefined> =>
-    schema((value, path) =>
+    schema<T | undefined>((value, path) =>
       value === undefined ? { value: undefined } : inner.check(value, path),
     ),
   array: <T,>(inner: Checked<T>): Checked<T[]> =>
-    schema((value, path) => {
+    schema<T[]>((value, path) => {
       if (!Array.isArray(value)) {
         return { issues: [{ message: 'Expected an array', path }] }
       }
