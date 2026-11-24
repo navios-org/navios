@@ -67,7 +67,6 @@ Define your XML tags:
 ```typescript
 // tags.ts
 import { defineTag } from '@navios/adapter-xml'
-
 import { z } from 'zod/v4'
 
 export const rss = defineTag(
@@ -109,9 +108,10 @@ export const getRssFeed = declareXmlStream({
 Create the controller:
 
 ```tsx
+import { XmlStream } from '@navios/adapter-xml'
 // feed.controller.tsx
 import { Controller } from '@navios/core'
-import { XmlStream } from '@navios/adapter-xml'
+
 import { getRssFeed } from './api'
 import { rss, channel, title, link, description, item, pubDate, atomLink } from './tags'
 

@@ -45,14 +45,14 @@
     "publish:next": "yarn npm publish --access public --tag next"
   },
   "dependencies": {
-    "yaml": "^2.8.2",
+    "yaml": "^2.9.1",
     "zod-openapi": "^5.4.6"
   },
   "devDependencies": {
     "@navios/builder": "workspace:^",
     "@navios/core": "workspace:^",
     "typescript": "^5.9.3",
-    "zod": "^4.3.5"
+    "zod": "^4.6.7"
   },
   "peerDependencies": {
     "@navios/core": "workspace:^",

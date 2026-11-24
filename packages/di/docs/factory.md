@@ -30,11 +30,10 @@ console.log(connection) // { host: 'localhost', port: 5432, connected: true, con
 ### Factory with Configuration
 
 ```typescript
-import type { FactoryContext } from '@navios/di'
-
 import { Factory, InjectionToken } from '@navios/di'
-
 import { z } from 'zod'
+
+import type { FactoryContext } from '@navios/di'
 
 const configSchema = z.object({
   host: z.string(),
@@ -160,7 +159,6 @@ class DatabaseConnectionFactory {
 
 ```typescript
 import { Factory, InjectionToken } from '@navios/di'
-
 import { z } from 'zod'
 
 const emailConfigSchema = z.object({
@@ -281,11 +279,10 @@ class UserRepositoryFactory {
 ### HTTP Client Factory
 
 ```typescript
-import type { FactoryContext } from '@navios/di'
-
 import { Factory, InjectionToken } from '@navios/di'
-
 import { z } from 'zod'
+
+import type { FactoryContext } from '@navios/di'
 
 const httpConfigSchema = z.object({
   baseUrl: z.string().url(),

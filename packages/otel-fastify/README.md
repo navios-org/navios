@@ -14,8 +14,8 @@ yarn add @opentelemetry/exporter-trace-otlp-http
 ## Usage
 
 ```typescript
-import { NaviosFactory } from '@navios/core'
 import { FastifyApplicationService } from '@navios/adapter-fastify'
+import { NaviosFactory } from '@navios/core'
 import { defineOtelPlugin } from '@navios/otel-fastify'
 
 const app = await NaviosFactory.create(FastifyApplicationService, {

@@ -20,7 +20,6 @@ First, define your endpoint using `@navios/builder`:
 ```typescript
 // api/users.ts
 import { builder } from '@navios/builder'
-
 import { z } from 'zod'
 
 const UserSchema = z.object({
@@ -41,9 +40,9 @@ export const getUsersEndpoint = api.declareEndpoint({
 Then use it in your controller:
 
 ```typescript
-import type { EndpointParams } from '@navios/core'
-
 import { Controller, Endpoint } from '@navios/core'
+
+import type { EndpointParams } from '@navios/core'
 
 import { getUsersEndpoint } from '../api/users.js'
 
@@ -164,7 +163,6 @@ The `@Endpoint()` decorator should receive an endpoint definition created with `
 
 ```typescript
 import { builder } from '@navios/builder'
-
 import { z } from 'zod'
 
 export const api = builder()

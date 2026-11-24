@@ -39,9 +39,9 @@ interface AbstractExecutionContext {
 ### Basic Guard
 
 ```typescript
-import type { AbstractExecutionContext, CanActivate } from '@navios/core'
-
 import { Injectable } from '@navios/di'
+
+import type { AbstractExecutionContext, CanActivate } from '@navios/core'
 
 @Injectable()
 export class AuthGuard implements CanActivate {
@@ -68,9 +68,9 @@ export class AuthGuard implements CanActivate {
 ### Guard with Dependencies
 
 ```typescript
-import type { AbstractExecutionContext, CanActivate } from '@navios/core'
-
 import { inject, Injectable, Logger } from '@navios/di'
+
+import type { AbstractExecutionContext, CanActivate } from '@navios/core'
 
 @Injectable()
 export class JwtAuthGuard implements CanActivate {
@@ -206,9 +206,9 @@ Use AttributeFactory to define roles required for endpoints
 ### API Key Guard
 
 ```typescript
-import type { AbstractExecutionContext, CanActivate } from '@navios/core'
-
 import { inject, Injectable, Logger } from '@navios/di'
+
+import type { AbstractExecutionContext, CanActivate } from '@navios/core'
 
 @Injectable()
 export class ApiKeyGuard implements CanActivate {
@@ -250,9 +250,9 @@ export class ApiController {
 ### Conditional Guards
 
 ```typescript
-import type { AbstractExecutionContext, CanActivate } from '@navios/core'
-
 import { inject, Injectable } from '@navios/di'
+
+import type { AbstractExecutionContext, CanActivate } from '@navios/core'
 
 @Injectable()
 export class ConditionalAuthGuard implements CanActivate {
@@ -276,9 +276,9 @@ export class ConditionalAuthGuard implements CanActivate {
 Guards can read attributes from the execution context using `AttributeFactory`:
 
 ```typescript
-import type { AbstractExecutionContext, CanActivate } from '@navios/core'
-
 import { AttributeFactory, inject, Injectable, Logger } from '@navios/di'
+
+import type { AbstractExecutionContext, CanActivate } from '@navios/core'
 
 // Define attributes
 const PublicSymbol = Symbol.for('Public')
@@ -392,9 +392,9 @@ export class RoleBasedGuard implements CanActivate {
 Guards should handle errors gracefully:
 
 ```typescript
-import type { AbstractExecutionContext, CanActivate } from '@navios/core'
-
 import { inject, Injectable, Logger } from '@navios/di'
+
+import type { AbstractExecutionContext, CanActivate } from '@navios/core'
 
 @Injectable()
 export class SafeAuthGuard implements CanActivate {

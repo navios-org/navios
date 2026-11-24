@@ -211,7 +211,6 @@ Now that you have the basics down, explore these topics:
 
 ```typescript
 import { Injectable, InjectionToken } from '@navios/di'
-
 import { z } from 'zod'
 
 const configSchema = z.object({
