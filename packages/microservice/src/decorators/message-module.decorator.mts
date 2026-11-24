@@ -1,7 +1,6 @@
-import { NaviosManagedMetadataKey } from '@navios/core'
-import { Injectable, InjectableScope, InjectionToken } from '@navios/di'
+import { Injectable, InjectableScope } from '@navios/di'
 
-import type { ClassType, Registry } from '@navios/di'
+import type { ClassType } from '@navios/di'
 
 import { getMessageModuleMetadata } from '../metadata/message-module.metadata.mjs'
 
@@ -24,16 +23,6 @@ export interface MessageModuleOptions {
    * Guards are executed in reverse order (last guard first).
    */
   guards?: ClassType[] | Set<ClassType>
-  /**
-   * Priority to use for the module.
-   * Priority is used to sort the module in the registry.
-   */
-  priority?: number
-  /**
-   * Registry to use for the module.
-   * Registry is used to store the module and its controllers.
-   */
-  registry?: Registry
 }
 
 /**
@@ -56,7 +45,7 @@ export interface MessageModuleOptions {
  * ```
  */
 export function MessageModule(
-  { controllers = [], imports = [], guards = [], priority, registry }: MessageModuleOptions = {
+  { controllers = [], imports = [], guards = [] }: MessageModuleOptions = {
     controllers: [],
     imports: [],
     guards: [],
@@ -66,8 +55,6 @@ export function MessageModule(
     if (context.kind !== 'class') {
       throw new Error('[Navios/Microservice] @MessageModule decorator can only be used on classes.')
     }
-    // Register the module in the service locator
-    const token = InjectionToken.create(target)
     const messageModuleMetadata = getMessageModuleMetadata(target, context)
     for (const controller of controllers) {
       messageModuleMetadata.controllers.add(controller)
@@ -79,19 +66,6 @@ export function MessageModule(
       messageModuleMetadata.guards.add(guard)
     }
 
-    // Store reference to metadata in managed key for AttributeFactory
-    if (context.metadata) {
-      context.metadata[NaviosManagedMetadataKey] = messageModuleMetadata
-      // Also store on target for runtime access
-      // @ts-expect-error
-      target[NaviosManagedMetadataKey] = messageModuleMetadata
-    }
-
-    return Injectable({
-      token,
-      scope: InjectableScope.Singleton,
-      priority,
-      registry,
-    })(target, context)
+    return Injectable({ scope: InjectableScope.Singleton })(target, context)
   }
 }

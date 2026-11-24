@@ -3,6 +3,7 @@ export { Message } from './decorators/message.decorator.mjs'
 export { MessageModule } from './decorators/message-module.decorator.mjs'
 export type { MessageParams, MessageResult } from './types/message-params.mjs'
 export type { MessageExecutionContext } from './interfaces/message-execution-context.mjs'
+export type { MessageGuard, MessageMetadata } from './interfaces/message-guard.mjs'
 export { MessageHandlerService } from './services/message-handler.service.mjs'
 export { MicroserviceFactory } from './services/microservice-factory.mjs'
 

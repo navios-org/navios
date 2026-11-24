@@ -141,7 +141,6 @@ Run-to-run variation is a few tenths of a microsecond, so "about 0" means within
 **Not done**
 - `@navios/builder` `headersSchema` / `cookiesSchema` and the in-process transport (Task 7). Core already validates `headersSchema` and `cookiesSchema` at runtime when a declaration carries them, but the builder rejects unknown options, and the client-side meaning of a headers schema is a builder design decision. `createTestClient` is therefore a small typed wrapper over `app.inject()`, not the builder client.
 - `TestingModule` / `UnitTestingModule` were removed and not replaced. Tests use `defineInMemoryEnvironment()`, `createTestClient()`, `app.inject()` and the DI test containers.
-- Downstream packages (`otel*`, `openapi*`, `adapter-xml`, `schedule`, `queues`, `microservice`, `jwt`) are not ported; they do not build on this branch.
 
 **Deviations from the design, recorded in the design doc**
 - `requestScopedServices` is enforced at the first `ctx.use()` of a token, not at `init()`.
@@ -161,3 +160,33 @@ Run-to-run variation is a few tenths of a microsecond, so "about 0" means within
 - The in-memory adapter answered a malformed JSON body with 500 instead of 400.
 - Bun CORS: no origin meant no CORS at all, and `credentials` with a wildcard origin threw on every request. The origin now defaults to `*`, and the invalid combination fails at start-up.
 - Thrown `HttpException` bodies are now checked against `errorSchema` outside production and a mismatch is logged.
+
+## Phase 6: downstream packages
+
+Executed 2026-11-24 on the same branch. The whole repository passes `yarn turbo run check test:ci lint build` (86 of 86 tasks), `yarn check:size` and `yarn check:dts`.
+
+| Package | Result |
+|---|---|
+| `jwt` | Ported; no zod. 30 tests. The exported zod schemas were removed. |
+| `schedule` | Ported; jobs start at bootstrap, stop at shutdown, one DI scope per tick. 23 tests. |
+| `queues` | Ported; three existing bugs fixed (threw on import, tokens rejected every definition, default client created twice). 18 tests. |
+| `openapi` | One adapter-neutral plugin built on `app.routes()`. 131 tests. `openapi-fastify` and `openapi-bun` are deprecated re-exports. |
+| `otel` | One adapter-neutral plugin: an interceptor plus `container.decorate`. 84 tests. `otel-fastify` and `otel-bun` are deprecated re-exports. The SDK is no longer bundled. |
+| `adapter-xml` | A response encoder plus the JSX runtime. 157 tests, 23 shared cases on the in-memory, Fastify and Bun adapters. |
+| `microservice` | Only made to compile. It was an unimplemented stub in 1.x and still is; its runtime is a separate design. |
+
+**Core changes these ports required**
+- `result(kind, body)` and encoders that run inside the pipeline with the request context (adapter-xml).
+- `registerController` / `registerModule` and `attributes` in their options (openapi).
+- `ctx.onFinish()` and `ctx.responseStatus` (otel).
+- `@navios/core/legacy-compat` re-exports the legacy decorator context helpers (schedule).
+- A custom result kind with no registered encoder is an error naming the kind.
+
+**Benchmarks after all of the above** (same method as before): GET +0.43 µs, POST +0.06 µs, one guard +0.40 µs, one request value +0.62 µs, one request-scoped service +1.80 µs over raw Fastify; all within budget. DI: ready singleton 0.058 µs, transient 0.133 µs, scoped build 0.39 µs.
+
+**Known gaps left by the ports**
+- otel: no span for a request that matches no route, and no per-guard or per-handler spans.
+- otel: `sdk-metrics@3` and `sdk-trace-node@2.12` ask for incompatible ranges of `@opentelemetry/api`; yarn warns about it now that the SDK is a real dependency instead of being bundled.
+- schedule: `close()` waits for running jobs without a timeout.
+- adapter-xml: the whole document is rendered before sending, also for `response: 'stream'`.
+- `apps/docs` (the documentation site) and `specs/` still describe 1.x.
