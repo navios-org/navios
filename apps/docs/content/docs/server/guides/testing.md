@@ -439,4 +439,4 @@ it('should create user and send email and log event', async () => {
 
 **Use TestingModule for integration tests**: When testing endpoints or multiple services together, use `TestingModule.create()` with the appropriate adapter.
 
-For advanced testing topics related to dependency injection, see the [DI documentation](/docs/di/guides/testing).
+For advanced testing topics related to dependency injection, see the [DI documentation](/docs/di/di/guides/testing).

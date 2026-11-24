@@ -325,5 +325,5 @@ class OrderService {
 ## Next Steps
 
 - Learn about [services](/docs/di/di/guides/services) for service creation
-- Explore [injection methods](/docs/di/di/guides/services#injection-methods) for dependency injection
+- Explore [injection methods](/docs/di/di/guides/services) for dependency injection
 - Understand [best practices](/docs/di/di/best-practices) for service design

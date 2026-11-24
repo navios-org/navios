@@ -452,7 +452,7 @@ class StripeProcessor implements PaymentProcessor {
 
 ## Next Steps
 
-- Learn more about [DI in Navios](/docs/di/di/getting-started)
+- Learn more about [DI in Navios](/docs/di/di/getting-started/setup)
 - Explore [service scopes](/docs/di/di/guides/scopes)
 - Check out [injection tokens](/docs/di/di/guides/injection-tokens)
 - See [execution context](/docs/commander/guides/execution-context) for command-specific context

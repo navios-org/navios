@@ -538,7 +538,7 @@ bootstrap()
 
 ## Examples
 
-For complete working examples demonstrating both providers, see the [openapi examples](/examples/openapi) directory:
+For complete working examples demonstrating both providers, see the [openapi examples](https://github.com/Arilas/navios/tree/main/examples/openapi) directory:
 
 - **Fastify**: Run `yarn start:fastify` to start the Fastify example
 - **Bun**: Run `yarn start:bun` to start the Bun example

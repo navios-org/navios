@@ -590,4 +590,4 @@ curl -X POST http://localhost:3000/auth/refresh \
 - [Authentication Guide](/docs/server/guides/authentication) - Authentication strategies and patterns
 - [Guards guide](/docs/server/guides/guards) - Guard concepts and basics
 - [Configuration](/docs/server/guides/configuration) - Managing configuration with ConfigService
-- [JWT Package Documentation](/packages/jwt) - Complete JWT service reference
+- [JWT Package Documentation](https://www.npmjs.com/package/@navios/jwt) - Complete JWT service reference

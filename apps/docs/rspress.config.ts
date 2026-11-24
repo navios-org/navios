@@ -17,8 +17,8 @@ export default defineConfig({
   sitemap: { siteUrl },
   plugins: [mermaid()],
   markdown: {
-    // Enabled in a later step, once the links that are already broken are fixed.
-    link: { checkDeadLinks: false, checkAnchors: false },
+    // A broken link or anchor fails the build.
+    link: { checkDeadLinks: true, checkAnchors: true },
     // Shiki has no PromQL grammar.
     shiki: { langAlias: { promql: 'text' } },
   },

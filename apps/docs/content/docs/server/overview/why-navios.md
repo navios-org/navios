@@ -283,4 +283,4 @@ Ready to try Navios?
 npm install @navios/core @navios/adapter-fastify @navios/builder zod
 ```
 
-Continue to the [Getting Started guide](/docs/server/getting-started) to build your first endpoint in minutes.
+Continue to the [Getting Started guide](/docs/server/) to build your first endpoint in minutes.

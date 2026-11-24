@@ -210,6 +210,6 @@ Now that you have the basics down, explore these topics:
 ## Getting Help
 
 - Check the [API Reference](/docs/commander/api-reference) for complete method signatures
-- Review the [Recipes](/docs/commander/recipes) for common patterns
+- Review the [Recipes](/docs/commander/recipes/api-clients) for common patterns
 - See the [Best Practices](/docs/commander/best-practices) for guidance
 - Visit the [GitHub repository](https://github.com/Arilas/navios) for issues and discussions

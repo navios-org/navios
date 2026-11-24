@@ -423,6 +423,6 @@ afterAll(async () => {
 ## Next Steps
 
 - Learn about [commands](/docs/commander/guides/commands) in detail
-- Explore [programmatic execution](/docs/commander/api-reference#commanderapplication) for testing
+- Explore [programmatic execution](/docs/commander/api-reference#naviosapplication) for testing
 - Check out [best practices](/docs/commander/best-practices) for command design
 

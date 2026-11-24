@@ -542,7 +542,7 @@ export class HealthCommand implements CommandHandler {
 
 ## Next Steps
 
-- Review the [guides](/docs/commander/guides) for detailed information
-- Check out [recipes](/docs/commander/recipes) for common patterns
+- Review the [guides](/docs/commander/guides/commands) for detailed information
+- Check out [recipes](/docs/commander/recipes/api-clients) for common patterns
 - See the [API reference](/docs/commander/api-reference) for complete details
 

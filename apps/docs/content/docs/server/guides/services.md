@@ -196,6 +196,6 @@ export class UserService {
 
 For more advanced dependency injection topics, see the [DI documentation](/docs/di):
 
-- [Injection Tokens](/docs/di/guides/injection-tokens) - For interfaces and non-class dependencies
-- [Factories](/docs/di/guides/factories) - Creating services with factories
-- [Scopes](/docs/di/guides/scopes) - Detailed scope documentation
+- [Injection Tokens](/docs/di/di/guides/injection-tokens) - For interfaces and non-class dependencies
+- [Factories](/docs/di/di/guides/factories) - Creating services with factories
+- [Scopes](/docs/di/di/guides/scopes) - Detailed scope documentation

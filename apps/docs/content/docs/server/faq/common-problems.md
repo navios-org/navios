@@ -49,7 +49,7 @@ If you previously used NestJS or other frameworks that rely on legacy decorators
 **These must be set to `false` or removed entirely** for Navios decorators to work correctly.
 
 :::tip Alternative: Legacy Decorators
-If you cannot disable `experimentalDecorators`, you can use the legacy-compatible decorators from `@navios/core/legacy-compat` and `@navios/di/legacy-compat`. See the [NestJS Migration Guide](/docs/server/guides/migrating-from-nestjs#step-2-configure-typescript) for details.
+If you cannot disable `experimentalDecorators`, you can use the legacy-compatible decorators from `@navios/core/legacy-compat` and `@navios/di/legacy-compat`. See the [NestJS Migration Guide](/docs/server/guides/migrating-from-nestjs#step-2-configure-typescript-for-legacy-decorators) for details.
 :::
 
 ### Why This Matters

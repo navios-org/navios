@@ -144,7 +144,7 @@ curl http://localhost:3000/users/123
 
 ## Next Steps
 
-- [Architecture](/docs/server/overview/overview) - Understand modules, controllers, and endpoints
+- [Architecture](/docs/server/overview) - Understand modules, controllers, and endpoints
 - [Controllers & Endpoints](/docs/server/guides/controllers) - Learn about routing and request handling
 - [Services & Dependency Injection](/docs/server/guides/services) - Create and use services with dependency injection
 - [Guards](/docs/server/guides/guards) - Implement authorization logic
@@ -155,5 +155,5 @@ curl http://localhost:3000/users/123
 
 ## Related Documentation
 
-- [Builder: Defining Endpoints](/docs/builder/guides/defining-endpoints) - Learn how to define type-safe endpoints
-- [DI: Getting Started](/docs/di/getting-started) - Learn about dependency injection
+- [Builder: Defining Endpoints](/docs/builder/builder/guides/defining-endpoints) - Learn how to define type-safe endpoints
+- [DI: Getting Started](/docs/di/di/getting-started/setup) - Learn about dependency injection

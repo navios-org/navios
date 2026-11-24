@@ -27,7 +27,7 @@ A lightweight, fetch-based HTTP client that serves as a modern alternative to ax
 - Familiar axios-like API
 - Interceptors support
 
-[HTTP Client Documentation](/docs/packages/http/overview)
+[HTTP Client Documentation](https://www.npmjs.com/package/@navios/http)
 
 ### @navios/react-query
 

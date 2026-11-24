@@ -445,5 +445,5 @@ Navios Commander uses `@navios/core` for module support:
 - `ClassType` and `ClassTypeWithInstance` types
 - Module initialization hooks
 
-See the [Core documentation](/docs/server/overview/architecture) for more details.
+See the [Core documentation](/docs/server/overview) for more details.
 

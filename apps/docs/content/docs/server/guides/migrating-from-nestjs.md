@@ -568,7 +568,7 @@ export class UserController {
 
 After migration:
 
-- [Architecture Overview](/docs/server/overview/overview) - Understand Navios patterns
+- [Architecture Overview](/docs/server/overview) - Understand Navios patterns
 - [Testing](/docs/server/guides/testing) - Update your test suite
 - [Configuration](/docs/server/guides/configuration) - Set up environment config
 - Consider migrating to Stage 3 decorators for better tooling support
