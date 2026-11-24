@@ -11,6 +11,10 @@
       ],
       "outputs": ["dist/**"]
     },
+    "check:dts": {
+      "dependsOn": ["^build"],
+      "inputs": ["$TURBO_DEFAULT$", "*.mts", "tsconfig.json"]
+    },
     "lint": {
       "inputs": ["$TURBO_DEFAULT$", "src/**/*.{ts,tsx,mts}"]
     },

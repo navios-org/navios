@@ -1,0 +1,19 @@
+{
+  "name": "@navios/dts-check",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "check:dts": "tsc --noEmit -p tsconfig.json"
+  },
+  "devDependencies": {
+    "@navios/adapter-fastify": "workspace:^",
+    "@navios/builder": "workspace:^",
+    "@navios/core": "workspace:^",
+    "@navios/di": "workspace:^",
+    "@navios/react-query": "workspace:^",
+    "typescript": "^7.0.2",
+    "vitest": "^5.1.1",
+    "zod": "^4.6.7"
+  }
+}

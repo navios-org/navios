@@ -11,6 +11,7 @@
   "scripts": {
     "build": "turbo run build",
     "check": "turbo run check",
+    "check:dts": "turbo run check:dts --filter=@navios/dts-check",
     "test": "turbo run test",
     "test:ci": "turbo run test:ci",
     "lint": "turbo run lint",

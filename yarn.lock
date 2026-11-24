@@ -4040,6 +4040,21 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@navios/dts-check@workspace:packages/dts-check":
+  version: 0.0.0-use.local
+  resolution: "@navios/dts-check@workspace:packages/dts-check"
+  dependencies:
+    "@navios/adapter-fastify": "workspace:^"
+    "@navios/builder": "workspace:^"
+    "@navios/core": "workspace:^"
+    "@navios/di": "workspace:^"
+    "@navios/react-query": "workspace:^"
+    typescript: "npm:^7.0.2"
+    vitest: "npm:^5.1.1"
+    zod: "npm:^4.6.7"
+  languageName: unknown
+  linkType: soft
+
 "@navios/http@workspace:^, @navios/http@workspace:packages/navios":
   version: 0.0.0-use.local
   resolution: "@navios/http@workspace:packages/navios"
@@ -4269,7 +4284,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@navios/react-query@workspace:packages/react-query":
+"@navios/react-query@workspace:^, @navios/react-query@workspace:packages/react-query":
   version: 0.0.0-use.local
   resolution: "@navios/react-query@workspace:packages/react-query"
   dependencies:
