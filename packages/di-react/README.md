@@ -230,6 +230,8 @@ function App() {
 }
 ```
 
+When the service is request-scoped, put the `<Suspense>` boundary inside the `ScopeProvider`, not around it. A boundary outside makes React discard and retry the provider, which starts a new scope on every attempt, so the service never settles.
+
 #### Error Boundaries
 
 When using `useSuspenseService`, errors are thrown to the nearest error boundary. Make sure to wrap your components with an error boundary:

@@ -47,8 +47,8 @@ A `ScopeProvider` inside another one starts an independent scope. Components see
 
 The scope is disposed one microtask after the provider unmounts, so the simulated unmount of React's `<StrictMode>` does not lose it. An `<Activity>` that hides the provider does dispose the scope, and showing it again starts a new one.
 
-:::info
-A `<Suspense>` boundary for `useSuspenseService` can sit inside or outside the `ScopeProvider`. With the boundary outside, React discards the provider on every attempt, and the provider picks up the scope of the earlier attempt, which it recognises by `scopeId` and `metadata`. Give sibling providers a `scopeId` when their metadata does not tell them apart.
+:::warning
+Put a `<Suspense>` boundary for `useSuspenseService` inside the `ScopeProvider`, not around it. A boundary outside makes React discard and retry the provider, which starts a new scope on every attempt, so a request-scoped service never settles.
 :::
 
 ## Scope id and metadata
