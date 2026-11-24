@@ -227,6 +227,8 @@ class ServiceB {
 }
 ```
 
+Await the promise in a method, not in `onServiceInit()`. A service that awaits it while it is still initialising waits for the dependency; if the dependency injects the service back, that is a cycle again and both fail with `CircularDependency`.
+
 There is no other reason to prefer it over `inject()`.
 
 ## How a Class is Constructed

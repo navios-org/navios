@@ -130,12 +130,7 @@ describe('ScopeProvider', () => {
       expect(instanceCount).toBe(2)
     })
 
-    // This test is skipped because the DI package doesn't currently support
-    // concurrent access to request-scoped services from multiple components.
-    // When two components mount simultaneously and request the same request-scoped
-    // service, a race condition occurs in the DI's instance resolution.
-    // TODO: Fix in @navios/di by adding proper locking/deduplication for request-scoped services.
-    it.skip('should share instances within the same scope', async () => {
+    it('should share instances within the same scope', async () => {
       let instanceCount = 0
 
       @Injectable({ scope: InjectableScope.Request })

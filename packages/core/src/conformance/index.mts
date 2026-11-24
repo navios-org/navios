@@ -376,6 +376,46 @@ export function runAdapterConformance(options: ConformanceOptions): void {
     }
     registerController(EdgeController, { attributes: [Public()] })
 
+    // Declared with the param route first: matching must not depend on the
+    // order of registration.
+    const matched = (route: string) => (params: any) => ({
+      route,
+      urlParams: params.urlParams ?? {},
+    })
+    class PrecedenceController {
+      byId = handler(endpoint({ method: 'GET', url: '/reports/$id' }), matched('/reports/$id'))
+      export = handler(
+        endpoint({ method: 'GET', url: '/reports/export' }),
+        matched('/reports/export'),
+      )
+      detail = handler(
+        endpoint({ method: 'GET', url: '/reports/$id/detail' }),
+        matched('/reports/$id/detail'),
+      )
+      exportNamed = handler(
+        endpoint({ method: 'GET', url: '/reports/export/$name' }),
+        matched('/reports/export/$name'),
+      )
+      anyPair = handler(endpoint({ method: 'GET', url: '/pairs/$a/$b' }), matched('/pairs/$a/$b'))
+      secondFixed = handler(
+        endpoint({ method: 'GET', url: '/pairs/$a/fixed' }),
+        matched('/pairs/$a/fixed'),
+      )
+      firstFixed = handler(
+        endpoint({ method: 'GET', url: '/pairs/fixed/$b' }),
+        matched('/pairs/fixed/$b'),
+      )
+      paramThenStatic = handler(
+        endpoint({ method: 'GET', url: '/trees/$a/leaf' }),
+        matched('/trees/$a/leaf'),
+      )
+      staticBranch = handler(
+        endpoint({ method: 'GET', url: '/trees/oak/root' }),
+        matched('/trees/oak/root'),
+      )
+    }
+    registerController(PrecedenceController, { attributes: [Public()] })
+
     class MembersController {
       members = handler(
         endpoint({ method: 'GET', url: '/members/$id' }),
@@ -416,7 +456,7 @@ export function runAdapterConformance(options: ConformanceOptions): void {
 
     class AppModule {}
     registerModule(AppModule, {
-      controllers: [PublicController, EdgeController],
+      controllers: [PublicController, EdgeController, PrecedenceController],
       imports: [PrivateModule, MembersModule],
       prefix: '/api',
     })
@@ -598,6 +638,42 @@ export function runAdapterConformance(options: ConformanceOptions): void {
         context: { orgId: 'a b', id: '7' },
         query: { tag: ['x', 'y'] },
       })
+    })
+
+    it('prefers a static segment to a url param, whatever the order of registration', async () => {
+      const match = async (path: string) => (await fetch(url(path))).json()
+
+      expect(await match('/reports/export')).toEqual({ route: '/reports/export', urlParams: {} })
+      expect(await match('/reports/42')).toEqual({ route: '/reports/$id', urlParams: { id: '42' } })
+
+      // The first segment that differs decides.
+      expect(await match('/reports/export/detail')).toEqual({
+        route: '/reports/export/$name',
+        urlParams: { name: 'detail' },
+      })
+      expect(await match('/reports/42/detail')).toEqual({
+        route: '/reports/$id/detail',
+        urlParams: { id: '42' },
+      })
+      expect(await match('/pairs/fixed/fixed')).toEqual({
+        route: '/pairs/fixed/$b',
+        urlParams: { b: 'fixed' },
+      })
+      expect(await match('/pairs/x/fixed')).toEqual({
+        route: '/pairs/$a/fixed',
+        urlParams: { a: 'x' },
+      })
+      expect(await match('/pairs/x/y')).toEqual({
+        route: '/pairs/$a/$b',
+        urlParams: { a: 'x', b: 'y' },
+      })
+
+      // A static segment that leads nowhere falls back to the param route.
+      expect(await match('/trees/oak/leaf')).toEqual({
+        route: '/trees/$a/leaf',
+        urlParams: { a: 'oak' },
+      })
+      expect(await match('/trees/oak/root')).toEqual({ route: '/trees/oak/root', urlParams: {} })
     })
 
     it('parses multipart bodies into fields and files', async () => {

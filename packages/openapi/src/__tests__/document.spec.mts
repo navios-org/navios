@@ -218,6 +218,41 @@ describe('generateOpenApiDocument', () => {
     expect(list).not.toHaveProperty('security')
   })
 
+  it('writes the message of ApiDeprecated as x-deprecated-message', async () => {
+    @Controller()
+    class UsersController {
+      @ApiOperation({ description: 'By id' })
+      @ApiDeprecated('Use GET /v2/users/{userId}')
+      getUser = handler(getUser, () => ({ id: '1', name: 'Ann' }))
+
+      @ApiDeprecated()
+      listUsers = handler(listUsers, () => [])
+    }
+
+    @Module({ controllers: [UsersController], attributes: [ApiDeprecated('Use the v2 API')] })
+    class LegacyModule {}
+
+    const document = await documentOf([UsersController])
+    expect(operation(document, 'get', '/users/{userId}')).toMatchObject({
+      deprecated: true,
+      description: 'By id',
+      'x-deprecated-message': 'Use GET /v2/users/{userId}',
+    })
+    const list = operation(document, 'get', '/users')
+    expect(list.deprecated).toBe(true)
+    expect(list).not.toHaveProperty('x-deprecated-message')
+
+    // The most specific ApiDeprecated wins, message included.
+    const inherited = generateOpenApiDocument((await createAppFromModule(LegacyModule)).routes(), {
+      info: { title: 'T', version: '1' },
+      logger: silent,
+    })
+    expect(operation(inherited, 'get', '/users/{userId}')['x-deprecated-message']).toBe(
+      'Use GET /v2/users/{userId}',
+    )
+    expect(operation(inherited, 'get', '/users')).not.toHaveProperty('x-deprecated-message')
+  })
+
   describe('parameters', () => {
     it('describes path, query, header and cookie parameters', async () => {
       // The builder has no headers or cookies slot; core reads them from any

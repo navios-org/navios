@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Upload fields declared with `z.instanceof(File)` or `z.instanceof(Blob)` are described as binary strings; other custom schemas become unconstrained schemas instead of failing generation.
 - `headersSchema`, `cookiesSchema` and `urlParamsSchema` are documented as parameters.
 - Named schemas (`$defs`, for example Zod's `.meta({ id })`) are shared through `components.schemas`.
+- The message of `ApiDeprecated(message)` is written to the operation as the specification extension `x-deprecated-message`. It used to be stored and left out of the document.
 - Attributes work on modules, on `handler()` fields and in `handler(endpoint, { attributes: [...] }, fn)`. `ApiExclude`, `ApiSecurity` and `ApiDeprecated` on a controller or module apply to every handler below; `ApiTag` descriptions reach the document's tag list.
 
 ### Changed

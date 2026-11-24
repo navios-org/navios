@@ -67,6 +67,10 @@ The resolution engine was rewritten. See the [migration guide](./docs/migration.
 - A constructor no longer runs twice when a dependency was not created yet.
 - The value of a factory token is no longer shared across containers.
 - `optional()` no longer swallows errors thrown by a constructor.
+- Awaiting an `asyncInject()` promise while the requesting service is still initialising, in `onServiceInit()` or in an asynchronous factory, now counts as waiting for the dependency. When that dependency waits for the requester in turn, both fail with `DIError` `CircularDependency` and the path instead of hanging. Awaiting the promise later, in a method, still breaks the cycle.
+- A cycle found across asynchronous work is reported with the whole path instead of only the two services that closed it.
+- `Symbol.metadata` is defined when the package is loaded, from every entry point, if the runtime does not have it. Standard decorators compiled by `tsc` and run on Node.js no longer need a polyfill.
+- `UnitTestContainer` reports a token outside the providers list with a readable message. The code is still `FactoryNotFound`, and `context.name` is the token name.
 
 ### Performance
 

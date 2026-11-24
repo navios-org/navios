@@ -623,29 +623,36 @@ function unlink(entry: Entry): void {
   }
 }
 
-function reaches(from: Entry, to: Entry, seen: Set<Entry>): boolean {
+/**
+ * The chain of wait edges that leads from `from` to `to`, both included, or
+ * `null` when `from` does not wait for `to`.
+ */
+function waitPath(from: Entry, to: Entry, seen: Set<Entry>): Entry[] | null {
   if (from === to) {
-    return true
+    return [from]
   }
   if (from.waitingFor === null || seen.has(from)) {
-    return false
+    return null
   }
   seen.add(from)
   for (const next of from.waitingFor) {
-    if (reaches(next, to, seen)) {
-      return true
+    const rest = waitPath(next, to, seen)
+    if (rest !== null) {
+      rest.unshift(from)
+      return rest
     }
   }
-  return false
+  return null
 }
 
 function addWaitEdge(waiter: Entry, target: Entry): void {
-  if (reaches(target, waiter, new Set())) {
-    throw DIError.circularDependency([
-      waiter.token.toString(),
-      target.token.toString(),
-      waiter.token.toString(),
-    ])
+  const back = waitPath(target, waiter, new Set())
+  if (back !== null) {
+    const cycle = [waiter.token.toString()]
+    for (const entry of back) {
+      cycle.push(entry.token.toString())
+    }
+    throw DIError.circularDependency(cycle)
   }
   ;(waiter.waitingFor ??= new Set()).add(target)
 }
@@ -734,15 +741,75 @@ export function optionalImpl(raw: AnyInjectableType, rawArgs?: unknown): any {
   return injectImpl(raw, rawArgs)
 }
 
+/**
+ * The promise `asyncInject()` hands out. It reports when somebody subscribes
+ * to it, which is the only way to learn that the requester started to wait
+ * for the dependency. Promises derived from it are plain promises.
+ */
+class InjectionPromise<T> extends Promise<T> {
+  static override get [Symbol.species](): PromiseConstructor {
+    return Promise
+  }
+
+  onSubscribe: (() => void) | null = null
+
+  // A promise subclass has `then` anyway; this one only observes the call.
+  // eslint-disable-next-line unicorn/no-thenable
+  override then<A = T, B = never>(
+    onFulfilled?: ((value: T) => A | PromiseLike<A>) | null,
+    onRejected?: ((reason: any) => B | PromiseLike<B>) | null,
+  ): Promise<A | B> {
+    this.onSubscribe?.()
+    return super.then(onFulfilled, onRejected)
+  }
+}
+
 /** @internal */
 export function asyncInjectImpl(raw: AnyInjectableType, rawArgs?: unknown): Promise<any> {
   const frame = requireFrame('asyncInject')
   const host = frame.host
   const requester = frame.entry
   const owner = storedOwner(frame)
-  // Starts after the current construction has returned and adds no wait edge,
-  // so it can be used to break a cycle deliberately.
-  return Promise.resolve().then(() => {
+
+  // Asking for the dependency adds no wait edge, so it can be used to break a
+  // cycle deliberately. Waiting for it does: once the requester subscribes to
+  // the promise after its construction pass and before it is ready (in
+  // `onServiceInit()`, or in an asynchronous factory), it cannot become ready
+  // before the dependency. A dependency that waits for the requester in turn
+  // then closes a cycle, which is reported instead of left hanging.
+  let awaited = false
+  let target: Entry | null = null
+  let rejectCycle: (error: unknown) => void = noop
+
+  const waitsForTarget = () => {
+    if (
+      !awaited ||
+      target === null ||
+      target.status !== EntryStatus.Creating ||
+      requester.status !== EntryStatus.Creating
+    ) {
+      return
+    }
+    try {
+      addWaitEdge(requester, target)
+    } catch (error) {
+      rejectCycle(error)
+    }
+  }
+  const watch = (entry: Entry | null) => {
+    if (entry === null) {
+      if (target !== null) {
+        requester.waitingFor?.delete(target)
+        target = null
+      }
+      return
+    }
+    target = entry
+    waitsForTarget()
+  }
+
+  // Starts after the current construction has returned.
+  const work = Promise.resolve().then(() => {
     // Resolve synchronously first, so the dependency link exists one
     // microtask after the construction instead of whenever the dependency
     // finishes initialising.
@@ -758,11 +825,23 @@ export function asyncInjectImpl(raw: AnyInjectableType, rawArgs?: unknown): Prom
     const ready =
       !(first instanceof Wait) && first.status === EntryStatus.Ready
         ? first
-        : resolveAsync(host, raw, rawArgs)
+        : resolveAsync(host, raw, rawArgs, watch)
     return ready instanceof Promise
       ? ready.then((entry) => adopt(entry, linked ? (first as Entry) : null))
       : adopt(ready, linked ? ready : null)
   })
+
+  const promise = new InjectionPromise<any>((resolve, reject) => {
+    rejectCycle = reject
+    work.then(resolve, reject)
+  })
+  promise.onSubscribe = () => {
+    if (!awaited && current !== frame && requester.status === EntryStatus.Creating) {
+      awaited = true
+      waitsForTarget()
+    }
+  }
+  return promise
 
   function adopt(entry: Entry, alreadyLinked: Entry | null): unknown {
     if (entry.store === null) {
@@ -856,6 +935,8 @@ export async function resolveAsync(
   host: Host,
   raw: AnyInjectableType,
   rawArgs: unknown,
+  /** Told which entry is being waited for, and `null` when the wait is over. */
+  watch?: (waitingFor: Entry | null) => void,
 ): Promise<Entry> {
   for (;;) {
     const resolved = resolveTop(host, raw, rawArgs)
@@ -867,7 +948,16 @@ export async function resolveAsync(
       return resolved
     }
     if (resolved.status === EntryStatus.Creating) {
-      await resolved.promise
+      if (watch === undefined) {
+        await resolved.promise
+      } else {
+        watch(resolved)
+        try {
+          await resolved.promise
+        } finally {
+          watch(null)
+        }
+      }
       if ((resolved.status as number) === EntryStatus.Ready) {
         if (
           host.isScope &&

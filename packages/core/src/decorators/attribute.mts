@@ -50,6 +50,21 @@ function apply(token: symbol, value: unknown): AttributeApplication {
   return Object.assign(decorator, { token, value })
 }
 
+/**
+ * What reading an attribute needs of it. An attribute of either factory, the
+ * standard one or the one from `@navios/core/legacy-compat`, has this shape;
+ * what calling it returns differs between the two and does not matter here.
+ */
+interface ReadableAttribute {
+  readonly token: symbol
+  readonly schema?: undefined
+}
+
+interface ReadableSchemaAttribute<Schema extends StandardSchemaV1> {
+  readonly token: symbol
+  readonly schema: Schema
+}
+
 type AttributeSource = RouteInfo | { attributes: ReadonlyMap<symbol, unknown> }
 
 function layers(source: AttributeSource): ReadonlyMap<symbol, unknown>[] {
@@ -108,9 +123,9 @@ export class AttributeFactory {
    * The attribute's value on a route: the handler's, else the controller's,
    * else the module's. `null` when none has it.
    */
-  static get(attribute: ClassAttribute, source: AttributeSource): true | null
+  static get(attribute: ReadableAttribute, source: AttributeSource): true | null
   static get<Schema extends StandardSchemaV1>(
-    attribute: ClassSchemaAttribute<Schema>,
+    attribute: ReadableSchemaAttribute<Schema>,
     source: AttributeSource,
   ): InferOutput<Schema> | null
   static get(attribute: { token: symbol }, source: AttributeSource): unknown {
@@ -125,9 +140,9 @@ export class AttributeFactory {
   /**
    * Every value of the attribute on a route, most specific first.
    */
-  static getAll(attribute: ClassAttribute, source: AttributeSource): true[]
+  static getAll(attribute: ReadableAttribute, source: AttributeSource): true[]
   static getAll<Schema extends StandardSchemaV1>(
-    attribute: ClassSchemaAttribute<Schema>,
+    attribute: ReadableSchemaAttribute<Schema>,
     source: AttributeSource,
   ): InferOutput<Schema>[]
   static getAll(attribute: { token: symbol }, source: AttributeSource): unknown[] {

@@ -715,7 +715,7 @@ describe('UserService unit tests', () => {
 
 ## Legacy Decorator Support
 
-If you cannot use Stage 3 (native ES) decorators, for example in a TypeScript project that has `experimentalDecorators` enabled, with certain bundler configurations, or with Bun, use the legacy-compatible decorators:
+If your project keeps `experimentalDecorators: true`, for example an existing TypeScript codebase or a toolchain that only emits legacy decorators, use the legacy-compatible decorators. Projects that use standard (TC39 Stage 3) decorators, on Node.js toolchains or on Bun, which runs them natively, do not need this entry point:
 
 ```ts
 import { Container, inject } from '@navios/di'

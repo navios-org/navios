@@ -158,6 +158,7 @@ An endpoint declared with `body: 'multipart'` then receives text fields as strin
 Limitations:
 
 - Each file is read into memory before the handler runs. Set `limits.fileSize`.
+- A body over one of the `limits` (`fileSize`, `files`, `fields`, `parts`, `fieldSize`, `fieldNameSize`) is answered with a 413 `application/problem+json` response, and the handler does not run. `@fastify/multipart` would truncate a field over `fieldSize`; the adapter rejects it instead.
 - Without the `multipart` option, a multipart request is rejected by Fastify with 415.
 
 ## Request bodies

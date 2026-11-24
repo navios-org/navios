@@ -1,9 +1,13 @@
 /**
- * Legacy-compatible decorators for projects using TypeScript experimental decorators.
+ * Legacy-compatible decorators for projects that compile with TypeScript's
+ * `experimentalDecorators` option.
  *
- * Use this when you cannot use Stage 3 decorators (e.g., existing projects with
- * experimentalDecorators enabled, certain bundler configurations, or Bun).
+ * Use this when a project keeps `experimentalDecorators: true`, for example an
+ * existing codebase or a toolchain that only emits legacy decorators. Standard
+ * (TC39 Stage 3) decorators, which Node.js toolchains and Bun both support,
+ * use the main entry point instead.
  */
+import '../symbol-metadata.mjs'
 
 // Re-export decorator options types
 export type { InjectableOptions, FactoryOptions } from '../decorators/index.mjs'

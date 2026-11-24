@@ -130,7 +130,7 @@ On a class, place attributes above `@Controller` / `@Module`. Calling an attribu
 | `ApiTag(name, description?)`               | Adds a tag.                                                                              | Module, controller and handler, combined.         |
 | `ApiOperation({ ... })`                    | `summary`, `description`, `operationId`, `deprecated`, `externalDocs`.                   | Handler.                                          |
 | `ApiSummary(text)`                         | Shorthand for `ApiOperation({ summary })`; `ApiOperation`'s summary wins.                | Handler.                                          |
-| `ApiDeprecated(message?)`                  | Marks operations as deprecated.                                                          | The most specific of handler, controller, module. |
+| `ApiDeprecated(message?)`                  | Marks operations as deprecated. A message is written as `x-deprecated-message`.          | The most specific of handler, controller, module. |
 | `ApiSecurity({ scheme: scopes })`          | Security requirement.                                                                    | The most specific of handler, controller, module. |
 | `ApiExclude()`                             | Leaves operations out of the document.                                                   | Handler, controller or module.                    |
 | `ApiStream({ contentType, description? })` | Content type of a `stream`, `blob` or `text` response (for example `text/event-stream`). | Handler.                                          |

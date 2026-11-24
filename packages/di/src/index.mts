@@ -1,3 +1,5 @@
+import './symbol-metadata.mjs'
+
 export * from './container/index.mjs'
 export * from './decorators/index.mjs'
 export * from './enums/index.mjs'

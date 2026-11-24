@@ -13,6 +13,7 @@ import type {
   ScopedContainer,
 } from '@navios/di'
 
+import { getArgsKey } from './args-key.mjs'
 import { useContainer } from './use-container.mjs'
 
 // Cache entry for suspense
@@ -37,10 +38,6 @@ type AnyToken =
 // Tokens have no ids, so the token object itself (class, token, or the
 // Bound/Factory wrapper) is the identity.
 const cacheMap = new WeakMap<object, WeakMap<object, Map<string, CacheEntry<any>>>>()
-
-function getArgsKey(args: unknown): string {
-  return JSON.stringify(args) ?? ''
-}
 
 function getCache(container: object, token: object): Map<string, CacheEntry<any>> {
   let byToken = cacheMap.get(container)
@@ -115,22 +112,6 @@ export function useSuspenseService(
   const cache = getCache(container, token)
   const cacheKey = getArgsKey(args)
   const entryRef = useRef<CacheEntry<any> | null>(null)
-  if (process.env.NODE_ENV === 'development') {
-    const argsRef = useRef<unknown>(args)
-    useEffect(() => {
-      if (argsRef.current !== args) {
-        if (JSON.stringify(argsRef.current) === JSON.stringify(args)) {
-          console.warn(`useSuspenseService called with args that look the same but are different instances: ${JSON.stringify(argsRef.current)} !== ${JSON.stringify(args)}!
-This is likely because you are using a value that is not memoized.
-Please use a memoized value or use a different approach to pass the args.
-Example:
-  const args = useMemo(() => ({ userId: '123' }), [])
-  return useSuspenseService(UserToken, args)`)
-        }
-        argsRef.current = args
-      }
-    }, [args])
-  }
 
   // Initialize or get cache entry
   if (!cache.has(cacheKey)) {

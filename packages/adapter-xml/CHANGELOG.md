@@ -15,6 +15,7 @@ Ported to `@navios/core` 2.0 and `@navios/di` 2.0. See "Migrating from 1.x" in t
 - `xml(tree, options?)`: the value a handler returns from an endpoint declared with `response: 'text'`, `'stream'` or `'blob'`. It is a core `result('xml', ...)`. Options: `contentType`, `declaration`, `encoding`, `pretty`, `status`.
 - Components receive the `RequestContext`: function components as second argument, class components in `render(ctx)`. `renderToXml` takes it as the `ctx` option. `MissingContextError` is thrown when a component uses a context that was not given.
 - `Component()(TheClass)` registers a class component without decorator syntax.
+- `@navios/adapter-xml/jsx-runtime` and `/jsx-dev-runtime` export the `JSX` type namespace. With `jsx` and `jsxImportSource` set, lower-case tags such as `<rss>` type-check without `"types": ["@navios/adapter-xml/jsx"]`; they used to fail with TS7026.
 - `isXmlResponse`, `XML_RESULT_KIND`, and the types `XmlResponse`, `XmlPayload`, `FunctionComponent`, `FunctionComponentNode`, `XmlRenderable`, `XmlResponseOptions`, `XmlPluginOptions`, `ComponentOptions`.
 
 ### Changed

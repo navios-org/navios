@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { z } from 'zod'
 
 import { Injectable } from '../decorators/injectable.decorator.mjs'
+import { DIError, DIErrorCode } from '../errors/di-error.mjs'
 import { inject } from '../injectors.mjs'
 import { UnitTestContainer } from '../testing/unit-test-container.mjs'
 import { InjectionToken } from '../token/injection-token.mjs'
@@ -36,6 +37,27 @@ describe('UnitTestContainer', () => {
       })
 
       await expect(container.get(NotProvided)).rejects.toThrow(/not in the providers list/)
+
+      await container.dispose()
+    })
+
+    it('should report an unregistered service with a readable message', async () => {
+      @Injectable()
+      class NotProvided {}
+
+      const container = new UnitTestContainer({
+        providers: [],
+      })
+
+      const error = await container.get(NotProvided).catch((e) => e)
+      expect(error).toBeInstanceOf(DIError)
+      expect(error.code).toBe(DIErrorCode.FactoryNotFound)
+      expect(error.context).toEqual({ name: 'NotProvided' })
+      expect(error.message).toBe(
+        '[UnitTestContainer] NotProvided is not in the providers list. ' +
+          'Add it to providers, or set allowUnregistered: true to get an auto-mock for it.',
+      )
+      expect(() => container.getSync(NotProvided)).toThrow(error.message)
 
       await container.dispose()
     })
@@ -282,6 +304,27 @@ describe('UnitTestContainer', () => {
       expect(service).toBeDefined()
 
       container.expectAutoMocked(UnregisteredService)
+
+      await container.dispose()
+    })
+
+    it('should explain how to fix an access to an auto-mocked service', async () => {
+      @Injectable()
+      class AutoMocked {
+        doSomething(): void {}
+      }
+
+      const container = new UnitTestContainer({
+        providers: [],
+        allowUnregistered: true,
+      })
+
+      const service = (await container.get(AutoMocked)) as any
+      expect(() => service.doSomething()).toThrow(
+        "[UnitTestContainer] Attempted to access 'doSomething' on auto-mocked service 'AutoMocked'. " +
+          'This service is not in the providers list. ' +
+          'Add it to providers, or set allowUnregistered: false to fail as soon as it is requested.',
+      )
 
       await container.dispose()
     })

@@ -3,7 +3,13 @@ import { Readable } from 'node:stream'
 
 import cors from '@fastify/cors'
 import multipart from '@fastify/multipart'
-import { createMultipartCollector, problem, serializeCookie, ValidationError } from '@navios/core'
+import {
+  createMultipartCollector,
+  HttpException,
+  problem,
+  serializeCookie,
+  ValidationError,
+} from '@navios/core'
 import { fastify } from 'fastify'
 
 import type { FastifyCorsOptions } from '@fastify/cors'
@@ -147,15 +153,25 @@ class FastifyRouteInput implements RouteInput {
 
   private async readMultipart(): Promise<Record<string, unknown>> {
     const collector = createMultipartCollector(this.requestSchema)
-    for await (const part of (this.request as any).parts()) {
-      if (part.type === 'file') {
-        collector.add(
-          part.fieldname,
-          new File([await part.toBuffer()], part.filename, { type: part.mimetype }),
-        )
-      } else {
-        collector.add(part.fieldname, part.value as string)
+    try {
+      for await (const part of (this.request as any).parts()) {
+        if (part.type === 'file') {
+          collector.add(
+            part.fieldname,
+            new File([await part.toBuffer()], part.filename, { type: part.mimetype }),
+          )
+        } else {
+          if (part.fieldnameTruncated || part.valueTruncated) {
+            // `@fastify/multipart` cuts a field at `limits.fieldSize` (or its
+            // name at `limits.fieldNameSize`) and carries on. Half a value
+            // must not reach the handler.
+            throw new HttpException(413, 'request field too large')
+          }
+          collector.add(part.fieldname, part.value as string)
+        }
       }
+    } catch (error) {
+      throw toClientError(error)
     }
     return collector.result()
   }
@@ -184,6 +200,26 @@ class FastifyRouteInput implements RouteInput {
     }
     return this.abort.signal
   }
+}
+
+/**
+ * `@fastify/multipart` rejects a body over one of its `limits` (413), and
+ * other bodies a client got wrong, with a Fastify error that carries a 4xx
+ * status. The body is read inside the pipeline, where Fastify's error handler
+ * does not see it, so the error is turned into the same problem response here.
+ */
+function toClientError(error: unknown): unknown {
+  const { code, statusCode } = (error ?? {}) as { code?: unknown; statusCode?: unknown }
+  if (
+    typeof code === 'string' &&
+    code.startsWith('FST_') &&
+    typeof statusCode === 'number' &&
+    statusCode >= 400 &&
+    statusCode < 500
+  ) {
+    return new HttpException(statusCode, String((error as Error).message ?? ''), error)
+  }
+  return error
 }
 
 function toNodeBody(result: RouteResult): unknown | Promise<unknown> {

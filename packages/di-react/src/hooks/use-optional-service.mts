@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useReducer, useRef } from 'react'
+import { useCallback, useEffect, useMemo, useReducer, useRef } from 'react'
 
 import type {
   AnyInjectableType,
@@ -12,7 +12,15 @@ import type {
   MissingArgsError,
 } from '@navios/di'
 
+import { getArgsKey } from './args-key.mjs'
 import { useContainer } from './use-container.mjs'
+
+interface InitialSync {
+  container: object
+  token: object
+  argsKey: string
+  instance: unknown
+}
 
 type OptionalServiceState<T> =
   | { status: 'idle' }
@@ -144,44 +152,34 @@ export function useOptionalService(
   // useContainer returns ScopedContainer if inside ScopeProvider, otherwise Container
   const container = useContainer()
 
+  // Args that serialize the same are the same args: an object literal in the
+  // call must not restart the hook on every render.
+  const argsKey = getArgsKey(args)
+  // oxlint-disable-next-line react-hooks/exhaustive-deps
+  const stableArgs = useMemo(() => args, [argsKey])
+
   // Try to get the instance synchronously first for better performance
   // This avoids the async loading state when the instance is already cached
-  // We use a ref to track this so it doesn't cause effect re-runs
-  const initialSyncInstanceRef = useRef<any>(null)
-  const isFirstRenderRef = useRef(true)
+  // The ref remembers what it was read for, so the shortcut is only taken for
+  // that container, token and args.
+  const initialSyncRef = useRef<InitialSync | null | undefined>(undefined)
 
-  if (isFirstRenderRef.current) {
+  if (initialSyncRef.current === undefined) {
+    let instance: unknown = null
     try {
-      initialSyncInstanceRef.current = container.tryGetSync(token, args)
+      instance = container.tryGetSync(token, args)
     } catch {
       // Service not registered, leave as null
     }
-    isFirstRenderRef.current = false
+    initialSyncRef.current = instance === null ? null : { container, token, argsKey, instance }
   }
 
   const initialState: OptionalServiceState<any> =
-    initialSyncInstanceRef.current !== null
-      ? { status: 'success', data: initialSyncInstanceRef.current }
+    initialSyncRef.current !== null
+      ? { status: 'success', data: initialSyncRef.current.instance }
       : { status: 'idle' }
 
   const [state, dispatch] = useReducer(optionalServiceReducer, initialState)
-
-  if (process.env.NODE_ENV === 'development') {
-    const argsRef = useRef<unknown>(args)
-    useEffect(() => {
-      if (argsRef.current !== args) {
-        if (JSON.stringify(argsRef.current) === JSON.stringify(args)) {
-          console.warn(`useOptionalService called with args that look the same but are different instances: ${JSON.stringify(argsRef.current)} !== ${JSON.stringify(args)}!
-This is likely because you are using a value that is not memoized.
-Please use a memoized value or use a different approach to pass the args.
-Example:
-  const args = useMemo(() => ({ userId: '123' }), [])
-  return useOptionalService(UserToken, args)`)
-        }
-        argsRef.current = args
-      }
-    }, [args])
-  }
 
   // Resolves to true when the service was loaded
   const fetchService = useCallback(async (): Promise<boolean> => {
@@ -191,7 +189,7 @@ Example:
       const instance = await container.get(
         // @ts-expect-error - token is valid
         token as AnyInjectableType,
-        args as any,
+        stableArgs as any,
       )
       dispatch({ type: 'success', data: instance })
       return true
@@ -210,7 +208,7 @@ Example:
       }
       return false
     }
-  }, [container, token, args])
+  }, [container, token, stableArgs])
 
   // Subscribe to invalidation events
   useEffect(() => {
@@ -219,17 +217,34 @@ Example:
 
     const subscribe = () => {
       if (unsubscribe || !isMounted) return
-      unsubscribe = container.onInvalidate(token, args, () => {
+      unsubscribe = container.onInvalidate(token, stableArgs, () => {
         // Re-fetch when the service is invalidated
-        void fetchService()
+        dispatch({ type: 'loading' })
+        // The listener runs in the middle of the invalidation. When a
+        // dependency is what was invalidated, it is still being destroyed at
+        // this point, and resolving now makes the container construct the
+        // service, throw that away and construct it again. One microtask later
+        // the synchronous part of the invalidation is over.
+        queueMicrotask(() => {
+          if (isMounted) {
+            void fetchService()
+          }
+        })
       })
     }
 
-    // If we already have a sync instance from initial render, just set up subscription
-    // Otherwise, fetch async
-    if (initialSyncInstanceRef.current !== null) {
+    // If the instance read during the first render is still the one asked
+    // for, just set up the subscription. Otherwise, fetch async.
+    const initial = initialSyncRef.current
+    if (
+      initial != null &&
+      initial.container === container &&
+      initial.token === token &&
+      initial.argsKey === argsKey
+    ) {
       subscribe()
     } else {
+      initialSyncRef.current = null
       void fetchService().then((loaded) => {
         if (loaded) {
           subscribe()
@@ -241,7 +256,7 @@ Example:
       isMounted = false
       unsubscribe?.()
     }
-  }, [fetchService, container, token, args])
+  }, [fetchService, container, token, stableArgs, argsKey])
 
   return {
     data: state.status === 'success' ? state.data : undefined,

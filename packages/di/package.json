@@ -11,7 +11,10 @@
     "url": "https://github.com/Arilas/navios.git",
     "directory": "packages/di"
   },
-  "sideEffects": false,
+  "sideEffects": [
+    "./src/symbol-metadata.mts",
+    "./lib/symbol-metadata-*"
+  ],
   "main": "./lib/index.cjs",
   "module": "./lib/index.mjs",
   "typings": "./lib/index.d.mts",

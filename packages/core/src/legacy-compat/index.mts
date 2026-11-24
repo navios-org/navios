@@ -1,6 +1,7 @@
 /**
- * Decorators for projects that compile with `experimentalDecorators`
- * (TypeScript legacy decorators), for example under Bun.
+ * Decorators for projects that keep `experimentalDecorators: true`
+ * (TypeScript legacy decorators). Projects that use standard decorators,
+ * including under Bun, use the main entry point instead.
  *
  * Each one adapts the legacy decorator signature and calls the same
  * implementation as the standard decorator of the same name, so behaviour is

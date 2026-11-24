@@ -33,6 +33,10 @@ yarn add @navios/adapter-xml
 }
 ```
 
+These two options are enough. The JSX types, including the ones for lower-case tags such as `<rss>`, are exported by `@navios/adapter-xml/jsx-runtime`, which TypeScript loads through `jsxImportSource`; no `types` entry is needed.
+
+`@navios/adapter-xml/jsx` still declares the same types as a global `JSX` namespace, for a setup that does not use `jsxImportSource`: `"types": ["@navios/adapter-xml/jsx"]`.
+
 ### Plugin
 
 ```ts

@@ -6,7 +6,7 @@ React integration for `@navios/di` dependency injection container. Provides a se
 
 - **🎯 Type-Safe**: Full TypeScript support with compile-time type checking
 - **🎨 Flexible API**: Support for classes, injection tokens, and factory tokens
-- **⚙️ Zod Integration**: Type-safe arguments with Zod schema validation
+- **⚙️ Schema-Validated Arguments**: Type-safe arguments for tokens with any [Standard Schema](https://standardschema.dev) (Zod, Valibot, ArkType, ...)
 - **🔄 Automatic Invalidation**: Services automatically re-fetch when invalidated
 - **⚡ React Suspense Support**: Use `useSuspenseService` with React Suspense for declarative loading
 - **🔌 Request Scopes**: Isolate services per request/component tree with `ScopeProvider`
@@ -52,14 +52,16 @@ import { useService } from '@navios/di-react'
 import { MyService } from './services/my-service'
 
 function MyComponent() {
-  const { data, isLoading, isError, error } = useService(MyService)
+  const { data, error } = useService(MyService)
 
-  if (isLoading) return <div>Loading...</div>
-  if (isError) return <div>Error: {error?.message}</div>
+  if (error) return <div>Error: {error.message}</div>
+  if (!data) return <div>Loading...</div>
 
   return <div>{data.someValue}</div>
 }
 ```
+
+`data` is `MyService | undefined`: it is `undefined` until the instance is ready, so check it before use.
 
 ## Core Concepts
 
@@ -111,6 +113,8 @@ function Table({ rows }) {
 }
 ```
 
+The metadata key `scopeId` is reserved: it always holds the scope ID, so a `scopeId` entry in `metadata` is overwritten.
+
 ## Hooks
 
 ### useContainer
@@ -161,10 +165,10 @@ import { useService } from '@navios/di-react'
 import { MyService } from './services/my-service'
 
 function MyComponent() {
-  const { data, isLoading, isError, error, refetch } = useService(MyService)
+  const { data, error, refetch } = useService(MyService)
 
-  if (isLoading) return <div>Loading...</div>
-  if (isError) return <div>Error: {error?.message}</div>
+  if (error) return <div>Error: {error.message}</div>
+  if (!data) return <div>Loading...</div>
 
   return (
     <div>
@@ -180,7 +184,6 @@ function MyComponent() {
 ```tsx
 import { InjectionToken } from '@navios/di'
 import { useService } from '@navios/di-react'
-import { useMemo } from 'react'
 import { z } from 'zod'
 
 const UserSchema = z.object({ userId: z.string() })
@@ -190,17 +193,17 @@ const UserToken = InjectionToken.create<{ userId: string; name: string }, typeof
 )
 
 function UserProfile({ userId }: { userId: string }) {
-  // Important: Memoize args to avoid unnecessary re-fetches
-  const args = useMemo(() => ({ userId }), [userId])
-  const { data: user, isLoading } = useService(UserToken, args)
+  const { data: user } = useService(UserToken, { userId })
 
-  if (isLoading) return <div>Loading...</div>
+  if (!user) return <div>Loading...</div>
 
   return <div>{user.name}</div>
 }
 ```
 
-**Important**: Always memoize arguments passed to `useService` to prevent unnecessary re-fetches. The hook uses reference equality to determine if arguments have changed.
+The token's schema can be any Standard Schema, not only Zod. The arguments are typed as `InferInput<S>`, the input type of that schema.
+
+Arguments are compared by their JSON form, so an object written inline does not need `useMemo`: the hook resolves again only when the serialized value changes.
 
 ### useSuspenseService
 
@@ -265,13 +268,13 @@ This is useful for:
 import { useOptionalService } from '@navios/di-react'
 
 function Analytics() {
-  const { data: analytics, isNotFound, isLoading } = useOptionalService(AnalyticsService)
+  const { data: analytics, isNotFound } = useOptionalService(AnalyticsService)
 
-  if (isLoading) return null
   if (isNotFound) {
     // Analytics service not configured, skip tracking
     return null
   }
+  if (!analytics) return null // still loading
 
   return <AnalyticsTracker service={analytics} />
 }
@@ -418,7 +421,7 @@ function UserList() {
 
   return (
     <div>
-      {users.map((user) => (
+      {users?.map((user) => (
         <UserItem key={user.id} user={user} />
       ))}
       <button onClick={handleCreateUser}>Add User</button>
@@ -429,32 +432,17 @@ function UserList() {
 
 ## Best Practices
 
-### 1. Memoize Arguments
+### 1. Pass Arguments as Plain Data
 
-Always memoize arguments passed to hooks that accept them:
+Hooks compare arguments by their JSON form, so inline objects are fine and `useMemo` is not needed:
 
 ```tsx
-// ✅ Good
-const args = useMemo(() => ({ userId }), [userId])
-const { data } = useService(UserToken, args)
-
-// ❌ Bad - causes unnecessary re-fetches
 const { data } = useService(UserToken, { userId })
 ```
 
-### 2. Stable Container Reference
+Keep the arguments to plain, JSON-serializable data. Two values that serialize the same (for example two different functions or class instances) are treated as unchanged.
 
-Keep your container reference stable:
-
-```tsx
-// ✅ Good
-const container = useMemo(() => new Container(), [])
-
-// ❌ Bad - creates new container on every render
-const container = new Container()
-```
-
-### 3. Use Error Boundaries with Suspense
+### 2. Use Error Boundaries with Suspense
 
 When using `useSuspenseService`, always wrap with an error boundary:
 
@@ -466,7 +454,7 @@ When using `useSuspenseService`, always wrap with an error boundary:
 </ErrorBoundary>
 ```
 
-### 4. Scope Isolation
+### 3. Scope Isolation
 
 Use `ScopeProvider` when you need isolated service instances:
 
@@ -481,7 +469,7 @@ Use `ScopeProvider` when you need isolated service instances:
 }
 ```
 
-### 5. Optional Services for Feature Flags
+### 4. Optional Services for Feature Flags
 
 Use `useOptionalService` for conditionally available services:
 
@@ -509,13 +497,13 @@ function FeatureComponent() {
 | Prop       | Type                       | Description                                                                | Default     |
 | ---------- | -------------------------- | -------------------------------------------------------------------------- | ----------- |
 | `scopeId`  | `string?`                  | Optional explicit scope ID. If not provided, a unique ID will be generated | `undefined` |
-| `metadata` | `Record<string, unknown>?` | Optional metadata to attach to the request context                         | `undefined` |
+| `metadata` | `Record<string, unknown>?` | Optional metadata to attach to the scope. The key `scopeId` is reserved    | `undefined` |
 | `children` | `ReactNode`                | Child components                                                           | -           |
 
 ### useContainer
 
 ```ts
-function useContainer(): IContainer
+function useContainer(): Container | ScopedContainer
 ```
 
 Returns the container from context. Returns `ScopedContainer` if inside a `ScopeProvider`, otherwise returns the root `Container`. Throws if used outside of `ContainerProvider`.
@@ -644,17 +632,16 @@ Make sure your component is wrapped with `ContainerProvider`:
 </ContainerProvider>
 ```
 
-### Service re-fetches on every render
+### Service does not update when arguments change
 
-This usually happens when arguments are not memoized:
+Arguments are compared by their JSON form. A change JSON cannot see (a different function, class instance, `Map` or `Set`) is not a change for the hook. Pass plain data that identifies the instance:
 
 ```tsx
-// ❌ Bad - creates new object on every render
-const { data } = useService(UserToken, { userId })
+// ❌ Bad - a different formatter instance is not seen as a change
+const { data } = useService(ReportToken, { formatter })
 
-// ✅ Good - stable reference
-const args = useMemo(() => ({ userId }), [userId])
-const { data } = useService(UserToken, args)
+// ✅ Good - plain data
+const { data } = useService(ReportToken, { locale: formatter.locale })
 ```
 
 ### useSuspenseService throws errors

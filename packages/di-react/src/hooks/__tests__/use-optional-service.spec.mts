@@ -1,5 +1,5 @@
-import { Container, Injectable, InjectionToken } from '@navios/di'
-import { render, screen, waitFor } from '@testing-library/react'
+import { Container, inject, Injectable, InjectionToken } from '@navios/di'
+import { act, render, screen, waitFor } from '@testing-library/react'
 import { createElement, useMemo } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { z } from 'zod/v4'
@@ -176,6 +176,141 @@ describe('useOptionalService', () => {
         // Either not-found or error is acceptable for unregistered tokens
         expect(notFound || error).toBeTruthy()
       })
+    })
+  })
+
+  describe('with inline args', () => {
+    const defineUser = () => {
+      const UserSchema = z.object({ userId: z.string() })
+      const UserToken = InjectionToken.create<{ userId: string }, typeof UserSchema>(
+        'User',
+        UserSchema,
+      )
+      const log = { constructed: 0, renders: 0 }
+
+      @Injectable({ token: UserToken })
+      class _UserService {
+        public userId: string
+
+        constructor(args: z.infer<typeof UserSchema>) {
+          log.constructed++
+          this.userId = args.userId
+        }
+      }
+
+      function TestComponent({ userId }: { userId: string }) {
+        if (++log.renders > 200) {
+          throw new Error('useOptionalService never settled')
+        }
+        const { data } = useOptionalService(UserToken, { userId })
+
+        return createElement('div', { 'data-testid': 'result' }, data ? data.userId : 'loading')
+      }
+
+      return { UserToken, log, TestComponent }
+    }
+
+    it('should settle when args are a new object on every render', async () => {
+      const { log, TestComponent } = defineUser()
+
+      render(createWrapper(createElement(TestComponent, { userId: '123' })))
+
+      await waitFor(() => {
+        expect(screen.getByTestId('result').textContent).toBe('123')
+      })
+
+      // Let any further render loop show itself
+      const settledAt = log.renders
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 20))
+      })
+
+      expect(log.renders).toBe(settledAt)
+      expect(log.renders).toBeLessThan(10)
+      expect(log.constructed).toBe(1)
+    })
+
+    it('should resolve again when the args change', async () => {
+      const { log, TestComponent } = defineUser()
+
+      const { rerender } = render(createWrapper(createElement(TestComponent, { userId: '1' })))
+
+      await waitFor(() => {
+        expect(screen.getByTestId('result').textContent).toBe('1')
+      })
+
+      rerender(createWrapper(createElement(TestComponent, { userId: '2' })))
+
+      await waitFor(() => {
+        expect(screen.getByTestId('result').textContent).toBe('2')
+      })
+      expect(log.constructed).toBe(2)
+    })
+
+    it('should resolve again when the args of an already resolved instance change', async () => {
+      const { UserToken, TestComponent } = defineUser()
+
+      // Both instances exist before the hook mounts, so it reads them synchronously
+      await container.get(UserToken, { userId: '1' })
+      await container.get(UserToken, { userId: '2' })
+
+      const { rerender } = render(createWrapper(createElement(TestComponent, { userId: '1' })))
+      expect(screen.getByTestId('result').textContent).toBe('1')
+
+      rerender(createWrapper(createElement(TestComponent, { userId: '2' })))
+      await waitFor(() => {
+        expect(screen.getByTestId('result').textContent).toBe('2')
+      })
+
+      rerender(createWrapper(createElement(TestComponent, { userId: '1' })))
+      await waitFor(() => {
+        expect(screen.getByTestId('result').textContent).toBe('1')
+      })
+    })
+  })
+
+  describe('service invalidation', () => {
+    it('should construct a dependent once when its dependency is invalidated', async () => {
+      const log = { dependency: 0, dependent: 0 }
+
+      @Injectable()
+      class Dependency {
+        readonly id = ++log.dependency
+      }
+
+      @Injectable()
+      class Dependent {
+        readonly dependency = inject(Dependency)
+        readonly id = ++log.dependent
+      }
+
+      let current: Dependent | undefined
+
+      function TestComponent() {
+        const { data } = useOptionalService(Dependent)
+        current = data
+
+        return createElement('div', { 'data-testid': 'result' }, data ? data.dependency.id : '-')
+      }
+
+      render(createWrapper(createElement(TestComponent)))
+
+      await waitFor(() => {
+        expect(screen.getByTestId('result').textContent).toBe('1')
+      })
+
+      await act(async () => {
+        await container.invalidate(current!.dependency)
+      })
+
+      await waitFor(() => {
+        expect(screen.getByTestId('result').textContent).toBe('2')
+      })
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 20))
+      })
+
+      expect(log).toEqual({ dependency: 2, dependent: 2 })
     })
   })
 

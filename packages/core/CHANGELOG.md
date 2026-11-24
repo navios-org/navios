@@ -82,6 +82,8 @@ The request pipeline, the application class and the adapter contract are rewritt
 - **`app.close()` disposes the container**, so `onServiceDestroy` hooks run.
 - **Declaring the same method and path twice is an error at `init()`** that names both handlers.
 - **Importing a module no longer changes another application's guards.**
+- **The in-memory adapter prefers a static segment to a URL parameter**, as the Fastify and Bun adapters do. It used to take the first route registered that matched, so with `/users/$userId` declared before `/users/export`, `GET /users/export` reached the param route in tests and the static route in production. The conformance suite now covers route precedence.
+- **`AttributeFactory.get` and `getAll` accept attributes created with the `AttributeFactory` of `@navios/core/legacy-compat`.** They were typed for the standard factory's attributes only and failed with TS2769.
 
 ### Performance
 

@@ -1,5 +1,5 @@
 import { Container } from '../container/container.mjs'
-import { DIError } from '../errors/index.mjs'
+import { DIError, DIErrorCode } from '../errors/index.mjs'
 import { InjectableTokenMeta } from '../symbols/index.mjs'
 import { BoundInjectionToken, InjectionToken } from '../token/injection-token.mjs'
 import { findInjectableToken, provide } from '../token/provider.mjs'
@@ -95,8 +95,8 @@ function createAutoMockProxy(tokenId: string): object {
         }
         throw new Error(
           `[UnitTestContainer] Attempted to access '${prop}' on auto-mocked service '${tokenId}'. ` +
-            `This service was not provided in the providers list. ` +
-            `Add it to providers or use allowUnregistered: false to catch this earlier.`,
+            `This service is not in the providers list. ` +
+            `Add it to providers, or set allowUnregistered: false to fail as soon as it is requested.`,
         )
       },
     },
@@ -458,9 +458,12 @@ export class UnitTestContainer extends Container {
       return undefined
     }
     if (!this.allowUnregistered) {
-      throw DIError.factoryNotFound(
-        `${token.toString()} is not in the providers list. ` +
-          `Add it to providers or enable allowUnregistered.`,
+      const name = token.toString()
+      throw new DIError(
+        DIErrorCode.FactoryNotFound,
+        `[UnitTestContainer] ${name} is not in the providers list. ` +
+          `Add it to providers, or set allowUnregistered: true to get an auto-mock for it.`,
+        { name },
       )
     }
     this.autoMockedTokens.add(token)
