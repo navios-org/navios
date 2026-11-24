@@ -115,18 +115,6 @@ function Table({ rows }) {
 
 The metadata key `scopeId` is reserved: it always holds the scope ID, so a `scopeId` entry in `metadata` is overwritten.
 
-A `<Suspense>` boundary can sit inside or outside the provider. While a child suspends under a boundary outside, React throws the unfinished provider away and mounts it again on every attempt; the provider picks up the scope of the earlier attempt, so `useSuspenseService` resolves a request-scoped service once:
-
-```tsx
-<Suspense fallback={<Spinner />}>
-  <ScopeProvider>
-    <Editor /> {/* useSuspenseService(Draft) */}
-  </ScopeProvider>
-</Suspense>
-```
-
-The earlier scope is recognised by its `scopeId` and `metadata` (plain objects and arrays compare by content, other values by identity). Give sibling providers a `scopeId`, as in the table above, when their metadata does not tell them apart. A scope whose render never commits is disposed by the provider commits that follow, or when the `ContainerProvider` unmounts.
-
 ## Hooks
 
 ### useContainer
