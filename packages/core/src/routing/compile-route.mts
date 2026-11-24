@@ -6,6 +6,7 @@ import type { ContextHost } from '../context/request-context.mjs'
 import type { ErrorPipeline } from '../errors/error-pipeline.mjs'
 
 import { isEndpointReply } from './reply.mjs'
+import { encodeSseStream, isSseStream } from './sse.mjs'
 import { validateSchema } from './validation.mjs'
 
 import type {
@@ -243,8 +244,20 @@ function compileFinalizer(
   }
 
   if (kind !== 'json') {
-    return (value) =>
-      isEndpointReply(value) ? fromReply(value) : { status: 200, body: value, kind }
+    return (value) => {
+      if (isEndpointReply(value)) {
+        return fromReply(value)
+      }
+      if (isSseStream(value)) {
+        return {
+          status: 200,
+          headers: { 'cache-control': 'no-cache', 'x-accel-buffering': 'no' },
+          body: encodeSseStream(value),
+          kind: 'sse',
+        }
+      }
+      return { status: 200, body: value, kind }
+    }
   }
 
   if (responseSchema !== undefined && validate) {

@@ -3,6 +3,7 @@ import type { InferInput, StandardSchemaV1 } from '@navios/di'
 
 import type { RequestContext } from '../context/request-context.mjs'
 import type { EndpointReply } from '../routing/reply.mjs'
+import type { SseStream } from '../routing/sse.mjs'
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -31,7 +32,7 @@ type SuccessReturnOf<Config> = Config extends { response: 'void' }
   : Config extends { responses: infer Responses extends Record<number, StandardSchemaV1 | null> }
     ? RepliesOf<Responses>
     : Config extends { response: 'stream' }
-      ? ReadableStream | AsyncIterable<unknown>
+      ? ReadableStream | AsyncIterable<unknown> | SseStream
       : Config extends { response: 'text' }
         ? string | ReadableStream | AsyncIterable<unknown>
         : Config extends { response: 'blob' }
