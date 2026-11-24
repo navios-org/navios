@@ -369,7 +369,7 @@ export class SQSClient implements QueueClient, OnServiceInit, OnServiceDestroy {
             }
           }
         }
-      } catch (error) {
+      } catch {
         if (signal.aborted) break
         // Wait before retrying on error
         await new Promise((resolve) => setTimeout(resolve, 5000))

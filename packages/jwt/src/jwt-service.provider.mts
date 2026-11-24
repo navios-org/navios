@@ -1,6 +1,6 @@
 import { InjectionToken } from '@navios/core'
 
-import type { BoundInjectionToken, FactoryInjectionToken } from '@navios/core'
+import type { BoundInjectionToken, FactoryContext, FactoryInjectionToken } from '@navios/core'
 
 import { JwtService, JwtServiceToken } from './jwt.service.mjs'
 import { JwtServiceOptionsSchema } from './options/jwt-service.options.mjs'
@@ -35,19 +35,21 @@ export function provideJwtService(
   config: JwtServiceOptions,
 ): BoundInjectionToken<JwtService, typeof JwtServiceOptionsSchema>
 /**
- * Creates a JWT service provider with async configuration factory.
+ * Creates a JWT service provider with a configuration factory.
  *
- * Use this overload when you need to load configuration asynchronously, such as
- * fetching secrets from a configuration service or environment variables.
+ * Use this overload when the configuration comes from another service, such as
+ * a configuration service or a secret store. The factory receives a
+ * `FactoryContext`; resolve dependencies with `ctx.inject()`. It runs once per
+ * container, the first time the service is resolved.
  *
- * @param config - Async factory function that returns JWT service configuration
- * @returns A factory injection token that resolves configuration asynchronously
+ * @param config - Factory function (sync or async) that returns JWT service configuration
+ * @returns A factory injection token that resolves the configuration lazily
  *
  * @example
  * ```ts
- * // Async configuration
- * const JwtService = provideJwtService(async () => {
- *   const configService = await inject(ConfigService)
+ * // Configuration from another service
+ * const JwtService = provideJwtService(async (ctx) => {
+ *   const configService = await ctx.inject(ConfigService)
  *   return {
  *     secret: configService.jwt.secret,
  *     signOptions: { expiresIn: configService.jwt.expiresIn },
@@ -61,10 +63,12 @@ export function provideJwtService(
  * ```
  */
 export function provideJwtService(
-  config: () => Promise<JwtServiceOptions>,
+  config: (ctx: FactoryContext) => Promise<JwtServiceOptions> | JwtServiceOptions,
 ): FactoryInjectionToken<JwtService, typeof JwtServiceOptionsSchema>
 export function provideJwtService(
-  config: JwtServiceOptions | (() => Promise<JwtServiceOptions>),
+  config:
+    | JwtServiceOptions
+    | ((ctx: FactoryContext) => Promise<JwtServiceOptions> | JwtServiceOptions),
 ):
   | BoundInjectionToken<JwtService, typeof JwtServiceOptionsSchema>
   | FactoryInjectionToken<JwtService, typeof JwtServiceOptionsSchema> {

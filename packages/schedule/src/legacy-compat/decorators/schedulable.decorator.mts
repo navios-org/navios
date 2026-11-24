@@ -1,19 +1,11 @@
-import { createClassContext } from '@navios/core/legacy-compat'
-
-import type { ClassType, Registry } from '@navios/core'
+import type { ClassType } from '@navios/core'
 
 import { Schedulable as OriginalSchedulable } from '../../decorators/schedulable.decorator.mjs'
+import { createClassContext } from '../context-compat.mjs'
 
-/**
- * Options for the Schedulable decorator.
- */
-export interface SchedulableOptions {
-  /**
-   * The registry to register the service with.
-   * If not provided, the global registry will be used.
-   */
-  registry?: Registry
-}
+import type { SchedulableOptions } from '../../decorators/schedulable.decorator.mjs'
+
+export type { SchedulableOptions }
 
 /**
  * Legacy-compatible Schedulable decorator.
@@ -21,7 +13,7 @@ export interface SchedulableOptions {
  * Works with TypeScript experimental decorators (legacy API).
  * Marks a class as schedulable and makes it injectable.
  *
- * @param options - Optional configuration including the registry to use
+ * @param options - Optional configuration: the DI scope of the class
  * @returns A class decorator compatible with legacy decorator API
  *
  * @example
@@ -39,7 +31,7 @@ export interface SchedulableOptions {
  * ```
  */
 export function Schedulable(options: SchedulableOptions = {}) {
-  return function (target: ClassType) {
+  return function <T extends ClassType>(target: T): T {
     const context = createClassContext(target)
     const originalDecorator = OriginalSchedulable(options)
     return originalDecorator(target, context)

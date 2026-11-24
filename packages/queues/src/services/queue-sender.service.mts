@@ -1,14 +1,14 @@
-import { inject, Injectable, InjectionToken } from '@navios/di'
+import { inject, InjectionToken, registerInjectable } from '@navios/di'
 import { z } from 'zod/v4'
 
 import { QueueClientToken } from '../tokens/queue-client.token.mjs'
-import { pointToPointMessageConfigSchema } from '../types/message-config.mjs'
+import { pointToPointMessageDefinitionSchema } from '../types/message-config.mjs'
 
 import type { QueueClient } from '../interfaces/queue-client.mjs'
 import type { BaseMessageConfig, MessageDefinition } from '../types/message-config.mjs'
 
 export const queueSenderOptionsSchema = z.object({
-  messageDef: pointToPointMessageConfigSchema,
+  messageDef: pointToPointMessageDefinitionSchema,
   name: z.string().default('default'),
 })
 
@@ -40,7 +40,6 @@ export const QueueSenderToken = InjectionToken.create<
  * }
  * ```
  */
-@Injectable({ token: QueueSenderToken })
 export class QueueSender<
   MessageDef extends MessageDefinition<
     'point-to-point',
@@ -76,3 +75,5 @@ export class QueueSender<
     await this.queueClient.send(queue, validatedPayload)
   }
 }
+
+registerInjectable(QueueSender, { token: QueueSenderToken })

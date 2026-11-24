@@ -32,7 +32,12 @@ import type { Guard, Interceptor } from '../routing/compile-route.mjs'
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-export { Factory, Injectable } from '@navios/di/legacy-compat'
+export {
+  createClassContext,
+  createMethodContext,
+  Factory,
+  Injectable,
+} from '@navios/di/legacy-compat'
 export type { ControllerOptions, ModuleOptions }
 
 type StandardDecorator = (target: any, context: any) => any
