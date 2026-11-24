@@ -17,10 +17,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Upload fields declared with `z.instanceof(File)` or `z.instanceof(Blob)` are described as binary strings; other custom schemas become unconstrained schemas instead of failing generation.
 - `headersSchema`, `cookiesSchema` and `urlParamsSchema` are documented as parameters.
 - Named schemas (`$defs`, for example Zod's `.meta({ id })`) are shared through `components.schemas`.
+- The message of `ApiDeprecated(message)` is written to the operation as the specification extension `x-deprecated-message`. It used to be stored and left out of the document.
 - Attributes work on modules, on `handler()` fields and in `handler(endpoint, { attributes: [...] }, fn)`. `ApiExclude`, `ApiSecurity` and `ApiDeprecated` on a controller or module apply to every handler below; `ApiTag` descriptions reach the document's tag list.
 
 ### Changed
 
+- Type tests are type-checked: Vitest's typecheck ran `tsc` with `tsconfig.lib.json`, which excludes `*.spec-d.mts`. It now uses `tsconfig.typecheck.json`.
 - **Breaking:** requires `@navios/core` 2.0. Routes are read from `RouteInfo` instead of module and controller metadata.
 - **Breaking:** documented paths are full route paths (global and module prefixes included). `servers` is no longer filled from the global prefix.
 - **Breaking:** the routes serving the document get the application's global prefix on every adapter.

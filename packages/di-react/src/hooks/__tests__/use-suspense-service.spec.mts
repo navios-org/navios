@@ -1,4 +1,4 @@
-import { Container, Injectable, InjectionToken } from '@navios/di'
+import { Container, inject, Injectable, InjectionToken } from '@navios/di'
 import { act, render, screen, waitFor } from '@testing-library/react'
 import { createElement, Suspense, useMemo } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -197,6 +197,55 @@ describe('useSuspenseService', () => {
   describe('service invalidation', () => {
     // Skip this test - invalidation with suspense cache is complex to test
     // The functionality is tested in useService tests
+    it('should construct a dependent once when its dependency is invalidated', async () => {
+      const log = { dependency: 0, dependent: 0 }
+
+      @Injectable()
+      class Dependency {
+        readonly id = ++log.dependency
+      }
+
+      @Injectable()
+      class Dependent {
+        readonly dependency = inject(Dependency)
+        readonly id = ++log.dependent
+      }
+
+      let current: Dependent | undefined
+
+      function TestComponent() {
+        current = useSuspenseService(Dependent)
+        return createElement('div', { 'data-testid': 'result' }, current.dependency.id)
+      }
+
+      render(
+        createWrapper(
+          createElement(
+            Suspense,
+            { fallback: createElement('div', { 'data-testid': 'loading' }, 'Loading...') },
+            createElement(TestComponent),
+          ),
+        ),
+      )
+
+      await waitFor(() => {
+        expect(screen.getByTestId('result').textContent).toBe('1')
+      })
+
+      await act(async () => {
+        await container.invalidate(current!.dependency)
+      })
+
+      await waitFor(() => {
+        expect(screen.getByTestId('result').textContent).toBe('2')
+      })
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 20))
+      })
+
+      expect(log).toEqual({ dependency: 2, dependent: 2 })
+    })
+
     it('should re-fetch when service is invalidated', async () => {
       let instanceCount = 0
 

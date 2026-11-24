@@ -1,4 +1,4 @@
-import { useContext, useEffect, useId, useRef } from 'react'
+import { useContext, useEffect, useId, useReducer, useRef } from 'react'
 import { jsx } from 'react/jsx-runtime'
 
 import type { ScopedContainer } from '@navios/di'
@@ -52,21 +52,45 @@ export function ScopeProvider({ scopeId, metadata, children }: ScopeProviderProp
   const generatedId = useId()
   const effectiveScopeId = scopeId ?? generatedId
   const scopedContainerRef = useRef<ScopedContainer | null>(null)
+  // True between an effect setup and its cleanup.
+  const isMountedRef = useRef(false)
+  // True once the scope in the ref has been disposed.
+  const isDisposedRef = useRef(false)
+  const [, rerender] = useReducer((count: number) => count + 1, 0)
+
+  // DI scopes have no ids, so the effective scope id lives in the scope's
+  // metadata under `scopeId`.
+  const createScope = () => container.createScope({ ...metadata, scopeId: effectiveScopeId })
+  const createScopeRef = useRef(createScope)
+  createScopeRef.current = createScope
 
   // Create the ScopedContainer once per mounted provider.
-  // The ref keeps it stable across re-renders. DI scopes have no ids, so the
-  // effective scope id lives in the scope's metadata under `scopeId`.
+  // The ref keeps it stable across re-renders.
   if (!scopedContainerRef.current) {
-    scopedContainerRef.current = container.createScope({ ...metadata, scopeId: effectiveScopeId })
+    scopedContainerRef.current = createScope()
   }
 
-  // Dispose the scope on unmount
   useEffect(() => {
-    const scopedContainer = scopedContainerRef.current
+    isMountedRef.current = true
+    // React re-ran the effect after the scope was disposed (an `<Activity>`
+    // shown again): the old scope is gone for good, so start a new one.
+    if (isDisposedRef.current) {
+      isDisposedRef.current = false
+      scopedContainerRef.current = createScopeRef.current()
+      rerender()
+    }
     return () => {
-      if (scopedContainer) {
-        void scopedContainer.dispose()
-      }
+      isMountedRef.current = false
+      // Disposal waits one microtask. StrictMode's simulated unmount is
+      // followed by a re-mount in the same commit, which sets the flag again
+      // and keeps the scope; a real unmount leaves it unset.
+      queueMicrotask(() => {
+        if (isMountedRef.current || isDisposedRef.current) {
+          return
+        }
+        isDisposedRef.current = true
+        void scopedContainerRef.current?.dispose()
+      })
     }
   }, [])
 

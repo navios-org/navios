@@ -1,181 +1,106 @@
 # @navios/core
 
-`@navios/core` is an HTTP server framework for TypeScript. Endpoints are declared once with `@navios/builder`; the server validates requests and responses against the declaration, and a client can call the same declaration with the same types.
+An HTTP server framework for TypeScript in which a controller implements endpoints declared with [`@navios/builder`](https://www.npmjs.com/package/@navios/builder). The route, the request and response validation and the handler's types all come from the declaration, and a client can call the same declaration with the same types. The HTTP server is Fastify or `Bun.serve`, chosen by an adapter; application code is the same on both.
 
-- Handlers are typed from the endpoint declaration. Parameters, return values and status codes are checked at compile time.
-- Schemas can come from any [Standard Schema](https://standardschema.dev) library. The examples use Zod.
-- The HTTP server is provided by an adapter: [`@navios/adapter-fastify`](../adapter-fastify/README.md) for Node.js or [`@navios/adapter-bun`](../adapter-bun/README.md) for Bun. Application code is the same on both.
-- Controllers, guards and interceptors are singletons. Per-request data is carried by a typed request context.
-- Error responses are `application/problem+json`.
-
-This README describes version 2.0. To upgrade from 1.x, read the [migration guide](./docs/migration.md).
+**[Documentation](https://navios.tech/docs/server/)** · [Quick start](https://navios.tech/docs/server/quick-start) · [How a request is handled](https://navios.tech/docs/server/request-lifecycle)
 
 ## Install
 
 ```bash
-yarn add @navios/core @navios/builder zod
-
-# and one adapter
-yarn add @navios/adapter-fastify fastify
-# or
-yarn add @navios/adapter-bun
+npm install @navios/core @navios/builder @navios/adapter-fastify fastify zod
 ```
 
-Navios uses standard decorators. Projects that compile with `experimentalDecorators` use the [legacy decorators](./docs/legacy-decorators.md) entry point.
+On Bun, install [`@navios/adapter-bun`](https://www.npmjs.com/package/@navios/adapter-bun) in place of the two Fastify packages. `zod` is what the example uses; any [Standard Schema](https://standardschema.dev) library works. Navios uses standard (TC39) decorators, so leave `experimentalDecorators` off. A project that has to keep it on uses the [legacy decorators](https://navios.tech/docs/server/reference/legacy-decorators) entry point.
 
 ## Example
 
 ```ts
-// api.mts
+import { defineFastifyEnvironment } from '@navios/adapter-fastify'
 import { builder } from '@navios/builder'
-import { z } from 'zod'
+import {
+  Controller,
+  Endpoint,
+  inject,
+  Injectable,
+  Module,
+  NaviosFactory,
+  reply,
+} from '@navios/core'
+import { z } from 'zod/v4'
 
-const api = builder()
+import type { HandlerParams } from '@navios/core'
 
-const userSchema = z.object({ id: z.string(), name: z.string() })
+const API = builder()
 
-export const getUser = api.declareEndpoint({
+const userSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  email: z.email(),
+})
+
+export const getUser = API.declareEndpoint({
   method: 'GET',
-  url: '/users/$id',
+  url: '/users/$userId',
   responseSchema: userSchema,
-  errorSchema: { 404: z.object({ message: z.string() }) },
+  errorSchema: {
+    404: z.object({ message: z.string() }),
+  },
 })
-
-export const createUser = api.declareEndpoint({
-  method: 'POST',
-  url: '/users',
-  requestSchema: z.object({ name: z.string().min(1) }),
-  responses: { 201: userSchema },
-})
-
-export const me = api.declareEndpoint({
-  method: 'GET',
-  url: '/me',
-  responseSchema: z.object({ name: z.string() }),
-})
-```
-
-```ts
-// auth.mts
-import { createContextKey, Injectable, UnauthorizedException } from '@navios/core'
-
-import type { Guard, RequestContext } from '@navios/core'
-
-// A typed per-request slot: the guard sets it, handlers read it.
-export const CurrentUser = createContextKey<{ name: string }>('CurrentUser')
 
 @Injectable()
-export class AuthGuard implements Guard {
-  canActivate(ctx: RequestContext) {
-    const header = ctx.headers.get('authorization')
-    if (!header?.startsWith('Bearer ')) {
-      throw new UnauthorizedException('Missing bearer token')
-    }
-    ctx.set(CurrentUser, { name: header.slice(7) })
-    return true
-  }
-}
-```
+class UsersService {
+  private readonly users = new Map([['1', { id: '1', name: 'Ada', email: 'ada@example.com' }]])
 
-```ts
-// users.mts
-import { Controller, Endpoint, inject, Injectable, Module, reply } from '@navios/core'
-
-import type { HandlerParams, RequestContext } from '@navios/core'
-
-import { createUser, getUser, me } from './api.mjs'
-import { AuthGuard, CurrentUser } from './auth.mjs'
-
-@Injectable()
-export class UsersService {
-  private readonly users = new Map([['1', { id: '1', name: 'Ann' }]])
-  private next = 2
-
-  find(id: string) {
+  findById(id: string) {
     return this.users.get(id) ?? null
-  }
-
-  create(name: string) {
-    const user = { id: String(this.next++), name }
-    this.users.set(user.id, user)
-    return user
   }
 }
 
 @Controller()
-export class UsersController {
+class UsersController {
   private readonly users = inject(UsersService)
 
   @Endpoint(getUser)
   async getUser({ urlParams }: HandlerParams<typeof getUser>) {
-    return this.users.find(urlParams.id) ?? reply(404, { message: 'User not found' })
-  }
-
-  @Endpoint(createUser)
-  async createUser({ data }: HandlerParams<typeof createUser>) {
-    return reply(201, this.users.create(data.name))
-  }
-
-  @Endpoint(me)
-  async me(_params: HandlerParams<typeof me>, ctx: RequestContext) {
-    return { name: ctx.get(CurrentUser).name }
+    return this.users.findById(urlParams.userId) ?? reply(404, { message: 'User not found' })
   }
 }
 
-@Module({ controllers: [UsersController], guards: [AuthGuard] })
-export class AppModule {}
-```
-
-```ts
-// main.mts
-import { defineFastifyEnvironment } from '@navios/adapter-fastify'
-import { NaviosFactory } from '@navios/core'
-
-import type { FastifyEnvironment } from '@navios/adapter-fastify'
-
-import { AppModule } from './users.mjs'
-
-// Optional: types ctx.raw and app.getServer() for the Fastify adapter.
-declare module '@navios/core' {
-  interface Register {
-    environment: FastifyEnvironment
-  }
-}
+@Module({ controllers: [UsersController] })
+class AppModule {}
 
 const app = await NaviosFactory.create(AppModule, {
   adapter: defineFastifyEnvironment(),
 })
-app.enableShutdownHooks()
 
 const url = await app.listen({ port: 3000 })
 console.log(`Listening on ${url}`)
 ```
 
-What this gives you:
+`GET /users/1` answers `200` with the user, and an unknown id answers `404 {"message":"User not found"}`, the body declared in `errorSchema`. Returning a user without `email`, or `reply()` with a status the declaration does not list, does not compile. Errors the framework produces itself, such as a failed validation, are `application/problem+json`.
 
-- `GET /users/1` with a bearer token answers `200 {"id":"1","name":"Ann"}`; an unknown id answers `404 {"message":"User not found"}`, the body declared in `errorSchema`.
-- A request without a token answers `401` as `application/problem+json`, before the body is read.
-- `POST /users` with `{"name":""}` answers `400` as `application/problem+json`, with the failing field listed.
-- Returning a user without `name`, or `reply(200, ...)` from `createUser`, does not compile.
+## What else it does
 
-## Documentation
+| Need                                    | How                                                  | Docs                                                                                          |
+| --------------------------------------- | ---------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| Statuses, error bodies, validation      | `reply()`, `responses`, `errorSchema`                | [Controllers and handlers](https://navios.tech/docs/server/essentials/controllers)            |
+| Headers, cookies, the abort signal      | `RequestContext`, the handler's second argument      | [Request context](https://navios.tech/docs/server/essentials/request-context)                 |
+| Authorisation, cross-cutting behaviour  | `@UseGuards`, `@UseInterceptors`                     | [Guards and interceptors](https://navios.tech/docs/server/essentials/guards-and-interceptors) |
+| Data that belongs to one request        | `createContextKey`, `@RequestValue()`, request scope | [Per-request state](https://navios.tech/docs/server/guides/request-state)                     |
+| Services and their scopes               | `@Injectable()`, `inject()`                          | [Services](https://navios.tech/docs/server/essentials/services)                               |
+| Route prefixes, grouping                | `@Module()`                                          | [Modules](https://navios.tech/docs/server/essentials/modules)                                 |
+| Error responses, domain errors          | `HttpException`, `app.mapError()`                    | [Errors](https://navios.tech/docs/server/essentials/errors)                                   |
+| Start-up, shutdown, application options | `NaviosFactory.create`, `app.close()`                | [Application setup](https://navios.tech/docs/server/essentials/application)                   |
+| Typed configuration, logging            | `provideConfig`, `Logger`                            | [Configuration and logging](https://navios.tech/docs/server/essentials/config-and-logging)    |
+| Tests without a socket                  | `defineInMemoryEnvironment`, `createTestClient`      | [Testing](https://navios.tech/docs/server/essentials/testing)                                 |
+| File uploads                            | `body: 'multipart'`                                  | [File uploads](https://navios.tech/docs/server/guides/file-uploads)                           |
+| Downloads, streams, server-sent events  | `response: 'blob' \| 'text' \| 'stream' \| 'sse'`    | [Streams and server-sent events](https://navios.tech/docs/server/guides/streams-and-sse)      |
+| Metadata on controllers and handlers    | `AttributeFactory`                                   | [Attributes](https://navios.tech/docs/server/guides/attributes)                               |
+| Reusable setup, extra routes            | `definePlugin`                                       | [Plugins](https://navios.tech/docs/server/guides/plugins)                                     |
+| Another HTTP server                     | the `HttpAdapter` contract                           | [Writing an adapter](https://navios.tech/docs/server/adapters/writing-an-adapter)             |
+| Coming from NestJS                      | the same vocabulary, listed differences              | [Migrating from NestJS](https://navios.tech/docs/server/reference/migrating-from-nestjs)      |
 
-- [Quick start](./docs/quick-start.md)
-- [Controllers and handlers](./docs/controllers.md)
-- [Request context](./docs/request-context.md)
-- [Per-request state](./docs/request-state.md)
-- [Guards and interceptors](./docs/guards-and-interceptors.md)
-- [Attributes](./docs/attributes.md)
-- [Modules](./docs/modules.md)
-- [Errors](./docs/errors.md)
-- [Application setup and lifecycle](./docs/application.md)
-- [Plugins](./docs/plugins.md)
-- [Testing](./docs/testing.md)
-- [Config and logger](./docs/config-and-logger.md)
-- [Writing an adapter](./docs/writing-an-adapter.md)
-- [Legacy decorators](./docs/legacy-decorators.md)
-- [Migrating from 1.x](./docs/migration.md)
-- [Changelog](./CHANGELOG.md)
+Related packages: [`@navios/adapter-fastify`](https://navios.tech/docs/server/adapters/fastify), [`@navios/adapter-bun`](https://navios.tech/docs/server/adapters/bun), [`@navios/adapter-xml`](https://navios.tech/docs/server/adapters/xml), [`@navios/jwt`](https://navios.tech/docs/server/guides/authentication), [`@navios/schedule`](https://navios.tech/docs/server/guides/scheduled-jobs), [`@navios/openapi`](https://navios.tech/docs/server/guides/openapi) and [`@navios/otel`](https://navios.tech/docs/server/opentelemetry/).
 
 ## Entry points
 
@@ -185,6 +110,10 @@ What this gives you:
 | `@navios/core/testing`       | `defineInMemoryEnvironment`, `createTestClient`.  |
 | `@navios/core/conformance`   | `runAdapterConformance`, for adapter authors.     |
 | `@navios/core/legacy-compat` | Decorators for `experimentalDecorators` projects. |
+
+## Upgrading from 1.x
+
+Adapters, request data, guards and error responses changed in 2.0. See [Migrating to 2.0](https://navios.tech/docs/server/reference/migrating-to-2) for before-and-after examples, or [CHANGELOG.md](./CHANGELOG.md) for the full list.
 
 ## License
 

@@ -129,6 +129,8 @@ class OperationBuilder {
       description: metadata.description,
       operationId: metadata.operationId,
       deprecated: metadata.deprecated || undefined,
+      // OpenAPI has no field for why an operation is deprecated.
+      'x-deprecated-message': metadata.deprecationMessage || undefined,
       externalDocs: metadata.externalDocs,
       security: metadata.security,
       parameters: parameters.length > 0 ? parameters : undefined,

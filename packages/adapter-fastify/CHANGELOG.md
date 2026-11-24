@@ -24,7 +24,7 @@ The adapter is rewritten on the `@navios/core` 2.0 adapter contract. It no longe
 - **Taking over the response**: when a handler has sent the response through `ctx.raw.reply`, the adapter writes nothing.
 - **`app.inject()`** through `fastify.inject()`.
 - **`ctx.signal`** aborts when the client disconnects before the response is complete.
-- The `@navios/core/conformance` suite runs against the adapter over real HTTP.
+- The `@navios/core/conformance` suite runs against the adapter over real HTTP, including its cases for a request body over `bodyLimit` and a file over `multipart.limits.fileSize`.
 - An HTTP benchmark against raw Fastify: `yarn bench`.
 - Serves `response: 'void'` endpoints (204, no body) and per-status `responses` endpoints.
 
@@ -47,6 +47,8 @@ The adapter is rewritten on the `@navios/core` 2.0 adapter contract. It no longe
 - **Response validation is on by default.** The adapter treated an unset `validateResponses` as off, although the documented default is on.
 - **An unauthenticated request no longer gets validation details.** Validation used to run before guards.
 - **Response bodies are validated for statuses other than 200.**
+- **A multipart body over one of `multipart.limits` is answered with 413 `application/problem+json`**, not 500. This covers `fileSize`, `files`, `fields` and `parts`; the other 4xx errors of `@fastify/multipart` keep their status as well. A field over `fieldSize`, which `@fastify/multipart` truncates silently, is rejected with 413 too.
+- **A request with an empty URL parameter matches no route.** `find-my-way` matches `/users/` to `/users/$id` with an empty `id`; the adapter now answers such a request with the not-found response, as the Bun and in-memory adapters do.
 
 ### Performance
 

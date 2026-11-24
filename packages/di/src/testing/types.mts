@@ -101,7 +101,9 @@ export interface UnitTestContainerOptions {
   providers: ProviderConfig[]
 
   /**
-   * If true, unregistered dependencies will be auto-mocked instead of throwing.
+   * If true, unregistered dependencies will be auto-mocked instead of throwing,
+   * whether they are requested with `container.get()` or injected into a
+   * listed service.
    * Default: false (throws on unregistered dependencies)
    */
   allowUnregistered?: boolean

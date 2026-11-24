@@ -325,6 +325,191 @@ describe('engine: sync-first resolution', () => {
     expect(b.a).toBe(a)
   })
 
+  describe('asyncInject awaited while the requester is still initialising', () => {
+    const settle = <T,>(promise: Promise<T>) =>
+      Promise.race([
+        promise.then(
+          (value) => ({ value }) as const,
+          (error) => ({ error }) as const,
+        ),
+        tick(300).then(() => 'timeout' as const),
+      ])
+
+    const expectCycle = (outcome: unknown, path: string) => {
+      expect(outcome).not.toBe('timeout')
+      const { error } = outcome as { error: DIError }
+      expect(error).toBeInstanceOf(DIError)
+      expect(error.code).toBe(DIErrorCode.CircularDependency)
+      expect(error.message).toContain(path)
+    }
+
+    it('fails when onServiceInit awaits a dependency that injects the service back', async () => {
+      @Injectable()
+      class A implements OnServiceInit {
+        b = asyncInject(B)
+
+        async onServiceInit() {
+          await this.b
+        }
+      }
+
+      @Injectable()
+      class B {
+        a: unknown = inject(A)
+      }
+
+      expectCycle(await settle(container.get(A)), 'A -> B -> A')
+    })
+
+    it('fails the same cycle when it is entered from the other side', async () => {
+      @Injectable()
+      class A implements OnServiceInit {
+        b = asyncInject(B)
+
+        async onServiceInit() {
+          await this.b
+        }
+      }
+
+      @Injectable()
+      class B {
+        a: unknown = inject(A)
+      }
+
+      expectCycle(await settle(container.get(B)), 'A -> B -> A')
+    })
+
+    it('fails when the await comes late in onServiceInit', async () => {
+      @Injectable()
+      class A implements OnServiceInit {
+        b = asyncInject(B)
+
+        async onServiceInit() {
+          await tick(5)
+          await this.b
+        }
+      }
+
+      @Injectable()
+      class B {
+        a: unknown = inject(A)
+      }
+
+      expectCycle(await settle(container.get(A)), 'A -> B -> A')
+    })
+
+    it('reports the whole path of a longer cycle', async () => {
+      @Injectable()
+      class A implements OnServiceInit {
+        b = asyncInject(B)
+
+        async onServiceInit() {
+          await this.b
+        }
+      }
+
+      @Injectable()
+      class B {
+        c: unknown = inject(C)
+      }
+
+      @Injectable()
+      class C {
+        a: unknown = inject(A)
+      }
+
+      expectCycle(await settle(container.get(A)), 'A -> B -> C -> A')
+    })
+
+    it('fails when an asynchronous factory awaits it', async () => {
+      const TOKEN = InjectionToken.create<{ b: unknown }>('AsyncFactoryCycle')
+
+      @Injectable()
+      class B {
+        made: unknown = inject(TOKEN)
+      }
+
+      container.provide(TOKEN, {
+        factory: async () => ({ b: await asyncInject(B) }),
+      })
+
+      expectCycle(await settle(container.get(TOKEN)), 'AsyncFactoryCycle -> B -> AsyncFactoryCycle')
+    })
+
+    it('can be resolved again after the cycle was reported', async () => {
+      let awaitInInit = true
+
+      @Injectable()
+      class A implements OnServiceInit {
+        b = asyncInject(B)
+
+        async onServiceInit() {
+          if (awaitInInit) {
+            await this.b
+          }
+        }
+      }
+
+      @Injectable()
+      class B {
+        a: unknown = inject(A)
+      }
+
+      expectCycle(await settle(container.get(A)), 'A -> B -> A')
+      awaitInInit = false
+      const a = await container.get(A)
+      expect((await a.b).a).toBe(a)
+    })
+
+    it('still resolves when onServiceInit awaits a dependency without a cycle', async () => {
+      @Injectable()
+      class B implements OnServiceInit {
+        ready = false
+
+        async onServiceInit() {
+          await tick(2)
+          this.ready = true
+        }
+      }
+
+      @Injectable()
+      class A implements OnServiceInit {
+        b = asyncInject(B)
+        seen = false
+
+        async onServiceInit() {
+          this.seen = (await this.b).ready
+        }
+      }
+
+      expect((await container.get(A)).seen).toBe(true)
+    })
+
+    it('does not treat a then() attached in the constructor as a wait', async () => {
+      @Injectable()
+      class A {
+        b: B | null = null
+
+        constructor() {
+          void asyncInject(B).then((b) => {
+            this.b = b
+          })
+        }
+      }
+
+      @Injectable()
+      class B {
+        a: A = inject(A)
+      }
+
+      const a = await container.get(A)
+      const b = await container.get(B)
+      await tick()
+      expect(a.b).toBe(b)
+      expect(b.a).toBe(a)
+    })
+  })
+
   it('returns null from optional() only when nothing provides the token', async () => {
     const Missing = InjectionToken.create<{ x: number }>('Missing')
 

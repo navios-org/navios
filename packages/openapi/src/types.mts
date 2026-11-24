@@ -90,6 +90,8 @@ export interface OpenApiOperation {
   description?: string
   operationId?: string
   deprecated?: boolean
+  /** The message of `ApiDeprecated(message)`. A specification extension. */
+  'x-deprecated-message'?: string
   externalDocs?: OpenApiExternalDocs
   security?: OpenApiSecurityRequirement[]
   parameters?: OpenApiParameter[]

@@ -22,22 +22,45 @@ interface Registered {
   method: string
   pattern: RegExp
   names: string[]
+  /** For each segment of the path, whether it is a url param. */
+  params: boolean[]
   execute: RouteExecutor
 }
 
-function compilePath(path: string): { pattern: RegExp; names: string[] } {
+function compilePath(path: string): Pick<Registered, 'pattern' | 'names' | 'params'> {
   const names: string[] = []
+  const params: boolean[] = []
   const source = path
     .split('/')
     .map((segment) => {
-      if (segment.startsWith('$')) {
+      const isParam = segment.startsWith('$')
+      params.push(isParam)
+      if (isParam) {
         names.push(segment.slice(1))
         return '([^/]+)'
       }
       return segment.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
     })
     .join('/')
-  return { pattern: new RegExp(`^${source || '/'}/?$`), names }
+  // The whole path, as the routers of the Fastify and Bun adapters match it:
+  // `/users/` is not `/users`.
+  return { pattern: new RegExp(`^${source || '/'}$`), names, params }
+}
+
+/**
+ * Whether `route` is a closer match than `other` for a path both match: at
+ * the first segment where one is static and the other a url param, the static
+ * one wins. This is what the routers of the Fastify and Bun adapters do, so
+ * the order of registration does not matter.
+ */
+function isMoreSpecific(route: Registered, other: Registered): boolean {
+  const length = Math.min(route.params.length, other.params.length)
+  for (let index = 0; index < length; index++) {
+    if (route.params[index] !== other.params[index]) {
+      return other.params[index]
+    }
+  }
+  return false
 }
 
 async function readBody(result: RouteResult): Promise<string> {
@@ -93,8 +116,11 @@ export class InMemoryAdapter implements HttpAdapter<InMemoryEnvironment> {
   constructor(private readonly errors?: ErrorPipeline) {}
 
   register(route: CompiledRoute): void {
-    const { pattern, names } = compilePath(route.info.path)
-    this.routes.push({ method: route.info.method, pattern, names, execute: route.execute })
+    this.routes.push({
+      method: route.info.method,
+      ...compilePath(route.info.path),
+      execute: route.execute,
+    })
   }
 
   setNotFound(execute: RouteExecutor): void {
@@ -117,23 +143,26 @@ export class InMemoryAdapter implements HttpAdapter<InMemoryEnvironment> {
       headers[name.toLowerCase()] = value
     }
     const method = request.method.toUpperCase()
-    let urlParams: Record<string, string> = {}
-    let execute: RouteExecutor | null = null
+    const urlParams: Record<string, string> = {}
+    let matched: Registered | null = null
+    let captures: RegExpExecArray | null = null
     for (const route of this.routes) {
       if (route.method !== method) {
         continue
       }
       const match = route.pattern.exec(url.pathname)
-      if (match) {
-        urlParams = {}
-        route.names.forEach((name, index) => {
-          urlParams[name] = decodeURIComponent(match[index + 1])
-        })
-        execute = route.execute
-        break
+      if (match && (matched === null || isMoreSpecific(route, matched))) {
+        matched = route
+        captures = match
       }
     }
-    execute ??= this.notFound
+    if (matched !== null && captures !== null) {
+      const values = captures
+      matched.names.forEach((name, index) => {
+        urlParams[name] = decodeURIComponent(values[index + 1])
+      })
+    }
+    const execute = matched?.execute ?? this.notFound
     if (execute === null) {
       return { status: 404, headers: {}, text: '', body: undefined }
     }

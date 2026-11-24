@@ -3,7 +3,13 @@ import { Readable } from 'node:stream'
 
 import cors from '@fastify/cors'
 import multipart from '@fastify/multipart'
-import { createMultipartCollector, problem, serializeCookie, ValidationError } from '@navios/core'
+import {
+  createMultipartCollector,
+  HttpException,
+  problem,
+  serializeCookie,
+  ValidationError,
+} from '@navios/core'
 import { fastify } from 'fastify'
 
 import type { FastifyCorsOptions } from '@fastify/cors'
@@ -147,15 +153,25 @@ class FastifyRouteInput implements RouteInput {
 
   private async readMultipart(): Promise<Record<string, unknown>> {
     const collector = createMultipartCollector(this.requestSchema)
-    for await (const part of (this.request as any).parts()) {
-      if (part.type === 'file') {
-        collector.add(
-          part.fieldname,
-          new File([await part.toBuffer()], part.filename, { type: part.mimetype }),
-        )
-      } else {
-        collector.add(part.fieldname, part.value as string)
+    try {
+      for await (const part of (this.request as any).parts()) {
+        if (part.type === 'file') {
+          collector.add(
+            part.fieldname,
+            new File([await part.toBuffer()], part.filename, { type: part.mimetype }),
+          )
+        } else {
+          if (part.fieldnameTruncated || part.valueTruncated) {
+            // `@fastify/multipart` cuts a field at `limits.fieldSize` (or its
+            // name at `limits.fieldNameSize`) and carries on. Half a value
+            // must not reach the handler.
+            throw new HttpException(413, 'request field too large')
+          }
+          collector.add(part.fieldname, part.value as string)
+        }
       }
+    } catch (error) {
+      throw toClientError(error)
     }
     return collector.result()
   }
@@ -184,6 +200,26 @@ class FastifyRouteInput implements RouteInput {
     }
     return this.abort.signal
   }
+}
+
+/**
+ * `@fastify/multipart` rejects a body over one of its `limits` (413), and
+ * other bodies a client got wrong, with a Fastify error that carries a 4xx
+ * status. The body is read inside the pipeline, where Fastify's error handler
+ * does not see it, so the error is turned into the same problem response here.
+ */
+function toClientError(error: unknown): unknown {
+  const { code, statusCode } = (error ?? {}) as { code?: unknown; statusCode?: unknown }
+  if (
+    typeof code === 'string' &&
+    code.startsWith('FST_') &&
+    typeof statusCode === 'number' &&
+    statusCode >= 400 &&
+    statusCode < 500
+  ) {
+    return new HttpException(statusCode, String((error as Error).message ?? ''), error)
+  }
+  return error
 }
 
 function toNodeBody(result: RouteResult): unknown | Promise<unknown> {
@@ -344,6 +380,14 @@ export class FastifyAdapter implements HttpAdapter<FastifyEnvironment> {
     return parsed
   }
 
+  private notFound: (
+    request: FastifyRequest,
+    reply: FastifyReply,
+  ) => FastifyReply | Promise<FastifyReply> = (_request, reply) => {
+    reply.callNotFound()
+    return reply
+  }
+
   private handlerFor(execute: RouteExecutor, requestSchema: SchemaLike | undefined) {
     return (request: FastifyRequest, reply: FastifyReply) => {
       const result = execute(new FastifyRouteInput(request, reply, this, requestSchema))
@@ -363,18 +407,27 @@ export class FastifyAdapter implements HttpAdapter<FastifyEnvironment> {
 
   register(route: CompiledRoute): void {
     const { info } = route
+    const handler = this.handlerFor(
+      route.execute,
+      info.endpoint.body === 'multipart' ? info.endpoint.requestSchema : undefined,
+    )
     this.server.route({
       method: info.method as any,
       url: info.path.replace(/\$([A-Za-z0-9_]+)/g, ':$1'),
-      handler: this.handlerFor(
-        route.execute,
-        info.endpoint.body === 'multipart' ? info.endpoint.requestSchema : undefined,
-      ),
+      // find-my-way matches `/users/` to `/users/:id` with an empty `id`. A url
+      // param is never empty, so such a request has matched no route.
+      handler: info.path.includes('$')
+        ? (request, reply) =>
+            hasEmptyParam(request.params as Record<string, string>)
+              ? this.notFound(request, reply)
+              : handler(request, reply)
+        : handler,
     })
   }
 
   setNotFound(execute: RouteExecutor): void {
-    this.server.setNotFoundHandler(this.handlerFor(execute, undefined))
+    this.notFound = this.handlerFor(execute, undefined)
+    this.server.setNotFoundHandler(this.notFound)
   }
 
   async ready(): Promise<void> {
@@ -468,4 +521,13 @@ export function defineFastifyEnvironment(
     name: 'fastify',
     create: (context) => FastifyAdapter.create(options, context),
   }
+}
+
+function hasEmptyParam(params: Record<string, string>): boolean {
+  for (const name in params) {
+    if (params[name] === '') {
+      return true
+    }
+  }
+  return false
 }

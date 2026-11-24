@@ -4,259 +4,221 @@ title: Plugins
 
 # Plugins
 
-Extend your Navios application with plugins that hook into the application lifecycle.
+A plugin packages setup that an application would otherwise do by hand: providers, interceptors, error mappers, extra routes and shutdown work. `@navios/schedule`, `@navios/openapi` and `@navios/otel` are plugins. There is one plugin shape.
 
-## Overview
+## Defining a plugin
 
-Plugins allow you to extend Navios applications by executing code at specific points in the application lifecycle. Common use cases include:
+This plugin counts requests per route and status, and serves the counts at `/metrics`. The registry and the interceptor are ordinary services:
 
-- Adding OpenAPI documentation
-- Integrating observability tools (OpenTelemetry, etc.)
-- Registering global middleware
-- Extending the dependency injection container
-- Adding custom routes or services
-
-## Plugin Lifecycle Stages
-
-Navios executes plugins at specific stages during application initialization. Each stage provides access to different parts of the application context:
-
-```
-NaviosFactory.create() returns
-       ↓
-app.usePlugin(...)  ← register plugins here
-       ↓
-app.init() starts
-       ↓
-┌─ pre:modules-traverse   → container only
-├─ loadModules()
-└─ post:modules-traverse  → container + modules + moduleLoader
-       ↓
-┌─ pre:adapter-resolve    → container + modules + moduleLoader
-├─ container.get(AdapterToken)
-└─ post:adapter-resolve   → + adapter
-       ↓
-┌─ pre:adapter-setup      → full context
-├─ adapter.setupAdapter()
-└─ post:adapter-setup     → full context
-       ↓
-┌─ pre:modules-init       → full context
-├─ adapter.onModulesInit()
-└─ post:modules-init      → full context (legacy default)
-       ↓
-┌─ pre:ready              → full context
-├─ adapter.ready()
-└─ post:ready             → full context
-```
-
-### Stage Contexts
-
-Different stages have access to different parts of the application:
-
-| Stage | Container | Modules | ModuleLoader | Adapter |
-|-------|-----------|---------|--------------|---------|
-| `pre:modules-traverse` | ✓ | | | |
-| `post:modules-traverse` | ✓ | ✓ | ✓ | |
-| `pre:adapter-resolve` | ✓ | ✓ | ✓ | |
-| `post:adapter-resolve` | ✓ | ✓ | ✓ | ✓ |
-| `pre:adapter-setup` | ✓ | ✓ | ✓ | ✓ |
-| `post:adapter-setup` | ✓ | ✓ | ✓ | ✓ |
-| `pre:modules-init` | ✓ | ✓ | ✓ | ✓ |
-| `post:modules-init` | ✓ | ✓ | ✓ | ✓ |
-| `pre:ready` | ✓ | ✓ | ✓ | ✓ |
-| `post:ready` | ✓ | ✓ | ✓ | ✓ |
-
-## Creating Plugins
-
-### Using Helper Functions (Recommended)
-
-Navios provides curried helper functions for creating plugins:
-
-```typescript
-import { definePreAdapterResolvePlugin } from '@navios/core'
-
-// Define your plugin factory
-export const defineMyPlugin = definePreAdapterResolvePlugin({
-  name: 'my-plugin',
-  register: (context, options: { enabled: boolean }) => {
-    if (options.enabled) {
-      // Access container, modules, moduleLoader (no adapter yet)
-      const registry = context.container.getRegistry()
-      // ... your plugin logic
-    }
-  },
-})
-
-// Usage
-app.usePlugin(defineMyPlugin({ enabled: true }))
-```
-
-### Available Helper Functions
-
-For stages **without** adapter access (container/modules only):
-
-```typescript
+```ts title="metrics.plugin.mts"
+import { builder } from '@navios/builder'
 import {
-  definePreModulesTraversePlugin,  // pre:modules-traverse
-  definePostModulesTraversePlugin, // post:modules-traverse
-  definePreAdapterResolvePlugin,   // pre:adapter-resolve
-} from '@navios/core'
-```
-
-For stages **with** adapter access:
-
-```typescript
-import {
-  definePostAdapterResolvePlugin,  // post:adapter-resolve
-  definePreAdapterSetupPlugin,     // pre:adapter-setup
-  definePostAdapterSetupPlugin,    // post:adapter-setup
-  definePreModulesInitPlugin,      // pre:modules-init
-  definePostModulesInitPlugin,     // post:modules-init (legacy default)
-  definePreReadyPlugin,            // pre:ready
-  definePostReadyPlugin,           // post:ready
+  Controller,
+  definePlugin,
+  Endpoint,
+  inject,
+  Injectable,
+  InjectionToken,
+  Module,
 } from '@navios/core'
 
-// These require a type parameter for the adapter
-export const defineMyPlugin = definePostAdapterResolvePlugin<
-  BunApplicationServiceInterface
->()({
-  name: 'my-plugin',
-  register: (context, options) => {
-    // context.adapter is typed as BunApplicationServiceInterface
-  },
-})
+import type { Interceptor, RequestContext, RouteResult } from '@navios/core'
+
+export interface MetricsOptions {
+  prefix: string
+}
+
+const MetricsOptionsToken = InjectionToken.create<MetricsOptions>('MetricsOptions')
+
+@Injectable()
+class MetricsRegistry {
+  private readonly options = inject(MetricsOptionsToken)
+  private readonly counts = new Map<string, number>()
+
+  count(route: string, status: number | undefined) {
+    const key = `${this.options.prefix}_requests{route="${route}",status="${status}"}`
+    this.counts.set(key, (this.counts.get(key) ?? 0) + 1)
+  }
+
+  render() {
+    return [...this.counts].map(([key, value]) => `${key} ${value}\n`).join('')
+  }
+}
+
+@Injectable()
+class MetricsInterceptor implements Interceptor {
+  private readonly registry = inject(MetricsRegistry)
+
+  intercept(ctx: RequestContext, next: () => Promise<RouteResult>) {
+    ctx.onFinish(() => this.registry.count(ctx.route.path, ctx.responseStatus))
+    return next()
+  }
+}
 ```
 
-### Plugin Examples
+The plugin wires them into an application:
 
-#### Early Container Setup
-
-Register services before modules are loaded:
-
-```typescript
-import { definePreModulesTraversePlugin } from '@navios/core'
-import { InjectionToken } from '@navios/di'
-
-const ConfigToken = InjectionToken.create<Config>('Config')
-
-export const defineConfigPlugin = definePreModulesTraversePlugin({
-  name: 'config',
-  register: (context, options: Config) => {
-    context.container.addInstance(ConfigToken, options)
-  },
-})
-
-// Usage
-app.usePlugin(defineConfigPlugin({
-  apiUrl: 'https://api.example.com',
-  debug: true,
-}))
-```
-
-#### Pre-Adapter Instrumentation
-
-Modify the DI container before the adapter is instantiated (useful for OpenTelemetry):
-
-```typescript
-import { definePreAdapterResolvePlugin } from '@navios/core'
-
-export const defineOtelPlugin = definePreAdapterResolvePlugin({
-  name: 'otel',
-  register: (context, options: { serviceName: string }) => {
-    // Modify registry before adapter is created
-    const registry = context.container.getRegistry()
-    // Wrap or instrument services here
-  },
-})
-```
-
-#### Post-Init Routes
-
-Add routes after all modules are initialized (like OpenAPI):
-
-```typescript
-import { definePostModulesInitPlugin } from '@navios/core'
-import type { BunApplicationServiceInterface } from '@navios/adapter-bun'
-
-export const defineDocsPlugin = definePostModulesInitPlugin<
-  BunApplicationServiceInterface
->()({
-  name: 'docs',
-  register: (context, options: { path: string }) => {
-    // Routes are registered, add documentation endpoint
-    context.adapter.getServer().get(options.path, () => {
-      return new Response('Documentation', { status: 200 })
+```ts title="metrics.plugin.mts"
+export const metricsPlugin = definePlugin({
+  name: 'metrics',
+  setup(api, options: MetricsOptions) {
+    api.provide(MetricsOptionsToken, { value: options })
+    api.intercept(MetricsInterceptor)
+    api.addModule(MetricsModule) // defined below
+    api.onShutdown(() => {
+      // flush to wherever the counts go
     })
   },
 })
 ```
 
-## Registering Plugins
+`definePlugin` returns a function. Calling it with options gives a plugin instance:
 
-Use `app.usePlugin()` to register plugins:
-
-```typescript
+```ts
 const app = await NaviosFactory.create(AppModule, {
-  adapter: defineBunEnvironment(),
+  adapter: defineFastifyEnvironment(),
+  plugins: [metricsPlugin({ prefix: 'api' })],
 })
 
-// Single plugin
-app.usePlugin(defineOpenApiPlugin({
-  info: { title: 'My API', version: '1.0.0' },
-}))
-
-// Multiple plugins in one call
-app.usePlugin([
-  defineOtelPlugin({ serviceName: 'my-service' }),
-  defineOpenApiPlugin({ info: { title: 'My API', version: '1.0.0' } }),
-])
-
-await app.init()
-await app.listen({ port: 3000 })
+// or, before init()
+app.usePlugin(metricsPlugin({ prefix: 'api' }))
 ```
 
-## Stage Selection Guide
+A plugin whose `setup` declares no options is called without arguments: `app.usePlugin(csvPlugin())`. `usePlugin` throws once the application has been initialised.
 
-Choose your plugin stage based on what you need to do:
+## The plugin definition
 
-| Use Case | Recommended Stage |
-|----------|-------------------|
-| Register global DI tokens | `pre:modules-traverse` |
-| Inspect loaded modules | `post:modules-traverse` |
-| Instrument services before adapter creation | `pre:adapter-resolve` |
-| Configure adapter settings | `post:adapter-resolve` |
-| Add middleware before routes | `pre:modules-init` |
-| Generate documentation from routes | `post:modules-init` |
-| Log startup complete | `post:ready` |
+| Field                 | Meaning                                                                                              |
+| --------------------- | ---------------------------------------------------------------------------------------------------- |
+| `name`                | Unique name. A plugin registered twice under one name is set up once; the first registration is used |
+| `dependsOn`           | Names of plugins that must be set up before this one                                                 |
+| `setup(api, options)` | Called once during `init()`. May be asynchronous                                                     |
 
-## Backward Compatibility
+Plugins are set up in dependency order, whatever order they were registered in. A dependency that is not registered, or a cycle between plugins, fails `init()` with a message naming the plugin.
 
-The legacy `NaviosPlugin` interface is still supported and automatically maps to the `post:modules-init` stage:
+## The plugin API
 
-```typescript
-// Legacy pattern (still works)
-const myPlugin: NaviosPlugin<{ enabled: boolean }> = {
-  name: 'my-plugin',
-  register: async (context, options) => {
-    // Runs at post:modules-init stage
-  },
+`setup` runs after the adapter has been created and before modules are loaded. Each call on `api` is recorded and applied at the right point of `init()`, so a plugin does not choose a stage.
+
+| Call                               | Effect                                                                                                        |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| `api.provide(token, impl)`         | Supplies or replaces a provider. `impl` is a class, `{ value }`, `{ class, scope? }` or `{ factory, scope? }` |
+| `api.decorate(token, fn)`          | Wraps every instance of a service after it is built. `fn` receives the instance and returns the one to use    |
+| `api.intercept(InterceptorClass)`  | Adds an interceptor around every route                                                                        |
+| `api.mapError(ErrorClass, mapper)` | Maps an error class to a response, like `app.mapError`                                                        |
+| `api.addModule(ModuleClass)`       | Adds a module, and so its routes, to the application                                                          |
+| `api.encoder(kind, encoder)`       | Registers a [response encoder](#response-encoders) for a custom result kind                                   |
+| `api.onBootstrap(hook)`            | Runs after routes are compiled and before the server listens. The hook receives `app.routes()`                |
+| `api.onShutdown(hook)`             | Runs during `close()`, in reverse registration order. The hook receives the signal name, if any               |
+| `api.container`                    | The DI container                                                                                              |
+| `api.adapter`                      | The adapter instance                                                                                          |
+
+Providers are described in [Providers](/docs/di/essentials/providers), interceptors in [Guards and interceptors](/docs/server/essentials/guards-and-interceptors) and error mappers in [Errors](/docs/server/essentials/errors).
+
+## Contributing routes
+
+A plugin adds routes by adding a module. The module, its controller and its endpoint declaration are written like any other; a plugin usually has its own `builder()` because it does not know the application's.
+
+```ts title="metrics.plugin.mts"
+const api = builder()
+
+export const getMetrics = api.declareEndpoint({
+  method: 'GET',
+  url: '/metrics',
+  response: 'text',
+})
+
+@Controller()
+class MetricsController {
+  private readonly registry = inject(MetricsRegistry)
+
+  @Endpoint(getMetrics)
+  metrics() {
+    return this.registry.render()
+  }
 }
 
-app.usePlugin({
-  plugin: myPlugin,
-  options: { enabled: true },
+@Module({ controllers: [MetricsController] })
+class MetricsModule {}
+```
+
+Routes added this way get the application's global prefix, pass through application-level interceptors and appear in `app.routes()`.
+
+`api.onBootstrap` is where a plugin looks at the finished application. Its route list includes routes added by other plugins, because it is built after every `setup` has run:
+
+```ts
+api.onBootstrap(async (routes) => {
+  const registry = await api.container.get(MetricsRegistry)
+  for (const route of routes) {
+    registry.count(route.path, 0) // start every route at a known series
+  }
 })
 ```
 
-For new plugins, we recommend using the staged plugin helpers for explicit stage control and better type safety.
+## Using the native server
 
-## Context Types
+`api.adapter` is typed as the adapter-neutral `HttpAdapter`, whose `server` is `unknown`. A plugin written for one adapter narrows it:
 
-For TypeScript, you can import the context types:
+```ts
+import { definePlugin } from '@navios/core'
 
-```typescript
-import type {
-  ContainerOnlyContext,   // pre:modules-traverse
-  ModulesLoadedContext,   // post:modules-traverse, pre:adapter-resolve
-  FullPluginContext,      // All stages after adapter is resolved
-} from '@navios/core'
+import type { FastifyAdapter } from '@navios/adapter-fastify'
+
+export const poweredBy = definePlugin({
+  name: 'powered-by',
+  setup(api) {
+    const { server } = api.adapter as FastifyAdapter
+    server.addHook('onSend', async (_request, reply) => {
+      reply.header('x-powered-by', 'navios')
+    })
+  },
+})
 ```
+
+Registering a Fastify plugin works the same way: `await server.register(somePlugin)` in an `async setup`. On Bun the native server does not exist until `listen()`, so `api.adapter.server` throws during `setup`.
+
+## Response encoders
+
+An adapter knows how to write six kinds of result: `json`, `text`, `blob`, `stream`, `sse` and `empty`. An encoder converts a result of another kind into one of those, which lets a package add a response format without touching the adapters.
+
+A handler produces a custom kind with `result(kind, body)`, usually behind a helper the package exports:
+
+```ts title="csv.plugin.mts"
+import { definePlugin, result } from '@navios/core'
+
+export const csv = (rows: string[][]) => result('csv', rows)
+
+export const csvPlugin = definePlugin({
+  name: 'csv',
+  setup(api) {
+    api.encoder('csv', (value, ctx) => ({
+      ...value,
+      kind: 'text',
+      headers: { ...value.headers, 'content-type': 'text/csv; charset=utf-8' },
+      body: (value.body as string[][])
+        .map((row) => row.join(ctx.query.separator === 'semicolon' ? ';' : ','))
+        .join('\n'),
+    }))
+  },
+})
+```
+
+The endpoint is declared with `response: 'text'`, `'stream'` or `'blob'`, and the handler returns the helper's value:
+
+```ts
+// exportUsers: GET /reports/users, response: 'text'
+@Endpoint(exportUsers)
+exportUsers() {
+  return csv([
+    ['id', 'name'],
+    ['1', 'Ada'],
+  ])
+}
+```
+
+- An encoder runs inside the pipeline: after the handler's value has become a result, and before interceptors exit. It receives the request context, and an error it throws is mapped to a response like any other.
+- `result()` also accepts `{ status, headers }` as a third argument.
+- There is one encoder per kind; registering a second one for the same kind replaces the first.
+- Encoders apply to route results only, not to the not-found response.
+
+`@navios/adapter-xml` is built this way; see [XML responses](/docs/server/adapters/xml).

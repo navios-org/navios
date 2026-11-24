@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [2.0.0] - Unreleased
 
-The request pipeline, the application class and the adapter contract are rewritten. Endpoint declarations made with `@navios/builder` are unchanged. See [docs/migration.md](./docs/migration.md) for a 1.x to 2.0 guide.
+The request pipeline, the application class and the adapter contract are rewritten. Endpoint declarations made with `@navios/builder` are unchanged. See [Migrating to 2.0](https://navios.tech/docs/server/reference/migrating-to-2) for a 1.x to 2.0 guide.
 
 ### Breaking
 
@@ -46,7 +46,7 @@ The request pipeline, the application class and the adapter contract are rewritt
 - **Lifecycle**: `onApplicationBootstrap()` and `onApplicationShutdown(signal?)` on any singleton, `app.enableShutdownHooks()`, the `shutdownTimeout` option, and `await using` support.
 - **`app.inject(request)`** handles a request in process on any adapter.
 - **`@navios/core/testing`**: `defineInMemoryEnvironment()`, an adapter without a server, and `createTestClient(app)`, a typed wrapper over `app.inject()`.
-- **`@navios/core/conformance`**: `runAdapterConformance()`, the behaviour every adapter must show, run over real HTTP with any test runner.
+- **`@navios/core/conformance`**: `runAdapterConformance()`, the behaviour every adapter must show, run over real HTTP with any test runner. The optional `bodyLimit` option adds the cases for a request body over the adapter's limit (413 `application/problem+json`).
 - **`asyncContext` option and `currentContext()`** for code that cannot receive the context as an argument.
 - **`validateResponses: 'always' | 'development' | 'never'`** and **`exposeErrorDetails`** application options.
 - **Standard Schema everywhere.** Endpoint schemas, attribute schemas and `provideConfig({ schema })` accept any Standard Schema library.
@@ -82,6 +82,11 @@ The request pipeline, the application class and the adapter contract are rewritt
 - **`app.close()` disposes the container**, so `onServiceDestroy` hooks run.
 - **Declaring the same method and path twice is an error at `init()`** that names both handlers.
 - **Importing a module no longer changes another application's guards.**
+- **The in-memory adapter prefers a static segment to a URL parameter**, as the Fastify and Bun adapters do. It used to take the first route registered that matched, so with `/users/$userId` declared before `/users/export`, `GET /users/export` reached the param route in tests and the static route in production. The conformance suite now covers route precedence.
+- **The in-memory adapter does not match a path with a trailing slash**, as on the Fastify and Bun adapters: `/users/` gets the not-found response where it used to reach the route `/users`. The conformance suite now covers it, over HTTP and with `inject()`.
+- **The conformance suite checks that an empty URL parameter matches no route**: with `/users/$id` registered, `/users/` gets the not-found response.
+- **Type tests are type-checked.** Vitest's typecheck ran `tsc` with `tsconfig.lib.json`, which excludes `*.spec-d.mts`, so a type error in a type test was never reported. It now uses `tsconfig.typecheck.json`, which includes them.
+- **`AttributeFactory.get` and `getAll` accept attributes created with the `AttributeFactory` of `@navios/core/legacy-compat`.** They were typed for the standard factory's attributes only and failed with TS2769.
 
 ### Performance
 

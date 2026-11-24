@@ -5,6 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- **`ScopeProvider` under `<StrictMode>`**: The scope survives the unmount and re-mount React simulates in development
+  - Disposal now waits one microtask and is cancelled by a re-mount; a real unmount and a `key` change still dispose the scope
+  - A provider shown again by `<Activity>` after its scope was disposed starts a new scope
+- **Inline args in `useService` and `useOptionalService`**: Args are compared by their JSON form, like `useSuspenseService`
+  - An object literal written in the call no longer restarts the hook on every render
+  - Changed args still resolve again
+- **Stale instance after an args change**: A hook that read its first instance synchronously kept it when the args, token or container changed
+- **Extra constructor run on dependency invalidation**: `useService` and `useOptionalService` resolve one microtask after the invalidation event, so a dependent is not constructed against a dependency that is still being destroyed
+
+### Removed
+
+- Development warning about args "that look the same but are different instances": such args are now treated as unchanged
+
+### Documentation
+
+- README: `useContainer()` return type, examples that used `data` before checking it, Standard Schema wording, reserved `metadata.scopeId`, memoization advice
+
 ## [1.0.0-alpha.3] - 2026-01-08
 
 ### Added

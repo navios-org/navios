@@ -1,7 +1,8 @@
-import type { ReactNode } from 'react'
-import { useState } from 'react'
 import { CodeBlockRuntime, Link } from '@rspress/core/theme'
 import clsx from 'clsx'
+import { useState } from 'react'
+
+import type { ReactNode } from 'react'
 
 import styles from '../theme/home.module.css'
 
@@ -69,7 +70,7 @@ function Hero() {
   return (
     <header className={styles.hero}>
       <div className={styles.heroText}>
-        <p className={styles.eyebrow}>TypeScript · ES decorators · Zod</p>
+        <p className={styles.eyebrow}>TypeScript · ES decorators · Standard Schema</p>
         <h1 className={styles.heroTitle}>
           Type-safe APIs, <span className={styles.gradientText}>end to end</span>
         </h1>
@@ -200,9 +201,9 @@ const features: Feature[] = [
     ),
   },
   {
-    title: 'Zod validation',
+    title: 'Schema validation',
     description:
-      'First-class Zod integration for request and response validation. Automatic type inference from your schemas.',
+      'Validate requests and responses with Zod, Valibot, ArkType or any Standard Schema library. Types are inferred from your schemas.',
     link: '/docs/builder/',
     size: 'narrow',
     icon: (
@@ -284,15 +285,16 @@ export const getUser = API.declareEndpoint({
     key: 'serve',
     label: 'Serve',
     file: 'server/user.controller.ts',
-    code: `import { Controller, Endpoint, EndpointParams } from '@navios/core'
+    code: `import { Controller, Endpoint } from '@navios/core'
+import type { HandlerParams } from '@navios/core'
 import { getUser } from '../shared/api.js'
 
 @Controller()
 export class UserController {
   @Endpoint(getUser)
-  async getUser(params: EndpointParams<typeof getUser>) {
-    const { userId } = params.urlParams
-    // Full type inference for params and return type
+  async getUser({ urlParams }: HandlerParams<typeof getUser>) {
+    const { userId } = urlParams
+    // Params are typed, and the return value is checked against the declaration
     return {
       id: userId,
       name: 'John Doe',
@@ -369,7 +371,7 @@ const comparison: { feature: string; cells: [Cell, Cell, Cell] }[] = [
   { feature: 'Shared client/server types', cells: [yes(), no(), no()] },
   { feature: 'ES decorators (TC39)', cells: [yes(), no('Legacy'), no()] },
   { feature: 'Bun support', cells: [yes(), partial('Limited'), yes()] },
-  { feature: 'Built-in validation', cells: [yes('Zod'), yes('class-validator'), no()] },
+  { feature: 'Built-in validation', cells: [yes('Standard Schema'), yes('class-validator'), no()] },
   { feature: 'Bundle size', cells: [yes('Small'), partial('Large'), yes('Minimal')] },
   { feature: 'DI flexibility', cells: [yes('Hierarchical'), partial('Module-bound'), no()] },
 ]
@@ -398,7 +400,10 @@ function Comparison() {
               <tr key={row.feature}>
                 <th scope="row">{row.feature}</th>
                 {row.cells.map((cell, index) => (
-                  <td key={index} className={clsx(styles[cell.tone], index === 0 && styles.tableOurs)}>
+                  <td
+                    key={index}
+                    className={clsx(styles[cell.tone], index === 0 && styles.tableOurs)}
+                  >
                     {cell.text}
                   </td>
                 ))}
@@ -447,17 +452,17 @@ const pieces = [
       {
         name: 'JWT auth',
         description: 'JSON Web Token authentication',
-        link: '/docs/server/recipes/authentication',
+        link: '/docs/server/guides/authentication',
       },
       {
         name: 'Scheduled tasks',
         description: 'Cron-based job scheduling',
-        link: '/docs/server/recipes/schedule',
+        link: '/docs/server/guides/scheduled-jobs',
       },
       {
         name: 'Prisma ORM',
         description: 'Type-safe database access',
-        link: '/docs/server/recipes/prisma',
+        link: '/docs/server/guides/prisma',
       },
     ],
   },

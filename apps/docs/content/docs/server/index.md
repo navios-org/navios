@@ -1,159 +1,71 @@
 ---
-title: Getting Started
+title: Introduction
 ---
 
-# Getting Started
+# Navios Server
 
-Get up and running with Navios Server in minutes.
+Navios Server is an HTTP framework for TypeScript built on one idea: an endpoint is declared once, with [`@navios/builder`](/docs/builder/), and the server implements that declaration. The route, the request validation, the response validation and the handler's types all come from it, and a client can call the same declaration with the same types.
 
-## What is Navios Server?
+```ts
+import { Controller, Endpoint, inject, reply } from '@navios/core'
 
-Navios Server is a framework for building type-safe HTTP servers with TypeScript. It combines:
+import type { HandlerParams } from '@navios/core'
 
-- **Type-safe API contracts** using `@navios/builder` with Zod schemas
-- **Dependency injection** for clean, testable code
-- **Modular architecture** with controllers, services, and modules
-- **Adapter-based design** supporting multiple HTTP runtimes
-
-The framework emphasizes type safety, validation, and developer experience while allowing you to choose the underlying HTTP server that best fits your needs.
-
-## Choose Your Adapter
-
-Navios supports multiple adapters for different use cases:
-
-### HTTP Adapters
-
-| Feature | Fastify + Node.js | Fastify + Bun | Bun Adapter |
-|---------|-------------------|---------------|-------------|
-| **Runtime** | Node.js | Bun | Bun |
-| **Performance** | High | Very High | Very High |
-| **Plugin Ecosystem** | Extensive (@fastify/*) | Extensive (@fastify/*) | Limited |
-| **CORS Support** | ✅ Built-in | ✅ Built-in | ✅ Built-in |
-| **Multipart Uploads** | ✅ Via plugin | ✅ Via plugin | ✅ Native |
-| **Hot Reload** | ✅ Via @navios/cli | ✅ Native | ✅ Native |
-| **ES Decorators** | ✅ Native (Node 20+) | ⚠️ Requires plugin | ⚠️ Requires plugin |
-| **Maturity** | Production-ready | Stable | Experimental |
-
-### Additional Adapters
-
-- **XML Adapter** (`@navios/adapter-xml`) - Build XML responses (RSS, sitemaps, Atom feeds) using JSX syntax. Works with both Fastify and Bun adapters.
-
-## Installation
-
-### Fastify on Node.js (Recommended)
-
-```bash
-npm install @navios/core @navios/adapter-fastify @navios/builder zod
-```
-
-### Fastify on Bun
-
-```bash
-bun add @navios/core @navios/adapter-fastify @navios/builder zod
-```
-
-### Bun Adapter
-
-```bash
-bun add @navios/core @navios/adapter-bun @navios/builder zod
-```
-
-:::tip
-`@navios/core` re-exports `@navios/di`, so you don't need to install it separately.
-:::
-
-## Quick Start
-
-Navios Server follows a simple pattern: define your API endpoints with Builder, create controllers to handle them, organize controllers in modules, and bootstrap the application.
-
-```typescript
-import { NaviosFactory, Module, Controller, Endpoint, EndpointParams } from '@navios/core'
-import { defineFastifyEnvironment, type FastifyEnvironment } from '@navios/adapter-fastify'
-import { builder } from '@navios/builder'
-import { z } from 'zod'
-
-// 1. Define your API schema
-const API = builder()
-
-const userSchema = z.object({
-  id: z.string(),
-  name: z.string(),
-})
-
-export const getUser = API.declareEndpoint({
-  method: 'GET',
-  url: '/users/$userId',
-  responseSchema: userSchema,
-})
-
-// 2. Create a controller
+// getUser and UsersService come from the Quick start
 @Controller()
-class UserController {
+export class UsersController {
+  private readonly users = inject(UsersService)
+
   @Endpoint(getUser)
-  async getUser(params: EndpointParams<typeof getUser>) {
-    return {
-      id: params.urlParams.userId,
-      name: 'John Doe',
-    }
+  async getUser({ urlParams }: HandlerParams<typeof getUser>) {
+    return this.users.findById(urlParams.userId) ?? reply(404, { message: 'User not found' })
   }
 }
-
-// 3. Create a module
-@Module({
-  controllers: [UserController],
-})
-class AppModule {}
-
-// 4. Bootstrap the application
-async function bootstrap() {
-  const app = await NaviosFactory.create<FastifyEnvironment>(AppModule, {
-    adapter: defineFastifyEnvironment(),
-    logger: ['log', 'error', 'warn'],
-  })
-
-  await app.init()
-  await app.listen({ port: 3000 })
-  console.log('Server running on http://localhost:3000')
-}
-
-bootstrap()
 ```
 
-## Run the Server
+Return a user without `email`, or answer with a status the declaration does not list, and the controller stops compiling.
 
-```bash
-npx tsx src/main.ts
-```
+## What it does
 
-Test your endpoint:
+- **Typed handlers.** Parameters, return values and status codes are checked against the declaration at compile time, and validated again at run time.
+- **Any schema library.** Every schema slot accepts a [Standard Schema](https://standardschema.dev): Zod, Valibot, ArkType and others. These docs use Zod in examples.
+- **Standard decorators.** Navios uses TC39 decorators, the kind TypeScript compiles without `experimentalDecorators` and Bun runs natively.
+- **Adapters.** The HTTP server is Fastify on Node.js or `Bun.serve` on Bun. Application code is the same on both.
+- **Singletons by default.** Controllers, guards and interceptors are created once at start-up. Per-request data travels in a typed request context, so nothing is constructed per request unless you ask for it.
+- **One error format.** Every error response the framework produces is `application/problem+json`, unless the endpoint declares its own body for that status.
+- **Dependency injection.** Services are wired by [`@navios/di`](/docs/di/), which `@navios/core` re-exports.
 
-```bash
-curl http://localhost:3000/users/123
-# {"id":"123","name":"John Doe"}
-```
+## Packages
 
-## How It Works
+| Package                   | What it is                                                                        |
+| ------------------------- | --------------------------------------------------------------------------------- |
+| `@navios/core`            | The framework: controllers, modules, guards, interceptors, errors, config, logger |
+| `@navios/builder`         | Endpoint declarations, shared with clients                                        |
+| `@navios/adapter-fastify` | [Fastify adapter](/docs/server/adapters/fastify) for Node.js                      |
+| `@navios/adapter-bun`     | [Bun adapter](/docs/server/adapters/bun)                                          |
+| `@navios/adapter-xml`     | [XML responses](/docs/server/adapters/xml) written as JSX                         |
+| `@navios/jwt`             | [Signing and verifying JSON Web Tokens](/docs/server/guides/authentication)       |
+| `@navios/schedule`        | [Cron jobs](/docs/server/guides/scheduled-jobs)                                   |
+| `@navios/openapi`         | [An OpenAPI document](/docs/server/guides/openapi) generated from the routes      |
+| `@navios/otel`            | [OpenTelemetry](/docs/server/opentelemetry/) traces and metrics                   |
 
-1. **API Definition**: `builder()` creates a type-safe API definition. Endpoints are declared with schemas that define request/response shapes.
+An application needs `@navios/core`, `@navios/builder` and one adapter. The rest are optional.
 
-2. **Controllers**: Controllers handle HTTP requests. The `@Endpoint()` decorator connects endpoint definitions to handler methods.
+## Who it is for
 
-3. **Modules**: Modules organize controllers and services. The root module bootstraps your application.
+Navios Server fits a team that writes both sides of an API in TypeScript and wants a change to the contract to be a compile error on each side. It also works as a plain server framework: the declarations are useful on their own as the single description of every route, and they feed the OpenAPI document.
 
-4. **Type Safety**: TypeScript infers types from your schemas, ensuring requests and responses match your API contract.
+If you come from NestJS, the vocabulary is familiar (modules, controllers, guards, interceptors, injectable services) and the differences are listed in [Migrating from NestJS](/docs/server/reference/migrating-from-nestjs).
 
-## Next Steps
+## Where to go
 
-- [Architecture](/docs/server/overview) - Understand modules, controllers, and endpoints
-- [Controllers & Endpoints](/docs/server/guides/controllers) - Learn about routing and request handling
-- [Services & Dependency Injection](/docs/server/guides/services) - Create and use services with dependency injection
-- [Guards](/docs/server/guides/guards) - Implement authorization logic
-- [Configuration](/docs/server/guides/configuration) - Manage application configuration
-- [Testing](/docs/server/guides/testing) - Learn how to test your Navios application
-- [Adapters](/docs/server/adapters/fastify) - Configure your HTTP runtime
-- [Best Practices](/docs/server/best-practices) - Project structure and guidelines
-
-## Related Documentation
-
-- [Builder: Defining Endpoints](/docs/builder/builder/guides/defining-endpoints) - Learn how to define type-safe endpoints
-- [DI: Getting Started](/docs/di/di/getting-started/setup) - Learn about dependency injection
+| You want to…                                 | Read                                                                                          |
+| -------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| get a server running                         | [Quick start](/docs/server/quick-start)                                                       |
+| see what happens to a request, in order      | [How a request is handled](/docs/server/request-lifecycle)                                    |
+| learn the everyday API in order              | Essentials, starting with [Controllers and handlers](/docs/server/essentials/controllers)     |
+| declare endpoints                            | [Declaring endpoints](/docs/builder/essentials/endpoints) in the Builder docs                 |
+| share declarations between client and server | [Sharing with Navios Server](/docs/builder/guides/navios-server)                              |
+| authenticate requests                        | [Authentication with JWT](/docs/server/guides/authentication)                                 |
+| test an application                          | [Testing](/docs/server/essentials/testing)                                                    |
+| upgrade from 1.x                             | [Migrating to 2.0](/docs/server/reference/migrating-to-2)                                     |
