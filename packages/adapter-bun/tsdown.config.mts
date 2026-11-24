@@ -12,6 +12,8 @@ export default defineConfig({
   sourcemap: true,
   platform: 'node',
   dts: true,
+  // 'bun' must stay external (dts bundler cannot resolve it via @types/bun); '@navios/di' must stay external so InjectionToken keeps a single identity
+  external: ['bun', '@navios/di'],
   target: 'es2022',
   plugins: [
     withFilter(
