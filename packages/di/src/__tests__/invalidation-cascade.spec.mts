@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { z } from 'zod/v4'
 
-import { Container, inject, Injectable, InjectableScope } from '../index.mjs'
+import { Container, inject, Injectable, InjectableScope, InjectionToken } from '../index.mjs'
 
 import type { OnServiceDestroy, OnServiceInit } from '../index.mjs'
 
@@ -364,6 +365,116 @@ describe('invalidation cascade', () => {
   })
 
   describe('scopes', () => {
+    describe('building while something out of reach is being destroyed', () => {
+      /**
+       * A request-scoped service with a dependency resolved by args, and how
+       * often the schema of those args has run. Looking for dependencies that
+       * are being destroyed runs it once more per build.
+       */
+      function declare() {
+        let validations = 0
+        const schema = z.object({ id: z.string().refine(() => ++validations > 0) })
+        const Token = InjectionToken.create<{ id: string }, typeof schema>('Keyed', schema)
+
+        @Injectable({ token: Token })
+        class Keyed {
+          readonly id = 'x'
+        }
+        void Keyed
+
+        @Injectable({ scope: InjectableScope.Request })
+        class Service {
+          readonly keyed = inject(Token, { id: 'a' })
+        }
+
+        @Injectable({ scope: InjectableScope.Request })
+        class Slow {
+          onServiceDestroy() {
+            return new Promise<void>((resolve) => {
+              release = resolve
+            })
+          }
+        }
+
+        let release: () => void = () => {}
+        const build = async (from: Container) => {
+          const scope = from.createScope()
+          scope.getSync(Service)
+          const before = validations
+          await scope.dispose()
+          const next = from.createScope()
+          next.getSync(Service)
+          const count = validations - before
+          await next.dispose()
+          return count
+        }
+        return { Slow, build, finish: () => release() }
+      }
+
+      it('does not look at it when it belongs to another scope', async () => {
+        const { Slow, build, finish } = declare()
+        const idle = await build(container)
+
+        const other = container.createScope()
+        other.getSync(Slow)
+        const disposed = other.dispose()
+        const busy = await build(container)
+        finish()
+        await disposed
+
+        expect(busy).toBe(idle)
+      })
+
+      it('does not look at it when it belongs to another container', async () => {
+        const { Slow, build, finish } = declare()
+        const idle = await build(container)
+
+        const unrelated = new Container()
+        const other = unrelated.createScope()
+        other.getSync(Slow)
+        const disposed = other.dispose()
+        const busy = await build(container)
+        finish()
+        await disposed
+        await unrelated.dispose()
+
+        expect(busy).toBe(idle)
+      })
+    })
+
+    it('waits in a scope for a singleton that is being destroyed', async () => {
+      let constructed = 0
+
+      @Injectable()
+      class Shared implements OnServiceDestroy {
+        async onServiceDestroy() {
+          await tick()
+        }
+      }
+
+      @Injectable({ scope: InjectableScope.Request })
+      class PerRequest {
+        shared = inject(Shared)
+        constructor() {
+          constructed++
+        }
+      }
+
+      const earlier = container.createScope()
+      const { shared } = await earlier.get(PerRequest)
+      await earlier.dispose()
+      constructed = 0
+
+      const invalidated = container.invalidate(shared)
+      const scope = container.createScope()
+      const service = await scope.get(PerRequest)
+      await invalidated
+
+      expect(constructed).toBe(1)
+      expect(service.shared).not.toBe(shared)
+      await scope.dispose()
+    })
+
     it('constructs a request-scoped dependent once when a singleton is invalidated', async () => {
       let constructed = 0
 

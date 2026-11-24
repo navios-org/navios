@@ -88,6 +88,9 @@ export const ANY_ARGS = '*'
  * @internal
  */
 export class Store {
+  /** How many of its entries are in `Destroying` state. */
+  destroying = 0
+
   private readonly plain = new Map<InjectionToken<any, any>, Entry>()
   private keyed: Map<InjectionToken<any, any>, Map<string, Entry>> | null = null
   private byInstance: WeakMap<object, Entry> | null = null
