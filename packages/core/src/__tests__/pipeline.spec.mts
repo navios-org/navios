@@ -546,3 +546,36 @@ describe('RequestContext', () => {
     expect((unused.execute(input()) as RouteResult).release).toBeUndefined()
   })
 })
+
+describe('compileRoute: streams and declared errors', () => {
+  it('keeps headers that an async generator sets before its first chunk', async () => {
+    const { execute } = setup({ response: 'stream' }, async function* (_params, ctx: RequestContext) {
+      ctx.reply.header('content-type', 'text/event-stream')
+      yield 'a'
+      yield 'b'
+    })
+    const result = await execute(input())
+    expect(result.headers).toEqual({ 'content-type': 'text/event-stream' })
+    const chunks: unknown[] = []
+    for await (const chunk of result.body as AsyncIterable<unknown>) {
+      chunks.push(chunk)
+    }
+    expect(chunks).toEqual(['a', 'b'])
+  })
+
+  it('takes the content type of a Blob', () => {
+    const { execute } = setup({ response: 'blob' }, () => new Blob(['x'], { type: 'image/png' }))
+    expect((execute(input()) as RouteResult).headers).toEqual({ 'content-type': 'image/png' })
+  })
+
+  it('reports a string HttpException as a problem even when the status is declared', () => {
+    const { execute } = setup({ errorSchema: { 404: z.object({ message: z.string() }) } }, () => {
+      throw new NotFoundException('User not found')
+    })
+    expect(execute(input())).toMatchObject({
+      status: 404,
+      headers: { 'content-type': 'application/problem+json' },
+      body: { detail: 'User not found' },
+    })
+  })
+})

@@ -256,6 +256,12 @@ function compileFinalizer(
           kind: 'sse',
         }
       }
+      if (isAsyncGenerator(value)) {
+        return primeGenerator(value, kind)
+      }
+      if (value instanceof Blob && value.type) {
+        return { status: 200, headers: { 'content-type': value.type }, body: value, kind }
+      }
       return { status: 200, body: value, kind }
     }
   }
@@ -275,6 +281,39 @@ function compileFinalizer(
 
   return (value) =>
     isEndpointReply(value) ? fromReply(value) : { status: 200, body: value, kind: 'json' }
+}
+
+function isAsyncGenerator(value: unknown): value is AsyncGenerator<unknown> {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    typeof (value as AsyncGenerator).next === 'function' &&
+    typeof (value as AsyncGenerator)[Symbol.asyncIterator] === 'function'
+  )
+}
+
+/**
+ * Runs an async generator up to its first chunk before the response is
+ * sealed. A generator's body does not run until it is first pulled, so
+ * without this, headers it sets through `ctx.reply` before its first `yield`
+ * would be set after the response headers were already taken.
+ */
+async function primeGenerator(
+  generator: AsyncGenerator<unknown>,
+  kind: RouteResult['kind'],
+): Promise<RouteResult> {
+  const first = await generator.next()
+  async function* rest(): AsyncGenerator<unknown> {
+    try {
+      if (!first.done) {
+        yield first.value
+        yield* generator
+      }
+    } finally {
+      await generator.return?.(undefined)
+    }
+  }
+  return { status: 200, body: rest(), kind }
 }
 
 // ----------------------------------------------------------------------------

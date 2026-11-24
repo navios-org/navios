@@ -11,8 +11,11 @@ const handlerBrand: unique symbol = Symbol.for('navios.core.handler')
 export interface HandlerOptions {
   guards?: ClassType[]
   interceptors?: ClassType[]
-  /** Attribute values, as returned by calling an attribute: `[Public()]`. */
-  attributes?: AttributeApplication[]
+  /**
+   * Attribute values, as returned by calling an attribute: `[Public()]`.
+   * Attributes from `@navios/core/legacy-compat` are accepted as well.
+   */
+  attributes?: Array<Pick<AttributeApplication, 'token' | 'value'>>
 }
 
 /**

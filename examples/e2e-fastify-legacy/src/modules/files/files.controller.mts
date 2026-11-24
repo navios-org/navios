@@ -1,8 +1,5 @@
-import type { MultipartParams, StreamParams } from '@navios/core'
-import type { FastifyReply } from 'fastify'
-
-import { BadRequestException, inject, NotFoundException } from '@navios/core'
-import { Controller, Multipart, Stream } from '@navios/core/legacy-compat'
+import { BadRequestException, handler, inject, NotFoundException } from '@navios/core'
+import { Controller } from '@navios/core/legacy-compat'
 
 import {
   downloadFileEndpoint,
@@ -21,33 +18,23 @@ export class FilesController {
   private readonly filesService = inject(FilesService)
   private readonly usersService = inject(UsersService)
 
-  @Multipart(uploadFileEndpoint)
-  async uploadFile(params: MultipartParams<typeof uploadFileEndpoint>) {
-    const { file } = params.data
+  // `body: 'multipart'` in the declaration: `data` holds strings and Files.
+  uploadFile = handler(uploadFileEndpoint, async ({ data: { file } }) => {
     if (!file) {
       throw new BadRequestException('File is required')
     }
 
-    const content = await file.arrayBuffer()
-    const metadata = await this.filesService.upload({
+    const { id, filename, size, mimeType, createdAt } = await this.filesService.upload({
       filename: file.name,
       size: file.size,
       mimeType: file.type,
-      content,
+      content: await file.arrayBuffer(),
     })
 
-    return {
-      id: metadata.id,
-      filename: metadata.filename,
-      size: metadata.size,
-      mimeType: metadata.mimeType,
-      createdAt: metadata.createdAt,
-    }
-  }
+    return { id, filename, size, mimeType, createdAt }
+  })
 
-  @Multipart(uploadMultipleEndpoint)
-  async uploadMultiple(params: MultipartParams<typeof uploadMultipleEndpoint>) {
-    const { files } = params.data
+  uploadMultiple = handler(uploadMultipleEndpoint, async ({ data: { files } }) => {
     if (!files || files.length === 0) {
       throw new BadRequestException('At least one file is required')
     }
@@ -55,104 +42,78 @@ export class FilesController {
     const uploaded: { id: string; filename: string }[] = []
 
     for (const file of files) {
-      const content = await file.arrayBuffer()
       const metadata = await this.filesService.upload({
         filename: file.name,
         size: file.size,
         mimeType: file.type,
-        content,
+        content: await file.arrayBuffer(),
       })
       uploaded.push({ id: metadata.id, filename: metadata.filename })
     }
 
     return { uploaded, total: uploaded.length }
-  }
+  })
 
-  @Stream(downloadFileEndpoint)
+  // `response: 'blob'`: return the bytes, set headers on the context.
   @Public()
-  async downloadFile(params: StreamParams<typeof downloadFileEndpoint>, reply: FastifyReply) {
-    const fileId = params.urlParams.fileId
-    const file = await this.filesService.findById(fileId)
-
+  downloadFile = handler(downloadFileEndpoint, async ({ urlParams }, ctx) => {
+    const file = await this.filesService.findById(urlParams.fileId)
     if (!file) {
       throw new NotFoundException('File not found')
     }
 
-    reply.raw.writeHead(200, {
-      'Content-Type': file.mimeType,
-      'Content-Disposition': `attachment; filename="${file.filename}"`,
-      'Content-Length': file.size.toString(),
-    })
-    reply.raw.write(Buffer.from(file.content))
-    reply.raw.end()
-  }
+    ctx.reply.header('content-type', file.mimeType)
+    ctx.reply.header('content-disposition', `attachment; filename="${file.filename}"`)
+    return file.content
+  })
 
-  @Stream(streamEventsEndpoint)
+  // `response: 'stream'`: the handler returns an async iterable. Headers are
+  // set before returning it: the generator body only runs once the response
+  // has started.
   @Public()
-  async streamEvents(params: StreamParams<typeof streamEventsEndpoint>, reply: FastifyReply) {
-    const topic = params.params.topic ?? 'default'
+  streamEvents = handler(streamEventsEndpoint, ({ params }, ctx) => {
+    const topic = params.topic ?? 'default'
 
-    reply.raw.writeHead(200, {
-      'Content-Type': 'text/event-stream',
-      'Cache-Control': 'no-cache',
-      Connection: 'keep-alive',
-    })
+    ctx.reply.header('content-type', 'text/event-stream')
+    ctx.reply.header('cache-control', 'no-cache')
 
-    // Send a few events
-    for (let i = 1; i <= 3; i++) {
-      const event = {
-        id: i,
-        topic,
-        message: `Event ${i}`,
-        timestamp: new Date().toISOString(),
+    return (async function* () {
+      // Send a few events
+      for (let i = 1; i <= 3; i++) {
+        const event = {
+          id: i,
+          topic,
+          message: `Event ${i}`,
+          timestamp: new Date().toISOString(),
+        }
+        yield `data: ${JSON.stringify(event)}\n\n`
+        await new Promise((resolve) => setTimeout(resolve, 10))
       }
-      reply.raw.write(`data: ${JSON.stringify(event)}\n\n`)
-      await new Promise((resolve) => setTimeout(resolve, 10))
-    }
+    })()
+  })
 
-    reply.raw.end()
-  }
-
-  @Stream(exportDataEndpoint)
+  // `response: 'text'`: return a string.
   @Public()
-  async exportData(params: StreamParams<typeof exportDataEndpoint>, reply: FastifyReply) {
-    const { format, type } = params.data
+  exportData = handler(exportDataEndpoint, async ({ data: { format, type } }, ctx) => {
+    // Posts would need injection
+    const rows: Record<string, unknown>[] =
+      type === 'users'
+        ? (await this.usersService.findAll(1, 1000)).users.map((user) => ({ ...user }))
+        : []
 
-    let data: unknown[]
-    if (type === 'users') {
-      const result = await this.usersService.findAll(1, 1000)
-      data = result.users
-    } else {
-      data = [] // Posts would need injection
-    }
+    ctx.reply.header('content-disposition', `attachment; filename="${type}.${format}"`)
 
     if (format === 'json') {
-      reply.raw.writeHead(200, {
-        'Content-Type': 'application/json',
-        'Content-Disposition': `attachment; filename="${type}.json"`,
-      })
-      reply.raw.write(JSON.stringify(data, null, 2))
-      reply.raw.end()
-    } else {
-      // CSV format
-      reply.raw.writeHead(200, {
-        'Content-Type': 'text/csv',
-        'Content-Disposition': `attachment; filename="${type}.csv"`,
-      })
-
-      if (data.length === 0) {
-        reply.raw.end()
-        return
-      }
-
-      const headers = Object.keys(data[0] as object)
-      const rows = data.map((item) =>
-        headers.map((h) => JSON.stringify((item as Record<string, unknown>)[h] ?? '')).join(','),
-      )
-      const csv = [headers.join(','), ...rows].join('\n')
-
-      reply.raw.write(csv)
-      reply.raw.end()
+      ctx.reply.header('content-type', 'application/json')
+      return JSON.stringify(rows, null, 2)
     }
-  }
+
+    ctx.reply.header('content-type', 'text/csv')
+    if (rows.length === 0) {
+      return ''
+    }
+    const headers = Object.keys(rows[0])
+    const lines = rows.map((row) => headers.map((h) => JSON.stringify(row[h] ?? '')).join(','))
+    return [headers.join(','), ...lines].join('\n')
+  })
 }

@@ -96,7 +96,13 @@ export class ErrorPipeline {
   ): RouteResult {
     if (error instanceof HttpException) {
       const { statusCode, response } = error
-      if (config?.errorSchema !== undefined && Object.hasOwn(config.errorSchema, statusCode)) {
+      // An object response on a status the endpoint declares is the declared
+      // body. A string cannot be one, so it is reported as a problem.
+      if (
+        typeof response !== 'string' &&
+        config?.errorSchema !== undefined &&
+        Object.hasOwn(config.errorSchema, statusCode)
+      ) {
         return { status: statusCode, body: response, kind: 'json' }
       }
       return typeof response === 'string'
