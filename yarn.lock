@@ -4275,7 +4275,7 @@ __metadata:
     "@navios/di": "workspace:^"
     "@types/amqplib": "npm:^0.10.8"
     amqp-connection-manager: "npm:^5.0.1"
-    amqplib: "npm:^0.10.9"
+    amqplib: "npm:^2.4.1"
     kafkajs: "npm:^2.2.4"
     typescript: "npm:^5.9.3"
     zod: "npm:^4.6.7"
@@ -7658,13 +7658,10 @@ __metadata:
   languageName: node
   linkType: hard
 
-"amqplib@npm:^0.10.9":
-  version: 0.10.9
-  resolution: "amqplib@npm:0.10.9"
-  dependencies:
-    buffer-more-ints: "npm:~1.0.0"
-    url-parse: "npm:~1.5.10"
-  checksum: 10c0/d241efba1e38cf158c36a0fe40fc1c5424f3abf1a2d2e7d4494cb308e1800bd42ddba02cc119b47a7f4f37ef1874dfa5a9dca294e5d84443727228244e62af62
+"amqplib@npm:^2.4.1":
+  version: 2.4.1
+  resolution: "amqplib@npm:2.4.1"
+  checksum: 10c0/745c7ae0fd1533ea79b7cfcdde650930d7c2dc1fe5cdd39ff1247eef09a06982d08ac41c50f841aadb54c0355bd00d2a381ed01a7dcb4d877aa562213b3f0742
   languageName: node
   linkType: hard
 
@@ -8215,13 +8212,6 @@ __metadata:
   dependencies:
     "@types/node": "npm:*"
   checksum: 10c0/7158205c8726caa521d3ae6ef7bc341eff211ff86f7278d122e45062e1720afef2f7ad8e845edc96c04f499b292c4ec8a74df9836a25074881260ba00b863448
-  languageName: node
-  linkType: hard
-
-"buffer-more-ints@npm:~1.0.0":
-  version: 1.0.0
-  resolution: "buffer-more-ints@npm:1.0.0"
-  checksum: 10c0/992b4e372e2550fd92296937ddfb8e67bb6af2664a63eb46492a1fbc05447755c5d8ba23a0311b2b1193ce23349eada76e8da4af49d75872fc40a5913557665b
   languageName: node
   linkType: hard
 
@@ -16278,13 +16268,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"querystringify@npm:^2.1.1":
-  version: 2.2.0
-  resolution: "querystringify@npm:2.2.0"
-  checksum: 10c0/3258bc3dbdf322ff2663619afe5947c7926a6ef5fb78ad7d384602974c467fadfc8272af44f5eb8cddd0d011aae8fabf3a929a8eee4b86edcc0a21e6bd10f9aa
-  languageName: node
-  linkType: hard
-
 "queue-microtask@npm:^1.2.2":
   version: 1.2.3
   resolution: "queue-microtask@npm:1.2.3"
@@ -18920,16 +18903,6 @@ __metadata:
     file-loader:
       optional: true
   checksum: 10c0/71b6300e02ce26c70625eae1a2297c0737635038c62691bb3007ac33e85c0130efc74bfb444baf5c6b3bad5953491159d31d66498967d1417865d0c7e7cd1a64
-  languageName: node
-  linkType: hard
-
-"url-parse@npm:~1.5.10":
-  version: 1.5.10
-  resolution: "url-parse@npm:1.5.10"
-  dependencies:
-    querystringify: "npm:^2.1.1"
-    requires-port: "npm:^1.0.0"
-  checksum: 10c0/bd5aa9389f896974beb851c112f63b466505a04b4807cea2e5a3b7092f6fbb75316f0491ea84e44f66fed55f1b440df5195d7e3a8203f64fcefa19d182f5be87
   languageName: node
   linkType: hard
 
