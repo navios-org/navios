@@ -129,14 +129,14 @@ A request from an origin that is not allowed is still handled; it gets no CORS h
 
 Multipart needs no option. An endpoint declared with `body: 'multipart'` receives text fields as strings and files as `File` objects, validated by the endpoint's `requestSchema`. [File uploads](/docs/server/guides/file-uploads) covers the handler side.
 
-The body is parsed with `request.formData()`, which reads the whole body into memory. Limit the size with `serve.maxRequestBodySize`.
+The body is parsed with `request.formData()`, which reads the whole body into memory. Limit the size with `serve.maxRequestBodySize`; the limit applies to the whole multipart body, not to each file.
 
 ## Request bodies
 
 - The body is read only when the pipeline asks for it, which is after guards have passed.
 - A body with a JSON content type, or with no content type, is parsed as JSON. An empty body is `undefined`.
 - A body with any other content type is passed to validation as a string.
-- `serve.maxRequestBodySize` limits the size of a request body. Bun enforces it.
+- `serve.maxRequestBodySize` (128 MiB by default) limits the size of a request body. The adapter enforces it and answers a larger body with a 413 problem response. A body with a `content-length` over the limit is rejected before guards run; a chunked body is counted while it is read, which is after guards, and is not limited on a route that never reads it.
 - A malformed JSON body is a 400 problem response with `source: 'body'`, like the errors described in [Errors](/docs/server/essentials/errors).
 
 ## Shutdown

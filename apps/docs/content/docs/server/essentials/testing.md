@@ -71,9 +71,8 @@ How the in-memory adapter differs from a real one:
 - `app.listen()` throws; there is no server.
 - A request body that is not a string is handed to the pipeline as is. A multipart endpoint is tested by passing an object with strings and `File` values as `data`; no multipart encoding or parsing takes place.
 - `ctx.signal` never aborts.
-- A trailing slash is ignored, so `/users/` matches `/users`. The real adapters do not match it.
 
-Routes are matched as on the real adapters: a static segment wins over a URL parameter whatever the order of registration.
+Routes are matched as on the real adapters: a static segment wins over a URL parameter whatever the order of registration, and a path with a trailing slash does not match.
 
 ## The test client
 

@@ -58,11 +58,11 @@ interface HttpAdapter<Env extends HttpAdapterEnvironment = HttpAdapterEnvironmen
 
 | Member                 | Contract                                                                                                                                                                 |
 | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `register(route)`      | Called once per route, before `ready()`. `route.info` is the `RouteInfo`; `route.execute` is the executor. `route.info.path` uses the builder's form, `/users/$userId`. |
+| `register(route)`      | Called once per route, before `ready()`. `route.info` is the `RouteInfo`; `route.execute` is the executor. `route.info.path` uses the builder's form, `/users/$userId`. Routes arrive in no particular order: a static segment must win over a URL parameter, and a path with a trailing slash must not match. |
 | `setNotFound(execute)` | The executor for requests that match no route. Call it with a `RouteInput` like any other; it returns the not-found response.                                            |
 | `ready()`              | Called once after all routes are registered.                                                                                                                             |
 | `listen(options)`      | Starts the server and resolves to its base URL.                                                                                                                          |
-| `inject(request)`      | Handles a `TestRequest` in process and resolves to a `TestResponse`. It should go through as much of the server's real request path as the server allows.                |
+| `inject(request)`      | Handles a `TestRequest` in process and resolves to a `TestResponse`. It should go through as much of the server's real request path as the server allows, and must choose the same route as HTTP would. |
 | `close(timeoutMs)`     | Stops accepting connections and waits for in-flight requests, for at most `timeoutMs`.                                                                                   |
 
 A request handler is then a few lines. Check `result instanceof Promise` and avoid `await` on the synchronous path:
@@ -152,6 +152,7 @@ A result whose body cannot be written, because `JSON.stringify` throws or a head
 `runAdapterConformance` from `@navios/core/conformance` exercises an adapter over real HTTP. It covers:
 
 - JSON routes with URL parameters and a coerced query, prefix parameters, JSON `null`
+- route precedence (static before parameter) and no match for a trailing slash, over HTTP and with `inject()`
 - 400 responses for invalid input and malformed JSON, error mapping, the not-found response, bodies that cannot be serialised
 - declared statuses, bodiless statuses and response field stripping
 - guards running before body validation
@@ -160,6 +161,7 @@ A result whose body cannot be written, because `JSON.stringify` throws or a head
 - text and streamed responses, multipart
 - client disconnect, with and without a request body
 - `inject()` and graceful close with keep-alive clients
+- with `bodyLimit` set, a 413 problem response for a JSON, text or multipart body over the limit
 
 It takes the test runner's functions as an argument, so it runs under Vitest, `bun:test` or anything with the same five functions. It uses a small built-in Standard Schema implementation and depends on no schema library.
 
@@ -183,5 +185,6 @@ runAdapterConformance({
 | `name`          | Shown in the suite title.                                                     |
 | `adapter`       | Creates the adapter definition under test. Multipart support must be enabled. |
 | `listenOptions` | Passed to `app.listen()`. It must bind an ephemeral local port.               |
+| `bodyLimit`     | Optional. The largest request body in bytes the adapter under test accepts, 16 KiB or more. Enables the 413 cases. |
 
 An adapter is expected to pass every test. The suite is the definition of "behaves the same on every adapter".

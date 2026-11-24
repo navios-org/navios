@@ -83,7 +83,9 @@ stop()
 | ---------- | -------------------------------------------------------------------------------------------------------------------------------- |
 | `token`    | A class or any kind of token                                                                                                     |
 | `args`     | The arguments of the instance to watch, for a [token with a schema](/docs/di/essentials/tokens#tokens-with-a-schema). `undefined` otherwise. Ignored for bound and factory tokens, which carry their own |
-| `listener` | Called with no arguments, after the instance is gone                                                                             |
+| `listener` | Called with no arguments, after the whole cascade is over                                                                           |
+
+Listeners run once everything the call destroys is gone and every `onServiceDestroy()` has settled, just before the promise returned by `invalidate()` or `dispose()` resolves. A listener can therefore resolve the service again, as above, and gets a fully rebuilt instance. Every listener runs even if one throws; the first error rejects that promise.
 
 The listener is attached to the address, not to one object. It stays registered across rebuilds and fires each time, until the returned function is called. It can be registered before the instance exists.
 

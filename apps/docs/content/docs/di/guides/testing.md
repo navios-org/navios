@@ -179,4 +179,4 @@ A provider entry has a `token` and at most one of `useValue`, `useClass` and `us
 
 Instances returned by `get()` and `getSync()` are wrapped in a proxy that records every method call, which is what the `expect…` methods read. Only calls made through that returned object are recorded. Calls one service makes on another go to the real injected instance, so assert on those with a spy inside the `useValue` fake.
 
-A dependency that is not listed fails with `FactoryNotFound` when the class under test is built. `allowUnregistered: true` changes one thing: asking the container directly for an unlisted token returns a placeholder object that throws when any property is used. It does not make unlisted dependencies injectable.
+A dependency that is not listed fails with `FactoryNotFound` when the class under test is built. With `allowUnregistered: true` an unlisted token resolves to a placeholder instead, whether it is requested from the container or injected into the class under test. The placeholder throws when any property is used, so a test fails only if the code actually touches a dependency it did not list.
