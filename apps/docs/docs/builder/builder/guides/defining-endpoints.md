@@ -336,7 +336,7 @@ if (result.ok) {
 }
 ```
 
-For high-volume reads against a server you trust, `validateResponse: false` skips the runtime parse and keeps the inferred type:
+For high-volume reads against a server you trust, `validateResponse: false` skips the runtime parse. The call then resolves to the body as the server sent it, so the result is typed as the schema's input (no transforms or defaults applied):
 
 ```typescript
 const listFeedItems = API.declareEndpoint({

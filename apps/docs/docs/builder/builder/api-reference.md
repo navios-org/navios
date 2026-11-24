@@ -69,7 +69,7 @@ declareEndpoint<const Options extends BaseEndpointOptions>(
 | `headers`          | `Record<string, string>`                                      | Headers sent with every call. Per-call `headers` are merged over these                              |
 | `timeout`          | `number`                                                      | Timeout in milliseconds. A per-call `timeout` wins                                                  |
 | `clientOptions`    | `Record<string, unknown>`                                     | Client-specific options merged into the request config. Cannot override builder-owned keys          |
-| `validateResponse` | `boolean`                                                     | `false` skips the runtime parse of the response; the type is still inferred. Default `true`         |
+| `validateResponse` | `boolean`                                                     | `false` skips the runtime parse of the response; the result is typed as the schema's input. Default `true`         |
 
 A [`Schema`](#schema) is any [Standard Schema](https://standardschema.dev) v1 implementation: Zod, Valibot, ArkType and others. Each slot takes its own schema, so libraries can be mixed within one endpoint.
 

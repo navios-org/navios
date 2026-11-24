@@ -196,8 +196,9 @@ const socket = socketBuilder()
 socket.provideClient(handle)
 
 // Or use handle directly (Socket.IO-like API)
-handle.emit('message', { text: 'Hello!' })
-handle.on('message', (data) => console.log(data))
+handle.emit('chat.message', { text: 'Hello!' }) // sends ["chat.message",{"text":"Hello!"}]
+handle.on('chat.message', (payload) => console.log(payload))
+handle.on('message', (frame) => console.log(frame)) // every incoming frame
 handle.on('connect', () => console.log('Connected!'))
 handle.on('disconnect', (reason) => console.log('Disconnected:', reason))
 
@@ -208,6 +209,12 @@ handle.close()
 ```
 
 The handle also exposes `url` (the full URL it connected to), `connected`, `state` and the underlying `socket`.
+
+`handle.emit(event, ...args)` always sends the frame `[event, ...args]`, whatever the arguments look like. `handle.sendRaw(topic, message)` sends `message` as it is (JSON serialized, no envelope); `socketBuilder` uses it, so the output of a custom `formatMessage` reaches the server unchanged.
+
+`handle.on()` keeps connection events and server topics apart. The names `open`, `close`, `error`, `message`, `connect`, `disconnect` and `connect_error` are lifecycle events: `message` receives every incoming frame once, the others follow the underlying `WebSocket`, and no server message can trigger them. Any other name is a topic and receives the payload of each `[topic, payload]` frame. To listen to a server topic that is literally named `close`, `open`, `error` or `message`, use `handle.onTopic(topic, handler)` (it returns an unsubscribe function) or `socket.defineSubscribe({ topic })`, which both route by topic only.
+
+Query parameters are appended to the URL after validation: `undefined` and `null` are skipped, a `Date` is written as `toISOString()`, an array repeats its key once per item (`tag=a&tag=b`), and a URL that already contains a query string is continued with `&`.
 
 ### WebSocket Handler Factory
 
@@ -294,6 +301,10 @@ const socket = socketBuilder({
 })
 ```
 
+Acknowledgements work in a custom format too: when `parseMessage` returns an `ackId` that belongs to a send still waiting for its acknowledgement, the message's `payload` is validated with that send's `ackSchema` and settles its promise. Such a reply is not delivered to the topic's subscribers. The `['__navios_ack:ackId', response]` event keeps working alongside it.
+
+The formatted message is handed to the client's `sendRaw(topic, message)` when it has one (`declareWebSocket` handles do, and send it as JSON exactly as formatted) and to `emit(topic, message)` otherwise, as with socket.io-client.
+
 ## Type Safety
 
 The socket builder uses TypeScript's const generic inference for full type safety:
@@ -375,6 +386,7 @@ const socket = socketBuilder({
 | `ack-timeout` | No acknowledgement arrived within `ackTimeout`                                                   | The send promise rejects                                  |
 | `transport`   | A subscribe handler threw (`cause` is the thrown value)                                          | The other subscribers of the topic still run              |
 | `transport`   | `provideClient` replaced the client while an acknowledgement was pending                         | The send promise rejects                                  |
+| `transport`   | `formatMessage` or the client threw while sending (`cause` is the thrown value)                  | A fire-and-forget send throws; a send with ack rejects at once and stops waiting |
 
 `onError` is called once for each of these.
 

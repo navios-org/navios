@@ -43,11 +43,15 @@ Each top-level key of the validated `data` becomes a form field:
 | Value                         | Sent as                                   |
 | ----------------------------- | ----------------------------------------- |
 | `File`                        | A file part, with the file's name         |
+| `Blob`                        | A binary part                             |
 | Array                         | One part per item, all under the same key |
 | `string`, `number`, `boolean`, `bigint` | Its string form                 |
 | `Date`                        | ISO 8601 string                           |
-| `null`, `undefined`           | Empty string                              |
+| `null`                        | Empty string                              |
+| `undefined`                   | Left out                                  |
 | Other objects                 | JSON string                               |
+
+A `FormData` instance passed as `data` is sent as it is.
 
 ## Single File Upload
 
