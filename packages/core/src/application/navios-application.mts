@@ -238,6 +238,7 @@ export class NaviosApplication<Env extends HttpAdapterEnvironment = ApplicationE
       validation: await container.get(ValidationErrorResponderToken),
       internal: await container.get(InternalServerErrorResponderToken),
       exposeErrorDetails: options.exposeErrorDetails ?? false,
+      checkDeclaredErrors: process.env.NODE_ENV !== 'production',
       onUnhandled: (error, ctx) => {
         this.logger.error(
           ctx ? `Unhandled error in ${ctx.method} ${ctx.path}` : 'Unhandled error',

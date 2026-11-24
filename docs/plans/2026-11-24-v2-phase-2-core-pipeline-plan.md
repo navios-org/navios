@@ -115,11 +115,13 @@ function compileRoute(definition: RouteDefinition, deps: CompileDeps): RouteExec
 
 Executed 2026-11-24 on `feat/v2-core`.
 
-**Done:** Tasks 1 to 6 and the benchmark half of Task 7.
+**Done:** Tasks 1 to 6, the benchmark half of Task 7, typed server-sent events (`sse()`, `sseStream()`), and all four example applications (52 tests in each Fastify example, 55 in each Bun example).
+
+**Import time:** `import('@navios/core')` takes 16 ms (was 35 ms; budget 20 ms).
 
 **Tests**
-- `packages/core`: 94 passing, type tests clean (pipeline kernel, application on the in-memory adapter, legacy-compat, handler types).
-- `packages/adapter-fastify`: the 13 conformance tests pass (Vitest, real HTTP).
+- `packages/core`: 103 passing, type tests clean (pipeline kernel, application on the in-memory adapter, legacy-compat, handler types).
+- `packages/adapter-fastify`: the 13 conformance tests and 1 native-reply test pass (Vitest, real HTTP).
 - `packages/adapter-bun`: the same 13 conformance tests pass under `bun test`, plus 2 CORS tests.
 
 **HTTP benchmark** (`yarn bench --check` in `packages/adapter-fastify`; Node 24.22, production mode, `fastify.inject`, best of 7 rounds, same machine as the 1.x numbers). The baseline is raw Fastify doing the same zod validation by hand.
@@ -138,8 +140,7 @@ Run-to-run variation is a few tenths of a microsecond, so "about 0" means within
 
 **Not done**
 - `@navios/builder` `headersSchema` / `cookiesSchema` and the in-process transport (Task 7). Core already validates `headersSchema` and `cookiesSchema` at runtime when a declaration carries them, but the builder rejects unknown options, and the client-side meaning of a headers schema is a builder design decision. `createTestClient` is therefore a small typed wrapper over `app.inject()`, not the builder client.
-- Typed server-sent events (design 6.12). A handler can already stream an async iterable; the `sse()` helper tied to the builder's event declarations is not written.
-- `import('@navios/core')` time against its 20 ms budget was not re-measured.
+- `TestingModule` / `UnitTestingModule` were removed and not replaced. Tests use `defineInMemoryEnvironment()`, `createTestClient()`, `app.inject()` and the DI test containers.
 - Downstream packages (`otel*`, `openapi*`, `adapter-xml`, `schedule`, `queues`, `microservice`, `jwt`) are not ported; they do not build on this branch.
 
 **Deviations from the design, recorded in the design doc**
@@ -149,3 +150,14 @@ Run-to-run variation is a few tenths of a microsecond, so "about 0" means within
 
 **Found while executing**
 - A benchmark loop that only awaits `fastify.inject()` never lets the event loop turn, and memory grows until Node aborts. It looked like a request-scope leak and was not one (retained heap after a forced GC: 15 MB after 60,000 scoped requests). The benchmark now yields between rounds.
+
+**Found by porting the examples and writing the docs, all fixed with tests**
+- Multipart: a single part for an array-of-files field was rejected, because the JSON Schema request failed on file types.
+- Headers set inside an async-generator stream handler were dropped; the generator is now run to its first chunk before the response is sealed.
+- A string `HttpException` on a status declared in `errorSchema` was sent as a bare string body.
+- `handler()` options rejected legacy-compat attributes at the type level.
+- A handler that wrote through the native Fastify reply got its (absent) return value validated; core now skips validation when the adapter reports the response as sent.
+- The Fastify adapter did not drop connections when the shutdown timeout passed.
+- The in-memory adapter answered a malformed JSON body with 500 instead of 400.
+- Bun CORS: no origin meant no CORS at all, and `credentials` with a wildcard origin threw on every request. The origin now defaults to `*`, and the invalid combination fails at start-up.
+- Thrown `HttpException` bodies are now checked against `errorSchema` outside production and a mismatch is logged.

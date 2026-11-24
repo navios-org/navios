@@ -28,9 +28,10 @@ export interface EventDeclaration<
   config: { eventName: Name; payloadSchema?: Schema }
 }
 
-type PayloadOf<Event extends EventDeclaration> = Event['config']['payloadSchema'] extends StandardSchemaV1
-  ? InferInput<Event['config']['payloadSchema']>
-  : unknown
+type PayloadOf<Event extends EventDeclaration> =
+  Event['config']['payloadSchema'] extends StandardSchemaV1
+    ? InferInput<Event['config']['payloadSchema']>
+    : unknown
 
 /**
  * Creates an event for a declared event type. The payload is typed from the

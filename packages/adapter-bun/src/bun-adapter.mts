@@ -277,6 +277,12 @@ export class BunAdapter implements HttpAdapter<BunEnvironment> {
     options: BunAdapterOptions,
     private readonly context: AdapterContext,
   ) {
+    if (options.cors && options.cors.credentials && (options.cors.origin ?? '*') === '*') {
+      throw new Error(
+        '[Navios] CORS with credentials needs an explicit origin: browsers reject ' +
+          'Access-Control-Allow-Origin: * on credentialed requests. Set cors.origin to the allowed origin(s).',
+      )
+    }
     // Like @fastify/cors: enabling CORS without an origin allows any origin.
     this.options = options.cors ? { ...options, cors: { origin: '*', ...options.cors } } : options
   }

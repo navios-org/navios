@@ -1,377 +1,109 @@
 # Modules
 
-Modules in Navios are the primary building blocks for organizing your application. They provide a way to group related controllers, services, and other providers into cohesive units that can be easily managed and imported.
+A module is a group of routes with a shared path prefix, shared guards and shared interceptors. It is not a dependency-injection boundary.
 
-## What is a Module?
-
-A module is a TypeScript class decorated with the `@Module()` decorator. It serves as a container for controllers, other modules, and shared guards. Modules help organize your application into logical boundaries and enable dependency injection across the application.
-
-## Creating a Module
-
-### Basic Module
-
-```typescript
-import { Module } from '@navios/core'
-
-@Module()
-export class AppModule {}
-```
-
-### Module with Controllers
-
-```typescript
-import { Module } from '@navios/core'
-
-import { ProductController } from './product.controller'
-import { UserController } from './user.controller'
+```ts
+import { Module, provide } from '@navios/core'
 
 @Module({
-  controllers: [UserController, ProductController],
+  prefix: '/users',
+  imports: [AuditModule],
+  controllers: [UsersController],
+  guards: [AuthGuard],
+  interceptors: [TimingInterceptor],
+  providers: [provide(UserStore, PgUserStore)],
 })
-export class AppModule {}
+export class UsersModule {}
 ```
 
-### Module with Imports
+Every option is optional. The application is created from one root module, and every module reachable through `imports` is part of it.
 
-```typescript
-import { Module } from '@navios/core'
+## `prefix`
 
-import { AuthModule } from './auth/auth.module'
-import { UserModule } from './user/user.module'
+A route's path is the application's `globalPrefix`, then the prefix of each importing module from the outermost inwards, then the module's own prefix, then the endpoint's `url`. Leading and trailing slashes are normalised, so `'users'` and `'/users/'` mean the same.
 
-@Module({
-  imports: [UserModule, AuthModule],
-})
-export class AppModule {}
+```ts
+@Module({ prefix: 't', controllers: [DeepController] }) // GET /deep
+class T {}
+
+@Module({ prefix: '/api', imports: [T] })
+class Root {}
+
+// With globalPrefix: 'v1' the route is GET /v1/api/t/deep
 ```
 
-### Module with Guards
+A module that has controllers and is reached under two different prefixes fails at `init()`, because its routes would exist twice. A module without controllers may be imported from anywhere.
 
-```typescript
-import { Module } from '@navios/core'
+## `guards` and `interceptors`
 
-import { AuthGuard } from './auth.guard'
-import { UserController } from './user.controller'
+A module's guards and interceptors apply to its own routes and to the routes of every module it imports, directly or indirectly.
 
-@Module({
-  controllers: [UserController],
-  guards: [AuthGuard], // Applied to all controllers in this module
-})
-export class UserModule {}
+When a module is reached through several import paths, its routes get the union of the guards along all of them:
+
+```ts
+@Module({ imports: [Shared], guards: [G1] })
+class A {}
+
+@Module({ imports: [Shared], guards: [G2] })
+class B {}
+
+@Module({ imports: [A, B] })
+class Root {}
+
+// Routes of Shared, and of the modules Shared imports, run G1 and G2.
 ```
 
-## Module Options
+The effective lists are computed per application at `init()`. Nothing is written back to the classes, so two applications in one process that import the same module under different parents do not affect each other, and the result does not depend on the order in which files are imported.
 
-The `@Module()` decorator accepts the following options:
+`@UseGuards` and `@UseInterceptors` above `@Module` add to the same lists.
 
-### `controllers`
+## `providers`
 
-- **Type**: `ClassType[] | Set<ClassType>`
-- **Description**: Array of controller classes that belong to this module
-- **Example**:
+`providers` is a list of `provide(token, implementation)` entries that say what a token or class resolves to:
 
-```typescript
+```ts
 @Module({
-  controllers: [UserController, PostController],
-})
-export class UserModule {}
-```
-
-### `imports`
-
-- **Type**: `ClassType[] | Set<ClassType>`
-- **Description**: Array of other modules to import into this module
-- **Example**:
-
-```typescript
-@Module({
-  imports: [DatabaseModule, AuthModule],
-})
-export class AppModule {}
-```
-
-### `guards`
-
-- **Type**: `ClassType[] | Set<ClassType>`
-- **Description**: Array of guard classes that will be applied to all controllers in this module
-- **Example**:
-
-```typescript
-@Module({
-  guards: [AuthGuard, RoleGuard],
-})
-export class ProtectedModule {}
-```
-
-## Module Lifecycle
-
-Modules in Navios follow a specific lifecycle:
-
-1. **Registration**: Modules are registered with the dependency injection container
-2. **Import Resolution**: Imported modules are loaded recursively
-3. **Controller Registration**: Controllers are registered and their endpoints discovered
-4. **Guard Application**: Module-level guards are applied to all controllers
-5. **Initialization**: Module initialization hooks are called
-
-## Module Lifecycle Methods
-
-### `onModuleInit`
-
-The `onModuleInit` lifecycle method is called after the module has been initialized and all its dependencies have been resolved. This is useful for performing setup tasks, initializing connections, or running startup logic.
-
-#### Interface
-
-```typescript
-interface NaviosModule {
-  onModuleInit(): void | Promise<void>
-}
-```
-
-#### Usage
-
-To use the `onModuleInit` lifecycle method, implement the `NaviosModule` interface in your module class:
-
-```typescript
-import { Module, NaviosModule } from '@navios/core'
-
-@Module({
-  controllers: [UserController],
-})
-export class UserModule implements NaviosModule {
-  onModuleInit() {
-    console.log('UserModule has been initialized')
-    // Perform initialization logic here
-  }
-}
-```
-
-#### Async Initialization
-
-The `onModuleInit` method can be asynchronous, allowing you to perform async setup tasks:
-
-```typescript
-import { Module, NaviosModule } from '@navios/core'
-
-@Module({
-  controllers: [DatabaseController],
-})
-export class DatabaseModule implements NaviosModule {
-  async onModuleInit() {
-    console.log('Initializing database connection...')
-    await this.connectToDatabase()
-    console.log('Database connection established')
-  }
-
-  private async connectToDatabase() {
-    // Database connection logic
-    return new Promise((resolve) => setTimeout(resolve, 1000))
-  }
-}
-```
-
-#### Common Use Cases
-
-- **Database Connections**: Initialize database connections or verify connectivity
-- **Cache Warming**: Pre-populate caches with frequently accessed data
-- **External Service Setup**: Initialize connections to external APIs or services
-- **Configuration Validation**: Validate required configuration settings
-- **Background Tasks**: Start background processes or scheduled tasks
-
-```typescript
-import { Module, NaviosModule } from '@navios/core'
-
-@Module({
-  controllers: [CacheController],
-})
-export class CacheModule implements NaviosModule {
-  private cache = new Map<string, any>()
-
-  async onModuleInit() {
-    // Warm up the cache with initial data
-    await this.warmUpCache()
-
-    // Validate configuration
-    this.validateConfiguration()
-
-    console.log('CacheModule initialized successfully')
-  }
-
-  private async warmUpCache() {
-    // Pre-populate cache with frequently accessed data
-    this.cache.set('app:config', await this.loadAppConfig())
-    this.cache.set('user:defaults', await this.loadUserDefaults())
-  }
-
-  private validateConfiguration() {
-    if (!process.env.CACHE_TTL) {
-      throw new Error('CACHE_TTL environment variable is required')
-    }
-  }
-
-  private async loadAppConfig() {
-    // Load application configuration
-    return { theme: 'dark', language: 'en' }
-  }
-
-  private async loadUserDefaults() {
-    // Load default user settings
-    return { notifications: true, theme: 'auto' }
-  }
-}
-```
-
-#### Execution Order
-
-The `onModuleInit` methods are called in dependency order:
-
-1. **Imported modules first**: All imported modules' `onModuleInit` methods are called before the current module
-2. **Current module last**: The current module's `onModuleInit` method is called after all its dependencies
-
-```typescript
-@Module({
-  imports: [DatabaseModule, CacheModule], // These initialize first
-})
-export class AppModule implements NaviosModule {
-  onModuleInit() {
-    // This runs after DatabaseModule and CacheModule have been initialized
-    console.log('AppModule initialized - all dependencies are ready')
-  }
-}
-```
-
-## Module Metadata
-
-Each module decorated with `@Module()` has associated metadata that Navios uses internally:
-
-```typescript
-export interface ModuleMetadata {
-  controllers: Set<ClassType>
-  imports: Set<ClassType>
-  guards: Set<ClassType>
-  attributes: Map<symbol, unknown>
-}
-```
-
-## Best Practices
-
-### 1. Feature-Based Organization
-
-Organize modules around business features rather than technical layers:
-
-```typescript
-// ✅ Good - Feature-based
-@Module({
-  controllers: [UserController],
-  imports: [UserDatabaseModule],
-})
-export class UserModule {}
-
-// ❌ Avoid - Layer-based
-@Module({
-  controllers: [UserController, ProductController, OrderController],
-})
-export class ControllersModule {}
-```
-
-### 2. Single Responsibility
-
-Each module should have a single, well-defined responsibility:
-
-```typescript
-// ✅ Good - Single responsibility
-@Module({
-  controllers: [AuthController],
-  imports: [JwtModule],
-})
-export class AuthModule {}
-
-// ❌ Avoid - Multiple responsibilities
-@Module({
-  controllers: [AuthController, UserController, ProductController],
-})
-export class EverythingModule {}
-```
-
-### 3. Explicit Dependencies
-
-Always explicitly import the modules you depend on:
-
-```typescript
-// ✅ Good - Explicit imports
-@Module({
-  imports: [AuthModule, DatabaseModule],
-  controllers: [UserController],
-})
-export class UserModule {}
-```
-
-### 4. Module Composition
-
-Build complex applications by composing smaller, focused modules:
-
-```typescript
-@Module({
-  imports: [AuthModule, UserModule, ProductModule, OrderModule],
-})
-export class AppModule {}
-```
-
-## Advanced Usage
-
-### Conditional Module Loading
-
-You can conditionally include modules based on environment or configuration:
-
-```typescript
-import { Module } from '@navios/core'
-
-const imports = [CoreModule]
-if (process.env.NODE_ENV === 'development') {
-  imports.push(DevToolsModule)
-}
-
-@Module({
-  imports,
-  controllers: [AppController],
-})
-export class AppModule {}
-```
-
-### Module with Complex Guard Setup
-
-```typescript
-import { Module } from '@navios/core'
-
-import { AuthGuard, RoleGuard, ThrottleGuard } from './guards'
-
-@Module({
-  guards: [
-    AuthGuard, // Applied first
-    RoleGuard, // Applied second
-    ThrottleGuard, // Applied last
+  providers: [
+    provide(UserStore, PgUserStore), // a class
+    provide(Greeting, { value: 'hello' }), // a value
+    provide(Clock, { factory: () => new SystemClock() }), // a factory
   ],
-  controllers: [AdminController],
 })
-export class AdminModule {}
+export class AppModule {}
 ```
 
-## Testing Modules
+Providers are application-wide. Modules do not encapsulate them: a provider listed in any module is visible to every service in the application, and a service does not have to be listed anywhere to be injectable. A class decorated with `@Injectable()` is resolvable by being imported.
 
-When testing modules, you can create test-specific module configurations:
+The reason is that a module in Navios is a route group and an application has exactly one container. There are no per-module containers, so there is nothing for a provider to be private to.
 
-```typescript
-import { Module } from '@navios/core'
+Precedence when the same token is provided more than once:
 
-import { MockUserService } from './mocks/user.service'
-import { UserController } from './user.controller'
+1. The application's `providers` option wins over every module.
+2. Between modules, the first one in initialisation order wins, and an imported module is initialised before the module that imports it.
 
-@Module({
-  controllers: [UserController],
-  // Use mock services for testing
-})
-export class TestUserModule {}
+Relying on rule 2 is fragile. Provide a token in one place.
+
+`@Module({ overrides })` and `@Injectable({ priority })` from 1.x are gone; `provide()` replaces both.
+
+## `onModuleInit`
+
+A module class is instantiated once, as a singleton, and may implement `onModuleInit()`:
+
+```ts
+import type { OnModuleInit } from '@navios/core'
+
+@Module({ imports: [DatabaseModule] })
+export class AppModule implements OnModuleInit {
+  private readonly migrations = inject(Migrations)
+
+  async onModuleInit() {
+    await this.migrations.run()
+  }
+}
 ```
 
-## Module Discovery
+Hooks run one at a time, in dependency order: a module's hook runs after the hooks of everything it imports. They run before controllers are created and routes are compiled.
 
-Navios automatically discovers and registers modules through the module tree starting from your root application module.
+## Modules added by plugins
+
+A plugin can add a module with `api.addModule(SomeModule)`. It is treated as an additional root: it gets the global prefix but no prefix or guards from the application's root module. See [Plugins](./plugins.md).

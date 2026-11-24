@@ -549,11 +549,14 @@ describe('RequestContext', () => {
 
 describe('compileRoute: streams and declared errors', () => {
   it('keeps headers that an async generator sets before its first chunk', async () => {
-    const { execute } = setup({ response: 'stream' }, async function* (_params, ctx: RequestContext) {
-      ctx.reply.header('content-type', 'text/event-stream')
-      yield 'a'
-      yield 'b'
-    })
+    const { execute } = setup(
+      { response: 'stream' },
+      async function* (_params, ctx: RequestContext) {
+        ctx.reply.header('content-type', 'text/event-stream')
+        yield 'a'
+        yield 'b'
+      },
+    )
     const result = await execute(input())
     expect(result.headers).toEqual({ 'content-type': 'text/event-stream' })
     const chunks: unknown[] = []
@@ -577,5 +580,18 @@ describe('compileRoute: streams and declared errors', () => {
       headers: { 'content-type': 'application/problem+json' },
       body: { detail: 'User not found' },
     })
+  })
+})
+
+describe('compileRoute: taking the response over', () => {
+  it('skips response validation when the handler wrote the response itself', () => {
+    let sent = false
+    const { execute, unhandled } = setup({ responseSchema: z.object({ ok: z.boolean() }) }, () => {
+      sent = true
+      return undefined
+    })
+    const result = execute({ ...input(), responded: () => sent }) as RouteResult
+    expect(result.kind).toBe('empty')
+    expect(unhandled).toEqual([])
   })
 })

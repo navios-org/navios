@@ -1,4 +1,5 @@
 import { serializeCookie } from '../adapter/cookies.mjs'
+import { ValidationError } from '../routing/validation.mjs'
 
 import type {
   AdapterDefinition,
@@ -144,7 +145,13 @@ export class InMemoryAdapter implements HttpAdapter<InMemoryEnvironment> {
           return body
         }
         if ((headers['content-type'] ?? 'application/json').includes('json')) {
-          return JSON.parse(body)
+          try {
+            return JSON.parse(body)
+          } catch (error) {
+            throw new ValidationError('body', [
+              { message: `Malformed JSON body: ${(error as Error).message}` },
+            ])
+          }
         }
         return body
       },

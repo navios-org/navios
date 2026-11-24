@@ -20,7 +20,10 @@ describe('server-sent events', () => {
   })
 
   it('types and validates the payload of a declared event', () => {
-    expect(sse(userJoined, { userId: '1' })).toEqual({ event: 'user-joined', data: { userId: '1' } })
+    expect(sse(userJoined, { userId: '1' })).toEqual({
+      event: 'user-joined',
+      data: { userId: '1' },
+    })
     // @ts-expect-error wrong payload type
     expect(() => sse(userJoined, { userId: 1 })).toThrow(/Validation failed/)
   })

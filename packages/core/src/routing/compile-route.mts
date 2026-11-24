@@ -52,6 +52,9 @@ type MaybePromise<T> = T | Promise<T>
 
 const EMPTY_PARAMS = Object.freeze({})
 
+/** Placeholder result for a response the handler wrote itself. */
+const TAKEN_OVER: RouteResult = Object.freeze({ status: 200, body: undefined, kind: 'empty' })
+
 function isPromise<T>(value: MaybePromise<T>): value is Promise<T> {
   return value instanceof Promise
 }
@@ -378,7 +381,13 @@ export function compileRoute(definition: RouteDefinition, options: CompileOption
   const handle = (ctx: RequestContext, input: RouteInput): MaybePromise<RouteResult> => {
     const args = params(input, ctx)
     const produced = isPromise(args) ? args.then((value) => invoke(value, ctx)) : invoke(args, ctx)
-    return isPromise(produced) ? produced.then(finalize) : finalize(produced)
+    if (input.responded === undefined) {
+      return isPromise(produced) ? produced.then(finalize) : finalize(produced)
+    }
+    // The handler may have written the response itself through ctx.raw.
+    const finish = (value: unknown): MaybePromise<RouteResult> =>
+      input.responded!() ? TAKEN_OVER : finalize(value)
+    return isPromise(produced) ? produced.then(finish) : finish(produced)
   }
 
   const guarded =

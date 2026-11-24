@@ -1,254 +1,181 @@
-# Navios
+# @navios/core
 
-Navios is a Type-Safe HTTP Server with Zod Validation.
+`@navios/core` is an HTTP server framework for TypeScript. Endpoints are declared once with `@navios/builder`; the server validates requests and responses against the declaration, and a client can call the same declaration with the same types.
 
-It is a powerful tool for building robust and type-safe APIs using TypeScript. It leverages the power of Zod for validation and provides a simple and intuitive API for defining endpoints, request and response schemas, and handling errors.
+- Handlers are typed from the endpoint declaration. Parameters, return values and status codes are checked at compile time.
+- Schemas can come from any [Standard Schema](https://standardschema.dev) library. The examples use Zod.
+- The HTTP server is provided by an adapter: [`@navios/adapter-fastify`](../adapter-fastify/README.md) for Node.js or [`@navios/adapter-bun`](../adapter-bun/README.md) for Bun. Application code is the same on both.
+- Controllers, guards and interceptors are singletons. Per-request data is carried by a typed request context.
+- Error responses are `application/problem+json`.
 
-Navios is adapter-based, allowing you to choose the underlying HTTP server implementation. Currently supported adapters include:
+This README describes version 2.0. To upgrade from 1.x, read the [migration guide](./docs/migration.md).
 
-- **Fastify** (via `@navios/adapter-fastify`) - A fast and low-overhead web framework for Node.js
-- **Bun** (via `@navios/adapter-bun`) - A fast JavaScript runtime optimized for server-side applications
-
-## Prerequisites
-
-To work as an HTTP server, you must install one of the supported adapters:
+## Install
 
 ```bash
-# For Fastify adapter
-npm install @navios/adapter-fastify
+yarn add @navios/core @navios/builder zod
 
-# OR for Bun adapter
-npm install @navios/adapter-bun
+# and one adapter
+yarn add @navios/adapter-fastify fastify
+# or
+yarn add @navios/adapter-bun
 ```
 
-The adapter must be provided when creating your Navios application to define the underlying HTTP server implementation.
+Navios uses standard decorators. Projects that compile with `experimentalDecorators` use the [legacy decorators](./docs/legacy-decorators.md) entry point.
 
-## Features
-
-- **Type Safety**: Navios provides a type-safe API for defining endpoints, request and response schemas. This ensures that your API is always type-safe and reduces the risk of runtime errors.
-- **Validation**: Zod provides powerful validation capabilities, allowing you to define complex validation rules for your data. This ensures that the data you work with is always valid and meets your requirements.
-- **Build with Navios Builder**: Navios Builder is a powerful HTTP client that simplifies API requests. By combining it with Navios, you can use the same API definition for both the client and server, ensuring consistency and reducing duplication.
-- **Declarative API**: The API is designed to be declarative, allowing you to define your API endpoints and their schemas in a clear and concise manner. This makes it easy to understand and maintain your API client.
-- **Customizable**: The package allows you to customize the behavior of the API client, such as using a custom client.
-- **Error Handling**: The package provides built-in error handling capabilities with RFC 7807 Problem Details format for standardized error responses. Includes customizable error responders and comprehensive exception handling.
-
-## Adapters
-
-Navios uses an adapter pattern to support different HTTP server implementations. Each adapter provides the necessary bindings to integrate with a specific runtime or framework.
-
-### Available Adapters
-
-#### Fastify Adapter (`@navios/adapter-fastify`)
-
-- Built on top of [Fastify](https://www.fastify.io/), a fast and low-overhead web framework
-- Excellent performance and a rich ecosystem of plugins
-- Full Node.js compatibility
-- Supports all Fastify features including hooks, plugins, and decorators
+## Example
 
 ```ts
+// api.mts
+import { builder } from '@navios/builder'
+import { z } from 'zod'
+
+const api = builder()
+
+const userSchema = z.object({ id: z.string(), name: z.string() })
+
+export const getUser = api.declareEndpoint({
+  method: 'GET',
+  url: '/users/$id',
+  responseSchema: userSchema,
+  errorSchema: { 404: z.object({ message: z.string() }) },
+})
+
+export const createUser = api.declareEndpoint({
+  method: 'POST',
+  url: '/users',
+  requestSchema: z.object({ name: z.string().min(1) }),
+  responses: { 201: userSchema },
+})
+
+export const me = api.declareEndpoint({
+  method: 'GET',
+  url: '/me',
+  responseSchema: z.object({ name: z.string() }),
+})
+```
+
+```ts
+// auth.mts
+import { createContextKey, Injectable, UnauthorizedException } from '@navios/core'
+
+import type { Guard, RequestContext } from '@navios/core'
+
+// A typed per-request slot: the guard sets it, handlers read it.
+export const CurrentUser = createContextKey<{ name: string }>('CurrentUser')
+
+@Injectable()
+export class AuthGuard implements Guard {
+  canActivate(ctx: RequestContext) {
+    const header = ctx.headers.get('authorization')
+    if (!header?.startsWith('Bearer ')) {
+      throw new UnauthorizedException('Missing bearer token')
+    }
+    ctx.set(CurrentUser, { name: header.slice(7) })
+    return true
+  }
+}
+```
+
+```ts
+// users.mts
+import { Controller, handler, inject, Injectable, Module, reply } from '@navios/core'
+
+import { createUser, getUser, me } from './api.mjs'
+import { AuthGuard, CurrentUser } from './auth.mjs'
+
+@Injectable()
+export class UsersService {
+  private readonly users = new Map([['1', { id: '1', name: 'Ann' }]])
+  private next = 2
+
+  find(id: string) {
+    return this.users.get(id) ?? null
+  }
+
+  create(name: string) {
+    const user = { id: String(this.next++), name }
+    this.users.set(user.id, user)
+    return user
+  }
+}
+
+@Controller()
+export class UsersController {
+  private readonly users = inject(UsersService)
+
+  getUser = handler(getUser, ({ urlParams }) => {
+    return this.users.find(urlParams.id) ?? reply(404, { message: 'User not found' })
+  })
+
+  createUser = handler(createUser, ({ data }) => reply(201, this.users.create(data.name)))
+
+  me = handler(me, (_params, ctx) => ({ name: ctx.get(CurrentUser).name }))
+}
+
+@Module({ controllers: [UsersController], guards: [AuthGuard] })
+export class AppModule {}
+```
+
+```ts
+// main.mts
 import { defineFastifyEnvironment } from '@navios/adapter-fastify'
+import { NaviosFactory } from '@navios/core'
+
+import type { FastifyEnvironment } from '@navios/adapter-fastify'
+
+import { AppModule } from './users.mjs'
+
+// Optional: types ctx.raw and app.getServer() for the Fastify adapter.
+declare module '@navios/core' {
+  interface Register {
+    environment: FastifyEnvironment
+  }
+}
 
 const app = await NaviosFactory.create(AppModule, {
   adapter: defineFastifyEnvironment(),
 })
+app.enableShutdownHooks()
+
+const url = await app.listen({ port: 3000 })
+console.log(`Listening on ${url}`)
 ```
 
-#### Bun Adapter (`@navios/adapter-bun`)
+What this gives you:
 
-- Built for [Bun](https://bun.sh/), a fast JavaScript runtime optimized for performance
-- Native HTTP server implementation with excellent performance
-- Optimized for Bun's runtime features
-- Lightweight and efficient
-
-```ts
-import { defineBunEnvironment } from '@navios/adapter-bun'
-
-const app = await NaviosFactory.create(AppModule, {
-  adapter: defineBunEnvironment(),
-})
-```
-
-### Choosing an Adapter
-
-The choice of adapter depends on your deployment environment and performance requirements:
-
-- Use **Fastify adapter** if you need Node.js compatibility, access to the Fastify ecosystem, or are deploying to traditional Node.js environments
-- Use **Bun adapter** if you're running on Bun runtime and want to take advantage of its performance optimizations
-
-## Main Concepts
-
-- **Module**: A module is a collection of controllers, and other modules. It is used to group related functionality together and provide a clear structure for your API. It also can define some shared guards, attributes, and service overrides.
-- **Controller**: A controller is a class that defines a set of endpoints for a specific resource. It is used to handle incoming requests and return responses. Controllers can also define guards and attributes that apply to all endpoints in the controller.
-- **Endpoint**: An endpoint is a specific route in your API that handles a specific request. It used original endpoint definition from Navios Builder, and a set of request and response schemas. Endpoints can also define guards and attributes that apply to the endpoint.
-- **Service**: A service is a class that defines the business logic for a specific resource. It is used to separate the business logic from the controller and provide a clear structure for your API.
-- **Guard**: A guard is a class that is used to validate incoming requests and ensure that they meet certain criteria. Guards can be used to validate request parameters, headers, and body. They can also be used to check authentication and authorization.
-- **Attribute**: An attribute is a decorator that is used to add metadata to a class or method. Attributes can be used in guards, controllers, modules, and endpoints to provide additional information about the class or method.
-
-## Legacy-Compatible Decorators
-
-Navios provides legacy-compatible decorators for projects that use TypeScript's experimental decorator API. These decorators are available from `@navios/core/legacy-compat` and provide the same functionality as the standard decorators, but with compatibility for projects that cannot use Stage 3 decorators.
-
-```ts
-import { Controller, Endpoint, Module } from '@navios/core/legacy-compat'
-
-@Module({
-  controllers: [UserController],
-})
-export class AppModule {}
-```
-
-For more information, see the [Legacy-Compatible Decorators documentation](./docs/legacy-compat.md).
-
-## Getting Started
-
-### Define your API
-
-Define your API in a shared location accessible to both the client and server. This allows you to use the same API definition for both the client and server, ensuring consistency and reducing duplication.
-
-```ts
-import { builder } from '@navios/builder'
-import { z } from 'zod/v4'
-
-const api = builder({
-  defaults: { result: 'envelope' },
-})
-
-const login = api.declareEndpoint({
-  method: 'post',
-  url: '/login',
-  requestSchema: z.object({
-    email: z.string().email(),
-    password: z.string().min(6),
-  }),
-  responseSchema: z.object({
-    user: z.object({
-      id: z.string(),
-      name: z.string(),
-      email: z.string().email(),
-    }),
-  }),
-  errorSchema: {
-    401: z.object({ error: z.literal('invalid-credentials') }),
-  },
-})
-```
-
-### Create your server
-
-```bash
-# Install core dependencies
-yarn install --save @navios/core @navios/builder zod
-
-# Install one of the supported adapters
-yarn install --save @navios/adapter-fastify
-# OR
-yarn install --save @navios/adapter-bun
-```
-
-Create AuthService:
-
-```ts
-import { Injectable } from '@navios/core'
-
-@Injectable()
-export class LoginService {
-  async login(email: string, password: string) {
-    // Perform your login logic here
-    // For example, check the email and password against a database
-  }
-}
-```
-
-Create your first Controller:
-
-```ts
-import { Controller, Endpoint, inject } from '@navios/core'
-
-import type { EndpointParams } from '@navios/core'
-
-import { AuthService } from './auth.service.mjs'
-
-@Controller()
-export class AuthController {
-  // Inject the LoginService
-  loginService = inject(LoginService)
-
-  @Endpoint(login)
-  async login(request: EndpointParams<typeof login>) {
-    // Handle the login request
-    const { email, password } = request
-
-    // Perform your login logic here
-    const user = await this.loginService.login(email, password)
-
-    if (user) {
-      return { success: true, user }
-    } else {
-      return { success: false, error: 'Invalid credentials' }
-    }
-  }
-}
-```
-
-Create your AppModule:
-
-```ts
-import { Module } from '@navios/core'
-
-import { AuthController } from './auth.controller.mjs'
-
-@Module({
-  controllers: [AuthController],
-  // Optional: overrides for service implementations with higher priority
-  // overrides: [OverrideService],
-})
-export class AppModule {}
-```
-
-Create your server:
-
-```ts
-// Import your chosen adapter
-import { defineFastifyEnvironment } from '@navios/adapter-fastify'
-import { NaviosFactory } from '@navios/core'
-// OR import { defineBunEnvironment } from '@navios/adapter-bun'
-
-import { AppModule } from './src/app.module.mjs'
-
-export async function boot() {
-  const app = await NaviosFactory.create(AppModule, {
-    // Provide the adapter environment
-    adapter: defineFastifyEnvironment(),
-    // OR adapter: defineBunEnvironment(),
-  })
-  app.setGlobalPrefix('/api')
-  app.enableCors({
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  })
-  await app.init()
-  await app.listen({ port: 3000, host: '0.0.0.0' })
-}
-await boot()
-```
-
-That's it! You have created your first Navios server. You can now run your server and test the `/api/login` endpoint.
+- `GET /users/1` with a bearer token answers `200 {"id":"1","name":"Ann"}`; an unknown id answers `404 {"message":"User not found"}`, the body declared in `errorSchema`.
+- A request without a token answers `401` as `application/problem+json`, before the body is read.
+- `POST /users` with `{"name":""}` answers `400` as `application/problem+json`, with the failing field listed.
+- Returning a user without `name`, or `reply(200, ...)` from `createUser`, does not compile.
 
 ## Documentation
 
-- **[Quick Start Guide](./docs/quick-start.md)** - Get up and running quickly
-- **[Complete Documentation](./docs/README.md)** - Comprehensive framework documentation
-- **[Adapter Guide](./docs/adapters.md)** - Detailed adapter information and comparison
-- **[Legacy-Compatible Decorators](./docs/legacy-compat.md)** - Using Navios with TypeScript experimental decorators
-- **[API Examples](https://github.com/Arilas/navios/tree/main/examples)** - Working code examples
-- **[CHANGELOG](./CHANGELOG.md)** - Version history and release notes
+- [Quick start](./docs/quick-start.md)
+- [Controllers and handlers](./docs/controllers.md)
+- [Request context](./docs/request-context.md)
+- [Per-request state](./docs/request-state.md)
+- [Guards and interceptors](./docs/guards-and-interceptors.md)
+- [Attributes](./docs/attributes.md)
+- [Modules](./docs/modules.md)
+- [Errors](./docs/errors.md)
+- [Application setup and lifecycle](./docs/application.md)
+- [Plugins](./docs/plugins.md)
+- [Testing](./docs/testing.md)
+- [Config and logger](./docs/config-and-logger.md)
+- [Writing an adapter](./docs/writing-an-adapter.md)
+- [Legacy decorators](./docs/legacy-decorators.md)
+- [Migrating from 1.x](./docs/migration.md)
+- [Changelog](./CHANGELOG.md)
 
-## Related Packages
+## Entry points
 
-- **[@navios/adapter-fastify](https://www.npmjs.com/package/@navios/adapter-fastify)** - Fastify HTTP adapter
-- **[@navios/adapter-bun](https://www.npmjs.com/package/@navios/adapter-bun)** - Bun HTTP adapter
-- **[@navios/builder](https://www.npmjs.com/package/@navios/builder)** - Type-safe API definitions
-- **[@navios/di](https://www.npmjs.com/package/@navios/di)** - Dependency injection container
-- **[@navios/jwt](https://www.npmjs.com/package/@navios/jwt)** - JWT authentication utilities
+| Import                       | Contents                                          |
+| ---------------------------- | ------------------------------------------------- |
+| `@navios/core`               | The framework, plus everything from `@navios/di`. |
+| `@navios/core/testing`       | `defineInMemoryEnvironment`, `createTestClient`.  |
+| `@navios/core/conformance`   | `runAdapterConformance`, for adapter authors.     |
+| `@navios/core/legacy-compat` | Decorators for `experimentalDecorators` projects. |
 
 ## License
 

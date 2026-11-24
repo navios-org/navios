@@ -25,6 +25,12 @@ export interface ErrorPipelineOptions {
   validation: ErrorResponder
   internal: ErrorResponder
   exposeErrorDetails: boolean
+  /**
+   * Check the body of a thrown `HttpException` against the endpoint's
+   * `errorSchema` and report a mismatch through `onUnhandled`. The response
+   * is sent either way.
+   */
+  checkDeclaredErrors?: boolean
   /** Called for every error that becomes a 500. */
   onUnhandled: (error: unknown, ctx: RequestContext | null) => void
 }
@@ -103,6 +109,22 @@ export class ErrorPipeline {
         config?.errorSchema !== undefined &&
         Object.hasOwn(config.errorSchema, statusCode)
       ) {
+        if (this.options.checkDeclaredErrors) {
+          const checked = config.errorSchema[statusCode]['~standard'].validate(response)
+          if (checked instanceof Promise) {
+            checked.catch(() => {})
+          } else if (checked.issues) {
+            this.options.onUnhandled(
+              new Error(
+                `${config.method} ${config.url} threw an HttpException(${statusCode}) whose body ` +
+                  `does not match the declared errorSchema: ${checked.issues
+                    .map((issue) => issue.message)
+                    .join('; ')}`,
+              ),
+              ctx,
+            )
+          }
+        }
         return { status: statusCode, body: response, kind: 'json' }
       }
       return typeof response === 'string'

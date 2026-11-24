@@ -156,6 +156,10 @@ class FastifyRouteInput implements RouteInput {
     return collector.result()
   }
 
+  responded(): boolean {
+    return this.reply.sent
+  }
+
   signal(): AbortSignal {
     if (this.abort === null) {
       const abort = new AbortController()
@@ -384,13 +388,24 @@ export class FastifyAdapter implements HttpAdapter<FastifyEnvironment> {
 
   async close(timeoutMs: number): Promise<void> {
     let timer: ReturnType<typeof setTimeout> | undefined
+    let timedOut = false
+    const closing = this.server.close()
     await Promise.race([
-      this.server.close(),
+      closing,
       new Promise<void>((resolve) => {
-        timer = setTimeout(resolve, timeoutMs)
+        timer = setTimeout(() => {
+          timedOut = true
+          resolve()
+        }, timeoutMs)
       }),
     ])
     clearTimeout(timer)
+    if (timedOut) {
+      // In-flight requests outlived the timeout: drop their connections so
+      // that the server can finish closing.
+      this.server.server.closeAllConnections?.()
+      await closing
+    }
   }
 }
 
