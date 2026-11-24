@@ -1,453 +1,325 @@
-# Request Contexts
+# Scoped Containers
 
-Request contexts in Navios DI provide a powerful way to manage request-scoped services with automatic cleanup. This is particularly useful in web applications where you need to maintain request-specific data and ensure proper cleanup after each request.
+A scope is a child of a container that holds request-scoped instances. It is created with `container.createScope()` and usually lives for one HTTP request, job or message.
 
 ## Overview
 
-A `ScopedContainer` provides isolated request context management while sharing singleton and transient services with the parent `Container`. Each request gets its own `ScopedContainer` instance, ensuring complete isolation between concurrent requests.
+A `ScopedContainer`:
 
-### Key Features
+- stores one instance of each request-scoped service resolved through it
+- resolves singletons from its parent container, where they are stored and shared
+- can hold values of its own, added with `addInstance()`
+- carries optional metadata
+- destroys its instances when it is disposed
 
-- **Request isolation**: Each request has its own isolated container - no race conditions
-- **Concurrent resolution locking**: Multiple concurrent requests for the same service within a request context are properly synchronized - only one instance is created
-- **Automatic cleanup**: All request-scoped instances are automatically cleaned up when the request ends
-- **Seamless delegation**: Singleton and transient services are resolved through the parent container
-- **Metadata support**: Attach arbitrary metadata to request contexts
-- **Thread-safe**: Safe to use in concurrent environments with no shared mutable state
+A scope has no id and is not registered anywhere. The container does not keep a list of its scopes; a scope lives as long as you hold a reference to it and should be disposed when the work is done.
 
 ## Basic Usage
 
-### Creating and Managing Request Contexts
+### Creating and Disposing a Scope
 
-```typescript
-import { Container, Injectable, InjectableScope } from '@navios/di'
+```ts
+import { Container } from '@navios/di'
 
 const container = new Container()
 
-// Begin a new request context - returns a ScopedContainer
-const scoped = container.beginRequest('req-123', { userId: 456 })
+const scope = container.createScope()
+try {
+  // resolve services from the scope
+} finally {
+  await scope.dispose()
+}
+```
 
-// Use the scoped container for this request
-const service = await scoped.get(RequestService)
+`ScopedContainer` implements `Symbol.asyncDispose`, so `await using` disposes the scope when the block ends, also when it ends with an error:
 
-// End the request when done
-await scoped.endRequest()
+```ts
+async function handle(container: Container) {
+  await using scope = container.createScope()
+  const handler = await scope.get(RequestHandler)
+  return handler.run()
+} // scope.dispose() runs here
 ```
 
 ### Using Request-Scoped Services
 
-```typescript
-import { Injectable, InjectableScope, inject } from '@navios/di'
+```ts
+import { Container, inject, Injectable, InjectableScope } from '@navios/di'
 
-@Injectable({ scope: InjectableScope.Request })
-class RequestLogger {
-  private requestId: string
-
-  setRequestId(id: string) {
-    this.requestId = id
-  }
-
+@Injectable()
+class Logger {
   log(message: string) {
-    console.log(`[${this.requestId}] ${message}`)
+    console.log(message)
   }
 }
 
-@Injectable({ scope: InjectableScope.Singleton })
-class DatabaseService {
-  query(sql: string) {
-    return `Result: ${sql}`
-  }
+@Injectable({ scope: InjectableScope.Request })
+class RequestState {
+  readonly startedAt = Date.now()
+  userId: string | null = null
 }
 
 @Injectable({ scope: InjectableScope.Request })
 class RequestHandler {
-  private logger = inject(RequestLogger)
-  private db = inject(DatabaseService) // Singleton, shared across requests
+  private readonly logger = inject(Logger)
+  private readonly state = inject(RequestState)
 
-  async handle() {
-    this.logger.log('Processing request')
-    return this.db.query('SELECT * FROM users')
+  run() {
+    this.logger.log(`request started at ${this.state.startedAt}`)
   }
 }
 
-// Usage
-const scoped = container.beginRequest('req-123')
-const handler = await scoped.get(RequestHandler)
-await handler.handle()
-await scoped.endRequest()
+const container = new Container()
+
+await using scope = container.createScope()
+const state = await scope.get(RequestState)
+state.userId = 'user-1'
+
+const handler = await scope.get(RequestHandler) // sees the same RequestState
+handler.run()
 ```
 
-## ScopedContainer API
+When nothing in the dependency tree initialises asynchronously, `scope.getSync()` avoids the promise:
 
-The `ScopedContainer` implements the same `IContainer` interface as `Container`:
-
-```typescript
-interface IContainer {
-  get<T>(token, args?): Promise<T>
-  invalidate(service: unknown): Promise<void>
-  isRegistered(token): boolean
-  dispose(): Promise<void>
-  ready(): Promise<void>
-  tryGetSync<T>(token, args?): T | null
-}
-```
-
-### Additional ScopedContainer Methods
-
-```typescript
-class ScopedContainer implements IContainer {
-  // Get the parent Container
-  getParent(): Container
-
-  // Get the request ID
-  getRequestId(): string
-
-  // Get metadata value
-  getMetadata(key: string): any | undefined
-
-  // Add a pre-prepared instance to the request context
-  addInstance(token: InjectionToken<any>, instance: any): void
-
-  // End the request and cleanup all request-scoped services
-  endRequest(): Promise<void>
-}
+```ts
+const handler = scope.getSync(RequestHandler)
 ```
 
 ## Advanced Features
 
-### Pre-prepared Instances
+### Values Supplied per Scope
 
-You can add pre-prepared instances to a request context:
+`scope.addInstance()` stores a ready value in the scope. This is how per-request data enters the dependency graph.
 
-```typescript
-const REQUEST_TOKEN = InjectionToken.create<{ userId: string }>('RequestData')
+A token that is only ever supplied this way declares the request scope and needs no provider:
 
-const scoped = container.beginRequest('req-123')
+```ts
+import { InjectableScope, InjectionToken } from '@navios/di'
 
-// Add a pre-prepared instance
-scoped.addInstance(REQUEST_TOKEN, { userId: 'user-456' })
+interface RequestInfo {
+  url: string
+  method: string
+}
 
-// This will return the pre-prepared instance
-const requestData = await scoped.get(REQUEST_TOKEN)
-```
-
-### Request Metadata
-
-Request contexts can carry metadata:
-
-```typescript
-const scoped = container.beginRequest('req-123', {
-  userId: 456,
-  traceId: 'abc-123',
-  userAgent: 'Mozilla/5.0...',
+const REQUEST_INFO = InjectionToken.create<RequestInfo>('RequestInfo', {
+  scope: InjectableScope.Request,
 })
 
-// Access metadata
-const userId = scoped.getMetadata('userId') // 456
-const traceId = scoped.getMetadata('traceId') // 'abc-123'
+@Injectable({ scope: InjectableScope.Request })
+class Router {
+  private readonly info = inject(REQUEST_INFO)
+}
+
+await using scope = container.createScope()
+scope.addInstance(REQUEST_INFO, { url: '/users', method: 'GET' })
+
+const router = await scope.get(Router)
 ```
 
-### Parallel Requests
+Because the token declares its scope, reaching it from the root container or from a singleton is a `ScopeMismatchError`. In a scope where no value was added, resolving it fails with `FactoryNotFound`.
 
-Multiple requests can run concurrently without interference:
+`addInstance()` also accepts a class registered with `@Injectable()` and a bound token.
 
-```typescript
-// Start multiple requests in parallel
-const scoped1 = container.beginRequest('req-1')
-const scoped2 = container.beginRequest('req-2')
+A value added to a scope is visible to request-scoped services and transients built in that scope. It is not visible to singletons, which are always built against the root container.
 
-// Resolve services concurrently - each gets its own instance
-const [service1, service2] = await Promise.all([
-  scoped1.get(RequestService),
-  scoped2.get(RequestService),
-])
+### Scope Metadata
 
-// service1 !== service2 (different instances)
+```ts
+const scope = container.createScope({ userId: 'user-1', traceId: 'abc' })
 
-// Clean up both
-await Promise.all([scoped1.endRequest(), scoped2.endRequest()])
+scope.getMetadata('userId') // 'user-1'
+scope.setMetadata('tenant', 'acme')
+scope.getMetadata('tenant') // 'acme'
 ```
+
+Metadata is a plain key-value bag on the scope object. It is not injectable. To make a value injectable, add it with `addInstance()`.
+
+### Parallel Scopes
+
+Scopes do not affect each other and can run concurrently:
+
+```ts
+async function handleOne(userId: string) {
+  await using scope = container.createScope()
+  const state = await scope.get(RequestState)
+  state.userId = userId
+  return scope.get(RequestHandler)
+}
+
+await Promise.all([handleOne('a'), handleOne('b'), handleOne('c')])
+```
+
+Resolution does not use `AsyncLocalStorage`. A request-scoped service is found through the scope it is resolved from, not through the current async context.
+
+### Invalidation inside a Scope
+
+`scope.invalidate(instance)` destroys a request-scoped instance and its dependents within the scope. If the instance belongs to the parent container, the call is forwarded to it.
+
+`scope.onInvalidate(token, args, listener)` listens on whichever container owns the instance: the scope for a request-scoped service, the parent for a singleton.
 
 ## Web Framework Integration
 
-### Express.js Example
+### Express Example
 
-```typescript
-import { Container, Injectable, InjectableScope, inject } from '@navios/di'
+```ts
 import express from 'express'
+import { Container } from '@navios/di'
 
-@Injectable({ scope: InjectableScope.Request })
-class RequestHandler {
-  private requestId: string = ''
+import type { ScopedContainer } from '@navios/di'
 
-  setContext(req: express.Request) {
-    this.requestId = req.headers['x-request-id'] as string
-  }
+const container = new Container()
+const app = express()
 
-  async handle() {
-    return { message: 'Hello!', requestId: this.requestId }
+declare global {
+  namespace Express {
+    interface Request {
+      scope: ScopedContainer
+    }
   }
 }
 
-const app = express()
-const container = new Container()
+app.use((req, res, next) => {
+  const scope = container.createScope()
+  scope.addInstance(REQUEST_INFO, { url: req.url, method: req.method })
+  req.scope = scope
 
-app.use(async (req, res, next) => {
-  const requestId = `req-${Date.now()}-${Math.random().toString(36).slice(2)}`
-
-  // Create scoped container for this request
-  const scoped = container.beginRequest(requestId, {
-    path: req.path,
-    method: req.method,
-    userAgent: req.get('User-Agent'),
+  res.on('close', () => {
+    void scope.dispose()
   })
-
-  // Store scoped container on request for later use
-  ;(req as any).scoped = scoped
-
-  // Cleanup on response finish
-  res.on('finish', async () => {
-    await scoped.endRequest()
-  })
-
   next()
 })
 
-app.get('/', async (req, res) => {
-  const scoped = (req as any).scoped
-  const handler = await scoped.get(RequestHandler)
-  handler.setContext(req)
-  const result = await handler.handle()
-  res.json(result)
+app.get('/users', async (req, res) => {
+  const handler = await req.scope.get(UsersHandler)
+  res.json(await handler.list())
 })
 ```
 
 ### Fastify Example
 
-```typescript
-import { Container, Injectable, InjectableScope } from '@navios/di'
-import fastify from 'fastify'
+```ts
+import Fastify from 'fastify'
+import { Container } from '@navios/di'
 
-const app = fastify()
-const container = new Container()
+import type { ScopedContainer } from '@navios/di'
 
-// Type augmentation for request
 declare module 'fastify' {
   interface FastifyRequest {
-    scoped: ScopedContainer
+    scope: ScopedContainer
   }
 }
 
-app.addHook('preHandler', async (request, reply) => {
-  const requestId = `req-${request.id}`
+const container = new Container()
+const fastify = Fastify()
 
-  request.scoped = container.beginRequest(requestId, {
-    ip: request.ip,
-    userAgent: request.headers['user-agent'],
-  })
+fastify.addHook('onRequest', async (request) => {
+  request.scope = container.createScope()
+  request.scope.addInstance(REQUEST_INFO, { url: request.url, method: request.method })
 })
 
-app.addHook('onResponse', async (request, reply) => {
-  if (request.scoped) {
-    await request.scoped.endRequest()
-  }
+fastify.addHook('onResponse', async (request) => {
+  await request.scope.dispose()
 })
 
-app.get('/', async (request, reply) => {
-  const service = await request.scoped.get(MyRequestService)
-  return service.getData()
+fastify.get('/users', async (request) => {
+  const handler = await request.scope.get(UsersHandler)
+  return handler.list()
 })
 ```
 
 ## Best Practices
 
-### 1. Always Clean Up
+### 1. Always dispose
 
-Always ensure request contexts are properly cleaned up:
+Use `await using` where the scope's lifetime is one block, and a `finally` block or a framework hook otherwise. A scope that is not disposed never runs the `onServiceDestroy()` hooks of its instances.
 
-```typescript
-const scoped = container.beginRequest(requestId)
+### 2. Supply request data with `addInstance()`
 
-try {
-  const service = await scoped.get(RequestService)
-  await service.process()
-} finally {
-  // Always clean up, even on errors
-  await scoped.endRequest()
-}
-```
+Add the request object, the authenticated user or the trace context to the scope right after creating it. Services then inject it like any other dependency.
 
-### 2. Use Meaningful Request IDs
+### 3. Keep singletons free of request data
 
-Use descriptive request IDs that help with debugging:
+A singleton cannot inject a request-scoped service. Pass request data to its methods as arguments, or make the consumer request-scoped. See [Scope Rules](./scopes.md#scope-rules).
 
-```typescript
-const requestId = `${req.method}-${req.path}-${Date.now()}-${Math.random().toString(36).slice(2)}`
-const scoped = container.beginRequest(requestId)
-```
+### 4. Combine with lifecycle hooks
 
-### 3. Leverage Metadata
-
-Use metadata for cross-cutting concerns:
-
-```typescript
-const scoped = container.beginRequest('req-123', {
-  traceId: generateTraceId(),
-  correlationId: req.headers['x-correlation-id'],
-  userId: req.user?.id,
-  tenantId: req.tenant?.id,
-  startTime: Date.now(),
-})
-```
-
-### 4. Combine with Lifecycle Hooks
-
-Use lifecycle hooks for request-scoped resource management:
-
-```typescript
+```ts
 @Injectable({ scope: InjectableScope.Request })
-class DatabaseTransaction implements OnServiceInit, OnServiceDestroy {
-  private transaction: any = null
+class Transaction implements OnServiceInit, OnServiceDestroy {
+  private readonly pool = inject(DatabasePool)
+  private client: PoolClient | null = null
 
   async onServiceInit() {
-    this.transaction = await db.beginTransaction()
+    this.client = await this.pool.connect()
+    await this.client.query('BEGIN')
   }
 
   async onServiceDestroy() {
-    if (this.transaction) {
-      await this.transaction.rollback()
-    }
-  }
-
-  async commit() {
-    await this.transaction.commit()
-    this.transaction = null
+    await this.client?.query('ROLLBACK')
+    this.client?.release()
   }
 }
 ```
 
 ## Error Handling
 
-### Request-Scoped Services from Container
+### Request-scoped service from the root container
 
-Attempting to resolve a request-scoped service directly from `Container` throws an error:
-
-```typescript
-@Injectable({ scope: InjectableScope.Request })
-class RequestService {}
-
-// This throws an error!
-await container.get(RequestService)
-// Error: Cannot resolve request-scoped service "RequestService" from Container.
-// Use beginRequest() to create a ScopedContainer for request-scoped services.
-
-// Correct way:
-const scoped = container.beginRequest('req-123')
-await scoped.get(RequestService) // Works!
+```ts
+await container.get(RequestState)
+// DIError (ScopeMismatchError): Scope mismatch: RequestState is request-scoped and cannot be
+// resolved from the root container. Resolve it from a scope created with
+// container.createScope(), and do not inject it into a singleton.
 ```
 
-### Duplicate Request IDs
+### Using a disposed scope
 
-Each request ID must be unique while the request is active:
+```ts
+const scope = container.createScope()
+await scope.dispose()
 
-```typescript
-const scoped1 = container.beginRequest('req-123')
-
-// This throws an error!
-const scoped2 = container.beginRequest('req-123')
-// Error: Request context "req-123" already exists. Use a unique request ID.
-
-// After ending the first request, the ID can be reused
-await scoped1.endRequest()
-const scoped3 = container.beginRequest('req-123') // Works!
+await scope.get(RequestState)
+// DIError (ContainerDisposed): ScopedContainer has been disposed
 ```
+
+`getSync()` and `addInstance()` throw the same error. Calling `dispose()` a second time does nothing.
 
 ## API Reference
 
 ### Container Methods
 
-- `beginRequest(requestId: string, metadata?: Record<string, any>, priority?: number): ScopedContainer` - Creates a new ScopedContainer for the request
-- `hasActiveRequest(requestId: string): boolean` - Checks if a request ID is currently active
-- `getActiveRequestIds(): ReadonlySet<string>` - Gets all active request IDs
+- `createScope(metadata?: Record<string, any>): ScopedContainer` - creates a scope
 
 ### ScopedContainer Methods
 
-- `get<T>(token, args?): Promise<T>` - Gets a service instance (request-scoped resolved locally, others delegated)
-- `invalidate(service: unknown): Promise<void>` - Invalidates a service and its dependents
-- `isRegistered(token): boolean` - Checks if a token is registered
-- `dispose(): Promise<void>` - Alias for `endRequest()`
-- `ready(): Promise<void>` - Waits for pending operations
-- `tryGetSync<T>(token, args?): T | null` - Synchronously gets an instance if available
-- `getParent(): Container` - Gets the parent Container
-- `getRequestId(): string` - Gets the request ID
-- `getMetadata(key: string): any` - Gets metadata value
-- `addInstance(token, instance): void` - Adds a pre-prepared instance
-- `endRequest(): Promise<void>` - Ends the request and cleans up all request-scoped services
-
-## Concurrent Resolution Safety
-
-Request-scoped services have the same locking mechanism as singletons - when multiple concurrent operations request the same service simultaneously, only one instance is created. This prevents duplicate initialization which could cause issues with resources like database connections or sessions.
-
-```typescript
-@Injectable({ scope: InjectableScope.Request })
-class ExpensiveResource {
-  constructor() {
-    // Only called once per request, even with concurrent resolution
-    console.log('Creating expensive resource')
-  }
-
-  async onServiceInit() {
-    // Simulate expensive async initialization
-    await connectToDatabase()
-  }
-}
-
-// In a request handler with concurrent operations:
-const scoped = container.beginRequest('request-123')
-
-// These run concurrently, but only ONE instance is created
-const [resource1, resource2, resource3] = await Promise.all([
-  scoped.get(ExpensiveResource),
-  scoped.get(ExpensiveResource),
-  scoped.get(ExpensiveResource),
-])
-
-// resource1 === resource2 === resource3 (same instance)
-```
-
-The locking works by:
-
-1. When the first call starts creating a service, it stores a "creating" holder immediately (synchronously, before any async operations)
-2. Subsequent concurrent calls find this holder and wait for the creation to complete
-3. Once created, all waiting calls receive the same instance
-
-This is handled transparently - no special handling is needed in your code.
-
-### Storage Strategy Pattern
-
-Internally, both Singleton and Request-scoped services use the same unified resolution logic through the `IHolderStorage` interface. This ensures consistent behavior and eliminates code duplication:
-
-- `SingletonHolderStorage` - stores holders in the global ServiceLocatorManager
-- `RequestHolderStorage` - stores holders in the ScopedContainer's RequestContextHolder
-
-The storage strategy is automatically selected based on the service's scope.
+- `get(token, args?): Promise<T>` - resolves an instance; request-scoped instances are stored in the scope, singletons in the parent
+- `getSync(token, args?): T` - resolves synchronously; throws `AsyncInitRequired` when an asynchronous initialiser is pending
+- `tryGetSync<T>(token, args?): T | null` - returns an instance that is already built, or `null`
+- `addInstance(token, instance): void` - stores a ready value in the scope
+- `isRegistered(token): boolean` - whether the token can be resolved from the scope
+- `invalidate(service): Promise<void>` - destroys an instance and its dependents
+- `onInvalidate(token, args, listener): () => void` - listens for the destruction of an instance
+- `ready(): Promise<void>` - waits until no instance of the scope is still being created
+- `dispose(): Promise<void>` - destroys the scope's instances in reverse creation order
+- `[Symbol.asyncDispose](): Promise<void>` - calls `dispose()`
+- `getParent(): Container` - the container that created the scope
+- `getMetadata(key: string): any | undefined`
+- `setMetadata(key: string, value: any): void`
+- `endRequest(): Promise<void>` - deprecated alias of `dispose()`
 
 ## Performance Considerations
 
-- `ScopedContainer` instances are lightweight - create one per request
-- Request-scoped services are stored in a simple Map per request
-- Cleanup is asynchronous but fast - lifecycle hooks run in parallel
-- No global state to synchronize - each request is completely isolated
-- Concurrent resolution uses async/await locking - minimal overhead compared to creating duplicate instances
+- Creating a scope allocates one object and an empty store. Nothing is registered on the parent.
+- After the first build of a class, the container knows which dependencies it asks for. Later request-scoped builds of that class resolve them and run the constructor once.
+- Disposing a scope whose instances have no destroy hooks does no asynchronous work.
+- A scope does not add itself as a dependent of the singletons it uses, so singletons do not accumulate references to past scopes.
 
 ## Troubleshooting
 
-### Common Issues
+**`Scope mismatch: X is request-scoped and cannot be resolved from the root container (A -> X)`.** The singleton `A` injects the request-scoped `X`. Make `A` request-scoped or pass `X` to its methods.
 
-**"Cannot resolve request-scoped service from Container"**: Use `container.beginRequest()` to create a `ScopedContainer` first.
+**`Factory RequestInfo not found` inside a scope.** The scope-only token was not supplied. Call `scope.addInstance()` before resolving services that inject it.
 
-**"Request context already exists"**: Each request needs a unique ID. Generate unique IDs using timestamps or UUIDs.
+**A singleton sees the root value instead of the scope value.** Singletons are built against the root container. Values added to a scope are visible only to request-scoped services and transients built in that scope.
 
-**Memory leaks**: Always call `endRequest()` to clean up contexts, preferably in a `finally` block or response hook.
-
-**Service not available after request ends**: Request-scoped services are destroyed when `endRequest()` is called. Don't hold references to them after the request.
+**`ScopedContainer has been disposed`.** Something kept the scope after the request ended. Do not store a scope or its instances in a singleton.

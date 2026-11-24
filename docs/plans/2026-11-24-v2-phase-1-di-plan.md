@@ -172,7 +172,7 @@ Executed 2026-11-24 on `feat/v2-di`. Tasks 1 to 9 are done.
 | `getSync(ready singleton)` | n/a | 0.013 µs | |
 | scope + `getSync(request-scoped, 2 deps)` + dispose | n/a | 0.27 µs | |
 
-**Output.** ESM entry chunks total about 52 KB (1.x: about 98 KB). No decorator helper, no `node:async_hooks`, no `zod` in `lib/`.
+**Output.** ESM entry chunks total about 49 KB (1.x: about 98 KB). No decorator helper, no `node:async_hooks`, no `zod` in `lib/`.
 
 **Deviations from this plan**
 - `validateSync` is tested with zod and a hand-written Standard Schema, not valibot and arktype: they are not dependencies of `packages/di`.

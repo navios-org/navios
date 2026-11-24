@@ -1,13 +1,13 @@
 # Factory Decorator
 
-The `@Factory` decorator is used to create factory classes that produce instances rather than being instances themselves. Factories are useful for complex object creation, configuration-based instantiation, and scenarios where you need to create multiple instances with different parameters.
+The `@Factory` decorator registers a factory class. When the class is resolved, the container instantiates it, calls its `create()` method and returns what `create()` returns. The factory object itself is not the service.
 
 ## Basic Usage
 
 ### Simple Factory
 
-```typescript
-import { Factory } from '@navios/di'
+```ts
+import { Container, Factory } from '@navios/di'
 
 @Factory()
 class DatabaseConnectionFactory {
@@ -16,67 +16,66 @@ class DatabaseConnectionFactory {
       host: 'localhost',
       port: 5432,
       connected: true,
-      connect: () => console.log('Connected to database'),
     }
   }
 }
 
-// Usage
 const container = new Container()
 const connection = await container.get(DatabaseConnectionFactory)
-console.log(connection) // { host: 'localhost', port: 5432, connected: true, connect: [Function] }
+console.log(connection) // { host: 'localhost', port: 5432, connected: true }
 ```
+
+`create()` may be synchronous or return a promise. A synchronous factory can be resolved with `getSync()` and injected with `inject()` like any other service.
 
 ### Factory with Configuration
 
-```typescript
-import { Factory, InjectionToken } from '@navios/di'
+A factory registered for a token with a schema receives the validated args as the second argument of `create()`:
+
+```ts
+import { Container, Factory, InjectionToken } from '@navios/di'
 import { z } from 'zod'
 
 import type { FactoryContext } from '@navios/di'
 
-const configSchema = z.object({
-  host: z.string(),
-  port: z.number(),
-  database: z.string(),
+const emailConfigSchema = z.object({
+  provider: z.enum(['smtp', 'sendgrid']),
+  apiKey: z.string(),
 })
 
-const DB_CONFIG_TOKEN = InjectionToken.create<DatabaseConfig, typeof configSchema>(
-  'DB_CONFIG',
-  configSchema,
+interface EmailService {
+  sendEmail(to: string, subject: string): Promise<string>
+}
+
+const EMAIL_SERVICE = InjectionToken.create<EmailService, typeof emailConfigSchema>(
+  'EmailService',
+  emailConfigSchema,
 )
 
-@Factory({ token: DB_CONFIG_TOKEN })
-class DatabaseConnectionFactory {
-  create(ctx: FactoryContext, config: z.infer<typeof configSchema>) {
+@Factory({ token: EMAIL_SERVICE })
+class EmailServiceFactory {
+  create(ctx: FactoryContext, config: z.output<typeof emailConfigSchema>): EmailService {
     return {
-      host: config.host,
-      port: config.port,
-      database: config.database,
-      connected: false,
-      connect: () => {
-        console.log(`Connecting to ${config.host}:${config.port}/${config.database}`)
-        return Promise.resolve()
-      },
+      sendEmail: async (to, subject) => `Sent via ${config.provider} to ${to}: ${subject}`,
     }
   }
 }
 
-// Usage
-const connection = await container.get(DB_CONFIG_TOKEN, {
-  host: 'localhost',
-  port: 5432,
-  database: 'myapp',
+const container = new Container()
+const emailService = await container.get(EMAIL_SERVICE, {
+  provider: 'sendgrid',
+  apiKey: 'sg_123',
 })
 ```
+
+Each distinct args value has its own result.
 
 ## Factory vs Injectable
 
 ### Injectable Service
 
-```typescript
-import { Injectable } from '@navios/di'
+The container returns an instance of the class:
 
+```ts
 @Injectable()
 class EmailService {
   sendEmail(to: string, subject: string) {
@@ -84,488 +83,266 @@ class EmailService {
   }
 }
 
-// Usage - returns the service instance
-const emailService = await container.get(EmailService)
-await emailService.sendEmail('user@example.com', 'Hello')
+const emailService = await container.get(EmailService) // an EmailService
 ```
 
 ### Factory Service
 
-```typescript
-import { Factory } from '@navios/di'
+The container returns the result of `create()`:
 
+```ts
 @Factory()
 class EmailServiceFactory {
   create() {
     return {
-      sendEmail: (to: string, subject: string) => {
-        return `Email sent to ${to}: ${subject}`
-      },
+      sendEmail: (to: string, subject: string) => `Email sent to ${to}: ${subject}`,
     }
   }
 }
 
-// Usage - returns the result of create() method
-const emailService = await container.get(EmailServiceFactory)
-await emailService.sendEmail('user@example.com', 'Hello')
+const emailService = await container.get(EmailServiceFactory) // the object returned by create()
 ```
 
-## Advanced Patterns
+Use a factory when the value is not a class instance of your own, for example a client from a third-party library, or when it has to be built asynchronously.
 
-### Factory with Dependencies
+## Factory Options
 
-```typescript
-import { Factory, inject, Injectable } from '@navios/di'
+`@Factory` accepts `scope` and `token`:
 
-@Injectable()
-class LoggerService {
-  log(message: string) {
-    console.log(`[LOG] ${message}`)
-  }
-}
-
-@Injectable()
-class ConfigService {
-  getDatabaseUrl() {
-    return 'postgresql://localhost:5432/myapp'
-  }
-}
-
-@Factory()
-class DatabaseConnectionFactory {
-  private readonly logger = inject(LoggerService)
-  private readonly config = inject(ConfigService)
-
-  create() {
-    const url = this.config.getDatabaseUrl()
-    this.logger.log(`Creating database connection to ${url}`)
-
-    return {
-      url,
-      connected: false,
-      connect: async () => {
-        this.logger.log('Connecting to database...')
-        // Simulate connection
-        await new Promise((resolve) => setTimeout(resolve, 100))
-        this.logger.log('Database connected successfully')
-        return { connected: true }
-      },
-    }
-  }
-}
-```
-
-### Factory with Multiple Configurations
-
-```typescript
-import { Factory, InjectionToken } from '@navios/di'
-import { z } from 'zod'
-
-const emailConfigSchema = z.object({
-  provider: z.enum(['smtp', 'sendgrid', 'ses']),
-  apiKey: z.string(),
-  fromEmail: z.string().email(),
-})
-
-const EMAIL_CONFIG_TOKEN = InjectionToken.create<EmailConfig, typeof emailConfigSchema>(
-  'EMAIL_CONFIG',
-  emailConfigSchema,
-)
-
-@Factory({ token: EMAIL_CONFIG_TOKEN })
-class EmailServiceFactory {
-  create(config: z.infer<typeof emailConfigSchema>) {
-    switch (config.provider) {
-      case 'smtp':
-        return new SmtpEmailService(config)
-      case 'sendgrid':
-        return new SendGridEmailService(config)
-      case 'ses':
-        return new SesEmailService(config)
-      default:
-        throw new Error(`Unsupported email provider: ${config.provider}`)
-    }
-  }
-}
-
-class SmtpEmailService {
-  constructor(private config: EmailConfig) {}
-
-  async sendEmail(to: string, subject: string) {
-    return `SMTP email sent to ${to}: ${subject}`
-  }
-}
-
-class SendGridEmailService {
-  constructor(private config: EmailConfig) {}
-
-  async sendEmail(to: string, subject: string) {
-    return `SendGrid email sent to ${to}: ${subject}`
-  }
-}
-
-class SesEmailService {
-  constructor(private config: EmailConfig) {}
-
-  async sendEmail(to: string, subject: string) {
-    return `SES email sent to ${to}: ${subject}`
-  }
-}
-```
-
-### Factory with Transient Scope
-
-```typescript
+```ts
 import { Factory, InjectableScope } from '@navios/di'
 
 @Factory({ scope: InjectableScope.Transient })
 class RandomIdFactory {
   create() {
-    return {
-      id: Math.random().toString(36).substr(2, 9),
-      createdAt: new Date(),
-    }
+    return { id: crypto.randomUUID() }
   }
 }
 
-// Each call creates a new instance
-const id1 = await container.get(RandomIdFactory)
-const id2 = await container.get(RandomIdFactory)
-
-console.log(id1.id) // Different random ID
-console.log(id2.id) // Different random ID
+const first = await container.get(RandomIdFactory)
+const second = await container.get(RandomIdFactory)
+console.log(first === second) // false
 ```
 
-## Factory Context
+With the default singleton scope `create()` runs once per container, and once per args value for a token with a schema.
 
-Factories have access to a `FactoryContext` that provides additional functionality:
+A token has one default provider. A second `@Factory({ token })` or `@Injectable({ token })` for the same token throws `ProviderConflict`; bind the alternative with `provide()` instead.
 
-```typescript
-import { Factory, Injectable } from '@navios/di'
+### Registration without Decorators
+
+`registerFactory()` does what `@Factory()` does:
+
+```ts
+import { registerFactory } from '@navios/di'
+
+class ClockFactory {
+  create() {
+    return { now: () => Date.now() }
+  }
+}
+
+registerFactory(ClockFactory)
+```
+
+## Dependencies
+
+A factory class can inject dependencies in field initialisers, like an injectable class:
+
+```ts
+import { Factory, inject, Injectable } from '@navios/di'
 
 @Injectable()
-class DatabaseService {
-  async query(sql: string) {
-    return `Query result: ${sql}`
+class ConfigService {
+  getDatabaseUrl() {
+    return 'postgres://localhost:5432/app'
   }
 }
 
 @Factory()
-class UserRepositoryFactory {
-  create(ctx: FactoryContext) {
-    // Access the service locator
-    const locator = ctx.locator
+class DatabaseClientFactory {
+  private readonly config = inject(ConfigService)
 
-    // Inject dependencies within the factory
-    const dbService = await locator.getInstance(DatabaseService)
-
-    return {
-      async getUser(id: string) {
-        const db = await dbService
-        return db.query(`SELECT * FROM users WHERE id = ${id}`)
-      },
-
-      async createUser(userData: any) {
-        const db = await dbService
-        return db.query(`INSERT INTO users VALUES (${JSON.stringify(userData)})`)
-      },
-    }
+  async create() {
+    const client = new DatabaseClient(this.config.getDatabaseUrl())
+    await client.connect()
+    return client
   }
 }
 ```
+
+## Factory Context
+
+`create()` receives a `FactoryContext` as its first argument:
+
+```ts
+interface FactoryContext {
+  inject: <T = any>(token: AnyInjectableType, args?: unknown) => Promise<T>
+  container: IContainer
+  addDestroyListener: (listener: () => void | Promise<void>) => void
+}
+```
+
+- `ctx.inject()` resolves a dependency asynchronously. The dependency is tracked, so invalidating it also invalidates the value the factory produced.
+- `ctx.container` is the container or scope the value is being built in.
+- `ctx.addDestroyListener()` registers cleanup for the produced value. A value returned by a factory has no `onServiceDestroy()` hook of its own; this is the way to release its resources.
+
+```ts
+import { Factory } from '@navios/di'
+
+import type { FactoryContext } from '@navios/di'
+
+@Factory()
+class DatabaseClientFactory {
+  async create(ctx: FactoryContext) {
+    const config = await ctx.inject<ConfigService>(ConfigService)
+    const client = new DatabaseClient(config.getDatabaseUrl())
+    await client.connect()
+
+    ctx.addDestroyListener(async () => {
+      await client.close()
+    })
+
+    return client
+  }
+}
+```
+
+## Function Providers
+
+When a factory is only needed in one container, a function provider avoids the class. It receives the same context and the validated args:
+
+```ts
+import { Container, InjectionToken, provide } from '@navios/di'
+
+const CLOCK = InjectionToken.create<{ now(): number }>('Clock')
+
+const container = new Container({
+  providers: [provide(CLOCK, { factory: () => ({ now: () => Date.now() }) })],
+})
+```
+
+The function may return a promise. A `scope` can be given next to `factory`; the default is the token's scope, or singleton.
 
 ## Real-World Examples
 
 ### HTTP Client Factory
 
-```typescript
-import { Factory, InjectionToken } from '@navios/di'
+```ts
+import { Container, Factory, InjectionToken } from '@navios/di'
 import { z } from 'zod'
 
 import type { FactoryContext } from '@navios/di'
 
 const httpConfigSchema = z.object({
-  baseUrl: z.string().url(),
+  baseUrl: z.string(),
   timeout: z.number().default(5000),
-  retries: z.number().default(3),
-  headers: z.record(z.string()).optional(),
 })
 
-const HTTP_CONFIG_TOKEN = InjectionToken.create<HttpClientFactory, typeof httpConfigSchema>(
-  'HTTP_CONFIG',
+interface HttpClient {
+  get<T>(path: string): Promise<T>
+}
+
+const HTTP_CLIENT = InjectionToken.create<HttpClient, typeof httpConfigSchema>(
+  'HttpClient',
   httpConfigSchema,
 )
 
-@Factory({ token: HTTP_CONFIG_TOKEN })
+@Factory({ token: HTTP_CLIENT })
 class HttpClientFactory {
-  create(ctx: FactoryContext, config: z.infer<typeof httpConfigSchema>) {
+  create(ctx: FactoryContext, config: z.output<typeof httpConfigSchema>): HttpClient {
     return {
-      baseUrl: config.baseUrl,
-      timeout: config.timeout,
-      retries: config.retries,
-      headers: config.headers || {},
-
-      async get(path: string) {
-        console.log(`GET ${config.baseUrl}${path}`)
-        return { data: `Response from ${path}` }
-      },
-
-      async post(path: string, data: any) {
-        console.log(`POST ${config.baseUrl}${path}`, data)
-        return { data: `Created at ${path}` }
-      },
-    }
-  }
-}
-
-// Usage
-const apiClient = await container.get(HTTP_CONFIG_TOKEN, {
-  baseUrl: 'https://api.example.com',
-  timeout: 10000,
-  retries: 5,
-  headers: {
-    Authorization: 'Bearer token123',
-    'Content-Type': 'application/json',
-  },
-})
-```
-
-### Cache Factory
-
-```typescript
-import { Factory, InjectableScope } from '@navios/di'
-
-@Factory({ scope: InjectableScope.Transient })
-class CacheFactory {
-  create() {
-    const cache = new Map()
-
-    return {
-      set(key: string, value: any, ttl?: number) {
-        cache.set(key, {
-          value,
-          expires: ttl ? Date.now() + ttl : null,
+      async get<T>(path: string) {
+        const response = await fetch(`${config.baseUrl}${path}`, {
+          signal: AbortSignal.timeout(config.timeout),
         })
-      },
-
-      get(key: string) {
-        const item = cache.get(key)
-        if (!item) return null
-
-        if (item.expires && Date.now() > item.expires) {
-          cache.delete(key)
-          return null
-        }
-
-        return item.value
-      },
-
-      delete(key: string) {
-        return cache.delete(key)
-      },
-
-      clear() {
-        cache.clear()
-      },
-
-      size() {
-        return cache.size
+        return (await response.json()) as T
       },
     }
   }
 }
+
+const container = new Container()
+const api = await container.get(HTTP_CLIENT, { baseUrl: 'https://api.example.com' })
+const sameApi = await container.get(HTTP_CLIENT, { baseUrl: 'https://api.example.com' })
+const other = await container.get(HTTP_CLIENT, { baseUrl: 'https://other.example.com' })
+
+console.log(api === sameApi) // true
+console.log(api === other) // false
 ```
 
-### Database Connection Pool Factory
+The factory receives the output of the schema, so `config.timeout` is `5000` here.
 
-```typescript
-import { Factory, inject, Injectable } from '@navios/di'
+### Connection Pool Factory
+
+```ts
+@Factory()
+class ConnectionPoolFactory {
+  private readonly config = inject(ConfigService)
+
+  async create(ctx: FactoryContext) {
+    const pool = new Pool({ connectionString: this.config.getDatabaseUrl(), max: 10 })
+    await pool.query('SELECT 1')
+
+    ctx.addDestroyListener(() => pool.end())
+
+    return pool
+  }
+}
 
 @Injectable()
-class DatabaseConfigService {
-  getConfig() {
-    return {
-      host: process.env.DB_HOST || 'localhost',
-      port: parseInt(process.env.DB_PORT || '5432'),
-      database: process.env.DB_NAME || 'myapp',
-      username: process.env.DB_USER || 'postgres',
-      password: process.env.DB_PASSWORD || 'password',
-      maxConnections: parseInt(process.env.DB_MAX_CONNECTIONS || '10'),
-    }
-  }
-}
+class UserRepository {
+  private readonly pool = inject(ConnectionPoolFactory)
 
-@Factory()
-class DatabasePoolFactory {
-  private readonly config = inject(DatabaseConfigService)
-
-  create() {
-    const config = this.config.getConfig()
-
-    return {
-      config,
-      connections: new Map(),
-      connectionCount: 0,
-
-      async getConnection() {
-        if (this.connectionCount >= config.maxConnections) {
-          throw new Error('Connection pool exhausted')
-        }
-
-        const connectionId = `conn_${Date.now()}_${Math.random()}`
-        const connection = {
-          id: connectionId,
-          host: config.host,
-          port: config.port,
-          database: config.database,
-          connected: true,
-          createdAt: new Date(),
-        }
-
-        this.connections.set(connectionId, connection)
-        this.connectionCount++
-
-        return connection
-      },
-
-      async releaseConnection(connectionId: string) {
-        if (this.connections.has(connectionId)) {
-          this.connections.delete(connectionId)
-          this.connectionCount--
-        }
-      },
-
-      getStats() {
-        return {
-          totalConnections: this.connectionCount,
-          maxConnections: config.maxConnections,
-          availableConnections: config.maxConnections - this.connectionCount,
-        }
-      },
-    }
+  async findAll() {
+    const result = await this.pool.query('SELECT * FROM users')
+    return result.rows
   }
 }
 ```
+
+`UserRepository` injects the pool with `inject()`. Because `create()` is asynchronous, the first build of `UserRepository` waits for the pool and constructs `UserRepository` again; see [How a Class is Constructed](./injectable.md#how-a-class-is-constructed).
 
 ## Best Practices
 
-### 1. Use Factories for Complex Object Creation
+### 1. Use factories for values you do not own
 
-```typescript
-// ✅ Good: Use factory for complex configuration
-@Factory()
-class EmailServiceFactory {
-  create() {
-    return {
-      sendEmail: async (to: string, subject: string, body: string) => {
-        // Complex email sending logic
-        const template = await this.loadTemplate(subject)
-        const html = await this.renderTemplate(template, body)
-        return await this.sendViaProvider(to, html)
-      },
-    }
-  }
-}
-```
+Wrap third-party clients, pools and handles in a factory. Use `@Injectable()` for your own classes.
 
-### 2. Use Transient Scope for Stateful Objects
+### 2. Register cleanup with `addDestroyListener`
 
-```typescript
-// ✅ Good: Transient factory for stateful objects
-@Factory({ scope: InjectableScope.Transient })
-class UserSessionFactory {
-  create() {
-    return {
-      userId: null,
-      sessionId: Math.random().toString(36),
-      loginTime: new Date(),
+Anything opened in `create()` should be closed in a destroy listener.
 
-      login(userId: string) {
-        this.userId = userId
-        this.loginTime = new Date()
-      },
+### 3. Use tokens for interface-based factories
 
-      logout() {
-        this.userId = null
-      },
-    }
-  }
-}
-```
+Register the factory with `@Factory({ token })` and inject the token, so consumers do not depend on the factory class.
 
-### 3. Use Injection Tokens for Interface-Based Factories
+### 4. Let errors propagate
 
-```typescript
-// ✅ Good: Interface-based factory
-interface PaymentProcessor {
-  processPayment(amount: number): Promise<string>
-}
-
-const PAYMENT_PROCESSOR_TOKEN = InjectionToken.create<PaymentProcessor>('PaymentProcessor')
-
-@Factory({ token: PAYMENT_PROCESSOR_TOKEN })
-class StripePaymentProcessorFactory {
-  create(): PaymentProcessor {
-    return {
-      async processPayment(amount: number) {
-        return `Processed $${amount} via Stripe`
-      },
-    }
-  }
-}
-```
-
-### 4. Handle Errors in Factory Creation
-
-```typescript
-// ✅ Good: Error handling in factory
-@Factory()
-class DatabaseConnectionFactory {
-  create() {
-    try {
-      return {
-        connect: async () => {
-          // Connection logic
-          return { connected: true }
-        },
-      }
-    } catch (error) {
-      throw new Error(`Failed to create database connection: ${error.message}`)
-    }
-  }
-}
-```
+An error thrown by `create()` is wrapped in a `DIError` with code `InitializationError` and the original error in `cause`. The failed result is not cached; the next resolution calls `create()` again.
 
 ## API Reference
 
 ### Factory Options
 
-```typescript
+```ts
 interface FactoryOptions {
   scope?: InjectableScope
   token?: InjectionToken<any, any>
-  registry?: Registry
-}
-```
-
-### Factory Context
-
-```typescript
-interface FactoryContext {
-  inject: typeof asyncInject // Inject dependencies asynchronously
-  locator: ServiceLocator // Access to the service locator
-  addDestroyListener: (listener: () => void | Promise<void>) => void // Register cleanup callback
 }
 ```
 
 ### Factory Method Signature
 
-```typescript
+```ts
 interface Factorable<T> {
-  create(): T
+  create(ctx?: FactoryContext): Promise<T> | T
 }
 
-interface FactorableWithArgs<T, S> {
-  create(ctx: FactoryContext, args: z.input<S>): T
+interface FactorableWithArgs<T, A extends InjectionTokenSchemaType> {
+  create(ctx?: FactoryContext, ...args: [InferOutput<A>]): Promise<T> | T
 }
 ```
+
+### Registration Function
+
+- `registerFactory(target, options?: { scope?, token? }): InjectionToken`
