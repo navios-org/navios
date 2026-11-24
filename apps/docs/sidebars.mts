@@ -80,7 +80,6 @@ const server: Entry[] = [
           'server/guides/otel/metrics',
           'server/guides/otel/custom-spans',
         ],
-        { collapsed: false },
       ),
       'server/guides/migrating-from-nestjs',
     ],

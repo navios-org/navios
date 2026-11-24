@@ -1,6 +1,6 @@
 /**
  * Pages whose public path changed. Keys are old paths, values are the paths that replaced them,
- * both without a trailing slash. `write-redirects.mts` writes a redirect for each entry and
+ * both without a trailing slash. `finalize-build.mts` writes a redirect for each entry and
  * `check-urls.mts` verifies it.
  */
 export const renamedPages: Record<string, string> = {

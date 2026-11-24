@@ -291,6 +291,7 @@
   text-align: center;
   margin-bottom: 0.5rem;
   font-size: 2rem;
+  font-weight: 700;
 }
 
 .sectionSubtitle {
@@ -346,6 +347,7 @@
 
 .featureTitle {
   font-size: 1.25rem;
+  font-weight: 700;
   margin-bottom: 0.75rem;
 }
 
@@ -413,14 +415,13 @@
 }
 
 .comparisonTable {
-  display: flex;
-  justify-content: center;
   overflow-x: auto;
 }
 
 .comparisonTable table {
   border-collapse: collapse;
   min-width: 600px;
+  margin: 0 auto;
 }
 
 .comparisonTable th,
@@ -464,6 +465,7 @@
 .ecosystemCategory h3 {
   margin-bottom: 1rem;
   font-size: 1.25rem;
+  font-weight: 700;
 }
 
 .ecosystemList {

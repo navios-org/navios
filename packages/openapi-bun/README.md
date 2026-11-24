@@ -256,13 +256,13 @@ After setup, the following endpoints are automatically available:
 For complete working examples, see:
 
 - [OpenAPI Examples](../../examples/openapi/src/bun.mts) - Full Bun example
-- [OpenAPI Guide](../../apps/docs/docs/server/guides/openapi.md) - Comprehensive documentation
+- [OpenAPI Guide](../../apps/docs/content/docs/server/guides/openapi.md) - Comprehensive documentation
 
 ## Documentation
 
 For complete documentation on using OpenAPI with Navios, see:
 
-- [OpenAPI Guide](../../apps/docs/docs/server/guides/openapi.md)
+- [OpenAPI Guide](../../apps/docs/content/docs/server/guides/openapi.md)
 - [@navios/openapi Core Package](../openapi/README.md)
 - [Controllers & Endpoints](../core/docs/controllers.md)
 

@@ -6,8 +6,8 @@
  * A path resolves when `<buildDir>/<path>/index.html` exists, which serves both `/x` and `/x/`
  * on GitHub Pages and every other static host.
  */
-import { existsSync, readFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { existsSync, readdirSync, readFileSync } from 'node:fs'
+import { join, relative, sep } from 'node:path'
 
 import { renamedPages } from './renamed-pages.mts'
 
@@ -66,6 +66,21 @@ for (const path of baseline) {
   for (const snippet of required) {
     if (!html.includes(snippet)) failures.push(`${path} redirect is missing: ${snippet}`)
   }
+}
+
+// Every page in the build must be listed, so a page added later is protected from the day it ships.
+function builtPages(dir: string): string[] {
+  return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+    const path = join(dir, entry.name)
+    if (entry.isDirectory()) return builtPages(path)
+    if (entry.name !== 'index.html' || readFileSync(path, 'utf8').includes(stubMarker)) return []
+    return [`/${relative(buildDir, dir).split(sep).join('/')}`]
+  })
+}
+
+const listed = new Set(baseline)
+for (const page of builtPages(buildDir)) {
+  if (!listed.has(page)) failures.push(`${page} is built but missing from scripts/url-baseline.txt; add it`)
 }
 
 if (failures.length > 0) {
