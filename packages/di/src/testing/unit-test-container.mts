@@ -1,9 +1,13 @@
 import { Container } from '../container/container.mjs'
+import { InjectableScope } from '../enums/index.mjs'
 import { DIError, DIErrorCode } from '../errors/index.mjs'
+import { baseToken } from '../internal/engine.mjs'
 import { InjectableTokenMeta } from '../symbols/index.mjs'
 import { BoundInjectionToken, InjectionToken } from '../token/injection-token.mjs'
 import { findInjectableToken, provide } from '../token/provider.mjs'
 
+import type { AnyInjectableType } from '../token/injection-token.mjs'
+import type { ProviderRecord } from '../token/provider.mjs'
 import type { AsyncResolve, SyncResolve } from '../utils/types.mjs'
 
 import type {
@@ -106,9 +110,18 @@ function createAutoMockProxy(tokenId: string): object {
 /**
  * UnitTestContainer for isolated unit testing.
  *
- * Only services explicitly listed in `providers` can be resolved.
- * All method calls are automatically tracked via proxies.
- * Unregistered dependencies throw by default, or can be auto-mocked.
+ * Only services explicitly listed in `providers` can be resolved. A token
+ * outside the list fails with `FactoryNotFound`, whether it is asked for with
+ * `container.get()` or with `inject()` / `asyncInject()` inside a listed
+ * service; `optional()` returns `null` for it.
+ *
+ * With `allowUnregistered: true` every such request, `optional()` included,
+ * receives an auto-mock instead: one placeholder object per token that throws
+ * an explanatory error as soon as a property of it is read.
+ *
+ * Method calls are recorded by a proxy around what `get()` and `getSync()`
+ * return. Calls made on the instance a service received through `inject()`
+ * do not pass through that proxy and are not recorded.
  *
  * @example
  * ```ts
@@ -134,6 +147,7 @@ export class UnitTestContainer extends Container {
   private readonly instanceCounts = new Map<Token, number>()
   private readonly registeredTokens = new Set<Token>()
   private readonly autoMockedTokens = new Set<Token>()
+  private readonly autoMocks = new Map<Token, { mock: object; record: ProviderRecord }>()
   private allowUnregistered: boolean
 
   constructor(options: UnitTestContainerOptions) {
@@ -178,7 +192,8 @@ export class UnitTestContainer extends Container {
   }
 
   /**
-   * Enables auto-mocking for unregistered dependencies.
+   * Enables auto-mocking for unregistered dependencies, both for
+   * `container.get()` and for injection inside a listed service.
    * Call this to switch from strict mode to auto-mock mode.
    */
   enableAutoMocking(): this {
@@ -188,7 +203,8 @@ export class UnitTestContainer extends Container {
 
   /**
    * Disables auto-mocking (strict mode).
-   * Unregistered dependencies will throw.
+   * Unregistered dependencies will throw. A service that was already built
+   * keeps the auto-mocks it was given.
    */
   disableAutoMocking(): this {
     this.allowUnregistered = false
@@ -204,6 +220,34 @@ export class UnitTestContainer extends Container {
     this.lifecycleEvents.clear()
     this.instanceCounts.clear()
     this.autoMockedTokens.clear()
+    this.autoMocks.clear()
+  }
+
+  /**
+   * Whether the token is in the providers list or has an instance that was
+   * added to the container. An auto-mocked token is not registered.
+   */
+  override isRegistered(token: AnyInjectableType): boolean {
+    const base = baseToken(token)
+    if (base === undefined) {
+      return false
+    }
+    return (
+      this.overrides.has(base) || (this.store.hasToken(base) && !this.autoMockedTokens.has(base))
+    )
+  }
+
+  /**
+   * Supplies the auto-mock to the resolution engine, so that `inject()`,
+   * `optional()` and `asyncInject()` of an unlisted token inside a listed
+   * service receive it too.
+   * @internal
+   */
+  override providerForUnlisted(token: Token): ProviderRecord | undefined {
+    if (!this.allowUnregistered || this.registeredTokens.has(token)) {
+      return undefined
+    }
+    return this.autoMock(token).record
   }
 
   // ============================================================================
@@ -264,7 +308,10 @@ export class UnitTestContainer extends Container {
   // ============================================================================
 
   /**
-   * Records a lifecycle event for tracking.
+   * Records a lifecycle event for tracking. It is the only source of what
+   * `expectInitialized()`, `expectDestroyed()` and `expectNotDestroyed()`
+   * see; call it from the hooks of your mocks. The container itself records
+   * only `created`, and only for a `useValue` provider or a bound token.
    */
   recordLifecycleEvent(
     token: AnyToken,
@@ -287,7 +334,10 @@ export class UnitTestContainer extends Container {
   }
 
   /**
-   * Asserts that a service's onServiceInit was called.
+   * Asserts that an `initialized` event was recorded for the token with
+   * `recordLifecycleEvent()`. The container does not observe `onServiceInit()`
+   * of real instances: without a recorded event this fails even for a service
+   * that was initialised.
    */
   expectInitialized(token: AnyToken): void {
     const realToken = this.resolveToken(token)
@@ -302,7 +352,10 @@ export class UnitTestContainer extends Container {
   }
 
   /**
-   * Asserts that a service's onServiceDestroy was called.
+   * Asserts that a `destroyed` event was recorded for the token with
+   * `recordLifecycleEvent()`. The container does not observe
+   * `onServiceDestroy()` of real instances: without a recorded event this
+   * fails even for a service that was destroyed.
    */
   expectDestroyed(token: AnyToken): void {
     const realToken = this.resolveToken(token)
@@ -317,7 +370,9 @@ export class UnitTestContainer extends Container {
   }
 
   /**
-   * Asserts that a service has NOT been destroyed.
+   * Asserts that no `destroyed` event was recorded for the token with
+   * `recordLifecycleEvent()`. It passes for a service that was destroyed
+   * without anything recording the event.
    */
   expectNotDestroyed(token: AnyToken): void {
     const realToken = this.resolveToken(token)
@@ -336,7 +391,9 @@ export class UnitTestContainer extends Container {
   // ============================================================================
 
   /**
-   * Asserts that a method was called on a service.
+   * Asserts that a method was called through the proxy that `get()` or
+   * `getSync()` returned for the token. A call made on the instance another
+   * service received through `inject()` is not seen.
    */
   expectCalled(token: AnyToken, method: string): void {
     const realToken = this.resolveToken(token)
@@ -349,7 +406,9 @@ export class UnitTestContainer extends Container {
   }
 
   /**
-   * Asserts that a method was NOT called on a service.
+   * Asserts that a method was NOT called through the proxy that `get()` or
+   * `getSync()` returned for the token. It passes for a call made on the
+   * instance another service received through `inject()`.
    */
   expectNotCalled(token: AnyToken, method: string): void {
     const realToken = this.resolveToken(token)
@@ -362,7 +421,8 @@ export class UnitTestContainer extends Container {
   }
 
   /**
-   * Asserts that a method was called with specific arguments.
+   * Asserts that a method was called with specific arguments through the
+   * proxy that `get()` or `getSync()` returned for the token.
    */
   expectCalledWith(token: AnyToken, method: string, expectedArgs: unknown[]): void {
     const realToken = this.resolveToken(token)
@@ -380,7 +440,8 @@ export class UnitTestContainer extends Container {
   }
 
   /**
-   * Asserts that a method was called a specific number of times.
+   * Asserts how many times a method was called through the proxy that `get()`
+   * or `getSync()` returned for the token.
    */
   expectCallCount(token: AnyToken, method: string, count: number): void {
     const realToken = this.resolveToken(token)
@@ -395,7 +456,8 @@ export class UnitTestContainer extends Container {
   }
 
   /**
-   * Gets all recorded method calls for a service.
+   * Gets the method calls recorded by the proxies that `get()` and
+   * `getSync()` returned for the token.
    */
   getMethodCalls(token: AnyToken): MethodCallRecord[] {
     const realToken = this.resolveToken(token)
@@ -467,7 +529,29 @@ export class UnitTestContainer extends Container {
       )
     }
     this.autoMockedTokens.add(token)
-    return createAutoMockProxy(token.toString())
+    return this.autoMock(token).mock
+  }
+
+  /**
+   * The auto-mock of a token and the provider that serves it to the engine.
+   * The token counts as auto-mocked once the mock is actually handed out.
+   */
+  private autoMock(token: Token): { mock: object; record: ProviderRecord } {
+    let known = this.autoMocks.get(token)
+    if (known === undefined) {
+      const mock = createAutoMockProxy(token.toString())
+      const record = provide(token, {
+        factory: () => {
+          this.autoMockedTokens.add(token)
+          return mock
+        },
+        // One mock per token, also for a token that declares another scope.
+        scope: InjectableScope.Singleton,
+      }).record
+      known = { mock, record }
+      this.autoMocks.set(token, known)
+    }
+    return known
   }
 
   /** Wraps an object instance in a proxy that records its method calls. */
@@ -530,8 +614,10 @@ export class UnitTestContainer extends Container {
 
 /**
  * Gives a class that was never registered with `@Injectable` a token of its
- * own, without a default provider, so that it can be listed in `providers`.
- * Mirrors what `Container.addInstance` does for such a class.
+ * own, without a default provider, so that it can be listed in `providers`
+ * or named in an assertion. Only `UnitTestContainer` does this: everywhere
+ * else, `Container.addInstance` included, such a class is rejected with
+ * `ClassNotInjectable`.
  */
 function attachToken(target: new (...args: any[]) => any): Token {
   const token = new InjectionToken<any, any>(target)

@@ -144,7 +144,13 @@ export class ScopedContainer implements IContainer, Host {
       return resolved
     }
     this.disposed = true
-    const result = this.destroyOwned()
+    let result: void | Promise<void>
+    try {
+      result = this.destroyOwned()
+    } catch (error) {
+      // An `onInvalidate` listener threw after a synchronous teardown.
+      return Promise.reject(error)
+    }
     return result === undefined ? resolved : result
   }
 

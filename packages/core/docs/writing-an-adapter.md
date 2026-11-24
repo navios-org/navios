@@ -36,6 +36,8 @@ export function defineMyEnvironment(options: MyOptions = {}): AdapterDefinition<
 
 Server features such as CORS, body limits and multipart are options of the definition function, because the application has no methods for them.
 
+A body over the adapter's limit must be answered with a 413 problem response: write `problem(413, detail)` from `@navios/core` when the server reports it before the executor runs, or throw `new HttpException(413, detail)` from `body()`. Do not let the server answer with a page of its own.
+
 ## The `HttpAdapter` contract
 
 ```ts
@@ -50,14 +52,14 @@ interface HttpAdapter<Env extends HttpAdapterEnvironment = HttpAdapterEnvironmen
 }
 ```
 
-| Member                 | Contract                                                                                                                                                                                                                                                                          |
-| ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `register(route)`      | Called once per route, before `ready()`. `route.info` is the `RouteInfo`; `route.execute` is the executor. `route.info.path` uses the builder's form, `/users/$id`. Routes arrive in no particular order: where two match a path, a static segment must win over a URL parameter. |
-| `setNotFound(execute)` | The executor for requests that match no route. Call it with a `RouteInput` like any other; it returns the not-found response.                                                                                                                                                     |
-| `ready()`              | Called once after all routes are registered.                                                                                                                                                                                                                                      |
-| `listen(options)`      | Starts the server and resolves to its base URL.                                                                                                                                                                                                                                   |
-| `inject(request)`      | Handles a `TestRequest` in process and resolves to a `TestResponse`. It should go through as much of the server's real request path as the server allows.                                                                                                                         |
-| `close(timeoutMs)`     | Stops accepting connections and waits for in-flight requests, for at most `timeoutMs`.                                                                                                                                                                                            |
+| Member                 | Contract                                                                                                                                                                                                                                                                                                                                                                                         |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `register(route)`      | Called once per route, before `ready()`. `route.info` is the `RouteInfo`; `route.execute` is the executor. `route.info.path` uses the builder's form, `/users/$id`. Routes arrive in no particular order: where two match a path, a static segment must win over a URL parameter. A path never ends with a slash, except the root path `/`; a request path with a trailing slash must not match. |
+| `setNotFound(execute)` | The executor for requests that match no route. Call it with a `RouteInput` like any other; it returns the not-found response.                                                                                                                                                                                                                                                                    |
+| `ready()`              | Called once after all routes are registered.                                                                                                                                                                                                                                                                                                                                                     |
+| `listen(options)`      | Starts the server and resolves to its base URL.                                                                                                                                                                                                                                                                                                                                                  |
+| `inject(request)`      | Handles a `TestRequest` in process and resolves to a `TestResponse`. It should go through as much of the server's real request path as the server allows, and it must choose the same route as a request over HTTP.                                                                                                                                                                              |
+| `close(timeoutMs)`     | Stops accepting connections and waits for in-flight requests, for at most `timeoutMs`.                                                                                                                                                                                                                                                                                                           |
 
 ## `RouteInput`
 
@@ -131,7 +133,7 @@ A result whose body cannot be written (`JSON.stringify` throws, an invalid heade
 
 ## Running the conformance suite
 
-`runAdapterConformance` from `@navios/core/conformance` exercises an adapter over real HTTP. It covers JSON routes with URL parameters and a coerced query, route precedence (a static segment is preferred to a URL parameter, whatever the order of registration), 400 responses for invalid input and malformed JSON, declared statuses and bodiless statuses, response field stripping, error mapping, the not-found response, guards running before body validation, request values and their disposal, request and response headers and cookies, text and streamed responses, multipart, request scope disposal, resources acquired by a stream, client disconnect (with and without a request body), JSON `null`, bodies that cannot be serialised, prefix parameters, `inject()` and graceful close with keep-alive clients.
+`runAdapterConformance` from `@navios/core/conformance` exercises an adapter over real HTTP. It covers JSON routes with URL parameters and a coerced query, route precedence (a static segment is preferred to a URL parameter, whatever the order of registration, over HTTP and with `inject()`), no match for a path with a trailing slash, 400 responses for invalid input and malformed JSON, declared statuses and bodiless statuses, response field stripping, error mapping, the not-found response, guards running before body validation, request values and their disposal, request and response headers and cookies, text and streamed responses, multipart, request scope disposal, resources acquired by a stream, client disconnect (with and without a request body), JSON `null`, bodies that cannot be serialised, prefix parameters, `inject()` and graceful close with keep-alive clients. With the `bodyLimit` option it also covers the 413 problem response for a JSON, a text and a multipart body over the adapter's limit, with and without a declared length and with `inject()`.
 
 It takes the test runner's functions as an argument, so it runs under Vitest, `bun:test` or anything with the same five functions. It uses a small built-in Standard Schema implementation and depends on no schema library.
 
@@ -150,11 +152,12 @@ runAdapterConformance({
 })
 ```
 
-| Option          | Meaning                                                                       |
-| --------------- | ----------------------------------------------------------------------------- |
-| `runner`        | `{ describe, it, expect, beforeAll, afterAll }` from the test runner.         |
-| `name`          | Shown in the suite title.                                                     |
-| `adapter`       | Creates the adapter definition under test. Multipart support must be enabled. |
-| `listenOptions` | Passed to `app.listen()`. It must bind an ephemeral local port.               |
+| Option          | Meaning                                                                                                                                                                                                                                                                                                              |
+| --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `runner`        | `{ describe, it, expect, beforeAll, afterAll }` from the test runner.                                                                                                                                                                                                                                                |
+| `name`          | Shown in the suite title.                                                                                                                                                                                                                                                                                            |
+| `adapter`       | Creates the adapter definition under test. Multipart support must be enabled.                                                                                                                                                                                                                                        |
+| `listenOptions` | Passed to `app.listen()`. It must bind an ephemeral local port.                                                                                                                                                                                                                                                      |
+| `bodyLimit`     | Optional. The largest request body in bytes that the adapter made by `adapter` accepts: a JSON or text body, and a file of a multipart body. Use 16 KiB or more. When it is set, the suite checks that a larger body is answered with a 413 `application/problem+json` response; without it those cases are not run. |
 
 An adapter is expected to pass every test. The suite is the definition of "behaves the same on every adapter"; when an adapter needs a behaviour the suite does not cover, add the test to the suite, not to the adapter.

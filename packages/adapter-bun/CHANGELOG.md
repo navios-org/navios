@@ -42,6 +42,8 @@ The adapter is rewritten on the `@navios/core` 2.0 adapter contract. It no longe
 
 ### Fixed
 
+- **A request body over `serve.maxRequestBodySize` is answered with 413 `application/problem+json`**, as on Fastify, for JSON, text and multipart bodies. Bun answered it with an empty 413 before the adapter saw the request. The adapter now enforces the limit itself: a `content-length` over the limit is rejected before guards run, and a body without one is counted while it is read.
+- **`app.inject()` chooses the route that a request over HTTP reaches.** It took the first route registered that matched and ignored a trailing slash, so a static route declared after a param route, and `/users/`, behaved differently in tests.
 - **A handler result that fails its response schema is a 500.** It used to be answered as a 400 validation error, as if the request were at fault.
 
 ### Performance

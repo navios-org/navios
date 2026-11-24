@@ -22,6 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Type tests are type-checked: Vitest's typecheck ran `tsc` with `tsconfig.lib.json`, which excludes `*.spec-d.mts`. It now uses `tsconfig.typecheck.json`.
 - **Breaking:** requires `@navios/core` 2.0. Routes are read from `RouteInfo` instead of module and controller metadata.
 - **Breaking:** documented paths are full route paths (global and module prefixes included). `servers` is no longer filled from the global prefix.
 - **Breaking:** the routes serving the document get the application's global prefix on every adapter.

@@ -24,7 +24,7 @@ The adapter is rewritten on the `@navios/core` 2.0 adapter contract. It no longe
 - **Taking over the response**: when a handler has sent the response through `ctx.raw.reply`, the adapter writes nothing.
 - **`app.inject()`** through `fastify.inject()`.
 - **`ctx.signal`** aborts when the client disconnects before the response is complete.
-- The `@navios/core/conformance` suite runs against the adapter over real HTTP.
+- The `@navios/core/conformance` suite runs against the adapter over real HTTP, including its cases for a request body over `bodyLimit` and a file over `multipart.limits.fileSize`.
 - An HTTP benchmark against raw Fastify: `yarn bench`.
 - Serves `response: 'void'` endpoints (204, no body) and per-status `responses` endpoints.
 

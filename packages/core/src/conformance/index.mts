@@ -37,6 +37,14 @@ export interface ConformanceOptions {
   adapter: () => AdapterDefinition<any>
   /** Options for `app.listen()` that bind an ephemeral local port. */
   listenOptions: unknown
+  /**
+   * The largest request body, in bytes, that the adapter created by `adapter`
+   * accepts: a JSON or a text body, and a file of a multipart body. Use 16 KiB
+   * or more; the other cases send small bodies. When set, the suite checks
+   * that a larger body is answered with a 413 problem response. Leave it out
+   * for an adapter that cannot limit the size of a body.
+   */
+  bodyLimit?: number
 }
 
 const endpoint = <Config extends Record<string, unknown>>(config: Config) => ({ config }) as any
@@ -52,8 +60,13 @@ const endpoint = <Config extends Record<string, unknown>>(config: Config) => ({ 
  * runAdapterConformance({
  *   runner: { describe, it, expect, beforeAll, afterAll },
  *   name: 'fastify',
- *   adapter: () => defineFastifyEnvironment({ multipart: true }),
+ *   adapter: () =>
+ *     defineFastifyEnvironment({
+ *       bodyLimit: 65536,
+ *       multipart: { limits: { fileSize: 65536 } },
+ *     }),
  *   listenOptions: { port: 0, host: '127.0.0.1' },
+ *   bodyLimit: 65536,
  * })
  * ```
  */
@@ -301,6 +314,16 @@ export function runAdapterConformance(options: ConformanceOptions): void {
       unserialisable = handler(endpoint({ method: 'GET', url: '/unserialisable' }), () => ({
         count: 1n,
       }))
+
+      echoText = handler(
+        endpoint({
+          method: 'POST',
+          url: '/echo-text',
+          requestSchema: s.string(),
+          responseSchema: s.object({ length: s.number() }),
+        }),
+        ({ data }: any) => ({ length: data.length }),
+      )
 
       signal = handler(
         endpoint({
@@ -674,6 +697,36 @@ export function runAdapterConformance(options: ConformanceOptions): void {
         urlParams: { a: 'oak' },
       })
       expect(await match('/trees/oak/root')).toEqual({ route: '/trees/oak/root', urlParams: {} })
+
+      // inject() matches like the server does.
+      const injected = async (path: string) =>
+        (await app.inject({ method: 'GET', url: `/api${path}` })).body
+      expect(await injected('/reports/export')).toEqual({ route: '/reports/export', urlParams: {} })
+      expect(await injected('/reports/42/detail')).toEqual({
+        route: '/reports/$id/detail',
+        urlParams: { id: '42' },
+      })
+      expect(await injected('/pairs/x/fixed')).toEqual({
+        route: '/pairs/$a/fixed',
+        urlParams: { a: 'x' },
+      })
+      expect(await injected('/trees/oak/leaf')).toEqual({
+        route: '/trees/$a/leaf',
+        urlParams: { a: 'oak' },
+      })
+    })
+
+    it('does not match a path with a trailing slash, over HTTP or with inject()', async () => {
+      for (const path of ['/simple/', '/items/1/parts/7/', '/simple/?x=1']) {
+        const response = await fetch(url(path))
+        expect(response.status).toBe(404)
+        expect(response.headers.get('content-type')).toContain('application/problem+json')
+
+        const injected = await app.inject({ method: 'GET', url: `/api${path}` })
+        expect(injected.status).toBe(404)
+      }
+      expect((await fetch(url('/simple?x=1'))).status).toBe(200)
+      expect((await app.inject({ method: 'GET', url: '/api/simple?x=1' })).status).toBe(200)
     })
 
     it('parses multipart bodies into fields and files', async () => {
@@ -684,6 +737,70 @@ export function runAdapterConformance(options: ConformanceOptions): void {
       expect(response.status).toBe(200)
       expect(await response.json()).toEqual({ title: 'report', filename: 'hello.txt', size: 11 })
     })
+
+    const { bodyLimit } = options
+    if (bodyLimit !== undefined) {
+      const tooLarge = async (response: Response) => {
+        expect(response.status).toBe(413)
+        expect(response.headers.get('content-type')).toContain('application/problem+json')
+        const body = await response.json()
+        expect(body.status).toBe(413)
+        expect(body.title).toBe('Payload Too Large')
+      }
+      const text = (body: BodyInit, init: Record<string, unknown> = {}) =>
+        fetch(url('/echo-text'), {
+          method: 'POST',
+          headers: { 'content-type': 'text/plain' },
+          body,
+          ...init,
+        })
+      const upload = (size: number) => {
+        const form = new FormData()
+        form.append('title', 'report')
+        form.append('file', new File(['x'.repeat(size)], 'big.txt', { type: 'text/plain' }))
+        return fetch(url('/upload'), { method: 'POST', body: form })
+      }
+
+      it('answers 413 problem+json for a JSON, a text and a multipart body over the limit', async () => {
+        await tooLarge(await fetch(url('/users'), json({ name: 'x'.repeat(bodyLimit) })))
+        await tooLarge(await text('x'.repeat(bodyLimit + 1)))
+        await tooLarge(await upload(bodyLimit + 1))
+
+        // A body within the limit is accepted.
+        const half = Math.floor(bodyLimit / 2)
+        expect((await fetch(url('/users'), json({ name: 'x'.repeat(half) }))).status).toBe(201)
+        expect(await (await text('x'.repeat(bodyLimit))).json()).toEqual({ length: bodyLimit })
+        expect((await upload(half)).status).toBe(200)
+      })
+
+      it('answers 413 problem+json for a body over the limit that declares no length', async () => {
+        // A stream is sent with chunked transfer encoding, without content-length.
+        const chunks = (size: number) =>
+          new ReadableStream({
+            start(controller) {
+              const chunk = new TextEncoder().encode('x'.repeat(1024))
+              for (let sent = 0; sent < size; sent += chunk.byteLength) {
+                controller.enqueue(chunk.subarray(0, Math.min(chunk.byteLength, size - sent)))
+              }
+              controller.close()
+            },
+          })
+        await tooLarge(await text(chunks(bodyLimit + 1), { duplex: 'half' }))
+        const accepted = await text(chunks(bodyLimit), { duplex: 'half' })
+        expect(await accepted.json()).toEqual({ length: bodyLimit })
+      })
+
+      it('answers 413 problem+json for a body over the limit sent with inject()', async () => {
+        const response = await app.inject({
+          method: 'POST',
+          url: '/api/users',
+          body: { name: 'x'.repeat(bodyLimit) },
+        })
+        expect(response.status).toBe(413)
+        expect(response.headers['content-type']).toContain('application/problem+json')
+        expect((response.body as { status: number }).status).toBe(413)
+      })
+    }
 
     it('disposes a request scope after the response', async () => {
       events.length = 0

@@ -74,6 +74,15 @@ export class Container implements IContainer, RootHost {
     this.registerSelf()
   }
 
+  /**
+   * The provider a strict container uses for a token that is not among its
+   * own. None by default.
+   * @internal
+   */
+  providerForUnlisted(_token: InjectionToken<any, any>): ProviderRecord | undefined {
+    return undefined
+  }
+
   private registerSelf(): void {
     storeValue(this, Container, this, InjectableScope.Singleton)
   }

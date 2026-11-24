@@ -42,7 +42,9 @@ function compilePath(path: string): Pick<Registered, 'pattern' | 'names' | 'para
       return segment.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
     })
     .join('/')
-  return { pattern: new RegExp(`^${source || '/'}/?$`), names, params }
+  // The whole path, as the routers of the Fastify and Bun adapters match it:
+  // `/users/` is not `/users`.
+  return { pattern: new RegExp(`^${source || '/'}$`), names, params }
 }
 
 /**

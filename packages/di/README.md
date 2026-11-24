@@ -656,7 +656,7 @@ describe('UserService', () => {
 
 ### UnitTestContainer
 
-`UnitTestContainer` is a strict container: only the services listed in `providers` can be resolved, and method calls on them are tracked through a proxy.
+`UnitTestContainer` is a strict container: only the services listed in `providers` can be resolved, and method calls on them are tracked through the proxy that `get()` returns. With `allowUnregistered: true` (or `enableAutoMocking()`), a token outside the list resolves to an auto-mock instead of failing, both for `container.get()` and for `inject()`, `optional()` and `asyncInject()` inside a listed service. An auto-mock throws an explanatory error when one of its properties is read.
 
 ```ts
 import { DIError } from '@navios/di'

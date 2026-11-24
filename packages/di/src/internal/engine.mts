@@ -55,6 +55,11 @@ export interface RootHost extends Host {
   readonly strict: boolean
   decorators: Map<InjectionToken<any, any>, InstanceDecorator[]> | null
   readonly factoryValues: Map<FactoryInjectionToken<any, any>, FactoryValue>
+  /**
+   * Asked by a strict container for a token none of its providers covers,
+   * wherever the request comes from. `undefined` leaves the token unprovided.
+   */
+  providerForUnlisted(token: InjectionToken<any, any>): ProviderRecord | undefined
 }
 
 /**
@@ -217,7 +222,11 @@ export function lookupRecord(
   token: InjectionToken<any, any>,
 ): ProviderRecord | undefined {
   const root = host.root
-  return root.overrides.get(token) ?? (root.strict ? undefined : token.provider)
+  const own = root.overrides.get(token)
+  if (own !== undefined) {
+    return own
+  }
+  return root.strict ? root.providerForUnlisted(token) : token.provider
 }
 
 /** @internal */
@@ -351,14 +360,22 @@ function build(
 
   let outcome: void | Promise<void>
   try {
-    const waits =
-      record.preResolve === true && record.plan !== null ? preResolve(frame, record.plan) : null
-    if (waits === null && record.preResolve === true && record.plan !== null) {
-      // Everything was ready this time; stop paying for the extra lookups
-      // until a pass has to be discarded again.
-      record.preResolve = false
+    // While something is being destroyed, a dependency this class is known to
+    // ask for may be on its way out. Constructing now would only produce a
+    // pass that has to be thrown away, so wait for the destruction first.
+    const leaving = destroying > 0 && record.plan !== null ? leavingIn(host, record.plan) : null
+    if (leaving !== null) {
+      outcome = afterDestruction(frame, leaving)
+    } else {
+      const waits =
+        record.preResolve === true && record.plan !== null ? preResolve(frame, record.plan) : null
+      if (waits === null && record.preResolve === true && record.plan !== null) {
+        // Everything was ready this time; stop paying for the extra lookups
+        // until a pass has to be discarded again.
+        record.preResolve = false
+      }
+      outcome = waits === null ? pass(frame) : waits.then(() => replay(frame, true))
     }
-    outcome = waits === null ? pass(frame) : waits.then(() => replay(frame, true))
   } catch (error) {
     throw fail(entry, error)
   }
@@ -407,6 +424,85 @@ function preResolve(frame: Frame, plan: PlanEntry[]): Promise<unknown> | null {
     current = previous
   }
   return waits === null ? null : Promise.all(waits)
+}
+
+/**
+ * The entry stored for a token and raw args in `host` or its root, in
+ * whatever state it is. Builds nothing.
+ */
+function stored(host: Host, token: InjectionToken<any, any>, rawArgs: unknown): Entry | undefined {
+  let args = rawArgs
+  if (token.schema !== undefined) {
+    try {
+      args = validateSync(token.schema, rawArgs, token.toString())
+    } catch {
+      return undefined
+    }
+  }
+  const key = args === undefined ? null : argsKey(args)
+  return (host.isScope ? host.store.get(token, key) : undefined) ?? host.root.store.get(token, key)
+}
+
+function collectLeaving(
+  host: Host,
+  plan: PlanEntry[],
+  seen: Set<PlanEntry[]>,
+  waits: Promise<unknown>[],
+): void {
+  seen.add(plan)
+  for (const request of plan) {
+    const entry = stored(host, request.token, request.args)
+    if (entry !== undefined && entry.status === EntryStatus.Destroying) {
+      // Without a promise the destruction is in its synchronous part and is
+      // over, or has a promise, one microtask later.
+      waits.push(entry.destroyPromise ?? Promise.resolve())
+      continue
+    }
+    if (entry !== undefined && entry.status <= EntryStatus.Ready) {
+      continue
+    }
+    // Not there: it is going to be built, and its own dependencies matter.
+    const record = lookupRecord(host, request.token)
+    if (record === undefined || record.plan === null || seen.has(record.plan)) {
+      continue
+    }
+    collectLeaving(
+      record.scope === InjectableScope.Singleton ? host.root : host,
+      record.plan,
+      seen,
+      waits,
+    )
+  }
+}
+
+/**
+ * A promise for the end of every destruction that building something with
+ * `plan` would run into, directly or through dependencies that have to be
+ * built first; `null` when there is none.
+ */
+function leavingIn(host: Host, plan: PlanEntry[]): Promise<unknown> | null {
+  const waits: Promise<unknown>[] = []
+  collectLeaving(host, plan, new Set(), waits)
+  return waits.length === 0 ? null : Promise.all(waits)
+}
+
+/**
+ * Builds `frame` once the dependencies that were being destroyed are gone,
+ * so that the first construction pass already sees their replacements.
+ */
+async function afterDestruction(frame: Frame, first: Promise<unknown>): Promise<void> {
+  const { host, entry } = frame
+  let leaving: Promise<unknown> | null = first
+  while (leaving !== null) {
+    await leaving
+    leaving = destroying > 0 ? leavingIn(host, entry.record.plan!) : null
+  }
+  const record = entry.record
+  const waits = record.preResolve === true ? preResolve(frame, record.plan!) : null
+  if (waits !== null) {
+    await waits
+  }
+  await replay(frame, true)
 }
 
 function instantiate(frame: Frame): unknown {
@@ -1091,11 +1187,33 @@ type ClassOrToken =
 // ----------------------------------------------------------------------------
 
 /**
+ * One `invalidate()` or `dispose()` call: the entries it destroyed that
+ * somebody listens for. The listeners are called when the whole call has
+ * finished, so that what they resolve is built against a settled container.
+ */
+interface Cascade {
+  gone: Entry[] | null
+}
+
+/** Entries in `Destroying` state, over all containers. */
+let destroying = 0
+
+/**
  * Destroys an entry: its dependents first, then its own destroy listeners,
  * then the transients it owns. Synchronous when nothing involved is async.
+ * `onInvalidate` listeners are called last, after everything is destroyed.
  * @internal
  */
 export function destroyEntry(entry: Entry): void | Promise<void> {
+  const cascade: Cascade = { gone: null }
+  const result = destroy(entry, cascade)
+  if (result !== undefined) {
+    return result.then(() => notify(cascade))
+  }
+  notify(cascade)
+}
+
+function destroy(entry: Entry, cascade: Cascade): void | Promise<void> {
   switch (entry.status) {
     case EntryStatus.Ready:
       break
@@ -1103,24 +1221,28 @@ export function destroyEntry(entry: Entry): void | Promise<void> {
       return entry.destroyPromise ?? undefined
     case EntryStatus.Creating: {
       const pending = (entry.promise ?? Promise.resolve()).then(noop, noop)
-      return pending.then(() => destroyEntry(entry))
+      return pending.then(() => destroy(entry, cascade))
     }
     default:
       return
   }
 
   entry.status = EntryStatus.Destroying
+  destroying++
   let waits: Promise<void>[] | null = null
   if (entry.dependents !== null && entry.dependents.size > 0) {
     for (const dependent of Array.from(entry.dependents)) {
-      const result = destroyEntry(dependent)
+      const result = destroy(dependent, cascade)
       if (result !== undefined) {
         ;(waits ??= []).push(result)
       }
     }
   }
 
-  const result = waits === null ? teardown(entry) : Promise.all(waits).then(() => teardown(entry))
+  const result =
+    waits === null
+      ? teardown(entry, cascade)
+      : Promise.all(waits).then(() => teardown(entry, cascade))
   if (result !== undefined) {
     const settled = result.then(noop, noop)
     entry.destroyPromise = settled
@@ -1128,7 +1250,7 @@ export function destroyEntry(entry: Entry): void | Promise<void> {
   }
 }
 
-function teardown(entry: Entry): void | Promise<void> {
+function teardown(entry: Entry, cascade: Cascade): void | Promise<void> {
   let waits: Promise<unknown>[] | null = null
   if (entry.destroyListeners !== null) {
     for (let i = entry.destroyListeners.length - 1; i >= 0; i--) {
@@ -1144,31 +1266,62 @@ function teardown(entry: Entry): void | Promise<void> {
   }
   if (entry.transients !== null) {
     for (const transient of entry.transients) {
-      const result = destroyEntry(transient)
+      const result = destroy(transient, cascade)
       if (result !== undefined) {
         ;(waits ??= []).push(result)
       }
     }
   }
   if (waits !== null) {
-    return Promise.all(waits).then(() => finalize(entry))
+    return Promise.all(waits).then(() => finalize(entry, cascade))
   }
-  finalize(entry)
+  finalize(entry, cascade)
 }
 
-function finalize(entry: Entry): void {
+function finalize(entry: Entry, cascade: Cascade): void {
   entry.status = EntryStatus.Destroyed
+  destroying--
   entry.store?.delete(entry)
   unlink(entry)
   entry.dependents = null
   entry.transients = null
   entry.destroyListeners = null
   entry.destroyPromise = null
-  entry.store?.notifyInvalidated(entry)
+  if (entry.store !== null && entry.store.hasListeners(entry.token)) {
+    ;(cascade.gone ??= []).push(entry)
+  }
 }
 
 /**
- * Destroys every entry of a store in reverse creation order.
+ * Calls the `onInvalidate` listeners of everything the cascade destroyed, in
+ * the order of destruction. Every listener runs; the first error is rethrown
+ * afterwards.
+ */
+function notify(cascade: Cascade): void {
+  const gone = cascade.gone
+  if (gone === null) {
+    return
+  }
+  cascade.gone = null
+  let failed = false
+  let failure: unknown
+  const onError = (error: unknown) => {
+    if (!failed) {
+      failed = true
+      failure = error
+    }
+  }
+  for (const entry of gone) {
+    entry.store!.notifyInvalidated(entry, onError)
+  }
+  if (failed) {
+    throw failure
+  }
+}
+
+/**
+ * Destroys every entry of a store in reverse creation order, as one cascade:
+ * `onInvalidate` listeners are called after the last entry is destroyed.
  * @internal
  */
 export function destroyAll(entries: Entry[]): void | Promise<void> {
@@ -1178,10 +1331,19 @@ export function destroyAll(entries: Entry[]): void | Promise<void> {
   if (entries.length > 1) {
     entries.sort((a, b) => b.seq - a.seq)
   }
-  for (let i = 0; i < entries.length; i++) {
-    const result = destroyEntry(entries[i])
+  const cascade: Cascade = { gone: null }
+  const result = destroyFrom(entries, 0, cascade)
+  if (result !== undefined) {
+    return result.then(() => notify(cascade))
+  }
+  notify(cascade)
+}
+
+function destroyFrom(entries: Entry[], start: number, cascade: Cascade): void | Promise<void> {
+  for (let i = start; i < entries.length; i++) {
+    const result = destroy(entries[i], cascade)
     if (result !== undefined) {
-      return result.then(() => destroyAll(entries.slice(i + 1)))
+      return result.then(() => destroyFrom(entries, i + 1, cascade))
     }
   }
 }

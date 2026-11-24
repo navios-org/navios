@@ -27,7 +27,7 @@ export default defineProject({
   test: {
     typecheck: {
       enabled: true,
-      tsconfig: './tsconfig.lib.json',
+      tsconfig: './tsconfig.typecheck.json',
     },
     include: [
       'src/**/*.spec.mts',

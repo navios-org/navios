@@ -58,9 +58,8 @@ Limitations of the in-memory adapter:
 - A request body that is not a string is handed to the pipeline as is. A multipart endpoint is tested by passing an object with strings and `File` values as `data`; no multipart encoding or parsing takes place.
 - A malformed JSON string body produces a 400 problem response with `source: 'body'`, as on the Fastify and Bun adapters.
 - `ctx.signal` never aborts.
-- A trailing slash is ignored: `/users/` matches the route `/users`. The Fastify and Bun adapters do not ignore it.
 
-Routes are matched as on the Fastify and Bun adapters: a static segment is preferred to a URL parameter, whatever the order of registration. With `/users/$userId` and `/users/export` declared, `GET /users/export` reaches `/users/export`.
+Routes are matched as on the Fastify and Bun adapters: a static segment is preferred to a URL parameter, whatever the order of registration, and a trailing slash is not ignored. With `/users/$userId` and `/users/export` declared, `GET /users/export` reaches `/users/export`, and `GET /users/export/` gets the not-found response.
 
 ## `createTestClient`
 

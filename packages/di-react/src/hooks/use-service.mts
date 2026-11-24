@@ -131,11 +131,9 @@ export function useService(
         // Re-fetch when the service is invalidated
         if (!isMounted) return
         dispatch({ type: 'loading' })
-        // The listener runs in the middle of the invalidation. When a
-        // dependency is what was invalidated, it is still being destroyed at
-        // this point, and resolving now makes the container construct the
-        // service, throw that away and construct it again. One microtask later
-        // the synchronous part of the invalidation is over.
+        // Listeners run once the invalidation has finished, so resolving here
+        // builds the service once. The microtask only keeps the resolution out
+        // of the container's notification loop.
         queueMicrotask(() => {
           if (isMounted) {
             void fetchAndSubscribe()

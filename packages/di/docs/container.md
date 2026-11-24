@@ -209,7 +209,7 @@ const fresh = await container.get(CacheService)
 console.log(fresh.get('user:123')) // undefined
 ```
 
-`onInvalidate()` calls a listener when the instance for a token and args is destroyed, whether by `invalidate()` or by `dispose()`. It returns a function that removes the listener.
+`onInvalidate()` calls a listener when the instance for a token and args is destroyed, whether by `invalidate()` or by `dispose()`. It returns a function that removes the listener. Listeners run once the whole `invalidate()` or `dispose()` call has destroyed everything it had to, so a listener may resolve the service again immediately.
 
 ```ts
 const stop = container.onInvalidate(CacheService, undefined, () => {
@@ -400,7 +400,7 @@ Destroys an instance and the services that depend on it.
 
 #### `onInvalidate(token, args, listener: () => void): () => void`
 
-Calls `listener` when the instance for `token` and `args` held by this container is destroyed. Returns a function that removes the listener.
+Calls `listener` when the instance for `token` and `args` held by this container is destroyed, after the `invalidate()` or `dispose()` call that destroyed it has finished all teardown. Returns a function that removes the listener.
 
 #### `ready(): Promise<void>`
 

@@ -85,9 +85,74 @@ describe('in-memory adapter: route matching', () => {
     expect(await match('/trees/oak/root')).toEqual({ route: '/trees/oak/root', urlParams: {} })
   })
 
-  it('still accepts a trailing slash', async () => {
+  // As on the Fastify and Bun adapters: see the 'does not match a path with a
+  // trailing slash' case of the adapter conformance suite.
+  it('does not match a path with a trailing slash', async () => {
     const match = await createApp()
-    expect(await match('/reports/export/')).toEqual({ route: '/reports/export', urlParams: {} })
-    expect(await match('/reports/42/')).toEqual({ route: '/reports/$id', urlParams: { id: '42' } })
+    const created = app!
+    for (const url of ['/reports/export/', '/reports/42/', '/reports/42/detail/', '/pairs/x/y/']) {
+      const response = await created.inject({ method: 'GET', url })
+      expect(response.status, url).toBe(404)
+      expect(response.headers['content-type'], url).toContain('application/problem+json')
+    }
+    // The query string is not part of the path.
+    expect(await match('/reports/export?format=csv')).toEqual({
+      route: '/reports/export',
+      urlParams: {},
+    })
+    expect(
+      (await created.inject({ method: 'GET', url: '/reports/export/?format=csv' })).status,
+    ).toBe(404)
+  })
+
+  it('does not take an empty segment for a url param', async () => {
+    await createApp()
+    const response = await app!.inject({ method: 'GET', url: '/reports/' })
+    expect(response.status).toBe(404)
+  })
+})
+
+describe('in-memory adapter: trailing slash with a prefix and at the root', () => {
+  let app: NaviosApplication | null = null
+
+  afterEach(async () => {
+    await app?.close()
+    app = null
+  })
+
+  async function createApp(globalPrefix?: string) {
+    @Controller()
+    class RootController {
+      root = handler(get('/'), matched('/'))
+      users = handler(get('/users'), matched('/users'))
+    }
+
+    @Module({ controllers: [RootController] })
+    class AppModule {}
+
+    app = await NaviosFactory.create(AppModule, {
+      adapter: defineInMemoryEnvironment(),
+      logger: false,
+      globalPrefix,
+    })
+    const created = app
+    return async (url: string) => (await created.inject({ method: 'GET', url })).status
+  }
+
+  it('matches the root path as "/" only', async () => {
+    const status = await createApp()
+    expect(await status('/')).toBe(200)
+    expect(await status('')).toBe(200)
+    expect(await status('/users')).toBe(200)
+    expect(await status('/users/')).toBe(404)
+  })
+
+  it('matches the root of a global prefix without a trailing slash only', async () => {
+    const status = await createApp('/api')
+    expect(await status('/api')).toBe(200)
+    expect(await status('/api/')).toBe(404)
+    expect(await status('/api/users')).toBe(200)
+    expect(await status('/api/users/')).toBe(404)
+    expect(await status('/')).toBe(404)
   })
 })

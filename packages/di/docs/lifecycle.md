@@ -170,6 +170,20 @@ const stop = container.onInvalidate(Second, undefined, () => {
 stop() // remove the listener
 ```
 
+Listeners are called after the whole `invalidate()` or `dispose()` call has finished its work: every instance involved is destroyed and every `onServiceDestroy()` hook, asynchronous ones included, has settled. They run in the order the instances were destroyed, before the promise returned by `invalidate()` or `dispose()` resolves. A listener can therefore resolve the service again right away, with `get()` or `getSync()`, and the new instance is constructed once, against new dependencies:
+
+```ts
+container.onInvalidate(Second, undefined, () => {
+  current = container.getSync(Second) // a new Second with a new First
+})
+
+await container.invalidate(await container.get(First))
+```
+
+A listener that throws does not stop the others; the first error rejects the promise returned by `invalidate()` or `dispose()`, after the teardown is complete.
+
+A `get()` that arrives while an invalidation is still running waits for it: a service is not constructed while a dependency it is known to inject, directly or through other services, is being destroyed.
+
 On a scope, the listener is attached to whichever container owns the instance: the scope for a request-scoped service, the root container for a singleton.
 
 ## Transients

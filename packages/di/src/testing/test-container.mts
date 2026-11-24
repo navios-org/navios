@@ -201,7 +201,10 @@ export class TestContainer extends Container {
   // ============================================================================
 
   /**
-   * Asserts that a service's onServiceInit was called.
+   * Asserts that an `initialized` event was recorded for the token with
+   * `recordLifecycleEvent()`. The container does not observe `onServiceInit()`
+   * of real instances: without a recorded event this fails even for a service
+   * that was initialised.
    */
   expectInitialized(token: AnyToken): void {
     const realToken = this.resolveToken(token)
@@ -216,7 +219,10 @@ export class TestContainer extends Container {
   }
 
   /**
-   * Asserts that a service's onServiceDestroy was called.
+   * Asserts that a `destroyed` event was recorded for the token with
+   * `recordLifecycleEvent()`. The container does not observe
+   * `onServiceDestroy()` of real instances: without a recorded event this
+   * fails even for a service that was destroyed.
    */
   expectDestroyed(token: AnyToken): void {
     const realToken = this.resolveToken(token)
@@ -231,7 +237,9 @@ export class TestContainer extends Container {
   }
 
   /**
-   * Asserts that a service has NOT been destroyed.
+   * Asserts that no `destroyed` event was recorded for the token with
+   * `recordLifecycleEvent()`. It passes for a service that was destroyed
+   * without anything recording the event.
    */
   expectNotDestroyed(token: AnyToken): void {
     const realToken = this.resolveToken(token)
@@ -251,7 +259,9 @@ export class TestContainer extends Container {
 
   /**
    * Records a method call for tracking.
-   * Call this from your mock implementations.
+   * Call this from your mock implementations: it is the only source of what
+   * `expectCalled()`, `expectCalledWith()`, `expectCallCount()` and
+   * `getMethodCalls()` see. Calls on real instances are not observed.
    */
   recordMethodCall(
     token: AnyToken,
@@ -273,7 +283,10 @@ export class TestContainer extends Container {
   }
 
   /**
-   * Records a lifecycle event for tracking.
+   * Records a lifecycle event for tracking. It is the only source of what
+   * `expectInitialized()`, `expectDestroyed()` and `expectNotDestroyed()`
+   * see; call it from the hooks of your mocks. The container itself records
+   * only `created`, and only for a value bound with `bind().toValue()`.
    */
   recordLifecycleEvent(
     token: AnyToken,
@@ -296,7 +309,8 @@ export class TestContainer extends Container {
   }
 
   /**
-   * Asserts that a method was called on a service.
+   * Asserts that a call of the method was reported for the token with
+   * `recordMethodCall()`. Calls on real instances are not observed.
    */
   expectCalled(token: AnyToken, method: string): void {
     const realToken = this.resolveToken(token)
@@ -309,7 +323,8 @@ export class TestContainer extends Container {
   }
 
   /**
-   * Asserts that a method was called with specific arguments.
+   * Asserts that a call of the method with these arguments was reported for
+   * the token with `recordMethodCall()`.
    */
   expectCalledWith(token: AnyToken, method: string, expectedArgs: unknown[]): void {
     const realToken = this.resolveToken(token)
@@ -324,7 +339,8 @@ export class TestContainer extends Container {
   }
 
   /**
-   * Asserts that a method was called a specific number of times.
+   * Asserts how many calls of the method were reported for the token with
+   * `recordMethodCall()`.
    */
   expectCallCount(token: AnyToken, method: string, count: number): void {
     const realToken = this.resolveToken(token)
@@ -339,7 +355,7 @@ export class TestContainer extends Container {
   }
 
   /**
-   * Gets all recorded method calls for a service.
+   * Gets the method calls reported for a token with `recordMethodCall()`.
    */
   getMethodCalls(token: AnyToken): MethodCallRecord[] {
     const realToken = this.resolveToken(token)

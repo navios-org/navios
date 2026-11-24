@@ -197,7 +197,16 @@ export class Store {
     }
   }
 
-  notifyInvalidated(entry: Entry): void {
+  /** Whether anything listens for instances of `token`, whatever the args. */
+  hasListeners(token: InjectionToken<any, any>): boolean {
+    return this.listeners?.has(token) ?? false
+  }
+
+  /**
+   * Calls the listeners for the address of `entry`. A listener that throws
+   * does not stop the others; `onError` receives what it threw.
+   */
+  notifyInvalidated(entry: Entry, onError: (error: unknown) => void): void {
     const byKey = this.listeners?.get(entry.token)
     if (byKey === undefined) {
       return
@@ -206,7 +215,11 @@ export class Store {
       const set = byKey.get(key)
       if (set !== undefined && set.size > 0) {
         for (const listener of Array.from(set)) {
-          listener()
+          try {
+            listener()
+          } catch (error) {
+            onError(error)
+          }
         }
       }
     }

@@ -43,10 +43,10 @@ const url = await app.listen({ port: 3000, hostname: '0.0.0.0' })
 
 ## Options
 
-| Option  | Type                   | Meaning                                                                                                                                                                                            |
-| ------- | ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `cors`  | `BunCorsOptions`       | Enables CORS. See below.                                                                                                                                                                           |
-| `serve` | options of `Bun.serve` | Extra options for `Bun.serve`, for example `tls`, `maxRequestBodySize`, `idleTimeout` or `development`. `routes`, `fetch`, `port` and `hostname` are set by the adapter and cannot be passed here. |
+| Option  | Type                   | Meaning                                                                                                                                                                                                                                                                                    |
+| ------- | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `cors`  | `BunCorsOptions`       | Enables CORS. See below.                                                                                                                                                                                                                                                                   |
+| `serve` | options of `Bun.serve` | Extra options for `Bun.serve`, for example `tls`, `maxRequestBodySize`, `idleTimeout` or `development`. `routes`, `fetch`, `port` and `hostname` are set by the adapter and cannot be passed here. `maxRequestBodySize` is enforced by the adapter; see [Request bodies](#request-bodies). |
 
 ```ts
 defineBunEnvironment({
@@ -131,13 +131,17 @@ A request from an origin that is not allowed is still handled; it gets no CORS h
 
 Multipart needs no option. An endpoint declared with `body: 'multipart'` receives text fields as strings and files as `File` objects in `data`, validated by the endpoint's `requestSchema`. See [Controllers and handlers](../core/docs/controllers.md#multipart-bodies).
 
-Limitation: the body is parsed with `request.formData()`, which reads the whole body into memory. Limit the size with `serve.maxRequestBodySize`.
+Limitation: the body is parsed with `formData()`, which reads the whole body into memory. Limit the size with `serve.maxRequestBodySize`; the limit applies to the whole body, not to each file.
 
 ## Request bodies
 
 - The body is read only when the pipeline asks for it, which is after guards have passed.
 - A body with a JSON content type, or with no content type, is parsed as JSON. An empty body is `undefined`. A malformed JSON body is a 400 problem response with `source: 'body'`.
 - A body with any other content type is passed to validation as a string.
+- A body larger than `serve.maxRequestBodySize` (128 MiB by default, as in Bun) is answered with a 413 `application/problem+json` response, whatever its content type. The adapter enforces the limit itself and starts `Bun.serve` without one, because Bun answers an oversize body with an empty 413 that no handler or `error` hook can replace.
+  - A request whose `content-length` is over the limit is rejected before guards run, on any route, including one that reads no body and a path that matches no route.
+  - A body without `content-length` (chunked transfer encoding, or `app.inject()`) is counted while it is read, so it is rejected when the pipeline asks for the body, after guards. Reading stops at the limit.
+  - Limitation: a body without `content-length` that the route never reads is not limited. Bun discards it as it arrives and does not buffer it.
 
 ## Shutdown
 
@@ -145,7 +149,7 @@ Limitation: the body is parsed with `request.formData()`, which reads the whole 
 
 ## Testing
 
-`app.inject(request)` builds a `Request` and runs it through the same route handlers and CORS handling without opening a socket. See [Testing](../core/docs/testing.md).
+`app.inject(request)` builds a `Request` and runs it through the same route handlers and CORS handling without opening a socket. It chooses the route as `Bun.serve` does: a static segment is preferred to a URL parameter, and a path with a trailing slash matches no route. See [Testing](../core/docs/testing.md).
 
 ## Conformance suite
 
@@ -158,11 +162,14 @@ import { runAdapterConformance } from '@navios/core/conformance'
 
 import { defineBunEnvironment } from '../src/index.mjs'
 
+const BODY_LIMIT = 64 * 1024
+
 runAdapterConformance({
   runner: { describe, it, expect, beforeAll, afterAll },
   name: 'bun',
-  adapter: () => defineBunEnvironment(),
+  adapter: () => defineBunEnvironment({ serve: { maxRequestBodySize: BODY_LIMIT } }),
   listenOptions: { port: 0, hostname: '127.0.0.1' },
+  bodyLimit: BODY_LIMIT,
 })
 ```
 

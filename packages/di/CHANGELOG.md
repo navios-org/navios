@@ -71,6 +71,10 @@ The resolution engine was rewritten. See the [migration guide](./docs/migration.
 - A cycle found across asynchronous work is reported with the whole path instead of only the two services that closed it.
 - `Symbol.metadata` is defined when the package is loaded, from every entry point, if the runtime does not have it. Standard decorators compiled by `tsc` and run on Node.js no longer need a polyfill.
 - `UnitTestContainer` reports a token outside the providers list with a readable message. The code is still `FactoryNotFound`, and `context.name` is the token name.
+- `onInvalidate()` listeners are called after the whole `invalidate()` or `dispose()` call has finished, in destruction order and before its promise resolves, instead of in the middle of it. A listener that resolves the service again, with `get()` or `getSync()`, used to run while the invalidated dependency was still being destroyed, which constructed the dependent up to three times. It is now constructed once. Every listener runs even when one throws; the first error rejects the promise after the teardown is complete.
+- A service resolved while an invalidation is running is no longer constructed against a dependency that is being destroyed and then constructed again. The container waits for the destruction first, also when the dependency is several services down.
+- `UnitTestContainer` with `allowUnregistered: true` gives the auto-mock to `inject()`, `optional()` and `asyncInject()` of an unlisted token inside a listed service as well. Before, only a direct `container.get()` received it and the injection failed with `FactoryNotFound`. Each token has one auto-mock. Without `allowUnregistered` nothing changes.
+- JSDoc of the testing containers: `expectInitialized()`, `expectDestroyed()` and `expectNotDestroyed()` see only what `recordLifecycleEvent()` reported; the `expectCalled*()` helpers see `recordMethodCall()` reports on `TestContainer` and calls made through the proxy returned by `get()` on `UnitTestContainer`.
 
 ### Performance
 

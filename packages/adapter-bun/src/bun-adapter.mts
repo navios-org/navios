@@ -1,4 +1,10 @@
-import { createMultipartCollector, serializeCookie, ValidationError } from '@navios/core'
+import {
+  createMultipartCollector,
+  HttpException,
+  problem,
+  serializeCookie,
+  ValidationError,
+} from '@navios/core'
 
 import type {
   AdapterContext,
@@ -48,7 +54,13 @@ export interface BunListenOptions {
 export interface BunAdapterOptions {
   /** Enables CORS. */
   cors?: BunCorsOptions
-  /** Extra options for `Bun.serve`. `routes`, `fetch`, `port` and `hostname` are set by the adapter. */
+  /**
+   * Extra options for `Bun.serve`. `routes`, `fetch`, `port` and `hostname` are set by the adapter.
+   *
+   * `maxRequestBodySize` (128 MiB when not set, as in Bun) is enforced by the
+   * adapter, which answers a larger body with a 413 problem response. Bun
+   * would answer with an empty 413 before the adapter saw the request.
+   */
   serve?: Omit<Serve.Options<undefined, string>, 'routes' | 'fetch' | 'port' | 'hostname'>
 }
 
@@ -60,10 +72,53 @@ const DEFAULT_CONTENT_TYPES: Record<string, string> = {
   sse: 'text/event-stream',
 }
 
+/** The default of `Bun.serve`. */
+const DEFAULT_BODY_LIMIT = 128 * 1024 * 1024
+
+const BODY_TOO_LARGE = 'Request body is too large'
+
+/** Whether a request declares a body that is larger than `limit`. */
+function declaresTooLarge(request: Request, limit: number): boolean {
+  const declared = request.headers.get('content-length')
+  return declared !== null && Number(declared) > limit
+}
+
+/**
+ * Reads a body of unknown length, giving up as soon as it is over `limit`.
+ * The result has the `text()` and `formData()` of the request.
+ */
+async function readLimited(request: Request, limit: number): Promise<Request | Response> {
+  const { body } = request
+  if (body === null) {
+    return request
+  }
+  const reader = body.getReader()
+  const chunks: BlobPart[] = []
+  let size = 0
+  for (;;) {
+    const { done, value } = await reader.read()
+    if (done) {
+      break
+    }
+    size += value.byteLength
+    if (size > limit) {
+      void reader.cancel().catch(() => {})
+      throw new HttpException(413, BODY_TOO_LARGE)
+    }
+    chunks.push(value as BlobPart)
+  }
+  const contentType = request.headers.get('content-type')
+  return new Response(new Blob(chunks), {
+    headers: contentType === null ? undefined : { 'content-type': contentType },
+  })
+}
+
 interface Matcher {
   method: string
   pattern: RegExp
   names: string[]
+  /** For each segment of the path, whether it is a url param. */
+  params: boolean[]
   handle: (request: Request, params: Record<string, string>) => Response | Promise<Response>
 }
 
@@ -105,6 +160,7 @@ class BunRouteInput implements RouteInput {
     server: BunServer | null,
     private readonly multipartSchema: SchemaLike | undefined,
     private readonly isMultipart: boolean,
+    private readonly bodyLimit: number,
   ) {
     this.raw = { request, server }
   }
@@ -130,8 +186,13 @@ class BunRouteInput implements RouteInput {
   }
 
   async body(): Promise<unknown> {
-    const { request } = this
-    const contentType = request.headers.get('content-type') ?? ''
+    const contentType = this.request.headers.get('content-type') ?? ''
+    // A declared length was checked before the pipeline ran, and the body
+    // cannot be longer than it. Without one (chunked transfer encoding, or
+    // `inject()`) the bytes are counted while they are read.
+    const request = this.request.headers.has('content-length')
+      ? this.request
+      : await readLimited(this.request, this.bodyLimit)
     if (this.isMultipart || contentType.includes('multipart/form-data')) {
       const collector = createMultipartCollector(this.multipartSchema)
       const form = await request.formData()
@@ -252,19 +313,39 @@ function toResponse(result: RouteResult, request: Request): Response {
   return response
 }
 
-function compilePath(path: string): { pattern: RegExp; names: string[] } {
+function compilePath(path: string): Pick<Matcher, 'pattern' | 'names' | 'params'> {
   const names: string[] = []
+  const params: boolean[] = []
   const source = path
     .split('/')
     .map((segment) => {
-      if (segment.startsWith('$')) {
+      const isParam = segment.startsWith('$')
+      params.push(isParam)
+      if (isParam) {
         names.push(segment.slice(1))
         return '([^/]+)'
       }
       return segment.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
     })
     .join('/')
-  return { pattern: new RegExp(`^${source || '/'}/?$`), names }
+  // The whole path, as `Bun.serve` matches it: `/users/` is not `/users`.
+  return { pattern: new RegExp(`^${source || '/'}$`), names, params }
+}
+
+/**
+ * Whether `route` is a closer match than `other` for a path both match: at
+ * the first segment where one is static and the other a url param, the static
+ * one wins, as in the router of `Bun.serve`. `inject()` has to choose the
+ * route that a request over HTTP would reach.
+ */
+function isMoreSpecific(route: Matcher, other: Matcher): boolean {
+  const length = Math.min(route.params.length, other.params.length)
+  for (let index = 0; index < length; index++) {
+    if (route.params[index] !== other.params[index]) {
+      return other.params[index]
+    }
+  }
+  return false
 }
 
 export class BunAdapter implements HttpAdapter<BunEnvironment> {
@@ -279,6 +360,7 @@ export class BunAdapter implements HttpAdapter<BunEnvironment> {
   private idle: (() => void) | null = null
 
   private readonly options: BunAdapterOptions
+  private readonly bodyLimit: number
 
   constructor(
     options: BunAdapterOptions,
@@ -292,6 +374,7 @@ export class BunAdapter implements HttpAdapter<BunEnvironment> {
     }
     // Like @fastify/cors: enabling CORS without an origin allows any origin.
     this.options = options.cors ? { ...options, cors: { origin: '*', ...options.cors } } : options
+    this.bodyLimit = options.serve?.maxRequestBodySize ?? DEFAULT_BODY_LIMIT
   }
 
   get server(): BunServer {
@@ -308,15 +391,29 @@ export class BunAdapter implements HttpAdapter<BunEnvironment> {
     multipartSchema: SchemaLike | undefined,
     isMultipart: boolean,
   ): Response | Promise<Response> {
-    const input = new BunRouteInput(request, params, this.bunServer, multipartSchema, isMultipart)
+    const cors = this.options.cors
+    const withCors = (response: Response): Response | Promise<Response> =>
+      cors ? applyCorsToResponse(response, request.headers.get('origin'), cors) : response
+    if (declaresTooLarge(request, this.bodyLimit)) {
+      // Answered here, as Bun and Fastify do: before guards, and whether or
+      // not the route reads a body. Bun discards the body without buffering.
+      return withCors(toResponse(problem(413, BODY_TOO_LARGE), request))
+    }
+    const input = new BunRouteInput(
+      request,
+      params,
+      this.bunServer,
+      multipartSchema,
+      isMultipart,
+      this.bodyLimit,
+    )
     this.inFlight++
     const finish = (response: Response): Response | Promise<Response> => {
       this.inFlight--
       if (this.inFlight === 0) {
         this.idle?.()
       }
-      const cors = this.options.cors
-      return cors ? applyCorsToResponse(response, request.headers.get('origin'), cors) : response
+      return withCors(response)
     }
     // The executor maps the errors of a request itself. What is left are
     // results that cannot be written and defects of the pipeline's
@@ -361,11 +458,9 @@ export class BunAdapter implements HttpAdapter<BunEnvironment> {
     ;(this.routes[path] ??= {})[info.method] = (request) =>
       this.run(execute, request, request.params as Record<string, string>, schema, isMultipart)
 
-    const { pattern, names } = compilePath(info.path)
     this.matchers.push({
       method: info.method,
-      pattern,
-      names,
+      ...compilePath(info.path),
       handle: (request, params) => this.run(execute, request, params, schema, isMultipart),
     })
   }
@@ -401,6 +496,9 @@ export class BunAdapter implements HttpAdapter<BunEnvironment> {
   async listen(options: BunListenOptions = {}): Promise<string> {
     this.bunServer = Bun.serve({
       ...(this.options.serve as object),
+      // The adapter enforces the limit itself, to answer with a problem
+      // response. Bun's own check must not come first.
+      maxRequestBodySize: Number.MAX_SAFE_INTEGER,
       routes: this.routes,
       port: options.port ?? 3000,
       hostname: options.hostname ?? 'localhost',
@@ -435,22 +533,29 @@ export class BunAdapter implements HttpAdapter<BunEnvironment> {
     })
     const path = pathOf(native.url)
     const method = native.method.toUpperCase()
-    let response: Response | undefined
+    let matched: Matcher | null = null
+    let captures: RegExpExecArray | null = null
     for (const matcher of this.matchers) {
       if (matcher.method !== method) {
         continue
       }
       const match = matcher.pattern.exec(path)
-      if (match) {
-        const params: Record<string, string> = {}
-        matcher.names.forEach((name, index) => {
-          params[name] = decodeURIComponent(match[index + 1])
-        })
-        response = await matcher.handle(native, params)
-        break
+      if (match && (matched === null || isMoreSpecific(matcher, matched))) {
+        matched = matcher
+        captures = match
       }
     }
-    response ??= await this.fallback(native)
+    let response: Response
+    if (matched !== null && captures !== null) {
+      const values = captures
+      const params: Record<string, string> = {}
+      matched.names.forEach((name, index) => {
+        params[name] = decodeURIComponent(values[index + 1])
+      })
+      response = await matched.handle(native, params)
+    } else {
+      response = await this.fallback(native)
+    }
 
     const responseHeaders: Record<string, string> = {}
     response.headers.forEach((value, name) => {
