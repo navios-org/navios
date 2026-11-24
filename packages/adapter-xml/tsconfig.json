@@ -2,7 +2,11 @@
   "extends": "../../tsconfig.json",
   "compilerOptions": {
     "module": "Node18",
-    "outDir": "dist"
+    "outDir": "dist",
+    "paths": {
+      "@navios/adapter-xml/jsx-runtime": ["./src/jsx-runtime.mts"],
+      "@navios/adapter-xml/jsx-dev-runtime": ["./src/jsx-dev-runtime.mts"]
+    }
   },
   "references": [
     {
