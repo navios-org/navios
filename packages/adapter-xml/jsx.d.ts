@@ -21,9 +21,9 @@ declare global {
       [tagName: string]: BaseTagProps
     }
 
-    // Allow function components (sync and async)
+    // Class components: render(ctx) receives the request context
     interface ElementClass {
-      render(): Element | Promise<Element>
+      render(ctx: any): Element | Promise<Element>
     }
 
     interface IntrinsicAttributes {

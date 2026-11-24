@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest'
 
+import type { RequestContext } from '@navios/core'
+
 import { Fragment } from '../types/xml-node.mjs'
 
 import { createElement } from './create-element.mjs'
-import { renderToXml } from './render-to-xml.mjs'
+import { MissingContextError, renderToXml } from './render-to-xml.mjs'
 import { CData, DangerouslyInsertRawXml } from './special-nodes.mjs'
 
 describe('renderToXml', () => {
@@ -262,6 +264,47 @@ describe('renderToXml', () => {
     })
   })
 
+  describe('pretty printing with components', () => {
+    it('should keep CDATA and raw XML written as components inline', async () => {
+      const node = createElement(
+        'root',
+        null,
+        createElement('description', null, createElement(CData, null, 'a <b>')),
+        createElement('content', null, createElement(DangerouslyInsertRawXml, null, '<p/>')),
+      )
+      const xml = await renderToXml(node, { declaration: false, pretty: true })
+      expect(xml).toBe(`<root>
+  <description><![CDATA[a <b>]]></description>
+  <content><p/></content>
+</root>
+`)
+    })
+
+    it('should keep text returned by a component inline', async () => {
+      const Name = async () => 'World'
+      const node = createElement(
+        'root',
+        null,
+        createElement('name', null, createElement(Name, null)),
+      )
+      const xml = await renderToXml(node, { declaration: false, pretty: true })
+      expect(xml).toBe(`<root>
+  <name>World</name>
+</root>
+`)
+    })
+
+    it('should indent elements returned by components', async () => {
+      const Child = () => createElement('child', null)
+      const node = createElement('root', null, createElement(Child, null))
+      const xml = await renderToXml(node, { declaration: false, pretty: true })
+      expect(xml).toBe(`<root>
+  <child/>
+</root>
+`)
+    })
+  })
+
   describe('sync components', () => {
     it('should render sync function components', async () => {
       const Greeting = ({ name }: { name: string }) =>
@@ -279,6 +322,67 @@ describe('renderToXml', () => {
       const node = createElement(Wrapper, null, createElement('child', null))
       const xml = await renderToXml(node, { declaration: false })
       expect(xml).toBe('<wrapper><child/></wrapper>')
+    })
+  })
+
+  describe('component invocation', () => {
+    it('should call function components when the tree is rendered, not when it is built', async () => {
+      const calls: string[] = []
+      const Tracked = () => {
+        calls.push('called')
+        return createElement('tracked', null)
+      }
+
+      const node = createElement('root', null, createElement(Tracked, null))
+      expect(calls).toEqual([])
+
+      await renderToXml(node, { declaration: false })
+      expect(calls).toEqual(['called'])
+    })
+
+    it('should pass the request context as the second argument', async () => {
+      const Path = async (_props: object, ctx: RequestContext) =>
+        createElement('path', null, ctx.path)
+      const ctx = { path: '/feed.xml' } as RequestContext
+
+      const xml = await renderToXml(createElement(Path, null), { declaration: false, ctx })
+
+      expect(xml).toBe('<path>/feed.xml</path>')
+    })
+
+    it('should throw MissingContextError when a component uses a context that was not given', async () => {
+      const Path = (_props: object, ctx: RequestContext) => createElement('path', null, ctx.path)
+
+      await expect(
+        renderToXml(createElement(Path, null), { declaration: false }),
+      ).rejects.toBeInstanceOf(MissingContextError)
+    })
+
+    it('should not fail when a component ignores the missing context', async () => {
+      const Plain = async (_props: object, _ctx: RequestContext) => createElement('plain', null)
+
+      const xml = await renderToXml(createElement(Plain, null), { declaration: false })
+
+      expect(xml).toBe('<plain/>')
+    })
+
+    it('should reject with the error a component throws', async () => {
+      const Broken = () => {
+        throw new Error('broken component')
+      }
+
+      await expect(
+        renderToXml(createElement('root', null, createElement(Broken, null))),
+      ).rejects.toThrow('broken component')
+    })
+
+    it('should await a promise node', async () => {
+      const node = {
+        type: Symbol.for('xml.async'),
+        promise: Promise.resolve(createElement('late', null)),
+      } as any
+
+      expect(await renderToXml(node, { declaration: false })).toBe('<late/>')
     })
   })
 

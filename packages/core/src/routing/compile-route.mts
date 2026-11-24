@@ -218,6 +218,7 @@ function withBody(
 function compileFinalizer(
   config: RouteEndpointConfig,
   validate: boolean,
+  encoders: CompileOptions['encoders'],
 ): (value: unknown) => MaybePromise<RouteResult> {
   const endpoint = `${config.method} ${config.url}`
   const { responses, errorSchema, responseSchema } = config
@@ -261,6 +262,12 @@ function compileFinalizer(
         return fromReply(value)
       }
       if (isCustomResult(value)) {
+        if (encoders === undefined || !encoders.has(value.kind)) {
+          throw new Error(
+            `[Navios] ${endpoint} returned a result of kind "${value.kind}", but no encoder is ` +
+              `registered for that kind. Register the plugin that provides it with app.usePlugin().`,
+          )
+        }
         return value.headers === undefined
           ? { status: value.status, body: value.body, kind: value.kind }
           : { status: value.status, headers: value.headers, body: value.body, kind: value.kind }
@@ -390,7 +397,7 @@ export function compileRoute(definition: RouteDefinition, options: CompileOption
   const { host, errors } = options
   const config = info.endpoint
   const params = compileParams(config)
-  const finalize = compileFinalizer(config, options.validateResponses)
+  const finalize = compileFinalizer(config, options.validateResponses, options.encoders)
 
   // Request validation, handler and response validation.
   const handle = (ctx: RequestContext, input: RouteInput): MaybePromise<RouteResult> => {

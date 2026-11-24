@@ -623,7 +623,18 @@ describe('RequestContext: onFinish', () => {
     expect(seen).toEqual([409])
 
     const ok = setup({}, () => 'fine', { interceptors: [observer] })
-    await (await ok.execute(input())).release!()
+    await (
+      await ok.execute(input())
+    ).release!()
     expect(seen).toEqual([409, 200])
+  })
+})
+
+describe('compileRoute: custom result kinds', () => {
+  it('answers 500 naming the kind when no encoder is registered for it', async () => {
+    const { result } = await import('../routing/reply.mjs')
+    const { execute, unhandled } = setup({ response: 'text' }, () => result('xml', '<a/>'))
+    expect((execute(input()) as RouteResult).status).toBe(500)
+    expect(String(unhandled[0])).toContain('no encoder is registered')
   })
 })

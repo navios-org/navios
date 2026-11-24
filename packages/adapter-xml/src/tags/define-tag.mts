@@ -1,7 +1,6 @@
-import type { ZodObject, ZodRawShape } from 'zod/v4'
-import type { z } from 'zod/v4'
+import type { InferInput, StandardSchemaV1 } from '@navios/core'
 
-import type { AnyXmlNode, XmlNode } from '../types/xml-node.mjs'
+import type { XmlNode, XmlRenderable } from '../types/xml-node.mjs'
 
 /**
  * Type for XML tag components created by `defineTag`.
@@ -11,16 +10,18 @@ import type { AnyXmlNode, XmlNode } from '../types/xml-node.mjs'
  *
  * @template Props - The props type for the tag component.
  */
-export interface TagComponent<Props extends Record<string, unknown>> {
-  (props: Props & { children?: AnyXmlNode | AnyXmlNode[] }): XmlNode
+export interface TagComponent<Props> {
+  (props: Props & { children?: XmlRenderable | XmlRenderable[] }): XmlNode
   tagName: string
 }
 
 /**
- * Creates a type-safe XML tag component with optional Zod schema validation.
+ * Creates a type-safe XML tag component with optional schema validation.
  *
  * @param name - The tag name (supports namespace prefixes like 'atom:link')
- * @param propsSchema - Optional Zod schema for validating props
+ * @param propsSchema - Optional Standard Schema (for example a Zod object) the
+ *   attributes are checked against. It must validate synchronously. The
+ *   attributes are written as given; the schema's output is not used.
  * @returns A component function that can be used in JSX
  *
  * @example
@@ -38,16 +39,33 @@ export interface TagComponent<Props extends Record<string, unknown>> {
  * <atomLink href="https://example.com/feed" rel="self" />
  * ```
  */
-export function defineTag<T extends ZodRawShape>(
+export function defineTag(name: string): TagComponent<Record<string, unknown>>
+export function defineTag<Schema extends StandardSchemaV1>(
   name: string,
-  propsSchema?: ZodObject<T>,
-): TagComponent<T extends ZodRawShape ? z.infer<ZodObject<T>> : Record<string, never>> {
+  propsSchema: Schema,
+): TagComponent<InferInput<Schema>>
+export function defineTag(name: string, propsSchema?: StandardSchemaV1): TagComponent<any> {
   const component = (props: any): XmlNode => {
     const { children, ...rest } = props ?? {}
 
-    // Validate props if schema provided
     if (propsSchema) {
-      propsSchema.parse(rest)
+      const result = propsSchema['~standard'].validate(rest)
+      if (result instanceof Promise) {
+        throw new Error(
+          `[@navios/adapter-xml] The props schema of <${name}> validates asynchronously, which defineTag does not support.`,
+        )
+      }
+      if (result.issues) {
+        const details = result.issues
+          .map((issue) => {
+            const path = (issue.path ?? [])
+              .map((segment) => String(typeof segment === 'object' ? segment.key : segment))
+              .join('.')
+            return path ? `${path}: ${issue.message}` : issue.message
+          })
+          .join('; ')
+        throw new Error(`[@navios/adapter-xml] Invalid props for <${name}>: ${details}`)
+      }
     }
 
     return {
@@ -58,5 +76,5 @@ export function defineTag<T extends ZodRawShape>(
   }
 
   component.tagName = name
-  return component as any
+  return component
 }
