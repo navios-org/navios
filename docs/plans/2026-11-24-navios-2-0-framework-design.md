@@ -602,11 +602,19 @@ app.mapError(UserNotFound, (error, ctx) => reply(404, { message: error.message }
 One decorator. The body kind and response kind come from the declaration, so
 `@Multipart`, `@Stream` and `@HttpCode` are removed.
 
-Two forms are supported and produce the same route metadata.
+`@Endpoint` on a method is the default and the form all documentation and
+examples use. `handler()` is an alternative for controllers written without
+member decorators. Both produce the same route metadata.
 
-**Method form.** Types are checked by the decorator; the parameter type has
-to be written because TypeScript does not infer method parameters from a
-decorator.
+**Method form (default).** The parameter type has to be written because
+TypeScript does not infer method parameters from a decorator. The return
+value needs no annotation: the decorator checks its shape, the statuses of
+`reply()` and the response kind. TypeScript does not pass an expected type
+into a decorated method either, so `return { status: 'ok' }` is inferred as
+`{ status: string }`; the decorator therefore compares against the declared
+type with literal types widened. Annotating the method with
+`HandlerResult<typeof endpoint>` checks literal values exactly. A mismatch is
+reported as a single error on the decorator.
 
 ```ts
 @Controller()
@@ -621,8 +629,9 @@ export class UsersController {
 }
 ```
 
-**Field form.** Everything is inferred from the endpoint; nothing is
-annotated.
+**Field form (alternative).** Everything is inferred from the endpoint;
+nothing is annotated. It needs no member decorator, so together with
+`registerController` it serves applications that use no decorators at all.
 
 ```ts
 @Controller()
@@ -1122,7 +1131,7 @@ Nothing here blocks implementation.
 | 1 | Controllers, guards and interceptors are always singletons; request-scoped services are kept but reached only with `ctx.use()` (4 C, 6.1.3) | Keep `inject()` of request-scoped services in controllers with graph-derived promotion (4 B) |
 | 2 | Automatic scope promotion is removed; a scope mismatch is a boot error (5.4) | Derive scope from the graph |
 | 3 | `globalRegistry` and priorities are replaced by default providers plus explicit `provide()` (5.2) | Keep priorities, fix only the id collision |
-| 4 | Both handler forms ship; documentation leads with the field form (6.4) | Method form only, and accept the repeated parameter type |
+| 4 | Both handler forms ship; `@Endpoint` is the default and documentation uses it throughout, with `handler()` for decorator-free controllers (6.4). Revised after review: the first version led with the field form, which left the docs with two ways to do everything | Field form first; or method form only |
 | 5 | Core validates with Standard Schema; Fastify's schema compilers are not used (6.2) | Keep Fastify-native validation and accept adapter differences |
 | 6 | Response validation defaults to `'always'` on both adapters (6.2) | `'development'` by default, for throughput |
 | 7 | `@HttpCode`, `@Header`, `@Multipart`, `@Stream` are removed (6.4, 6.10) | Keep them as thin aliases for one major |

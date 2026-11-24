@@ -19,7 +19,7 @@ The schema can be any Standard Schema. It must validate synchronously, because t
 
 ## Applying an attribute
 
-Calling an attribute gives a decorator for a module, a controller, a handler method or a handler field. The same value can be passed in `handler()` options.
+Calling an attribute gives a decorator for a module, a controller or a handler.
 
 ```ts
 @Public()
@@ -29,14 +29,20 @@ export class HealthModule {}
 @Roles(['staff'])
 @Controller()
 export class AdminController {
-  // field form, decorator
+  private readonly jobs = inject(JobsService)
+
   @Roles(['admin'])
-  purge = handler(purge, () => this.jobs.purge())
+  @Endpoint(purge)
+  async purge() {
+    await this.jobs.purge()
+  }
 
-  // field form, options
-  stats = handler(getStats, { attributes: [Roles(['admin', 'auditor'])] }, () => this.jobs.stats())
+  @Roles(['admin', 'auditor'])
+  @Endpoint(getStats)
+  async stats() {
+    return this.jobs.stats()
+  }
 
-  // method form
   @Public()
   @Endpoint(ping)
   async ping() {
@@ -45,7 +51,7 @@ export class AdminController {
 }
 ```
 
-When a handler field has the same attribute as a decorator and in its options, the value from the options wins.
+Calling an attribute also returns its value, which the options of `@Module`, `@Controller` and `handler()` accept: `@Controller({ attributes: [Roles(['staff'])] })`. For `handler()` fields see [Handlers without decorators](./controllers.md#handlers-without-decorators-handler).
 
 ## Reading an attribute
 

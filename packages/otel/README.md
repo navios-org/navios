@@ -87,10 +87,11 @@ The server span is stored on the request context under the `RequestSpan` key:
 ```typescript
 import { RequestSpan } from '@navios/otel'
 
-getUser = handler(getUser, async ({ urlParams }, ctx) => {
+@Endpoint(getUser)
+async getUser({ urlParams }: HandlerParams<typeof getUser>, ctx: RequestContext) {
   ctx.find(RequestSpan)?.setAttribute('user.id', urlParams.id)
   return this.users.find(urlParams.id)
-})
+}
 ```
 
 Use `ctx.find()`: the key is not set for ignored routes or when `autoInstrument.http` is `false`.

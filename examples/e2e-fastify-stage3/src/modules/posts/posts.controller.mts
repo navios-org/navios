@@ -1,4 +1,6 @@
-import { BadRequestException, Controller, handler, inject, reply } from '@navios/core'
+import { BadRequestException, Controller, Endpoint, inject, reply } from '@navios/core'
+
+import type { HandlerParams, RequestContext } from '@navios/core'
 
 import { createPostEndpoint, listPostsEndpoint } from '../../api/endpoints.mjs'
 import { Public } from '../../guards/public.attribute.mjs'
@@ -10,13 +12,15 @@ import { PostsService } from './posts.service.mjs'
 export class PostsController {
   private readonly postsService = inject(PostsService)
 
-  // Attributes can also be given as a handler option instead of a decorator.
-  listPosts = handler(listPostsEndpoint, { attributes: [Public()] }, async ({ params }) => {
+  @Endpoint(listPostsEndpoint)
+  @Public()
+  async listPosts({ params }: HandlerParams<typeof listPostsEndpoint>) {
     const posts = await this.postsService.findAll(params)
     return { posts }
-  })
+  }
 
-  createPost = handler(createPostEndpoint, async ({ data }, ctx) => {
+  @Endpoint(createPostEndpoint)
+  async createPost({ data }: HandlerParams<typeof createPostEndpoint>, ctx: RequestContext) {
     const { title, content, authorId, published } = data
 
     // Controllers are singletons: a request-scoped service comes from the
@@ -33,5 +37,5 @@ export class PostsController {
       ...post,
       validationId: validationService.getValidationId(),
     })
-  })
+  }
 }

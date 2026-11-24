@@ -79,7 +79,9 @@ export class AuthGuard implements Guard {
 
 ```ts
 // users.mts
-import { Controller, handler, inject, Injectable, Module, reply } from '@navios/core'
+import { Controller, Endpoint, inject, Injectable, Module, reply } from '@navios/core'
+
+import type { HandlerParams, RequestContext } from '@navios/core'
 
 import { createUser, getUser, me } from './api.mjs'
 import { AuthGuard, CurrentUser } from './auth.mjs'
@@ -104,13 +106,20 @@ export class UsersService {
 export class UsersController {
   private readonly users = inject(UsersService)
 
-  getUser = handler(getUser, ({ urlParams }) => {
+  @Endpoint(getUser)
+  async getUser({ urlParams }: HandlerParams<typeof getUser>) {
     return this.users.find(urlParams.id) ?? reply(404, { message: 'User not found' })
-  })
+  }
 
-  createUser = handler(createUser, ({ data }) => reply(201, this.users.create(data.name)))
+  @Endpoint(createUser)
+  async createUser({ data }: HandlerParams<typeof createUser>) {
+    return reply(201, this.users.create(data.name))
+  }
 
-  me = handler(me, (_params, ctx) => ({ name: ctx.get(CurrentUser).name }))
+  @Endpoint(me)
+  async me(_params: HandlerParams<typeof me>, ctx: RequestContext) {
+    return { name: ctx.get(CurrentUser).name }
+  }
 }
 
 @Module({ controllers: [UsersController], guards: [AuthGuard] })

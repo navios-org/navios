@@ -2,7 +2,7 @@ import { CData, Component, defineTag, renderToXml, xml, xmlPlugin } from '@navio
 import { builder } from '@navios/builder'
 import {
   Controller,
-  handler,
+  Endpoint,
   inject,
   Injectable,
   Module,
@@ -13,7 +13,7 @@ import { defineInMemoryEnvironment } from '@navios/core/testing'
 import { z } from 'zod'
 
 import type { XmlComponent } from '@navios/adapter-xml'
-import type { RequestContext } from '@navios/core'
+import type { HandlerParams, RequestContext } from '@navios/core'
 
 // ----------------------------------------------------------------------------
 // Typed tags. The schema (any Standard Schema) is checked when the tag renders.
@@ -160,12 +160,13 @@ const getFeed = api.declareEndpoint({
 
 @Controller()
 class FeedController {
-  feed = handler(getFeed, ({ params }) =>
-    xml(<RssFeed feedTitle="My Awesome Blog" feedLink="https://example.com" />, {
+  @Endpoint(getFeed)
+  feed({ params }: HandlerParams<typeof getFeed>) {
+    return xml(<RssFeed feedTitle="My Awesome Blog" feedLink="https://example.com" />, {
       contentType: 'application/rss+xml',
       pretty: params.pretty === 'true',
-    }),
-  )
+    })
+  }
 }
 
 @Module({ controllers: [FeedController] })

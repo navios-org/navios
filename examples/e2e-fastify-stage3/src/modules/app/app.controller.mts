@@ -11,10 +11,6 @@ import {
 import { CurrentUser } from '../../guards/current-user.mjs'
 import { Public } from '../../guards/public.attribute.mjs'
 
-/**
- * Written in the method form (`@Endpoint` on methods); the other controllers
- * use `handler()` fields.
- */
 @Controller()
 export class AppController {
   @Endpoint(healthEndpoint)

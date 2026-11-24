@@ -36,7 +36,11 @@ export class AuthGuard implements Guard {
   }
 }
 
-me = handler(me, (_params, ctx) => ({ id: ctx.get(CurrentUser).id }))
+// in a controller
+@Endpoint(me)
+async me(_params: HandlerParams<typeof me>, ctx: RequestContext) {
+  return { id: ctx.get(CurrentUser).id }
+}
 ```
 
 | Call                  | Result                                                                                   |
@@ -161,11 +165,12 @@ export class UnitOfWork {
 It is reached from a handler, guard or interceptor through the context:
 
 ```ts
-save = handler(saveOrder, async ({ data }, ctx) => {
+@Endpoint(saveOrder)
+async save({ data }: HandlerParams<typeof saveOrder>, ctx: RequestContext) {
   const uow = ctx.use(UnitOfWork)
   uow.track({ kind: 'order', data })
   return { ok: true }
-})
+}
 ```
 
 - `ctx.use(Token)` resolves synchronously. It throws when the service or one of its dependencies has an asynchronous `onServiceInit`; use `await ctx.resolve(Token)` for those.

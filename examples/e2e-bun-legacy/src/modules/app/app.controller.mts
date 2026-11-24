@@ -1,7 +1,7 @@
-import type { HandlerParams, HandlerResult, RequestContext } from '@navios/core'
-
 import { NotFoundException } from '@navios/core'
 import { Controller, Endpoint } from '@navios/core/legacy-compat'
+
+import type { HandlerParams, HandlerResult, RequestContext } from '@navios/core'
 
 import {
   healthEndpoint,
@@ -13,8 +13,7 @@ import {
 import { CurrentUser } from '../../guards/current-user.mjs'
 import { Public } from '../../guards/public.attribute.mjs'
 
-// Method form with legacy decorators (as in PostsController); the users and files
-// controllers use handler() fields.
+// Legacy (experimentalDecorators) method decorators.
 @Controller()
 export class AppController {
   @Endpoint(healthEndpoint)

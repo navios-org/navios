@@ -1,11 +1,13 @@
 import {
   BadRequestException,
   Controller,
-  handler,
+  Endpoint,
   inject,
   NotFoundException,
   reply,
 } from '@navios/core'
+
+import type { HandlerParams } from '@navios/core'
 
 import {
   createUserEndpoint,
@@ -23,36 +25,42 @@ import { UsersService } from './users.service.mjs'
 export class UsersController {
   private readonly usersService = inject(UsersService)
 
+  @Endpoint(listUsersEndpoint)
   @Public()
-  listUsers = handler(listUsersEndpoint, async ({ params: { page, limit } }) => {
+  async listUsers({ params: { page, limit } }: HandlerParams<typeof listUsersEndpoint>) {
     const { users, total } = await this.usersService.findAll(page, limit)
     return { users, total, page, limit }
-  })
+  }
 
+  @Endpoint(getUserEndpoint)
   @Public()
-  getUser = handler(getUserEndpoint, async ({ urlParams }) => {
+  async getUser({ urlParams }: HandlerParams<typeof getUserEndpoint>) {
     const user = await this.usersService.findById(urlParams.id)
     return user ?? reply(404, { message: 'User not found' })
-  })
+  }
 
-  createUser = handler(createUserEndpoint, async ({ data }) =>
-    reply(201, await this.usersService.create(data)),
-  )
+  @Endpoint(createUserEndpoint)
+  async createUser({ data }: HandlerParams<typeof createUserEndpoint>) {
+    return reply(201, await this.usersService.create(data))
+  }
 
-  updateUser = handler(updateUserEndpoint, async ({ urlParams, data }) => {
+  @Endpoint(updateUserEndpoint)
+  async updateUser({ urlParams, data }: HandlerParams<typeof updateUserEndpoint>) {
     const user = await this.usersService.update(urlParams.id, data)
     return user ?? reply(404, { message: 'User not found' })
-  })
+  }
 
-  deleteUser = handler(deleteUserEndpoint, async ({ urlParams }) => {
+  @Endpoint(deleteUserEndpoint)
+  async deleteUser({ urlParams }: HandlerParams<typeof deleteUserEndpoint>) {
     const deleted = await this.usersService.delete(urlParams.id)
     if (!deleted) {
       return reply(404, { message: 'User not found' })
     }
     return { success: true, message: 'User deleted successfully' }
-  })
+  }
 
-  uploadAvatar = handler(uploadAvatarEndpoint, async ({ urlParams, data: { avatar } }) => {
+  @Endpoint(uploadAvatarEndpoint)
+  async uploadAvatar({ urlParams, data: { avatar } }: HandlerParams<typeof uploadAvatarEndpoint>) {
     if (!avatar) {
       throw new BadRequestException('Avatar file not provided')
     }
@@ -64,5 +72,5 @@ export class UsersController {
     }
 
     return { avatarUrl }
-  })
+  }
 }

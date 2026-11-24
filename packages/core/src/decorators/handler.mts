@@ -29,11 +29,12 @@ export interface FieldHandler<Config extends BaseEndpointOptions = BaseEndpointO
 }
 
 /**
- * Defines a handler as a controller field. Parameter and return types come
- * from the endpoint declaration, so nothing needs annotating.
+ * Defines a handler as a controller field instead of a decorated method.
+ * `@Endpoint` is the usual way to write a handler; this helper is for
+ * controllers written without member decorators (see `registerController`)
+ * and for when you want the parameter types inferred from the declaration.
  *
  * ```ts
- * @Controller()
  * export class UsersController {
  *   private readonly users = inject(UsersService)
  *
@@ -42,7 +43,11 @@ export interface FieldHandler<Config extends BaseEndpointOptions = BaseEndpointO
  *     return user ?? reply(404, { message: 'User not found' })
  *   })
  * }
+ * registerController(UsersController)
  * ```
+ *
+ * Guards, interceptors and attributes go in the options object:
+ * `handler(endpoint, { guards: [AdminGuard] }, fn)`.
  */
 export function handler<const Config extends BaseEndpointOptions>(
   endpoint: EndpointDeclaration<Config>,

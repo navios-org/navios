@@ -81,9 +81,12 @@ ctx.raw.server // the Bun Server, or null
 `ctx.raw.server` is `null` for requests handled through `app.inject()` before `app.listen()` has been called, because Bun creates the server when it starts listening.
 
 ```ts
-whoami = handler(whoami, (_params, ctx) => ({
-  ip: ctx.raw.server?.requestIP(ctx.raw.request)?.address ?? null,
-}))
+@Endpoint(whoami)
+async whoami(_params: HandlerParams<typeof whoami>, ctx: RequestContext) {
+  return {
+    ip: ctx.raw.server?.requestIP(ctx.raw.request)?.address ?? null,
+  }
+}
 ```
 
 - `app.getServer()` returns the Bun `Server`. It throws before `listen()`.

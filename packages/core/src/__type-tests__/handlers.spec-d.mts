@@ -92,6 +92,102 @@ describe('@Endpoint method form', () => {
   })
 })
 
+describe('@Endpoint method form without a return annotation', () => {
+  const getTask = api.declareEndpoint({
+    method: 'GET',
+    url: '/tasks/$id',
+    responseSchema: z.discriminatedUnion('state', [
+      z.object({ state: z.literal('open'), priority: z.enum(['low', 'high']) }),
+      z.object({ state: z.literal('done'), by: z.string() }),
+    ]),
+    errorSchema: { 404: z.object({ code: z.literal('NOT_FOUND') }) },
+  })
+  const createTask = api.declareEndpoint({
+    method: 'POST',
+    url: '/tasks',
+    responses: { 201: z.object({ state: z.enum(['open', 'done']) }), 202: null },
+  })
+
+  it('accepts literal fields, replies, streams and void', () => {
+    @Controller()
+    class Good {
+      @Endpoint(getTask)
+      async getTask({ urlParams }: HandlerParams<typeof getTask>, _ctx: RequestContext) {
+        if (urlParams.id === 'missing') {
+          return reply(404, { code: 'NOT_FOUND' })
+        }
+        return urlParams.id === 'done'
+          ? { state: 'done', by: 'ann' }
+          : { state: 'open', priority: 'high' }
+      }
+
+      @Endpoint(createTask)
+      async createTask() {
+        return Math.random() > 0.5 ? reply(202) : reply(201, { state: 'open' })
+      }
+
+      @Endpoint(download)
+      download() {
+        return (async function* () {
+          yield 'chunk'
+        })()
+      }
+
+      @Endpoint(remove)
+      async remove(_params: HandlerParams<typeof remove>) {}
+    }
+    void Good
+  })
+
+  it('still rejects a wrong shape, status or parameter type', () => {
+    @Controller()
+    class Bad {
+      // @ts-expect-error by is missing
+      @Endpoint(getTask)
+      async wrongShape() {
+        return { state: 'done' }
+      }
+
+      // @ts-expect-error a responses endpoint must return reply()
+      @Endpoint(createTask)
+      async noReply() {
+        return { state: 'open' }
+      }
+
+      // @ts-expect-error 200 is not declared
+      @Endpoint(createTask)
+      async wrongStatus() {
+        return reply(200, { state: 'open' })
+      }
+
+      // @ts-expect-error a stream endpoint must return a stream
+      @Endpoint(download)
+      async notAStream() {
+        return 'text'
+      }
+
+      // @ts-expect-error the endpoint has no such URL parameter
+      @Endpoint(getTask)
+      async wrongParams(_params: { urlParams: { slug: string } }) {
+        return { state: 'done', by: 'ann' }
+      }
+    }
+    void Bad
+  })
+
+  it('checks literal values when the return type is annotated', () => {
+    @Controller()
+    class Strict {
+      @Endpoint(getTask)
+      async getTask(): HandlerResult<typeof getTask> {
+        // @ts-expect-error 'urgent' is not a declared priority
+        return { state: 'open', priority: 'urgent' }
+      }
+    }
+    void Strict
+  })
+})
+
 describe('request context', () => {
   it('types context keys and request values', () => {
     const CurrentUser = createContextKey<{ name: string }>('CurrentUser')

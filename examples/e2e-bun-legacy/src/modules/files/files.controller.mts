@@ -1,5 +1,7 @@
-import { BadRequestException, handler, inject, NotFoundException } from '@navios/core'
-import { Controller } from '@navios/core/legacy-compat'
+import { BadRequestException, inject, NotFoundException } from '@navios/core'
+import { Controller, Endpoint } from '@navios/core/legacy-compat'
+
+import type { HandlerParams, RequestContext } from '@navios/core'
 
 import {
   downloadFileEndpoint,
@@ -18,7 +20,8 @@ export class FilesController {
   private readonly filesService = inject(FilesService)
   private readonly usersService = inject(UsersService)
 
-  uploadFile = handler(uploadFileEndpoint, async ({ data: { file } }) => {
+  @Endpoint(uploadFileEndpoint)
+  async uploadFile({ data: { file } }: HandlerParams<typeof uploadFileEndpoint>) {
     if (!file) {
       throw new BadRequestException('File is required')
     }
@@ -37,9 +40,10 @@ export class FilesController {
       mimeType: metadata.mimeType,
       createdAt: metadata.createdAt,
     }
-  })
+  }
 
-  uploadMultiple = handler(uploadMultipleEndpoint, async ({ data: { files } }) => {
+  @Endpoint(uploadMultipleEndpoint)
+  async uploadMultiple({ data: { files } }: HandlerParams<typeof uploadMultipleEndpoint>) {
     if (!files || files.length === 0) {
       throw new BadRequestException('At least one file is required')
     }
@@ -57,11 +61,15 @@ export class FilesController {
     }
 
     return { uploaded, total: uploaded.length }
-  })
+  }
 
   // response: 'blob'
+  @Endpoint(downloadFileEndpoint)
   @Public()
-  downloadFile = handler(downloadFileEndpoint, async ({ urlParams }, ctx) => {
+  async downloadFile(
+    { urlParams }: HandlerParams<typeof downloadFileEndpoint>,
+    ctx: RequestContext,
+  ) {
     const file = await this.filesService.findById(urlParams.fileId)
     if (!file) {
       throw new NotFoundException('File not found')
@@ -70,11 +78,12 @@ export class FilesController {
     ctx.reply.header('content-type', file.mimeType)
     ctx.reply.header('content-disposition', `attachment; filename="${file.filename}"`)
     return file.content
-  })
+  }
 
   // response: 'stream'
+  @Endpoint(streamEventsEndpoint)
   @Public()
-  streamEvents = handler(streamEventsEndpoint, ({ params }, ctx) => {
+  streamEvents({ params }: HandlerParams<typeof streamEventsEndpoint>, ctx: RequestContext) {
     const topic = params.topic ?? 'default'
 
     ctx.reply.header('content-type', 'text/event-stream')
@@ -92,11 +101,15 @@ export class FilesController {
         await new Promise((resolve) => setTimeout(resolve, 10))
       }
     })()
-  })
+  }
 
   // response: 'text'
+  @Endpoint(exportDataEndpoint)
   @Public()
-  exportData = handler(exportDataEndpoint, async ({ data: { format, type } }, ctx) => {
+  async exportData(
+    { data: { format, type } }: HandlerParams<typeof exportDataEndpoint>,
+    ctx: RequestContext,
+  ) {
     // Posts would need injection
     const rows: object[] = type === 'users' ? (await this.usersService.findAll(1, 1000)).users : []
 
@@ -117,5 +130,5 @@ export class FilesController {
       columns.map((column) => JSON.stringify(Reflect.get(row, column) ?? '')).join(','),
     )
     return [columns.join(','), ...lines].join('\n')
-  })
+  }
 }

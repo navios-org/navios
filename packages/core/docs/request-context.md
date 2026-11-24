@@ -3,15 +3,16 @@
 `RequestContext` is one object per request. Guards and interceptors receive it as their first argument, handlers as their second. Everything on it is the same on every adapter except `raw`.
 
 ```ts
-import type { RequestContext } from '@navios/core'
+import type { HandlerParams, RequestContext } from '@navios/core'
 
-getUser = handler(getUser, ({ urlParams }, ctx: RequestContext) => {
+@Endpoint(getUser)
+async getUser({ urlParams }: HandlerParams<typeof getUser>, ctx: RequestContext) {
   ctx.id // request id
   ctx.method // 'GET'
   ctx.path // '/users/1', without the query string
   ctx.route // the RouteInfo of the matched route
   // ...
-})
+}
 ```
 
 Most members are created on first access, so a request that does not read cookies or headers pays nothing for them.
@@ -39,10 +40,11 @@ Most members are created on first access, so a request that does not read cookie
 Pass `ctx.signal` to work that should stop when the client goes away:
 
 ```ts
-report = handler(report, async (_params, ctx) => {
+@Endpoint(report)
+async report(_params: HandlerParams<typeof report>, ctx: RequestContext) {
   const rows = await this.db.query(sql, { signal: ctx.signal })
   return { rows }
-})
+}
 ```
 
 ## Reply controls

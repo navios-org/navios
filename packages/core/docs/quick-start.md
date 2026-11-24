@@ -65,11 +65,13 @@ export class UsersService {
 
 ## Write a controller
 
-A handler is a class field created with `handler()`. Its parameter and return types come from the declaration.
+A handler is a method decorated with `@Endpoint`. Its parameter is typed with `HandlerParams<typeof endpoint>`, and the value it returns is checked against the declaration.
 
 ```ts
 // users.controller.mts
-import { Controller, handler, inject, reply } from '@navios/core'
+import { Controller, Endpoint, inject, reply } from '@navios/core'
+
+import type { HandlerParams } from '@navios/core'
 
 import { createUser, getUser } from './api.mjs'
 import { UsersService } from './users.service.mjs'
@@ -78,11 +80,15 @@ import { UsersService } from './users.service.mjs'
 export class UsersController {
   private readonly users = inject(UsersService)
 
-  getUser = handler(getUser, ({ urlParams }) => {
+  @Endpoint(getUser)
+  async getUser({ urlParams }: HandlerParams<typeof getUser>) {
     return this.users.find(urlParams.id) ?? reply(404, { message: 'User not found' })
-  })
+  }
 
-  createUser = handler(createUser, ({ data }) => reply(201, this.users.create(data.name)))
+  @Endpoint(createUser)
+  async createUser({ data }: HandlerParams<typeof createUser>) {
+    return reply(201, this.users.create(data.name))
+  }
 }
 ```
 

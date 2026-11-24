@@ -122,7 +122,10 @@ export const csvPlugin = definePlugin({
 })
 
 // in a controller
-exportUsers = handler(exportUsersEndpoint, () => csv(this.users.rows()))
+@Endpoint(exportUsersEndpoint)
+async exportUsers() {
+  return csv(this.users.rows())
+}
 ```
 
 An encoder runs inside the pipeline: after the handler's value has become a result, and before interceptors exit. It receives the request context, so it can read request state, and an error it throws is mapped to a response like any other error. `result()` also accepts `{ status, headers }`.

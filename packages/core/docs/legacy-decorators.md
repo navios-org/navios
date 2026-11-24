@@ -21,74 +21,67 @@ import {
 
 Everything that is not a decorator is imported from `@navios/core` as usual: `handler`, `reply`, `inject`, `NaviosFactory`, `createContextKey`, exceptions and types. `RequestValue` from `@navios/core` works under both decorator modes.
 
-## With the field form
+## Controllers
 
-The field form needs no method decorator, so a controller only uses class decorators:
+A controller is written the same way as with standard decorators. Only the import path of the decorators changes:
 
 ```ts
-import { handler, inject, reply } from '@navios/core'
-import { Controller, Injectable, Module } from '@navios/core/legacy-compat'
+import { inject, reply } from '@navios/core'
+import { Controller, Endpoint, Injectable, Module, UseGuards } from '@navios/core/legacy-compat'
+
+import type { HandlerParams, RequestContext } from '@navios/core'
 
 @Injectable()
 export class UsersService {
-  find(id: string) {
+  async findById(id: string) {
     return id === '1' ? { id, name: 'Ann' } : null
   }
 }
-
-@Controller()
-export class UsersController {
-  private readonly users = inject(UsersService)
-
-  getUser = handler(getUser, ({ urlParams }) => {
-    return this.users.find(urlParams.id) ?? reply(404, { message: 'User not found' })
-  })
-}
-
-@Module({ controllers: [UsersController] })
-export class AppModule {}
-```
-
-This is the recommended way to write a legacy-decorator application.
-
-## With the method form
-
-```ts
-import { Controller, Endpoint, UseGuards } from '@navios/core/legacy-compat'
-
-import type { HandlerParams } from '@navios/core'
 
 @UseGuards(AuthGuard)
 @Controller()
 export class UsersController {
   private readonly users = inject(UsersService)
 
-  @Endpoint(listUsers)
-  async listUsers({ params }: HandlerParams<typeof listUsers>) {
-    return this.users.list(params.limit)
+  @Endpoint(getUser)
+  async getUser({ urlParams }: HandlerParams<typeof getUser>, ctx: RequestContext) {
+    const user = await this.users.findById(urlParams.id)
+    return user ?? reply(404, { message: 'User not found' })
   }
 }
+
+@Module({ controllers: [UsersController] })
+export class AppModule {}
 ```
+
+`@Endpoint` checks the method against the declaration exactly as the standard decorator does. See [Controllers and handlers](./controllers.md#what-endpoint-checks).
 
 ## Attributes
 
 Create attributes with the `AttributeFactory` from the legacy entry point, so that calling one returns a legacy decorator:
 
 ```ts
-import { AttributeFactory } from '@navios/core/legacy-compat'
+import { AttributeFactory, Controller, Endpoint } from '@navios/core/legacy-compat'
 
 export const Public = AttributeFactory.createAttribute(Symbol.for('Public'))
 
 @Controller()
 export class HealthController {
   @Public()
-  ping = handler(ping, () => ({ ok: true }))
+  @Endpoint(ping)
+  async ping() {
+    return { ok: true }
+  }
 }
 ```
 
-The resulting values also work in `handler(endpoint, { attributes: [Public()] }, fn)`. Reading is the same as with the standard factory: `AttributeFactory.has(Public, ctx.route)`, `get` and `getAll`.
+Reading is the same as with the standard factory: `AttributeFactory.has(Public, ctx.route)`, `get` and `getAll`.
 
-An attribute created with the standard `AttributeFactory` from `@navios/core` cannot be used as a decorator in a legacy-decorator file. It can still be passed in `handler()` options.
+An attribute created with the standard `AttributeFactory` from `@navios/core` cannot be used as a decorator in a legacy-decorator file. Its value can still be passed in options: `@Controller({ attributes: [Public()] })`.
+
+## `handler()` fields
+
+`handler()` is not a decorator, so it is imported from `@navios/core` and works unchanged in a legacy-decorator project. A controller whose handlers are all `handler()` fields uses only class decorators from this entry point. Attributes from either factory can be passed in its options: `handler(endpoint, { attributes: [Public()] }, fn)`. See [Handlers without decorators](./controllers.md#handlers-without-decorators-handler).
 
 ## Removed from the entry point
 

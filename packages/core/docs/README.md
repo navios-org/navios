@@ -8,7 +8,7 @@ These pages describe `@navios/core` 2.0. If you are upgrading an application, st
 
 ## Writing an application
 
-- [Controllers and handlers](./controllers.md): `handler()` fields, `@Endpoint` methods, `reply()`, declared statuses, streams, multipart, server-sent events.
+- [Controllers and handlers](./controllers.md): `@Endpoint` handlers, `reply()`, declared statuses, streams, multipart, server-sent events, and `handler()` for code without decorators.
 - [Request context](./request-context.md): headers, cookies, the abort signal, reply controls, `ctx.raw` and the `Register` declaration.
 - [Per-request state](./request-state.md): context keys, `@RequestValue`, and request-scoped services.
 - [Guards and interceptors](./guards-and-interceptors.md)

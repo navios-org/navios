@@ -27,7 +27,8 @@ The request pipeline, the application class and the adapter contract are rewritt
 
 ### Added
 
-- **`handler()` field form.** `getUser = handler(getUser, ({ urlParams }, ctx) => ...)` defines a handler as a class field with parameters and return type inferred from the declaration. An options object carries `guards`, `interceptors` and `attributes`.
+- **`@Endpoint` checks an unannotated method.** The returned shape, `reply()` statuses and parameter types are checked against the declaration without a return annotation; literal types are widened in that check, and `: HandlerResult<typeof endpoint>` checks them exactly. A mismatch is reported as one error.
+- **`handler()` for controllers without member decorators.** `getUser = handler(getUser, ({ urlParams }, ctx) => ...)` defines a handler as a class field with parameters and return type inferred from the declaration. An options object carries `guards`, `interceptors` and `attributes`. `@Endpoint` remains the default form.
 - **`RequestContext`**, passed to guards, interceptors and handlers: `id`, `method`, `path`, `urlParams`, `query`, `route`, `headers`, `cookies`, `signal`, `reply.header()`, `reply.cookie()`, `onFinish()` and `raw`.
 - **`Register` declaration** that types `ctx.raw` and `app.getServer()` for the application's adapter.
 - **Context keys**: `createContextKey<T>(name)` with `ctx.set`, `ctx.get`, `ctx.find` and `ctx.has`, a typed way for a guard to hand data to a handler.

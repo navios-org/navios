@@ -35,7 +35,107 @@ export const createUser = api.declareEndpoint({
 })
 ```
 
-## The field form: `handler()`
+## Handlers: `@Endpoint`
+
+A handler is a method decorated with `@Endpoint(declaration)`.
+
+```ts
+import { Controller, Endpoint, inject, reply } from '@navios/core'
+
+import type { HandlerParams, RequestContext } from '@navios/core'
+
+@Controller()
+export class UsersController {
+  private readonly users = inject(UsersService)
+
+  @Endpoint(getUser)
+  async getUser({ urlParams }: HandlerParams<typeof getUser>, ctx: RequestContext) {
+    const user = await this.users.findById(urlParams.id)
+    return user ?? reply(404, { message: 'User not found' })
+  }
+
+  @Endpoint(listUsers)
+  async listUsers({ params }: HandlerParams<typeof listUsers>) {
+    return this.users.list(params.limit)
+  }
+
+  @Endpoint(createUser)
+  async createUser({ data }: HandlerParams<typeof createUser>) {
+    return reply(201, await this.users.create(data.name))
+  }
+}
+```
+
+- The first parameter is annotated with `HandlerParams<typeof endpoint>`. TypeScript does not infer a method's parameter types from a decorator, so the annotation is needed. It contains `urlParams` (path parameters), `params` (the validated query) and `data` (the validated body). A key is present only when the declaration has the matching part.
+- The second parameter, `ctx: RequestContext`, is optional. A handler that needs neither takes no parameters.
+- No return annotation is needed. `@Endpoint` checks the method against the declaration; see [What `@Endpoint` checks](#what-endpoint-checks).
+- The method may be `async` or not.
+- The route's `handlerName` is the method name.
+
+### Guards, interceptors and attributes on a handler
+
+They are decorators on the method:
+
+```ts
+@UseGuards(RolesGuard)
+@UseInterceptors(AuditInterceptor)
+@Roles(['admin'])
+@Endpoint(adminOnly)
+async admin(_params: HandlerParams<typeof adminOnly>, ctx: RequestContext) {
+  return { name: ctx.get(CurrentUser).name }
+}
+
+@Public()
+@Endpoint(ping)
+ping() {
+  return { ok: true }
+}
+```
+
+Their order relative to `@Endpoint` does not matter. A method that has `@UseGuards`, `@UseInterceptors` or an attribute but no `@Endpoint` fails at `init()`. See [Guards and interceptors](./guards-and-interceptors.md) and [Attributes](./attributes.md).
+
+### What `@Endpoint` checks
+
+`@Endpoint` is a compile error when the method does not fit the declaration:
+
+- a parameter type that is not the declared one,
+- a returned value of the wrong shape,
+- `reply()` with a status the endpoint does not declare, or with the wrong body for that status,
+- a bare value from an endpoint declared with `responses`, or a non-stream from a `response: 'stream'` endpoint.
+
+Literal types are widened in this check: a field declared as `'low' | 'high'` is checked as `string`. TypeScript does not pass an expected type into the body of a decorated method, so `return { priority: 'high' }` is inferred as `{ priority: string }`, and a check against the literal type would reject it.
+
+To have literal values (enums, discriminators) checked too, annotate the return type with `HandlerResult<typeof endpoint>`:
+
+```ts
+import type { HandlerResult } from '@navios/core'
+
+// getTask declares `priority: z.enum(['low', 'high'])`
+@Endpoint(getTask)
+async getTask({ urlParams }: HandlerParams<typeof getTask>): HandlerResult<typeof getTask> {
+  return { state: 'open', priority: 'urgent' } // compile error: not a declared priority
+}
+```
+
+Without the annotation, a wrong literal value is still caught at run time by [response validation](#response-validation).
+
+## Controller options
+
+```ts
+@Controller({ guards: [AuthGuard], interceptors: [TimingInterceptor] })
+export class AccountController {}
+```
+
+`@UseGuards(...)` and `@UseInterceptors(...)` on the class do the same. Place them above `@Controller`. The options also accept `attributes`, an array of attribute values such as `[Public()]`.
+
+A controller has no path of its own. Path prefixes belong to [modules](./modules.md).
+
+## Handlers without decorators: `handler()`
+
+`handler()` defines a handler as a class field instead of a decorated method. It produces the same route as `@Endpoint`, and one controller can mix both. Use it when:
+
+- the code uses no member decorators at all, for example a library built without a decorator transform (see [Without decorator syntax](#without-decorator-syntax) below), or
+- you prefer inferred parameter types to the `HandlerParams` annotation.
 
 ```ts
 import { Controller, handler, inject, reply } from '@navios/core'
@@ -44,21 +144,24 @@ import { Controller, handler, inject, reply } from '@navios/core'
 export class UsersController {
   private readonly users = inject(UsersService)
 
-  getUser = handler(getUser, ({ urlParams }, ctx) => {
-    return this.users.find(urlParams.id) ?? reply(404, { message: 'User not found' })
+  getUser = handler(getUser, async ({ urlParams }, ctx) => {
+    const user = await this.users.findById(urlParams.id)
+    return user ?? reply(404, { message: 'User not found' })
   })
 
   listUsers = handler(listUsers, ({ params }) => this.users.list(params.limit))
 
-  createUser = handler(createUser, async ({ data }) => reply(201, this.users.create(data.name)))
+  createUser = handler(createUser, async ({ data }) => {
+    return reply(201, await this.users.create(data.name))
+  })
 }
 ```
 
-- The first argument is typed from the declaration: `urlParams` (path parameters), `params` (the validated query) and `data` (the validated body). A key is present only when the declaration has the matching part.
-- The second argument is the `RequestContext`.
-- The return type is checked against the declaration. Returning a value of the wrong shape, or `reply()` with a status the endpoint does not declare, is a compile error.
-- `this` inside the arrow function is the controller, so `inject()` fields work.
+- Both arguments of the function are inferred from the declaration: the first is what `HandlerParams<typeof endpoint>` describes, the second is the `RequestContext`. Nothing is annotated.
+- The return value is checked against the declaration, including literal values. No widening is needed here, because TypeScript passes the expected type into the function.
+- `this` inside an arrow function is the controller, so `inject()` fields work. A `function` or an `async function*` passed to `handler()` has no `this`; to use controller fields in a generator, return one from an arrow function: `handler(ticks, () => this.generate())`.
 - The route's `handlerName` is the property name.
+- Core finds these handlers on the controller instance. It creates the singleton at `init()` and reads its own properties, so a `handler()` field must be assigned when the constructor finishes. A static or prototype property is not found.
 
 Guards, interceptors and attributes for one handler go in an options object between the endpoint and the function:
 
@@ -70,56 +173,13 @@ admin = handler(
 )
 ```
 
-Attribute, `@UseGuards` and `@UseInterceptors` decorators also work on a handler field:
+`attributes` takes attribute values, which is what calling an attribute returns: `[Public()]`, `[Roles(['admin'])]`.
 
-```ts
-@Public()
-ping = handler(ping, () => ({ ok: true }))
-```
-
-## The method form: `@Endpoint`
-
-```ts
-import { Controller, Endpoint, inject } from '@navios/core'
-
-import type { HandlerParams, HandlerResult, RequestContext } from '@navios/core'
-
-@Controller()
-export class UsersController {
-  private readonly users = inject(UsersService)
-
-  @Endpoint(listUsers)
-  async listUsers({ params }: HandlerParams<typeof listUsers>, ctx: RequestContext) {
-    return this.users.list(params.limit)
-  }
-
-  @Endpoint(getUser)
-  async getUser(params: HandlerParams<typeof getUser>): HandlerResult<typeof getUser> {
-    return this.users.find(params.urlParams.id) ?? reply(404, { message: 'User not found' })
-  }
-}
-```
-
-TypeScript does not infer a method's parameter types from a decorator, so the parameter is annotated with `HandlerParams<typeof endpoint>`. The decorator still checks the method's signature and return type against the declaration. `HandlerResult<typeof endpoint>` is available when you want to annotate the return type. A method that needs no arguments may declare none.
-
-Both forms produce the same route. Use the field form unless you have a reason to prefer methods.
-
-A method that has `@UseGuards`, `@UseInterceptors` or an attribute but no `@Endpoint` fails at `init()`.
-
-## Controller options
-
-```ts
-@Controller({ guards: [AuthGuard], interceptors: [TimingInterceptor] })
-export class AccountController {}
-```
-
-`@UseGuards(...)` and `@UseInterceptors(...)` on the class do the same. Place them above `@Controller`.
-
-A controller has no path of its own. Path prefixes belong to [modules](./modules.md).
+`@UseGuards`, `@UseInterceptors` and attribute decorators also work on a `handler()` field. Guards and interceptors from decorators run before those from the options. When the same attribute is set both ways, the value from the options wins.
 
 ### Without decorator syntax
 
-Library code that is built without a decorator transform registers controllers and modules with functions. Handlers are `handler()` fields:
+`registerController` and `registerModule` register a class without `@Controller` and `@Module`. Together with `handler()` fields (and `registerInjectable` for services) an application or a library needs no decorators:
 
 ```ts
 import { handler, registerController, registerModule } from '@navios/core'
@@ -133,7 +193,7 @@ class DocsModule {}
 registerModule(DocsModule, { controllers: [DocsController] })
 ```
 
-`registerController` and `registerModule` take the same options as `@Controller` and `@Module`. Both option sets accept `attributes`, an array of attribute values such as `[Public()]`.
+`registerController` and `registerModule` take the same options as `@Controller` and `@Module`.
 
 ## What a handler returns
 
@@ -154,7 +214,10 @@ What a handler may return depends on the declaration.
 `reply(status, body)` answers with a specific status. The status must be declared in the endpoint's `responses` or `errorSchema`.
 
 ```ts
-createUser = handler(createUser, ({ data }) => reply(201, this.users.create(data.name)))
+@Endpoint(createUser)
+async createUser({ data }: HandlerParams<typeof createUser>) {
+  return reply(201, await this.users.create(data.name))
+}
 ```
 
 - An endpoint declared with `responses` must return `reply()`. Returning a bare value is a compile error and, at run time, a 500.
@@ -213,12 +276,14 @@ export const ticks = api.declareEndpoint({ method: 'GET', url: '/ticks', respons
 export class FilesController {
   private readonly files = inject(FilesService)
 
-  exportCsv = handler(exportCsv, (_params, ctx) => {
+  @Endpoint(exportCsv)
+  exportCsv(_params: HandlerParams<typeof exportCsv>, ctx: RequestContext) {
     ctx.reply.header('content-type', 'text/csv')
     return 'id,name\n1,Ann\n'
-  })
+  }
 
-  download = handler(download, async ({ urlParams }, ctx) => {
+  @Endpoint(download)
+  async download({ urlParams }: HandlerParams<typeof download>, ctx: RequestContext) {
     const file = await this.files.find(urlParams.id)
     if (!file) {
       throw new NotFoundException('File not found')
@@ -226,19 +291,20 @@ export class FilesController {
     ctx.reply.header('content-type', file.mimeType)
     ctx.reply.header('content-disposition', `attachment; filename="${file.name}"`)
     return file.content // ArrayBuffer
-  })
+  }
 
-  ticks = handler(ticks, async function* () {
+  @Endpoint(ticks)
+  async *ticks() {
     yield 'tick 1\n'
     yield 'tick 2\n'
-  })
+  }
 }
 ```
 
 - The default content type is `text/plain; charset=utf-8` for `text` and `application/octet-stream` for `blob` and `stream`. Set another with `ctx.reply.header('content-type', ...)`.
 - An async iterable yields strings or `Uint8Array` chunks.
 - The handler never receives the native reply object for streaming. The same code runs on every adapter.
-- An `async function*` passed to `handler()` has no `this`. To use controller fields in a generator, return one from an arrow function: `handler(ticks, () => this.generate())`.
+- A handler may be a generator method (`async *ticks()`), as above. `this` is the controller.
 
 ## Multipart bodies
 
@@ -259,10 +325,13 @@ export const upload = api.declareEndpoint({
 
 @Controller()
 export class UploadController {
-  upload = handler(upload, async ({ data }) => ({
-    name: data.file.name,
-    size: (await data.file.arrayBuffer()).byteLength,
-  }))
+  @Endpoint(upload)
+  async upload({ data }: HandlerParams<typeof upload>) {
+    return {
+      name: data.file.name,
+      size: (await data.file.arrayBuffer()).byteLength,
+    }
+  }
 }
 ```
 
@@ -279,7 +348,9 @@ Limitations: both adapters read every file into memory before the handler runs, 
 A `response: 'stream'` endpoint may return `sseStream(source)`, where `source` is an async iterable of events. Core writes the `text/event-stream` framing and sets `cache-control: no-cache`.
 
 ```ts
-import { Controller, handler, sse, sseStream } from '@navios/core'
+import { Controller, Endpoint, inject, sse, sseStream } from '@navios/core'
+
+import type { HandlerParams, RequestContext } from '@navios/core'
 
 const userJoined = {
   config: { eventName: 'user-joined', payloadSchema: z.object({ userId: z.string() }) },
@@ -291,7 +362,10 @@ export const feed = api.declareEndpoint({ method: 'GET', url: '/feed', response:
 export class FeedController {
   private readonly joins = inject(JoinsService)
 
-  feed = handler(feed, (_params, ctx) => sseStream(this.events(ctx.signal)))
+  @Endpoint(feed)
+  feed(_params: HandlerParams<typeof feed>, ctx: RequestContext) {
+    return sseStream(this.events(ctx.signal))
+  }
 
   private async *events(signal: AbortSignal) {
     for await (const user of this.joins.subscribe(signal)) {

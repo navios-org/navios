@@ -16,7 +16,7 @@ import type { Guard, Interceptor } from '../routing/compile-route.mjs'
 
 import { endpointConfig } from './handler.mjs'
 
-import type { EndpointDeclaration, HandlerFunction } from './handler-types.mjs'
+import type { EndpointDeclaration, MethodHandlerFunction } from './handler-types.mjs'
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -133,17 +133,28 @@ export function registerModule<T extends ClassType>(target: T, options: ModuleOp
  * Serves a builder endpoint with a controller method. The body kind, response
  * kind and status codes all come from the declaration.
  *
- * TypeScript cannot infer a method's parameters from a decorator, so the
- * parameter type is written with `HandlerParams<typeof endpoint>`. The field
- * form, `handler(endpoint, fn)`, needs no annotation.
+ * ```ts
+ * @Controller()
+ * export class UsersController {
+ *   private readonly users = inject(UsersService)
+ *
+ *   @Endpoint(getUser)
+ *   async getUser({ urlParams }: HandlerParams<typeof getUser>, ctx: RequestContext) {
+ *     const user = await this.users.findById(urlParams.id)
+ *     return user ?? reply(404, { message: 'User not found' })
+ *   }
+ * }
+ * ```
+ *
+ * The parameter type is written with `HandlerParams<typeof endpoint>`. The
+ * return value is checked against the declaration; add
+ * `: HandlerResult<typeof endpoint>` to have literal values (enums,
+ * discriminators) checked as well.
  */
 export function Endpoint<const Config extends BaseEndpointOptions>(
   endpoint: EndpointDeclaration<Config>,
 ) {
-  return <Method extends HandlerFunction<Config> | (() => ReturnType<HandlerFunction<Config>>)>(
-    target: Method,
-    context: ClassMethodDecoratorContext,
-  ): Method => {
+  return (target: MethodHandlerFunction<Config>, context: ClassMethodDecoratorContext): void => {
     if (context.kind !== 'method') {
       throw new Error('[Navios] @Endpoint can only be used on methods.')
     }
@@ -159,7 +170,6 @@ export function Endpoint<const Config extends BaseEndpointOptions>(
       )
     }
     member.config = config
-    return target
   }
 }
 

@@ -4,8 +4,7 @@
  *
  * Each one adapts the legacy decorator signature and calls the same
  * implementation as the standard decorator of the same name, so behaviour is
- * identical. `handler()` fields need no method decorator at all, so a
- * controller written in the field form only uses `Controller` from here.
+ * identical.
  */
 import { createClassContext, createMethodContext } from '@navios/di/legacy-compat'
 
@@ -25,7 +24,7 @@ import type {
   AttributeApplication,
   ControllerOptions,
   EndpointDeclaration,
-  HandlerFunction,
+  MethodHandlerFunction,
   ModuleOptions,
 } from '../decorators/index.mjs'
 import type { Guard, Interceptor } from '../routing/compile-route.mjs'
@@ -77,12 +76,12 @@ export function Endpoint<const Config extends BaseEndpointOptions>(
   endpoint: EndpointDeclaration<Config>,
 ) {
   return legacy(StandardEndpoint(endpoint) as StandardDecorator) as <
-    Method extends HandlerFunction<Config> | (() => ReturnType<HandlerFunction<Config>>),
+    Method extends MethodHandlerFunction<Config>,
   >(
     target: object,
     propertyKey: string | symbol,
     descriptor: TypedPropertyDescriptor<Method>,
-  ) => TypedPropertyDescriptor<Method>
+  ) => void
 }
 
 type LegacyAnyDecorator = (

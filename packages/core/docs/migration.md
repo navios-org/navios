@@ -5,7 +5,7 @@
 The main ideas:
 
 - Controllers, guards and interceptors are singletons. Per-request data lives in a `RequestContext` that is passed to them.
-- One `@Endpoint` decorator, or the `handler()` field form, serves every kind of endpoint. Body kind, response kind and status codes come from the declaration.
+- One `@Endpoint` decorator serves every kind of endpoint. Body kind, response kind and status codes come from the declaration.
 - Every error response is `application/problem+json` unless the endpoint declares a body for that status.
 - Guards run before the request body is read.
 - Any Standard Schema library works on the server. Zod keeps working unchanged.
@@ -14,36 +14,36 @@ The main ideas:
 
 ## Reference table
 
-| 1.x                                                                                                     | 2.0                                                                                                                                                                             |
-| ------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `NaviosFactory.create<FastifyEnvironment>(AppModule, { adapter: defineFastifyEnvironment() })`          | `NaviosFactory.create(AppModule, { adapter: defineFastifyEnvironment() })`. The environment type is inferred from the adapter.                                                  |
-| `app.enableCors(options)`                                                                               | `defineFastifyEnvironment({ cors: options })` or `defineBunEnvironment({ cors: options })`                                                                                      |
-| `app.enableMultipart(options)`                                                                          | `defineFastifyEnvironment({ multipart: options })`, or `multipart: true`. Bun needs no option.                                                                                  |
-| `app.setGlobalPrefix(prefix)`                                                                           | the `globalPrefix` application option                                                                                                                                           |
-| `app.dispose()`                                                                                         | `app.close()`. `dispose()` remains as an alias.                                                                                                                                 |
-| `@Endpoint(e) async m(params: EndpointParams<typeof e>)`                                                | `m = handler(e, async (params, ctx) => ...)`, or `@Endpoint(e) async m(params: HandlerParams<typeof e>, ctx: RequestContext)`                                                   |
-| `EndpointParams`, `EndpointResult` from core                                                            | `HandlerParams<typeof e>`, `HandlerResult<typeof e>`                                                                                                                            |
-| `@Multipart(e)`, `MultipartParams`                                                                      | `@Endpoint(e)` or `handler(e, ...)` on an endpoint declared with `body: 'multipart'`                                                                                            |
-| `@Stream(e)`, `StreamParams`, writing to the native reply                                               | `@Endpoint(e)` or `handler(e, ...)` on an endpoint declared with `response: 'stream'`, `'text'` or `'blob'`; return a `ReadableStream`, an async iterable, a string or a `Blob` |
-| `@HttpCode(201)`                                                                                        | `responses: { 201: schema }` in the declaration and `return reply(201, body)`                                                                                                   |
-| `@Header(name, value)`                                                                                  | `ctx.reply.header(name, value)`                                                                                                                                                 |
-| `canActivate(context: AbstractExecutionContext)`                                                        | `canActivate(ctx: RequestContext)`                                                                                                                                              |
-| `context.getRequest().headers[...]`                                                                     | `ctx.headers.get(name)`                                                                                                                                                         |
-| `context.getHandler()`, `context.getModule()`                                                           | `ctx.route`                                                                                                                                                                     |
-| `AttributeFactory.has(Public, handlerMetadata)`                                                         | `AttributeFactory.has(Public, ctx.route)`, which checks the handler, then the controller, then the module                                                                       |
-| `request.user = user`, then `inject(Request).user`                                                      | `ctx.set(CurrentUser, user)`, then `ctx.get(CurrentUser)`                                                                                                                       |
-| `inject(Request)`, `inject(Reply)`, `inject(FastifyRequestToken)`                                       | `ctx.raw.request`, `ctx.raw.reply`                                                                                                                                              |
-| a request-scoped `SessionService` or `CurrentUserService`                                               | a `@RequestValue()` class read with `ctx.get(...)`                                                                                                                              |
-| a request-scoped controller, or `inject(RequestScopedService)` in a controller                          | not allowed, fails at `init()`. Use `ctx.use(RequestScopedService)` in the handler, or a request value.                                                                         |
-| `@Module({ overrides })`                                                                                | `@Module({ providers: [provide(Token, Impl)] })`                                                                                                                                |
-| `@Injectable({ priority })`, `@Injectable({ registry })`                                                | removed. Use `provide(Token, Impl)` in module or application `providers`.                                                                                                       |
-| `container.beginRequest(id)`                                                                            | `container.createScope()`                                                                                                                                                       |
-| `asyncInject(TransientService)`                                                                         | `inject(TransientService)`                                                                                                                                                      |
-| the validation error body (a Zod error tree)                                                            | 400 problem+json with `source` and `errors: [{ path, message }]`                                                                                                                |
-| the body of an unexpected error contained `error.message`                                               | 500 problem+json with a generic `detail`. Opt in to the message with `exposeErrorDetails: true`.                                                                                |
-| `definePreAdapterResolvePlugin` and the other nine stage helpers                                        | `definePlugin({ name, dependsOn?, setup(api, options) })`                                                                                                                       |
-| `TestingModule`                                                                                         | `NaviosFactory.create` with `defineInMemoryEnvironment()` and `providers`; `createTestClient(app)`                                                                              |
-| `Controller`, `Endpoint`, `Multipart`, `Stream`, `HttpCode`, `Header` from `@navios/core/legacy-compat` | `Controller`, `Module`, `Endpoint`, `UseGuards`, `UseInterceptors`, `Injectable`, `Factory`, `AttributeFactory`. With the field form only the class decorators are needed.      |
+| 1.x                                                                                                     | 2.0                                                                                                                                                               |
+| ------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `NaviosFactory.create<FastifyEnvironment>(AppModule, { adapter: defineFastifyEnvironment() })`          | `NaviosFactory.create(AppModule, { adapter: defineFastifyEnvironment() })`. The environment type is inferred from the adapter.                                    |
+| `app.enableCors(options)`                                                                               | `defineFastifyEnvironment({ cors: options })` or `defineBunEnvironment({ cors: options })`                                                                        |
+| `app.enableMultipart(options)`                                                                          | `defineFastifyEnvironment({ multipart: options })`, or `multipart: true`. Bun needs no option.                                                                    |
+| `app.setGlobalPrefix(prefix)`                                                                           | the `globalPrefix` application option                                                                                                                             |
+| `app.dispose()`                                                                                         | `app.close()`. `dispose()` remains as an alias.                                                                                                                   |
+| `@Endpoint(e) async m(params: EndpointParams<typeof e>)`                                                | `@Endpoint(e) async m(params: HandlerParams<typeof e>, ctx: RequestContext)`. `m = handler(e, async (params, ctx) => ...)` is an optional alternative.            |
+| `EndpointParams`, `EndpointResult` from core                                                            | `HandlerParams<typeof e>`, `HandlerResult<typeof e>`                                                                                                              |
+| `@Multipart(e)`, `MultipartParams`                                                                      | `@Endpoint(e)` on an endpoint declared with `body: 'multipart'`                                                                                                   |
+| `@Stream(e)`, `StreamParams`, writing to the native reply                                               | `@Endpoint(e)` on an endpoint declared with `response: 'stream'`, `'text'` or `'blob'`; return a `ReadableStream`, an async iterable, a string or a `Blob`        |
+| `@HttpCode(201)`                                                                                        | `responses: { 201: schema }` in the declaration and `return reply(201, body)`                                                                                     |
+| `@Header(name, value)`                                                                                  | `ctx.reply.header(name, value)`                                                                                                                                   |
+| `canActivate(context: AbstractExecutionContext)`                                                        | `canActivate(ctx: RequestContext)`                                                                                                                                |
+| `context.getRequest().headers[...]`                                                                     | `ctx.headers.get(name)`                                                                                                                                           |
+| `context.getHandler()`, `context.getModule()`                                                           | `ctx.route`                                                                                                                                                       |
+| `AttributeFactory.has(Public, handlerMetadata)`                                                         | `AttributeFactory.has(Public, ctx.route)`, which checks the handler, then the controller, then the module                                                         |
+| `request.user = user`, then `inject(Request).user`                                                      | `ctx.set(CurrentUser, user)`, then `ctx.get(CurrentUser)`                                                                                                         |
+| `inject(Request)`, `inject(Reply)`, `inject(FastifyRequestToken)`                                       | `ctx.raw.request`, `ctx.raw.reply`                                                                                                                                |
+| a request-scoped `SessionService` or `CurrentUserService`                                               | a `@RequestValue()` class read with `ctx.get(...)`                                                                                                                |
+| a request-scoped controller, or `inject(RequestScopedService)` in a controller                          | not allowed, fails at `init()`. Use `ctx.use(RequestScopedService)` in the handler, or a request value.                                                           |
+| `@Module({ overrides })`                                                                                | `@Module({ providers: [provide(Token, Impl)] })`                                                                                                                  |
+| `@Injectable({ priority })`, `@Injectable({ registry })`                                                | removed. Use `provide(Token, Impl)` in module or application `providers`.                                                                                         |
+| `container.beginRequest(id)`                                                                            | `container.createScope()`                                                                                                                                         |
+| `asyncInject(TransientService)`                                                                         | `inject(TransientService)`                                                                                                                                        |
+| the validation error body (a Zod error tree)                                                            | 400 problem+json with `source` and `errors: [{ path, message }]`                                                                                                  |
+| the body of an unexpected error contained `error.message`                                               | 500 problem+json with a generic `detail`. Opt in to the message with `exposeErrorDetails: true`.                                                                  |
+| `definePreAdapterResolvePlugin` and the other nine stage helpers                                        | `definePlugin({ name, dependsOn?, setup(api, options) })`                                                                                                         |
+| `TestingModule`                                                                                         | `NaviosFactory.create` with `defineInMemoryEnvironment()` and `providers`; `createTestClient(app)`                                                                |
+| `Controller`, `Endpoint`, `Multipart`, `Stream`, `HttpCode`, `Header` from `@navios/core/legacy-compat` | `Controller`, `Module`, `Endpoint`, `UseGuards`, `UseInterceptors`, `Injectable`, `Factory`, `AttributeFactory`. See [Legacy decorators](./legacy-decorators.md). |
 
 ## Bootstrap
 
@@ -114,17 +114,29 @@ After. The declaration of `createUser` changes from `responseSchema: userSchema`
 export class UsersController {
   private readonly users = inject(UsersService)
 
-  getUser = handler(getUser, async ({ urlParams }) => {
+  @Endpoint(getUser)
+  async getUser({ urlParams }: HandlerParams<typeof getUser>) {
     const user = await this.users.find(urlParams.id)
     if (!user) {
       throw new NotFoundException('User not found')
     }
     return user
-  })
+  }
 
-  createUser = handler(createUser, async ({ data }) => reply(201, await this.users.create(data)))
+  @Endpoint(createUser)
+  async createUser({ data }: HandlerParams<typeof createUser>) {
+    return reply(201, await this.users.create(data))
+  }
 }
 ```
+
+What changes in a handler:
+
+- `EndpointParams<typeof e>` becomes `HandlerParams<typeof e>`, imported as a type from `@navios/core`.
+- The method takes the `RequestContext` as an optional second parameter.
+- No return annotation is needed; `@Endpoint` checks the returned value against the declaration. `HandlerResult<typeof e>` replaces `EndpointResult` where you want one. See [What `@Endpoint` checks](./controllers.md#what-endpoint-checks).
+
+`handler()` is an optional alternative that defines a handler as a class field with inferred parameter types: `getUser = handler(getUser, async ({ urlParams }, ctx) => ...)`. It is meant for code that uses no member decorators. See [Handlers without decorators](./controllers.md#handlers-without-decorators-handler).
 
 `throw new NotFoundException('User not found')` still works. The response body is now a problem document, `{ type, title, status, detail: 'User not found' }`, unless the endpoint declares 404 in `errorSchema`. Clients that read the old body shape need updating.
 
@@ -171,8 +183,11 @@ export class AuthGuard implements Guard {
   }
 }
 
-// in a handler
-me = handler(me, (_params, ctx) => ctx.get(CurrentUser))
+// in a controller
+@Endpoint(me)
+async me(_params: HandlerParams<typeof me>, ctx: RequestContext) {
+  return ctx.get(CurrentUser)
+}
 ```
 
 Two behaviour changes to check:
@@ -217,7 +232,10 @@ export class Tenant {
 export class ItemsController {
   private readonly items = inject(ItemsService)
 
-  list = handler(listItems, (_params, ctx) => this.items.list(ctx.get(Tenant)))
+  @Endpoint(listItems)
+  async list(_params: HandlerParams<typeof listItems>, ctx: RequestContext) {
+    return this.items.list(ctx.get(Tenant))
+  }
 }
 ```
 
@@ -246,12 +264,16 @@ async upload(params: MultipartParams<typeof upload>) {
 After:
 
 ```ts
-exportCsv = handler(exportCsv, (_params, ctx) => {
+@Endpoint(exportCsv)
+async exportCsv(_params: HandlerParams<typeof exportCsv>, ctx: RequestContext) {
   ctx.reply.header('content-type', 'text/csv')
   return this.reports.csvStream() // a ReadableStream or an async iterable
-})
+}
 
-upload = handler(upload, ({ data }) => this.files.save(data.file))
+@Endpoint(upload)
+async upload({ data }: HandlerParams<typeof upload>) {
+  return this.files.save(data.file)
+}
 ```
 
 Multipart `data` contains strings and `File` objects on both adapters.
@@ -312,4 +334,4 @@ await app.close()
 - `headersSchema` and `cookiesSchema` in a builder declaration. Read headers and cookies from `ctx`.
 - A test client that returns the builder's typed result. `createTestClient` returns the raw status and body.
 - Sockets on the server.
-- `@navios/otel*`, `@navios/openapi*`, `@navios/adapter-xml`, `@navios/schedule`, `@navios/queues`, `@navios/microservice` and `@navios/jwt` have not been ported to the 2.0 core yet.
+- `@navios/microservice` compiles against 2.0 but its runtime has not been ported yet.

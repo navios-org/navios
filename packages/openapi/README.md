@@ -39,7 +39,7 @@ await app.listen({ port: 3000 })
 
 `app.usePlugin(openApiPlugin({ ... }))` before `init()` does the same.
 
-The document is built once, while the application initialises, from `app.routes()`. It therefore contains every route, including those contributed by other plugins, in both handler forms (`@Endpoint` methods and `handler()` fields). Paths are the full route paths: the global prefix and module prefixes are part of them.
+The document is built once, while the application initialises, from `app.routes()`. It therefore contains every route, including those contributed by other plugins, whether a handler is an `@Endpoint` method or a `handler()` field. Paths are the full route paths: the global prefix and module prefixes are part of them.
 
 The plugin's own routes get the application's global prefix as well (`/api/docs` with `globalPrefix: '/api'`) and are not part of the document.
 
@@ -95,27 +95,35 @@ For each route, from its endpoint declaration:
 
 ## Attributes
 
-Each attribute is a decorator for a module, a controller, a handler method or a `handler()` field, and a value for `handler()` options.
+Each attribute is a decorator for a module, a controller or a handler.
 
 ```ts
-import { Controller, handler } from '@navios/core'
+import { Controller, Endpoint, inject, reply } from '@navios/core'
 import { ApiOperation, ApiSecurity, ApiSummary, ApiTag } from '@navios/openapi'
+
+import type { HandlerParams } from '@navios/core'
 
 @ApiTag('Users', 'User management')
 @Controller()
 export class UsersController {
-  @ApiSummary('Get a user')
-  getUser = handler(getUser, ({ urlParams }) => this.users.find(urlParams.id))
+  private readonly users = inject(UsersService)
 
-  createUser = handler(
-    createUser,
-    { attributes: [ApiOperation({ summary: 'Create a user' }), ApiSecurity({ bearerAuth: [] })] },
-    ({ data }) => reply(201, this.users.create(data)),
-  )
+  @ApiSummary('Get a user')
+  @Endpoint(getUser)
+  async getUser({ urlParams }: HandlerParams<typeof getUser>) {
+    return this.users.find(urlParams.id)
+  }
+
+  @ApiOperation({ summary: 'Create a user' })
+  @ApiSecurity({ bearerAuth: [] })
+  @Endpoint(createUser)
+  async createUser({ data }: HandlerParams<typeof createUser>) {
+    return reply(201, await this.users.create(data))
+  }
 }
 ```
 
-On a class, place attributes above `@Controller` / `@Module`.
+On a class, place attributes above `@Controller` / `@Module`. Calling an attribute also returns its value, which the `attributes` option of `@Controller`, `@Module` and `handler()` accepts: `handler(createUser, { attributes: [ApiSecurity({ bearerAuth: [] })] }, fn)`.
 
 | Attribute                                  | Effect                                                                                   | Read from                                         |
 | ------------------------------------------ | ---------------------------------------------------------------------------------------- | ------------------------------------------------- |

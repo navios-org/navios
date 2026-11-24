@@ -63,7 +63,7 @@ Declare the endpoint with `response: 'text'` (`'stream'` and `'blob'` work too) 
 ```tsx
 import { xml } from '@navios/adapter-xml'
 import { builder } from '@navios/builder'
-import { Controller, handler, inject } from '@navios/core'
+import { Controller, Endpoint, inject } from '@navios/core'
 
 const api = builder()
 
@@ -77,7 +77,8 @@ export const getFeed = api.declareEndpoint({
 export class FeedController {
   private readonly posts = inject(PostService)
 
-  feed = handler(getFeed, async () => {
+  @Endpoint(getFeed)
+  async feed() {
     const posts = await this.posts.latest()
     return xml(
       <rss version="2.0">
@@ -94,11 +95,11 @@ export class FeedController {
       </rss>,
       { contentType: 'application/rss+xml' },
     )
-  })
+  }
 }
 ```
 
-The method form works the same way: `@Endpoint(getFeed) async feed(params: HandlerParams<typeof getFeed>, ctx: RequestContext) { return xml(...) }`.
+A handler that needs the request takes the usual parameters: `async feed(params: HandlerParams<typeof getFeed>, ctx: RequestContext)`.
 
 `xml()` options are the plugin options plus `status` (default 200); they win over the plugin's defaults. Other response headers and cookies are set as usual with `ctx.reply.header()` and `ctx.reply.cookie()`.
 
@@ -113,10 +114,11 @@ How it works:
 `renderToXml` returns a string, which a `response: 'text'` handler can return directly:
 
 ```tsx
-feed = handler(getFeed, async (_params, ctx) => {
+@Endpoint(getFeed)
+async feed(_params: HandlerParams<typeof getFeed>, ctx: RequestContext) {
   ctx.reply.header('content-type', 'application/rss+xml; charset=utf-8')
   return renderToXml(<Feed />, { ctx, container })
-})
+}
 ```
 
 ## Components
@@ -313,7 +315,7 @@ The special nodes described above, the fragment symbol behind `<>...</>`, and th
 | --------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
 | `adapter: [defineFastifyEnvironment(), defineXmlEnvironment()]`             | `adapter: defineFastifyEnvironment(), plugins: [xmlPlugin()]`                                                                |
 | `declareXmlStream({ method, url, contentType, xmlDeclaration, encoding })`  | `builder().declareEndpoint({ method, url, response: 'text' })`; the XML options go to `xml()` or `xmlPlugin()`               |
-| `@XmlStream(endpoint) async feed(params: XmlStreamParams<typeof endpoint>)` | `feed = handler(endpoint, (params, ctx) => xml(<Feed />))` or `@Endpoint(endpoint)` with `HandlerParams<typeof endpoint>`    |
+| `@XmlStream(endpoint) async feed(params: XmlStreamParams<typeof endpoint>)` | `@Endpoint(endpoint) async feed(params: HandlerParams<typeof endpoint>, ctx: RequestContext)`                                |
 | handler returns the JSX tree                                                | handler returns `xml(tree, { contentType })`                                                                                 |
 | `xmlDeclaration: false`                                                     | `xml(tree, { declaration: false })`                                                                                          |
 | `@HttpCode(201)` on an XML endpoint                                         | `xml(tree, { status: 201 })`                                                                                                 |

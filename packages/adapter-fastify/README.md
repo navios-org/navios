@@ -87,10 +87,13 @@ ctx.raw.reply // FastifyReply
 ```
 
 ```ts
-whoami = handler(whoami, (_params, ctx) => ({
-  ip: ctx.raw.request.ip,
-  protocol: ctx.raw.request.protocol,
-}))
+@Endpoint(whoami)
+async whoami(_params: HandlerParams<typeof whoami>, ctx: RequestContext) {
+  return {
+    ip: ctx.raw.request.ip,
+    protocol: ctx.raw.request.protocol,
+  }
+}
 ```
 
 `ctx.id` is Fastify's `request.id`. `app.getServer()` returns the `FastifyInstance` after `init()`.
@@ -108,12 +111,14 @@ export const legacyDownload = api.declareEndpoint({
   response: 'void',
 })
 
-legacyDownload = handler(legacyDownload, async ({ urlParams }, ctx) => {
+// in a controller
+@Endpoint(legacyDownload)
+async legacyDownload({ urlParams }: HandlerParams<typeof legacyDownload>, ctx: RequestContext) {
   const { reply } = ctx.raw
   reply.hijack()
   reply.raw.writeHead(200, { 'content-type': 'application/pdf' })
   await this.reports.pipe(urlParams.id, reply.raw)
-})
+}
 ```
 
 Things to know:

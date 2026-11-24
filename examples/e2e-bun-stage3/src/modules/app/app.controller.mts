@@ -1,6 +1,6 @@
-import type { HandlerParams, HandlerResult, RequestContext } from '@navios/core'
-
 import { Controller, Endpoint, NotFoundException } from '@navios/core'
+
+import type { HandlerParams, HandlerResult, RequestContext } from '@navios/core'
 
 import {
   healthEndpoint,
@@ -12,7 +12,6 @@ import {
 import { CurrentUser } from '../../guards/current-user.mjs'
 import { Public } from '../../guards/public.attribute.mjs'
 
-// This controller uses the method form; the others use handler() fields.
 @Controller()
 export class AppController {
   @Endpoint(healthEndpoint)

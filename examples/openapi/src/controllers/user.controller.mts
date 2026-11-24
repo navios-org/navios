@@ -1,4 +1,4 @@
-import { Controller, Endpoint, handler, inject, NotFoundException, reply } from '@navios/core'
+import { Controller, Endpoint, inject, NotFoundException, reply } from '@navios/core'
 import { ApiDeprecated, ApiOperation, ApiSecurity, ApiSummary, ApiTag } from '@navios/openapi'
 
 import type { HandlerParams, HandlerResult } from '@navios/core'
@@ -11,51 +11,57 @@ import { UserService } from '../services/user.service.mjs'
 export class UserController {
   private readonly userService = inject(UserService)
 
+  @Endpoint(listUsers)
   @ApiOperation({
     summary: 'List all users',
     description: 'Retrieves a paginated list of users. Supports search filtering by name or email.',
     operationId: 'listUsers',
   })
-  listUsers = handler(listUsers, ({ params }) => this.userService.findAll(params))
+  listUsers({ params }: HandlerParams<typeof listUsers>) {
+    return this.userService.findAll(params)
+  }
 
   // The 404 is declared in the endpoint's errorSchema, so it is documented
   // and reply(404, ...) is type-checked.
+  @Endpoint(getUser)
   @ApiSummary('Get user by ID')
-  getUser = handler(getUser, async ({ urlParams }) => {
+  async getUser({ urlParams }: HandlerParams<typeof getUser>) {
     const user = await this.userService.findById(urlParams.userId.toString())
     return user ?? reply(404, { message: 'User not found' })
-  })
+  }
 
+  @Endpoint(createUser)
   @ApiOperation({
     summary: 'Create new user',
     description: 'Creates a new user with the provided data.',
   })
   @ApiSecurity({ bearerAuth: [] })
-  createUser = handler(createUser, async ({ data }) =>
-    reply(201, await this.userService.create(data)),
-  )
+  async createUser({ data }: HandlerParams<typeof createUser>) {
+    return reply(201, await this.userService.create(data))
+  }
 
+  @Endpoint(updateUser)
   @ApiSummary('Update user')
   @ApiSecurity({ bearerAuth: [] })
-  updateUser = handler(updateUser, async ({ urlParams, data }) => {
+  async updateUser({ urlParams, data }: HandlerParams<typeof updateUser>) {
     const user = await this.userService.update(urlParams.userId.toString(), data)
     if (!user) {
       throw new NotFoundException('User not found')
     }
     return user
-  })
+  }
 
+  @Endpoint(deleteUser)
   @ApiSummary('Delete user')
   @ApiSecurity({ bearerAuth: [] })
-  deleteUser = handler(deleteUser, async ({ urlParams }) => {
+  async deleteUser({ urlParams }: HandlerParams<typeof deleteUser>) {
     const success = await this.userService.delete(urlParams.userId.toString())
     if (!success) {
       throw new NotFoundException('User not found')
     }
     return { success }
-  })
+  }
 
-  // The method form works too.
   @ApiTag('Legacy')
   @ApiDeprecated('Use GET /users instead')
   @Endpoint(legacyEndpoint)

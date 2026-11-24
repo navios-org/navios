@@ -67,11 +67,11 @@ export class BillingController {}
 export class AdminController {
   private readonly metrics = inject(MetricsService)
 
-  stats = handler(getStats, { guards: [RolesGuard] }, () => this.metrics.read())
-
   @UseGuards(RolesGuard)
-  @Endpoint(purge)
-  async purge() {}
+  @Endpoint(getStats)
+  async stats() {
+    return this.metrics.read()
+  }
 }
 ```
 
@@ -133,7 +133,11 @@ export class UsersModule {}
 export class CatalogController {}
 
 // 4. Handler
-list = handler(listItems, { interceptors: [CacheInterceptor] }, () => this.items.list())
+@UseInterceptors(CacheInterceptor)
+@Endpoint(listItems)
+async list() {
+  return this.items.list()
+}
 ```
 
 Within one level the first interceptor given is the outermost. An interceptor class that appears at more than one level runs once. `app.intercept()` must be called before `init()`.

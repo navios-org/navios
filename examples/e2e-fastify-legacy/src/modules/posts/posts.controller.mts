@@ -1,5 +1,7 @@
-import { BadRequestException, handler, inject, reply } from '@navios/core'
-import { Controller } from '@navios/core/legacy-compat'
+import { BadRequestException, inject, reply } from '@navios/core'
+import { Controller, Endpoint } from '@navios/core/legacy-compat'
+
+import type { HandlerParams, RequestContext } from '@navios/core'
 
 import { createPostEndpoint, listPostsEndpoint } from '../../api/endpoints.mjs'
 import { Public } from '../../guards/public.attribute.mjs'
@@ -11,14 +13,15 @@ import { PostsService } from './posts.service.mjs'
 export class PostsController {
   private readonly postsService = inject(PostsService)
 
-  // A legacy property decorator on a handler() field.
+  @Endpoint(listPostsEndpoint)
   @Public()
-  listPosts = handler(listPostsEndpoint, async ({ params }) => {
+  async listPosts({ params }: HandlerParams<typeof listPostsEndpoint>) {
     const posts = await this.postsService.findAll(params)
     return { posts }
-  })
+  }
 
-  createPost = handler(createPostEndpoint, async ({ data }, ctx) => {
+  @Endpoint(createPostEndpoint)
+  async createPost({ data }: HandlerParams<typeof createPostEndpoint>, ctx: RequestContext) {
     const { title, content, authorId, published } = data
 
     // Controllers are singletons: a request-scoped service comes from the
@@ -35,5 +38,5 @@ export class PostsController {
       ...post,
       validationId: validationService.getValidationId(),
     })
-  })
+  }
 }

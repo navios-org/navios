@@ -203,7 +203,10 @@ Guards and request values take a `RequestContext`, which is built by the pipelin
 it('rejects a request without a token', async () => {
   @Controller()
   class ProbeController {
-    probe = handler(probe, () => ({ ok: true }))
+    @Endpoint(probe)
+    async probe() {
+      return { ok: true }
+    }
   }
 
   @Module({ controllers: [ProbeController], guards: [AuthGuard] })
