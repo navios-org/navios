@@ -225,7 +225,7 @@ export class UserController {
 }
 ```
 
-For more information on error handling, including custom error responders and RFC 7807 Problem Details, see the [Error Handling Guide](../../../apps/docs/docs/server/guides/error-handling.md).
+For more information on error handling, including custom error responders and RFC 7807 Problem Details, see the [Error Handling Guide](../../../apps/docs/content/docs/server/guides/error-handling.md).
 
 ## Configuration
 

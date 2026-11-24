@@ -247,13 +247,13 @@ This core package is used by provider packages that add runtime-specific UI:
 For complete working examples, see:
 
 - [OpenAPI Examples](../../examples/openapi) - Full examples for both Fastify and Bun
-- [OpenAPI Guide](../../apps/docs/docs/server/guides/openapi.md) - Comprehensive documentation
+- [OpenAPI Guide](../../apps/docs/content/docs/server/guides/openapi.md) - Comprehensive documentation
 
 ## Documentation
 
 For complete documentation on using OpenAPI with Navios, see:
 
-- [OpenAPI Guide](../../apps/docs/docs/server/guides/openapi.md)
+- [OpenAPI Guide](../../apps/docs/content/docs/server/guides/openapi.md)
 - [Controllers & Endpoints](../core/docs/controllers.md)
 - [Streaming](../core/docs/streaming.md)
 - [Multipart](../core/docs/multipart.md)

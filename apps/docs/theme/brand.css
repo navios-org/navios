@@ -1,0 +1,196 @@
+/* Navios "Ember" theme: warm palette and a floating, rounded shell on top of Rspress's default theme. */
+
+/* `html` raises specificity above Rspress's own `:root` and `.dark` blocks, which load later. */
+html:root {
+  --nv-a1: #ea580c;
+  --nv-a2: #e11d48;
+  --nv-gradient: linear-gradient(90deg, var(--nv-a1), var(--nv-a2));
+  --nv-on-accent: #fff;
+  --nv-panel: #fff;
+  --nv-line: #eadfd6;
+  --nv-glow: 16%;
+  --nv-gap: 12px;
+  --nv-bar: 56px;
+  --nv-gutter: 16px;
+
+  /* The bright orange fails text contrast on cream, so links and brand text use a darker one. */
+  --rp-c-brand: #c2410c;
+  --rp-c-brand-dark: #9a3412;
+  --rp-c-brand-darker: #7c2d12;
+  --rp-c-brand-light: #ea580c;
+  --rp-c-brand-lighter: #fb923c;
+  --rp-c-brand-tint: rgba(234, 88, 12, 0.1);
+  --rp-c-link: #c2410c;
+  --rp-c-bg: #fbf7f3;
+  --rp-c-bg-soft: #f4ede6;
+  --rp-c-bg-mute: #eadfd6;
+  --rp-c-divider: #e0d3c8;
+  --rp-c-divider-light: #eadfd6;
+  --rp-c-text-1: #1f1612;
+  --rp-c-text-2: #6b5b51;
+  --rp-c-text-code: #7c2d12;
+  --rp-c-text-code-bg: rgba(234, 88, 12, 0.09);
+  --rp-c-text-code-border: rgba(234, 88, 12, 0.14);
+  --rp-code-block-bg: #fff;
+  --rp-code-block-border: 1px solid var(--nv-line);
+  --rp-code-title-bg: #f4ede6;
+  --rp-container-note-bg: #fff;
+  --rp-container-note-border: var(--nv-line);
+  --rp-container-details-bg: #fff;
+  --rp-container-details-border: var(--nv-line);
+  --rp-c-overview-group-bg: #fff;
+
+  --rp-nav-height: calc(var(--nv-bar) + var(--nv-gap) * 2);
+  --rp-sidebar-width: 296px;
+  --rp-sidebar-margin-left: max(var(--nv-gutter), calc((100vw - 1000px) / 2 - 320px));
+
+  --shiki-token-keyword: #be123c;
+  --shiki-token-function: #c2410c;
+  --shiki-token-string: #4d7c0f;
+  --shiki-token-string-expression: #4d7c0f;
+  --shiki-token-constant: #a21caf;
+  --shiki-token-parameter: #b45309;
+  --shiki-token-comment: #8a7a70;
+  --shiki-token-punctuation: #44362e;
+  --shiki-token-link: #c2410c;
+}
+
+html.dark {
+  --nv-a1: #fb923c;
+  --nv-a2: #f43f5e;
+  --nv-on-accent: #1a0d07;
+  --nv-panel: #1a1412;
+  --nv-line: #2e2420;
+  --nv-glow: 26%;
+
+  --rp-c-brand: #fb923c;
+  --rp-c-brand-dark: #f97316;
+  --rp-c-brand-darker: #ea580c;
+  --rp-c-brand-light: #fdba74;
+  --rp-c-brand-lighter: #fed7aa;
+  --rp-c-brand-tint: rgba(251, 146, 60, 0.12);
+  --rp-c-link: #fdba74;
+  --rp-c-bg: #0f0b0a;
+  --rp-c-bg-soft: #1a1412;
+  --rp-c-bg-mute: #2e2420;
+  --rp-c-divider: #3a2e29;
+  --rp-c-divider-light: #2e2420;
+  --rp-c-text-1: #f5efe9;
+  --rp-c-text-2: #b5a69c;
+  --rp-c-text-code: #fed7aa;
+  --rp-c-text-code-bg: rgba(251, 146, 60, 0.1);
+  --rp-c-text-code-border: rgba(251, 146, 60, 0.12);
+  --rp-code-block-bg: #15100e;
+  --rp-code-title-bg: #1f1815;
+  --rp-container-note-bg: #1a1412;
+  --rp-container-details-bg: #1a1412;
+  --rp-c-overview-group-bg: #1a1412;
+
+  --shiki-token-keyword: #fb7185;
+  --shiki-token-function: #fdba74;
+  --shiki-token-string: #bcd67a;
+  --shiki-token-string-expression: #bcd67a;
+  --shiki-token-constant: #f9a8d4;
+  --shiki-token-parameter: #fde68a;
+  --shiki-token-comment: #8a7a70;
+  --shiki-token-punctuation: #c9bbb0;
+  --shiki-token-link: #fdba74;
+}
+
+/* Ember glow behind the toolbar, fading down the page. */
+body {
+  /* flow-root keeps the toolbar's top margin inside the body, so the glow starts at the very top. */
+  display: flow-root;
+  position: relative;
+  background: var(--rp-c-bg);
+}
+
+body::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto;
+  z-index: -1;
+  height: 620px;
+  background:
+    radial-gradient(55% 100% at 18% -15%, color-mix(in srgb, var(--nv-a2) var(--nv-glow), transparent), transparent 70%),
+    radial-gradient(50% 90% at 85% -25%, color-mix(in srgb, var(--nv-a1) var(--nv-glow), transparent), transparent 70%);
+  pointer-events: none;
+}
+
+/* Floating toolbar. */
+header.rp-nav {
+  top: var(--nv-gap);
+  width: calc(100% - var(--nv-gutter) * 2);
+  max-width: 1480px;
+  height: var(--nv-bar);
+  margin: var(--nv-gap) auto;
+  padding: 0 10px 0 18px;
+  border: 1px solid var(--nv-line) !important;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--nv-panel) 72%, transparent) !important;
+  box-shadow: 0 10px 30px -18px rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(18px) saturate(1.4);
+}
+
+.rp-nav__left,
+.rp-nav__right {
+  height: 100%;
+}
+
+.rp-search-button {
+  border-radius: 999px;
+}
+
+.rp-nav-menu__item--active > .rp-nav-menu__item__container {
+  color: var(--rp-c-brand);
+}
+
+/* Sidebar as its own panel. */
+@media (width > 768px) {
+  .rp-doc-layout__sidebar {
+    height: calc(100vh - var(--rp-nav-height) - var(--nv-gutter));
+    max-height: calc(100vh - var(--rp-nav-height) - var(--nv-gutter));
+    margin-left: var(--rp-sidebar-margin-left);
+    border: 1px solid var(--nv-line);
+    border-radius: 20px;
+    background: color-mix(in srgb, var(--nv-panel) 70%, transparent);
+  }
+}
+
+.rp-sidebar-item {
+  border-radius: 10px;
+}
+
+.rp-sidebar-item--active {
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--nv-a1) 18%, transparent),
+    color-mix(in srgb, var(--nv-a2) 8%, transparent)
+  );
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--nv-a1) 30%, transparent);
+}
+
+/* Mobile bar under the toolbar. */
+.rp-sidebar-menu {
+  margin: 0 var(--nv-gutter);
+  border: 1px solid var(--nv-line);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--nv-panel) 72%, transparent);
+  backdrop-filter: blur(18px);
+}
+
+/* Outline without the divider line. */
+.rp-outline {
+  border-left: 0;
+}
+
+/* "Copy Markdown" controls. */
+.rp-llms-button {
+  border-radius: 999px;
+}
+
+@media (width <= 768px) {
+  .rp-doc-layout__sidebar {
+    border-radius: 0 20px 20px 0;
+  }
+}

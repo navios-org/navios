@@ -1224,7 +1224,7 @@ Add `specs/navios-openapi.md` with complete API documentation.
 
 ### 4.2 Add Documentation to Docs Site
 
-Update `apps/docs/docs/server/` with OpenAPI documentation guide.
+Update `apps/docs/content/docs/server/` with OpenAPI documentation guide.
 
 ### 4.3 Example Application
 

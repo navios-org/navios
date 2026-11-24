@@ -227,7 +227,7 @@ Validation errors include structured error details:
 }
 ```
 
-All Problem Details responses include the `Content-Type: application/problem+json` header. For more information on customizing error responders, see the [Error Handling Guide](../../../apps/docs/docs/server/guides/error-handling.md).
+All Problem Details responses include the `Content-Type: application/problem+json` header. For more information on customizing error responders, see the [Error Handling Guide](../../../apps/docs/content/docs/server/guides/error-handling.md).
 
 ## Best Practices
 
