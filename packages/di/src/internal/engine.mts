@@ -78,6 +78,23 @@ interface Frame {
   used: Entry[] | null
   /** Transients left over from a discarded pass, handed back on replay. */
   reuse: Entry[] | null
+  /**
+   * Stop the pass at the first dependency that is not ready instead of
+   * handing out a placeholder. Set while a factory runs: unlike a constructor
+   * it goes on to use what it injected.
+   */
+  stopWhenPending: boolean
+}
+
+/**
+ * Thrown by `inject()` inside a factory to end a pass that is going to be
+ * repeated. Only seen outside the engine by a factory that catches it.
+ */
+class DependencyNotReady extends Error {
+  constructor(name: string) {
+    super(`[Injector] ${name} is not ready yet; the factory runs again once it is`)
+    this.name = 'DependencyNotReady'
+  }
 }
 
 let current: Frame | null = null
@@ -329,6 +346,7 @@ function build(
     pending: null,
     used: null,
     reuse: null,
+    stopWhenPending: false,
   }
 
   let outcome: void | Promise<void>
@@ -393,6 +411,7 @@ function preResolve(frame: Frame, plan: PlanEntry[]): Promise<unknown> | null {
 
 function instantiate(frame: Frame): unknown {
   const { record, args } = frame.entry
+  frame.stopWhenPending = false
   switch (record.kind) {
     case 'class':
       return args !== undefined ? new record.target!(args) : new record.target!()
@@ -404,11 +423,39 @@ function instantiate(frame: Frame): unknown {
       if (typeof builder.create !== 'function') {
         throw new Error('Factory does not implement the create method')
       }
+      frame.stopWhenPending = true
       return builder.create(createFactoryContext(frame), args)
     }
     default:
+      frame.stopWhenPending = true
       return record.fn!(createFactoryContext(frame), args)
   }
+}
+
+/**
+ * Runs the class or factory of `frame` once. When the pass met a dependency
+ * that is not ready (`frame.pending`), what it produced is worthless, and so
+ * is the way a factory reacted to being stopped.
+ */
+function runOnce(frame: Frame): unknown {
+  const previous = current
+  current = frame
+  let produced: unknown
+  try {
+    produced = instantiate(frame)
+  } catch (error) {
+    if (frame.pending === null || !(error instanceof DependencyNotReady)) {
+      throw error
+    }
+  } finally {
+    current = previous
+  }
+  if (frame.pending !== null && frame.entry.record.kind !== 'class' && isThenable(produced)) {
+    // An asynchronous factory reports being stopped, or failing on a
+    // placeholder, through a promise that nobody else observes.
+    Promise.resolve(produced).then(noop, noop)
+  }
+  return produced
 }
 
 /**
@@ -421,14 +468,7 @@ function pass(frame: Frame): void | Promise<void> {
   frame.pending = null
   frame.used = null
 
-  const previous = current
-  current = frame
-  let produced: unknown
-  try {
-    produced = instantiate(frame)
-  } finally {
-    current = previous
-  }
+  const produced = runOnce(frame)
 
   if (frame.pending !== null) {
     // The pass saw a dependency that is not ready. Whatever it produced was
@@ -455,14 +495,7 @@ async function replay(frame: Frame, planned: boolean): Promise<void> {
     frame.pending = null
     frame.used = null
 
-    const previous = current
-    current = frame
-    let produced: unknown
-    try {
-      produced = instantiate(frame)
-    } finally {
-      current = previous
-    }
+    const produced = runOnce(frame)
 
     if (frame.reuse !== null) {
       // Transients the discarded pass built that this pass did not ask for.
@@ -641,8 +674,16 @@ function requireFrame(what: string): Frame {
   return current
 }
 
-function suspend(frame: Frame, promise: Promise<unknown>): void {
+/**
+ * Notes that the pass needs something that is not ready and returns what
+ * stands in for it.
+ */
+function suspend(frame: Frame, promise: Promise<unknown>, name: string): any {
   ;(frame.pending ??= []).push(promise)
+  if (frame.stopWhenPending) {
+    throw new DependencyNotReady(name)
+  }
+  return placeholder(name)
 }
 
 /** @internal */
@@ -650,8 +691,7 @@ export function injectImpl(raw: AnyInjectableType, rawArgs?: unknown): any {
   const frame = requireFrame('inject')
   const wait = normalize(frame.host, raw, rawArgs)
   if (wait !== null) {
-    suspend(frame, wait)
-    return placeholder(String(raw))
+    return suspend(frame, wait, String(raw))
   }
   const token = normToken
   const args = normArgs
@@ -670,16 +710,14 @@ export function injectImpl(raw: AnyInjectableType, rawArgs?: unknown): any {
 
   const resolved = resolve(frame.host, token, args)
   if (resolved instanceof Wait) {
-    suspend(frame, resolved.promise)
-    return placeholder(token.toString())
+    return suspend(frame, resolved.promise, token.toString())
   }
   if (resolved.store === null) {
     ;(frame.used ??= []).push(resolved)
   }
   if (resolved.status !== EntryStatus.Ready) {
     addWaitEdge(frame.entry, resolved)
-    suspend(frame, resolved.promise!)
-    return placeholder(token.toString())
+    return suspend(frame, resolved.promise!, token.toString())
   }
   if (resolved.store !== null) {
     link(storedOwner(frame), resolved)

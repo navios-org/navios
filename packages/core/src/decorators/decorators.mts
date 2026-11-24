@@ -11,6 +11,7 @@ import {
   memberMetadata,
 } from '../metadata/metadata.mjs'
 
+import type { RequestValueClass } from '../context/context-key.mjs'
 import type { Guard, Interceptor } from '../routing/compile-route.mjs'
 
 import { endpointConfig } from './handler.mjs'
@@ -90,6 +91,13 @@ export interface ModuleOptions {
   interceptors?: ClassType[]
   /** Providers for the whole application (modules do not encapsulate them). */
   providers?: Provider[]
+  /**
+   * Request values to build while the application initialises. Needed for a
+   * value that has, directly or through a service, a dependency with an
+   * asynchronous initialiser that nothing else builds at boot; listing a
+   * value also turns an error in its construction into an error of `init()`.
+   */
+  requestValues?: RequestValueClass[]
   /** Attribute values for every route of this module: `[Public()]`. */
   attributes?: AttributeValue[]
 }

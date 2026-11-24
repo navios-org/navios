@@ -1,3 +1,4 @@
+import { adopt } from '../routing/promises.mjs'
 import { isEndpointReply } from '../routing/reply.mjs'
 import { ValidationError } from '../routing/validation.mjs'
 
@@ -75,6 +76,14 @@ export class ErrorPipeline {
     return this.options.notFound.getResponse(null, description)
   }
 
+  /**
+   * The response for an error outside a route's pipeline, such as a body an
+   * adapter could not serialise. Reported like any other unhandled error.
+   */
+  unexpected(error: unknown): RouteResult {
+    return this.internal(error, null)
+  }
+
   toResult(
     error: unknown,
     ctx: RequestContext | null,
@@ -82,12 +91,29 @@ export class ErrorPipeline {
   ): RouteResult | Promise<RouteResult> {
     const mapper = ctx === null ? undefined : this.findMapper(error)
     if (mapper !== undefined) {
-      try {
-        const mapped = mapper(error, ctx!)
-        if (mapped instanceof Promise) {
-          return mapped.then(normalise, (mapperError) => this.builtIn(mapperError, ctx, config))
+      // A mapper that returns something other than a response is a defect of
+      // the mapper. It is reported here, in one place, so that every adapter
+      // answers it the same way.
+      const settle = (mapped: RouteResult | EndpointReply): RouteResult => {
+        const result = normalise(mapped)
+        if (typeof result?.status !== 'number') {
+          return this.builtIn(
+            new Error(
+              `[Navios] The error mapper for ${errorName(error)} did not return a response. ` +
+                `Return reply(status, body), problem(status, detail) or a RouteResult.`,
+            ),
+            ctx,
+            config,
+          )
         }
-        return normalise(mapped)
+        return result
+      }
+      try {
+        const mapped = adopt(mapper(error, ctx!))
+        if (mapped instanceof Promise) {
+          return mapped.then(settle, (mapperError) => this.builtIn(mapperError, ctx, config))
+        }
+        return settle(mapped)
       } catch (mapperError) {
         return this.builtIn(mapperError, ctx, config)
       }
@@ -110,7 +136,7 @@ export class ErrorPipeline {
         Object.hasOwn(config.errorSchema, statusCode)
       ) {
         if (this.options.checkDeclaredErrors) {
-          const checked = config.errorSchema[statusCode]['~standard'].validate(response)
+          const checked = adopt(config.errorSchema[statusCode]['~standard'].validate(response))
           if (checked instanceof Promise) {
             checked.catch(() => {})
           } else if (checked.issues) {
@@ -137,12 +163,22 @@ export class ErrorPipeline {
     if (error instanceof ValidationError && error.source !== 'response') {
       return this.options.validation.getResponse(error)
     }
+    return this.internal(error, ctx)
+  }
+
+  private internal(error: unknown, ctx: RequestContext | null): RouteResult {
     this.options.onUnhandled(error, ctx)
     return this.options.internal.getResponse(
       error,
       this.options.exposeErrorDetails && error instanceof Error ? error.message : undefined,
     )
   }
+}
+
+function errorName(error: unknown): string {
+  return error !== null && typeof error === 'object'
+    ? (error.constructor?.name ?? 'an error')
+    : typeof error
 }
 
 function normalise(mapped: RouteResult | EndpointReply): RouteResult {

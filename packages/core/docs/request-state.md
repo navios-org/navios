@@ -86,7 +86,25 @@ Rules:
 - `ctx.find(X)` computes a request value exactly as `ctx.get(X)` does. `ctx.has(X)` does not compute it.
 - A request value may read other slots with `ctx.get(...)`.
 - When `resolve` throws synchronously nothing is stored, and the next read calls it again. When it returns a promise that rejects, the rejected promise is stored and every reader in that request gets the same rejection.
-- The class needs a constructor without parameters. Its instance is fetched synchronously on first read, so neither it nor its dependencies may have an asynchronous `onServiceInit` that is still pending at that point.
+- The class needs a constructor without parameters. It is built on first read unless a module lists it; see [Building a value at boot](#building-a-value-at-boot).
+- A `resolve` that returns a thenable of another kind (a query builder, for example) counts as asynchronous: it is stored as a promise, so it runs once per request.
+
+### Building a value at boot
+
+A request value whose class, or a service behind it, has an asynchronous `onServiceInit` cannot be built in the middle of a synchronous read. List it in a module, and it is built while the application initialises:
+
+```ts
+@Module({
+  controllers: [UsersController],
+  guards: [AuthGuard],
+  requestValues: [CurrentSession],
+})
+export class AppModule {}
+```
+
+Listing a value is also how an error in its construction, such as an injected request-scoped service, becomes an error of `init()`.
+
+A value that no module lists still works when everything behind it is ready by the time it is first read, or when its `resolve` is declared `async`: the promise it returns then waits for the class as well. Otherwise the read throws an error that names the module option. `resolve` functions that return a promise without being `async` cannot be told from synchronous ones beforehand, so list those.
 
 ### Releasing a value
 
@@ -109,10 +127,12 @@ export class Transaction {
 
 `dispose` receives the awaited value. It is not called for a value placed with `ctx.set`. An error thrown by `dispose` is swallowed so that the other hooks still run; log inside the hook if you need to know about it.
 
+After the response has finished, for example in a stream that is still running when its client has gone, a value with a `dispose` hook can no longer be computed; the read throws.
+
 ### Limitations
 
 - A cycle between request values is detected, and reported with its path (`Circular request values: A -> B -> A`), only when the values read each other synchronously inside `resolve`. Two asynchronous values that each `await` the other before returning are not detected; the request waits forever.
-- `@RequestValue` classes are found by being used. There is no list of them to validate at `init()`.
+- A request value that no module lists is found by being used, so it is not validated at `init()`.
 
 Without decorator syntax, register a class with `registerRequestValue(TheClass)`.
 
@@ -149,7 +169,7 @@ save = handler(saveOrder, async ({ data }, ctx) => {
 ```
 
 - `ctx.use(Token)` resolves synchronously. It throws when the service or one of its dependencies has an asynchronous `onServiceInit`; use `await ctx.resolve(Token)` for those.
-- The first `ctx.use()` or `ctx.resolve()` of a request creates the DI scope. A request that never calls them has no scope. The scope is disposed after the response, which runs `onServiceDestroy`.
+- The first `ctx.use()` or `ctx.resolve()` of a request creates the DI scope. A request that never calls them has no scope. The scope is disposed after the response, which runs `onServiceDestroy`. A stream may use request-scoped services while it is being sent; once the response has finished, `ctx.use()` and `ctx.resolve()` throw instead of creating a scope that nothing would dispose.
 - Inside a request-scoped service, `inject(RequestContextToken)` gives the `RequestContext`.
 
 ### Why this is the last resort

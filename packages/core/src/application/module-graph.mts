@@ -2,6 +2,8 @@ import type { ClassType, Provider } from '@navios/di'
 
 import { getModuleMetadata } from '../metadata/metadata.mjs'
 
+import type { RequestValueClass } from '../context/context-key.mjs'
+
 /**
  * A module as it applies to one application: its prefix with every importer's
  * prefix in front, and its guards, interceptors and attributes together with
@@ -15,6 +17,7 @@ export interface ModuleNode {
   interceptors: ClassType[]
   attributes: Map<symbol, unknown>
   providers: Provider[]
+  requestValues: RequestValueClass[]
 }
 
 function joinPaths(...parts: string[]): string {
@@ -84,6 +87,7 @@ export function buildModuleGraph(roots: ClassType[], globalPrefix: string): Modu
         interceptors: [],
         attributes: new Map(),
         providers: metadata.providers,
+        requestValues: metadata.requestValues,
       }
       nodes.set(module, node)
     } else if (node.prefix !== prefix && metadata.controllers.length > 0) {

@@ -1,5 +1,6 @@
 import type { ClassType, Provider } from '@navios/di'
 
+import type { RequestValueClass } from '../context/context-key.mjs'
 import type { RouteEndpointConfig } from '../routing/types.mjs'
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -36,6 +37,7 @@ export interface ModuleMetadata {
   guards: ClassType[]
   interceptors: ClassType[]
   providers: Provider[]
+  requestValues: RequestValueClass[]
   attributes: Map<symbol, unknown>
 }
 
@@ -168,6 +170,7 @@ export function defineModuleMetadata(
     guards?: Iterable<ClassType>
     interceptors?: Iterable<ClassType>
     providers?: Iterable<Provider>
+    requestValues?: Iterable<RequestValueClass>
   },
 ): ModuleMetadata {
   const module: ModuleMetadata = {
@@ -177,6 +180,7 @@ export function defineModuleMetadata(
     guards: prepend(classGuards(context), options.guards),
     interceptors: prepend(classInterceptors(context), options.interceptors),
     providers: [...(options.providers ?? [])],
+    requestValues: [...(options.requestValues ?? [])],
     attributes: classAttributes(context),
   }
   Object.defineProperty(target, ModuleMetadataKey, {

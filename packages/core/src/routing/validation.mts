@@ -1,5 +1,7 @@
 import type { StandardSchemaIssue, StandardSchemaV1 } from '@navios/di'
 
+import { adopt } from './promises.mjs'
+
 export type ValidationSource = 'urlParams' | 'query' | 'headers' | 'cookies' | 'body' | 'response'
 
 /**
@@ -44,7 +46,7 @@ export function validateSchema(
   value: unknown,
   source: ValidationSource,
 ): unknown | Promise<unknown> {
-  const result = schema['~standard'].validate(value)
+  const result = adopt(schema['~standard'].validate(value))
   if (result instanceof Promise) {
     return result.then((settled) => {
       if (settled.issues) {

@@ -206,12 +206,14 @@ function toResponse(result: RouteResult, request: Request): Response {
       void pending()
     }
   }
-  if (release !== null) {
-    request.signal.addEventListener('abort', done, { once: true })
-  }
 
   let body: any = null
-  if (result.kind !== 'empty' && result.body !== undefined && result.body !== null) {
+  // `null` is a JSON value; for any other kind it means that there is no body.
+  if (
+    result.kind !== 'empty' &&
+    result.body !== undefined &&
+    (result.body !== null || result.kind === 'json')
+  ) {
     if (!headers.has('content-type')) {
       const type = DEFAULT_CONTENT_TYPES[result.kind]
       if (type !== undefined) {
@@ -233,6 +235,11 @@ function toResponse(result: RouteResult, request: Request): Response {
         status: result.status,
         headers,
       })
+      if (request.signal.aborted) {
+        done()
+      } else if (release !== null) {
+        request.signal.addEventListener('abort', done, { once: true })
+      }
       return response
     } else {
       body = value
@@ -311,17 +318,39 @@ export class BunAdapter implements HttpAdapter<BunEnvironment> {
       const cors = this.options.cors
       return cors ? applyCorsToResponse(response, request.headers.get('origin'), cors) : response
     }
+    // The executor maps the errors of a request itself. What is left are
+    // results that cannot be written and defects of the pipeline's
+    // extensions; neither may reach Bun, which would answer with its own
+    // error page.
+    const respond = (result: RouteResult): Response | Promise<Response> => {
+      let response: Response
+      try {
+        response = toResponse(result, request)
+      } catch (error) {
+        void result.release?.()
+        response = this.failure(error, request)
+      }
+      return finish(response)
+    }
+    const fail = (error: unknown): Response | Promise<Response> =>
+      finish(this.failure(error, request))
+
     let result: RouteResult | Promise<RouteResult>
     try {
       result = execute(input)
     } catch (error) {
-      // The executor maps every error itself; this is a last line of defence.
-      this.context.logger.error('Unexpected adapter error', error)
-      return finish(new Response(null, { status: 500 }))
+      return fail(error)
     }
-    return result instanceof Promise
-      ? result.then((value) => finish(toResponse(value, request)))
-      : finish(toResponse(result, request))
+    return result instanceof Promise ? result.then(respond, fail) : respond(result)
+  }
+
+  private failure(error: unknown, request: Request): Response {
+    try {
+      return toResponse(this.context.errors.unexpected(error), request)
+    } catch (responderError) {
+      this.context.logger.error('The error response could not be written', responderError)
+      return new Response(null, { status: 500 })
+    }
   }
 
   register(route: CompiledRoute): void {

@@ -78,11 +78,13 @@ export type ContextKey<T = any> = PlainContextKey<T> | RequestValueClass<T>
 
 /**
  * The type `ctx.get(key)` returns: the key's type, or whatever the request
- * value's `resolve` returns (a promise when `resolve` is asynchronous).
+ * value's `resolve` returns (a promise when `resolve` returns a thenable).
  */
 export type ContextValue<K> =
   K extends PlainContextKey<infer T>
     ? T
     : K extends new () => { resolve(ctx: any): infer R }
-      ? R
+      ? ResolvedValue<R>
       : never
+
+type ResolvedValue<R> = R extends Promise<any> ? R : R extends PromiseLike<infer T> ? Promise<T> : R

@@ -24,12 +24,13 @@ The adapter is rewritten on the `@navios/core` 2.0 adapter contract. It no longe
 - **Taking over the response**: when a handler has sent the response through `ctx.raw.reply`, the adapter writes nothing.
 - **`app.inject()`** through `fastify.inject()`.
 - **`ctx.signal`** aborts when the client disconnects before the response is complete.
-- The `@navios/core/conformance` suite runs against the adapter over real HTTP (13 tests).
+- The `@navios/core/conformance` suite runs against the adapter over real HTTP.
 - An HTTP benchmark against raw Fastify: `yarn bench`.
 - Serves `response: 'void'` endpoints (204, no body) and per-status `responses` endpoints.
 
 ### Changed
 
+- **Closing does not wait for keep-alive connections.** Responses sent while the server closes carry `connection: close`, and connections that become idle, or that never sent a request, are dropped.
 - **Guards run before the body is parsed and validated.** JSON bodies are collected as text and parsed when the pipeline asks for the body. `bodyLimit` still applies.
 - A malformed JSON body is a 400 problem response with `source: 'body'`.
 - Errors raised by Fastify itself (for example 413 and 415) are answered as `application/problem+json`.

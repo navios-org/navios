@@ -41,6 +41,7 @@ The resolution engine was rewritten. See the [migration guide](./docs/migration.
 - **Sync-first resolution**: `inject()` builds a missing dependency immediately, inside the constructor that asked for it, and returns the real instance. A service whose dependencies initialise synchronously is built without awaiting anything.
 - `inject()` of a transient returns a fresh instance for each call. `asyncInject()` is needed only to break a circular dependency.
 - A constructor runs once. It runs a second time only on the first build of a class, when a dependency has an asynchronous `onServiceInit()` that has not finished.
+- A factory (`provide(token, { factory })`, or `create()` of a `@Factory` class) that calls `inject()` on a service whose asynchronous initialiser has not finished is stopped at that call and run again once the service is ready. Code before the call runs again; code after it runs once.
 - Conditional `inject()` calls are allowed; the "Wrong token order" error is gone.
 - Circular dependencies made of `inject()` calls are detected in production as well, with the path. Cycles between concurrently built services fail instead of hanging.
 - The value of a `FactoryInjectionToken` is computed once per root container.

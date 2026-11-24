@@ -24,7 +24,7 @@ The adapter is rewritten on the `@navios/core` 2.0 adapter contract. It no longe
 - **`serve` option** for extra `Bun.serve` options.
 - **`errorSchema` is honoured**: a declared error status is sent with its declared body.
 - **`app.inject()`** runs a request through the route handlers and CORS handling without a socket.
-- The `@navios/core/conformance` suite runs against the adapter over real HTTP under `bun test` (13 tests), plus 2 CORS tests.
+- The `@navios/core/conformance` suite runs against the adapter over real HTTP under `bun test`.
 - Serves `response: 'void'` endpoints (204, no body) and per-status `responses` endpoints.
 
 ### Changed
@@ -32,6 +32,7 @@ The adapter is rewritten on the `@navios/core` 2.0 adapter contract. It no longe
 - **CORS headers are applied once per response** in the adapter, including error and not-found responses, instead of in each handler branch.
 - `close()` waits for in-flight requests up to the application's `shutdownTimeout`, then stops the server forcibly.
 - A malformed JSON body is a 400 problem response with `source: 'body'`.
+- A result that cannot be written, such as a body `JSON.stringify` rejects, is a 500 problem response.
 - Multipart bodies need no option. Fields and files are collected into one object and validated against `requestSchema`.
 - A request scope is released when the response body has been sent, at the end of a stream, or when the client disconnects.
 

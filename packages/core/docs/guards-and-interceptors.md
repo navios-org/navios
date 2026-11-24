@@ -42,8 +42,8 @@ export class AuthGuard implements Guard {
 ```
 
 - `canActivate(ctx)` returns `boolean` or `Promise<boolean>`. A synchronous guard adds no promise to the request.
-- Returning `false` answers 403 through the Forbidden responder. Throw an `HttpException` for any other status.
-- A guard reads the request through `ctx`: `ctx.headers`, `ctx.cookies`, `ctx.route` and [attributes](./attributes.md). It does not see the validated query or body, because those are validated after guards.
+- Only `true` lets the request through. `false`, or any other value, answers 403 through the Forbidden responder. Throw an `HttpException` for any other status.
+- A guard reads the request through `ctx`: `ctx.urlParams`, `ctx.query`, `ctx.headers`, `ctx.cookies`, `ctx.route` and [attributes](./attributes.md). URL parameters and query are raw strings there, because validation comes after guards, and the body has not been read yet.
 - A guard may set response headers and cookies with `ctx.reply`, for example rate-limit headers.
 - A guard passes data to later guards and to the handler with a [context key](./request-state.md#context-keys).
 

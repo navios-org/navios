@@ -55,6 +55,10 @@ export const s = {
     schema<T | undefined>((value, path) =>
       value === undefined ? { value: undefined } : inner.check(value, path),
     ),
+  nullable: <T,>(inner: Checked<T>): Checked<T | null> =>
+    schema<T | null>((value, path) =>
+      value === null ? { value: null } : inner.check(value, path),
+    ),
   array: <T,>(inner: Checked<T>): Checked<T[]> =>
     schema<T[]>((value, path) => {
       if (!Array.isArray(value)) {

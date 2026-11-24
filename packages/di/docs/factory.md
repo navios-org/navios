@@ -146,6 +146,8 @@ registerFactory(ClockFactory)
 
 ## Dependencies
 
+`inject()` works in `create()` and in factory functions as well, up to their first `await`. When the injected service has an asynchronous `onServiceInit` that has not finished, the factory is stopped at that call and runs again once the service is ready, so inject first and do work with side effects afterwards.
+
 A factory class can inject dependencies in field initialisers, like an injectable class:
 
 ```ts

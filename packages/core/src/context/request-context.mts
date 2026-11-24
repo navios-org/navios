@@ -1,6 +1,8 @@
-import { InjectableScope, InjectionToken } from '@navios/di'
+import { DIError, DIErrorCode, InjectableScope, InjectionToken } from '@navios/di'
 
 import type { AnyInjectableType, Container, ScopedContainer } from '@navios/di'
+
+import { adopt } from '../routing/promises.mjs'
 
 import type { CookieOptions, RouteInfo, RouteInput, SetCookie } from '../routing/types.mjs'
 
@@ -57,6 +59,9 @@ export interface RequestHeaders {
   toWebHeaders(): Headers
 }
 
+/** The parsed query string: a repeated parameter is an array. */
+export type RequestQuery = Readonly<Record<string, string | string[] | undefined>>
+
 export interface RequestCookies {
   get(name: string): string | undefined
   all(): Readonly<Record<string, string>>
@@ -96,6 +101,8 @@ export class RequestContext<Env extends AdapterEnvironment = RegisteredEnvironme
   private headersView: RequestHeaders | null = null
   private cookiesView: RequestCookies | null = null
   private replyView: ReplyControls | null = null
+  private parsedQuery: RequestQuery | null = null
+  private released = false
   private finishers: Array<() => void | Promise<void>> | null = null
   /**
    * The status of the response, once it is known: after the handler, response
@@ -126,6 +133,23 @@ export class RequestContext<Env extends AdapterEnvironment = RegisteredEnvironme
 
   get path(): string {
     return this.input.path
+  }
+
+  /**
+   * The URL params of the whole path, module and global prefixes included, as
+   * decoded strings. Not validated: guards run before validation. A handler
+   * gets the validated params in its first argument.
+   */
+  get urlParams(): Readonly<Record<string, string>> {
+    return this.input.urlParams
+  }
+
+  /**
+   * The parsed query string, not validated. A handler gets the validated
+   * query in its first argument.
+   */
+  get query(): RequestQuery {
+    return (this.parsedQuery ??= (this.input.query() ?? {}) as RequestQuery)
   }
 
   /** Aborts when the client disconnects. */
@@ -264,11 +288,22 @@ export class RequestContext<Env extends AdapterEnvironment = RegisteredEnvironme
         .join(' -> ')
       throw new Error(`[Navios] Circular request values: ${path}`)
     }
-    const provider = this.host.container.getSync(key) as RequestValueProvider<unknown>
+    let provider: RequestValueProvider<unknown>
+    try {
+      provider = this.host.container.getSync(key) as RequestValueProvider<unknown>
+    } catch (error) {
+      if (!(error instanceof DIError) || error.code !== DIErrorCode.AsyncInitRequired) {
+        throw error
+      }
+      return this.computeLater(key, error)
+    }
+    this.assertNotReleased(key, provider)
     resolving.push(key)
     let value: unknown
     try {
-      value = provider.resolve(this as unknown as RequestContext)
+      // A lazy thenable (a query builder) would run again for every reader
+      // that awaits it; as a promise it runs once.
+      value = adopt(provider.resolve(this as unknown as RequestContext))
     } finally {
       resolving.pop()
     }
@@ -279,6 +314,44 @@ export class RequestContext<Env extends AdapterEnvironment = RegisteredEnvironme
     return value
   }
 
+  /**
+   * Computes a request value whose class is still waiting for an asynchronous
+   * initialiser of a dependency. Only a value that is known to be a promise
+   * can be handed out as one: for any other, the reader would take the
+   * promise for the value itself.
+   */
+  private computeLater(key: RequestValueClass, cause: DIError): unknown {
+    if (Object.prototype.toString.call(key.prototype?.resolve) !== '[object AsyncFunction]') {
+      throw new Error(
+        `[Navios] Request value ${key.name} was read before a dependency with an asynchronous ` +
+          `initialiser was ready. Have it built while the application initialises: list it in a ` +
+          `module, @Module({ requestValues: [${key.name}] }).`,
+        { cause },
+      )
+    }
+    const value = (this.host.container.get(key) as Promise<RequestValueProvider<unknown>>).then(
+      (provider) => {
+        this.assertNotReleased(key, provider)
+        const resolved = provider.resolve(this as unknown as RequestContext)
+        if (typeof provider.dispose === 'function') {
+          ;(this.disposers ??= []).push([provider, resolved])
+        }
+        return resolved
+      },
+    )
+    ;(this.slots ??= new Map()).set(key, value)
+    return value
+  }
+
+  private assertNotReleased(key: RequestValueClass, provider: RequestValueProvider<unknown>): void {
+    if (this.released && typeof provider.dispose === 'function') {
+      throw new Error(
+        `[Navios] Request value ${key.name} cannot be computed: the response has finished, so ` +
+          `nothing would dispose it.`,
+      )
+    }
+  }
+
   // --------------------------------------------------------------------------
   // Request-scoped services
   // --------------------------------------------------------------------------
@@ -287,6 +360,12 @@ export class RequestContext<Env extends AdapterEnvironment = RegisteredEnvironme
   scopeFor(token: AnyInjectableType): ScopedContainer {
     this.host.onScopedUse?.(token)
     if (this.scope === null) {
+      if (this.released) {
+        throw new Error(
+          '[Navios] Request-scoped services cannot be used: the response has finished, so nothing ' +
+            'would dispose them.',
+        )
+      }
       this.scope = this.host.container.createScope()
       this.scope.addInstance(RequestContextToken, this as unknown as RequestContext)
     }
@@ -315,9 +394,14 @@ export class RequestContext<Env extends AdapterEnvironment = RegisteredEnvironme
    * sent, a stream has ended, or the client has gone away. Callbacks run in
    * reverse registration order, before request values and the DI scope are
    * disposed. An interceptor uses this to end a span or record a duration
-   * with the final `responseStatus`.
+   * with the final `responseStatus`. A callback registered after the response
+   * has finished runs at once.
    */
   onFinish(callback: () => void | Promise<void>): void {
+    if (this.released) {
+      void runQuietly(callback)
+      return
+    }
     ;(this.finishers ??= []).push(callback)
   }
 
@@ -343,11 +427,7 @@ export class RequestContext<Env extends AdapterEnvironment = RegisteredEnvironme
     this.finishers = null
     if (finishers !== null) {
       for (let i = finishers.length - 1; i >= 0; i--) {
-        try {
-          await finishers[i]()
-        } catch {
-          // A failing callback must not stop the others.
-        }
+        await runQuietly(finishers[i])
       }
     }
     const disposers = this.disposers
@@ -364,9 +444,19 @@ export class RequestContext<Env extends AdapterEnvironment = RegisteredEnvironme
     }
     const scope = this.scope
     this.scope = null
+    this.released = true
     if (scope !== null) {
       await scope.dispose()
     }
+  }
+}
+
+/** Runs a callback whose failure must not stop what follows. */
+async function runQuietly(callback: () => void | Promise<void>): Promise<void> {
+  try {
+    await callback()
+  } catch {
+    // Nothing to report it to: the response is gone.
   }
 }
 

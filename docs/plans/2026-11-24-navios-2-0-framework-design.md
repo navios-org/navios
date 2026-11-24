@@ -320,6 +320,8 @@ interface RequestContext<Env extends AdapterEnvironment = RegisteredEnvironment>
   readonly id: string
   readonly method: HttpMethod
   readonly path: string
+  readonly urlParams: Readonly<Record<string, string>> // whole path, not validated
+  readonly query: RequestQuery // parsed, not validated; lazy
   readonly headers: RequestHeaders // get(name), toWebHeaders(); lazy
   readonly cookies: RequestCookies // get(name); lazy
   readonly signal: AbortSignal // aborts when the client disconnects
@@ -442,7 +444,8 @@ export class CurrentSession {
 - A provider may implement `dispose(value, ctx)`, called when the response
   finishes, in reverse resolution order. That covers a transaction or a unit
   of work.
-- Providers are ordinary singletons: constructed once at boot, free to
+- Providers are ordinary singletons: constructed once, at boot when a module
+  lists them in `requestValues` and on first read otherwise, free to
   `inject()` other singletons. No scope, no plan, no per-request
   construction. The per-request cost is one `Map` entry per slot actually
   read.

@@ -12,7 +12,7 @@ The request pipeline, the application class and the adapter contract are rewritt
 ### Breaking
 
 - **Controllers are singletons.** A controller that injects a request-scoped service fails at `init()` with a scope mismatch. Per-request data comes from the `RequestContext` passed to each handler.
-- **Guards receive a `RequestContext`** instead of `AbstractExecutionContext`: `canActivate(ctx)`. Guards are singletons, and they run before the request is validated and before the body is read.
+- **Guards receive a `RequestContext`** instead of `AbstractExecutionContext`: `canActivate(ctx)`. Guards are singletons, and they run before the request is validated and before the body is read. Only `true` lets a request through; 1.x accepted any truthy value.
 - **Every error response is `application/problem+json`** unless the endpoint declares a body for that status in `errorSchema`. This changes the body of `HttpException` responses, validation errors (now `source` and `errors: [{ path, message }]`) and not-found responses.
 - **The message of an unexpected error is no longer sent to the client.** The response is a generic 500 problem. Opt in with `exposeErrorDetails: true`.
 - **Status codes come from the declaration.** `@HttpCode` is removed; declare `responses: { 201: schema }` and return `reply(201, body)`. An endpoint declared with `responses` must return `reply()`.
@@ -28,10 +28,10 @@ The request pipeline, the application class and the adapter contract are rewritt
 ### Added
 
 - **`handler()` field form.** `getUser = handler(getUser, ({ urlParams }, ctx) => ...)` defines a handler as a class field with parameters and return type inferred from the declaration. An options object carries `guards`, `interceptors` and `attributes`.
-- **`RequestContext`**, passed to guards, interceptors and handlers: `id`, `method`, `path`, `route`, `headers`, `cookies`, `signal`, `reply.header()`, `reply.cookie()` and `raw`.
+- **`RequestContext`**, passed to guards, interceptors and handlers: `id`, `method`, `path`, `urlParams`, `query`, `route`, `headers`, `cookies`, `signal`, `reply.header()`, `reply.cookie()`, `onFinish()` and `raw`.
 - **`Register` declaration** that types `ctx.raw` and `app.getServer()` for the application's adapter.
 - **Context keys**: `createContextKey<T>(name)` with `ctx.set`, `ctx.get`, `ctx.find` and `ctx.has`, a typed way for a guard to hand data to a handler.
-- **Request values**: `@RequestValue()` classes whose `resolve(ctx)` computes a value at most once per request on first `ctx.get()`, with an optional `dispose(value, ctx)`.
+- **Request values**: `@RequestValue()` classes whose `resolve(ctx)` computes a value at most once per request on first `ctx.get()`, with an optional `dispose(value, ctx)`. `@Module({ requestValues })` builds them while the application initialises.
 - **`ctx.use(Token)` and `ctx.resolve(Token)`** for request-scoped services. The DI scope is created on first use, so requests that do not use one have no scope. `RequestContextToken` gives the context inside such a service.
 - **`requestScopedServices: 'allow' | 'warn' | 'forbid'`** application option.
 - **Interceptors**: `Interceptor.intercept(ctx, next)`, attached with `app.intercept()`, `@Module({ interceptors })`, `@Controller({ interceptors })`, `@UseInterceptors()` or `handler()` options.
@@ -40,7 +40,7 @@ The request pipeline, the application class and the adapter contract are rewritt
 - **`TooManyRequestsException` (429) and `UnprocessableEntityException` (422).** `HttpException` now extends `Error` and accepts a `cause`.
 - **`problem()`**, `ValidationError` and the replaceable responders `NotFoundResponderToken`, `ForbiddenResponderToken`, `ValidationErrorResponderToken` and `InternalServerErrorResponderToken`.
 - **Server-sent events**: `sseStream(source)` answers a `response: 'stream'` endpoint with `text/event-stream`; `sse(event, payload)` creates a typed, validated event from an event declaration.
-- **Module `prefix`**, composed through imports after the application's `globalPrefix`.
+- **Module `prefix`**, composed through imports after the application's `globalPrefix`. A prefix may have URL parameters.
 - **`app.routes()`** returns the compiled routes as `RouteInfo`; `ctx.route` is the same object. `AttributeFactory.get/getAll/has` read attributes from a `RouteInfo`, resolving handler, then controller, then module.
 - **Lifecycle**: `onApplicationBootstrap()` and `onApplicationShutdown(signal?)` on any singleton, `app.enableShutdownHooks()`, the `shutdownTimeout` option, and `await using` support.
 - **`app.inject(request)`** handles a request in process on any adapter.

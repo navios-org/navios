@@ -213,6 +213,52 @@ describe('handlers', () => {
     await expect(app.init()).rejects.toThrow('bad config')
   })
 
+  it('keeps failing after a failed init instead of serving no routes', async () => {
+    @Controller()
+    class Broken {
+      constructor() {
+        throw new Error('bad config')
+      }
+      ping = handler(ping, () => ({ ok: true }))
+    }
+
+    @Module({ controllers: [Broken] })
+    class AppModule {}
+
+    const app = await createApp(AppModule)
+    await expect(app.init()).rejects.toThrow('bad config')
+    await expect(app.init()).rejects.toThrow('bad config')
+    await expect(app.inject({ method: 'GET', url: '/ping' })).rejects.toThrow('bad config')
+  })
+
+  it('initialises once when the first calls are concurrent', async () => {
+    let setups = 0
+    const counting = definePlugin({
+      name: 'counting',
+      async setup() {
+        await Promise.resolve()
+        setups++
+      },
+    })
+
+    @Controller()
+    class Ctl {
+      ping = handler(ping, () => ({ ok: true }))
+    }
+
+    @Module({ controllers: [Ctl] })
+    class AppModule {}
+
+    const app = await createApp(AppModule, { plugins: [counting(undefined)] })
+    const responses = await Promise.all([
+      app.inject({ method: 'GET', url: '/ping' }),
+      app.inject({ method: 'GET', url: '/ping' }),
+      app.init().then(() => app.inject({ method: 'GET', url: '/ping' })),
+    ])
+    expect(responses.map((response) => response.status)).toEqual([200, 200, 200])
+    expect(setups).toBe(1)
+  })
+
   it('fails init when a controller injects a request-scoped service', async () => {
     @Injectable({ scope: InjectableScope.Request })
     class PerRequest {}
@@ -534,6 +580,215 @@ describe('modules', () => {
     const app = await createApp(Root)
     expect((await createTestClient(app)(greet)).body).toEqual({ text: 'hello' })
     expect(order).toEqual(['child', 'root'])
+  })
+})
+
+describe('request values with asynchronous dependencies', () => {
+  @Injectable()
+  class SessionStore {
+    ready = false
+    async onServiceInit() {
+      await new Promise((resolve) => setTimeout(resolve, 1))
+      this.ready = true
+    }
+  }
+
+  it('serves the first request when a module lists the request value', async () => {
+    @RequestValue()
+    class CurrentName {
+      private readonly store = inject(SessionStore)
+      resolve() {
+        return this.store.ready ? 'ann' : 'not ready'
+      }
+    }
+
+    @Controller()
+    class Ctl {
+      me = handler(me, (_params, ctx) => ({ name: ctx.get(CurrentName) }))
+    }
+
+    @Module({ controllers: [Ctl], requestValues: [CurrentName] })
+    class AppModule {}
+
+    const app = await createApp(AppModule)
+    const response = await createTestClient(app)(me)
+    expect(response.status).toBe(200)
+    expect(response.body).toEqual({ name: 'ann' })
+  })
+
+  it('serves the first request when an unlisted request value has an async resolve', async () => {
+    let runs = 0
+    let disposed = 0
+
+    @RequestValue()
+    class CurrentName {
+      private readonly store = inject(SessionStore)
+      async resolve() {
+        runs++
+        return this.store.ready ? 'ann' : 'not ready'
+      }
+      dispose() {
+        disposed++
+      }
+    }
+
+    @Controller()
+    class Ctl {
+      me = handler(me, async (_params, ctx) => {
+        const [first, second] = await Promise.all([ctx.get(CurrentName), ctx.get(CurrentName)])
+        return { name: first === second ? first : 'different' }
+      })
+    }
+
+    @Module({ controllers: [Ctl] })
+    class AppModule {}
+
+    const app = await createApp(AppModule)
+    const response = await createTestClient(app)(me)
+    expect(response.status).toBe(200)
+    expect(response.body).toEqual({ name: 'ann' })
+    expect(runs).toBe(1)
+    expect(disposed).toBe(1)
+  })
+
+  it('names the fix when an unlisted synchronous request value is not ready', async () => {
+    const errors: unknown[] = []
+
+    @RequestValue()
+    class CurrentName {
+      private readonly store = inject(SessionStore)
+      resolve() {
+        return String(this.store.ready)
+      }
+    }
+
+    @Controller()
+    class Ctl {
+      me = handler(me, (_params, ctx) => ({ name: ctx.get(CurrentName) }))
+    }
+
+    @Module({ controllers: [Ctl] })
+    class AppModule {}
+
+    const logger = {
+      log() {},
+      warn() {},
+      debug() {},
+      error: (...args: unknown[]) => errors.push(...args),
+    }
+    const app = await createApp(AppModule, { logger: logger as never })
+    expect((await createTestClient(app)(me)).status).toBe(500)
+    expect(errors.map(String).join(' ')).toContain('requestValues: [CurrentName]')
+  })
+
+  it('fails init when a listed request value reaches a request-scoped service', async () => {
+    @Injectable({ scope: InjectableScope.Request })
+    class PerRequest {}
+
+    @RequestValue()
+    class Wrong {
+      dep = inject(PerRequest)
+      resolve() {
+        return 1
+      }
+    }
+
+    @Module({ requestValues: [Wrong] })
+    class AppModule {}
+
+    const app = await createApp(AppModule)
+    await expect(app.init()).rejects.toThrow(/Wrong -> PerRequest/)
+  })
+
+  it('fails init when a module lists a class that is not a request value', async () => {
+    @Injectable()
+    class Plain {}
+
+    @Module({ requestValues: [Plain as never] })
+    class AppModule {}
+
+    const app = await createApp(AppModule)
+    await expect(app.init()).rejects.toThrow('Plain is not a request value')
+  })
+})
+
+describe('module prefixes with url params', () => {
+  it('passes prefix params to the handler and to guards', async () => {
+    const members = api.declareEndpoint({
+      method: 'GET',
+      url: '/members',
+      responseSchema: z.object({ handler: z.any(), guard: z.any() }),
+    })
+    let seen: unknown
+
+    @Injectable()
+    class OrgGuard implements Guard {
+      canActivate(ctx: RequestContext) {
+        seen = ctx.urlParams.orgId
+        return true
+      }
+    }
+
+    @Controller()
+    class Ctl {
+      members = handler(members, (params, ctx) => ({
+        handler: (params as { urlParams?: unknown }).urlParams,
+        guard: ctx.urlParams,
+      }))
+    }
+
+    @Module({ prefix: '/orgs/$orgId', controllers: [Ctl], guards: [OrgGuard] })
+    class AppModule {}
+
+    const app = await createApp(AppModule)
+    const response = await app.inject({ method: 'GET', url: '/orgs/7/members' })
+    expect(response.body).toEqual({ handler: { orgId: '7' }, guard: { orgId: '7' } })
+    expect(seen).toBe('7')
+  })
+})
+
+describe('in-memory adapter', () => {
+  it('sends a JSON null as a body', async () => {
+    const nullable = api.declareEndpoint({
+      method: 'GET',
+      url: '/nullable',
+      responseSchema: userSchema.nullable(),
+    })
+
+    @Controller()
+    class Ctl {
+      nullable = handler(nullable, () => null)
+    }
+
+    @Module({ controllers: [Ctl] })
+    class AppModule {}
+
+    const app = await createApp(AppModule)
+    const response = await app.inject({ method: 'GET', url: '/nullable' })
+    expect(response.text).toBe('null')
+    expect(response.headers['content-type']).toContain('application/json')
+    expect(response.body).toBeNull()
+  })
+
+  it('answers 500 when a body cannot be serialised', async () => {
+    const unserialisable = api.declareEndpoint({
+      method: 'GET',
+      url: '/unserialisable',
+      responseSchema: z.any(),
+    })
+
+    @Controller()
+    class Ctl {
+      unserialisable = handler(unserialisable, () => ({ count: 1n }))
+    }
+
+    @Module({ controllers: [Ctl] })
+    class AppModule {}
+
+    const app = await createApp(AppModule)
+    const response = await app.inject({ method: 'GET', url: '/unserialisable' })
+    expect(response.status).toBe(500)
+    expect(response.headers['content-type']).toContain('application/problem+json')
   })
 })
 

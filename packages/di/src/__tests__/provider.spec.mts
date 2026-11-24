@@ -1,9 +1,11 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import {
   Container,
   DIErrorCode,
+  Factory,
   getInjectableToken,
+  inject,
   Injectable,
   InjectableScope,
   InjectionToken,
@@ -206,5 +208,134 @@ describe('tokens and providers', () => {
     )
     container.addInstance(InjectionToken.bound(Token, { n: 1 }), { n: 1 })
     expect(container.tryGetSync(Token, { n: 1 })).toEqual({ n: 1 })
+  })
+})
+
+describe('factories that inject a service with an asynchronous initialiser', () => {
+  let container: Container
+  const unhandled: unknown[] = []
+  const record = (reason: unknown) => unhandled.push(reason)
+
+  beforeEach(() => {
+    unhandled.length = 0
+    process.on('unhandledRejection', record)
+  })
+
+  afterEach(async () => {
+    // Unhandled rejections are reported after the microtask queue has drained.
+    await new Promise((resolve) => setTimeout(resolve, 5))
+    process.off('unhandledRejection', record)
+    expect(unhandled).toEqual([])
+    await container.dispose()
+  })
+
+  function database() {
+    @Injectable()
+    class Database {
+      connected = false
+      async onServiceInit() {
+        await new Promise((resolve) => setTimeout(resolve, 1))
+        this.connected = true
+      }
+      query() {
+        return this.connected ? 'rows' : 'not connected'
+      }
+    }
+    return Database
+  }
+
+  it('runs an async factory function past inject() only once the service is ready', async () => {
+    const Database = database()
+    const Token = InjectionToken.create<{ rows: string }>('Token')
+    let pastInject = 0
+    container = new Container({
+      providers: [
+        provide(Token, {
+          factory: async () => {
+            const db = inject(Database)
+            pastInject++
+            return { rows: db.query() }
+          },
+        }),
+      ],
+    })
+    expect(await container.get(Token)).toEqual({ rows: 'rows' })
+    expect(pastInject).toBe(1)
+  })
+
+  it('resolves a synchronous factory function that uses the service at once', async () => {
+    const Database = database()
+    const Token = InjectionToken.create<{ rows: string }>('Token')
+    container = new Container({
+      providers: [provide(Token, { factory: () => ({ rows: inject(Database).query() }) })],
+    })
+    expect(await container.get(Token)).toEqual({ rows: 'rows' })
+  })
+
+  it('waits for several services one after the other', async () => {
+    const First = database()
+    const Second = database()
+    const Token = InjectionToken.create<string[]>('Token')
+    let pastInject = 0
+    container = new Container({
+      providers: [
+        provide(Token, {
+          factory: async () => {
+            const first = inject(First)
+            const second = inject(Second)
+            pastInject++
+            return [first.query(), second.query()]
+          },
+        }),
+      ],
+    })
+    expect(await container.get(Token)).toEqual(['rows', 'rows'])
+    expect(pastInject).toBe(1)
+  })
+
+  it('runs create() of a factory class past inject() only once the service is ready', async () => {
+    const Database = database()
+    let pastInject = 0
+
+    @Factory()
+    class RowsFactory {
+      async create() {
+        const db = inject(Database)
+        pastInject++
+        return { rows: db.query() }
+      }
+    }
+
+    container = new Container()
+    expect(await container.get(RowsFactory)).toEqual({ rows: 'rows' })
+    expect(pastInject).toBe(1)
+  })
+
+  it('still fails with the error of a factory that has nothing to wait for', async () => {
+    const Token = InjectionToken.create<string>('Token')
+    container = new Container({
+      providers: [
+        provide(Token, {
+          factory: () => {
+            throw new Error('broken factory')
+          },
+        }),
+      ],
+    })
+    await expect(container.get(Token)).rejects.toThrow('broken factory')
+  })
+
+  it('fails with the error of the service when the service cannot be initialised', async () => {
+    @Injectable()
+    class Broken {
+      async onServiceInit() {
+        throw new Error('no connection')
+      }
+    }
+    const Token = InjectionToken.create<unknown>('Token')
+    container = new Container({
+      providers: [provide(Token, { factory: async () => inject(Broken) })],
+    })
+    await expect(container.get(Token)).rejects.toThrow('no connection')
   })
 })

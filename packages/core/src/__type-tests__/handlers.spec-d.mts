@@ -110,8 +110,18 @@ describe('request context', () => {
       }
     }
 
+    @RequestValue()
+    class Row {
+      resolve(_ctx: RequestContext) {
+        return { then() {} } as unknown as PromiseLike<{ id: number }>
+      }
+    }
+
     // Type-level only: never called.
     const check = (ctx: RequestContext) => {
+      expectTypeOf(ctx.get(Row)).toEqualTypeOf<Promise<{ id: number }>>()
+      expectTypeOf(ctx.urlParams.id).toEqualTypeOf<string>()
+      expectTypeOf(ctx.query.page).toEqualTypeOf<string | string[] | undefined>()
       expectTypeOf(ctx.get(CurrentUser)).toEqualTypeOf<{ name: string }>()
       expectTypeOf(ctx.find(CurrentUser)).toEqualTypeOf<{ name: string } | undefined>()
       expectTypeOf(ctx.get(Session)).toEqualTypeOf<Promise<{ token: string } | null>>()

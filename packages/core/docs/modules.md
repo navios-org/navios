@@ -12,6 +12,7 @@ import { Module, provide } from '@navios/core'
   guards: [AuthGuard],
   interceptors: [TimingInterceptor],
   providers: [provide(UserStore, PgUserStore)],
+  requestValues: [CurrentUser],
 })
 export class UsersModule {}
 ```
@@ -31,6 +32,8 @@ class Root {}
 
 // With globalPrefix: 'v1' the route is GET /v1/api/t/deep
 ```
+
+A prefix may have URL parameters, for example `prefix: '/orgs/$orgId'`. They are in `ctx.urlParams` for guards, interceptors and handlers, and in the handler's `urlParams` next to the endpoint's own. The types of `urlParams` come from the endpoint alone and do not include them, so read them from `ctx.urlParams`.
 
 A module that has controllers and is reached under two different prefixes fails at `init()`, because its routes would exist twice. A module without controllers may be imported from anywhere.
 
@@ -56,6 +59,10 @@ class Root {}
 The effective lists are computed per application at `init()`. Nothing is written back to the classes, so two applications in one process that import the same module under different parents do not affect each other, and the result does not depend on the order in which files are imported.
 
 `@UseGuards` and `@UseInterceptors` above `@Module` add to the same lists.
+
+## `requestValues`
+
+[Request values](./request-state.md#building-a-value-at-boot) to build while the application initialises.
 
 ## `providers`
 

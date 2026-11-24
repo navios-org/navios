@@ -54,8 +54,9 @@ export interface RouteInput {
   header(name: string): string | undefined
   /** Every request header, for code that needs a web `Headers` object. */
   headers(): Headers
+  /** Decoded URL params of the whole path, prefixes included. */
   readonly urlParams: Record<string, string>
-  /** Parsed query string. */
+  /** Parsed query string. Called at most once per request. */
   query(): unknown
   /** Parsed request body. Not called before guards have passed. */
   body(): unknown | Promise<unknown>

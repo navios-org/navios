@@ -24,13 +24,15 @@ Most members are created on first access, so a request that does not read cookie
 | `ctx.method`                 | `string`                           |                                                                                                                  |
 | `ctx.path`                   | `string`                           | Without the query string.                                                                                        |
 | `ctx.route`                  | `RouteInfo`                        | Method, full path, the endpoint's `config`, module, controller, `handlerName`, guards, interceptors, attributes. |
+| `ctx.urlParams`              | `Readonly<Record<string, string>>` | Decoded URL parameters of the whole path, module and global prefixes included. Not validated.                    |
+| `ctx.query`                  | `RequestQuery`                     | The parsed query string; a repeated parameter is an array. Not validated. Parsed on first read.                  |
 | `ctx.headers.get(name)`      | `string \| undefined`              | Case-insensitive.                                                                                                |
 | `ctx.headers.toWebHeaders()` | `Headers`                          | All request headers as a web `Headers` object, built on first call. Useful for auth libraries that take one.     |
 | `ctx.cookies.get(name)`      | `string \| undefined`              | Parsed from the `cookie` header on first use. Values are URL-decoded.                                            |
 | `ctx.cookies.all()`          | `Readonly<Record<string, string>>` |                                                                                                                  |
 | `ctx.signal`                 | `AbortSignal`                      | Aborts when the client disconnects.                                                                              |
 
-The validated URL parameters, query and body are not on the context. They are the handler's first argument. Guards run before validation and so do not see them.
+`ctx.urlParams` and `ctx.query` are what the client sent, as strings. Guards run before validation, so these are what a guard reads. The validated URL parameters, query and body are the handler's first argument; the body is not on the context at all, because it is not read until guards have passed.
 
 ### The abort signal
 
@@ -75,7 +77,7 @@ export class TimingInterceptor implements Interceptor {
 }
 ```
 
-Callbacks run in reverse registration order, before request values and the DI scope are disposed. `ctx.responseStatus` is `undefined` until the response is known.
+Callbacks run in reverse registration order, before request values and the DI scope are disposed. A callback registered after the response has finished runs at once. `ctx.responseStatus` is `undefined` until the response is known.
 
 ## Per-request state
 

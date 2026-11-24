@@ -12,7 +12,13 @@ import {
   NotFoundResponder,
   ValidationErrorResponder,
 } from '../errors/index.mjs'
-import { compileRoute, reply, validateSchema, ValidationError } from '../routing/index.mjs'
+import {
+  compileRoute,
+  reply,
+  sseStream,
+  validateSchema,
+  ValidationError,
+} from '../routing/index.mjs'
 
 import type { RequestContext } from '../context/index.mjs'
 import type {
@@ -50,6 +56,8 @@ function setup(
     validateResponses?: boolean
     exposeErrorDetails?: boolean
     container?: Container
+    /** Full route path, when a prefix makes it differ from the endpoint's url. */
+    path?: string
   } = {},
 ) {
   const container = extra.container ?? new Container()
@@ -65,7 +73,7 @@ function setup(
   const endpoint: RouteEndpointConfig = { method: 'GET', url: '/test', ...config }
   const info: RouteInfo = {
     method: endpoint.method,
-    path: endpoint.url,
+    path: extra.path ?? endpoint.url,
     endpoint,
     module: null,
     controller: class TestController {},
@@ -289,10 +297,13 @@ describe('compileRoute', () => {
       kind: 'empty',
     })
     const stream = new ReadableStream()
+    // A stream may acquire request resources while it is sent, so it is always
+    // released.
     expect(setup({ response: 'stream' }, () => stream).execute(input())).toEqual({
       status: 200,
       body: stream,
       kind: 'stream',
+      release: expect.any(Function),
     })
   })
 
@@ -636,5 +647,320 @@ describe('compileRoute: custom result kinds', () => {
     const { execute, unhandled } = setup({ response: 'text' }, () => result('xml', '<a/>'))
     expect((execute(input()) as RouteResult).status).toBe(500)
     expect(String(unhandled[0])).toContain('no encoder is registered')
+  })
+})
+
+/** A promise as some libraries return it: thenable, but not a native Promise. */
+function thenable<T>(value: T, onThen?: () => void): Promise<T> {
+  return {
+    // oxlint-disable-next-line no-thenable
+    then(resolve: (value: T) => void) {
+      onThen?.()
+      resolve(value)
+    },
+  } as unknown as Promise<T>
+}
+
+describe('compileRoute: thenables that are not native promises', () => {
+  it('denies the request when a guard thenable resolves to false', async () => {
+    const guard: Guard = { canActivate: () => thenable(false) }
+    const { execute } = setup({}, () => 'secret', { guards: [guard] })
+    expect((await execute(input())).status).toBe(403)
+  })
+
+  it('lets the request through when a guard thenable resolves to true', async () => {
+    const guard: Guard = { canActivate: () => thenable(true) }
+    const { execute } = setup({}, () => 'ok', { guards: [guard] })
+    expect((await execute(input())).body).toBe('ok')
+  })
+
+  it('denies the request when a guard answers with anything but true', async () => {
+    for (const answer of [{ session: 1 }, 'yes', 1]) {
+      const guard = { canActivate: () => answer } as unknown as Guard
+      const { execute } = setup({}, () => 'secret', { guards: [guard] })
+      expect((await execute(input())).status).toBe(403)
+      const asynchronous = { canActivate: async () => answer } as unknown as Guard
+      const other = setup({}, () => 'secret', { guards: [asynchronous] })
+      expect((await other.execute(input())).status).toBe(403)
+    }
+  })
+
+  it('awaits a handler thenable before validating the response', async () => {
+    const { execute } = setup({ responseSchema: z.object({ ok: z.boolean() }) }, () =>
+      thenable({ ok: true }),
+    )
+    expect(await execute(input())).toMatchObject({ status: 200, body: { ok: true } })
+  })
+
+  it('awaits an interceptor thenable', async () => {
+    const interceptor: Interceptor = {
+      intercept(ctx) {
+        ctx.reply.header('x-seen', 'yes')
+        return thenable<RouteResult>({ status: 202, body: 'i', kind: 'text' })
+      },
+    }
+    const { execute } = setup({}, () => 'ok', { interceptors: [interceptor] })
+    expect(await execute(input())).toMatchObject({ status: 202, headers: { 'x-seen': 'yes' } })
+  })
+
+  it('awaits a schema that validates with a thenable', async () => {
+    const schema = {
+      '~standard': {
+        version: 1 as const,
+        vendor: 'test',
+        validate: () => thenable({ issues: [{ message: 'never valid' }] }),
+      },
+    }
+    const { execute } = setup({ method: 'POST', requestSchema: schema }, () => 'ok')
+    expect((await execute(input({ body: () => ({}) }))).status).toBe(400)
+  })
+
+  it('awaits an error mapper thenable', async () => {
+    class Custom extends Error {}
+    const { execute, errors } = setup({}, () => {
+      throw new Custom()
+    })
+    errors.add(Custom, () => thenable(reply(418, { mapped: true })))
+    expect(await execute(input())).toEqual({ status: 418, body: { mapped: true }, kind: 'json' })
+  })
+
+  it('computes a request value that is a lazy thenable once per request', async () => {
+    let runs = 0
+
+    @RequestValue()
+    class Lazy {
+      resolve() {
+        return thenable('row', () => runs++)
+      }
+    }
+
+    const { execute } = setup({}, async (_params, ctx: RequestContext) => [
+      await ctx.get(Lazy),
+      await ctx.get(Lazy),
+    ])
+    expect((await execute(input())).body).toEqual(['row', 'row'])
+    expect(runs).toBe(1)
+  })
+})
+
+describe('compileRoute: interceptor results', () => {
+  it('answers 500 naming an interceptor that returns no result', async () => {
+    class Forgetful implements Interceptor {
+      async intercept(_ctx: RequestContext, next: () => Promise<RouteResult>) {
+        await next()
+        return undefined as unknown as RouteResult
+      }
+    }
+    const { execute, unhandled } = setup({}, () => 'ok', { interceptors: [new Forgetful()] })
+    expect((await execute(input())).status).toBe(500)
+    expect(String(unhandled[0])).toContain('Interceptor Forgetful')
+  })
+})
+
+describe('compileRoute: resources used while a response streams', () => {
+  function tracked() {
+    const events: string[] = []
+
+    @Injectable({ scope: InjectableScope.Request })
+    class UnitOfWork {
+      onServiceDestroy() {
+        events.push('destroy')
+      }
+    }
+    return { events, UnitOfWork }
+  }
+
+  async function drain(result: RouteResult) {
+    const chunks: unknown[] = []
+    for await (const chunk of result.body as AsyncIterable<unknown>) {
+      chunks.push(chunk)
+    }
+    return chunks
+  }
+
+  it('releases a scope first used inside a server-sent event generator', async () => {
+    const { events, UnitOfWork } = tracked()
+    const { execute } = setup({ response: 'stream' }, (_params, ctx: RequestContext) =>
+      sseStream(
+        (async function* () {
+          ctx.use(UnitOfWork)
+          ctx.onFinish(() => {
+            events.push('finish')
+          })
+          yield { data: 'x' }
+        })(),
+      ),
+    )
+    const result = await execute(input())
+    await drain(result)
+    await result.release?.()
+    expect(events).toEqual(['finish', 'destroy'])
+  })
+
+  it('releases a scope first used after the first chunk of a generator', async () => {
+    const { events, UnitOfWork } = tracked()
+    const { execute } = setup(
+      { response: 'stream' },
+      async function* (_params, ctx: RequestContext) {
+        yield 'a'
+        ctx.use(UnitOfWork)
+        yield 'b'
+      },
+    )
+    const result = await execute(input())
+    expect(await drain(result)).toEqual(['a', 'b'])
+    await result.release?.()
+    expect(events).toEqual(['destroy'])
+  })
+
+  it('releases a scope first used inside a web stream', async () => {
+    const { events, UnitOfWork } = tracked()
+    const { execute } = setup(
+      { response: 'stream' },
+      (_params, ctx: RequestContext) =>
+        new ReadableStream(
+          {
+            pull(controller) {
+              ctx.use(UnitOfWork)
+              controller.close()
+            },
+          },
+          { highWaterMark: 0 },
+        ),
+    )
+    const result = await execute(input())
+    await drain(result)
+    await result.release?.()
+    expect(events).toEqual(['destroy'])
+  })
+
+  it('refuses to create a scope once the response has finished', async () => {
+    const { events, UnitOfWork } = tracked()
+    const { execute } = setup(
+      { response: 'stream' },
+      async function* (_params, ctx: RequestContext) {
+        yield 'a'
+        ctx.use(UnitOfWork)
+      },
+    )
+    const result = await execute(input())
+    // The client went away before the generator continued.
+    await result.release?.()
+    await expect(drain(result)).rejects.toThrow('response has finished')
+    expect(events).toEqual([])
+  })
+
+  it('refuses to compute a disposable request value once the response has finished', async () => {
+    let disposed = 0
+
+    @RequestValue()
+    class Transaction {
+      resolve() {
+        return { id: 1 }
+      }
+      dispose() {
+        disposed++
+      }
+    }
+
+    let late: RequestContext | undefined
+    const { execute } = setup({ response: 'stream' }, async function* (_params, ctx) {
+      late = ctx
+      yield 'a'
+    })
+    const result = await execute(input())
+    await drain(result)
+    await result.release?.()
+    expect(() => late!.get(Transaction)).toThrow('response has finished')
+    expect(disposed).toBe(0)
+  })
+
+  it('runs a callback registered after the response has finished at once', async () => {
+    let late: RequestContext | undefined
+    const { execute } = setup({ response: 'stream' }, async function* (_params, ctx) {
+      late = ctx
+      yield 'a'
+    })
+    const result = await execute(input())
+    await drain(result)
+    await result.release?.()
+    let ran = 0
+    late!.onFinish(() => {
+      ran++
+    })
+    expect(ran).toBe(1)
+  })
+})
+
+describe('compileRoute: url params and query', () => {
+  it('passes url params of a prefix to a handler whose own url has none', async () => {
+    const { execute } = setup({ url: '/members' }, (params) => params.urlParams, {
+      path: '/orgs/$orgId/members',
+    })
+    const result = await execute(input({ urlParams: { orgId: '7' } }))
+    expect(result.body).toEqual({ orgId: '7' })
+  })
+
+  it('keeps url params of a prefix next to the validated ones', async () => {
+    const { execute } = setup(
+      { url: '/users/$id', urlParamsSchema: z.object({ id: z.coerce.number() }) },
+      (params) => params.urlParams,
+      { path: '/orgs/$orgId/users/$id' },
+    )
+    const result = await execute(input({ urlParams: { orgId: '7', id: '1' } }))
+    expect(result.body).toEqual({ orgId: '7', id: 1 })
+  })
+
+  it('lets a guard read url params and the query from the context', async () => {
+    const seen: unknown[] = []
+    const guard: Guard = {
+      canActivate(ctx) {
+        seen.push(ctx.urlParams, ctx.query)
+        return ctx.urlParams.id === '1'
+      },
+    }
+    const { execute } = setup({ url: '/users/$id' }, () => 'ok', { guards: [guard] })
+    const request = input({ urlParams: { id: '1' }, query: () => ({ tag: ['a', 'b'] }) })
+    expect((await execute(request)).body).toBe('ok')
+    expect(seen).toEqual([{ id: '1' }, { tag: ['a', 'b'] }])
+    expect((await execute(input({ urlParams: { id: '2' } }))).status).toBe(403)
+  })
+
+  it('parses the query once per request', async () => {
+    let parsed = 0
+    const { execute } = setup(
+      { querySchema: z.object({ a: z.string() }) },
+      (params, ctx: RequestContext) => [params.params, ctx.query.a],
+    )
+    const result = await execute(
+      input({
+        query: () => {
+          parsed++
+          return { a: '1' }
+        },
+      }),
+    )
+    expect(result.body).toEqual([{ a: '1' }, '1'])
+    expect(parsed).toBe(1)
+  })
+})
+
+describe('ErrorPipeline: a mapper that returns no response', () => {
+  it('answers 500 from the pipeline itself, not from an adapter fallback', async () => {
+    class Weird extends Error {}
+    const sync = setup({}, () => {
+      throw new Weird()
+    })
+    sync.errors.add(Weird, () => undefined as never)
+    const result = sync.execute(input()) as RouteResult
+    expect(result.status).toBe(500)
+    expect(result.headers).toEqual({ 'content-type': 'application/problem+json' })
+    expect(String(sync.unhandled[0])).toContain('error mapper for Weird did not return a response')
+
+    const asynchronous = setup({}, () => {
+      throw new Weird()
+    })
+    asynchronous.errors.add(Weird, async () => ({}) as never)
+    expect((await asynchronous.execute(input())).status).toBe(500)
   })
 })

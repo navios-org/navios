@@ -5,6 +5,7 @@ import { GuardDeniedError } from '../errors/http-exception.mjs'
 import type { ContextHost } from '../context/request-context.mjs'
 import type { ErrorPipeline } from '../errors/error-pipeline.mjs'
 
+import { adopt } from './promises.mjs'
 import { isCustomResult, isEndpointReply } from './reply.mjs'
 import { encodeSseStream, isSseStream } from './sse.mjs'
 import { validateSchema } from './validation.mjs'
@@ -72,16 +73,20 @@ function isPromise<T>(value: MaybePromise<T>): value is Promise<T> {
 // Request parameters
 // ----------------------------------------------------------------------------
 
-type ParamStep = (target: Record<string, unknown>, input: RouteInput) => void | Promise<void>
+type ParamStep = (
+  target: Record<string, unknown>,
+  input: RouteInput,
+  ctx: RequestContext,
+) => void | Promise<void>
 
 function validated(
   key: string,
   schema: SchemaLike,
   source: ValidationSource,
-  read: (input: RouteInput) => unknown,
+  read: (input: RouteInput, ctx: RequestContext) => unknown,
 ): ParamStep {
-  return (target, input) => {
-    const raw = read(input)
+  return (target, input, ctx) => {
+    const raw = adopt(read(input, ctx))
     if (isPromise(raw)) {
       return raw.then((value) => {
         const result = validateSchema(schema, value, source)
@@ -112,25 +117,60 @@ function headerRecord(input: RouteInput): Record<string, string> {
 }
 
 /**
+ * The step that puts the URL params of the whole path into the handler's
+ * argument. A schema describes the params of the endpoint's own url, so what
+ * it returns is laid over the raw params of the prefixes.
+ */
+function urlParamsStep(schema: SchemaLike | undefined, ownUrl: string, path: string): ParamStep {
+  if (schema === undefined) {
+    return (target, input) => {
+      target.urlParams = input.urlParams
+    }
+  }
+  const validate = validated('urlParams', schema, 'urlParams', (input) => input.urlParams)
+  const own = paramNames(ownUrl)
+  const inherited = paramNames(path).filter((name) => !own.includes(name))
+  if (inherited.length === 0) {
+    return validate
+  }
+  const merge = (target: Record<string, unknown>, input: RouteInput): void => {
+    const merged: Record<string, unknown> = {}
+    for (const name of inherited) {
+      merged[name] = input.urlParams[name]
+    }
+    target.urlParams = Object.assign(merged, target.urlParams)
+  }
+  return (target, input, ctx) => {
+    const pending = validate(target, input, ctx)
+    if (pending !== undefined) {
+      return pending.then(() => merge(target, input))
+    }
+    merge(target, input)
+  }
+}
+
+function paramNames(path: string): string[] {
+  return Array.from(path.matchAll(/\$([A-Za-z0-9_]+)/g), (match) => match[1])
+}
+
+/**
  * Builds the function that produces a handler's first argument. URL params,
  * query, headers and cookies are validated before the body is read.
+ *
+ * `path` is the full route path: a module or global prefix may have params of
+ * its own.
  */
 function compileParams(
   config: RouteEndpointConfig,
+  path: string,
 ): (input: RouteInput, ctx: RequestContext) => MaybePromise<Record<string, unknown>> {
   const steps: ParamStep[] = []
 
-  if (config.url.includes('$')) {
-    steps.push(
-      config.urlParamsSchema
-        ? validated('urlParams', config.urlParamsSchema, 'urlParams', (input) => input.urlParams)
-        : (target, input) => {
-            target.urlParams = input.urlParams
-          },
-    )
+  if (path.includes('$')) {
+    steps.push(urlParamsStep(config.urlParamsSchema, config.url, path))
   }
   if (config.querySchema) {
-    steps.push(validated('params', config.querySchema, 'query', (input) => input.query()))
+    steps.push(validated('params', config.querySchema, 'query', (_input, ctx) => ctx.query))
   }
   if (config.headersSchema) {
     steps.push(validated('headers', config.headersSchema, 'headers', headerRecord))
@@ -154,12 +194,12 @@ function compileParams(
       if (isPromise(result)) {
         return result.then((cookies) => {
           target.cookies = cookies
-          return runSteps(steps, 0, target, input)
+          return runSteps(steps, 0, target, input, ctx)
         })
       }
       target.cookies = result
     }
-    return runSteps(steps, 0, target, input)
+    return runSteps(steps, 0, target, input, ctx)
   }
 }
 
@@ -168,11 +208,12 @@ function runSteps(
   from: number,
   target: Record<string, unknown>,
   input: RouteInput,
+  ctx: RequestContext,
 ): MaybePromise<Record<string, unknown>> {
   for (let i = from; i < steps.length; i++) {
-    const pending = steps[i](target, input)
+    const pending = steps[i](target, input, ctx)
     if (pending !== undefined) {
-      return pending.then(() => runSteps(steps, i + 1, target, input))
+      return pending.then(() => runSteps(steps, i + 1, target, input, ctx))
     }
   }
   return target
@@ -344,11 +385,25 @@ async function primeGenerator(
 // Executor
 // ----------------------------------------------------------------------------
 
+/**
+ * Whether the body is produced while it is being sent. Code that runs then
+ * may still acquire request resources, so such a response is always released.
+ */
+function isLazyBody({ body }: RouteResult): boolean {
+  return (
+    typeof body === 'object' &&
+    body !== null &&
+    (typeof (body as AsyncIterable<unknown>)[Symbol.asyncIterator] === 'function' ||
+      typeof (body as ReadableStream).getReader === 'function')
+  )
+}
+
 function seal(result: RouteResult, ctx: RequestContext): RouteResult {
   ctx.responseStatus = result.status
   const headers = ctx.responseHeaders
   const cookies = ctx.responseCookies
-  if (headers === null && cookies === null && !ctx.needsRelease) {
+  const release = ctx.needsRelease || (result.kind !== 'json' && isLazyBody(result))
+  if (headers === null && cookies === null && !release) {
     return result
   }
   const sealed: RouteResult = { ...result }
@@ -358,24 +413,25 @@ function seal(result: RouteResult, ctx: RequestContext): RouteResult {
   if (cookies !== null) {
     sealed.cookies = result.cookies ? [...cookies, ...result.cookies] : cookies
   }
-  if (ctx.needsRelease) {
+  if (release) {
     sealed.release = () => ctx.release()
   }
   return sealed
 }
 
+/** Only `true` lets a request through, whatever else a guard may return. */
 function runGuards(guards: Guard[], from: number, ctx: RequestContext): void | Promise<void> {
   for (let i = from; i < guards.length; i++) {
-    const allowed = guards[i].canActivate(ctx)
+    const allowed = adopt(guards[i].canActivate(ctx))
     if (isPromise(allowed)) {
       return allowed.then((value) => {
-        if (!value) {
+        if (value !== true) {
           throw new GuardDeniedError(guards[i].constructor.name)
         }
         return runGuards(guards, i + 1, ctx)
       })
     }
-    if (!allowed) {
+    if (allowed !== true) {
       throw new GuardDeniedError(guards[i].constructor.name)
     }
   }
@@ -396,13 +452,15 @@ export function compileRoute(definition: RouteDefinition, options: CompileOption
   const { info, invoke, guards, interceptors } = definition
   const { host, errors } = options
   const config = info.endpoint
-  const params = compileParams(config)
+  const params = compileParams(config, info.path)
   const finalize = compileFinalizer(config, options.validateResponses, options.encoders)
 
   // Request validation, handler and response validation.
   const handle = (ctx: RequestContext, input: RouteInput): MaybePromise<RouteResult> => {
     const args = params(input, ctx)
-    const produced = isPromise(args) ? args.then((value) => invoke(value, ctx)) : invoke(args, ctx)
+    const produced = isPromise(args)
+      ? args.then((value) => invoke(value, ctx))
+      : adopt(invoke(args, ctx))
     if (input.responded === undefined) {
       return isPromise(produced) ? produced.then(finalize) : finalize(produced)
     }
@@ -419,7 +477,7 @@ export function compileRoute(definition: RouteDefinition, options: CompileOption
       : (ctx: RequestContext, input: RouteInput): MaybePromise<RouteResult> => {
           const encode = (result: RouteResult): MaybePromise<RouteResult> => {
             const encoder = encoders.get(result.kind)
-            return encoder === undefined ? result : encoder(result, ctx)
+            return encoder === undefined ? result : adopt(encoder(result, ctx))
           }
           const produced = handle(ctx, input)
           return isPromise(produced) ? produced.then(encode) : encode(produced)
@@ -439,14 +497,27 @@ export function compileRoute(definition: RouteDefinition, options: CompileOption
   for (let i = interceptors.length - 1; i >= 0; i--) {
     const interceptor = interceptors[i]
     const inner = pipeline
-    pipeline = (ctx, input) =>
-      interceptor.intercept(ctx, () => {
-        try {
-          return Promise.resolve(inner(ctx, input))
-        } catch (error) {
-          return Promise.reject(error)
-        }
-      })
+    const checked = (result: RouteResult): RouteResult => {
+      if (typeof result?.status !== 'number') {
+        throw new Error(
+          `[Navios] Interceptor ${interceptor.constructor.name} did not return a result. ` +
+            `Return what next() resolves to, or a result of its own.`,
+        )
+      }
+      return result
+    }
+    pipeline = (ctx, input) => {
+      const result = adopt(
+        interceptor.intercept(ctx, () => {
+          try {
+            return Promise.resolve(inner(ctx, input))
+          } catch (error) {
+            return Promise.reject(error)
+          }
+        }),
+      )
+      return isPromise(result) ? result.then(checked) : checked(result)
+    }
   }
 
   if (options.asyncContext) {

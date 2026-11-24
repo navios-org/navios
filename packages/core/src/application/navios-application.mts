@@ -3,6 +3,7 @@ import { Container, provide } from '@navios/di'
 import type { ClassType, InjectionToken, Provider, ProviderInput } from '@navios/di'
 
 import { enableAsyncContext } from '../context/async-context.mjs'
+import { isRequestValueClass } from '../context/context-key.mjs'
 import { isFieldHandler } from '../decorators/handler.mjs'
 import { ErrorPipeline } from '../errors/error-pipeline.mjs'
 import {
@@ -129,6 +130,7 @@ export class NaviosApplication<Env extends HttpAdapterEnvironment = ApplicationE
   private readonly shutdownHooks: Array<(signal?: string) => void | Promise<void>> = []
   private compiledRoutes: CompiledRoute[] = []
   private initialised = false
+  private initialisation: Promise<void> | null = null
   private closed = false
   private signalHandlers: Array<[NodeJS.Signals, () => void]> = []
 
@@ -213,10 +215,18 @@ export class NaviosApplication<Env extends HttpAdapterEnvironment = ApplicationE
   // Initialisation
   // --------------------------------------------------------------------------
 
+  /**
+   * Builds the application: plugins, modules, controllers and routes. Runs
+   * once, however often and from wherever it is called; every caller gets the
+   * outcome of that run. An application that failed to initialise stays
+   * failed, because it is only partly built.
+   */
   async init(): Promise<this> {
-    if (this.initialised) {
-      return this
-    }
+    await (this.initialisation ??= this.initialise())
+    return this
+  }
+
+  private async initialise(): Promise<void> {
     const { options, container } = this
 
     this.setupLogger()
@@ -270,6 +280,18 @@ export class NaviosApplication<Env extends HttpAdapterEnvironment = ApplicationE
       }
     }
 
+    for (const node of graph) {
+      for (const requestValue of node.requestValues) {
+        if (!isRequestValueClass(requestValue)) {
+          throw new Error(
+            `[Navios] Module ${node.module.name} lists ${tokenName(requestValue)} in requestValues, ` +
+              `but ${tokenName(requestValue)} is not a request value. Decorate it with @RequestValue().`,
+          )
+        }
+        await container.get(requestValue)
+      }
+    }
+
     this.compiledRoutes = await this.compileRoutes(graph)
     for (const route of this.compiledRoutes) {
       this.adapterInstance.register(route)
@@ -290,7 +312,6 @@ export class NaviosApplication<Env extends HttpAdapterEnvironment = ApplicationE
     }
 
     this.logger.debug(`Navios application initialised with ${routes.length} route(s)`)
-    return this
   }
 
   private setupLogger(): void {

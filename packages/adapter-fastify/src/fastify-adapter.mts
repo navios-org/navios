@@ -1,3 +1,4 @@
+import type { Socket } from 'node:net'
 import { Readable } from 'node:stream'
 
 import cors from '@fastify/cors'
@@ -60,6 +61,9 @@ export interface FastifyAdapterOptions extends FastifyServerOptions {
 }
 
 const RAW_BODY = Symbol('navios.rawBody')
+
+/** How often `close()` looks for connections that have become idle. */
+const IDLE_SWEEP_MS = 50
 
 const DEFAULT_CONTENT_TYPES: Record<string, string> = {
   text: 'text/plain; charset=utf-8',
@@ -164,12 +168,19 @@ class FastifyRouteInput implements RouteInput {
     if (this.abort === null) {
       const abort = new AbortController()
       this.abort = abort
+      // The response tells whether the client is there. The request emits
+      // 'close' as soon as its body has been consumed.
       const { raw } = this.reply
-      this.request.raw.once('close', () => {
-        if (!raw.writableEnded) {
+      const abortIfGone = () => {
+        if (!raw.writableFinished) {
           abort.abort()
         }
-      })
+      }
+      if (raw.destroyed) {
+        abortIfGone()
+      } else {
+        raw.once('close', abortIfGone)
+      }
     }
     return this.abort.signal
   }
@@ -257,6 +268,8 @@ function write(reply: FastifyReply, result: RouteResult): FastifyReply | Promise
 
 export class FastifyAdapter implements HttpAdapter<FastifyEnvironment> {
   private parseDefaultJson!: (request: FastifyRequest, body: string, done: any) => void
+  private closing = false
+  private readonly sockets = new Set<Socket>()
 
   private constructor(
     readonly server: FastifyInstance,
@@ -283,6 +296,10 @@ export class FastifyAdapter implements HttpAdapter<FastifyEnvironment> {
 
   private install(): void {
     const { server } = this
+    server.server.on('connection', (socket: Socket) => {
+      this.sockets.add(socket)
+      socket.once('close', () => this.sockets.delete(socket))
+    })
     this.parseDefaultJson = server.getDefaultJsonParser('error', 'error') as any
 
     // JSON bodies are collected as text and parsed when the pipeline asks for
@@ -331,9 +348,17 @@ export class FastifyAdapter implements HttpAdapter<FastifyEnvironment> {
     return (request: FastifyRequest, reply: FastifyReply) => {
       const result = execute(new FastifyRouteInput(request, reply, this, requestSchema))
       return result instanceof Promise
-        ? result.then((value) => write(reply, value))
-        : write(reply, result)
+        ? result.then((value) => this.respond(reply, value))
+        : this.respond(reply, result)
     }
+  }
+
+  private respond(reply: FastifyReply, result: RouteResult): FastifyReply | Promise<FastifyReply> {
+    if (this.closing && !reply.sent) {
+      // Tell the client not to reuse the connection it is being answered on.
+      reply.header('connection', 'close')
+    }
+    return write(reply, result)
   }
 
   register(route: CompiledRoute): void {
@@ -389,17 +414,34 @@ export class FastifyAdapter implements HttpAdapter<FastifyEnvironment> {
   async close(timeoutMs: number): Promise<void> {
     let timer: ReturnType<typeof setTimeout> | undefined
     let timedOut = false
+    this.closing = true
     const closing = this.server.close()
-    await Promise.race([
-      closing,
-      new Promise<void>((resolve) => {
-        timer = setTimeout(() => {
-          timedOut = true
-          resolve()
-        }, timeoutMs)
-      }),
-    ])
-    clearTimeout(timer)
+    // Closing the server drops the keep-alive connections that are idle at
+    // that moment. One whose response was already under way becomes idle
+    // later, and one that a client opened ahead of time and has not used does
+    // not count as idle. Both would hold the server open.
+    const sweep = setInterval(() => {
+      this.server.server.closeIdleConnections?.()
+      for (const socket of this.sockets) {
+        if (socket.bytesRead === 0) {
+          socket.destroy()
+        }
+      }
+    }, IDLE_SWEEP_MS)
+    try {
+      await Promise.race([
+        closing,
+        new Promise<void>((resolve) => {
+          timer = setTimeout(() => {
+            timedOut = true
+            resolve()
+          }, timeoutMs)
+        }),
+      ])
+    } finally {
+      clearTimeout(timer)
+      clearInterval(sweep)
+    }
     if (timedOut) {
       // In-flight requests outlived the timeout: drop their connections so
       // that the server can finish closing.

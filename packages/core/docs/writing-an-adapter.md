@@ -82,12 +82,12 @@ Everything that may cost something is a function, so a route that does not need 
 
 Requirements:
 
-- `urlParams` values are URL-decoded strings.
-- `query()` returns the parsed query string as an object. Core validates it with the endpoint's schema; coercion is the schema's job.
+- `urlParams` holds the parameters of the whole path, prefixes included, as URL-decoded strings.
+- `query()` returns the parsed query string as an object, with an array for a repeated parameter. Core calls it at most once per request. Core validates it with the endpoint's schema; coercion is the schema's job.
 - `body()` is not called before guards have passed. It returns the parsed body, or a promise of it. Do not read the request body before it is called when the server lets you defer it.
 - A malformed body must be reported by throwing `new ValidationError('body', [{ message }])` from `body()`, so that it becomes a 400 like any other validation failure.
 - For an endpoint with `body: 'multipart'` (`route.info.endpoint.body`), build the body with `createMultipartCollector(route.info.endpoint.requestSchema)`: call `add(field, value)` for every part, with a string for a text field and a `File` for a file, and return `result()`.
-- `signal()` returns a signal that aborts when the client disconnects before the response is complete.
+- `signal()` returns a signal that aborts when the client disconnects before the response is complete. It must not abort because the request body has been read, and it must already be aborted when it is first read after the client has gone.
 - Using a class with prototype methods for the input, as both shipped adapters do, allocates one object per request instead of one closure per accessor.
 
 ## `RouteResult`
@@ -123,13 +123,15 @@ How to write each kind:
 
 ### `release`
 
-`release` is present when the request holds resources: a DI scope, or request values with a `dispose` hook. The adapter must call it exactly once, when the response has been fully sent or the connection has gone away, whichever comes first. For a body already in memory that is right after writing it; for a stream it is when the stream ends or is cancelled.
+`release` is present when the request holds resources (a DI scope, request values with a `dispose` hook, `onFinish` callbacks) and on every streamed body, which may acquire some while it is being sent. The adapter must call it exactly once, when the response has been fully sent or the connection has gone away, whichever comes first. For a body already in memory that is right after writing it; for a stream it is when the stream ends or is cancelled.
 
 Most results have no `release`. Check for it before installing any listener.
 
+A result whose body cannot be written (`JSON.stringify` throws, an invalid header value) is the adapter's to handle: call `context.errors.unexpected(error)` for the response to send instead, and still call `release`.
+
 ## Running the conformance suite
 
-`runAdapterConformance` from `@navios/core/conformance` exercises an adapter over real HTTP. It covers JSON routes with URL parameters and a coerced query, 400 responses for invalid input and malformed JSON, declared statuses and bodiless statuses, response field stripping, error mapping, the not-found response, guards running before body validation, request values and their disposal, request and response headers and cookies, text and streamed responses, multipart, request scope disposal, client disconnect, `inject()` and graceful close.
+`runAdapterConformance` from `@navios/core/conformance` exercises an adapter over real HTTP. It covers JSON routes with URL parameters and a coerced query, 400 responses for invalid input and malformed JSON, declared statuses and bodiless statuses, response field stripping, error mapping, the not-found response, guards running before body validation, request values and their disposal, request and response headers and cookies, text and streamed responses, multipart, request scope disposal, resources acquired by a stream, client disconnect (with and without a request body), JSON `null`, bodies that cannot be serialised, prefix parameters, `inject()` and graceful close with keep-alive clients.
 
 It takes the test runner's functions as an argument, so it runs under Vitest, `bun:test` or anything with the same five functions. It uses a small built-in Standard Schema implementation and depends on no schema library.
 

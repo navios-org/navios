@@ -1,4 +1,5 @@
 import { serializeCookie } from '../adapter/cookies.mjs'
+import { problem } from '../errors/problem.mjs'
 import { ValidationError } from '../routing/validation.mjs'
 
 import type {
@@ -8,6 +9,7 @@ import type {
   TestRequest,
   TestResponse,
 } from '../adapter/http-adapter.mjs'
+import type { ErrorPipeline } from '../errors/error-pipeline.mjs'
 import type { CompiledRoute, RouteExecutor, RouteInput, RouteResult } from '../routing/types.mjs'
 
 export interface InMemoryEnvironment extends HttpAdapterEnvironment {
@@ -40,11 +42,14 @@ function compilePath(path: string): { pattern: RegExp; names: string[] } {
 
 async function readBody(result: RouteResult): Promise<string> {
   const { body, kind } = result
-  if (kind === 'empty' || body === undefined || body === null) {
+  if (kind === 'empty' || body === undefined) {
     return ''
   }
   if (kind === 'json') {
     return JSON.stringify(body)
+  }
+  if (body === null) {
+    return ''
   }
   if (typeof body === 'string') {
     return body
@@ -84,6 +89,8 @@ export class InMemoryAdapter implements HttpAdapter<InMemoryEnvironment> {
   private inFlight = 0
   private closed = false
   private idle: (() => void) | null = null
+
+  constructor(private readonly errors?: ErrorPipeline) {}
 
   register(route: CompiledRoute): void {
     const { pattern, names } = compilePath(route.info.path)
@@ -162,7 +169,7 @@ export class InMemoryAdapter implements HttpAdapter<InMemoryEnvironment> {
     this.inFlight++
     let result: RouteResult | undefined
     try {
-      result = await execute(input)
+      result = this.serialisable(await execute(input))
       const text = await readBody(result)
       const responseHeaders: Record<string, string> = {}
       const contentType = DEFAULT_CONTENT_TYPES[result.kind]
@@ -184,6 +191,20 @@ export class InMemoryAdapter implements HttpAdapter<InMemoryEnvironment> {
       if (this.inFlight === 0) {
         this.idle?.()
       }
+    }
+  }
+
+  /** Replaces a JSON result that cannot be serialised with an error response. */
+  private serialisable(result: RouteResult): RouteResult {
+    if (result.kind !== 'json') {
+      return result
+    }
+    try {
+      JSON.stringify(result.body)
+      return result
+    } catch (error) {
+      const failure = this.errors?.unexpected(error) ?? problem(500)
+      return { ...failure, release: result.release }
     }
   }
 
@@ -210,5 +231,5 @@ export class InMemoryAdapter implements HttpAdapter<InMemoryEnvironment> {
  * through `app.inject()`.
  */
 export function defineInMemoryEnvironment(): AdapterDefinition<InMemoryEnvironment> {
-  return { name: 'in-memory', create: () => new InMemoryAdapter() }
+  return { name: 'in-memory', create: (context) => new InMemoryAdapter(context.errors) }
 }
