@@ -39,6 +39,10 @@ jobs:
       - name: Build docs
         run: yarn workspace @navios/docs build
 
+      - name: Check published URLs still resolve
+        working-directory: apps/docs
+        run: node scripts/check-urls.mts build
+
       - name: Setup Pages
         uses: actions/configure-pages@v4
 

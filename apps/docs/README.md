@@ -1,41 +1,49 @@
-# Website
+# Navios documentation
 
-This website is built using [Docusaurus](https://docusaurus.io/), a modern static website generator.
+The documentation site at [navios.tech](https://navios.tech), built with [Rspress](https://rspress.rs).
 
-## Installation
+## Commands
 
-```bash
-yarn
-```
-
-## Local Development
+Run these from the repository root.
 
 ```bash
-yarn start
+yarn workspace @navios/docs dev        # local dev server with hot reload
+yarn workspace @navios/docs build      # static site in apps/docs/build
+yarn workspace @navios/docs preview    # serve the built site
+yarn workspace @navios/docs typecheck
 ```
 
-This command starts a local development server and opens up a browser window. Most changes are reflected live without having to restart the server.
+## Layout
 
-## Build
-
-```bash
-yarn build
+```
+content/            Rspress root
+  index.tsx         landing page
+  docs/             markdown, one folder per section (server, builder, di, commander)
+  public/           static files copied to the site root (CNAME, favicon, logo)
+theme/              footer, brand colours and landing-page styles
+sidebars.mts        sidebar for each section
+rspress.config.ts   site config
+scripts/            URL checks and the post-build step
 ```
 
-This command generates static content into the `build` directory and can be served using any static contents hosting service.
+## Adding or moving a page
+
+- Add the markdown file under `content/docs/<section>/` and list its path in `sidebars.mts`. The
+  sidebar label is the page's `title` frontmatter, or its first heading.
+- Links are checked at build time: a link or anchor that points nowhere fails the build.
+- If you rename or move a page, add the old path to `scripts/renamed-pages.mts` so the old URL
+  redirects. Never remove a line from `scripts/url-baseline.txt`; add the new path to it instead.
+
+## URLs
+
+`yarn build` runs `scripts/finalize-build.mts` after Rspress. It moves each page to
+`<path>/index.html`, so both `/docs/x` and `/docs/x/` work on GitHub Pages, and writes redirect
+pages for the paths in `scripts/renamed-pages.mts`.
+
+`node scripts/check-urls.mts build` verifies that every path in `scripts/url-baseline.txt` still
+resolves in the build. The deploy workflow runs it before publishing.
 
 ## Deployment
 
-Using SSH:
-
-```bash
-USE_SSH=true yarn deploy
-```
-
-Not using SSH:
-
-```bash
-GIT_USER=<Your GitHub username> yarn deploy
-```
-
-If you are using GitHub pages for hosting, this command is a convenient way to build the website and push to the `gh-pages` branch.
+Pushing to `main` with changes under `apps/docs` runs `.github/workflows/deploy-docs.yml`, which
+builds the site and publishes it to GitHub Pages.
