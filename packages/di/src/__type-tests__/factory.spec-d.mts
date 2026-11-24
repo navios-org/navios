@@ -1,3 +1,4 @@
+import { test } from 'vitest'
 import { z } from 'zod/v4'
 
 import { Factory } from '../decorators/index.mjs'
@@ -71,5 +72,9 @@ const test4: { name: string } = new TestFactory4().create(undefined, {
 })
 const test5: object = new TestFactory5().create()
 const test6: Promise<string[]> = new TestFactory6().create()
+
+// Vitest 5 requires each spec-d file to register at least one test; the
+// assertions above are enforced by the type checker.
+test('factory return types', () => {})
 
 export { test1, test2, test3, test4, test5, test6 }
