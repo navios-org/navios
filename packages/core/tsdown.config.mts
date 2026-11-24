@@ -1,7 +1,12 @@
 import { defineConfig } from 'tsdown'
 
 export default defineConfig({
-  entry: ['src/index.mts', 'src/testing/index.mts', 'src/legacy-compat/index.mts'],
+  entry: [
+    'src/index.mts',
+    'src/testing/index.mts',
+    'src/legacy-compat/index.mts',
+    'src/conformance/index.mts',
+  ],
   outDir: 'lib',
   format: ['esm', 'cjs'],
   clean: true,

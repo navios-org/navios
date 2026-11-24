@@ -44,6 +44,16 @@
         "types": "./lib/legacy-compat/index.d.cts",
         "default": "./lib/legacy-compat/index.cjs"
       }
+    },
+    "./conformance": {
+      "import": {
+        "types": "./lib/conformance/index.d.mts",
+        "default": "./lib/conformance/index.mjs"
+      },
+      "require": {
+        "types": "./lib/conformance/index.d.cts",
+        "default": "./lib/conformance/index.cjs"
+      }
     }
   },
   "scripts": {
