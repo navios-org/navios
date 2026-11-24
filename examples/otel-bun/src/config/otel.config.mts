@@ -1,10 +1,10 @@
-import type { BunOtelPluginOptions } from '@navios/otel-bun'
+import type { OtelPluginOptions } from '@navios/otel'
 
 /**
  * Parse environment variables to build OTEL configuration.
  * All values can be configured via environment variables.
  */
-export function getOtelConfig(): BunOtelPluginOptions {
+export function getOtelConfig(): OtelPluginOptions {
   const env = process.env
 
   // Parse exporter type
@@ -26,7 +26,7 @@ export function getOtelConfig(): BunOtelPluginOptions {
     : ['/health']
 
   // Build configuration from environment variables
-  const config: BunOtelPluginOptions = {
+  const config: OtelPluginOptions = {
     // Service identification
     serviceName: env.OTEL_SERVICE_NAME || 'otel-bun-example',
     serviceVersion: env.OTEL_SERVICE_VERSION || '1.0.0',
@@ -40,11 +40,9 @@ export function getOtelConfig(): BunOtelPluginOptions {
       useHttp: env.OTEL_USE_HTTP !== 'false',
     },
 
-    // Auto-instrumentation
+    // Auto-instrumentation: one server span per HTTP request
     autoInstrument: {
       http: env.OTEL_AUTO_INSTRUMENT_HTTP !== 'false',
-      handlers: env.OTEL_AUTO_INSTRUMENT_HANDLERS !== 'false',
-      guards: env.OTEL_AUTO_INSTRUMENT_GUARDS === 'true',
     },
 
     // Navios-specific attributes
@@ -53,8 +51,6 @@ export function getOtelConfig(): BunOtelPluginOptions {
     // Metrics
     metrics: {
       enabled: env.OTEL_METRICS_ENABLED === 'true',
-      requestDuration: env.OTEL_METRICS_REQUEST_DURATION !== 'false',
-      errorCount: env.OTEL_METRICS_ERROR_COUNT !== 'false',
     },
 
     // Sampling
@@ -72,7 +68,7 @@ export function getOtelConfig(): BunOtelPluginOptions {
 /**
  * Log the current OTEL configuration for debugging.
  */
-export function logOtelConfig(config: BunOtelPluginOptions): void {
+export function logOtelConfig(config: OtelPluginOptions): void {
   console.log('\n=== OpenTelemetry Configuration ===')
   console.log(`Service Name: ${config.serviceName}`)
   console.log(`Service Version: ${config.serviceVersion}`)
@@ -84,8 +80,6 @@ export function logOtelConfig(config: BunOtelPluginOptions): void {
   }
 
   console.log(`Auto-Instrument HTTP: ${config.autoInstrument?.http}`)
-  console.log(`Auto-Instrument Handlers: ${config.autoInstrument?.handlers}`)
-  console.log(`Auto-Instrument Guards: ${config.autoInstrument?.guards}`)
   console.log(`Metrics Enabled: ${config.metrics?.enabled}`)
   console.log(`Sampling Ratio: ${config.sampling?.ratio}`)
   console.log(`Ignored Routes: ${config.ignoreRoutes?.join(', ')}`)

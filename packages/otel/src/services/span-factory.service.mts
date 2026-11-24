@@ -1,12 +1,10 @@
-import { Container, inject, Injectable } from '@navios/core'
-import { context as otelContext, SpanKind, SpanStatusCode, trace } from '@opentelemetry/api'
+import { optional, registerInjectable } from '@navios/di'
+import { SpanKind, SpanStatusCode, trace } from '@opentelemetry/api'
 
 import type { AttributeValue, Context, Span, SpanOptions } from '@opentelemetry/api'
 
-import { getCurrentSpan } from '../stores/index.mjs'
-import { OtelConfigToken } from '../tokens/index.mjs'
-
-import type { ResolvedOtelConfig } from '../interfaces/index.mjs'
+import { OtelConfigToken, TracerToken } from '../tokens/index.mjs'
+import { parentContext, recordSpanError } from '../utils/span.util.mjs'
 
 /**
  * Options for creating an HTTP span.
@@ -18,12 +16,12 @@ export interface HttpSpanOptions {
   method: string
 
   /**
-   * Full URL of the request.
+   * Path of the request.
    */
   url: string
 
   /**
-   * Route pattern (e.g., '/users/:id')
+   * Route pattern (e.g., '/users/$id')
    */
   route?: string
 
@@ -79,10 +77,10 @@ export interface ChildSpanOptions {
 }
 
 /**
- * Service for creating spans with proper attributes.
+ * Service for creating spans with consistent names and attributes.
  *
- * This service abstracts span creation and ensures consistent
- * attribute naming across the application.
+ * The plugin's interceptor and the `@Traced` instrumentation use the same
+ * conventions; inject this service to create matching spans by hand.
  *
  * @example
  * ```typescript
@@ -90,24 +88,15 @@ export interface ChildSpanOptions {
  * import { SpanFactoryService } from '@navios/otel'
  *
  * @Injectable()
- * class RequestHandler {
- *   private readonly spanFactory = inject(SpanFactoryService)
+ * class ReportService {
+ *   private readonly spans = inject(SpanFactoryService)
  *
- *   async handleRequest(req: Request) {
- *     const span = this.spanFactory.createHttpSpan({
- *       method: req.method,
- *       url: req.url,
- *       route: '/users/:id',
- *       controller: 'UserController',
- *       handler: 'getUser',
- *     })
- *
+ *   async build() {
+ *     const span = this.spans.createChildSpan({ name: 'report.build' })
  *     try {
- *       const result = await this.process(req)
- *       this.spanFactory.setHttpResponse(span, 200)
- *       return result
+ *       return await this.render()
  *     } catch (error) {
- *       this.spanFactory.recordError(span, error)
+ *       this.spans.recordError(span, error)
  *       throw error
  *     } finally {
  *       span.end()
@@ -116,122 +105,75 @@ export interface ChildSpanOptions {
  * }
  * ```
  */
-@Injectable()
 export class SpanFactoryService {
-  private readonly container = inject(Container)
+  // Without the plugin there is no tracer provider; the global API then
+  // hands out a no-op tracer.
+  private readonly tracer = optional(TracerToken) ?? trace.getTracer('navios-otel')
+  private readonly config = optional(OtelConfigToken)
 
   /**
-   * Gets the tracer from the global OpenTelemetry API.
-   * This works even before explicit provider registration (returns a no-op tracer).
-   */
-  private get tracer() {
-    return trace.getTracer('navios-otel')
-  }
-
-  /**
-   * Gets the config dynamically from the container.
-   * Returns null if config is not yet registered.
-   */
-  private getConfig(): ResolvedOtelConfig | null {
-    return this.container.tryGetSync(OtelConfigToken)
-  }
-
-  /**
-   * Creates a span for an incoming HTTP request.
-   *
-   * @param options - HTTP span options
-   * @returns The created span
+   * Creates a server span for an incoming HTTP request.
    */
   createHttpSpan(options: HttpSpanOptions): Span {
     const spanName = `HTTP ${options.method} ${options.route || options.url}`
 
-    const spanOptions: SpanOptions = {
-      kind: SpanKind.SERVER,
-      attributes: {
-        'http.method': options.method,
-        'http.url': options.url,
-      },
+    const attributes: Record<string, AttributeValue> = {
+      'http.method': options.method,
+      'http.url': options.url,
     }
-
     if (options.route) {
-      spanOptions.attributes!['http.route'] = options.route
+      attributes['http.route'] = options.route
     }
-
-    // Add Navios-specific attributes if enabled
-    if (this.getConfig()?.includeNaviosAttributes) {
+    if (this.config?.includeNaviosAttributes) {
       if (options.controller) {
-        spanOptions.attributes!['navios.controller'] = options.controller
+        attributes['navios.controller'] = options.controller
       }
       if (options.handler) {
-        spanOptions.attributes!['navios.handler'] = options.handler
+        attributes['navios.handler'] = options.handler
       }
       if (options.module) {
-        spanOptions.attributes!['navios.module'] = options.module
+        attributes['navios.module'] = options.module
       }
     }
 
-    // Start span with parent context if provided
-    if (options.parentContext) {
-      return this.tracer.startSpan(spanName, spanOptions, options.parentContext)
-    }
-
-    return this.tracer.startSpan(spanName, spanOptions)
+    const spanOptions: SpanOptions = { kind: SpanKind.SERVER, attributes }
+    return options.parentContext
+      ? this.tracer.startSpan(spanName, spanOptions, options.parentContext)
+      : this.tracer.startSpan(spanName, spanOptions)
   }
 
   /**
-   * Creates a child span for internal operations.
-   *
-   * @param options - Child span options
-   * @returns The created span
+   * Creates an internal span whose parent is the active span.
    */
   createChildSpan(options: ChildSpanOptions): Span {
-    const parentSpan = getCurrentSpan()
-    const parentContext = parentSpan ? trace.setSpan(otelContext.active(), parentSpan) : undefined
-
-    const spanOptions: SpanOptions = {
-      kind: SpanKind.INTERNAL,
-      attributes: { ...options.attributes },
-    }
-
-    // Add Navios-specific attributes if enabled
-    if (this.getConfig()?.includeNaviosAttributes) {
+    const attributes: Record<string, AttributeValue> = { ...options.attributes }
+    if (this.config?.includeNaviosAttributes) {
       if (options.controller) {
-        spanOptions.attributes!['navios.controller'] = options.controller
+        attributes['navios.controller'] = options.controller
       }
       if (options.handler) {
-        spanOptions.attributes!['navios.handler'] = options.handler
+        attributes['navios.handler'] = options.handler
       }
       if (options.guard) {
-        spanOptions.attributes!['navios.guard'] = options.guard
+        attributes['navios.guard'] = options.guard
       }
     }
-
-    if (parentContext) {
-      return this.tracer.startSpan(options.name, spanOptions, parentContext)
-    }
-
-    return this.tracer.startSpan(options.name, spanOptions)
+    return this.tracer.startSpan(
+      options.name,
+      { kind: SpanKind.INTERNAL, attributes },
+      parentContext(),
+    )
   }
 
   /**
    * Creates a span for guard execution.
-   *
-   * @param guardName - Name of the guard
-   * @returns The created span
    */
   createGuardSpan(guardName: string): Span {
-    return this.createChildSpan({
-      name: `guard:${guardName}`,
-      guard: guardName,
-    })
+    return this.createChildSpan({ name: `guard:${guardName}`, guard: guardName })
   }
 
   /**
    * Creates a span for handler execution.
-   *
-   * @param controllerName - Controller class name
-   * @param handlerName - Handler method name
-   * @returns The created span
    */
   createHandlerSpan(controllerName: string, handlerName: string): Span {
     return this.createChildSpan({
@@ -242,56 +184,30 @@ export class SpanFactoryService {
   }
 
   /**
-   * Sets HTTP response attributes on a span.
-   *
-   * @param span - The span to update
-   * @param statusCode - HTTP status code
-   * @param contentLength - Optional response content length
+   * Sets the response status on a span. A status of 400 or above marks the
+   * span as failed.
    */
   setHttpResponse(span: Span, statusCode: number, contentLength?: number): void {
     span.setAttribute('http.status_code', statusCode)
-
     if (contentLength !== undefined) {
       span.setAttribute('http.response_content_length', contentLength)
     }
-
-    // Set span status based on HTTP status code
     if (statusCode >= 400) {
-      span.setStatus({
-        code: SpanStatusCode.ERROR,
-        message: `HTTP ${statusCode}`,
-      })
+      span.setStatus({ code: SpanStatusCode.ERROR, message: `HTTP ${statusCode}` })
     } else {
       span.setStatus({ code: SpanStatusCode.OK })
     }
   }
 
   /**
-   * Records an error on a span.
-   *
-   * @param span - The span to update
-   * @param error - The error to record
+   * Records an error on a span and marks the span as failed.
    */
   recordError(span: Span, error: unknown): void {
-    if (error instanceof Error) {
-      span.recordException(error)
-      span.setStatus({
-        code: SpanStatusCode.ERROR,
-        message: error.message,
-      })
-    } else {
-      span.setStatus({
-        code: SpanStatusCode.ERROR,
-        message: String(error),
-      })
-    }
+    recordSpanError(span, error)
   }
 
   /**
    * Adds attributes to a span.
-   *
-   * @param span - The span to update
-   * @param attributes - Attributes to add
    */
   addAttributes(span: Span, attributes: Record<string, AttributeValue>): void {
     for (const [key, value] of Object.entries(attributes)) {
@@ -299,3 +215,5 @@ export class SpanFactoryService {
     }
   }
 }
+
+registerInjectable(SpanFactoryService)

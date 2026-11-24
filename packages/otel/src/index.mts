@@ -18,8 +18,8 @@ export type {
   TracedMetadata,
 } from './decorators/index.mjs'
 
-// Factories
-export { createTracedWrapperFactory } from './factories/index.mjs'
+// Interceptors
+export { compileIgnoreRoutes, OtelHttpInterceptor } from './interceptors/index.mjs'
 
 // Interfaces
 export type {
@@ -33,23 +33,31 @@ export type {
 } from './interfaces/index.mjs'
 
 // Plugins
-export { defineOtelTracingPlugin } from './plugins/index.mjs'
-export type { OtelTracingPluginOptions } from './plugins/index.mjs'
+export { otelPlugin } from './plugins/index.mjs'
+export type { OtelPluginOptions } from './plugins/index.mjs'
 
 // Services
 export {
+  extractTraceContext,
   OtelSetupService,
+  resolveOtelConfig,
   SpanFactoryService,
   TraceContextService,
   TracedProxyFactory,
+  traceInstance,
 } from './services/index.mjs'
-export type { ChildSpanOptions, HttpSpanOptions } from './services/index.mjs'
+export type {
+  ChildSpanOptions,
+  HeaderCarrier,
+  HttpSpanOptions,
+  OtelSetupLogger,
+} from './services/index.mjs'
 
-// Stores
+// Request context key and active-span helpers
 export {
   getCurrentSpan,
   getCurrentSpanContext,
-  getSpanContextStore,
+  RequestSpan,
   runWithSpanContext,
 } from './stores/index.mjs'
 export type { SpanContext } from './stores/index.mjs'
@@ -63,5 +71,7 @@ export {
   createNaviosAttributes,
   HttpAttributes,
   NaviosAttributes,
+  parentContext,
   parseUrlAttributes,
+  recordSpanError,
 } from './utils/index.mjs'

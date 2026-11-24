@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0] - Unreleased
+
+**This package is deprecated.** The OpenTelemetry plugin is adapter-neutral in 2.0 and lives in `@navios/otel`. This package re-exports it so that existing imports resolve.
+
+### Breaking
+
+- `defineOtelPlugin(options)` returns a one-element array holding `otelPlugin(options)` from `@navios/otel`. The 1.x registration loop keeps working.
+- Removed `TracedBunControllerAdapterService`, `OtelBunPreAdapterPlugin`, `OtelBunPostModulesPlugin` and `BunOtelOptionsToken`. The Bun controller adapter is no longer replaced; requests are traced by an interceptor.
+- `guard:<name>` child spans are no longer created.
+
+### Changed
+
+- The peer dependencies are `@navios/core` and `@navios/otel` only.
+- `BunOtelPluginOptions` is an alias of `OtelPluginOptions` from `@navios/otel`.
+
 ## [1.0.0-alpha.3] - 2026-01-18
 
 ### Changed

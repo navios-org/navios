@@ -1,9 +1,19 @@
-import { defineBunEnvironment, type BunEnvironment } from '@navios/adapter-bun'
+import { defineBunEnvironment } from '@navios/adapter-bun'
 import { NaviosFactory } from '@navios/core'
-import { defineOtelPlugin } from '@navios/otel-bun'
+import { otelPlugin } from '@navios/otel'
+
+import type { BunEnvironment } from '@navios/adapter-bun'
 
 import { getOtelConfig, logOtelConfig } from './config/otel.config.mjs'
+// Importing the module tree runs the @Traced decorators; the plugin reads
+// the classes they marked once, during init().
 import { AppModule } from './modules/app/app.module.mjs'
+
+declare module '@navios/core' {
+  interface Register {
+    environment: BunEnvironment
+  }
+}
 
 async function bootstrap() {
   // Get OTEL configuration from environment variables
@@ -12,31 +22,31 @@ async function bootstrap() {
   // Log configuration for debugging
   logOtelConfig(otelConfig)
 
-  // Create the application
-  const app = await NaviosFactory.create<BunEnvironment>(AppModule, {
-    adapter: defineBunEnvironment(),
+  // One plugin, the same on every adapter: it starts the SDK, traces HTTP
+  // requests and @Traced services, and flushes on app.close().
+  const app = await NaviosFactory.create(AppModule, {
+    adapter: defineBunEnvironment({
+      cors: {
+        methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+      },
+    }),
+    plugins: [otelPlugin(otelConfig)],
   })
-
-  // Enable CORS
-  app.enableCors({
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  })
-
-  // Register OpenTelemetry plugins (returns array of staged plugins)
-  for (const pluginDef of defineOtelPlugin(otelConfig)) {
-    app.usePlugin(pluginDef)
-  }
-
-  // Initialize the application
-  await app.init()
 
   // Start listening
   const port = parseInt(process.env.PORT || '3000', 10)
   const host = process.env.HOST || 'localhost'
 
-  await app.listen({ port, hostname: host })
+  const url = await app.listen({ port, hostname: host })
 
-  console.log(`\nServer running at http://${host}:${port}`)
+  // Flush buffered spans before the process exits.
+  for (const signal of ['SIGINT', 'SIGTERM'] as const) {
+    process.once(signal, () => {
+      void app.close().finally(() => process.exit(0))
+    })
+  }
+
+  console.log(`\nServer running at ${url}`)
   console.log('\nAvailable endpoints:')
   console.log('  GET  /health          - Health check (ignored in traces)')
   console.log('  GET  /metrics         - Simple metrics endpoint')

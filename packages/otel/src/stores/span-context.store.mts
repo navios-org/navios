@@ -1,9 +1,25 @@
-import { AsyncLocalStorage } from 'node:async_hooks'
+import { createContextKey, currentContext } from '@navios/core'
+import { context as otelContext, propagation, trace } from '@opentelemetry/api'
 
 import type { Baggage, Span } from '@opentelemetry/api'
 
 /**
- * Context stored in AsyncLocalStorage for span propagation.
+ * The server span of the current request, stored on the request context by
+ * the plugin's interceptor.
+ *
+ * ```ts
+ * getUser = handler(getUser, ({ urlParams }, ctx) => {
+ *   ctx.find(RequestSpan)?.setAttribute('user.id', urlParams.id)
+ * })
+ * ```
+ *
+ * Read it with `ctx.find()`: the key is not set for ignored routes or when
+ * HTTP tracing is turned off.
+ */
+export const RequestSpan = createContextKey<Span>('OtelRequestSpan')
+
+/**
+ * A span and, optionally, the baggage that travels with it.
  */
 export interface SpanContext {
   /**
@@ -18,59 +34,50 @@ export interface SpanContext {
 }
 
 /**
- * AsyncLocalStorage instance for span context propagation.
+ * Runs a function with a span as the active OpenTelemetry span.
  *
- * This store allows spans to be automatically propagated through
- * async operations without explicitly passing them through the call stack.
- */
-let spanContextStore: AsyncLocalStorage<SpanContext> | null = null
-
-/**
- * Gets or creates the span context store.
- * Lazily initialized to avoid overhead when not used.
- */
-export function getSpanContextStore(): AsyncLocalStorage<SpanContext> {
-  if (!spanContextStore) {
-    spanContextStore = new AsyncLocalStorage<SpanContext>()
-  }
-  return spanContextStore
-}
-
-/**
- * Runs a function within a span context.
- *
- * @param context - The span context to set for the execution
- * @param fn - The function to execute
- * @returns The return value of the function
+ * This is `context.with()` from `@opentelemetry/api`. The span stays active
+ * across `await` only when a context manager is registered, which the plugin
+ * does by default.
  *
  * @example
  * ```typescript
  * const span = tracer.startSpan('my-operation')
  * const result = runWithSpanContext({ span }, () => {
- *   // getCurrentSpanContext() returns { span } here
+ *   // getCurrentSpan() returns span here
  *   return doWork()
  * })
  * span.end()
  * ```
  */
-export function runWithSpanContext<T>(context: SpanContext, fn: () => T): T {
-  return getSpanContextStore().run(context, fn)
+export function runWithSpanContext<T>(spanContext: SpanContext, fn: () => T): T {
+  let active = trace.setSpan(otelContext.active(), spanContext.span)
+  if (spanContext.baggage) {
+    active = propagation.setBaggage(active, spanContext.baggage)
+  }
+  return otelContext.with(active, fn)
 }
 
 /**
- * Gets the current span context from AsyncLocalStorage.
+ * The active span.
  *
- * @returns The current span context, or undefined if not in a span context
- */
-export function getCurrentSpanContext(): SpanContext | undefined {
-  return getSpanContextStore().getStore()
-}
-
-/**
- * Gets the current active span from AsyncLocalStorage.
- *
- * @returns The current span, or undefined if not in a span context
+ * It is taken from the active OpenTelemetry context. When that holds no span
+ * (no context manager is registered) and the application runs with
+ * `asyncContext: true`, the request's server span is returned instead.
  */
 export function getCurrentSpan(): Span | undefined {
-  return getCurrentSpanContext()?.span
+  return trace.getSpan(otelContext.active()) ?? currentContext()?.find(RequestSpan)
+}
+
+/**
+ * The active span together with the active baggage, or `undefined` when no
+ * span is active.
+ */
+export function getCurrentSpanContext(): SpanContext | undefined {
+  const span = getCurrentSpan()
+  if (!span) {
+    return undefined
+  }
+  const baggage = propagation.getBaggage(otelContext.active())
+  return baggage ? { span, baggage } : { span }
 }

@@ -1,8 +1,14 @@
-import { inject } from '@navios/core'
-import { BadRequestException, InternalServerErrorException, NotFoundException } from '@navios/core'
-import { Controller, Endpoint, HttpCode } from '@navios/core/legacy-compat'
+import {
+  BadRequestException,
+  inject,
+  InternalServerErrorException,
+  NotFoundException,
+  reply,
+} from '@navios/core'
+import { Controller, Endpoint } from '@navios/core/legacy-compat'
+import { RequestSpan } from '@navios/otel'
 
-import type { EndpointParams, EndpointResult } from '@navios/core'
+import type { HandlerParams, HandlerResult, RequestContext } from '@navios/core'
 
 import {
   chainEndpoint,
@@ -24,13 +30,16 @@ export class ItemsController {
   private readonly processingService = inject(ProcessingService)
 
   @Endpoint(listItemsEndpoint)
-  async listItems(params: EndpointParams<typeof listItemsEndpoint>) {
+  async listItems(params: HandlerParams<typeof listItemsEndpoint>) {
     const { category, minPrice, maxPrice } = params.params
     return this.itemsService.findAll({ category, minPrice, maxPrice })
   }
 
   @Endpoint(getItemEndpoint)
-  async getItem(params: EndpointParams<typeof getItemEndpoint>) {
+  async getItem(params: HandlerParams<typeof getItemEndpoint>, ctx: RequestContext) {
+    // The request's server span is on the request context. It is not set
+    // for ignored routes or when HTTP tracing is off, hence find().
+    ctx.find(RequestSpan)?.setAttribute('item.id', params.urlParams.id)
     const item = await this.itemsService.findById(params.urlParams.id)
     if (!item) {
       throw new NotFoundException('Item not found')
@@ -39,16 +48,15 @@ export class ItemsController {
   }
 
   @Endpoint(createItemEndpoint)
-  @HttpCode(201)
-  async createItem(params: EndpointParams<typeof createItemEndpoint>) {
+  async createItem(params: HandlerParams<typeof createItemEndpoint>) {
     // Validate and transform data (demonstrates nested spans)
     await this.processingService.validate(params.data)
     const transformedData = await this.processingService.transform(params.data)
-    return this.itemsService.create(transformedData)
+    return reply(201, await this.itemsService.create(transformedData))
   }
 
   @Endpoint(updateItemEndpoint)
-  async updateItem(params: EndpointParams<typeof updateItemEndpoint>) {
+  async updateItem(params: HandlerParams<typeof updateItemEndpoint>) {
     const item = await this.itemsService.update(params.urlParams.id, params.data)
     if (!item) {
       throw new NotFoundException('Item not found')
@@ -57,7 +65,7 @@ export class ItemsController {
   }
 
   @Endpoint(deleteItemEndpoint)
-  async deleteItem(params: EndpointParams<typeof deleteItemEndpoint>) {
+  async deleteItem(params: HandlerParams<typeof deleteItemEndpoint>) {
     const deleted = await this.itemsService.delete(params.urlParams.id)
     if (!deleted) {
       throw new NotFoundException('Item not found')
@@ -69,7 +77,7 @@ export class ItemsController {
    * Slow endpoint - demonstrates long-running operations in traces.
    */
   @Endpoint(slowEndpoint)
-  async slow(params: EndpointParams<typeof slowEndpoint>) {
+  async slow(params: HandlerParams<typeof slowEndpoint>) {
     const delay = params.params.delay
     await this.processingService.simulateSlowOperation(delay)
     return { message: 'Slow operation completed', delayMs: delay }
@@ -79,7 +87,7 @@ export class ItemsController {
    * Error endpoint - demonstrates error traces.
    */
   @Endpoint(errorEndpoint)
-  async error(params: EndpointParams<typeof errorEndpoint>): EndpointResult<typeof errorEndpoint> {
+  async error(params: HandlerParams<typeof errorEndpoint>): HandlerResult<typeof errorEndpoint> {
     const type = params.params.type
 
     switch (type) {
@@ -97,7 +105,7 @@ export class ItemsController {
    * Chain endpoint - demonstrates nested spans with recursive operations.
    */
   @Endpoint(chainEndpoint)
-  async chain(params: EndpointParams<typeof chainEndpoint>) {
+  async chain(params: HandlerParams<typeof chainEndpoint>) {
     const depth = params.params.depth
     const result = await this.processingService.processChain(depth)
     return { result, depth }
