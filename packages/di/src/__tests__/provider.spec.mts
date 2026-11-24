@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest'
 
-import { argsKey } from '../internal/args-key.mjs'
 import {
   Container,
   DIErrorCode,
@@ -13,6 +12,7 @@ import {
   registerInjectable,
   validateSync,
 } from '../index.mjs'
+import { argsKey } from '../internal/args-key.mjs'
 
 import type { StandardSchemaV1 } from '../index.mjs'
 
@@ -164,9 +164,9 @@ describe('tokens and providers', () => {
     class Impl {}
 
     expect(provide(Base, Impl).record.scope).toBe(InjectableScope.Transient)
-    expect(
-      provide(Base, { class: Impl, scope: InjectableScope.Request }).record.scope,
-    ).toBe(InjectableScope.Request)
+    expect(provide(Base, { class: Impl, scope: InjectableScope.Request }).record.scope).toBe(
+      InjectableScope.Request,
+    )
     expect(provide(Base, { value: 0 as any }).record.kind).toBe('value')
   })
 

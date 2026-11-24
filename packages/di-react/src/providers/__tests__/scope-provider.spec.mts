@@ -1,4 +1,4 @@
-import { Container, Injectable, InjectableScope, Registry } from '@navios/di'
+import { Container, Injectable, InjectableScope } from '@navios/di'
 import { render, screen, waitFor } from '@testing-library/react'
 import { createElement } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -10,11 +10,9 @@ import { ScopeProvider } from '../scope-provider.mjs'
 
 describe('ScopeProvider', () => {
   let container: Container
-  let registry: Registry
 
   beforeEach(() => {
-    registry = new Registry()
-    container = new Container(registry)
+    container = new Container()
   })
 
   afterEach(async () => {
@@ -80,7 +78,7 @@ describe('ScopeProvider', () => {
     it('should create separate instances for different scopes', async () => {
       let instanceCount = 0
 
-      @Injectable({ registry, scope: InjectableScope.Request })
+      @Injectable({ scope: InjectableScope.Request })
       class RequestScopedService {
         public readonly id: number
 
@@ -140,7 +138,7 @@ describe('ScopeProvider', () => {
     it.skip('should share instances within the same scope', async () => {
       let instanceCount = 0
 
-      @Injectable({ registry, scope: InjectableScope.Request })
+      @Injectable({ scope: InjectableScope.Request })
       class RequestScopedService {
         public readonly id: number
 
@@ -330,8 +328,8 @@ describe('ScopeProvider', () => {
       )
 
       expect(scopedContainer).not.toBeNull()
-      expect(typeof (scopedContainer as any).getRequestId).toBe('function')
-      expect((scopedContainer as any).getRequestId()).toBe('test-scope')
+      expect(typeof (scopedContainer as any).getMetadata).toBe('function')
+      expect((scopedContainer as any).getMetadata('scopeId')).toBe('test-scope')
     })
   })
 })

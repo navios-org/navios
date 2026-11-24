@@ -1,7 +1,6 @@
 import { InjectableScope } from '../enums/index.mjs'
 import { DIError } from '../errors/di-error.mjs'
 import { validateSync } from '../schema/standard-schema.mjs'
-import { InjectableTokenMeta } from '../symbols/index.mjs'
 import {
   BoundInjectionToken,
   FactoryInjectionToken,
@@ -49,6 +48,11 @@ export interface Host {
 /** @internal */
 export interface RootHost extends Host {
   readonly overrides: Map<InjectionToken<any, any>, ProviderRecord>
+  /**
+   * When `true`, only providers given to this container are used; the
+   * defaults registered on tokens are ignored. Used by `UnitTestContainer`.
+   */
+  readonly strict: boolean
   decorators: Map<InjectionToken<any, any>, InstanceDecorator[]> | null
   readonly factoryValues: Map<FactoryInjectionToken<any, any>, FactoryValue>
 }
@@ -141,7 +145,9 @@ function factoryValue(host: Host, token: FactoryInjectionToken<any, any>): Facto
   state = { done: false, value: undefined, promise: null }
   values.set(token, state)
   const created = state
-  const container = host.facade
+  // The value is cached per root container, so it is computed against the
+  // root: a scope's own values must not leak into it.
+  const container = host.root.facade
   let result: unknown
   try {
     result = token.factory({
@@ -193,7 +199,8 @@ export function lookupRecord(
   host: Host,
   token: InjectionToken<any, any>,
 ): ProviderRecord | undefined {
-  return host.root.overrides.get(token) ?? token.provider
+  const root = host.root
+  return root.overrides.get(token) ?? (root.strict ? undefined : token.provider)
 }
 
 /** @internal */
@@ -326,7 +333,13 @@ function build(
 
   let outcome: void | Promise<void>
   try {
-    const waits = record.preResolve === true ? preResolve(frame, record.plan!) : null
+    const waits =
+      record.preResolve === true && record.plan !== null ? preResolve(frame, record.plan) : null
+    if (waits === null && record.preResolve === true && record.plan !== null) {
+      // Everything was ready this time; stop paying for the extra lookups
+      // until a pass has to be discarded again.
+      record.preResolve = false
+    }
     outcome = waits === null ? pass(frame) : waits.then(() => replay(frame, true))
   } catch (error) {
     throw fail(entry, error)
@@ -480,7 +493,7 @@ function settle(frame: Frame, produced: unknown): void | Promise<void> {
     record.plan = frame.requests
   }
   if (frame.used !== null) {
-    entry.transients = frame.used
+    entry.transients = entry.transients === null ? frame.used : entry.transients.concat(frame.used)
   }
 
   if (record.kind === 'class') {
@@ -687,17 +700,42 @@ export function optionalImpl(raw: AnyInjectableType, rawArgs?: unknown): any {
 export function asyncInjectImpl(raw: AnyInjectableType, rawArgs?: unknown): Promise<any> {
   const frame = requireFrame('asyncInject')
   const host = frame.host
+  const requester = frame.entry
   const owner = storedOwner(frame)
   // Starts after the current construction has returned and adds no wait edge,
   // so it can be used to break a cycle deliberately.
-  return Promise.resolve()
-    .then(() => resolveAsync(host, raw, rawArgs))
-    .then((entry) => {
-      if (owner !== null && owner.status <= EntryStatus.Ready) {
-        link(owner, entry)
+  return Promise.resolve().then(() => {
+    // Resolve synchronously first, so the dependency link exists one
+    // microtask after the construction instead of whenever the dependency
+    // finishes initialising.
+    const first = resolveTop(host, raw, rawArgs)
+    const linked =
+      !(first instanceof Wait) &&
+      first.store !== null &&
+      owner !== null &&
+      owner.status <= EntryStatus.Ready
+    if (linked) {
+      link(owner, first as Entry)
+    }
+    const ready =
+      !(first instanceof Wait) && first.status === EntryStatus.Ready
+        ? first
+        : resolveAsync(host, raw, rawArgs)
+    return ready instanceof Promise
+      ? ready.then((entry) => adopt(entry, linked ? (first as Entry) : null))
+      : adopt(ready, linked ? ready : null)
+  })
+
+  function adopt(entry: Entry, alreadyLinked: Entry | null): unknown {
+    if (entry.store === null) {
+      if (requester.status <= EntryStatus.Ready) {
+        ;(requester.transients ??= []).push(entry)
       }
-      return entry.instance
-    })
+    } else if (entry !== alreadyLinked && owner !== null && owner.status <= EntryStatus.Ready) {
+      link(owner, entry)
+    }
+    return entry.instance
+  }
 }
 
 function createFactoryContext(frame: Frame): FactoryContext {
@@ -868,7 +906,11 @@ export function storeValue(
   let token: InjectionToken<any, any>
   let args: unknown
   if (typeof raw === 'function') {
-    token = findInjectableToken(raw) ?? attachToken(raw)
+    const found = findInjectableToken(raw)
+    if (found === undefined) {
+      throw DIError.classNotInjectable(raw.name)
+    }
+    token = found
   } else if (raw instanceof BoundInjectionToken) {
     token = raw.token
     args = raw.value
@@ -888,6 +930,12 @@ export function storeValue(
     args = validateSync(token.schema, args, token.toString())
   }
   const key = args === undefined ? null : argsKey(args)
+  const existing = host.store.get(token, key)
+  if (existing !== undefined && existing.status <= EntryStatus.Ready) {
+    throw DIError.unknown(
+      `[DI] ${token.toString()} already has an instance in this container; invalidate it before adding another`,
+    )
+  }
   const entry = createEntry(
     { token, kind: 'value', target: undefined, fn: undefined, value, scope, plan: null },
     token,
@@ -897,6 +945,10 @@ export function storeValue(
   )
   entry.instance = value
   entry.status = EntryStatus.Ready
+  const hooks = value as { onServiceDestroy?: () => void | Promise<void> } | null
+  if (hooks !== null && typeof hooks === 'object' && typeof hooks.onServiceDestroy === 'function') {
+    entry.destroyListeners = [() => hooks.onServiceDestroy!()]
+  }
   host.store.set(token, key, entry)
   host.store.trackInstance(entry)
 }
@@ -905,17 +957,6 @@ type ClassOrToken =
   | (new (...args: any[]) => any)
   | InjectionToken<any, any>
   | BoundInjectionToken<any, any>
-
-function attachToken(target: new (...args: any[]) => any): InjectionToken<any, any> {
-  const token = new InjectionToken(target)
-  Object.defineProperty(target, InjectableTokenMeta, {
-    value: token,
-    configurable: true,
-    enumerable: false,
-    writable: true,
-  })
-  return token
-}
 
 // ----------------------------------------------------------------------------
 // Destruction
@@ -951,8 +992,7 @@ export function destroyEntry(entry: Entry): void | Promise<void> {
     }
   }
 
-  const result =
-    waits === null ? teardown(entry) : Promise.all(waits).then(() => teardown(entry))
+  const result = waits === null ? teardown(entry) : Promise.all(waits).then(() => teardown(entry))
   if (result !== undefined) {
     const settled = result.then(noop, noop)
     entry.destroyPromise = settled

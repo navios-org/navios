@@ -156,4 +156,31 @@ Engine rules are the design's 5.3 verbatim: frame stack; `inject()` builds neste
 
 ## Results
 
-_Filled in during execution._
+Executed 2026-11-24 on `feat/v2-di`. Tasks 1 to 9 are done.
+
+**Tests.** `packages/di`: 410 passing (plus 33 in the `--expose-gc` run), type tests clean, `tsc --noEmit` clean. The count is below the 538 baseline because nine spec files tested only internals that no longer exist; every behaviour suite was ported. `packages/di-react`: 48 passing, 2 skipped (both were skipped before).
+
+**Tests deleted because the behaviour is gone:** registries and priorities, request ids, hashed token ids, automatic scope upgrade (singleton injecting request-scoped), `getInjectors`, the removed error factories.
+
+**Benchmarks** (`yarn bench --check`, Node 24.22, production mode, same machine as the 1.x numbers):
+
+| Case | 1.x | 2.0 | Budget |
+|---|---|---|---|
+| `await get(ready singleton)` | 0.39 µs | 0.055 µs | not slower |
+| `await get(transient, 1 dep)` | 4.7 µs | 0.135 µs | 1.2 µs |
+| scope + `await get(request-scoped, 2 deps)` + dispose | 5.6 µs | 0.43 µs | 1.5 µs |
+| `getSync(ready singleton)` | n/a | 0.013 µs | |
+| scope + `getSync(request-scoped, 2 deps)` + dispose | n/a | 0.27 µs | |
+
+**Output.** ESM entry chunks total about 52 KB (1.x: about 98 KB). No decorator helper, no `node:async_hooks`, no `zod` in `lib/`.
+
+**Deviations from this plan**
+- `validateSync` is tested with zod and a hand-written Standard Schema, not valibot and arktype: they are not dependencies of `packages/di`.
+- The benchmark is a plain Node script (`benchmarks/di.bench.mjs`) run against `lib/`, because the `bench` API of the installed Vitest 5 differs from the one this plan assumed.
+- Added during execution: `ContainerOptions.strict` (for `UnitTestContainer`), early dependency links for `asyncInject`, `onInvalidate` support for factory tokens, and three `addInstance` guarantees kept from 1.x (unregistered class throws, a second instance for one token throws, `onServiceDestroy` of an added instance runs).
+
+**Known limits, unchanged from 1.x**
+- `inject(Class, args)` for a class registered with a transforming schema types `args` as the schema's output, not its input. Tokens are typed correctly.
+- A schema-less token accepts an args argument at the type level.
+
+**Not building on this branch:** `@navios/core` and everything that depends on the removed DI APIs. That is phase 2.

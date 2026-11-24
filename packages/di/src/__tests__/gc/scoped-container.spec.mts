@@ -4,7 +4,7 @@
  * Tests that request-scoped services are properly garbage collected
  * when the scoped container is ended/disposed.
  *
- * Run with: NODE_OPTIONS=--expose-gc yarn nx test @navios/di
+ * Run with: NODE_OPTIONS=--expose-gc yarn run -T vitest run src/__tests__/gc
  */
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -12,8 +12,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { Container } from '../../container/container.mjs'
 import { Injectable } from '../../decorators/injectable.decorator.mjs'
 import { InjectableScope } from '../../enums/injectable-scope.enum.mjs'
-import { Registry } from '../../token/registry.mjs'
-import { inject } from '../../utils/index.mjs'
+import { inject } from '../../injectors.mjs'
 
 import type { ScopedContainer } from '../../container/scoped-container.mjs'
 import type { OnServiceDestroy } from '../../interfaces/on-service-destroy.interface.mjs'
@@ -27,12 +26,10 @@ import {
 } from './gc-test-utils.mjs'
 
 describe.skipIf(!isGCAvailable)('GC: Scoped Container', () => {
-  let registry: Registry
   let container: Container
 
   beforeEach(() => {
-    registry = new Registry()
-    container = new Container(registry)
+    container = new Container()
   })
 
   afterEach(async () => {
@@ -41,19 +38,19 @@ describe.skipIf(!isGCAvailable)('GC: Scoped Container', () => {
 
   describe('Request-scoped services released on endRequest', () => {
     it('should garbage collect request-scoped service after endRequest', async () => {
-      @Injectable({ registry, scope: InjectableScope.Request })
+      @Injectable({ scope: InjectableScope.Request })
       class RequestService {
         public readonly id = Math.random()
         public readonly data = Array.from({ length: 1000 }, () => 'request-scoped')
       }
 
-      const scoped = container.beginRequest('test-request-1')
+      const scoped = container.createScope()
       let instance: RequestService | null = await scoped.get(RequestService)
       const tracker = createGCTracker(instance)
 
       expect(tracker().collected).toBe(false)
 
-      await scoped.endRequest()
+      await scoped.dispose()
       instance = null
 
       const collected = await waitForGC(tracker().ref)
@@ -61,22 +58,22 @@ describe.skipIf(!isGCAvailable)('GC: Scoped Container', () => {
     })
 
     it('should collect multiple request-scoped services on endRequest', async () => {
-      @Injectable({ registry, scope: InjectableScope.Request })
+      @Injectable({ scope: InjectableScope.Request })
       class ServiceA {
         public readonly data = Array.from({ length: 500 }, () => 'a')
       }
 
-      @Injectable({ registry, scope: InjectableScope.Request })
+      @Injectable({ scope: InjectableScope.Request })
       class ServiceB {
         public readonly data = Array.from({ length: 500 }, () => 'b')
       }
 
-      @Injectable({ registry, scope: InjectableScope.Request })
+      @Injectable({ scope: InjectableScope.Request })
       class ServiceC {
         public readonly data = Array.from({ length: 500 }, () => 'c')
       }
 
-      const scoped = container.beginRequest('test-request-2')
+      const scoped = container.createScope()
 
       let instanceA: ServiceA | null = await scoped.get(ServiceA)
       let instanceB: ServiceB | null = await scoped.get(ServiceB)
@@ -86,7 +83,7 @@ describe.skipIf(!isGCAvailable)('GC: Scoped Container', () => {
       const trackerB = createGCTracker(instanceB)
       const trackerC = createGCTracker(instanceC)
 
-      await scoped.endRequest()
+      await scoped.dispose()
 
       // Release local references
       instanceA = null
@@ -101,7 +98,7 @@ describe.skipIf(!isGCAvailable)('GC: Scoped Container', () => {
     it('should call onServiceDestroy and then collect', async () => {
       const destroyedIds: number[] = []
 
-      @Injectable({ registry, scope: InjectableScope.Request })
+      @Injectable({ scope: InjectableScope.Request })
       class RequestServiceWithDestroy implements OnServiceDestroy {
         public readonly id = Math.random()
 
@@ -110,14 +107,14 @@ describe.skipIf(!isGCAvailable)('GC: Scoped Container', () => {
         }
       }
 
-      const scoped = container.beginRequest('test-request-3')
+      const scoped = container.createScope()
       let instance: RequestServiceWithDestroy | null = await scoped.get(RequestServiceWithDestroy)
       const instanceId = instance.id
       const tracker = createGCTracker(instance)
 
       expect(destroyedIds).toHaveLength(0)
 
-      await scoped.endRequest()
+      await scoped.dispose()
       instance = null
 
       expect(destroyedIds).toContain(instanceId)
@@ -127,7 +124,7 @@ describe.skipIf(!isGCAvailable)('GC: Scoped Container', () => {
     it('should handle async onServiceDestroy before collection', async () => {
       let destroyCompleted = false
 
-      @Injectable({ registry, scope: InjectableScope.Request })
+      @Injectable({ scope: InjectableScope.Request })
       class AsyncDestroyService implements OnServiceDestroy {
         async onServiceDestroy(): Promise<void> {
           await new Promise((resolve) => setTimeout(resolve, 10))
@@ -135,11 +132,11 @@ describe.skipIf(!isGCAvailable)('GC: Scoped Container', () => {
         }
       }
 
-      const scoped = container.beginRequest('test-request-4')
+      const scoped = container.createScope()
       let instance: AsyncDestroyService | null = await scoped.get(AsyncDestroyService)
       const tracker = createGCTracker(instance)
 
-      await scoped.endRequest()
+      await scoped.dispose()
       instance = null
 
       expect(destroyCompleted).toBe(true)
@@ -149,15 +146,15 @@ describe.skipIf(!isGCAvailable)('GC: Scoped Container', () => {
 
   describe('Scoped container itself is collected', () => {
     it('should garbage collect scoped container after endRequest', async () => {
-      @Injectable({ registry, scope: InjectableScope.Request })
+      @Injectable({ scope: InjectableScope.Request })
       class RequestService {}
 
-      let scoped: ScopedContainer | null = container.beginRequest('test-gc-scoped')
+      let scoped: ScopedContainer | null = container.createScope()
       await scoped.get(RequestService)
 
       const scopedTracker = createGCTracker(scoped)
 
-      await scoped.endRequest()
+      await scoped.dispose()
       scoped = null
 
       const collected = await waitForGC(scopedTracker().ref)
@@ -167,12 +164,12 @@ describe.skipIf(!isGCAvailable)('GC: Scoped Container', () => {
 
   describe('Mixed scope scenarios with request scope', () => {
     it('should collect request-scoped but keep singletons', async () => {
-      @Injectable({ registry })
+      @Injectable()
       class SingletonService {
         public readonly id = Math.random()
       }
 
-      @Injectable({ registry, scope: InjectableScope.Request })
+      @Injectable({ scope: InjectableScope.Request })
       class RequestService {
         public readonly singleton = inject(SingletonService)
         public readonly id = Math.random()
@@ -183,14 +180,14 @@ describe.skipIf(!isGCAvailable)('GC: Scoped Container', () => {
       const singletonTracker = createGCTracker(singleton)
 
       // Create request scope and get request-scoped service
-      const scoped = container.beginRequest('test-mixed-1')
+      const scoped = container.createScope()
       let requestInstance: RequestService | null = await scoped.get(RequestService)
       const requestTracker = createGCTracker(requestInstance)
 
       // Request service should reference same singleton
       expect(requestInstance.singleton).toBe(singleton)
 
-      await scoped.endRequest()
+      await scoped.dispose()
       requestInstance = null
 
       // Request-scoped should be collected
@@ -202,14 +199,14 @@ describe.skipIf(!isGCAvailable)('GC: Scoped Container', () => {
     })
 
     it('should isolate request-scoped services between requests', async () => {
-      @Injectable({ registry, scope: InjectableScope.Request })
+      @Injectable({ scope: InjectableScope.Request })
       class RequestService {
         public readonly id = Math.random()
         public readonly data = Array.from({ length: 500 }, () => 'isolated')
       }
 
-      const scoped1 = container.beginRequest('request-a')
-      const scoped2 = container.beginRequest('request-b')
+      const scoped1 = container.createScope()
+      const scoped2 = container.createScope()
 
       let instance1: RequestService | null = await scoped1.get(RequestService)
       let instance2: RequestService | null = await scoped2.get(RequestService)
@@ -220,7 +217,7 @@ describe.skipIf(!isGCAvailable)('GC: Scoped Container', () => {
       const tracker2 = createGCTracker(instance2)
 
       // End first request
-      await scoped1.endRequest()
+      await scoped1.dispose()
       instance1 = null
 
       expect(await waitForGC(tracker1().ref)).toBe(true)
@@ -231,7 +228,7 @@ describe.skipIf(!isGCAvailable)('GC: Scoped Container', () => {
       expect(stillThere).toBe(instance2)
 
       // End second request
-      await scoped2.endRequest()
+      await scoped2.dispose()
       instance2 = null
       stillThere = null
 
@@ -241,27 +238,27 @@ describe.skipIf(!isGCAvailable)('GC: Scoped Container', () => {
 
   describe('Request-scoped dependency chains', () => {
     it('should collect entire request-scoped dependency chain', async () => {
-      @Injectable({ registry, scope: InjectableScope.Request })
+      @Injectable({ scope: InjectableScope.Request })
       class Level3 {
         public readonly data = Array.from({ length: 200 }, () => 'l3')
       }
 
-      @Injectable({ registry, scope: InjectableScope.Request })
+      @Injectable({ scope: InjectableScope.Request })
       class Level2 {
         public readonly level3 = inject(Level3)
       }
 
-      @Injectable({ registry, scope: InjectableScope.Request })
+      @Injectable({ scope: InjectableScope.Request })
       class Level1 {
         public readonly level2 = inject(Level2)
       }
 
-      @Injectable({ registry, scope: InjectableScope.Request })
+      @Injectable({ scope: InjectableScope.Request })
       class RootService {
         public readonly level1 = inject(Level1)
       }
 
-      const scoped = container.beginRequest('chain-request')
+      const scoped = container.createScope()
       let root: RootService | null = await scoped.get(RootService)
 
       let l1: Level1 | null = root.level1
@@ -273,7 +270,7 @@ describe.skipIf(!isGCAvailable)('GC: Scoped Container', () => {
       const l2Tracker = createGCTracker(l2)
       const l3Tracker = createGCTracker(l3)
 
-      await scoped.endRequest()
+      await scoped.dispose()
 
       // Release local references
       root = null
@@ -288,18 +285,18 @@ describe.skipIf(!isGCAvailable)('GC: Scoped Container', () => {
     })
 
     it('should handle mixed singleton/request dependency chain', async () => {
-      @Injectable({ registry })
+      @Injectable()
       class SingletonBase {
         public readonly id = 'singleton-base'
       }
 
-      @Injectable({ registry, scope: InjectableScope.Request })
+      @Injectable({ scope: InjectableScope.Request })
       class RequestMiddle {
         public readonly base = inject(SingletonBase)
         public readonly id = Math.random()
       }
 
-      @Injectable({ registry, scope: InjectableScope.Request })
+      @Injectable({ scope: InjectableScope.Request })
       class RequestTop {
         public readonly middle = inject(RequestMiddle)
         public readonly id = Math.random()
@@ -308,7 +305,7 @@ describe.skipIf(!isGCAvailable)('GC: Scoped Container', () => {
       const singletonBase = await container.get(SingletonBase)
       const baseTracker = createGCTracker(singletonBase)
 
-      const scoped = container.beginRequest('mixed-chain')
+      const scoped = container.createScope()
       let top: RequestTop | null = await scoped.get(RequestTop)
       let middle: RequestMiddle | null = top.middle
 
@@ -317,7 +314,7 @@ describe.skipIf(!isGCAvailable)('GC: Scoped Container', () => {
 
       expect(middle.base).toBe(singletonBase)
 
-      await scoped.endRequest()
+      await scoped.dispose()
 
       // Release local references
       top = null
@@ -340,7 +337,7 @@ describe.skipIf(!isGCAvailable)('GC: Scoped Container', () => {
       // Create multiple request-scoped services
       const services: Array<{ new (): { data: Uint8Array } }> = []
       for (let i = 0; i < SERVICE_COUNT; i++) {
-        @Injectable({ registry, scope: InjectableScope.Request })
+        @Injectable({ scope: InjectableScope.Request })
         class LargeRequestService {
           public readonly data = new Uint8Array(ALLOCATION_SIZE)
         }
@@ -350,7 +347,7 @@ describe.skipIf(!isGCAvailable)('GC: Scoped Container', () => {
       forceGC()
       const baselineMemory = getHeapUsed()
 
-      const scoped = container.beginRequest('memory-test')
+      const scoped = container.createScope()
 
       // Resolve all services
       for (const Service of services) {
@@ -363,7 +360,7 @@ describe.skipIf(!isGCAvailable)('GC: Scoped Container', () => {
 
       expect(allocated).toBeGreaterThan(ALLOCATION_SIZE * SERVICE_COUNT * 0.8)
 
-      await scoped.endRequest()
+      await scoped.dispose()
 
       forceGC()
       const afterReleaseMemory = getHeapUsed()
@@ -377,7 +374,7 @@ describe.skipIf(!isGCAvailable)('GC: Scoped Container', () => {
       const ALLOCATION_SIZE = 1024 * 50 // 50KB
       const REQUEST_COUNT = 20
 
-      @Injectable({ registry, scope: InjectableScope.Request })
+      @Injectable({ scope: InjectableScope.Request })
       class RequestService {
         public readonly data = new Uint8Array(ALLOCATION_SIZE)
       }
@@ -387,9 +384,9 @@ describe.skipIf(!isGCAvailable)('GC: Scoped Container', () => {
 
       // Process many requests
       for (let i = 0; i < REQUEST_COUNT; i++) {
-        const scoped = container.beginRequest(`request-${i}`)
+        const scoped = container.createScope()
         await scoped.get(RequestService)
-        await scoped.endRequest()
+        await scoped.dispose()
       }
 
       forceGC()
@@ -404,7 +401,7 @@ describe.skipIf(!isGCAvailable)('GC: Scoped Container', () => {
   describe('Concurrent request handling', () => {
     // This test is flaky and no matter how many requests we make, the last instance is never collected.
     it.skip('should properly collect services from concurrent requests', async () => {
-      @Injectable({ registry, scope: InjectableScope.Request })
+      @Injectable({ scope: InjectableScope.Request })
       class RequestService {
         public readonly id = Math.random()
         public readonly data = Array.from({ length: 500 }, () => 'concurrent')
@@ -416,14 +413,14 @@ describe.skipIf(!isGCAvailable)('GC: Scoped Container', () => {
 
       // Start multiple concurrent requests
       for (let i = 0; i < requestCount; i++) {
-        const scoped = container.beginRequest(`concurrent-${i}`)
+        const scoped = container.createScope()
         scopedContainers.push(scoped)
         const instance = await scoped.get(RequestService)
         trackers.push(createGCTracker(instance))
       }
 
       // End all requests
-      await Promise.all(scopedContainers.map((s) => s.endRequest()))
+      await Promise.all(scopedContainers.map((s) => s.dispose()))
 
       forceGC()
       // All should be collected

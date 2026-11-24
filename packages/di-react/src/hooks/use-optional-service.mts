@@ -6,14 +6,12 @@ import type {
   ClassType,
   Factorable,
   FactoryInjectionToken,
+  InferInput,
   InjectionToken,
   InjectionTokenSchemaType,
+  MissingArgsError,
 } from '@navios/di'
-import type { z, ZodType } from 'zod/v4'
-
-import type { Join, UnionToArray } from '../types.mjs'
-
-import { useContainer, useRootContainer } from './use-container.mjs'
+import { useContainer } from './use-container.mjs'
 
 type OptionalServiceState<T> =
   | { status: 'idle' }
@@ -88,7 +86,7 @@ export function useOptionalService<T extends ClassType>(
 // #2 Token with required Schema
 export function useOptionalService<T, S extends InjectionTokenSchemaType>(
   token: InjectionToken<T, S>,
-  args: z.input<S>,
+  args: InferInput<S>,
 ): UseOptionalServiceResult<T>
 
 // #3 Token with optional Schema
@@ -96,9 +94,7 @@ export function useOptionalService<T, S extends InjectionTokenSchemaType, R exte
   token: InjectionToken<T, S, R>,
 ): R extends false
   ? UseOptionalServiceResult<T>
-  : S extends ZodType<infer Type>
-    ? `Error: Your token requires args: ${Join<UnionToArray<keyof Type>, ', '>}`
-    : 'Error: Your token requires args'
+  : MissingArgsError<S>
 
 // #4 Token with no Schema
 export function useOptionalService<T>(
@@ -148,29 +144,28 @@ export function useOptionalService(
 ): UseOptionalServiceResult<any> {
   // useContainer returns ScopedContainer if inside ScopeProvider, otherwise Container
   const container = useContainer()
-  const rootContainer = useRootContainer()
 
   // Try to get the instance synchronously first for better performance
   // This avoids the async loading state when the instance is already cached
   // We use a ref to track this so it doesn't cause effect re-runs
-  const initialSyncInstanceRef = useRef<any>(undefined)
+  const initialSyncInstanceRef = useRef<any>(null)
   const isFirstRenderRef = useRef(true)
 
   if (isFirstRenderRef.current) {
     try {
       initialSyncInstanceRef.current = container.tryGetSync(token, args)
     } catch {
-      // Service not registered, leave as undefined
+      // Service not registered, leave as null
     }
     isFirstRenderRef.current = false
   }
 
-  const initialState: OptionalServiceState<any> = initialSyncInstanceRef.current
-    ? { status: 'success', data: initialSyncInstanceRef.current }
-    : { status: 'idle' }
+  const initialState: OptionalServiceState<any> =
+    initialSyncInstanceRef.current !== null
+      ? { status: 'success', data: initialSyncInstanceRef.current }
+      : { status: 'idle' }
 
   const [state, dispatch] = useReducer(optionalServiceReducer, initialState)
-  const instanceNameRef = useRef<string | null>(null)
 
   if (process.env.NODE_ENV === 'development') {
     const argsRef = useRef<unknown>(args)
@@ -189,7 +184,8 @@ Example:
     }, [args])
   }
 
-  const fetchService = useCallback(async () => {
+  // Resolves to true when the service was loaded
+  const fetchService = useCallback(async (): Promise<boolean> => {
     dispatch({ type: 'loading' })
     try {
       // Use the container (ScopedContainer or Container) for resolution
@@ -198,12 +194,8 @@ Example:
         token as AnyInjectableType,
         args as any,
       )
-      // Get instance name for event subscription
-      const instanceName = container.calculateInstanceName(token, args)
-      if (instanceName) {
-        instanceNameRef.current = instanceName
-      }
       dispatch({ type: 'success', data: instance })
+      return true
     } catch (error) {
       // Caught exceptions are treated as errors
       const err = error as Error
@@ -217,45 +209,40 @@ Example:
       } else {
         dispatch({ type: 'error', error: err })
       }
+      return false
     }
   }, [container, token, args])
 
   // Subscribe to invalidation events
   useEffect(() => {
-    const eventBus = rootContainer.getEventBus()
     let unsubscribe: (() => void) | undefined
+    let isMounted = true
+
+    const subscribe = () => {
+      if (unsubscribe || !isMounted) return
+      unsubscribe = container.onInvalidate(token, args, () => {
+        // Re-fetch when the service is invalidated
+        void fetchService()
+      })
+    }
 
     // If we already have a sync instance from initial render, just set up subscription
     // Otherwise, fetch async
-    const syncInstance = initialSyncInstanceRef.current
-    if (syncInstance) {
-      const instanceName = container.calculateInstanceName(token, args)
-      if (instanceName) {
-        instanceNameRef.current = instanceName
-        unsubscribe = eventBus.on(instanceName, 'destroy', () => {
-          // Re-fetch when the service is invalidated
-          void fetchService()
-        })
-      }
+    if (initialSyncInstanceRef.current !== null) {
+      subscribe()
     } else {
-      void fetchService().then(() => {
-        if (instanceNameRef.current) {
-          unsubscribe = eventBus.on(instanceNameRef.current, 'destroy', () => {
-            // Re-fetch when the service is invalidated
-            void fetchService()
-          })
+      void fetchService().then((loaded) => {
+        if (loaded) {
+          subscribe()
         }
       })
-
-      return () => {
-        unsubscribe?.()
-      }
     }
 
     return () => {
+      isMounted = false
       unsubscribe?.()
     }
-  }, [fetchService, rootContainer, token, args])
+  }, [fetchService, container, token, args])
 
   return {
     data: state.status === 'success' ? state.data : undefined,

@@ -3,6 +3,7 @@ import { isStandardSchema } from '../schema/standard-schema.mjs'
 import type { InjectableScope } from '../enums/index.mjs'
 import type { IContainer } from '../interfaces/container.interface.mjs'
 import type { InferInput, StandardSchemaV1 } from '../schema/standard-schema.mjs'
+
 import type { ProviderRecord } from './provider.mjs'
 
 export type ClassType = new (...args: any[]) => any

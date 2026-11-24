@@ -122,7 +122,13 @@ export class ScopedContainer implements IContainer, Host {
       (base !== undefined && this.store.hasToken(base)) ||
       record?.scope === InjectableScope.Request ||
       (record === undefined && base?.scope === InjectableScope.Request)
-    return addInvalidateListener(local ? this.store : this.parent.store, token, args, listener)
+    return addInvalidateListener(
+      this.root,
+      local ? this.store : this.parent.store,
+      token,
+      args,
+      listener,
+    )
   }
 
   async ready(): Promise<void> {

@@ -1,5 +1,6 @@
 import { InjectableScope } from '../enums/index.mjs'
 import { DIError } from '../errors/di-error.mjs'
+import { argsKey } from '../internal/args-key.mjs'
 import {
   baseToken,
   destroyAll,
@@ -12,20 +13,15 @@ import {
   settleStore,
   storeValue,
 } from '../internal/engine.mjs'
-import { argsKey } from '../internal/args-key.mjs'
-import { EntryStatus, Store } from '../internal/entry.mjs'
+import { ANY_ARGS, EntryStatus, Store } from '../internal/entry.mjs'
 import { validateSync } from '../schema/standard-schema.mjs'
+import { BoundInjectionToken, FactoryInjectionToken } from '../token/injection-token.mjs'
 import { provide, registerInjectable } from '../token/provider.mjs'
 
 import type { IContainer } from '../interfaces/container.interface.mjs'
 import type { InstanceDecorator, RootHost } from '../internal/engine.mjs'
 import type { Entry } from '../internal/entry.mjs'
-import type {
-  AnyInjectableType,
-  BoundInjectionToken,
-  ClassType,
-  InjectionToken,
-} from '../token/injection-token.mjs'
+import type { AnyInjectableType, ClassType, InjectionToken } from '../token/injection-token.mjs'
 import type { Provider, ProviderInput, ProviderRecord } from '../token/provider.mjs'
 import type { AsyncResolve, SyncResolve } from '../utils/types.mjs'
 
@@ -34,6 +30,11 @@ import { ScopedContainer } from './scoped-container.mjs'
 export interface ContainerOptions {
   /** Providers that replace or supply the defaults registered on tokens. */
   providers?: Provider[]
+  /**
+   * Use only the providers given to this container and ignore the defaults
+   * registered with `@Injectable`. Meant for isolated unit tests.
+   */
+  strict?: boolean
   logger?: Console | null
 }
 
@@ -57,11 +58,14 @@ export class Container implements IContainer, RootHost {
   decorators: Map<InjectionToken<any, any>, InstanceDecorator[]> | null = null
   /** @internal */
   readonly factoryValues: RootHost['factoryValues'] = new Map()
+  /** @internal */
+  readonly strict: boolean
 
   protected readonly logger: Console | null
 
   constructor(options: ContainerOptions = {}) {
     this.logger = options.logger ?? null
+    this.strict = options.strict ?? false
     if (options.providers) {
       for (const provider of options.providers) {
         this.overrides.set(provider.token, provider.record)
@@ -108,9 +112,20 @@ export class Container implements IContainer, RootHost {
    * Wraps every instance of `token` after it is constructed and initialised
    * and before anything can observe it.
    */
+  decorate<C extends ClassType>(
+    token: C,
+    decorator: (
+      instance: InstanceType<C>,
+      info: { token: InjectionToken<any, any>; args: unknown },
+    ) => InstanceType<C>,
+  ): void
   decorate<T>(
-    token: ClassType | InjectionToken<T, any>,
+    token: InjectionToken<T, any>,
     decorator: (instance: T, info: { token: InjectionToken<any, any>; args: unknown }) => T,
+  ): void
+  decorate(
+    token: ClassType | InjectionToken<any, any>,
+    decorator: (instance: any, info: { token: InjectionToken<any, any>; args: unknown }) => any,
   ): void {
     const base = baseToken(token)
     if (base === undefined) {
@@ -162,7 +177,7 @@ export class Container implements IContainer, RootHost {
   }
 
   onInvalidate(token: AnyInjectableType, args: unknown, listener: () => void): () => void {
-    return addInvalidateListener(this.store, token, args, listener)
+    return addInvalidateListener(this, this.store, token, args, listener)
   }
 
   async ready(): Promise<void> {
@@ -173,6 +188,7 @@ export class Container implements IContainer, RootHost {
     await settleStore(this.store)
     const self = this.store.findByInstance(this)
     await destroyAll(this.store.entries().filter((entry) => entry !== self))
+    this.factoryValues.clear()
   }
 
   async [Symbol.asyncDispose](): Promise<void> {
@@ -188,6 +204,7 @@ function instanceOf(entry: Entry): unknown {
 
 /** @internal */
 export function addInvalidateListener(
+  root: RootHost,
   store: Store,
   token: AnyInjectableType,
   args: unknown,
@@ -197,11 +214,20 @@ export function addInvalidateListener(
   if (base === undefined) {
     throw DIError.classNotInjectable((token as ClassType).name)
   }
-  let resolvedArgs = args
-  if (typeof token !== 'function' && 'value' in (token as BoundInjectionToken<any, any>)) {
-    resolvedArgs = (token as BoundInjectionToken<any, any>).value
+  if (token instanceof BoundInjectionToken) {
+    return store.addListener(base, keyFor(base, token.value), listener)
   }
-  return store.addListener(base, keyFor(base, resolvedArgs), listener)
+  if (token instanceof FactoryInjectionToken) {
+    const state = root.factoryValues.get(token)
+    // Until the factory has produced the args, the instance cannot be
+    // addressed, so listen for any instance of the underlying token.
+    return store.addListener(
+      base,
+      state?.done === true ? keyFor(base, state.value) : ANY_ARGS,
+      listener,
+    )
+  }
+  return store.addListener(base, keyFor(base, args), listener)
 }
 
 function keyFor(token: InjectionToken<any, any>, args: unknown): string | null {

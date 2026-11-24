@@ -77,6 +77,12 @@ export function createEntry(
 export type InvalidateListener = () => void
 
 /**
+ * Listener key that matches every instance of a token, whatever its args.
+ * @internal
+ */
+export const ANY_ARGS = '*'
+
+/**
  * Entries of one container, addressed by token and, for tokens with args, by
  * args key.
  * @internal
@@ -192,12 +198,17 @@ export class Store {
   }
 
   notifyInvalidated(entry: Entry): void {
-    const set = this.listeners?.get(entry.token)?.get(entry.key ?? '')
-    if (!set || set.size === 0) {
+    const byKey = this.listeners?.get(entry.token)
+    if (byKey === undefined) {
       return
     }
-    for (const listener of Array.from(set)) {
-      listener()
+    for (const key of [entry.key ?? '', ANY_ARGS]) {
+      const set = byKey.get(key)
+      if (set !== undefined && set.size > 0) {
+        for (const listener of Array.from(set)) {
+          listener()
+        }
+      }
     }
   }
 }

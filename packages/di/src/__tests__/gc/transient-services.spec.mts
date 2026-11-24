@@ -4,7 +4,7 @@
  * Tests that transient services are properly garbage collected
  * when no longer referenced, since they are not cached by the container.
  *
- * Run with: NODE_OPTIONS=--expose-gc yarn nx test @navios/di
+ * Run with: NODE_OPTIONS=--expose-gc yarn run -T vitest run src/__tests__/gc
  */
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -12,8 +12,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { Container } from '../../container/container.mjs'
 import { Injectable } from '../../decorators/injectable.decorator.mjs'
 import { InjectableScope } from '../../enums/injectable-scope.enum.mjs'
-import { Registry } from '../../token/registry.mjs'
-import { inject } from '../../utils/index.mjs'
+import { inject } from '../../injectors.mjs'
 
 import type { OnServiceDestroy } from '../../interfaces/on-service-destroy.interface.mjs'
 
@@ -26,12 +25,10 @@ import {
 } from './gc-test-utils.mjs'
 
 describe.skipIf(!isGCAvailable)('GC: Transient Services', () => {
-  let registry: Registry
   let container: Container
 
   beforeEach(() => {
-    registry = new Registry()
-    container = new Container(registry)
+    container = new Container()
   })
 
   afterEach(async () => {
@@ -40,7 +37,7 @@ describe.skipIf(!isGCAvailable)('GC: Transient Services', () => {
 
   describe('Transient services are collected when unreferenced', () => {
     it('should garbage collect transient service when reference is released', async () => {
-      @Injectable({ registry, scope: InjectableScope.Transient })
+      @Injectable({ scope: InjectableScope.Transient })
       class TransientService {
         public readonly id = Math.random()
         public readonly data = Array.from({ length: 1000 }, () => 'transient')
@@ -59,7 +56,7 @@ describe.skipIf(!isGCAvailable)('GC: Transient Services', () => {
     })
 
     it('should collect multiple transient instances independently', async () => {
-      @Injectable({ registry, scope: InjectableScope.Transient })
+      @Injectable({ scope: InjectableScope.Transient })
       class TransientService {
         public readonly id = Math.random()
         public readonly data = Array.from({ length: 500 }, () => 'multi-transient')
@@ -99,7 +96,7 @@ describe.skipIf(!isGCAvailable)('GC: Transient Services', () => {
     })
 
     it('should collect transient services with lifecycle hooks', async () => {
-      @Injectable({ registry, scope: InjectableScope.Transient })
+      @Injectable({ scope: InjectableScope.Transient })
       class TransientWithDestroy implements OnServiceDestroy {
         public readonly id = Math.random()
 
@@ -116,20 +113,19 @@ describe.skipIf(!isGCAvailable)('GC: Transient Services', () => {
       const collected = await waitForGC(tracker().ref)
       expect(collected).toBe(true)
 
-      // Note: onServiceDestroy is NOT called for transient services when
-      // they go out of scope - only when the container is disposed.
-      // This is expected behavior since the container doesn't track them.
+      // Note: onServiceDestroy is NOT called for transient services resolved
+      // directly from the root container: the container doesn't track them.
     })
   })
 
   describe('Transient services with dependencies', () => {
     it('should collect transient service but keep singleton dependency', async () => {
-      @Injectable({ registry })
+      @Injectable()
       class SingletonDep {
         public readonly id = Math.random()
       }
 
-      @Injectable({ registry, scope: InjectableScope.Transient })
+      @Injectable({ scope: InjectableScope.Transient })
       class TransientWithSingletonDep {
         public readonly dep = inject(SingletonDep)
         public readonly id = Math.random()
@@ -160,13 +156,13 @@ describe.skipIf(!isGCAvailable)('GC: Transient Services', () => {
     })
 
     it('should collect transient service with transient dependency', async () => {
-      @Injectable({ registry, scope: InjectableScope.Transient })
+      @Injectable({ scope: InjectableScope.Transient })
       class TransientDep {
         public readonly id = Math.random()
         public readonly data = Array.from({ length: 500 }, () => 'dep')
       }
 
-      @Injectable({ registry, scope: InjectableScope.Transient })
+      @Injectable({ scope: InjectableScope.Transient })
       class TransientParent {
         public readonly dep = inject(TransientDep)
         public readonly data = Array.from({ length: 500 }, () => 'parent')
@@ -194,7 +190,7 @@ describe.skipIf(!isGCAvailable)('GC: Transient Services', () => {
     it.skip('should reclaim memory when transient instances are released', async () => {
       const INSTANCE_COUNT = 10
 
-      @Injectable({ registry, scope: InjectableScope.Transient })
+      @Injectable({ scope: InjectableScope.Transient })
       class LargeTransientService {
         public readonly data = new Uint8Array(1024 * 100) // 100KB
       }
@@ -230,7 +226,7 @@ describe.skipIf(!isGCAvailable)('GC: Transient Services', () => {
       const ALLOCATION_SIZE = 1024 * 50 // 50KB per instance
       const ITERATIONS = 50
 
-      @Injectable({ registry, scope: InjectableScope.Transient })
+      @Injectable({ scope: InjectableScope.Transient })
       class TransientService {
         public readonly data = new Uint8Array(ALLOCATION_SIZE)
       }
@@ -257,23 +253,23 @@ describe.skipIf(!isGCAvailable)('GC: Transient Services', () => {
 
   describe('Transient services in mixed scope scenarios', () => {
     it('should properly collect transients while singletons persist', async () => {
-      @Injectable({ registry })
+      @Injectable()
       class SingletonA {
         public readonly data = Array.from({ length: 500 }, () => 'singleton-a')
       }
 
-      @Injectable({ registry })
+      @Injectable()
       class SingletonB {
         public readonly data = Array.from({ length: 500 }, () => 'singleton-b')
       }
 
-      @Injectable({ registry, scope: InjectableScope.Transient })
+      @Injectable({ scope: InjectableScope.Transient })
       class TransientA {
         public readonly singletonA = inject(SingletonA)
         public readonly data = Array.from({ length: 500 }, () => 'transient-a')
       }
 
-      @Injectable({ registry, scope: InjectableScope.Transient })
+      @Injectable({ scope: InjectableScope.Transient })
       class TransientB {
         public readonly singletonB = inject(SingletonB)
         public readonly data = Array.from({ length: 500 }, () => 'transient-b')

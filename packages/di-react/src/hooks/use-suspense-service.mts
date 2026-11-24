@@ -6,14 +6,13 @@ import type {
   Container,
   Factorable,
   FactoryInjectionToken,
+  InferInput,
   InjectionToken,
   InjectionTokenSchemaType,
+  MissingArgsError,
+  ScopedContainer,
 } from '@navios/di'
-import type { z, ZodType } from 'zod/v4'
-
-import type { Join, UnionToArray } from '../types.mjs'
-
-import { useContainer, useRootContainer } from './use-container.mjs'
+import { useContainer } from './use-container.mjs'
 
 // Cache entry for suspense
 interface CacheEntry<T> {
@@ -23,24 +22,35 @@ interface CacheEntry<T> {
   status: 'pending' | 'resolved' | 'rejected'
   version: number // Increment on each fetch to track changes
   subscribers: Set<() => void>
-  instanceName: string | null
   unsubscribe: (() => void) | undefined
 }
 
-// Global cache for service instances (per container + token + args combination)
-const cacheMap = new WeakMap<object, Map<string, CacheEntry<any>>>()
+type AnyContainer = Container | ScopedContainer
+type AnyToken =
+  | ClassType
+  | InjectionToken<any, any>
+  | BoundInjectionToken<any, any>
+  | FactoryInjectionToken<any, any>
 
-function getCacheKey(token: any, args: unknown): string {
-  const tokenId =
-    typeof token === 'function' ? token.name : token.id || token.token?.id || String(token)
-  return `${tokenId}:${JSON.stringify(args ?? null)}`
+// Global cache for service instances: container -> token object -> args key.
+// Tokens have no ids, so the token object itself (class, token, or the
+// Bound/Factory wrapper) is the identity.
+const cacheMap = new WeakMap<object, WeakMap<object, Map<string, CacheEntry<any>>>>()
+
+function getArgsKey(args: unknown): string {
+  return JSON.stringify(args) ?? ''
 }
 
-function getCache(container: object): Map<string, CacheEntry<any>> {
-  let cache = cacheMap.get(container)
+function getCache(container: object, token: object): Map<string, CacheEntry<any>> {
+  let byToken = cacheMap.get(container)
+  if (!byToken) {
+    byToken = new WeakMap()
+    cacheMap.set(container, byToken)
+  }
+  let cache = byToken.get(token)
   if (!cache) {
     cache = new Map()
-    cacheMap.set(container, cache)
+    byToken.set(token, cache)
   }
   return cache
 }
@@ -49,11 +59,15 @@ function getCache(container: object): Map<string, CacheEntry<any>> {
  * Sets up invalidation subscription for a cache entry if not already subscribed.
  * When the service is destroyed, clears the cache and notifies subscribers.
  */
-function setupInvalidationSubscription(entry: CacheEntry<any>, rootContainer: Container): void {
-  if (entry.unsubscribe || !entry.instanceName) return
+function setupInvalidationSubscription(
+  entry: CacheEntry<any>,
+  container: AnyContainer,
+  token: AnyToken,
+  args: unknown,
+): void {
+  if (entry.unsubscribe) return
 
-  const eventBus = rootContainer.getEventBus()
-  entry.unsubscribe = eventBus.on(entry.instanceName, 'destroy', () => {
+  entry.unsubscribe = container.onInvalidate(token, args, () => {
     // Clear cache and notify subscribers to re-fetch
     entry.result = undefined
     entry.error = undefined
@@ -72,7 +86,7 @@ export function useSuspenseService<T extends ClassType>(
 // #2 Token with required Schema
 export function useSuspenseService<T, S extends InjectionTokenSchemaType>(
   token: InjectionToken<T, S>,
-  args: z.input<S>,
+  args: InferInput<S>,
 ): T
 
 // #3 Token with optional Schema
@@ -80,9 +94,7 @@ export function useSuspenseService<T, S extends InjectionTokenSchemaType, R exte
   token: InjectionToken<T, S, R>,
 ): R extends false
   ? T
-  : S extends ZodType<infer Type>
-    ? `Error: Your token requires args: ${Join<UnionToArray<keyof Type>, ', '>}`
-    : 'Error: Your token requires args'
+  : MissingArgsError<S>
 
 // #4 Token with no Schema
 export function useSuspenseService<T>(token: InjectionToken<T, undefined>): T
@@ -101,9 +113,8 @@ export function useSuspenseService(
 ): any {
   // useContainer returns ScopedContainer if inside ScopeProvider, otherwise Container
   const container = useContainer()
-  const rootContainer = useRootContainer()
-  const cache = getCache(container)
-  const cacheKey = getCacheKey(token, args)
+  const cache = getCache(container, token)
+  const cacheKey = getArgsKey(args)
   const entryRef = useRef<CacheEntry<any> | null>(null)
   if (process.env.NODE_ENV === 'development') {
     const argsRef = useRef<unknown>(args)
@@ -128,15 +139,13 @@ Example:
     // This avoids suspense when the instance is already cached
     const syncInstance = container.tryGetSync(token, args)
 
-    const instanceName = container.calculateInstanceName(token, args)
     const entry: CacheEntry<any> = {
       promise: null,
-      result: syncInstance ?? undefined,
+      result: syncInstance !== null ? syncInstance : undefined,
       error: undefined,
-      status: syncInstance ? 'resolved' : 'pending',
+      status: syncInstance !== null ? 'resolved' : 'pending',
       version: 0,
       subscribers: new Set(),
-      instanceName,
       unsubscribe: undefined,
     }
     cache.set(cacheKey, entry)
@@ -158,7 +167,7 @@ Example:
         currentEntry.status = 'resolved'
 
         // Subscribe to invalidation events if not already subscribed
-        setupInvalidationSubscription(currentEntry, rootContainer)
+        setupInvalidationSubscription(currentEntry, container, token, args)
 
         // Notify subscribers
         currentEntry.subscribers.forEach((callback) => callback())
@@ -171,7 +180,7 @@ Example:
       })
 
     return currentEntry.promise
-  }, [container, rootContainer, token, args])
+  }, [container, token, args])
 
   // Subscribe to cache changes
   const subscribe = useCallback(
@@ -195,15 +204,10 @@ Example:
   // Set up subscription for sync instances that don't have one yet
   useEffect(() => {
     const currentEntry = entryRef.current
-    if (
-      currentEntry &&
-      currentEntry.status === 'resolved' &&
-      currentEntry.instanceName &&
-      !currentEntry.unsubscribe
-    ) {
-      setupInvalidationSubscription(currentEntry, rootContainer)
+    if (currentEntry && currentEntry.status === 'resolved' && !currentEntry.unsubscribe) {
+      setupInvalidationSubscription(currentEntry, container, token, args)
     }
-  }, [rootContainer, entry])
+  }, [container, token, args, entry])
 
   // Start fetching if not already
   if (entry.status === 'pending' && !entry.promise) {

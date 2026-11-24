@@ -56,7 +56,10 @@ export interface AsyncResolve {
     args: InferInput<Schema>,
   ): Promise<R>
   // #2 Token with a schema
-  <T, S extends InjectionTokenSchemaType>(token: InjectionToken<T, S>, args: InferInput<S>): Promise<T>
+  <T, S extends InjectionTokenSchemaType>(
+    token: InjectionToken<T, S>,
+    args: InferInput<S>,
+  ): Promise<T>
   // #3 Token with an optional schema
   <T, S extends InjectionTokenSchemaType, R extends boolean>(
     token: InjectionToken<T, S, R>,
@@ -95,7 +98,10 @@ export interface OptionalResolve {
   <T extends ClassType>(
     token: T,
   ): (InstanceType<T> extends Factorable<infer R> ? R : InstanceType<T>) | null
-  <T, S extends InjectionTokenSchemaType>(token: InjectionToken<T, S>, args: InferInput<S>): T | null
+  <T, S extends InjectionTokenSchemaType>(
+    token: InjectionToken<T, S>,
+    args: InferInput<S>,
+  ): T | null
   <T, S extends InjectionTokenSchemaType, R extends boolean>(
     token: InjectionToken<T, S, R>,
   ): R extends false ? T | null : MissingArgsError<S>

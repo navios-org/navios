@@ -1,4 +1,4 @@
-import { Container, Injectable, Registry } from '@navios/di'
+import { Container, Injectable } from '@navios/di'
 import { act, render, screen, waitFor } from '@testing-library/react'
 import { createElement } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -9,11 +9,9 @@ import { useService } from '../use-service.mjs'
 
 describe('useInvalidateInstance', () => {
   let container: Container
-  let registry: Registry
 
   beforeEach(() => {
-    registry = new Registry()
-    container = new Container(registry)
+    container = new Container()
   })
 
   afterEach(async () => {
@@ -27,7 +25,7 @@ describe('useInvalidateInstance', () => {
   it('should invalidate a service instance directly', async () => {
     let instanceCount = 0
 
-    @Injectable({ registry })
+    @Injectable()
     class CounterService {
       public readonly id: number
 

@@ -4,38 +4,24 @@
  * Tests that the Container and singleton services are properly
  * garbage collected after disposal.
  *
- * Run with: NODE_OPTIONS=--expose-gc yarn nx test @navios/di
+ * Run with: NODE_OPTIONS=--expose-gc yarn run -T vitest run src/__tests__/gc
  */
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import { Container } from '../../container/container.mjs'
 import { Injectable } from '../../decorators/injectable.decorator.mjs'
-import { Registry } from '../../token/registry.mjs'
-import { inject } from '../../utils/index.mjs'
+import { inject } from '../../injectors.mjs'
 
 import type { OnServiceDestroy } from '../../interfaces/on-service-destroy.interface.mjs'
 
 import { createGCTracker, forceGC, isGCAvailable, waitForGC } from './gc-test-utils.mjs'
 
-/**
- * NOTE: Many of these tests currently fail because the DI container retains
- * references to services even after disposal. This is likely due to:
- * - Registry holding class references
- * - Decorator metadata retention
- * - Internal caching mechanisms
- *
- * These tests document expected GC behavior and can be used to verify
- * memory leak fixes in the future. Tests are marked with .todo() to
- * indicate they document desired behavior not yet implemented.
- */
 describe.skipIf(!isGCAvailable)('GC: Basic Container', () => {
-  let registry: Registry
   let container: Container
 
   beforeEach(() => {
-    registry = new Registry()
-    container = new Container(registry)
+    container = new Container()
   })
 
   afterEach(async () => {
@@ -44,7 +30,7 @@ describe.skipIf(!isGCAvailable)('GC: Basic Container', () => {
 
   describe('Container disposal releases service references', () => {
     it('should allow singleton services to be garbage collected after container disposal', async () => {
-      @Injectable({ registry })
+      @Injectable()
       class SingletonService {
         public readonly id = Math.random()
         public readonly data = Array.from({ length: 1000 }, () => 'test-data')
@@ -58,8 +44,7 @@ describe.skipIf(!isGCAvailable)('GC: Basic Container', () => {
       await container.dispose()
 
       // Create new container for cleanup in afterEach
-      registry = new Registry()
-      container = new Container(registry)
+      container = new Container()
       instance = null
 
       const collected = await waitForGC(tracker().ref)
@@ -67,17 +52,17 @@ describe.skipIf(!isGCAvailable)('GC: Basic Container', () => {
     })
 
     it('should allow multiple singleton services to be garbage collected', async () => {
-      @Injectable({ registry })
+      @Injectable()
       class ServiceA {
         public readonly data = Array.from({ length: 500 }, () => 'a')
       }
 
-      @Injectable({ registry })
+      @Injectable()
       class ServiceB {
         public readonly data = Array.from({ length: 500 }, () => 'b')
       }
 
-      @Injectable({ registry })
+      @Injectable()
       class ServiceC {
         public readonly data = Array.from({ length: 500 }, () => 'c')
       }
@@ -92,8 +77,7 @@ describe.skipIf(!isGCAvailable)('GC: Basic Container', () => {
 
       await container.dispose()
 
-      registry = new Registry()
-      container = new Container(registry)
+      container = new Container()
 
       // Release local references to allow GC
       instanceA = null
@@ -112,7 +96,7 @@ describe.skipIf(!isGCAvailable)('GC: Basic Container', () => {
     it('should release services with onServiceDestroy lifecycle hook', async () => {
       let destroyCalled = false
 
-      @Injectable({ registry })
+      @Injectable()
       class ServiceWithDestroy implements OnServiceDestroy {
         public readonly data = Array.from({ length: 1000 }, () => 'destroy-test')
 
@@ -130,8 +114,7 @@ describe.skipIf(!isGCAvailable)('GC: Basic Container', () => {
 
       expect(destroyCalled).toBe(true)
 
-      registry = new Registry()
-      container = new Container(registry)
+      container = new Container()
       instance = null
 
       const collected = await waitForGC(tracker().ref)
@@ -141,7 +124,7 @@ describe.skipIf(!isGCAvailable)('GC: Basic Container', () => {
     it('should release services with async onServiceDestroy', async () => {
       let destroyCompleted = false
 
-      @Injectable({ registry })
+      @Injectable()
       class AsyncDestroyService implements OnServiceDestroy {
         public readonly data = Array.from({ length: 1000 }, () => 'async-destroy')
 
@@ -158,8 +141,7 @@ describe.skipIf(!isGCAvailable)('GC: Basic Container', () => {
 
       expect(destroyCompleted).toBe(true)
 
-      registry = new Registry()
-      container = new Container(registry)
+      container = new Container()
       instance = null
 
       const collected = await waitForGC(tracker().ref)
@@ -169,12 +151,12 @@ describe.skipIf(!isGCAvailable)('GC: Basic Container', () => {
 
   describe('Singleton service dependencies are released', () => {
     it('should release dependent services when parent is disposed', async () => {
-      @Injectable({ registry })
+      @Injectable()
       class DependencyService {
         public readonly data = Array.from({ length: 500 }, () => 'dep')
       }
 
-      @Injectable({ registry })
+      @Injectable()
       class ParentService {
         public readonly dep = inject(DependencyService)
         public readonly data = Array.from({ length: 500 }, () => 'parent')
@@ -188,8 +170,7 @@ describe.skipIf(!isGCAvailable)('GC: Basic Container', () => {
 
       await container.dispose()
 
-      registry = new Registry()
-      container = new Container(registry)
+      container = new Container()
 
       // Release local references
       parent = null
@@ -203,24 +184,24 @@ describe.skipIf(!isGCAvailable)('GC: Basic Container', () => {
     })
 
     it('should release deeply nested dependency chains', async () => {
-      @Injectable({ registry })
+      @Injectable()
       class Level3 {
         public readonly data = Array.from({ length: 200 }, () => 'l3')
       }
 
-      @Injectable({ registry })
+      @Injectable()
       class Level2 {
         public readonly level3 = inject(Level3)
         public readonly data = Array.from({ length: 200 }, () => 'l2')
       }
 
-      @Injectable({ registry })
+      @Injectable()
       class Level1 {
         public readonly level2 = inject(Level2)
         public readonly data = Array.from({ length: 200 }, () => 'l1')
       }
 
-      @Injectable({ registry })
+      @Injectable()
       class RootService {
         public readonly level1 = inject(Level1)
         public readonly data = Array.from({ length: 200 }, () => 'root')
@@ -238,8 +219,7 @@ describe.skipIf(!isGCAvailable)('GC: Basic Container', () => {
 
       await container.dispose()
 
-      registry = new Registry()
-      container = new Container(registry)
+      container = new Container()
 
       // Release local references
       root = null
@@ -256,7 +236,7 @@ describe.skipIf(!isGCAvailable)('GC: Basic Container', () => {
 
   describe('Container invalidation releases services', () => {
     it('should release service when invalidated', async () => {
-      @Injectable({ registry })
+      @Injectable()
       class InvalidatableService {
         public readonly id = Math.random()
         public readonly data = Array.from({ length: 1000 }, () => 'invalidate')
@@ -283,12 +263,12 @@ describe.skipIf(!isGCAvailable)('GC: Basic Container', () => {
     })
 
     it('should release dependent services when dependency is invalidated', async () => {
-      @Injectable({ registry })
+      @Injectable()
       class DependencyService {
         public readonly id = Math.random()
       }
 
-      @Injectable({ registry })
+      @Injectable()
       class DependentService {
         public readonly dep = inject(DependencyService)
         public readonly id = Math.random()
@@ -318,10 +298,9 @@ describe.skipIf(!isGCAvailable)('GC: Basic Container', () => {
 
   describe('Container itself can be garbage collected', () => {
     it('should allow container to be garbage collected after disposal', async () => {
-      const localRegistry = new Registry()
-      let localContainer: Container | null = new Container(localRegistry)
+      let localContainer: Container | null = new Container()
 
-      @Injectable({ registry: localRegistry })
+      @Injectable()
       class TestService {
         public readonly data = Array.from({ length: 1000 }, () => 'container-gc')
       }

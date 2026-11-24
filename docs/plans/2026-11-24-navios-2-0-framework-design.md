@@ -201,7 +201,9 @@ Most such services become request values read with `ctx.get(...)` (section
 - `@Injectable()` and `@Factory()` attach a provider record to the class's
   own token. A token created with `InjectionToken.create` may be given a
   default provider with `@Injectable({ token })`. A second default for the
-  same token is an error at decoration time.
+  same token from a class with a different name is a `ProviderConflict` error
+  at decoration time. A class with the same name replaces the default, so a
+  module that is evaluated again (hot reload) keeps working.
 - `globalRegistry` and numeric `priority` are removed. Replacement is
   explicit:
 
@@ -225,11 +227,14 @@ Most such services become request values read with `ctx.get(...)` (section
   export const RequestContextToken = InjectionToken.create<RequestContext>('RequestContext', {
     scope: InjectableScope.Request,
   })
-  scope.provide(RequestContextToken, ctx) // one Map write, no registry mutation
+  scope.addInstance(RequestContextToken, ctx) // one Map write, no registry mutation
   ```
 
   Reaching such a token from the root is a `ScopeMismatchError`, not
   "not found". `StubFactoryClass` is removed.
+- `new Container({ strict: true })` ignores the defaults registered on tokens
+  and resolves only the providers it was given. `UnitTestContainer` is built
+  on it.
 
 ### 5.3 Resolution
 
@@ -258,6 +263,13 @@ Sync-first, as in the DI draft:
   `AsyncLocalStorage`, and no separate browser build of the storage shim.
 - `optional()` returns `null` only when the token has no provider. Every
   other error propagates.
+- `container.getSync(token, args?)` resolves synchronously and throws
+  `AsyncInitRequired` when an asynchronous initialiser is involved. It is
+  what `ctx.use()` (6.1.3) is built on.
+- A transient resolved directly from the root container is not tracked, so
+  its `onServiceDestroy` does not run on `dispose()`. A transient injected
+  into a service is destroyed with that service, and one resolved directly
+  from a scope is destroyed with the scope.
 - Internal `[error, value]` tuples become exceptions.
 
 Seam for a later compiler: `@Injectable({ deps: [...] })` supplies the plan
@@ -767,9 +779,11 @@ third parties can add a response kind without touching core.
 `request/validate.mts`). The server narrows every slot back to Zod and reads
 Zod internals. 2.0 removes that narrowing everywhere.
 
-- **Types.** `di` and `core` type schemas with `StandardSchemaV1` from
-  `@standard-schema/spec` (types only, no runtime). The builder's `Schema`
-  type is structurally the same, so a declaration flows through unchanged.
+- **Types.** `di` inlines the `StandardSchemaV1` interface (the specification
+  is designed to be copied) and exports it with `InferInput` and
+  `InferOutput`; `core` uses those. No package is added. The builder's
+  `Schema` type is structurally the same, so a declaration flows through
+  unchanged.
   Input and output types come from `~standard.types`.
 - **Validation.** One helper in core calls `schema['~standard'].validate`.
   A synchronous result is handled synchronously; only a returned promise is

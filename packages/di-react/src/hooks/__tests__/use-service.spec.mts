@@ -1,4 +1,4 @@
-import { Container, Injectable, InjectionToken, Registry } from '@navios/di'
+import { Container, Injectable, InjectionToken } from '@navios/di'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { createElement, useMemo } from 'react'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -9,11 +9,9 @@ import { useService } from '../use-service.mjs'
 
 describe('useService', () => {
   let container: Container
-  let registry: Registry
 
   beforeEach(() => {
-    registry = new Registry()
-    container = new Container(registry)
+    container = new Container()
   })
 
   afterEach(async () => {
@@ -28,7 +26,7 @@ describe('useService', () => {
 
   describe('with class tokens', () => {
     it('should load a service and return success state', async () => {
-      @Injectable({ registry })
+      @Injectable()
       class TestService {
         getValue() {
           return 'test-value'
@@ -55,7 +53,7 @@ describe('useService', () => {
     })
 
     it('should return error state when service fails to load', async () => {
-      @Injectable({ registry })
+      @Injectable()
       class FailingService {
         constructor() {
           throw new Error('Service initialization failed')
@@ -79,7 +77,7 @@ describe('useService', () => {
     it('should refetch service when refetch is called', async () => {
       let callCount = 0
 
-      @Injectable({ registry })
+      @Injectable()
       class CountingService {
         public count: number
 
@@ -117,7 +115,7 @@ describe('useService', () => {
     it('should load a service with injection token', async () => {
       const TestToken = InjectionToken.create<{ value: string }>('TestToken')
 
-      @Injectable({ registry, token: TestToken })
+      @Injectable({ token: TestToken })
       class TestService {
         value = 'token-value'
       }
@@ -140,7 +138,7 @@ describe('useService', () => {
         UserSchema,
       )
 
-      @Injectable({ registry, token: UserToken })
+      @Injectable({ token: UserToken })
       class UserService {
         public userId: string
         public name: string
@@ -172,7 +170,7 @@ describe('useService', () => {
     it('should re-fetch when service is invalidated', async () => {
       let instanceCount = 0
 
-      @Injectable({ registry })
+      @Injectable()
       class InvalidatableService {
         public instanceId: number
 
