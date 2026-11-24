@@ -1,28 +1,55 @@
 import type { StandardSchemaIssue, StandardSchemaV1 } from '@navios/di'
 
+import { resumeStacks, suspendStacks } from '../errors/client-error-stacks.mjs'
+
 import { adopt } from './promises.mjs'
 
 export type ValidationSource = 'urlParams' | 'query' | 'headers' | 'cookies' | 'body' | 'response'
 
 /**
  * A value did not match its schema. `source` says which part of the request
- * (or the response) was being validated.
+ * (or the response) was being validated. For a request, the stack is captured
+ * as the `clientErrorStacks` application option says.
  */
 export class ValidationError extends Error {
+  static {
+    Object.defineProperties(this.prototype, {
+      name: { value: 'ValidationError', writable: true, configurable: true },
+      // The response is built from `issues`, so without a stack the message
+      // is only formatted when something reads it.
+      message: {
+        get(this: ValidationError): string {
+          return describeIssues(this.source, this.issues)
+        },
+        set(this: ValidationError, value: string) {
+          Object.defineProperty(this, 'message', { value, writable: true, configurable: true })
+        },
+        configurable: true,
+      },
+    })
+  }
+
   constructor(
     public readonly source: ValidationSource,
     public readonly issues: ReadonlyArray<StandardSchemaIssue>,
   ) {
-    super(
-      `Validation failed for ${source}: ${issues
-        .map((issue) => {
-          const path = formatPath(issue.path)
-          return path ? `${path}: ${issue.message}` : issue.message
-        })
-        .join('; ')}`,
-    )
-    this.name = 'ValidationError'
+    // A response that does not match is a defect of the server.
+    const limit = source === 'response' ? undefined : suspendStacks()
+    super(limit === undefined ? describeIssues(source, issues) : undefined)
+    resumeStacks(limit)
   }
+}
+
+function describeIssues(
+  source: ValidationSource,
+  issues: ReadonlyArray<StandardSchemaIssue>,
+): string {
+  return `Validation failed for ${source}: ${issues
+    .map((issue) => {
+      const path = formatPath(issue.path)
+      return path ? `${path}: ${issue.message}` : issue.message
+    })
+    .join('; ')}`
 }
 
 export function formatPath(path: StandardSchemaIssue['path']): string {

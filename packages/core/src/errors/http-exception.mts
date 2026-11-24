@@ -1,9 +1,14 @@
+import { resumeStacks, suspendStacks } from './client-error-stacks.mjs'
+
 /**
  * An error that maps to an HTTP response.
  *
  * When the endpoint declares the status in `errorSchema`, `response` is sent
  * as the body. Otherwise the response is `application/problem+json`, with a
  * string `response` as `detail` and an object `response` merged in.
+ *
+ * Below 500 its stack is captured as the `clientErrorStacks` application
+ * option says.
  */
 export class HttpException extends Error {
   constructor(
@@ -11,10 +16,12 @@ export class HttpException extends Error {
     public readonly response: string | object,
     cause?: unknown,
   ) {
+    const limit = statusCode < 500 ? suspendStacks() : undefined
     super(
       typeof response === 'string' ? response : `HTTP ${statusCode}`,
       cause === undefined ? undefined : { cause },
     )
+    resumeStacks(limit)
     this.name = new.target.name
   }
 }
@@ -73,7 +80,9 @@ export class InternalServerErrorException extends HttpException {
  */
 export class GuardDeniedError extends Error {
   constructor(public readonly guard: string) {
+    const limit = suspendStacks()
     super(`Guard ${guard} denied the request`)
+    resumeStacks(limit)
     this.name = 'GuardDeniedError'
   }
 }
