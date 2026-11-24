@@ -1,12 +1,13 @@
-import type { NaviosApplication } from '@navios/core'
-
 import supertest from 'supertest'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+
+import type { FastifyEnvironment } from '@navios/adapter-fastify'
+import type { NaviosApplication } from '@navios/core'
 
 import { createApp } from '../src/bootstrap.mjs'
 
 describe('Users API', () => {
-  let server: NaviosApplication
+  let server: NaviosApplication<FastifyEnvironment>
 
   beforeAll(async () => {
     server = await createApp()

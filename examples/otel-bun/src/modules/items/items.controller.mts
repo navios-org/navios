@@ -1,12 +1,8 @@
-import type { EndpointParams } from '@navios/core'
-
 import { inject } from '@navios/core'
-import {
-  BadRequestException,
-  InternalServerErrorException,
-  NotFoundException,
-} from '@navios/core'
+import { BadRequestException, InternalServerErrorException, NotFoundException } from '@navios/core'
 import { Controller, Endpoint, HttpCode } from '@navios/core/legacy-compat'
+
+import type { EndpointParams, EndpointResult } from '@navios/core'
 
 import {
   chainEndpoint,
@@ -83,7 +79,7 @@ export class ItemsController {
    * Error endpoint - demonstrates error traces.
    */
   @Endpoint(errorEndpoint)
-  async error(params: EndpointParams<typeof errorEndpoint>) {
+  async error(params: EndpointParams<typeof errorEndpoint>): EndpointResult<typeof errorEndpoint> {
     const type = params.params.type
 
     switch (type) {

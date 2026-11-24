@@ -1,8 +1,13 @@
-import type { EndpointParams } from '@navios/core'
-
 import { Controller, Endpoint, NotFoundException } from '@navios/core'
 
-import { healthEndpoint, notFoundEndpoint, protectedEndpoint, validationErrorEndpoint } from '../../api/endpoints.mjs'
+import type { EndpointParams, EndpointResult } from '@navios/core'
+
+import {
+  healthEndpoint,
+  notFoundEndpoint,
+  protectedEndpoint,
+  validationErrorEndpoint,
+} from '../../api/endpoints.mjs'
 import { Public } from '../../guards/public.attribute.mjs'
 
 @Controller()
@@ -25,7 +30,9 @@ export class AppController {
 
   @Endpoint(notFoundEndpoint)
   @Public()
-  async notFound(params: EndpointParams<typeof notFoundEndpoint>) {
+  async notFound(
+    params: EndpointParams<typeof notFoundEndpoint>,
+  ): EndpointResult<typeof notFoundEndpoint> {
     // Simulate not found
     throw new NotFoundException(`Resource with id ${params.urlParams.id} not found`)
   }

@@ -1,19 +1,21 @@
-import type { NaviosApplication } from '@navios/core'
-
 import { afterAll, beforeAll, describe, expect, it } from 'bun:test'
+
 import supertest from 'supertest'
+
+import type { BunEnvironment } from '@navios/adapter-bun'
+import type { NaviosApplication } from '@navios/core'
 
 import { createApp } from '../src/bootstrap.mjs'
 
 describe('Files API', () => {
-  let server: NaviosApplication
+  let server: NaviosApplication<BunEnvironment>
   let baseUrl: string
 
   beforeAll(async () => {
     server = await createApp()
     await server.init()
-    await server.listen({ port: 0, host: 'localhost' })
-    baseUrl = server.getServer().url.href
+    await server.listen({ port: 0, hostname: 'localhost' })
+    baseUrl = server.getServer().url.origin
   })
 
   afterAll(async () => {

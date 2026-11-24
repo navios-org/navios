@@ -1,19 +1,21 @@
-import type { NaviosApplication } from '@navios/core'
-
 import { afterAll, beforeAll, describe, expect, it } from 'bun:test'
+
 import supertest from 'supertest'
+
+import type { BunEnvironment } from '@navios/adapter-bun'
+import type { NaviosApplication } from '@navios/core'
 
 import { createApp } from '../src/bootstrap.mjs'
 
 describe('Guards and Authentication', () => {
-  let server: NaviosApplication
+  let server: NaviosApplication<BunEnvironment>
   let baseUrl: string
 
   beforeAll(async () => {
     server = await createApp()
     await server.init()
-    await server.listen({ port: 0, host: 'localhost' })
-    baseUrl = server.getServer().url.href
+    await server.listen({ port: 0, hostname: 'localhost' })
+    baseUrl = server.getServer().url.origin
   })
 
   afterAll(async () => {
@@ -85,9 +87,7 @@ describe('Guards and Authentication', () => {
 
   describe('Error handling endpoints', () => {
     it('should return 400 for validation error', async () => {
-      const response = await request()
-        .post('/test/validation-error')
-        .send({}) // Missing requiredField
+      const response = await request().post('/test/validation-error').send({}) // Missing requiredField
 
       expect(response.status).toBe(400)
     })
@@ -110,17 +110,13 @@ describe('Guards and Authentication', () => {
 
   describe('CRUD operations require auth', () => {
     it('should reject POST /users without auth', async () => {
-      const response = await request()
-        .post('/users')
-        .send({ name: 'Test', email: 'test@test.com' })
+      const response = await request().post('/users').send({ name: 'Test', email: 'test@test.com' })
 
       expect(response.status).toBe(401)
     })
 
     it('should reject PUT /users/:id without auth', async () => {
-      const response = await request()
-        .put('/users/some-id')
-        .send({ name: 'Updated' })
+      const response = await request().put('/users/some-id').send({ name: 'Updated' })
 
       expect(response.status).toBe(401)
     })

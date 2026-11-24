@@ -1,6 +1,5 @@
 import 'dotenv/config'
-
-import { defineFastifyEnvironment } from '@navios/adapter-fastify'
+import { defineFastifyEnvironment, type FastifyEnvironment } from '@navios/adapter-fastify'
 import { NaviosFactory } from '@navios/core'
 import { defineOtelPlugin } from '@navios/otel-fastify'
 
@@ -15,7 +14,7 @@ async function bootstrap() {
   logOtelConfig(otelConfig)
 
   // Create the application
-  const app = await NaviosFactory.create(AppModule, {
+  const app = await NaviosFactory.create<FastifyEnvironment>(AppModule, {
     adapter: defineFastifyEnvironment(),
   })
 

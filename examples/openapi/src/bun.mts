@@ -1,4 +1,4 @@
-import { defineBunEnvironment } from '@navios/adapter-bun'
+import { defineBunEnvironment, type BunEnvironment } from '@navios/adapter-bun'
 import { Module, NaviosFactory } from '@navios/core'
 import { defineOpenApiPlugin } from '@navios/openapi-bun'
 
@@ -12,7 +12,7 @@ import { UserController } from './controllers/user.controller.mjs'
 class AppModule {}
 
 async function bootstrap() {
-  const app = await NaviosFactory.create(AppModule, {
+  const app = await NaviosFactory.create<BunEnvironment>(AppModule, {
     adapter: defineBunEnvironment(),
     logger: ['log', 'error', 'warn'],
   })

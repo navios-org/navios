@@ -1,12 +1,13 @@
-import type { NaviosApplication } from '@navios/core'
-
 import { defineFastifyEnvironment } from '@navios/adapter-fastify'
 import { NaviosFactory } from '@navios/core'
 
+import type { FastifyEnvironment } from '@navios/adapter-fastify'
+import type { NaviosApplication } from '@navios/core'
+
 import { AppModule } from './modules/app/app.module.mjs'
 
-export async function createApp(): Promise<NaviosApplication> {
-  const app = await NaviosFactory.create(AppModule, {
+export async function createApp(): Promise<NaviosApplication<FastifyEnvironment>> {
+  const app = await NaviosFactory.create<FastifyEnvironment>(AppModule, {
     adapter: defineFastifyEnvironment(),
   })
 

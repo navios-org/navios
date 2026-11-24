@@ -1,10 +1,7 @@
 import { builder } from '@navios/builder'
-
 import { z } from 'zod/v4'
 
-export const authApi = builder({
-  defaults: { result: 'envelope' },
-})
+export const authApi = builder()
 
 export const appEndpoint = authApi.declareEndpoint({
   method: 'GET',
@@ -61,9 +58,10 @@ export const discriminatorEndpoint = authApi.declareEndpoint({
   ]),
 })
 
-export const multipartEndpoint = authApi.declareMultipart({
+export const multipartEndpoint = authApi.declareEndpoint({
   method: 'POST',
   url: '/multipart',
+  body: 'multipart',
   requestSchema: z.object({
     files: z.array(z.instanceof(File)),
     something: z.string(),

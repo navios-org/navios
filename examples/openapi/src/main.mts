@@ -1,4 +1,4 @@
-import { defineFastifyEnvironment } from '@navios/adapter-fastify'
+import { defineFastifyEnvironment, type FastifyEnvironment } from '@navios/adapter-fastify'
 import { Module, NaviosFactory } from '@navios/core'
 import { defineOpenApiPlugin } from '@navios/openapi-fastify'
 
@@ -12,7 +12,7 @@ import { UserController } from './controllers/user.controller.mjs'
 class AppModule {}
 
 async function bootstrap() {
-  const app = await NaviosFactory.create(AppModule, {
+  const app = await NaviosFactory.create<FastifyEnvironment>(AppModule, {
     adapter: defineFastifyEnvironment(),
     logger: ['log', 'error', 'warn'],
   })

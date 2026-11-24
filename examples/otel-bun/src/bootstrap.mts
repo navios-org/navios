@@ -34,7 +34,7 @@ async function bootstrap() {
   const port = parseInt(process.env.PORT || '3000', 10)
   const host = process.env.HOST || 'localhost'
 
-  await app.listen({ port, host })
+  await app.listen({ port, hostname: host })
 
   console.log(`\nServer running at http://${host}:${port}`)
   console.log('\nAvailable endpoints:')
