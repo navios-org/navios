@@ -11,6 +11,7 @@ import type {
   InjectionTokenSchemaType,
   MissingArgsError,
 } from '@navios/di'
+
 import { useContainer } from './use-container.mjs'
 
 type OptionalServiceState<T> =
@@ -92,9 +93,7 @@ export function useOptionalService<T, S extends InjectionTokenSchemaType>(
 // #3 Token with optional Schema
 export function useOptionalService<T, S extends InjectionTokenSchemaType, R extends boolean>(
   token: InjectionToken<T, S, R>,
-): R extends false
-  ? UseOptionalServiceResult<T>
-  : MissingArgsError<S>
+): R extends false ? UseOptionalServiceResult<T> : MissingArgsError<S>
 
 // #4 Token with no Schema
 export function useOptionalService<T>(

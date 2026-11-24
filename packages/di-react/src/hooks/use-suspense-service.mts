@@ -12,6 +12,7 @@ import type {
   MissingArgsError,
   ScopedContainer,
 } from '@navios/di'
+
 import { useContainer } from './use-container.mjs'
 
 // Cache entry for suspense
@@ -92,9 +93,7 @@ export function useSuspenseService<T, S extends InjectionTokenSchemaType>(
 // #3 Token with optional Schema
 export function useSuspenseService<T, S extends InjectionTokenSchemaType, R extends boolean>(
   token: InjectionToken<T, S, R>,
-): R extends false
-  ? T
-  : MissingArgsError<S>
+): R extends false ? T : MissingArgsError<S>
 
 // #4 Token with no Schema
 export function useSuspenseService<T>(token: InjectionToken<T, undefined>): T
