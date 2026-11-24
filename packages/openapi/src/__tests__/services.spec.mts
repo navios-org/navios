@@ -88,8 +88,9 @@ describe('OpenAPI Services', () => {
       const schema = z.union([z.string(), z.number()])
       const result = service.convert(schema)
 
+      // zod-openapi 6 emits a type array for unions of primitives (OpenAPI 3.1 / JSON Schema 2020-12)
       expect(result.schema).toMatchObject({
-        anyOf: [{ type: 'string' }, { type: 'number' }],
+        type: ['string', 'number'],
       })
     })
 
@@ -98,9 +99,9 @@ describe('OpenAPI Services', () => {
       const schema = z.string().nullable()
       const result = service.convert(schema)
 
-      // zod-openapi uses anyOf for nullable types in OpenAPI 3.1
+      // zod-openapi 6 emits a type array for nullable types (OpenAPI 3.1 / JSON Schema 2020-12)
       expect(result.schema).toMatchObject({
-        anyOf: [{ type: 'string' }, { type: 'null' }],
+        type: ['string', 'null'],
       })
     })
 
