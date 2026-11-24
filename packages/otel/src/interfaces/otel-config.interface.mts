@@ -1,29 +1,16 @@
 import type { AttributeValue } from '@opentelemetry/api'
+import type { SpanProcessor } from '@opentelemetry/sdk-trace-node'
 
 /**
  * Configuration for auto-instrumentation features.
  */
 export interface AutoInstrumentConfig {
   /**
-   * Instrument all incoming HTTP requests.
-   * Creates a span for each request with standard HTTP attributes.
+   * Trace incoming HTTP requests: one server span per request that matches
+   * a route. When `false` the plugin registers no interceptor.
    * @default true
    */
   http?: boolean
-
-  /**
-   * Instrument controller handler methods.
-   * Creates child spans for each handler execution.
-   * @default true
-   */
-  handlers?: boolean
-
-  /**
-   * Instrument guard execution.
-   * Creates child spans for guard checks.
-   * @default false
-   */
-  guards?: boolean
 }
 
 /**
@@ -31,21 +18,10 @@ export interface AutoInstrumentConfig {
  */
 export interface MetricsConfig {
   /**
-   * Enable metrics collection.
+   * Create a meter provider and export what is recorded through
+   * `MeterToken`. The plugin records no metrics of its own.
    */
   enabled: boolean
-
-  /**
-   * Track request duration as a histogram.
-   * @default true when metrics.enabled is true
-   */
-  requestDuration?: boolean
-
-  /**
-   * Track error count.
-   * @default true when metrics.enabled is true
-   */
-  errorCount?: boolean
 }
 
 /**
@@ -119,7 +95,7 @@ export interface OtelConfig {
 
   /**
    * Auto-instrumentation configuration.
-   * When not provided, defaults to { http: true, handlers: true, guards: false }
+   * When not provided, defaults to `{ http: true }`.
    */
   autoInstrument?: AutoInstrumentConfig
 
@@ -148,6 +124,35 @@ export interface OtelConfig {
    * Additional resource attributes to add to all spans.
    */
   resourceAttributes?: Record<string, AttributeValue>
+
+  /**
+   * Request paths that get no server span. A pattern matches the whole path;
+   * `*` matches any run of characters.
+   * @example ['/health', '/metrics', '/docs/*']
+   */
+  ignoreRoutes?: string[]
+
+  /**
+   * Span processors added after the one created for `exporter`. Use it to
+   * send spans to an exporter this package does not create itself, or to
+   * collect them in a test.
+   */
+  spanProcessors?: SpanProcessor[]
+
+  /**
+   * Register the tracer provider globally. This also installs the SDK's
+   * context manager (`AsyncLocalStorage`) and the W3C propagators, which is
+   * what carries the active span across `await` and lets the plugin read an
+   * incoming `traceparent` header.
+   *
+   * With `false` the plugin still creates its own tracer provider and sends
+   * its spans to the configured exporter and `spanProcessors`, but registers
+   * nothing process-wide. Context propagation and header extraction then
+   * depend on a context manager and a propagator registered elsewhere, for
+   * example by an OpenTelemetry SDK the process already runs.
+   * @default true
+   */
+  registerGlobally?: boolean
 }
 
 /**
@@ -174,4 +179,6 @@ export interface ResolvedOtelConfig extends OtelConfig {
   metrics: Required<MetricsConfig>
   sampling: Required<SamplingConfig>
   includeNaviosAttributes: boolean
+  ignoreRoutes: string[]
+  registerGlobally: boolean
 }

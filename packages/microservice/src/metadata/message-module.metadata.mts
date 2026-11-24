@@ -1,13 +1,13 @@
-import type { ManagedMetadata } from '@navios/core'
-import type { CanActivate } from '@navios/core'
 import type { ClassType, ClassTypeWithInstance, InjectionToken } from '@navios/di'
+
+import type { MessageGuard, MessageMetadata } from '../interfaces/message-guard.mjs'
 
 export const MessageModuleMetadataKey = Symbol('MessageModuleMetadataKey')
 
-export interface MessageModuleMetadata extends ManagedMetadata {
+export interface MessageModuleMetadata extends MessageMetadata {
   controllers: Set<ClassType>
   imports: Set<ClassType>
-  guards: Set<ClassTypeWithInstance<CanActivate> | InjectionToken<CanActivate, undefined>>
+  guards: Set<ClassTypeWithInstance<MessageGuard> | InjectionToken<MessageGuard, undefined>>
   customAttributes: Map<string | symbol, any>
 }
 
@@ -24,7 +24,7 @@ export function getMessageModuleMetadata(
         controllers: new Set<ClassType>(),
         imports: new Set<ClassType>(),
         guards: new Set<
-          ClassTypeWithInstance<CanActivate> | InjectionToken<CanActivate, undefined>
+          ClassTypeWithInstance<MessageGuard> | InjectionToken<MessageGuard, undefined>
         >(),
         customAttributes: new Map<string | symbol, any>(),
       }

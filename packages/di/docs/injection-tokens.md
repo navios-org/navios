@@ -1,383 +1,353 @@
 # Injection Tokens
 
-Injection tokens provide a flexible way to identify and resolve dependencies in Navios DI. They allow you to decouple service implementations from their consumers, making your code more modular and testable.
+An injection token names a dependency that is not a class: an interface, a configuration value, or one of several implementations.
 
 ## Overview
 
-Injection tokens serve as unique identifiers for services and can be used with:
+- A token is identified by the token object itself. The name is used only in error messages, so two tokens with the same name are two different tokens.
+- A token may carry a schema. Such a token takes args, the args are validated on every resolution, and each distinct args value has its own instance.
+- A token may have one default provider, set with `@Injectable({ token })` or `@Factory({ token })`. A container can replace it with `provide()`.
 
-- **Schemas**: Define the shape of configuration data
-- **Bound Values**: Pre-configure tokens with specific values
-- **Factories**: Dynamically resolve token values
+Every class registered with `@Injectable()` has a token of its own, which is why a class can be used wherever a token is accepted.
 
 ## Basic Usage
 
 ### Creating Injection Tokens
 
-```typescript
+```ts
 import { InjectionToken } from '@navios/di'
-// Token with schema
-import { z } from 'zod'
 
-// Simple token without schema
-const USER_SERVICE_TOKEN = InjectionToken.create<UserService>('UserService')
+interface Logger {
+  log(message: string): void
+}
 
-const configSchema = z.object({
-  apiUrl: z.string(),
-  timeout: z.number(),
-})
-
-const CONFIG_TOKEN = InjectionToken.create<Config, typeof configSchema>('APP_CONFIG', configSchema)
+// A name can be a string or a symbol
+const LOGGER = InjectionToken.create<Logger>('Logger')
+const AUDIT_LOGGER = InjectionToken.create<Logger>(Symbol('AuditLogger'))
 ```
+
+Create a token once, at module level, and export it. Calling `InjectionToken.create()` twice gives two unrelated tokens.
 
 ### Using Injection Tokens
 
-```typescript
-import { Injectable } from '@navios/di'
+```ts
+import { Container, inject, Injectable } from '@navios/di'
 
-@Injectable({ token: USER_SERVICE_TOKEN })
-class UserService {
-  getUsers() {
-    return ['Alice', 'Bob', 'Charlie']
+@Injectable({ token: LOGGER })
+class ConsoleLogger implements Logger {
+  log(message: string) {
+    console.log(message)
   }
 }
 
-// Inject using the token
-const userService = await container.get(USER_SERVICE_TOKEN)
-console.log(userService.getUsers())
+@Injectable()
+class UserService {
+  private readonly logger = inject(LOGGER)
+
+  createUser(name: string) {
+    this.logger.log(`Creating ${name}`)
+  }
+}
+
+const container = new Container()
+const logger = await container.get(LOGGER)
 ```
 
 ## Token Types
 
 ### Basic Injection Token
 
-```typescript
-import { Injectable, InjectionToken } from '@navios/di'
+A token without a schema takes no args and resolves to one value per scope of its provider.
 
-interface EmailService {
-  sendEmail(to: string, subject: string): Promise<void>
-}
+```ts
+const API_URL = InjectionToken.create<string>('ApiUrl')
 
-const EMAIL_SERVICE_TOKEN = InjectionToken.create<EmailService>('EmailService')
+const container = new Container({
+  providers: [provide(API_URL, { value: 'https://api.example.com' })],
+})
 
-@Injectable({ token: EMAIL_SERVICE_TOKEN })
-class SmtpEmailService implements EmailService {
-  async sendEmail(to: string, subject: string) {
-    console.log(`SMTP email sent to ${to}: ${subject}`)
-  }
-}
-
-// Usage
-const emailService = await container.get(EMAIL_SERVICE_TOKEN)
-await emailService.sendEmail('user@example.com', 'Hello')
+const url = await container.get(API_URL)
 ```
 
 ### Token with Schema
 
-```typescript
-import { Injectable, InjectionToken } from '@navios/di'
+```ts
+import { Container, Injectable, InjectionToken } from '@navios/di'
 import { z } from 'zod'
 
-const databaseConfigSchema = z.object({
-  host: z.string(),
-  port: z.number(),
-  database: z.string(),
-  username: z.string(),
-  password: z.string(),
+const configSchema = z.object({
+  apiUrl: z.string(),
+  timeout: z.number(),
 })
 
-const DB_CONFIG_TOKEN = InjectionToken.create<DatabaseConfig, typeof databaseConfigSchema>(
-  'DB_CONFIG',
-  databaseConfigSchema,
-)
+const CONFIG = InjectionToken.create<ConfigService, typeof configSchema>('Config', configSchema)
 
-@Injectable({ token: DB_CONFIG_TOKEN })
-class DatabaseConfigService {
-  constructor(private config: z.infer<typeof databaseConfigSchema>) {}
+@Injectable({ token: CONFIG })
+class ConfigService {
+  constructor(private readonly config: z.output<typeof configSchema>) {}
 
-  getConnectionString() {
-    return `postgresql://${this.config.username}:${this.config.password}@${this.config.host}:${this.config.port}/${this.config.database}`
+  getApiUrl() {
+    return this.config.apiUrl
   }
 }
 
-// Usage with configuration
-const dbConfig = await container.get(DB_CONFIG_TOKEN, {
-  host: 'localhost',
-  port: 5432,
-  database: 'myapp',
-  username: 'postgres',
-  password: 'password',
+const container = new Container()
+const config = await container.get(CONFIG, {
+  apiUrl: 'https://api.example.com',
+  timeout: 5000,
 })
-
-console.log(dbConfig.getConnectionString())
 ```
+
+The args type accepted by `get()` and `inject()` is the input type of the schema. The constructor receives the output type, after defaults and transforms.
+
+Invalid args fail with a `DIError` with code `TokenValidationError`. The issues reported by the schema are in `error.context.issues`.
+
+#### Standard Schema
+
+The schema can come from any library that implements [Standard Schema](https://standardschema.dev). `@navios/di` does not depend on a schema library.
+
+```ts
+// zod
+import { z } from 'zod'
+const zodSchema = z.object({ url: z.string() })
+
+// valibot
+import * as v from 'valibot'
+const valibotSchema = v.object({ url: v.string() })
+
+// arktype
+import { type } from 'arktype'
+const arktypeSchema = type({ url: 'string' })
+
+const A = InjectionToken.create<Client, typeof zodSchema>('A', zodSchema)
+const B = InjectionToken.create<Client, typeof valibotSchema>('B', valibotSchema)
+const C = InjectionToken.create<Client, typeof arktypeSchema>('C', arktypeSchema)
+```
+
+Args must validate synchronously, because resolution is synchronous. A schema whose validation returns a promise, for example one with an async refinement, is rejected with `TokenValidationError`.
+
+#### Instance identity
+
+Instances are stored by the validated args. The args are compared by value: key order does not matter, and nested values are compared in full.
+
+```ts
+const a = await container.get(CONFIG, { apiUrl: '/a', timeout: 1 })
+const b = await container.get(CONFIG, { timeout: 1, apiUrl: '/a' })
+const c = await container.get(CONFIG, { apiUrl: '/c', timeout: 1 })
+
+console.log(a === b) // true
+console.log(a === c) // false
+```
+
+Values inside the args that are not plain objects or arrays, such as class instances and functions, are compared by identity.
 
 ### Bound Injection Token
 
-Bound tokens allow you to pre-configure a token with specific values:
+A bound token carries its args, so it is resolved without any:
 
-```typescript
-import { InjectionToken } from '@navios/di'
-
-const configSchema = z.object({
-  apiUrl: z.string(),
-  timeout: z.number(),
-})
-
-const CONFIG_TOKEN = InjectionToken.create<Config, typeof configSchema>('APP_CONFIG', configSchema)
-
-// Create bound token with specific values
-const PRODUCTION_CONFIG = InjectionToken.bound(CONFIG_TOKEN, {
-  apiUrl: 'https://api.production.com',
+```ts
+const PRODUCTION_CONFIG = InjectionToken.bound(CONFIG, {
+  apiUrl: 'https://api.prod.com',
   timeout: 10000,
 })
 
-const DEVELOPMENT_CONFIG = InjectionToken.bound(CONFIG_TOKEN, {
-  apiUrl: 'https://api.dev.com',
-  timeout: 5000,
-})
+const config = await container.get(PRODUCTION_CONFIG)
 
-// Usage - no need to provide arguments
-const prodConfig = await container.get(PRODUCTION_CONFIG)
-const devConfig = await container.get(DEVELOPMENT_CONFIG)
-
-console.log(prodConfig.apiUrl) // 'https://api.production.com'
-console.log(devConfig.apiUrl) // 'https://api.dev.com'
+@Injectable()
+class ApiClient {
+  private readonly config = inject(PRODUCTION_CONFIG)
+}
 ```
+
+A bound token resolves to the same instance as the base token with the same args.
 
 ### Factory Injection Token
 
-Factory tokens dynamically resolve values using a factory function:
+A factory token computes its args:
 
-```typescript
-import { Injectable, InjectionToken } from '@navios/di'
-
-@Injectable()
-class EnvironmentService {
-  getEnvironment() {
-    return process.env.NODE_ENV || 'development'
+```ts
+const DYNAMIC_CONFIG = InjectionToken.factory(CONFIG, async (ctx) => {
+  const env = await ctx.inject(EnvironmentService)
+  return {
+    apiUrl: env.getApiUrl(),
+    timeout: env.getTimeout(),
   }
+})
 
-  getApiUrl() {
-    const env = this.getEnvironment()
-    switch (env) {
-      case 'production':
-        return 'https://api.production.com'
-      case 'staging':
-        return 'https://api.staging.com'
-      default:
-        return 'https://api.dev.com'
-    }
-  }
+const config = await container.get(DYNAMIC_CONFIG)
+```
+
+The factory runs at most once per root container. The value is stored on the container, not on the token, so two containers compute it separately and a disposed container computes it again on next use. The factory always runs against the root container, even when the token is first resolved through a scope.
+
+### Scope-only Token
+
+A token can declare a scope without having a provider. Such a token is supplied per scope with `addInstance()`:
+
+```ts
+import { InjectableScope, InjectionToken } from '@navios/di'
+
+interface RequestInfo {
+  url: string
 }
 
-const configSchema = z.object({
-  apiUrl: z.string(),
-  timeout: z.number(),
+const REQUEST_INFO = InjectionToken.create<RequestInfo>('RequestInfo', {
+  scope: InjectableScope.Request,
 })
 
-const CONFIG_TOKEN = InjectionToken.create<Config, typeof configSchema>('APP_CONFIG', configSchema)
-
-// Create factory token
-const DYNAMIC_CONFIG = InjectionToken.factory(CONFIG_TOKEN, async (ctx) => {
-  const envService = await ctx.inject(EnvironmentService)
-
-  return {
-    apiUrl: envService.getApiUrl(),
-    timeout: envService.getEnvironment() === 'production' ? 10000 : 5000,
-  }
-})
-
-// Usage
-const config = await container.get(DYNAMIC_CONFIG)
-console.log(config.apiUrl) // Dynamically resolved based on environment
+await using scope = container.createScope()
+scope.addInstance(REQUEST_INFO, { url: '/users' })
 ```
+
+Resolving it from the root container, or injecting it into a singleton, is a `ScopeMismatchError` instead of "not found". The options object also accepts `schema`.
 
 ## Advanced Patterns
 
 ### Multiple Implementations
 
-```typescript
-import { Injectable, InjectionToken } from '@navios/di'
+A token has one default implementation. Other implementations are plain injectable classes, bound per container:
+
+```ts
+import { Container, Injectable, InjectionToken, provide } from '@navios/di'
 
 interface PaymentProcessor {
   processPayment(amount: number): Promise<string>
 }
 
-const PAYMENT_PROCESSOR_TOKEN = InjectionToken.create<PaymentProcessor>('PaymentProcessor')
+const PAYMENT_PROCESSOR = InjectionToken.create<PaymentProcessor>('PaymentProcessor')
 
-// Stripe implementation
-@Injectable({ token: PAYMENT_PROCESSOR_TOKEN })
+// The default
+@Injectable({ token: PAYMENT_PROCESSOR })
 class StripePaymentProcessor implements PaymentProcessor {
   async processPayment(amount: number) {
     return `Processed $${amount} via Stripe`
   }
 }
 
-// PayPal implementation
-@Injectable({ token: PAYMENT_PROCESSOR_TOKEN })
+// An alternative: no token here
+@Injectable()
 class PayPalPaymentProcessor implements PaymentProcessor {
   async processPayment(amount: number) {
     return `Processed $${amount} via PayPal`
   }
 }
 
-// Usage - the last registered implementation will be used
-const paymentProcessor = await container.get(PAYMENT_PROCESSOR_TOKEN)
-await paymentProcessor.processPayment(100)
+const container = new Container({
+  providers: [provide(PAYMENT_PROCESSOR, PayPalPaymentProcessor)],
+})
+
+const processor = await container.get(PAYMENT_PROCESSOR) // PayPalPaymentProcessor
 ```
+
+Decorating the second class with `@Injectable({ token: PAYMENT_PROCESSOR })` as well throws a `DIError` with code `ProviderConflict`.
+
+When both implementations are needed in the same container, give each its own token.
 
 ### Token with Optional Schema
 
-```typescript
-import { Injectable, InjectionToken } from '@navios/di'
+When the schema accepts `undefined`, the args are optional:
 
-const optionalConfigSchema = z.object({
-  apiUrl: z.string(),
-  timeout: z.number().optional(),
-  retries: z.number().optional(),
-})
+```ts
+const optionsSchema = z
+  .object({
+    retries: z.number(),
+  })
+  .optional()
 
-const OPTIONAL_CONFIG_TOKEN = InjectionToken.create<
-  OptionalConfigService,
-  typeof optionalConfigSchema
->('OPTIONAL_CONFIG', optionalConfigSchema)
+const CLIENT = InjectionToken.create<Client, typeof optionsSchema>('Client', optionsSchema)
 
-@Injectable({ token: OPTIONAL_CONFIG_TOKEN })
-class OptionalConfigService {
-  constructor(private config: z.infer<typeof optionalConfigSchema>) {}
-
-  getApiUrl() {
-    return this.config.apiUrl
-  }
-
-  getTimeout() {
-    return this.config.timeout ?? 5000
-  }
-
-  getRetries() {
-    return this.config.retries ?? 3
-  }
+@Injectable({ token: CLIENT })
+class Client {
+  constructor(private readonly options?: z.output<typeof optionsSchema>) {}
 }
 
-// Usage with partial configuration
-const config = await container.get(OPTIONAL_CONFIG_TOKEN, {
-  apiUrl: 'https://api.example.com',
-  // timeout and retries are optional
-})
+const withDefaults = await container.get(CLIENT)
+const withRetries = await container.get(CLIENT, { retries: 3 })
+```
 
-console.log(config.getTimeout()) // 5000 (default)
-console.log(config.getRetries()) // 3 (default)
+### Optional Tokens
+
+`optional()` returns `null` for a token that nothing provides:
+
+```ts
+const TRACER = InjectionToken.create<Tracer>('Tracer')
+
+@Injectable()
+class OrderService {
+  private readonly tracer = optional(TRACER)
+}
 ```
 
 ## Best Practices
 
-### 1. Use Descriptive Token Names
+### 1. Use descriptive token names
 
-```typescript
-// ✅ Good: Descriptive names
-const USER_REPOSITORY_TOKEN = InjectionToken.create<UserRepository>('UserRepository')
-const EMAIL_SERVICE_TOKEN = InjectionToken.create<EmailService>('EmailService')
+The name appears in error messages and dependency paths.
 
-// ❌ Avoid: Generic names
-const SERVICE_TOKEN = InjectionToken.create<Service>('Service')
-const TOKEN_1 = InjectionToken.create<Service>('Token1')
+### 2. Define schemas for configuration tokens
+
+A schema gives the args a type and validates them at the point of resolution.
+
+### 3. Use bound tokens for fixed configuration
+
+```ts
+const DEV_CONFIG = InjectionToken.bound(CONFIG, { apiUrl: 'http://localhost:3000', timeout: 1000 })
+const PROD_CONFIG = InjectionToken.bound(CONFIG, { apiUrl: 'https://api.prod.com', timeout: 10000 })
 ```
 
-### 2. Define Schemas for Configuration Tokens
+### 4. Use factory tokens for computed configuration
 
-```typescript
-// ✅ Good: Define schema for configuration
-const configSchema = z.object({
-  apiUrl: z.string().url(),
-  timeout: z.number().min(1000),
-  retries: z.number().min(0).max(10),
-})
-
-const CONFIG_TOKEN = InjectionToken.create<Config, typeof configSchema>('APP_CONFIG', configSchema)
+```ts
+const ENV_CONFIG = InjectionToken.factory(CONFIG, () => ({
+  apiUrl: process.env.API_URL ?? 'http://localhost:3000',
+  timeout: Number(process.env.TIMEOUT ?? 5000),
+}))
 ```
 
-### 3. Use Bound Tokens for Environment-Specific Configuration
+### 5. Export tokens from one module
 
-```typescript
-// ✅ Good: Environment-specific bound tokens
-const PRODUCTION_CONFIG = InjectionToken.bound(CONFIG_TOKEN, {
-  apiUrl: 'https://api.production.com',
-  timeout: 10000,
-  retries: 5,
-})
-
-const DEVELOPMENT_CONFIG = InjectionToken.bound(CONFIG_TOKEN, {
-  apiUrl: 'https://api.dev.com',
-  timeout: 5000,
-  retries: 3,
-})
-```
-
-### 4. Use Factory Tokens for Dynamic Resolution
-
-```typescript
-// ✅ Good: Factory for dynamic configuration
-const DYNAMIC_CONFIG = InjectionToken.factory(CONFIG_TOKEN, async () => {
-  const env = process.env.NODE_ENV || 'development'
-
-  return {
-    apiUrl: env === 'production' ? 'https://api.prod.com' : 'https://api.dev.com',
-    timeout: env === 'production' ? 10000 : 5000,
-    retries: env === 'production' ? 5 : 3,
-  }
-})
-```
-
-### 5. Group Related Tokens
-
-```typescript
-// ✅ Good: Group related tokens
-export const DATABASE_TOKENS = {
-  CONFIG: InjectionToken.create<DatabaseConfig>('DatabaseConfig'),
-  CONNECTION: InjectionToken.create<DatabaseConnection>('DatabaseConnection'),
-  REPOSITORY: InjectionToken.create<UserRepository>('UserRepository'),
-} as const
-```
+A token must be the same object everywhere it is used. Keep related tokens in one file and import them from there.
 
 ## API Reference
 
 ### InjectionToken.create
 
-```typescript
-// Simple token
+```ts
 static create<T>(name: string | symbol): InjectionToken<T, undefined>
-
-// Token with schema
-static create<T, S extends InjectionTokenSchemaType>(
+static create<T, Schema>(name: string | symbol, schema: Schema): InjectionToken<T, Schema>
+static create<T>(name: string | symbol, options: { scope?: InjectableScope }): InjectionToken<T, undefined>
+static create<T, Schema>(
   name: string | symbol,
-  schema: S
-): InjectionToken<T, S>
+  options: { scope?: InjectableScope; schema: Schema },
+): InjectionToken<T, Schema>
 ```
 
 ### InjectionToken.bound
 
-```typescript
-static bound<T, S extends InjectionTokenSchemaType>(
-  token: InjectionToken<T, S>,
-  value: z.input<S>
-): BoundInjectionToken<T, S>
+```ts
+static bound<T, S>(token: InjectionToken<T, S>, value: InferInput<S>): BoundInjectionToken<T, S>
 ```
 
 ### InjectionToken.factory
 
-```typescript
-static factory<T, S extends InjectionTokenSchemaType>(
+```ts
+static factory<T, S>(
   token: InjectionToken<T, S>,
-  factory: (ctx: FactoryContext) => Promise<z.input<S>>
+  factory: (ctx: FactoryContext) => Promise<InferInput<S>> | InferInput<S>,
 ): FactoryInjectionToken<T, S>
 ```
 
+### InjectionToken.refineType
+
+```ts
+static refineType<T>(token: BoundInjectionToken<any, any>): BoundInjectionToken<T, any>
+```
+
+Changes the resolved type of a bound token without changing the token.
+
 ### Token Types
 
-```typescript
-type InjectionTokenType =
-  | InjectionToken<any, any>
-  | BoundInjectionToken<any, any>
-  | FactoryInjectionToken<any, any>
-```
+- `InjectionToken<T, S>` - a token for type `T` with an optional schema `S`. Properties: `name`, `schema`, `scope`. `toString()` returns the name.
+- `BoundInjectionToken<T, S>` - a token with fixed args. Properties: `token`, `value`.
+- `FactoryInjectionToken<T, S>` - a token whose args are computed. Properties: `token`, `factory`.
+- `InjectionTokenSchemaType` - an alias of `StandardSchemaV1`.
+- `InferInput<S>`, `InferOutput<S>` - the input and output types of a schema.

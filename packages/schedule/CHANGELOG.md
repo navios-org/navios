@@ -5,6 +5,35 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0] - Unreleased
+
+Ported to `@navios/core` 2.0 and `@navios/di` 2.0.
+
+### Changed
+
+- **BREAKING**: `SchedulerService.register()` no longer starts jobs by itself. Jobs start when the scheduler starts: in `onApplicationBootstrap` (the end of `app.init()`), or when `start()` is called on a scheduler used without an application. A service registered after that starts immediately.
+- **BREAKING**: `app.close()` now stops every job, through `onApplicationShutdown`, and waits for the runs in progress. Disposing a bare container does the same through `onServiceDestroy`. Before, jobs kept running until `stopAll()` was called.
+- **BREAKING**: `@Schedulable()` no longer takes a `registry`. Registries were removed from `@navios/di`; isolation comes from using a separate `Container`. It takes `{ scope }` instead.
+- Every run of a job happens in its own DI scope (`container.createScope()`), disposed after the run. A `@Schedulable({ scope: InjectableScope.Request })` class is instantiated for each run and gets `onServiceDestroy` after it; a singleton class keeps one instance, as before.
+- Registering the same class twice is ignored. Before, the second registration replaced the jobs in the map and left the first ones running.
+- Jobs are looked up by class, so two schedulable classes with the same name no longer overwrite each other.
+- The legacy-compat entry builds its decorator contexts itself; `createClassContext` and `createMethodContext` are still exported from `@navios/schedule/legacy-compat`.
+- `SchedulerService` is registered with `registerInjectable()`, so the package is built without a decorator transform.
+
+### Added
+
+- `SchedulerService.start()` and `SchedulerService.stop()`.
+- `schedulePlugin({ services })`: registers schedulable services and ties them to the application lifecycle without writing `onModuleInit`.
+- `SchedulableOptions`.
+
+### Fixed
+
+- The symbol behind `ScheduleMetadataKey` was described as `ControllerMetadataKey`, and the error for a class without metadata told the user to add `@Controller`. Both now name the schedule metadata and `@Schedulable`.
+
+### Removed
+
+- `zod` from `peerDependencies`; the package never used it.
+
 ## [1.0.0] - 2026-01-09
 
 ### Added

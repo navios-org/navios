@@ -13,7 +13,8 @@ export interface ScopeProviderProps {
    */
   scopeId?: string
   /**
-   * Optional metadata to attach to the request context.
+   * Optional metadata to attach to the scope.
+   * The key `scopeId` is reserved: it always holds the effective scope ID.
    * Can be used to pass data like user info, request headers, etc.
    */
   metadata?: Record<string, unknown>
@@ -52,29 +53,22 @@ export function ScopeProvider({ scopeId, metadata, children }: ScopeProviderProp
   const effectiveScopeId = scopeId ?? generatedId
   const scopedContainerRef = useRef<ScopedContainer | null>(null)
 
-  // Create ScopedContainer on first render only
-  // We use a ref to track initialization to handle React StrictMode double-renders
+  // Create the ScopedContainer once per mounted provider.
+  // The ref keeps it stable across re-renders. DI scopes have no ids, so the
+  // effective scope id lives in the scope's metadata under `scopeId`.
   if (!scopedContainerRef.current) {
-    // Check if this request ID already exists (e.g., from StrictMode double render)
-    if (!container.hasActiveRequest(effectiveScopeId)) {
-      scopedContainerRef.current = container.beginRequest(effectiveScopeId, metadata)
-    }
+    scopedContainerRef.current = container.createScope({ ...metadata, scopeId: effectiveScopeId })
   }
 
-  // End request context on unmount
+  // Dispose the scope on unmount
   useEffect(() => {
     const scopedContainer = scopedContainerRef.current
     return () => {
       if (scopedContainer) {
-        void scopedContainer.endRequest()
+        void scopedContainer.dispose()
       }
     }
   }, [])
-
-  // If we don't have a scoped container (shouldn't happen normally), don't render
-  if (!scopedContainerRef.current) {
-    return null
-  }
 
   return jsx(ScopedContainerContext.Provider, {
     value: scopedContainerRef.current,

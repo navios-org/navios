@@ -1,4 +1,19 @@
-// Decorators and their types
+export { openApiPlugin, defineOpenApiPlugin } from './plugin.mjs'
+export type { OpenApiPluginOptions, ScalarMetaData, ScalarOptions, ScalarTheme } from './plugin.mjs'
+
+export { generateOpenApiDocument, toOpenApiPath, extractUrlParamNames } from './document.mjs'
+export type {
+  OpenApiDocumentOptions,
+  OpenApiGenerationOptions,
+  OpenApiGeneratorOptions,
+} from './document.mjs'
+
+export { extractOpenApiMetadata } from './metadata.mjs'
+export type { OpenApiEndpointMetadata } from './metadata.mjs'
+
+export { SchemaConverter, describeMultipartFields, isBinarySchema } from './json-schema.mjs'
+export type { SchemaConverterOptions, SchemaIo, ToJsonSchema } from './json-schema.mjs'
+
 export {
   ApiTag,
   ApiOperation,
@@ -7,30 +22,15 @@ export {
   ApiSecurity,
   ApiExclude,
   ApiStream,
-  type ApiOperationOptions,
-  type ApiTagOptions,
-  type ApiStreamOptions,
-  type ApiDeprecatedOptions,
-  type ApiSecurityRequirement,
-} from './decorators/index.mjs'
+} from './decorators.mjs'
+export type {
+  ApiDeprecatedOptions,
+  ApiOperationOptions,
+  ApiSecurityRequirement,
+  ApiStreamOptions,
+  ApiTagOptions,
+} from './attributes.mjs'
 
-// Metadata types
-export type { OpenApiEndpointMetadata } from './metadata/index.mjs'
-
-// Services (Injectable classes - recommended for DI integration)
-export {
-  OpenApiGeneratorService,
-  type OpenApiGeneratorOptions,
-  EndpointScannerService,
-  type DiscoveredEndpoint,
-  MetadataExtractorService,
-  SchemaConverterService,
-  type SchemaConversionResult,
-  PathBuilderService,
-  type PathItemResult,
-} from './services/index.mjs'
-
-// Tokens (for advanced usage)
 export {
   ApiTagToken,
   ApiOperationToken,
@@ -39,4 +39,6 @@ export {
   ApiSecurityToken,
   ApiExcludeToken,
   ApiStreamToken,
-} from './tokens/index.mjs'
+} from './tokens.mjs'
+
+export type * from './types.mjs'

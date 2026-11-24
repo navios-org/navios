@@ -1,7 +1,9 @@
-import { Container, globalRegistry, Injectable, Registry } from '@navios/di'
+import { Container, Injectable } from '@navios/di'
 import { renderHook } from '@testing-library/react'
 import { createElement } from 'react'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+
+import type { ScopedContainer } from '@navios/di'
 
 import { ContainerProvider } from '../../providers/container-provider.mjs'
 import { ScopeProvider } from '../../providers/scope-provider.mjs'
@@ -9,11 +11,9 @@ import { useContainer, useRootContainer } from '../use-container.mjs'
 
 describe('useContainer', () => {
   let container: Container
-  let registry: Registry
 
   beforeEach(() => {
-    registry = new Registry(globalRegistry)
-    container = new Container(registry)
+    container = new Container()
   })
 
   afterEach(async () => {
@@ -37,7 +37,7 @@ describe('useContainer', () => {
   })
 
   it('should provide access to container methods', async () => {
-    @Injectable({ registry })
+    @Injectable()
     class TestService {
       getValue() {
         return 'test-value'
@@ -50,7 +50,6 @@ describe('useContainer', () => {
 
     const { result } = renderHook(() => useContainer(), { wrapper })
 
-    // @ts-expect-error - token is valid
     const service = await result.current.get(TestService)
     expect(service.getValue()).toBe('test-value')
   })
@@ -69,18 +68,15 @@ describe('useContainer', () => {
 
     // Should return the scoped container, not the root container
     expect(result.current).not.toBe(container)
-    // @ts-expect-error - getRequestId exists on ScopedContainer
-    expect(result.current.getRequestId?.()).toBe('test-scope')
+    expect((result.current as ScopedContainer).getMetadata('scopeId')).toBe('test-scope')
   })
 })
 
 describe('useRootContainer', () => {
   let container: Container
-  let registry: Registry
 
   beforeEach(() => {
-    registry = new Registry(globalRegistry)
-    container = new Container(registry)
+    container = new Container()
   })
 
   afterEach(async () => {

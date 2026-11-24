@@ -20,7 +20,7 @@ yarn add @navios/jwt
 - **Token Verification**: Comprehensive validation with support for all standard JWT claims
 - **Multiple Algorithms**: Support for symmetric (HS256, HS384, HS512) and asymmetric (RS256, ES256, PS256, etc.) algorithms
 - **Dependency Injection**: Seamless integration with Navios DI system
-- **Type Safety**: Full TypeScript support with Zod schema validation
+- **Type Safety**: Full TypeScript types for options and payloads; the service configuration is checked when the service is resolved. No schema library is required
 - **Async Support**: Both synchronous and asynchronous APIs for flexible key management
 - **Dynamic Key Providers**: Support for dynamic secret/key resolution based on request context
 
@@ -44,11 +44,15 @@ const JwtService = provideJwtService({
 })
 ```
 
+`provideJwtService()` returns an injection token with the configuration attached. Export it from one file and inject it wherever tokens are signed or verified; every `inject()` of the same token gives the same `JwtService` instance.
+
 ### Using with Dependency Injection
 
 ```typescript
 import { Injectable, inject } from '@navios/core'
-import { JwtService } from '@navios/jwt'
+import { TokenExpiredError } from '@navios/jwt'
+
+import { JwtService } from './jwt.mjs' // the token created above
 
 @Injectable()
 class AuthService {
@@ -77,16 +81,15 @@ class AuthService {
 
 ## Usage Examples
 
-### Async Configuration
+### Configuration from Another Service
 
-When you need to load configuration dynamically:
+When the configuration comes from another service, pass a factory. It receives a `FactoryContext`, may be synchronous or asynchronous, and runs once per container, the first time the service is resolved:
 
 ```typescript
-import { inject } from '@navios/core'
 import { provideJwtService } from '@navios/jwt'
 
-const JwtService = provideJwtService(async () => {
-  const configService = await inject(ConfigService)
+const JwtService = provideJwtService(async (ctx) => {
+  const configService = await ctx.inject(ConfigService)
   return {
     secret: configService.jwt.secret,
     signOptions: {
@@ -206,7 +209,25 @@ Creates a JWT service provider for dependency injection.
 **Overloads:**
 
 - `provideJwtService(config: JwtServiceOptions)`: Static configuration
-- `provideJwtService(config: () => Promise<JwtServiceOptions>)`: Async factory configuration
+- `provideJwtService(config: (ctx: FactoryContext) => JwtServiceOptions | Promise<JwtServiceOptions>)`: Factory configuration
+
+The configuration is checked against `JwtServiceOptionsSchema` when the service is resolved; a configuration of the wrong shape rejects with a `DIError` whose code is `TokenValidationError`.
+
+### Replacing the service
+
+`JwtService` is the default provider of `JwtServiceToken`. To use another implementation, for example a fake in tests, bind it with `provide()`:
+
+```typescript
+import { NaviosFactory, provide } from '@navios/core'
+import { JwtServiceToken } from '@navios/jwt'
+
+const app = await NaviosFactory.create(AppModule, {
+  adapter,
+  providers: [provide(JwtServiceToken, FakeJwtService)],
+})
+```
+
+The same entry works in `@Module({ providers })` and with `container.provide()`.
 
 ### `JwtServiceOptions`
 
@@ -251,6 +272,8 @@ The library exports error classes from the underlying `jsonwebtoken` library:
 - **`JwtSignOptions`**: Extends `SignOptions` with `secret` and `privateKey` properties
 - **`JwtVerifyOptions`**: Extends `VerifyOptions` with `secret` and `publicKey` properties
 - **`RequestType`**: Enum for distinguishing sign vs verify operations (`Sign` | `Verify`)
+- **`Algorithm`**, **`JwtHeader`**, **`Secret`**: The algorithm names, the JWT header and the accepted key types
+- **`JwtServiceOptionsSchema`**: A [Standard Schema](https://standardschema.dev) for `JwtServiceOptions`, used as the argument schema of `JwtServiceToken`
 
 ## Best Practices
 

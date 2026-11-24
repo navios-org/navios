@@ -1,5 +1,4 @@
-import { z } from 'zod/v4'
-
+import type { StandardSchemaV1 } from '@navios/core'
 import type { Secret as JwtSecret } from 'jsonwebtoken'
 
 /**
@@ -18,155 +17,93 @@ export enum RequestType {
 /**
  * Supported JWT algorithms.
  *
- * Includes symmetric (HMAC) and asymmetric (RSA, ECDSA, EdDSA) algorithms.
+ * Includes symmetric (HMAC) and asymmetric (RSA, ECDSA, RSA-PSS) algorithms.
  */
-export const AlgorithmType = z.enum([
-  'HS256',
-  'HS384',
-  'HS512',
-  'RS256',
-  'RS384',
-  'RS512',
-  'ES256',
-  'ES384',
-  'ES512',
-  'PS256',
-  'PS384',
-  'PS512',
-  'none',
-])
-
-/**
- * JWT header schema.
- *
- * Defines the structure of the JWT header with standard claims.
- */
-export const JwtHeaderSchema = z.object({
-  alg: AlgorithmType.or(z.string()),
-  typ: z.string().optional(),
-  cty: z.string().optional(),
-  crit: z.string().array().optional(),
-  kid: z.string().optional(),
-  jku: z.string().optional(),
-  x5u: z.union([z.string(), z.array(z.string())]).optional(),
-  'x5t#S256': z.string().optional(),
-  x5t: z.string().optional(),
-  x5c: z.union([z.string(), z.array(z.string())]).optional(),
-})
+export type Algorithm =
+  | 'HS256'
+  | 'HS384'
+  | 'HS512'
+  | 'RS256'
+  | 'RS384'
+  | 'RS512'
+  | 'ES256'
+  | 'ES384'
+  | 'ES512'
+  | 'PS256'
+  | 'PS384'
+  | 'PS512'
+  | 'none'
 
 /**
  * JWT header type.
  *
  * Contains algorithm, type, and optional header claims.
  */
-export type JwtHeader = z.infer<typeof JwtHeaderSchema>
+export interface JwtHeader {
+  alg: Algorithm | (string & {})
+  typ?: string
+  cty?: string
+  crit?: string[]
+  kid?: string
+  jku?: string
+  x5u?: string | string[]
+  'x5t#S256'?: string
+  x5t?: string
+  x5c?: string | string[]
+}
 
 /**
- * Schema for JWT signing options.
- *
- * Defines all available options for signing tokens including algorithm,
- * expiration, audience, issuer, and other standard JWT claims.
+ * Options for signing JWT tokens: algorithm, expiration, audience, issuer and
+ * the other standard JWT claims.
  */
-export const SignOptionsSchema = z.object({
-  algorithm: AlgorithmType.optional(),
-  keyid: z.string().optional(),
-  expiresIn: z.union([z.string(), z.number()]).optional(),
-  notBefore: z.union([z.string(), z.number()]).optional(),
-  audience: z
-    .union([z.string(), z.instanceof(RegExp), z.array(z.union([z.string(), z.instanceof(RegExp)]))])
-    .optional(),
-  subject: z.string().optional(),
-  issuer: z.string().optional(),
-  jwtid: z.string().optional(),
-  mutatePayload: z.boolean().optional(),
-  noTimestamp: z.boolean().optional(),
-  header: JwtHeaderSchema.optional(),
-  encoding: z.string().optional(),
-  allowInsecureKeySizes: z.boolean().optional(),
-  allowInvalidAsymmetricKeyTypes: z.boolean().optional(),
-})
+export interface SignOptions {
+  algorithm?: Algorithm
+  keyid?: string
+  expiresIn?: string | number
+  notBefore?: string | number
+  audience?: string | RegExp | (string | RegExp)[]
+  subject?: string
+  issuer?: string
+  jwtid?: string
+  mutatePayload?: boolean
+  noTimestamp?: boolean
+  header?: JwtHeader
+  encoding?: string
+  allowInsecureKeySizes?: boolean
+  allowInvalidAsymmetricKeyTypes?: boolean
+}
 
 /**
- * Options for signing JWT tokens.
- *
- * @see SignOptionsSchema for the complete schema definition
+ * Options for verifying JWT tokens: allowed algorithms, audience, issuer,
+ * expiration handling and the other validation rules.
  */
-export type SignOptions = z.infer<typeof SignOptionsSchema>
-
-/**
- * Schema for JWT verification options.
- *
- * Defines all available options for verifying tokens including allowed
- * algorithms, audience, issuer, expiration handling, and other validation rules.
- */
-export const VerifyOptionsSchema = z.object({
-  algorithms: AlgorithmType.array().optional(),
-  audience: z
-    .union([z.string(), z.instanceof(RegExp), z.array(z.union([z.string(), z.instanceof(RegExp)]))])
-    .optional(),
-  clockTimestamp: z.number().optional(),
-  clockTolerance: z.number().optional(),
-  complete: z.boolean().optional(),
-  issuer: z.union([z.string(), z.string().array()]).optional(),
-  ignoreExpiration: z.boolean().optional(),
-  ignoreNotBefore: z.boolean().optional(),
-  jwtid: z.string().optional(),
-  nonce: z.string().optional(),
-  subject: z.string().optional(),
-  maxAge: z.union([z.string(), z.number()]).optional(),
-  allowInvalidAsymmetricKeyTypes: z.boolean().optional(),
-})
-
-/**
- * Options for verifying JWT tokens.
- *
- * @see VerifyOptionsSchema for the complete schema definition
- */
-export type VerifyOptions = z.infer<typeof VerifyOptionsSchema>
-
-/**
- * Schema for JWT secret/key types.
- *
- * Supports string secrets, Buffer objects, and key objects with passphrases.
- */
-export const SecretSchema = z.union([
-  z.string(),
-  z.instanceof(Buffer),
-  z
-    .object({
-      type: z.string(),
-    })
-    .passthrough(),
-  z.object({
-    key: z.union([z.string(), z.instanceof(Buffer)]),
-    passphrase: z.string(),
-  }),
-])
+export interface VerifyOptions {
+  algorithms?: Algorithm[]
+  audience?: string | RegExp | (string | RegExp)[]
+  clockTimestamp?: number
+  clockTolerance?: number
+  complete?: boolean
+  issuer?: string | string[]
+  ignoreExpiration?: boolean
+  ignoreNotBefore?: boolean
+  jwtid?: string
+  nonce?: string
+  subject?: string
+  maxAge?: string | number
+  allowInvalidAsymmetricKeyTypes?: boolean
+}
 
 /**
  * Secret or key type for JWT operations.
  *
- * Can be a string, Buffer, or an object with key and optional passphrase.
+ * Can be a string, a Buffer, a key object (for example a Node.js `KeyObject`)
+ * or an object with a key and its passphrase.
  */
-export type Secret = z.infer<typeof SecretSchema>
-
-export const JwtServiceOptionsSchema = z.object({
-  signOptions: SignOptionsSchema.optional(),
-  secret: z.string().optional(),
-  publicKey: z.union([z.string(), z.instanceof(Buffer)]).optional(),
-  privateKey: SecretSchema.optional(),
-  verifyOptions: VerifyOptionsSchema.optional(),
-  secretOrKeyProvider: z
-    .function({
-      input: [
-        z.enum(RequestType),
-        z.any(),
-        z.union([SignOptionsSchema, VerifyOptionsSchema]).optional(),
-      ],
-      output: SecretSchema,
-    })
-    .optional(),
-})
+export type Secret =
+  | string
+  | Buffer
+  | { type: string; [key: string]: unknown }
+  | { key: string | Buffer; passphrase: string }
 
 /**
  * Configuration options for the JWT service.
@@ -192,7 +129,69 @@ export const JwtServiceOptionsSchema = z.object({
  * }
  * ```
  */
-export type JwtServiceOptions = z.infer<typeof JwtServiceOptionsSchema>
+export interface JwtServiceOptions {
+  signOptions?: SignOptions
+  secret?: string
+  publicKey?: string | Buffer
+  privateKey?: Secret
+  verifyOptions?: VerifyOptions
+  secretOrKeyProvider?: (
+    requestType: RequestType,
+    tokenOrPayload: any,
+    options?: SignOptions | VerifyOptions,
+  ) => Secret
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function isOptional(value: unknown, check: (value: unknown) => boolean): boolean {
+  return value === undefined || check(value)
+}
+
+function isKey(value: unknown): boolean {
+  return typeof value === 'string' || Buffer.isBuffer(value)
+}
+
+function isJwtServiceOptions(value: unknown): value is JwtServiceOptions {
+  if (!isPlainObject(value)) {
+    return false
+  }
+  return (
+    isOptional(value.secret, (v) => typeof v === 'string') &&
+    isOptional(value.publicKey, isKey) &&
+    isOptional(value.privateKey, (v) => isKey(v) || isPlainObject(v)) &&
+    isOptional(value.signOptions, isPlainObject) &&
+    isOptional(value.verifyOptions, isPlainObject) &&
+    isOptional(value.secretOrKeyProvider, (v) => typeof v === 'function')
+  )
+}
+
+/**
+ * Standard Schema that checks the shape of `JwtServiceOptions`. It is the
+ * argument schema of `JwtServiceToken`, so options given to
+ * `provideJwtService()` are checked when the service is resolved. It needs no
+ * schema library; the options of individual sign and verify calls are checked
+ * by `jsonwebtoken`.
+ */
+export const JwtServiceOptionsSchema: StandardSchemaV1<JwtServiceOptions, JwtServiceOptions> = {
+  '~standard': {
+    version: 1,
+    vendor: 'navios',
+    validate: (value) =>
+      isJwtServiceOptions(value)
+        ? { value }
+        : {
+            issues: [
+              {
+                message:
+                  'JwtService options must be an object with optional `secret` (string), `publicKey` (string or Buffer), `privateKey` (string, Buffer or key object), `signOptions`, `verifyOptions` (objects) and `secretOrKeyProvider` (function)',
+              },
+            ],
+          },
+  },
+}
 
 /**
  * Options for signing JWT tokens.

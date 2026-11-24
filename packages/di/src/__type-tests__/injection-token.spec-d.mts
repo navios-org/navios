@@ -1,12 +1,14 @@
 import { expectTypeOf, test } from 'vitest'
 import { z } from 'zod/v4'
 
+import { InjectableScope } from '../enums/index.mjs'
 import {
   BoundInjectionToken,
   FactoryInjectionToken,
   InjectionToken,
 } from '../token/injection-token.mjs'
 
+import type { StandardSchemaV1 } from '../schema/standard-schema.mjs'
 import type {
   ClassType,
   ClassTypeWithArgument,
@@ -172,7 +174,6 @@ test('InjectionToken properties', () => {
     simpleObjectSchema,
   )
 
-  expectTypeOf(token.id).toBeString()
   expectTypeOf(token.name).toMatchTypeOf<string | symbol | (new (...args: any[]) => any)>()
   expectTypeOf(token.toString()).toBeString()
 })
@@ -444,4 +445,55 @@ test('ClassType with inherited static fields', () => {
   expectTypeOf(derivedToken).toMatchTypeOf<InjectionToken<DerivedService, undefined>>()
   expectTypeOf(BaseService).toMatchTypeOf<ClassType>()
   expectTypeOf(DerivedService).toMatchTypeOf<ClassType>()
+})
+
+test('InjectionToken.create with options', () => {
+  const withSchema = InjectionToken.create<FooService, typeof simpleObjectSchema>('WithSchema', {
+    schema: simpleObjectSchema,
+    scope: InjectableScope.Request,
+  })
+  const withOptionalSchema = InjectionToken.create<FooService, typeof simpleOptionalObjectSchema>(
+    'WithOptionalSchema',
+    { schema: simpleOptionalObjectSchema },
+  )
+  const scopeOnly = InjectionToken.create<FooService>('ScopeOnly', {
+    scope: InjectableScope.Request,
+  })
+
+  expectTypeOf(withSchema).toEqualTypeOf<
+    InjectionToken<FooService, typeof simpleObjectSchema, true>
+  >()
+  expectTypeOf(withOptionalSchema).toEqualTypeOf<
+    InjectionToken<FooService, typeof simpleOptionalObjectSchema, false>
+  >()
+  expectTypeOf(scopeOnly).toEqualTypeOf<InjectionToken<FooService, undefined, false>>()
+})
+
+test('InjectionToken with a Standard Schema that is not zod', () => {
+  const requiredSchema = {} as StandardSchemaV1<{ id: string }, { id: number }>
+  const optionalSchema = {} as StandardSchemaV1<{ id: string } | undefined, { id: number }>
+
+  const requiredToken = InjectionToken.create<FooService, typeof requiredSchema>(
+    'Required',
+    requiredSchema,
+  )
+  const optionalToken = InjectionToken.create<FooService, typeof optionalSchema>(
+    'Optional',
+    optionalSchema,
+  )
+
+  expectTypeOf(requiredToken).toEqualTypeOf<
+    InjectionToken<FooService, typeof requiredSchema, true>
+  >()
+  expectTypeOf(optionalToken).toEqualTypeOf<
+    InjectionToken<FooService, typeof optionalSchema, false>
+  >()
+
+  expectTypeOf(InjectionToken.bound(requiredToken, { id: 'a' })).toEqualTypeOf<
+    BoundInjectionToken<FooService, typeof requiredSchema>
+  >()
+  // @ts-expect-error the bound value is the schema input
+  InjectionToken.bound(requiredToken, { id: 1 })
+  // @ts-expect-error the factory returns the schema input
+  InjectionToken.factory(requiredToken, () => ({ id: 1 }))
 })

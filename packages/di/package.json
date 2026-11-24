@@ -17,10 +17,6 @@
   "typings": "./lib/index.d.mts",
   "exports": {
     ".": {
-      "browser": {
-        "types": "./lib/browser/index.d.mts",
-        "default": "./lib/browser/index.mjs"
-      },
       "bun": {
         "types": "./lib/index.d.mts",
         "default": "./lib/index.mjs"
@@ -76,14 +72,12 @@
     "test:gc": "NODE_OPTIONS=--expose-gc vitest run src/__tests__/gc",
     "build": "tsdown",
     "publish": "yarn npm publish --access public",
-    "publish:next": "yarn npm publish --access public --tag next"
+    "publish:next": "yarn npm publish --access public --tag next",
+    "bench": "NODE_ENV=production node benchmarks/di.bench.mjs"
   },
   "devDependencies": {
     "tsx": "^4.23.15",
     "typescript": "^7.0.2",
     "zod": "^4.6.7"
-  },
-  "peerDependencies": {
-    "zod": "^3.25.0 || ^4.0.0"
   }
 }

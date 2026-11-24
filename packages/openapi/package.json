@@ -45,8 +45,8 @@
     "publish:next": "yarn npm publish --access public --tag next"
   },
   "dependencies": {
-    "yaml": "^2.9.1",
-    "zod-openapi": "^6.0.2"
+    "@scalar/core": "^0.5.55",
+    "yaml": "^2.9.1"
   },
   "devDependencies": {
     "@navios/builder": "workspace:^",
@@ -55,7 +55,6 @@
     "zod": "^4.6.7"
   },
   "peerDependencies": {
-    "@navios/core": "workspace:^",
-    "zod": "^3.25.0 || ^4.0.0"
+    "@navios/core": "workspace:^"
   }
 }

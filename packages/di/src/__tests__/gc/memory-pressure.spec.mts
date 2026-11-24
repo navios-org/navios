@@ -5,7 +5,7 @@
  * and doesn't leak memory over time. These tests use process.memoryUsage()
  * to measure actual heap usage.
  *
- * Run with: NODE_OPTIONS=--expose-gc yarn nx test @navios/di
+ * Run with: NODE_OPTIONS=--expose-gc yarn run -T vitest run src/__tests__/gc
  */
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -14,8 +14,7 @@ import { Container } from '../../container/container.mjs'
 import { Injectable } from '../../decorators/injectable.decorator.mjs'
 import { InjectableScope } from '../../enums/injectable-scope.enum.mjs'
 import { InjectionToken } from '../../index.mjs'
-import { Registry } from '../../token/registry.mjs'
-import { inject } from '../../utils/index.mjs'
+import { inject } from '../../injectors.mjs'
 
 import type { OnServiceDestroy } from '../../interfaces/on-service-destroy.interface.mjs'
 
@@ -28,12 +27,10 @@ import {
 } from './gc-test-utils.mjs'
 
 describe.skipIf(!isGCAvailable)('GC: Memory Pressure', () => {
-  let registry: Registry
   let container: Container
 
   beforeEach(() => {
-    registry = new Registry()
-    container = new Container(registry)
+    container = new Container()
   })
 
   afterEach(async () => {
@@ -48,7 +45,7 @@ describe.skipIf(!isGCAvailable)('GC: Memory Pressure', () => {
       // Create many singleton services
       const services: Array<{ new (): { data: Uint8Array } }> = []
       for (let i = 0; i < SERVICE_COUNT; i++) {
-        @Injectable({ registry })
+        @Injectable()
         class LargeService {
           public readonly data = new Uint8Array(ALLOCATION_SIZE)
         }
@@ -75,8 +72,7 @@ describe.skipIf(!isGCAvailable)('GC: Memory Pressure', () => {
       await container.dispose()
 
       // Create new container for afterEach cleanup
-      registry = new Registry()
-      container = new Container(registry)
+      container = new Container()
 
       forceGC()
       const afterDisposal = getHeapUsed()
@@ -89,7 +85,7 @@ describe.skipIf(!isGCAvailable)('GC: Memory Pressure', () => {
     it.todo('should measure memory baseline and peak correctly', async () => {
       const ALLOCATION_SIZE = 1024 * 1024 // 1MB
 
-      @Injectable({ registry })
+      @Injectable()
       class LargeService {
         public readonly data = new Uint8Array(ALLOCATION_SIZE)
       }
@@ -104,8 +100,7 @@ describe.skipIf(!isGCAvailable)('GC: Memory Pressure', () => {
 
       // Cleanup and measure reclamation
       await container.dispose()
-      registry = new Registry()
-      container = new Container(registry)
+      container = new Container()
 
       forceGC()
       const final = getHeapUsed()
@@ -121,7 +116,7 @@ describe.skipIf(!isGCAvailable)('GC: Memory Pressure', () => {
       const ALLOCATION_SIZE = 1024 * 50 // 50KB
       const ITERATIONS = 30
 
-      @Injectable({ registry })
+      @Injectable()
       class InvalidatableService implements OnServiceDestroy {
         public readonly id = Math.random()
         public readonly data = new Uint8Array(ALLOCATION_SIZE)
@@ -143,6 +138,9 @@ describe.skipIf(!isGCAvailable)('GC: Memory Pressure', () => {
       // Get one final instance
       await container.get(InvalidatableService)
 
+      // Let the microtask queue drain so that settled promise chains are
+      // collectable before measuring
+      await new Promise((resolve) => setTimeout(resolve, 0))
       forceGC()
       const finalMemory = getHeapUsed()
       const memoryGrowth = finalMemory - baselineMemory
@@ -161,7 +159,7 @@ describe.skipIf(!isGCAvailable)('GC: Memory Pressure', () => {
       const services: Array<{ new (): { data: Uint8Array } }> = []
       for (let i = 0; i < SERVICES_PER_REQUEST; i++) {
         const token = InjectionToken.create<RequestService>(`RequestService${i}`)
-        @Injectable({ registry, scope: InjectableScope.Request, token })
+        @Injectable({ scope: InjectableScope.Request, token })
         class RequestService {
           public readonly data = new Uint8Array(ALLOCATION_SIZE)
         }
@@ -173,14 +171,14 @@ describe.skipIf(!isGCAvailable)('GC: Memory Pressure', () => {
 
       // Simulate many request lifecycles
       for (let reqId = 0; reqId < REQUEST_COUNT; reqId++) {
-        const scoped = container.beginRequest(`request-${reqId}`)
+        const scoped = container.createScope()
 
         // Resolve all services in this request
         for (const Service of services) {
           await scoped.get(Service)
         }
 
-        await scoped.endRequest()
+        await scoped.dispose()
 
         // Periodically force GC to help cleanup
         if (reqId % 10 === 0) {
@@ -202,7 +200,7 @@ describe.skipIf(!isGCAvailable)('GC: Memory Pressure', () => {
     it.todo('should handle allocation spike and recovery', async () => {
       const SPIKE_SIZE = 1024 * 1024 * 10 // 10MB spike
 
-      @Injectable({ registry })
+      @Injectable()
       class SpikeService {
         public readonly data = new Uint8Array(SPIKE_SIZE)
       }
@@ -222,8 +220,7 @@ describe.skipIf(!isGCAvailable)('GC: Memory Pressure', () => {
 
       // Release spike
       await container.dispose()
-      registry = new Registry()
-      container = new Container(registry)
+      container = new Container()
 
       forceGC()
       const afterRecovery = getHeapUsedMB()
@@ -240,24 +237,20 @@ describe.skipIf(!isGCAvailable)('GC: Memory Pressure', () => {
       forceGC()
       const baselineMemory = getHeapUsed()
 
-      const containers: Array<{ container: Container; registry: Registry }> = []
+      const containers: Array<{ container: Container }> = []
 
       // Create multiple containers
       for (let i = 0; i < CONTAINER_COUNT; i++) {
-        const localRegistry = new Registry()
-        const localContainer = new Container(localRegistry)
+        const localContainer = new Container()
 
-        @Injectable({ registry: localRegistry })
+        @Injectable()
         class ContainerService {
           public readonly containerId = i
           public readonly data = new Uint8Array(ALLOCATION_SIZE)
         }
 
         await localContainer.get(ContainerService)
-        containers.push({
-          container: localContainer,
-          registry: localRegistry,
-        })
+        containers.push({ container: localContainer })
       }
 
       forceGC()
@@ -297,14 +290,14 @@ describe.skipIf(!isGCAvailable)('GC: Memory Pressure', () => {
 
       // Alternate between small and large allocations
       for (let i = 0; i < ITERATIONS; i++) {
-        @Injectable({ registry })
+        @Injectable()
         class SmallService {
           public readonly data = new Uint8Array(SMALL_SIZE)
         }
         smallServices.push(SmallService)
         await container.get(SmallService)
 
-        @Injectable({ registry })
+        @Injectable()
         class LargeService {
           public readonly data = new Uint8Array(LARGE_SIZE)
         }
@@ -318,8 +311,7 @@ describe.skipIf(!isGCAvailable)('GC: Memory Pressure', () => {
 
       // Dispose and verify reclamation
       await container.dispose()
-      registry = new Registry()
-      container = new Container(registry)
+      container = new Container()
 
       // Clear references
       smallServices = []
@@ -339,60 +331,60 @@ describe.skipIf(!isGCAvailable)('GC: Memory Pressure', () => {
       const ALLOCATION_SIZE = 1024 * 50 // 50KB per service
 
       // Build a static chain of 10 services
-      @Injectable({ registry })
+      @Injectable()
       class Level10 {
         public readonly data = new Uint8Array(ALLOCATION_SIZE)
       }
 
-      @Injectable({ registry })
+      @Injectable()
       class Level9 {
         public readonly next = inject(Level10)
         public readonly data = new Uint8Array(ALLOCATION_SIZE)
       }
 
-      @Injectable({ registry })
+      @Injectable()
       class Level8 {
         public readonly next = inject(Level9)
         public readonly data = new Uint8Array(ALLOCATION_SIZE)
       }
 
-      @Injectable({ registry })
+      @Injectable()
       class Level7 {
         public readonly next = inject(Level8)
         public readonly data = new Uint8Array(ALLOCATION_SIZE)
       }
 
-      @Injectable({ registry })
+      @Injectable()
       class Level6 {
         public readonly next = inject(Level7)
         public readonly data = new Uint8Array(ALLOCATION_SIZE)
       }
 
-      @Injectable({ registry })
+      @Injectable()
       class Level5 {
         public readonly next = inject(Level6)
         public readonly data = new Uint8Array(ALLOCATION_SIZE)
       }
 
-      @Injectable({ registry })
+      @Injectable()
       class Level4 {
         public readonly next = inject(Level5)
         public readonly data = new Uint8Array(ALLOCATION_SIZE)
       }
 
-      @Injectable({ registry })
+      @Injectable()
       class Level3 {
         public readonly next = inject(Level4)
         public readonly data = new Uint8Array(ALLOCATION_SIZE)
       }
 
-      @Injectable({ registry })
+      @Injectable()
       class Level2 {
         public readonly next = inject(Level3)
         public readonly data = new Uint8Array(ALLOCATION_SIZE)
       }
 
-      @Injectable({ registry })
+      @Injectable()
       class Level1 {
         public readonly next = inject(Level2)
         public readonly data = new Uint8Array(ALLOCATION_SIZE)
@@ -415,8 +407,7 @@ describe.skipIf(!isGCAvailable)('GC: Memory Pressure', () => {
 
       // Dispose
       await container.dispose()
-      registry = new Registry()
-      container = new Container(registry)
+      container = new Container()
 
       forceGC()
       const finalMemory = getHeapUsed()
@@ -430,24 +421,24 @@ describe.skipIf(!isGCAvailable)('GC: Memory Pressure', () => {
       const ALLOCATION_SIZE = 1024 * 100 // 100KB
 
       // Diamond pattern: A depends on B and C, both B and C depend on D
-      @Injectable({ registry })
+      @Injectable()
       class ServiceD {
         public readonly data = new Uint8Array(ALLOCATION_SIZE)
       }
 
-      @Injectable({ registry })
+      @Injectable()
       class ServiceB {
         public readonly d = inject(ServiceD)
         public readonly data = new Uint8Array(ALLOCATION_SIZE)
       }
 
-      @Injectable({ registry })
+      @Injectable()
       class ServiceC {
         public readonly d = inject(ServiceD)
         public readonly data = new Uint8Array(ALLOCATION_SIZE)
       }
 
-      @Injectable({ registry })
+      @Injectable()
       class ServiceA {
         public readonly b = inject(ServiceB)
         public readonly c = inject(ServiceC)
@@ -472,8 +463,7 @@ describe.skipIf(!isGCAvailable)('GC: Memory Pressure', () => {
 
       // Dispose and verify reclamation
       await container.dispose()
-      registry = new Registry()
-      container = new Container(registry)
+      container = new Container()
 
       forceGC()
       const finalMemory = getHeapUsed()
@@ -488,7 +478,7 @@ describe.skipIf(!isGCAvailable)('GC: Memory Pressure', () => {
       const ALLOCATION_SIZE = 1024 * 500 // 500KB
       const CONCURRENT_REQUESTS = 10
 
-      @Injectable({ registry })
+      @Injectable()
       class ExpensiveService {
         public readonly data = new Uint8Array(ALLOCATION_SIZE)
         public readonly createdAt = Date.now()

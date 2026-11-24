@@ -5,15 +5,49 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [2.0.0] - Unreleased
+
+The adapter is rewritten on the `@navios/core` 2.0 adapter contract. It no longer contains guard, validation or error-handling logic; those run in core and are the same on every adapter.
+
+### Breaking
+
+- **CORS is an adapter option.** `defineBunEnvironment({ cors })` replaces `app.enableCors()`.
+- **Stream handlers no longer return a `Response`.** Return a `ReadableStream` or an async iterable from an endpoint declared with `response: 'stream'`.
+- **The per-request injection tokens are removed.** Use `ctx.raw.request` and `ctx.raw.server`.
+- **Error bodies are `application/problem+json`** documents produced by core. A denied guard used to answer with the text `Forbidden`.
+- **Response validation is on by default**, as on Fastify. It used to be opt-in on Bun.
+- Requires `@navios/core` 2.0.
 
 ### Added
 
-- Serves `response: 'void'` endpoints (204, no body) and per-status `responses` endpoints, for `@Endpoint` and `@Multipart`.
+- **`BunEnvironment`** for the `Register` declaration, which types `ctx.raw` as `{ request: Request; server: Server | null }` and `app.getServer()` as the Bun `Server`.
+- **`serve` option** for extra `Bun.serve` options.
+- **`errorSchema` is honoured**: a declared error status is sent with its declared body.
+- **`app.inject()`** runs a request through the route handlers and CORS handling without a socket.
+- The `@navios/core/conformance` suite runs against the adapter over real HTTP under `bun test`.
+- Serves `response: 'void'` endpoints (204, no body) and per-status `responses` endpoints.
+
+### Changed
+
+- **CORS headers are applied once per response** in the adapter, including error and not-found responses, instead of in each handler branch.
+- `close()` waits for in-flight requests up to the application's `shutdownTimeout`, then stops the server forcibly.
+- A malformed JSON body is a 400 problem response with `source: 'body'`.
+- A result that cannot be written, such as a body `JSON.stringify` rejects, is a 500 problem response.
+- Multipart bodies need no option. Fields and files are collected into one object and validated against `requestSchema`.
+- A request scope is released when the response body has been sent, at the end of a stream, or when the client disconnects.
+
+### Removed
+
+- `BunFakeReply` and the Bun handler-adapter services for endpoints, streams and multipart, with their tokens.
 
 ### Fixed
 
 - **A handler result that fails its response schema is a 500.** It used to be answered as a 400 validation error, as if the request were at fault.
+
+### Performance
+
+- ESM output is 15 KB, down from 97 KB.
+- The request pipeline is the one measured in the `@navios/adapter-fastify` changelog. No Bun-specific benchmark has been run.
 
 ## [1.1.0] - 2026-01-15
 

@@ -1,289 +1,151 @@
-# Quick Start Guide
+# Quick start
 
-This guide will help you get up and running with Navios quickly.
+This page builds a small HTTP API on the Fastify adapter. The same code runs on Bun by changing the adapter import.
 
-## Prerequisites
-
-Before starting, make sure you have:
-
-- Node.js 18+ or Bun runtime
-- TypeScript knowledge
-- Basic understanding of HTTP APIs
-
-## Step 1: Install Dependencies
-
-Navios requires an HTTP adapter to function. Choose one based on your runtime:
-
-### For Node.js (Fastify Adapter)
+## Install
 
 ```bash
-npm install @navios/core @navios/builder @navios/adapter-fastify zod fastify
+yarn add @navios/core @navios/builder @navios/adapter-fastify fastify zod
 ```
 
-### For Bun Runtime (Bun Adapter)
+`@navios/builder` declares endpoints. `zod` is used for schemas in these pages; any library that implements [Standard Schema](https://standardschema.dev) works.
 
-```bash
-npm install @navios/core @navios/builder @navios/adapter-bun zod
-```
+Navios uses standard (TC39) decorators. Leave `experimentalDecorators` off in `tsconfig.json`. A project that must keep `experimentalDecorators` on uses the [legacy decorators](./legacy-decorators.md) entry point instead.
 
-## Step 2: Define Your API
+## Declare the API
 
-Create a shared API definition file (`api/index.ts`):
+An endpoint is declared once with the builder. The server reads the declaration to validate requests and responses, and a client can call the same declaration.
 
 ```ts
+// api.mts
 import { builder } from '@navios/builder'
 import { z } from 'zod'
 
-export const api = builder({
-  useDiscriminatorResponse: true,
-})
+export const api = builder()
 
-export const createUserEndpoint = api.declareEndpoint({
-  method: 'post',
-  url: '/users',
-  requestSchema: z.object({
-    name: z.string().min(1),
-    email: z.string().email(),
-  }),
-  responseSchema: z.object({
-    id: z.string(),
-    name: z.string(),
-    email: z.string(),
-    createdAt: z.date(),
-  }),
-})
+const userSchema = z.object({ id: z.string(), name: z.string() })
 
-export const getUserEndpoint = api.declareEndpoint({
-  method: 'get',
+export const getUser = api.declareEndpoint({
+  method: 'GET',
   url: '/users/$id',
-  requestSchema: z.object({
-    id: z.string(),
-  }),
-  responseSchema: z.object({
-    id: z.string(),
-    name: z.string(),
-    email: z.string(),
-    createdAt: z.date(),
-  }),
+  responseSchema: userSchema,
+  errorSchema: { 404: z.object({ message: z.string() }) },
+})
+
+export const createUser = api.declareEndpoint({
+  method: 'POST',
+  url: '/users',
+  requestSchema: z.object({ name: z.string().min(1) }),
+  responses: { 201: userSchema },
 })
 ```
 
-## Step 3: Create a Service
-
-Create a user service (`services/user.service.ts`):
+## Write a service
 
 ```ts
+// users.service.mts
 import { Injectable } from '@navios/core'
 
-export interface User {
-  id: string
-  name: string
-  email: string
-  createdAt: Date
-}
-
 @Injectable()
-export class UserService {
-  private users: User[] = []
-  private idCounter = 1
+export class UsersService {
+  private readonly users = new Map([['1', { id: '1', name: 'Ann' }]])
+  private next = 2
 
-  async createUser(name: string, email: string): Promise<User> {
-    const user: User = {
-      id: this.idCounter.toString(),
-      name,
-      email,
-      createdAt: new Date(),
-    }
-    this.users.push(user)
-    this.idCounter++
+  find(id: string) {
+    return this.users.get(id) ?? null
+  }
+
+  create(name: string) {
+    const user = { id: String(this.next++), name }
+    this.users.set(user.id, user)
     return user
-  }
-
-  async getUserById(id: string): Promise<User | undefined> {
-    return this.users.find((user) => user.id === id)
-  }
-
-  async getAllUsers(): Promise<User[]> {
-    return this.users
   }
 }
 ```
 
-## Step 4: Create a Controller
+## Write a controller
 
-Create a user controller (`controllers/user.controller.ts`):
+A handler is a method decorated with `@Endpoint`. Its parameter is typed with `HandlerParams<typeof endpoint>`, and the value it returns is checked against the declaration.
 
 ```ts
-import { Controller, Endpoint, inject, NotFoundException } from '@navios/core'
+// users.controller.mts
+import { Controller, Endpoint, inject, reply } from '@navios/core'
 
-import type { EndpointParams } from '@navios/core'
+import type { HandlerParams } from '@navios/core'
 
-import { createUserEndpoint, getUserEndpoint } from '../api/index.js'
-import { UserService } from '../services/user.service.js'
+import { createUser, getUser } from './api.mjs'
+import { UsersService } from './users.service.mjs'
 
 @Controller()
-export class UserController {
-  private userService = inject(UserService)
+export class UsersController {
+  private readonly users = inject(UsersService)
 
-  @Endpoint(createUserEndpoint)
-  async createUser(request: EndpointParams<typeof createUserEndpoint>) {
-    const { name, email } = request
-    return await this.userService.createUser(name, email)
+  @Endpoint(getUser)
+  async getUser({ urlParams }: HandlerParams<typeof getUser>) {
+    return this.users.find(urlParams.id) ?? reply(404, { message: 'User not found' })
   }
 
-  @Endpoint(getUserEndpoint)
-  async getUser(request: EndpointParams<typeof getUserEndpoint>) {
-    const { id } = request
-    const user = await this.userService.getUserById(id)
-
-    if (!user) {
-      throw new NotFoundException('User not found')
-    }
-
-    return user
+  @Endpoint(createUser)
+  async createUser({ data }: HandlerParams<typeof createUser>) {
+    return reply(201, this.users.create(data.name))
   }
 }
 ```
 
-## Step 5: Create an App Module
-
-Create your application module (`app.module.ts`):
+## Group routes in a module
 
 ```ts
+// app.module.mts
 import { Module } from '@navios/core'
 
-import { UserController } from './controllers/user.controller.js'
-import { UserService } from './services/user.service.js'
+import { UsersController } from './users.controller.mjs'
 
-@Module({
-  controllers: [UserController],
-  providers: [UserService],
-})
+@Module({ controllers: [UsersController] })
 export class AppModule {}
 ```
 
-## Step 6: Create the Server
-
-Create your server entry point (`server.ts`):
-
-### Using Fastify Adapter (Node.js)
+## Start the server
 
 ```ts
+// main.mts
 import { defineFastifyEnvironment } from '@navios/adapter-fastify'
 import { NaviosFactory } from '@navios/core'
 
-import { AppModule } from './app.module.js'
+import type { FastifyEnvironment } from '@navios/adapter-fastify'
 
-async function bootstrap() {
-  const app = await NaviosFactory.create(AppModule, {
-    adapter: defineFastifyEnvironment(), // Required!
-  })
+import { AppModule } from './app.module.mjs'
 
-  // Optional: Configure CORS
-  app.enableCors({
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  })
-
-  // Optional: Set global prefix
-  app.setGlobalPrefix('/api')
-
-  await app.init()
-  await app.listen({ port: 3000, host: '0.0.0.0' })
-
-  console.log('Server running on http://localhost:3000')
+declare module '@navios/core' {
+  interface Register {
+    environment: FastifyEnvironment
+  }
 }
 
-bootstrap().catch(console.error)
+const app = await NaviosFactory.create(AppModule, {
+  adapter: defineFastifyEnvironment(),
+})
+
+const url = await app.listen({ port: 3000 })
+console.log(`Listening on ${url}`)
 ```
 
-### Using Bun Adapter (Bun Runtime)
+The `declare module` block is optional. It tells TypeScript which adapter the application runs on, so that `ctx.raw` and `app.getServer()` are typed. See [Request context](./request-context.md#native-objects-ctxraw).
 
-```ts
-import { defineBunEnvironment } from '@navios/adapter-bun'
-import { NaviosFactory } from '@navios/core'
-
-import { AppModule } from './app.module.js'
-
-async function bootstrap() {
-  const app = await NaviosFactory.create(AppModule, {
-    adapter: defineBunEnvironment(), // Required!
-  })
-
-  // Optional: Configure CORS
-  app.enableCors({
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  })
-
-  // Optional: Set global prefix
-  app.setGlobalPrefix('/api')
-
-  await app.init()
-  await app.listen({ port: 3000, host: '0.0.0.0' })
-
-  console.log('Server running on http://localhost:3000')
-}
-
-bootstrap().catch(console.error)
-```
-
-## Step 7: Run Your Server
-
-### With Node.js
+## Try it
 
 ```bash
-npx tsx server.ts
+curl http://localhost:3000/users/1
+# {"id":"1","name":"Ann"}
+
+curl http://localhost:3000/users/9
+# 404 {"message":"User not found"}
+
+curl -X POST http://localhost:3000/users -H 'content-type: application/json' -d '{"name":""}'
+# 400 application/problem+json, with "source":"body" and an "errors" array
 ```
 
-### With Bun
+## Next
 
-```bash
-bun run server.ts
-```
-
-## Step 8: Test Your API
-
-Your server is now running! Test the endpoints:
-
-### Create a user
-
-```bash
-curl -X POST http://localhost:3000/api/users \
-  -H "Content-Type: application/json" \
-  -d '{"name": "John Doe", "email": "john@example.com"}'
-```
-
-### Get a user
-
-```bash
-curl http://localhost:3000/api/users/1
-```
-
-## Next Steps
-
-Now that you have a basic Navios server running:
-
-1. **Add more endpoints** - Extend your API definition
-2. **Add authentication** - Use guards for protecting endpoints
-3. **Add validation** - Leverage Zod schemas for complex validation
-4. **Add database integration** - Connect to your preferred database
-5. **Add error handling** - Use Navios exceptions for consistent error responses
-6. **Add testing** - Write unit and integration tests for your API
-
-## Common Gotchas
-
-1. **Missing Adapter**: The most common error is forgetting to install and configure an adapter. Navios will not work without one!
-
-2. **Import Paths**: Make sure to use the correct file extensions (`.js` or `.mjs`) in your imports for TypeScript compilation.
-
-3. **Async/Await**: Remember to use `async/await` in your endpoint handlers for proper error handling.
-
-4. **Type Safety**: Leverage TypeScript fully by using the provided types from Navios.
-
-## Help and Resources
-
-- [Full Documentation](./README.md)
-- [Adapter Guide](./adapters.md)
-- [GitHub Repository](https://github.com/Arilas/navios)
-- [Examples](../../examples/)
-
-Happy coding with Navios! 🚀
+- [Controllers and handlers](./controllers.md)
+- [Guards and interceptors](./guards-and-interceptors.md)
+- [Testing](./testing.md)

@@ -51,7 +51,7 @@ describe('ScopedContainer.get', () => {
       }
 
       const container = new Container()
-      const scopedContainer = container.beginRequest('req-1')
+      const scopedContainer = container.createScope()
       assertType<Foo>(await scopedContainer.get(Foo))
     })
 
@@ -64,7 +64,7 @@ describe('ScopedContainer.get', () => {
       }
 
       const container = new Container()
-      const scopedContainer = container.beginRequest('req-1')
+      const scopedContainer = container.createScope()
       assertType<Foo>(await scopedContainer.get(Foo, { foo: 'bar' }))
     })
 
@@ -77,7 +77,7 @@ describe('ScopedContainer.get', () => {
       }
 
       const container = new Container()
-      const scopedContainer = container.beginRequest('req-1')
+      const scopedContainer = container.createScope()
       // @ts-expect-error Should fail if not compatible
       await scopedContainer.get(Foo, { test: 'bar' })
     })
@@ -91,7 +91,7 @@ describe('ScopedContainer.get', () => {
       }
 
       const container = new Container()
-      const scopedContainer = container.beginRequest('req-1')
+      const scopedContainer = container.createScope()
       // When getting a Factorable class, we get the created type, not the factory
       assertType<string>(await scopedContainer.get(FooFactory))
     })
@@ -99,7 +99,7 @@ describe('ScopedContainer.get', () => {
 
   test('#2 Token with required Schema', async () => {
     const container = new Container()
-    const scopedContainer = container.beginRequest('req-1')
+    const scopedContainer = container.createScope()
 
     const result = await scopedContainer.get(typelessObjectToken, {
       foo: 'bar',
@@ -115,7 +115,7 @@ describe('ScopedContainer.get', () => {
 
   test('#3 Token with optional Schema', async () => {
     const container = new Container()
-    const scopedContainer = container.beginRequest('req-1')
+    const scopedContainer = container.createScope()
 
     const result = await scopedContainer.get(typelessOptionalObjectToken)
     assertType<unknown>(result)
@@ -131,7 +131,7 @@ describe('ScopedContainer.get', () => {
 
   test('#4 Token with no Schema', async () => {
     const container = new Container()
-    const scopedContainer = container.beginRequest('req-1')
+    const scopedContainer = container.createScope()
 
     const result = await scopedContainer.get(typedToken)
     assertType<FooService>(result)
@@ -139,7 +139,7 @@ describe('ScopedContainer.get', () => {
 
   test('#5 BoundInjectionToken', async () => {
     const container = new Container()
-    const scopedContainer = container.beginRequest('req-1')
+    const scopedContainer = container.createScope()
 
     const boundToken = InjectionToken.bound(typedObjectToken, { foo: 'bar' })
     const result = await scopedContainer.get(boundToken)
@@ -148,7 +148,7 @@ describe('ScopedContainer.get', () => {
 
   test('#6 FactoryInjectionToken', async () => {
     const container = new Container()
-    const scopedContainer = container.beginRequest('req-1')
+    const scopedContainer = container.createScope()
 
     const factoryToken = InjectionToken.factory(typedObjectToken, async () => ({
       foo: 'bar',
@@ -159,28 +159,22 @@ describe('ScopedContainer.get', () => {
 })
 
 describe('ScopedContainer methods', () => {
-  test('getRequestId returns string', () => {
-    const container = new Container()
-    const scopedContainer = container.beginRequest('req-1')
-    assertType<string>(scopedContainer.getRequestId())
-  })
-
   test('getParent returns Container', () => {
     const container = new Container()
-    const scopedContainer = container.beginRequest('req-1')
+    const scopedContainer = container.createScope()
     assertType<Container>(scopedContainer.getParent())
   })
 
   test('getMetadata returns any', () => {
     const container = new Container()
-    const scopedContainer = container.beginRequest('req-1', { userId: '123' })
+    const scopedContainer = container.createScope({ userId: '123' })
     // eslint-disable-next-line @typescript-eslint/no-redundant-type-constituents
     assertType<any | undefined>(scopedContainer.getMetadata('userId'))
   })
 
   test('setMetadata accepts any value', () => {
     const container = new Container()
-    const scopedContainer = container.beginRequest('req-1')
+    const scopedContainer = container.createScope()
     scopedContainer.setMetadata('userId', '123')
     scopedContainer.setMetadata('count', 42)
     scopedContainer.setMetadata('data', { nested: true })
@@ -188,25 +182,19 @@ describe('ScopedContainer methods', () => {
 
   test('dispose returns Promise<void>', async () => {
     const container = new Container()
-    const scopedContainer = container.beginRequest('req-1')
+    const scopedContainer = container.createScope()
     assertType<Promise<void>>(scopedContainer.dispose())
   })
 
   test('endRequest returns Promise<void>', async () => {
     const container = new Container()
-    const scopedContainer = container.beginRequest('req-1')
+    const scopedContainer = container.createScope()
     assertType<Promise<void>>(scopedContainer.endRequest())
   })
 
   test('invalidate returns Promise<void>', async () => {
     const container = new Container()
-    const scopedContainer = container.beginRequest('req-1')
+    const scopedContainer = container.createScope()
     assertType<Promise<void>>(scopedContainer.invalidate({}))
-  })
-
-  test('requestId property is string', () => {
-    const container = new Container()
-    const scopedContainer = container.beginRequest('req-1')
-    assertType<string>(scopedContainer.requestId)
   })
 })

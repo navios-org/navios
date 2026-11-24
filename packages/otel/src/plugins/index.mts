@@ -1,1 +1,2 @@
-export * from './otel-tracing.plugin.mjs'
+export { otelPlugin } from './otel.plugin.mjs'
+export type { OtelPluginOptions } from './otel.plugin.mjs'

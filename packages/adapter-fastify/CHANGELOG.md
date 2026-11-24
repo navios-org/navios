@@ -5,15 +5,62 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [2.0.0] - Unreleased
+
+The adapter is rewritten on the `@navios/core` 2.0 adapter contract. It no longer contains guard, validation or error-handling logic; those run in core and are the same on every adapter.
+
+### Breaking
+
+- **CORS and multipart are adapter options.** `defineFastifyEnvironment({ cors, multipart })` replaces `app.enableCors()` and `app.enableMultipart()`.
+- **Stream handlers no longer receive `FastifyReply` as an argument.** Return a `ReadableStream` or an async iterable, or use `ctx.raw.reply` to take over the response.
+- **`inject(FastifyRequestToken)` and the other per-request tokens are removed.** Use `ctx.raw.request` and `ctx.raw.reply`.
+- **Fastify schema validation and `fastify-type-provider-zod` are no longer used.** Routes are registered without schemas, and error bodies are the `application/problem+json` documents produced by core.
+- Requires `@navios/core` 2.0.
 
 ### Added
 
-- Serves `response: 'void'` endpoints (204, no body) and per-status `responses` endpoints, for `@Endpoint` and `@Multipart`.
+- **`FastifyEnvironment`** for the `Register` declaration, which types `ctx.raw` as `{ request: FastifyRequest; reply: FastifyReply }` and `app.getServer()` as `FastifyInstance`.
+- **`configure` option**: a function called with the Fastify instance before routes are registered.
+- **Taking over the response**: when a handler has sent the response through `ctx.raw.reply`, the adapter writes nothing.
+- **`app.inject()`** through `fastify.inject()`.
+- **`ctx.signal`** aborts when the client disconnects before the response is complete.
+- The `@navios/core/conformance` suite runs against the adapter over real HTTP.
+- An HTTP benchmark against raw Fastify: `yarn bench`.
+- Serves `response: 'void'` endpoints (204, no body) and per-status `responses` endpoints.
+
+### Changed
+
+- **Closing does not wait for keep-alive connections.** Responses sent while the server closes carry `connection: close`, and connections that become idle, or that never sent a request, are dropped.
+- **Guards run before the body is parsed and validated.** JSON bodies are collected as text and parsed when the pipeline asks for the body. `bodyLimit` still applies.
+- A malformed JSON body is a 400 problem response with `source: 'body'`.
+- Errors raised by Fastify itself (for example 413 and 415) are answered as `application/problem+json`.
+- Multipart files arrive as `File` objects, and the whole body is validated against `requestSchema`.
+- A request scope is released when the response finishes or the connection closes, and only when the request created one.
+
+### Removed
+
+- The Fastify handler-adapter services for endpoints, streams and multipart, and their tokens.
+- The `fastify-type-provider-zod` and `zod` dependencies.
 
 ### Fixed
 
-- **Response validation is on by default.** The adapter treated an unset `validateResponses` as off, although the documented default is `true`.
+- **Response validation is on by default.** The adapter treated an unset `validateResponses` as off, although the documented default is on.
+- **An unauthenticated request no longer gets validation details.** Validation used to run before guards.
+- **Response bodies are validated for statuses other than 200.**
+
+### Performance
+
+Measured with `yarn bench --check`: Node 24.22, production mode, `fastify.inject`, best of 7 rounds. The baseline is raw Fastify doing the same Zod validation by hand. Run-to-run variation is a few tenths of a microsecond.
+
+| Case                                                  | Raw Fastify | Navios 2.0 | Overhead | 1.x overhead |
+| ----------------------------------------------------- | ----------- | ---------- | -------- | ------------ |
+| GET, response schema                                  | 7.40 µs     | 7.38 µs    | about 0  | +2.7 µs      |
+| POST, query + body + response schema                  | 23.14 µs    | 23.40 µs   | +0.26 µs | +1.7 µs      |
+| GET with one guard                                    | 7.40 µs     | 7.61 µs    | +0.21 µs | +3.5 µs      |
+| GET reading one request value                         | 7.40 µs     | 7.99 µs    | +0.59 µs | n/a          |
+| GET using one request-scoped service (2 dependencies) | 7.40 µs     | 8.70 µs    | +1.30 µs | +16.8 µs     |
+
+- ESM output is 8 KB, down from 110 KB.
 
 ## [1.0.0] - 2026-01-09
 

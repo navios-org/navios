@@ -6,14 +6,13 @@ import type {
   ClassType,
   Factorable,
   FactoryInjectionToken,
+  InferInput,
   InjectionToken,
   InjectionTokenSchemaType,
+  MissingArgsError,
 } from '@navios/di'
-import type { z, ZodType } from 'zod/v4'
 
-import type { Join, UnionToArray } from '../types.mjs'
-
-import { useContainer, useRootContainer } from './use-container.mjs'
+import { useContainer } from './use-container.mjs'
 
 type ServiceState<T> =
   | { status: 'idle' }
@@ -59,17 +58,13 @@ export function useService<T extends ClassType>(
 // #2 Token with required Schema
 export function useService<T, S extends InjectionTokenSchemaType>(
   token: InjectionToken<T, S>,
-  args: z.input<S>,
+  args: InferInput<S>,
 ): UseServiceResult<T>
 
 // #3 Token with optional Schema
 export function useService<T, S extends InjectionTokenSchemaType, R extends boolean>(
   token: InjectionToken<T, S, R>,
-): R extends false
-  ? UseServiceResult<T>
-  : S extends ZodType<infer Type>
-    ? `Error: Your token requires args: ${Join<UnionToArray<keyof Type>, ', '>}`
-    : 'Error: Your token requires args'
+): R extends false ? UseServiceResult<T> : MissingArgsError<S>
 
 // #4 Token with no Schema
 export function useService<T>(token: InjectionToken<T, undefined>): UseServiceResult<T>
@@ -89,12 +84,11 @@ export function useService(
   // useContainer returns ScopedContainer if inside ScopeProvider, otherwise Container
   // This automatically handles request-scoped services correctly
   const container = useContainer()
-  const rootContainer = useRootContainer()
 
   // Try to get the instance synchronously first for better performance
   // This avoids the async loading state when the instance is already cached
   // We use a ref to track this so it doesn't cause effect re-runs
-  const initialSyncInstanceRef = useRef<any>(undefined)
+  const initialSyncInstanceRef = useRef<any>(null)
   const isFirstRenderRef = useRef(true)
 
   if (isFirstRenderRef.current) {
@@ -102,12 +96,12 @@ export function useService(
     isFirstRenderRef.current = false
   }
 
-  const initialState: ServiceState<any> = initialSyncInstanceRef.current
+  const hasInitialSyncInstance = initialSyncInstanceRef.current !== null
+  const initialState: ServiceState<any> = hasInitialSyncInstance
     ? { status: 'success', data: initialSyncInstanceRef.current }
     : { status: 'idle' }
 
   const [state, dispatch] = useReducer(serviceReducer, initialState)
-  const instanceNameRef = useRef<string | null>(null)
   const [refetchCounter, setRefetchCounter] = useState(0)
 
   if (process.env.NODE_ENV === 'development') {
@@ -129,9 +123,21 @@ Example:
 
   // Subscribe to invalidation events
   useEffect(() => {
-    const eventBus = rootContainer.getEventBus()
     let unsubscribe: (() => void) | undefined
     let isMounted = true
+
+    // The container routes the listener to the store that owns the instance
+    // (the root store for singletons, the scope's store for request-scoped).
+    const subscribe = () => {
+      if (unsubscribe) return
+      unsubscribe = container.onInvalidate(token, args, () => {
+        // Re-fetch when the service is invalidated
+        if (isMounted) {
+          dispatch({ type: 'loading' })
+          void fetchAndSubscribe()
+        }
+      })
+    }
 
     // Fetch the service and set up subscription
     const fetchAndSubscribe = async () => {
@@ -145,24 +151,10 @@ Example:
 
         if (!isMounted) return
 
-        // Get instance name for event subscription
-        const instanceName = container.calculateInstanceName(token, args)
-        if (instanceName) {
-          instanceNameRef.current = instanceName
-        }
-
         dispatch({ type: 'success', data: instance })
 
         // Set up subscription after we have the instance
-        if (instanceName) {
-          unsubscribe = eventBus.on(instanceName, 'destroy', () => {
-            // Re-fetch when the service is invalidated
-            if (isMounted) {
-              dispatch({ type: 'loading' })
-              void fetchAndSubscribe()
-            }
-          })
-        }
+        subscribe()
       } catch (error) {
         if (isMounted) {
           dispatch({ type: 'error', error: error as Error })
@@ -172,18 +164,8 @@ Example:
 
     // If we already have a sync instance from initial render, just set up subscription
     // Otherwise, fetch async
-    const syncInstance = initialSyncInstanceRef.current
-    if (syncInstance && refetchCounter === 0) {
-      const instanceName = container.calculateInstanceName(token, args)
-      if (instanceName) {
-        instanceNameRef.current = instanceName
-        unsubscribe = eventBus.on(instanceName, 'destroy', () => {
-          if (isMounted) {
-            dispatch({ type: 'loading' })
-            void fetchAndSubscribe()
-          }
-        })
-      }
+    if (initialSyncInstanceRef.current !== null && refetchCounter === 0) {
+      subscribe()
     } else {
       dispatch({ type: 'loading' })
       void fetchAndSubscribe()
@@ -193,7 +175,7 @@ Example:
       isMounted = false
       unsubscribe?.()
     }
-  }, [container, rootContainer, token, args, refetchCounter])
+  }, [container, token, args, refetchCounter])
 
   const refetch = useCallback(() => {
     setRefetchCounter((c) => c + 1)

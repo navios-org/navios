@@ -1,4 +1,4 @@
-import { Container, Injectable, InjectionToken, Registry } from '@navios/di'
+import { Container, Injectable, InjectionToken } from '@navios/di'
 import { act, render, screen, waitFor } from '@testing-library/react'
 import { createElement, Suspense, useMemo } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -9,11 +9,9 @@ import { useSuspenseService } from '../use-suspense-service.mjs'
 
 describe('useSuspenseService', () => {
   let container: Container
-  let registry: Registry
 
   beforeEach(() => {
-    registry = new Registry()
-    container = new Container(registry)
+    container = new Container()
   })
 
   afterEach(() => {
@@ -25,7 +23,7 @@ describe('useSuspenseService', () => {
 
   describe('with class tokens', () => {
     it('should suspend while loading and render data when resolved', async () => {
-      @Injectable({ registry })
+      @Injectable()
       class TestService {
         getValue() {
           return 'suspense-value'
@@ -71,7 +69,7 @@ describe('useSuspenseService', () => {
     it('should load service with injection token', async () => {
       const ConfigToken = InjectionToken.create<{ apiUrl: string }>('Config')
 
-      @Injectable({ registry, token: ConfigToken })
+      @Injectable({ token: ConfigToken })
       class _ConfigService {
         apiUrl = 'https://api.example.com'
       }
@@ -107,7 +105,7 @@ describe('useSuspenseService', () => {
         typeof UserSchema
       >('User', UserSchema)
 
-      @Injectable({ registry, token: UserToken })
+      @Injectable({ token: UserToken })
       class _UserService {
         public userId: string
         public displayName: string
@@ -148,7 +146,7 @@ describe('useSuspenseService', () => {
     it('should return cached instance on subsequent renders', async () => {
       let constructorCallCount = 0
 
-      @Injectable({ registry })
+      @Injectable()
       class CachedService {
         public instanceId: number
 
@@ -202,7 +200,7 @@ describe('useSuspenseService', () => {
     it('should re-fetch when service is invalidated', async () => {
       let instanceCount = 0
 
-      @Injectable({ registry })
+      @Injectable()
       class InvalidatableService {
         public instanceId: number
 

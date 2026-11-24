@@ -2,29 +2,34 @@ import { defineFastifyEnvironment } from '@navios/adapter-fastify'
 import { NaviosFactory } from '@navios/core'
 
 import type { FastifyEnvironment } from '@navios/adapter-fastify'
-import type { NaviosApplication } from '@navios/core'
 
 import { AppModule } from './modules/app/app.module.mjs'
 
-export async function createApp(): Promise<NaviosApplication<FastifyEnvironment>> {
-  const app = await NaviosFactory.create<FastifyEnvironment>(AppModule, {
-    adapter: defineFastifyEnvironment(),
+// Types `ctx.raw` and `app.getServer()` for the whole application.
+declare module '@navios/core' {
+  interface Register {
+    environment: FastifyEnvironment
+  }
+}
+
+export function createApp() {
+  return NaviosFactory.create(AppModule, {
+    adapter: defineFastifyEnvironment({
+      cors: {
+        methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+      },
+      multipart: true,
+    }),
+    // PostsValidationService is deliberately request-scoped.
+    requestScopedServices: 'allow',
+    logger: ['error', 'warn', 'fatal'],
   })
-
-  app.enableCors({
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  })
-
-  app.enableMultipart({})
-
-  return app
 }
 
 // Run if executed directly
 const isMainModule = import.meta.url === `file://${process.argv[1]}`
 if (isMainModule) {
   const app = await createApp()
-  await app.init()
-  await app.listen({ port: 3000, host: 'localhost' })
-  console.log('Server running at http://localhost:3000')
+  const url = await app.listen({ port: 3000, host: 'localhost' })
+  console.log(`Server running at ${url}`)
 }

@@ -1,3 +1,2 @@
-export * from '@navios/di/testing'
-export * from './testing-module.mjs'
-export * from './unit-testing-module.mjs'
+export * from './in-memory-adapter.mjs'
+export * from './test-client.mjs'

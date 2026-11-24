@@ -4,7 +4,7 @@ import { getAllCronMetadata } from './cron.metadata.mjs'
 
 import type { CronMetadata } from './cron.metadata.mjs'
 
-export const ScheduleMetadataKey = Symbol('ControllerMetadataKey')
+export const ScheduleMetadataKey = Symbol('ScheduleMetadataKey')
 
 export interface ScheduleMetadata {
   name: string
@@ -39,7 +39,7 @@ export function extractScheduleMetadata(target: ClassType): ScheduleMetadata {
   const metadata = target[ScheduleMetadataKey] as ScheduleMetadata | undefined
   if (!metadata) {
     throw new Error(
-      '[Navios-Schedule] Controller metadata not found. Make sure to use @Controller decorator.',
+      `[Navios-Schedule] Schedule metadata not found on ${target.name}. Make sure to use the @Schedulable decorator.`,
     )
   }
   return metadata

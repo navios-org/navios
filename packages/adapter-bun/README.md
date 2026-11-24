@@ -1,210 +1,180 @@
 # @navios/adapter-bun
 
-Bun adapter for Navios - a Type-Safe HTTP Server with Zod Validation.
+Runs a `@navios/core` application on `Bun.serve`.
 
-This package provides the Bun runtime adapter for Navios, allowing you to run Navios applications using [Bun's](https://bun.sh/) native HTTP server implementation.
+The adapter registers the application's routes with Bun's router, turns each `Request` into the input of a compiled Navios route and builds a `Response` from the result. Guards, validation and error mapping happen in core and behave the same as on every other adapter.
 
-## Overview
+This README describes version 2.0. For the application API see the [`@navios/core` documentation](../core/docs/README.md).
 
-**Important**: `@navios/core` requires an HTTP adapter to function as a server. This package provides the Bun implementation. You must install and configure an adapter to use Navios as an HTTP server.
-
-## Limitations
-
-- Bun does not yet support all Node.js APIs, so some third-party libraries may not work as expected.
-- WebSocket support is not yet implemented (coming soon).
-- Multipart/form-data is handled automatically by Bun's native FormData support, but advanced configuration options are not yet available.
-
-## Features
-
-- Native Bun HTTP server implementation
-- Optimized performance for Bun runtime
-- Fast startup times and low memory usage
-- Full TypeScript support with comprehensive JSDoc documentation
-- Automatic request/response validation with Zod schemas
-- Native multipart/form-data support via Bun's FormData API
-- Full CORS (Cross-Origin Resource Sharing) support with flexible configuration
-- Efficient request/response handling
-- WebSocket support (coming soon)
-
-## Installation
+## Install
 
 ```bash
-bun add @navios/adapter-bun @navios/core
+bun add @navios/adapter-bun @navios/core @navios/builder
 ```
 
-Or with npm:
-
-```bash
-npm install @navios/adapter-bun @navios/core
-```
+Requires Bun 1.3.10 or newer. The adapter has no runtime dependencies.
 
 ## Usage
 
-### Basic Setup
-
 ```ts
 import { defineBunEnvironment } from '@navios/adapter-bun'
 import { NaviosFactory } from '@navios/core'
 
-import { AppModule } from './app.module.js'
+import type { BunEnvironment } from '@navios/adapter-bun'
 
-async function bootstrap() {
-  const app = await NaviosFactory.create(AppModule, {
-    adapter: defineBunEnvironment(), // Required!
-  })
+import { AppModule } from './app.module.mjs'
 
-  app.setGlobalPrefix('/api')
-
-  await app.init()
-  await app.listen({ port: 3000, hostname: '0.0.0.0' })
+declare module '@navios/core' {
+  interface Register {
+    environment: BunEnvironment
+  }
 }
 
-bootstrap()
-```
-
-### Advanced Configuration
-
-```ts
-import { defineBunEnvironment } from '@navios/adapter-bun'
-import { NaviosFactory } from '@navios/core'
-
 const app = await NaviosFactory.create(AppModule, {
-  adapter: defineBunEnvironment(),
+  adapter: defineBunEnvironment({
+    cors: { origin: true },
+  }),
 })
 
-// Configure Bun server options before initialization
-await app.setupHttpServer({
-  development: process.env.NODE_ENV === 'development',
-  maxRequestBodySize: 1024 * 1024, // 1MB
-})
-
-await app.init()
-await app.listen({ port: 3000, hostname: '0.0.0.0' })
+const url = await app.listen({ port: 3000, hostname: '0.0.0.0' })
 ```
 
-### CORS Configuration
+`app.listen({ port?, hostname? })` defaults to port 3000 on `localhost` and resolves to the server's base URL. Pass `port: 0` for an ephemeral port.
 
-Enable CORS support for cross-origin requests:
+## Options
+
+| Option  | Type                   | Meaning                                                                                                                                                                                            |
+| ------- | ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `cors`  | `BunCorsOptions`       | Enables CORS. See below.                                                                                                                                                                           |
+| `serve` | options of `Bun.serve` | Extra options for `Bun.serve`, for example `tls`, `maxRequestBodySize`, `idleTimeout` or `development`. `routes`, `fetch`, `port` and `hostname` are set by the adapter and cannot be passed here. |
 
 ```ts
-import { defineBunEnvironment } from '@navios/adapter-bun'
-import { NaviosFactory } from '@navios/core'
-
-const app = await NaviosFactory.create(AppModule, {
-  adapter: defineBunEnvironment(),
+defineBunEnvironment({
+  serve: {
+    maxRequestBodySize: 10 * 1024 * 1024,
+    idleTimeout: 30,
+  },
 })
-
-// Enable CORS with custom options
-app.enableCors({
-  origin: true, // Allow all origins (or specify: 'https://example.com', /regex/, ['origin1', 'origin2'], or a function)
-  methods: ['GET', 'POST', 'PUT', 'DELETE'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
-  exposedHeaders: ['X-Custom-Header'],
-  credentials: true,
-  maxAge: 86400, // 24 hours
-})
-
-await app.init()
-await app.listen({ port: 3000 })
 ```
 
-CORS options support:
+Both options are optional. In 1.x CORS was enabled with `app.enableCors()`; that method no longer exists.
 
-- **origin**: `string | boolean | RegExp | (string | boolean | RegExp)[] | function` - Configure allowed origins
-- **methods**: `string[]` - Allowed HTTP methods (defaults to common methods)
-- **allowedHeaders**: `string[]` - Allowed request headers
-- **exposedHeaders**: `string[]` - Headers exposed to the client
-- **credentials**: `boolean` - Allow credentials (cookies, authorization headers)
-- **maxAge**: `number` - Preflight cache duration in seconds
-- **cacheControl**: `string | number` - Cache-Control header for preflight responses
-
-### Accessing Bun Server Instance
+## The `Register` declaration
 
 ```ts
-// Get access to the underlying Bun server instance if needed
-const bunServer = app.getServer()
-
-// Use Bun-specific server methods
-// For example, WebSocket upgrades:
-// bunServer.upgrade(request, { data: { userId: 123 } })
+declare module '@navios/core' {
+  interface Register {
+    environment: BunEnvironment
+  }
+}
 ```
 
-## Features
+Write this once in the application. It makes `ctx.raw` and `app.getServer()` typed everywhere. Without it `ctx.raw` is `unknown`. The adapter does not declare it for you, because a package may have more than one adapter installed.
 
-- **Native Performance**: Built on Bun's optimized HTTP server implementation
-- **Fast Startup**: Optimized for quick application initialization
-- **Memory Efficient**: Lower memory footprint compared to Node.js alternatives
-- **Type Safety**: Maintains Navios' complete type-safe API
-- **Modern Runtime**: Takes advantage of Bun's modern JavaScript features
-- **WebSocket Ready**: Prepared for WebSocket support (coming soon)
-- **File Operations**: Optimized file serving and handling
-- **ESM Native**: Full ES modules support
-
-## Requirements
-
-- **Runtime**: Bun 1.0+
-- **Dependencies**:
-  - `@navios/core` - Core Navios framework
-  - `@navios/di` - Dependency injection (peer dependency)
-
-## When to Use Bun Adapter
-
-Choose the Bun adapter when:
-
-- ✅ Running on Bun runtime
-- ✅ Performance is critical
-- ✅ Want faster startup times
-- ✅ Prefer minimal dependencies
-- ✅ Building new applications without legacy constraints
-- ✅ Need memory-efficient server implementation
-
-## Comparison with Other Adapters
-
-| Feature      | Bun Adapter | Fastify Adapter  |
-| ------------ | ----------- | ---------------- |
-| Runtime      | Bun         | Node.js          |
-| Performance  | Very High   | High             |
-| Memory Usage | Low         | Moderate         |
-| Startup Time | Very Fast   | Fast             |
-| Ecosystem    | Growing     | Rich             |
-| Maturity     | Emerging    | Production Ready |
-
-## Performance Benefits
-
-The Bun adapter provides significant performance benefits:
-
-- **Faster HTTP parsing**: Native Bun HTTP implementation
-- **Lower memory usage**: Optimized memory management
-- **Faster startup**: Reduced initialization overhead
-- **Efficient I/O**: Bun's optimized file and network operations
-
-## Examples
-
-Check out the [examples directory](../../examples/simple-test/src/bun.mts) for complete working examples.
-
-## Documentation
-
-For complete documentation on using Navios with adapters, see:
-
-- [Navios Core Documentation](../core/README.md)
-- [Adapter Guide](../core/docs/adapters.md)
-- [Quick Start Guide](../core/docs/quick-start.md)
-
-## Migration from Other Adapters
-
-Switching from another adapter to Bun is straightforward:
+## What `ctx.raw` contains
 
 ```ts
-// From Fastify adapter
+ctx.raw.request // the web Request
+ctx.raw.server // the Bun Server, or null
+```
 
-// To Bun adapter
-import { defineBunEnvironment } from '@navios/adapter-bun'
-import { defineFastifyEnvironment } from '@navios/adapter-fastify'
+`ctx.raw.server` is `null` for requests handled through `app.inject()` before `app.listen()` has been called, because Bun creates the server when it starts listening.
 
-// Only the adapter configuration changes
-const app = await NaviosFactory.create(AppModule, {
-  adapter: defineBunEnvironment(), // Changed this line
+```ts
+@Endpoint(whoami)
+async whoami(_params: HandlerParams<typeof whoami>, ctx: RequestContext) {
+  return {
+    ip: ctx.raw.server?.requestIP(ctx.raw.request)?.address ?? null,
+  }
+}
+```
+
+- `app.getServer()` returns the Bun `Server`. It throws before `listen()`.
+- Bun has no request id, so `ctx.id` is generated by core on first read.
+- `ctx.signal` is the request's own `signal`.
+- There is no native reply object. A handler cannot take over the response; it returns a value, and for streaming it returns a `ReadableStream` or an async iterable from an endpoint declared with `response: 'stream'`.
+
+Prefer the adapter-neutral members of the context where they cover the need; code that uses `ctx.raw` runs on this adapter only.
+
+## CORS
+
+CORS is implemented by the adapter and applied once per response, including error and not-found responses. A preflight request (`OPTIONS` with `Origin` and `Access-Control-Request-Method`) is answered with 204.
+
+```ts
+defineBunEnvironment({
+  cors: {
+    origin: ['https://app.example.com', /\.example\.org$/],
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE'],
+    allowedHeaders: ['content-type', 'authorization'],
+    exposedHeaders: ['x-request-id'],
+    maxAge: 600,
+  },
 })
 ```
 
-Your controllers, services, and application logic remain unchanged.
+| Option           | Type                                                        | Meaning                                                                                                                                                                                                                                                             |
+| ---------------- | ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `origin`         | `string \| boolean \| RegExp \| array of those \| function` | `true` reflects the request's origin, `'*'` allows any origin, a string must match exactly, a `RegExp` is tested against the origin. A function receives `(origin, callback)` and calls `callback(error, allow)`, where `allow` is a boolean or the origin to send. |
+| `credentials`    | `boolean`                                                   | Sends `Access-Control-Allow-Credentials: true`.                                                                                                                                                                                                                     |
+| `methods`        | `string \| string[]`                                        | Allowed methods for preflight. Defaults to `GET,HEAD,PUT,PATCH,POST,DELETE`.                                                                                                                                                                                        |
+| `allowedHeaders` | `string \| string[]`                                        | Allowed request headers for preflight. When omitted, the headers the browser asks for are allowed.                                                                                                                                                                  |
+| `exposedHeaders` | `string \| string[]`                                        | Response headers scripts may read.                                                                                                                                                                                                                                  |
+| `maxAge`         | `number`                                                    | Seconds a preflight result may be cached.                                                                                                                                                                                                                           |
+| `cacheControl`   | `number \| string`                                          | `Cache-Control` for preflight responses. A number is sent as `max-age=<number>`.                                                                                                                                                                                    |
+
+A request from an origin that is not allowed is still handled; it gets no CORS headers, and the browser blocks the response. A preflight request from such an origin gets the not-found response.
+
+`origin` defaults to `'*'`. `origin: '*'` together with `credentials: true` is not allowed by the CORS specification, so the adapter throws when the application is initialised with that combination, including when `origin` is left out. Set `origin` to the allowed origin or origins, or use `origin: true` to reflect the request's origin.
+
+## Multipart
+
+Multipart needs no option. An endpoint declared with `body: 'multipart'` receives text fields as strings and files as `File` objects in `data`, validated by the endpoint's `requestSchema`. See [Controllers and handlers](../core/docs/controllers.md#multipart-bodies).
+
+Limitation: the body is parsed with `request.formData()`, which reads the whole body into memory. Limit the size with `serve.maxRequestBodySize`.
+
+## Request bodies
+
+- The body is read only when the pipeline asks for it, which is after guards have passed.
+- A body with a JSON content type, or with no content type, is parsed as JSON. An empty body is `undefined`. A malformed JSON body is a 400 problem response with `source: 'body'`.
+- A body with any other content type is passed to validation as a string.
+
+## Shutdown
+
+`app.close()` stops the server and waits for in-flight requests, for at most the application's `shutdownTimeout` (10 seconds by default). After that the server is stopped forcibly, which closes the remaining connections.
+
+## Testing
+
+`app.inject(request)` builds a `Request` and runs it through the same route handlers and CORS handling without opening a socket. See [Testing](../core/docs/testing.md).
+
+## Conformance suite
+
+The adapter is tested with the shared suite from `@navios/core/conformance`, over real HTTP on an ephemeral port, using `bun:test`. The spec is `e2e/conformance.spec.mts`:
+
+```ts
+import { afterAll, beforeAll, describe, expect, it } from 'bun:test'
+
+import { runAdapterConformance } from '@navios/core/conformance'
+
+import { defineBunEnvironment } from '../src/index.mjs'
+
+runAdapterConformance({
+  runner: { describe, it, expect, beforeAll, afterAll },
+  name: 'bun',
+  adapter: () => defineBunEnvironment(),
+  listenOptions: { port: 0, hostname: '127.0.0.1' },
+})
+```
+
+Run it with:
+
+```bash
+cd packages/adapter-bun
+bun test
+```
+
+or from the repository root with `yarn turbo run test:ci --filter=@navios/adapter-bun`. `e2e/cors.spec.mts` covers CORS, which is specific to this adapter.
+
+## License
+
+MIT

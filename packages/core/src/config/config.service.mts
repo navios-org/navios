@@ -1,8 +1,7 @@
-import { NaviosError } from '@navios/builder'
-import { inject, Injectable, InjectionToken } from '@navios/di'
-import { z } from 'zod/v4'
+import { inject, InjectionToken, registerInjectable } from '@navios/di'
 
 import { Logger } from '../logger/index.mjs'
+import { schemaFromGuard } from '../schema/simple-schema.mjs'
 
 import type { ConfigServiceInterface as IConfigService } from './config-service.interface.mjs'
 import type { Path, PathValue } from './types.mjs'
@@ -10,11 +9,16 @@ import type { Path, PathValue } from './types.mjs'
 /**
  * Schema for validating configuration service options.
  */
-export const ConfigServiceOptionsSchema = z.record(z.string(), z.unknown())
+export type ConfigServiceOptions = Record<string, unknown>
+
+export const ConfigServiceOptionsSchema = schemaFromGuard<ConfigServiceOptions>(
+  (value): value is ConfigServiceOptions =>
+    typeof value === 'object' && value !== null && !Array.isArray(value),
+  'Configuration must be an object',
+)
 /**
  * Type for configuration service options.
  */
-export type ConfigServiceOptions = z.infer<typeof ConfigServiceOptionsSchema>
 
 /**
  * Injection token for ConfigService.
@@ -56,9 +60,6 @@ export const ConfigServiceToken = InjectionToken.create<
  * }
  * ```
  */
-@Injectable({
-  token: ConfigServiceToken,
-})
 export class ConfigService<
   Config extends ConfigServiceOptions = Record<string, unknown>,
 > implements IConfigService<Config> {
@@ -155,9 +156,11 @@ export class ConfigService<
     if (value === null) {
       const message = errorMessage || `Configuration value for key "${String(key)}" is not defined`
       this.logger.error(message)
-      throw new NaviosError(message)
+      throw new Error(message)
     }
 
     return value
   }
 }
+
+registerInjectable(ConfigService, { token: ConfigServiceToken })

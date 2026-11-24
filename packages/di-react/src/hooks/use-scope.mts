@@ -10,7 +10,7 @@ import { ScopedContainerContext } from '../providers/context.mjs'
  */
 export function useScope(): string | null {
   const scopedContainer = useContext(ScopedContainerContext)
-  return scopedContainer?.getRequestId() ?? null
+  return (scopedContainer?.getMetadata('scopeId') as string | undefined) ?? null
 }
 
 /**

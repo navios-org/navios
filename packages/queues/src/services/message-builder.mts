@@ -1,9 +1,9 @@
 import type { ZodType } from 'zod/v4'
 
 import type {
-  BaseMessageConfig,
-  MessageDefinition,
-  MessagePattern,
+  PointToPointMessageDefinition,
+  PubSubMessageDefinition,
+  RequestReplyMessageDefinition,
 } from '../types/message-config.mjs'
 
 /**
@@ -40,7 +40,7 @@ export function messageBuilder() {
   function declarePubSub<PayloadSchema extends ZodType>(options: {
     topic: string
     payloadSchema: PayloadSchema
-  }): MessageDefinition<'pubsub', PayloadSchema> {
+  }): PubSubMessageDefinition<PayloadSchema> {
     return {
       config: {
         pattern: 'pubsub',
@@ -61,7 +61,7 @@ export function messageBuilder() {
   function declarePointToPoint<PayloadSchema extends ZodType>(options: {
     queue: string
     payloadSchema: PayloadSchema
-  }): MessageDefinition<'point-to-point', PayloadSchema> {
+  }): PointToPointMessageDefinition<PayloadSchema> {
     return {
       config: {
         pattern: 'point-to-point',
@@ -87,7 +87,7 @@ export function messageBuilder() {
     topic: string
     payloadSchema: PayloadSchema
     responseSchema: ResponseSchema
-  }): MessageDefinition<'request-reply', PayloadSchema, ResponseSchema> {
+  }): RequestReplyMessageDefinition<PayloadSchema, ResponseSchema> {
     return {
       config: {
         pattern: 'request-reply',

@@ -1,10 +1,8 @@
 # Getting Started
 
-This guide will help you get up and running with Navios DI quickly. We'll cover installation, basic setup, and your first dependency injection example.
+This guide covers installation, basic setup and a first dependency injection example.
 
 ## Installation
-
-Install Navios DI using your preferred package manager:
 
 ```bash
 # npm
@@ -17,17 +15,18 @@ yarn add @navios/di
 pnpm add @navios/di
 ```
 
+`@navios/di` has no runtime dependencies. Install a schema library only if you want tokens with args; any library that implements [Standard Schema](https://standardschema.dev) works (zod, valibot, arktype and others).
+
 ## Prerequisites
 
-- Node.js 18+
-- TypeScript 4.5+
-- A modern TypeScript project
+- TypeScript 5 or newer, for Stage 3 decorators. `await using` needs TypeScript 5.2 or newer.
+- A project that targets ES2022 or newer.
 
 ## Basic Setup
 
-### 1. Make sure Legacy Decorators disabled
+### 1. Make sure legacy decorators are disabled
 
-Make sure your `tsconfig.json` has legacy decorators disabled:
+`@Injectable` and `@Factory` are Stage 3 decorators. Your `tsconfig.json` must not enable `experimentalDecorators`:
 
 ```json
 {
@@ -39,27 +38,27 @@ Make sure your `tsconfig.json` has legacy decorators disabled:
 }
 ```
 
-### 2. Import the Library
+If the project has to keep `experimentalDecorators`, import the decorators from `@navios/di/legacy-compat` instead. Everything else is imported from `@navios/di`.
 
-```typescript
-import { asyncInject, Container, inject, Injectable } from '@navios/di'
+### 2. Import the library
+
+```ts
+import { Container, inject, Injectable } from '@navios/di'
 ```
 
 ## Your First Example
 
-Let's create a simple example with a user service that depends on an email service:
+A user service that depends on an email service:
 
-```typescript
+```ts
 import { Container, inject, Injectable } from '@navios/di'
 
 // 1. Create an email service
 @Injectable()
 class EmailService {
   async sendEmail(to: string, subject: string, body: string) {
-    console.log(`Sending email to ${to}`)
-    console.log(`Subject: ${subject}`)
-    console.log(`Body: ${body}`)
-    return { success: true, messageId: Math.random().toString(36) }
+    console.log(`Sending email to ${to}: ${subject}`)
+    return { success: true }
   }
 }
 
@@ -69,12 +68,8 @@ class UserService {
   private readonly emailService = inject(EmailService)
 
   async createUser(name: string, email: string) {
-    console.log(`Creating user: ${name}`)
-
-    // Use the injected email service
-    await this.emailService.sendEmail(email, 'Welcome!', `Hello ${name}, welcome to our platform!`)
-
-    return { id: Math.random().toString(36), name, email }
+    await this.emailService.sendEmail(email, 'Welcome!', `Hello ${name}!`)
+    return { id: crypto.randomUUID(), name, email }
   }
 }
 
@@ -82,15 +77,15 @@ class UserService {
 async function main() {
   const container = new Container()
 
-  // Get the user service (email service will be automatically injected)
+  // EmailService is built while UserService is constructed
   const userService = await container.get(UserService)
 
-  // Create a user
   const user = await userService.createUser('Alice', 'alice@example.com')
   console.log('Created user:', user)
+
+  await container.dispose()
 }
 
-// Run the example
 main().catch(console.error)
 ```
 
@@ -98,9 +93,9 @@ main().catch(console.error)
 
 ### Service Registration
 
-The `@Injectable()` decorator tells Navios DI that this class can be injected into other services:
+The `@Injectable()` decorator registers the class so that a container can build it:
 
-```typescript
+```ts
 @Injectable()
 class EmailService {
   // Service implementation
@@ -109,107 +104,110 @@ class EmailService {
 
 ### Dependency Injection
 
-The `inject()` function injects a dependency synchronously:
+`inject()` returns the instance of a dependency. Call it in a field initialiser or in the constructor:
 
-```typescript
+```ts
 @Injectable()
 class UserService {
   private readonly emailService = inject(EmailService)
-  //                                    ^^^^^^^^^^^^
-  //                                    Dependency injection
 }
 ```
+
+If `EmailService` does not exist yet, it is constructed at that point, inside the constructor of `UserService`.
 
 ### Container Usage
 
-The `Container` class manages all your services:
+The `Container` builds and stores instances:
 
-```typescript
+```ts
 const container = new Container()
 const userService = await container.get(UserService)
-//                                    ^^^^^^^^^^^^
-//                                    Get service instance
 ```
 
-## Alternative Injection Methods
+`get()` returns a promise because a service may have an asynchronous `onServiceInit()`. When nothing in the dependency tree is asynchronous, `getSync()` returns the instance directly:
 
-### Asynchronous Injection
+```ts
+const userService = container.getSync(UserService)
+```
 
-Use `asyncInject()` for asynchronous dependency resolution:
+## Other Injection Functions
 
-```typescript
+### Optional Injection
+
+`optional()` returns `null` when nothing provides the token:
+
+```ts
 @Injectable()
 class UserService {
-  private readonly emailService = asyncInject(EmailService)
+  private readonly metrics = optional(MetricsToken)
 
-  async createUser(name: string, email: string) {
-    const emailService = await this.emailService
-    //                   ^^^^^^^^^^^^^^^^^^^^^^^
-    //                   Await the dependency
-    await emailService.sendEmail(email, 'Welcome!', `Hello ${name}!`)
+  createUser(name: string) {
+    this.metrics?.increment('users.created')
   }
 }
 ```
+
+### Asynchronous Injection
+
+`asyncInject()` returns a promise of the dependency. It exists to break a circular dependency; see [Troubleshooting](#troubleshooting).
 
 ## Service Scopes
 
 ### Singleton (Default)
 
-Services are singletons by default - one instance shared across the application:
+One instance per container:
 
-```typescript
-@Injectable() // Same as @Injectable({ scope: InjectableScope.Singleton })
-class SingletonService {
-  private readonly id = Math.random()
+```ts
+@Injectable() // same as @Injectable({ scope: InjectableScope.Singleton })
+class SingletonService {}
 
-  getId() {
-    return this.id
-  }
-}
-
-// Both instances will have the same ID
 const service1 = await container.get(SingletonService)
 const service2 = await container.get(SingletonService)
-console.log(service1.getId() === service2.getId()) // true
+console.log(service1 === service2) // true
 ```
 
 ### Transient
 
-Create a new instance for each injection:
+A new instance for each injection and each `get()`:
 
-```typescript
+```ts
 import { InjectableScope } from '@navios/di'
 
 @Injectable({ scope: InjectableScope.Transient })
-class TransientService {
-  private readonly id = Math.random()
+class TransientService {}
 
-  getId() {
-    return this.id
-  }
-}
-
-// Each instance will have a different ID
 const service1 = await container.get(TransientService)
 const service2 = await container.get(TransientService)
-console.log(service1.getId() === service2.getId()) // false
+console.log(service1 === service2) // false
 ```
+
+### Request
+
+One instance per scope created with `container.createScope()`:
+
+```ts
+@Injectable({ scope: InjectableScope.Request })
+class RequestState {}
+
+await using scope = container.createScope()
+const state = await scope.get(RequestState)
+```
+
+See [Scopes](./scopes.md) and [Scoped Containers](./request-contexts.md).
 
 ## Next Steps
 
-Now that you have the basics down, explore these topics:
-
-- **[Container](./container.md)** - Learn about the Container API
-- **[Injectable Decorator](./injectable.md)** - Deep dive into service registration
-- **[Factory Decorator](./factory.md)** - Create services using factory pattern
-- **[Injection Tokens](./injection-tokens.md)** - Flexible dependency resolution
+- **[Container](./container.md)** - The Container API and providers
+- **[Injectable Decorator](./injectable.md)** - Service registration in detail
+- **[Factory Decorator](./factory.md)** - Factory classes
+- **[Injection Tokens](./injection-tokens.md)** - Tokens and args
 - **[Service Lifecycle](./lifecycle.md)** - Initialization and cleanup hooks
 
 ## Common Patterns
 
 ### Configuration Service
 
-```typescript
+```ts
 import { Injectable, InjectionToken } from '@navios/di'
 import { z } from 'zod'
 
@@ -225,7 +223,7 @@ const CONFIG_TOKEN = InjectionToken.create<ConfigService, typeof configSchema>(
 
 @Injectable({ token: CONFIG_TOKEN })
 class ConfigService {
-  constructor(private config: z.infer<typeof configSchema>) {}
+  constructor(private readonly config: z.output<typeof configSchema>) {}
 
   getApiUrl() {
     return this.config.apiUrl
@@ -236,7 +234,6 @@ class ConfigService {
   }
 }
 
-// Usage
 const config = await container.get(CONFIG_TOKEN, {
   apiUrl: 'https://api.example.com',
   timeout: 5000,
@@ -245,89 +242,92 @@ const config = await container.get(CONFIG_TOKEN, {
 
 ### Service with Lifecycle
 
-```typescript
-import { Injectable, OnServiceDestroy, OnServiceInit } from '@navios/di'
+```ts
+import { Injectable } from '@navios/di'
+
+import type { OnServiceDestroy, OnServiceInit } from '@navios/di'
 
 @Injectable()
 class DatabaseService implements OnServiceInit, OnServiceDestroy {
-  private connection: any = null
+  private connection: { close(): Promise<void> } | null = null
 
   async onServiceInit() {
-    console.log('Connecting to database...')
     this.connection = await this.connect()
-    console.log('Database connected')
   }
 
   async onServiceDestroy() {
-    console.log('Disconnecting from database...')
-    if (this.connection) {
-      await this.connection.close()
-    }
+    await this.connection?.close()
   }
 
   private async connect() {
-    // Database connection logic
-    return { connected: true }
+    return { close: async () => {} }
   }
 }
+```
+
+### Replacing a Service in a Test
+
+```ts
+import { Container, provide } from '@navios/di'
+
+const container = new Container({
+  providers: [provide(EmailService, FakeEmailService)],
+})
 ```
 
 ## Troubleshooting
 
-### Common Issues
+**Decorators do not work.**
 
-**Decorators not working:**
+- Make sure `experimentalDecorators` is not enabled, or import the decorators from `@navios/di/legacy-compat`.
+- Use TypeScript 5 or newer.
 
-- Ensure `experimentalDecorators: false` in `tsconfig.json`
-- Make sure you're using TypeScript 5+
+**`Circular dependency detected: ServiceA -> ServiceB -> ServiceA`.**
 
-**Circular dependencies:**
+Two services inject each other with `inject()`:
 
-The library automatically detects circular dependencies and throws a clear error:
-
-```typescript
-// This will throw: "Circular dependency detected: ServiceA -> ServiceB -> ServiceA"
+```ts
 @Injectable()
 class ServiceA {
-  private serviceB = inject(ServiceB)
+  private readonly serviceB = inject(ServiceB)
 }
 
 @Injectable()
 class ServiceB {
-  private serviceA = inject(ServiceA)
+  private readonly serviceA = inject(ServiceA)
 }
 ```
 
-To fix circular dependencies, use `asyncInject()` on at least one side:
+Use `asyncInject()` on one side:
 
-```typescript
+```ts
 @Injectable()
 class ServiceA {
-  private serviceB = asyncInject(ServiceB) // Break cycle with asyncInject
+  private readonly serviceB = asyncInject(ServiceB)
 
   async doSomething() {
     const b = await this.serviceB
     return b.process()
   }
 }
-
-@Injectable()
-class ServiceB {
-  private serviceA = inject(ServiceA) // This side can use inject()
-}
 ```
 
-**Services not found:**
+**`Factory X not found`.**
 
-- Make sure services are decorated with `@Injectable()`
-- Check that services are imported before use
+Nothing provides the token. Decorate the class with `@Injectable()`, give the token a default implementation with `@Injectable({ token })`, or bind one with `provide()`. A class is registered when its module is evaluated, so the module must be imported.
 
-**Type errors:**
+**`Class X is not decorated with @Injectable.`**
 
-- Ensure proper TypeScript configuration
-- Use proper type annotations for injected services
+The class passed to `get()` or `inject()` was never registered. An undecorated subclass of an injectable class is not injectable.
 
-### Getting Help
+**`Scope mismatch: X is request-scoped and cannot be resolved from the root container`.**
 
-- Check the [API Reference](./api-reference.md)
-- Review the [Examples](./examples/) folder
+A request-scoped service was requested from the root container or injected into a singleton. Resolve it from a scope, and make the consumer request-scoped. See [Scopes](./scopes.md#scope-rules).
+
+**`X or one of its dependencies has an asynchronous initializer and cannot be resolved synchronously`.**
+
+`getSync()` was used while an asynchronous `onServiceInit()` was still pending. Use `await container.get()` instead, or call `await container.ready()` first.
+
+**`Trying to access X before it's initialized`.**
+
+A constructor read a property of an injected service that has an unfinished asynchronous `onServiceInit()`. Move that code to `onServiceInit()`.

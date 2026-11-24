@@ -143,7 +143,7 @@ function MyComponent() {
   const rootContainer = useRootContainer()
 
   const createNewScope = () => {
-    const scopedContainer = rootContainer.beginRequest('new-scope')
+    const scopedContainer = rootContainer.createScope({ scopeId: 'new-scope' })
     // Use scopedContainer...
   }
 
@@ -510,7 +510,6 @@ function FeatureComponent() {
 | ---------- | -------------------------- | -------------------------------------------------------------------------- | ----------- |
 | `scopeId`  | `string?`                  | Optional explicit scope ID. If not provided, a unique ID will be generated | `undefined` |
 | `metadata` | `Record<string, unknown>?` | Optional metadata to attach to the request context                         | `undefined` |
-| `priority` | `number?`                  | Priority for service resolution. Higher priority scopes take precedence    | `100`       |
 | `children` | `ReactNode`                | Child components                                                           | -           |
 
 ### useContainer
@@ -533,7 +532,7 @@ Returns the root `Container` regardless of whether you're inside a `ScopeProvide
 
 ```ts
 function useService<T>(token: ClassType): UseServiceResult<InstanceType<T>>
-function useService<T, S>(token: InjectionToken<T, S>, args: z.input<S>): UseServiceResult<T>
+function useService<T, S>(token: InjectionToken<T, S>, args: InferInput<S>): UseServiceResult<T>
 function useService<T>(token: InjectionToken<T, undefined>): UseServiceResult<T>
 // ... other overloads
 
@@ -553,7 +552,7 @@ Fetches a service asynchronously and subscribes to invalidation events. When the
 
 ```ts
 function useSuspenseService<T>(token: ClassType): InstanceType<T>
-function useSuspenseService<T, S>(token: InjectionToken<T, S>, args: z.input<S>): T
+function useSuspenseService<T, S>(token: InjectionToken<T, S>, args: InferInput<S>): T
 function useSuspenseService<T>(token: InjectionToken<T, undefined>): T
 // ... other overloads
 ```
@@ -568,7 +567,7 @@ Fetches a service using React Suspense. Throws a promise during loading and the 
 function useOptionalService<T>(token: ClassType): UseOptionalServiceResult<InstanceType<T>>
 function useOptionalService<T, S>(
   token: InjectionToken<T, S>,
-  args: z.input<S>,
+  args: InferInput<S>,
 ): UseOptionalServiceResult<T>
 // ... other overloads
 

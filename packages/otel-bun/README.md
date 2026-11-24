@@ -1,125 +1,39 @@
 # @navios/otel-bun
 
-OpenTelemetry integration for Navios Bun adapter. This package provides automatic tracing for HTTP requests handled by Bun.
+> **Deprecated.** Use [`@navios/otel`](../otel/README.md) directly.
 
-## Installation
+In Navios 2.0 the OpenTelemetry plugin is adapter-neutral: one plugin in `@navios/otel` traces requests through an interceptor and works the same on Bun, Fastify and the in-memory test adapter. This package no longer replaces the Bun controller adapter; it only re-exports that plugin, so that existing imports keep resolving. It will be removed in a later major version.
 
-```bash
-yarn add @navios/otel @navios/otel-bun @opentelemetry/api
-
-# For OTLP export
-yarn add @opentelemetry/exporter-trace-otlp-http
-```
-
-## Usage
+## Migration
 
 ```typescript
-import { BunApplicationService } from '@navios/adapter-bun'
-import { NaviosFactory } from '@navios/core'
+// before
 import { defineOtelPlugin } from '@navios/otel-bun'
 
-const app = await NaviosFactory.create(BunApplicationService, {
-  module: AppModule,
-})
-
-app.usePlugin(
-  defineOtelPlugin({
-    serviceName: 'my-bun-api',
-    serviceVersion: '1.0.0',
-    environment: 'production',
-
-    // Exporter configuration
-    exporter: 'otlp',
-    exporterOptions: {
-      endpoint: 'http://localhost:4318/v1/traces',
-    },
-
-    // Auto-instrumentation
-    autoInstrument: {
-      http: true,
-      handlers: true,
-    },
-
-    // Ignore certain routes
-    ignoreRoutes: ['/health', '/metrics'],
-  }),
-)
-
-await app.listen({ port: 3000 })
-```
-
-## Bun-Specific Notes
-
-Unlike Fastify, Bun doesn't have a built-in hook system. For HTTP-level tracing, you have two options:
-
-### Option 1: Use @Traced Decorator
-
-Apply the `@Traced` decorator to your controllers and services:
-
-```typescript
-import { Controller, Endpoint } from '@navios/core'
-import { Injectable } from '@navios/di'
-import { Traced } from '@navios/otel'
-
-@Controller()
-@Traced({ name: 'user-controller' })
-class UserController {
-  @Endpoint(getUserEndpoint)
-  async getUser(request: EndpointParams<typeof getUserEndpoint>) {
-    // Automatically traced
-  }
+for (const plugin of defineOtelPlugin(options)) {
+  app.usePlugin(plugin)
 }
 
-@Injectable()
-@Traced({ name: 'user-service' })
-class UserService {
-  async findUser(id: string) {
-    // Automatically traced
-  }
-}
+// after
+import { otelPlugin } from '@navios/otel'
+
+app.usePlugin(otelPlugin(options))
 ```
 
-### Option 2: Manual Span Creation
+What this package exports:
 
-Use the tracer directly for fine-grained control:
+| Export                 | Is                                                                                               |
+| ---------------------- | ------------------------------------------------------------------------------------------------ |
+| `defineOtelPlugin`     | Returns `[otelPlugin(options)]`: a one-element array, so the 1.x registration loop keeps working |
+| `otelPlugin`           | `otelPlugin` from `@navios/otel`                                                                 |
+| `BunOtelPluginOptions` | `OtelPluginOptions` from `@navios/otel`                                                          |
 
-```typescript
-import { inject, Injectable } from '@navios/di'
-import { TracerToken } from '@navios/otel'
+Removed in 2.0:
 
-@Injectable()
-class MyService {
-  private readonly tracer = inject(TracerToken)
+- `TracedBunControllerAdapterService`, `OtelBunPreAdapterPlugin`, `OtelBunPostModulesPlugin` and `BunOtelOptionsToken`. Requests are traced by `OtelHttpInterceptor` from `@navios/otel`.
+- The `guard:<name>` child spans. A request has one server span that covers guards, validation and the handler; trace a service with `@Traced` for finer spans.
 
-  async doWork() {
-    const span = this.tracer.startSpan('custom-operation')
-    try {
-      // ... do work
-      span.setAttribute('custom.attr', 'value')
-    } catch (error) {
-      span.recordException(error)
-      throw error
-    } finally {
-      span.end()
-    }
-  }
-}
-```
-
-## Configuration Options
-
-| Option                    | Type                            | Default      | Description               |
-| ------------------------- | ------------------------------- | ------------ | ------------------------- |
-| `serviceName`             | `string`                        | **required** | Name of the service       |
-| `serviceVersion`          | `string`                        | `undefined`  | Version of the service    |
-| `environment`             | `string`                        | `undefined`  | Deployment environment    |
-| `exporter`                | `'otlp' \| 'console' \| 'none'` | **required** | Export destination        |
-| `exporterOptions`         | `object`                        | `undefined`  | Exporter-specific options |
-| `autoInstrument.http`     | `boolean`                       | `true`       | Trace HTTP requests       |
-| `autoInstrument.handlers` | `boolean`                       | `true`       | Trace handlers            |
-| `ignoreRoutes`            | `string[]`                      | `[]`         | Routes to skip            |
-| `includeNaviosAttributes` | `boolean`                       | `false`      | Add navios.\* attributes  |
-| `sampling.ratio`          | `number`                        | `1.0`        | Sample ratio (0-1)        |
+Everything else, including configuration, `@Traced` and context propagation, is documented in the [`@navios/otel` README](../otel/README.md).
 
 ## License
 

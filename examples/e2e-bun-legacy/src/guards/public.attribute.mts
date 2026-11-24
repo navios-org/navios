@@ -1,3 +1,3 @@
-import { LegacyAttributeFactory } from '@navios/core/legacy-compat'
+import { AttributeFactory } from '@navios/core/legacy-compat'
 
-export const Public = LegacyAttributeFactory.createAttribute(Symbol.for('Public'))
+export const Public = AttributeFactory.createAttribute(Symbol.for('Public'))

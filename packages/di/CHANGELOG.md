@@ -5,6 +5,81 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0] - Unreleased
+
+The resolution engine was rewritten. See the [migration guide](./docs/migration.md) for old and new API side by side.
+
+### Breaking
+
+- **Container constructor**: `new Container(registry, logger, injectors)` is now `new Container({ providers?, strict?, logger? })`.
+- **No registry and no priorities**: `Registry`, `globalRegistry`, the `registry` and `priority` options of `@Injectable` and `@Factory`, and `registry.getAll()` are removed. A token has one default provider; replace it per container with `provide()`.
+- **One default per token**: a second `@Injectable({ token })` or `@Factory({ token })` for the same token throws `DIError` `ProviderConflict` at decoration time. A class with the same name as the current default replaces it, which keeps hot reload working.
+- **Scopes replace request contexts**: `container.beginRequest(id, metadata)` is now `container.createScope(metadata?)`. Scopes have no ids; `getActiveRequestIds()`, `hasActiveRequest()` and `getRequestId()` are removed. `endRequest()` is a deprecated alias of `dispose()`.
+- **Declared scope only**: automatic scope upgrade is removed. A singleton that reaches a request-scoped service, directly or through a transient, fails with `ScopeMismatchError` and the full dependency path. A singleton is always built against the root container, also when it is requested through a scope.
+- **`optional()`** returns `null` only when nothing provides the token. Every other error propagates.
+- **Tokens have no ids**: `token.id` and the `customId` argument of `InjectionToken.create()` are removed. `toString()` returns the name.
+- **Standard Schema for token args**: schema types are `StandardSchemaV1`, `InferInput<S>` and `InferOutput<S>` instead of zod types. Args must validate synchronously. `BaseInjectionTokenSchemaType` and `OptionalInjectionTokenSchemaType` are removed.
+- **Errors**: an error that is not a `DIError` and is thrown by a constructor, a factory or `onServiceInit()` is always wrapped in `DIError` `InitializationError` with the original in `cause`. Using a disposed scope throws `DIError` `ContainerDisposed` instead of a plain `Error`.
+- **Transients resolved directly from the root container are not tracked**: their `onServiceDestroy()` is not called by `dispose()`.
+
+### Added
+
+- `provide(tokenOrClass, impl)` with `new Container({ providers })` and `container.provide()`. An implementation is a class, `{ class, scope? }`, `{ value }` or `{ factory, scope? }`.
+- `container.decorate(token, fn)` wraps every instance of a token after it is initialised and before anything can observe it.
+- `container.getSync(token, args?)` and `scope.getSync()` resolve synchronously and throw `AsyncInitRequired` when an asynchronous initialiser is pending.
+- `container.onInvalidate(token, args, listener)` calls a listener when an instance is destroyed and returns an unsubscribe function.
+- `container.getProvider(token)` returns the provider a container would use.
+- `ScopedContainer` implements `Symbol.asyncDispose`: `await using scope = container.createScope()`.
+- `registerInjectable()` and `registerFactory()` register classes without decorator syntax.
+- `ContainerOptions.strict` makes a container ignore default providers and use only its own.
+- Tokens that declare a scope and need no provider: `InjectionToken.create(name, { scope: InjectableScope.Request })`, supplied with `scope.addInstance()`.
+- Any Standard Schema library can describe token args: zod, valibot, arktype and others.
+- `DIErrorCode.ProviderConflict`, `AsyncInitRequired` and `ContainerDisposed`.
+
+### Changed
+
+- **Sync-first resolution**: `inject()` builds a missing dependency immediately, inside the constructor that asked for it, and returns the real instance. A service whose dependencies initialise synchronously is built without awaiting anything.
+- `inject()` of a transient returns a fresh instance for each call. `asyncInject()` is needed only to break a circular dependency.
+- A constructor runs once. It runs a second time only on the first build of a class, when a dependency has an asynchronous `onServiceInit()` that has not finished.
+- A factory (`provide(token, { factory })`, or `create()` of a `@Factory` class) that calls `inject()` on a service whose asynchronous initialiser has not finished is stopped at that call and run again once the service is ready. Code before the call runs again; code after it runs once.
+- Conditional `inject()` calls are allowed; the "Wrong token order" error is gone.
+- Circular dependencies made of `inject()` calls are detected in production as well, with the path. Cycles between concurrently built services fail instead of hanging.
+- The value of a `FactoryInjectionToken` is computed once per root container.
+- Instances of a token with args are keyed by the full, key-sorted validated args.
+- `TestContainer.bind()` uses the provider mechanism. `UnitTestContainer` is a strict container.
+- `zod` is no longer a peer dependency. The package has no runtime dependencies.
+
+### Removed
+
+- `Registry`, `globalRegistry`, `InjectableType`.
+- `getInjectors()`, `defaultInjectors`, `wrapSyncInit`, `provideFactoryContext`.
+- `container.getStorage()`, `getRegistry()`, `getInstanceResolver()`, `getNameResolver()`, `getScopeTracker()`, `getServiceInitializer()`, `getTokenResolver()`, `getServiceInvalidator()`, `getEventBus()` and `calculateInstanceName()`.
+- The lifecycle event bus. Use `container.onInvalidate()`.
+- `FactoryInjectionToken#value`, `#resolved` and `#resolve()`.
+- `DIErrorCode.FactoryTokenNotResolved`, `PriorityConflictError`, `StorageError` and `DependencyResolutionError`.
+- The separate browser build and the `AsyncLocalStorage` shim. Resolution no longer uses `AsyncLocalStorage`.
+
+### Fixed
+
+- Two classes with identical source no longer share a token id and therefore an instance.
+- Falsy injected values (`0`, `''`, `false`, `null`) are returned as they are.
+- Instances of a token whose args differ only in nested values are distinct.
+- A constructor no longer runs twice when a dependency was not created yet.
+- The value of a factory token is no longer shared across containers.
+- `optional()` no longer swallows errors thrown by a constructor.
+
+### Performance
+
+Measured on Node 24 in production mode on the same machine, 1.0.0 → 2.0.0:
+
+| Operation                                                                       | 1.0.0   | 2.0.0   |
+| ------------------------------------------------------------------------------- | ------- | ------- |
+| `get` of a ready singleton                                                      | 0.39 µs | 0.06 µs |
+| `get` of a transient with one dependency                                        | 4.7 µs  | 0.14 µs |
+| Create a scope, resolve a request-scoped service with two dependencies, dispose | 5.6 µs  | 0.39 µs |
+
+The ESM output of the main entry went from roughly 98 KB to 47 KB.
+
 ## [1.0.0] - 2026-01-08
 
 ### Added

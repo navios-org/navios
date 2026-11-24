@@ -1,6 +1,8 @@
-import { Container, Registry } from '@navios/core'
-import { describe, expect, it } from 'vitest'
+import { Container, inject, Injectable, InjectableScope } from '@navios/core'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { z } from 'zod/v4'
+
+import type { RequestContext } from '@navios/core'
 
 import { createElement } from '../runtime/create-element.mjs'
 import { renderToXml } from '../runtime/render-to-xml.mjs'
@@ -79,23 +81,19 @@ describe('@Component decorator', () => {
     })
   })
 
-  it('should allow custom registry', () => {
-    const customRegistry = new Registry()
-
-    @Component({ registry: customRegistry })
-    class RegistryComponent implements XmlComponent {
+  it('should register a class without decorator syntax', () => {
+    class PlainComponent implements XmlComponent {
       render() {
-        return createElement('custom', null)
+        return createElement('plain', null)
       }
     }
 
-    expect(isComponentClass(RegistryComponent)).toBe(true)
-    // The component should have a token stored
-    // @ts-expect-error - Checking InjectableTokenMeta
-    const token = RegistryComponent[Symbol.for('InjectableTokenMeta')]
-    expect(token).toBeDefined()
-    // And that token should be registered in the custom registry
-    expect(customRegistry.has(token)).toBe(true)
+    expect(Component()(PlainComponent)).toBe(PlainComponent)
+    expect(isComponentClass(PlainComponent)).toBe(true)
+  })
+
+  it('should reject a target that is not a class', () => {
+    expect(() => Component()({} as any)).toThrow('can only be used on classes')
   })
 })
 
@@ -139,6 +137,16 @@ describe('isComponentClass', () => {
 })
 
 describe('class component rendering', () => {
+  let container: Container
+
+  beforeEach(() => {
+    container = new Container()
+  })
+
+  afterEach(async () => {
+    await container.dispose()
+  })
+
   it('should render basic class component', async () => {
     @Component()
     class SimpleComponent implements XmlComponent {
@@ -147,18 +155,12 @@ describe('class component rendering', () => {
       }
     }
 
-    const container = new Container()
-    const requestContainer = container.beginRequest('test-request')
-    try {
-      const node = createElement(SimpleComponent, null)
-      const xml = await renderToXml(node, {
-        declaration: false,
-        container: requestContainer,
-      })
-      expect(xml).toBe('<simple>content</simple>')
-    } finally {
-      await requestContainer.endRequest()
-    }
+    const node = createElement(SimpleComponent, null)
+    const xml = await renderToXml(node, {
+      declaration: false,
+      container,
+    })
+    expect(xml).toBe('<simple>content</simple>')
   })
 
   it('should render class component with props', async () => {
@@ -175,18 +177,12 @@ describe('class component rendering', () => {
       }
     }
 
-    const container = new Container()
-    const requestContainer = container.beginRequest('test-request')
-    try {
-      const node = createElement(Greeting, { name: 'World' })
-      const xml = await renderToXml(node, {
-        declaration: false,
-        container: requestContainer,
-      })
-      expect(xml).toBe('<greeting>Hello, World!</greeting>')
-    } finally {
-      await requestContainer.endRequest()
-    }
+    const node = createElement(Greeting, { name: 'World' })
+    const xml = await renderToXml(node, {
+      declaration: false,
+      container,
+    })
+    expect(xml).toBe('<greeting>Hello, World!</greeting>')
   })
 
   it('should render nested class components', async () => {
@@ -204,18 +200,12 @@ describe('class component rendering', () => {
       }
     }
 
-    const container = new Container()
-    const requestContainer = container.beginRequest('test-request')
-    try {
-      const node = createElement(Outer, null)
-      const xml = await renderToXml(node, {
-        declaration: false,
-        container: requestContainer,
-      })
-      expect(xml).toBe('<outer><inner>nested</inner></outer>')
-    } finally {
-      await requestContainer.endRequest()
-    }
+    const node = createElement(Outer, null)
+    const xml = await renderToXml(node, {
+      declaration: false,
+      container,
+    })
+    expect(xml).toBe('<outer><inner>nested</inner></outer>')
   })
 
   it('should render async class component', async () => {
@@ -227,18 +217,12 @@ describe('class component rendering', () => {
       }
     }
 
-    const container = new Container()
-    const requestContainer = container.beginRequest('test-request')
-    try {
-      const node = createElement(AsyncComponent, null)
-      const xml = await renderToXml(node, {
-        declaration: false,
-        container: requestContainer,
-      })
-      expect(xml).toBe('<async>loaded</async>')
-    } finally {
-      await requestContainer.endRequest()
-    }
+    const node = createElement(AsyncComponent, null)
+    const xml = await renderToXml(node, {
+      declaration: false,
+      container,
+    })
+    expect(xml).toBe('<async>loaded</async>')
   })
 
   it('should throw MissingContainerError when container not provided', async () => {
@@ -270,23 +254,17 @@ describe('class component rendering', () => {
       }
     }
 
-    const container = new Container()
-    const requestContainer = container.beginRequest('test-request')
-    try {
-      // Valid props
-      const validNode = createElement(StrictComponent, { count: 5 })
-      const xml = await renderToXml(validNode, {
-        declaration: false,
-        container: requestContainer,
-      })
-      expect(xml).toBe('<count>5</count>')
+    // Valid props
+    const validNode = createElement(StrictComponent, { count: 5 })
+    const xml = await renderToXml(validNode, {
+      declaration: false,
+      container,
+    })
+    expect(xml).toBe('<count>5</count>')
 
-      // Invalid props - negative number
-      const invalidNode = createElement(StrictComponent, { count: -1 })
-      await expect(renderToXml(invalidNode, { declaration: false, container })).rejects.toThrow()
-    } finally {
-      await requestContainer.endRequest()
-    }
+    // Invalid props - negative number
+    const invalidNode = createElement(StrictComponent, { count: -1 })
+    await expect(renderToXml(invalidNode, { declaration: false, container })).rejects.toThrow()
   })
 
   it('should mix functional and class components', async () => {
@@ -301,23 +279,17 @@ describe('class component rendering', () => {
       }
     }
 
-    const container = new Container()
-    const requestContainer = container.beginRequest('test-request')
-    try {
-      const node = createElement(
-        'page',
-        null,
-        createElement(Header, { title: 'Welcome' }),
-        createElement(Footer, null),
-      )
-      const xml = await renderToXml(node, {
-        declaration: false,
-        container: requestContainer,
-      })
-      expect(xml).toBe('<page><header>Welcome</header><footer>Copyright 2025</footer></page>')
-    } finally {
-      await requestContainer.endRequest()
-    }
+    const node = createElement(
+      'page',
+      null,
+      createElement(Header, { title: 'Welcome' }),
+      createElement(Footer, null),
+    )
+    const xml = await renderToXml(node, {
+      declaration: false,
+      container,
+    })
+    expect(xml).toBe('<page><header>Welcome</header><footer>Copyright 2025</footer></page>')
   })
 
   it('should handle children in class components', async () => {
@@ -334,22 +306,119 @@ describe('class component rendering', () => {
       }
     }
 
-    const container = new Container()
-    const requestContainer = container.beginRequest('test-request')
-    try {
-      const node = createElement(
-        Wrapper,
-        null,
-        createElement('child1', null),
-        createElement('child2', null),
-      )
-      const xml = await renderToXml(node, {
-        declaration: false,
-        container: requestContainer,
-      })
-      expect(xml).toBe('<wrapper><child1/><child2/></wrapper>')
-    } finally {
-      await requestContainer.endRequest()
+    const node = createElement(
+      Wrapper,
+      null,
+      createElement('child1', null),
+      createElement('child2', null),
+    )
+    const xml = await renderToXml(node, {
+      declaration: false,
+      container,
+    })
+    expect(xml).toBe('<wrapper><child1/><child2/></wrapper>')
+  })
+
+  it('should pass the request context to render()', async () => {
+    @Component()
+    class Path implements XmlComponent {
+      render(ctx: RequestContext) {
+        return createElement('path', null, ctx.path)
+      }
     }
+
+    const ctx = { path: '/feed.xml' } as RequestContext
+    const xml = await renderToXml(createElement(Path, null), {
+      declaration: false,
+      container,
+      ctx,
+    })
+
+    expect(xml).toBe('<path>/feed.xml</path>')
+  })
+
+  it('should throw MissingContextError when render() uses a context that was not given', async () => {
+    @Component()
+    class NeedsContext implements XmlComponent {
+      render(ctx: RequestContext) {
+        return createElement('path', null, ctx.path)
+      }
+    }
+
+    await expect(
+      renderToXml(createElement(NeedsContext, null), { declaration: false, container }),
+    ).rejects.toThrow(
+      'A component read ctx.path, but the tree is rendered without a request context',
+    )
+  })
+
+  it('should inject singletons into a component', async () => {
+    @Injectable()
+    class TitleService {
+      title() {
+        return 'From a service'
+      }
+    }
+
+    @Component()
+    class Title implements XmlComponent {
+      private readonly titles = inject(TitleService)
+
+      render() {
+        return createElement('title', null, this.titles.title())
+      }
+    }
+
+    const xml = await renderToXml(createElement(Title, null), { declaration: false, container })
+
+    expect(xml).toBe('<title>From a service</title>')
+  })
+
+  it('should refuse to inject a request-scoped service into a component', async () => {
+    @Injectable({ scope: InjectableScope.Request })
+    class PerRequest {}
+
+    @Component()
+    class Wrong implements XmlComponent {
+      readonly service = inject(PerRequest)
+
+      render() {
+        return createElement('wrong', null)
+      }
+    }
+
+    await expect(
+      renderToXml(createElement(Wrong, null), { declaration: false, container }),
+    ).rejects.toThrow(/Scope mismatch/)
+  })
+
+  it('should build a new instance for every occurrence', async () => {
+    const instances = new Set<unknown>()
+
+    @Component()
+    class Counted implements XmlComponent {
+      constructor(private readonly props: { label: string }) {
+        instances.add(this)
+      }
+
+      render() {
+        return createElement('counted', null, this.props.label)
+      }
+    }
+
+    const tree = () =>
+      createElement(
+        'root',
+        null,
+        createElement(Counted, { label: 'a' }),
+        createElement(Counted, { label: 'a' }),
+      )
+
+    expect(await renderToXml(tree(), { declaration: false, container })).toBe(
+      '<root><counted>a</counted><counted>a</counted></root>',
+    )
+    await renderToXml(tree(), { declaration: false, container })
+
+    expect(instances.size).toBe(4)
   })
 })

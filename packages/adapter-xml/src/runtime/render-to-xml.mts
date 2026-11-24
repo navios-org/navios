@@ -1,10 +1,11 @@
-import type { Container, ScopedContainer } from '@navios/core'
+import type { Container, RequestContext, ScopedContainer } from '@navios/core'
 
 import {
   AsyncComponent,
   CDataSymbol,
   ClassComponent,
   Fragment,
+  FunctionComponentSymbol,
   RawXmlSymbol,
 } from '../types/xml-node.mjs'
 
@@ -14,7 +15,10 @@ import type {
   AsyncXmlNode,
   CDataNode,
   ClassComponentNode,
+  FunctionComponentNode,
   RawXmlNode,
+  XmlNode,
+  XmlRenderable,
 } from '../types/xml-node.mjs'
 
 /**
@@ -23,45 +27,38 @@ import type {
  * @example
  * ```ts
  * const xml = await renderToXml(<rss version="2.0">...</rss>, {
- *   declaration: true,
- *   encoding: 'UTF-8',
  *   pretty: true,
- *   container: myContainer, // Required for class components
+ *   container, // needed when the tree contains class components
+ *   ctx, // needed when a component reads the request context
  * })
  * ```
  */
 export interface RenderOptions {
   /** Include XML declaration (<?xml version="1.0"?>) - defaults to true */
   declaration?: boolean
-  /** XML encoding, defaults to 'UTF-8' */
+  /** Encoding named in the XML declaration, defaults to 'UTF-8' */
   encoding?: string
   /** Pretty print with indentation */
   pretty?: boolean
   /**
-   * DI container for resolving class components.
+   * DI container that builds class components.
    * Required if the tree contains any class components.
    */
   container?: Container | ScopedContainer
+  /**
+   * The request the document is rendered for. It is passed to function
+   * components as their second argument and to `render(ctx)` of class
+   * components.
+   */
+  ctx?: RequestContext
 }
 
 /**
  * Error thrown when attempting to render a class component without a container.
  *
- * Class components require a dependency injection container to be instantiated.
- * This error is thrown when `renderToXml` is called with a class component in
- * the tree but no container is provided in the options.
- *
- * @example
- * ```ts
- * try {
- *   await renderToXml(<MyClassComponent />)
- * } catch (error) {
- *   if (error instanceof MissingContainerError) {
- *     // Provide a container
- *     await renderToXml(<MyClassComponent />, { container })
- *   }
- * }
- * ```
+ * Class components are built by a dependency injection container. Inside an
+ * application `xmlPlugin()` supplies it; a direct `renderToXml` call has to
+ * pass one.
  */
 export class MissingContainerError extends Error {
   constructor(componentName: string) {
@@ -74,43 +71,71 @@ export class MissingContainerError extends Error {
 }
 
 /**
+ * Error thrown when a component uses the request context while the tree is
+ * rendered outside a request.
+ */
+export class MissingContextError extends Error {
+  constructor(property: string) {
+    super(
+      `[@navios/adapter-xml] A component read ctx.${property}, but the tree is rendered without a ` +
+        `request context. Return the tree from a handler with xml(), or pass the context to ` +
+        `renderToXml options: renderToXml(node, { ctx })`,
+    )
+    this.name = 'MissingContextError'
+  }
+}
+
+/** Stands in for the request context when there is none. */
+const NO_CONTEXT = new Proxy(Object.freeze({}), {
+  get(_target, property) {
+    // Promise resolution and inspection probe for these; they are not reads
+    // of the context.
+    if (typeof property === 'symbol' || property === 'then' || property === 'toJSON') {
+      return undefined
+    }
+    throw new MissingContextError(property)
+  },
+}) as RequestContext
+
+interface RenderEnvironment {
+  container: Container | ScopedContainer | undefined
+  ctx: RequestContext
+}
+
+/**
  * Renders a JSX XML node tree to an XML string.
  *
  * This function handles:
  * - Regular XML nodes (tags with props and children)
- * - Async components (resolves promises in parallel)
- * - Class components (resolves via DI container)
+ * - Function components, synchronous or asynchronous (siblings are resolved in parallel)
+ * - Class components (built by the DI container)
  * - CDATA sections
  * - Raw XML content
  * - Fragments
  * - Text content with proper escaping
  *
  * @param node - The root XML node (JSX element) to render.
- * @param options - Rendering options including declaration, encoding, pretty printing, and container.
+ * @param options - Rendering options including declaration, encoding, pretty printing, container and request context.
  * @returns A promise that resolves to the XML string.
  *
  * @throws {MissingContainerError} If the tree contains class components but no container is provided.
+ * @throws {MissingContextError} If a component uses the request context but none is provided.
  *
  * @example
  * ```ts
  * // Simple rendering
  * const xml = await renderToXml(<rss version="2.0"><channel>...</channel></rss>)
  *
- * // With options
- * const xml = await renderToXml(<feed>...</feed>, {
- *   declaration: true,
- *   encoding: 'UTF-8',
- *   pretty: true,
- * })
- *
  * // With class components (requires container)
  * const container = new Container()
- * container.beginRequest('request-id')
  * const xml = await renderToXml(<MyClassComponent />, { container })
  * ```
  */
-export async function renderToXml(node: AnyXmlNode, options: RenderOptions = {}): Promise<string> {
-  const { declaration = true, encoding = 'UTF-8', pretty = false, container } = options
+export async function renderToXml(
+  node: XmlRenderable,
+  options: RenderOptions = {},
+): Promise<string> {
+  const { declaration = true, encoding = 'UTF-8', pretty = false, container, ctx } = options
 
   let xml = ''
   if (declaration) {
@@ -118,44 +143,56 @@ export async function renderToXml(node: AnyXmlNode, options: RenderOptions = {})
     if (pretty) xml += '\n'
   }
 
-  xml += await renderNode(node, pretty ? 0 : -1, container)
+  xml += await renderNode(node as AnyXmlNode, pretty ? 0 : -1, {
+    container,
+    ctx: ctx ?? NO_CONTEXT,
+  })
   return xml
 }
 
+/**
+ * Runs components until a node that can be written is left: text, a number,
+ * CDATA, raw XML, an element or a fragment.
+ */
+async function resolveNode(node: AnyXmlNode, env: RenderEnvironment): Promise<AnyXmlNode> {
+  let current = node
+  for (;;) {
+    if (current == null || typeof current !== 'object') {
+      return current
+    }
+    if (isFunctionComponentNode(current)) {
+      // Function components are called here, not when the JSX is evaluated,
+      // so that they receive the request context.
+      current = (await current.component(current.props, env.ctx)) as AnyXmlNode
+    } else if (isClassComponentNode(current)) {
+      // Class components: a new instance from the container, with the props
+      // as constructor argument (validated when the component declares a
+      // schema).
+      if (!env.container) {
+        throw new MissingContainerError(current.componentClass.name)
+      }
+      const instance = (await env.container.get(
+        current.componentClass as any,
+        current.props,
+      )) as XmlComponent
+      current = (await instance.render(env.ctx)) as AnyXmlNode
+    } else if (isAsyncNode(current)) {
+      current = await current.promise
+    } else {
+      return current
+    }
+  }
+}
+
 async function renderNode(
-  node: AnyXmlNode,
+  unresolved: AnyXmlNode,
   indent: number,
-  container: Container | ScopedContainer | undefined,
+  env: RenderEnvironment,
 ): Promise<string> {
+  const node = await resolveNode(unresolved, env)
   if (node == null) return ''
   if (typeof node === 'string') return escapeXml(node)
   if (typeof node === 'number') return String(node)
-
-  // Handle class components - resolve via DI container
-  if (isClassComponentNode(node)) {
-    if (!container) {
-      throw new MissingContainerError(node.componentClass.name)
-    }
-
-    // Resolve the component instance from the container, passing props as schema args
-    // This validates props via Zod schema if defined on the component
-    const instance = (await container.get(node.componentClass as any, node.props)) as XmlComponent
-
-    // Call render() - no arguments, props are already in the instance
-    const result = instance.render()
-
-    // Handle async render methods
-    const resolved = result instanceof Promise ? await result : result
-
-    // Recursively render the result
-    return renderNode(resolved, indent, container)
-  }
-
-  // Handle async components - resolve the promise first
-  if (isAsyncNode(node)) {
-    const resolved = await node.promise
-    return renderNode(resolved, indent, container)
-  }
 
   // Handle CDATA nodes
   if (isCDataNode(node)) {
@@ -167,11 +204,12 @@ async function renderNode(
     return node.content
   }
 
-  const { type, props, children } = node
+  // Components were resolved above, so everything left is one of these.
+  const { type, props, children: unresolvedChildren } = node as XmlNode
 
   if (type === Fragment) {
     const renderedChildren = await Promise.all(
-      children.filter((c) => c != null).map((c) => renderNode(c, indent, container)),
+      unresolvedChildren.filter((c) => c != null).map((c) => renderNode(c, indent, env)),
     )
     return renderedChildren.join('')
   }
@@ -184,27 +222,43 @@ async function renderNode(
     .map(([k, v]) => ` ${k}="${escapeAttr(String(v))}"`)
     .join('')
 
-  if (children.length === 0) {
+  if (unresolvedChildren.length === 0) {
     return `${prefix}<${type}${attrs}/>${newline}`
   }
 
-  const childIndent = indent >= 0 ? indent + 1 : -1
-
-  // Resolve all children (including async and class components) in parallel
-  const resolvedChildren = await Promise.all(
-    children.filter((c) => c != null).map((c) => renderNode(c, childIndent, container)),
+  // Run the components among the children, in parallel, before deciding how
+  // to lay the element out: a component that yields text is text.
+  const children = await Promise.all(
+    unresolvedChildren.filter((c) => c != null).map((c) => resolveNode(c, env)),
   )
-  const childContent = resolvedChildren.join('')
+
+  const childIndent = indent >= 0 ? indent + 1 : -1
+  const renderedChildren = await Promise.all(children.map((c) => renderNode(c, childIndent, env)))
+  const childContent = renderedChildren.join('')
 
   // Check if children are simple (text, numbers, CDATA, or raw XML)
   const hasOnlySimpleContent = children.every(
-    (c) => typeof c === 'string' || typeof c === 'number' || isCDataNode(c) || isRawXmlNode(c),
+    (c) =>
+      c == null ||
+      typeof c === 'string' ||
+      typeof c === 'number' ||
+      isCDataNode(c) ||
+      isRawXmlNode(c),
   )
   if (hasOnlySimpleContent) {
     return `${prefix}<${type}${attrs}>${childContent}</${type}>${newline}`
   }
 
   return `${prefix}<${type}${attrs}>${newline}${childContent}${prefix}</${type}>${newline}`
+}
+
+function isFunctionComponentNode(node: unknown): node is FunctionComponentNode {
+  return (
+    node !== null &&
+    typeof node === 'object' &&
+    'type' in node &&
+    node.type === FunctionComponentSymbol
+  )
 }
 
 function isClassComponentNode(node: unknown): node is ClassComponentNode {

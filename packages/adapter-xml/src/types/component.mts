@@ -1,60 +1,58 @@
-import type { AnyXmlNode } from './xml-node.mjs'
+import type { RequestContext } from '@navios/core'
+
+import type { XmlRenderable } from './xml-node.mjs'
 
 /**
- * Base interface for class-based XML components.
+ * A function component. It is called when the tree is rendered, with its
+ * props and the context of the request the document is rendered for.
  *
- * Class components are classes decorated with `@Component` that can use
- * dependency injection and return JSX-based XML nodes. The `render()` method
- * takes no arguments - props are received via the constructor.
- *
- * @example
  * ```tsx
- * @Component()
- * class LatestPostsComponent implements XmlComponent {
- *   private readonly postService = inject(PostService)
- *
- *   async render() {
- *     const posts = await this.postService.getLatestPosts()
- *     return (
- *       <>
- *         {posts.map(post => <item>...</item>)}
- *       </>
- *     )
- *   }
+ * async function Greeting({ greeting }: { greeting: string }, ctx: RequestContext) {
+ *   const user = await ctx.get(CurrentUser)
+ *   return <greeting>{greeting}, {user.name}</greeting>
  * }
  * ```
  *
- * @example
- * ```tsx
- * // With props
- * @Component({ schema: MyPropsSchema })
- * class MyComponent implements XmlComponent {
- *   constructor(private props: z.output<typeof MyPropsSchema>) {}
+ * Outside a request (`renderToXml(tree)` without `ctx`) the second argument
+ * throws `MissingContextError` on first use.
+ */
+export type FunctionComponent<Props = any> = (
+  props: Props,
+  ctx: RequestContext,
+) => XmlRenderable | Promise<XmlRenderable>
+
+/**
+ * Base interface for class components.
  *
- *   render() {
- *     return <div>{this.props.content}</div>
+ * A class component is a class registered with `@Component()` (or
+ * `Component()(TheClass)`). A new instance is built by the DI container for
+ * every place the component appears in a tree: props arrive in the
+ * constructor, `inject()` works in field initialisers, and `render(ctx)`
+ * receives the context of the request being served.
+ *
+ * ```tsx
+ * @Component()
+ * class LatestPosts implements XmlComponent {
+ *   private readonly posts = inject(PostService)
+ *
+ *   async render(ctx: RequestContext) {
+ *     const user = await ctx.get(CurrentUser)
+ *     const posts = await this.posts.latestFor(user)
+ *     return <>{posts.map((post) => <item>{post.title}</item>)}</>
  *   }
  * }
  * ```
  */
 export interface XmlComponent {
   /**
-   * Renders the component to an XML node.
-   *
-   * This method is called when the component is rendered. It can return
-   * a synchronous XML node or a Promise that resolves to an XML node.
-   *
-   * @returns An XML node or a Promise that resolves to an XML node.
+   * Renders the component. `ctx` is the context of the request the document
+   * is rendered for; outside a request it throws `MissingContextError` on
+   * first use.
    */
-  render(): AnyXmlNode | Promise<AnyXmlNode>
+  render(ctx: RequestContext): XmlRenderable | Promise<XmlRenderable>
 }
 
-/**
- * Type for class component constructors.
- *
- * This type represents a class constructor that creates instances of
- * `XmlComponent`. Used for type checking and dependency injection.
- */
+/** A class component constructor. */
 export interface ComponentClass {
   new (...args: any[]): XmlComponent
 }

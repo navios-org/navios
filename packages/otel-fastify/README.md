@@ -1,110 +1,38 @@
 # @navios/otel-fastify
 
-OpenTelemetry integration for Navios Fastify adapter. This package provides automatic tracing for HTTP requests handled by Fastify.
+> **Deprecated.** Use [`@navios/otel`](../otel/README.md) directly.
 
-## Installation
+In Navios 2.0 the OpenTelemetry plugin is adapter-neutral: one plugin in `@navios/otel` traces requests through an interceptor and works the same on Fastify, Bun and the in-memory test adapter. This package has no Fastify-specific work left and only re-exports that plugin, so that existing imports keep resolving. It will be removed in a later major version.
 
-```bash
-yarn add @navios/otel @navios/otel-fastify @opentelemetry/api
-
-# For OTLP export
-yarn add @opentelemetry/exporter-trace-otlp-http
-```
-
-## Usage
+## Migration
 
 ```typescript
-import { FastifyApplicationService } from '@navios/adapter-fastify'
-import { NaviosFactory } from '@navios/core'
+// before
 import { defineOtelPlugin } from '@navios/otel-fastify'
 
-const app = await NaviosFactory.create(FastifyApplicationService, {
-  module: AppModule,
-})
+app.usePlugin(defineOtelPlugin(options))
 
-app.usePlugin(
-  defineOtelPlugin({
-    serviceName: 'my-api',
-    serviceVersion: '1.0.0',
-    environment: 'production',
+// after
+import { otelPlugin } from '@navios/otel'
 
-    // Exporter configuration
-    exporter: 'otlp',
-    exporterOptions: {
-      endpoint: 'http://localhost:4318/v1/traces',
-      headers: {
-        Authorization: 'Bearer token',
-      },
-    },
-
-    // Auto-instrumentation
-    autoInstrument: {
-      http: true, // Trace HTTP requests
-      handlers: true, // Trace controller handlers
-      guards: false, // Trace guard execution
-    },
-
-    // Metrics (optional)
-    metrics: {
-      enabled: true,
-    },
-
-    // Ignore certain routes
-    ignoreRoutes: ['/health', '/metrics', '/docs/*'],
-  }),
-)
-
-await app.listen({ port: 3000 })
+app.usePlugin(otelPlugin(options))
 ```
 
-## Configuration Options
+What this package exports:
 
-| Option                    | Type                            | Default      | Description               |
-| ------------------------- | ------------------------------- | ------------ | ------------------------- |
-| `serviceName`             | `string`                        | **required** | Name of the service       |
-| `serviceVersion`          | `string`                        | `undefined`  | Version of the service    |
-| `environment`             | `string`                        | `undefined`  | Deployment environment    |
-| `exporter`                | `'otlp' \| 'console' \| 'none'` | **required** | Export destination        |
-| `exporterOptions`         | `object`                        | `undefined`  | Exporter-specific options |
-| `autoInstrument.http`     | `boolean`                       | `true`       | Trace HTTP requests       |
-| `autoInstrument.handlers` | `boolean`                       | `true`       | Trace handlers            |
-| `autoInstrument.guards`   | `boolean`                       | `false`      | Trace guards              |
-| `metrics.enabled`         | `boolean`                       | `false`      | Enable metrics            |
-| `ignoreRoutes`            | `string[]`                      | `[]`         | Routes to skip            |
-| `includeNaviosAttributes` | `boolean`                       | `false`      | Add navios.\* attributes  |
-| `sampling.ratio`          | `number`                        | `1.0`        | Sample ratio (0-1)        |
+| Export                     | Is                                                  |
+| -------------------------- | --------------------------------------------------- |
+| `defineOtelPlugin`         | `otelPlugin` from `@navios/otel` under its 1.x name |
+| `otelPlugin`               | `otelPlugin` from `@navios/otel`                    |
+| `FastifyOtelPluginOptions` | `OtelPluginOptions` from `@navios/otel`             |
 
-## Accessing Spans
+Removed in 2.0:
 
-The current span is attached to the Fastify request:
+- `OtelFastifyPlugin` and the hook factories `createOnRequestHook`, `createOnResponseHook` and `createOnErrorHook`. Requests are traced by `OtelHttpInterceptor` from `@navios/otel`.
+- `request.otelSpan`. Read the request span from the request context: `ctx.find(RequestSpan)`, with `RequestSpan` from `@navios/otel`.
+- A span for requests that match no route. Fastify's hooks ran for those; an interceptor runs only for a matched route.
 
-```typescript
-import type { FastifyRequest } from 'fastify'
-
-function handler(request: FastifyRequest) {
-  const span = request.otelSpan
-  if (span) {
-    span.setAttribute('custom.attribute', 'value')
-  }
-}
-```
-
-## Manual Tracing
-
-Use `@Traced` decorator for explicit tracing:
-
-```typescript
-import { Injectable } from '@navios/di'
-import { Traced } from '@navios/otel'
-
-@Injectable()
-@Traced({ name: 'user-service' })
-class UserService {
-  async getUser(id: string) {
-    // Automatically creates span
-  }
-}
-```
+Everything else, including configuration, `@Traced` and context propagation, is documented in the [`@navios/otel` README](../otel/README.md).
 
 ## License
 

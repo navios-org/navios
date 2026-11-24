@@ -12,10 +12,9 @@
     "src/**/*.spec.mts",
     "src/**/__tests__/*.spec.mts",
     "e2e/**/*.mts",
+    "e2e/**/*.tsx",
     "vitest.config.mts",
-    "vitest.e2e.fastify.config.mts",
-    "e2e/fastify/xml-stream.spec.tsx",
-    "e2e/bun/xml-stream.spec.tsx"
+    "vitest.e2e.config.mts"
   ],
   "references": [
     {

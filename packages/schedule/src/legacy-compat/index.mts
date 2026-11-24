@@ -39,8 +39,9 @@ export {
   hasScheduleMetadata,
 } from '../metadata/index.mjs'
 
-// Re-export SchedulerService (works with both decorator styles)
+// Re-export SchedulerService and the plugin (they work with both decorator styles)
 export { SchedulerService } from '../scheduler.service.mjs'
+export { schedulePlugin, type SchedulePluginOptions } from '../schedule.plugin.mjs'
 
-// Re-export context compatibility utilities from core
-export { createClassContext, createMethodContext } from '@navios/core/legacy-compat'
+// Context compatibility utilities
+export { createClassContext, createMethodContext } from './context-compat.mjs'

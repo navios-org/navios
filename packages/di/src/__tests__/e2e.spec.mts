@@ -14,8 +14,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { Container } from '../container/container.mjs'
 import { Injectable } from '../decorators/injectable.decorator.mjs'
 import { InjectableScope } from '../enums/index.mjs'
-import { Registry } from '../token/registry.mjs'
-import { getInjectors } from '../utils/get-injectors.mjs'
+import { inject } from '../injectors.mjs'
 
 import type { OnServiceDestroy, OnServiceInit } from '../index.mjs'
 
@@ -27,28 +26,15 @@ function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
-function createTestSetup() {
-  const registry = new Registry()
-  const injectors = getInjectors()
-  const container = new Container(registry, null, injectors)
-
-  return { registry, injectors, container }
-}
-
 // ============================================================================
 // SECTION 1: BASIC SETUP TESTS
 // ============================================================================
 
 describe('E2E: Basic Setup', () => {
-  let registry: Registry
   let container: Container
-  let injectors: ReturnType<typeof getInjectors>
 
   beforeEach(() => {
-    const setup = createTestSetup()
-    registry = setup.registry
-    container = setup.container
-    injectors = setup.injectors
+    container = new Container()
   })
 
   afterEach(async () => {
@@ -57,7 +43,7 @@ describe('E2E: Basic Setup', () => {
 
   describe('Simple service registration and resolution', () => {
     it('should register and resolve a simple singleton service', async () => {
-      @Injectable({ scope: InjectableScope.Singleton, registry })
+      @Injectable({ scope: InjectableScope.Singleton })
       class SimpleService {
         getValue() {
           return 'hello'
@@ -70,7 +56,7 @@ describe('E2E: Basic Setup', () => {
     })
 
     it('should return the same instance for singleton services', async () => {
-      @Injectable({ scope: InjectableScope.Singleton, registry })
+      @Injectable({ scope: InjectableScope.Singleton })
       class SingletonService {
         id = Math.random()
       }
@@ -83,7 +69,7 @@ describe('E2E: Basic Setup', () => {
     })
 
     it('should return different instances for transient services', async () => {
-      @Injectable({ scope: InjectableScope.Transient, registry })
+      @Injectable({ scope: InjectableScope.Transient })
       class TransientService {
         id = Math.random()
       }
@@ -102,7 +88,6 @@ describe('E2E: Basic Setup', () => {
 
       @Injectable({
         scope: InjectableScope.Singleton,
-        registry,
         schema: configSchema,
       })
       class ConfigService {
@@ -116,16 +101,16 @@ describe('E2E: Basic Setup', () => {
 
   describe('Service with dependencies', () => {
     it('should resolve a service that depends on another singleton', async () => {
-      @Injectable({ scope: InjectableScope.Singleton, registry })
+      @Injectable({ scope: InjectableScope.Singleton })
       class DatabaseService {
         connect() {
           return 'connected'
         }
       }
 
-      @Injectable({ scope: InjectableScope.Singleton, registry })
+      @Injectable({ scope: InjectableScope.Singleton })
       class UserRepository {
-        private db = injectors.inject(DatabaseService)
+        private db = inject(DatabaseService)
 
         async getDatabase() {
           return this.db
@@ -139,14 +124,14 @@ describe('E2E: Basic Setup', () => {
     })
 
     it('should resolve deep dependency chains', async () => {
-      @Injectable({ scope: InjectableScope.Singleton, registry })
+      @Injectable({ scope: InjectableScope.Singleton })
       class ServiceLevel1 {
         name = 'Level1'
       }
 
-      @Injectable({ scope: InjectableScope.Singleton, registry })
+      @Injectable({ scope: InjectableScope.Singleton })
       class ServiceLevel2 {
-        private level1 = injectors.inject(ServiceLevel1)
+        private level1 = inject(ServiceLevel1)
         name = 'Level2'
 
         async getLevel1() {
@@ -154,9 +139,9 @@ describe('E2E: Basic Setup', () => {
         }
       }
 
-      @Injectable({ scope: InjectableScope.Singleton, registry })
+      @Injectable({ scope: InjectableScope.Singleton })
       class ServiceLevel3 {
-        private level2 = injectors.inject(ServiceLevel2)
+        private level2 = inject(ServiceLevel2)
         name = 'Level3'
 
         async getLevel2() {
@@ -181,15 +166,10 @@ describe('E2E: Basic Setup', () => {
 // ============================================================================
 
 describe('E2E: Mixed Scopes', () => {
-  let registry: Registry
   let container: Container
-  let injectors: ReturnType<typeof getInjectors>
 
   beforeEach(() => {
-    const setup = createTestSetup()
-    registry = setup.registry
-    container = setup.container
-    injectors = setup.injectors
+    container = new Container()
   })
 
   afterEach(async () => {
@@ -197,58 +177,28 @@ describe('E2E: Mixed Scopes', () => {
   })
 
   describe('Singleton with Request-scoped dependencies', () => {
-    it('should allow singleton to inject request-scoped service within request context', async () => {
-      let requestServiceInstanceCount = 0
-
-      @Injectable({ scope: InjectableScope.Request, registry })
-      class RequestContextService {
-        id = ++requestServiceInstanceCount
-      }
-
-      @Injectable({ scope: InjectableScope.Singleton, registry })
-      class SingletonWithRequestDep {
-        private requestCtx = injectors.inject(RequestContextService)
-
-        async getRequestContext() {
-          return this.requestCtx
-        }
-      }
-
-      // Create request context
-      const scopedContainer = container.beginRequest('request-1')
-
-      const singleton = await scopedContainer.get(SingletonWithRequestDep)
-      const ctx1 = await singleton.getRequestContext()
-      const ctx2 = await singleton.getRequestContext()
-
-      // Within same request, should get same instance
-      expect(ctx1.id).toBe(ctx2.id)
-
-      await scopedContainer.endRequest()
-    })
-
     it('should create different request-scoped instances for different requests', async () => {
       let instanceCount = 0
 
-      @Injectable({ scope: InjectableScope.Request, registry })
+      @Injectable({ scope: InjectableScope.Request })
       class RequestService {
         id = ++instanceCount
       }
 
       // First request
-      const scoped1 = container.beginRequest('request-1')
+      const scoped1 = container.createScope()
       const service1 = await scoped1.get(RequestService)
 
       // Second request
-      const scoped2 = container.beginRequest('request-2')
+      const scoped2 = container.createScope()
       const service2 = await scoped2.get(RequestService)
 
       expect(service1.id).toBe(1)
       expect(service2.id).toBe(2)
       expect(service1).not.toBe(service2)
 
-      await scoped1.endRequest()
-      await scoped2.endRequest()
+      await scoped1.dispose()
+      await scoped2.dispose()
     })
   })
 
@@ -256,7 +206,7 @@ describe('E2E: Mixed Scopes', () => {
     it('should create new transient instance every time regardless of scope', async () => {
       let instanceCount = 0
 
-      @Injectable({ scope: InjectableScope.Transient, registry })
+      @Injectable({ scope: InjectableScope.Transient })
       class TransientService {
         id = ++instanceCount
       }
@@ -266,7 +216,7 @@ describe('E2E: Mixed Scopes', () => {
       const t2 = await container.get(TransientService)
 
       // From scoped container
-      const scoped = container.beginRequest('request-1')
+      const scoped = container.createScope()
       const t3 = await scoped.get(TransientService)
       const t4 = await scoped.get(TransientService)
 
@@ -275,7 +225,7 @@ describe('E2E: Mixed Scopes', () => {
       expect(t3.id).toBe(3)
       expect(t4.id).toBe(4)
 
-      await scoped.endRequest()
+      await scoped.dispose()
     })
   })
 
@@ -283,7 +233,7 @@ describe('E2E: Mixed Scopes', () => {
     it('should handle complex dependency graph with all scope types', async () => {
       const creationOrder: string[] = []
 
-      @Injectable({ scope: InjectableScope.Singleton, registry })
+      @Injectable({ scope: InjectableScope.Singleton })
       class DatabaseConnection {
         constructor() {
           creationOrder.push('DatabaseConnection')
@@ -293,9 +243,9 @@ describe('E2E: Mixed Scopes', () => {
         }
       }
 
-      @Injectable({ scope: InjectableScope.Request, registry })
+      @Injectable({ scope: InjectableScope.Request })
       class RequestLogger {
-        private db = injectors.inject(DatabaseConnection)
+        private db = inject(DatabaseConnection)
 
         constructor() {
           creationOrder.push('RequestLogger')
@@ -307,9 +257,9 @@ describe('E2E: Mixed Scopes', () => {
         }
       }
 
-      @Injectable({ scope: InjectableScope.Transient, registry })
+      @Injectable({ scope: InjectableScope.Transient })
       class ActionHandler {
-        private logger = injectors.inject(RequestLogger)
+        private logger = inject(RequestLogger)
 
         constructor() {
           creationOrder.push('ActionHandler')
@@ -321,9 +271,9 @@ describe('E2E: Mixed Scopes', () => {
         }
       }
 
-      @Injectable({ scope: InjectableScope.Request, registry })
+      @Injectable({ scope: InjectableScope.Request })
       class RequestProcessor {
-        private action = injectors.inject(ActionHandler)
+        private action = inject(ActionHandler)
 
         constructor() {
           creationOrder.push('RequestProcessor')
@@ -335,7 +285,7 @@ describe('E2E: Mixed Scopes', () => {
         }
       }
 
-      const scoped = container.beginRequest('request-1')
+      const scoped = container.createScope()
 
       const processor = await scoped.get(RequestProcessor)
       const result = await processor.process()
@@ -346,7 +296,7 @@ describe('E2E: Mixed Scopes', () => {
       expect(creationOrder).toContain('ActionHandler')
       expect(creationOrder).toContain('RequestProcessor')
 
-      await scoped.endRequest()
+      await scoped.dispose()
     })
   })
 })
@@ -356,15 +306,10 @@ describe('E2E: Mixed Scopes', () => {
 // ============================================================================
 
 describe('E2E: Concurrent Requests', () => {
-  let registry: Registry
   let container: Container
-  let injectors: ReturnType<typeof getInjectors>
 
   beforeEach(() => {
-    const setup = createTestSetup()
-    registry = setup.registry
-    container = setup.container
-    injectors = setup.injectors
+    container = new Container()
   })
 
   afterEach(async () => {
@@ -376,7 +321,7 @@ describe('E2E: Concurrent Requests', () => {
       let instanceCounter = 0
       const instancesByRequest: Record<string, number[]> = {}
 
-      @Injectable({ scope: InjectableScope.Request, registry })
+      @Injectable({ scope: InjectableScope.Request })
       class RequestScopedCounter {
         id = ++instanceCounter
 
@@ -385,9 +330,9 @@ describe('E2E: Concurrent Requests', () => {
         }
       }
 
-      @Injectable({ scope: InjectableScope.Request, registry })
+      @Injectable({ scope: InjectableScope.Request })
       class RequestHandler {
-        private counter = injectors.inject(RequestScopedCounter)
+        private counter = inject(RequestScopedCounter)
 
         async handle(requestId: string) {
           await delay(Math.random() * 10)
@@ -403,14 +348,14 @@ describe('E2E: Concurrent Requests', () => {
       // Spawn 5 concurrent requests
       const requests = Array.from({ length: 5 }, (_, i) => {
         const requestId = `request-${i}`
-        const scoped = container.beginRequest(requestId)
+        const scoped = container.createScope()
         return (async () => {
           const handler = await scoped.get(RequestHandler)
           // Call handler multiple times within same request
           await handler.handle(requestId)
           await handler.handle(requestId)
           await handler.handle(requestId)
-          await scoped.endRequest()
+          await scoped.dispose()
           return requestId
         })()
       })
@@ -432,7 +377,7 @@ describe('E2E: Concurrent Requests', () => {
     it('should share singleton across all concurrent requests', async () => {
       let singletonCreationCount = 0
 
-      @Injectable({ scope: InjectableScope.Singleton, registry })
+      @Injectable({ scope: InjectableScope.Singleton })
       class SharedCache {
         id = ++singletonCreationCount
         private data = new Map<string, any>()
@@ -446,9 +391,9 @@ describe('E2E: Concurrent Requests', () => {
         }
       }
 
-      @Injectable({ scope: InjectableScope.Request, registry })
+      @Injectable({ scope: InjectableScope.Request })
       class RequestService {
-        private cache = injectors.inject(SharedCache)
+        private cache = inject(SharedCache)
 
         async setInCache(key: string, value: any) {
           const c = await this.cache
@@ -464,10 +409,10 @@ describe('E2E: Concurrent Requests', () => {
 
       // Start multiple requests that all use the cache
       const requests = Array.from({ length: 10 }, async (_, i) => {
-        const scoped = container.beginRequest(`request-${i}`)
+        const scoped = container.createScope()
         const service = await scoped.get(RequestService)
         const cacheId = await service.setInCache(`key-${i}`, `value-${i}`)
-        await scoped.endRequest()
+        await scoped.dispose()
         return cacheId
       })
 
@@ -482,7 +427,7 @@ describe('E2E: Concurrent Requests', () => {
       let creationCount = 0
       let constructorCallCount = 0
 
-      @Injectable({ scope: InjectableScope.Singleton, registry })
+      @Injectable({ scope: InjectableScope.Singleton })
       class SlowSingleton {
         id: number
 
@@ -512,7 +457,7 @@ describe('E2E: Concurrent Requests', () => {
 
   describe('Request isolation', () => {
     it('should not leak request-scoped instances between concurrent requests', async () => {
-      @Injectable({ scope: InjectableScope.Request, registry })
+      @Injectable({ scope: InjectableScope.Request })
       class UserSession {
         constructor(public userId: string = '') {}
 
@@ -521,9 +466,9 @@ describe('E2E: Concurrent Requests', () => {
         }
       }
 
-      @Injectable({ scope: InjectableScope.Request, registry })
+      @Injectable({ scope: InjectableScope.Request })
       class RequestProcessor {
-        private session = injectors.inject(UserSession)
+        private session = inject(UserSession)
 
         async processForUser(userId: string) {
           const s = await this.session
@@ -537,11 +482,11 @@ describe('E2E: Concurrent Requests', () => {
 
       // Run concurrent requests with different user IDs
       const results = await Promise.all(
-        ['user-A', 'user-B', 'user-C', 'user-D', 'user-E'].map(async (userId, i) => {
-          const scoped = container.beginRequest(`request-${i}`)
+        ['user-A', 'user-B', 'user-C', 'user-D', 'user-E'].map(async (userId) => {
+          const scoped = container.createScope()
           const processor = await scoped.get(RequestProcessor)
           const result = await processor.processForUser(userId)
-          await scoped.endRequest()
+          await scoped.dispose()
           return { expected: userId, actual: result }
         }),
       )
@@ -559,15 +504,10 @@ describe('E2E: Concurrent Requests', () => {
 // ============================================================================
 
 describe('E2E: Service Lifecycle', () => {
-  let registry: Registry
   let container: Container
-  let injectors: ReturnType<typeof getInjectors>
 
   beforeEach(() => {
-    const setup = createTestSetup()
-    registry = setup.registry
-    container = setup.container
-    injectors = setup.injectors
+    container = new Container()
   })
 
   afterEach(async () => {
@@ -578,7 +518,7 @@ describe('E2E: Service Lifecycle', () => {
     it('should call onServiceInit when service is created', async () => {
       const initSpy = vi.fn()
 
-      @Injectable({ scope: InjectableScope.Singleton, registry })
+      @Injectable({ scope: InjectableScope.Singleton })
       class ServiceWithInit implements OnServiceInit {
         initialized = false
 
@@ -597,7 +537,7 @@ describe('E2E: Service Lifecycle', () => {
     it('should call onServiceInit for request-scoped services in each request', async () => {
       let initCount = 0
 
-      @Injectable({ scope: InjectableScope.Request, registry })
+      @Injectable({ scope: InjectableScope.Request })
       class RequestServiceWithInit implements OnServiceInit {
         initOrder = 0
 
@@ -606,18 +546,18 @@ describe('E2E: Service Lifecycle', () => {
         }
       }
 
-      const scoped1 = container.beginRequest('request-1')
+      const scoped1 = container.createScope()
       const service1 = await scoped1.get(RequestServiceWithInit)
 
-      const scoped2 = container.beginRequest('request-2')
+      const scoped2 = container.createScope()
       const service2 = await scoped2.get(RequestServiceWithInit)
 
       expect(service1.initOrder).toBe(1)
       expect(service2.initOrder).toBe(2)
       expect(initCount).toBe(2)
 
-      await scoped1.endRequest()
-      await scoped2.endRequest()
+      await scoped1.dispose()
+      await scoped2.dispose()
     })
   })
 
@@ -625,7 +565,7 @@ describe('E2E: Service Lifecycle', () => {
     it('should call onServiceDestroy when container is disposed', async () => {
       const destroySpy = vi.fn()
 
-      @Injectable({ scope: InjectableScope.Singleton, registry })
+      @Injectable({ scope: InjectableScope.Singleton })
       class ServiceWithDestroy implements OnServiceDestroy {
         onServiceDestroy() {
           destroySpy()
@@ -642,26 +582,26 @@ describe('E2E: Service Lifecycle', () => {
     it('should call onServiceDestroy for request-scoped services when request ends', async () => {
       const destroySpy = vi.fn()
 
-      @Injectable({ scope: InjectableScope.Request, registry })
+      @Injectable({ scope: InjectableScope.Request })
       class RequestServiceWithDestroy implements OnServiceDestroy {
         onServiceDestroy() {
           destroySpy()
         }
       }
 
-      const scoped = container.beginRequest('request-1')
+      const scoped = container.createScope()
       await scoped.get(RequestServiceWithDestroy)
 
       expect(destroySpy).not.toHaveBeenCalled()
 
-      await scoped.endRequest()
+      await scoped.dispose()
       expect(destroySpy).toHaveBeenCalledTimes(1)
     })
 
     it('should handle async onServiceDestroy', async () => {
       const events: string[] = []
 
-      @Injectable({ scope: InjectableScope.Singleton, registry })
+      @Injectable({ scope: InjectableScope.Singleton })
       class SlowDestroyService implements OnServiceDestroy {
         async onServiceDestroy() {
           events.push('destroy-start')
@@ -681,7 +621,7 @@ describe('E2E: Service Lifecycle', () => {
     it('should call lifecycle methods in correct order', async () => {
       const events: string[] = []
 
-      @Injectable({ scope: InjectableScope.Request, registry })
+      @Injectable({ scope: InjectableScope.Request })
       class FullLifecycleService implements OnServiceInit, OnServiceDestroy {
         onServiceInit() {
           events.push('init')
@@ -692,10 +632,10 @@ describe('E2E: Service Lifecycle', () => {
         }
       }
 
-      const scoped = container.beginRequest('request-1')
+      const scoped = container.createScope()
       await scoped.get(FullLifecycleService)
       events.push('service-used')
-      await scoped.endRequest()
+      await scoped.dispose()
 
       expect(events).toEqual(['init', 'service-used', 'destroy'])
     })
@@ -703,9 +643,9 @@ describe('E2E: Service Lifecycle', () => {
     it('should handle multiple services with lifecycle methods', async () => {
       const events: string[] = []
 
-      @Injectable({ scope: InjectableScope.Request, registry })
+      @Injectable({ scope: InjectableScope.Request })
       class ServiceA implements OnServiceInit, OnServiceDestroy {
-        private serviceB = injectors.inject(ServiceB)
+        private serviceB = inject(ServiceB)
 
         async onServiceInit() {
           events.push('A-init')
@@ -720,7 +660,7 @@ describe('E2E: Service Lifecycle', () => {
         }
       }
 
-      @Injectable({ scope: InjectableScope.Request, registry })
+      @Injectable({ scope: InjectableScope.Request })
       class ServiceB implements OnServiceInit, OnServiceDestroy {
         onServiceInit() {
           events.push('B-init')
@@ -731,10 +671,10 @@ describe('E2E: Service Lifecycle', () => {
         }
       }
 
-      const scoped = container.beginRequest('request-1')
+      const scoped = container.createScope()
       const serviceA = await scoped.get(ServiceA)
       await serviceA.getB()
-      await scoped.endRequest()
+      await scoped.dispose()
 
       expect(events).toContain('A-init')
       expect(events).toContain('B-init')
@@ -749,15 +689,10 @@ describe('E2E: Service Lifecycle', () => {
 // ============================================================================
 
 describe('E2E: Service Invalidation', () => {
-  let registry: Registry
   let container: Container
-  let injectors: ReturnType<typeof getInjectors>
 
   beforeEach(() => {
-    const setup = createTestSetup()
-    registry = setup.registry
-    container = setup.container
-    injectors = setup.injectors
+    container = new Container()
   })
 
   afterEach(async () => {
@@ -769,7 +704,7 @@ describe('E2E: Service Invalidation', () => {
       const destroySpy = vi.fn()
       let instanceCount = 0
 
-      @Injectable({ scope: InjectableScope.Singleton, registry })
+      @Injectable({ scope: InjectableScope.Singleton })
       class CachingService implements OnServiceDestroy {
         id = ++instanceCount
 
@@ -793,16 +728,16 @@ describe('E2E: Service Invalidation', () => {
     it('should cascade invalidation to dependents', async () => {
       const destroyOrder: string[] = []
 
-      @Injectable({ scope: InjectableScope.Singleton, registry })
+      @Injectable({ scope: InjectableScope.Singleton })
       class BaseService implements OnServiceDestroy {
         onServiceDestroy() {
           destroyOrder.push('BaseService')
         }
       }
 
-      @Injectable({ scope: InjectableScope.Singleton, registry })
+      @Injectable({ scope: InjectableScope.Singleton })
       class DependentService implements OnServiceDestroy {
-        private base = injectors.inject(BaseService)
+        private base = inject(BaseService)
 
         async getBase() {
           return this.base
@@ -830,7 +765,7 @@ describe('E2E: Service Invalidation', () => {
       let instanceCount = 0
       const destroySpy = vi.fn()
 
-      @Injectable({ scope: InjectableScope.Request, registry })
+      @Injectable({ scope: InjectableScope.Request })
       class RequestCacheService implements OnServiceDestroy {
         id = ++instanceCount
 
@@ -839,7 +774,7 @@ describe('E2E: Service Invalidation', () => {
         }
       }
 
-      const scoped = container.beginRequest('request-1')
+      const scoped = container.createScope()
 
       const service1 = await scoped.get(RequestCacheService)
       expect(service1.id).toBe(1)
@@ -852,7 +787,7 @@ describe('E2E: Service Invalidation', () => {
       expect(service2.id).toBe(2)
       expect(service2).not.toBe(service1)
 
-      await scoped.endRequest()
+      await scoped.dispose()
     })
   })
 
@@ -860,16 +795,16 @@ describe('E2E: Service Invalidation', () => {
     it('should handle deep dependency chain invalidation', async () => {
       const destroyOrder: string[] = []
 
-      @Injectable({ scope: InjectableScope.Singleton, registry })
+      @Injectable({ scope: InjectableScope.Singleton })
       class Level1 implements OnServiceDestroy {
         onServiceDestroy() {
           destroyOrder.push('Level1')
         }
       }
 
-      @Injectable({ scope: InjectableScope.Singleton, registry })
+      @Injectable({ scope: InjectableScope.Singleton })
       class Level2 implements OnServiceDestroy {
-        private level1 = injectors.inject(Level1)
+        private level1 = inject(Level1)
 
         async getLevel1() {
           return this.level1
@@ -880,9 +815,9 @@ describe('E2E: Service Invalidation', () => {
         }
       }
 
-      @Injectable({ scope: InjectableScope.Singleton, registry })
+      @Injectable({ scope: InjectableScope.Singleton })
       class Level3 implements OnServiceDestroy {
-        private level2 = injectors.inject(Level2)
+        private level2 = inject(Level2)
 
         async getLevel2() {
           return this.level2
@@ -910,7 +845,7 @@ describe('E2E: Service Invalidation', () => {
       let singletonInstanceCount = 0
       const destroySpy = vi.fn()
 
-      @Injectable({ scope: InjectableScope.Singleton, registry })
+      @Injectable({ scope: InjectableScope.Singleton })
       class SharedSingleton implements OnServiceDestroy {
         id = ++singletonInstanceCount
 
@@ -919,9 +854,9 @@ describe('E2E: Service Invalidation', () => {
         }
       }
 
-      @Injectable({ scope: InjectableScope.Request, registry })
+      @Injectable({ scope: InjectableScope.Request })
       class RequestUser {
-        private shared = injectors.inject(SharedSingleton)
+        private shared = inject(SharedSingleton)
 
         async getSharedId() {
           const s = await this.shared
@@ -930,7 +865,7 @@ describe('E2E: Service Invalidation', () => {
       }
 
       // Start a request
-      const scoped1 = container.beginRequest('request-1')
+      const scoped1 = container.createScope()
       const user1 = await scoped1.get(RequestUser)
       const sharedId1 = await user1.getSharedId()
       expect(sharedId1).toBe(1)
@@ -941,28 +876,28 @@ describe('E2E: Service Invalidation', () => {
       expect(destroySpy).toHaveBeenCalledWith(1)
 
       // Start another request
-      const scoped2 = container.beginRequest('request-2')
+      const scoped2 = container.createScope()
       const user2 = await scoped2.get(RequestUser)
       const sharedId2 = await user2.getSharedId()
       expect(sharedId2).toBe(2) // New instance created
 
-      await scoped1.endRequest()
-      await scoped2.endRequest()
+      await scoped1.dispose()
+      await scoped2.dispose()
     })
 
     it('should clear all services on container dispose', async () => {
       const destroyOrder: string[] = []
 
-      @Injectable({ scope: InjectableScope.Singleton, registry })
+      @Injectable({ scope: InjectableScope.Singleton })
       class Service1 implements OnServiceDestroy {
         onServiceDestroy() {
           destroyOrder.push('Service1')
         }
       }
 
-      @Injectable({ scope: InjectableScope.Singleton, registry })
+      @Injectable({ scope: InjectableScope.Singleton })
       class Service2 implements OnServiceDestroy {
-        private s1 = injectors.inject(Service1)
+        private s1 = inject(Service1)
 
         async getS1() {
           return this.s1
@@ -973,7 +908,7 @@ describe('E2E: Service Invalidation', () => {
         }
       }
 
-      @Injectable({ scope: InjectableScope.Singleton, registry })
+      @Injectable({ scope: InjectableScope.Singleton })
       class Service3 implements OnServiceDestroy {
         onServiceDestroy() {
           destroyOrder.push('Service3')
@@ -998,13 +933,10 @@ describe('E2E: Service Invalidation', () => {
 // ============================================================================
 
 describe('E2E: Error Handling', () => {
-  let registry: Registry
   let container: Container
 
   beforeEach(() => {
-    const setup = createTestSetup()
-    registry = setup.registry
-    container = setup.container
+    container = new Container()
   })
 
   afterEach(async () => {
@@ -1017,26 +949,18 @@ describe('E2E: Error Handling', () => {
 
   describe('Resolution errors', () => {
     it('should throw when resolving request-scoped service outside request context', async () => {
-      @Injectable({ scope: InjectableScope.Request, registry })
+      @Injectable({ scope: InjectableScope.Request })
       class RequestOnlyService {}
 
       await expect(container.get(RequestOnlyService)).rejects.toThrow()
     })
 
-    it('should throw when using duplicate request IDs', async () => {
-      const scoped1 = container.beginRequest('duplicate-id')
-
-      expect(() => container.beginRequest('duplicate-id')).toThrow()
-
-      await scoped1.endRequest()
-    })
-
     it('should throw when using disposed scoped container', async () => {
-      @Injectable({ scope: InjectableScope.Request, registry })
+      @Injectable({ scope: InjectableScope.Request })
       class RequestService {}
 
-      const scoped = container.beginRequest('request-1')
-      await scoped.endRequest()
+      const scoped = container.createScope()
+      await scoped.dispose()
 
       await expect(scoped.get(RequestService)).rejects.toThrow()
     })
@@ -1044,7 +968,7 @@ describe('E2E: Error Handling', () => {
 
   describe('Initialization errors', () => {
     it('should propagate errors from onServiceInit', async () => {
-      @Injectable({ scope: InjectableScope.Singleton, registry })
+      @Injectable({ scope: InjectableScope.Singleton })
       class FailingInitService implements OnServiceInit {
         onServiceInit() {
           throw new Error('Init failed!')
@@ -1055,7 +979,7 @@ describe('E2E: Error Handling', () => {
     })
 
     it('should propagate errors from async onServiceInit', async () => {
-      @Injectable({ scope: InjectableScope.Singleton, registry })
+      @Injectable({ scope: InjectableScope.Singleton })
       class AsyncFailingInitService implements OnServiceInit {
         async onServiceInit() {
           await delay(1)
@@ -1067,7 +991,7 @@ describe('E2E: Error Handling', () => {
     })
 
     it('should propagate constructor errors', async () => {
-      @Injectable({ scope: InjectableScope.Singleton, registry })
+      @Injectable({ scope: InjectableScope.Singleton })
       class FailingConstructorService {
         constructor() {
           throw new Error('Constructor failed!')
@@ -1084,15 +1008,10 @@ describe('E2E: Error Handling', () => {
 // ============================================================================
 
 describe('E2E: Advanced Scenarios', () => {
-  let registry: Registry
   let container: Container
-  let injectors: ReturnType<typeof getInjectors>
 
   beforeEach(() => {
-    const setup = createTestSetup()
-    registry = setup.registry
-    container = setup.container
-    injectors = setup.injectors
+    container = new Container()
   })
 
   afterEach(async () => {
@@ -1102,16 +1021,16 @@ describe('E2E: Advanced Scenarios', () => {
   describe('Metadata handling', () => {
     it('should pass metadata to request context', async () => {
       const metadata = { userId: '123', roles: ['admin'] }
-      const scoped = container.beginRequest('request-1', metadata)
+      const scoped = container.createScope(metadata)
 
       expect(scoped.getMetadata('userId')).toBe('123')
       expect(scoped.getMetadata('roles')).toEqual(['admin'])
 
-      await scoped.endRequest()
+      await scoped.dispose()
     })
 
     it('should allow modifying metadata during request', async () => {
-      const scoped = container.beginRequest('request-1')
+      const scoped = container.createScope()
       scoped.setMetadata('stage', 'processing')
 
       expect(scoped.getMetadata('stage')).toBe('processing')
@@ -1119,13 +1038,13 @@ describe('E2E: Advanced Scenarios', () => {
       scoped.setMetadata('stage', 'complete')
       expect(scoped.getMetadata('stage')).toBe('complete')
 
-      await scoped.endRequest()
+      await scoped.dispose()
     })
   })
 
   describe('tryGetSync functionality', () => {
     it('should return null when service does not exist', () => {
-      @Injectable({ scope: InjectableScope.Singleton, registry })
+      @Injectable({ scope: InjectableScope.Singleton })
       class LazyService {}
 
       const result = container.tryGetSync<LazyService>(LazyService)
@@ -1133,7 +1052,7 @@ describe('E2E: Advanced Scenarios', () => {
     })
 
     it('should return instance when service exists', async () => {
-      @Injectable({ scope: InjectableScope.Singleton, registry })
+      @Injectable({ scope: InjectableScope.Singleton })
       class EagerService {
         value = 42
       }
@@ -1150,9 +1069,9 @@ describe('E2E: Advanced Scenarios', () => {
 
   describe('Container self-registration', () => {
     it('should allow injecting the Container itself', async () => {
-      @Injectable({ scope: InjectableScope.Singleton, registry })
+      @Injectable({ scope: InjectableScope.Singleton })
       class ContainerAwareService {
-        private container = injectors.inject(Container)
+        private container = inject(Container)
 
         async getContainer() {
           return this.container
@@ -1170,7 +1089,7 @@ describe('E2E: Advanced Scenarios', () => {
     it('should wait for all services to be ready', async () => {
       const initOrder: string[] = []
 
-      @Injectable({ scope: InjectableScope.Singleton, registry })
+      @Injectable({ scope: InjectableScope.Singleton })
       class SlowService implements OnServiceInit {
         async onServiceInit() {
           await delay(10)
@@ -1178,7 +1097,7 @@ describe('E2E: Advanced Scenarios', () => {
         }
       }
 
-      @Injectable({ scope: InjectableScope.Singleton, registry })
+      @Injectable({ scope: InjectableScope.Singleton })
       class AnotherSlowService implements OnServiceInit {
         async onServiceInit() {
           await delay(5)

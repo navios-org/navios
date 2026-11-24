@@ -1,9 +1,9 @@
-import { LoggerOutput } from '@navios/core'
-import { Container } from '@navios/di'
+import { Container, DIErrorCode, InjectionToken, LoggerOutput, provide } from '@navios/core'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
   JsonWebTokenError,
+  JwtServiceToken,
   NotBeforeError,
   provideJwtService,
   TokenExpiredError,
@@ -434,6 +434,64 @@ describe('JwtService', () => {
       // Should verify using default algorithms from verifyOptions
       const decoded = service.verify<typeof payload & { iat: number }>(token)
       expect(decoded.userId).toBe('123')
+    })
+  })
+
+  describe('dependency injection', () => {
+    it('should return the same instance for the same provided token', async () => {
+      const token = provideJwtService({ secret: 'test-secret' })
+
+      const first = await container.get(token)
+      const second = await container.get(token)
+
+      expect(first).toBe(second)
+    })
+
+    it('should resolve the configuration from a factory that injects another service', async () => {
+      const SECRET = InjectionToken.create<string>('JwtSecret')
+      container.addInstance(SECRET, 'factory-secret')
+      const factory = vi.fn(async (ctx: { inject: (token: typeof SECRET) => Promise<string> }) => ({
+        secret: await ctx.inject(SECRET),
+      }))
+      const token = provideJwtService(factory)
+
+      const service = await container.get(token)
+      await container.get(token)
+
+      expect(factory).toHaveBeenCalledTimes(1)
+      const signed = service.sign({ userId: '123' })
+      const reference = await createJwtService({ secret: 'factory-secret' })
+      expect(reference.verify<{ userId: string }>(signed).userId).toBe('123')
+    })
+
+    it('should accept a synchronous configuration factory', async () => {
+      const service = await container.get(provideJwtService(() => ({ secret: 'sync-secret' })))
+
+      expect(service.verify<{ a: number }>(service.sign({ a: 1 })).a).toBe(1)
+    })
+
+    it('should reject a configuration of the wrong shape', async () => {
+      const token = provideJwtService({ secret: 42 } as unknown as JwtServiceOptions)
+
+      await expect(container.get(token)).rejects.toMatchObject({
+        code: DIErrorCode.TokenValidationError,
+      })
+    })
+
+    it('should let provide() replace the implementation', async () => {
+      class FakeJwtService {
+        sign() {
+          return 'fake-token'
+        }
+      }
+      const scoped = new Container({ providers: [provide(JwtServiceToken, FakeJwtService)] })
+      try {
+        const service = await scoped.get(provideJwtService({ secret: 'test-secret' }))
+
+        expect(service.sign({ userId: '123' })).toBe('fake-token')
+      } finally {
+        await scoped.dispose()
+      }
     })
   })
 })
