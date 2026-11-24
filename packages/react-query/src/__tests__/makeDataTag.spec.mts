@@ -53,6 +53,10 @@ describe('makeDataTag', () => {
       urlParams: { testId: '1', fooId: 'bar' },
     })
 
-    queryClient.setQueryData(queryKey, { success: true, test: 'bar' })
+    // TypeScript 7's native compiler rejects a fresh object literal assigned to
+    // tanstack's `Updater<T | undefined, NoInfer<T> | undefined>` parameter, but a value
+    // annotated as the response union assigns fine. Bind it first to keep the call typed.
+    const data: z.infer<typeof responseSchema> = { success: true, test: 'bar' }
+    queryClient.setQueryData(queryKey, data)
   })
 })
