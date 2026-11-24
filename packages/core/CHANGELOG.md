@@ -84,6 +84,7 @@ The request pipeline, the application class and the adapter contract are rewritt
 - **Importing a module no longer changes another application's guards.**
 - **The in-memory adapter prefers a static segment to a URL parameter**, as the Fastify and Bun adapters do. It used to take the first route registered that matched, so with `/users/$userId` declared before `/users/export`, `GET /users/export` reached the param route in tests and the static route in production. The conformance suite now covers route precedence.
 - **The in-memory adapter does not match a path with a trailing slash**, as on the Fastify and Bun adapters: `/users/` gets the not-found response where it used to reach the route `/users`. The conformance suite now covers it, over HTTP and with `inject()`.
+- **The conformance suite checks that an empty URL parameter matches no route**: with `/users/$id` registered, `/users/` gets the not-found response.
 - **Type tests are type-checked.** Vitest's typecheck ran `tsc` with `tsconfig.lib.json`, which excludes `*.spec-d.mts`, so a type error in a type test was never reported. It now uses `tsconfig.typecheck.json`, which includes them.
 - **`AttributeFactory.get` and `getAll` accept attributes created with the `AttributeFactory` of `@navios/core/legacy-compat`.** They were typed for the standard factory's attributes only and failed with TS2769.
 

@@ -380,6 +380,14 @@ export class FastifyAdapter implements HttpAdapter<FastifyEnvironment> {
     return parsed
   }
 
+  private notFound: (
+    request: FastifyRequest,
+    reply: FastifyReply,
+  ) => FastifyReply | Promise<FastifyReply> = (_request, reply) => {
+    reply.callNotFound()
+    return reply
+  }
+
   private handlerFor(execute: RouteExecutor, requestSchema: SchemaLike | undefined) {
     return (request: FastifyRequest, reply: FastifyReply) => {
       const result = execute(new FastifyRouteInput(request, reply, this, requestSchema))
@@ -399,18 +407,27 @@ export class FastifyAdapter implements HttpAdapter<FastifyEnvironment> {
 
   register(route: CompiledRoute): void {
     const { info } = route
+    const handler = this.handlerFor(
+      route.execute,
+      info.endpoint.body === 'multipart' ? info.endpoint.requestSchema : undefined,
+    )
     this.server.route({
       method: info.method as any,
       url: info.path.replace(/\$([A-Za-z0-9_]+)/g, ':$1'),
-      handler: this.handlerFor(
-        route.execute,
-        info.endpoint.body === 'multipart' ? info.endpoint.requestSchema : undefined,
-      ),
+      // find-my-way matches `/users/` to `/users/:id` with an empty `id`. A url
+      // param is never empty, so such a request has matched no route.
+      handler: info.path.includes('$')
+        ? (request, reply) =>
+            hasEmptyParam(request.params as Record<string, string>)
+              ? this.notFound(request, reply)
+              : handler(request, reply)
+        : handler,
     })
   }
 
   setNotFound(execute: RouteExecutor): void {
-    this.server.setNotFoundHandler(this.handlerFor(execute, undefined))
+    this.notFound = this.handlerFor(execute, undefined)
+    this.server.setNotFoundHandler(this.notFound)
   }
 
   async ready(): Promise<void> {
@@ -504,4 +521,13 @@ export function defineFastifyEnvironment(
     name: 'fastify',
     create: (context) => FastifyAdapter.create(options, context),
   }
+}
+
+function hasEmptyParam(params: Record<string, string>): boolean {
+  for (const name in params) {
+    if (params[name] === '') {
+      return true
+    }
+  }
+  return false
 }

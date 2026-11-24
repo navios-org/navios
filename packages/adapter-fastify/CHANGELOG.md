@@ -48,6 +48,7 @@ The adapter is rewritten on the `@navios/core` 2.0 adapter contract. It no longe
 - **An unauthenticated request no longer gets validation details.** Validation used to run before guards.
 - **Response bodies are validated for statuses other than 200.**
 - **A multipart body over one of `multipart.limits` is answered with 413 `application/problem+json`**, not 500. This covers `fileSize`, `files`, `fields` and `parts`; the other 4xx errors of `@fastify/multipart` keep their status as well. A field over `fieldSize`, which `@fastify/multipart` truncates silently, is rejected with 413 too.
+- **A request with an empty URL parameter matches no route.** `find-my-way` matches `/users/` to `/users/$id` with an empty `id`; the adapter now answers such a request with the not-found response, as the Bun and in-memory adapters do.
 
 ### Performance
 

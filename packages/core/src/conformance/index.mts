@@ -729,6 +729,17 @@ export function runAdapterConformance(options: ConformanceOptions): void {
       expect((await app.inject({ method: 'GET', url: '/api/simple?x=1' })).status).toBe(200)
     })
 
+    it('does not match an empty url param, over HTTP or with inject()', async () => {
+      for (const path of ['/reports/', '/pairs//fixed', '/items//parts/7']) {
+        const response = await fetch(url(path))
+        expect(response.status).toBe(404)
+        expect(response.headers.get('content-type')).toContain('application/problem+json')
+
+        const injected = await app.inject({ method: 'GET', url: `/api${path}` })
+        expect(injected.status).toBe(404)
+      }
+    })
+
     it('parses multipart bodies into fields and files', async () => {
       const form = new FormData()
       form.append('title', 'report')

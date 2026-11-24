@@ -58,7 +58,7 @@ interface HttpAdapter<Env extends HttpAdapterEnvironment = HttpAdapterEnvironmen
 
 | Member                 | Contract                                                                                                                                                                 |
 | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `register(route)`      | Called once per route, before `ready()`. `route.info` is the `RouteInfo`; `route.execute` is the executor. `route.info.path` uses the builder's form, `/users/$userId`. Routes arrive in no particular order: a static segment must win over a URL parameter, and a path with a trailing slash must not match. |
+| `register(route)`      | Called once per route, before `ready()`. `route.info` is the `RouteInfo`; `route.execute` is the executor. `route.info.path` uses the builder's form, `/users/$userId`. Routes arrive in no particular order: a static segment must win over a URL parameter, a path with a trailing slash must not match, and a URL parameter is never empty (`/users/` does not match `/users/$userId`). |
 | `setNotFound(execute)` | The executor for requests that match no route. Call it with a `RouteInput` like any other; it returns the not-found response.                                            |
 | `ready()`              | Called once after all routes are registered.                                                                                                                             |
 | `listen(options)`      | Starts the server and resolves to its base URL.                                                                                                                          |
@@ -152,7 +152,7 @@ A result whose body cannot be written, because `JSON.stringify` throws or a head
 `runAdapterConformance` from `@navios/core/conformance` exercises an adapter over real HTTP. It covers:
 
 - JSON routes with URL parameters and a coerced query, prefix parameters, JSON `null`
-- route precedence (static before parameter) and no match for a trailing slash, over HTTP and with `inject()`
+- route precedence (static before parameter) and no match for a trailing slash or an empty URL parameter, over HTTP and with `inject()`
 - 400 responses for invalid input and malformed JSON, error mapping, the not-found response, bodies that cannot be serialised
 - declared statuses, bodiless statuses and response field stripping
 - guards running before body validation
