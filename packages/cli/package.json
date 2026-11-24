@@ -28,8 +28,8 @@
   "dependencies": {
     "clipanion": "^4.0.0-rc.4",
     "package-manager-detector": "^1.9.0",
-    "vite": "^7.3.1",
-    "vite-plugin-node": "^7.0.0"
+    "vite": "^8.3.8",
+    "vite-plugin-node": "^8.0.0"
   },
   "devDependencies": {
     "@types/node": "^26.6.6",

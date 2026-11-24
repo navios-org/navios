@@ -30,7 +30,7 @@
     "tslib": "^2.9.1",
     "turbo": "^2.11.13",
     "typescript": "^5.9.3",
-    "unplugin-swc": "^1.5.9",
+    "unplugin-swc": "^2.0.0",
     "vitest": "^5.1.1"
   }
 }
