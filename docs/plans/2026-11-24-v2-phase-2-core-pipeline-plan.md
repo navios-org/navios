@@ -113,4 +113,39 @@ function compileRoute(definition: RouteDefinition, deps: CompileDeps): RouteExec
 
 ## Results
 
-_Filled in during execution._
+Executed 2026-11-24 on `feat/v2-core`.
+
+**Done:** Tasks 1 to 6 and the benchmark half of Task 7.
+
+**Tests**
+- `packages/core`: 94 passing, type tests clean (pipeline kernel, application on the in-memory adapter, legacy-compat, handler types).
+- `packages/adapter-fastify`: the 13 conformance tests pass (Vitest, real HTTP).
+- `packages/adapter-bun`: the same 13 conformance tests pass under `bun test`, plus 2 CORS tests.
+
+**HTTP benchmark** (`yarn bench --check` in `packages/adapter-fastify`; Node 24.22, production mode, `fastify.inject`, best of 7 rounds, same machine as the 1.x numbers). The baseline is raw Fastify doing the same zod validation by hand.
+
+| Case | Raw Fastify | Navios 2.0 | Overhead | Budget | 1.x overhead |
+|---|---|---|---|---|---|
+| GET, response schema | 7.40 µs | 7.38 µs | about 0 | +1.0 µs | +2.7 µs |
+| POST, query + body + response schema | 23.14 µs | 23.40 µs | +0.26 µs | +1.0 µs | +1.7 µs |
+| GET with one guard | 7.40 µs | 7.61 µs | +0.21 µs | +1.5 µs | +3.5 µs |
+| GET reading one request value | 7.40 µs | 7.99 µs | +0.59 µs | +1.3 µs | n/a |
+| GET using one request-scoped service (2 deps) | 7.40 µs | 8.70 µs | +1.30 µs | +3.0 µs | +16.8 µs |
+
+Run-to-run variation is a few tenths of a microsecond, so "about 0" means within noise.
+
+**Output size (ESM):** `core` 78 KB (was 298 KB), `adapter-fastify` 8 KB (was 110 KB), `adapter-bun` 15 KB (was 97 KB). No decorator helper and no `zod` in any of them.
+
+**Not done**
+- `@navios/builder` `headersSchema` / `cookiesSchema` and the in-process transport (Task 7). Core already validates `headersSchema` and `cookiesSchema` at runtime when a declaration carries them, but the builder rejects unknown options, and the client-side meaning of a headers schema is a builder design decision. `createTestClient` is therefore a small typed wrapper over `app.inject()`, not the builder client.
+- Typed server-sent events (design 6.12). A handler can already stream an async iterable; the `sse()` helper tied to the builder's event declarations is not written.
+- `import('@navios/core')` time against its 20 ms budget was not re-measured.
+- Downstream packages (`otel*`, `openapi*`, `adapter-xml`, `schedule`, `queues`, `microservice`, `jwt`) are not ported; they do not build on this branch.
+
+**Deviations from the design, recorded in the design doc**
+- `requestScopedServices` is enforced at the first `ctx.use()` of a token, not at `init()`.
+- Cycles between request values are detected for synchronous reads only.
+- `RouteInput` accessors are functions and `RouteResult` has `release`, so that nothing is computed or allocated unless used.
+
+**Found while executing**
+- A benchmark loop that only awaits `fastify.inject()` never lets the event loop turn, and memory grows until Node aborts. It looked like a request-scope leak and was not one (retained heap after a forced GC: 15 MB after 60,000 scoped requests). The benchmark now yields between rounds.

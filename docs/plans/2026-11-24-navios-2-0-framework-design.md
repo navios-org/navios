@@ -428,7 +428,10 @@ export class CurrentSession {
 - `ctx.set(key, value)` fills a slot directly. It works for both kinds, so a
   guard that already has the session can pre-fill `CurrentSession`.
 - A provider may read other slots with `ctx.get(...)`. A cycle is detected
-  per request and reported with the path.
+  per request and reported with the path when the providers read each other
+  synchronously. Two asynchronous providers that each `await` the other
+  before returning are not detected and would wait forever; that is a known
+  limit of the implementation.
 - A provider may implement `dispose(value, ctx)`, called when the response
   finishes, in reverse resolution order. That covers a transaction or a unit
   of work.
@@ -484,9 +487,11 @@ How the framework discourages them:
 2. Reaching one takes an explicit call in the handler; a request value is
    shorter to write and to read.
 3. `requestScopedServices: 'allow' | 'warn' | 'forbid'` application option,
-   default `'warn'`: at `init()` in development the application logs each
-   request-scoped class once with a one-line pointer to request values.
-   `'forbid'` turns that into a boot error for teams that want none.
+   default `'warn'` outside production and `'allow'` in production. The
+   check happens the first time a token is requested with `ctx.use()` or
+   `ctx.resolve()`, because there is no registry to enumerate at `init()`:
+   `'warn'` logs once per token with a one-line pointer to request values,
+   and `'forbid'` makes that call throw.
 4. Documentation presents request values first and request-scoped services
    under "advanced".
 
@@ -498,11 +503,15 @@ At `init()`, core builds one executor per route:
 type RouteExecutor = (input: RouteInput) => RouteResult | Promise<RouteResult>
 
 interface RouteInput {
-  headers: (name: string) => string | undefined
+  method: string
+  path: string
+  id?: string
+  header(name: string): string | undefined
+  headers(): Headers
   urlParams: Record<string, string>
-  query: unknown
-  body: () => unknown | Promise<unknown> // not read until validation
-  signal: AbortSignal
+  query(): unknown
+  body(): unknown | Promise<unknown> // not called until guards have passed
+  signal(): AbortSignal
   raw: unknown
 }
 
@@ -511,7 +520,8 @@ interface RouteResult {
   headers?: Record<string, string>
   cookies?: SetCookie[]
   body: unknown
-  kind: 'json' | 'text' | 'blob' | 'stream' | 'empty'
+  kind: 'json' | 'text' | 'blob' | 'stream' | 'sse' | 'empty' | string
+  release?: () => void | Promise<void> // called by the adapter when the response is done
 }
 ```
 
@@ -850,13 +860,20 @@ duplicates each decorator and the whole attribute factory.
 An adapter implements:
 
 ```ts
-interface HttpAdapter {
-  register(route: CompiledRoute): void // method, path, executor
-  listen(options): Promise<string>
-  inject(request: TestRequest): Promise<TestResponse> // for createTestClient
-  close(): Promise<void>
+interface HttpAdapter<Env> {
+  readonly server: Env['server']
+  register(route: CompiledRoute): void // route info plus executor
+  setNotFound(execute: RouteExecutor): void
+  ready(): Promise<void>
+  listen(options: Env['listenOptions']): Promise<string>
+  inject(request: TestRequest): Promise<TestResponse> // for tests
+  close(timeoutMs: number): Promise<void>
 }
 ```
+
+An adapter package exports an `AdapterDefinition` factory
+(`defineFastifyEnvironment(options)`, `defineBunEnvironment(options)`) whose
+`create(context)` returns the adapter.
 
 Per request it builds a `RouteInput`, calls the executor and writes the
 `RouteResult`. Expected size is a few hundred lines each.
@@ -869,9 +886,19 @@ Per request it builds a `RouteInput`, calls the executor and writes the
 - CORS and multipart options are passed to the adapter factory
   (`defineFastifyEnvironment({ cors, multipart })`) instead of being queued
   through `app.enableCors()` before the adapter exists.
-- A conformance suite in `packages/core` runs against both adapters and
+- A conformance suite, `runAdapterConformance` from
+  `@navios/core/conformance`, runs against both adapters over real HTTP and
   covers guard order, validation order, response validation, error bodies,
-  streams, multipart and shutdown.
+  headers and cookies, streams, multipart, request scope release, client
+  disconnect and shutdown. It takes the test runner's functions as an
+  argument (Vitest for Fastify, `bun:test` for Bun) and uses a hand-written
+  Standard Schema, so it depends on no schema vendor.
+- A malformed request body is reported by the adapter as a
+  `ValidationError` with source `body`, so it becomes a 400 like any other
+  validation failure.
+- For multipart bodies core provides `createMultipartCollector(schema)`.
+  It asks the schema for JSON Schema (`~standard.jsonSchema`) to learn which
+  fields are arrays or objects, and falls back to the shape of the parts.
 
 ## 8. `@navios/builder` additions
 
@@ -959,8 +986,8 @@ Behaviour, as tests:
     without calling `resolve`.
 18. A type test: with `Register` declared, `ctx.raw.request` is the adapter's
     request type; without it, `ctx.raw` is `unknown`.
-19. `requestScopedServices: 'forbid'` fails `init()` when a request-scoped
-    class is registered; `'warn'` logs it once.
+19. `requestScopedServices: 'forbid'` makes `ctx.use()` throw; `'warn'` logs
+    once per token.
 20. The conformance suite runs its endpoint cases three times, with Zod,
     Valibot and ArkType schemas, on both adapters. A DI token with a
     non-Zod args schema validates and types its args.
