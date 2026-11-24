@@ -347,6 +347,13 @@ interface RequestContext<Env extends AdapterEnvironment = RegisteredEnvironment>
 `AbstractExecutionContext`, the `Request` / `Reply` / `ExecutionContext`
 tokens and the per-adapter request tokens are removed.
 
+`ctx.onFinish(callback)` runs a callback when the response has finished (body
+sent, stream ended, or client gone), and `ctx.responseStatus` holds the final
+status by then, including one produced by an error mapper. Interceptors use
+the pair for spans and metrics. It was added while porting `@navios/otel`,
+whose interceptor could otherwise not see a mapped error's status or the end
+of a streamed body.
+
 No `AsyncLocalStorage` is involved. An opt-in `asyncContext: true` application
 option stores the `RequestContext` in one ALS and enables `currentContext()`
 for code that cannot receive it as an argument (logger request ids, otel, a
@@ -753,11 +760,26 @@ plugins do not choose stages. Plugins are deduplicated by name and ordered by
 
 ### 6.8 Response encoders
 
-A response `kind` maps to an encoder. Core ships `json`, `text`, `blob`,
-`stream` and `empty`. A package registers another with
-`api.encoder('xml', encoder)`. `@navios/adapter-xml` becomes an encoder plus
-its JSX runtime; core's `XmlStreamAdapterToken` and factory are removed, and
-third parties can add a response kind without touching core.
+A response `kind` maps to something an adapter writes. Core and the adapters
+handle `json`, `text`, `blob`, `stream`, `sse` and `empty`. A package adds
+another kind in two parts:
+
+- a helper built on `result(kind, body)`, which a handler of a
+  `response: 'text' | 'stream' | 'blob'` endpoint returns, for example
+  `xml(<Feed />)`;
+- an encoder registered with `api.encoder(kind, (result, ctx) => …)` that
+  turns that result into one of the kinds above.
+
+Encoders run inside the pipeline, after the handler's value has become a
+result and before interceptors exit. They receive the request context, and an
+error they throw is mapped like any other. (An earlier draft applied encoders
+after error mapping, outside the pipeline; porting `@navios/adapter-xml`
+showed that such an encoder has no access to the request and that its errors
+were adapter-dependent.)
+
+`@navios/adapter-xml` is an encoder plus its JSX runtime; core's
+`XmlStreamAdapterToken` and factory are removed, and third parties can add a
+response kind without touching core.
 
 ### 6.9 Testing
 
@@ -845,10 +867,13 @@ Applications that compile with `experimentalDecorators` use
 `@navios/core/legacy-compat` today (both `e2e-*-legacy` examples do). It
 duplicates each decorator and the whole attribute factory.
 
-- Every decorator becomes a thin signature adapter over one shared function
-  (`registerInjectable`, `registerController`, `registerEndpoint`,
-  `registerAttribute`). Standard and legacy entry points call the same
-  function, so there is one implementation and one set of tests.
+- Every legacy decorator is a thin signature adapter that builds a decorator
+  context and calls the standard decorator of the same name, so there is one
+  implementation.
+- `registerController(cls, options)` and `registerModule(cls, options)`
+  define controllers and modules with no decorator syntax at all. Library
+  packages that are built without a decorator transform use them
+  (`@navios/openapi` serves its routes this way).
 - The field form needs no method decorator at all, so a legacy-decorator
   application that uses it depends only on the class decorators.
 - `legacy-compat` keeps its subpath. Its surface shrinks to `Injectable`,
