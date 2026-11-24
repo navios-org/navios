@@ -3879,6 +3879,7 @@ __metadata:
   dependencies:
     "@navios/builder": "workspace:^"
     "@navios/core": "workspace:^"
+    "@navios/di": "workspace:^"
     "@types/bun": "npm:^1.4.5"
     "@types/supertest": "npm:^7.2.1"
     supertest: "npm:^7.3.2"
@@ -3887,6 +3888,7 @@ __metadata:
   peerDependencies:
     "@navios/builder": "workspace:^"
     "@navios/core": "workspace:^"
+    "@navios/di": "workspace:^"
   languageName: unknown
   linkType: soft
 
