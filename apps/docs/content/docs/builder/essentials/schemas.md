@@ -119,4 +119,4 @@ const slugSchema: Schema<{ slug: string }> = {
 Two features need more than the Standard Schema interface provides:
 
 - The declaration-time check that `urlParamsSchema` keys match the URL needs to read the schema's keys. It runs for schemas that expose `.shape`, which Zod objects do. With other libraries a mismatch surfaces on the first call instead.
-- Declarations shared with a Navios server have their own requirements. See [Sharing with Navios Server](/docs/builder/guides/navios-server#schema-libraries-on-the-server).
+- Generating an OpenAPI document on a Navios server needs each schema as JSON Schema, which is outside the Standard Schema interface. See [OpenAPI](/docs/server/guides/openapi#schemas). The server itself validates with any Standard Schema library.

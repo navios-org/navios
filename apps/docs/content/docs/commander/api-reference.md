@@ -435,7 +435,7 @@ All `@navios/di` types and functions are re-exported from `@navios/commander`:
 - `Registry`
 - And more...
 
-See the [DI documentation](/docs/di/di/api-reference) for complete details.
+See the [DI documentation](/docs/di/reference/api) for complete details.
 
 ## Integration with @navios/core
 
@@ -445,5 +445,5 @@ Navios Commander uses `@navios/core` for module support:
 - `ClassType` and `ClassTypeWithInstance` types
 - Module initialization hooks
 
-See the [Core documentation](/docs/server/overview) for more details.
+See the [Core documentation](/docs/server/) for more details.
 

@@ -279,7 +279,7 @@ export class ApiCallCommand implements CommandHandler {
 }
 ```
 
-Learn more about [configuration services in DI recipes](/docs/di/di/recipes/configuration-services).
+Learn more about [configuration services in DI recipes](/docs/di/essentials/tokens).
 
 ## Lifecycle Hooks
 
@@ -452,8 +452,8 @@ class StripeProcessor implements PaymentProcessor {
 
 ## Next Steps
 
-- Learn more about [DI in Navios](/docs/di/di/getting-started/setup)
-- Explore [service scopes](/docs/di/di/guides/scopes)
-- Check out [injection tokens](/docs/di/di/guides/injection-tokens)
+- Learn more about [DI in Navios](/docs/di/quick-start)
+- Explore [service scopes](/docs/di/essentials/scopes)
+- Check out [injection tokens](/docs/di/essentials/tokens)
 - See [execution context](/docs/commander/guides/execution-context) for command-specific context
 

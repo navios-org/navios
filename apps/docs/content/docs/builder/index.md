@@ -38,13 +38,13 @@ const user = await getUser({ urlParams: { userId: '42' } })
 ```ts
 import { Controller, Endpoint } from '@navios/core'
 
-import type { EndpointParams } from '@navios/core'
+import type { HandlerParams } from '@navios/core'
 
 @Controller()
 class UserController {
   @Endpoint(getUser)
-  async getUser(params: EndpointParams<typeof getUser>) {
-    return { id: params.urlParams.userId, name: 'Ada' }
+  async getUser({ urlParams }: HandlerParams<typeof getUser>) {
+    return { id: urlParams.userId, name: 'Ada' }
   }
 }
 ```

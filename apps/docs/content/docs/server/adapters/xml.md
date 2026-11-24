@@ -1,175 +1,162 @@
 ---
-title: XML
+title: XML responses
 ---
 
-# XML Adapter
+# XML responses
 
-`@navios/adapter-xml` is an **extension adapter** that adds JSX-based XML rendering capabilities to your Navios application. Unlike the Fastify and Bun adapters which are standalone HTTP servers, the XML adapter works **alongside** your primary adapter to enable XML response generation.
+`@navios/adapter-xml` builds XML responses, such as RSS and Atom feeds or sitemaps, with JSX. Despite its name it is not an HTTP adapter: it is a JSX runtime, a renderer and a plugin, and it works with the same code on Fastify and on Bun.
 
-**Package:** `@navios/adapter-xml`
-**License:** MIT
-**Requires:** `@navios/adapter-fastify` or `@navios/adapter-bun`
-
-## When to Use
-
-The XML adapter is designed for generating structured XML responses that follow specific formats and schemas. Common use cases include:
-
-- **RSS Feeds** - Syndication feeds for blogs, news sites, and podcasts (`application/rss+xml`)
-- **Atom Feeds** - Modern alternative to RSS with richer metadata (`application/atom+xml`)
-- **Sitemaps** - XML sitemaps for search engine optimization
-- **OPDS Catalogs** - Open Publication Distribution System for e-book catalogs
-- **Custom XML APIs** - Any application requiring XML responses instead of JSON
-
-The adapter leverages JSX syntax to make XML generation feel natural and type-safe, while supporting async data fetching, dependency injection, and proper XML escaping.
-
-## Installation
+## Setup
 
 ```bash
-npm install @navios/adapter-xml
-# or
-bun add @navios/adapter-xml
+yarn add @navios/adapter-xml
 ```
 
-## How It Works
+Point TypeScript's JSX transform at the package, and add its JSX types so that lower-case tags such as `<rss>` are accepted. Files that contain JSX use the `.tsx` extension.
 
-The XML adapter extends your existing HTTP adapter (Fastify or Bun) by registering additional services that handle XML rendering. You combine environments using an array in the `adapter` option:
-
-```typescript
-import type { FastifyEnvironment } from '@navios/adapter-fastify'
-
-import { defineFastifyEnvironment } from '@navios/adapter-fastify'
-import { defineXmlEnvironment } from '@navios/adapter-xml'
-import { NaviosFactory } from '@navios/core'
-
-const app = await NaviosFactory.create<FastifyEnvironment>(AppModule, {
-  adapter: [defineFastifyEnvironment(), defineXmlEnvironment()],
-})
-
-await app.init()
-await app.listen({ port: 3000 })
-```
-
-This pattern works identically with the Bun adapter - simply replace `defineFastifyEnvironment()` with `defineBunEnvironment()`.
-
-## TypeScript Configuration
-
-Configure your `tsconfig.json` to use the XML adapter's JSX runtime:
-
-```json
+```json title="tsconfig.json"
 {
   "compilerOptions": {
     "jsx": "react-jsx",
-    "jsxImportSource": "@navios/adapter-xml"
+    "jsxImportSource": "@navios/adapter-xml",
+    "types": ["node", "@navios/adapter-xml/jsx"]
   }
 }
 ```
 
-This enables writing XML using JSX syntax in `.tsx` files with full TypeScript type checking.
+Then add the plugin:
 
-## Defining XML Endpoints
+```ts title="main.mts"
+import { defineFastifyEnvironment } from '@navios/adapter-fastify'
+import { xmlPlugin } from '@navios/adapter-xml'
+import { NaviosFactory } from '@navios/core'
 
-XML endpoints are declared using `declareXmlStream()` and handled with the `@XmlStream()` decorator. Unlike regular JSON endpoints, XML endpoints return JSX that gets rendered to XML strings.
+import { AppModule } from './app.module.mjs'
 
-```tsx
-import { Controller } from '@navios/core'
-import { XmlStream, declareXmlStream } from '@navios/adapter-xml'
+const app = await NaviosFactory.create(AppModule, {
+  adapter: defineFastifyEnvironment(),
+  plugins: [xmlPlugin()],
+})
+```
 
-const getRssFeed = declareXmlStream({
+`xmlPlugin(options?)` takes defaults for every XML response of the application:
+
+| Option        | Default             | Meaning                                                        |
+| ------------- | ------------------- | -------------------------------------------------------------- |
+| `contentType` | `'application/xml'` | Media type. `; charset=utf-8` is added when it has no charset. |
+| `declaration` | `true`              | Write `<?xml version="1.0" encoding="..."?>` first.            |
+| `encoding`    | `'UTF-8'`           | Encoding named in the declaration. The body is sent as UTF-8.  |
+| `pretty`      | `false`             | Indent the output.                                             |
+
+## Serving XML
+
+Declare the endpoint with `response: 'text'` (`'stream'` and `'blob'` work too) and return `xml(tree, options?)` from its handler:
+
+```tsx title="feed.controller.tsx"
+import { xml } from '@navios/adapter-xml'
+import { Controller, Endpoint, inject } from '@navios/core'
+
+import { API } from './api.mjs'
+import { PostsService } from './posts.service.mjs'
+
+export const getFeed = API.declareEndpoint({
   method: 'GET',
   url: '/feed.xml',
-  contentType: 'application/rss+xml',
+  response: 'text',
 })
 
 @Controller()
-class FeedController {
-  @XmlStream(getRssFeed)
-  async getFeed() {
-    return (
+export class FeedController {
+  private readonly posts = inject(PostsService)
+
+  @Endpoint(getFeed)
+  async feed() {
+    const posts = await this.posts.latest()
+    return xml(
       <rss version="2.0">
         <channel>
           <title>My Blog</title>
           <link>https://example.com</link>
+          {posts.map((post) => (
+            <item>
+              <title>{post.title}</title>
+              <link>{post.url}</link>
+            </item>
+          ))}
         </channel>
-      </rss>
+      </rss>,
+      { contentType: 'application/rss+xml' },
     )
   }
 }
 ```
 
-The endpoint configuration supports several content types:
+The options of `xml()` are the plugin options plus `status` (default 200), and they win over the plugin's defaults. Other response headers and cookies are set as usual with `ctx.reply.header()` and `ctx.reply.cookie()`.
 
-- `application/xml` (default)
-- `text/xml`
-- `application/rss+xml`
-- `application/atom+xml`
+What happens to the returned value:
 
-You can also control XML declaration generation with `xmlDeclaration` (default: `true`) and encoding with `encoding` (default: `'UTF-8'`).
+- `xml()` only wraps the tree. The plugin registers a [response encoder](/docs/server/guides/plugins) that renders it after the handler returns, with the request context, and sends the result as text with the XML content type. Routes that return anything else are not touched.
+- The whole document is rendered before the response starts, whatever the declared response kind, so a client never receives half a document.
+- An error thrown by a component is handled like an error thrown by the handler: an `HttpException` becomes its status, anything else a 500 problem response. See [Errors](/docs/server/essentials/errors).
 
-## Component Types
+:::warning
+`xmlPlugin()` is required. Without it nothing renders the value `xml()` returns, and the adapter is handed the unrendered tree.
+:::
 
-The XML adapter supports three types of components for building XML responses:
+## Components
 
-### Intrinsic Elements (JSX Tags)
+Components are not run when the JSX expression is evaluated. They run when the tree is rendered, top down, and siblings run in parallel.
 
-Any lowercase JSX tag becomes an XML element. This is the simplest approach and works well for straightforward XML structures:
+### Function components
 
-```tsx
-<channel>
-  <title>My Blog</title>
-  <link>https://example.com</link>
-</channel>
-```
-
-### Async Function Components
-
-Function components can be async, allowing you to fetch data during rendering. Multiple async components are resolved in parallel for better performance:
+A function component receives its props and, as second argument, the `RequestContext` of the request being served. It may be asynchronous.
 
 ```tsx
-async function PostItem({ postId }: { postId: string }) {
-  const post = await fetchPostById(postId)
+import type { RequestContext } from '@navios/core'
+
+async function LatestPosts({ limit }: { limit: number }, ctx: RequestContext) {
+  const tenant = ctx.get(CurrentTenant) // a context key or request value
+  const posts = await ctx.use(PostRepository).latest(tenant, limit) // a request-scoped service
   return (
-    <item>
-      <title>{post.title}</title>
-      <link>{post.url}</link>
-    </item>
+    <>
+      {posts.map((post) => (
+        <item>
+          <title>{post.title}</title>
+        </item>
+      ))}
+    </>
   )
 }
 
-// Usage - all PostItem components render in parallel
-;<channel>
-  {postIds.map((id) => (
-    <PostItem postId={id} />
-  ))}
-</channel>
+const tree = (
+  <channel>
+    <LatestPosts limit={10} />
+  </channel>
+)
 ```
 
-### Class Components with Dependency Injection
+### Class components
 
-For components that need access to services, use the `@Component()` decorator. Class components integrate with Navios dependency injection, allowing you to inject services, access request-scoped data, and build testable components:
+A class component is registered with `@Component()` and implements `render(ctx)`. The DI container builds a new instance for every place the component appears in a tree. Props are the constructor argument, field initialisers can `inject()` singletons, and `render(ctx)` receives the `RequestContext`.
 
 ```tsx
-import { Component, XmlComponent } from '@navios/adapter-xml'
-import { inject, Injectable, InjectableScope } from '@navios/core'
+import { Component } from '@navios/adapter-xml'
+import { inject } from '@navios/core'
 
-@Injectable()
-class PostService {
-  async getLatestPosts() {
-    return [{ title: 'Hello', url: '/hello' }]
-  }
-}
+import type { XmlComponent } from '@navios/adapter-xml'
+import type { RequestContext } from '@navios/core'
 
 @Component()
 class LatestPosts implements XmlComponent {
-  private readonly postService = inject(PostService)
+  private readonly posts = inject(PostsService)
 
-  async render() {
-    const posts = await this.postService.getLatestPosts()
+  async render(ctx: RequestContext) {
+    const posts = await this.posts.latestFor(ctx.get(CurrentUser))
     return (
       <>
         {posts.map((post) => (
           <item>
             <title>{post.title}</title>
-            <link>{post.url}</link>
           </item>
         ))}
       </>
@@ -178,208 +165,104 @@ class LatestPosts implements XmlComponent {
 }
 ```
 
-Class components are registered with **Request scope** by default, meaning each request gets fresh instances. This ensures proper isolation when using request-scoped services.
-
-#### Props with Schema Validation
-
-Class components can accept props validated by a Zod schema:
+With a props schema (any Standard Schema), the props are validated when the component is built and the parsed value is passed to the constructor:
 
 ```tsx
+import { CData, Component } from '@navios/adapter-xml'
 import { z } from 'zod/v4'
 
-const ItemPropsSchema = z.object({
-  id: z.string(),
-  showDetails: z.boolean().optional(),
+const descriptionSchema = z.object({
+  content: z.string(),
+  wrapInCData: z.boolean().optional(),
 })
 
-@Component({ schema: ItemPropsSchema })
-class ItemComponent implements XmlComponent {
-  constructor(private props: z.output<typeof ItemPropsSchema>) {}
+@Component({ schema: descriptionSchema })
+class Description implements XmlComponent {
+  constructor(private readonly props: z.output<typeof descriptionSchema>) {}
 
-  async render() {
-    const item = await this.dataService.getItem(this.props.id)
-    return <item id={item.id}>{item.title}</item>
+  render() {
+    return (
+      <description>
+        {this.props.wrapInCData ? <CData>{this.props.content}</CData> : this.props.content}
+      </description>
+    )
   }
 }
 
-// Usage with typed props
-;<ItemComponent id="123" showDetails={true} />
+const tree = <Description content="<p>Hello</p>" wrapInCData />
 ```
 
-## Type-Safe Tags with defineTag
+A class can be registered without decorator syntax: `Component()(LatestPosts)` or `Component({ schema })(Description)`.
 
-For stricter type checking of XML attributes, use `defineTag()` to create typed tag components. It is also useful for working with namespaces and custom tags.
+### Per-request data in components
 
-:::tip PascalCase Recommendation
-When using `defineTag()` to create reusable typed tags, use **PascalCase** for variable names (e.g., `const Channel = defineTag('channel')`). This avoids IDE warnings about lowercase custom components while still outputting the correct lowercase XML tag name.
-:::
+Components are never request-scoped. A class component is a transient built against the root container, so `inject()` in it reaches singletons only, and injecting a request-scoped service fails with a scope mismatch error. Everything that belongs to the request comes from `ctx`:
 
-```typescript
+| Need                                            | Use                                             |
+| ----------------------------------------------- | ----------------------------------------------- |
+| A value a guard or interceptor stored           | `ctx.get(SomeContextKey)`                       |
+| A value derived from the request, computed once | `ctx.get(SomeRequestValue)` (`@RequestValue()`) |
+| A request-scoped service                        | `ctx.use(SomeScopedService)`                    |
+| Headers, cookies, route                         | `ctx.headers`, `ctx.cookies`, `ctx.route`       |
+| A singleton                                     | `inject()` in a class component                 |
+
+[Per-request state](/docs/server/guides/request-state) explains context keys, request values and `ctx.use`.
+
+## Tags
+
+Lower-case JSX tags are written as they are, with any attributes. `defineTag` creates a tag component, which is useful for namespaced names and for checking attributes:
+
+```tsx
 import { defineTag } from '@navios/adapter-xml'
-
 import { z } from 'zod/v4'
 
-// Simple tag without attribute validation
-const Item = defineTag('item')
-
-// Tag with required attributes
-const Link = defineTag(
-  'link',
-  z.object({
-    href: z.string().url(),
-    rel: z.enum(['self', 'alternate']),
-  }),
-)
-
-// Namespaced tag (e.g., for Atom feeds)
 const AtomLink = defineTag(
   'atom:link',
   z.object({
-    href: z.string(),
-    rel: z.string(),
+    href: z.url(),
+    rel: z.enum(['self', 'alternate']),
     type: z.string().optional(),
   }),
 )
+
+const link = <AtomLink href="https://example.com/feed.xml" rel="self" type="application/rss+xml" />
 ```
 
-Usage in JSX:
+The schema can be any Standard Schema that validates synchronously. Invalid attributes throw when the tag is rendered, with an error naming the tag and the attribute. The attributes are written as given; the schema's output is not used.
+
+## CDATA and raw XML
 
 ```tsx
-<Item>
-  <Link href="https://example.com" rel="alternate" />
-  <AtomLink
-    href="https://example.com/feed"
-    rel="self"
-    type="application/atom+xml"
-  />
-</Item>
+import { CData, DangerouslyInsertRawXml } from '@navios/adapter-xml'
+
+const item = (
+  <item>
+    <description>
+      <CData>{'<p>HTML that must not be escaped</p>'}</CData>
+    </description>
+    <content>
+      <DangerouslyInsertRawXml>{trustedXmlFragment}</DangerouslyInsertRawXml>
+    </content>
+  </item>
+)
 ```
 
-The tag name in the output XML will be the first argument to `defineTag()` (lowercase), while the PascalCase variable name satisfies JSX component conventions.
+Text and attribute values are escaped by the renderer. `CData` writes its content in a CDATA section and splits content that contains `]]>` into several sections.
 
-## Special Content Handling
-
-### CDATA Sections
-
-Use the `CData` component for text content containing special characters that shouldn't be escaped:
-
-```tsx
-import { CData } from '@navios/adapter-xml'
-;<description>
-  <CData>{`<p>HTML content with <tags> & special characters</p>`}</CData>
-</description>
-// Output: <description><![CDATA[<p>HTML content with <tags> & special characters</p>]]></description>
-```
-
-### Raw XML Insertion
-
-For pre-rendered XML or HTML content, use `DangerouslyInsertRawXml`:
-
-```tsx
-import { DangerouslyInsertRawXml } from '@navios/adapter-xml'
-;<content:encoded>
-  <DangerouslyInsertRawXml>{htmlContent}</DangerouslyInsertRawXml>
-</content:encoded>
-```
-
-:::caution
-`DangerouslyInsertRawXml` bypasses all XML escaping. Only use with trusted content to avoid XML injection vulnerabilities.
+:::danger
+`DangerouslyInsertRawXml` writes its content without any escaping. Use it only with content you trust.
 :::
 
-## Mixed Endpoints
+## Rendering outside a request
 
-XML endpoints work alongside regular JSON endpoints in the same controller:
+`renderToXml(tree, options?)` renders a tree to a string, for a job that writes a sitemap to disk or for a test.
 
 ```tsx
-import { Controller, Endpoint, EndpointParams } from '@navios/core'
-import {
-  XmlStream,
-  declareXmlStream,
-  XmlStreamParams,
-} from '@navios/adapter-xml'
-import { builder } from '@navios/builder'
+import { renderToXml } from '@navios/adapter-xml'
 
-const getJsonData = builder().declareEndpoint({
-  method: 'GET',
-  url: '/api/posts',
-  responseSchema: z.array(postSchema),
-})
-
-const getRssFeed = declareXmlStream({
-  method: 'GET',
-  url: '/feed.xml',
-  contentType: 'application/rss+xml',
-})
-
-@Controller()
-class PostController {
-  @Endpoint(getJsonData)
-  async getPosts(params: EndpointParams<typeof getJsonData>) {
-    return this.postService.getAll()
-  }
-
-  @XmlStream(getRssFeed)
-  async getRssFeed(params: XmlStreamParams<typeof getRssFeed>) {
-    const posts = await this.postService.getAll()
-    return <rss version="2.0">...</rss>
-  }
-}
+const sitemap = await renderToXml(<Sitemap />, { container: app.container, pretty: true })
 ```
 
-## API Reference
+The options are `declaration`, `encoding` and `pretty`, as for the plugin, plus `container`, the DI container that builds class components, and `ctx`, the `RequestContext` passed to components.
 
-### declareXmlStream(config)
-
-Declares an XML stream endpoint with the following options:
-
-| Option           | Type         | Default             | Description                                  |
-| ---------------- | ------------ | ------------------- | -------------------------------------------- |
-| `method`         | `HttpMethod` | required            | HTTP method (GET, POST, etc.)                |
-| `url`            | `string`     | required            | URL path with optional `$param` placeholders |
-| `contentType`    | `string`     | `'application/xml'` | Response content type                        |
-| `xmlDeclaration` | `boolean`    | `true`              | Include `<?xml?>` declaration                |
-| `encoding`       | `string`     | `'UTF-8'`           | XML encoding                                 |
-| `querySchema`    | `ZodType`    | -                   | Schema for query parameters                  |
-| `requestSchema`  | `ZodType`    | -                   | Schema for request body                      |
-
-### @XmlStream(endpoint)
-
-Decorator for controller methods that return XML JSX.
-
-`declareXmlStream()` configs carry no `response` option: the reply is always the rendered XML document. `@XmlStream()` also accepts a `declareEndpoint()` declaration whose `response` is `'text'`, `'blob'` or `'stream'`, which is how a client reads XML. It rejects `response: 'json'`, `response: 'void'` and `body: 'multipart'`, at compile time and with an error at startup.
-
-### @Component(options?)
-
-Decorator for class-based XML components with DI support.
-
-| Option     | Type        | Description             |
-| ---------- | ----------- | ----------------------- |
-| `schema`   | `ZodObject` | Props validation schema |
-| `registry` | `Registry`  | Custom DI registry      |
-
-### XmlComponent
-
-Interface that class components must implement:
-
-```typescript
-interface XmlComponent {
-  render(): AnyXmlNode | Promise<AnyXmlNode>
-}
-```
-
-### defineTag(name, propsSchema?)
-
-Creates a type-safe XML tag component.
-
-### defineXmlEnvironment()
-
-Returns environment tokens to merge with your primary adapter.
-
-### Built-in Components
-
-- `CData` - Wraps content in CDATA section
-- `DangerouslyInsertRawXml` - Inserts raw XML without escaping
-
-## License
-
-MIT
+It throws `MissingContainerError` when the tree contains a class component and no container was given, and `MissingContextError` when a component uses a context that was not given.

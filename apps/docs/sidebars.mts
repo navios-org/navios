@@ -31,8 +31,10 @@ function pageTitle(path: string): string {
   const source = readFileSync(file, 'utf8')
   const frontmatter = source.match(/^---\n([\s\S]*?)\n---/)?.[1] ?? ''
   const title =
-    frontmatter.match(/^title:\s*(.+)$/m)?.[1]?.replace(/^['"]|['"]$/g, '') ?? source.match(/^#\s+(.+)$/m)?.[1]
-  if (!title) throw new Error(`sidebars.mts: "${path}" has no title frontmatter or top-level heading`)
+    frontmatter.match(/^title:\s*(.+)$/m)?.[1]?.replace(/^['"]|['"]$/g, '') ??
+    source.match(/^#\s+(.+)$/m)?.[1]
+  if (!title)
+    throw new Error(`sidebars.mts: "${path}" has no title frontmatter or top-level heading`)
   return title
 }
 
@@ -40,89 +42,61 @@ function resolve(entries: Entry[]): SidebarItem[] {
   return entries.map((entry) =>
     typeof entry === 'string'
       ? { text: pageTitle(entry.replace(/\/$/, '')), link: `/docs/${entry}` }
-      : { text: entry.text, collapsible: true, collapsed: entry.collapsed, items: resolve(entry.items) },
+      : {
+          text: entry.text,
+          collapsible: true,
+          collapsed: entry.collapsed,
+          items: resolve(entry.items),
+        },
   )
 }
 
 const server: Entry[] = [
   'server/',
+  'server/quick-start',
+  'server/request-lifecycle',
   group(
-    'Overview',
+    'Essentials',
     [
-      'server/overview/why-navios',
-      'server/overview/',
-      'server/overview/request-lifecycle',
-      'server/overview/conventions',
+      'server/essentials/controllers',
+      'server/essentials/request-context',
+      'server/essentials/services',
+      'server/essentials/modules',
+      'server/essentials/guards-and-interceptors',
+      'server/essentials/errors',
+      'server/essentials/application',
+      'server/essentials/config-and-logging',
+      'server/essentials/testing',
     ],
     { collapsed: false },
   ),
   group(
     'Guides',
     [
-      'server/guides/modules',
-      'server/guides/controllers',
-      'server/guides/services',
-      'server/guides/guards',
-      'server/guides/plugins',
       'server/guides/authentication',
-      'server/guides/error-handling',
-      'server/guides/configuration',
-      'server/guides/logging',
-      'server/guides/testing',
+      'server/guides/request-state',
+      'server/guides/file-uploads',
+      'server/guides/streams-and-sse',
+      'server/guides/scheduled-jobs',
       'server/guides/openapi',
-      group(
-        'OpenTelemetry',
-        [
-          'server/guides/otel/configuration-presets',
-          'server/guides/otel/getting-started',
-          'server/guides/otel/traced-decorator',
-          'server/guides/otel/exporters',
-          'server/guides/otel/metrics',
-          'server/guides/otel/custom-spans',
-        ],
-      ),
-      'server/guides/migrating-from-nestjs',
+      'server/guides/attributes',
+      'server/guides/plugins',
+      'server/guides/prisma',
     ],
     { collapsed: false },
   ),
-  group(
-    'Adapters',
-    [
-      'server/adapters/fastify',
-      'server/adapters/bun',
-      'server/adapters/xml',
-    ],
-    { collapsed: false },
-  ),
-  group(
-    'Advanced',
-    [
-      'server/advanced/attributes',
-      'server/advanced/multipart',
-      'server/advanced/streaming',
-    ],
-  ),
-  group(
-    'Recipes',
-    [
-      'server/recipes/hot-reload',
-      'server/recipes/authentication',
-      'server/recipes/schedule',
-      'server/recipes/prisma',
-    ],
-  ),
-  group(
-    'Best Practices',
-    [
-      'server/best-practices/index',
-    ],
-  ),
-  group(
-    'FAQ',
-    [
-      'server/faq/common-problems',
-    ],
-  ),
+  group('Adapters', [
+    'server/adapters/fastify',
+    'server/adapters/bun',
+    'server/adapters/xml',
+    'server/adapters/writing-an-adapter',
+  ]),
+  group('OpenTelemetry', ['server/opentelemetry/', 'server/opentelemetry/tracing']),
+  group('Reference', [
+    'server/reference/legacy-decorators',
+    'server/reference/migrating-to-2',
+    'server/reference/migrating-from-nestjs',
+  ]),
 ]
 
 const builder: Entry[] = [
@@ -152,13 +126,7 @@ const builder: Entry[] = [
     ],
     { collapsed: false },
   ),
-  group(
-    'Realtime',
-    [
-      'builder/realtime/websocket',
-      'builder/realtime/server-sent-events',
-    ],
-  ),
+  group('Realtime', ['builder/realtime/websocket', 'builder/realtime/server-sent-events']),
   group(
     'React Query',
     [
@@ -171,146 +139,65 @@ const builder: Entry[] = [
       'builder/react-query/errors',
       'builder/react-query/uploads-and-downloads',
       'builder/react-query/ssr',
-      group(
-        'Recipes',
-        [
-          'builder/react-query/recipes/forms',
-          'builder/react-query/recipes/realtime-updates',
-        ],
-      ),
+      group('Recipes', [
+        'builder/react-query/recipes/forms',
+        'builder/react-query/recipes/realtime-updates',
+      ]),
     ],
     { collapsed: false },
   ),
-  group(
-    'Reference',
-    [
-      'builder/reference/builder',
-      'builder/reference/react-query',
-      'builder/reference/migrating-to-2',
-    ],
-  ),
+  group('Reference', [
+    'builder/reference/builder',
+    'builder/reference/react-query',
+    'builder/reference/migrating-to-2',
+  ]),
 ]
 
 const di: Entry[] = [
   'di/',
+  'di/quick-start',
+  'di/how-it-works',
   group(
-    'DI Core',
+    'Essentials',
     [
-      'di/di/overview',
-      group(
-        'Getting Started',
-        [
-          'di/di/getting-started/setup',
-          'di/di/getting-started/first-service',
-          'di/di/getting-started/injection-tokens',
-          'di/di/getting-started/bound-factory-tokens',
-          'di/di/getting-started/factories',
-          'di/di/getting-started/service-override',
-        ],
-        { collapsed: false },
-      ),
-      group(
-        'Architecture',
-        [
-          'di/di/architecture/overview',
-          'di/di/architecture/core-concepts',
-        ],
-        { collapsed: false },
-      ),
-      group(
-        'Guides',
-        [
-          'di/di/guides/services',
-          'di/di/guides/factories',
-          'di/di/guides/injection-tokens',
-          'di/di/guides/scopes',
-          'di/di/guides/lifecycle',
-          'di/di/guides/request-contexts',
-          'di/di/guides/circular-dependencies',
-          'di/di/guides/testing',
-          'di/di/guides/browser-support',
-        ],
-      ),
-      'di/di/api-reference',
-      group(
-        'Recipes',
-        [
-          'di/di/recipes/configuration-services',
-          'di/di/recipes/database-connections',
-          'di/di/recipes/http-clients',
-          'di/di/recipes/caching-patterns',
-          'di/di/recipes/multi-tenant',
-        ],
-      ),
-      'di/di/best-practices',
-      'di/di/faq',
+      'di/essentials/services',
+      'di/essentials/tokens',
+      'di/essentials/providers',
+      'di/essentials/scopes',
+      'di/essentials/lifecycle',
+      'di/essentials/factories',
     ],
     { collapsed: false },
   ),
   group(
-    'DI React',
-    [
-      'di/di-react/getting-started',
-      group(
-        'Guides',
-        [
-          'di/di-react/guides/setup',
-          'di/di-react/guides/hooks',
-          'di/di-react/guides/providers',
-          'di/di-react/guides/scopes',
-          'di/di-react/guides/invalidation',
-          'di/di-react/guides/suspense',
-          'di/di-react/guides/error-handling',
-        ],
-      ),
-      'di/di-react/api-reference',
-      group(
-        'Recipes',
-        [
-          'di/di-react/recipes/form-handling',
-          'di/di-react/recipes/data-fetching',
-          'di/di-react/recipes/realtime-updates',
-          'di/di-react/recipes/table-rows',
-          'di/di-react/recipes/modal-dialogs',
-          'di/di-react/recipes/multi-tenant-ui',
-        ],
-      ),
-      'di/di-react/best-practices',
-      'di/di-react/faq',
-    ],
+    'Guides',
+    ['di/guides/testing', 'di/guides/circular-dependencies', 'di/guides/invalidation'],
     { collapsed: false },
   ),
+  group('React', ['di/react/', 'di/react/using-services', 'di/react/scopes-and-invalidation'], {
+    collapsed: false,
+  }),
+  group('Reference', ['di/reference/api', 'di/reference/react-api', 'di/reference/migrating-to-2']),
 ]
 
 const commander: Entry[] = [
   'commander/getting-started',
-  group(
-    'Overview',
-    [
-      'commander/overview',
-    ],
-  ),
-  group(
-    'Guides',
-    [
-      'commander/guides/commands',
-      'commander/guides/modules',
-      'commander/guides/dependency-injection',
-      'commander/guides/execution-context',
-      'commander/guides/validation',
-      'commander/guides/testing',
-    ],
-  ),
+  group('Overview', ['commander/overview']),
+  group('Guides', [
+    'commander/guides/commands',
+    'commander/guides/modules',
+    'commander/guides/dependency-injection',
+    'commander/guides/execution-context',
+    'commander/guides/validation',
+    'commander/guides/testing',
+  ]),
   'commander/api-reference',
-  group(
-    'Recipes',
-    [
-      'commander/recipes/database-commands',
-      'commander/recipes/file-operations',
-      'commander/recipes/api-clients',
-      'commander/recipes/multi-command-workflows',
-    ],
-  ),
+  group('Recipes', [
+    'commander/recipes/database-commands',
+    'commander/recipes/file-operations',
+    'commander/recipes/api-clients',
+    'commander/recipes/multi-command-workflows',
+  ]),
   'commander/best-practices',
 ]
 

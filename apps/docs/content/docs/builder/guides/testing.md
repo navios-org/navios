@@ -165,4 +165,4 @@ it('reports a network failure', async () => {
 
 Declarations themselves rarely need tests: the types are checked by the compiler and the validation is the schema library's. Tests earn their keep on the code around the calls — what your app does with a 409, how a form maps `issues` to fields, whether a retry happens.
 
-For testing the server side of a shared contract, see the server's [Testing](/docs/server/guides/testing) guide.
+For testing the server side of a shared contract, see the server's [Testing](/docs/server/essentials/testing) guide.

@@ -6,7 +6,7 @@ title: Sharing with Navios Server
 
 A declaration describes an endpoint without saying which side of the wire you are on. The client calls it; a Navios server implements it. When both import the same declaration, a change to the contract is a compile error on whichever side has not caught up.
 
-This page shows how to arrange that. The server's own behavior is documented in the [Controllers](/docs/server/guides/controllers) guide.
+This page shows how to arrange that. The server's own behavior is documented in [Controllers and handlers](/docs/server/essentials/controllers).
 
 ## Put declarations where both sides can import them
 
@@ -65,29 +65,27 @@ A controller method is bound to a declaration with `@Endpoint`. The route, the v
 
 ```ts title="packages/server/src/user.controller.ts"
 import { getUser } from '@acme/api-contract'
-import { Controller, Endpoint } from '@navios/core'
-import { inject } from '@navios/di'
+import { Controller, Endpoint, inject, reply } from '@navios/core'
 
-import type { EndpointParams } from '@navios/core'
+import type { HandlerParams } from '@navios/core'
 
-import { UserService } from './user.service'
+import { UserService } from './user.service.mjs'
 
 @Controller()
 export class UserController {
-  private users = inject(UserService)
+  private readonly users = inject(UserService)
 
   @Endpoint(getUser)
-  async getUser(params: EndpointParams<typeof getUser>) {
-    return this.users.findById(params.urlParams.userId)
+  async getUser({ urlParams }: HandlerParams<typeof getUser>) {
+    const user = await this.users.findById(urlParams.userId)
+    return user ?? reply(404, { message: 'User not found' })
   }
 }
 ```
 
 The server never calls the endpoint function, so it does not need an HTTP client. It reads `getUser.config`.
 
-:::info
-`EndpointParams` here is imported from `@navios/core`, not from `@navios/builder`. The two share a name but describe different sides: Builder's is what a caller passes, core's is what a handler receives.
-:::
+`HandlerParams<typeof getUser>` is the server-side counterpart of Builder's `EndpointParams`: it describes what a handler receives, where `EndpointParams` describes what a caller passes. The handler's return value is checked too. Returning a user that does not match `userSchema`, or `reply()` with a status the declaration does not list, is a compile error.
 
 ## What each side sees
 
@@ -106,23 +104,17 @@ Both sides validate. The client checks its input before sending and the response
 
 ## Declarations that are not plain JSON
 
-The server uses a different decorator depending on the declaration's `body` and `response`:
+`@Endpoint` implements every kind of declaration. What changes with `body` and `response` is what the handler receives and returns:
 
-| Declaration                                   | Server decorator                                    |
-| --------------------------------------------- | --------------------------------------------------- |
-| JSON, `response: 'void'`, or `responses`      | [`@Endpoint`](/docs/server/guides/controllers)      |
-| `body: 'multipart'`                           | [`@Multipart`](/docs/server/advanced/multipart)     |
-| `response: 'blob'`, `'text'` or `'stream'`    | [`@Stream`](/docs/server/advanced/streaming)        |
+| Declaration                                | Handler                                                                                  |
+| ------------------------------------------ | ---------------------------------------------------------------------------------------- |
+| JSON with `responseSchema`                 | returns the body                                                                         |
+| `responses`, `errorSchema`                 | returns [`reply(status, body)`](/docs/server/essentials/controllers#declared-statuses)   |
+| `response: 'void'`                         | returns nothing                                                                          |
+| `body: 'multipart'`                        | receives fields and `File` objects in `data`; see [File uploads](/docs/server/guides/file-uploads) |
+| `response: 'blob'`, `'text'` or `'stream'` | returns bytes, text or a stream; see [Streams and server-sent events](/docs/server/guides/streams-and-sse) |
 
-Using the wrong one is a type error and fails at start-up.
-
-## Schema libraries on the server
-
-Builder accepts any Standard Schema in every slot. `@navios/core` is moving to the same model, but today its controllers, adapters and OpenAPI generation read Zod schemas directly.
-
-:::warning
-For now, a declaration that a Navios server implements must use Zod in every schema slot. Declarations that are only ever called from a client can use any Standard Schema library.
-:::
+A handler that returns the wrong thing for its declaration is a type error.
 
 ## Keep the contract free of side concerns
 

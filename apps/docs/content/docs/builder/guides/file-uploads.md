@@ -85,4 +85,4 @@ Client-side checks are a convenience for the user. The server must enforce the s
 
 Your HTTP client must send a `FormData` body as it is and let the runtime set the `Content-Type` header with its boundary. `@navios/http` and axios both do. If you wrote your own `fetch` wrapper, make sure it does not `JSON.stringify` a `FormData` body or force a JSON content type.
 
-For file inputs and upload state in React, see [Uploads and downloads](/docs/builder/react-query/uploads-and-downloads) in the React Query docs. Receiving the upload on a Navios server is covered in the server's [Multipart](/docs/server/advanced/multipart) guide.
+For file inputs and upload state in React, see [Uploads and downloads](/docs/builder/react-query/uploads-and-downloads) in the React Query docs. Receiving the upload on a Navios server is covered in the server's [File uploads](/docs/server/guides/file-uploads) guide.
