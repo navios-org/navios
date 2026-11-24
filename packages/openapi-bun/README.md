@@ -42,8 +42,8 @@ npm install @navios/openapi @navios/openapi-bun
 ```ts
 import { defineBunEnvironment } from '@navios/adapter-bun'
 import { Module, NaviosFactory } from '@navios/core'
-import { defineOpenApiPlugin } from '@navios/openapi-bun'
 import { ApiTag, ApiOperation } from '@navios/openapi'
+import { defineOpenApiPlugin } from '@navios/openapi-bun'
 
 import { AppModule } from './app.module.js'
 
@@ -77,8 +77,8 @@ bootstrap()
 import { defineBunEnvironment } from '@navios/adapter-bun'
 import { builder } from '@navios/builder'
 import { Controller, Endpoint, EndpointParams, Module, NaviosFactory } from '@navios/core'
-import { defineOpenApiPlugin } from '@navios/openapi-bun'
 import { ApiOperation, ApiTag } from '@navios/openapi'
+import { defineOpenApiPlugin } from '@navios/openapi-bun'
 import { z } from 'zod'
 
 const API = builder()

@@ -82,8 +82,8 @@ class AuthService {
 When you need to load configuration dynamically:
 
 ```typescript
-import { provideJwtService } from '@navios/jwt'
 import { inject } from '@navios/core'
+import { provideJwtService } from '@navios/jwt'
 
 const JwtService = provideJwtService(async () => {
   const configService = await inject(ConfigService)
@@ -102,8 +102,9 @@ const JwtService = provideJwtService(async () => {
 For applications using RSA or ECDSA keys:
 
 ```typescript
-import { provideJwtService } from '@navios/jwt'
 import fs from 'fs'
+
+import { provideJwtService } from '@navios/jwt'
 
 const JwtService = provideJwtService({
   privateKey: fs.readFileSync('private.pem'),

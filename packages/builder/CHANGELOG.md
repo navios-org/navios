@@ -165,7 +165,6 @@
 
   ```typescript
   import { declareWebSocket, socketBuilder } from '@navios/builder/socket'
-
   import { io } from 'socket.io-client'
   import { z } from 'zod'
 
@@ -187,7 +186,6 @@
 
   ```typescript
   import { declareEventSource, eventSourceBuilder } from '@navios/builder/eventsource'
-
   import { z } from 'zod'
 
   const sse = eventSourceBuilder()

@@ -30,7 +30,6 @@ export class OldController {
 
 ```typescript
 import { AttributeFactory } from '@navios/core'
-
 import { z } from 'zod'
 
 // Create an attribute with a Zod schema for validation
@@ -164,9 +163,9 @@ const cacheConfig = AttributeFactory.get(Cache, metadata)
 The most common way to read attributes is from the execution context in guards, interceptors, or middleware:
 
 ```typescript
-import type { AbstractExecutionContext } from '@navios/core'
-
 import { AttributeFactory } from '@navios/core'
+
+import type { AbstractExecutionContext } from '@navios/core'
 
 @Controller()
 export class UserController {
@@ -318,9 +317,9 @@ export class UserController {
 `AttributeFactory.getLast` is particularly useful when you want to support attribute inheritance from module → controller → handler levels:
 
 ```typescript
-import type { AbstractExecutionContext, CanActivate } from '@navios/core'
-
 import { AttributeFactory, inject, Injectable, Logger } from '@navios/di'
+
+import type { AbstractExecutionContext, CanActivate } from '@navios/core'
 
 // Define a Public attribute that can skip authentication
 const PublicSymbol = Symbol.for('Public')
@@ -435,9 +434,9 @@ export class ConfigurableGuard implements CanActivate {
 ### Creating Middleware for Attributes
 
 ```typescript
-import type { AbstractExecutionContext } from '@navios/core'
-
 import { AttributeFactory, inject, Injectable, Logger } from '@navios/di'
+
+import type { AbstractExecutionContext } from '@navios/core'
 
 @Injectable()
 export class CacheMiddleware {
@@ -489,9 +488,9 @@ export class CacheMiddleware {
 ### Using Attributes in Guards
 
 ```typescript
-import type { AbstractExecutionContext, CanActivate } from '@navios/core'
-
 import { AttributeFactory, inject, Injectable } from '@navios/di'
+
+import type { AbstractExecutionContext, CanActivate } from '@navios/core'
 
 @Injectable()
 export class RoleGuard implements CanActivate {

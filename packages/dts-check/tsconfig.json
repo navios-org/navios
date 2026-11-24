@@ -1,0 +1,15 @@
+{
+  "compilerOptions": {
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "target": "es2022",
+    "strict": true,
+    "skipLibCheck": true,
+    "lib": ["es2024", "dom"],
+    "types": ["node"],
+    "noEmit": true,
+    "allowImportingTsExtensions": true,
+    "experimentalDecorators": false
+  },
+  "files": ["t8-dts-check.spec-d.mts"]
+}

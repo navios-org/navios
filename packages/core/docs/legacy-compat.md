@@ -74,9 +74,9 @@ export class UserController {
 Defines an HTTP endpoint with type-safe request/response schemas. Must be applied to methods.
 
 ```typescript
-import type { EndpointParams, EndpointResult } from '@navios/core/legacy-compat'
-
 import { Controller, Endpoint } from '@navios/core/legacy-compat'
+
+import type { EndpointParams, EndpointResult } from '@navios/core/legacy-compat'
 
 @Controller()
 export class UserController {
@@ -95,9 +95,9 @@ export class UserController {
 Defines a multipart/form-data endpoint for file uploads. Must be applied to methods.
 
 ```typescript
-import type { MultipartParams, MultipartResult } from '@navios/core/legacy-compat'
-
 import { Controller, Multipart } from '@navios/core/legacy-compat'
+
+import type { MultipartParams, MultipartResult } from '@navios/core/legacy-compat'
 
 @Controller()
 export class FileController {
@@ -116,9 +116,9 @@ export class FileController {
 Defines a streaming endpoint. Must be applied to methods.
 
 ```typescript
-import type { StreamParams } from '@navios/core/legacy-compat'
-
 import { Controller, Stream } from '@navios/core/legacy-compat'
+
+import type { StreamParams } from '@navios/core/legacy-compat'
 
 @Controller()
 export class FileController {
@@ -213,13 +213,12 @@ import type {
 Here's a complete example using legacy-compatible decorators:
 
 ```typescript
-import type { EndpointParams, EndpointResult } from '@navios/core/legacy-compat'
-
 import { builder } from '@navios/builder'
 import { inject, Injectable } from '@navios/core'
 import { Controller, Endpoint, HttpCode, Module, UseGuards } from '@navios/core/legacy-compat'
-
 import { z } from 'zod/v4'
+
+import type { EndpointParams, EndpointResult } from '@navios/core/legacy-compat'
 
 // Define API endpoints
 const api = builder()

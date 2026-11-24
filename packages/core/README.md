@@ -107,7 +107,6 @@ Define your API in a shared location accessible to both the client and server. T
 
 ```ts
 import { builder } from '@navios/builder'
-
 import { z } from 'zod/v4'
 
 const api = builder({
@@ -163,9 +162,9 @@ export class LoginService {
 Create your first Controller:
 
 ```ts
-import type { EndpointParams } from '@navios/core'
-
 import { Controller, Endpoint, inject } from '@navios/core'
+
+import type { EndpointParams } from '@navios/core'
 
 import { AuthService } from './auth.service.mjs'
 
@@ -212,7 +211,6 @@ Create your server:
 // Import your chosen adapter
 import { defineFastifyEnvironment } from '@navios/adapter-fastify'
 import { NaviosFactory } from '@navios/core'
-
 // OR import { defineBunEnvironment } from '@navios/adapter-bun'
 
 import { AppModule } from './src/app.module.mjs'

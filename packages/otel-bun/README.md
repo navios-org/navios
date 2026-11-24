@@ -14,8 +14,8 @@ yarn add @opentelemetry/exporter-trace-otlp-http
 ## Usage
 
 ```typescript
-import { NaviosFactory } from '@navios/core'
 import { BunApplicationService } from '@navios/adapter-bun'
+import { NaviosFactory } from '@navios/core'
 import { defineOtelPlugin } from '@navios/otel-bun'
 
 const app = await NaviosFactory.create(BunApplicationService, {
@@ -57,8 +57,8 @@ Unlike Fastify, Bun doesn't have a built-in hook system. For HTTP-level tracing,
 Apply the `@Traced` decorator to your controllers and services:
 
 ```typescript
-import { Injectable } from '@navios/di'
 import { Controller, Endpoint } from '@navios/core'
+import { Injectable } from '@navios/di'
 import { Traced } from '@navios/otel'
 
 @Controller()

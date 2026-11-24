@@ -41,8 +41,8 @@
     "@navios/di": "workspace:^",
     "@navios/otel": "workspace:^",
     "@opentelemetry/api": "^1.9.0",
-    "fastify": "^5.7.1",
-    "typescript": "^5.9.3"
+    "fastify": "^5.12.8",
+    "typescript": "^7.0.2"
   },
   "peerDependencies": {
     "@navios/adapter-fastify": "workspace:^",

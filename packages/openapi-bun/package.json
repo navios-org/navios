@@ -35,16 +35,16 @@
     "publish:next": "yarn npm publish --access public --tag next"
   },
   "dependencies": {
-    "@scalar/core": "^0.3.34",
-    "yaml": "^2.8.2"
+    "@scalar/core": "^0.5.55",
+    "yaml": "^2.9.1"
   },
   "devDependencies": {
     "@navios/adapter-bun": "workspace:^",
     "@navios/builder": "workspace:^",
     "@navios/core": "workspace:^",
     "@navios/openapi": "workspace:^",
-    "typescript": "^5.9.3",
-    "zod": "^4.3.5"
+    "typescript": "^7.0.2",
+    "zod": "^4.6.7"
   },
   "peerDependencies": {
     "@navios/adapter-bun": "workspace:^",

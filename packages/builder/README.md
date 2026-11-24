@@ -32,7 +32,6 @@ yarn add @navios/builder zod
 ```ts
 import { builder } from '@navios/builder'
 import { create } from '@navios/http'
-
 // or
 import { create } from 'axios'
 import { z } from 'zod/v4'
@@ -62,7 +61,6 @@ Or a more complex example with the request schema:
 
 ```ts
 import { builder } from '@navios/builder'
-
 import { z } from 'zod/v4'
 
 import { GetUsersResponseSchema } from './schemas/GetUsersResponseSchema.js'
@@ -489,7 +487,6 @@ This is independent of envelope mode and can be combined with it.
 
 ```ts
 import { declareWebSocket, socketBuilder } from '@navios/builder/socket'
-
 import { io } from 'socket.io-client'
 import { z } from 'zod'
 
@@ -524,7 +521,6 @@ You can also use native WebSocket connections:
 
 ```ts
 import { declareWebSocket } from '@navios/builder/socket'
-
 import { z } from 'zod'
 
 const chatSocket = declareWebSocket({
@@ -551,7 +547,6 @@ For detailed documentation, see the [WebSocket Guide](/docs/builder/builder/adva
 
 ```ts
 import { declareEventSource, eventSourceBuilder } from '@navios/builder/eventsource'
-
 import { z } from 'zod'
 
 // Create builder

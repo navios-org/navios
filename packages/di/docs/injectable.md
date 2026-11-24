@@ -174,7 +174,6 @@ class ConsumerService {
 
 ```typescript
 import { Injectable, InjectionToken } from '@navios/di'
-
 import { z } from 'zod'
 
 const configSchema = z.object({

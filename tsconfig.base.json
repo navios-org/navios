@@ -12,6 +12,8 @@
     "skipLibCheck": true,
     "verbatimModuleSyntax": true,
     "forceConsistentCasingInFileNames": true,
-    "strict": true
+    "strict": true,
+    "types": ["node"],
+    "lib": ["ES2024", "DOM", "DOM.Iterable"]
   }
 }

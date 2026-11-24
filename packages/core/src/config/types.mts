@@ -19,9 +19,8 @@ export type PathImpl<T, Key extends keyof T> = Key extends string
           : T[Key] extends Record<string, any>
             ? Key extends ExcludedParts
               ? `${Key}.${Exclude<keyof T[Key], keyof any[]> & string}`
-              :
-                  | `${Key}.${PathImpl<T[Key], Exclude<keyof T[Key], keyof any[]>> & string}`
-                  | `${Key}.${Exclude<keyof T[Key], keyof any[]> & string}`
+              : | `${Key}.${PathImpl<T[Key], Exclude<keyof T[Key], keyof any[]>> & string}`
+                | `${Key}.${Exclude<keyof T[Key], keyof any[]> & string}`
             : never
   : never
 
