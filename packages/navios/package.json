@@ -40,6 +40,6 @@
     "publish:next": "yarn npm publish --access public --tag next"
   },
   "devDependencies": {
-    "typescript": "^5.9.3"
+    "typescript": "^7.0.2"
   }
 }
