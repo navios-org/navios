@@ -112,21 +112,24 @@ apps/docs/
 - Trailing slashes. Docusaurus emits `docs/x/y/index.html`, so GitHub Pages serves `/docs/x/y/` and
   redirects `/docs/x/y` to it; the trailing-slash form is what is bookmarked and indexed. Rspress 2.1.4 emits
   `docs/x/y.html`, which serves `/docs/x/y` but returns 404 for `/docs/x/y/`, and has no directory-index
-  output mode. Author's call: Rspress's slash-less URL becomes the canonical one, and a small post-build
-  script writes a redirect stub at `docs/x/y/index.html` for every page (meta refresh plus
-  `<link rel="canonical">` to the slash-less URL), so every old URL still lands on its page. This script is
-  the one permitted post-build step; the anti-goal about conversion steps is about content and sidebars.
-  If a newer Rspress release offers directory-index output, use that instead and drop the script.
+  output mode. Author's call, revised during implementation: a small post-build script
+  (`scripts/finalize-build.mts`) moves every `x.html` to `x/index.html`, the same layout Docusaurus
+  produced, so `/x` and `/x/` both serve the page on any static host. (The first idea, redirect stubs at
+  `x/index.html` beside `x.html`, loops on hosts that prefer the directory.) This script is the one
+  permitted post-build step; the anti-goal about conversion steps is about content and sidebars.
 - Renamed pages. On `next`, `builder/react-query/advanced/streams` became `file-downloads` and
   `builder/react-query/guides/multipart-mutations` became `file-uploads`. The live site (built from `main`)
-  still serves the old paths. The same script writes redirect stubs from the two old paths to the new ones.
+  still serves the old paths. The same script writes redirect pages (meta refresh, canonical link, and a
+  script that keeps the query and hash) from the two old paths to the new ones.
 
 ### Navigation
 
 - Top nav: Server, Builder, DI, Commander, plus a GitHub link. Same targets as today.
 - Sidebars: one per section, same grouping, order, labels and default collapsed state as the current
-  `sidebars/*.ts`. Use Rspress's native `_meta.json` files rather than a converter. `sidebar_position`
-  frontmatter, `_category_.json` and `sidebars/` are removed once the `_meta.json` files reproduce the order.
+  `sidebars/*.ts`. Revised during implementation: Rspress's `_meta.json` auto-sidebar
+  keys sidebars by top-level folder only, so it cannot give four sections under `/docs` their own sidebar.
+  The sidebars are declared in `apps/docs/sidebars.mts` (page paths only; labels are read from each page).
+  `sidebar_position` frontmatter, `_category_.json` and the old `sidebars/` are removed.
 - `sidebars/packages.ts` is dead (its plugin is commented out and `docs/packages` does not exist); delete it.
 
 ### Look
