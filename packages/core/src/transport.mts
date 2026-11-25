@@ -3,7 +3,7 @@
  * transport contract, the module graph, handler metadata, and the pieces of
  * an execution context.
  *
- * This file is the future `@navios/core/transport` entry.
+ * Application code imports from `@navios/core`.
  */
 export {
   enableAsyncContext,
@@ -14,7 +14,15 @@ export { BasicExecutionContext } from './execution/basic-execution-context.mjs'
 export type { BasicExecutionContextInit } from './execution/basic-execution-context.mjs'
 export { createContextHost } from './execution/context-host.mjs'
 export type { ContextHost } from './execution/context-host.mjs'
-export { classAttributes, classGuards, classInterceptors } from './metadata/class-metadata.mjs'
+export { applyAttributes } from './attributes/attribute-value.mjs'
+export { attachClasses } from './metadata/attach-classes.mjs'
+export {
+  classAttributes,
+  classGuards,
+  classInterceptors,
+  prepend,
+  unique,
+} from './metadata/class-metadata.mjs'
 export { own, requireMetadata } from './metadata/decorator-metadata.mjs'
 export type { DecoratorMetadata } from './metadata/decorator-metadata.mjs'
 export { handlerChain } from './metadata/handler-chain.mjs'

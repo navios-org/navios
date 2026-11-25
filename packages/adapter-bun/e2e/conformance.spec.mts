@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'bun:test'
 
-import { runAdapterConformance } from '@navios/core/conformance'
+import { runAdapterConformance } from '@navios/server/conformance'
 
 import { defineBunEnvironment } from '../src/index.mjs'
 

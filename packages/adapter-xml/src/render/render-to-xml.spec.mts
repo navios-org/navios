@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import type { RequestContext } from '@navios/core'
+import type { RequestContext } from '@navios/server'
 
 import { createElement } from '../jsx/create-element.mjs'
 import { CData } from '../nodes/cdata.mjs'

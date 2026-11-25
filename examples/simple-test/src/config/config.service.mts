@@ -1,6 +1,6 @@
-import type { Path, PathValue } from '@navios/core'
+import type { Path, PathValue } from '@navios/server'
 
-import { provideConfig } from '@navios/core'
+import { provideConfig } from '@navios/server'
 
 import { configureConfig } from './configuration.mjs'
 

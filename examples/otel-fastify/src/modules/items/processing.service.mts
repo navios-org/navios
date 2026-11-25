@@ -1,4 +1,4 @@
-import { Injectable } from '@navios/core/legacy-compat'
+import { Injectable } from '@navios/server/legacy-compat'
 import { Traceable, Traced } from '@navios/otel/legacy-compat'
 
 /**

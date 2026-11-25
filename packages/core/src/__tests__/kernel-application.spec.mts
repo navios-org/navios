@@ -4,6 +4,7 @@ import { createApplication } from '../application/application.mjs'
 import { Injectable } from '../index.mjs'
 import { registerModule } from '../modules/index.mjs'
 import { definePlugin } from '../plugins/index.mjs'
+import { fakeTransport } from '../testing/index.mjs'
 import { defineTransport } from '../transports/index.mjs'
 
 import type { ApplicationOptions } from '../application/application-options.mjs'
@@ -11,10 +12,7 @@ import type { Application } from '../application/application.mjs'
 import type { ExecutionContext } from '../execution/execution-context.mjs'
 import type { Guard } from '../guards/guard.mjs'
 import type { ModuleOptions } from '../modules/index.mjs'
-
-import { fakeTransport } from './helpers/fake-transport.mjs'
-
-import type { FakeTransport } from './helpers/fake-transport.mjs'
+import type { FakeTransport } from '../testing/index.mjs'
 
 const apps: Application[] = []
 

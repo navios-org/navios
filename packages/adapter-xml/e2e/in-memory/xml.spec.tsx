@@ -1,9 +1,9 @@
 import { builder } from '@navios/builder'
-import { Controller, handler, Module, NaviosFactory } from '@navios/core'
-import { defineInMemoryEnvironment } from '@navios/core/testing'
+import { Controller, handler, Module, NaviosFactory } from '@navios/server'
+import { defineInMemoryEnvironment } from '@navios/server/testing'
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
 
-import type { NaviosApplication, RequestContext } from '@navios/core'
+import type { NaviosApplication, RequestContext } from '@navios/server'
 
 import { renderToXml, xml, xmlPlugin } from '../../src/index.mjs'
 import { defineXmlSuite } from '../suite.mjs'

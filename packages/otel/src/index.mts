@@ -58,8 +58,9 @@ export type {
   TracedOptions,
 } from './traced/index.mjs'
 
-// HTTP instrumentation
-export { compileIgnoreRoutes, OtelHttpInterceptor } from './http/index.mjs'
+// Handlers of transports other than HTTP. The HTTP request span is in
+// `@navios/otel/http`.
+export { OtelHandlerInterceptor } from './handlers/index.mjs'
 
 // Plugin
 export { otelPlugin } from './otel-plugin.mjs'

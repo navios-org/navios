@@ -1,4 +1,4 @@
-import type { RouteInfo, StandardSchemaV1 } from '@navios/core'
+import type { RouteInfo, StandardSchemaV1 } from '@navios/server'
 
 import { describeMultipartFields } from '../json-schema/index.mjs'
 

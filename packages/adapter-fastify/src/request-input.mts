@@ -1,6 +1,6 @@
-import { createMultipartCollector, HttpException } from '@navios/core'
+import { createMultipartCollector, HttpException } from '@navios/server'
 
-import type { RouteInput, SchemaLike } from '@navios/core'
+import type { RouteInput, SchemaLike } from '@navios/server'
 import type { FastifyReply, FastifyRequest } from 'fastify'
 
 import type { FastifyEnvironment } from './environment.mjs'

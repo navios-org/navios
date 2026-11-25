@@ -1,7 +1,7 @@
-import { Controller, Endpoint, inject, NotFoundException, reply } from '@navios/core'
+import { Controller, Endpoint, inject, NotFoundException, reply } from '@navios/server'
 import { ApiDeprecated, ApiOperation, ApiSecurity, ApiSummary, ApiTag } from '@navios/openapi'
 
-import type { HandlerParams, HandlerResult } from '@navios/core'
+import type { HandlerParams, HandlerResult } from '@navios/server'
 
 import { createUser, deleteUser, getUser, legacyEndpoint, listUsers, updateUser } from '../api.mjs'
 import { UserService } from '../services/user.service.mjs'

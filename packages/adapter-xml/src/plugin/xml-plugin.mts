@@ -1,6 +1,6 @@
-import { definePlugin, httpTransport } from '@navios/core'
+import { definePlugin, httpTransport } from '@navios/server'
 
-import type { RequestContext, RouteResult } from '@navios/core'
+import type { RequestContext, RouteResult } from '@navios/server'
 
 import { renderToXml } from '../render/render-to-xml.mjs'
 import { XML_RESULT_KIND } from '../response/xml.mjs'

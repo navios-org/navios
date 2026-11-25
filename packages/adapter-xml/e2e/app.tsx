@@ -10,10 +10,10 @@ import {
   Module,
   NotFoundException,
   RequestValue,
-} from '@navios/core'
+} from '@navios/server'
 import { z } from 'zod/v4'
 
-import type { Guard, RequestContext } from '@navios/core'
+import type { Guard, RequestContext } from '@navios/server'
 
 import { CData, Component, DangerouslyInsertRawXml, defineTag, xml } from '../src/index.mjs'
 

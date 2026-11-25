@@ -1,10 +1,10 @@
 import { describe, expectTypeOf, it } from 'vitest'
 
-import { fakeTransport } from '../__tests__/helpers/fake-transport.mjs'
+import { fakeTransport } from '../testing/index.mjs'
 
-import type { FakeTransport } from '../__tests__/helpers/fake-transport.mjs'
 import type { Application } from '../application/application.mjs'
 import type { PluginApi } from '../plugins/index.mjs'
+import type { FakeTransport } from '../testing/index.mjs'
 
 describe('transport lookup', () => {
   it('types the transport by its factory', () => {

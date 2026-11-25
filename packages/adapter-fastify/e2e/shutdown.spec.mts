@@ -1,10 +1,10 @@
 import http from 'node:http'
 import { connect } from 'node:net'
 
-import { handler, NaviosFactory, registerController, registerModule } from '@navios/core'
+import { handler, NaviosFactory, registerController, registerModule } from '@navios/server'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
-import type { NaviosApplication } from '@navios/core'
+import type { NaviosApplication } from '@navios/server'
 
 import { defineFastifyEnvironment } from '../src/index.mjs'
 

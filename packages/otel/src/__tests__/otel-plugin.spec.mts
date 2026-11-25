@@ -9,8 +9,8 @@ import {
   NaviosFactory,
   NotFoundException,
   reply,
-} from '@navios/core'
-import { defineInMemoryEnvironment } from '@navios/core/testing'
+} from '@navios/server'
+import { defineInMemoryEnvironment } from '@navios/server/testing'
 import { SpanKind, SpanStatusCode, trace } from '@opentelemetry/api'
 import {
   BatchSpanProcessor,
@@ -20,7 +20,7 @@ import {
 import { afterEach, describe, expect, it } from 'vitest'
 import { z } from 'zod/v4'
 
-import type { Guard, NaviosApplication, NaviosApplicationOptions } from '@navios/core'
+import type { Guard, NaviosApplication, NaviosApplicationOptions } from '@navios/server'
 import type { ReadableSpan, SpanExporter } from '@opentelemetry/sdk-trace-node'
 
 import {

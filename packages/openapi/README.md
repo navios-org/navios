@@ -10,18 +10,18 @@ OpenAPI 3.1 documentation for [Navios](https://navios.tech) applications. One pl
 npm install @navios/openapi
 ```
 
-`@navios/core` is a peer dependency. The plugin's routes are ordinary Navios routes, so it works the same on every adapter. The example also uses `@navios/adapter-fastify`, `@navios/builder` and `zod`.
+`@navios/server` is a peer dependency. The plugin's routes are ordinary Navios routes, so it works the same on every adapter. The example also uses `@navios/adapter-fastify`, `@navios/builder` and `zod`.
 
 ## Example
 
 ```ts
 import { defineFastifyEnvironment } from '@navios/adapter-fastify'
 import { builder } from '@navios/builder'
-import { Controller, Endpoint, Module, NaviosFactory, reply } from '@navios/core'
 import { ApiSummary, ApiTag, openApiPlugin } from '@navios/openapi'
+import { Controller, Endpoint, Module, NaviosFactory, reply } from '@navios/server'
 import { z } from 'zod/v4'
 
-import type { HandlerParams } from '@navios/core'
+import type { HandlerParams } from '@navios/server'
 
 const API = builder()
 

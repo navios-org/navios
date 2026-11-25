@@ -1,4 +1,4 @@
-import { Injectable } from '@navios/core'
+import { Injectable } from '@navios/server'
 
 export interface User {
   id: string

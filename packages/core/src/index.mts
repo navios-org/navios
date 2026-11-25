@@ -1,29 +1,36 @@
-// The transport-neutral layer, then HTTP on top of it. This file is the
-// future main entry of `@navios/server`.
-export * from './kernel.mjs'
-
-export * from './adapter/index.mjs'
-export * from './application/index.mjs'
-export * from './context/index.mjs'
-export * from './controllers/index.mjs'
-export * from './errors/index.mjs'
-export * from './execution/index.mjs'
-export * from './handlers/index.mjs'
-export * from './metadata/index.mjs'
-export * from './modules/index.mjs'
-export * from './pipeline/index.mjs'
-export * from './responses/index.mjs'
-export * from './routing/index.mjs'
-export * from './sse/index.mjs'
-export * from './transports/index.mjs'
-
-// HTTP-typed versions of names the neutral layer also exports. An explicit
-// export takes precedence over `export *`.
-export { Module, registerModule } from './application/http-module-options.mjs'
-export type { HttpModuleOptions as ModuleOptions } from './application/http-module-options.mjs'
-export { currentContext } from './context/current-request-context.mjs'
-export type { ContextKey } from './context/http-context-key.mjs'
+/**
+ * What an application is made of whatever reaches it: dependency injection,
+ * modules, plugins, lifecycle, configuration, logging, and the contracts a
+ * transport builds on. Nothing here knows about HTTP; that is
+ * `@navios/server`.
+ */
+export * from '@navios/di'
+export { Application, createApplication } from './application/application.mjs'
+export type { ApplicationOptions } from './application/application-options.mjs'
 export type {
-  HttpGuard as Guard,
-  HttpInterceptor as Interceptor,
-} from './routing/http-contracts.mjs'
+  OnApplicationBootstrap,
+  OnApplicationShutdown,
+  OnModuleInit,
+} from './application/lifecycle-hooks.mjs'
+export * from './attributes/index.mjs'
+export * from './config/index.mjs'
+export { currentContext } from './execution/async-context.mjs'
+export { createContextKey, PlainContextKey } from './execution/context-key.mjs'
+export type { ContextKey, ContextValue } from './execution/context-key.mjs'
+export type { AttributeMap, ExecutionContext, HandlerInfo } from './execution/execution-context.mjs'
+export { ExecutionContextToken } from './execution/execution-context-token.mjs'
+export type { Guard } from './guards/guard.mjs'
+export { UseGuards } from './guards/use-guards.mjs'
+export type { Interceptor } from './interceptors/interceptor.mjs'
+export { UseInterceptors } from './interceptors/use-interceptors.mjs'
+export * from './logger/index.mjs'
+export { Module, registerModule } from './modules/module.mjs'
+export {
+  getModuleMetadata,
+  hasModuleMetadata,
+  ModuleMetadataKey,
+} from './modules/module-metadata.mjs'
+export type { ModuleMetadata } from './modules/module-metadata.mjs'
+export type { ModuleOptions } from './modules/module-options.mjs'
+export * from './plugins/index.mjs'
+export type { Transport, TransportFactory, TransportInstance } from './transports/transport.mjs'

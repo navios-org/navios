@@ -1,6 +1,6 @@
-import { BadRequestException, Controller, Endpoint, inject, NotFoundException } from '@navios/core'
+import { BadRequestException, Controller, Endpoint, inject, NotFoundException } from '@navios/server'
 
-import type { HandlerParams, RequestContext } from '@navios/core'
+import type { HandlerParams, RequestContext } from '@navios/server'
 
 import {
   downloadFileEndpoint,

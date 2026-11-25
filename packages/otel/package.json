@@ -35,6 +35,16 @@
         "types": "./lib/legacy-compat/index.d.cts",
         "default": "./lib/legacy-compat/index.cjs"
       }
+    },
+    "./http": {
+      "import": {
+        "types": "./lib/http/index.d.mts",
+        "default": "./lib/http/index.mjs"
+      },
+      "require": {
+        "types": "./lib/http/index.d.cts",
+        "default": "./lib/http/index.cjs"
+      }
     }
   },
   "scripts": {
@@ -55,6 +65,7 @@
     "@navios/builder": "workspace:^",
     "@navios/core": "workspace:^",
     "@navios/di": "workspace:^",
+    "@navios/server": "workspace:^",
     "@opentelemetry/api": "^1.9.0",
     "@opentelemetry/exporter-metrics-otlp-http": "^0.301.2",
     "@opentelemetry/exporter-trace-otlp-http": "^0.301.2",
@@ -64,11 +75,15 @@
   "peerDependencies": {
     "@navios/core": "workspace:^",
     "@navios/di": "workspace:^",
+    "@navios/server": "workspace:^",
     "@opentelemetry/api": ">=1.9.0 <1.10.0",
     "@opentelemetry/exporter-metrics-otlp-http": ">=0.200.0",
     "@opentelemetry/exporter-trace-otlp-http": ">=0.200.0"
   },
   "peerDependenciesMeta": {
+    "@navios/server": {
+      "optional": true
+    },
     "@opentelemetry/exporter-metrics-otlp-http": {
       "optional": true
     },

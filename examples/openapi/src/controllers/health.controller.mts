@@ -1,4 +1,4 @@
-import { Controller, Endpoint } from '@navios/core'
+import { Controller, Endpoint } from '@navios/server'
 import { ApiSummary, ApiTag } from '@navios/openapi'
 
 import { healthCheck } from '../api.mjs'

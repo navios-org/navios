@@ -1,6 +1,6 @@
-import type { AbstractExecutionContext, CanActivate } from '@navios/core'
+import type { AbstractExecutionContext, CanActivate } from '@navios/server'
 
-import { AttributeFactory, inject, Injectable, Logger } from '@navios/core'
+import { AttributeFactory, inject, Injectable, Logger } from '@navios/server'
 
 import { Public } from './public.attribute.mjs'
 

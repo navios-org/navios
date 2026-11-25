@@ -1,7 +1,7 @@
-import { NotFoundException } from '@navios/core'
-import { Controller, Endpoint } from '@navios/core/legacy-compat'
+import { NotFoundException } from '@navios/server'
+import { Controller, Endpoint } from '@navios/server/legacy-compat'
 
-import type { HandlerParams, HandlerResult, RequestContext } from '@navios/core'
+import type { HandlerParams, HandlerResult, RequestContext } from '@navios/server'
 
 import {
   healthEndpoint,

@@ -1,8 +1,8 @@
 import { afterAll, beforeAll, describe, expect, it } from 'bun:test'
 
-import { handler, NaviosFactory, registerController, registerModule } from '@navios/core'
+import { handler, NaviosFactory, registerController, registerModule } from '@navios/server'
 
-import type { NaviosApplication } from '@navios/core'
+import type { NaviosApplication } from '@navios/server'
 
 import { defineBunEnvironment } from '../src/index.mjs'
 

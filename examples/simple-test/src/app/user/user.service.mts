@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 
-import { Injectable } from '@navios/core'
+import { Injectable } from '@navios/server'
 
 @Injectable()
 export class UserService {

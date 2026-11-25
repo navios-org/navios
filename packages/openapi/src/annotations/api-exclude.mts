@@ -1,4 +1,4 @@
-import { AttributeFactory } from '@navios/core'
+import { AttributeFactory } from '@navios/server'
 
 /** Token for @ApiExclude decorator */
 export const ApiExcludeToken = Symbol.for('navios:openapi:exclude')

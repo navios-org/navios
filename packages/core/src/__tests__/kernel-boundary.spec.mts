@@ -5,46 +5,10 @@ import { fileURLToPath } from 'node:url'
 
 import { describe, expect, it } from 'vitest'
 
-const here = dirname(fileURLToPath(import.meta.url))
-const src = resolve(here, '..')
+const src = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 
-/** The names `index.mts` exported at runtime before the neutral layer was split off. */
-const exportsBefore = JSON.parse(
-  readFileSync(join(here, 'fixtures/index-exports.json'), 'utf8'),
-) as string[]
-
-/** Directories that hold only HTTP code. */
-const HTTP_DIRS = [
-  'adapter',
-  'pipeline',
-  'routing',
-  'errors',
-  'responses',
-  'sse',
-  'controllers',
-  'handlers',
-  'conformance',
-  'testing',
-  'context',
-  'legacy-compat',
-]
-
-/** HTTP files in directories that also hold neutral code. */
-const HTTP_FILES = [
-  'application/navios-application.mts',
-  'application/navios-application-options.mts',
-  'application/navios-factory.mts',
-  'application/assemble-routes.mts',
-  'application/http-transport.mts',
-  'application/http-module-options.mts',
-  'application/module-prefixes.mts',
-  'application/index.mts',
-  'index.mts',
-]
-
-function isHttp(file: string): boolean {
-  return HTTP_FILES.includes(file) || HTTP_DIRS.some((dir) => file.startsWith(`${dir}/`))
-}
+/** Words that belong to HTTP and must not appear in this package's identifiers. */
+const HTTP_IDENTIFIER = /\b(RequestContext|RouteInfo|HttpAdapter|HttpException|statusCode)\b/
 
 const specifier = /(?:\bfrom\s+|\bimport\s+|\bimport\()\s*['"]([^'"]+)['"]/g
 
@@ -77,43 +41,23 @@ function reach(entry: string): { files: string[]; packages: string[] } {
   return { files: [...files].sort(), packages: [...packages].sort() }
 }
 
-describe('the neutral layer', () => {
-  it.each(['kernel.mts', 'transport.mts'])('%s reaches no HTTP file', (entry) => {
+describe('@navios/core', () => {
+  const entries = ['index.mts', 'transport.mts', 'testing/index.mts', 'legacy-compat/index.mts']
+
+  it.each(entries)('%s depends on @navios/di only', (entry) => {
     const { files, packages } = reach(entry)
 
-    expect(files.length).toBeGreaterThan(5)
-    expect(files.filter(isHttp)).toEqual([])
-    expect(packages.filter((name) => !isBuiltin(name))).toEqual(['@navios/di'])
+    expect(files.length).toBeGreaterThan(1)
+    expect(packages.filter((name) => !isBuiltin(name) && !name.startsWith('@navios/di'))).toEqual(
+      [],
+    )
   })
 
-  it('finds HTTP files from the main entry, so the walk is real', () => {
-    expect(reach('index.mts').files.filter(isHttp).length).toBeGreaterThan(20)
-  })
-})
+  it('has no HTTP type in its sources', () => {
+    const offenders = entries
+      .flatMap((entry) => reach(entry).files)
+      .filter((file) => HTTP_IDENTIFIER.test(readFileSync(join(src, file), 'utf8')))
 
-describe('the main entry', () => {
-  it('exports everything it exported before the split', async () => {
-    const after = Object.keys(await import('../index.mjs'))
-
-    expect(exportsBefore.filter((name) => !after.includes(name))).toEqual([])
-  })
-
-  it('exports the neutral layer too', async () => {
-    const main = Object.keys(await import('../index.mjs'))
-    const kernel = Object.keys(await import('../kernel.mjs'))
-
-    expect(kernel.filter((name) => !main.includes(name))).toEqual([])
-  })
-
-  it('keeps the HTTP versions of the names both layers have', async () => {
-    const main = await import('../index.mjs')
-    const kernel = await import('../kernel.mjs')
-    const http = await import('../application/http-module-options.mjs')
-    const request = await import('../context/current-request-context.mjs')
-
-    expect(main.Module).toBe(http.Module)
-    expect(main.registerModule).toBe(http.registerModule)
-    expect(main.currentContext).toBe(request.currentContext)
-    expect(kernel.currentContext).not.toBe(main.currentContext)
+    expect([...new Set(offenders)]).toEqual([])
   })
 })

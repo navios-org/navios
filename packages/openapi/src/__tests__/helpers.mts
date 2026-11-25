@@ -1,7 +1,7 @@
-import { Module, NaviosFactory } from '@navios/core'
-import { defineInMemoryEnvironment } from '@navios/core/testing'
+import { Module, NaviosFactory } from '@navios/server'
+import { defineInMemoryEnvironment } from '@navios/server/testing'
 
-import type { ClassType, NaviosApplication, NaviosApplicationOptions } from '@navios/core'
+import type { ClassType, NaviosApplication, NaviosApplicationOptions } from '@navios/server'
 
 import { generateOpenApiDocument } from '../index.mjs'
 

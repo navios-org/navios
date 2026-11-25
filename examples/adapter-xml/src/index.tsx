@@ -8,12 +8,12 @@ import {
   Module,
   NaviosFactory,
   RequestValue,
-} from '@navios/core'
-import { defineInMemoryEnvironment } from '@navios/core/testing'
+} from '@navios/server'
+import { defineInMemoryEnvironment } from '@navios/server/testing'
 import { z } from 'zod'
 
 import type { XmlComponent } from '@navios/adapter-xml'
-import type { HandlerParams, RequestContext } from '@navios/core'
+import type { HandlerParams, RequestContext } from '@navios/server'
 
 // ----------------------------------------------------------------------------
 // Typed tags. The schema (any Standard Schema) is checked when the tag renders.

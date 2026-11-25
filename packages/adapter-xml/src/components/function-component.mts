@@ -1,4 +1,4 @@
-import type { RequestContext } from '@navios/core'
+import type { RequestContext } from '@navios/server'
 
 import type { XmlRenderable } from '../nodes/xml-node.mjs'
 

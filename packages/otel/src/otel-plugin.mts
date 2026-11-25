@@ -1,8 +1,8 @@
-import { definePlugin, httpTransport, Logger } from '@navios/core'
+import { definePlugin, Logger } from '@navios/core'
 import { getInjectableToken } from '@navios/di'
 
 import { OtelConfigToken } from './config/otel-config-token.mjs'
-import { OtelHttpInterceptor } from './http/otel-http-interceptor.mjs'
+import { OtelHandlerInterceptor } from './handlers/otel-handler-interceptor.mjs'
 import { MeterToken } from './sdk/meter-token.mjs'
 import { OtelSetupService } from './sdk/otel-setup-service.mjs'
 import { TracerToken } from './sdk/tracer-token.mjs'
@@ -83,11 +83,46 @@ export const otelPlugin = definePlugin({
       api.decorate(token, (instance) => traceInstance(instance as object, serviceClass, tracer))
     }
 
-    if (config.autoInstrument.http) {
-      // Around HTTP routes only; an application without HTTP has none to trace.
-      api.transport(httpTransport)?.intercept(OtelHttpInterceptor)
+    const { http: traceHttp, handlers: traceHandlers } = config.autoInstrument
+
+    // The HTTP part is loaded only here, so that this package works where
+    // `@navios/server` is not installed.
+    let http: typeof import('./http/index.mjs') | null = null
+    if (traceHttp || traceHandlers === 'auto') {
+      try {
+        http = await import('./http/index.mjs')
+      } catch (error) {
+        if (!isMissingServerPackage(error)) {
+          throw error
+        }
+      }
+    }
+    const servesHttp = http?.hasHttpTransport(api) ?? false
+
+    if (traceHttp) {
+      if (servesHttp) {
+        http!.instrumentHttp(api)
+      } else {
+        logger.debug(
+          http === null
+            ? 'HTTP requests are not traced: @navios/server is not installed'
+            : 'HTTP requests are not traced: the application has no HTTP transport',
+        )
+      }
+    }
+    if (traceHandlers === true || (traceHandlers === 'auto' && !servesHttp)) {
+      api.intercept(OtelHandlerInterceptor)
     }
 
     api.onShutdown(() => sdk.shutdown())
   },
 })
+
+function isMissingServerPackage(error: unknown): boolean {
+  const { code, message } = error as { code?: string; message?: string }
+  return (
+    (code === 'ERR_MODULE_NOT_FOUND' || code === 'MODULE_NOT_FOUND') &&
+    typeof message === 'string' &&
+    message.includes('@navios/server')
+  )
+}

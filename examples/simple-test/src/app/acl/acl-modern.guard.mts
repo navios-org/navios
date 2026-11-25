@@ -1,6 +1,6 @@
-import type { AbstractExecutionContext, CanActivate } from '@navios/core'
+import type { AbstractExecutionContext, CanActivate } from '@navios/server'
 
-import { inject, Injectable, Logger } from '@navios/core'
+import { inject, Injectable, Logger } from '@navios/server'
 
 @Injectable()
 export class AclModernGuard implements CanActivate {

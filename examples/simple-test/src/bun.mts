@@ -1,6 +1,6 @@
 // @ts-ignore - Can easily fail due to the fact that the adapter is not built yet
 import { defineBunEnvironment } from '@navios/adapter-bun'
-import { NaviosFactory } from '@navios/core'
+import { NaviosFactory } from '@navios/server'
 
 import { AppModule } from './app/app.module.mjs'
 import { ConfigService } from './config/config.service.mjs'

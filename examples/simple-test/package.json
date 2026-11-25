@@ -9,8 +9,8 @@
   },
   "dependencies": {
     "@navios/builder": "workspace:*",
-    "@navios/core": "workspace:*",
-    "@navios/di": "workspace:*"
+    "@navios/di": "workspace:*",
+    "@navios/server": "workspace:*"
   },
   "devDependencies": {
     "tsx": "^4.23.15"

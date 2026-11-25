@@ -1,4 +1,4 @@
-import { Module } from '@navios/core'
+import { Module } from '@navios/server'
 
 import { HealthController } from './controllers/health.controller.mjs'
 import { PostController } from './controllers/post.controller.mjs'

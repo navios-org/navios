@@ -1,5 +1,5 @@
-import { InjectableScope } from '@navios/core'
-import { Injectable } from '@navios/core/legacy-compat'
+import { InjectableScope } from '@navios/server'
+import { Injectable } from '@navios/server/legacy-compat'
 
 @Injectable({ scope: InjectableScope.Request })
 export class PostsValidationService {

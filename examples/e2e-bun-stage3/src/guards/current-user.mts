@@ -1,4 +1,4 @@
-import { createContextKey } from '@navios/core'
+import { createContextKey } from '@navios/server'
 
 export interface AuthenticatedUser {
   id: string

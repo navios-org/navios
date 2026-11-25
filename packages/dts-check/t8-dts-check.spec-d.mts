@@ -7,7 +7,7 @@ import { z } from 'zod/v4'
 
 import type * as Fastify from '../adapter-fastify/lib/index.d.mts'
 import type * as Builder from '../builder/lib/index.d.mts'
-import type * as Core from '../core/lib/index.d.mts'
+import type * as Core from '../server/lib/index.d.mts'
 import type * as Di from '../di/lib/index.d.mts'
 import type * as ReactQuery from '../react-query/lib/index.d.mts'
 
@@ -70,7 +70,7 @@ const download = api.declareEndpoint({ method: 'GET', url: '/files/$fileId', res
 expectTypeOf<ReturnType<typeof download>>().toEqualTypeOf<Promise<Blob>>()
 expectTypeOf<Awaited<ReturnType<typeof simple.safe>>['ok']>().toEqualTypeOf<boolean>()
 
-// --------------------------------------------------------------- @navios/core
+// --------------------------------------------------------------- @navios/server
 declare const handler: typeof Core.handler
 declare const reply: typeof Core.reply
 declare const createContextKey: typeof Core.createContextKey

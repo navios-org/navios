@@ -1,15 +1,15 @@
-import { Controller, handler, Module, NaviosFactory } from '@navios/core'
+import { Controller, handler, Module, NaviosFactory } from '@navios/server'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { z } from 'zod/v4'
 
-import type { NaviosApplication, RequestContext } from '@navios/core'
+import type { NaviosApplication, RequestContext } from '@navios/server'
 
 import { defineFastifyEnvironment } from '../src/index.mjs'
 
 import type { FastifyEnvironment } from '../src/index.mjs'
 
 // What an application does once, to type `ctx.raw` and `app.getServer()`.
-declare module '@navios/core' {
+declare module '@navios/server' {
   interface Register {
     environment: FastifyEnvironment
   }

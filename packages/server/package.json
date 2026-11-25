@@ -1,0 +1,81 @@
+{
+  "name": "@navios/server",
+  "version": "1.1.0",
+  "license": "MIT",
+  "author": {
+    "name": "Oleksandr Hanzha",
+    "email": "alex@granted.name"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Arilas/navios.git",
+    "directory": "packages/server"
+  },
+  "main": "./lib/index.cjs",
+  "module": "./lib/index.mjs",
+  "typings": "./lib/index.d.mts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./lib/index.d.mts",
+        "default": "./lib/index.mjs"
+      },
+      "require": {
+        "types": "./lib/index.d.cts",
+        "default": "./lib/index.cjs"
+      }
+    },
+    "./testing": {
+      "import": {
+        "types": "./lib/testing/index.d.mts",
+        "default": "./lib/testing/index.mjs"
+      },
+      "require": {
+        "types": "./lib/testing/index.d.cts",
+        "default": "./lib/testing/index.cjs"
+      }
+    },
+    "./legacy-compat": {
+      "import": {
+        "types": "./lib/legacy-compat/index.d.mts",
+        "default": "./lib/legacy-compat/index.mjs"
+      },
+      "require": {
+        "types": "./lib/legacy-compat/index.d.cts",
+        "default": "./lib/legacy-compat/index.cjs"
+      }
+    },
+    "./conformance": {
+      "import": {
+        "types": "./lib/conformance/index.d.mts",
+        "default": "./lib/conformance/index.mjs"
+      },
+      "require": {
+        "types": "./lib/conformance/index.d.cts",
+        "default": "./lib/conformance/index.cjs"
+      }
+    }
+  },
+  "scripts": {
+    "check": "tsc -b",
+    "lint": "yarn run -T oxlint --fix && yarn run -T oxfmt",
+    "test:ci": "vitest run",
+    "build": "tsdown",
+    "publish": "yarn npm publish --access public",
+    "publish:next": "yarn npm publish --access public --tag next"
+  },
+  "dependencies": {
+    "@navios/core": "workspace:^"
+  },
+  "devDependencies": {
+    "@navios/builder": "workspace:^",
+    "@types/supertest": "^7.2.1",
+    "supertest": "^7.3.2",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "zod": "^4.6.7"
+  },
+  "peerDependencies": {
+    "@navios/builder": "workspace:^"
+  }
+}

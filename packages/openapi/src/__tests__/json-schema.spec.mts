@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod/v4'
 
-import type { StandardSchemaV1 } from '@navios/core'
+import type { StandardSchemaV1 } from '@navios/server'
 
 import {
   describeMultipartFields,

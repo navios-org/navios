@@ -1,8 +1,8 @@
-import { Controller, handler, Module, NaviosFactory } from '@navios/core'
+import { Controller, handler, Module, NaviosFactory } from '@navios/server'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { z } from 'zod/v4'
 
-import type { NaviosApplication } from '@navios/core'
+import type { NaviosApplication } from '@navios/server'
 
 import { defineFastifyEnvironment } from '../src/index.mjs'
 

@@ -1,6 +1,6 @@
-import { createMultipartCollector, ValidationError } from '@navios/core'
+import { createMultipartCollector, ValidationError } from '@navios/server'
 
-import type { RouteInput, SchemaLike } from '@navios/core'
+import type { RouteInput, SchemaLike } from '@navios/server'
 
 import { readLimited } from './body-limit.mjs'
 

@@ -1,7 +1,7 @@
-import { BadRequestException, inject, NotFoundException, reply } from '@navios/core'
-import { Controller, Endpoint } from '@navios/core/legacy-compat'
+import { BadRequestException, inject, NotFoundException, reply } from '@navios/server'
+import { Controller, Endpoint } from '@navios/server/legacy-compat'
 
-import type { HandlerParams } from '@navios/core'
+import type { HandlerParams } from '@navios/server'
 
 import {
   createUserEndpoint,

@@ -16,7 +16,7 @@
       "path": "./tsconfig.spec.json"
     },
     {
-      "path": "../core"
+      "path": "../server"
     },
     {
       "path": "../builder"

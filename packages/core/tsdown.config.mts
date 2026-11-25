@@ -3,9 +3,9 @@ import { defineConfig } from 'tsdown'
 export default defineConfig({
   entry: [
     'src/index.mts',
+    'src/transport.mts',
     'src/testing/index.mts',
     'src/legacy-compat/index.mts',
-    'src/conformance/index.mts',
   ],
   outDir: 'lib',
   format: ['esm', 'cjs'],
@@ -14,7 +14,7 @@ export default defineConfig({
   treeshake: true,
   sourcemap: true,
   platform: 'node',
-  external: ['@navios/di', '@navios/di/legacy-compat', '@navios/builder'],
+  external: ['@navios/di', '@navios/di/legacy-compat'],
   dts: true,
   target: 'es2022',
 })

@@ -1,6 +1,6 @@
-import { Controller, Endpoint, NotFoundException } from '@navios/core'
+import { Controller, Endpoint, NotFoundException } from '@navios/server'
 
-import type { HandlerParams, HandlerResult, RequestContext } from '@navios/core'
+import type { HandlerParams, HandlerResult, RequestContext } from '@navios/server'
 
 import {
   healthEndpoint,

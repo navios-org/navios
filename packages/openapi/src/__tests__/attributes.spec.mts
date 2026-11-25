@@ -1,9 +1,9 @@
 import { builder } from '@navios/builder'
-import { Controller, Endpoint, handler, Module } from '@navios/core'
+import { Controller, Endpoint, handler, Module } from '@navios/server'
 import { afterEach, describe, expect, it } from 'vitest'
 import { z } from 'zod/v4'
 
-import type { RouteInfo } from '@navios/core'
+import type { RouteInfo } from '@navios/server'
 
 import {
   ApiDeprecated,

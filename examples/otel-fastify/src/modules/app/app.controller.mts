@@ -1,4 +1,4 @@
-import { Controller, Endpoint } from '@navios/core/legacy-compat'
+import { Controller, Endpoint } from '@navios/server/legacy-compat'
 
 import { healthEndpoint, metricsEndpoint } from '../../api/endpoints.mjs'
 

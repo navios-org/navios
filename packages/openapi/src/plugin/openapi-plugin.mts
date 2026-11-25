@@ -5,10 +5,10 @@ import {
   Logger,
   registerController,
   registerModule,
-} from '@navios/core'
+} from '@navios/server'
 import { stringify as yamlStringify } from 'yaml'
 
-import type { FieldHandler, RouteInfo } from '@navios/core'
+import type { FieldHandler, RouteInfo } from '@navios/server'
 
 import { ApiExclude } from '../annotations/index.mjs'
 import { generateOpenApiDocument, toOpenApiPath } from '../document/index.mjs'

@@ -1,11 +1,11 @@
 import { builder } from '@navios/builder'
-import { Controller, handler, Module, NaviosFactory } from '@navios/core'
-import { createTestClient, defineInMemoryEnvironment } from '@navios/core/testing'
+import { Controller, handler, Module, NaviosFactory } from '@navios/server'
+import { createTestClient, defineInMemoryEnvironment } from '@navios/server/testing'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { parse as parseYaml } from 'yaml'
 import { z } from 'zod/v4'
 
-import type { LoggerService, RouteInfo, StandardSchemaV1 } from '@navios/core'
+import type { LoggerService, RouteInfo, StandardSchemaV1 } from '@navios/server'
 
 import { ApiSummary, ApiTag, defineOpenApiPlugin, openApiPlugin } from '../index.mjs'
 

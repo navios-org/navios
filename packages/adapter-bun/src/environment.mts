@@ -1,4 +1,4 @@
-import type { AdapterDefinition, HttpAdapterEnvironment } from '@navios/core'
+import type { AdapterDefinition, HttpAdapterEnvironment } from '@navios/server'
 import type { Serve, Server } from 'bun'
 
 import { BunAdapter } from './bun-adapter.mjs'
@@ -11,7 +11,7 @@ export type BunServer = Server<undefined>
  * Types an application that runs on Bun:
  *
  * ```ts
- * declare module '@navios/core' {
+ * declare module '@navios/server' {
  *   interface Register {
  *     environment: BunEnvironment
  *   }

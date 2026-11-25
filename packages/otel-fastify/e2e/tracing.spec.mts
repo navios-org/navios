@@ -1,5 +1,6 @@
 import { defineFastifyEnvironment } from '@navios/adapter-fastify'
 import { builder } from '@navios/builder'
+import { RequestSpan, Traced } from '@navios/otel'
 import {
   Controller,
   handler,
@@ -8,14 +9,13 @@ import {
   Module,
   NaviosFactory,
   NotFoundException,
-} from '@navios/core'
-import { RequestSpan, Traced } from '@navios/otel'
+} from '@navios/server'
 import { SpanKind, SpanStatusCode, trace } from '@opentelemetry/api'
 import { BatchSpanProcessor, SimpleSpanProcessor } from '@opentelemetry/sdk-trace-node'
 import { afterEach, describe, expect, it } from 'vitest'
 import { z } from 'zod/v4'
 
-import type { NaviosApplication } from '@navios/core'
+import type { NaviosApplication } from '@navios/server'
 import type { ReadableSpan, SpanExporter, SpanProcessor } from '@opentelemetry/sdk-trace-node'
 
 import { defineOtelPlugin } from '../src/index.mjs'

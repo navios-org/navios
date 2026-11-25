@@ -26,7 +26,7 @@ import {
   NaviosFactory,
   registerInjectable,
   registerRequestValue,
-} from '@navios/core'
+} from '@navios/server'
 import { fastify } from 'fastify'
 import { z } from 'zod/v4'
 

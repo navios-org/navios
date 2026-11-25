@@ -1,13 +1,13 @@
 import { defineFastifyEnvironment } from '@navios/adapter-fastify'
 import { builder } from '@navios/builder'
-import { handler, NaviosFactory } from '@navios/core'
-import { Controller, Module } from '@navios/core/legacy-compat'
 import * as openapi from '@navios/openapi'
+import { handler, NaviosFactory } from '@navios/server'
+import { Controller, Module } from '@navios/server/legacy-compat'
 import { afterEach, describe, expect, it } from 'vitest'
 import { z } from 'zod/v4'
 
-import type { NaviosApplication } from '@navios/core'
 import type { OpenApiDocument } from '@navios/openapi'
+import type { NaviosApplication } from '@navios/server'
 
 import * as legacy from '../index.mjs'
 

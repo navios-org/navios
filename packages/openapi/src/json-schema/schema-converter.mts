@@ -1,4 +1,4 @@
-import type { StandardSchemaV1 } from '@navios/core'
+import type { StandardSchemaV1 } from '@navios/server'
 
 import { isObject } from '../internal/is-object.mjs'
 

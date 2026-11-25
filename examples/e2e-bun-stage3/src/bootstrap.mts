@@ -1,11 +1,11 @@
 import { defineBunEnvironment } from '@navios/adapter-bun'
-import { NaviosFactory } from '@navios/core'
+import { NaviosFactory } from '@navios/server'
 
 import type { BunEnvironment } from '@navios/adapter-bun'
 
 import { AppModule } from './modules/app/app.module.mjs'
 
-declare module '@navios/core' {
+declare module '@navios/server' {
   interface Register {
     environment: BunEnvironment
   }

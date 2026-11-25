@@ -1,7 +1,7 @@
-import { UnauthorizedException } from '@navios/core'
-import { AttributeFactory, Injectable } from '@navios/core/legacy-compat'
+import { UnauthorizedException } from '@navios/server'
+import { AttributeFactory, Injectable } from '@navios/server/legacy-compat'
 
-import type { Guard, RequestContext } from '@navios/core'
+import type { Guard, RequestContext } from '@navios/server'
 
 import { CurrentUser } from './current-user.mjs'
 import { Public } from './public.attribute.mjs'

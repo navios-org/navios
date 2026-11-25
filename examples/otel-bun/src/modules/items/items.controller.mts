@@ -4,11 +4,11 @@ import {
   InternalServerErrorException,
   NotFoundException,
   reply,
-} from '@navios/core'
-import { Controller, Endpoint } from '@navios/core/legacy-compat'
+} from '@navios/server'
+import { Controller, Endpoint } from '@navios/server/legacy-compat'
 import { RequestSpan } from '@navios/otel'
 
-import type { HandlerParams, HandlerResult, RequestContext } from '@navios/core'
+import type { HandlerParams, HandlerResult, RequestContext } from '@navios/server'
 
 import {
   chainEndpoint,
