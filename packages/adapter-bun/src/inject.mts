@@ -34,6 +34,21 @@ export function compilePath(path: string): Pick<Matcher, 'pattern' | 'names' | '
 }
 
 /**
+ * Decodes a url param as `Bun.serve` does: a sequence that is not valid
+ * percent-encoded UTF-8 does not fail the request.
+ */
+function decodeParam(value: string): string {
+  try {
+    return decodeURIComponent(value)
+  } catch {
+    const bytes = value.replace(/%([0-9A-Fa-f]{2})/g, (_, hex: string) =>
+      String.fromCharCode(parseInt(hex, 16)),
+    )
+    return new TextDecoder().decode(Uint8Array.from(bytes, (char) => char.charCodeAt(0)))
+  }
+}
+
+/**
  * Whether `route` is a closer match than `other` for a path both match: at
  * the first segment where one is static and the other a url param, the static
  * one wins, as in the router of `Bun.serve`. `inject()` has to choose the
@@ -100,7 +115,7 @@ export async function injectRequest(
     const values = captures
     const params: Record<string, string> = {}
     matched.names.forEach((name, index) => {
-      params[name] = decodeURIComponent(values[index + 1])
+      params[name] = decodeParam(values[index + 1])
     })
     response = await matched.handle(native, params)
   } else {

@@ -82,10 +82,17 @@ export function toResponse(result: RouteResult, request: Request): Response {
       typeof value[Symbol.asyncIterator] === 'function' ||
       typeof value.getReader === 'function'
     ) {
-      const response = new Response(streamFrom(value as AsyncIterable<unknown>, done), {
-        status: result.status,
-        headers,
-      })
+      const stream = streamFrom(value as AsyncIterable<unknown>, done)
+      let response: Response
+      try {
+        response = new Response(stream, { status: result.status, headers })
+      } catch (error) {
+        // For example a status that `Response` rejects. Nothing will read the
+        // stream, so close its source. The caller releases the result.
+        release = null
+        void stream.cancel().catch(() => {})
+        throw error
+      }
       if (request.signal.aborted) {
         done()
       } else if (release !== null) {

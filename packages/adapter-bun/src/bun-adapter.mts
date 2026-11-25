@@ -12,7 +12,7 @@ import type {
 } from '@navios/server'
 import type { BunRequest } from 'bun'
 
-import { BODY_TOO_LARGE, declaresTooLarge, DEFAULT_BODY_LIMIT } from './body-limit.mjs'
+import { BODY_TOO_LARGE, DEFAULT_BODY_LIMIT, limitBody } from './body-limit.mjs'
 import { applyCorsToResponse, calculatePreflightHeaders, isPreflight } from './cors.mjs'
 import { compilePath, injectRequest } from './inject.mjs'
 import { BunRouteInput } from './request-input.mjs'
@@ -46,14 +46,17 @@ export class BunAdapter implements HttpAdapter<BunEnvironment> {
     options: BunAdapterOptions,
     private readonly context: AdapterContext,
   ) {
-    if (options.cors && options.cors.credentials && (options.cors.origin ?? '*') === '*') {
+    // Like @fastify/cors: enabling CORS without an origin allows any origin.
+    const configured = options.cors?.origin ?? '*'
+    // A list with `*` in it allows any origin as well.
+    const origin = Array.isArray(configured) && configured.includes('*') ? '*' : configured
+    if (options.cors?.credentials && origin === '*') {
       throw new Error(
         '[Navios] CORS with credentials needs an explicit origin: browsers reject ' +
           'Access-Control-Allow-Origin: * on credentialed requests. Set cors.origin to the allowed origin(s).',
       )
     }
-    // Like @fastify/cors: enabling CORS without an origin allows any origin.
-    this.options = options.cors ? { ...options, cors: { origin: '*', ...options.cors } } : options
+    this.options = options.cors ? { ...options, cors: { ...options.cors, origin } } : options
     this.bodyLimit = options.serve?.maxRequestBodySize ?? DEFAULT_BODY_LIMIT
   }
 
@@ -74,18 +77,26 @@ export class BunAdapter implements HttpAdapter<BunEnvironment> {
     const cors = this.options.cors
     const withCors = (response: Response): Response | Promise<Response> =>
       cors ? applyCorsToResponse(response, request.headers.get('origin'), cors) : response
-    if (declaresTooLarge(request, this.bodyLimit)) {
-      // Answered here, as Bun and Fastify do: before guards, and whether or
-      // not the route reads a body. Bun discards the body without buffering.
-      return withCors(toResponse(problem(413, BODY_TOO_LARGE), request))
+    const declared = request.headers.get('content-length')
+    let source = request
+    if (declared !== null) {
+      if (Number(declared) > this.bodyLimit) {
+        // Answered here, as Bun and Fastify do: before guards, and whether or
+        // not the route reads a body. Bun discards the body without buffering.
+        return withCors(toResponse(problem(413, BODY_TOO_LARGE), request))
+      }
+    } else if (request.body !== null) {
+      // A body of unknown length (chunked transfer encoding, or `inject()`)
+      // is counted while it is read.
+      source = limitBody(request, this.bodyLimit)
     }
     const input = new BunRouteInput(
       request,
+      source,
       params,
       this.bunServer,
       multipartSchema,
       isMultipart,
-      this.bodyLimit,
     )
     this.inFlight++
     const finish = (response: Response): Response | Promise<Response> => {

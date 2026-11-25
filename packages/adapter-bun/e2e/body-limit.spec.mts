@@ -4,6 +4,7 @@ import { handler, NaviosFactory, registerController, registerModule } from '@nav
 
 import type { NaviosApplication } from '@navios/server'
 
+import { DEFAULT_BODY_LIMIT } from '../src/body-limit.mjs'
 import { defineBunEnvironment } from '../src/index.mjs'
 
 import type { BunEnvironment } from '../src/index.mjs'
@@ -35,6 +36,17 @@ describe('bun adapter: request body limit', () => {
         calls++
         return { ok: true }
       })
+      upload = handler(
+        {
+          config: { method: 'POST', url: '/upload', body: 'multipart', requestSchema: anything },
+        } as any,
+        ({ data }: any) => ({ keys: Object.keys(data) }),
+      )
+      // Reads the body itself, past the pipeline.
+      rawRead = handler(
+        { config: { method: 'POST', url: '/raw-read' } } as any,
+        async (_: any, ctx: any) => ({ length: (await ctx.raw.request.text()).length }),
+      )
     }
     registerController(BodyController)
     class AppModule {}
@@ -93,5 +105,80 @@ describe('bun adapter: request body limit', () => {
   it('sends the CORS headers with the 413 response', async () => {
     const response = await post('/echo', LIMIT + 1)
     expect(response.headers.get('access-control-allow-origin')).toBe('https://app.example')
+  })
+
+  const chunked = (path: string, size: number) =>
+    fetch(`${base}${path}`, {
+      method: 'POST',
+      headers: { 'content-type': 'text/plain' },
+      // A stream is sent with chunked transfer encoding, without content-length.
+      body: new ReadableStream({
+        start(controller) {
+          controller.enqueue(new TextEncoder().encode('x'.repeat(size)))
+          controller.close()
+        },
+      }),
+      duplex: 'half',
+    } as RequestInit)
+
+  it('limits a body without a declared length that the handler reads from ctx.raw', async () => {
+    const accepted = await chunked('/raw-read', LIMIT)
+    expect(await accepted.json()).toEqual({ length: LIMIT })
+
+    const rejected = await chunked('/raw-read', 64 * LIMIT)
+    expect(rejected.status).toBe(413)
+    expect(rejected.headers.get('content-type')).toContain('application/problem+json')
+
+    const declared = await post('/raw-read', LIMIT)
+    expect(await declared.json()).toEqual({ length: LIMIT })
+  })
+
+  it('answers 413, not 400, for a multipart body without a declared length over the limit', async () => {
+    const send = (size: number) => {
+      const form = new FormData()
+      form.append('file', new File(['x'.repeat(size)], 'a.txt'))
+      const { body, headers } = new Request(base, { method: 'POST', body: form })
+      return fetch(`${base}/upload`, {
+        method: 'POST',
+        headers,
+        body,
+        duplex: 'half',
+      } as RequestInit)
+    }
+    expect(await (await send(16)).json()).toEqual({ keys: ['file'] })
+    expect((await send(4 * LIMIT)).status).toBe(413)
+  })
+})
+
+describe('bun adapter: default request body limit', () => {
+  let app: NaviosApplication<BunEnvironment>
+  let base: string
+
+  beforeAll(async () => {
+    class DefaultLimitController {
+      echo = handler(
+        { config: { method: 'POST', url: '/echo', requestSchema: anything } } as any,
+        ({ data }: any) => ({ length: String(data).length }),
+      )
+    }
+    registerController(DefaultLimitController)
+    class AppModule {}
+    registerModule(AppModule, { controllers: [DefaultLimitController] })
+    app = await NaviosFactory.create(AppModule, { adapter: defineBunEnvironment(), logger: false })
+    base = await app.listen({ port: 0, hostname: '127.0.0.1' })
+  })
+
+  afterAll(async () => {
+    await app.close()
+  })
+
+  it('is the 128 MiB of Bun.serve', async () => {
+    expect(DEFAULT_BODY_LIMIT).toBe(128 * 1024 * 1024)
+    const response = await fetch(`${base}/echo`, {
+      method: 'POST',
+      headers: { 'content-type': 'text/plain' },
+      body: 'x'.repeat(2 * 1024 * 1024),
+    })
+    expect(await response.json()).toEqual({ length: 2 * 1024 * 1024 })
   })
 })

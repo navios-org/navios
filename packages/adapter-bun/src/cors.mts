@@ -8,8 +8,8 @@ export type OriginFunction = (
 ) => void
 
 /**
- * Extended CORS options for the Bun adapter.
- * Extends the core AbstractHttpCorsOptions with support for function-based origin.
+ * CORS options of the Bun adapter. They follow the options of `@fastify/cors`
+ * that the Fastify adapter takes, including a function for `origin`.
  */
 export interface BunCorsOptions {
   /** Allowed origin(s). @default '*' */
@@ -250,7 +250,7 @@ export function isPreflight(
  * @param response - The original response
  * @param requestOrigin - The Origin header from the request
  * @param options - CORS configuration options
- * @returns A new Response with CORS headers, or the original if origin not allowed
+ * @returns The response, with the CORS headers added to it
  */
 export async function applyCorsToResponse(
   response: Response,
@@ -262,21 +262,35 @@ export async function applyCorsToResponse(
   }
 
   const corsHeaders = await calculateCorsHeaders(requestOrigin ?? undefined, options)
+  const { headers } = response
 
-  if (!corsHeaders) {
-    return response
+  // The response depends on the Origin header unless every origin gets the
+  // same one. That holds for an origin that is not allowed too: a cache must
+  // not serve its response to an allowed origin.
+  if (
+    corsHeaders
+      ? corsHeaders.Vary !== undefined
+      : options.origin !== '*' && options.origin !== false
+  ) {
+    addVary(headers)
   }
 
-  const headers = new Headers(response.headers)
-  for (const [key, value] of Object.entries(corsHeaders)) {
-    if (value) {
-      headers.set(key, value)
+  if (corsHeaders) {
+    for (const [key, value] of Object.entries(corsHeaders)) {
+      if (value && key !== 'Vary') {
+        headers.set(key, value)
+      }
     }
   }
+  return response
+}
 
-  return new Response(response.body, {
-    status: response.status,
-    statusText: response.statusText,
-    headers,
-  })
+/** Adds `Origin` to the `Vary` header, keeping what the handler has set. */
+function addVary(headers: Headers): void {
+  const existing = headers.get('vary')
+  if (existing === null) {
+    headers.set('vary', 'Origin')
+  } else if (existing !== '*' && !/(^|,)\s*origin\s*(,|$)/i.test(existing)) {
+    headers.set('vary', `${existing}, Origin`)
+  }
 }

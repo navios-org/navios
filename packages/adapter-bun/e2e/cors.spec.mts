@@ -31,6 +31,13 @@ describe('bun adapter: CORS', () => {
         { config: { method: 'GET', url: '/ping', responseSchema: okSchema } } as any,
         () => ({ ok: true }),
       )
+      varied = handler(
+        { config: { method: 'GET', url: '/varied', responseSchema: okSchema } } as any,
+        (_: any, ctx: any) => {
+          ctx.reply.header('vary', 'Accept-Encoding')
+          return { ok: true }
+        },
+      )
     }
     decorate(PingController, Controller())
     class AppModule {}
@@ -74,5 +81,53 @@ describe('bun adapter: CORS', () => {
     const missing = await fetch(`${base}/nope`, { headers: { origin: 'https://app.example' } })
     expect(missing.status).toBe(404)
     expect(missing.headers.get('access-control-allow-origin')).toBe('https://app.example')
+  })
+
+  it('sends Vary: Origin whether or not the origin is allowed', async () => {
+    const allowed = await fetch(`${base}/ping`, { headers: { origin: 'https://app.example' } })
+    expect(allowed.headers.get('vary')).toBe('Origin')
+    const other = await fetch(`${base}/ping`, { headers: { origin: 'https://evil.example' } })
+    expect(other.headers.get('vary')).toBe('Origin')
+    expect(other.headers.get('access-control-allow-origin')).toBeNull()
+    const none = await fetch(`${base}/ping`)
+    expect(none.headers.get('vary')).toBe('Origin')
+    const preflight = await fetch(`${base}/ping`, {
+      method: 'OPTIONS',
+      headers: { origin: 'https://evil.example', 'access-control-request-method': 'GET' },
+    })
+    expect(preflight.headers.get('vary')).toBe('Origin')
+    expect(preflight.headers.get('access-control-allow-origin')).toBeNull()
+  })
+
+  it('keeps a Vary header set by the handler', async () => {
+    for (const origin of ['https://app.example', 'https://evil.example']) {
+      const response = await fetch(`${base}/varied`, { headers: { origin } })
+      expect(response.headers.get('vary')).toBe('Accept-Encoding, Origin')
+    }
+  })
+})
+
+describe('bun adapter: CORS options', () => {
+  class AppModule {}
+  decorate(AppModule, Module({ controllers: [] }))
+
+  it('rejects a wildcard origin in a list together with credentials', async () => {
+    for (const origin of ['*', ['*'], ['https://app.example', '*']]) {
+      expect(() =>
+        defineBunEnvironment({ cors: { origin, credentials: true } }).create({} as any),
+      ).toThrow('[Navios] CORS with credentials needs an explicit origin')
+    }
+  })
+
+  it('does not send Vary: Origin for a wildcard origin', async () => {
+    const app = await NaviosFactory.create(AppModule, {
+      adapter: defineBunEnvironment({ cors: { origin: ['*'] } }),
+      logger: false,
+    })
+    const base = await app.listen({ port: 0, hostname: '127.0.0.1' })
+    const response = await fetch(`${base}/nope`, { headers: { origin: 'https://a.example' } })
+    expect(response.headers.get('access-control-allow-origin')).toBe('*')
+    expect(response.headers.get('vary')).toBeNull()
+    await app.close()
   })
 })

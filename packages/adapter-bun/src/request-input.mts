@@ -1,8 +1,6 @@
-import { createMultipartCollector, ValidationError } from '@navios/server'
+import { createMultipartCollector, HttpException, ValidationError } from '@navios/server'
 
 import type { RouteInput, SchemaLike } from '@navios/server'
-
-import { readLimited } from './body-limit.mjs'
 
 import type { BunEnvironment, BunServer } from './environment.mjs'
 
@@ -17,7 +15,9 @@ export function pathOf(url: string): string {
 }
 
 function parseQuery(url: string): Record<string, string | string[]> {
-  const result: Record<string, string | string[]> = {}
+  // Without a prototype, as the query of the Fastify adapter: `constructor`
+  // and `__proto__` are keys like any other.
+  const result: Record<string, string | string[]> = Object.create(null)
   const index = url.indexOf('?')
   if (index < 0) {
     return result
@@ -40,13 +40,14 @@ export class BunRouteInput implements RouteInput {
 
   constructor(
     private readonly request: Request,
+    /** `request`, or a copy of it whose body is limited while it is read. */
+    private readonly source: Request,
     readonly urlParams: Record<string, string>,
     server: BunServer | null,
     private readonly multipartSchema: SchemaLike | undefined,
     private readonly isMultipart: boolean,
-    private readonly bodyLimit: number,
   ) {
-    this.raw = { request, server }
+    this.raw = { request: source, server }
   }
 
   get method(): string {
@@ -72,14 +73,22 @@ export class BunRouteInput implements RouteInput {
   async body(): Promise<unknown> {
     const contentType = this.request.headers.get('content-type') ?? ''
     // A declared length was checked before the pipeline ran, and the body
-    // cannot be longer than it. Without one (chunked transfer encoding, or
-    // `inject()`) the bytes are counted while they are read.
-    const request = this.request.headers.has('content-length')
-      ? this.request
-      : await readLimited(this.request, this.bodyLimit)
+    // cannot be longer than it. Without one, reading `source` fails with a
+    // 413 once the body is over the limit.
+    const request = this.source
     if (this.isMultipart || contentType.includes('multipart/form-data')) {
       const collector = createMultipartCollector(this.multipartSchema)
-      const form = await request.formData()
+      let form: FormData
+      try {
+        form = await request.formData()
+      } catch (error) {
+        if (error instanceof HttpException) {
+          throw error
+        }
+        throw new ValidationError('body', [
+          { message: `Malformed multipart body: ${(error as Error).message}` },
+        ])
+      }
       for (const [field, value] of form as unknown as Iterable<[string, string | File]>) {
         collector.add(field, value)
       }

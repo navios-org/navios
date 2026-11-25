@@ -7,16 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [2.0.0] - Unreleased
 
-The adapter is rewritten on the `@navios/core` 2.0 adapter contract. It no longer contains guard, validation or error-handling logic; those run in core and are the same on every adapter.
+The adapter is rewritten on the adapter contract of `@navios/server` 2.0, the package that now holds the HTTP layer of Navios. It no longer contains guard, validation or error-handling logic; those run in the request pipeline of `@navios/server` and are the same on every adapter.
 
 ### Breaking
 
 - **CORS is an adapter option.** `defineBunEnvironment({ cors })` replaces `app.enableCors()`.
 - **Stream handlers no longer return a `Response`.** Return a `ReadableStream` or an async iterable from an endpoint declared with `response: 'stream'`.
 - **The per-request injection tokens are removed.** Use `ctx.raw.request` and `ctx.raw.server`.
-- **Error bodies are `application/problem+json`** documents produced by core. A denied guard used to answer with the text `Forbidden`.
+- **Error bodies are `application/problem+json`** documents produced by `@navios/server`. A denied guard used to answer with the text `Forbidden`.
 - **Response validation is on by default**, as on Fastify. It used to be opt-in on Bun.
-- Requires `@navios/core` 2.0.
+- Requires `@navios/server` 2.0, with `@navios/core` 2.0.
 
 ### Added
 
@@ -24,7 +24,7 @@ The adapter is rewritten on the `@navios/core` 2.0 adapter contract. It no longe
 - **`serve` option** for extra `Bun.serve` options.
 - **`errorSchema` is honoured**: a declared error status is sent with its declared body.
 - **`app.inject()`** runs a request through the route handlers and CORS handling without a socket.
-- The `@navios/core/conformance` suite runs against the adapter over real HTTP under `bun test`.
+- The `@navios/server/conformance` suite runs against the adapter over real HTTP under `bun test`.
 - Serves `response: 'void'` endpoints (204, no body) and per-status `responses` endpoints.
 
 ### Changed
@@ -43,6 +43,14 @@ The adapter is rewritten on the `@navios/core` 2.0 adapter contract. It no longe
 ### Fixed
 
 - **A request body over `serve.maxRequestBodySize` is answered with 413 `application/problem+json`**, as on Fastify, for JSON, text and multipart bodies. Bun answered it with an empty 413 before the adapter saw the request. The adapter now enforces the limit itself: a `content-length` over the limit is rejected before guards run, and a body without one is counted while it is read.
+- **The body limit holds for a body that the handler reads itself.** A body without a declared length (chunked transfer encoding) was only counted when the pipeline read it, so a handler calling `ctx.raw.request.text()` could be sent any amount. `ctx.raw.request` is now a request whose body fails with a 413 once it is over the limit.
+- **Query keys such as `constructor` and `__proto__` are ordinary keys.** `?constructor=x` gave `[Function, 'x']`, and `?__proto__=y` replaced the prototype of the query object. The query object has no prototype, as on Fastify.
+- **A multipart body that cannot be parsed is a 400** problem response with `source: 'body'`, not a 500.
+- **`app.inject()` serves a URL with malformed percent-encoding**, as `Bun.serve` does over HTTP. It rejected with a `URIError`.
+- **CORS: `Vary: Origin` is sent whenever the answer depends on the origin**, including to an origin that is not allowed and to a request without one. A cache could otherwise serve a response without CORS headers to an allowed origin.
+- **CORS keeps a `Vary` header set by the handler** and adds `Origin` to it. It used to replace the header.
+- **CORS: `origin: ['*']` with `credentials: true` is rejected when the adapter is created**, like `origin: '*'`. It failed on every request with Bun's own error page.
+- **A stream that cannot be sent is closed.** When the response could not be built, for example for a status out of range, the iterator's `return()` was not called and a generator stayed suspended before its `finally` block.
 - **`app.inject()` chooses the route that a request over HTTP reaches.** It took the first route registered that matched and ignored a trailing slash, so a static route declared after a param route, and `/users/`, behaved differently in tests.
 - **A handler result that fails its response schema is a 500.** It used to be answered as a 400 validation error, as if the request were at fault.
 
