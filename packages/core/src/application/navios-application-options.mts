@@ -1,11 +1,8 @@
-import type { Container, Provider } from '@navios/di'
-
-import type { AdapterDefinition, HttpAdapterEnvironment } from '../adapter/http-adapter.mjs'
+import type { HttpAdapterEnvironment } from '../adapter/http-adapter.mjs'
 import type { RegisteredEnvironment } from '../context/environment.mjs'
-import type { ClientErrorStacks } from '../errors/client-error-stacks.mjs'
-import type { LogLevel } from '../logger/log-levels.mjs'
-import type { LoggerService } from '../logger/logger-output.mjs'
-import type { PluginInstance } from '../plugins/plugin.mjs'
+
+import type { ApplicationOptions } from './application-options.mjs'
+import type { HttpTransportOptions } from './http-transport.mjs'
 
 /**
  * The environment of the adapter registered through `Register`, or any HTTP
@@ -16,30 +13,16 @@ export type ApplicationEnvironment = RegisteredEnvironment extends HttpAdapterEn
   ? RegisteredEnvironment
   : HttpAdapterEnvironment
 
+/**
+ * Options of an HTTP application: the application's own, and those of its
+ * HTTP transport.
+ */
 export interface NaviosApplicationOptions<
   Env extends HttpAdapterEnvironment = ApplicationEnvironment,
-> {
-  adapter: AdapterDefinition<Env>
-  /** Providers that replace or supply defaults, application-wide. */
-  providers?: Provider[]
-  plugins?: PluginInstance[]
-  /** Use an existing container instead of creating one. */
-  container?: Container
-  /**
-   * `false` disables logging, an array selects the console logger's levels,
-   * and an object is used as the logger.
-   */
-  logger?: LoggerService | LogLevel[] | false
-  /** Prefix for every route. */
-  globalPrefix?: string
-  /**
-   * When handler results are validated against the declared schema.
-   * `'development'` validates unless `NODE_ENV` is `production`.
-   * @default 'always'
-   */
-  validateResponses?: 'always' | 'development' | 'never'
-  /** Send the message of unexpected errors to the client. @default false */
-  exposeErrorDetails?: boolean
+>
+  extends
+    ApplicationOptions,
+    Omit<HttpTransportOptions<Env>, 'listen' | 'errorMappers' | 'interceptors'> {
   /**
    * When errors that are answered with a 4xx status capture a stack: an
    * `HttpException` below 500, a denied guard, a request that does not match
@@ -51,7 +34,7 @@ export interface NaviosApplicationOptions<
    * several applications, stacks are captured if any of them wants them.
    * @default 'development'
    */
-  clientErrorStacks?: ClientErrorStacks
+  clientErrorStacks?: HttpTransportOptions<Env>['clientErrorStacks']
   /**
    * Keep the current `RequestContext` in an `AsyncLocalStorage`, so that
    * `currentContext()` works in code that cannot receive it as an argument.
@@ -67,4 +50,9 @@ export interface NaviosApplicationOptions<
   requestScopedServices?: 'allow' | 'warn' | 'forbid'
   /** How long `close()` waits for in-flight requests, in milliseconds. @default 10000 */
   shutdownTimeout?: number
+  /**
+   * Transports beside HTTP: queue consumers, a command line. They share the
+   * application's modules and container, and `listen()` starts them.
+   */
+  transports?: ApplicationOptions['transports']
 }

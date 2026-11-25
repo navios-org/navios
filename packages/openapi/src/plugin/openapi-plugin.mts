@@ -1,4 +1,11 @@
-import { definePlugin, handler, Logger, registerController, registerModule } from '@navios/core'
+import {
+  definePlugin,
+  handler,
+  httpTransport,
+  Logger,
+  registerController,
+  registerModule,
+} from '@navios/core'
 import { stringify as yamlStringify } from 'yaml'
 
 import type { FieldHandler, RouteInfo } from '@navios/core'
@@ -65,6 +72,10 @@ export interface OpenApiPluginOptions extends Omit<OpenApiGenerationOptions, 'lo
 export const openApiPlugin = definePlugin({
   name: 'openapi',
   async setup(api, options: OpenApiPluginOptions) {
+    const http = api.transport(httpTransport)
+    if (!http) {
+      throw new Error('[Navios] @navios/openapi needs the HTTP transport.')
+    }
     const logger = await api.container.get(Logger, { context: 'OpenApi' })
     const {
       jsonPath = '/openapi.json',
@@ -135,7 +146,8 @@ export const openApiPlugin = definePlugin({
 
     api.addModule(OpenApiModule)
 
-    api.onBootstrap((routes) => {
+    api.onBootstrap(() => {
+      const routes = http.routes()
       const generated = generateOpenApiDocument(routes, {
         ...generation,
         logger: {

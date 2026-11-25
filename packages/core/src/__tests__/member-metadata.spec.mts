@@ -77,7 +77,7 @@ describe('member metadata', () => {
     expect(parent.entries.has(JobKey)).toBe(false)
   })
 
-  it('serves a controller that also has another transport\'s handler', async () => {
+  it("serves a controller that also has another transport's handler", async () => {
     @Controller()
     class Users {
       @Endpoint(getUser)

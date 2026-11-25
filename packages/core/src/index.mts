@@ -18,6 +18,7 @@ export * from './plugins/index.mjs'
 export * from './responses/index.mjs'
 export * from './routing/index.mjs'
 export * from './sse/index.mjs'
+export * from './transports/index.mjs'
 
 // HTTP-typed versions of names the neutral layer also exports. An explicit
 // export takes precedence over `export *`.

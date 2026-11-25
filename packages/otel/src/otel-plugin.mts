@@ -1,4 +1,4 @@
-import { definePlugin, Logger } from '@navios/core'
+import { definePlugin, httpTransport, Logger } from '@navios/core'
 import { getInjectableToken } from '@navios/di'
 
 import { OtelConfigToken } from './config/otel-config-token.mjs'
@@ -84,7 +84,8 @@ export const otelPlugin = definePlugin({
     }
 
     if (config.autoInstrument.http) {
-      api.intercept(OtelHttpInterceptor)
+      // Around HTTP routes only; an application without HTTP has none to trace.
+      api.transport(httpTransport)?.intercept(OtelHttpInterceptor)
     }
 
     api.onShutdown(() => sdk.shutdown())

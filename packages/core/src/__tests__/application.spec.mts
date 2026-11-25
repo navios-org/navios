@@ -10,6 +10,7 @@ import {
   definePlugin,
   Endpoint,
   handler,
+  httpTransport,
   inject,
   Injectable,
   InjectableScope,
@@ -892,8 +893,8 @@ describe('lifecycle, errors and plugins', () => {
       setup(pluginApi) {
         order.push('first')
         pluginApi.addModule(ExtraModule)
-        pluginApi.onBootstrap((routes) => {
-          order.push(`bootstrap:${routes.length}`)
+        pluginApi.onBootstrap(() => {
+          order.push(`bootstrap:${pluginApi.transport(httpTransport)!.routes().length}`)
         })
         pluginApi.onShutdown(() => {
           order.push('shutdown')
@@ -944,7 +945,7 @@ describe('response encoders', () => {
     const csvPlugin = definePlugin({
       name: 'csv',
       setup(pluginApi) {
-        pluginApi.encoder('csv', (value, ctx) => {
+        pluginApi.transport(httpTransport)!.encoder('csv', (value, ctx) => {
           if (value.body === null) {
             throw new NotFoundException('nothing to export')
           }

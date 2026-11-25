@@ -1,9 +1,6 @@
 import type { ClassType, Container, InjectionToken, ProviderInput } from '@navios/di'
 
-import type { HttpAdapter } from '../adapter/http-adapter.mjs'
-import type { ErrorClass, ErrorMapper } from '../errors/error-pipeline.mjs'
-import type { ResponseEncoder } from '../pipeline/response-encoder.mjs'
-import type { RouteInfo } from '../routing/route-info.mjs'
+import type { Transport, TransportFactory } from '../transports/transport.mjs'
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -13,22 +10,25 @@ import type { RouteInfo } from '../routing/route-info.mjs'
  */
 export interface PluginApi {
   readonly container: Container
-  /** The application's adapter, already created. */
-  readonly adapter: HttpAdapter
   /** Replaces or supplies a provider. */
   provide<T>(token: ClassType | InjectionToken<T, any>, impl: ProviderInput<T>): void
   /** Wraps every instance of a service after it is built. */
   decorate<T>(token: ClassType | InjectionToken<T, any>, decorator: (instance: T) => T): void
-  /** Adds an interceptor around every route. */
+  /** Adds an interceptor around every handler, on every transport. */
   intercept(interceptor: ClassType): void
-  /** Maps an error class to a response. */
-  mapError<E>(errorClass: ErrorClass<E>, mapper: ErrorMapper<E>): void
-  /** Adds a module, and so its routes, to the application. */
+  /** Adds a module, and so its handlers, to the application. */
   addModule(module: ClassType): void
-  /** Registers an encoder for a custom response kind. */
-  encoder(kind: string, encoder: ResponseEncoder): void
-  /** Runs after routes are compiled and before the server listens. */
-  onBootstrap(hook: (routes: readonly RouteInfo[]) => void | Promise<void>): void
+  /**
+   * One of the application's transports, already created, or `undefined`
+   * when the application has none of this kind. What only one transport
+   * offers is reached through it.
+   */
+  transport<T extends Transport>(
+    factory: TransportFactory<any, T>,
+    instanceName?: string,
+  ): T | undefined
+  /** Runs after every transport is set up and before any starts. */
+  onBootstrap(hook: () => void | Promise<void>): void
   /** Runs when the application closes, in reverse registration order. */
   onShutdown(hook: (signal?: string) => void | Promise<void>): void
 }
