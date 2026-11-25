@@ -17,7 +17,8 @@ import type { Client } from '@navios/builder'
 The contract is deliberately loose:
 
 - `request` may resolve **or** reject for a non-2xx status. Builder checks `status` itself.
-- A rejection that carries a `response` property, as axios and `@navios/http` produce, is treated like a non-2xx response.
+- A rejection that carries a `response` property with a non-2xx status, as axios and `@navios/http` produce, is treated like a non-2xx response.
+- A rejection that carries a `response` with a 2xx status means the client could not parse the body. It becomes kind `response-validation`, with the response's `data` as the error body.
 - A rejection without `response` is a transport failure and becomes kind `network`, `timeout` or `aborted`.
 
 `config` contains `method`, `url` (with URL parameters bound), `params`, `data`, `headers`, `signal`, `timeout`, `responseType`, and whatever the endpoint put in `clientOptions`.

@@ -98,12 +98,12 @@ The options of `xml()` are the plugin options plus `status` (default 200), and t
 
 What happens to the returned value:
 
-- `xml()` only wraps the tree: it returns `result('xml', ...)`, a result of the custom response kind `xml`. The plugin registers a [response encoder](/docs/server/guides/plugins#response-encoders) for that kind with `api.encoder('xml', ...)`. The encoder renders the tree after the handler returns, with the request context, and sends the result as text with the XML content type. Routes that return anything else are not touched.
+- `xml()` only wraps the tree: it returns `result('xml', ...)`, a result of the custom response kind `xml`. The plugin registers a [response encoder](/docs/server/guides/plugins#response-encoders) for that kind with `api.transport(httpTransport).encoder('xml', ...)`. The encoder renders the tree after the handler returns, with the request context, and sends the result as text with the XML content type. Routes that return anything else are not touched.
 - The whole document is rendered before the response starts, whatever the declared response kind, so a client never receives half a document.
 - An error thrown by a component is handled like an error thrown by the handler: an `HttpException` becomes its status, anything else a 500 problem response. See [Errors](/docs/server/essentials/errors).
 
 :::warning
-`xmlPlugin()` is required. Without it nothing renders the value `xml()` returns, and the adapter is handed the unrendered tree.
+`xmlPlugin()` is required. Without it nothing renders the value `xml()` returns: the request fails with an error that says no encoder is registered for the kind `xml`, and is answered with a 500 problem response.
 :::
 
 ### Without the plugin

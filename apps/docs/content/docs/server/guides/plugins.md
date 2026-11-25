@@ -90,7 +90,7 @@ A plugin whose `setup` declares no options is called without arguments: `app.use
 
 | Field                 | Meaning                                                                                              |
 | --------------------- | ---------------------------------------------------------------------------------------------------- |
-| `name`                | Unique name. A plugin registered twice under one name is set up once; the first registration is used |
+| `name`                | Unique name. The same registration passed to `usePlugin` twice is set up once. Two registrations under one name with different options fail `init()` |
 | `dependsOn`           | Names of plugins that must be set up before this one                                                 |
 | `setup(api, options)` | Called once during `init()`. May be asynchronous                                                     |
 

@@ -60,7 +60,7 @@ If the constructor or the hook throws, resolution fails with a `DIError` with co
 
 `onServiceDestroy` runs when the instance is destroyed: by `dispose()` on its container or scope, or by [invalidation](/docs/di/guides/invalidation). Release what `onServiceInit` acquired.
 
-An error thrown or rejected by the hook is swallowed so that the rest of the teardown still runs. Log inside the hook if you need to know about it.
+An error thrown or rejected by the hook does not stop the teardown: the rest still runs and `dispose()` still resolves. The error is passed to `logger.error()` when the container was created with a [`logger`](/docs/di/reference/api#container). Without one it is dropped, so log inside the hook if you need to know about it.
 
 The hook is found on:
 

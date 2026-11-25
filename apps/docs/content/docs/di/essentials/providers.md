@@ -33,7 +33,7 @@ The target is a token or a decorated class. A class that is not registered throw
 
 | Form                           | Produces                                                      | Scope                                                                    |
 | ------------------------------ | ------------------------------------------------------------- | ------------------------------------------------------------------------ |
-| `SomeClass`                    | `new SomeClass()`, with `inject()` available inside           | The scope `SomeClass` was registered with, or singleton                  |
+| `SomeClass`                    | `new SomeClass()`, with `inject()` available inside           | The scope of the token's default provider, else the [token's scope](/docs/di/essentials/tokens#tokens-that-declare-a-scope), else the scope `SomeClass` was registered with, else singleton |
 | `{ class: SomeClass, scope? }` | The same, with an explicit scope                              | `scope`, else as above                                                   |
 | `{ value }`                    | The value as it is, including `null`, `0` and `''`            | The [token's scope](/docs/di/essentials/tokens#tokens-that-declare-a-scope), or singleton |
 | `{ factory, scope? }`          | The return value of `factory(ctx, args)`; it may be a promise | `scope`, else the token's scope, else singleton                          |
@@ -98,7 +98,7 @@ Rules for the target:
 
 ## Decorating instances
 
-`container.decorate(target, fn)` wraps every instance of a token. The function receives the finished instance and returns what the container should store.
+`container.decorate(target, fn)` wraps every instance the container builds for a token. The function receives the finished instance and returns what the container should store. It is not applied to a `{ value }` provider or to a value stored with `addInstance()`.
 
 ```ts
 // UserService comes from the quick start

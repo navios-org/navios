@@ -131,4 +131,3 @@ Measured with `yarn bench --check` in `packages/adapter-fastify`: Node 24.22, pr
 - `createTestClient` returns the raw status and body. It is not the builder client and does not validate or type the response.
 - `requestScopedServices` is checked at the first `ctx.use()` of a token, not at `init()`.
 - A cycle between request values is detected only when they read each other synchronously.
-- `@navios/otel*`, `@navios/openapi*`, `@navios/adapter-xml`, `@navios/schedule`, `@navios/queues`, `@navios/microservice` and `@navios/jwt` are not ported to this version yet.

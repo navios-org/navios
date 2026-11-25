@@ -23,7 +23,7 @@ await getPost({ urlParams: { userId: '42', postId: 7 } })
 // GET /users/42/posts/7
 ```
 
-Without a schema, each value is `string | number`. Values are URL-encoded. A missing, `null` or empty-string value fails the call rather than producing a shorter path.
+Without a schema, each value is `string | number`. Values are URL-encoded. A missing, `null` or empty-string value fails the call rather than producing a shorter path. So does a value that is exactly `.` or `..`, which URL parsing would resolve into a different path.
 
 ### Validating URL parameters
 

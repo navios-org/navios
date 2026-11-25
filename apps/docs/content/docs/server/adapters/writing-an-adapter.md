@@ -6,7 +6,7 @@ title: Writing an adapter
 
 An adapter binds Navios to an HTTP server. It registers routes with the server, turns each native request into a `RouteInput`, calls the route's executor and writes the `RouteResult` it gets back. It contains no guard, validation or error-mapping logic: all of that is inside the executor and is the same on every adapter.
 
-The shipped adapters are the working references. `@navios/adapter-fastify` and `@navios/adapter-bun` are each one source file, and the in-memory adapter in `@navios/server/testing` is the smallest implementation.
+The shipped adapters are the working references. `@navios/adapter-fastify` and `@navios/adapter-bun` are each a handful of source files, and the in-memory adapter in `@navios/server/testing` is the smallest implementation.
 
 ## The definition
 
@@ -106,13 +106,13 @@ Everything that may cost something is a function, so a route that does not need 
 Requirements:
 
 - `urlParams` holds the parameters of the whole path, prefixes included, as URL-decoded strings.
-- `query()` returns the parsed query string as an object, with an array for a repeated parameter. Core calls it at most once per request and validates the result with the endpoint's schema; coercion is the schema's job.
+- `query()` returns the parsed query string as an object, with an array for a repeated parameter. The pipeline calls it at most once per request and validates the result with the endpoint's schema; coercion is the schema's job.
 - `body()` is not called before guards have passed. It returns the parsed body, or a promise of it. Do not read the request body before it is called when the server lets you defer it.
 - A malformed body is reported by throwing `new ValidationError('body', [{ message }])` from `body()`, so that it becomes a 400 like any other validation failure.
 - For an endpoint with `body: 'multipart'` (`route.info.endpoint.body`), build the body with `createMultipartCollector(route.info.endpoint.requestSchema)`: call `add(field, value)` for every part, with a string for a text field and a `File` for a file, and return `result()`.
 - `signal()` returns a signal that aborts when the client disconnects before the response is complete. It must not abort because the request body has been read, and it must already be aborted when it is first read after the client has gone.
-- `headerRecord()` is optional. Implement it when the native request has its headers as a record already: it is what a `headersSchema` validates, and without it core builds a record from `headers()`. Names are lower-case, a repeated header is joined with `, `, and the record is the caller's to change, so return a copy.
-- `responded()` is optional. Implement it when `raw` exposes a native reply a handler can write to, and return `true` once the handler has done so. Core then skips response validation and hands back a result the adapter must not write. The Fastify adapter returns `reply.sent`.
+- `headerRecord()` is optional. Implement it when the native request has its headers as a record already: it is what a `headersSchema` validates, and without it the pipeline builds a record from `headers()`. Names are lower-case, a repeated header is joined with `, `, and the record is the caller's to change, so return a copy.
+- `responded()` is optional. Implement it when `raw` exposes a native reply a handler can write to, and return `true` once the handler has done so. The pipeline then skips response validation and hands back a result the adapter must not write. The Fastify adapter returns `reply.sent`.
 
 ## `RouteResult`
 
@@ -138,7 +138,7 @@ interface RouteResult {
 | `sse`    | An async iterable of already-framed strings.                         | `text/event-stream`         |
 | `empty`  | Ignore `body`. Send no body.                                         | none                        |
 
-- A `content-type` in `result.headers` wins over the default. Core writes lower-case header names into `result.headers`.
+- A `content-type` in `result.headers` wins over the default. The pipeline writes lower-case header names into `result.headers`.
 - Serialise each entry of `result.cookies` with `serializeCookie(cookie)` from `@navios/server` and send one `Set-Cookie` header per entry.
 - When the client disconnects while a stream is being written, stop iterating and call the iterator's `return()`.
 - Custom kinds registered by [plugins](/docs/server/guides/plugins) are converted to one of the kinds above before the result reaches the adapter.

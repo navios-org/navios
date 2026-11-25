@@ -62,7 +62,7 @@ export const Jwt = provideJwtService({
 
 ### Choosing the key per token
 
-`secretOrKeyProvider` picks the key for each call, for example by the `kid` header of the token when keys are rotated. `requestType` is `RequestType.Sign` or `RequestType.Verify`; the second argument is the payload when signing and the token when verifying. The function is synchronous.
+`secretOrKeyProvider` picks the key for each call, for example by the `kid` header of the token when keys are rotated. `requestType` is `RequestType.Sign` or `RequestType.Verify`; the second argument is the payload when signing and the token when verifying. The function may return the key or a promise of it. A promise is awaited by `signAsync()` and `verifyAsync()`; `sign()` and `verify()` throw when the provider returns one, because they cannot wait for the key.
 
 ```ts
 import { provideJwtService, RequestType } from '@navios/jwt'

@@ -69,7 +69,7 @@ export class AvatarStorage {
 
 | Adapter | What is needed                                                                                          |
 | ------- | ------------------------------------------------------------------------------------------------------- |
-| Fastify | `defineFastifyEnvironment({ multipart: true })`, or its options object. Without it a multipart request is answered with 415 |
+| Fastify | `defineFastifyEnvironment({ multipart: true })`, or its options object. Without it `init()` throws for an endpoint declared with `body: 'multipart'` |
 | Bun     | Nothing                                                                                                 |
 
 The option and its limits are described on the [Fastify](/docs/server/adapters/fastify) and [Bun](/docs/server/adapters/bun) adapter pages.

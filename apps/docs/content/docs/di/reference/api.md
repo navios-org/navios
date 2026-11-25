@@ -18,7 +18,7 @@ new Container(options?: ContainerOptions)
 | ----------- | ----------------- | ------- | ------------------------------------------------------------------------------------------------ |
 | `providers` | `Provider[]`      | `[]`    | Bindings created with [`provide()`](/docs/di/essentials/providers#provide)                       |
 | `strict`    | `boolean`         | `false` | Ignore default providers. See [Strict containers](/docs/di/essentials/providers#strict-containers) |
-| `logger`    | `Console \| null` | `null`  | Receives a warning when `invalidate()` is given an unknown instance                              |
+| `logger`    | `Console \| null` | `null`  | Receives a warning when `invalidate()` is given an unknown instance, and an error when a destroy hook throws |
 
 | Member                                 | Returns                       | Description                                                                                         |
 | -------------------------------------- | ----------------------------- | --------------------------------------------------------------------------------------------------- |
@@ -26,7 +26,7 @@ new Container(options?: ContainerOptions)
 | `getSync(token, args?)`                | `T`                           | Resolves synchronously. Throws `AsyncInitRequired` if something has to be awaited                   |
 | `tryGetSync(token, args?)`             | `T \| null`                   | Returns an instance that already exists. Never builds                                               |
 | `provide(target, impl)`                | `void`                        | Adds a [provider](/docs/di/essentials/providers#containerprovide). Throws once the token is resolved |
-| `decorate(target, fn)`                 | `void`                        | [Wraps](/docs/di/essentials/providers#decorating-instances) every instance of a token               |
+| `decorate(target, fn)`                 | `void`                        | [Wraps](/docs/di/essentials/providers#decorating-instances) every instance built for a token. Not applied to `{ value }` providers or `addInstance()` values |
 | `addInstance(target, value)`           | `void`                        | [Stores](/docs/di/essentials/providers#addinstance) a ready value as a singleton                    |
 | `isRegistered(target)`                 | `boolean`                     | Whether the token has an instance or a provider here                                                |
 | `getProvider(target)`                  | `ProviderRecord \| undefined` | The provider that would be used                                                                     |
@@ -233,6 +233,8 @@ class DIError extends Error {
 | `AsyncInitRequired`        | `getSync()` meets something that has to be awaited                                                  | `name`                                 |
 | `InitializationError`      | A constructor, factory or `onServiceInit` throws something that is not a `DIError`                  | `serviceName`, `error`; `cause` is set |
 | `ContainerDisposed`        | A disposed scope is used                                                                            | `kind`                                 |
+| `OutsideInjectionContext`  | `inject()`, `optional()` or `asyncInject()` is called outside a construction                        | `what`                                 |
+| `AccessBeforeInit`         | A constructor uses a [placeholder](/docs/di/how-it-works#constructor-replay)                        | `name`                                 |
 | `UnknownError`             | Misuse without a code of its own: `provide()` after resolution, a second `addInstance()`, a value that is not a class or token | varies      |
 
 `InstanceNotFound` and `InstanceDestroying` exist in the enum and are not raised by the container.
@@ -251,13 +253,10 @@ The messages, for matching against logs. In code, compare `code`.
 | `AsyncInitRequired`        | `<name> or one of its dependencies has an asynchronous initializer and cannot be resolved synchronously. …` |
 | `InitializationError`      | `Service <name> initialization failed: <original message>`                                                  |
 | `ContainerDisposed`        | `ScopedContainer has been disposed`                                                                         |
+| `OutsideInjectionContext`  | `[Injector] Trying to access <function> outside of a injectable context`                                    |
+| `AccessBeforeInit`         | `[Injector] Trying to access <name> before it's initialized, please move the code to a onServiceInit method` |
 
-Two failures are a plain `Error`, not a `DIError`:
-
-| Raised when                                                          | Message                                                                                                    |
-| -------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| `inject()`, `optional()` or `asyncInject()` is called outside a construction | `[Injector] Trying to access <function> outside of a injectable context`                           |
-| A constructor uses a [placeholder](/docs/di/how-it-works#constructor-replay) | `[Injector] Trying to access <name> before it's initialized, please move the code to a onServiceInit method` |
+`AccessBeforeInit` is thrown inside a construction pass that the container discards and repeats, so it is seen only by code that catches it in the constructor or keeps the placeholder and uses it later.
 
 ```ts
 import { DIError, DIErrorCode } from '@navios/di'

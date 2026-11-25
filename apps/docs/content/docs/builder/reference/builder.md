@@ -282,7 +282,7 @@ type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH' | 'HEAD' | 'OPTION
 | `headers`                     | `Record<string, string>`                                              | Request headers                                      |
 | `signal`                      | `AbortSignal \| null`                                                 | Cancellation signal                                  |
 | `timeout`                     | `number`                                                              | Milliseconds                                         |
-| `responseType`                | `'json' \| 'text' \| 'blob' \| 'arrayBuffer' \| 'formData' \| 'stream'` | Set for `response: 'blob' \| 'text' \| 'stream'`; absent for JSON |
+| `responseType`                | `'json' \| 'text' \| 'blob' \| 'arrayBuffer' \| 'formData' \| 'stream'` | Set for `response: 'blob' \| 'text' \| 'stream'`; `'text'` for `response: 'void'`; absent for JSON |
 | `[key: string]`               | `unknown`                                                             | Keys from the endpoint's `clientOptions`             |
 
 | `AbstractResponse<T>` field | Type                                  |
@@ -303,7 +303,7 @@ The pieces `declareEndpoint` is made of. They are exported for building integrat
 | `createHandler`           | `(options: BaseEndpointOptions, context: BuilderContext) => handler`  | Builds the endpoint function, with `safe` and `config`, for one declaration. Loosely typed: `declareEndpoint` adds the inference |
 | `assertValidDeclaration`  | `(options: BaseEndpointOptions) => void`                              | The declaration-time check of `urlParamsSchema` against the URL; throws `NaviosError`    |
 | `getUrlParamNames`        | `(url: string) => string[]`                                           | Parameter names of a URL template, in order of first appearance                          |
-| `bindUrlParams`           | `(url, params: UrlParamsRequest, urlParamsSchema?: Schema) => url`    | Replaces `$name` placeholders with URL-encoded values. Throws when one is missing or empty |
+| `bindUrlParams`           | `(url, params: UrlParamsRequest, urlParamsSchema?: Schema) => url`    | Replaces `$name` placeholders with URL-encoded values. Throws when one is missing, empty, `.` or `..` |
 | `makeConfig`              | `(request: ConfigRequest, options, finalUrl: string) => AbstractRequestConfig` | Builds the config handed to the client: merges headers, timeout and `clientOptions` |
 | `makeFormData`            | `(request: ConfigRequest, options) => FormData`                       | The `body: 'multipart'` conversion                                                       |
 | `validate`                | `(schema: Schema, value: unknown) => Promise<ValidationOutcome>`      | Runs any Standard Schema. Never rejects                                                  |
@@ -311,7 +311,7 @@ The pieces `declareEndpoint` is made of. They are exported for building integrat
 | `toResponseMeta`          | `(response) => ResponseMeta`                                          | Normalizes a client response; header records become a `Headers` instance                 |
 | `classifyTransportFailure` | `(error: unknown, signal: AbortSignal \| null \| undefined) => 'timeout' \| 'aborted' \| 'network'` | Classifies a rejection that carries no response. `signal` is the call's signal and must be passed, even as `undefined` |
 
-`bindUrlParams`, `makeConfig` and `makeFormData` validate with `parseSync` when given a schema, so a failure is not an `EndpointError`: a schema with a `parse` method, such as a Zod schema, throws its own error, and any other schema's issues are thrown as a `NaviosError`. A missing or empty URL parameter throws a plain `Error`.
+`bindUrlParams`, `makeConfig` and `makeFormData` validate with `parseSync` when given a schema, so a failure is not an `EndpointError`: a schema with a `parse` method, such as a Zod schema, throws its own error, and any other schema's issues are thrown as a `NaviosError`. A URL parameter that is missing, empty, `.` or `..` throws a plain `Error`.
 
 | Type                 | Description                                                                              |
 | -------------------- | ---------------------------------------------------------------------------------------- |

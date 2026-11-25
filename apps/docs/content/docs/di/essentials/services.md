@@ -124,7 +124,7 @@ class Storage {
 Injecting a [transient](/docs/di/essentials/scopes#transient) gives each call its own instance.
 
 :::warning
-Store what `inject()` returns, but do not call methods on it inside the constructor. [Constructor replay](/docs/di/how-it-works#constructor-replay) explains why, and `onServiceInit` is the place for that code.
+Store what `inject()` returns, but do not call methods on it inside the constructor. When the dependency is not ready yet, the call ends the constructor early and the container runs it again once the dependency is ready. [Constructor replay](/docs/di/how-it-works#constructor-replay) explains why, and `onServiceInit` is the place for that code.
 :::
 
 ## optional

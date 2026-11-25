@@ -100,7 +100,7 @@ After the first chunk the status has been sent, so there is nothing left to chan
 
 ## Server-sent events
 
-A `response: 'stream'` endpoint that returns `sseStream(source)` answers with `text/event-stream`. `source` is an async iterable of events; core writes the framing and sets `cache-control: no-cache`.
+A `response: 'stream'` endpoint that returns `sseStream(source)` answers with `text/event-stream`. `source` is an async iterable of events; `@navios/server` writes the framing and sets `cache-control: no-cache`.
 
 On the client this pairs with the Builder [Server-Sent Events](/docs/builder/realtime/server-sent-events) module. Events defined there with `defineEvent` are what `sse()` takes on the server, so both sides share the event name and the payload schema:
 
@@ -175,5 +175,5 @@ There are two ways to produce an event:
 Guards, interceptors and [per-request state](/docs/server/guides/request-state) work for streamed responses as for any other. Request values and request-scoped services stay usable while the stream is being sent, and are released when it ends or the client goes away.
 
 :::tip
-A reverse proxy that buffers responses delays events until its buffer fills. Core sends `x-accel-buffering: no` with every event stream, which nginx honours; other proxies need buffering turned off for the route.
+A reverse proxy that buffers responses delays events until its buffer fills. `@navios/server` sends `x-accel-buffering: no` with every event stream, which nginx honours; other proxies need buffering turned off for the route.
 :::

@@ -4,7 +4,7 @@ title: Fastify
 
 # Fastify
 
-`@navios/adapter-fastify` runs a Navios application on [Fastify](https://fastify.dev) 5, on Node.js. The adapter registers the application's routes with Fastify, turns each Fastify request into the input of a compiled route and writes the result. Guards, validation and error mapping happen in core and behave the same as on every other adapter; Fastify's own schema validation and serialisation are not used.
+`@navios/adapter-fastify` runs a Navios application on [Fastify](https://fastify.dev) 5, on Node.js. The adapter registers the application's routes with Fastify, turns each Fastify request into the input of a compiled route and writes the result. Guards, validation and error mapping happen in `@navios/server` and behave the same as on every other adapter; Fastify's own schema validation and serialisation are not used.
 
 ## Install and use
 
@@ -119,7 +119,7 @@ async legacyDownload({ urlParams }: HandlerParams<typeof legacyDownload>, ctx: R
 ```
 
 - Headers and cookies set with `ctx.reply` are not sent on a response that was taken over. Set them on the native reply.
-- Core skips response validation and ignores the handler's return value, whatever the endpoint declares.
+- The pipeline skips response validation and ignores the handler's return value, whatever the endpoint declares.
 - Request scopes and request values are still released when the connection finishes.
 
 Use this for cases the framework does not cover. For ordinary streaming, return a `ReadableStream` or an async iterable from an endpoint declared with `response: 'stream'`, as described in [Streams and server-sent events](/docs/server/guides/streams-and-sse); that code also runs on Bun.
@@ -152,7 +152,7 @@ An endpoint declared with `body: 'multipart'` then receives text fields as strin
 
 - Each file is read into memory before the handler runs. Set `limits.fileSize`.
 - A request over any of the `limits` (`fileSize`, `files`, `fields`, `parts`, `fieldSize`, `fieldNameSize`) is answered with a 413 problem response, and the handler does not run. That includes a text field longer than `fieldSize`, which is rejected rather than truncated.
-- Without the `multipart` option, Fastify rejects a multipart request with 415.
+- Without the `multipart` option, an endpoint declared with `body: 'multipart'` makes `init()` throw an error that names the route. A multipart request to any other endpoint is then answered with 415.
 
 ## Request bodies
 

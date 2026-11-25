@@ -70,16 +70,17 @@ The options of `listen` belong to the adapter: `{ port, host }` on Fastify, `{ p
 
 In order:
 
-1. Sets up the logger.
-2. Enables the async context when `asyncContext` is on.
-3. Resolves the four [error responders](/docs/server/essentials/errors#responders) and applies the mappers registered so far.
-4. Creates the adapter.
-5. Runs each plugin's set-up, in dependency order.
-6. Walks the module graph from the root module and the modules plugins added, and registers module providers.
-7. Instantiates each module and runs `onModuleInit`, imported modules first.
-8. Instantiates controllers, guards and interceptors, and compiles one function per route. Broken [route rules](/docs/server/essentials/controllers#route-rules-checked-at-start-up) are reported here.
-9. Registers the routes with the adapter and waits for it to be ready.
-10. Runs plugin bootstrap hooks, then `onApplicationBootstrap` hooks.
+1. Walks the module graph from the root module and registers module providers, so that everything resolved afterwards, the logger included, sees them.
+2. Sets up the logger.
+3. Enables the async context when `asyncContext` is on.
+4. Resolves the four [error responders](/docs/server/essentials/errors#responders) and applies the mappers registered so far.
+5. Creates the adapter.
+6. Runs each plugin's set-up, in dependency order.
+7. Walks the module graph again when plugins added modules, and registers the providers of those modules.
+8. Instantiates each module and runs `onModuleInit`, imported modules first.
+9. Instantiates controllers, guards and interceptors, and compiles one function per route. Broken [route rules](/docs/server/essentials/controllers#route-rules-checked-at-start-up) are reported here.
+10. Registers the routes with the adapter and waits for it to be ready.
+11. Runs plugin bootstrap hooks, then `onApplicationBootstrap` hooks.
 
 An error in any step rejects the promise returned by `init()`, and therefore the one returned by `listen()`.
 

@@ -21,10 +21,11 @@ Each legacy decorator adapts the legacy call signature and then calls the same i
 | Entry point                      | Decorators                                                                                   | Also exports                                                                                           |
 | -------------------------------- | -------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
 | `@navios/server/legacy-compat`     | `Controller`, `Module`, `Endpoint`, `UseGuards`, `UseInterceptors`, `Injectable`, `Factory`  | `AttributeFactory`, `createClassContext`, `createMethodContext`                                        |
+| `@navios/core/legacy-compat`     | `Module`, `UseGuards`, `UseInterceptors`, `Injectable`, `Factory`                            | `AttributeFactory`, `createClassContext`, `createMethodContext`                                        |
 | `@navios/di/legacy-compat`       | `Injectable`, `Factory`                                                                      | `createClassContext`, `createMethodContext`                                                            |
 | `@navios/schedule/legacy-compat` | `Schedulable`, `Cron`                                                                        | `Schedule`, `SchedulerService`, `schedulePlugin`, the metadata helpers, and the two context functions  |
 
-`Injectable` and `Factory` from the core entry point are the ones from `@navios/di/legacy-compat`. Server code imports them from core, like every other DI name.
+`@navios/server/legacy-compat` re-exports everything in `@navios/core/legacy-compat`, and `Injectable` and `Factory` in both are the ones from `@navios/di/legacy-compat`. Server code imports them from `@navios/server/legacy-compat`; an application without HTTP imports them from `@navios/core/legacy-compat`.
 
 Everything that is not a decorator is imported from the package's main entry as usual: `handler`, `reply`, `inject`, `NaviosFactory`, `createContextKey`, exceptions and types from `@navios/server`. `@RequestValue()` from `@navios/server` works under both decorator modes.
 
@@ -133,7 +134,7 @@ export class CleanupService {
 }
 ```
 
-`schedulePlugin` and `SchedulerService` are the same objects as in `@navios/schedule`, so registration is as described in [Scheduled jobs](/docs/server/guides/scheduled-jobs). A `@Cron` method must be `async`.
+`schedulePlugin` and `SchedulerService` are the same objects as in `@navios/schedule`, so registration is as described in [Scheduled jobs](/docs/server/guides/scheduled-jobs). A `@Cron` method may be synchronous or `async`.
 
 ## Other packages
 

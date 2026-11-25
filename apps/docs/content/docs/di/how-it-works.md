@@ -100,12 +100,12 @@ A constructor cannot pause. If it calls `inject()` for a dependency whose `onSer
 2. The container discards the object that was built.
 3. It waits for the dependency, then runs the constructor again. This time `inject()` returns the real instance.
 
-This happens at most on the first build of a class. The container remembers which dependencies the constructor asked for, and on later builds it waits for them before constructing, so the constructor runs once.
+The container remembers which dependencies the constructor asked for. After a replay it waits for them before constructing on the next builds, so the constructor runs once. It stops doing so once a build finds them all ready, and a later build that meets a dependency that is still initialising is replayed again. A dependency requested with arguments, `inject(Token, args)`, is not remembered: a class that injects one whose initialiser is asynchronous is constructed twice on every build.
 
 Two rules follow, and they are the only rules a service has to obey:
 
 - **Keep constructors and field initialisers free of side effects.** They may run twice. Open connections, start timers and subscribe in `onServiceInit`, which runs once per instance.
-- **Do not use an injected service inside the constructor.** Store it, and use it from `onServiceInit` or a method. Touching a placeholder throws an error that says to move the code to `onServiceInit`.
+- **Do not use an injected service inside the constructor.** Store it, and use it from `onServiceInit` or a method. Touching a placeholder throws, which ends that pass early: the container discards the pass, error included, and runs the constructor again once the dependency is ready. The code works, but everything before it in the constructor has run twice. An error thrown by a pass in which every dependency was ready fails the build.
 
 ```ts
 import { inject, Injectable } from '@navios/di'

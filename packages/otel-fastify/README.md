@@ -28,7 +28,7 @@ What this package exports:
 
 Removed in 2.0:
 
-- `OtelFastifyPlugin` and the hook factories `createOnRequestHook`, `createOnResponseHook` and `createOnErrorHook`. Requests are traced by `OtelHttpInterceptor` from `@navios/otel`.
+- `OtelFastifyPlugin` and the hook factories `createOnRequestHook`, `createOnResponseHook` and `createOnErrorHook`. Requests are traced by `OtelHttpInterceptor` from `@navios/otel/http`.
 - `request.otelSpan`. Read the request span from the request context: `ctx.find(RequestSpan)`, with `RequestSpan` from `@navios/otel`.
 - A span for requests that match no route. Fastify's hooks ran for those; an interceptor runs only for a matched route.
 

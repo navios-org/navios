@@ -32,7 +32,7 @@ Read top to bottom, the stages are:
 1. **Route match.** The adapter's router finds the route for the method and path. A request that matches nothing is answered by the [not-found responder](/docs/server/essentials/errors#responders); no interceptor, guard or error mapper runs for it.
 2. **Interceptors enter.** Each interceptor wraps everything below it. Application-level interceptors are outermost, then module, controller and handler.
 3. **Guards.** Module guards run first, then the controller's, then the handler's. The first guard that returns anything other than `true`, or throws, stops the request.
-4. **URL parameters and query.** They are validated against `urlParamsSchema` and `querySchema`, in that order, when the declaration has them.
+4. **URL parameters and query.** They are validated against `urlParamsSchema` and `querySchema`, in that order, when the declaration has them. With a `cookiesSchema` the cookies are validated before the URL parameters, and with a `headersSchema` the headers after the query.
 5. **Body.** The body is read from the connection and validated against `requestSchema`.
 6. **Handler.** Your method runs with the validated values and the [request context](/docs/server/essentials/request-context).
 7. **Response validation.** A JSON result is validated against the schema declared for its status. Fields the schema does not declare are removed.

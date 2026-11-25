@@ -59,7 +59,7 @@ client.interceptors.request.use((config) => {
 
 client.interceptors.response.use(
   (response) => {
-    console.log('Response from', response.config.url)
+    console.log('Response status', response.status)
     return response
   },
   (error) => {
@@ -94,9 +94,7 @@ const client = create({
 })
 
 // Create the API builder
-const API = builder({
-  useDiscriminatorResponse: true,
-})
+const API = builder()
 
 // Provide the client to the builder
 API.provideClient(client)
@@ -117,7 +115,7 @@ const user = await getUser({ urlParams: { userId: '123' } })
 console.log(user.name) // TypeScript knows this is a string
 ```
 
-For more information about using `@navios/http` with `@navios/builder`, see the [@navios/builder documentation](../../builder/README.md).
+For more information about using `@navios/http` with `@navios/builder`, see the [@navios/builder documentation](../builder/README.md).
 
 ## API
 
@@ -151,7 +149,7 @@ Make a request with custom configuration.
 - `validateStatus` - Custom function to validate status code
 - `baseURL` - Base URL for the request, overrides the instance `baseURL`
 - `credentials` - Request credentials: `omit`, `same-origin`, `include`
-- `cancelToken` - AbortSignal to cancel the request
+- `signal` - `AbortSignal` to cancel the request
 
 Plus other `fetch` RequestInit options.
 

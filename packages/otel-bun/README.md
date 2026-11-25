@@ -30,7 +30,7 @@ What this package exports:
 
 Removed in 2.0:
 
-- `TracedBunControllerAdapterService`, `OtelBunPreAdapterPlugin`, `OtelBunPostModulesPlugin` and `BunOtelOptionsToken`. Requests are traced by `OtelHttpInterceptor` from `@navios/otel`.
+- `TracedBunControllerAdapterService`, `OtelBunPreAdapterPlugin`, `OtelBunPostModulesPlugin` and `BunOtelOptionsToken`. Requests are traced by `OtelHttpInterceptor` from `@navios/otel/http`.
 - The `guard:<name>` child spans. A request has one server span that covers guards, validation and the handler; trace a service with `@Traced` for finer spans.
 
 Everything else, including configuration, `@Traced` and context propagation, is documented in the [`@navios/otel` README](../otel/README.md).

@@ -14,7 +14,7 @@ The package depends on `@navios/core` only. In an HTTP application the jobs run 
 
 ## Declaring jobs
 
-`@Schedulable()` marks a class that contains jobs and registers it as a service; do not add `@Injectable()` to the same class. `@Cron` marks a job method. A job method is `async` and takes no arguments.
+`@Schedulable()` marks a class that contains jobs and registers it as a service; do not add `@Injectable()` to the same class. `@Cron` marks a job method. A job method takes no arguments and may be synchronous or `async`. It takes one `@Cron()`; a second one on the same method throws. A subclass of a schedulable class inherits its jobs and may reschedule one by decorating its override.
 
 ```ts title="maintenance.jobs.mts"
 import { inject, Logger } from '@navios/server'
@@ -108,7 +108,7 @@ An expression has five fields, or six when it starts with seconds:
 | `0 0 1 * *`       | On the first day of every month   |
 | `*/30 * * * * *`  | Every 30 seconds                  |
 
-Times are in the time zone of the process. Run the server with `TZ=UTC` when the schedule must not follow the host's zone.
+Times are in the time zone of the process, unless the job names an IANA time zone: `@Cron('0 4 * * *', { timeZone: 'Europe/Kyiv' })`. Run the server with `TZ=UTC` when no schedule may follow the host's zone.
 
 The `Schedule` enum names the common ones:
 
@@ -190,7 +190,7 @@ A `disabled` job is how you declare something that an operator, a feature flag o
 
 An error thrown by a job is caught and logged by the scheduler with the job's name, such as `MaintenanceJobs.purgeSessions()`. The job stays on its schedule and other jobs are not affected. Nothing retries the failed run; the next run is the next tick.
 
-`register()` throws when the class has no `@Schedulable()` decorator.
+`register()` throws when the class has no `@Schedulable()` decorator. It also throws, naming the class and the method, when a cron expression or a time zone is invalid, and then registers none of the jobs of that class.
 
 ## Without an application
 

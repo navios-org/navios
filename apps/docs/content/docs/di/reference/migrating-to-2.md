@@ -23,7 +23,7 @@ Server applications should read [Migrating to 2.0](/docs/server/reference/migrat
 | A singleton that injected a request-scoped service silently became request-scoped                | `DIError` with code `ScopeMismatchError`                                                                   |
 | `inject(TransientService)` was an error                                                          | Returns a new instance for each call                                                                       |
 | Conditional `inject()` threw "Wrong token order"                                                 | Allowed                                                                                                    |
-| A constructor ran twice when a dependency was not created yet                                    | Runs once, except in the case described under [constructor replay](/docs/di/how-it-works#constructor-replay) |
+| A constructor ran twice when a dependency was not created yet                                    | Runs once, except in the cases described under [constructor replay](/docs/di/how-it-works#constructor-replay) |
 | `optional()` returned `null` on any failure                                                      | Returns `null` only when nothing provides the token. Other errors propagate                                |
 | Errors from constructors and `onServiceInit` were wrapped on some code paths                     | Always a `DIError` with code `InitializationError`; the original is in `cause`                             |
 | `token.id`, `InjectionToken.create(name, schema, customId)`                                      | Removed. `create(name, schema?)` or `create(name, { schema?, scope? })`. `toString()` returns the name     |

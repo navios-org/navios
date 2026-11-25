@@ -21,8 +21,8 @@ This page describes how an error becomes that response and how to change the out
 
 Anything thrown by an interceptor, a guard, validation or a handler goes through these steps in order. The first that applies produces the response.
 
-1. An error mapper registered with [`app.mapError`](#mapping-domain-errors) for the error's class or one of its parent classes.
-2. An [`HttpException`](#httpexception): its status, with a declared or problem body.
+1. An error mapper registered with [`app.mapError`](#mapping-domain-errors) for the error's class or one of its parent classes. The built-in handling of steps 2 to 4 counts as registered for `HttpException`, `GuardDeniedError` and the request `ValidationError`, so a mapper for a class above those, such as `Error`, does not apply to them.
+2. An [`HttpException`](#httpexception): its status, with a declared or problem body. One with a status of 500 or above is also logged.
 3. A guard that returned `false`: the Forbidden responder (403).
 4. A request validation error: the validation responder (400).
 5. Anything else: logged in full, then the internal-error responder (500).
@@ -89,7 +89,7 @@ app.mapError(UserNotFound, (error) => problem(404, error.message, { userId: erro
 - The mapper receives the error and the `RequestContext`, and returns `reply(status, body)`, `problem(status, detail?, extra?)` or a full `RouteResult`. It may be asynchronous.
 - The most specific registered class wins: with mappers for `DomainError` and for `UserNotFound extends DomainError`, a `UserNotFound` uses its own mapper.
 - A mapper's `reply()` is sent as JSON as given. It is not checked against the endpoint's `errorSchema` and its status does not have to be declared.
-- Mappers run before the built-in handling of `HttpException`, so a mapper registered for `HttpException` or a subclass replaces that handling.
+- A mapper registered for exactly `HttpException`, `GuardDeniedError` or `ValidationError`, or for a subclass of one of them, replaces the built-in handling of that class. A mapper for a parent of those classes, such as `Error`, does not: an `HttpException`, a denied guard and a request validation error keep their built-in responses.
 - When a mapper itself throws, the error it threw goes through steps 2 to 5.
 - Mappers are not consulted for requests that match no route.
 
@@ -97,7 +97,7 @@ app.mapError(UserNotFound, (error) => problem(404, error.message, { userId: erro
 
 ## Unexpected errors
 
-An error that reaches step 5 is logged with the request's method and path, and the client receives:
+An error that reaches step 5 is logged with the request's method and path, as is a thrown `HttpException` with a status of 500 or above. For step 5 the client receives:
 
 ```json
 {

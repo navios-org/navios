@@ -70,7 +70,7 @@ export const getSession = API.declareEndpoint({
 })
 ```
 
-It cannot override what Builder controls: `method`, `url`, `params`, `data`, `headers`, `signal`, `timeout` and `responseType` are always set from the declaration and the call.
+It cannot override what Builder controls: `method`, `url`, `params`, `data`, `signal`, `timeout` and `responseType` are always set from the declaration and the call. `headers` in `clientOptions` are sent, merged underneath the endpoint's `headers` and the headers of the call.
 
 ## Reading a declaration back
 

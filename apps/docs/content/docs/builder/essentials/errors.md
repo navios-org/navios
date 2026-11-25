@@ -15,7 +15,7 @@ Every failed call produces one type, `EndpointError`. The throwing form throws i
 | `http`                | Non-2xx status that has an `errorSchema` entry, and the body matched it                                                   | status, typed body           |
 | `http-unknown`        | Non-2xx status with no `errorSchema` entry                                                                                | status, raw body             |
 | `request-validation`  | `urlParams`, `params` or `data` failed its schema. Nothing was sent                                                       | —                            |
-| `response-validation` | A 2xx body failed its schema, a 2xx status is missing from `responses`, or an error body failed its `errorSchema` entry   | status, raw body             |
+| `response-validation` | A 2xx body failed its schema, a 2xx body could not be parsed by the client, a 2xx status is missing from `responses`, or an error body failed its `errorSchema` entry | status, raw body |
 | `network`             | No response was received                                                                                                  | —                            |
 | `timeout`             | The request timed out                                                                                                     | —                            |
 | `aborted`             | The request was cancelled through its `AbortSignal`                                                                       | —                            |

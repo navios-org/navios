@@ -122,6 +122,8 @@ handle.emit('user.typing', { userId: '42' })
 handle.close()
 ```
 
+`emit` and `sendRaw` throw a `SocketError` of kind `transport` when the socket cannot send, for example while it is still connecting. The same error is reported to `onError`.
+
 It also exposes `url`, `connected`, `state` (`'connecting' | 'open' | 'closing' | 'closed'`) and the underlying `socket`.
 
 :::warning

@@ -53,7 +53,7 @@ On start the transport subscribes every handler with the queue client: `subscrib
 ## What a delivery goes through
 
 1. Interceptors: the application's, the module's, the controller's, the handler's.
-2. Guards, in the same order. A guard that returns `false` fails the delivery with `MessageDeniedError`.
+2. Guards: the module's, the controller's, the handler's. There are no application-level guards. A guard that returns `false` fails the delivery with `MessageDeniedError`.
 3. The payload is validated against `payloadSchema`; a mismatch fails with `MessageValidationError`.
 4. The handler. The return value of a request-reply handler is validated against `responseSchema` and sent back.
 

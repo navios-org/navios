@@ -155,7 +155,7 @@ For a Zod schema the original `ZodError` is still available on `error.cause`. [E
 | `BaseStreamConfig`, `AnyStreamConfig`, `StreamOptions`, `InferStreamReturn`, `InferStreamParams`, `NaviosZodRequest`, `NaviosZodRequestBase`, `Util_FlatObject` | removed |
 | `makeConfig` with a separate method argument                    | `makeConfig(request, options, finalUrl)`; the method comes from `options` |
 
-The Zod-narrowed option types `ZodBaseEndpointOptions`, `ZodEndpointOptions` and `ZodSchemaSlots` are exported from `@navios/core`.
+The Zod-narrowed option types `ZodBaseEndpointOptions`, `ZodEndpointOptions` and `ZodSchemaSlots` are removed and no package exports them.
 
 The current names are listed in the [@navios/builder API](/docs/builder/reference/builder).
 

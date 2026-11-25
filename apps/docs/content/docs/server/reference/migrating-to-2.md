@@ -4,7 +4,7 @@ title: Migrating to 2.0
 
 # Migrating to 2.0
 
-This page lists what changed between `@navios/core` 1.x and `@navios/server` 2.0, the Fastify and Bun adapters, `@navios/jwt`, `@navios/schedule`, `@navios/openapi`, `@navios/otel` and `@navios/adapter-xml`. Upgrade them together: every 2.0 package requires `@navios/server` 2.0.
+This page lists what changed between `@navios/core` 1.x and `@navios/server` 2.0, the Fastify and Bun adapters, `@navios/jwt`, `@navios/schedule`, `@navios/openapi`, `@navios/otel` and `@navios/adapter-xml`. Upgrade them together. The packages that take part in HTTP require `@navios/server` 2.0; `@navios/jwt`, `@navios/schedule` and the main entry of `@navios/otel` require only `@navios/core` 2.0.
 
 2.0 rewrites the request pipeline. Endpoint declarations made with `@navios/builder` stay as they are apart from the changes in [Builder's migration page](/docs/builder/reference/migrating-to-2). Controllers, guards, bootstrap code and tests change. The main ideas:
 
@@ -51,7 +51,7 @@ Packages that do not need HTTP depend on `@navios/core` alone: `@navios/jwt`, `@
 | `app.setGlobalPrefix(prefix)`                                                                  | the `globalPrefix` application option                                                                           |
 | `app.init()` before `app.listen()`                                                             | `app.listen()` initialises the application                                                                      |
 | `app.dispose()`                                                                                | `app.close()`. `dispose()` remains as an alias.                                                                 |
-| Fastify schema validation, `fastify-type-provider-zod`                                         | not used. Validation happens in core, the same on both adapters.                                                |
+| Fastify schema validation, `fastify-type-provider-zod`                                         | not used. Validation happens in `@navios/server`, the same on both adapters.                                                |
 | response validation off by default on Bun                                                      | on by default on every adapter (`validateResponses: 'always'`)                                                  |
 
 ### Controllers and handlers
@@ -405,5 +405,4 @@ await app.close()
 
 - A test client that returns the builder's typed result. `createTestClient` returns the raw status and body.
 - Sockets on the server.
-- `@navios/microservice`. It compiles against 2.0, but its runtime has not been ported yet.
 - `@navios/cli` hot reload. The CLI has not been ported to 2.0.
