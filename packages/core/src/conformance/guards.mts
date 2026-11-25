@@ -1,7 +1,7 @@
 import { registerInjectable } from '@navios/di'
 
 import { AttributeFactory } from '../attributes/attribute-factory.mjs'
-import { createContextKey } from '../context/context-key.mjs'
+import { createContextKey } from '../execution/context-key.mjs'
 import { registerRequestValue } from '../context/request-value.mjs'
 import { registerController } from '../controllers/controller.mjs'
 import { UnauthorizedException } from '../errors/http-exception.mjs'

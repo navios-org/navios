@@ -1,9 +1,7 @@
-import type { RequestValueClass } from './request-value.mjs'
-
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 /**
- * A typed slot in the request context. Something sets it (usually a guard),
+ * A typed slot in an execution context. Something sets it (usually a guard),
  * and reading it before that throws.
  *
  * ```ts
@@ -12,6 +10,7 @@ import type { RequestValueClass } from './request-value.mjs'
  */
 export class PlainContextKey<T> {
   declare readonly __type: T
+
   constructor(public readonly name: string) {}
 
   toString(): string {
@@ -23,11 +22,14 @@ export function createContextKey<T>(name: string): PlainContextKey<T> {
   return new PlainContextKey<T>(name)
 }
 
-export type ContextKey<T = any> = PlainContextKey<T> | RequestValueClass<T>
+/** A key every transport's context accepts. */
+export type ContextKey<T = any> = PlainContextKey<T>
 
 /**
- * The type `ctx.get(key)` returns: the key's type, or whatever the request
- * value's `resolve` returns (a promise when `resolve` returns a thenable).
+ * The type `ctx.get(key)` returns: a plain key's type, or, for a key that is
+ * a class whose instances compute the value with `resolve`, what `resolve`
+ * returns (a promise when it returns a thenable). A transport decides whether
+ * it accepts such classes as keys.
  */
 export type ContextValue<K> =
   K extends PlainContextKey<infer T>

@@ -2,7 +2,8 @@ import { Container, provide } from '@navios/di'
 
 import type { ClassType, InjectionToken, ProviderInput } from '@navios/di'
 
-import { enableAsyncContext } from '../context/async-context.mjs'
+import { enableAsyncContext } from '../execution/async-context.mjs'
+import { createContextHost } from '../execution/context-host.mjs'
 import { isRequestValueClass } from '../context/request-value.mjs'
 import { useClientErrorStacks } from '../errors/client-error-stacks.mjs'
 import { ErrorPipeline } from '../errors/error-pipeline.mjs'
@@ -21,7 +22,6 @@ import { joinPaths } from '../routing/join-paths.mjs'
 
 import type { HttpAdapter, HttpAdapterEnvironment } from '../adapter/http-adapter.mjs'
 import type { TestRequest, TestResponse } from '../adapter/test-request.mjs'
-import type { ContextHost } from '../context/context-host.mjs'
 import type { ErrorClass, ErrorMapper } from '../errors/error-pipeline.mjs'
 import type { LoggerService } from '../logger/logger-output.mjs'
 import type { LoggerInstance } from '../logger/logger.mjs'
@@ -255,7 +255,12 @@ export class NaviosApplication<Env extends HttpAdapterEnvironment = ApplicationE
       container,
       globalInterceptors: this.globalInterceptors,
       compile: {
-        host: this.createContextHost(),
+        host: createContextHost(
+          container,
+          options.requestScopedServices ??
+            (process.env.NODE_ENV === 'production' ? 'allow' : 'warn'),
+          this.logger,
+        ),
         errors: this.errors,
         validateResponses: this.resolveValidateResponses(),
         asyncContext: options.asyncContext ?? false,
@@ -343,36 +348,6 @@ export class NaviosApplication<Env extends HttpAdapterEnvironment = ApplicationE
         return process.env.NODE_ENV !== 'production'
       default:
         return true
-    }
-  }
-
-  private createContextHost(): ContextHost {
-    const mode =
-      this.options.requestScopedServices ??
-      (process.env.NODE_ENV === 'production' ? 'allow' : 'warn')
-    if (mode === 'allow') {
-      return { container: this.container, onScopedUse: null }
-    }
-    const seen = new Set<unknown>()
-    return {
-      container: this.container,
-      onScopedUse: (token) => {
-        if (mode === 'forbid') {
-          throw new Error(
-            `[Navios] ${tokenName(token)} was requested with ctx.use()/ctx.resolve(), but this ` +
-              `application forbids request-scoped services (requestScopedServices: 'forbid'). ` +
-              `Use a request value (@RequestValue) instead.`,
-          )
-        }
-        if (!seen.has(token)) {
-          seen.add(token)
-          this.logger.warn(
-            `${tokenName(token)} is resolved per request with ctx.use()/ctx.resolve(). ` +
-              `If it only carries data derived from the request, a request value (@RequestValue) ` +
-              `is cheaper and needs no DI scope. Set requestScopedServices: 'allow' to silence this.`,
-          )
-        }
-      },
     }
   }
 

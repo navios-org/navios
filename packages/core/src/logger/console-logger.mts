@@ -3,7 +3,7 @@ import { inspect } from 'util'
 
 import { registerInjectable } from '@navios/di'
 
-import { currentContext } from '../context/async-context.mjs'
+import { currentContext } from '../execution/async-context.mjs'
 
 import { clc, yellow } from './cli-colors.mjs'
 import { isLogLevelEnabled } from './log-levels.mjs'

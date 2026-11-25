@@ -2,7 +2,8 @@ import { Container, inject, Injectable, InjectableScope } from '@navios/di'
 import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod/v4'
 
-import { createContextKey, RequestContextToken, RequestValue } from '../context/index.mjs'
+import { RequestContextToken, RequestValue } from '../context/index.mjs'
+import { createContextKey } from '../execution/index.mjs'
 import {
   ErrorPipeline,
   ForbiddenResponder,

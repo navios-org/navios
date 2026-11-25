@@ -8,11 +8,16 @@ import type { SetCookie } from '../routing/cookies.mjs'
 import type { RouteInfo } from '../routing/route-info.mjs'
 import type { RouteInput } from '../routing/route-input.mjs'
 
-import { PlainContextKey } from './context-key.mjs'
+import { PlainContextKey } from '../execution/context-key.mjs'
+import { ExecutionContextToken } from '../execution/execution-context-token.mjs'
+
+import type { ContextHost } from '../execution/context-host.mjs'
+import type { ContextValue } from '../execution/context-key.mjs'
+import type { ExecutionContext } from '../execution/execution-context.mjs'
+
 import { RequestContextToken } from './request-context-token.mjs'
 
-import type { ContextHost } from './context-host.mjs'
-import type { ContextKey, ContextValue } from './context-key.mjs'
+import type { ContextKey } from './http-context-key.mjs'
 import type { AdapterEnvironment, RegisteredEnvironment } from './environment.mjs'
 import type { ReplyControls } from './reply-controls.mjs'
 import type { RequestCookies, RequestHeaders, RequestQuery } from './request-data.mjs'
@@ -26,7 +31,9 @@ let requestCounter = 0
  * One request. Passed to guards and interceptors, and as the second argument
  * to handlers. Everything on it is adapter-neutral except `raw`.
  */
-export class RequestContext<Env extends AdapterEnvironment = RegisteredEnvironment> {
+export class RequestContext<
+  Env extends AdapterEnvironment = RegisteredEnvironment,
+> implements ExecutionContext {
   private slots: Map<ContextKey, unknown> | null = null
   private resolving: ContextKey[] | null = null
   private disposers: Array<[RequestValueProvider<any>, unknown]> | null = null
@@ -59,6 +66,16 @@ export class RequestContext<Env extends AdapterEnvironment = RegisteredEnvironme
   ) {}
 
   /** Request id from the adapter, or a process-unique one generated on first read. */
+  /** The transport kind. A getter, so that it adds nothing to the instance. */
+  get kind(): 'http' {
+    return 'http'
+  }
+
+  /** The route, under the name every transport's context has for it. */
+  get handler(): RouteInfo {
+    return this.route
+  }
+
   get id(): string {
     return (this.requestId ??= this.input.id ?? `req-${++requestCounter}`)
   }
@@ -304,6 +321,7 @@ export class RequestContext<Env extends AdapterEnvironment = RegisteredEnvironme
       }
       this.scope = this.host.container.createScope()
       this.scope.addInstance(RequestContextToken, this as unknown as RequestContext)
+      this.scope.addInstance(ExecutionContextToken, this as unknown as RequestContext)
     }
     return this.scope
   }

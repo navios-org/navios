@@ -3,7 +3,7 @@ import type { InferInput, InferOutput, StandardSchemaV1 } from '@navios/di'
 import { classAttributes } from '../metadata/class-metadata.mjs'
 import { memberMetadata } from '../metadata/member-metadata.mjs'
 
-import type { RouteInfo } from '../routing/route-info.mjs'
+import type { HandlerInfo } from '../execution/execution-context.mjs'
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -66,14 +66,14 @@ interface ReadableSchemaAttribute<Schema extends StandardSchemaV1> {
   readonly schema: Schema
 }
 
-type AttributeSource = RouteInfo | { attributes: ReadonlyMap<symbol, unknown> }
+type AttributeSource = HandlerInfo | { attributes: ReadonlyMap<symbol, unknown> }
 
 function layers(source: AttributeSource): ReadonlyMap<symbol, unknown>[] {
   const attributes = source.attributes
   if (attributes instanceof Map) {
     return [attributes]
   }
-  const route = attributes as RouteInfo['attributes']
+  const route = attributes as HandlerInfo['attributes']
   // Most specific first.
   return [route.handler, route.controller, route.module]
 }

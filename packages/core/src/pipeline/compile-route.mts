@@ -1,8 +1,8 @@
-import { runInContext } from '../context/async-context.mjs'
+import { runInContext } from '../execution/async-context.mjs'
 import { RequestContext } from '../context/request-context.mjs'
 import { adopt, isPromise } from '../internal/promises.mjs'
 
-import type { ContextHost } from '../context/context-host.mjs'
+import type { ContextHost } from '../execution/context-host.mjs'
 import type { ErrorPipeline } from '../errors/error-pipeline.mjs'
 import type { Guard } from '../guards/guard.mjs'
 import type { Interceptor } from '../interceptors/interceptor.mjs'
