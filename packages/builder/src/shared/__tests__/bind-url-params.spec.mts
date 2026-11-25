@@ -3,6 +3,20 @@ import { describe, expect, it } from 'vitest'
 import { bindUrlParams, getUrlParamNames } from '../../index.mjs'
 
 describe('bindUrlParams', () => {
+  describe('dot segments', () => {
+    it.each(['.', '..'])('should reject %j, which would rewrite the path', (value) => {
+      expect(() => bindUrlParams('/users/$id/profile', { urlParams: { id: value } })).toThrow(
+        'Invalid URL parameters (a value cannot be "." or ".."): id',
+      )
+    })
+
+    it.each(['...', '.a', 'a..', '..a'])('should accept %j', (value) => {
+      expect(bindUrlParams('/users/$id/profile', { urlParams: { id: value } })).toBe(
+        `/users/${value}/profile`,
+      )
+    })
+  })
+
   describe('basic replacements', () => {
     it('should replace url params', () => {
       const url = bindUrlParams('/users/$id', {

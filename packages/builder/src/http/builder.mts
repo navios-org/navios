@@ -11,9 +11,10 @@ import type { BaseEndpointOptions } from './endpoint-options.mjs'
  * Creates a new API builder instance.
  *
  * The builder declares API endpoints with type-safe request and response
- * schemas using Zod. Every endpoint can be called in two ways: `endpoint(args)`
- * throws an `EndpointError` on failure, `endpoint.safe(args)` returns a
- * `SafeResult` and never throws.
+ * schemas from any Standard Schema library (Zod, Valibot, ArkType, ...).
+ * Every endpoint can be called in two ways: `endpoint(args)` throws an
+ * `EndpointError` on failure, `endpoint.safe(args)` returns a `SafeResult`
+ * and never throws.
  *
  * @param config - Configuration options for the builder
  * @param config.client - HTTP client used by every endpoint

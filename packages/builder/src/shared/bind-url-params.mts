@@ -45,8 +45,11 @@ export function getUrlParamNames(urlPart: string): string[] {
  * @param params - Request parameters object containing `urlParams`
  * @param urlParamsSchema - Optional schema for validating and transforming URL parameters
  * @returns The URL with parameters replaced and URL-encoded
- * @throws {Error} If required URL parameters are missing
- * @throws If urlParamsSchema is provided and validation fails (a `ZodError` for Zod schemas)
+ * @throws {Error} If required URL parameters are missing, or a value is
+ *   exactly `.` or `..`
+ * @throws If urlParamsSchema is provided and validation fails: the schema
+ *   library's own error when it has one (a `ZodError` for Zod), a
+ *   `NaviosError` otherwise
  *
  * @example
  * ```ts
@@ -86,6 +89,19 @@ export function bindUrlParams<Url extends string>(
   )
   if (missingParams.length > 0) {
     throw new Error(`Missing required URL parameters: ${missingParams.join(', ')}`)
+  }
+
+  // `encodeURIComponent` leaves dots alone, and a `.` or `..` segment is
+  // resolved away by URL parsing (`/users/../profile` -> `/profile`), so the
+  // request would hit a different route.
+  const dotParams = requiredParams.filter((param) => {
+    const value = String(urlParamsToUse[param])
+    return value === '.' || value === '..'
+  })
+  if (dotParams.length > 0) {
+    throw new Error(
+      `Invalid URL parameters (a value cannot be "." or ".."): ${dotParams.join(', ')}`,
+    )
   }
 
   // Single-pass replacement using callback to avoid issues with values containing $

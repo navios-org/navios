@@ -47,7 +47,8 @@ export interface AbstractRequestConfig {
   timeout?: number
   /**
    * Expected response body type. Set by the builder from the endpoint's
-   * `response` option (`'blob'`, `'text'`, `'stream'`); absent for JSON.
+   * `response` option (`'blob'`, `'text'`, `'stream'`, and `'text'` for
+   * `'void'`, whose body is discarded); absent for JSON.
    */
   responseType?: 'json' | 'text' | 'blob' | 'arrayBuffer' | 'formData' | 'stream'
   /** Client-specific keys merged in from the endpoint's `clientOptions`. */
@@ -66,6 +67,8 @@ export interface AbstractRequestConfig {
  * - A rejection that carries a `response` property shaped like
  *   {@link AbstractResponse} (the axios / @navios/http convention) is handled
  *   exactly like a resolved non-2xx response.
+ * - A rejection that carries a `response` with a 2xx status means the client
+ *   could not parse the body; it is reported as `response-validation`.
  * - A rejection without `response` is a transport failure and is classified
  *   as `network`, `timeout` or `aborted`.
  *

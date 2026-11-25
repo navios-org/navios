@@ -167,12 +167,14 @@ export function createWebSocketHandler(config: CreateWebSocketHandlerConfig = {}
         }
       }
 
-      // Serializes and sends one frame
+      // Serializes and sends one frame. A frame that could not be sent (the
+      // socket is still connecting, already closed, ...) is reported to
+      // `onError` and thrown, so the caller knows that nothing was sent.
       const transmit = (event: string, data: unknown) => {
         try {
           ws.send(JSON.stringify(data))
         } catch (cause) {
-          reportSocketError(config.onError, {
+          throw reportSocketError(config.onError, {
             kind: 'transport',
             topic: event,
             url: fullUrl,

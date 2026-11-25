@@ -14,8 +14,9 @@ import type { ResponseMeta } from './response-meta.mjs'
  * - `request-validation` — `urlParamsSchema`, `querySchema` or `requestSchema`
  *   rejected the input. No request was sent.
  * - `response-validation` — a 2xx body failed `responseSchema` (or its entry
- *   in `responses`), a 2xx status is not declared in `responses`, or an error
- *   body failed its `errorSchema` entry.
+ *   in `responses`), a 2xx body could not be parsed by the client (HTML where
+ *   JSON was expected), a 2xx status is not declared in `responses`, or an
+ *   error body failed its `errorSchema` entry.
  * - `network` — no response was received and the request was not cancelled.
  * - `timeout` — the request timed out.
  * - `aborted` — the request was cancelled through its `AbortSignal`.

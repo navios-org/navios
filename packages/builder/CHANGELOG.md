@@ -66,6 +66,15 @@
 - **Types**: `BaseEndpointConfig`, `BaseStreamConfig`, `AnyEndpointConfig`, `AnyStreamConfig`, `StreamOptions`, `AbstractEndpoint`, `AbstractStream`, `StreamHandler`, `InferStreamReturn`, `InferEndpointParams`, `InferStreamParams`, `EndpointFunctionArgs`, `NaviosZodRequest`, `NaviosZodRequestBase`, `Util_FlatObject`, `RequestArgs`.
 - **Socket `onValidationError` and `onAckTimeout`, EventSource `onValidationError` and the legacy `onError(error)`** — use `onError(error)` and filter on `error.kind`.
 
+### Fixed
+
+- **`response: 'void'` and `responses: { 204: null }` with `@navios/http`**: an empty body failed JSON parsing and surfaced as a `network` error. A `'void'` endpoint now asks the client for `responseType: 'text'`, and `@navios/http` resolves an empty JSON body as `undefined`.
+- **`.` and `..` as URL parameter values are rejected**: `encodeURIComponent` leaves them alone, so `/users/$id/profile` with `id: '..'` requested `/profile`. `bindUrlParams` now throws, which an endpoint reports as a `config` error; `declareWebSocket` and `declareEventSource` throw as well.
+- **Unparsable bodies keep their status**: a client rejection that carries a `response` with a 2xx status (HTML where JSON was expected) is reported as `response-validation` with `status`, `body` and `response`, not as `network`. With `@navios/http`, an error status with an empty or malformed JSON body is reported as `http-unknown` with its status.
+- **Sending over a `declareWebSocket` handle that cannot send**: `emit` and `sendRaw` now throw the `transport` `SocketError` they report to `onError` (for example while the socket is still connecting). A fire-and-forget send throws and a send with ack rejects at once instead of failing as `ack-timeout` after the full timeout.
+- **JSDoc** no longer describes the builder as Zod-only.
+- **Package metadata**: `sideEffects: false`, a `files` allowlist and the `navios-org/navios` repository URL.
+
 ### Migration
 
 Uploads and downloads:

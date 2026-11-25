@@ -99,14 +99,17 @@ describe('makeConfig', () => {
       expect(config.responseType).toBe(responseType)
     })
 
-    it.each(['void', 'json'] as const)(
-      'should not set responseType for response %s',
-      (response) => {
-        const config = makeConfig({}, { method: 'GET', url: '/f', response }, '/f')
+    it('should ask for text, not JSON parsing, for response void', () => {
+      const config = makeConfig({}, { method: 'GET', url: '/f', response: 'void' }, '/f')
 
-        expect(config).not.toHaveProperty('responseType')
-      },
-    )
+      expect(config.responseType).toBe('text')
+    })
+
+    it('should not set responseType for response json', () => {
+      const config = makeConfig({}, { method: 'GET', url: '/f', response: 'json' }, '/f')
+
+      expect(config).not.toHaveProperty('responseType')
+    })
   })
 
   describe('with querySchema', () => {

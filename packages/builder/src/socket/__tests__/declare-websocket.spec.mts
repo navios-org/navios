@@ -132,11 +132,68 @@ describe('declareWebSocket', () => {
       throw sendError
     })
 
-    expect(() => handle.emit('chat.message', { text: 'Hi' })).not.toThrow()
+    let thrown: unknown
+    try {
+      handle.emit('chat.message', { text: 'Hi' })
+    } catch (error) {
+      thrown = error
+    }
 
-    expect(onError).toHaveBeenCalledWith(
-      expect.objectContaining({ kind: 'transport', topic: 'chat.message', cause: sendError }),
-    )
+    expect(thrown).toBeInstanceOf(SocketError)
+    expect(thrown).toMatchObject({ kind: 'transport', topic: 'chat.message', cause: sendError })
+    expect(onError).toHaveBeenCalledTimes(1)
+    expect(onError).toHaveBeenCalledWith(thrown)
+  })
+
+  describe('sending before the socket is open', () => {
+    function connecting() {
+      const handle = declareWebSocket({ url: '/ws' })({})
+      const mock = getMock(handle.socket)
+      mock.readyState = MockWebSocket.CONNECTING
+      mock.send.mockImplementation(() => {
+        throw new DOMException('Still in CONNECTING state', 'InvalidStateError')
+      })
+      return handle
+    }
+
+    it('should throw from a fire-and-forget send', () => {
+      const onError = vi.fn()
+      const socket = socketBuilder({ onError })
+      socket.provideClient(connecting())
+      const send = socket.defineSend({
+        topic: 'chat',
+        payloadSchema: z.object({ text: z.string() }),
+      })
+
+      expect(() => send({ text: 'Hi' })).toThrow(
+        expect.objectContaining({ kind: 'transport', topic: 'chat' }),
+      )
+      expect(onError).toHaveBeenCalledTimes(1)
+    })
+
+    it('should reject a send with ack at once instead of waiting for the ack timeout', async () => {
+      vi.useFakeTimers()
+      try {
+        const onError = vi.fn()
+        const socket = socketBuilder({ onError, ackTimeout: 30_000 })
+        socket.provideClient(connecting())
+        const send = socket.defineSend({
+          topic: 'chat',
+          payloadSchema: z.object({ text: z.string() }),
+          ackSchema: z.object({ ok: z.boolean() }),
+        })
+
+        // No timer is advanced: the rejection must not depend on the ack timeout
+        await expect(send({ text: 'Hi' })).rejects.toMatchObject({
+          kind: 'transport',
+          topic: 'chat',
+        })
+        expect(onError).toHaveBeenCalledTimes(1)
+        expect(vi.getTimerCount()).toBe(0)
+      } finally {
+        vi.useRealTimers()
+      }
+    })
   })
 
   it('should keep dispatching when onError throws', () => {

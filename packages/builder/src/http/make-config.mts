@@ -19,6 +19,9 @@ const RESPONSE_TYPES = {
   blob: 'blob',
   text: 'text',
   stream: 'stream',
+  // A void response has no body worth parsing: asking for text keeps the
+  // client from trying to parse an empty (or non-JSON) body as JSON.
+  void: 'text',
 } as const satisfies Partial<Record<EndpointResponseKind, AbstractRequestConfig['responseType']>>
 
 /**
@@ -37,7 +40,8 @@ const RESPONSE_TYPES = {
  * @param request - The call arguments
  * @param options - Endpoint configuration
  * @param finalUrlPart - The URL with parameters bound
- * @throws If the query or body fails its schema (a `ZodError` for Zod schemas)
+ * @throws If the query or body fails its schema: the schema library's own
+ *   error when it has one (a `ZodError` for Zod), a `NaviosError` otherwise
  *
  * @internal
  */

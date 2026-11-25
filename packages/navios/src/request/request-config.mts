@@ -16,6 +16,12 @@ export interface NaviosRequestConfig<
   responseType?: NaviosConfig['responseType']
   validateStatus?: (status: number) => boolean
   cancelToken?: AbortSignal
+  /**
+   * Milliseconds after which the request is aborted. It rejects with an error
+   * whose `code` is `ECONNABORTED` and whose `cause` is the `TimeoutError`.
+   * Combined with `signal` when both are given.
+   */
+  timeout?: number
 }
 
 export interface PreparedRequestConfig<
@@ -43,8 +49,8 @@ export type NaviosPutConfig<Data, Params extends {}> = Omit<
   'method' | 'url'
 >
 export type NaviosDeleteConfig<Params extends {}> = Omit<
-  NaviosRequestConfig<void, Params>,
-  'method' | 'data' | 'url'
+  NaviosRequestConfig<unknown, Params>,
+  'method' | 'url'
 >
 export type NaviosPatchConfig<Data, Params extends {}> = Omit<
   NaviosRequestConfig<Data, Params>,

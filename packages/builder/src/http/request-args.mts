@@ -37,10 +37,10 @@ type OptionalIfEmpty<Key extends string, Value> = {} extends Value
  * Client-side request arguments derived from an endpoint's options.
  *
  * Conditionally includes `urlParams`, `params` (query), and `data` (body) based
- * on the URL template and schema types declared on the endpoint. Uses
- * `z.input` for schema-typed fields (the pre-validation, user-facing shape) and
- * intersects with {@link RequestBase} so callers can pass `signal` / `headers`
- * / `timeout`.
+ * on the URL template and schema types declared on the endpoint. Uses the
+ * schema's input type for schema-typed fields (the pre-validation,
+ * user-facing shape) and intersects with {@link RequestBase} so callers can
+ * pass `signal` / `headers` / `timeout`.
  *
  * This is the one args type: the endpoint handler, `safe()`, and every
  * `@navios/react-query` surface derive their arguments from it.

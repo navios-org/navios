@@ -22,6 +22,10 @@ export interface WebSocketSocketHandle extends SocketClient {
    * frame is always `[event, ...args]`, JSON serialized, whatever the
    * arguments look like. A function passed as the last argument is not sent:
    * it is called with the server's `['__navios_ack:<event>', response]` reply.
+   *
+   * @throws {SocketError} of kind `transport` when the frame could not be
+   *   sent, for example because the socket is not open yet. The error is also
+   *   passed to `onError`.
    */
   emit(event: string, ...args: unknown[]): void
 
@@ -34,6 +38,9 @@ export interface WebSocketSocketHandle extends SocketClient {
    *
    * @param topic - Topic the message belongs to, used when a failure is reported
    * @param message - The formatted message
+   * @throws {SocketError} of kind `transport` when the frame could not be
+   *   sent, for example because the socket is not open yet. The error is also
+   *   passed to `onError`.
    */
   sendRaw(topic: string, message: unknown): void
 

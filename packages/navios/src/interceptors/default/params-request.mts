@@ -1,14 +1,22 @@
 import type { PreparedRequestConfig } from '../../request/request-config.mjs'
 
+/** Appends a query string, merging it into one the URL already has. */
+function appendSearch(url: string, search: string): string {
+  if (search.length === 0) {
+    return url
+  }
+  if (!url.includes('?')) {
+    return `${url}?${search}`
+  }
+  return url.endsWith('?') || url.endsWith('&') ? `${url}${search}` : `${url}&${search}`
+}
+
 export function paramsRequestInterceptor(config: PreparedRequestConfig<any, any>) {
-  if (!config.params || config.url.includes('?')) {
+  if (!config.params) {
     return config
   }
   if (config.params instanceof config.URLSearchParams) {
-    const search = config.params.toString()
-    if (search.length > 0) {
-      config.url = `${config.url}?${search}`
-    }
+    config.url = appendSearch(config.url, config.params.toString())
     return config
   }
   const params: URLSearchParams = new config.URLSearchParams()
@@ -33,9 +41,6 @@ export function paramsRequestInterceptor(config: PreparedRequestConfig<any, any>
     // @ts-ignore
     params.append(key, value)
   }
-  const search = params.toString()
-  if (search.length > 0) {
-    config.url = `${config.url}?${search}`
-  }
+  config.url = appendSearch(config.url, params.toString())
   return config
 }

@@ -219,8 +219,24 @@ export function createHandler<Options extends BaseEndpointOptions>(
       response = await client.request(config)
     } catch (cause) {
       const errorResponse = getResponse(cause)
-      if (errorResponse) {
+      if (errorResponse && !isSuccessStatus(errorResponse.status)) {
         return failHttp(errorResponse, cause)
+      }
+      if (errorResponse) {
+        // The server answered with a success status and the client still
+        // rejected: it could not read the body as what the endpoint expects.
+        return fail({
+          kind: 'response-validation',
+          status: errorResponse.status,
+          body: errorResponse.data,
+          issues: [
+            {
+              message: `Response body could not be parsed${cause instanceof Error ? `: ${cause.message}` : ''}`,
+            },
+          ],
+          response: toResponseMeta(errorResponse),
+          cause,
+        })
       }
       return fail({ kind: classifyTransportFailure(cause, request.signal), cause })
     }

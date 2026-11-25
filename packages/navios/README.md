@@ -144,9 +144,10 @@ Make a request with custom configuration.
 - `url` - URL for the request (will be combined with `baseURL`)
 - `method` - HTTP method
 - `headers` - Custom headers
-- `params` - URL search parameters (will be appended to the URL), can be an object or `URLSearchParams`
-- `data` - Request body, can be an object or `FormData`
-- `responseType` - Response type: `json`, `text`, `blob`, `arrayBuffer`, `formData`, `stream`
+- `params` - URL search parameters (appended to the URL, merged into a query string it already has), can be an object or `URLSearchParams`
+- `data` - Request body: an object (sent as JSON), `FormData`, or a string (sent as it is, as `text/plain` unless a content type is set). Not sent for `GET` and `HEAD`
+- `responseType` - Response type: `json`, `text`, `blob`, `arrayBuffer`, `formData`, `stream`. With `json`, an empty body (a 204, for example) resolves with `data: undefined`; a body that is not JSON rejects with a `NaviosError` that carries the `response`
+- `timeout` - Milliseconds after which the request is aborted; rejects with `code: 'ECONNABORTED'`. Combined with `signal` when both are given
 - `validateStatus` - Custom function to validate status code
 - `baseURL` - Base URL for the request, overrides the instance `baseURL`
 - `credentials` - Request credentials: `omit`, `same-origin`, `include`

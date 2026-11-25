@@ -4,6 +4,8 @@ import type { NaviosResponse } from './response/navios-response.mjs'
 export class NaviosError extends Error {
   response: NaviosResponse<any> | null
   config: NaviosRequestConfig<any, any>
+  /** `ECONNABORTED` for a timeout, `ERR_CANCELED` for an aborted request (the axios codes). */
+  code?: string
 
   constructor(
     message: string,
@@ -19,6 +21,8 @@ export class NaviosError extends Error {
 export class NaviosInternalError extends Error {
   response: Response | NaviosResponse<any> | null
   config: NaviosRequestConfig<any, any>
+  /** `ECONNABORTED` for a timeout, `ERR_CANCELED` for an aborted request (the axios codes). */
+  code?: string
 
   constructor(
     message: string,
