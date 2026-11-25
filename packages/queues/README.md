@@ -7,14 +7,10 @@ The package depends only on `@navios/di`, so it works with or without `@navios/s
 ## Installation
 
 ```bash
-npm install --save @navios/queues @navios/di zod
+npm install @navios/queues@next @navios/di@next zod
 ```
 
-or
-
-```bash
-yarn add @navios/queues @navios/di zod
-```
+The 2.0 alpha is published under the `next` tag. All `@navios` packages of a project must have the same alpha version, because an alpha may break between releases.
 
 Install the driver of the broker you use; the others are not loaded:
 
@@ -58,15 +54,15 @@ The class may use `inject()` to read from your own configuration service. Bind i
 import { QueueConfigServiceToken } from '@navios/queues'
 import { NaviosFactory, provide } from '@navios/server'
 
-// for the whole application
+// in a module
+@Module({ providers: [provide(QueueConfigServiceToken, AppQueueConfig)] })
+class AppModule {}
+
+// or for the whole application
 const app = await NaviosFactory.create(AppModule, {
   adapter,
   providers: [provide(QueueConfigServiceToken, AppQueueConfig)],
 })
-
-// or in a module
-@Module({ providers: [provide(QueueConfigServiceToken, AppQueueConfig)] })
-class AppModule {}
 
 // or on a bare container, before the first queue client is resolved
 const container = new Container()

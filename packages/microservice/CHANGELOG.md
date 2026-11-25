@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.0.0] - Unreleased
+## [2.0.0-alpha.0] - Unreleased
 
 Rewritten as a transport of a `@navios/core` 2.0 application. Earlier versions declared the decorators but could not consume a message.
 
@@ -21,7 +21,7 @@ Rewritten as a transport of a `@navios/core` 2.0 application. Earlier versions d
 ### Added
 
 - Handlers are subscribed with the queue client when the application starts: `subscribe` for pub/sub, `receive` for point-to-point, `reply` for request-reply.
-- A delivery runs interceptors, then guards, validates the payload and calls the handler; the reply of a request-reply handler is validated. `MessageValidationError` and `MessageDeniedError`.
+- A delivery runs the interceptors of the application, the guards and the other interceptors, validates the payload and calls the handler; the reply of a request-reply handler is validated. `MessageValidationError` and `MessageDeniedError`.
 - `transport.dispatch(message, payload)` delivers a message in process, for tests.
 - `transport.handlers()` lists the handlers.
 - `MessageInterceptor`, `isMessageContext`.

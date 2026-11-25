@@ -1,55 +1,21 @@
 import { InjectableScope, registerInjectable } from '@navios/core'
-import {
-  classAttributes,
-  classGuards,
-  classInterceptors,
-  MembersKey,
-  prepend,
-  requireMetadata,
-} from '@navios/core/transport'
+import { describeHandlerClass } from '@navios/core/transport'
 
-import type { ClassType } from '@navios/core'
-import type { DecoratorMetadata, MethodHandlerMetadata } from '@navios/core/transport'
+import type { ClassType, GuardClass, InterceptorClass } from '@navios/core'
+import type { HandlerClassMetadata } from '@navios/core/transport'
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 export interface MessageControllerOptions {
   /** Guards for every handler of the controller, after the module's. */
-  guards?: ClassType[]
+  guards?: GuardClass[]
   /** Interceptors around every handler of the controller, inside the module's. */
-  interceptors?: ClassType[]
+  interceptors?: InterceptorClass[]
 }
 
-export interface MessageControllerMetadata {
-  guards: ClassType[]
-  interceptors: ClassType[]
-  attributes: Map<symbol, unknown>
-  /** The members decorators were applied to, by name. */
-  members: Map<string, MethodHandlerMetadata>
-}
+export type MessageControllerMetadata = HandlerClassMetadata
 
 const MessageControllerMetadataKey = Symbol.for('navios.microservice.controller')
-
-function defineMetadata(
-  target: ClassType,
-  context: { metadata?: DecoratorMetadata },
-  options: MessageControllerOptions,
-): void {
-  const metadata = requireMetadata(context)
-  const controller: MessageControllerMetadata = {
-    // The live lists: @UseGuards / @UseInterceptors placed above this
-    // decorator run after it and must still be seen.
-    guards: prepend(classGuards(context), options.guards),
-    interceptors: prepend(classInterceptors(context), options.interceptors),
-    attributes: classAttributes(context),
-    members: (metadata[MembersKey] as Map<string, MethodHandlerMetadata> | undefined) ?? new Map(),
-  }
-  Object.defineProperty(target, MessageControllerMetadataKey, {
-    value: controller,
-    configurable: true,
-    enumerable: false,
-  })
-}
 
 /**
  * Marks a class as a message controller: a singleton whose `@Message`
@@ -68,7 +34,11 @@ export function MessageController(options: MessageControllerOptions = {}) {
     if (context.kind !== 'class') {
       throw new Error('[Navios] @MessageController can only be used on classes.')
     }
-    defineMetadata(target, context, options)
+    Object.defineProperty(target, MessageControllerMetadataKey, {
+      value: describeHandlerClass(context, options),
+      configurable: true,
+      enumerable: false,
+    })
     registerInjectable(target, { scope: InjectableScope.Singleton })
     return target
   }
