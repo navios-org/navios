@@ -96,6 +96,6 @@
     "@navios/builder": "workspace:*"
   },
   "engines": {
-    "node": ">=22"
+    "node": ">=24"
   }
 }

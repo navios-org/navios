@@ -19,7 +19,7 @@ The adapter is rewritten on the adapter contract of `@navios/server` 2.0, the pa
 - **A route with `body: 'multipart'` needs the `multipart` option**, or `@fastify/multipart` registered in `configure`. Without either the application fails to start, naming the route. It used to start and answer every upload with 415.
 - **The parts of a multipart body are limited together**: to `bodyLimit` bytes, and what `multipart.limits` allow on top (`fileSize` × `files`, `fieldSize` × `fields`, one of each unless set). They are in memory together, where a body of many parts could hold gigabytes. Set `limits.files` to accept several files of `fileSize`.
 - **Fastify's default content type parsers are replaced.** The adapter collects a body of any type as bytes and the server decodes it, so `+json` types are JSON, other types than JSON and text are a 415 only for an endpoint that reads the body, after its guards, and Fastify hooks see the undecoded `Buffer` in `request.body`. A parser that is added in `configure` keeps its content type.
-- Requires `@navios/server` 2.0, with `@navios/core` 2.0.
+- Requires Node.js 24 or newer, and `@navios/server` 2.0, with `@navios/core` 2.0.
 
 ### Added
 

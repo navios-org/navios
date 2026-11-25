@@ -13,6 +13,7 @@ The request pipeline, the application class and the adapter contract are rewritt
 
 ### Breaking
 
+- **Node.js 24 or newer is required**, or Bun 1.4.5 or newer.
 - **Controllers are singletons.** A controller that injects a request-scoped service fails at `init()` with a scope mismatch. Per-request data comes from the `RequestContext` passed to each handler.
 - **Guards receive a `RequestContext`** instead of `AbstractExecutionContext`: `canActivate(ctx)`. Guards are singletons, and they run before the request is validated and before the body is read. Only `true` lets a request through; 1.x accepted any truthy value.
 - **Every error response is `application/problem+json`** unless the endpoint declares a body for that status in `errorSchema`. This changes the body of `HttpException` responses, validation errors (now `source` and `errors: [{ path, message }]`) and not-found responses.

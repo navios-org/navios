@@ -212,5 +212,5 @@ Routes are matched by Bun's router, with these rules of its own:
 
 ## Requirements
 
-- Bun 1.3.10 or newer
+- Bun 1.4.5 or newer
 - `@navios/server` of the same version (peer dependency), with `@navios/builder`

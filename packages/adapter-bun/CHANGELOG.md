@@ -18,7 +18,7 @@ The adapter is rewritten on the adapter contract of `@navios/server` 2.0, the pa
 - **Response validation is on by default**, as on Fastify. It used to be opt-in on Bun.
 - **A body is JSON only when its content type says so.** Text is a string, and a body of another type, or of none, is a 415 for an endpoint that reads it, as on Fastify. Every body was parsed as JSON, so a browser could send one across sites without a CORS preflight.
 - **JSON with a `__proto__` or `constructor.prototype` key is a 400**, as on Fastify.
-- Requires `@navios/server` 2.0, with `@navios/core` 2.0.
+- Requires Bun 1.4.5 or newer, and `@navios/server` 2.0, with `@navios/core` 2.0.
 
 ### Added
 

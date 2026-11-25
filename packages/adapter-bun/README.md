@@ -12,7 +12,7 @@ bun add @navios/adapter-bun@next @navios/server@next @navios/builder@next
 
 The 2.0 alpha is published under the `next` tag. All `@navios` packages of a project must have the same alpha version, because an alpha may break between releases.
 
-Requires Bun 1.3.10 or newer. The adapter has no runtime dependencies of its own.
+Requires Bun 1.4.5 or newer. The adapter has no runtime dependencies of its own.
 
 ## Example
 

@@ -50,7 +50,7 @@ Return a user without `email`, or answer with a status the declaration does not 
 | `@navios/openapi`         | [An OpenAPI document](/docs/server/guides/openapi) generated from the routes      |
 | `@navios/otel`            | [OpenTelemetry](/docs/server/opentelemetry/) traces and metrics                   |
 
-An application needs `@navios/server`, `@navios/builder` and one adapter. The rest are optional. They run on Node.js 22 or newer, and on Bun 1.3.10 or newer.
+An application needs `@navios/server`, `@navios/builder` and one adapter. The rest are optional. They run on Node.js 24 or newer, and on Bun 1.4.5 or newer.
 
 ## Who it is for
 

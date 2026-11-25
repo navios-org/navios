@@ -12,7 +12,7 @@ npm install @navios/adapter-fastify@next @navios/server@next @navios/builder@nex
 
 The 2.0 alpha is published under the `next` tag. All `@navios` packages of a project must have the same alpha version, because an alpha may break between releases.
 
-Requires Node.js 22 or newer and `fastify` 5.6 or newer. `@fastify/cors` and `@fastify/multipart` are dependencies of the adapter and do not need to be installed separately.
+Requires Node.js 24 or newer and `fastify` 5.6 or newer. `@fastify/cors` and `@fastify/multipart` are dependencies of the adapter and do not need to be installed separately.
 
 ## Example
 

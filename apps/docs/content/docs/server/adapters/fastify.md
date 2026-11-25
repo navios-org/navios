@@ -191,6 +191,6 @@ Listening on `localhost` opens one socket per address, and only the connections 
 
 ## Requirements
 
-- Node.js 22 or newer
+- Node.js 24 or newer
 - `fastify` 5.6 or newer (peer dependency)
 - `@navios/server` of the same version (peer dependency), with `@navios/builder`

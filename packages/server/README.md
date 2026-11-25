@@ -12,7 +12,7 @@ npm install @navios/server@next @navios/builder@next @navios/adapter-fastify@nex
 
 The 2.0 alpha is published under the `next` tag. All `@navios` packages of a project must have the same alpha version, because an alpha may break between releases.
 
-Node.js 22 or newer is required, or Bun 1.3.10 or newer. On Bun, install [`@navios/adapter-bun`](https://www.npmjs.com/package/@navios/adapter-bun) in place of the two Fastify packages. `@navios/core` and `@navios/di` come with the server. `zod` is what the example uses; any [Standard Schema](https://standardschema.dev) library works. Navios uses standard (TC39) decorators, so leave `experimentalDecorators` off. A project that has to keep it on uses the [legacy decorators](https://navios.tech/docs/server/reference/legacy-decorators) entry point.
+Node.js 24 or newer is required, or Bun 1.4.5 or newer. On Bun, install [`@navios/adapter-bun`](https://www.npmjs.com/package/@navios/adapter-bun) in place of the two Fastify packages. `@navios/core` and `@navios/di` come with the server. `zod` is what the example uses; any [Standard Schema](https://standardschema.dev) library works. Navios uses standard (TC39) decorators, so leave `experimentalDecorators` off. A project that has to keep it on uses the [legacy decorators](https://navios.tech/docs/server/reference/legacy-decorators) entry point.
 
 ## Example
 

@@ -18,7 +18,7 @@ npm install @navios/server@next @navios/builder@next @navios/adapter-fastify@nex
 
 `@navios/builder` declares endpoints and `zod` is the schema library used in these docs; any [Standard Schema](https://standardschema.dev) library works in its place. `@navios/core` and `@navios/di` come with the server.
 
-Node.js 22 or newer is required, or Bun 1.3.10 or newer.
+Node.js 24 or newer is required, or Bun 1.4.5 or newer.
 
 Navios uses standard (TC39) decorators. Leave `experimentalDecorators` off in `tsconfig.json`. A project that has to keep it on uses the [legacy decorators](/docs/server/reference/legacy-decorators) entry point instead.
 
