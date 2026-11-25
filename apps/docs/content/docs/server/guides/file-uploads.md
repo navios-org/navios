@@ -4,7 +4,7 @@ title: File uploads
 
 # File uploads
 
-An endpoint declared with `body: 'multipart'` receives `multipart/form-data`. The handler is an ordinary `@Endpoint` handler: text fields arrive as strings and files as `File` objects in `data`, already validated by the declaration's `requestSchema`.
+An endpoint declared with `body: 'multipart'` receives `multipart/form-data`, and answers any other body with 415. The handler is an ordinary `@Endpoint` handler: text fields arrive as strings and files as `File` objects in `data`, already validated by the declaration's `requestSchema`.
 
 The declaration, and how a client fills it, belong to the Builder guide [File uploads](/docs/builder/guides/file-uploads). This page covers the server side.
 
@@ -40,7 +40,7 @@ export class AvatarController {
 }
 ```
 
-`data.file` is a web `File`: `name`, `type`, `size`, and `arrayBuffer()`, `text()` or `stream()` for its content. What you do with it is up to a service:
+`data.file` is a web `File`: `name`, `type`, `size`, and `arrayBuffer()`, `text()` or `stream()` for its content. Its name is the last part of the name that the client sent, on every adapter: `../../etc/passwd` arrives as `passwd`, and `..` as an empty name. What you do with it is up to a service:
 
 ```ts title="avatar-storage.service.mts"
 import { mkdir, writeFile } from 'node:fs/promises'
@@ -62,7 +62,7 @@ export class AvatarStorage {
 ```
 
 :::warning
-`file.name` and `file.type` are sent by the client. Do not use the name as a path on disk, and do not treat the type as proof of the content.
+`file.name` and `file.type` are chosen by the client. The name is never a path, but two clients may send the same one: do not store a file under it. Do not treat the type as proof of the content.
 :::
 
 ## Enabling multipart
@@ -80,9 +80,8 @@ The adapter collects the parts into one object, and `requestSchema` validates th
 
 - A file part becomes a `File`. Every other part is a string.
 - Several parts with the same name become an array.
-- When the schema can describe itself as JSON Schema (Zod 4 and ArkType can), the declared shape decides: a field declared as an array is an array even when one part was sent, and a field declared as an object, or an array of objects, is parsed as JSON.
-- With a schema library that cannot, a single part stays a single value, and a text value that starts with `{` or `[` is parsed as JSON when possible.
-- Nothing else is converted. Use a coercing schema such as `z.coerce.number()` for numbers and booleans.
+- When the schema can describe itself as JSON Schema (Zod 4 and ArkType can), text takes the form the schema describes, by the [rules for all fields that are sent as text](/docs/server/essentials/controllers#text-that-stands-for-something-else): a field declared as an array is an array even when one part was sent or none, and a field declared as a number, a boolean or an object is one.
+- With a schema library that cannot, such as Valibot, a single part stays a single value, and a text value that starts with `{` or `[` is parsed as JSON when possible. Describe the text in such a schema.
 
 So this declaration accepts one or many files under `files`, and a client that sends a single `tags` part still gives the handler an array:
 
@@ -94,7 +93,7 @@ export const uploadAttachments = API.declareEndpoint({
   requestSchema: z.object({
     files: z.array(z.instanceof(File)).min(1).max(10),
     tags: z.array(z.string()).optional(),
-    position: z.coerce.number().optional(),
+    position: z.number().optional(),
   }),
   responseSchema: z.object({ ids: z.array(z.string()) }),
 })
@@ -126,7 +125,7 @@ const imageSchema = z
 
 The schema runs after the body has been received, so it does not protect the server's memory.
 
-**In the adapter**, for how much the server is willing to read at all: `multipart.limits` on Fastify and `serve.maxRequestBodySize` on Bun. Set them a little above the largest upload any schema allows. A request over the limit is answered with a 413 problem response. See the adapter pages linked above.
+**In the adapter**, for how much the server is willing to read at all: `bodyLimit` and `multipart.limits` on Fastify and `serve.maxRequestBodySize` on Bun. Set them a little above the largest upload any schema allows. A request over the limit is answered with a 413 problem response. See the adapter pages linked above.
 
 Guards run before the body is read. An upload from a caller who is not allowed to upload is rejected without reading the file.
 
@@ -134,7 +133,7 @@ For files too large to hold in memory, do not send them through the application:
 
 ## Testing an upload
 
-On the in-memory adapter no multipart encoding takes place. Pass `data` as an object with strings and `File` values, and it reaches validation as it is:
+The test client encodes `data` as a client of the builder does. It is parsed again on every adapter, the in-memory one included:
 
 ```ts
 const call = createTestClient(app)
@@ -147,14 +146,4 @@ const response = await call(uploadAvatar, {
 expect(response.status).toBe(200)
 ```
 
-To exercise real multipart parsing, create the application on a real adapter and give `app.inject()` a `FormData` body:
-
-```ts
-const form = new FormData()
-form.set('file', new File(['fake'], 'me.png', { type: 'image/png' }))
-form.set('caption', 'Me')
-
-const response = await app.inject({ method: 'POST', url: '/users/42/avatar', body: form })
-```
-
-Both forms are described in [Testing](/docs/server/essentials/testing).
+`app.inject()` takes a `FormData` as its body. Both are described in [Testing](/docs/server/essentials/testing).

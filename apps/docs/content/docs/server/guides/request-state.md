@@ -143,7 +143,7 @@ export class ReportCursor {
 }
 ```
 
-`dispose` receives the awaited value. It is not called for a value placed with `ctx.set`. An error it throws is swallowed so that the other hooks still run; log inside the hook if you need to know.
+`dispose` receives the awaited value. It is not called for a value placed with `ctx.set`. An error it throws is logged, and the other hooks still run.
 
 Once the response has finished, for example in a stream that is still running after its client has gone, a value with a `dispose` hook can no longer be computed: the read throws, because nothing would release it.
 

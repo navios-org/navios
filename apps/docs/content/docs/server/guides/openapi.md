@@ -9,7 +9,7 @@ title: OpenAPI
 The plugin's routes are ordinary Navios routes, so it works the same on every adapter.
 
 ```bash
-npm install @navios/openapi
+npm install @navios/openapi@next
 ```
 
 ## Adding the plugin
@@ -158,17 +158,27 @@ export class UsersController {
 Three uses worth knowing:
 
 ```ts
-// On a handler that needs no token, when the default requirement is bearerAuth
-@ApiSecurity({})
-@Endpoint(login)
+@Controller()
+export class SessionController {
+  // A handler that needs no token, when the default requirement is bearerAuth
+  @ApiSecurity({})
+  @Endpoint(login)
+  async login({ data }: HandlerParams<typeof login>) {
+    // ...
+  }
 
-// On a handler that serves server-sent events
-@ApiStream({ contentType: 'text/event-stream', description: 'User changes of one team' })
-@Endpoint(teamEvents)
+  // A handler that serves server-sent events
+  @ApiStream({ contentType: 'text/event-stream', description: 'User changes of one team' })
+  @Endpoint(teamEvents)
+  events() {
+    // ...
+  }
+}
 
-// On a controller or a module with internal routes
+// A controller with internal routes, or a module
 @ApiExclude()
 @Controller()
+export class DiagnosticsController {}
 ```
 
 The attributes only describe. `ApiSecurity` does not protect a route; a [guard](/docs/server/essentials/guards-and-interceptors) does. An `operationId` is present only when you set one.
@@ -187,7 +197,7 @@ With `handler()` fields, pass the values in the options: `handler(createUser, { 
 | `tags`              |                   | Tag definitions. Tags used by routes are added to these                               |
 | `jsonPath`          | `'/openapi.json'` | Path of the JSON document                                                             |
 | `yamlPath`          | `'/openapi.yaml'` | Path of the YAML document                                                             |
-| `docsPath`          | `'/docs'`         | Path of the Scalar page                                                               |
+| `docsPath`          | `'/docs'`         | Path of the Scalar page. Slashes around any of the three paths do not matter          |
 | `disableJson`       | `false`           | Do not serve JSON. The Scalar page then embeds the document                           |
 | `disableYaml`       | `true`            | YAML is served only when this is `false`                                              |
 | `disableScalar`     | `false`           | Do not serve the Scalar page                                                          |
@@ -231,6 +241,6 @@ The in-memory adapter opens no port, so the script needs nothing but the applica
 | `ApiTagToken`, `ApiOperationToken`, `ApiSummaryToken`, `ApiDeprecatedToken`, `ApiSecurityToken`, `ApiExcludeToken`, `ApiStreamToken` | The symbols the attributes are stored under |
 | `OpenApiPluginOptions`, `OpenApiDocumentOptions`, `ScalarOptions`, `ToJsonSchema`, `OpenApiDocument` and the other document types | Types |
 
-`defineOpenApiPlugin` is the deprecated name of `openApiPlugin`. `@navios/server` is the only peer dependency; no schema library is needed at run time.
+`defineOpenApiPlugin` is the deprecated name of `openApiPlugin`. `@navios/server`, with the `@navios/core` it comes with, is the only peer dependency; no schema library is needed at run time.
 
 `@navios/openapi-fastify` and `@navios/openapi-bun` are deprecated packages that re-export `@navios/openapi`; import from `@navios/openapi` directly.

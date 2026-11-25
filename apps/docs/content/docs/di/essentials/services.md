@@ -50,7 +50,7 @@ class SmtpMailer implements Mailer {
 
 A token has one default. A second class declaring `token: MAILER` throws a `DIError` with code `ProviderConflict` when it is decorated. Register alternatives with plain `@Injectable()` and select one per container with [`provide()`](/docs/di/essentials/providers#provide).
 
-The one exception is a class with the same name as the current default: it replaces the default without an error. That is what happens when a module is evaluated again during hot reload.
+The one exception is a class with the same name as the current default, outside production (`NODE_ENV`): it replaces the default without an error. That is what happens when a module is evaluated again during hot reload.
 
 ### Constructor arguments
 
@@ -78,7 +78,7 @@ const client = await container.get(ApiClient, {
 
 The container keeps one instance per distinct argument value. [Tokens with a schema](/docs/di/essentials/tokens#tokens-with-a-schema) explains validation and instance identity; the rules are the same for a class and for a token.
 
-When a class is resolved directly, the argument is typed as the constructor parameter, which is the schema's output. A schema with defaults or transforms is better served by a token: callers of a token pass the schema's input type.
+When a class is resolved directly, the argument is typed as the constructor parameter, which is the schema's output, while the container validates it as input. For a schema with defaults or transforms the two differ, and a value that fits the type may be rejected. Use a token for such a schema: callers of a token pass the schema's input type.
 
 ## inject
 
@@ -96,7 +96,7 @@ class AuditLog {
 
 It accepts a class, a token, and a second argument for anything that takes one. The return type is inferred from the first argument.
 
-`inject()`, `optional()` and `asyncInject()` only work while the container is constructing a class: in a field initialiser or in the constructor body. Called anywhere else, such as in a method or at module level, they throw. To resolve something later, inject the container itself and call `get()` on it:
+`inject()`, `optional()` and `asyncInject()` only work while the container is constructing a class: in a field initialiser or in the constructor body. Called anywhere else, such as in a method, in a lifecycle hook or at module level, they throw. To resolve something later, inject the container itself, or the [current scope](/docs/di/essentials/scopes#the-current-scope) for request-scoped services, and call `get()` on it:
 
 ```ts
 import { Container, inject, Injectable } from '@navios/di'

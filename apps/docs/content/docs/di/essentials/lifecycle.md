@@ -54,13 +54,13 @@ Dependencies initialise before the service that injects them: `ConnectionPool.on
 
 Return a promise only when the work is asynchronous. A hook that returns nothing keeps the service resolvable with `getSync()`; an `async` hook makes it, and everything that depends on it, [asynchronous on first resolution](/docs/di/how-it-works#when-resolution-becomes-asynchronous).
 
-If the constructor or the hook throws, resolution fails with a `DIError` with code `InitializationError` and the original error in `cause`. Nothing is stored, `onServiceDestroy` is not called, and the next `get()` tries again from scratch. A hook that acquires several resources should release the ones it already holds before rethrowing.
+If the constructor or the hook throws, resolution fails with a `DIError` with code `InitializationError` and the original error in `cause`. Nothing is stored, `onServiceDestroy` is not called, and the next `get()` tries again from scratch. If a [decorator](/docs/di/essentials/providers#decorating-instances) throws, the instance is initialised already and `onServiceDestroy` is called. A hook that acquires several resources should release the ones it already holds before rethrowing.
 
 ## onServiceDestroy
 
 `onServiceDestroy` runs when the instance is destroyed: by `dispose()` on its container or scope, or by [invalidation](/docs/di/guides/invalidation). Release what `onServiceInit` acquired.
 
-An error thrown or rejected by the hook does not stop the teardown: the rest still runs and `dispose()` still resolves. The error is passed to `logger.error()` when the container was created with a [`logger`](/docs/di/reference/api#container). Without one it is dropped, so log inside the hook if you need to know about it.
+An error thrown or rejected by the hook does not stop the teardown: the rest still runs and `dispose()` still resolves. The error is passed to `logger.error()` of the container's [`logger`](/docs/di/reference/api#container), which is `console.error()` without one. `logger: null` drops it.
 
 The hook is found on:
 
@@ -74,7 +74,7 @@ A factory registers cleanup for its result with [`ctx.addDestroyListener()`](/do
 
 ## Destruction order
 
-A service is always destroyed before the things it injected, so `onServiceDestroy` can still use its dependencies.
+A service is always destroyed before the things it injected, so `onServiceDestroy` can still use its dependencies. The one exception is a service that is [still being built](/docs/di/guides/invalidation#while-something-is-being-built) when a dependency is invalidated.
 
 ```ts
 import { Container, inject, Injectable } from '@navios/di'
@@ -104,6 +104,8 @@ await container.dispose()
 
 Services that do not depend on each other are destroyed in reverse order of creation, one after another. Each hook is awaited before the next instance is touched.
 
+A hook may also resolve from the container. During `dispose()` it gets what has not been torn down yet; anything else fails with `ContainerDisposed`, since nothing is built any more. During `invalidate()`, resolve what the service depends on at the start of the hook, before the first `await`: after it, the container cannot tell the hook from other code, makes it wait for the invalidation, and the hook waits for itself.
+
 For one instance, the steps are:
 
 1. Everything that depends on it is destroyed.
@@ -112,7 +114,9 @@ For one instance, the steps are:
 
 ## dispose
 
-`dispose()` first waits for instances that are still being created, then destroys everything the container holds.
+`dispose()` first waits for instances that are still being created, then destroys everything the container holds. From the moment it is called nothing new is built, and a `get()` that is still in flight fails with `ContainerDisposed`.
+
+It waits for at most a second for what it does not hold: a transient that is still initialising, or the arguments that a [factory token](/docs/di/essentials/tokens#factory-tokens) is computing. Either is destroyed as soon as it is ready, after `dispose()` has resolved if need be.
 
 ```ts
 process.on('SIGTERM', async () => {
@@ -123,9 +127,14 @@ process.on('SIGTERM', async () => {
 
 |                         | `container.dispose()`                              | `scope.dispose()`                                      |
 | ----------------------- | -------------------------------------------------- | ------------------------------------------------------ |
-| Destroys                | Singletons                                         | Request-scoped instances and the scope's transients    |
+| Destroys                | Singletons                                         | The scope's transients, then request-scoped instances  |
 | Leaves alone            | Open scopes. Dispose those first                   | Singletons                                             |
-| Afterwards              | The container is empty and can be used again       | The scope is closed for good                           |
+| Afterwards              | The container is closed for good                   | The scope is closed for good                           |
+| A second call           | Returns the disposal in flight                     | Returns the disposal in flight                         |
+
+A closed container or scope throws `ContainerDisposed`. `clear()` of the [testing containers](/docs/di/guides/testing#testcontainer) destroys the same things and leaves the container usable.
+
+`dispose()` called in a lifecycle hook starts the disposal and returns at once, since the disposal waits for that hook. Do not await it later in the hook, after another `await`: it then waits for itself.
 
 Both implement `Symbol.asyncDispose`, so `await using container = new Container()` disposes at the end of the block.
 

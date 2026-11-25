@@ -9,7 +9,7 @@ title: Quick start
 ## Install
 
 ```bash
-npm install @navios/react-query @tanstack/react-query
+npm install @navios/react-query@next @tanstack/react-query
 ```
 
 `@tanstack/react-query` must be `^5.102.0` or newer. Your app also needs TanStack's `QueryClientProvider` around the components that use the hooks; see [TanStack's installation guide](https://tanstack.com/query/latest/docs/framework/react/quick-start) if it is not set up yet.

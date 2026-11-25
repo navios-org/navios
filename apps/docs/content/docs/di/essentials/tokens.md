@@ -26,10 +26,11 @@ A token on its own resolves to nothing. It needs a provider, which can come from
 | ----------------------------------------- | -------------------------------------------------------------------------- |
 | `@Injectable({ token })` on a class       | [Services and injection](/docs/di/essentials/services#implementing-a-token) |
 | `@Factory({ token })` on a factory class  | [Factories](/docs/di/essentials/factories)                                 |
+| `registerProvider(token, …)`              | [Providers](/docs/di/essentials/providers#registerprovider)                |
 | `provide(token, …)` on a container        | [Providers](/docs/di/essentials/providers#provide)                         |
 | `addInstance(token, value)`               | [Providers](/docs/di/essentials/providers#addinstance)                     |
 
-To get the token of a decorated class, call `getInjectableToken(UserService)`.
+To get the token of a decorated class, call `getInjectableToken(UserService)`. A token can also be named after a class, abstract ones included: `InjectionToken.create(Repository)` has the type and the name of `Repository`.
 
 ## Tokens with a schema
 
@@ -65,7 +66,7 @@ const uploads = await container.get(BUCKET, { name: 'uploads' })
 The schema can come from any [Standard Schema](https://standardschema.dev) library; these docs use Zod. Three rules apply:
 
 - **Callers pass the schema's input type, the provider receives its output type.** Above, `region` may be omitted by the caller and is always present in the constructor.
-- **Invalid arguments fail with `TokenValidationError`.** The schema's issues are in `error.context.issues`.
+- **Invalid arguments fail with `TokenValidationError`.** The message names what is wrong, and `error.context.issues` holds the path and the message of each issue. The arguments themselves are not part of the error.
 - **Validation must be synchronous.** A schema that validates asynchronously, such as one with an async refinement, is rejected with the same error.
 
 Whether the second argument is required follows from the schema. If the schema accepts `undefined` (for example `bucketOptions.optional()`), the token can be resolved without arguments. If it does not, leaving them out changes the result type to an error message that names the missing keys, so the mistake shows up at the first use of the value.
@@ -83,7 +84,7 @@ a === b // true: the default was applied before comparing
 a === c // false
 ```
 
-Values inside the arguments that are not plain objects or arrays, such as class instances and functions, are compared by identity.
+A property that is `undefined` counts as absent. `Date`, `Map`, `Set`, `URL`, `RegExp` and typed arrays of up to 1 kB are compared by value, whatever the schema creates anew for each call. Other values that are not plain objects or arrays, such as class instances, functions and larger buffers, are compared by identity. Arguments that contain themselves are refused.
 
 ## Bound tokens
 
@@ -106,14 +107,14 @@ A bound token resolves to the same instance as the base token with equal argumen
 
 ```ts
 export const TENANT_BUCKET = InjectionToken.factory(BUCKET, async (ctx) => {
-  const settings = await ctx.inject<SettingsService>(SettingsService)
+  const settings = await ctx.inject(SettingsService)
   return { name: settings.bucketName }
 })
 
 const bucket = await container.get(TENANT_BUCKET)
 ```
 
-The function runs at most once per root container, and always against the root container, even when the token is first resolved through a scope. The value is stored on the container, not on the token: two containers compute it separately, and a container that was disposed computes it again on next use.
+The function runs at most once per root container, and always against the root container, even when the token is first resolved through a scope. It is not part of any construction, so `inject()` throws in it and `ctx.inject()` of something request-scoped is a `ScopeMismatchError`. The value is stored on the container, not on the token: two containers compute it separately. Listeners added with `ctx.addDestroyListener()` run when the container is disposed.
 
 An async function makes the first resolution asynchronous: use `get()`, or `inject()` it from a service that is itself resolved with `get()`.
 
@@ -145,4 +146,4 @@ export const REQUEST_ID = InjectionToken.create<string>('RequestId', {
 })
 ```
 
-Declaring the scope makes misuse visible: resolving `REQUEST_ID` from the root container, or injecting it into a singleton, reports a scope mismatch instead of a missing provider. In a scope where no value was added, resolving it fails with `FactoryNotFound`. [Scopes](/docs/di/essentials/scopes#values-supplied-per-scope) shows it in use. The options object also accepts `schema`.
+Declaring the scope makes misuse visible: resolving `REQUEST_ID` from the root container, or injecting it into a singleton, reports a scope mismatch instead of a missing provider. In a scope where no value was added, resolving it fails with `ProviderNotFound`. [Scopes](/docs/di/essentials/scopes#values-supplied-per-scope) shows it in use. The options object also accepts `schema`.

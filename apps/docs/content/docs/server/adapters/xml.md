@@ -9,10 +9,10 @@ title: XML responses
 ## Setup
 
 ```bash
-yarn add @navios/adapter-xml
+npm install @navios/adapter-xml@next
 ```
 
-`@navios/server` 2.x is a peer dependency.
+`@navios/server` of the same version is a peer dependency.
 
 Point TypeScript's JSX transform at the package. Files that contain JSX use the `.tsx` extension.
 

@@ -71,7 +71,7 @@ Change the response schema and all three stop compiling until they agree again.
 - **Validation on both sides of the wire.** Input is checked before a request is sent; the response is checked before your code sees it.
 - **One error type.** Every failed call is an `EndpointError` with a `kind` you can switch on. Let it throw, or call `.safe()` and receive it as a value.
 - **Your schema library.** Every schema slot accepts any [Standard Schema](https://standardschema.dev) implementation: Zod, Valibot, ArkType and others. These docs use Zod in examples.
-- **Your HTTP client.** `@navios/http`, axios, or a ten-line `fetch` wrapper.
+- **Your HTTP client.** `@navios/http`, axios, or a small `fetch` wrapper.
 - **More than JSON.** Multipart uploads, file downloads, text, streams and empty replies come from the same `declareEndpoint`. WebSocket and Server-Sent Events have their own typed builders.
 
 ## Where to go

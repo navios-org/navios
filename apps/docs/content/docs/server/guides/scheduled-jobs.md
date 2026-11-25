@@ -7,14 +7,14 @@ title: Scheduled jobs
 `@navios/schedule` runs methods of a service on a cron schedule. It is built on the [`cron`](https://github.com/kelektiv/node-cron) package and uses the application's DI container, so a job injects the same services your handlers do.
 
 ```bash
-npm install @navios/schedule
+npm install @navios/schedule@next
 ```
 
-The package depends on `@navios/core` only. In an HTTP application the jobs run next to the server; a worker that does nothing but run jobs needs no adapter at all, see [Other transports](/docs/server/guides/other-transports).
+The package depends on `@navios/core` only. In an HTTP application the jobs run next to the server; a worker that does nothing but run jobs needs no adapter at all; see [Other transports](/docs/server/guides/other-transports).
 
 ## Declaring jobs
 
-`@Schedulable()` marks a class that contains jobs and registers it as a service; do not add `@Injectable()` to the same class. `@Cron` marks a job method. A job method takes no arguments and may be synchronous or `async`. It takes one `@Cron()`; a second one on the same method throws. A subclass of a schedulable class inherits its jobs and may reschedule one by decorating its override.
+`@Schedulable()` marks a class that contains jobs and registers it as a service; do not add `@Injectable()` to the same class. `@Cron` marks a job method: a public instance method, synchronous or `async`, whose result is ignored. It takes one `@Cron()`; a second one on the same method throws. A subclass of a schedulable class that is decorated itself inherits its jobs and may reschedule one by decorating its override.
 
 ```ts title="maintenance.jobs.mts"
 import { inject, Logger } from '@navios/server'
@@ -42,34 +42,54 @@ export class MaintenanceJobs {
 
 ## Running them with an application
 
-List the classes in `schedulePlugin`:
+List the classes in the module they belong to, and give the application the schedule transport:
+
+```ts title="app.module.mts"
+import { Module } from '@navios/server'
+
+import { MaintenanceJobs } from './maintenance.jobs.mjs'
+
+@Module({ jobs: [MaintenanceJobs] })
+export class AppModule {}
+```
 
 ```ts title="main.mts"
 import { defineFastifyEnvironment } from '@navios/adapter-fastify'
 import { NaviosFactory } from '@navios/server'
-import { schedulePlugin } from '@navios/schedule'
+import { scheduleTransport } from '@navios/schedule'
 
 import { AppModule } from './app.module.mjs'
-import { MaintenanceJobs } from './maintenance.jobs.mjs'
 
 const app = await NaviosFactory.create(AppModule, {
   adapter: defineFastifyEnvironment(),
-  plugins: [schedulePlugin({ services: [MaintenanceJobs] })],
+  transports: [scheduleTransport()],
 })
 
 await app.listen({ port: 3000 })
 ```
 
-The scheduler follows the application:
+An application has one schedule transport. Without it `jobs` is ignored, so a web process and a worker can share their modules.
 
-| When                 | What happens                                                                                         |
-| -------------------- | ---------------------------------------------------------------------------------------------------- |
-| End of `app.init()`  | Every job that is not `disabled` starts. Routes are compiled; the server is not listening yet         |
-| `app.close()`        | Every job stops, and `close()` waits for the runs that are in progress                               |
+| Option     | Meaning                                                                                                                        |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `services` | `@Schedulable()` classes to run next to those that modules list                                                                |
+| `enabled`  | `false` registers and builds the classes and starts nothing. For a process, or a test, that shares its modules with a worker    |
+| `timeZone` | The time zone of the jobs that do not name one                                                                                 |
+| `onError`  | Called with the error of a failed run; see [Errors](#errors)                                                                   |
 
-So a job never runs before the application is fully built, and never after `close()` has returned. `close()` waits for running jobs without a time limit: a job that never finishes keeps it from returning, so give long jobs their own timeout.
+The jobs follow the application:
 
-A module can register classes itself instead of the plugin, which keeps a feature's jobs next to the feature:
+| When                            | What happens                                                                                                       |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `app.init()`                    | The classes are registered and the singletons among them built, so a mistake in a job or its wiring fails `init()` |
+| `app.start()` or `app.listen()` | Every job that is not `disabled` starts, after all bootstrap hooks                                                 |
+| `app.close()`                   | Every job stops, the signal of the runs in progress is aborted, and `close()` waits for them                       |
+
+`app.init()` and `app.inject()` start nothing, so tests run no jobs. Neither does an application that fails to start.
+
+`close()` waits for running jobs at most `shutdownTimeout` milliseconds (10 seconds by default), then logs the names of those it gave up on. The services a job uses are shut down after that, not before. A job may call `app.close()` itself, for a worker that runs once and exits; its own run is not waited for.
+
+A class that is only known at run time is registered through `SchedulerService`, from `onModuleInit` or later:
 
 ```ts
 import { inject, Module } from '@navios/server'
@@ -85,7 +105,40 @@ export class MaintenanceModule {
 }
 ```
 
-Both ways give the same lifecycle, because the scheduler starts and stops itself through application hooks. Those hooks run only on a `SchedulerService` that exists at the end of `init()`: when the plugin is not used and nothing injects the service, there is no scheduler and nothing starts. A class registered after the application has started has its jobs started at once.
+A class registered after the application has started has its jobs started at once. Two mistakes are logged as warnings: registering a class in an application without the transport, and injecting a schedulable class that is listed nowhere.
+
+## What a job is called with
+
+A job method may take one argument, the `JobRun`:
+
+| Property      | Meaning                                                                     |
+| ------------- | --------------------------------------------------------------------------- |
+| `name`        | The name of the job, such as `MaintenanceJobs.purgeSessions()`              |
+| `scheduledAt` | The time of the schedule this run belongs to; `null` for a run by hand      |
+| `signal`      | An `AbortSignal`, aborted when the application closes                       |
+
+```ts
+import { Cron, Schedulable, Schedule, type JobRun } from '@navios/schedule'
+
+@Schedulable()
+export class FeedJobs {
+  @Cron(Schedule.EveryFifteenMinutes)
+  async refresh({ signal }: JobRun) {
+    for (const url of feeds) {
+      signal.throwIfAborted()
+      await fetch(url, { signal })
+    }
+  }
+}
+```
+
+A run that ends with the `AbortError` of its signal is logged as interrupted, not as failed.
+
+## Overlapping runs
+
+When a run takes longer than the interval, the ticks that come while it is still going are skipped. The first of them is logged as a warning. Give a job whose runs may overlap `@Cron(Schedule.EveryMinute, { overlap: 'allow' })`.
+
+This holds within one process. Two instances of an application both run every job; a job that must run once in a cluster has to guard itself, for example with a lock in the database.
 
 ## Cron expressions
 
@@ -108,7 +161,7 @@ An expression has five fields, or six when it starts with seconds:
 | `0 0 1 * *`       | On the first day of every month   |
 | `*/30 * * * * *`  | Every 30 seconds                  |
 
-Times are in the time zone of the process, unless the job names an IANA time zone: `@Cron('0 4 * * *', { timeZone: 'Europe/Kyiv' })`. Run the server with `TZ=UTC` when no schedule may follow the host's zone.
+Times are in the time zone of the process, unless the job names an IANA time zone, `@Cron('0 4 * * *', { timeZone: 'Europe/Kyiv' })`, or the transport does, `scheduleTransport({ timeZone: 'UTC' })`. When the clocks change, a daily job whose time does not exist runs at the end of the gap, and one whose time happens twice runs once.
 
 The `Schedule` enum names the common ones:
 
@@ -154,47 +207,59 @@ export class ImportJobs {
 
 A singleton schedulable class cannot inject a request-scoped service; that is a scope mismatch error. Singleton dependencies are shared between runs in both cases. Scopes are explained in [Scopes](/docs/di/essentials/scopes).
 
-A job is not an HTTP request. There is no `RequestContext` in a run, so context keys, request values and `ctx.use()` are not available; put per-run state in request-scoped services as above.
-
-:::warning
-Runs of one job are not serialised. When a run takes longer than the interval, the next one starts while it is still going, in its own scope. A job that must not overlap has to guard itself, for example with a lock in the database.
-:::
+A job is not an HTTP request. There is no `RequestContext` in a run, also when a request started the job, so context keys, request values and `ctx.use()` are not available; put per-run state in request-scoped services as above. Guards and interceptors, `app.intercept()` included, do not apply to jobs.
 
 ## Managing jobs at run time
 
 `SchedulerService` is injectable anywhere, and `app.get(SchedulerService)` returns it from outside.
 
-| Method                      | Effect                                                                                   |
-| --------------------------- | ---------------------------------------------------------------------------------------- |
-| `register(Class)`           | Creates the jobs of a `@Schedulable()` class. Registering the same class again does nothing |
-| `getJob(Class, 'method')`   | The underlying `CronJob`, or `undefined`                                                 |
-| `start()`                   | Starts every job that is not `disabled`. Called for you at the end of `init()`           |
-| `stop()`                    | Stops every job and waits for running ones. Called for you by `close()`                  |
-| `startAll()`                | Starts every registered job, including the `disabled` ones                               |
-| `stopAll()`                 | Stops every job without waiting for running ones                                         |
+| Method                    | Effect                                                                                                                                     |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `register(Class)`         | Creates the jobs of a `@Schedulable()` class. Registering the same class again does nothing                                                |
+| `getJob(Class, 'method')` | The job, or `undefined`                                                                                                                    |
+| `start()`                 | Starts every job that is not `disabled`. Called for you when the application starts                                                        |
+| `stop(timeoutMs?)`        | Stops every job and waits for running ones, 10 seconds by default. Called for you by `close()`; `start()` afterwards resumes the schedules |
 
-`getJob` returns the `cron` package's own object, so its API applies: `isActive`, `start()`, `stop()`, `nextDate()` and `fireOnTick()`.
+A job has these members:
+
+| Member               | Meaning                                                                                                                    |
+| -------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `name`               | `MaintenanceJobs.purgeSessions()`                                                                                          |
+| `active`, `running`  | Whether it is on its schedule; whether a run is in progress                                                                |
+| `nextRun`, `lastRun` | A `Date`, or `null`. `lastRun` is when the last run started                                                                |
+| `start()`, `stop()`  | Puts it on its schedule or takes it off; a run in progress goes on                                                         |
+| `run()`              | Runs it now. Resolves when the run has ended and rejects with its error; rejects when it is already running (see [Overlapping runs](#overlapping-runs)) |
 
 ```ts
 const scheduler = await app.get(SchedulerService)
 const job = scheduler.getJob(MaintenanceJobs, 'rebuildSearchIndex')
 
-job?.isActive // false: declared with { disabled: true }
+job?.active // false: declared with { disabled: true }
 job?.start() // put it on its schedule
-await job?.fireOnTick() // or run it once, now
+await job?.run() // or run it once, now
 ```
 
 A `disabled` job is how you declare something that an operator, a feature flag or an admin endpoint switches on.
 
 ## Errors
 
-An error thrown by a job is caught and logged by the scheduler with the job's name, such as `MaintenanceJobs.purgeSessions()`. The job stays on its schedule and other jobs are not affected. Nothing retries the failed run; the next run is the next tick.
+An error thrown by a job is caught and logged by the scheduler with the job's name, such as `MaintenanceJobs.purgeSessions()`. The job stays on its schedule and other jobs are not affected. Nothing retries the failed run; the next run is the next tick. To report it elsewhere as well:
 
-`register()` throws when the class has no `@Schedulable()` decorator. It also throws, naming the class and the method, when a cron expression or a time zone is invalid, and then registers none of the jobs of that class.
+```ts
+scheduleTransport({
+  onError: (error, { name, scheduledAt }) => {
+    errorTracker.capture(error, { job: name, scheduledAt })
+  },
+})
+```
+
+The run counts as in progress until a promise that `onError` returns has settled. The error of a run started with `run()` goes to its caller instead, and is neither logged nor passed to `onError`.
+
+`register()` throws when the class has no `@Schedulable()` decorator. It also throws, naming the class and the method, when a cron expression or a time zone is invalid or empty, or when the expression never occurs, and then registers none of the jobs of that class. For classes that modules list, that is an error of `app.init()`.
 
 ## Without an application
 
-The scheduler needs only a DI container. Without an application nothing calls the bootstrap hook, so start it yourself:
+The scheduler needs only a DI container. Without an application nothing starts or stops it, so do it yourself:
 
 ```ts
 import { Container } from '@navios/server'
@@ -205,10 +270,11 @@ import { MaintenanceJobs } from './maintenance.jobs.mjs'
 const container = new Container()
 const scheduler = await container.get(SchedulerService)
 
-scheduler.register(MaintenanceJobs)
 scheduler.start()
+scheduler.register(MaintenanceJobs)
 
-// later: stops the jobs and waits for running ones
+// later: the jobs first, then what they use
+await scheduler.stop()
 await container.dispose()
 ```
 

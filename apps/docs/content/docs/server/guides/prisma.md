@@ -85,14 +85,14 @@ class FakePrisma {
 const app = await NaviosFactory.create(AppModule, {
   adapter: defineInMemoryEnvironment(),
   logger: false,
-  providers: [provide(PrismaService, FakePrisma)],
+  providers: [provide(PrismaService, { value: new FakePrisma() as unknown as PrismaService })],
 })
 
 const response = await createTestClient(app)(getUser, { urlParams: { userId: '1' } })
 expect(response.body).toEqual({ id: '1', name: 'Ada', email: 'ada@example.com' })
 ```
 
-`provide(PrismaService, { value: fake })` does the same with an object you already have. A fake only needs the model methods the code under test calls.
+A fake only needs the model methods the code under test calls. `provide()` wants every public member of what it replaces, hence the cast.
 
 For tests that should run real queries, keep `PrismaService` and point it at a test database through its usual configuration. See [Testing](/docs/server/essentials/testing) for the rest of the setup.
 

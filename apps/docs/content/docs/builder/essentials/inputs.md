@@ -6,11 +6,13 @@ title: URL params, query and body
 
 An endpoint call takes one object with up to three inputs: `urlParams`, `params` and `data`. This page covers how each is declared, typed and validated, and which request options a call accepts beside them.
 
-All three are validated before anything is sent. If one fails, the call ends with an `EndpointError` of kind `request-validation` and no request is made.
+All three are validated before anything is sent. If any of them fails, the call ends with an `EndpointError` of kind `request-validation` that lists the problems of all three, and no request is made.
+
+What is sent is the value you passed, not what the schema made of it. See [What is sent](#what-is-sent).
 
 ## URL parameters
 
-A parameter is `$` followed by a letter or underscore, then letters, digits or underscores. The type system and the runtime apply the same rule, so `/files/$id.json` has one parameter, `id`.
+A parameter is `$` followed by a letter or underscore, then letters, digits or underscores. Any other character ends the name, so the rest of the segment can be literal: `/files/$name.json` has one parameter, `name`, and `/carts/$id:checkout` has `id`. The type system and the runtime apply the same rule.
 
 ```ts
 export const getPost = API.declareEndpoint({
@@ -23,11 +25,11 @@ await getPost({ urlParams: { userId: '42', postId: 7 } })
 // GET /users/42/posts/7
 ```
 
-Without a schema, each value is `string | number`. Values are URL-encoded. A missing, `null` or empty-string value fails the call rather than producing a shorter path. So does a value that is exactly `.` or `..`, which URL parsing would resolve into a different path.
+Without a schema, each value is `string | number`. Values are URL-encoded, and a `Date` is written as an ISO string. A missing, `null` or empty-string value fails the call rather than producing a shorter path. So does a value that is exactly `.` or `..`, which URL parsing would resolve into a different path, and one that has no form in a URL: an object, an array or `NaN`. These calls fail with kind `config`.
 
 ### Validating URL parameters
 
-`urlParamsSchema` narrows the types and validates the values at runtime. The schema's output is what goes into the URL, so coercion and transforms apply.
+`urlParamsSchema` narrows the types and validates the values at runtime.
 
 ```ts
 export const getPost = API.declareEndpoint({
@@ -35,7 +37,7 @@ export const getPost = API.declareEndpoint({
   url: '/users/$userId/posts/$postId',
   urlParamsSchema: z.object({
     userId: z.uuid(),
-    postId: z.coerce.number().int().positive(),
+    postId: z.int().positive(),
   }),
   responseSchema: postSchema,
 })
@@ -60,16 +62,20 @@ export const listUsers = API.declareEndpoint({
 })
 
 await listUsers({ params: { search: 'ada', role: 'admin' } })
-// GET /users?page=1&search=ada&role=admin
+// GET /users?search=ada&role=admin
 ```
 
-Builder validates `params` and hands the schema's output to the HTTP client as an object. Turning that object into a query string, including how arrays and nested values are written, is the client's job.
+Builder validates `params` and hands them to the HTTP client as an object. Turning that object into a query string, including how arrays and nested values are written, is the client's job. The `page` above was left out, so it is not in the URL: the default is applied by the server that parses the query.
 
-Defaults in the schema are applied before sending, as `page` shows above.
+A query string is text, but the schema does not have to be. `z.number()`, `z.int()`, `z.boolean()`, arrays and objects can be used as they are in a contract with a Navios server, which decodes the text with the schema's JSON Schema before it validates. That needs a schema library that implements [Standard JSON Schema](https://standardschema.dev/json-schema), as Zod 4 does. With a library that does not, describe the text a Navios server receives.
+
+:::warning
+Do not use `z.coerce.boolean()`. It turns every non-empty string into `true`, also `"false"`. `z.coerce.number()` is not needed either, and loses the type of what the client passes.
+:::
 
 ## Request body
 
-Declare a `requestSchema` and the call accepts `data`. The validated output is sent as JSON.
+Declare a `requestSchema` and the call accepts `data`. It is sent as JSON, whatever its type: an object, an array, or a plain string, number, boolean or `null`.
 
 ```ts
 export const updateUser = API.declareEndpoint({
@@ -85,7 +91,45 @@ await updateUser({
 })
 ```
 
-To send `FormData` instead of JSON, add `body: 'multipart'`. See [File uploads](/docs/builder/guides/file-uploads).
+To send `FormData` instead of JSON, add `body: 'multipart'`. See [File uploads](/docs/builder/guides/file-uploads). A `GET` or `HEAD` endpoint cannot have a body; declaring one is an error.
+
+## What is sent
+
+Builder validates the arguments of a call and then sends **what you passed**. The schema decides whether the request leaves, and the server that parses it with the same schema applies the rest:
+
+- **Defaults** are filled in by the server. A field you leave out is not sent. A URL parameter you leave out is: the URL needs a value, so it is the default of `urlParamsSchema`.
+- **Unknown keys** are removed by the server. A key the schema does not know, on an object you pass, is sent.
+- **Transforms** run on the server, once.
+
+```ts
+const schema = z.object({
+  tags: z.string().transform((tags) => tags.split(',')),
+  limit: z.number().default(20),
+})
+
+await search({ data: { tags: 'a,b' } })
+// body: {"tags":"a,b"}; the handler receives { tags: ['a', 'b'], limit: 20 }
+```
+
+So the input of a request schema is the format on the wire, which is also what [OpenAPI](/docs/server/guides/openapi) describes.
+
+For an API that does not share your schemas, the schemas can describe the conversion to its format instead. Create the builder with `send: 'output'` and what the schemas produced is sent: transforms, defaults and the removal of unknown keys happen before the request.
+
+```ts
+export const legacyAPI = builder({ client, send: 'output' })
+
+export const search = legacyAPI.declareEndpoint({
+  method: 'POST',
+  url: '/search',
+  requestSchema: z
+    .object({ tags: z.array(z.string()), limit: z.number().default(20) })
+    .transform(({ tags, limit }) => ({ tag_list: tags.join(','), page_size: limit })),
+  responseSchema: resultsSchema,
+})
+
+await search({ data: { tags: ['a', 'b'] } })
+// body: {"tag_list":"a,b","page_size":20}
+```
 
 ## What is required
 

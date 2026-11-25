@@ -23,7 +23,7 @@ flowchart TD
     A[get or inject is called with a token] --> B{Instance already stored?}
     B -- yes --> R([Return it])
     B -- no --> C{Provider found?}
-    C -- no --> E1([FactoryNotFound])
+    C -- no --> E1([ProviderNotFound])
     C -- yes --> D{Scope allowed here?}
     D -- no --> E2([ScopeMismatchError])
     D -- yes --> F[Run the constructor or factory]
@@ -35,9 +35,9 @@ flowchart TD
 
 Three things follow from this pipeline:
 
-- **Dependencies are discovered by running the constructor.** Nothing is declared ahead of time. An `inject()` call re-enters the same pipeline for its own token, which is why conditional `inject()` calls work.
+- **Dependencies are discovered by running the constructor.** Nothing is declared ahead of time. An `inject()` call re-enters the same pipeline for its own token, which is why conditional `inject()` calls work: a dependency that this build does not ask for is not built.
 - **The scope decides where the instance is stored.** A singleton goes to the root container, a request-scoped instance to the scope that asked, and a transient is not stored at all. [Scopes](/docs/di/essentials/scopes) has the rules.
-- **Every failure is a `DIError`** with a `code`. An error thrown by your constructor, factory or `onServiceInit` is wrapped as `InitializationError`, with the original in `cause`. A `DIError` raised while building a dependency passes through unchanged, so the error names the innermost service that failed. The [API reference](/docs/di/reference/api#error-codes) lists the codes.
+- **Every failed resolution is a `DIError`** with a `code`. An error thrown by your constructor, factory or `onServiceInit` is wrapped as `InitializationError`, with the original in `cause`. A `DIError` raised while building a dependency passes through unchanged, so the error names the innermost service that failed. The [API reference](/docs/di/reference/api#error-codes) lists the codes.
 
 While an instance is being built, the container records which stored instances it injected. [Invalidation](/docs/di/guides/invalidation) uses those links to destroy dependents together with the thing they depend on.
 
@@ -52,7 +52,7 @@ The whole pipeline runs synchronously. When `UserService` is constructed, `injec
 const users = container.getSync(UserService)
 ```
 
-`tryGetSync()` never builds anything. It returns an instance that already exists, or `null`.
+`peek()` never builds anything. It returns an instance that already exists, or `null`.
 
 ## When resolution becomes asynchronous
 
@@ -88,9 +88,11 @@ await container.get(SearchIndex) // waits for onServiceInit
 container.getSync(SearchIndex) // now returns the instance
 ```
 
-Once the asynchronous work has finished, the instance is stored like any other and every later resolution of it is synchronous again.
+Once the asynchronous work has finished, the instance is stored like any other and every later resolution of it is synchronous again. Once [disposal](/docs/di/essentials/lifecycle#dispose) has started there is nothing left to wait for, and both calls fail with `ContainerDisposed`.
 
-A `getSync()` that throws `AsyncInitRequired` does not cancel the build. It keeps running in the background, so the same call succeeds after [`await container.ready()`](/docs/di/essentials/lifecycle#ready).
+A `getSync()` that throws `AsyncInitRequired` does not cancel the build. It keeps running in the background, so the same call succeeds after [`await container.ready()`](/docs/di/essentials/lifecycle#ready). A transient is the exception: nobody can receive it later, so it is destroyed once it is ready.
+
+An instance must not have a `then` method. `get()` returns a promise, and a promise unwraps anything that has one.
 
 ## Constructor replay
 
@@ -100,7 +102,9 @@ A constructor cannot pause. If it calls `inject()` for a dependency whose `onSer
 2. The container discards the object that was built.
 3. It waits for the dependency, then runs the constructor again. This time `inject()` returns the real instance.
 
-The container remembers which dependencies the constructor asked for. After a replay it waits for them before constructing on the next builds, so the constructor runs once. It stops doing so once a build finds them all ready, and a later build that meets a dependency that is still initialising is replayed again. A dependency requested with arguments, `inject(Token, args)`, is not remembered: a class that injects one whose initialiser is asynchronous is constructed twice on every build.
+Dependencies are built because the constructor asks for them, never ahead of it. A class therefore runs its constructor a second time in every build that meets a dependency that is not ready: for a singleton with an asynchronous initialiser only until it is initialised, for a request-scoped one in each scope that has not built it yet.
+
+A dependency that fails while the container is waiting for it makes `inject()` throw in the next pass, so a `try` around the call works the same for synchronous and asynchronous failures.
 
 Two rules follow, and they are the only rules a service has to obey:
 
@@ -123,4 +127,4 @@ class SearchService implements OnServiceInit {
 }
 ```
 
-Factories follow a variation of the same idea, described in [Factories](/docs/di/essentials/factories#injecting-dependencies). Transients injected during a discarded pass are reused by the replay, so they are not built twice.
+Factories follow a variation of the same idea, described in [Factories](/docs/di/essentials/factories#injecting-dependencies). Transients injected during a discarded pass are reused by the replay when it asks for them with equal arguments, so they are not built twice. An argument that is never equal, such as a function created in the constructor, makes a transient with an asynchronous initialiser impossible to settle; the build fails after 32 passes that got no further and names it. An `asyncInject()` of a transient starts only once the pass that called it is known to be kept.

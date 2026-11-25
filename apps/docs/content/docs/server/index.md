@@ -39,17 +39,18 @@ Return a user without `email`, or answer with a status the declaration does not 
 
 | Package                   | What it is                                                                        |
 | ------------------------- | --------------------------------------------------------------------------------- |
-| `@navios/server`            | The framework: controllers, modules, guards, interceptors, errors, config, logger |
+| `@navios/server`          | The framework: controllers, modules, guards, interceptors, errors, config, logger |
 | `@navios/builder`         | Endpoint declarations, shared with clients                                        |
 | `@navios/adapter-fastify` | [Fastify adapter](/docs/server/adapters/fastify) for Node.js                      |
 | `@navios/adapter-bun`     | [Bun adapter](/docs/server/adapters/bun)                                          |
 | `@navios/adapter-xml`     | [XML responses](/docs/server/adapters/xml) written as JSX                         |
 | `@navios/jwt`             | [Signing and verifying JSON Web Tokens](/docs/server/guides/authentication)       |
 | `@navios/schedule`        | [Cron jobs](/docs/server/guides/scheduled-jobs)                                   |
+| `@navios/microservice`    | [Message handlers](/docs/server/guides/other-transports#messages) on a queue      |
 | `@navios/openapi`         | [An OpenAPI document](/docs/server/guides/openapi) generated from the routes      |
 | `@navios/otel`            | [OpenTelemetry](/docs/server/opentelemetry/) traces and metrics                   |
 
-An application needs `@navios/server`, `@navios/builder` and one adapter. The rest are optional.
+An application needs `@navios/server`, `@navios/builder` and one adapter. The rest are optional. They run on Node.js 22 or newer, and on Bun 1.3.10 or newer.
 
 ## Who it is for
 

@@ -62,6 +62,20 @@ const user = await getUser({ urlParams: { userId: '42' } })
 //    ^? { id: string; name: string }
 ```
 
+## Install
+
+A server on Node.js, and the client of the example:
+
+```bash
+npm install @navios/server@next @navios/builder@next @navios/adapter-fastify@next fastify zod
+```
+
+```bash
+npm install @navios/builder@next @navios/http@next zod
+```
+
+The 2.0 alpha is published under the `next` tag. All `@navios` packages of a project must have the same alpha version, because an alpha may break between releases. `@navios/core` and `@navios/di` come with the server. Node.js 22 or newer is required, or Bun 1.3.10 or newer.
+
 ## Packages
 
 | Package                                                 | What it is                                            | Docs                                                                    |
@@ -76,6 +90,8 @@ const user = await getUser({ urlParams: { userId: '42' } })
 | [`@navios/adapter-xml`](./packages/adapter-xml)         | XML responses written as JSX                          | [XML responses](https://navios.tech/docs/server/adapters/xml)           |
 | [`@navios/jwt`](./packages/jwt)                         | Signing and verifying JSON Web Tokens                 | [Authentication](https://navios.tech/docs/server/guides/authentication) |
 | [`@navios/schedule`](./packages/schedule)               | Cron jobs                                             | [Scheduled jobs](https://navios.tech/docs/server/guides/scheduled-jobs) |
+| [`@navios/microservice`](./packages/microservice)       | Message handlers on a queue                           | [Messages](https://navios.tech/docs/server/guides/other-transports#messages) |
+| [`@navios/queues`](./packages/queues)                   | Queue clients and typed messages                      | [README](./packages/queues/README.md)                                   |
 | [`@navios/openapi`](./packages/openapi)                 | An OpenAPI document generated from the routes         | [OpenAPI](https://navios.tech/docs/server/guides/openapi)               |
 | [`@navios/otel`](./packages/otel)                       | OpenTelemetry traces and metrics                      | [OpenTelemetry](https://navios.tech/docs/server/opentelemetry/)         |
 | [`@navios/di`](./packages/di)                           | The dependency injection container, usable on its own | [DI](https://navios.tech/docs/di/)                                      |

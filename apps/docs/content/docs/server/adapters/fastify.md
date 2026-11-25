@@ -9,7 +9,7 @@ title: Fastify
 ## Install and use
 
 ```bash
-yarn add @navios/adapter-fastify fastify
+npm install @navios/adapter-fastify@next fastify
 ```
 
 `@fastify/cors` and `@fastify/multipart` are dependencies of the adapter and do not need to be installed separately.
@@ -22,7 +22,10 @@ import { AppModule } from './app.module.mjs'
 
 const app = await NaviosFactory.create(AppModule, {
   adapter: defineFastifyEnvironment({
-    cors: { origin: true },
+    cors: {
+      origin: ['https://app.example.com'],
+      methods: ['GET', 'POST', 'PUT', 'DELETE'],
+    },
     multipart: true,
   }),
 })
@@ -30,18 +33,18 @@ const app = await NaviosFactory.create(AppModule, {
 const url = await app.listen({ port: 3000, host: '0.0.0.0' })
 ```
 
-`app.listen()` takes Fastify's listen options (`port`, `host`, `path`, and so on) and resolves to the server's address. `app.getServer()` returns the `FastifyInstance` once the application is initialised.
+`app.listen()` takes Fastify's listen options and resolves to the server's address. It needs a `port`, or the `path` of a unix socket. Without a `host`, Fastify listens on `localhost`, on each of its addresses. `app.getServer()` returns the `FastifyInstance` once the application is initialised.
 
 In tests, `app.inject()` goes through `fastify.inject()`, so Fastify's parsing, hooks and plugins take part without opening a socket. See [Testing](/docs/server/essentials/testing).
 
 ## Options
 
-`defineFastifyEnvironment(options)` accepts every option of the `fastify()` factory, such as `logger`, `bodyLimit`, `trustProxy` and `http2`, and three of its own. All are optional.
+`defineFastifyEnvironment(options)` accepts the options of the `fastify()` factory for an HTTP/1.1 server, such as `logger`, `bodyLimit`, `trustProxy` and `https`, and three of its own. All are optional. Fastify's `http2` is not supported.
 
 | Option      | Type                                                 | Meaning                                                                                               |
 | ----------- | ---------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
 | `cors`      | `FastifyCorsOptions`                                 | Registers `@fastify/cors` with these options. See [CORS](#cors).                                      |
-| `multipart` | `FastifyMultipartOptions \| true`                    | Registers `@fastify/multipart`. Required for endpoints declared with `body: 'multipart'`.             |
+| `multipart` | `MultipartOptions \| true`                           | Registers `@fastify/multipart`. Required for endpoints declared with `body: 'multipart'`.             |
 | `configure` | `(server: FastifyInstance) => void \| Promise<void>` | Called with the Fastify instance before any route is registered, to add plugins, hooks or decorators. |
 
 ```ts
@@ -59,7 +62,7 @@ defineFastifyEnvironment({
 })
 ```
 
-`configure` runs after the CORS and multipart plugins have been registered. A [plugin](/docs/server/guides/plugins) can reach the same Fastify instance when the setup belongs in a reusable package.
+`configure` runs after the CORS and multipart plugins have been registered. Plugins that it registers are loaded before the adapter goes on, whether or not it awaits them. A [plugin](/docs/server/guides/plugins) can reach the same Fastify instance when the setup belongs in a reusable package.
 
 ## The `Register` declaration
 
@@ -83,19 +86,16 @@ Write this once in the application, usually next to `NaviosFactory.create`. It t
 | `ctx.raw.reply`   | `FastifyReply`   |
 
 ```ts
-// whoami is declared with GET /whoami and a responseSchema of { ip, protocol }
+// whoami is declared with GET /whoami and a responseSchema of { ips }
 @Endpoint(whoami)
 async whoami(_params: HandlerParams<typeof whoami>, ctx: RequestContext) {
-  return {
-    ip: ctx.raw.request.ip,
-    protocol: ctx.raw.request.protocol,
-  }
+  return { ips: ctx.raw.request.ips ?? [] }
 }
 ```
 
-On this adapter `ctx.id` is Fastify's `request.id`, and `ctx.signal` aborts when the connection closes before the response has been written completely.
+On this adapter `ctx.id` is Fastify's `request.id`, and `ctx.signal` aborts when the connection closes before the response has been written completely. `ctx.ip` and the protocol and host of `ctx.url` are Fastify's `request.ip`, `request.protocol` and `request.host`, so the `trustProxy` option applies to them. In a test request without a `remoteAddress`, `request.ip` is the `127.0.0.1` of Fastify's own `inject()`, and `ctx.ip` is `undefined`.
 
-Code that uses `ctx.raw` runs on this adapter only. Prefer the adapter-neutral members of the context (`ctx.headers`, `ctx.cookies`, `ctx.reply.header()`, `ctx.signal`) where they cover the need.
+Code that uses `ctx.raw` runs on this adapter only. Prefer the adapter-neutral members of the context (`ctx.ip`, `ctx.headers`, `ctx.cookies`, `ctx.reply.header()`, `ctx.signal`) where they cover the need.
 
 ## Taking over the response
 
@@ -120,13 +120,14 @@ async legacyDownload({ urlParams }: HandlerParams<typeof legacyDownload>, ctx: R
 
 - Headers and cookies set with `ctx.reply` are not sent on a response that was taken over. Set them on the native reply.
 - The pipeline skips response validation and ignores the handler's return value, whatever the endpoint declares.
-- Request scopes and request values are still released when the connection finishes.
+- The request is released when that response has ended, so `ctx.use()` and `ctx.onFinish()` work until then. `ctx.responseStatus` is the status the handler wrote.
+- A handler that throws after `reply.hijack()`, before it wrote anything, closes the connection. One that returns may write later, with any status.
 
 Use this for cases the framework does not cover. For ordinary streaming, return a `ReadableStream` or an async iterable from an endpoint declared with `response: 'stream'`, as described in [Streams and server-sent events](/docs/server/guides/streams-and-sse); that code also runs on Bun.
 
 ## CORS
 
-`cors` is passed to `@fastify/cors` unchanged. See that plugin's documentation for the options.
+`cors` is passed to `@fastify/cors` unchanged. See that plugin's documentation for the options. Set `methods`: by default the plugin allows a preflight request the methods `GET`, `HEAD` and `POST`, so that browsers refuse to send a `PUT` or a `DELETE`.
 
 ```ts
 defineFastifyEnvironment({
@@ -137,6 +138,8 @@ defineFastifyEnvironment({
   },
 })
 ```
+
+Every response carries the headers, including those of errors and of URLs that the router rejects. A `Vary` header that a handler sets is sent next to the one of the plugin.
 
 ## Multipart
 
@@ -150,25 +153,44 @@ defineFastifyEnvironment({
 
 An endpoint declared with `body: 'multipart'` then receives text fields as strings and files as `File` objects, validated by the endpoint's `requestSchema`. [File uploads](/docs/server/guides/file-uploads) covers the handler side.
 
-- Each file is read into memory before the handler runs. Set `limits.fileSize`.
+- All parts are read into memory before the handler runs. Together they may have as many bytes as `bodyLimit`, and what `limits` allow on top: `fileSize` for each of `files`, and `fieldSize` for each of `fields`, one of each when the number is not set. A body over that is answered with 413. So set `limits.fileSize` for files larger than `bodyLimit`, and `limits.files` to accept several of them.
 - A request over any of the `limits` (`fileSize`, `files`, `fields`, `parts`, `fieldSize`, `fieldNameSize`) is answered with a 413 problem response, and the handler does not run. That includes a text field longer than `fieldSize`, which is rejected rather than truncated.
-- Without the `multipart` option, an endpoint declared with `body: 'multipart'` makes `init()` throw an error that names the route. A multipart request to any other endpoint is then answered with 415.
+- The name of a file is never a path: `../../etc/passwd` arrives as `passwd`. A part without a name is left out.
+- Without the `multipart` option, an endpoint declared with `body: 'multipart'` makes `init()` throw an error that names the route, unless `configure` registers `@fastify/multipart` itself.
+- The adapter collects the parts itself, so the options of the plugin that do that (`attachFieldsToBody`, `onFile`, `sharedSchemaId`) are not accepted.
 
 ## Request bodies
 
-- A JSON body is collected as text and parsed only when the pipeline asks for it, which is after guards have passed. An empty JSON body is `undefined`.
+- Fastify collects a body of any type as bytes, before the handler and its guards, and the server [decodes it by its content type](/docs/server/essentials/controllers#request-bodies) when the pipeline asks for it. A multipart body is not collected before that.
+- Fastify hooks see the undecoded `Buffer` in `request.body`. A hook may set another body, which is then taken as it is.
+- A content type parser that `configure` adds keeps its content type: what it makes of a body goes to validation as it is, and `ctx.rawBody()` is not available for it.
 - `bodyLimit` (1 MiB by default, a Fastify option) is enforced while the body is collected.
-- A malformed JSON body is a 400 problem response with `source: 'body'`.
-- Errors raised by Fastify itself, such as 413 for a body over the limit or 415 for an unsupported content type, are answered as `application/problem+json`, like the errors described in [Errors](/docs/server/essentials/errors).
+- When a request has two `Content-Type` headers, Node keeps the first.
+
+## Errors outside the pipeline
+
+Errors that Fastify, a plugin or a hook raises are answered as `application/problem+json`, like the errors described in [Errors](/docs/server/essentials/errors). Error mappers do not apply to them, because there is no route.
+
+| Error                                                          | Answer                                                                     |
+| -------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| `HttpException` of `@navios/server`                            | Its status and body.                                                       |
+| An error with a 4xx `statusCode`, such as 413 over `bodyLimit` | That status, with the message as `detail`.                                 |
+| An error with a `statusCode` from 501 to 599                   | That status, without the message. The error is logged.                     |
+| Any other error                                                | 500, from the application's internal-error responder. The error is logged. |
+| What the router rejects, or Node cannot read as a request      | 400, 414 or 431, and 408 for a request that does not arrive in time.       |
+
+Pass `frameworkErrors` or `clientErrorHandler`, which are Fastify options, to answer the last row yourself.
 
 ## Shutdown
 
 `app.close()` calls `fastify.close()` and waits for it, for at most the application's `shutdownTimeout` (10 seconds by default). Fastify stops accepting connections and lets in-flight requests finish. The adapter does not wait for keep-alive connections: responses sent while the server closes carry `connection: close`, and connections that become idle, or that never sent a request, are dropped.
 
-When the timeout passes, the adapter closes the remaining connections, which aborts the `ctx.signal` of requests that are still running, and the application continues with its shutdown hooks. [Application setup](/docs/server/essentials/application) describes the whole shutdown sequence.
+When the timeout passes, the adapter closes the remaining connections, including those that were upgraded, such as WebSockets. That aborts the `ctx.signal` of requests that are still running, and the application continues with its shutdown hooks. A plugin that keeps connections of its own, such as `@fastify/websocket`, closes them earlier, in its `preClose` hook. [Application setup](/docs/server/essentials/application) describes the whole shutdown sequence.
+
+Listening on `localhost` opens one socket per address, and only the connections of the first are known to the adapter. In production, pass a `host` such as `0.0.0.0`.
 
 ## Requirements
 
-- Node.js
+- Node.js 22 or newer
 - `fastify` 5.6 or newer (peer dependency)
-- `@navios/server` 2.x and `@navios/builder` 2.x (peer dependencies)
+- `@navios/server` of the same version (peer dependency), with `@navios/builder`

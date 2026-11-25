@@ -83,7 +83,7 @@ This mutates shared state, so keep such tests in files that do not run concurren
 
 ## Asserting on what was sent
 
-The recorded configs show the request after validation and transforms, which is what the server would receive.
+The recorded configs show what the client was asked to send: the arguments of the call, once they passed validation. With `builder({ send: 'output' })` it is what the schemas produced.
 
 ```ts
 it('sends the validated body', async () => {
@@ -160,6 +160,47 @@ it('reports a network failure', async () => {
   expect(res.error?.kind).toBe('network')
 })
 ```
+
+## Through the real HTTP client
+
+A fake client skips the HTTP client itself: its interceptors, its headers, and how it reads a body. To run them too, give `@navios/http` a fake `fetch`. `@navios/http/testing` has one.
+
+```ts
+import { create } from '@navios/http'
+import { makeNaviosFakeAdapter } from '@navios/http/testing'
+
+const fake = makeNaviosFakeAdapter()
+const client = create({
+  baseURL: 'https://api.example.com',
+  headers: { authorization: 'Bearer secret' },
+  adapter: fake.fetch,
+})
+
+afterEach(() => fake.reset())
+
+it('sends the token', async () => {
+  fake.mock('/users/42', 'GET', () =>
+    Response.json({ id: '42', name: 'Ada', email: 'ada@example.com' }),
+  )
+
+  await getUser({ urlParams: { userId: '42' } }, { client })
+
+  expect(fake.requests[0]?.headers.get('authorization')).toBe('Bearer secret')
+})
+```
+
+| Member                       | Description                                                                                      |
+| ---------------------------- | ------------------------------------------------------------------------------------------------ |
+| `fetch`                      | Pass it as `adapter`                                                                             |
+| `mock(url, method, handler)` | Answers one URL. `handler(url, init)` returns a `Response` or a promise of one                   |
+| `requests`                   | Every request so far: `url`, `path`, `query`, `method`, `headers` and `body`                     |
+| `reset()`                    | Forgets all mocks and requests                                                                   |
+
+A mocked URL with a query, `/users?page=2`, answers only requests with exactly that query, in any order; without one it answers the rest. With an origin it answers only that origin. A request no mock answers fails like a network error, and is recorded as well.
+
+## Realtime connections
+
+`socketBuilder` and `eventSourceBuilder` work with any object that has the methods of their client, so a test passes a fake to `provideClient`. To test a `declareEventSource` or `declareWebSocket` connection itself, pass a class to `createEventSourceHandler({ EventSource })` or `createWebSocketHandler({ WebSocket })`. Node.js and Bun have no global `EventSource` by default, so there a connection needs one either way.
 
 ## What to test
 

@@ -16,14 +16,14 @@ This page covers the plugin, its configuration and the request spans. [Tracing s
 ## Install
 
 ```bash
-yarn add @navios/otel @opentelemetry/api
+npm install @navios/otel@next @opentelemetry/api
 
 # For OTLP export (Jaeger, Tempo, an OpenTelemetry Collector, ...)
-yarn add @opentelemetry/exporter-trace-otlp-http
-yarn add @opentelemetry/exporter-metrics-otlp-http  # if metrics are enabled
+npm install @opentelemetry/exporter-trace-otlp-http
+npm install @opentelemetry/exporter-metrics-otlp-http  # if metrics are enabled
 
 # For a span processor or exporter of your own
-yarn add @opentelemetry/sdk-trace-node
+npm install @opentelemetry/sdk-trace-node
 ```
 
 `@opentelemetry/api` is a peer dependency. The OpenTelemetry SDK packages the plugin runs on are installed with it. The two OTLP exporters are optional and are loaded only when `exporter` is `'otlp'`.

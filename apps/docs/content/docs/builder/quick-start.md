@@ -9,8 +9,12 @@ This page takes you from an empty project to a typed endpoint call with a handle
 ## Install
 
 ```bash
-npm install @navios/builder @navios/http zod
+npm install @navios/builder@next @navios/http@next zod
 ```
+
+:::info
+2.0 is an alpha, published under the `next` tag. All `@navios` packages of a project must have the same alpha version, because an alpha may break between releases.
+:::
 
 `@navios/http` is a small `fetch`-based client and `zod` is the schema library used in these docs. Both are replaceable: see [HTTP client](/docs/builder/essentials/http-client) and [Schemas](/docs/builder/essentials/schemas).
 

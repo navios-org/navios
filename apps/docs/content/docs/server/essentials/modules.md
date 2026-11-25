@@ -38,13 +38,15 @@ Every option is optional.
 | `interceptors`  | interceptor classes   | Interceptors for the same routes                                                                         |
 | `providers`     | `Provider[]`          | `provide(...)` entries, registered application-wide                                                      |
 | `requestValues` | request value classes | Request values to build at start-up; see [Per-request state](/docs/server/guides/request-state)          |
-| `attributes`    | attribute values      | [Attributes](/docs/server/guides/attributes) for every route of this module, such as `[Public()]`        |
+| `attributes`    | attribute values      | [Attributes](/docs/server/guides/attributes) for every route of this module and of the modules it imports, such as `[Public()]` |
 
 ## Prefixes
 
-A route's path is built from, in order: the application's `globalPrefix`, the prefix of each importing module from the outermost inwards, the module's own prefix, and the endpoint's `url`. Leading and trailing slashes are normalised, so `'v1'` and `'/v1/'` mean the same.
+A route's path is built from, in order: the application's `globalPrefix`, the prefix of each importing module from the outermost inwards, the module's own prefix, and the endpoint's `url`. Leading and trailing slashes of a prefix are normalised, so `'v1'` and `'/v1/'` mean the same.
 
 With the modules above, `getUser` is served at `GET /api/v1/users/$userId`. With `globalPrefix: '/public'` on the application it becomes `GET /public/api/v1/users/$userId`.
+
+The endpoint's `url` follows the prefix as it is declared, also its trailing slash. In a module with the prefix `/users`, `url: '/'` is served at `/users/` and at nothing else, and `url: ''` at `/users`. A client that has the prefix in its `baseURL` calls exactly these paths.
 
 A prefix may contain URL parameters:
 
@@ -71,14 +73,33 @@ A module that has controllers can be mounted under one prefix only. Importing it
 A client built from the same declarations knows only the endpoint's `url`. Put the server's prefixes into the client's `baseURL`.
 :::
 
+## Paths
+
+A path, prefixes included, is made of segments, and each segment is one of two things:
+
+- fixed text: any characters except whitespace, `/`, `\`, `?`, `#`, `*`, `$` and `%`. It may be percent-encoded (`/caf%C3%A9` and `/café` are the same path), but it cannot be `.` or `..`, or start with `:`.
+- a URL parameter: `$name`, where the name is made of letters, digits and underscores and does not start with a digit. Each name occurs once in the path.
+
+Anything else, such as `/files/$name.json`, `/users/:id`, `/static/*` or `/opt/$id?`, makes `init()` fail with the name of the handler. Routers read such paths in different ways, so a path either means the same on every adapter or does not start. (A declaration that is only used by a client, for another API, may have parameters within a segment.)
+
+When a request is matched:
+
+- Fixed text wins over a parameter, at the first segment where two routes differ. The order of registration does not matter.
+- A parameter matches one segment that is not empty, `.` or `..`. Its value is decoded.
+- The trailing slash has to be there, or not be there, as declared.
+- `HEAD` is answered by the `GET` route, with its headers and without a body, unless the path has a `HEAD` route of its own.
+- A request to a path that has routes for other methods only is answered with 405 and an `Allow` header. Other unmatched requests get the [not-found response](/docs/server/essentials/errors#responders).
+
 ## Module guards and interceptors
 
-A module's guards and interceptors apply to its own routes and to the routes of every module it imports, directly or indirectly. To protect a whole application, put the guard on the root module.
+A module's guards and interceptors apply to its own routes and to the routes of every module it imports, directly or indirectly. A guard on the root module covers every module that it imports.
 
 ```ts
 @Module({ imports: [UsersModule, BillingModule], guards: [ApiKeyGuard] })
 export class AppModule {}
 ```
+
+To protect a whole application, with the modules that [plugins add](#modules-added-by-plugins), use the [`guards` option](/docs/server/essentials/application#options) of `NaviosFactory.create` instead.
 
 When a module is reached through several import paths, its routes get the guards along all of them:
 
@@ -97,6 +118,12 @@ class AppModule {}
 
 The effective lists are computed per application at `init()` and nothing is written back to the classes. Two applications in one process that import the same module under different parents do not affect each other, and the result does not depend on the order in which files are imported.
 
+Attributes are inherited in the same way, but do not add up: a route whose module is imported by several others has to get one value of an attribute from all of them, unless the handler, its controller or the module sets its own. If `TenantModule` above had `attributes: [Public()]` and `AuditedModule` had not, `init()` would fail and name both import paths, because the routes of `SharedModule` would be public or not depending on which of the two is meant. Set the attribute on the controllers or handlers it is meant for then. A shared module without routes has nothing to inherit it and starts.
+
+Modules cannot import each other in a cycle; `init()` fails with the path of the cycle.
+
+A class that extends a module class and is a module itself inherits its guards, interceptors and attributes. A class can be made a module once.
+
 `@UseGuards` and `@UseInterceptors` placed above `@Module` add to the same lists. How guards at different levels are ordered is covered in [Guards and interceptors](/docs/server/essentials/guards-and-interceptors#attaching-guards).
 
 ## Providers
@@ -105,10 +132,13 @@ The effective lists are computed per application at `init()` and nothing is writ
 
 When the same token is provided more than once:
 
-1. The application's `providers` option wins over every module.
-2. Between modules, the first one in initialisation order wins, and an imported module is initialised before the module that imports it.
+1. What is in the [`container`](/docs/server/essentials/application#options) the application was given wins over everything else, which is how a test replaces a service.
+2. Then the application's `providers` option.
+3. Then a [plugin](/docs/server/guides/plugins) that calls `api.provide()`.
+4. Then the modules. A module wins over the modules it imports, directly or not, and the application's modules win over those that plugins add. Two modules that provide different things for a token without one importing the other fail `init()`, unless a module that imports both, or one of the levels above, decides. The same class, value, factory function or alias in both counts as one.
+5. Last, the default of the token.
 
-Relying on the second rule is fragile. Provide a token in one place.
+A provider has to be there before its token is resolved. One that comes too late, because the token was resolved with `app.get()` before `init()` or while a transport was created, fails `init()` instead of being ignored.
 
 ## onModuleInit
 
@@ -133,4 +163,4 @@ Hooks run one at a time in dependency order: a module's hook runs after the hook
 
 ## Modules added by plugins
 
-A [plugin](/docs/server/guides/plugins) can add a module of its own. Such a module is treated as an additional root: it gets the global prefix, but no prefix or guards from the application's root module.
+A [plugin](/docs/server/guides/plugins) can add a module of its own. Such a module is treated as an additional root: it gets the global prefix, but no prefix or guards from the application's root module. The `guards` option of the application applies to it.

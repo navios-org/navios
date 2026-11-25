@@ -9,8 +9,12 @@ This page takes you from an empty project to two services resolved from a contai
 ## Install
 
 ```bash
-npm install @navios/di
+npm install @navios/di@next
 ```
+
+:::info
+2.0 is an alpha, published under the `next` tag. All `@navios` packages of a project must have the same alpha version, because an alpha may break between releases.
+:::
 
 The package has no runtime dependencies. A schema library is only needed for [tokens that take arguments](/docs/di/essentials/tokens#tokens-with-a-schema).
 

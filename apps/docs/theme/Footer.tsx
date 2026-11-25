@@ -38,7 +38,7 @@ const columns = [
   },
   {
     title: 'More',
-    links: [{ label: 'GitHub', href: 'https://github.com/Arilas/navios' }],
+    links: [{ label: 'GitHub', href: 'https://github.com/navios-org/navios' }],
   },
 ]
 

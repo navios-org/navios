@@ -36,9 +36,10 @@ flowchart TD
     H -- valid --> I[Return the data]
 ```
 
-Three things follow from this pipeline:
+Four things follow from this pipeline:
 
 - **Invalid input never leaves the process.** `urlParams`, `params` and `data` are validated first. A failure there produces an error without touching the network.
+- **What you pass is what is sent.** The schemas decide whether a request leaves; they do not rewrite it. Defaults and transforms run where the request is parsed. [What is sent](/docs/builder/essentials/inputs#what-is-sent) explains this, and the option to send the schemas' output.
 - **Builder decides what is an error, not the HTTP client.** Any status outside 200–299 is a failure, whether the client resolved or rejected. This is why a bare `fetch` wrapper works as a client.
 - **Every failure is the same type.** Each rounded box in the diagram is an `EndpointError`, and its label is the error's `kind`. [Errors](/docs/builder/essentials/errors) covers them in full.
 

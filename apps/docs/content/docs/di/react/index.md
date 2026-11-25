@@ -9,7 +9,7 @@ title: Quick start
 ## Install
 
 ```bash
-npm install @navios/di-react @navios/di
+npm install @navios/di-react@next @navios/di@next
 ```
 
 React 18 and 19 are supported. The services are compiled by your bundler, so it has to handle standard decorators the same way the [DI quick start](/docs/di/quick-start) asks of `tsconfig.json`: `experimentalDecorators` stays off.

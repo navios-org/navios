@@ -27,7 +27,7 @@ For an HTTP application the change is the package name:
 
 ```diff
 - npm install @navios/core
-+ npm install @navios/server
++ npm install @navios/server@next
 ```
 
 ```diff
@@ -53,6 +53,17 @@ Packages that do not need HTTP depend on `@navios/core` alone: `@navios/jwt`, `@
 | `app.dispose()`                                                                                | `app.close()`. `dispose()` remains as an alias.                                                                 |
 | Fastify schema validation, `fastify-type-provider-zod`                                         | not used. Validation happens in `@navios/server`, the same on both adapters.                                                |
 | response validation off by default on Bun                                                      | on by default on every adapter (`validateResponses: 'always'`)                                                  |
+| `validateResponses: true` or `false` | `'always'` (the default) or `'never'` |
+| `app.configure(options)` | the options of the adapter factory |
+| an adapter written for 1.x | does not work. The contract is `HttpAdapter` in `@navios/server/adapter`; see [Writing an adapter](/docs/server/adapters/writing-an-adapter) |
+| `fastify` came with the Fastify adapter | a peer dependency: install it |
+| an upload without `enableMultipart()` was a 415 | an endpoint with `body: 'multipart'` makes `init()` fail on Fastify without the `multipart` option. All parts of a body together are [limited](/docs/server/adapters/fastify#multipart) |
+| Fastify hooks saw the parsed body | they see the bytes; a content type parser added in `configure` keeps its content type |
+| `/files/$name.json`, `/opt/$id?`, `*` in a path, with a meaning of their own on each adapter    | fails at `init()`. A segment is fixed text or a whole `$name`; see [Paths](/docs/server/essentials/modules#paths) |
+| `url: '/'` under the prefix `/users` is served at `/users`, and a trailing slash is dropped     | the declared `url` is kept: `/users/`. Declare `url: ''` for `/users`                                           |
+| a request with a method that the path is not served for: 404                                   | 405 with an `Allow` header                                                                                      |
+| a body of any content type parsed as JSON on Bun; 415 from Fastify before guards                | [decoded by its content type](/docs/server/essentials/controllers#request-bodies) after guards, the same on both |
+| `z.coerce.number()` in a `querySchema`                                                          | works, and is not needed: `z.number()` does. `z.coerce.boolean()` was wrong for `"false"`; use `z.boolean()`     |
 
 ### Controllers and handlers
 
@@ -72,11 +83,14 @@ Packages that do not need HTTP depend on `@navios/core` alone: `@navios/jwt`, `@
 | ----------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
 | `CanActivate`, `canActivate(context: AbstractExecutionContext)`   | `Guard`, `canActivate(ctx: RequestContext)`                                                               |
 | any truthy return value lets the request through                  | only `true` does                                                                                          |
+| a guard given as an `InjectionToken` | a class, which `provide(TheGuard, Impl)` replaces |
+| guards ran after validation on Fastify | guards run before the request is validated. Interceptors are new: those of the application run around the guards, those of the module, the controller and the handler behind them |
 | `context.getRequest().headers[...]`                               | `ctx.headers.get(name)`                                                                                   |
 | `context.getHandler()`, `context.getModule()`                     | `ctx.route`                                                                                               |
 | `AttributeFactory.has(Public, handlerMetadata)`                   | `AttributeFactory.has(Public, ctx.route)`, which checks the handler, then the controller, then the module |
 | `request.user = user`, then `inject(Request).user`                | `ctx.set(CurrentUser, user)`, then `ctx.get(CurrentUser)`                                                 |
 | `inject(Request)`, `inject(Reply)`, `inject(FastifyRequestToken)` | `ctx.raw.request`, `ctx.raw.reply` (Fastify); `ctx.raw.request`, `ctx.raw.server` (Bun)                   |
+| the `ExecutionContext` token                                      | the handler's `ctx`, `RequestContextToken` in a request-scoped service, or `currentContext()` with `asyncContext: true` |
 | a request-scoped `SessionService` or `CurrentUserService`         | a `@RequestValue()` class read with `ctx.get(...)`                                                        |
 | `inject(RequestScopedService)` in a controller or guard           | `ctx.use(RequestScopedService)` in the handler, or a request value                                        |
 
@@ -100,33 +114,79 @@ These are the DI changes that show up in server code. [DI's migration page](/doc
 | ------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | the validation error body (a Zod error tree)                                                            | 400 problem+json with `source` and `errors: [{ path, message }]`                                                                                                                    |
 | the body of an `HttpException`                                                                          | problem+json, unless the endpoint declares the status in `errorSchema`                                                                                                              |
+| `HttpException` was not an `Error`; its third argument was `error` | it extends `Error`, and the third argument is its `cause`. The constructor throws for a status that is not 400 to 599, and for a `response` that is an array or an `Error` |
+| the not-found response of each adapter | 404 problem+json on every adapter, from `NotFoundResponderToken` |
+| a responder registered with a priority that returns `{ statusCode, payload, headers }` | `provide(NotFoundResponderToken, MyResponder)`; it returns `problem()`, `reply()` or a `RouteResult` (`{ status, body, kind, headers }`) |
 | the body of an unexpected error contained `error.message`                                               | 500 problem+json with a generic `detail`. Opt in to the message with `exposeErrorDetails: true`.                                                                                    |
 | a denied guard answered with the text `Forbidden` (Bun)                                                 | 403 problem+json                                                                                                                                                                    |
 | a handler result that failed its response schema was a 400 (Bun)                                        | a 500                                                                                                                                                                               |
 | `definePreAdapterResolvePlugin` and the other nine stage helpers                                        | `definePlugin({ name, dependsOn?, setup(api, options) })`                                                                                                                           |
+| a `NaviosPlugin` object with `register()`, `{ plugin, options }` | the same `definePlugin` |
 | `TestingModule`                                                                                         | `NaviosFactory.create` with `defineInMemoryEnvironment()` and `providers`; `createTestClient(app)`                                                                                  |
-| `Controller`, `Endpoint`, `Multipart`, `Stream`, `HttpCode`, `Header` from `@navios/server/legacy-compat` | `Controller`, `Module`, `Endpoint`, `UseGuards`, `UseInterceptors`, `Injectable`, `Factory`, `AttributeFactory`. See [Legacy decorators](/docs/server/reference/legacy-decorators). |
+| `Controller`, `Endpoint`, `Multipart`, `Stream`, `HttpCode`, `Header` from `@navios/core/legacy-compat` | from `@navios/server/legacy-compat`: `Controller`, `Module`, `Endpoint`, `UseGuards`, `UseInterceptors`, `Injectable`, `Factory`, `AttributeFactory`. See [Legacy decorators](/docs/server/reference/legacy-decorators). |
+
+### Modules and lifecycle
+
+| 1.x | 2.0 |
+| --- | --- |
+| `onModuleInit` hooks of modules side by side ran at the same time | one at a time, imported modules first |
+| `app.close()` disposed the adapter | it also waits for requests in flight, runs the shutdown hooks and disposes the container, which runs `onServiceDestroy`. The container cannot be used afterwards |
+| an application that failed in `init()` was left half built | it is closed before the promise rejects, and stays failed |
+| the provider with the highest priority won | [the container the application was given, its `providers` option, plugins, modules](/docs/server/essentials/modules#providers). A module wins over what it imports; two modules that provide different things for one token, neither of which imports the other, are an error of `init()`, and so is a provider that comes after its token was resolved |
+| modules that import each other in a cycle | an error of `init()` |
+| a module imported by several modules inherited the attributes of the one that was traversed first | an error of `init()` when they do not [agree](/docs/server/essentials/modules#module-guards-and-interceptors). Set it on the controllers or handlers it is meant for, or on the module itself |
+
+### Configuration and logging
+
+| 1.x | 2.0 |
+| --- | --- |
+| `provideConfig()` returned a factory token of `ConfigServiceToken` | it returns an `InjectionToken<ConfigService<…>>` of its own, which `provide(AppConfig, { value: new ConfigService({ … }) })` replaces |
+| a Zod schema called in `load` | the `schema` option, any Standard Schema that validates synchronously |
+| `ConfigServiceToken`, `ConfigServiceOptions`, `ConfigServiceOptionsSchema`, `PathImpl`, `PathImpl2` | removed |
+| `get()` could be typed `undefined` | `null` when the value is missing; `getOrThrow()` and `getOrDefault()` are neither `null` nor `undefined` |
+| `envInt('PORT', 3000)` with `PORT=abc` was `NaN` | throws |
+| the console logger printed every level, in colours | `log` and above when `NODE_ENV` is `production`, and colours when stdout is a terminal |
+| `isLogLevelEnabled`, `loggerOptionsSchema` | not exported. `filterLogLevels` throws for a level that does not exist |
 
 ### @navios/jwt
 
 | 1.x                                                                                                            | 2.0                                                                                                                                      |
 | -------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
 | `provideJwtService(async () => { const config = await inject(ConfigService) ... })`                            | the factory receives a `FactoryContext`: `async (ctx) => { const config = await ctx.inject(ConfigService) ... }`. It may be synchronous. |
-| the Zod schemas `AlgorithmType`, `JwtHeaderSchema`, `SignOptionsSchema`, `VerifyOptionsSchema`, `SecretSchema` | removed. Use the types `Algorithm`, `JwtHeader`, `SignOptions`, `VerifyOptions`, `Secret`.                                               |
-| `JwtServiceOptionsSchema.parse(...)`                                                                           | `JwtServiceOptionsSchema` is a Standard Schema without Zod methods, and it does not strip unknown keys                                   |
+| the Zod schemas `AlgorithmType`, `JwtHeaderSchema`, `SignOptionsSchema`, `VerifyOptionsSchema`, `SecretSchema` | removed. Use the types `Algorithm`, `JwtHeader`, `JwtSignOptions`, `JwtVerifyOptions`, `JwtPrivateKey`. |
+| `JwtServiceOptionsSchema` | removed. The configuration is checked when the service is created: a key that is empty, `undefined` or does not parse is an error there. |
+| `secretOrKeyProvider(requestType, tokenOrPayload, options)` | `keys({ use: 'verify', header })` or `keys({ use: 'sign', payload })`, synchronous or asynchronous. Returning `undefined` while verifying means an unknown key. |
+| `inject(JwtServiceToken)`, `inject(JwtService)` | inject the token `provideJwtService()` returns. Every call returns its own, so one service can be replaced without the others. |
+| no `algorithms`: any that the key fits                                                                         | decided by the key: HMAC for `secret`, the key type for `publicKey`. A PEM in `secret` is an error. `none` is not supported. |
+| the error classes of `jsonwebtoken`                                                                            | classes of `@navios/jwt` with the same names, with `cause` in place of `inner`. Anything wrong with a token is a `JsonWebTokenError`. |
+| `expiresIn: '900'` (900 milliseconds)                                                                          | refused. Use a number of seconds, or a string with a unit. |
+| `verify()` returned `any`, also for a token with a text payload | `JwtPayload`, or `JwtComplete` with `complete: true`. A token whose payload is not an object is rejected |
+| a call without a key, or with a wrong verify option, threw a `JsonWebTokenError` | a plain `Error`, which is not answered as a wrong token |
+| an option that is `undefined` switched off the configured one | it is not given. An empty `audience` or `issuer` is an error |
+| `secretOrKeyProvider` won over a key passed to the call, and the `secret` of the service over a passed key pair | a key passed to the call always wins; one that is `undefined` or empty is an error |
+| `Secret`, `SignOptions`, `VerifyOptions`, `RequestType`, `GetSecretKeyResult`, `allowInvalidAsymmetricKeyTypes` | removed. `JwtPrivateKey` and `JwtKey` are the key types |
 | `zod` as a peer dependency                                                                                     | not required                                                                                                                             |
 
 ### @navios/schedule
 
-| 1.x                                                             | 2.0                                                                                        |
-| --------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
-| `schedulerService.register(Service)` started the jobs           | jobs start at the end of `app.init()`. A service registered after that starts immediately. |
-| registering in a module's `onModuleInit`                        | still works; `schedulePlugin({ services: [Service] })` does the same without the hook      |
-| jobs kept running until `stopAll()`                             | `app.close()` stops every job and waits for runs in progress                               |
-| `@Schedulable({ registry })`                                    | `@Schedulable({ scope })`                                                                  |
-| runs were not scoped                                            | every run has its own DI scope; a request-scoped `@Schedulable` class is built per run     |
-| a scheduler used without an application started on `register()` | call `schedulerService.start()`                                                            |
-| an HTTP adapter was needed to run jobs                          | `createApplication(AppModule, { plugins: [schedulePlugin(...)] })` runs them with no adapter |
+| 1.x                                                                  | 2.0                                                                                                                                  |
+| -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `schedulerService.register(Service)` started the jobs                | give the application `transports: [scheduleTransport()]`; jobs start with `app.start()` or `app.listen()`, and not with `app.init()` |
+| registering in a module's `onModuleInit`                             | `@Module({ jobs: [Service] })`, or `scheduleTransport({ services: [Service] })`. Registering there still works                       |
+| jobs kept running until `stopAll()`                                  | `app.close()` stops every job and waits for runs in progress, at most `shutdownTimeout`                                              |
+| runs of one job could overlap                                        | a tick that finds the job running is skipped; `@Cron(expression, { overlap: 'allow' })` gives the old behaviour                      |
+| `startAll()`, `stopAll()`                                            | `start()`, which leaves `disabled` jobs alone, and `stop()`                                                                          |
+| `getJob()` returned a `CronJob`                                      | it returns a `ScheduledJob`: `active`, `nextRun`, `lastRun`, `start()`, `stop()`, and `run()` for `fireOnTick()`                     |
+| `@Cron(date)` with a `Date` or a luxon `DateTime`                    | a cron expression                                                                                                                    |
+| `@Cron` on a private, static or symbol-named method                  | throws                                                                                                                               |
+| a job with an empty expression was skipped                           | an error of `register()`, and so of `app.init()`                                                                                     |
+| a subclass of a `@Schedulable` class needed no decorator             | decorate the subclass too                                                                                                            |
+| `@Schedulable({ registry })`                                         | `@Schedulable({ scope })`                                                                                                            |
+| runs were not scoped                                                 | every run has its own DI scope; a request-scoped `@Schedulable` class is built per run                                               |
+| a scheduler used without an application started on `register()`      | call `schedulerService.start()`                                                                                                      |
+| an HTTP adapter was needed to run jobs                               | `createApplication(AppModule, { transports: [scheduleTransport()] })` runs them with no adapter                                      |
+| metadata helpers such as `getCronMetadata`, `hasScheduleMetadata`    | not exported                                                                                                                         |
+| `Schedule`, `SchedulerService` from `@navios/schedule/legacy-compat` | from `@navios/schedule`; the legacy entry has `Cron` and `Schedulable`                                                               |
 
 ### @navios/openapi
 
@@ -190,7 +250,7 @@ These are the DI changes that show up in server code. [DI's migration page](/doc
 +
 + const app = await NaviosFactory.create(AppModule, {
 +   adapter: defineFastifyEnvironment({
-+     cors: { origin: true },
++     cors: { origin: true, methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'] },
 +     multipart: { limits: { fileSize: 10_000_000 } },
 +   }),
 +   globalPrefix: '/api',
@@ -198,7 +258,7 @@ These are the DI changes that show up in server code. [DI's migration page](/doc
   await app.listen({ port: 3000, host: '0.0.0.0' })
 ```
 
-The `Register` declaration is optional and types `ctx.raw` and `app.getServer()`. The adapter pages list every option: [Fastify](/docs/server/adapters/fastify), [Bun](/docs/server/adapters/bun).
+The `Register` declaration is optional and types `ctx.raw` and `app.getServer()`. `methods` is needed on Fastify, where `@fastify/cors` allows a preflight request the methods `GET`, `HEAD` and `POST` only. The adapter pages list every option: [Fastify](/docs/server/adapters/fastify), [Bun](/docs/server/adapters/bun).
 
 ## Controllers
 
@@ -342,7 +402,7 @@ The declarations carry the kind: `response: 'stream'` on `exportCsv` and `body: 
 
 ## Plugins
 
-Plugins no longer choose a stage. The same shape applies to the plugins of `@navios/openapi`, `@navios/otel`, `@navios/schedule` and `@navios/adapter-xml`, which are all passed in `plugins`.
+Plugins no longer choose a stage. The same shape applies to the plugins of `@navios/openapi`, `@navios/otel` and `@navios/adapter-xml`, which are all passed in `plugins`. `@navios/schedule` is a [transport](/docs/server/guides/scheduled-jobs).
 
 ```diff
 - export const myPlugin = definePostModulesInitPlugin()({
@@ -371,8 +431,8 @@ Plugins no longer choose a stage. The same shape applies to the plugins of `@nav
 +     xmlPlugin(),
 +     openApiPlugin({ info: { title: 'Users API', version: '1.0.0' } }),
 +     otelPlugin({ serviceName: 'users-api', exporter: 'otlp' }),
-+     schedulePlugin({ services: [CleanupService] }),
 +   ],
++   transports: [scheduleTransport()],
   })
 - app.usePlugin(defineOpenApiPlugin({ info: { title: 'Users API', version: '1.0.0' } }))
 - app.usePlugin(defineOtelPlugin({ serviceName: 'users-api', exporter: 'otlp' }))

@@ -64,7 +64,7 @@ function fieldErrorsOf(error: EndpointErrorType<typeof createUser> | null): Reco
   if (error?.kind === 'request-validation') {
     return Object.fromEntries(
       error.issues.map((issue) => [
-        (issue.path ?? []).map((part) => (typeof part === 'object' ? part.key : part)).join('.'),
+        (issue.path ?? []).map(String).join('.'),
         issue.message,
       ]),
     )
@@ -74,7 +74,7 @@ function fieldErrorsOf(error: EndpointErrorType<typeof createUser> | null): Reco
 }
 ```
 
-A path segment is a key or a `{ key }` object, depending on the schema library, which is what the inner `map` evens out.
+A path has the same form for every schema library. It is joined with dots here, so `['address', 'city']` becomes `address.city`.
 
 Everything else, such as a network failure or a status you did not declare, is not a field error. Show `error.message` or a generic notice for those; [Errors](/docs/builder/react-query/errors#in-a-hook-result) has the pattern.
 

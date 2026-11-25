@@ -23,6 +23,7 @@ Creates a builder. See [Quick start](/docs/builder/quick-start).
 | `BuilderConfig` field | Type                             | Description                                                                                         |
 | --------------------- | -------------------------------- | --------------------------------------------------------------------------------------------------- |
 | `client`              | `Client`                         | HTTP client used by every endpoint of this builder. Optional; can be supplied later or per call     |
+| `send`                | `'input' \| 'output'`            | What is sent once the arguments are valid: the arguments themselves (default), or what the schemas produced. See [What is sent](/docs/builder/essentials/inputs#what-is-sent) |
 | `onError`             | `(error: EndpointError) => void` | Called once per failed call with the error the caller receives. Exceptions inside it are caught and logged |
 
 ## BuilderInstance
@@ -38,17 +39,17 @@ See [HTTP client](/docs/builder/essentials/http-client).
 
 ## Endpoint options
 
-The object passed to `declareEndpoint`. Every schema slot accepts any [Standard Schema](https://standardschema.dev). Unknown keys are compile errors.
+The object passed to `declareEndpoint`. Every schema slot accepts any [Standard Schema](https://standardschema.dev). Unknown keys and options that contradict each other are compile errors.
 
 | Option             | Type                                                 | Default  | Description                                                                                                     |
 | ------------------ | ---------------------------------------------------- | -------- | --------------------------------------------------------------------------------------------------------------- |
 | `method`           | `HttpMethod`                                         | required | HTTP method                                                                                                     |
-| `url`              | `string`                                             | required | URL template. `$name` marks a URL parameter: a letter or underscore, then letters, digits or underscores        |
+| `url`              | `string`                                             | required | URL template. `$name` marks a URL parameter: a letter or underscore, then letters, digits or underscores. Any other character ends the name |
 | `urlParamsSchema`  | `Schema`                                             | —        | Validates and types `urlParams`. Its keys must equal the URL's parameter names, or the declaration throws. The check runs for schemas that expose their keys as `.shape`, as a Zod object does |
 | `querySchema`      | `Schema`                                             | —        | Validates and types `params` (the query string)                                                                 |
-| `requestSchema`    | `Schema`                                             | —        | Validates and types `data` (the body)                                                                           |
-| `responseSchema`   | `Schema`                                             | —        | Validates and types a JSON response. Required unless `response` is not `'json'` or `responses` is set           |
-| `responses`        | `Record<number, Schema \| null>`                     | —        | Per-status success schemas, in place of `responseSchema`. `null` means no body; the call resolves to `undefined` |
+| `requestSchema`    | `Schema`                                             | —        | Validates and types `data` (the body). Not for `GET` and `HEAD`                                                 |
+| `responseSchema`   | `Schema`                                             | —        | Validates and types a JSON response. Required for a `'json'` response without `responses`, and not allowed otherwise |
+| `responses`        | `Record<number, Schema \| null>`                     | —        | Per-status success schemas of a `'json'` response, in place of `responseSchema`. `null` means no body; the call resolves to `undefined` |
 | `errorSchema`      | `Record<number, Schema>`                             | —        | Per-status schemas for non-2xx bodies; types `error.body`                                                       |
 | `body`             | `'json' \| 'multipart'`                              | `'json'` | Request encoding. `'multipart'` converts `data` to `FormData`                                                   |
 | `response`         | `'json' \| 'blob' \| 'text' \| 'stream' \| 'void'`   | `'json'` | What the call resolves to                                                                                       |
@@ -70,7 +71,7 @@ Related option types:
 | `SuccessSchemaRecord`  | `Record<number, Schema \| null>`, the type of `responses`               |
 | `ErrorSchemaRecord`    | `Record<number, Schema>`, the type of `errorSchema`                     |
 | `ClientOptions`        | `{ [key: string]: unknown }`                                            |
-| `RequireResponseSchema<Options>` | Adds the `responseSchema` requirement to a declaration when it applies |
+| `RequireResponseSchema<Options>` | Requires a `responseSchema` when it applies, and makes contradicting options compile errors |
 | `NoUnknownOptions<Options, Known?>` | Turns unknown option keys into compile errors                 |
 
 ## Call arguments
@@ -97,7 +98,6 @@ An endpoint takes two arguments: `endpoint(args, callOptions?)`.
 | `ClientRequestArgs<Options>` | The `args` type: schema **input** types plus `RequestBase`                  |
 | `ServerRequestArgs<Options>` | The same parts with schema **output** types and string URL params, without `RequestBase` |
 | `RequestBase`                | `{ signal?, headers?, timeout? }`                                           |
-| `RequestArgsOptions`         | The minimal options shape the two types above read                          |
 | `EndpointCallArgs<Options>`  | The parameter tuple `[args, callOptions?]`, with `args` optional when nothing is required |
 
 ## EndpointHandler
@@ -147,12 +147,6 @@ interface ResponseMeta {
 
 ## EndpointError
 
-```ts
-class EndpointError extends NaviosError {
-  constructor(init: EndpointErrorInit)
-}
-```
-
 The one error type of a failed call: thrown by `endpoint()`, returned by `endpoint.safe()`, passed to `onError`.
 
 | Field      | Type                              | Description                                                        |
@@ -162,14 +156,14 @@ The one error type of a failed call: thrown by `endpoint()`, returned by `endpoi
 | `status`   | `number \| undefined`             | HTTP status, when a response was received                          |
 | `body`     | `unknown`                         | `errorSchema` output for kind `http`, the raw payload otherwise    |
 | `response` | `ResponseMeta \| null`            | Response metadata, or `null` when nothing came back                |
-| `issues`   | `readonly SchemaIssue[] \| undefined` | Validation issues, for the two validation kinds                |
-| `cause`    | `unknown`                         | The underlying error: the client's rejection or the schema library's error |
+| `issues`   | `readonly EndpointIssue[] \| undefined` | Validation issues, for the two validation kinds              |
+| `cause`    | `unknown`                         | The underlying error: the client's rejection, or what the schema library reported (a `ZodError` for Zod, the issues for any other) |
 | `message`  | `string`                          | Human-readable description                                         |
-| `toJSON()` | `() => object`                    | Plain object without `cause`, with `response.headers` flattened to a record |
+| `toJSON()` | `() => object`                    | Plain object without `cause`, with `response.headers` flattened to a record, `set-cookie` left out |
 
 `EndpointErrorKind` is `'http'`, `'http-unknown'`, `'request-validation'`, `'response-validation'`, `'network'`, `'timeout'`, `'aborted'` or `'config'`. [Errors](/docs/builder/essentials/errors) explains each one.
 
-`EndpointErrorInit` is the constructor argument: `{ kind, endpoint, message?, status?, body?, response?, issues?, cause? }`.
+`EndpointIssue` is a `SchemaIssue` with the `part` of the arguments it belongs to: `RequestPart`, which is `'urlParams' | 'params' | 'data'`. `part` is set for kind `request-validation` only.
 
 `NaviosError` is the base class (`extends Error`). A bare `NaviosError` is thrown for mistakes in a declaration and by `getClient()` when no client was provided.
 
@@ -215,7 +209,7 @@ All three accept `null`, so they can be called on `result.response` or `error.re
 | Function          | Signature                                                    | Description                                                                 |
 | ----------------- | ------------------------------------------------------------ | --------------------------------------------------------------------------- |
 | `getHeader`       | `(meta: ResponseMeta \| null, name: string) => string \| null` | One header value                                                          |
-| `getCookie`       | `(meta: ResponseMeta \| null, name: string) => string \| null` | One cookie value from the `Set-Cookie` headers                            |
+| `getCookie`       | `(meta: ResponseMeta \| null, name: string) => string \| null` | One cookie value from the `Set-Cookie` headers. Always `null` in a browser, where they cannot be read |
 | `getRetryAfterMs` | `(meta: ResponseMeta \| null) => number \| null`             | `Retry-After` in milliseconds, from either its seconds or its date form     |
 
 ## Schema types
@@ -223,9 +217,7 @@ All three accept `null`, so they can be called on `result.response` or `error.re
 | Type                   | Description                                                                             |
 | ---------------------- | --------------------------------------------------------------------------------------- |
 | `Schema<Input, Output>` | Any Standard Schema v1: an object with a `'~standard'` property                        |
-| `SchemaProps<Input, Output>` | The `'~standard'` property: `version`, `vendor`, `validate`, optional `types`     |
-| `SchemaResult<Output>` | What `validate` returns: `{ value }` or `{ issues }`                                    |
-| `SchemaIssue`          | `{ message: string; path?: readonly (PropertyKey \| { key: PropertyKey })[] }`          |
+| `SchemaIssue`          | `{ message: string; path?: readonly PropertyKey[] }`, as the errors report it           |
 | `InferSchemaInput<S>`  | The type a schema accepts                                                               |
 | `InferSchemaOutput<S>` | The type a schema produces                                                              |
 
@@ -252,16 +244,13 @@ Applied to an options type (`typeof getUser.config`):
 | `InferSuccessOutput<R>`            | Union of what each status of a `responses` record resolves to        |
 | `InferSuccessInput<R>`             | The same with schema input types, used when `validateResponse` is `false` |
 
-URL template and utility types:
+URL template types:
 
 | Type                        | Description                                                              |
 | --------------------------- | ------------------------------------------------------------------------ |
 | `ParsePathParams<Url>`      | Union of the parameter names in a URL template                           |
 | `UrlHasParams<Url>`         | `true` when the template has parameters                                  |
 | `UrlParams<Url, IsServer?>` | Object type of the parameters: `string \| number` values, `string` when `IsServer` is `true` |
-| `Simplify<T>`               | Flattens an intersection for readable hovers                             |
-| `HasProperty<T, K>`         | `true` when `K` is a key of `T` that is not `undefined`                  |
-| `SafeGet<T, K>`             | `T[K]`, or `never` when `K` is not a key                                 |
 
 ## Client types
 
@@ -278,7 +267,7 @@ type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH' | 'HEAD' | 'OPTION
 | `url`                         | `string`                                                              | URL with parameters already bound                    |
 | `method`                      | `HttpMethod`                                                          | HTTP method                                          |
 | `params`                      | `Record<string, unknown> \| URLSearchParams`                          | Query parameters                                     |
-| `data`                        | `unknown`                                                             | Request body                                         |
+| `data`                        | `unknown`                                                             | Request body. A string is already encoded, `FormData` is sent as it is, and anything else is JSON |
 | `headers`                     | `Record<string, string>`                                              | Request headers                                      |
 | `signal`                      | `AbortSignal \| null`                                                 | Cancellation signal                                  |
 | `timeout`                     | `number`                                                              | Milliseconds                                         |
@@ -294,45 +283,16 @@ type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH' | 'HEAD' | 'OPTION
 
 [HTTP client](/docs/builder/essentials/http-client) describes the contract a client must follow.
 
-## Low-level exports
+## URL templates
 
-The pieces `declareEndpoint` is made of. They are exported for building integrations on top of Builder, such as a framework adapter or a code generator. Application code does not need them.
+For tooling on top of declarations, such as a code generator or a cache key.
 
-| Export                    | Signature                                                             | Description                                                                              |
-| ------------------------- | --------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
-| `createHandler`           | `(options: BaseEndpointOptions, context: BuilderContext) => handler`  | Builds the endpoint function, with `safe` and `config`, for one declaration. Loosely typed: `declareEndpoint` adds the inference |
-| `assertValidDeclaration`  | `(options: BaseEndpointOptions) => void`                              | The declaration-time check of `urlParamsSchema` against the URL; throws `NaviosError`    |
-| `getUrlParamNames`        | `(url: string) => string[]`                                           | Parameter names of a URL template, in order of first appearance                          |
-| `bindUrlParams`           | `(url, params: UrlParamsRequest, urlParamsSchema?: Schema) => url`    | Replaces `$name` placeholders with URL-encoded values. Throws when one is missing, empty, `.` or `..` |
-| `makeConfig`              | `(request: ConfigRequest, options, finalUrl: string) => AbstractRequestConfig` | Builds the config handed to the client: merges headers, timeout and `clientOptions` |
-| `makeFormData`            | `(request: ConfigRequest, options) => FormData`                       | The `body: 'multipart'` conversion                                                       |
-| `validate`                | `(schema: Schema, value: unknown) => Promise<ValidationOutcome>`      | Runs any Standard Schema. Never rejects                                                  |
-| `parseSync`               | `(schema: Schema \| undefined, value: unknown) => unknown`            | Synchronous validation that throws; rejects asynchronous schemas                         |
-| `toResponseMeta`          | `(response) => ResponseMeta`                                          | Normalizes a client response; header records become a `Headers` instance                 |
-| `classifyTransportFailure` | `(error: unknown, signal: AbortSignal \| null \| undefined) => 'timeout' \| 'aborted' \| 'network'` | Classifies a rejection that carries no response. `signal` is the call's signal and must be passed, even as `undefined` |
+| Export             | Signature                                                          | Description                                                             |
+| ------------------ | ------------------------------------------------------------------ | ----------------------------------------------------------------------- |
+| `getUrlParamNames` | `(url: string) => string[]`                                        | Parameter names of a URL template, in order of first appearance. This is the definition of the grammar |
+| `bindUrlParams`    | `(url, params: { urlParams? }, urlParamsSchema?: Schema) => url`   | Replaces `$name` placeholders with URL-encoded values, and a `Date` with its ISO string. Throws when one is missing, empty, `.` or `..`, or has no form in a URL (an object, an array, `NaN`) |
 
-`bindUrlParams`, `makeConfig` and `makeFormData` validate with `parseSync` when given a schema, so a failure is not an `EndpointError`: a schema with a `parse` method, such as a Zod schema, throws its own error, and any other schema's issues are thrown as a `NaviosError`. A URL parameter that is missing, empty, `.` or `..` throws a plain `Error`.
-
-| Type                 | Description                                                                              |
-| -------------------- | ---------------------------------------------------------------------------------------- |
-| `BuilderContext`     | `{ getClient: () => Client; config: BuilderConfig }`, the second argument of `createHandler` |
-| `HandlerRequest`     | Call arguments as the runtime sees them: `urlParams`, `params`, `data`, `signal`, `headers`, `timeout` |
-| `HandlerCallOptions` | `{ client?: Client }`                                                                    |
-| `ConfigRequest`      | The request shape `makeConfig` and `makeFormData` accept                                 |
-| `UrlParamsRequest`   | `{ urlParams?: Record<string, unknown> }`                                                |
-| `ValidationOutcome`  | `{ ok: true; value }` or `{ ok: false; issues; cause }`                                  |
-
-```ts
-import { createHandler } from '@navios/builder'
-
-// userSchema from the Quick start; client is any Client
-const getUser = createHandler(
-  { method: 'GET', url: '/users/$userId', responseSchema: userSchema },
-  { getClient: () => client, config: {} },
-)
-
-const res = await getUser.safe({ urlParams: { userId: '42' } })
-```
+With a `urlParamsSchema`, `bindUrlParams` validates first and binds the schema's output. A failure is not an `EndpointError`: a Zod schema throws its `ZodError`, any other schema's issues are thrown as a `NaviosError`.
 
 ## Socket entry point
 
@@ -344,14 +304,14 @@ function socketBuilder(config?: SocketBuilderConfig): SocketBuilderInstance
 
 | `SocketBuilderConfig` field | Type                           | Default                 | Description                                              |
 | --------------------------- | ------------------------------ | ----------------------- | -------------------------------------------------------- |
-| `formatMessage`             | `MessageFormatter`             | `defaultFormatMessage`  | Builds the outgoing wire message                         |
-| `parseMessage`              | `MessageParser`                | `defaultParseMessage`   | Reads an incoming wire message; `null` ignores it        |
+| `formatMessage`             | `MessageFormatter`             | array format            | Builds the outgoing wire message                         |
+| `parseMessage`              | `MessageParser`                | array format            | Reads an incoming wire message; `null` ignores it        |
 | `onError`                   | `(error: SocketError) => void` | —                       | Called once per failure                                  |
-| `ackTimeout`                | `number`                       | `30000`                 | Milliseconds to wait for an acknowledgement              |
+| `ackTimeout`                | `number`                       | `30000`                 | Milliseconds to wait for an acknowledgement; `Infinity` is without limit |
 
 | `SocketBuilderInstance` member | Signature                                         | Description                                          |
 | ------------------------------ | ------------------------------------------------- | ---------------------------------------------------- |
-| `provideClient`                | `(client: SocketClient) => void`                  | Sets or replaces the connection                      |
+| `provideClient`                | `(client: SocketClient, options?: ProvideSocketClientOptions) => void` | Sets or replaces the connection. `{ closePrevious: true }` closes the one it replaces |
 | `getClient`                    | `() => SocketClient`                              | Returns it; throws `NaviosError` when none was provided |
 | `defineSend`                   | `(options: SendOptions) => SendHandler<Options>`  | Declares an outgoing topic                           |
 | `defineSubscribe`              | `(options: SubscribeOptions) => SubscribeHandler<Options>` | Declares an incoming topic                  |
@@ -371,7 +331,7 @@ type SubscribeHandler<Options> = ((
 ) => Unsubscribe) & { config: Options }
 ```
 
-### Native WebSocket exports
+### WebSocket exports
 
 ```ts
 function declareWebSocket(options: DeclareWebSocketOptions): WebSocketHandler<Options>
@@ -386,14 +346,14 @@ function createWebSocketHandler(config?: CreateWebSocketHandlerConfig): typeof d
 | `querySchema`                   | `Schema`   | Validates `params`; must be synchronous                 |
 | `protocols`                     | `string[]` | WebSocket sub-protocols                                 |
 
-`CreateWebSocketHandlerConfig` is `{ baseUrl?: string; onError?: (error: SocketError) => void }`.
+`CreateWebSocketHandlerConfig` is `{ baseUrl?: string; WebSocket?: WebSocketConstructor; onError?: (error: SocketError) => void }`. `WebSocket` is the class connections are opened with, by default the global one. `WebSocketConstructor` is a constructor of `WebSocketLike`, the part of a `WebSocket` that is used.
 
-A `WebSocketHandler<Options>` is called with `InferWebSocketConnectParams<Options>` (`urlParams` and `params`, as declared) and returns a `WebSocketSocketHandle`. The argument is always required: pass `{}` when the declaration has no parameters.
+A `WebSocketHandler<Options>` is called with `InferWebSocketConnectParams<Options>` (`urlParams` and `params`, as declared) and returns a `WebSocketSocketHandle`. The argument can be left out when nothing in it is required.
 
 | Member                         | Description                                                                  |
 | ------------------------------ | ---------------------------------------------------------------------------- |
-| `emit(event, ...args)`         | Sends `[event, ...args]` as JSON. A trailing function receives the acknowledgement |
-| `sendRaw(topic, message)`      | Sends `message` as JSON without an envelope                                  |
+| `emit(event, ...args)`         | Sends `[event, ...args]` as JSON. Throws a `SocketError` when the socket is not open |
+| `sendRaw(topic, message)`      | Sends `message` as JSON without an envelope. Throws like `emit`              |
 | `on(event, handler)`           | Listens to a connection event or, for any other name, a topic                |
 | `off(event, handler?)`         | Removes one listener, or all listeners of the name                           |
 | `onTopic(topic, handler)`      | Listens to a topic whatever its name; returns an unsubscribe function        |
@@ -416,8 +376,8 @@ function isSocketError(error: unknown): error is SocketError
 | `topic`             | `string`                                | Topic the failure belongs to                   |
 | `url`               | `string \| undefined`                   | Connection URL, when the client exposes one    |
 | `issues`            | `readonly SchemaIssue[] \| undefined`   | Validation issues                              |
-| `rawData`           | `unknown`                               | The value that failed validation               |
-| `cause`             | `unknown`                               | The schema library's error or the thrown value |
+| `rawData`           | `unknown`                               | The value that failed validation or parsing    |
+| `cause`             | `unknown`                               | What the schema library reported, or the thrown value |
 | `toJSON()`          | `() => object`                          | Plain object without `cause`                   |
 
 | Export                        | Description                                                                          |
@@ -426,14 +386,11 @@ function isSocketError(error: unknown): error is SocketError
 | `isSocketClient(value)`       | Type guard for `SocketClient`                                                        |
 | `MessageFormatter`            | `(topic: string, payload: unknown, ackId?: string) => unknown`                       |
 | `MessageParser`               | `(data: unknown) => { topic: string; payload: unknown; ackId?: string } \| null`     |
-| `defaultFormatMessage`        | The default formatter: `[topic, payload]` or `[topic, payload, ackId]`               |
-| `defaultParseMessage`         | The default parser for the same array format                                         |
 | `Unsubscribe`                 | `() => void`                                                                         |
 | `InferSendPayload<Options>`   | Input type of `payloadSchema`, or `unknown`                                          |
 | `InferSendReturn<Options>`    | `Promise` of the `ackSchema` output, or `void`                                       |
 | `InferSubscribePayload<Options>` | Output type of `payloadSchema`, or `unknown`                                      |
 | `SocketErrorInit`             | Constructor argument of `SocketError`                                                |
-| `createSendHandler`, `createSubscribeHandler`, `createGlobalMessageHandler` | The functions behind `defineSend`, `defineSubscribe` and message routing. They take the builder's internal context, so use them only when writing your own builder |
 
 ## EventSource entry point
 
@@ -447,11 +404,11 @@ function declareEventSource(options: DeclareEventSourceOptions): EventSourceHand
 function createEventSourceHandler(config?: CreateEventSourceHandlerConfig): typeof declareEventSource
 ```
 
-`EventSourceBuilderConfig` is `{ onError?: (error: EventSourceError) => void }`. `CreateEventSourceHandlerConfig` is `{ baseUrl?: string; onError?: (error: EventSourceError) => void }`.
+`EventSourceBuilderConfig` is `{ onError?: (error: EventSourceError) => void }`. `CreateEventSourceHandlerConfig` is `{ baseUrl?: string; EventSource?: EventSourceConstructor; onError?: (error: EventSourceError) => void }`. `EventSource` is the class connections are opened with, by default the global one. `EventSourceConstructor` is a constructor of `EventSourceLike`, the part of an `EventSource` that is used.
 
 | `EventSourceBuilderInstance` member | Signature                                       | Description                                                     |
 | ----------------------------------- | ----------------------------------------------- | --------------------------------------------------------------- |
-| `provideClient`                     | `(client: EventSourceClient) => void`           | Sets the connection; closes the previous one                    |
+| `provideClient`                     | `(client: EventSourceClient, options?: ProvideEventSourceClientOptions) => void` | Sets or replaces the connection. `{ closePrevious: true }` closes the one it replaces |
 | `getClient`                         | `() => EventSourceClient`                       | Returns it; throws `NaviosError` when none was provided         |
 | `defineEvent`                       | `(options: EventOptions) => EventHandler<Options>` | Declares an event                                            |
 
@@ -470,7 +427,7 @@ type EventHandler<Options> = ((
 ) => EventUnsubscribe) & { config: Options }
 ```
 
-An `EventSourceHandler<Options>` is called with `InferEventSourceConnectParams<Options>`, or with nothing when the declaration has no parameters, and returns an `EventSourceHandle`. Its members are listed on the [Server-Sent Events](/docs/builder/realtime/server-sent-events) page.
+An `EventSourceHandler<Options>` is called with `InferEventSourceConnectParams<Options>`, which can be left out when nothing in it is required, and returns an `EventSourceHandle`. Its members are listed on the [Server-Sent Events](/docs/builder/realtime/server-sent-events) page.
 
 ### EventSource errors and types
 
@@ -489,7 +446,7 @@ function isEventSourceError(error: unknown): error is EventSourceError
 | `url`                    | `string \| undefined`                 | Connection URL, when the client exposes one    |
 | `issues`                 | `readonly SchemaIssue[] \| undefined` | Validation issues                              |
 | `rawData`                | `unknown`                             | The event data that failed validation          |
-| `cause`                  | `unknown`                             | The schema library's error or the thrown value |
+| `cause`                  | `unknown`                             | What the schema library reported, or the thrown value |
 | `toJSON()`               | `() => object`                        | Plain object without `cause`                   |
 
 | Export                      | Description                                                                      |

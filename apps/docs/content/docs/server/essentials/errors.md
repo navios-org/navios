@@ -46,12 +46,14 @@ throw new HttpException(409, { reason: 'email-taken' })
 
 | The endpoint declares the status in `errorSchema` | `response` is | Sent                                             |
 | ------------------------------------------------- | ------------- | ------------------------------------------------ |
-| yes                                               | an object     | The object as the JSON body, as is               |
+| yes                                               | an object     | What the declared schema makes of the object     |
 | no                                                | a string      | A problem with `detail` set to the string        |
 | no                                                | an object     | A problem with the object's fields merged in     |
 | yes                                               | a string      | A problem with `detail` set to the string        |
 
-The body of a thrown `HttpException` is not type-checked against `errorSchema`. When `NODE_ENV` is not `production` it is validated at run time: a mismatch is logged as an error and the response is sent as thrown. For a type-checked error body, return [`reply(status, body)`](/docs/server/essentials/controllers#declared-error-bodies) from the handler instead.
+The body of a thrown `HttpException` is not type-checked against `errorSchema`. It is validated at run time: fields the schema does not declare are removed, and a body that does not match is logged as an error and answered as a problem of the same status, without the fields it was thrown with. For a type-checked error body, return [`reply(status, body)`](/docs/server/essentials/controllers#declared-error-bodies) from the handler instead.
+
+The status is one of an error, 400 to 599; the constructor throws for another, and for a `response` that is an array or an `Error`. An error goes into `cause`.
 
 The subclasses, each with a default message:
 
@@ -91,13 +93,14 @@ app.mapError(UserNotFound, (error) => problem(404, error.message, { userId: erro
 - A mapper's `reply()` is sent as JSON as given. It is not checked against the endpoint's `errorSchema` and its status does not have to be declared.
 - A mapper registered for exactly `HttpException`, `GuardDeniedError` or `ValidationError`, or for a subclass of one of them, replaces the built-in handling of that class. A mapper for a parent of those classes, such as `Error`, does not: an `HttpException`, a denied guard and a request validation error keep their built-in responses.
 - When a mapper itself throws, the error it threw goes through steps 2 to 5.
+- An error that a mapper answers with a status of 500 or above is logged.
 - Mappers are not consulted for requests that match no route.
 
 `app.mapError` may be called before or after `init()` and returns the application. A [plugin](/docs/server/guides/plugins) registers mappers through its own API.
 
 ## Unexpected errors
 
-An error that reaches step 5 is logged with the request's method and path, as is a thrown `HttpException` with a status of 500 or above. For step 5 the client receives:
+An error that is answered with a status of 500 or above is logged with the request's method and path, unless the client has gone and the error says that the work was aborted (`AbortError`), as that of a call that was given `ctx.signal` does. So is a response that cannot be sent, such as a body without a JSON form or a header value with a line break: it is an error of the request like one that was thrown, and mappers apply to it. For step 5 the client receives:
 
 ```json
 {
@@ -198,6 +201,8 @@ const app = await NaviosFactory.create(AppModule, {
   providers: [provide(NotFoundResponderToken, JsonNotFound)],
 })
 ```
+
+A responder may also return `reply()` or `problem()`. One that throws or returns something else is logged, and a plain problem is sent in its place.
 
 `description` is a message from the framework: the unmatched method and path for not-found, and the error's message for the internal-error responder when `exposeErrorDetails` is on. Responders are resolved once at `init()`.
 

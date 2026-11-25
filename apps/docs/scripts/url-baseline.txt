@@ -144,6 +144,7 @@
 /docs/server/guides/migrating-from-nestjs
 /docs/server/guides/modules
 /docs/server/guides/openapi
+/docs/server/guides/other-transports
 /docs/server/guides/otel/configuration-presets
 /docs/server/guides/otel/custom-spans
 /docs/server/guides/otel/exporters

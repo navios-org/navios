@@ -105,7 +105,7 @@ function ProfileCard({ userId }: { userId: string }) {
 
 Leaving the arguments out turns the hook's return type into an error string that names the missing keys (`'Error: Your token requires args: userId'`), so the first use of the result fails to compile.
 
-All three hooks compare arguments by their JSON form, so an object literal written in the call needs no memoization. Pass plain data: two values that differ only in a function, a class instance, a `Map` or a `Set` count as the same arguments.
+All three hooks compare arguments by their JSON form, extended to `Map`, `Set`, `RegExp` and `bigint`, so an object literal written in the call needs no memoization. Pass plain data: two values that differ only in a function, or in the private state of a class instance, count as the same arguments.
 
 When the arguments change, `useService` returns the previous instance for one render, then goes through `isLoading` to the new one. Render from the instance (`profile.user`) rather than from the prop when the two must agree.
 
@@ -152,7 +152,7 @@ if (error instanceof DIError && error.code === DIErrorCode.InitializationError) 
 }
 ```
 
-The codes a component usually meets are `InitializationError`, `FactoryNotFound` (no provider), `TokenValidationError` (the arguments failed the schema) and `ScopeMismatchError` (a request-scoped service used outside a [`ScopeProvider`](/docs/di/react/scopes-and-invalidation)). The full list is in the [DI API reference](/docs/di/reference/api).
+The codes a component usually meets are `InitializationError`, `ProviderNotFound` (no provider), `TokenValidationError` (the arguments failed the schema) and `ScopeMismatchError` (a request-scoped service used outside a [`ScopeProvider`](/docs/di/react/scopes-and-invalidation)). The full list is in the [DI API reference](/docs/di/reference/api).
 
 ## Outside render
 
