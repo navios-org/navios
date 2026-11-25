@@ -2,7 +2,7 @@
  * Declares the application's adapter so that `ctx.raw` is typed:
  *
  * ```ts
- * declare module '@navios/core' {
+ * declare module '@navios/server' {
  *   interface Register {
  *     environment: FastifyEnvironment
  *   }

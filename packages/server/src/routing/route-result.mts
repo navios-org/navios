@@ -1,8 +1,9 @@
 import type { SetCookie } from './cookies.mjs'
 
 /**
- * How a response body is written. Core ships encoders for the first five;
- * a package may register more (for example `xml`).
+ * How a response body is written. Every adapter writes the named kinds; a
+ * package may add a kind (for example `xml`) by registering an encoder that
+ * turns it into one of them.
  */
 export type ResponseKind = 'json' | 'text' | 'blob' | 'stream' | 'sse' | 'empty' | (string & {})
 

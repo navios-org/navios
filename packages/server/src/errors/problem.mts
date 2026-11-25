@@ -29,5 +29,8 @@ export function problem(
     ...(detail === undefined ? null : { detail }),
     ...extra,
   }
+  // Extra fields may refine `type` and `title` (RFC 9457), but a body that
+  // says `status: 200` must not contradict the response.
+  body.status = status
   return { status, headers: { ...PROBLEM_HEADERS }, body, kind: 'json' }
 }

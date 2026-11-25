@@ -3,6 +3,7 @@ import { runInContext } from '@navios/core/transport'
 import type { ContextHost } from '@navios/core/transport'
 
 import { RequestContext } from '../context/request-context.mjs'
+import { problem } from '../errors/problem.mjs'
 import { adopt, isPromise } from '../internal/promises.mjs'
 
 import type { ErrorPipeline } from '../errors/error-pipeline.mjs'
@@ -60,13 +61,40 @@ function isLazyBody({ body }: RouteResult): boolean {
   )
 }
 
+/**
+ * Stops a body that will never be sent, so that a generator runs its
+ * `finally` blocks and a web stream its `cancel`.
+ */
+function cancelBody(body: unknown): void {
+  try {
+    const stream = body as { cancel?: () => unknown; return?: () => unknown }
+    const pending =
+      typeof stream.cancel === 'function'
+        ? stream.cancel()
+        : typeof stream.return === 'function'
+          ? stream.return()
+          : undefined
+    if (isPromise(pending)) {
+      pending.catch(() => {})
+    }
+  } catch {
+    // The response it belonged to is already replaced by an error.
+  }
+}
+
 function seal(result: RouteResult, ctx: RequestContext): RouteResult {
   ctx.responseStatus = result.status
   const headers = ctx.responseHeaders
   const cookies = ctx.responseCookies
   const release = ctx.needsRelease || (result.kind !== 'json' && isLazyBody(result))
-  if (headers === null && cookies === null && !release) {
-    return result
+  if (!release) {
+    // Nothing will call release(), so nothing may be acquired from here on:
+    // detached work that reaches for the request later is refused instead of
+    // leaking a scope.
+    ctx.released = true
+    if (headers === null && cookies === null) {
+      return result
+    }
   }
   const sealed: RouteResult = { ...result }
   if (headers !== null) {
@@ -137,7 +165,29 @@ export function compileRoute(definition: RouteDefinition, options: CompileOption
             : pending.then(() => encoded(ctx, input))
         }
 
+  // A lazy body an interceptor received from next() and then threw away by
+  // throwing. Only a route that can produce one, behind an interceptor, keeps
+  // track of it.
+  const discardable =
+    interceptors.length > 0 && (config.response ?? 'json') !== 'json'
+      ? new WeakMap<RequestContext, unknown>()
+      : null
+
   let pipeline = guarded
+  if (discardable !== null) {
+    const remember = (result: RouteResult, ctx: RequestContext): RouteResult => {
+      if (result.kind !== 'json' && isLazyBody(result)) {
+        discardable.set(ctx, result.body)
+      }
+      return result
+    }
+    pipeline = (ctx, input) => {
+      const result = guarded(ctx, input)
+      return isPromise(result)
+        ? result.then((value) => remember(value, ctx))
+        : remember(result, ctx)
+    }
+  }
   for (let i = interceptors.length - 1; i >= 0; i--) {
     const interceptor = interceptors[i]
     const inner = pipeline
@@ -169,9 +219,30 @@ export function compileRoute(definition: RouteDefinition, options: CompileOption
     pipeline = (ctx, input) => runInContext(ctx, () => inner(ctx, input))
   }
 
+  // The error pipeline calls user code: mappers, responders and the logger.
+  // If that throws as well, the adapter must still get a result, with the
+  // release of whatever the request holds.
+  const fallback = (ctx: RequestContext): RouteResult => seal(problem(500), ctx)
+
   const fail = (error: unknown, ctx: RequestContext): MaybePromise<RouteResult> => {
-    const mapped = errors.toResult(error, ctx, config)
-    return isPromise(mapped) ? mapped.then((result) => seal(result, ctx)) : seal(mapped, ctx)
+    if (discardable !== null) {
+      const body = discardable.get(ctx)
+      if (body !== undefined) {
+        cancelBody(body)
+      }
+    }
+    let mapped: MaybePromise<RouteResult>
+    try {
+      mapped = errors.toResult(error, ctx, config)
+    } catch {
+      return fallback(ctx)
+    }
+    return isPromise(mapped)
+      ? mapped.then(
+          (result) => seal(result, ctx),
+          () => fallback(ctx),
+        )
+      : seal(mapped, ctx)
   }
 
   return (input) => {

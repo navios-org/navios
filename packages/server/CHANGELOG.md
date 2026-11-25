@@ -92,6 +92,18 @@ The request pipeline, the application class and the adapter contract are rewritt
 - **The conformance suite checks that an empty URL parameter matches no route**: with `/users/$id` registered, `/users/` gets the not-found response.
 - **Type tests are type-checked.** Vitest's typecheck ran `tsc` with `tsconfig.lib.json`, which excludes `*.spec-d.mts`, so a type error in a type test was never reported. It now uses `tsconfig.typecheck.json`, which includes them.
 - **`AttributeFactory.get` and `getAll` accept attributes created with the `AttributeFactory` of `@navios/server/legacy-compat`.** They were typed for the standard factory's attributes only and failed with TS2769.
+- **A stream handler's `finally` runs when the response is dropped before its first read.** An async generator returned by a handler was wrapped in a second generator, and `return()` on a generator that was never pulled skips its body. A stream that an interceptor throws away, by throwing after `next()` resolved with it, is cancelled as well.
+- **A request that holds nothing when its response is ready is finished at that moment.** Detached work that later called `ctx.use()`, `ctx.resolve()` or read a request value with `dispose` created a scope that nothing released. It now gets the "response has finished" error, and a late `ctx.onFinish()` callback runs at once.
+- **`app.mapError(Error, …)` no longer takes `HttpException`, a denied guard and request validation errors.** The built-in mappings count as registered for their own classes, so a mapper for `Error` gets only what none of them handles. A mapper for `HttpException`, a subclass of it, `GuardDeniedError` or `ValidationError` still replaces the built-in.
+- **A thrown `HttpException` with a status of 500 or above is reported** like any other server error. The response is unchanged.
+- **The object body of an `HttpException` cannot replace the `status` of the problem response** (it may still set `type` and `title`). `new HttpException(403, { status: 200 })` used to answer 403 with a body that said 200.
+- **An error pipeline that throws still answers.** When a responder or the logger threw while an error was being mapped, the adapter got no result and the request's scope was never released. The answer is now a bare 500 problem, with the release.
+- **`createMultipartCollector(schema)` converts a schema to JSON Schema once**, not for every request.
+- **Cookie, multipart field and (in-memory adapter) query names such as `constructor`, `toString` and `__proto__` are plain names.** `ctx.cookies.get('constructor')` returned a function when no such cookie was sent and ignored one that was. The cookie jar, the multipart body and the in-memory adapter's query are objects without a prototype.
+- **`encodeSse` cannot be made to emit a forged field.** A lone carriage return in `data` starts a new `data:` line, and a line break in `id` or `event` throws.
+- **The in-memory adapter gives a repeated query parameter as an array**, as the Fastify and Bun adapters do (`?tag=a&tag=b` is `{ tag: ['a', 'b'] }`; it used to keep the last value), and sends JSON as `application/json; charset=utf-8`.
+- **`@Controller` and `@Endpoint` from the main entry say what is wrong under `experimentalDecorators`** and name `@navios/server/legacy-compat`, where `@Controller` used to fail with "Cannot read properties of undefined (reading 'kind')".
+- **The package publishes `lib` only** (a `files` list), and its `repository` URL is the `navios-org` one.
 
 ### Performance
 

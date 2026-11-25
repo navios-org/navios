@@ -11,22 +11,36 @@ export interface SseMessage {
   retry?: number
 }
 
+const LINE_BREAK = /\r\n|\r|\n/
+
+/** A field that cannot span lines: a line break in it would start another field. */
+function singleLine(field: 'id' | 'event', value: string): string {
+  const text = String(value)
+  if (text.includes('\n') || text.includes('\r')) {
+    throw new Error(`[Navios] The ${field} of a server-sent event cannot contain a line break.`)
+  }
+  return text
+}
+
 /**
- * Serialises one event in the `text/event-stream` format.
+ * Serialises one event in the `text/event-stream` format. Throws when `id`
+ * or `event` contains a line break.
  */
 export function encodeSse(message: SseMessage): string {
   let out = ''
   if (message.id !== undefined) {
-    out += `id: ${message.id}\n`
+    out += `id: ${singleLine('id', message.id)}\n`
   }
   if (message.event !== undefined) {
-    out += `event: ${message.event}\n`
+    out += `event: ${singleLine('event', message.event)}\n`
   }
   if (message.retry !== undefined) {
     out += `retry: ${message.retry}\n`
   }
   const data = typeof message.data === 'string' ? message.data : JSON.stringify(message.data)
-  for (const line of String(data).split('\n')) {
+  // A lone carriage return ends a line too, so it must start a `data:` line
+  // and not a field of its own.
+  for (const line of String(data).split(LINE_BREAK)) {
     out += `data: ${line}\n`
   }
   return `${out}\n`

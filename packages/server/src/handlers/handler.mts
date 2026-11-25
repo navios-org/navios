@@ -12,7 +12,7 @@ export interface HandlerOptions {
   interceptors?: ClassType[]
   /**
    * Attribute values, as returned by calling an attribute: `[Public()]`.
-   * Attributes from `@navios/core/legacy-compat` are accepted as well.
+   * Attributes from `@navios/server/legacy-compat` are accepted as well.
    */
   attributes?: Array<Pick<AttributeApplication, 'token' | 'value'>>
 }

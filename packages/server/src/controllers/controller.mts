@@ -4,6 +4,8 @@ import { InjectableScope, registerInjectable } from '@navios/di'
 import type { AttributeValue } from '@navios/core'
 import type { ClassType } from '@navios/di'
 
+import { assertStandardDecorator } from '../internal/standard-decorator.mjs'
+
 import { defineControllerMetadata } from './controller-metadata.mjs'
 
 export interface ControllerOptions {
@@ -19,6 +21,7 @@ export interface ControllerOptions {
  */
 export function Controller(options: ControllerOptions = {}) {
   return <T extends ClassType>(target: T, context: ClassDecoratorContext): T => {
+    assertStandardDecorator('Controller', context)
     if (context.kind !== 'class') {
       throw new Error('[Navios] @Controller can only be used on classes.')
     }

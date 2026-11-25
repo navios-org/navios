@@ -156,3 +156,51 @@ describe('in-memory adapter: trailing slash with a prefix and at the root', () =
     expect(await status('/')).toBe(404)
   })
 })
+
+describe('in-memory adapter: query string and content type', () => {
+  let app: NaviosApplication | null = null
+
+  afterEach(async () => {
+    await app?.close()
+    app = null
+  })
+
+  async function createApp() {
+    @Controller()
+    class QueryController {
+      search = handler(get('/search'), (_params: unknown, ctx: { query: unknown }) => ({
+        query: ctx.query,
+      }))
+    }
+
+    @Module({ controllers: [QueryController] })
+    class AppModule {}
+
+    app = await NaviosFactory.create(AppModule, {
+      adapter: defineInMemoryEnvironment(),
+      logger: false,
+    })
+    return app
+  }
+
+  it('gives a repeated query parameter as an array, like the Fastify and Bun adapters', async () => {
+    const created = await createApp()
+    const response = await created.inject({ method: 'GET', url: '/search?tag=a&tag=b&tag=c&q=x' })
+    expect(response.body).toEqual({ query: { tag: ['a', 'b', 'c'], q: 'x' } })
+  })
+
+  it('takes query parameters named like members of Object.prototype as plain parameters', async () => {
+    const created = await createApp()
+    const response = await created.inject({
+      method: 'GET',
+      url: '/search?constructor=a&constructor=b&toString=c',
+    })
+    expect(response.body).toEqual({ query: { constructor: ['a', 'b'], toString: 'c' } })
+  })
+
+  it('sends JSON with a charset, like the Fastify and Bun adapters', async () => {
+    const created = await createApp()
+    const response = await created.inject({ method: 'GET', url: '/search' })
+    expect(response.headers['content-type']).toBe('application/json; charset=utf-8')
+  })
+})

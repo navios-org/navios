@@ -19,6 +19,21 @@ describe('server-sent events', () => {
     expect(encodeSse({ data: 'line one\nline two' })).toBe('data: line one\ndata: line two\n\n')
   })
 
+  it('starts a data line at every kind of line break', () => {
+    expect(encodeSse({ data: 'one\r\ntwo\rthree\nfour' })).toBe(
+      'data: one\ndata: two\ndata: three\ndata: four\n\n',
+    )
+    // A carriage return must not let the data start a field of its own.
+    expect(encodeSse({ data: 'x\revent: admin' })).toBe('data: x\ndata: event: admin\n\n')
+  })
+
+  it('rejects a line break in the id and in the event name', () => {
+    expect(() => encodeSse({ data: 'x', id: '1\ndata: forged' })).toThrow(/line break/)
+    expect(() => encodeSse({ data: 'x', id: '1\r' })).toThrow(/line break/)
+    expect(() => encodeSse({ data: 'x', event: 'tick\nid: 9' })).toThrow(/line break/)
+    expect(() => encodeSse({ data: 'x', event: 'tick\rid: 9' })).toThrow(/line break/)
+  })
+
   it('types and validates the payload of a declared event', () => {
     expect(sse(userJoined, { userId: '1' })).toEqual({
       event: 'user-joined',

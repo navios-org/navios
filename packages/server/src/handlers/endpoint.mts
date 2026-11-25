@@ -2,6 +2,8 @@ import { memberMetadata } from '@navios/core/transport'
 
 import type { BaseEndpointOptions } from '@navios/builder'
 
+import { assertStandardDecorator } from '../internal/standard-decorator.mjs'
+
 import { endpointConfig, EndpointEntryKey, memberEndpoint } from './endpoint-declaration.mjs'
 
 import type { EndpointDeclaration } from './endpoint-declaration.mjs'
@@ -33,6 +35,7 @@ export function Endpoint<const Config extends BaseEndpointOptions>(
   endpoint: EndpointDeclaration<Config>,
 ) {
   return (target: MethodHandlerFunction<Config>, context: ClassMethodDecoratorContext): void => {
+    assertStandardDecorator('Endpoint', context)
     if (context.kind !== 'method') {
       throw new Error('[Navios] @Endpoint can only be used on methods.')
     }

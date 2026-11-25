@@ -16,8 +16,9 @@ interface FieldShape {
  * Schema extension; the collector then falls back to what the parts look
  * like.
  */
-function fieldShapes(schema: SchemaLike | undefined): Record<string, FieldShape> {
-  const shapes: Record<string, FieldShape> = {}
+function fieldShapes(schema: SchemaLike): Record<string, FieldShape> {
+  // Without a prototype: it is indexed by field names the client sends.
+  const shapes: Record<string, FieldShape> = Object.create(null)
   const converter = (schema as any)?.['~standard']?.jsonSchema?.input
   if (typeof converter !== 'function') {
     return shapes
@@ -63,6 +64,30 @@ function parseJsonLike(value: string): unknown {
   }
 }
 
+interface CompiledShapes {
+  shapes: Record<string, FieldShape>
+  /** Whether the schema described any field. */
+  known: boolean
+}
+
+const NO_SHAPES: CompiledShapes = { shapes: Object.create(null), known: false }
+
+// Converting a schema to JSON Schema is far too slow to do for every request.
+const compiledShapes = new WeakMap<object, CompiledShapes>()
+
+function shapesOf(schema: SchemaLike | undefined): CompiledShapes {
+  if (schema === undefined || schema === null) {
+    return NO_SHAPES
+  }
+  let compiled = compiledShapes.get(schema)
+  if (compiled === undefined) {
+    const shapes = fieldShapes(schema)
+    compiled = { shapes, known: Object.keys(shapes).length > 0 }
+    compiledShapes.set(schema, compiled)
+  }
+  return compiled
+}
+
 export interface MultipartCollector {
   /** Adds one part: a text field's string value, or a file. */
   add(field: string, value: string | File): void
@@ -79,11 +104,15 @@ export interface MultipartCollector {
  *   JSON-parsed.
  * - Without schema information, a repeated field becomes an array and a
  *   value that looks like a JSON object or array is parsed.
+ *
+ * What the schema says about its fields is worked out once per schema, so
+ * calling this for every request is cheap. The result has no prototype.
  */
 export function createMultipartCollector(schema: SchemaLike | undefined): MultipartCollector {
-  const shapes = fieldShapes(schema)
-  const known = Object.keys(shapes).length > 0
-  const target: Record<string, unknown> = {}
+  const { shapes, known } = shapesOf(schema)
+  // Without a prototype: field names come from the client, and a part named
+  // `toString`, `constructor` or `__proto__` is a field like any other.
+  const target: Record<string, unknown> = Object.create(null)
   return {
     add(field, raw) {
       const shape = shapes[field]

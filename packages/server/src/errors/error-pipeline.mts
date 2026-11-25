@@ -34,16 +34,21 @@ export interface ErrorPipelineOptions {
    * is sent either way.
    */
   checkDeclaredErrors?: boolean
-  /** Called for every error that becomes a 500. */
+  /**
+   * Called for every error that becomes a 500, and for a thrown
+   * `HttpException` with a status of 500 or above.
+   */
   onUnhandled: (error: unknown, ctx: RequestContext | null) => void
 }
 
 /**
  * Turns anything thrown while handling a request into a response.
  *
- * Order: a mapper registered for the error's class (most specific class
- * first), `HttpException`, a denied guard, request validation errors, and
- * finally the internal-error responder.
+ * The most specific class wins. The built-in mappings count as registered
+ * for `HttpException`, for a denied guard and for a request `ValidationError`,
+ * so a mapper for one of these classes or a subclass replaces the built-in,
+ * and a mapper for `Error` gets only what none of them handles. What nothing
+ * maps goes to the internal-error responder.
  */
 export class ErrorPipeline {
   private readonly mappers = new Map<ErrorClass, ErrorMapper<any>>()
@@ -66,6 +71,15 @@ export class ErrorPipeline {
       const mapper = this.mappers.get(proto.constructor)
       if (mapper !== undefined) {
         return mapper
+      }
+      // The built-in mapping of this class is more specific than a mapper
+      // registered further up, for `Error`.
+      if (
+        proto === HttpException.prototype ||
+        proto === GuardDeniedError.prototype ||
+        (proto === ValidationError.prototype && (error as ValidationError).source !== 'response')
+      ) {
+        return undefined
       }
     }
     return undefined
@@ -130,6 +144,9 @@ export class ErrorPipeline {
   ): RouteResult {
     if (error instanceof HttpException) {
       const { statusCode, response } = error
+      if (statusCode >= 500) {
+        this.options.onUnhandled(error, ctx)
+      }
       // An object response on a status the endpoint declares is the declared
       // body. A string cannot be one, so it is reported as a problem.
       if (

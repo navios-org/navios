@@ -155,16 +155,42 @@ async function primeGenerator(
   generator: AsyncGenerator<unknown>,
   kind: RouteResult['kind'],
 ): Promise<RouteResult> {
-  const first = await generator.next()
-  async function* rest(): AsyncGenerator<unknown> {
-    try {
-      if (!first.done) {
-        yield first.value
-        yield* generator
-      }
-    } finally {
-      await generator.return?.(undefined)
-    }
+  return { status: 200, body: new PrimedGenerator(generator, await generator.next()), kind }
+}
+
+/**
+ * A generator whose first step has already been taken. It is an iterator
+ * written by hand, not a second generator around the first: `return()` on a
+ * generator that was never pulled skips its body, so a response dropped
+ * before its first read would leave the handler's generator suspended, with
+ * its `finally` blocks not run.
+ */
+class PrimedGenerator implements AsyncIterableIterator<unknown> {
+  constructor(
+    private readonly generator: AsyncGenerator<unknown>,
+    private first: IteratorResult<unknown> | null,
+  ) {}
+
+  [Symbol.asyncIterator](): this {
+    return this
   }
-  return { status: 200, body: rest(), kind }
+
+  next(): Promise<IteratorResult<unknown>> {
+    const first = this.first
+    if (first !== null) {
+      this.first = null
+      return Promise.resolve(first)
+    }
+    return this.generator.next()
+  }
+
+  return(value?: unknown): Promise<IteratorResult<unknown>> {
+    this.first = null
+    return this.generator.return(value)
+  }
+
+  throw(error?: unknown): Promise<IteratorResult<unknown>> {
+    this.first = null
+    return this.generator.throw(error)
+  }
 }

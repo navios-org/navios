@@ -93,8 +93,27 @@ async function readBody(result: RouteResult): Promise<string> {
   return text
 }
 
+/**
+ * The query as the Fastify and Bun adapters give it: a repeated parameter is
+ * an array. Without a prototype, since the names come from the client.
+ */
+function parseQuery(params: URLSearchParams): Record<string, string | string[]> {
+  const query: Record<string, string | string[]> = Object.create(null)
+  for (const [name, value] of params) {
+    const existing = query[name]
+    if (existing === undefined) {
+      query[name] = value
+    } else if (Array.isArray(existing)) {
+      existing.push(value)
+    } else {
+      query[name] = [existing, value]
+    }
+  }
+  return query
+}
+
 const DEFAULT_CONTENT_TYPES: Record<string, string> = {
-  json: 'application/json',
+  json: 'application/json; charset=utf-8',
   text: 'text/plain; charset=utf-8',
   blob: 'application/octet-stream',
   stream: 'application/octet-stream',
@@ -175,7 +194,7 @@ export class InMemoryAdapter implements HttpAdapter<InMemoryEnvironment> {
       header: (name) => headers[name.toLowerCase()],
       headers: () => new Headers(headers),
       urlParams,
-      query: () => Object.fromEntries(url.searchParams),
+      query: () => parseQuery(url.searchParams),
       body: () => {
         const { body } = request
         if (typeof body !== 'string') {

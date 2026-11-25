@@ -8,9 +8,15 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/Arilas/navios.git",
+    "url": "https://github.com/navios-org/navios.git",
     "directory": "packages/server"
   },
+  "files": [
+    "lib",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ],
   "main": "./lib/index.cjs",
   "module": "./lib/index.mjs",
   "typings": "./lib/index.d.mts",

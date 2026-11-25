@@ -81,25 +81,25 @@ console.log(`Listening on ${url}`)
 
 ## What else it does
 
-| Need                                      | How                                                  | Docs                                                                                          |
-| ----------------------------------------- | ---------------------------------------------------- | --------------------------------------------------------------------------------------------- |
-| Statuses, error bodies, validation        | `reply()`, `responses`, `errorSchema`                | [Controllers and handlers](https://navios.tech/docs/server/essentials/controllers)            |
-| Headers, cookies, the abort signal        | `RequestContext`, the handler's second argument      | [Request context](https://navios.tech/docs/server/essentials/request-context)                 |
-| Authorisation, cross-cutting behaviour    | `@UseGuards`, `@UseInterceptors`                     | [Guards and interceptors](https://navios.tech/docs/server/essentials/guards-and-interceptors) |
-| Data that belongs to one request          | `createContextKey`, `@RequestValue()`, request scope | [Per-request state](https://navios.tech/docs/server/guides/request-state)                     |
-| Services and their scopes                 | `@Injectable()`, `inject()`                          | [Services](https://navios.tech/docs/server/essentials/services)                               |
-| Route prefixes, grouping                  | `@Module()`                                          | [Modules](https://navios.tech/docs/server/essentials/modules)                                 |
-| Error responses, domain errors            | `HttpException`, `app.mapError()`                    | [Errors](https://navios.tech/docs/server/essentials/errors)                                   |
-| Start-up, shutdown, application options   | `NaviosFactory.create`, `app.close()`                | [Application setup](https://navios.tech/docs/server/essentials/application)                   |
-| Typed configuration, logging              | `provideConfig`, `Logger`                            | [Configuration and logging](https://navios.tech/docs/server/essentials/config-and-logging)    |
-| Tests without a socket                    | `defineInMemoryEnvironment`, `createTestClient`      | [Testing](https://navios.tech/docs/server/essentials/testing)                                 |
-| File uploads                              | `body: 'multipart'`                                  | [File uploads](https://navios.tech/docs/server/guides/file-uploads)                           |
-| Downloads, streams, server-sent events    | `response: 'blob' \| 'text' \| 'stream' \| 'sse'`    | [Streams and server-sent events](https://navios.tech/docs/server/guides/streams-and-sse)      |
-| Metadata on controllers and handlers      | `AttributeFactory`                                   | [Attributes](https://navios.tech/docs/server/guides/attributes)                               |
-| Reusable setup, extra routes              | `definePlugin`                                       | [Plugins](https://navios.tech/docs/server/guides/plugins)                                     |
-| Another HTTP server                       | the `HttpAdapter` contract                           | [Writing an adapter](https://navios.tech/docs/server/adapters/writing-an-adapter)             |
-| Queue consumers, workers, mixed processes | `transports`, `createApplication`                    | [Other transports](https://navios.tech/docs/server/guides/other-transports)                   |
-| Coming from NestJS                        | the same vocabulary, listed differences              | [Migrating from NestJS](https://navios.tech/docs/server/reference/migrating-from-nestjs)      |
+| Need                                      | How                                                     | Docs                                                                                          |
+| ----------------------------------------- | ------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| Statuses, error bodies, validation        | `reply()`, `responses`, `errorSchema`                   | [Controllers and handlers](https://navios.tech/docs/server/essentials/controllers)            |
+| Headers, cookies, the abort signal        | `RequestContext`, the handler's second argument         | [Request context](https://navios.tech/docs/server/essentials/request-context)                 |
+| Authorisation, cross-cutting behaviour    | `@UseGuards`, `@UseInterceptors`                        | [Guards and interceptors](https://navios.tech/docs/server/essentials/guards-and-interceptors) |
+| Data that belongs to one request          | `createContextKey`, `@RequestValue()`, request scope    | [Per-request state](https://navios.tech/docs/server/guides/request-state)                     |
+| Services and their scopes                 | `@Injectable()`, `inject()`                             | [Services](https://navios.tech/docs/server/essentials/services)                               |
+| Route prefixes, grouping                  | `@Module()`                                             | [Modules](https://navios.tech/docs/server/essentials/modules)                                 |
+| Error responses, domain errors            | `HttpException`, `app.mapError()`                       | [Errors](https://navios.tech/docs/server/essentials/errors)                                   |
+| Start-up, shutdown, application options   | `NaviosFactory.create`, `app.close()`                   | [Application setup](https://navios.tech/docs/server/essentials/application)                   |
+| Typed configuration, logging              | `provideConfig`, `Logger`                               | [Configuration and logging](https://navios.tech/docs/server/essentials/config-and-logging)    |
+| Tests without a socket                    | `defineInMemoryEnvironment`, `createTestClient`         | [Testing](https://navios.tech/docs/server/essentials/testing)                                 |
+| File uploads                              | `body: 'multipart'`                                     | [File uploads](https://navios.tech/docs/server/guides/file-uploads)                           |
+| Downloads, streams, server-sent events    | `response: 'blob' \| 'text' \| 'stream'`, `sseStream()` | [Streams and server-sent events](https://navios.tech/docs/server/guides/streams-and-sse)      |
+| Metadata on controllers and handlers      | `AttributeFactory`                                      | [Attributes](https://navios.tech/docs/server/guides/attributes)                               |
+| Reusable setup, extra routes              | `definePlugin`                                          | [Plugins](https://navios.tech/docs/server/guides/plugins)                                     |
+| Another HTTP server                       | the `HttpAdapter` contract                              | [Writing an adapter](https://navios.tech/docs/server/adapters/writing-an-adapter)             |
+| Queue consumers, workers, mixed processes | `transports`, `createApplication`                       | [Other transports](https://navios.tech/docs/server/guides/other-transports)                   |
+| Coming from NestJS                        | the same vocabulary, listed differences                 | [Migrating from NestJS](https://navios.tech/docs/server/reference/migrating-from-nestjs)      |
 
 Related packages: [`@navios/adapter-fastify`](https://navios.tech/docs/server/adapters/fastify), [`@navios/adapter-bun`](https://navios.tech/docs/server/adapters/bun), [`@navios/adapter-xml`](https://navios.tech/docs/server/adapters/xml), [`@navios/jwt`](https://navios.tech/docs/server/guides/authentication), [`@navios/schedule`](https://navios.tech/docs/server/guides/scheduled-jobs), [`@navios/openapi`](https://navios.tech/docs/server/guides/openapi) and [`@navios/otel`](https://navios.tech/docs/server/opentelemetry/).
 

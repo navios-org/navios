@@ -43,7 +43,13 @@ export class RequestContext<
   private cookiesView: RequestCookies | null = null
   private replyView: ReplyControls | null = null
   private parsedQuery: RequestQuery | null = null
-  private released = false
+  /**
+   * Whether the response has finished: nothing more will be released, so
+   * nothing more may be acquired. Set by `release()`, and by the pipeline for
+   * a response that holds nothing to release.
+   * @internal
+   */
+  released = false
   private finishers: Array<() => void | Promise<void>> | null = null
   /**
    * The status of the response, once it is known: after the handler, response
@@ -146,7 +152,9 @@ export class RequestContext<
     if (this.cookieJar !== null) {
       return this.cookieJar
     }
-    const jar: Record<string, string> = {}
+    // Without a prototype: cookie names come from the client, and `toString`
+    // or `constructor` must be neither found when not sent nor lost when sent.
+    const jar: Record<string, string> = Object.create(null)
     const header = this.input.header('cookie')
     if (header) {
       for (const part of header.split(';')) {

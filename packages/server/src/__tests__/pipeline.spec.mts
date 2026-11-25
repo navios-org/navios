@@ -7,6 +7,7 @@ import { RequestContextToken, RequestValue } from '../context/index.mjs'
 import {
   ErrorPipeline,
   ForbiddenResponder,
+  GuardDeniedError,
   HttpException,
   InternalServerErrorResponder,
   NotFoundException,
@@ -48,6 +49,7 @@ function setup(
     validateResponses?: boolean
     exposeErrorDetails?: boolean
     container?: Container
+    onUnhandled?: (error: unknown) => void
     /** Full route path, when a prefix makes it differ from the endpoint's url. */
     path?: string
   } = {},
@@ -60,7 +62,7 @@ function setup(
     validation: new ValidationErrorResponder(),
     internal: new InternalServerErrorResponder(),
     exposeErrorDetails: extra.exposeErrorDetails ?? false,
-    onUnhandled: (error) => unhandled.push(error),
+    onUnhandled: extra.onUnhandled ?? ((error) => unhandled.push(error)),
   })
   const endpoint: RouteEndpointConfig = { method: 'GET', url: '/test', ...config }
   const info: RouteInfo = {
@@ -972,5 +974,347 @@ describe('headersSchema', () => {
     const { execute } = setup({ headersSchema: schema }, ({ headers }) => headers)
     const result = await execute(input({ headerMap: { 'X-Tenant': 'acme' } }))
     expect(result.body).toEqual({ 'x-tenant': 'acme' })
+  })
+})
+
+describe('compileRoute: a stream body that is never read', () => {
+  it('runs the finally of a generator whose body is dropped before the first read', async () => {
+    const events: string[] = []
+    const { execute } = setup({ response: 'stream' }, async function* () {
+      try {
+        yield 'a'
+        yield 'b'
+      } finally {
+        events.push('finally')
+      }
+    })
+    const result = await execute(input())
+    // The client went away before the adapter pulled the first chunk.
+    await (result.body as AsyncGenerator<unknown>).return(undefined)
+    expect(events).toEqual(['finally'])
+  })
+
+  it('forwards an error thrown into the body to the generator', async () => {
+    const events: unknown[] = []
+    const { execute } = setup({ response: 'stream' }, async function* () {
+      try {
+        yield 'a'
+      } catch (error) {
+        events.push((error as Error).message)
+        throw error
+      }
+    })
+    const result = await execute(input())
+    await expect((result.body as AsyncGenerator<unknown>).throw(new Error('gone'))).rejects.toThrow(
+      'gone',
+    )
+    expect(events).toEqual(['gone'])
+  })
+
+  it('still yields every chunk of a generator, the first one included', async () => {
+    const { execute } = setup({ response: 'stream' }, async function* () {
+      yield 'a'
+      yield 'b'
+    })
+    const result = await execute(input())
+    const chunks: unknown[] = []
+    for await (const chunk of result.body as AsyncIterable<unknown>) {
+      chunks.push(chunk)
+    }
+    expect(chunks).toEqual(['a', 'b'])
+  })
+
+  it('cancels a generator when an interceptor throws after next() resolved with it', async () => {
+    const events: string[] = []
+    const late: Interceptor = {
+      async intercept(_ctx, next) {
+        await next()
+        throw new Error('late')
+      },
+    }
+    const { execute } = setup(
+      { response: 'stream' },
+      async function* () {
+        try {
+          yield 'a'
+        } finally {
+          events.push('finally')
+        }
+      },
+      { interceptors: [late] },
+    )
+    const result = await execute(input())
+    expect(result.status).toBe(500)
+    await new Promise((resolve) => setImmediate(resolve))
+    expect(events).toEqual(['finally'])
+  })
+
+  it('cancels a web stream when an interceptor throws after next() resolved with it', async () => {
+    const events: string[] = []
+    const late: Interceptor = {
+      async intercept(_ctx, next) {
+        await next()
+        throw new Error('late')
+      },
+    }
+    const { execute } = setup(
+      { response: 'stream' },
+      () =>
+        new ReadableStream({
+          cancel() {
+            events.push('cancel')
+          },
+        }),
+      { interceptors: [late] },
+    )
+    const result = await execute(input())
+    expect(result.status).toBe(500)
+    await new Promise((resolve) => setImmediate(resolve))
+    expect(events).toEqual(['cancel'])
+  })
+})
+
+describe('compileRoute: a context used after a response that holds nothing', () => {
+  it('refuses a scope, and a disposable request value, once such a response is sealed', () => {
+    let created = 0
+
+    @Injectable({ scope: InjectableScope.Request })
+    class UnitOfWork {
+      constructor() {
+        created++
+      }
+    }
+
+    @RequestValue()
+    class Transaction {
+      resolve() {
+        return { id: 1 }
+      }
+      dispose() {}
+    }
+
+    let late: RequestContext | undefined
+    const { execute } = setup({}, (_params, ctx: RequestContext) => {
+      late = ctx
+      return { ok: true }
+    })
+    const result = execute(input()) as RouteResult
+    expect(result.release).toBeUndefined()
+    // Detached work the handler started reaches for the request afterwards.
+    expect(() => late!.use(UnitOfWork)).toThrow('response has finished')
+    expect(() => late!.get(Transaction)).toThrow('response has finished')
+    expect(created).toBe(0)
+    let ran = 0
+    late!.onFinish(() => {
+      ran++
+    })
+    expect(ran).toBe(1)
+  })
+
+  it('does the same when the response carries headers, and when it is an error', async () => {
+    @Injectable({ scope: InjectableScope.Request })
+    class UnitOfWork {}
+
+    let late: RequestContext | undefined
+    const withHeader = setup({}, (_params, ctx: RequestContext) => {
+      late = ctx
+      ctx.reply.header('x-a', '1')
+      return { ok: true }
+    })
+    expect((withHeader.execute(input()) as RouteResult).release).toBeUndefined()
+    expect(() => late!.use(UnitOfWork)).toThrow('response has finished')
+
+    const failing = setup({}, (_params, ctx: RequestContext) => {
+      late = ctx
+      throw new NotFoundException('nope')
+    })
+    expect((failing.execute(input()) as RouteResult).status).toBe(404)
+    expect(() => late!.use(UnitOfWork)).toThrow('response has finished')
+  })
+})
+
+describe('compileRoute: an error pipeline that fails', () => {
+  function tracked() {
+    const events: string[] = []
+
+    @Injectable({ scope: InjectableScope.Request })
+    class UnitOfWork {
+      onServiceDestroy() {
+        events.push('destroy')
+      }
+    }
+    return { events, UnitOfWork }
+  }
+
+  it('answers a bare 500 with release when reporting the error throws', async () => {
+    const { events, UnitOfWork } = tracked()
+    const { execute } = setup(
+      {},
+      (_params, ctx: RequestContext) => {
+        ctx.use(UnitOfWork)
+        throw new Error('boom')
+      },
+      {
+        onUnhandled: () => {
+          throw new Error('logger down')
+        },
+      },
+    )
+    const result = execute(input()) as RouteResult
+    expect(result.status).toBe(500)
+    expect(result.body).toMatchObject({ status: 500, title: 'Internal Server Error' })
+    await result.release!()
+    expect(events).toEqual(['destroy'])
+  })
+
+  it('answers a bare 500 with release when it throws after an asynchronous mapper', async () => {
+    class DomainError extends Error {}
+    const { events, UnitOfWork } = tracked()
+    const { execute, errors } = setup(
+      {},
+      async (_params, ctx: RequestContext) => {
+        ctx.use(UnitOfWork)
+        throw new DomainError('boom')
+      },
+      {
+        onUnhandled: () => {
+          throw new Error('logger down')
+        },
+      },
+    )
+    errors.add(DomainError, async () => {
+      throw new Error('mapper down')
+    })
+    const result = await execute(input())
+    expect(result.status).toBe(500)
+    await result.release!()
+    expect(events).toEqual(['destroy'])
+  })
+})
+
+describe('ErrorPipeline: built-in mappings and user mappers', () => {
+  const catchAll = () => reply(418, { caught: true })
+
+  it('keeps the built-in mappings when a mapper is registered for Error', async () => {
+    const schema = z.object({ a: z.number() })
+    const thrown = setup({}, () => {
+      throw new NotFoundException('User not found')
+    })
+    thrown.errors.add(Error, catchAll)
+    expect((thrown.execute(input()) as RouteResult).status).toBe(404)
+
+    const denied = setup({}, () => ({}), { guards: [{ canActivate: () => false }] })
+    denied.errors.add(Error, catchAll)
+    expect((denied.execute(input()) as RouteResult).status).toBe(403)
+
+    const invalid = setup({ querySchema: schema }, () => ({}))
+    invalid.errors.add(Error, catchAll)
+    expect((invalid.execute(input()) as RouteResult).status).toBe(400)
+
+    // What no built-in handles still reaches the mapper.
+    const unknown = setup({}, () => {
+      throw new TypeError('boom')
+    })
+    unknown.errors.add(Error, catchAll)
+    expect((unknown.execute(input()) as RouteResult).status).toBe(418)
+
+    const response = setup({ responseSchema: schema }, () => ({ a: 'x' }))
+    response.errors.add(Error, catchAll)
+    expect((response.execute(input()) as RouteResult).status).toBe(418)
+  })
+
+  it('lets a mapper registered for a built-in class, or a subclass of it, override it', () => {
+    const thrown = setup({}, () => {
+      throw new NotFoundException('User not found')
+    })
+    thrown.errors.add(HttpException, catchAll)
+    expect((thrown.execute(input()) as RouteResult).status).toBe(418)
+
+    const specific = setup({}, () => {
+      throw new NotFoundException('User not found')
+    })
+    specific.errors.add(Error, () => reply(599, {}))
+    specific.errors.add(NotFoundException, catchAll)
+    expect((specific.execute(input()) as RouteResult).status).toBe(418)
+
+    const invalid = setup({ querySchema: z.object({ a: z.number() }) }, () => ({}))
+    invalid.errors.add(ValidationError, catchAll)
+    expect((invalid.execute(input()) as RouteResult).status).toBe(418)
+
+    const denied = setup({}, () => ({}), { guards: [{ canActivate: () => false }] })
+    denied.errors.add(GuardDeniedError, catchAll)
+    expect((denied.execute(input()) as RouteResult).status).toBe(418)
+  })
+})
+
+describe('ErrorPipeline: HttpException', () => {
+  it('reports a thrown HttpException of status 500 or above, and answers with its own body', () => {
+    const error = new HttpException(503, 'Database is down')
+    const { execute, unhandled } = setup({}, () => {
+      throw error
+    })
+    const result = execute(input()) as RouteResult
+    expect(result.status).toBe(503)
+    expect(result.body).toMatchObject({ status: 503, detail: 'Database is down' })
+    expect(unhandled).toEqual([error])
+  })
+
+  it('does not report an HttpException below 500', () => {
+    const { execute, unhandled } = setup({}, () => {
+      throw new NotFoundException('nope')
+    })
+    expect((execute(input()) as RouteResult).status).toBe(404)
+    expect(unhandled).toEqual([])
+  })
+
+  it('keeps the status of a problem when the body of an HttpException names another', () => {
+    const { execute } = setup({}, () => {
+      throw new HttpException(403, {
+        status: 200,
+        title: 'Account suspended',
+        type: 'https://example.com/problems/suspended',
+        reason: 'banned',
+      })
+    })
+    const result = execute(input()) as RouteResult
+    expect(result.status).toBe(403)
+    expect(result.body).toEqual({
+      type: 'https://example.com/problems/suspended',
+      title: 'Account suspended',
+      status: 403,
+      reason: 'banned',
+    })
+  })
+})
+
+describe('RequestContext: cookies', () => {
+  it('reads a cookie named like a member of Object.prototype, and nothing for one not sent', () => {
+    const { execute } = setup({}, (_params, ctx: RequestContext) => ({
+      missing: ctx.cookies.get('constructor') ?? null,
+      proto: ctx.cookies.get('__proto__') ?? null,
+    }))
+    expect((execute(input({ headerMap: { cookie: 'a=1' } })) as RouteResult).body).toEqual({
+      missing: null,
+      proto: null,
+    })
+
+    const sent = setup({}, (_params, ctx: RequestContext) => ({
+      value: ctx.cookies.get('constructor'),
+      names: Object.keys(ctx.cookies.all()),
+    }))
+    expect(
+      (sent.execute(input({ headerMap: { cookie: 'constructor=x; toString=y' } })) as RouteResult)
+        .body,
+    ).toEqual({ value: 'x', names: ['constructor', 'toString'] })
+  })
+
+  it('validates the cookies with a schema', () => {
+    const { execute } = setup(
+      { cookiesSchema: z.object({ session: z.string() }) } as Partial<RouteEndpointConfig>,
+      (params) => params.cookies,
+    )
+    expect((execute(input({ headerMap: { cookie: 'session=abc' } })) as RouteResult).body).toEqual({
+      session: 'abc',
+    })
   })
 })
