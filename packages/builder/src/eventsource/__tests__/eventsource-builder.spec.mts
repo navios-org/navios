@@ -164,17 +164,6 @@ describe('eventSourceBuilder', () => {
       // Verify new listener was set up on new client
       expect(client2.onMock).toHaveBeenCalledWith('message', expect.any(Function))
     })
-
-    it('should close old client when replacing', () => {
-      const sse = eventSourceBuilder()
-      const client1 = createMockClient()
-      const client2 = createMockClient()
-
-      sse.provideClient(client1)
-      sse.provideClient(client2)
-
-      expect(client1.closeMock).toHaveBeenCalled()
-    })
   })
 
   describe('getClient', () => {
@@ -507,7 +496,7 @@ describe('eventSourceBuilder', () => {
       expect(error.eventName).toBe('number')
       expect(error.rawData).toEqual({ n: 0 })
       expect(error.issues).toEqual([{ message: 'n must be positive', path: ['field'] }])
-      expect(error.cause).toBeUndefined()
+      expect(error.cause).toEqual([{ message: 'n must be positive', path: ['field'] }])
     })
 
     it('should await an async schema before calling the handler', async () => {

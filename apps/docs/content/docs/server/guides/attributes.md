@@ -104,7 +104,7 @@ export class RolesGuard implements Guard {
 | `AttributeFactory.get(attribute, route)`    | The most specific value: the handler's, else the controller's, else the module's. `null` when none has it. A flag's value is `true` |
 | `AttributeFactory.getAll(attribute, route)` | Every value, most specific first: handler, controller, module                                                                      |
 
-For the module level, the nearest module that sets the attribute wins: the route's own module, else the module that imports it, and so on outwards.
+For the module level, the nearest module that sets the attribute wins: the route's own module, else the module that imports it, and so on outwards. When several modules import the route's module, they have to agree: `init()` fails if one gives the route the attribute and another does not, or gives another value. Set the attribute on the controllers or handlers it is meant for then, or on the module itself.
 
 `get` returns one level's value and does not merge levels. `@Roles(['admin'])` on `purge` replaces the controller's `['staff', 'admin']` for that handler. When you want the levels combined, as tags usually are, use `getAll`.
 

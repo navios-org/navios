@@ -15,6 +15,8 @@ export default defineProject({
     conditions: ['development', 'node', 'import'],
   },
   test: {
+    // e2e/bun needs the Bun runtime and is run by `bun test`.
+    include: ['src/**/*.spec.mts', 'e2e/fastify/**/*.spec.mts'],
     typecheck: {
       enabled: true,
     },

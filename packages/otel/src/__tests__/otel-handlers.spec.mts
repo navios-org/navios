@@ -3,7 +3,7 @@ import { fakeTransport } from '@navios/core/testing'
 import { NaviosFactory } from '@navios/server'
 import { defineInMemoryEnvironment } from '@navios/server/testing'
 import { SpanKind, SpanStatusCode } from '@opentelemetry/api'
-import { InMemorySpanExporter, SimpleSpanProcessor } from '@opentelemetry/sdk-trace-node'
+import { InMemorySpanExporter, SimpleSpanProcessor } from '@opentelemetry/sdk-trace'
 import { afterEach, describe, expect, it } from 'vitest'
 
 import type { Application, ExecutionContext, Guard } from '@navios/core'
@@ -26,7 +26,7 @@ async function createApp(module: new () => unknown, otel: Partial<OtelPluginOpti
       otelPlugin({
         serviceName: 'otel-test',
         exporter: 'none',
-        spanProcessors: [new SimpleSpanProcessor(exporter)],
+        spanProcessors: [new SimpleSpanProcessor({ exporter })],
         ...otel,
       }),
     ],
@@ -136,7 +136,7 @@ describe('otelPlugin in an application with HTTP and another transport', () => {
         otelPlugin({
           serviceName: 'otel-test',
           exporter: 'none',
-          spanProcessors: [new SimpleSpanProcessor(exporter)],
+          spanProcessors: [new SimpleSpanProcessor({ exporter })],
           ...otel,
         }),
       ],

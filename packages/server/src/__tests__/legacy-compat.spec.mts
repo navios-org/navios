@@ -1,8 +1,15 @@
 import { builder } from '@navios/builder'
+import { getModuleMetadata } from '@navios/core/transport'
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod/v4'
 
-import { getControllerMetadata, getModuleMetadata, handler, NaviosFactory } from '../index.mjs'
+import { getControllerMetadata } from '../controllers/controller-metadata.mjs'
+import {
+  Controller as StandardController,
+  Endpoint as StandardEndpoint,
+  handler,
+  NaviosFactory,
+} from '../index.mjs'
 import {
   AttributeFactory,
   Controller,
@@ -69,5 +76,21 @@ describe('legacy-compat', () => {
     expect((await call(echo)).status).toBe(403)
     expect(guardCalls).toBe(2)
     await app.close()
+  })
+
+  it('names the legacy entry when a standard decorator is applied as a legacy one', () => {
+    class LegacyController {
+      async ping() {
+        return { ok: true }
+      }
+    }
+    const descriptor = Object.getOwnPropertyDescriptor(LegacyController.prototype, 'ping')!
+    // What a compiler with `experimentalDecorators` emits.
+    expect(() => (StandardController() as any)(LegacyController)).toThrow(
+      /@Controller .*experimentalDecorators.*@navios\/server\/legacy-compat/s,
+    )
+    expect(() =>
+      (StandardEndpoint(ping) as any)(LegacyController.prototype, 'ping', descriptor),
+    ).toThrow(/@Endpoint .*experimentalDecorators.*@navios\/server\/legacy-compat/s)
   })
 })

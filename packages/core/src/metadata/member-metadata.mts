@@ -26,10 +26,13 @@ export interface MethodHandlerMetadata extends HandlerExtras {
   entries: Map<symbol, unknown>
 }
 
-/** @internal */
+/** Where the members of a class are kept in its metadata. */
 export const MembersKey = Symbol.for('navios.core.members')
 
-/** @internal */
+/**
+ * What decorators attached to a member, inherited ones included, to read and to
+ * add to.
+ */
 export function memberMetadata(
   context: { metadata?: DecoratorMetadata },
   name: string,

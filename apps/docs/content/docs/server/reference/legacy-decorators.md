@@ -20,11 +20,12 @@ Each legacy decorator adapts the legacy call signature and then calls the same i
 
 | Entry point                      | Decorators                                                                                   | Also exports                                                                                           |
 | -------------------------------- | -------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| `@navios/server/legacy-compat`     | `Controller`, `Module`, `Endpoint`, `UseGuards`, `UseInterceptors`, `Injectable`, `Factory`  | `AttributeFactory`, `createClassContext`, `createMethodContext`                                        |
+| `@navios/server/legacy-compat`     | `Controller`, `Module`, `Endpoint`, `UseGuards`, `UseInterceptors`, `Injectable`, `Factory`  | `AttributeFactory`, `legacy`, `createClassContext`, `createMethodContext`                              |
+| `@navios/core/legacy-compat`     | `Module`, `UseGuards`, `UseInterceptors`, `Injectable`, `Factory`                            | `AttributeFactory`, `legacy`, `createClassContext`, `createMethodContext`                              |
 | `@navios/di/legacy-compat`       | `Injectable`, `Factory`                                                                      | `createClassContext`, `createMethodContext`                                                            |
-| `@navios/schedule/legacy-compat` | `Schedulable`, `Cron`                                                                        | `Schedule`, `SchedulerService`, `schedulePlugin`, the metadata helpers, and the two context functions  |
+| `@navios/schedule/legacy-compat` | `Schedulable`, `Cron`                                                                        | nothing                                                                                                |
 
-`Injectable` and `Factory` from the core entry point are the ones from `@navios/di/legacy-compat`. Server code imports them from core, like every other DI name.
+`@navios/server/legacy-compat` re-exports everything in `@navios/core/legacy-compat`, and `Injectable` and `Factory` in both are the ones from `@navios/di/legacy-compat`. Server code imports them from `@navios/server/legacy-compat`; an application without HTTP imports them from `@navios/core/legacy-compat`.
 
 Everything that is not a decorator is imported from the package's main entry as usual: `handler`, `reply`, `inject`, `NaviosFactory`, `createContextKey`, exceptions and types from `@navios/server`. `@RequestValue()` from `@navios/server` works under both decorator modes.
 
@@ -122,7 +123,8 @@ export class ClockFactory {
 ## Scheduled jobs
 
 ```ts title="cleanup.service.mts"
-import { Cron, Schedulable, Schedule } from '@navios/schedule/legacy-compat'
+import { Schedule } from '@navios/schedule'
+import { Cron, Schedulable } from '@navios/schedule/legacy-compat'
 
 @Schedulable()
 export class CleanupService {
@@ -133,7 +135,7 @@ export class CleanupService {
 }
 ```
 
-`schedulePlugin` and `SchedulerService` are the same objects as in `@navios/schedule`, so registration is as described in [Scheduled jobs](/docs/server/guides/scheduled-jobs). A `@Cron` method must be `async`.
+Everything else comes from `@navios/schedule`, and registration is as described in [Scheduled jobs](/docs/server/guides/scheduled-jobs). A `@Cron` method may be synchronous or `async`.
 
 ## Other packages
 
@@ -144,16 +146,16 @@ export class CleanupService {
 
 ## Writing your own legacy decorator
 
-`createClassContext(target)` and `createMethodContext(target, propertyKey, descriptor)` build the context object a standard decorator expects from the arguments a legacy decorator receives. A library that ships a standard decorator can offer a legacy form by wrapping it:
+`legacy(decorator)` turns a standard decorator of a class, a method or a field into one that takes the arguments of a legacy decorator. A library that ships a standard decorator can offer a legacy form with it:
 
 ```ts
-import { createClassContext } from '@navios/server/legacy-compat'
-
-import type { ClassType } from '@navios/server'
+import { legacy } from '@navios/server/legacy-compat'
 
 import { Audited as StandardAudited } from './audited.mjs'
 
 export function Audited() {
-  return <T extends ClassType>(target: T): T => StandardAudited()(target, createClassContext(target))
+  return legacy(StandardAudited())
 }
 ```
+
+`createClassContext(target)` and `createMethodContext(target, propertyKey, descriptor)` give the context object of a standard decorator alone.

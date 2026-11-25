@@ -23,7 +23,7 @@ import type { ConformanceSuite } from './suite.mjs'
  * @internal
  */
 export function defineGuardsTopic(suite: ConformanceSuite) {
-  const { it, expect, url, json, waitFor, events, Public } = suite
+  const { it, expect, url, fetch, json, waitFor, events, Public } = suite
 
   const CurrentUser = createContextKey<{ name: string }>('CurrentUser')
 

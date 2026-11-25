@@ -1,3 +1,5 @@
+import type { RequiredKeys } from '../shared/type-helpers.mjs'
+
 import type {
   InferWebSocketConnectParams,
   DeclareWebSocketOptions,
@@ -18,10 +20,13 @@ export interface WebSocketSocketHandle extends SocketClient {
   /**
    * Emit a message to the server.
    *
-   * This wraps WebSocket.send() to provide Socket.IO-compatible API. The
-   * frame is always `[event, ...args]`, JSON serialized, whatever the
-   * arguments look like. A function passed as the last argument is not sent:
-   * it is called with the server's `['__navios_ack:<event>', response]` reply.
+   * The frame is always `[event, ...args]`, JSON serialized, whatever the
+   * arguments look like. To wait for a reply, use `defineSend` with an
+   * `ackSchema`.
+   *
+   * @throws {SocketError} of kind `transport` when the frame could not be
+   *   sent: the socket is not open (yet, or any more), or an argument is a
+   *   function. The error is also passed to `onError`.
    */
   emit(event: string, ...args: unknown[]): void
 
@@ -34,6 +39,9 @@ export interface WebSocketSocketHandle extends SocketClient {
    *
    * @param topic - Topic the message belongs to, used when a failure is reported
    * @param message - The formatted message
+   * @throws {SocketError} of kind `transport` when the frame could not be
+   *   sent, for example because the socket is not open. The error is also
+   *   passed to `onError`.
    */
   sendRaw(topic: string, message: unknown): void
 
@@ -106,10 +114,13 @@ export interface WebSocketSocketHandle extends SocketClient {
 /**
  * WebSocket handler function type returned by declareWebSocket.
  *
- * When called with connection parameters, returns a WebSocketSocketHandle.
+ * When called with connection parameters, returns a WebSocketSocketHandle. The
+ * parameters can be left out when none is required.
  */
 export type WebSocketHandler<Options extends DeclareWebSocketOptions> = ((
-  params: InferWebSocketConnectParams<Options>,
+  ...args: [RequiredKeys<InferWebSocketConnectParams<Options>>] extends [never]
+    ? [params?: InferWebSocketConnectParams<Options>]
+    : [params: InferWebSocketConnectParams<Options>]
 ) => WebSocketSocketHandle) & {
   config: Options
 }

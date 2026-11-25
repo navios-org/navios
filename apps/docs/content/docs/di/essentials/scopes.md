@@ -94,7 +94,25 @@ Scopes are independent of each other. Any number can be open at once, each with 
 
 A request-scoped service is found through the scope object it is resolved from. There is no ambient context and no `AsyncLocalStorage`, so pass the scope to the code that resolves from it.
 
-After `dispose()`, `get()` rejects and `getSync()` and `addInstance()` throw a `DIError` with code `ContainerDisposed`. Disposing twice does nothing.
+After `dispose()`, `get()` rejects and `getSync()` and `addInstance()` throw a `DIError` with code `ContainerDisposed`. A second `dispose()` returns the first one. A scope that is never disposed stays linked to the singletons its services injected, which costs each of them somewhat more than a kilobyte per scope for as long as they live.
+
+### The current scope
+
+`inject(ScopedContainer)` gives a request-scoped service, or a transient inside one, the scope it belongs to. Use it to resolve request-scoped services later, when `inject(Container)` would give the root:
+
+```ts
+import { inject, Injectable, InjectableScope, ScopedContainer } from '@navios/di'
+
+@Injectable({ scope: InjectableScope.Request })
+class Checkout {
+  private readonly scope = inject(ScopedContainer)
+
+  async pay() {
+    const payment = await this.scope.get(PaymentSession)
+    return payment.run()
+  }
+}
+```
 
 ### Values supplied per scope
 

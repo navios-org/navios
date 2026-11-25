@@ -4,7 +4,7 @@ title: Migrating to 2.0
 
 # Migrating to 2.0
 
-This page lists what changed between 1.x and 2.0 of `@navios/builder` and `@navios/react-query`, as before and after. Upgrade both packages together: `@navios/react-query` 2.0 is built on `@navios/builder` 2.0 and requires `@tanstack/react-query` `^5.102.0`.
+This page lists what changed between 1.x and 2.0 of `@navios/builder` and `@navios/react-query`, as before and after, and what changed in [`@navios/http`](#navioshttp). Upgrade the packages together: `@navios/react-query` 2.0 is built on `@navios/builder` 2.0 and requires `@tanstack/react-query` `^5.102.0`.
 
 The short version: there is one way to declare an endpoint, two ways to call it, and one error type. Most of the work is deleting code.
 
@@ -33,6 +33,25 @@ Uploads and downloads are options of `declareEndpoint`, not separate methods.
 ```
 
 `response` also accepts `'text'`, `'stream'` and `'void'`. See [File uploads](/docs/builder/guides/file-uploads) and [Downloads and streams](/docs/builder/guides/downloads-and-streams).
+
+### The input is sent, not the output
+
+1.x validated the arguments of a call and sent what the schemas made of them. 2.0 validates them and sends **what you passed**, because the server that parses the request with the same schemas would otherwise apply every transform twice.
+
+Before the request leaves, your schemas no longer
+
+- fill in **defaults**. A field you leave out is not sent. Only a URL parameter you leave out is still sent as the default of `urlParamsSchema`.
+- remove **unknown keys**. An object with more keys than its schema is sent with all of them.
+- run **transforms**, `trim()`, coercion and the like. The value goes out as you passed it.
+
+A Navios server does all of this when it parses the request, so a shared contract needs no change. Code that calls another API and relies on one of the three does: check every `.default()`, `.transform()` and `z.coerce` in a `requestSchema`, `querySchema` or `urlParamsSchema`, and every call that passes an object with more keys than the API accepts. To keep the behavior of 1.x for such an API:
+
+```diff
+- const API = builder()
++ const API = builder({ client, send: 'output' })
+```
+
+[What is sent](/docs/builder/essentials/inputs#what-is-sent) describes both modes. Responses are unchanged: you receive the output of `responseSchema`.
 
 ### Errors are EndpointError
 
@@ -95,7 +114,7 @@ For a Zod schema the original `ZodError` is still available on `error.cause`. [E
 
 ### Headers and timeout are endpoint options
 
-`clientOptions` now carries client-specific keys only, such as `withCredentials`. `clientOptions.timeout` is ignored, and `transformRequest` / `transformResponse` are gone.
+`clientOptions` now carries client-specific keys only, such as `withCredentials`, and cannot override what the builder sets. `clientOptions.timeout` is ignored, and `transformRequest` / `transformResponse` are gone. `clientOptions.headers` are still sent, underneath the endpoint's `headers`.
 
 ```diff
   const createUser = API.declareEndpoint({
@@ -133,11 +152,15 @@ For a Zod schema the original `ZodError` is still available on `error.cause`. [E
 - **Non-2xx is always an error.** Builder checks the status itself, whether the client resolved or rejected. A client configured to resolve on 4xx no longer turns those into successful results.
 - **Unknown endpoint options are compile errors.** Typos and removed options such as `result` are reported by the compiler.
 - **`urlParamsSchema` keys must equal the URL's parameter names.** A mismatch throws when the endpoint is declared. The check runs for schemas that expose their keys as `.shape`, as a Zod object does.
-- **URL parameter names** are a letter or underscore followed by letters, digits or underscores, so `/files/$id.json` has the parameter `id`. An empty string counts as a missing parameter.
+- **Contradicting options are errors**, for the compiler and when the endpoint is declared: `responses` with `responseSchema`, a response schema with a non-JSON `response`, and a body on `GET` or `HEAD`.
+- **URL parameter names** are a letter or underscore followed by letters, digits or underscores, so `/files/$id.json` has the parameter `id`. An empty string counts as a missing parameter. `.`, `..`, objects, arrays and `NaN` are refused, and a `Date` is written as an ISO string.
+- **Primitive JSON bodies** are encoded: a string body of `requestSchema: z.string()` is sent as a JSON string, not as it is, and `0`, `false` and `null` are sent. A body the client cannot serialise, such as a `BigInt` in JSON, fails with kind `config`.
+- **Header names are merged without regard to case** across `clientOptions.headers`, the endpoint's `headers` and those of the call.
+- **`safe()` never rejects**, also not for a client that resolves with nothing or for headers that `Headers` refuses.
 - **`data` and `params` are optional** when their schema accepts an empty object or `undefined`, and `endpoint()` takes no argument when nothing is required.
 - **`validateResponse: false`** types the result as the schema's input, because transforms and defaults are not applied.
 - **Multipart bodies**: `Blob` values are sent as binary parts, a `FormData` instance is sent as it is, and `undefined` fields are left out.
-- **Schemas are Standard Schema.** Every slot accepts any Standard Schema library, and `zod` is an optional peer dependency. `error.issues` is `readonly SchemaIssue[]` (`{ message, path? }`).
+- **Schemas are Standard Schema.** Every slot accepts any Standard Schema library, and `zod` is no longer a peer dependency. `error.issues` are plain objects, `{ message, path?, part? }`, without the validated value and without fields specific to a library. Those are on `error.cause`.
 
 ### Removed and renamed exports
 
@@ -153,9 +176,10 @@ For a Zod schema the original `ZodError` is still available on `error.cause`. [E
 | `BaseEndpointConfig`, `AnyEndpointConfig`                       | removed; constrain with `BaseEndpointOptions`, or `EndpointOptions` when a `responseSchema` is required. `EndpointConfig<typeof endpoint>` reads one endpoint's options |
 | `AbstractEndpoint`, `StreamHandler`, `AbstractStream`           | `EndpointHandler<Options>`                                              |
 | `BaseStreamConfig`, `AnyStreamConfig`, `StreamOptions`, `InferStreamReturn`, `InferStreamParams`, `NaviosZodRequest`, `NaviosZodRequestBase`, `Util_FlatObject` | removed |
-| `makeConfig` with a separate method argument                    | `makeConfig(request, options, finalUrl)`; the method comes from `options` |
+| `createHandler`, `makeConfig`, `makeFormData`, `Simplify` and the types `HandlerRequest`, `ConfigRequest`, `UrlParamsRequest` | removed. `bindUrlParams` stays, and `getUrlParamNames` is new |
+| `createSendHandler`, `createSubscribeHandler`, `createGlobalMessageHandler`, `defaultFormatMessage`, `defaultParseMessage` (`/socket`) | removed |
 
-The Zod-narrowed option types `ZodBaseEndpointOptions`, `ZodEndpointOptions` and `ZodSchemaSlots` are exported from `@navios/core`.
+The Zod-narrowed option types `ZodBaseEndpointOptions`, `ZodEndpointOptions` and `ZodSchemaSlots` are removed and no package exports them.
 
 The current names are listed in the [@navios/builder API](/docs/builder/reference/builder).
 
@@ -201,7 +225,40 @@ Send functions throw and reject with a `SocketError` instead of a `ZodError` or 
   }
 ```
 
+What else changed:
+
+- **Socket.IO is not supported.** A stock Socket.IO client never understood the frames of `socketBuilder`. Use `declareWebSocket`, or a client of your own with [the same methods](/docs/builder/realtime/websocket#another-transport).
+- **A frame that cannot be sent is an error.** `emit`, `sendRaw` and send functions fail with kind `transport` when the socket is not open, where 1.x reported the failure to `onError` at most. Pending acknowledgements are rejected when the connection closes. `emit` takes no callback; use `ackSchema`.
+- **A send with an `ackSchema` always rejects**, also for an invalid payload. It never throws.
+- **`eventSourceBuilder.provideClient` no longer closes the previous connection.** Pass `{ closePrevious: true }`. Both builders ignore the client they already have, and both accept subscriptions before there is one.
+- **`on('open')` and `on('error')` of an `EventSource` handle** listen to server events of these names. Use `onOpen` and `onError` for the connection.
+- **`querySchema` is applied when `params` is left out**, so its defaults are sent and its required fields are required. A handler is called without arguments when nothing is required.
+- **Payloads of events** are validated as decoded from JSON. A number, a boolean or `null` that fails is tried as the text that arrived.
+- **`issues` of both errors** are plain objects, `{ message, path? }`.
+
 `createWebSocketHandler({ onError })` and `createEventSourceHandler({ onError })` also receive the typed error, with the thrown value on `cause`. See [WebSocket](/docs/builder/realtime/websocket) and [Server-Sent Events](/docs/builder/realtime/server-sent-events).
+
+## @navios/http
+
+| 0.6 | 2.0 |
+| --- | --- |
+| `NaviosError` (an error status) and `NaviosInternalError` (no response) | one class, `HttpClientError`, with `response` or `null`, `status`, `code` and `cause`. `isHttpClientError(error)` is the guard |
+| `Request failed with Not Found` | `Request failed with status 404 (Not Found)` |
+| `error.config` had the serialised URL and body | `config` is the request as the interceptors saw it, so `client.request(error.config)` repeats it. It is not enumerable |
+| request interceptors ran after `params` and `data` were serialised | before, so they can change both |
+| what a response interceptor returned was ignored | it takes the place of the response; returning nothing keeps it |
+| a rejected response handler received error statuses only | every failure before it: network errors, and what a request interceptor threw. Rethrow what you do not handle |
+| `interceptors.response.clear()` removed the built-in handling of errors too | only what you added |
+| header names were merged as they were written, so a default and a per-call header could both be sent | names are lower-case, and a header of the call or of an interceptor replaces a default one. `config.headers` and `defaults.headers` take a name in any case |
+| only objects and `FormData` in `data` were sent | strings too, as `text/plain` unless a content type is set; `URLSearchParams`, `Blob`, buffers and streams as they are; `0` and `false` as JSON, and `null` when the content type is JSON |
+| `DELETE` and `OPTIONS` dropped `data` | they send it; `GET` and `HEAD` do not |
+| `params` were dropped for a URL with a query string | they are merged into it |
+| `baseURL` and `url` were put together as they were | with exactly one slash between. A `url` with a scheme of its own is used as it is |
+| an empty JSON body, such as a 204, failed | resolves with `data: undefined` |
+| `cancelToken`, which was never read | removed. Use `signal`. `timeout` aborts the request |
+| `any` in the types | `data` of a response is `unknown` unless its type is given |
+
+Mocks of `@navios/http/testing` may be asynchronous and match a query; `requests` records what was sent, and `reset()` forgets both. [HTTP client](/docs/builder/essentials/http-client#the-navios-http-client) describes the client.
 
 ## @navios/react-query
 

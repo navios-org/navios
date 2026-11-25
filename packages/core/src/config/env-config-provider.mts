@@ -1,17 +1,19 @@
 import { env } from 'node:process'
 
-import { InjectionToken } from '@navios/di'
+import type { InjectionToken } from '@navios/di'
 
-import type { BoundInjectionToken } from '@navios/di'
+import { provideConfig } from './provide-config.mjs'
 
-import { ConfigServiceToken } from './config-service.mjs'
-
-import type { ConfigService, ConfigServiceOptionsSchema } from './config-service.mjs'
+import type { ConfigService } from './config-service.mjs'
 
 /**
- * A `ConfigService` holding a snapshot of `process.env`, taken at import.
+ * A `ConfigService` holding a snapshot of `process.env`, taken when a
+ * container first resolves it.
  */
-export const EnvConfigProvider: BoundInjectionToken<
+export const EnvConfigProvider: InjectionToken<
   ConfigService<Record<string, string | undefined>>,
-  typeof ConfigServiceOptionsSchema
-> = InjectionToken.bound(ConfigServiceToken as InjectionToken<any, any>, { ...env })
+  undefined
+> = provideConfig<Record<string, string | undefined>>({
+  name: 'EnvConfig',
+  load: () => ({ ...env }),
+})

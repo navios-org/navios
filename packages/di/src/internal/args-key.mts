@@ -1,3 +1,5 @@
+import { misuse } from '../errors/create.mjs'
+
 let nextObjectId = 0
 const objectIds = new WeakMap<object, number>()
 const symbolIds = new Map<symbol, number>()
@@ -20,19 +22,27 @@ function objectId(value: object): number {
   return id
 }
 
-function isPlainObject(value: object): boolean {
-  const proto = Object.getPrototypeOf(value)
-  return proto === Object.prototype || proto === null
-}
+// The size up to which a typed array is serialised. It happens on every request
+// with such args, and the key of a stored instance stays in memory.
+const MAX_BYTES = 1024
+
+// The objects around the one being serialised, outermost first.
+const around: object[] = []
 
 /**
  * Deterministic, collision-free key for a token's args.
  *
- * Plain objects and arrays are serialised structurally with sorted keys, so
- * key order does not matter. Anything else that is an object (class instances,
- * functions, Maps, Dates) is keyed by identity.
+ * Plain objects, arrays, `Date`, `Map`, `Set`, `URL`, `RegExp` and typed
+ * arrays of up to 1 kB are serialised by value: the order of keys does not
+ * matter, and a property that is `undefined` counts as absent. Any other object
+ * (class instances, functions) is keyed by identity.
  */
 export function argsKey(value: unknown): string {
+  around.length = 0
+  return keyOf(value)
+}
+
+function keyOf(value: unknown): string {
   switch (typeof value) {
     case 'string':
       return JSON.stringify(value)
@@ -54,21 +64,62 @@ export function argsKey(value: unknown): string {
     return 'N'
   }
   const object = value as object
+  if (around.includes(object)) {
+    throw misuse('Token args must not contain themselves')
+  }
+  around.push(object)
+  const key = objectKey(object)
+  around.pop()
+  return key
+}
+
+function objectKey(object: object): string {
+  const proto = Object.getPrototypeOf(object)
+  if (proto === Object.prototype || proto === null) {
+    return plainKey(object as Record<PropertyKey, unknown>)
+  }
   if (Array.isArray(object)) {
-    let out = '['
-    for (let i = 0; i < object.length; i++) {
-      out += (i === 0 ? '' : ',') + argsKey(object[i])
+    return `[${object.map((item) => keyOf(item)).join()}]`
+  }
+  // Only the built-in types themselves: a subclass may hold more than its
+  // elements, and is keyed by identity like any other class instance.
+  switch (proto) {
+    case Date.prototype:
+      return `D${(object as Date).getTime()}`
+    case Map.prototype:
+      return `M{${Array.from(object as Map<unknown, unknown>, ([k, v]) => `${keyOf(k)}:${keyOf(v)}`).sort()}}`
+    case Set.prototype:
+      return `S{${Array.from(object as Set<unknown>, (item) => keyOf(item)).sort()}}`
+    case RegExp.prototype:
+      return `R${JSON.stringify(String(object))}`
+    case URL.prototype:
+      return `L${JSON.stringify((object as URL).href)}`
+    default:
+  }
+  if (
+    ArrayBuffer.isView(object) &&
+    !(object instanceof DataView) &&
+    object.byteLength <= MAX_BYTES
+  ) {
+    return `A${object.constructor.name}(${Array.prototype.join.call(object)})`
+  }
+  return `#${objectId(object)}`
+}
+
+function plainKey(object: Record<PropertyKey, unknown>): string {
+  const parts: string[] = []
+  for (const key of Object.keys(object)) {
+    if (object[key] !== undefined) {
+      parts.push(`${JSON.stringify(key)}:${keyOf(object[key])}`)
     }
-    return `${out}]`
   }
-  if (!isPlainObject(object)) {
-    return `#${objectId(object)}`
+  for (const symbol of Object.getOwnPropertySymbols(object)) {
+    if (
+      object[symbol] !== undefined &&
+      Object.prototype.propertyIsEnumerable.call(object, symbol)
+    ) {
+      parts.push(`${keyOf(symbol)}:${keyOf(object[symbol])}`)
+    }
   }
-  const keys = Object.keys(object).sort()
-  let out = '{'
-  for (let i = 0; i < keys.length; i++) {
-    const key = keys[i]
-    out += `${i === 0 ? '' : ','}${JSON.stringify(key)}:${argsKey((object as Record<string, unknown>)[key])}`
-  }
-  return `${out}}`
+  return `{${parts.sort()}}`
 }

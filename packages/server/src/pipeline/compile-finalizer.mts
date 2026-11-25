@@ -1,8 +1,14 @@
-import { isPromise } from '../internal/promises.mjs'
+import { describeValue } from '../internal/describe-value.mjs'
+import { ignore, isPromise } from '../internal/promises.mjs'
+import { settledOrAborted } from '../internal/waiting.mjs'
 import { isCustomResult } from '../responses/custom-result.mjs'
+import { isLazyBody } from '../responses/managed-body.mjs'
 import { isEndpointReply } from '../responses/reply.mjs'
-import { encodeSseStream, isSseStream } from '../sse/sse-stream.mjs'
+import { isEventStream } from '../responses/response-headers.mjs'
+import { SseBody } from '../sse/sse-body.mjs'
+import { isSseStream } from '../sse/sse-stream.mjs'
 
+import type { RequestContext } from '../context/request-context.mjs'
 import type { MaybePromise } from '../internal/promises.mjs'
 import type { RouteEndpointConfig, SchemaLike } from '../routing/endpoint-config.mjs'
 import type { RouteResult } from '../routing/route-result.mjs'
@@ -10,16 +16,6 @@ import type { RouteResult } from '../routing/route-result.mjs'
 import { validateSchema } from './validate-schema.mjs'
 
 import type { ResponseEncoder } from './response-encoder.mjs'
-
-function describe(value: unknown): string {
-  if (value === null) {
-    return 'null'
-  }
-  if (Array.isArray(value)) {
-    return 'an array'
-  }
-  return `a value of type ${typeof value}`
-}
 
 function withBody(
   status: number,
@@ -48,7 +44,7 @@ export function compileFinalizer(
   config: RouteEndpointConfig,
   validate: boolean,
   encoders: ReadonlyMap<string, ResponseEncoder> | undefined,
-): (value: unknown) => MaybePromise<RouteResult> {
+): (value: unknown, ctx: RequestContext) => MaybePromise<RouteResult> {
   const endpoint = `${config.method} ${config.url}`
   const { responses, errorSchema, responseSchema } = config
   const kind = config.response ?? 'json'
@@ -78,7 +74,7 @@ export function compileFinalizer(
       if (!isEndpointReply(value)) {
         throw new Error(
           `[Navios] ${endpoint} is declared with a per-status responses map, so its handler must ` +
-            `return reply(status, body), but it returned ${describe(value)}.`,
+            `return reply(status, body), but it returned ${describeValue(value)}.`,
         )
       }
       return fromReply(value)
@@ -86,7 +82,7 @@ export function compileFinalizer(
   }
 
   if (kind !== 'json') {
-    return (value) => {
+    return (value, ctx) => {
       if (isEndpointReply(value)) {
         return fromReply(value)
       }
@@ -101,19 +97,22 @@ export function compileFinalizer(
           ? { status: value.status, body: value.body, kind: value.kind }
           : { status: value.status, headers: value.headers, body: value.body, kind: value.kind }
       }
+      // The request owns a lazy body from here on, so that one that is never
+      // sent, whatever the reason, is closed with the request.
       if (isSseStream(value)) {
-        return {
-          status: 200,
-          headers: { 'cache-control': 'no-cache', 'x-accel-buffering': 'no' },
-          body: encodeSseStream(value),
-          kind: 'sse',
-        }
+        const body = new SseBody(value)
+        ctx.ownBody(body)
+        return { status: 200, body, kind: 'sse' }
       }
       if (isAsyncGenerator(value)) {
-        return primeGenerator(value, kind)
+        const body = new PrimedGenerator(value)
+        ctx.ownBody(body)
+        const result: RouteResult = { status: 200, body, kind }
+        const pending = body.prime(ctx)
+        return pending === undefined ? result : pending.then(() => result)
       }
-      if (value instanceof Blob && value.type) {
-        return { status: 200, headers: { 'content-type': value.type }, body: value, kind }
+      if (isLazyBody(value)) {
+        ctx.ownBody(value)
       }
       return { status: 200, body: value, kind }
     }
@@ -136,35 +135,89 @@ export function compileFinalizer(
     isEndpointReply(value) ? fromReply(value) : { status: 200, body: value, kind: 'json' }
 }
 
-function isAsyncGenerator(value: unknown): value is AsyncGenerator<unknown> {
+function isAsyncGenerator(value: unknown): value is AsyncIterableIterator<unknown> {
   return (
     typeof value === 'object' &&
     value !== null &&
-    typeof (value as AsyncGenerator).next === 'function' &&
-    typeof (value as AsyncGenerator)[Symbol.asyncIterator] === 'function'
+    typeof (value as AsyncIterableIterator<unknown>).next === 'function' &&
+    typeof (value as AsyncIterableIterator<unknown>)[Symbol.asyncIterator] === 'function'
   )
 }
 
 /**
- * Runs an async generator up to its first chunk before the response is
- * sealed. A generator's body does not run until it is first pulled, so
+ * An async generator that is run up to its first chunk before the response is
+ * encoded. A generator's body does not run until it is first pulled, so
  * without this, headers it sets through `ctx.reply` before its first `yield`
  * would be set after the response headers were already taken.
+ *
+ * It is an iterator written by hand, not a second generator around the first:
+ * `return()` on a generator that was never pulled skips its body, so a
+ * response dropped before its first read would leave the handler's generator
+ * suspended, with its `finally` blocks not run. Both `return()` and `throw()`
+ * are optional on an iterator.
  */
-async function primeGenerator(
-  generator: AsyncGenerator<unknown>,
-  kind: RouteResult['kind'],
-): Promise<RouteResult> {
-  const first = await generator.next()
-  async function* rest(): AsyncGenerator<unknown> {
-    try {
-      if (!first.done) {
-        yield first.value
-        yield* generator
-      }
-    } finally {
-      await generator.return?.(undefined)
+export class PrimedGenerator implements AsyncIterableIterator<unknown> {
+  private pending: Promise<IteratorResult<unknown>> | null = null
+  private first: IteratorResult<unknown> | null = null
+
+  constructor(private readonly generator: AsyncIterableIterator<unknown>) {}
+
+  /**
+   * Runs the generator up to its first chunk. Waits no longer than the client
+   * does: nobody could close it before. Does not wait for an event stream,
+   * which may have nothing to send for a long time: its headers are those that
+   * the generator has set until it first waits for something.
+   */
+  prime(ctx: RequestContext): Promise<void> | undefined {
+    const pending = (this.pending = Promise.resolve(this.generator.next()))
+    if (isEventStream(ctx.responseHeaders)) {
+      pending.catch(ignore)
+      return undefined
     }
+    return settledOrAborted(
+      pending.then((first) => {
+        this.first = first
+      }),
+      () => ctx.signal,
+    )
   }
-  return { status: 200, body: rest(), kind }
+
+  /** The first chunk, if it is there and has not been read. It is not read again. */
+  take(): IteratorResult<unknown> | null {
+    const { first } = this
+    if (this.pending === null) {
+      return null
+    }
+    if (first !== null) {
+      this.pending = null
+    }
+    return first
+  }
+
+  [Symbol.asyncIterator](): this {
+    return this
+  }
+
+  next(): Promise<IteratorResult<unknown>> {
+    const { pending } = this
+    if (pending !== null) {
+      this.pending = null
+      return pending
+    }
+    return this.generator.next()
+  }
+
+  async return(value?: unknown): Promise<IteratorResult<unknown>> {
+    this.pending = null
+    return (await this.generator.return?.(value)) ?? { done: true, value }
+  }
+
+  async throw(error?: unknown): Promise<IteratorResult<unknown>> {
+    this.pending = null
+    if (this.generator.throw !== undefined) {
+      return this.generator.throw(error)
+    }
+    await this.generator.return?.()
+    throw error
+  }
 }

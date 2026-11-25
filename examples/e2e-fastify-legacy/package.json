@@ -5,6 +5,7 @@
   "scripts": {
     "start": "tsx src/bootstrap.mts",
     "test": "vitest run",
+    "test:ci": "vitest run",
     "test:watch": "vitest"
   },
   "dependencies": {

@@ -1,44 +1,30 @@
-import { classAttributes, classGuards, classInterceptors, prepend } from '@navios/core/transport'
-import { requireMetadata } from '@navios/core/transport'
-import { MembersKey } from '@navios/core/transport'
+import { describeHandlerClass } from '@navios/core/transport'
 
-import type { DecoratorMetadata } from '@navios/core/transport'
-import type { MethodHandlerMetadata } from '@navios/core/transport'
+import type {
+  DecoratorMetadata,
+  HandlerClassMetadata,
+  HandlerClassOptions,
+} from '@navios/core/transport'
 import type { ClassType } from '@navios/di'
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-export interface ControllerMetadata {
-  guards: ClassType[]
-  interceptors: ClassType[]
-  attributes: Map<symbol, unknown>
-  /** Method-form handlers, and extras for field-form handlers, by member name. */
-  members: Map<string, MethodHandlerMetadata>
-}
+/** The members are method-form handlers, and extras for field-form handlers. */
+export type ControllerMetadata = HandlerClassMetadata
 
-export const ControllerMetadataKey = Symbol.for('navios.core.controller')
+const ControllerMetadataKey = Symbol.for('navios.server.controller')
 
 /** @internal */
 export function defineControllerMetadata(
   target: ClassType,
   context: { metadata?: DecoratorMetadata },
-  options: { guards?: Iterable<ClassType>; interceptors?: Iterable<ClassType> },
-): ControllerMetadata {
-  const metadata = requireMetadata(context)
-  const controller: ControllerMetadata = {
-    // The live lists: @UseGuards / @UseInterceptors placed above this
-    // decorator run after it and must still be seen.
-    guards: prepend(classGuards(context), options.guards),
-    interceptors: prepend(classInterceptors(context), options.interceptors),
-    attributes: classAttributes(context),
-    members: (metadata[MembersKey] as Map<string, MethodHandlerMetadata> | undefined) ?? new Map(),
-  }
+  options: HandlerClassOptions,
+): void {
   Object.defineProperty(target, ControllerMetadataKey, {
-    value: controller,
+    value: describeHandlerClass(context, options),
     configurable: true,
     enumerable: false,
   })
-  return controller
 }
 
 export function getControllerMetadata(target: ClassType): ControllerMetadata {
@@ -51,8 +37,4 @@ export function getControllerMetadata(target: ClassType): ControllerMetadata {
     )
   }
   return metadata
-}
-
-export function hasControllerMetadata(target: ClassType): boolean {
-  return Object.hasOwn(target, ControllerMetadataKey)
 }

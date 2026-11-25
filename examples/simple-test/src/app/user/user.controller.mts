@@ -1,18 +1,6 @@
-import type {
-  EndpointParams,
-  EndpointResult,
-  MultipartParams,
-  MultipartResult,
-} from '@navios/server'
+import { Controller, Endpoint, inject, UseGuards } from '@navios/server'
 
-import {
-  Controller,
-  Endpoint,
-  inject,
-  Logger,
-  Multipart,
-  UseGuards,
-} from '@navios/server'
+import type { HandlerParams } from '@navios/server'
 
 import {
   discriminatorEndpoint,
@@ -21,56 +9,34 @@ import {
   userEndpoint,
 } from '../../api/index.mjs'
 import { AclGuard } from '../acl/acl.guard.mjs'
-import { OneMoreGuard } from '../acl/one-more.guard.mjs'
-import { Public } from '../acl/public.attribute.mjs'
+import { Public, Roles } from '../acl/attributes.mjs'
+
 import { UserService } from './user.service.mjs'
 
 @UseGuards(AclGuard)
 @Controller()
 export class UserController {
-  userService = inject(UserService)
-  logger = inject(Logger, {
-    context: UserController.name,
-  })
+  private readonly userService = inject(UserService)
 
   @Public()
-  @UseGuards(OneMoreGuard)
   @Endpoint(userEndpoint)
-  async me(params: EndpointParams<typeof userEndpoint>) {
-    this.logger.log(params)
+  async me() {
     return this.userService.getUser()
   }
 
+  @Roles({ roles: ['USER', 'ADMIN'] })
   @Endpoint(patchUserEndpoint)
-  async patchMe(params: EndpointParams<typeof patchUserEndpoint>) {
-    this.logger.log(params)
-    return {
-      ...this.userService.getUser(),
-      ...params.data,
-    }
+  async patchMe({ data }: HandlerParams<typeof patchUserEndpoint>) {
+    return { ...this.userService.getUser(), ...data }
   }
 
   @Endpoint(discriminatorEndpoint)
-  async discriminator(
-    params: EndpointParams<typeof discriminatorEndpoint>,
-  ): EndpointResult<typeof discriminatorEndpoint> {
-    this.logger.log(params)
-    return {
-      success: true,
-      data: {
-        id: '123',
-        name: 'John Doe',
-        email: 'test@example.com',
-      },
-    }
+  async discriminator() {
+    return { success: true as const, data: this.userService.getUser() }
   }
 
-  @Multipart(multipartEndpoint)
-  async multipart(
-    params: MultipartParams<typeof multipartEndpoint>,
-  ): MultipartResult<typeof multipartEndpoint> {
-    this.logger.log(params)
-    // params.data.
-    return {}
+  @Endpoint(multipartEndpoint)
+  async multipart({ data }: HandlerParams<typeof multipartEndpoint>) {
+    return { names: data.files.map((file) => file.name) }
   }
 }

@@ -1,15 +1,16 @@
+import { DIError, DIErrorCode } from '@navios/di'
 import { useCallback, useEffect, useMemo, useReducer, useRef } from 'react'
 
 import type {
   AnyInjectableType,
   BoundInjectionToken,
   ClassType,
-  Factorable,
   FactoryInjectionToken,
   InferInput,
   InjectionToken,
-  InjectionTokenSchemaType,
   MissingArgsError,
+  ResolvedInstance,
+  StandardSchemaV1,
 } from '@navios/di'
 
 import { useContainer } from '../container/use-container.mjs'
@@ -86,22 +87,22 @@ export interface UseOptionalServiceResult<T> {
 // #1 Simple class
 export function useOptionalService<T extends ClassType>(
   token: T,
-): UseOptionalServiceResult<InstanceType<T> extends Factorable<infer R> ? R : InstanceType<T>>
+): UseOptionalServiceResult<ResolvedInstance<T>>
 
 // #2 Token with required Schema
-export function useOptionalService<T, S extends InjectionTokenSchemaType>(
+export function useOptionalService<T, S extends StandardSchemaV1>(
   token: InjectionToken<T, S>,
   args: InferInput<S>,
 ): UseOptionalServiceResult<T>
 
 // #3 Token with optional Schema
-export function useOptionalService<T, S extends InjectionTokenSchemaType, R extends boolean>(
+export function useOptionalService<T, S extends StandardSchemaV1, R extends boolean>(
   token: InjectionToken<T, S, R>,
 ): R extends false ? UseOptionalServiceResult<T> : MissingArgsError<S>
 
 // #4 Token with no Schema
 export function useOptionalService<T>(
-  token: InjectionToken<T, undefined>,
+  token: InjectionToken<T, unknown>,
 ): UseOptionalServiceResult<T>
 
 export function useOptionalService<T>(
@@ -163,7 +164,7 @@ export function useOptionalService(
   if (initialSyncRef.current === undefined) {
     let instance: unknown = null
     try {
-      instance = container.tryGetSync(token, args)
+      instance = container.peek(token as InjectionToken<any, any>, args)
     } catch {
       // Service not registered, leave as null
     }
@@ -190,17 +191,15 @@ export function useOptionalService(
       dispatch({ type: 'success', data: instance })
       return true
     } catch (error) {
-      // Caught exceptions are treated as errors
-      const err = error as Error
-      const errorMessage = err.message?.toLowerCase() ?? ''
       if (
-        errorMessage.includes('not found') ||
-        errorMessage.includes('not registered') ||
-        errorMessage.includes('no provider')
+        error instanceof DIError &&
+        error.code === DIErrorCode.ProviderNotFound &&
+        // It may be something the service depends on.
+        !container.isRegistered(token)
       ) {
         dispatch({ type: 'not-found' })
       } else {
-        dispatch({ type: 'error', error: err })
+        dispatch({ type: 'error', error: error as Error })
       }
       return false
     }

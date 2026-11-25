@@ -91,16 +91,44 @@ The server never calls the endpoint function, so it does not need an HTTP client
 
 The same schemas produce different types on each side, because each side is on a different end of the validation.
 
-|                    | Client (caller)                         | Server (handler)                              |
-| ------------------ | --------------------------------------- | --------------------------------------------- |
-| `urlParams`        | `string \| number`, or the schema input | `string`, or the schema output                |
-| `params`, `data`   | schema **input**                        | schema **output**, already validated          |
-| response           | receives schema **output**              | returns schema **input**                      |
-| per-call options   | `headers`, `timeout`, `signal`          | none                                          |
+|                    | Client (caller)                           | Server (handler)                     |
+| ------------------ | ----------------------------------------- | ------------------------------------ |
+| `urlParams`        | `string \| number`, or the schema input   | `string`, or the schema output       |
+| `params`, `data`   | passes, and sends, the schema **input**   | schema **output**, already validated |
+| response           | receives schema **output**                | returns schema **input**             |
+| per-call options   | `headers`, `timeout`, `signal`            | none                                 |
 
-In practice: a query schema with `page: z.coerce.number().default(1)` lets the client omit `page`, and the handler always receives a number.
+In practice: a query schema with `page: z.number().default(1)` lets the client omit `page`, and the handler always receives a number.
 
 Both sides validate. The client checks its input before sending and the response after receiving; the server checks the incoming request before your handler runs. A request built by something other than your client is still held to the contract.
+
+### Requests: the input travels
+
+The client validates what you pass and then sends it unchanged. Defaults, transforms and the removal of unknown keys happen on the server only, so each of them runs once. A transform may therefore turn its input into anything: the handler receives its output.
+
+`builder({ send: 'output' })` sends what the schemas produced instead, and is meant for other APIs. With a Navios server it would apply every transform twice. [What is sent](/docs/builder/essentials/inputs#what-is-sent) compares the two.
+
+### Query strings, URL parameters and form fields
+
+They travel as text. The server decodes the text with the schema's JSON Schema before it validates, so a contract declares the types the handler wants: `z.number()`, `z.int()`, `z.boolean()`, `z.array(...)` and `z.object(...)` in a `querySchema`, a `urlParamsSchema` or a multipart `requestSchema` need no coercion, and the client is typed with them.
+
+This works with schema libraries that implement Standard JSON Schema, as Zod 4 does. With a library that does not, describe the text itself. Never use `z.coerce.boolean()`: it turns `"false"` into `true`.
+
+### Responses: the output travels
+
+The server sends the output of the response schema, which is how fields the contract does not mention are removed, and the client parses that JSON with the same schema again. A `responseSchema`, an entry of `responses` or `errorSchema`, and the `payloadSchema` of an event must therefore accept their own output as JSON. [Responses in a shared contract](/docs/builder/essentials/schemas#responses-in-a-shared-contract) shows what that allows.
+
+With `validateResponse: false` the client receives what the server sent, the schema's output in JSON form, while the type is the schema's input. Use it only with a schema for which the two are the same.
+
+### Errors
+
+A Navios server reports its own failures, such as a guard that denies access or input that fails validation, as problem details: JSON with the content type `application/problem+json`. Describe them in `errorSchema` like any other error body:
+
+```ts
+errorSchema: {
+  403: z.object({ title: z.string(), detail: z.string().optional() }),
+}
+```
 
 ## Declarations that are not plain JSON
 

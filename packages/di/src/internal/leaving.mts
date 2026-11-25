@@ -5,7 +5,7 @@ import type { PlanEntry } from '../provider/provider-record.mjs'
 import type { InjectionToken } from '../token/injection-token.mjs'
 
 import { argsKey } from './args-key.mjs'
-import { EntryStatus } from './entry.mjs'
+import { EntryStatus, isLeaving } from './entry.mjs'
 import { lookupRecord } from './normalize.mjs'
 
 import type { Entry } from './entry.mjs'
@@ -23,14 +23,14 @@ export function isDestroying(host: Host): boolean {
 }
 
 /**
- * The entry stored for a token and raw args in `host` or its root, in
- * whatever state it is. Builds nothing.
+ * The entry stored for a token requested without args in `host` or its root,
+ * in whatever state it is. Builds nothing.
  */
-function stored(host: Host, token: InjectionToken<any, any>, rawArgs: unknown): Entry | undefined {
-  let args = rawArgs
+function stored(host: Host, token: InjectionToken<any, any>): Entry | undefined {
+  let args: unknown
   if (token.schema !== undefined) {
     try {
-      args = validateSync(token.schema, rawArgs, token.toString())
+      args = validateSync(token.schema, undefined, token.toString())
     } catch {
       return undefined
     }
@@ -43,15 +43,13 @@ function collectLeaving(
   host: Host,
   plan: PlanEntry[],
   seen: Set<PlanEntry[]>,
-  waits: Promise<unknown>[],
+  leaving: Entry[],
 ): void {
   seen.add(plan)
   for (const request of plan) {
-    const entry = stored(host, request.token, request.args)
-    if (entry !== undefined && entry.status === EntryStatus.Destroying) {
-      // Without a promise the destruction is in its synchronous part and is
-      // over, or has a promise, one microtask later.
-      waits.push(entry.destroyPromise ?? Promise.resolve())
+    const entry = stored(host, request.token)
+    if (entry !== undefined && isLeaving(entry)) {
+      leaving.push(entry)
       continue
     }
     if (entry !== undefined && entry.status <= EntryStatus.Ready) {
@@ -66,18 +64,17 @@ function collectLeaving(
       record.scope === InjectableScope.Singleton ? host.root : host,
       record.plan,
       seen,
-      waits,
+      leaving,
     )
   }
 }
 
 /**
- * A promise for the end of every destruction that building something with
- * `plan` would run into, directly or through dependencies that have to be
- * built first; `null` when there is none.
+ * What building something with `plan` would find being destroyed, directly or
+ * through dependencies that have to be built first; `null` when there is none.
  */
-export function leavingIn(host: Host, plan: PlanEntry[]): Promise<unknown> | null {
-  const waits: Promise<unknown>[] = []
-  collectLeaving(host, plan, new Set(), waits)
-  return waits.length === 0 ? null : Promise.all(waits)
+export function leavingIn(host: Host, plan: PlanEntry[]): Entry[] | null {
+  const leaving: Entry[] = []
+  collectLeaving(host, plan, new Set(), leaving)
+  return leaving.length === 0 ? null : leaving
 }

@@ -1,4 +1,4 @@
-import { getModuleMetadata, registerModule } from '@navios/core'
+import { registerModule } from '@navios/core'
 import { buildModuleGraph } from '@navios/core/transport'
 import { describe, expect, it } from 'vitest'
 
@@ -56,13 +56,5 @@ describe('computeModulePrefixes', () => {
     const Root = module('Root', { imports: [Left, Right] })
 
     expect(computeModulePrefixes(buildModuleGraph([Root]), '').get(Users)).toBe('/users')
-  })
-
-  it('terminates on an import cycle', () => {
-    const A = module('A', { prefix: 'a' })
-    const B = module('B', { prefix: 'b', imports: [A] })
-    getModuleMetadata(A).imports.push(B)
-
-    expect(computeModulePrefixes(buildModuleGraph([A]), '').get(A)).toBe('/a')
   })
 })

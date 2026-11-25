@@ -40,7 +40,7 @@ const redis = await container.get(RedisFactory)
 
 A produced value has no [lifecycle hooks](/docs/di/essentials/lifecycle#onservicedestroy). Initialise it inside `create()` and register cleanup with `ctx.addDestroyListener()`.
 
-An error thrown by `create()` reaches the caller as a `DIError` with code `InitializationError` and the original in `cause`. Nothing is stored, so the next resolution calls `create()` again.
+An error thrown by `create()` reaches the caller as a `DIError` with code `InitializationError` and the original in `cause`. The destroy listeners registered so far run, so what was opened before the error is closed. Nothing is stored, and the next resolution calls `create()` again.
 
 ## Providing a token
 
@@ -93,9 +93,9 @@ The first parameter of `create()` describes the resolution in progress.
 | ------------------------------ | ---------------------------------------------------------------------------------------------------------- |
 | `inject(token, args?)`         | Resolves a dependency and returns a promise of it. Can be called at any point, also after an `await`       |
 | `container`                    | The container or scope the value is being built in                                                         |
-| `addDestroyListener(listener)` | Registers cleanup that runs when the produced value is destroyed. The listener may return a promise        |
+| `addDestroyListener(listener)` | Registers cleanup that runs when the produced value is destroyed, or when the factory fails. The listener may return a promise. If the value is already gone, the listener runs at once |
 
-Listeners run in reverse order of registration. The same context is passed to [function providers](#function-providers) and to [factory tokens](/docs/di/essentials/tokens#factory-tokens).
+Listeners run in reverse order of registration. A listener may still use `ctx.inject()` for what the value depends on, and for singletons from a request-scoped factory. The same context is passed to [function providers](#function-providers) and to [factory tokens](/docs/di/essentials/tokens#factory-tokens).
 
 ## Injecting dependencies
 
@@ -143,7 +143,11 @@ const container = new Container({
 })
 ```
 
-The function receives the same context and validated arguments as `create()` and follows the same rules. The difference is reach: `@Factory({ token })` sets the token's default for every container, a function provider applies to the one container it is given to.
+The function receives the same context and validated arguments as `create()` and follows the same rules. The difference is reach: `@Factory({ token })` sets the token's default for every container, a function provider applies to the one container it is given to. [`registerProvider()`](/docs/di/essentials/providers#registerprovider) makes a function the default.
+
+:::info
+A class counts as a factory for types when `create` takes no parameters, or a `FactoryContext` first. A service with a `create()` method that takes its own data is unaffected. A `create()` without parameters on an ordinary `@Injectable()` service is taken for a factory: `inject()` is then typed as its result, although it returns the service. Give such a method another name.
+:::
 
 ## Registering without decorators
 

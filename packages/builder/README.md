@@ -7,8 +7,10 @@ Describe an HTTP endpoint once — method, URL, schemas — and get back a typed
 ## Install
 
 ```bash
-npm install @navios/builder @navios/http zod
+npm install @navios/builder@next @navios/http@next zod
 ```
+
+The 2.0 alpha is published under the `next` tag. All `@navios` packages of a project must have the same alpha version, because an alpha may break between releases.
 
 `@navios/http` and `zod` are what the examples below use. Any HTTP client with a `request` method works (axios, a `fetch` wrapper), and so does any [Standard Schema](https://standardschema.dev) library (Valibot, ArkType, ...).
 
@@ -49,7 +51,7 @@ const user = await getUser({ urlParams: { userId: '42' } })
 //    ^? { id: string; name: string; email: string }
 ```
 
-Arguments, results and error bodies are inferred from the URL template and the schemas. Input is validated before a request is sent; the response is validated before your code sees it.
+Arguments, results and error bodies are inferred from the URL template and the schemas. Input is validated before a request is sent, and then sent as you passed it; the response is validated before your code sees it.
 
 ## Handling failures
 
@@ -84,7 +86,7 @@ if (res.ok) {
 | Another schema library                         | any Standard Schema, mixed per slot                                        | [Schemas](https://navios.tech/docs/builder/essentials/schemas)                         |
 | One contract for client and server             | `@Endpoint(getUser)` in `@navios/server`                                   | [Sharing with Navios Server](https://navios.tech/docs/builder/guides/navios-server)    |
 | React hooks                                    | [`@navios/react-query`](https://www.npmjs.com/package/@navios/react-query) | [React Query](https://navios.tech/docs/builder/react-query/)                           |
-| Typed WebSocket and Socket.IO messages         | `@navios/builder/socket`                                                   | [WebSocket](https://navios.tech/docs/builder/realtime/websocket)                       |
+| Typed WebSocket messages                       | `@navios/builder/socket`                                                   | [WebSocket](https://navios.tech/docs/builder/realtime/websocket)                       |
 | Typed Server-Sent Events                       | `@navios/builder/eventsource`                                              | [Server-Sent Events](https://navios.tech/docs/builder/realtime/server-sent-events)     |
 
 ## Upgrading from 1.x

@@ -8,3 +8,8 @@ import type { ExecutionContext } from '../execution/execution-context.mjs'
 export interface Interceptor<Ctx extends ExecutionContext = ExecutionContext, Result = unknown> {
   intercept(ctx: Ctx, next: () => Promise<Result>): Result | Promise<Result>
 }
+
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
+/** A class that interceptors are made of. */
+export type InterceptorClass = new (...args: any[]) => Interceptor<any, any>

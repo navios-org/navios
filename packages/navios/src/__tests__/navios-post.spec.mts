@@ -46,7 +46,7 @@ describe('navios::post', () => {
         ),
     )
     const failedRequest = navios.post('/test')
-    await expect(failedRequest).rejects.toThrow('Request failed with Bad Request')
+    await expect(failedRequest).rejects.toThrow('Request failed with status 400 (Bad Request)')
     await expect(failedRequest).rejects.toMatchObject({
       response: {
         data: { error: 'message' },

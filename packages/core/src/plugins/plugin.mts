@@ -1,22 +1,32 @@
-import type { ClassType, Container, InjectionToken, ProviderInput } from '@navios/di'
+import type { ClassType, Container } from '@navios/di'
 
+import type { InterceptorClass } from '../interceptors/interceptor.mjs'
+import type { OptionsArgument } from '../internal/options-argument.mjs'
 import type { Transport, TransportFactory } from '../transports/transport.mjs'
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 /**
- * What a plugin can do. Each call is declarative: the application applies it
- * at the right point of `init()`.
+ * What a plugin can do. Everything but `transport()` and `container` belongs
+ * into `setup`: afterwards it throws, because it could not take effect.
+ * `provide` and `decorate` apply at once, the rest at its point of `init()`.
  */
 export interface PluginApi {
   readonly container: Container
-  /** Replaces or supplies a provider. */
-  provide<T>(token: ClassType | InjectionToken<T, any>, impl: ProviderInput<T>): void
+  /**
+   * Supplies a provider. It wins over the providers of modules and over the
+   * default of the token. What the application itself provides, with its
+   * `providers` option or in its container, stays.
+   */
+  readonly provide: Container['provide']
   /** Wraps every instance of a service after it is built. */
-  decorate<T>(token: ClassType | InjectionToken<T, any>, decorator: (instance: T) => T): void
+  readonly decorate: Container['decorate']
   /** Adds an interceptor around every handler, on every transport. */
-  intercept(interceptor: ClassType): void
-  /** Adds a module, and so its handlers, to the application. */
+  intercept(interceptor: InterceptorClass): void
+  /**
+   * Adds a module, and so its handlers, to the application. What it provides
+   * is a default: the modules of the application override it.
+   */
   addModule(module: ClassType): void
   /**
    * One of the application's transports, already created, or `undefined`
@@ -34,7 +44,10 @@ export interface PluginApi {
 }
 
 export interface PluginDefinition<Options = void> {
-  /** Unique name. A plugin registered twice under one name is applied once. */
+  /**
+   * Unique name. One plugin registered twice with equal options is applied
+   * once; anything else under one name is an error.
+   */
   name: string
   /** Names of plugins that must be set up before this one. */
   dependsOn?: string[]
@@ -43,6 +56,7 @@ export interface PluginDefinition<Options = void> {
 
 export interface PluginInstance {
   readonly definition: PluginDefinition<any>
+  /** `{}` when the plugin was given none. */
   readonly options: unknown
 }
 
@@ -63,6 +77,6 @@ export interface PluginInstance {
  */
 export function definePlugin<Options = void>(
   definition: PluginDefinition<Options>,
-): (options: Options) => PluginInstance {
-  return (options) => ({ definition, options })
+): (...options: OptionsArgument<Options>) => PluginInstance {
+  return (options?: Options) => ({ definition, options: options ?? {} })
 }

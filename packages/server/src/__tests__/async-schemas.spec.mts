@@ -2,7 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { z } from 'zod/v4'
 import * as mini from 'zod/v4-mini'
 
-import { validateSchema, ValidationError } from '../index.mjs'
+import { ValidationError } from '../index.mjs'
+import { validateSchema } from '../pipeline/validate-schema.mjs'
 
 import type { SchemaLike } from '../index.mjs'
 
@@ -158,6 +159,113 @@ describe('an asynchronous zod refinement that rejects', () => {
     expect(((await outcome(schema, { name: 'boom' })) as Error).message).toBe('database is down')
     expect(unhandled).toEqual([])
   })
+
+  // A value says nothing about the branches it does not reach.
+  const down = async () => {
+    await Promise.resolve()
+    throw new Error('database is down')
+  }
+  const id = z.string().refine(down)
+  const tree = z.object({
+    id: id.optional(),
+    get children() {
+      return z.array(tree).optional()
+    },
+  })
+  for (const [name, schema, first, second] of [
+    ['an optional field', z.object({ id: id.optional() }), {}, { id: '1' }],
+    ['a nullable field', z.object({ id: id.nullable() }), { id: null }, { id: '1' }],
+    ['a field with a default', z.object({ id: id.default('x') }), {}, { id: '1' }],
+    [
+      'a union branch',
+      z.union([z.object({ kind: z.literal('a') }), z.object({ kind: z.literal('b'), id })]),
+      { kind: 'a' },
+      { kind: 'b', id: '1' },
+    ],
+    [
+      'a discriminated union branch',
+      z.discriminatedUnion('kind', [
+        z.object({ kind: z.literal('a') }),
+        z.object({ kind: z.literal('b'), id }),
+      ]),
+      { kind: 'a' },
+      { kind: 'b', id: '1' },
+    ],
+    ['an array element', z.array(z.object({ id })), [], [{ id: '1' }]],
+    ['a record value', z.record(z.string(), id), {}, { a: '1' }],
+    ['a tuple rest', z.tuple([z.string()], id), ['a'], ['a', '1']],
+    ['a map value', z.map(z.string(), id), new Map(), new Map([['a', '1']])],
+    ['a set element', z.set(id), new Set(), new Set(['1'])],
+    ['an unknown key', z.object({}).catchall(id), {}, { a: '1' }],
+    [
+      'an intersection',
+      z.intersection(z.object({ a: z.string() }), z.object({ id: id.optional() })),
+      { a: 'x' },
+      { a: 'x', id: '1' },
+    ],
+    ['a recursive schema', tree, { children: [] }, { children: [{ id: '1' }] }],
+    ['a lazy schema', z.lazy(() => z.object({ id: id.optional() })), {}, { id: '1' }],
+    ['a readonly schema', z.object({ id: id.optional() }).readonly(), {}, { id: '1' }],
+    ['a pipe', z.string().pipe(z.string().min(1)).optional().pipe(id.optional()), undefined, '1'],
+    [
+      'a codec',
+      z.object({
+        id: z.codec(z.string(), z.string(), { decode: down, encode: async (v) => v }).optional(),
+      }),
+      {},
+      { id: '1' },
+    ],
+  ] as Array<[string, SchemaLike, unknown, unknown]>) {
+    it(`leaves no unhandled rejection when a later value reaches it through ${name}`, async () => {
+      await outcome(schema, first)
+      await outcome(schema, first)
+      expect(((await outcome(schema, second)) as Error).message).toBe('database is down')
+      expect(unhandled).toEqual([])
+      // It is known to be asynchronous from now on.
+      expect(((await outcome(schema, second)) as Error).message).toBe('database is down')
+      expect(unhandled).toEqual([])
+    })
+  }
+})
+
+describe('zod schemas that hold a function', () => {
+  it('validate a value that reaches no asynchronous check synchronously', () => {
+    const schema = z.object({
+      id: z
+        .string()
+        .refine(async () => true)
+        .optional(),
+    })
+    expect(validateSchema(schema, {}, 'body')).toEqual({})
+    expect(validateSchema(schema, { extra: 1 }, 'body')).toEqual({})
+  })
+
+  it('run an asynchronous check of a valid value once, also the first time', async () => {
+    const check = vi.fn(async () => true)
+    const schema = z.object({ id: z.string().refine(check) })
+    expect(await validateSchema(schema, { id: 'a' }, 'body')).toEqual({ id: 'a' })
+    expect(check).toHaveBeenCalledTimes(1)
+  })
+
+  it('report the issues of a synchronous refinement', () => {
+    const schema = z.object({ id: z.string().refine((value) => value === 'a', 'must be a') })
+    expect(validateSchema(schema, { id: 'a' }, 'body')).toEqual({ id: 'a' })
+    try {
+      validateSchema(schema, { id: 'b' }, 'body')
+      expect.unreachable()
+    } catch (error) {
+      expect((error as ValidationError).issues).toMatchObject([
+        { message: 'must be a', path: ['id'] },
+      ])
+    }
+  })
+
+  it('throw what a synchronous refinement throws', () => {
+    const schema = z.string().refine(() => {
+      throw new TypeError('defect')
+    })
+    expect(() => validateSchema(schema, 'a', 'body')).toThrow('defect')
+  })
 })
 
 describe('synchronous zod schemas', () => {
@@ -175,6 +283,24 @@ describe('synchronous zod schemas', () => {
     check.mockClear()
     validateSchema(schema, { name: 'b' }, 'body')
     expect(check).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('a zod schema of the instances of a class', () => {
+  const validations = (schema: z.ZodType, value: unknown) => {
+    const standard = schema['~standard']
+    const validate = vi.spyOn(standard, 'validate')
+    expect(validateSchema(schema, value, 'body')).toEqual(value)
+    return validate.mock.calls.length
+  }
+
+  it('holds no function of the application', () => {
+    const file = new File([], 'a')
+    // Zod is faster that way: what it compiles is for synchronous validation.
+    expect(validations(z.object({ file: z.instanceof(File) }), { file })).toBe(1)
+    expect(validations(z.object({ file: z.custom(() => true) }), { file })).toBe(0)
+    const refined = z.instanceof(File).refine(() => true)
+    expect(validations(z.object({ file: refined }), { file })).toBe(0)
   })
 })
 

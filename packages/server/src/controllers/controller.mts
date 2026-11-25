@@ -1,14 +1,17 @@
-import { applyAttributes } from '@navios/core/transport'
 import { InjectableScope, registerInjectable } from '@navios/di'
 
 import type { AttributeValue } from '@navios/core'
 import type { ClassType } from '@navios/di'
 
+import { assertStandardDecorator } from '../internal/standard-decorator.mjs'
+
+import type { HttpGuardClass, HttpInterceptorClass } from '../routing/http-contracts.mjs'
+
 import { defineControllerMetadata } from './controller-metadata.mjs'
 
 export interface ControllerOptions {
-  guards?: ClassType[]
-  interceptors?: ClassType[]
+  guards?: HttpGuardClass[]
+  interceptors?: HttpInterceptorClass[]
   /** Attribute values for the whole controller: `[Public()]`. */
   attributes?: AttributeValue[]
 }
@@ -19,13 +22,11 @@ export interface ControllerOptions {
  */
 export function Controller(options: ControllerOptions = {}) {
   return <T extends ClassType>(target: T, context: ClassDecoratorContext): T => {
+    assertStandardDecorator('Controller', context)
     if (context.kind !== 'class') {
       throw new Error('[Navios] @Controller can only be used on classes.')
     }
-    applyAttributes(
-      defineControllerMetadata(target, context, options).attributes,
-      options.attributes,
-    )
+    defineControllerMetadata(target, context, options)
     registerInjectable(target, { scope: InjectableScope.Singleton })
     return target
   }
@@ -47,10 +48,7 @@ export function registerController<T extends ClassType>(
   target: T,
   options: ControllerOptions = {},
 ): T {
-  applyAttributes(
-    defineControllerMetadata(target, { metadata: {} }, options).attributes,
-    options.attributes,
-  )
+  defineControllerMetadata(target, { metadata: {} }, options)
   registerInjectable(target, { scope: InjectableScope.Singleton })
   return target
 }

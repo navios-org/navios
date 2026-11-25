@@ -24,6 +24,8 @@ const user = await getUser({ urlParams: { userId: '42' } })
 
 A body that does not match fails the call with kind `response-validation`. Your code never receives data that contradicts its type.
 
+A schema in a contract with a Navios server has to accept its own output: see [Responses in a shared contract](/docs/builder/essentials/schemas#responses-in-a-shared-contract).
+
 ## A different body per status
 
 When the success body depends on the status, declare `responses` in place of `responseSchema`. Each entry is a schema, or `null` for a status with no body.
@@ -59,7 +61,7 @@ If your API returns different shapes under the same status, describe that in the
 
 ## Non-JSON responses
 
-The `response` option changes what the call resolves to. No `responseSchema` is needed, or used, for anything but `'json'`.
+The `response` option changes what the call resolves to. For anything but `'json'` nothing is validated, so declaring a `responseSchema` or `responses` beside it is an error.
 
 | `response`         | Resolves to                   | Typical use                       |
 | ------------------ | ----------------------------- | --------------------------------- |
@@ -93,9 +95,11 @@ import { getCookie, getHeader, getRetryAfterMs } from '@navios/builder'
 const res = await listUsers.safe()
 
 getHeader(res.response, 'x-total-count') // string | null
-getCookie(res.response, 'sid') // string | null, read from Set-Cookie
+getCookie(res.response, 'sid') // string | null, read from Set-Cookie; always null in a browser
 getRetryAfterMs(res.response) // number | null, from Retry-After
 ```
+
+Browsers do not let scripts read `Set-Cookie`, so `getCookie` is for servers and other runtimes without that rule.
 
 The throwing form resolves to the data alone. Call `.safe()` when you need the metadata.
 

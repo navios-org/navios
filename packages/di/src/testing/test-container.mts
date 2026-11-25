@@ -1,15 +1,20 @@
 import { Container } from '../container/container.mjs'
 import { InjectableScope } from '../injectable-scope.mjs'
-import { destroyEntry } from '../internal/destruction.mjs'
+import { discard } from '../internal/destruction.mjs'
+import { aliasTarget, baseToken, isResolved } from '../internal/normalize.mjs'
 import { provide } from '../provider/provide.mjs'
 import { findInjectableToken, getInjectableToken } from '../token/injectable-token.mjs'
-import { InjectionToken } from '../token/injection-token.mjs'
+import { BoundInjectionToken } from '../token/injection-token.mjs'
 
 import type { Entry } from '../internal/entry.mjs'
+import type { ProvidedFor } from '../provider/factorable.mjs'
+import type { FactoryContext } from '../provider/factory-context.mjs'
 import type { Provider } from '../provider/provide.mjs'
-import type { BoundInjectionToken } from '../token/injection-token.mjs'
+import type { ClassTypeWithInstance } from '../token/class-type.mjs'
+import type { InjectionToken } from '../token/injection-token.mjs'
+import type { PublicPart } from '../token/public-part.mjs'
 
-import { argsMatch } from './call-tracking.mjs'
+import { argsMatch, formatArgs } from './call-tracking.mjs'
 import { buildDependencyGraph, buildSimplifiedDependencyGraph } from './dependency-graph.mjs'
 
 import type { LifecycleRecord, MethodCallRecord, MockServiceStats } from './call-tracking.mjs'
@@ -29,17 +34,20 @@ export interface BindingBuilder<T> {
   /**
    * Bind to a concrete value.
    */
-  toValue(value: T): void
+  toValue(value: PublicPart<T>): void
 
   /**
    * Bind to a class implementation.
    */
-  toClass<C extends new (...args: any[]) => T>(cls: C): void
+  toClass(cls: ClassTypeWithInstance<PublicPart<T>>): void
 
   /**
-   * Bind to a factory function.
+   * Bind to a factory function, called with the factory context and the
+   * validated args.
    */
-  toFactory(factory: () => T | Promise<T>): void
+  toFactory(
+    factory: (ctx: FactoryContext, args: any) => PublicPart<T> | Promise<PublicPart<T>>,
+  ): void
 }
 
 /**
@@ -78,7 +86,6 @@ export class TestContainer extends Container {
   private readonly methodCalls = new Map<Token, MethodCallRecord[]>()
   private readonly lifecycleEvents = new Map<Token, LifecycleRecord[]>()
   private readonly instanceCounts = new Map<Token, number>()
-  private readonly boundTokens = new Set<Token>()
 
   /**
    * Creates a new TestContainer.
@@ -90,7 +97,7 @@ export class TestContainer extends Container {
    * @param options.logger - Optional logger for debugging.
    */
   constructor(options: TestContainerOptions = {}) {
-    super({ logger: options.logger ?? null })
+    super({ logger: options.logger })
   }
 
   // ============================================================================
@@ -108,22 +115,23 @@ export class TestContainer extends Container {
    * container.bind(BOUND_CONFIG_TOKEN).toValue(overrideValue)
    * ```
    */
-  bind<T>(
-    token: InjectionToken<T, any> | BoundInjectionToken<T, any> | (new (...args: any[]) => T),
-  ): BindingBuilder<T> {
+  bind<K extends AnyToken>(token: K): BindingBuilder<ProvidedFor<K>> {
     const realToken = this.resolveToken(token)
 
     return {
-      toValue: (value: T) => {
-        this.setBinding(provide(realToken, { value }))
-        this.storeBoundValue(token, realToken, value)
+      toValue: (value) => {
+        const provider = provide(realToken, { value })
+        this.setBinding(provider)
+        if (provider.record.scope === InjectableScope.Singleton) {
+          this.storeBoundValue(token, realToken, value)
+        }
         this.recordLifecycleEvent(realToken, 'created', realToken.toString())
       },
-      toClass: <C extends new (...args: any[]) => T>(cls: C) => {
+      toClass: (cls) => {
         this.setBinding(provide(realToken, { class: cls }))
       },
-      toFactory: (factory: () => T | Promise<T>) => {
-        this.setBinding(provide(realToken, { factory: () => factory() }))
+      toFactory: (factory) => {
+        this.setBinding(provide(realToken, { factory }))
       },
     }
   }
@@ -133,11 +141,10 @@ export class TestContainer extends Container {
    * lifecycle events. Bindings made with `bind()` stay in place.
    */
   async clear(): Promise<void> {
-    await this.dispose()
+    await this.reset()
     this.methodCalls.clear()
     this.lifecycleEvents.clear()
     this.instanceCounts.clear()
-    this.boundTokens.clear()
   }
 
   // ============================================================================
@@ -149,7 +156,7 @@ export class TestContainer extends Container {
    */
   expectResolved(token: AnyToken): void {
     const realToken = this.resolveToken(token)
-    const found = this.store.hasToken(realToken)
+    const found = isResolved(this, realToken)
 
     if (!found) {
       throw new Error(`Expected ${realToken.toString()} to be resolved, but it was not`)
@@ -161,7 +168,7 @@ export class TestContainer extends Container {
    */
   expectNotResolved(token: AnyToken): void {
     const realToken = this.resolveToken(token)
-    const found = this.store.hasToken(realToken)
+    const found = isResolved(this, realToken)
 
     if (found) {
       throw new Error(`Expected ${realToken.toString()} to NOT be resolved, but it was`)
@@ -359,7 +366,7 @@ export class TestContainer extends Container {
 
     if (!found) {
       throw new Error(
-        `Expected ${realToken.toString()}.${method}() to be called with ${JSON.stringify(expectedArgs)}, but it was not`,
+        `Expected ${realToken.toString()}.${method}() to be called with ${formatArgs(expectedArgs)}, but it was not`,
       )
     }
   }
@@ -432,30 +439,28 @@ export class TestContainer extends Container {
   // ============================================================================
 
   private resolveToken(token: AnyToken): Token {
-    if (typeof token === 'function') {
-      return getInjectableToken(token)
-    }
-    if (token instanceof InjectionToken) {
-      return token
-    }
-    return token.token
+    return typeof token === 'function' ? getInjectableToken(token) : baseToken(token)!
   }
 
   /**
    * Makes `provider` the binding for its token. Unlike `Container.provide`,
    * a token that is already resolved may be rebound: its instances are
-   * destroyed, together with everything that depends on them.
+   * destroyed, together with everything that depends on them. Instances that
+   * an open scope holds stay as they are. What an alias points to stays as well,
+   * and only its dependents are destroyed: some of them came by the alias.
    */
   private setBinding(provider: Provider): void {
+    const target = aliasTarget(this, provider.token)
     for (const entry of this.store.entries()) {
       if (entry.token === provider.token) {
-        void destroyEntry(entry)
+        discard(entry)
         // An asynchronous destroy leaves the entry in place until it is done;
         // the next resolution must already see the new binding.
         this.store.delete(entry)
+      } else if (entry.token === target && entry.dependents !== null) {
+        Array.from(entry.dependents).forEach(discard)
       }
     }
-    this.boundTokens.add(provider.token)
     this.overrides.set(provider.token, provider.record)
   }
 
@@ -465,13 +470,9 @@ export class TestContainer extends Container {
    * value under; it is served by the binding on resolution instead.
    */
   private storeBoundValue(token: AnyToken, realToken: Token, value: unknown): void {
-    if (typeof token !== 'function' && !(token instanceof InjectionToken)) {
-      if ('value' in token) {
-        this.addInstance(token, value)
-      }
-      return
-    }
-    if (realToken.schema === undefined) {
+    if (token instanceof BoundInjectionToken) {
+      this.addInstance(token, value)
+    } else if (realToken.schema === undefined) {
       this.addInstance(realToken, value)
     }
   }

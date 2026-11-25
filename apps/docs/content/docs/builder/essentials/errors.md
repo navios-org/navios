@@ -15,11 +15,11 @@ Every failed call produces one type, `EndpointError`. The throwing form throws i
 | `http`                | Non-2xx status that has an `errorSchema` entry, and the body matched it                                                   | status, typed body           |
 | `http-unknown`        | Non-2xx status with no `errorSchema` entry                                                                                | status, raw body             |
 | `request-validation`  | `urlParams`, `params` or `data` failed its schema. Nothing was sent                                                       | —                            |
-| `response-validation` | A 2xx body failed its schema, a 2xx status is missing from `responses`, or an error body failed its `errorSchema` entry   | status, raw body             |
-| `network`             | No response was received                                                                                                  | —                            |
+| `response-validation` | A 2xx body failed its schema, a 2xx body could not be parsed by the client, a 2xx status is missing from `responses`, or an error body failed its `errorSchema` entry | status, raw body |
+| `network`             | No complete response was received, or an interceptor of the HTTP client threw                                             | —                            |
 | `timeout`             | The request timed out                                                                                                     | —                            |
 | `aborted`             | The request was cancelled through its `AbortSignal`                                                                       | —                            |
-| `config`              | The call could not be made: no HTTP client, or a missing URL parameter                                                    | —                            |
+| `config`              | The call could not be made: no HTTP client, a missing or unusable URL parameter, or a body that cannot be serialised      | —                            |
 
 Every error also carries:
 
@@ -27,8 +27,8 @@ Every error also carries:
 | ---------- | ----------------------------------------------------------------------------------------- |
 | `endpoint` | `{ method, url }` of the declaration, with the URL as a template                          |
 | `response` | `{ status, statusText, headers }`, or `null` when no response was received                |
-| `issues`   | For the two validation kinds: a list of `{ message, path? }`                              |
-| `cause`    | The original thrown value. For a Zod schema failure, the `ZodError`                       |
+| `issues`   | For the two validation kinds: a list of `{ message, path?, part? }`                       |
+| `cause`    | The original thrown value. For a schema failure what the library reported: the `ZodError` of a Zod schema, the issues of any other |
 | `message`  | A readable summary, such as `GET /users/$userId failed with status 404`                   |
 
 `EndpointError` extends `NaviosError`, which extends `Error`.
@@ -100,14 +100,14 @@ If you find yourself writing more than one guard for the same call, `.safe()` is
 
 ## Validation issues
 
-Both validation kinds carry `issues`, in the same shape whichever schema library produced them.
+Both validation kinds carry `issues`, in the same shape whichever schema library produced them. The issues of `request-validation` name the `part` of the arguments they belong to, `'urlParams'`, `'params'` or `'data'`, and `path` starts inside it.
 
 ```ts
 const res = await createUser.safe({ data: { name: '', email: 'nope' } })
 
 if (!res.ok && res.error.kind === 'request-validation') {
   for (const issue of res.error.issues) {
-    console.log(issue.path, issue.message)
+    console.log(issue.part, issue.path, issue.message) // 'data', ['email'], 'Invalid email address'
   }
 }
 ```
@@ -130,7 +130,7 @@ export const API = builder({
 
 It cannot change the outcome of a call. An exception thrown inside it is caught and logged.
 
-`error.toJSON()` returns a plain object without `cause` and with headers flattened to a record. It is safe to pass to `JSON.stringify`, a logger, or across a server boundary.
+`error.toJSON()` returns a plain object without `cause`, with headers flattened to a record and `set-cookie` left out. Its `issues` never contain the validated values. It is safe to pass to `JSON.stringify`, a logger, or across a server boundary.
 
 ## Reacting to specific failures
 

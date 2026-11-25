@@ -1,9 +1,5 @@
 export { generateOpenApiDocument } from './generate-document.mjs'
-export type {
-  OpenApiDocumentOptions,
-  OpenApiGenerationOptions,
-  OpenApiGeneratorOptions,
-} from './generate-document.mjs'
+export type { OpenApiDocumentOptions, OpenApiGenerationOptions } from './generate-document.mjs'
 export type {
   OpenApiDocument,
   OpenApiExternalDocs,

@@ -34,7 +34,8 @@ export type EndpointResponseKind = 'json' | 'blob' | 'text' | 'stream' | 'void'
  * Endpoint options accepted by `declareEndpoint`.
  *
  * `responseSchema` is required when `response` is `'json'` (the default) and
- * unused otherwise. {@link EndpointOptions} is the narrower form that has it.
+ * there are no `responses`, and an error otherwise. {@link EndpointOptions} is
+ * the narrower form that has it.
  */
 export interface BaseEndpointOptions {
   /** HTTP method for the endpoint */
@@ -42,17 +43,24 @@ export interface BaseEndpointOptions {
 
   /**
    * URL template. Use `$paramName` for path parameters; a name is a letter
-   * or underscore followed by letters, digits or underscores.
+   * or underscore followed by letters, digits or underscores. Any other
+   * character ends it, so the rest of a segment may be literal text:
+   * `/files/$name.json`, `/carts/$id:checkout`.
    */
   url: string
 
   /** Optional schema for query parameters */
   querySchema?: Schema
 
-  /** Optional schema for request body */
+  /** Optional schema for request body. Not for `GET` and `HEAD`, which have none */
   requestSchema?: Schema
 
-  /** Schema for validating and typing a JSON response */
+  /**
+   * Schema for validating and typing a JSON response.
+   *
+   * A Navios server sends the schema's output, and the client parses it as
+   * input: in a shared contract the schema must accept its own output as JSON.
+   */
   responseSchema?: Schema
 
   /**
@@ -96,7 +104,7 @@ export interface BaseEndpointOptions {
    * ```ts
    * urlParamsSchema: z.object({
    *   userId: z.string().uuid(),
-   *   postId: z.coerce.number().int(),
+   *   postId: z.int(),
    * })
    * ```
    */
@@ -114,7 +122,10 @@ export interface BaseEndpointOptions {
    */
   response?: EndpointResponseKind
 
-  /** Headers sent with every call. Per-call `headers` are merged over these. */
+  /**
+   * Headers sent with every call. Per-call `headers` are merged over these,
+   * whatever the case of their names.
+   */
   headers?: Record<string, string>
 
   /** Timeout in milliseconds. A per-call `timeout` wins. */
@@ -124,8 +135,8 @@ export interface BaseEndpointOptions {
   clientOptions?: ClientOptions
 
   /**
-   * When false, skip `responseSchema.parse()` at runtime. The static type is still
-   * inferred from `responseSchema`. Useful for high-volume reads against a trusted server.
+   * When false, skip the validation of the response. The result is typed as the
+   * schema's input. Useful for high-volume reads against a trusted server.
    * @default true
    */
   validateResponse?: boolean

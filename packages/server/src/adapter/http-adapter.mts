@@ -20,7 +20,8 @@ export interface HttpAdapterEnvironment extends AdapterEnvironment {
 /**
  * An HTTP server binding. It registers compiled routes, turns each native
  * request into a `RouteInput`, calls the route's executor and writes the
- * `RouteResult`. It contains no guard, validation or error-mapping logic.
+ * `RouteResponse`. It contains no guard, decoding, validation or error-mapping
+ * logic.
  */
 export interface HttpAdapter<Env extends HttpAdapterEnvironment = HttpAdapterEnvironment> {
   readonly server: Env['server']

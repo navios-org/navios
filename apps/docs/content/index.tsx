@@ -6,17 +6,18 @@ import type { ReactNode } from 'react'
 
 import styles from '../theme/home.module.css'
 
-const githubUrl = 'https://github.com/Arilas/navios'
-const installCommand = 'npm install @navios/core @navios/adapter-fastify @navios/builder zod'
+const githubUrl = 'https://github.com/navios-org/navios'
+const installCommand =
+  'npm install @navios/server@next @navios/adapter-fastify@next @navios/builder@next fastify zod'
 
 const heroCode = `@Controller()
 export class UserController {
   private users = inject(UserService)
 
   @Endpoint(getUser)
-  async getUser(params: EndpointParams<typeof getUser>) {
+  async getUser({ urlParams }: HandlerParams<typeof getUser>) {
     // urlParams and the return type come from the definition
-    return this.users.find(params.urlParams.userId)
+    return this.users.find(urlParams.userId)
   }
 }`
 
@@ -310,7 +311,7 @@ export class UserController {
     code: `import { create } from '@navios/http'  // or axios
 import { API, getUser } from '../shared/api.js'
 
-API.provideClient(create({ baseUrl: 'http://localhost:3000' }))
+API.provideClient(create({ baseURL: 'http://localhost:3000' }))
 
 // Full autocomplete and type checking
 const user = await getUser({

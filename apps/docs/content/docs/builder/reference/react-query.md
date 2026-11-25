@@ -194,8 +194,6 @@ The key-building functions the objects above use. Prefer `query.key()` and `muta
 | `normalizeKeyValue` | `(value: unknown) => unknown`                                          | Rewrites `URLSearchParams`, `FormData`, `File`, `Blob`, `Map`, `Set` and `bigint` into plain data that hashes by content |
 | `optimisticUpdate`  | `(query, spec: OptimisticUpdateSpec) => OptimisticUpdate`              | The function the `optimistic` setting hands to its callback                              |
 
-`createCaller` and `callOptionsFor` are also exported but marked internal; do not depend on them.
-
 ## Types
 
 | Type                                | Description                                                                   |

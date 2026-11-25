@@ -766,7 +766,7 @@ describe('Container', () => {
       expect(instance2.value).toBe('result2')
     })
 
-    it.skip('should handle factory errors in ready state', async () => {
+    it('should handle factory errors in ready state', async () => {
       const deferred = Promise.withResolvers<string>()
 
       @Factory()

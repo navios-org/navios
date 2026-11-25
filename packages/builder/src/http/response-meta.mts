@@ -34,7 +34,12 @@ function toHeaders(source: unknown): Headers {
   if (source instanceof Headers) return source
   const headers = new Headers()
   if (typeof source !== 'object' || source === null) return headers
-  for (const [name, value] of Object.entries(source)) {
+  // A `Headers` of another implementation (undici, a polyfill) has its entries
+  // behind a method instead of own keys.
+  const { entries } = source as Headers
+  const all: Iterable<[string, unknown]> =
+    typeof entries === 'function' ? entries.call(source) : Object.entries(source)
+  for (const [name, value] of all) {
     for (const item of Array.isArray(value) ? value : [value]) {
       if (item === undefined || item === null) continue
       try {

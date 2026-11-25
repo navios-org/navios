@@ -44,7 +44,9 @@ export interface EventOptions<
   /**
    * Optional schema (any Standard Schema) for validating incoming payloads.
    *
-   * When provided, incoming events are validated before calling handlers.
+   * When provided, incoming events are validated before calling handlers:
+   * as decoded from JSON. A number, a boolean or `null` that fails is tried as the
+   * text that arrived.
    * Invalid events trigger the `onError` hook with `kind: 'validation'`
    * and are skipped. A schema that validates asynchronously is awaited
    * before the handler runs.

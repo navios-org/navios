@@ -174,7 +174,7 @@ test('InjectionToken properties', () => {
     simpleObjectSchema,
   )
 
-  expectTypeOf(token.name).toMatchTypeOf<string | symbol | (new (...args: any[]) => any)>()
+  expectTypeOf(token.name).toMatchTypeOf<string | symbol | (abstract new (...args: any[]) => any)>()
   expectTypeOf(token.toString()).toBeString()
 })
 
@@ -221,10 +221,8 @@ test('InjectionToken.create with abstract class that has static fields', () => {
     abstract getValue(): number
   }
 
-  // Abstract classes cannot be used directly with InjectionToken.create
-  // because they are not constructible - this is expected behavior
-  // @ts-expect-error Abstract classes are not assignable to ClassType
-  const _token = InjectionToken.create(AbstractServiceWithStatics)
+  const token = InjectionToken.create(AbstractServiceWithStatics)
+  expectTypeOf(token).toEqualTypeOf<InjectionToken<AbstractServiceWithStatics, undefined>>()
 })
 
 test('InjectionToken.create with class that has static symbol property', () => {

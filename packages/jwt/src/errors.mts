@@ -1,10 +1,34 @@
-import jwt from 'jsonwebtoken'
+/**
+ * Error thrown when a token cannot be trusted.
+ *
+ * Thrown by `verify()` and `verifyAsync()` for a malformed token, a wrong signature, an
+ * algorithm that is not accepted, an unknown key, or a claim that does not match. It is the
+ * base class of `TokenExpiredError` and `NotBeforeError`. A wrong configuration is never
+ * reported with this class.
+ *
+ * @example
+ * ```ts
+ * try {
+ *   jwtService.verify(token)
+ * } catch (error) {
+ *   if (error instanceof JsonWebTokenError) {
+ *     console.error('JWT error:', error.message)
+ *   }
+ * }
+ * ```
+ */
+export class JsonWebTokenError extends Error {
+  constructor(message: string, options?: ErrorOptions) {
+    super(message, options)
+    this.name = 'JsonWebTokenError'
+  }
+}
 
 /**
  * Error thrown when a JWT token has expired.
  *
  * This error is thrown by `verify()` and `verifyAsync()` when the token's
- * expiration time (exp claim) has passed.
+ * expiration time (exp claim) has passed or the token is older than `maxAge`.
  *
  * @example
  * ```ts
@@ -17,7 +41,16 @@ import jwt from 'jsonwebtoken'
  * }
  * ```
  */
-export const TokenExpiredError = jwt.TokenExpiredError
+export class TokenExpiredError extends JsonWebTokenError {
+  constructor(
+    message: string,
+    public readonly expiredAt: Date,
+    options?: ErrorOptions,
+  ) {
+    super(message, options)
+    this.name = 'TokenExpiredError'
+  }
+}
 
 /**
  * Error thrown when a JWT token is not yet valid.
@@ -36,23 +69,13 @@ export const TokenExpiredError = jwt.TokenExpiredError
  * }
  * ```
  */
-export const NotBeforeError = jwt.NotBeforeError
-
-/**
- * Base error class for JWT-related errors.
- *
- * This is the base class for all JWT errors including `TokenExpiredError`
- * and `NotBeforeError`. It's thrown for invalid or malformed tokens.
- *
- * @example
- * ```ts
- * try {
- *   jwtService.verify(token)
- * } catch (error) {
- *   if (error instanceof JsonWebTokenError) {
- *     console.error('JWT error:', error.message)
- *   }
- * }
- * ```
- */
-export const JsonWebTokenError = jwt.JsonWebTokenError
+export class NotBeforeError extends JsonWebTokenError {
+  constructor(
+    message: string,
+    public readonly date: Date,
+    options?: ErrorOptions,
+  ) {
+    super(message, options)
+    this.name = 'NotBeforeError'
+  }
+}

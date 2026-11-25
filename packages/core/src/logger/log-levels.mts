@@ -59,27 +59,30 @@ export function isLogLevelEnabled(
   return targetLevelValue >= highestLogLevelValue
 }
 
+function requireLogLevel(level: string): LogLevel {
+  if (!isLogLevel(level)) {
+    throw new Error(`parse error (unknown log level): ${level}`)
+  }
+  return level
+}
+
 /**
+ * Reads log levels out of a setting: `'error'`, `'warn,error'`, `'>=warn'` or
+ * `'>warn'`. An empty string stands for every level.
  * @publicApi
  */
 export function filterLogLevels(parseableString = ''): LogLevel[] {
   const sanitizedString = parseableString.replaceAll(' ', '').toLowerCase()
 
+  if (sanitizedString === '') {
+    return [...LOG_LEVELS]
+  }
   if (sanitizedString[0] === '>') {
     const orEqual = sanitizedString[1] === '='
-
-    const logLevelIndex = (LOG_LEVELS as string[]).indexOf(
-      sanitizedString.substring(orEqual ? 2 : 1),
+    const logLevelIndex = LOG_LEVELS.indexOf(
+      requireLogLevel(sanitizedString.substring(orEqual ? 2 : 1)),
     )
-
-    if (logLevelIndex === -1) {
-      throw new Error(`parse error (unknown log level): ${sanitizedString}`)
-    }
-
     return LOG_LEVELS.slice(orEqual ? logLevelIndex : logLevelIndex + 1)
-  } else if (sanitizedString.includes(',')) {
-    return sanitizedString.split(',').filter(isLogLevel)
   }
-
-  return isLogLevel(sanitizedString) ? [sanitizedString] : LOG_LEVELS
+  return sanitizedString.split(',').map(requireLogLevel)
 }

@@ -6,8 +6,6 @@ export {
   extractTracedMetadata,
   getTracedMetadata,
   hasTracedMetadata,
-  // Deprecated - use TracedMetadataKey
-  TRACED_METADATA_KEY,
   TracedMetadataKey,
 } from './traced-metadata.mjs'
 export type {

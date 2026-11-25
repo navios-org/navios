@@ -36,7 +36,7 @@ export interface ExecutionContext {
   get<K extends ContextKey>(key: K): ContextValue<K>
   /** Like `get`, but `undefined` for a plain key that is not set. */
   find<K extends ContextKey>(key: K): ContextValue<K> | undefined
-  set<K extends ContextKey>(key: K, value: Awaited<ContextValue<K>>): void
+  set<K extends ContextKey>(key: K, value: ContextValue<K>): void
   has(key: ContextKey): boolean
   /** Resolves a service from this execution's DI scope, synchronously. */
   use: ScopedContainer['getSync']

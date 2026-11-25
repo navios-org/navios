@@ -7,3 +7,8 @@ import type { ExecutionContext } from '../execution/execution-context.mjs'
 export interface Guard<Ctx extends ExecutionContext = ExecutionContext> {
   canActivate(ctx: Ctx): boolean | Promise<boolean>
 }
+
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
+/** A class that guards are made of. */
+export type GuardClass = new (...args: any[]) => Guard<any>

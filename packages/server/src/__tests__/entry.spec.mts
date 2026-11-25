@@ -1,36 +1,83 @@
-import { readFileSync } from 'node:fs'
-import { dirname, join } from 'node:path'
-import { fileURLToPath } from 'node:url'
-
 import * as core from '@navios/core'
 import { describe, expect, it } from 'vitest'
 
+import * as adapter from '../adapter/index.mjs'
 import { currentContext } from '../context/current-request-context.mjs'
 import * as server from '../index.mjs'
 
-const here = dirname(fileURLToPath(import.meta.url))
-
-/** The names `@navios/core` exported at runtime before HTTP moved to this package. */
-const exportsBefore = JSON.parse(
-  readFileSync(join(here, 'fixtures/index-exports.json'), 'utf8'),
-) as string[]
+const names = (entry: object) => Object.keys(entry).sort()
 
 describe('the main entry', () => {
-  it('exports everything @navios/core exported before the split', () => {
-    const now = Object.keys(server)
-
-    expect(exportsBefore.filter((name) => !now.includes(name))).toEqual([])
+  it('exports everything of @navios/core', () => {
+    expect(names(core).filter((name) => !(name in server))).toEqual([])
   })
 
-  it('exports everything of @navios/core', () => {
-    const now = Object.keys(server)
-
-    expect(Object.keys(core).filter((name) => !now.includes(name))).toEqual([])
+  // What an application uses. A name that only adapters need belongs to
+  // `@navios/server/adapter`, and one that only the package needs to neither.
+  it('adds what an HTTP application uses', () => {
+    expect(names(server).filter((name) => !(name in core))).toEqual([
+      'BadRequestException',
+      'ConflictException',
+      'Controller',
+      'Endpoint',
+      'ForbiddenException',
+      'ForbiddenResponder',
+      'ForbiddenResponderToken',
+      'GuardDeniedError',
+      'HttpException',
+      'InternalServerErrorException',
+      'InternalServerErrorResponder',
+      'InternalServerErrorResponderToken',
+      'NaviosApplication',
+      'NaviosFactory',
+      'NotFoundException',
+      'NotFoundResponder',
+      'NotFoundResponderToken',
+      'RequestContext',
+      'RequestContextToken',
+      'RequestValue',
+      'TooManyRequestsException',
+      'UnauthorizedException',
+      'UnprocessableEntityException',
+      'ValidationError',
+      'ValidationErrorResponder',
+      'ValidationErrorResponderToken',
+      'handler',
+      'httpTransport',
+      'isCustomResult',
+      'isHttpContext',
+      'problem',
+      'registerController',
+      'registerRequestValue',
+      'reply',
+      'result',
+      'sse',
+      'sseStream',
+    ])
   })
 
   it('keeps the HTTP version of currentContext and the one Module', () => {
     expect(server.currentContext).toBe(currentContext)
     expect(server.currentContext).not.toBe(core.currentContext)
     expect(server.Module).toBe(core.Module)
+  })
+})
+
+describe('the adapter entry', () => {
+  it('exports what an adapter is written with', () => {
+    expect(names(adapter)).toEqual([
+      'ErrorPipeline',
+      'ManagedBody',
+      'RouteTable',
+      'canonicalPath',
+      'compileRoutePath',
+      'describesSuccess',
+      'encodeResult',
+      'isEventStream',
+      'malformedMultipart',
+      'readParts',
+      'toTestMessage',
+      'toTestResponse',
+    ])
   })
 })

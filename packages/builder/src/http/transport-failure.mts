@@ -10,6 +10,13 @@ function errorCode(value: unknown): string | undefined {
     : undefined
 }
 
+/** Codes axios and @navios/http give a request they could not build. Nothing was sent. */
+const CONFIG_CODES: ReadonlySet<string | undefined> = new Set([
+  'ERR_BAD_OPTION',
+  'ERR_BAD_OPTION_VALUE',
+  'ERR_INVALID_URL',
+])
+
 /**
  * Classifies a rejection that carries no HTTP response.
  *
@@ -19,7 +26,7 @@ function errorCode(value: unknown): string | undefined {
 export function classifyTransportFailure(
   error: unknown,
   signal: AbortSignal | null | undefined,
-): 'timeout' | 'aborted' | 'network' {
+): 'timeout' | 'aborted' | 'config' | 'network' {
   const name = errorName(error)
   const code = errorCode(error)
   if (
@@ -33,5 +40,5 @@ export function classifyTransportFailure(
   if (name === 'AbortError' || code === 'ERR_CANCELED' || signal?.aborted) {
     return 'aborted'
   }
-  return 'network'
+  return CONFIG_CODES.has(code) ? 'config' : 'network'
 }

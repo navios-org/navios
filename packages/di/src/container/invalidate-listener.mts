@@ -1,41 +1,56 @@
-import { DIError } from '../errors/di-error.mjs'
 import { argsKey } from '../internal/args-key.mjs'
-import { baseToken } from '../internal/normalize.mjs'
+import { EntryStatus } from '../internal/entry.mjs'
+import { finalToken, followAlias, requireToken } from '../internal/normalize.mjs'
 import { ANY_ARGS } from '../internal/store.mjs'
 import { validateSync } from '../schema/standard-schema.mjs'
 import { BoundInjectionToken, FactoryInjectionToken } from '../token/injection-token.mjs'
 
 import type { RootHost } from '../internal/host.mjs'
 import type { Store } from '../internal/store.mjs'
-import type { ClassType } from '../token/class-type.mjs'
 import type { AnyInjectableType, InjectionToken } from '../token/injection-token.mjs'
 
-/** @internal */
+// Listens for the instance of `raw` / `args`, in the store that `storeFor`
+// says would hold it. For an alias that is the instance it points to, and one
+// that was added for the alias itself.
 export function addInvalidateListener(
   root: RootHost,
-  store: Store,
-  token: AnyInjectableType,
+  storeFor: (token: InjectionToken<any, any>) => Store,
+  raw: AnyInjectableType,
   args: unknown,
   listener: () => void,
 ): () => void {
-  const base = baseToken(token)
-  if (base === undefined) {
-    throw DIError.classNotInjectable((token as ClassType).name)
+  const listen = (token: AnyInjectableType, base: InjectionToken<any, any>) =>
+    storeFor(base).addListener(base, addressOf(root, token, base, args), listener)
+
+  const own = requireToken(raw)
+  const final = finalToken(root, raw)
+  const removeOwn = listen(raw, own)
+  if (final === undefined || final === own) {
+    return removeOwn
   }
+  const removeFinal = listen(followAlias(root, raw), final)
+  return () => {
+    removeOwn()
+    removeFinal()
+  }
+}
+
+function addressOf(
+  root: RootHost,
+  token: AnyInjectableType,
+  base: InjectionToken<any, any>,
+  args: unknown,
+): string | null {
   if (token instanceof BoundInjectionToken) {
-    return store.addListener(base, keyFor(base, token.value), listener)
+    return keyFor(base, token.value)
   }
   if (token instanceof FactoryInjectionToken) {
-    const state = root.factoryValues.get(token)
+    const value = root.factoryValues.get(token)
     // Until the factory has produced the args, the instance cannot be
     // addressed, so listen for any instance of the underlying token.
-    return store.addListener(
-      base,
-      state?.done === true ? keyFor(base, state.value) : ANY_ARGS,
-      listener,
-    )
+    return value?.status === EntryStatus.Ready ? keyFor(base, value.instance) : ANY_ARGS
   }
-  return store.addListener(base, keyFor(base, args), listener)
+  return keyFor(base, args)
 }
 
 function keyFor(token: InjectionToken<any, any>, args: unknown): string | null {

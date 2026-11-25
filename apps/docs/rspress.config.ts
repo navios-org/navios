@@ -34,7 +34,7 @@ export default defineConfig({
       { text: 'Commander', link: '/docs/commander/getting-started', activeMatch: '^/docs/commander/' },
     ],
     sidebar,
-    socialLinks: [{ icon: 'github', mode: 'link', content: 'https://github.com/Arilas/navios' }],
-    editLink: { docRepoBaseUrl: 'https://github.com/Arilas/navios/tree/main/apps/docs/content' },
+    socialLinks: [{ icon: 'github', mode: 'link', content: 'https://github.com/navios-org/navios' }],
+    editLink: { docRepoBaseUrl: 'https://github.com/navios-org/navios/tree/main/apps/docs/content' },
   },
 })

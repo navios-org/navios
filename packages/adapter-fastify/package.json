@@ -1,6 +1,6 @@
 {
   "name": "@navios/adapter-fastify",
-  "version": "1.0.0",
+  "version": "2.0.0-alpha.0",
   "license": "MIT",
   "author": {
     "name": "Oleksandr Hanzha",
@@ -8,9 +8,15 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/Arilas/navios.git",
+    "url": "https://github.com/navios-org/navios.git",
     "directory": "packages/adapter-fastify"
   },
+  "files": [
+    "lib",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ],
   "main": "./lib/index.cjs",
   "module": "./lib/index.mjs",
   "typings": "./lib/index.d.mts",
@@ -31,29 +37,25 @@
     "lint": "yarn run -T oxlint --fix && yarn run -T oxfmt",
     "test:ci": "vitest run",
     "build": "tsdown",
-    "publish": "yarn npm publish --access public",
+    "publish": "node ../../scripts/assert-stable-version.mjs && yarn npm publish --access public",
     "publish:next": "yarn npm publish --access public --tag next",
     "bench": "NODE_ENV=production node benchmarks/http.bench.mjs"
   },
   "dependencies": {
     "@fastify/cors": "^11.4.3",
-    "@fastify/multipart": "^10.1.9",
-    "fastify": "^5.12.8"
+    "@fastify/multipart": "^10.1.9"
   },
   "devDependencies": {
-    "@navios/builder": "workspace:^",
-    "@navios/core": "workspace:^",
     "@navios/server": "workspace:^",
-    "@types/supertest": "^7.2.1",
-    "supertest": "^7.3.2",
-    "tsx": "^4.23.15",
+    "fastify": "^5.12.8",
     "typescript": "^7.0.2",
     "zod": "^4.6.7"
   },
   "peerDependencies": {
-    "@navios/builder": "workspace:^",
-    "@navios/core": "workspace:^",
-    "@navios/server": "workspace:^",
+    "@navios/server": "workspace:*",
     "fastify": "^5.6.0"
+  },
+  "engines": {
+    "node": ">=24"
   }
 }

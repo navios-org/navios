@@ -47,7 +47,7 @@ There is no module file to maintain and no list of providers to keep in sync. A 
 
 The container has no knowledge of HTTP, React or the command line. Each of these builds on it:
 
-- **Navios server.** Controllers, guards and services are injectable classes, and every request gets its own scope. `@navios/server` re-exports the DI API, so server code imports it from there. Start at [Services and injection](/docs/server/essentials/services).
+- **Navios server.** Controllers, guards and services are injectable classes, and a request that uses a request-scoped service gets its own scope. `@navios/server` re-exports the DI API, so server code imports it from there. Start at [Services and injection](/docs/server/essentials/services).
 - **React.** `@navios/di-react` puts a container in context and resolves services in components with hooks. Start at the [React quick start](/docs/di/react/).
 - **Commander.** CLI commands are injectable classes resolved from the same kind of container. See [Dependency injection in Commander](/docs/commander/guides/dependency-injection).
 - **On its own.** Scripts, workers and libraries can create a `Container` directly. The [Quick start](/docs/di/quick-start) does exactly that.

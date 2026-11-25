@@ -2,19 +2,12 @@ import { defineFastifyEnvironment } from '@navios/adapter-fastify'
 import { NaviosFactory } from '@navios/server'
 
 import { AppModule } from './app/app.module.mjs'
-import { ConfigService } from './config/config.service.mjs'
+import { AppConfig } from './config/app.config.mjs'
 
-export async function boot() {
-  const app = await NaviosFactory.create(AppModule, {
-    adapter: defineFastifyEnvironment(),
-  })
-  app.enableCors({
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  })
-  app.enableMultipart({})
-  await app.init()
-  const configService = await app.getContainer().get(ConfigService)
-  const port = configService.getOrThrow('port')
-  await app.listen({ port: port, host: '0.0.0.0' })
-}
-await boot()
+const app = await NaviosFactory.create(AppModule, {
+  adapter: defineFastifyEnvironment({ cors: { origin: true }, multipart: true }),
+})
+app.enableShutdownHooks()
+await app.init()
+const config = await app.get(AppConfig)
+await app.listen({ port: config.getOrThrow('port'), host: '0.0.0.0' })

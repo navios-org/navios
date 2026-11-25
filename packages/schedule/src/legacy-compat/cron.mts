@@ -1,8 +1,9 @@
 import { createMethodContext } from '@navios/core/legacy-compat'
 
-import type { CronJobParams } from 'cron'
+import { Cron as OriginalCron } from '../cron/cron.mjs'
 
-import { Cron as OriginalCron, type CronOptions } from '../cron/cron.mjs'
+import type { CronOptions } from '../cron/cron.mjs'
+import type { JobRun } from '../jobs/scheduled-job.mjs'
 
 /**
  * Legacy-compatible Cron decorator.
@@ -30,11 +31,11 @@ import { Cron as OriginalCron, type CronOptions } from '../cron/cron.mjs'
  * }
  * ```
  */
-export function Cron(cronTime: CronJobParams['cronTime'], options?: CronOptions) {
-  return function <T extends object>(
+export function Cron(cronTime: string, options?: CronOptions) {
+  return function <T extends object, M extends (run: JobRun) => unknown>(
     target: T,
     propertyKey: string | symbol,
-    descriptor: TypedPropertyDescriptor<() => Promise<void>>,
+    descriptor: TypedPropertyDescriptor<M>,
   ): PropertyDescriptor | void {
     if (!descriptor) {
       throw new Error(
@@ -43,10 +44,9 @@ export function Cron(cronTime: CronJobParams['cronTime'], options?: CronOptions)
     }
     const context = createMethodContext(target, propertyKey, descriptor)
     const originalDecorator = OriginalCron(cronTime, options)
-    // @ts-expect-error - we don't need to type the value
-    const result = originalDecorator(descriptor.value, context)
+    const result = originalDecorator(descriptor.value!, context)
     if (result !== descriptor.value) {
-      descriptor.value = result as any
+      descriptor.value = result
     }
     return descriptor
   }

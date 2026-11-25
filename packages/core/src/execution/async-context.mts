@@ -9,8 +9,7 @@ let storage: Storage | null = null
 
 /**
  * Turns on the async context: one `AsyncLocalStorage` holding the current
- * `ExecutionContext`. Enabled by the `asyncContext: true` application option.
- * @internal
+ * `ExecutionContext`. The `asyncContext: true` option of an application does it.
  */
 export async function enableAsyncContext(): Promise<void> {
   if (storage === null) {
@@ -19,14 +18,12 @@ export async function enableAsyncContext(): Promise<void> {
   }
 }
 
-/** @internal */
+/**
+ * Runs `fn` with `ctx` as the current context. A transport does this when its
+ * host says that the application has an async context.
+ */
 export function runInContext<R>(ctx: ExecutionContext, fn: () => R): R {
   return storage === null ? fn() : storage.run(ctx, fn)
-}
-
-/** @internal */
-export function isAsyncContextEnabled(): boolean {
-  return storage !== null
 }
 
 /**

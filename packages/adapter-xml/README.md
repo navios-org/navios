@@ -7,10 +7,12 @@ Build XML responses, such as RSS and Atom feeds or sitemaps, with JSX in a [Navi
 ## Install
 
 ```bash
-npm install @navios/adapter-xml
+npm install @navios/adapter-xml@next
 ```
 
-`@navios/server` 2.x is a peer dependency. Point TypeScript's JSX transform at the package, and write JSX in `.tsx` files:
+The 2.0 alpha is published under the `next` tag. All `@navios` packages of a project must have the same alpha version, because an alpha may break between releases.
+
+`@navios/server` of the same version is a peer dependency. Point TypeScript's JSX transform at the package, and write JSX in `.tsx` files:
 
 ```json
 {

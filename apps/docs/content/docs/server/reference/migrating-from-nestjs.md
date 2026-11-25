@@ -121,7 +121,7 @@ See [Services and injection](/docs/server/essentials/services).
 
 A Navios module is a group of routes with a shared `prefix`, shared guards and shared interceptors. It is not an injection boundary: an application has one container, and there is no `exports`. A NestJS module that existed only to export providers has no counterpart and can be deleted; its services are imported where they are used.
 
-Application-wide guards go on the root module instead of `APP_GUARD`. See [Modules](/docs/server/essentials/modules).
+Application-wide guards go into the `guards` option of `NaviosFactory.create` instead of `APP_GUARD`. See [Modules](/docs/server/essentials/modules).
 
 ## Controllers are singletons
 
@@ -148,7 +148,7 @@ This replaces `request.user`, custom parameter decorators such as `@CurrentUser(
 
 ## Guards run before the body is read
 
-The order of a request is interceptors, guards, validation, handler. In NestJS pipes run after guards as well, but the body has already been parsed by then; in Navios it has not been read. A guard decides from headers, cookies, the route and its attributes, URL parameters and the query string, the last two as raw strings.
+The order of a request is guards, interceptors, validation, handler, as in NestJS, except that interceptors of the application (`app.intercept`) run around the guards. In NestJS pipes run after guards as well, but the body has already been parsed by then; in Navios it has not been read. A guard decides from headers, cookies, the route and its attributes, URL parameters and the query string, the last two as raw strings.
 
 - A guard that needs the parsed body becomes a check in the handler.
 - Only `true` lets a request through. Returning `false` answers 403; throw an exception for any other status.
@@ -162,7 +162,7 @@ See [Guards and interceptors](/docs/server/essentials/guards-and-interceptors) a
 | -------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
 | logging, timing, tracing middleware                | an interceptor, attached to the application, a module, a controller or a handler                 |
 | `helmet`, compression, other server-level middleware | the server's own plugins, through the Fastify adapter's `configure` option or a [plugin](/docs/server/guides/plugins) |
-| `ParseIntPipe`, `ParseUUIDPipe`, `DefaultValuePipe` | the schema: `z.coerce.number()`, `z.uuid()`, `.default()`                                        |
+| `ParseIntPipe`, `ParseUUIDPipe`, `DefaultValuePipe` | the schema: `z.number()`, `z.uuid()`, `.default()`                                               |
 | a custom transforming pipe                         | a schema transform, or a line in the handler                                                     |
 | a response-mapping interceptor (`map()`)           | an interceptor that awaits `next()` and returns a changed result                                 |
 

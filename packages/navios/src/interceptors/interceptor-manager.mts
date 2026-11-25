@@ -1,99 +1,57 @@
-import type { NaviosError, NaviosInternalError } from '../navios-error.mjs'
-import type { PreparedRequestConfig } from '../request/request-config.mjs'
-import type { NaviosResponse } from '../response/navios-response.mjs'
+import type { HttpClientError } from '../http-client-error.mjs'
 
-import { bodyRequestInterceptor } from './default/body-request.mjs'
-import { jsonErrorInterceptor, jsonResponseInterceptor } from './default/json-response.mjs'
-import { paramsRequestInterceptor } from './default/params-request.mjs'
-
-export const defaultInterceptors = {
-  request: {
-    init: [paramsRequestInterceptor, bodyRequestInterceptor],
-    rejected: [],
-  },
-  response: {
-    success: [jsonResponseInterceptor],
-    rejected: [jsonErrorInterceptor],
-  },
+export interface Interceptor<T> {
+  onFulfilled?: ((value: T) => T | void | Promise<T | void>) | null
+  onRejected?: ((error: HttpClientError) => unknown) | null
 }
 
-export function createInterceptorManager() {
-  let id = 0
-  const initRequestInterceptors: Map<number, (config: PreparedRequestConfig<any, any>) => any> =
-    new Map()
-  const successResponseInterceptors: Map<number, (response: NaviosResponse<any>) => any> = new Map()
-  const rejectedRequestInterceptors: Map<number, (response: NaviosInternalError) => any> = new Map()
-  const rejectedResponseInterceptors: Map<number, (response: NaviosInternalError) => any> =
-    new Map()
+export interface InterceptorManager<T> {
+  /**
+   * Adds an interceptor. `onFulfilled` may change the value, or return another
+   * one. `onRejected` receives the failure of any step before it; what it
+   * returns takes the place of the result, so rethrow what is not handled. For
+   * a request that is the config to send, and there has to be one. The client's own failures are {@link HttpClientError}s, what another
+   * interceptor throws arrives as it was thrown.
+   *
+   * @returns the id to pass to `eject`
+   */
+  use(
+    onFulfilled?: Interceptor<T>['onFulfilled'],
+    onRejected?: Interceptor<T>['onRejected'],
+  ): number
+  eject(id: number): void
+  clear(): void
+}
 
-  function useRequestInterceptor(
-    handler: null | ((onInit: PreparedRequestConfig<any, any>) => any),
-    onRejected?: (config: NaviosInternalError) => any,
-  ) {
-    id++
-    if (handler) {
-      initRequestInterceptors.set(id, handler)
-    }
-    if (onRejected) {
-      rejectedRequestInterceptors.set(id, onRejected)
-    }
-    return id
-  }
+export interface InterceptorChain<T> extends InterceptorManager<T> {
+  /** Runs the interceptors, in the order they were added, on a pending value. */
+  run(pending: Promise<T>): Promise<T>
+}
 
-  function useResponseInterceptor(
-    onSuccess: null | ((response: NaviosResponse<any>) => any),
-    onReject?: (response: NaviosInternalError) => any,
-  ) {
-    id++
-    if (onSuccess) {
-      successResponseInterceptors.set(id, onSuccess)
-    }
-    if (onReject) {
-      rejectedResponseInterceptors.set(id, onReject)
-    }
-    return id
-  }
-  defaultInterceptors.request.init.forEach((interceptor) => useRequestInterceptor(interceptor))
-  defaultInterceptors.request.rejected.forEach((interceptor) =>
-    useRequestInterceptor(null, interceptor),
-  )
-  defaultInterceptors.response.success.forEach((interceptor) => useResponseInterceptor(interceptor))
-  defaultInterceptors.response.rejected.forEach((interceptor) =>
-    useResponseInterceptor(null, interceptor),
-  )
+export function createInterceptorChain<T>(): InterceptorChain<T> {
+  let lastId = 0
+  const interceptors = new Map<number, Interceptor<T>>()
 
   return {
-    interceptors: {
-      request: {
-        init: initRequestInterceptors,
-        rejected: rejectedRequestInterceptors,
-      },
-      response: {
-        success: successResponseInterceptors,
-        rejected: rejectedResponseInterceptors,
-      },
+    use(onFulfilled, onRejected) {
+      interceptors.set(++lastId, { onFulfilled, onRejected })
+      return lastId
     },
-    request: {
-      use: useRequestInterceptor,
-      eject: (id: number) => {
-        initRequestInterceptors.delete(id)
-        rejectedRequestInterceptors.delete(id)
-      },
-      clear: () => {
-        initRequestInterceptors.clear()
-        rejectedRequestInterceptors.clear()
-      },
+    eject(id) {
+      interceptors.delete(id)
     },
-    response: {
-      use: useResponseInterceptor,
-      eject: (id: number) => {
-        successResponseInterceptors.delete(id)
-        rejectedResponseInterceptors.delete(id)
-      },
-      clear: () => {
-        successResponseInterceptors.clear()
-        rejectedResponseInterceptors.clear()
-      },
+    clear() {
+      interceptors.clear()
+    },
+    run(pending) {
+      let result = pending
+      for (const { onFulfilled, onRejected } of interceptors.values()) {
+        result = result.then(
+          onFulfilled ? async (value) => (await onFulfilled(value)) ?? value : undefined,
+          onRejected as ((error: unknown) => T) | undefined,
+        )
+      }
+      return result
     },
   }
 }

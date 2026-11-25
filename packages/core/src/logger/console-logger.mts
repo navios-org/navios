@@ -1,3 +1,5 @@
+// Ported from NestJS (https://github.com/nestjs/nest, MIT licence). Big thanks
+// to the NestJS team for their work.
 import type { InspectOptions } from 'util'
 import { inspect } from 'util'
 
@@ -6,7 +8,7 @@ import { registerInjectable } from '@navios/di'
 import { currentContext } from '../execution/async-context.mjs'
 
 import { clc, yellow } from './cli-colors.mjs'
-import { isLogLevelEnabled } from './log-levels.mjs'
+import { isLogLevelEnabled, LOG_LEVELS } from './log-levels.mjs'
 import { LoggerOutput } from './logger-output.mjs'
 import { isFunction, isPlainObject, isString, isUndefined } from './type-guards.mjs'
 
@@ -16,7 +18,61 @@ import type { LoggerService } from './logger-output.mjs'
 
 const DEFAULT_DEPTH = 5
 
-const DEFAULT_LOG_LEVELS: LogLevel[] = ['log', 'error', 'warn', 'debug', 'verbose', 'fatal']
+/** Every level, and `log` and above in production. */
+function defaultLogLevels(): LogLevel[] {
+  return process.env.NODE_ENV === 'production'
+    ? LOG_LEVELS.slice(LOG_LEVELS.indexOf('log'))
+    : [...LOG_LEVELS]
+}
+
+interface JsonError {
+  name: string
+  message: string
+  stack?: string
+  cause?: unknown
+  /** What the error itself carries: `code`, `status`, `detail`. */
+  [field: string]: unknown
+}
+
+/** Has a place of its own, or stands on the prototype in most errors. */
+const commonFields = new Set(['name', 'message', 'stack', 'cause'])
+
+/**
+ * An error as JSON shows it. `encode` gives the value to show for one that is
+ * not an error.
+ */
+function toJsonError(
+  error: Error,
+  encode: (value: unknown) => unknown,
+  path: unknown[] = [],
+): JsonError {
+  const inside = [...path, error]
+  const showOne = (value: unknown): unknown => {
+    if (inside.includes(value)) {
+      return '[Circular]'
+    }
+    return value instanceof Error ? toJsonError(value, encode, inside) : encode(value)
+  }
+  const show = (value: unknown) => (Array.isArray(value) ? value.map(showOne) : showOne(value))
+  const { name, message, stack, cause } = error
+  const described: JsonError = { name, message, stack }
+  if (cause !== undefined) {
+    described.cause = show(cause)
+  }
+  if (error instanceof AggregateError) {
+    described.errors = show(error.errors)
+  }
+  for (const field of Object.keys(error)) {
+    if (!commonFields.has(field)) {
+      try {
+        described[field] = show((error as unknown as Record<string, unknown>)[field])
+      } catch (reason) {
+        described[field] = `[cannot be read: ${reason instanceof Error ? reason.message : reason}]`
+      }
+    }
+  }
+  return described
+}
 
 const dateTimeFormatter = new Intl.DateTimeFormat(undefined, {
   year: 'numeric',
@@ -27,7 +83,13 @@ const dateTimeFormatter = new Intl.DateTimeFormat(undefined, {
   month: '2-digit',
 })
 
+function withoutUndefined(options: ConsoleLoggerOptions = {}): ConsoleLoggerOptions {
+  return Object.fromEntries(Object.entries(options).filter(([, value]) => value !== undefined))
+}
+
 /**
+ * Prints to the console. Without options it prints every level, `log` and
+ * above when `NODE_ENV` is `production`, in colour when stdout is a terminal.
  * @publicApi
  */
 export class ConsoleLogger implements LoggerService {
@@ -43,21 +105,11 @@ export class ConsoleLogger implements LoggerService {
     contextOrOptions?: string | ConsoleLoggerOptions,
     options?: ConsoleLoggerOptions,
   ): ConsoleLogger {
-    const logger = new ConsoleLogger()
-    if (contextOrOptions !== undefined) {
-      if (typeof contextOrOptions === 'string') {
-        logger.setup(contextOrOptions, options ?? {})
-      } else {
-        logger.setup(contextOrOptions)
-      }
-    } else {
-      logger.setup()
-    }
-    return logger
+    return new this(contextOrOptions as string, options as ConsoleLoggerOptions)
   }
 
   /**
-   * The options of the logger.
+   * The options in effect: those given so far, and the defaults.
    */
   protected options: ConsoleLoggerOptions = {}
   /**
@@ -65,42 +117,69 @@ export class ConsoleLogger implements LoggerService {
    */
   protected context?: string
   /**
-   * The original context of the logger (set in the constructor).
+   * The original context of the logger (set by the constructor or `setup`).
    */
   protected originalContext?: string
   /**
    * The options used for the "inspect" method.
    */
-  protected inspectOptions: InspectOptions = this.getInspectOptions()
+  protected inspectOptions: InspectOptions = {}
   /**
    * The last timestamp at which the log message was printed.
    */
   protected lastTimestampAt?: number
+  /**
+   * The options that were given.
+   */
+  private given: ConsoleLoggerOptions = {}
 
+  constructor()
+  constructor(context: string)
+  constructor(options: ConsoleLoggerOptions)
+  constructor(context: string, options: ConsoleLoggerOptions)
+  constructor(contextOrOptions?: string | ConsoleLoggerOptions, options?: ConsoleLoggerOptions) {
+    this.setup(contextOrOptions as string, options as ConsoleLoggerOptions)
+  }
+
+  /**
+   * Changes the options that are given and leaves the others as they are.
+   */
   setup(): void
   setup(context: string): void
   setup(options: ConsoleLoggerOptions): void
   setup(context: string, options: ConsoleLoggerOptions): void
   setup(contextOrOptions?: string | ConsoleLoggerOptions, options?: ConsoleLoggerOptions) {
-    // eslint-disable-next-line prefer-const
-    let [context, opts] = isString(contextOrOptions)
+    const [context, opts] = isString(contextOrOptions)
       ? [contextOrOptions, options]
       : options
         ? [undefined, options]
         : [contextOrOptions?.context, contextOrOptions]
 
-    opts = opts ?? {}
-    opts.logLevels ??= DEFAULT_LOG_LEVELS
-    opts.colors ??= opts.colors ?? (opts.json ? false : true)
-    opts.prefix ??= 'Navios'
-
-    this.options = opts
-    this.inspectOptions = this.getInspectOptions()
+    this.applyOptions({ ...this.given, ...withoutUndefined(opts) })
 
     if (context) {
       this.context = context
       this.originalContext = context
     }
+  }
+
+  /**
+   * Like `setup`, for the options that were not given.
+   * @internal
+   */
+  setDefaults(options: ConsoleLoggerOptions): void {
+    this.applyOptions({ ...options, ...this.given })
+  }
+
+  private applyOptions(given: ConsoleLoggerOptions): void {
+    this.given = given
+    this.options = {
+      ...given,
+      logLevels: given.logLevels ?? defaultLogLevels(),
+      colors: given.colors ?? (!given.json && process.stdout.isTTY === true),
+      prefix: given.prefix ?? 'Navios',
+    }
+    this.inspectOptions = this.getInspectOptions()
   }
 
   /**
@@ -134,7 +213,7 @@ export class ConsoleLogger implements LoggerService {
     ])
 
     this.printMessages(messages, context, 'error', undefined, 'stderr', stack)
-    this.printStackTrace(stack!)
+    this.printStackTrace(stack as string)
   }
 
   /**
@@ -198,10 +277,7 @@ export class ConsoleLogger implements LoggerService {
    * @param levels log levels
    */
   setLogLevels(levels: LogLevel[]) {
-    if (!this.options) {
-      this.options = {}
-    }
-    this.options.logLevels = levels
+    this.setup({ logLevels: levels })
   }
 
   /**
@@ -213,7 +289,7 @@ export class ConsoleLogger implements LoggerService {
   }
 
   /**
-   * Resets the logger context to the value that was passed in the constructor.
+   * Resets the logger context to the value that was passed to the constructor or `setup`.
    */
   resetContext() {
     this.context = this.originalContext
@@ -248,33 +324,70 @@ export class ConsoleLogger implements LoggerService {
     errorStack?: unknown,
   ) {
     const resolvedRequestId = requestId ?? this.getCurrentRequestId()
-    messages.forEach((message) => {
-      if (this.options.json) {
-        this.printAsJson(message, {
-          context,
-          logLevel,
-          writeStreamType,
-          errorStack,
-          requestId: resolvedRequestId,
-        })
-        return
+    if (this.options.json) {
+      for (const line of this.toJsonLines(messages)) {
+        this.guarded(() =>
+          this.printAsJson(line.message, {
+            context,
+            logLevel,
+            writeStreamType,
+            errorStack,
+            requestId: resolvedRequestId,
+            error: line.error,
+          }),
+        )
       }
-      const pidMessage = this.formatPid(process.pid)
-      const contextMessage = this.formatContext(context)
-      const timestampDiff = this.updateAndGetTimestampDiff()
-      const formattedLogLevel = logLevel.toUpperCase().padStart(7, ' ')
-      const formattedMessage = this.formatMessage(
-        logLevel,
-        message,
-        pidMessage,
-        formattedLogLevel,
-        contextMessage,
-        timestampDiff,
-        resolvedRequestId,
-      )
+      return
+    }
+    for (const message of messages) {
+      this.guarded(() => {
+        const pidMessage = this.formatPid(process.pid)
+        const contextMessage = this.formatContext(context)
+        const timestampDiff = this.updateAndGetTimestampDiff()
+        const formattedLogLevel = logLevel.toUpperCase().padStart(7, ' ')
+        const formattedMessage = this.formatMessage(
+          logLevel,
+          message,
+          pidMessage,
+          formattedLogLevel,
+          contextMessage,
+          timestampDiff,
+          resolvedRequestId,
+        )
 
-      process[writeStreamType ?? 'stdout'].write(formattedMessage)
-    })
+        process[writeStreamType ?? 'stdout'].write(formattedMessage)
+      })
+    }
+  }
+
+  /** A message and the error logged with it share a line. */
+  private toJsonLines(messages: unknown[]): Array<{ message: unknown; error?: Error }> {
+    const lines: Array<{ message: unknown; error?: Error }> = []
+    for (const message of messages) {
+      const last = lines.at(-1)
+      if (!(message instanceof Error)) {
+        lines.push({ message })
+      } else if (last && !last.error) {
+        last.error = message
+      } else {
+        lines.push({ message: message.message, error: message })
+      }
+    }
+    return lines
+  }
+
+  /** Logging must not fail the code that logs. */
+  private guarded(print: () => void): void {
+    try {
+      print()
+    } catch (error) {
+      try {
+        const reason = error instanceof Error ? error.message : String(error)
+        process.stderr.write(`[Navios] A log message could not be printed: ${reason}\n`)
+      } catch {
+        // There is nothing left to tell.
+      }
+    }
   }
 
   protected printAsJson(
@@ -285,6 +398,7 @@ export class ConsoleLogger implements LoggerService {
       writeStreamType?: 'stdout' | 'stderr'
       errorStack?: unknown
       requestId?: string
+      error?: Error
     },
   ) {
     type JsonLogObject = {
@@ -295,6 +409,7 @@ export class ConsoleLogger implements LoggerService {
       context?: string
       stack?: unknown
       requestId?: string
+      error?: JsonError
     }
 
     const logObject: JsonLogObject = {
@@ -314,12 +429,43 @@ export class ConsoleLogger implements LoggerService {
     if (this.options.requestId && options.requestId) {
       logObject.requestId = options.requestId
     }
+    if (options.error) {
+      logObject.error = toJsonError(options.error, (value) => this.encodable(value))
+    }
 
     const formattedMessage =
       !this.options.colors && this.inspectOptions.compact === true
-        ? JSON.stringify(logObject, this.stringifyReplacer)
+        ? this.stringify(logObject)
         : inspect(logObject, this.inspectOptions)
     process[options.writeStreamType ?? 'stdout'].write(`${formattedMessage}\n`)
+  }
+
+  private stringify(logObject: { message: unknown; error?: JsonError }): string {
+    const replacer = (key: string, value: unknown) => this.stringifyReplacer(key, value)
+    try {
+      return JSON.stringify(logObject, replacer)
+    } catch {
+      // Circular, or with a `toJSON` or a getter that throws.
+      const { message, error } = logObject
+      return JSON.stringify({
+        ...logObject,
+        message: typeof message === 'string' ? message : inspect(message, this.inspectOptions),
+        error: error && inspect(error, this.inspectOptions),
+      })
+    }
+  }
+
+  /** A field that JSON cannot hold must not cost the rest of an error. */
+  private encodable(value: unknown): unknown {
+    if (typeof value !== 'object' || value === null) {
+      return value
+    }
+    try {
+      JSON.stringify(value, (key, inner) => this.stringifyReplacer(key, inner))
+      return value
+    } catch {
+      return inspect(value, { ...this.inspectOptions, depth: 1 })
+    }
   }
 
   protected formatPid(pid: number) {
@@ -426,7 +572,7 @@ export class ConsoleLogger implements LoggerService {
     if (!stack || this.options.json) {
       return
     }
-    process.stderr.write(`${stack}\n`)
+    this.guarded(() => process.stderr.write(`${stack}\n`))
   }
 
   protected updateAndGetTimestampDiff(): string {
@@ -507,16 +653,16 @@ export class ConsoleLogger implements LoggerService {
 
   private getContextAndStackAndMessagesToPrint(args: unknown[]) {
     if (args.length === 2) {
-      return this.isStackFormat(args[1])
-        ? {
-            messages: [args[0]],
-            stack: args[1] as string,
-            context: this.context,
-          }
-        : {
-            messages: [args[0]],
-            context: args[1] as string,
-          }
+      const [message, second] = args
+      if (isUndefined(second)) {
+        return { messages: [message], context: this.context }
+      }
+      if (!isString(second)) {
+        return { messages: args, context: this.context }
+      }
+      return this.isStackFormat(second)
+        ? { messages: [message], stack: second, context: this.context }
+        : { messages: [message], context: second }
     }
 
     const { messages, context } = this.getContextAndMessagesToPrint(args)
@@ -536,12 +682,8 @@ export class ConsoleLogger implements LoggerService {
     }
   }
 
-  private isStackFormat(stack: unknown) {
-    if (!isString(stack) && !isUndefined(stack)) {
-      return false
-    }
-
-    return /^(.)+\n\s+at .+:\d+:\d+/.test(stack!)
+  private isStackFormat(stack: string) {
+    return /^(.)+\n\s+at .+:\d+:\d+/.test(stack)
   }
 
   private getColorByLogLevel(level: LogLevel) {

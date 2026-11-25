@@ -5,6 +5,7 @@ import type { ClassType } from '@navios/di'
 import type { HttpAdapter, HttpAdapterEnvironment } from '../adapter/http-adapter.mjs'
 import type { TestRequest, TestResponse } from '../adapter/test-request.mjs'
 import type { ErrorClass, ErrorMapper } from '../errors/error-pipeline.mjs'
+import type { HttpInterceptorClass } from '../routing/http-contracts.mjs'
 import type { RouteInfo } from '../routing/route-info.mjs'
 
 import { httpTransport } from './http-transport.mjs'
@@ -26,7 +27,7 @@ export class NaviosApplication<
   Env extends HttpAdapterEnvironment = ApplicationEnvironment,
 > extends Application {
   private readonly errorMappers: Array<[ErrorClass<any>, ErrorMapper<any>]>
-  private readonly routeInterceptors: ClassType[]
+  private readonly routeInterceptors: HttpInterceptorClass[]
 
   constructor(appModule: ClassType, options: NaviosApplicationOptions<Env>) {
     const {
@@ -35,13 +36,14 @@ export class NaviosApplication<
       validateResponses,
       exposeErrorDetails,
       clientErrorStacks,
+      guards,
       transports,
       ...applicationOptions
     } = options
     // The transport reads both lists when it needs them, so what is added
     // between construction and init() is seen.
     const errorMappers: Array<[ErrorClass<any>, ErrorMapper<any>]> = []
-    const routeInterceptors: ClassType[] = []
+    const routeInterceptors: HttpInterceptorClass[] = []
     super(appModule, {
       ...applicationOptions,
       transports: [
@@ -51,6 +53,7 @@ export class NaviosApplication<
           validateResponses,
           exposeErrorDetails,
           clientErrorStacks,
+          guards,
           errorMappers,
           interceptors: routeInterceptors,
         }),
@@ -88,7 +91,7 @@ export class NaviosApplication<
   }
 
   /** Adds an interceptor around every route. */
-  override intercept(interceptor: ClassType): this {
+  override intercept(interceptor: HttpInterceptorClass): this {
     if (this.http) {
       // Raises the "before init()" error.
       return super.intercept(interceptor)
@@ -129,6 +132,8 @@ export class NaviosApplication<
    */
   async listen(options: Env['listenOptions']): Promise<string> {
     await this.init()
+    // It may have been closed while it was initialising.
+    await this.assertStillOpen()
     const address = await this.http!.listen(options)
     await this.start()
     this.logger.log(`Navios is listening on ${address}`)

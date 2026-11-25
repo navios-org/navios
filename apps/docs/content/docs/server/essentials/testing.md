@@ -14,6 +14,25 @@ Start with the first. It runs the same compiled routes as a real adapter, so gua
 
 The examples use Vitest. Nothing here depends on it.
 
+Vitest does not compile standard decorators by itself. Add a transform that does, for example `unplugin-swc`, which needs `@swc/core`; `bun test` needs none:
+
+```ts title="vitest.config.mts"
+import swc from 'unplugin-swc'
+import { defineConfig } from 'vitest/config'
+
+export default defineConfig({
+  plugins: [
+    swc.vite({
+      jsc: {
+        target: 'es2022',
+        parser: { syntax: 'typescript', decorators: true },
+        transform: { decoratorVersion: '2022-03' },
+      },
+    }),
+  ],
+})
+```
+
 ## The in-memory adapter
 
 `defineInMemoryEnvironment()` from `@navios/server/testing` is an adapter without a server. `createTestClient(app)` returns a function that calls a declaration against the application in process.
@@ -30,7 +49,7 @@ import { AppModule } from './app.module.mjs'
 import { createUser, getUser } from './users.mjs'
 
 describe('users', () => {
-  let app: NaviosApplication
+  let app: NaviosApplication<any>
 
   beforeEach(async () => {
     app = await NaviosFactory.create(AppModule, {
@@ -66,13 +85,15 @@ describe('users', () => {
 
 Create a new application for each test and close it afterwards. `close()` disposes the container, which keeps tests independent.
 
+`NaviosApplication<any>` is an application on any adapter. `NaviosApplication` alone is one on the adapter of the [`Register` declaration](/docs/server/essentials/request-context#native-objects), which the in-memory one is not.
+
 How the in-memory adapter differs from a real one:
 
 - `app.listen()` throws; there is no server.
-- A request body that is not a string is handed to the pipeline as is. A multipart endpoint is tested by passing an object with strings and `File` values as `data`; no multipart encoding or parsing takes place.
 - `ctx.signal` never aborts.
+- There is no limit on the size of a body, and no CORS.
 
-Routes are matched as on the real adapters: a static segment wins over a URL parameter whatever the order of registration, and a path with a trailing slash does not match.
+Everything else is as over HTTP. A body is encoded and decoded, so a `Date` in `data` reaches the schema as text and a `FormData` as its parts, and [paths](/docs/server/essentials/modules#paths) are matched by the same rules. The adapter runs the part of the [conformance suite](/docs/server/adapters/writing-an-adapter#running-the-conformance-suite) that needs no connection.
 
 ## The test client
 
@@ -86,7 +107,8 @@ const response = await call(listUsers, { params: { limit: 5 }, headers: { 'x-tra
 ```
 
 - Arguments are typed from the declaration: `urlParams`, `params` (query) and `data` (body), plus optional per-call `headers`.
-- The result is a `TestResponse`: `status`, `headers`, `text` (the raw body) and `body` (the body parsed as JSON when the content type is JSON, otherwise `undefined`).
+- The result is a `TestResponse`: `status`, `headers`, `cookies` (the values of `set-cookie`, one per cookie), `text` (the raw body) and `body` (the body parsed as JSON when the content type is JSON, otherwise `undefined`).
+- `data` is encoded as a client of the builder encodes it: as `multipart/form-data` for an endpoint with `body: 'multipart'`, and as JSON otherwise.
 - The client builds the path from the declaration's `url` only. When the routes are mounted under a `globalPrefix` or [module prefixes](/docs/server/essentials/modules#prefixes), pass the combined prefix as `prefix`.
 
 :::info
@@ -109,7 +131,9 @@ expect(response.status).toBe(201)
 expect(response.body).toMatchObject({ name: 'Grace' })
 ```
 
-`url` is a path with an optional query string. `body` is sent as JSON unless it is a string, `FormData`, `Blob` or stream. On Fastify the request goes through Fastify's own `inject()`, so Fastify's parsing, hooks and plugins take part.
+`url` is a path with an optional query string. `body` is sent as JSON unless it is a string, bytes, a `FormData`, `URLSearchParams`, `Blob` or stream, which are sent as `fetch` sends them: for a string that holds JSON, set the `content-type` header. `remoteAddress` is what [`ctx.ip`](/docs/server/essentials/request-context#path-url-and-address) is for the request. On Fastify the request goes through Fastify's own `inject()`, so Fastify's parsing, hooks and plugins take part. On every adapter it finds the route that it would find over HTTP.
+
+On every adapter the promise rejects when the response is a stream that fails after its first chunk, where a client over HTTP would see the connection close, and once the application is closed. An error before that is an ordinary error response.
 
 ## Over real HTTP
 

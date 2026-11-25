@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.0.0] - Unreleased
+## [2.0.0-alpha.0] - Unreleased
 
 `@navios/core` is now the part of Navios that does not depend on HTTP. The HTTP framework it was in 1.x is `@navios/server`, which is built on this package and re-exports it. The changes to the HTTP framework itself are listed in the changelog of `@navios/server`.
 
@@ -17,18 +17,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`Guard` and `Interceptor` are generic.** `Guard<Ctx>` and `Interceptor<Ctx, Result>` default to `ExecutionContext`, the context every transport provides. `@navios/server` exports the HTTP-typed versions under the same names.
 - **`currentContext()` returns an `ExecutionContext`.** The one from `@navios/server` returns the `RequestContext`.
 - **`@Module` knows `imports`, `providers`, `guards`, `interceptors` and `attributes`.** `prefix`, `controllers` and `requestValues` are added by `@navios/server`. `ModuleMetadata` keeps options of transports in `entries`.
-- **`buildModuleGraph(roots)` takes no prefix** and returns nodes with `entries`, `importers` and `isRoot` in place of `prefix`, `controllers` and `requestValues`. It is exported from `@navios/core/transport`.
+- **`buildModuleGraph(roots)` takes no prefix** and returns nodes with `entries`, `importers`, `isRoot` and `disputed` in place of `prefix`, `controllers` and `requestValues`. It is exported from `@navios/core/transport`.
 - **The plugin API has no HTTP members.** `adapter`, `encoder` and `mapError` are on the HTTP transport, `api.transport(httpTransport)`, and `onBootstrap` hooks receive no arguments.
-- **`@navios/di` 2.0** is re-exported, with its own breaking changes: registries and priorities are removed, a singleton cannot depend on a request-scoped service, `container.beginRequest()` is `container.createScope()`.
+- **`@navios/di` 2.0** has its own breaking changes: registries and priorities are removed, a singleton cannot depend on a request-scoped service, `container.beginRequest()` is `container.createScope()`. What applications use of it is re-exported by name.
+- **Guards run before the interceptors of the module, the class and the handler.** Interceptors of the application stay outside the guards. `handlerChain` returns the two groups as `outer` and `inner`. Only `true` from a guard lets the handler run.
+- **`provideConfig` returns an `InjectionToken<ConfigService<…>>`**, which can be replaced like any other token. `load` runs once per container, and at once when it is synchronous. `ConfigService` logs nothing and can be created with `new`. `ConfigServiceToken`, `ConfigServiceOptions`, `ConfigServiceOptionsSchema`, `PathImpl` and `PathImpl2` are removed. `get()` is never typed `undefined`, and `getOrThrow()` and `getOrDefault()` neither `undefined` nor `null`.
+- **`envInt`** throws for a variable that is not an integer. It used to take `12abc` for 12 and to return `NaN` for `abc`.
+- **The provider of a token is chosen by who provides it**: the application's container and options, plugins, modules, the default. A module wins over what it imports, and a module of the application over one that a plugin adds; two modules that provide different things for a token without one importing the other are an error where one of them would be used, and so is a provider that comes after its token was resolved. `providers` takes what `provide()` returns and refuses anything else.
+- **Modules cannot import each other in a cycle**, and a class can be made a module once.
+- **An application that fails to initialise or to start is closed**, its container included.
+- **`enableShutdownHooks()` ends the process**: when everything the signal closes is closed, the process gets the signal again, or exits with its code when it is process 1. `{ exit: false }` turns that off. A signal during a `close()` waits for it.
+- **The console logger** prints `log` and above when `NODE_ENV` is `production` and uses colours when stdout is a terminal. `setup()` changes the options it is given. With `json`, an error is an `error` object on the line of its message, with its own fields and the errors it holds. `filterLogLevels` throws for a level that does not exist; `isLogLevelEnabled` and `loggerOptionsSchema` are no longer exported.
+- **`Logger` is transient**: every injection has its own instance.
+- **`getModuleMetadata` and `hasModuleMetadata`** are exported from `@navios/core/transport`; `ModuleMetadataKey` is not exported.
 
 ### Added
 
 - **`createApplication(AppModule, options)`** and `Application`: an application that hosts zero or more transports sharing one module graph, container, plugin set and lifecycle. `init()`, `start()`, `close()`, `transport(factory)`.
-- **Transports.** `defineTransport` in `@navios/core/transport`, with the module graph, `handlerChain`, handler metadata and `BasicExecutionContext` for transport authors.
+- **Transports.** `defineTransport` in `@navios/core/transport`, with the module graph, `describeHandlerClass`, `handlerChain`, `resolveChain`, `runChain` and `BasicExecutionContext` for transport authors.
+- **`shutdownTimeout`** bounds every step of `close()`, each hook on its own. A step that takes longer is logged and left behind.
+- **A plugin can provide the logger**, as can a module it adds. What is logged before all plugins are set up is written then.
 - **`ExecutionContext`**, `HandlerInfo` and `ExecutionContextToken`: what a guard, an interceptor or a request-scoped service can rely on with any transport.
 - **Open `@Module` options.** A transport package adds its own option by declaration merging. An option that no transport of the running application reads is ignored, so one module can serve several transports.
 - **`@navios/core/testing`** with `fakeTransport`.
 - **A warning when two copies of the package are loaded.**
+
+### Fixed
+
+- **`close()` called again while a shutdown is in flight** returns that shutdown instead of resolving at once. From something the shutdown waits for it resolves at once; from something `init()` or `start()` waits for it rejects, instead of waiting for itself, and closes afterwards. `start()` called from something `init()` waits for does the same.
+- **Hooks run in dependency order**: `onApplicationBootstrap` for dependencies first, `onApplicationShutdown` for dependents first, once per object, and only for objects the container built that declare them.
+- **What a destroy hook throws** goes to the application's logger.
+- **A subclass inherits what decorators attached to its base class**, guards and endpoints included, with the decorators of `@navios/core/legacy-compat` as well, and from a module that `registerModule` made one.
+- **A configuration that fails validation** is reported with the paths of what is wrong and without its values.
+- **The console logger** prints an error that is passed without a context, and neither throws for what it is given nor prints nothing when it is created with `new`.
+- **A `close()` that rejects after a signal** from `enableShutdownHooks()` is reported through the logger instead of becoming an unhandled rejection.
+- **`providers` of a module are applied before anything is resolved**, so `@Module({ providers: [provide(LoggerOutput, …)] })` takes effect. Providers of modules that a plugin adds are applied after the plugins are set up.
+- **`buildModuleGraph` visits a module once** however many paths reach it; diamond imports used to cost exponential time. Inherited guards and interceptors now always come before the module's own, and what a shared module inherits no longer depends on the path that reached it first. Import paths that give it different values of an attribute are an error where a handler would inherit the attribute.
+- **An `undefined` entry in `imports`**, the usual sign of an import cycle between files, throws an error that names the importing module.
+- **A plugin registered twice with different options**, and two plugins of one name, throw instead of dropping the second registration.
+- **The second-copy warning** also covers copies loaded only through `@navios/core/transport`, `/testing` or `/legacy-compat`.
+- **An `onFinish` callback that throws** is reported to the application's logger; it used to be dropped silently.
 
 ## [1.1.0] - 2026-01-15
 
@@ -431,14 +459,3 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `@navios/di` - Dependency injection container
 - `@navios/builder` (peer dependency) - Type-safe API definitions
 - `zod` (peer dependency) - Schema validation
-
----
-
-## [Unreleased]
-
-### Planned
-
-- Additional adapter implementations
-- Enhanced middleware support
-- WebSocket support
-- Performance optimizations

@@ -1,23 +1,14 @@
-import { createMultipartCollector, ValidationError } from '@navios/server'
+import { HttpException } from '@navios/server'
+import { canonicalPath, malformedMultipart } from '@navios/server/adapter'
 
-import type { RouteInput, SchemaLike } from '@navios/server'
-
-import { readLimited } from './body-limit.mjs'
+import type { BodyPart, BodySource, RouteInput } from '@navios/server/adapter'
 
 import type { BunEnvironment, BunServer } from './environment.mjs'
 
-export function pathOf(url: string): string {
-  // `url` is absolute: scheme://host/path?query
-  const start = url.indexOf('/', url.indexOf('//') + 2)
-  if (start < 0) {
-    return '/'
-  }
-  const query = url.indexOf('?', start)
-  return query < 0 ? url.slice(start) : url.slice(start, query)
-}
-
 function parseQuery(url: string): Record<string, string | string[]> {
-  const result: Record<string, string | string[]> = {}
+  // Without a prototype, as the query of the Fastify adapter: `constructor`
+  // and `__proto__` are keys like any other.
+  const result: Record<string, string | string[]> = Object.create(null)
   const index = url.indexOf('?')
   if (index < 0) {
     return result
@@ -35,16 +26,20 @@ function parseQuery(url: string): Record<string, string | string[]> {
   return result
 }
 
-export class BunRouteInput implements RouteInput {
+/** One request as the pipeline sees it. It is its own body source. */
+export class BunRouteInput implements RouteInput, BodySource {
   readonly raw: BunEnvironment['raw']
+  /** Whether the request has become a WebSocket. Set if the server takes any. */
+  responded: (() => boolean) | undefined
+  private requestUrl: string | undefined
 
   constructor(
     private readonly request: Request,
     readonly urlParams: Record<string, string>,
-    server: BunServer | null,
-    private readonly multipartSchema: SchemaLike | undefined,
-    private readonly isMultipart: boolean,
-    private readonly bodyLimit: number,
+    private readonly server: BunServer | null,
+    readonly isEmpty: boolean,
+    /** The address of a test request, or the one of the connection once it has been read. */
+    private address: string | undefined,
   ) {
     this.raw = { request, server }
   }
@@ -54,7 +49,28 @@ export class BunRouteInput implements RouteInput {
   }
 
   get path(): string {
-    return pathOf(this.request.url)
+    return canonicalPath(this.url())
+  }
+
+  url(): string {
+    return (this.requestUrl ??= this.request.url)
+  }
+
+  remoteAddress(): string | undefined {
+    return (this.address ??= this.server?.requestIP(this.request)?.address)
+  }
+
+  /**
+   * Reads what Bun computes from the native request on first access, which
+   * fails once that request is gone: the url and the headers, and the address
+   * for a response that is sent while the handler has long returned.
+   */
+  keep(isStream: boolean): void {
+    this.url()
+    void this.request.headers
+    if (isStream) {
+      this.remoteAddress()
+    }
   }
 
   header(name: string): string | undefined {
@@ -66,39 +82,56 @@ export class BunRouteInput implements RouteInput {
   }
 
   query(): unknown {
-    return parseQuery(this.request.url)
+    return parseQuery(this.url())
   }
 
-  async body(): Promise<unknown> {
-    const contentType = this.request.headers.get('content-type') ?? ''
-    // A declared length was checked before the pipeline ran, and the body
-    // cannot be longer than it. Without one (chunked transfer encoding, or
-    // `inject()`) the bytes are counted while they are read.
-    const request = this.request.headers.has('content-length')
-      ? this.request
-      : await readLimited(this.request, this.bodyLimit)
-    if (this.isMultipart || contentType.includes('multipart/form-data')) {
-      const collector = createMultipartCollector(this.multipartSchema)
-      const form = await request.formData()
-      for (const [field, value] of form as unknown as Iterable<[string, string | File]>) {
-        collector.add(field, value)
-      }
-      return collector.result()
+  // A declared length was checked before the pipeline ran, and the body cannot
+  // be longer than it. Without one, reading the request fails with a 413 once
+  // the body is over the limit.
+
+  get body(): BodySource {
+    return this
+  }
+
+  get contentType(): string | undefined {
+    return this.header('content-type')
+  }
+
+  async bytes(): Promise<Uint8Array> {
+    try {
+      return await this.request.bytes()
+    } catch (error) {
+      throw this.unreadable(error) ?? error
     }
-    if (contentType === '' || contentType.includes('json')) {
-      const text = await request.text()
-      if (text === '') {
-        return undefined
-      }
-      try {
-        return JSON.parse(text)
-      } catch (error) {
-        throw new ValidationError('body', [
-          { message: `Malformed JSON body: ${(error as Error).message}` },
-        ])
-      }
+  }
+
+  async parts(): Promise<BodyPart[]> {
+    let form: FormData
+    try {
+      form = await this.request.formData()
+    } catch (error) {
+      throw this.unreadable(error) ?? malformedMultipart(error)
     }
-    return request.text()
+    const parts: BodyPart[] = []
+    for (const [name, value] of form as unknown as Iterable<[string, string | File]>) {
+      parts.push({ name, value })
+    }
+    return parts
+  }
+
+  private unreadable(error: unknown): unknown {
+    if (error instanceof HttpException) {
+      return error
+    }
+    if (this.request.signal.aborted) {
+      // The client left before it had sent all of it.
+      return new HttpException(400, 'The request body is incomplete', error)
+    }
+    return undefined
+  }
+
+  respondedStatus(): number {
+    return 101
   }
 
   signal(): AbortSignal {

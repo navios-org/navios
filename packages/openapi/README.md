@@ -7,8 +7,10 @@ OpenAPI 3.1 documentation for [Navios](https://navios.tech) applications. One pl
 ## Install
 
 ```bash
-npm install @navios/openapi
+npm install @navios/openapi@next
 ```
+
+The 2.0 alpha is published under the `next` tag. All `@navios` packages of a project must have the same alpha version, because an alpha may break between releases.
 
 `@navios/server` is a peer dependency. The plugin's routes are ordinary Navios routes, so it works the same on every adapter. The example also uses `@navios/adapter-fastify`, `@navios/builder` and `zod`.
 
@@ -79,7 +81,7 @@ The attributes only describe: `ApiSecurity` does not protect a route, a guard do
 
 ## Upgrading from 1.x
 
-`openApiPlugin` from this package replaces `defineOpenApiPlugin` from `@navios/openapi-fastify` and `@navios/openapi-bun`, which are now deprecated re-exports, and any Standard Schema library works instead of Zod only. See [Migrating to 2.0](https://navios.tech/docs/server/reference/migrating-to-2#naviosopenapi), or [CHANGELOG.md](./CHANGELOG.md) for the full list.
+`openApiPlugin` from this package replaces `defineOpenApiPlugin` from `@navios/openapi-fastify` and `@navios/openapi-bun`, which are removed in 2.0, and any Standard Schema library works instead of Zod only. See [Migrating to 2.0](https://navios.tech/docs/server/reference/migrating-to-2#naviosopenapi), or [CHANGELOG.md](./CHANGELOG.md) for the full list.
 
 ## License
 

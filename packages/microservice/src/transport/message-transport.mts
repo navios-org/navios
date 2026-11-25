@@ -1,15 +1,20 @@
-import { defineTransport, handlerChain, runInContext } from '@navios/core/transport'
+import {
+  defineTransport,
+  handlerChain,
+  resolveChain,
+  runChain,
+  runInContext,
+} from '@navios/core/transport'
 import { QueueClientToken } from '@navios/queues'
 
+import type { ClassType, StandardSchemaV1 } from '@navios/core'
 import type {
-  ClassType,
-  Guard,
   HandlerInfo,
-  Interceptor,
-  StandardSchemaV1,
+  ModuleNode,
+  ResolvedChain,
   Transport,
-} from '@navios/core'
-import type { ModuleNode, TransportHost } from '@navios/core/transport'
+  TransportHost,
+} from '@navios/core/transport'
 import type { BaseMessageConfig, QueueClient } from '@navios/queues'
 
 import { MessageContext } from '../context/message-context.mjs'
@@ -51,8 +56,9 @@ export interface MessageTransport extends Transport {
   handlers(): readonly MessageHandlerInfo[]
   /**
    * Handles a message in process, the way a delivery from the broker is
-   * handled: interceptors, guards, validation, the handler. Resolves to the
-   * handler's reply. For tests, and for delivering from a source of your own.
+   * handled: the application's interceptors, guards, the other interceptors,
+   * validation, the handler. Resolves to the handler's reply. For tests, and
+   * for delivering from a source of your own.
    */
   dispatch(
     message: { config: BaseMessageConfig<any, any, any> },
@@ -63,8 +69,7 @@ export interface MessageTransport extends Transport {
 
 interface CompiledHandler {
   info: MessageHandlerInfo
-  guards: Array<{ name: string; guard: Guard<MessageContext> }>
-  interceptors: Array<Interceptor<MessageContext, unknown>>
+  chain: ResolvedChain<MessageContext>
   invoke(params: { payload: unknown }, ctx: MessageContext): unknown
 }
 
@@ -87,23 +92,6 @@ async function validate(
   return result.value
 }
 
-async function instances<T>(
-  host: TransportHost,
-  classes: ClassType[],
-  kind: string,
-  method: string,
-): Promise<Array<{ name: string; instance: T }>> {
-  const result: Array<{ name: string; instance: T }> = []
-  for (const cls of classes) {
-    const instance = (await host.container.get(cls)) as any
-    if (typeof instance?.[method] !== 'function') {
-      throw new Error(`[Navios] ${kind} ${cls.name} does not implement ${method}()`)
-    }
-    result.push({ name: cls.name, instance })
-  }
-  return result
-}
-
 let deliveries = 0
 
 function createMessageTransport(
@@ -124,26 +112,19 @@ function createMessageTransport(
       payload,
       raw,
     })
-    let next = async (): Promise<unknown> => {
-      for (const { name, guard } of handler.guards) {
-        if (!(await guard.canActivate(ctx))) {
-          throw new MessageDeniedError(name)
-        }
-      }
+    const invoke = async () => {
       ctx.payload = await validate(message.payloadSchema as StandardSchemaV1, payload, 'payload')
       const reply = await handler.invoke({ payload: ctx.payload }, ctx)
       return validate(message.responseSchema as StandardSchemaV1 | undefined, reply, 'reply')
     }
-    for (let i = handler.interceptors.length - 1; i >= 0; i--) {
-      const interceptor = handler.interceptors[i]
-      const inner = next
-      next = async () => interceptor.intercept(ctx, inner)
+    const deny = (guard: ClassType): never => {
+      throw new MessageDeniedError(guard.name)
     }
     // Finishing happens inside the context too, so that `currentContext()`
     // still answers in `onFinish` callbacks.
     const handle = async () => {
       try {
-        return await next()
+        return await runChain(ctx, handler.chain, invoke, deny)
       } finally {
         await ctx.finish()
       }
@@ -229,17 +210,7 @@ function createMessageTransport(
                   },
                 },
               },
-              guards: (
-                await instances<Guard<MessageContext>>(host, chain.guards, 'Guard', 'canActivate')
-              ).map(({ name: guardName, instance }) => ({ name: guardName, guard: instance })),
-              interceptors: (
-                await instances<Interceptor<MessageContext, unknown>>(
-                  host,
-                  chain.interceptors,
-                  'Interceptor',
-                  'intercept',
-                )
-              ).map(({ instance }) => instance),
+              chain: await resolveChain<MessageContext>(host.container, chain),
               invoke: method.bind(controller) as CompiledHandler['invoke'],
             })
           }
@@ -303,7 +274,7 @@ function createMessageTransport(
  *
  * ```ts
  * const app = createApplication(AppModule, {
- *   transports: [messageTransport({})],
+ *   transports: [messageTransport()],
  * })
  * await app.start()
  * ```

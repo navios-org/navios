@@ -12,9 +12,9 @@ import {
   provide,
   registerFactory,
   registerInjectable,
-  validateSync,
 } from '../index.mjs'
 import { argsKey } from '../internal/args-key.mjs'
+import { validateSync } from '../internal/index.mjs'
 
 import type { StandardSchemaV1 } from '../index.mjs'
 
@@ -41,7 +41,8 @@ describe('argsKey', () => {
     expect(argsKey('1')).not.toBe(argsKey(1))
     expect(argsKey(null)).not.toBe(argsKey(undefined))
     expect(argsKey([1, 2])).not.toBe(argsKey([2, 1]))
-    expect(argsKey({ a: undefined })).not.toBe(argsKey({}))
+    expect(argsKey({ a: undefined })).toBe(argsKey({}))
+    expect(argsKey({ a: null })).not.toBe(argsKey({}))
     expect(argsKey('a,b')).not.toBe(argsKey(['a', 'b']))
   })
 
@@ -158,14 +159,19 @@ describe('tokens and providers', () => {
     expect(await container.get(PlainFactory)).toEqual({ made: true })
   })
 
-  it('keeps the implementation scope in provide() unless one is given', () => {
+  it('keeps the scope of the token in provide() unless one is given', () => {
     @Injectable()
     class Base {}
 
     @Injectable({ scope: InjectableScope.Transient })
     class Impl {}
 
-    expect(provide(Base, Impl).record.scope).toBe(InjectableScope.Transient)
+    const Bare = InjectionToken.create<Impl>('Bare')
+
+    expect(provide(Base, Impl).record.scope).toBe(InjectableScope.Singleton)
+    // A token without a default provider or a declared scope takes the scope
+    // of the implementation.
+    expect(provide(Bare, Impl).record.scope).toBe(InjectableScope.Transient)
     expect(provide(Base, { class: Impl, scope: InjectableScope.Request }).record.scope).toBe(
       InjectableScope.Request,
     )
@@ -207,7 +213,7 @@ describe('tokens and providers', () => {
       expect.objectContaining({ code: DIErrorCode.TokenSchemaRequiredError }),
     )
     container.addInstance(InjectionToken.bound(Token, { n: 1 }), { n: 1 })
-    expect(container.tryGetSync(Token, { n: 1 })).toEqual({ n: 1 })
+    expect(container.peek(Token, { n: 1 })).toEqual({ n: 1 })
   })
 })
 

@@ -1,22 +1,18 @@
 /**
- * Socket.IO-compatible client interface.
+ * The connection `socketBuilder` works with: a `declareWebSocket` handle, or
+ * anything else that follows this interface.
  *
- * This interface defines the minimal contract required for a socket client
- * to work with socketBuilder. It's designed to be compatible with:
- * - socket.io-client (io())
- * - Native WebSocket wrapped with declareWebSocket
- * - Any custom implementation following this interface
+ * The builder listens to `message`, which must carry every incoming message as
+ * `parseMessage` expects it, to `disconnect`, after which it gives up waiting
+ * for acknowledgements, and to `__navios_ack:<ackId>`, which may carry an
+ * acknowledgement.
  */
 export interface SocketClient {
   /**
    * Emit an event/message to the server.
    *
    * @param event - Event name or topic
-   * @param args - Payload data and optional callback for acknowledgement
-   *
-   * Socket.IO compatible signature:
-   * - emit(event, data)
-   * - emit(event, data, callback)
+   * @param args - Payload data
    */
   emit(event: string, ...args: unknown[]): void
 
@@ -43,8 +39,7 @@ export interface SocketClient {
    * message it sends, with the result of `formatMessage` (by default
    * `[topic, payload]` or `[topic, payload, ackId]`). The client must
    * transmit `message` as it is, without wrapping it in an event envelope.
-   * `declareWebSocket` handles implement it; socket.io-client does not, so
-   * with Socket.IO the formatted message is passed to `emit(topic, message)`.
+   * `declareWebSocket` handles implement it.
    *
    * @param topic - Topic the message belongs to, for error reporting
    * @param message - The formatted message

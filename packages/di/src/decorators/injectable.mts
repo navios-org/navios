@@ -11,12 +11,15 @@ import type {
   ClassTypeWithOptionalArgument,
   ClassTypeWithoutArguments,
 } from '../token/class-type.mjs'
-import type { InjectionToken, InjectionTokenSchemaType } from '../token/injection-token.mjs'
+import type { InjectionToken } from '../token/injection-token.mjs'
+import type { PublicPart } from '../token/public-part.mjs'
+
+import { assertClassDecorator } from './assert-class-decorator.mjs'
 
 export interface InjectableOptions {
   scope?: InjectableScope
   token?: InjectionToken<any, any>
-  schema?: InjectionTokenSchemaType
+  schema?: StandardSchemaV1
 }
 
 // #1 Simple constructorless class
@@ -28,7 +31,7 @@ export function Injectable(options: {
   scope: InjectableScope
 }): <T extends ClassTypeWithoutArguments>(target: T, context?: ClassDecoratorContext) => T
 // #2 Class with schema
-export function Injectable<Schema extends InjectionTokenSchemaType>(options: {
+export function Injectable<Schema extends StandardSchemaV1>(options: {
   scope?: InjectableScope
   schema: Schema
 }): <T extends ClassTypeWithArgument<InferOutput<Schema>>>(
@@ -36,7 +39,8 @@ export function Injectable<Schema extends InjectionTokenSchemaType>(options: {
   context?: ClassDecoratorContext,
 ) => T
 
-// #3 Class with a token (and the token's schema, if any)
+// #3 Class with a token (and the token's schema, if any). As with `provide()`,
+// only the public members of the token's type count.
 export function Injectable<Type, Schema>(options: {
   scope?: InjectableScope
   token: InjectionToken<Type, Schema>
@@ -47,7 +51,7 @@ export function Injectable<Type, Schema>(options: {
           target: T,
           context?: ClassDecoratorContext,
         ) => T
-      : <T extends ClassTypeWithInstanceAndOptionalArgument<Type, InferOutput<Schema>>>(
+      : <T extends ClassTypeWithInstanceAndOptionalArgument<PublicPart<Type>, InferOutput<Schema>>>(
           target: T,
           context?: ClassDecoratorContext,
         ) => T
@@ -56,17 +60,18 @@ export function Injectable<Type, Schema>(options: {
           target: T,
           context?: ClassDecoratorContext,
         ) => T
-      : <T extends ClassTypeWithInstanceAndArgument<Type, InferOutput<Schema>>>(
+      : <T extends ClassTypeWithInstanceAndArgument<PublicPart<Type>, InferOutput<Schema>>>(
           target: T,
           context?: ClassDecoratorContext,
         ) => T
-  : <R extends ClassTypeWithInstance<Type>>(target: R, context?: ClassDecoratorContext) => R
+  : <R extends ClassTypeWithInstance<PublicPart<Type>>>(
+      target: R,
+      context?: ClassDecoratorContext,
+    ) => R
 
 export function Injectable(options: InjectableOptions = {}) {
   return <T extends ClassType>(target: T, context?: ClassDecoratorContext): T => {
-    if ((context && context.kind !== 'class') || (target instanceof Function && !context)) {
-      throw new Error('[DI] @Injectable decorator can only be used on classes.')
-    }
+    assertClassDecorator('Injectable', context)
     registerInjectable(target, options)
     return target
   }

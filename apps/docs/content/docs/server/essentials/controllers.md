@@ -17,7 +17,7 @@ A handler is a method decorated with `@Endpoint(declaration)`. This page adds tw
 export const listUsers = API.declareEndpoint({
   method: 'GET',
   url: '/users',
-  querySchema: z.object({ limit: z.coerce.number().max(100).default(20) }),
+  querySchema: z.object({ limit: z.number().max(100).default(20) }),
   responseSchema: z.array(userSchema),
 })
 
@@ -75,9 +75,44 @@ export class UsersController {
 | `params`    | `querySchema`                    | The validated query: the schema's output                            |
 | `data`      | `requestSchema`                  | The validated body: the schema's output                             |
 
-The values are schema **outputs**. `listUsers` above declares `limit` with `z.coerce.number().default(20)`, so the client may send `?limit=5` or nothing, and the handler always receives a number. The table in [Sharing with Navios Server](/docs/builder/guides/navios-server#what-each-side-sees) compares this with what the client passes.
+The values are schema **outputs**. `listUsers` above declares `limit` with `z.number().default(20)`, so the client may send `?limit=5` or nothing, and the handler always receives a number. The table in [Sharing with Navios Server](/docs/builder/guides/navios-server#what-each-side-sees) compares this with what the client passes.
 
-A declaration with `body: 'multipart'` delivers its parts in `data` the same way; see [File uploads](/docs/server/guides/file-uploads).
+### Text that stands for something else
+
+A query string, URL parameters and the fields of a multipart body are text. Before validation the server gives each field the form its schema describes:
+
+| The schema says           | Text                        | Value                  |
+| ------------------------- | --------------------------- | ---------------------- |
+| an array                  | `?tag=a`, `?tag=a&tag=b`    | `['a']`, `['a', 'b']`  |
+| a required array          | nothing                     | `[]`                   |
+| a number or an integer    | `?page=2`                   | `2`                    |
+| a boolean                 | `?draft=false`              | `false`                |
+| an object                 | `?filter={"role":"admin"}`  | `{ role: 'admin' }`    |
+
+- Only text that is exactly such a value is converted: the numeral of a JSON number, `true` or `false`, the JSON of an object. Anything else (`?page=`, `?page=1x`, `?draft=1`) reaches the schema as it was sent, and fails there.
+- A field that may be a string is left alone, and so is one about which the schema says nothing, such as `z.any()` or `z.preprocess()`.
+- A repeated parameter of a field that is not an array stays a list, and fails.
+- The elements of an array are converted the same way.
+- A required array with a fallback of its own (`.catch()`) is left to it when nothing was sent.
+- In a multipart body, where `null` cannot be written, the empty text that the Builder client sends for it is `null` for a field, or an element, that may be `null` and not a string: a nullable number, boolean, object, array or file. A query string and URL parameters have no `null`; the client leaves it out.
+
+This needs a schema library that implements [Standard JSON Schema](https://standardschema.dev/json-schema), such as Zod 4 or ArkType. Schemas of another library receive the text. Do not use `z.coerce.boolean()` for it: it turns `"false"` into `true`.
+
+### Request bodies
+
+A body is decoded by its content type, after guards have passed, and only for an endpoint with a `requestSchema`:
+
+| Content type                                  | `requestSchema` receives                                                         |
+| --------------------------------------------- | -------------------------------------------------------------------------------- |
+| `application/json`, or one that ends in `+json` | the parsed JSON                                                                |
+| `text/*`                                      | a string                                                                         |
+| `multipart/form-data`                         | the [parts](/docs/server/guides/file-uploads), on an endpoint with `body: 'multipart'` |
+| no body                                       | `undefined`                                                                      |
+| anything else, or no content type             | nothing: the answer is 415                                                       |
+
+A body is UTF-8. Malformed JSON, and JSON with a `__proto__` or `constructor.prototype` key, is a 400 with `source: 'body'`. Because a body is never taken for JSON unless its content type says so, a page of another origin cannot send JSON without a CORS preflight.
+
+An endpoint that needs the bytes themselves reads them with [`ctx.rawBody()`](/docs/server/essentials/request-context#the-raw-body).
 
 ## What a handler returns
 
@@ -154,13 +189,13 @@ Without the annotation, a wrong literal is still caught at run time by response 
 
 Both directions are validated against the declaration, with whichever Standard Schema library wrote the schemas.
 
-**Requests.** URL parameters (when the declaration has a `urlParamsSchema`), then the query, then the body. The body is read from the connection only after guards have passed and the earlier parts are valid. A failure answers 400 with a [validation error body](/docs/server/essentials/errors#validation-errors) and the handler does not run.
+**Requests.** URL parameters (when the declaration has a `urlParamsSchema`), then the query, then the body. A declaration that carries a `cookiesSchema` or a `headersSchema` has its cookies validated before the URL parameters and its headers between the query and the body. The body is read from the connection only after guards have passed and the earlier parts are valid. A failure answers 400 with a [validation error body](/docs/server/essentials/errors#validation-errors) and the handler does not run.
 
-Headers and cookies are not validated: `declareEndpoint` has no schema option for them, so read them from [`ctx.headers` and `ctx.cookies`](/docs/server/essentials/request-context#request-data). Core does validate a `headersSchema` and a `cookiesSchema` when a declaration's `config` carries them, reporting failures with `source: 'headers'` or `'cookies'`, but the handler types do not include the results.
+Headers and cookies are not validated: `declareEndpoint` has no schema option for them, so read them from [`ctx.headers` and `ctx.cookies`](/docs/server/essentials/request-context#request-data). `@navios/server` does validate a `headersSchema` and a `cookiesSchema` when a declaration's `config` carries them, reporting failures with `source: 'headers'` or `'cookies'`, but the handler types do not include the results.
 
 **Responses.** A JSON body is validated against the schema for its status before it is sent. This removes fields the schema does not declare, which keeps internal fields such as a password hash from leaking. A body that does not match its schema is a 500, and the error is logged. `text`, `blob` and `stream` responses are not validated.
 
-Response validation can be limited to development or switched off with the [`validateResponses`](/docs/server/essentials/application#options) application option.
+Response validation can be switched off with the [`validateResponses`](/docs/server/essentials/application#options) application option.
 
 ## Controller options
 
@@ -235,8 +270,10 @@ Navios builds the route table during `init()` and rejects it when a rule is brok
 | `@UseGuards`, `@UseInterceptors` and attributes need a handler       | `AdminController.purge has guards, interceptors or attributes but is not a handler`     |
 | A controller cannot inject a request-scoped service                  | `Scope mismatch: UnitOfWork is request-scoped … (UsersController -> UnitOfWork)`        |
 | A module with controllers is mounted under one prefix                | `Module UsersModule is imported under two different prefixes`                           |
+| A path is made of [whole segments](/docs/server/essentials/modules#paths) | `FilesController.get cannot be served: the path "/files/$name.json" has the segment …`  |
+| What a module lists as a controller is a class                       | `Module UsersModule lists undefined in controllers`                                     |
 
-One rule is checked earlier, when the class is defined: a method serves one endpoint. A second `@Endpoint` with another declaration on the same method throws `getUser already serves GET /users/$userId; a method can serve one endpoint.`
+One rule is checked earlier, when the class is defined: a method serves one endpoint. A second `@Endpoint` with another declaration on the same method throws `getUser already serves GET /users/$userId; a method can serve one endpoint.` A method that overrides an inherited one may serve another endpoint; the guards, interceptors and attributes of the inherited one stay.
 
 After `init()`, `app.routes()` returns every route as a `RouteInfo`: `method`, `path`, `endpoint` (the declaration's `config`), `module`, `controller`, `handlerName` (the name of the method or of the `handler()` field), `guards`, `interceptors` and `attributes`. `ctx.route` is the same object for the route being handled.
 

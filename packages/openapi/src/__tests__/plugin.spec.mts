@@ -7,7 +7,7 @@ import { z } from 'zod/v4'
 
 import type { LoggerService, RouteInfo, StandardSchemaV1 } from '@navios/server'
 
-import { ApiSummary, ApiTag, defineOpenApiPlugin, openApiPlugin } from '../index.mjs'
+import { ApiSummary, ApiTag, openApiPlugin } from '../index.mjs'
 
 import type { OpenApiDocument } from '../index.mjs'
 
@@ -133,6 +133,26 @@ describe('openApiPlugin', () => {
     expect((await app.inject({ method: 'GET', url: '/docs' })).status).toBe(404)
   })
 
+  it('takes a path with or without slashes around it', async () => {
+    for (const [docsPath, jsonPath, yamlPath, globalPrefix, docs, json, yaml] of [
+      ['docs', 'openapi.json', 'openapi.yaml', '', '/docs', '/openapi.json', '/openapi.yaml'],
+      ['/ref/', '/spec/api/', 'a/b', '', '/ref', '/spec/api', '/a/b'],
+      ['docs/', 'openapi.json', '/y', 'v1', '/v1/docs', '/v1/openapi.json', '/v1/y'],
+      ['/', 'j', 'y', '', '/', '/j', '/y'],
+      ['', 'j', 'y', '/api', '/api', '/api/j', '/api/y'],
+    ]) {
+      const app = await createApp([UsersController], {
+        globalPrefix,
+        plugins: [openApiPlugin({ info, docsPath, jsonPath, yamlPath, disableYaml: false })],
+      })
+      const paths = app.routes().map((route: RouteInfo) => route.path)
+      expect(paths).toEqual(expect.arrayContaining([docs, json, yaml]))
+      const page = await app.inject({ method: 'GET', url: docs })
+      expect(page.status).toBe(200)
+      expect(page.text).toContain(`"${json}"`)
+    }
+  })
+
   it('can disable the Scalar page and the JSON route', async () => {
     const app = await createApp([UsersController], {
       plugins: [
@@ -212,7 +232,7 @@ describe('openApiPlugin', () => {
     expect(document.info.description).toBe('3 routes')
   })
 
-  it('can be registered with app.usePlugin, under its deprecated name too', async () => {
+  it('can be registered with app.usePlugin', async () => {
     @Module({ controllers: [UsersController] })
     class AppModule {}
 
@@ -220,7 +240,7 @@ describe('openApiPlugin', () => {
       adapter: defineInMemoryEnvironment(),
       logger: false,
     })
-    app.usePlugin(defineOpenApiPlugin({ info }))
+    app.usePlugin(openApiPlugin({ info }))
     await app.init()
 
     const response = await app.inject({ method: 'GET', url: '/openapi.json' })

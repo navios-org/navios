@@ -188,6 +188,72 @@ describe('messageTransport', () => {
     ])
   })
 
+  it('takes only true from a guard for consent', async () => {
+    let result: unknown
+    let handled = 0
+
+    @Injectable()
+    class Loose implements MessageGuard {
+      canActivate() {
+        return result as boolean
+      }
+    }
+    @MessageController({ guards: [Loose] })
+    class Consumer {
+      @Message(userCreated)
+      async onCreated() {
+        handled++
+      }
+    }
+    @Module({ messageControllers: [Consumer] })
+    class AppModule {}
+    const { transport } = await createApp(AppModule)
+
+    for (result of ['yes', Promise.resolve('yes'), 1, {}, undefined]) {
+      await expect(transport.dispatch(userCreated, { id: '1' })).rejects.toBeInstanceOf(
+        MessageDeniedError,
+      )
+    }
+    expect(handled).toBe(0)
+    for (result of [true, Promise.resolve(true)]) {
+      await transport.dispatch(userCreated, { id: '1' })
+    }
+    expect(handled).toBe(2)
+  })
+
+  it('refuses a handler that inherits what its importers disagree about', async () => {
+    const Open = AttributeFactory.createAttribute(Symbol.for('test.message.Open'))
+
+    @MessageController()
+    class Consumer {
+      @Message(userCreated)
+      async onCreated() {}
+    }
+    @MessageController()
+    class Decided {
+      @Open()
+      @Message(userCreated)
+      async onCreated() {}
+    }
+    const init = (controller: new () => unknown) => {
+      @Module({ messageControllers: [controller] })
+      class Shared {}
+      @Module({ imports: [Shared], attributes: [Open()] })
+      class Landing {}
+      @Module({ imports: [Shared, Landing] })
+      class AppModule {}
+      return createApp(AppModule)
+    }
+
+    await expect(init(Consumer)).rejects.toThrow(
+      '[Navios] Module Shared inherits different values of the attribute Symbol(test.message.Open): ' +
+        'one over AppModule -> Landing -> Shared, none over AppModule -> Shared. Set it on the ' +
+        'controllers or handlers it is meant for, or on Shared itself.',
+    )
+    const { transport } = await init(Decided)
+    expect(transport.handlers()).toHaveLength(1)
+  })
+
   it('wraps the handler in interceptors, outermost first', async () => {
     const order: string[] = []
 
@@ -228,6 +294,64 @@ describe('messageTransport', () => {
     await app.transport(messageTransport).dispatch(userCreated, { id: '1' })
 
     expect(order).toEqual(['outer:in', 'inner:in', 'handler', 'outer:out'])
+  })
+
+  it('runs the guards inside the interceptors of the application and before all others', async () => {
+    const log: string[] = []
+    let allowed = true
+    const around = (name: string) => {
+      @Injectable()
+      class Around {
+        async intercept(_ctx: ExecutionContext, next: () => Promise<unknown>) {
+          log.push(`${name}:enter`)
+          try {
+            return await next()
+          } catch (error) {
+            log.push(`${name}:${(error as Error).name}`)
+            throw error
+          }
+        }
+      }
+      return Around
+    }
+
+    @Injectable()
+    class Check implements Guard {
+      canActivate() {
+        log.push('guard')
+        return allowed
+      }
+    }
+    @MessageController({ guards: [Check], interceptors: [around('controller')] })
+    class UsersConsumer {
+      @Message(userCreated)
+      async onCreated() {
+        log.push('handler')
+      }
+    }
+    @Module({ messageControllers: [UsersConsumer], interceptors: [around('module')] })
+    class AppModule {}
+    const app = createApplication(AppModule, { logger: false, transports: [messageTransport()] })
+    apps.push(app)
+    app.intercept(around('application'))
+    await app.init()
+    const transport = app.transport(messageTransport)
+
+    await transport.dispatch(userCreated, { id: 'u1' })
+    expect(log).toEqual([
+      'application:enter',
+      'guard',
+      'module:enter',
+      'controller:enter',
+      'handler',
+    ])
+
+    log.length = 0
+    allowed = false
+    await expect(transport.dispatch(userCreated, { id: 'u1' })).rejects.toThrow(
+      'Guard Check denied the message',
+    )
+    expect(log).toEqual(['application:enter', 'guard', 'application:MessageDeniedError'])
   })
 
   it('subscribes every handler with the client on start, by its pattern', async () => {
@@ -317,6 +441,44 @@ describe('messageTransport', () => {
       app.transport(messageTransport).dispatch(userCreated, { id: '3' }),
     ).rejects.toThrow('[Navios] The message transport is stopped.')
   })
+
+  it.each([Infinity, 2 ** 31])(
+    'waits for them however long with a shutdownTimeout of %d',
+    async (shutdownTimeout) => {
+      let finish!: () => void
+      const done: string[] = []
+
+      @MessageController()
+      class Consumer {
+        @Message(userCreated)
+        async onCreated() {
+          await new Promise<void>((resolve) => {
+            finish = resolve
+          })
+          done.push('handled')
+        }
+      }
+      @Module({ messageControllers: [Consumer] })
+      class AppModule {}
+      const app = createApplication(AppModule, {
+        logger: false,
+        shutdownTimeout,
+        transports: [messageTransport()],
+      })
+      apps.push(app)
+      await app.init()
+
+      void app.transport(messageTransport).dispatch(userCreated, { id: '1' })
+      await new Promise((resolve) => setTimeout(resolve, 0))
+      const closing = app.close().then(() => done.push('closed'))
+      await new Promise((resolve) => setTimeout(resolve, 20))
+      expect(done).toEqual([])
+      finish()
+      await closing
+
+      expect(done).toEqual(['handled', 'closed'])
+    },
+  )
 
   it('finishes the context when a guard throws', async () => {
     const finished: string[] = []

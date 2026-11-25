@@ -14,7 +14,7 @@ import type { ConformanceSuite } from './suite.mjs'
  * @internal
  */
 export function defineJsonTopic(suite: ConformanceSuite) {
-  const { it, expect, url, json } = suite
+  const { it, expect, url, fetch, json } = suite
 
   class JsonController {
     simple = handler(

@@ -29,16 +29,12 @@ const columns = [
       '@navios/commander',
       '@navios/react-query',
       '@navios/openapi',
-      '@navios/openapi-fastify',
-      '@navios/openapi-bun',
       '@navios/otel',
-      '@navios/otel-fastify',
-      '@navios/otel-bun',
     ].map(npm),
   },
   {
     title: 'More',
-    links: [{ label: 'GitHub', href: 'https://github.com/Arilas/navios' }],
+    links: [{ label: 'GitHub', href: 'https://github.com/navios-org/navios' }],
   },
 ]
 

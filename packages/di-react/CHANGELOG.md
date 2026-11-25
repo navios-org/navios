@@ -5,14 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [2.0.0-alpha.0] - Unreleased
 
 ### Fixed
 
 - **`ScopeProvider` under `<StrictMode>`**: The scope survives the unmount and re-mount React simulates in development
   - Disposal now waits one microtask and is cancelled by a re-mount; a real unmount and a `key` change still dispose the scope
   - A provider shown again by `<Activity>` after its scope was disposed starts a new scope
-- **Inline args in `useService` and `useOptionalService`**: Args are compared by their JSON form, like `useSuspenseService`
+- **Inline args in `useService` and `useOptionalService`**: Args are compared by their JSON form, like `useSuspenseService`, which now tells apart `Map`, `Set`, `RegExp` and `bigint` values
   - An object literal written in the call no longer restarts the hook on every render
   - Changed args still resolve again
 - **Stale instance after an args change**: A hook that read its first instance synchronously kept it when the args, token or container changed

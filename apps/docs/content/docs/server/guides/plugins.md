@@ -4,7 +4,7 @@ title: Plugins
 
 # Plugins
 
-A plugin packages setup that an application would otherwise do by hand: providers, interceptors, error mappers, extra routes and shutdown work. `@navios/schedule`, `@navios/openapi` and `@navios/otel` are plugins. There is one plugin shape.
+A plugin packages setup that an application would otherwise do by hand: providers, interceptors, error mappers, extra routes and shutdown work. `@navios/openapi`, `@navios/otel` and `@navios/adapter-xml` are plugins. There is one plugin shape.
 
 ## Defining a plugin
 
@@ -84,13 +84,13 @@ const app = await NaviosFactory.create(AppModule, {
 app.usePlugin(metricsPlugin({ prefix: 'api' }))
 ```
 
-A plugin whose `setup` declares no options is called without arguments: `app.usePlugin(csvPlugin())`. `usePlugin` throws once the application has been initialised.
+A plugin whose `setup` declares no options is called without arguments: `app.usePlugin(csvPlugin())`. One whose options are all optional may be as well. `usePlugin` throws once `init()` has been called.
 
 ## The plugin definition
 
 | Field                 | Meaning                                                                                              |
 | --------------------- | ---------------------------------------------------------------------------------------------------- |
-| `name`                | Unique name. A plugin registered twice under one name is set up once; the first registration is used |
+| `name`                | Unique name. One plugin registered twice with equal options is set up once. The same plugin with different options, or two plugins of one name, fail `init()` |
 | `dependsOn`           | Names of plugins that must be set up before this one                                                 |
 | `setup(api, options)` | Called once during `init()`. May be asynchronous                                                     |
 
@@ -98,14 +98,14 @@ Plugins are set up in dependency order, whatever order they were registered in. 
 
 ## The plugin API
 
-`setup` runs after the application's transports, and so the HTTP adapter, have been created and before modules are loaded. Each call on `api` is recorded and applied at the right point of `init()`, so a plugin does not choose a stage.
+`setup` runs after the application's transports, and so the HTTP adapter, have been created and before modules are loaded. `provide` and `decorate` apply at once, everything else at its point of `init()`, so a plugin does not choose a stage. All of them belong into `setup` and throw afterwards; `api.transport()` and `api.container` work at any time.
 
 | Call                               | Effect                                                                                                        |
 | ---------------------------------- | ------------------------------------------------------------------------------------------------------------- |
-| `api.provide(token, impl)`         | Supplies or replaces a provider. `impl` is a class, `{ value }`, `{ class, scope? }` or `{ factory, scope? }` |
+| `api.provide(token, impl)`         | Supplies or replaces a provider. `impl` is a class, `{ value }`, `{ class, scope? }`, `{ factory, scope? }` or `{ existing }`. It wins over modules; what the application provides itself [stays](/docs/server/essentials/modules#providers) |
 | `api.decorate(token, fn)`          | Wraps every instance of a service after it is built. `fn` receives the instance and returns the one to use    |
 | `api.intercept(InterceptorClass)`  | Adds an interceptor around every handler, on every [transport](/docs/server/guides/other-transports)          |
-| `api.addModule(ModuleClass)`       | Adds a module, and so its routes, to the application                                                          |
+| `api.addModule(ModuleClass)`       | Adds a module, and so its routes, to the application. Its providers are defaults that a module of the application overrides |
 | `api.transport(httpTransport)`     | The application's HTTP transport, or `undefined` when it has none. See [The HTTP transport](#the-http-transport) |
 | `api.onBootstrap(hook)`            | Runs after routes are compiled and before the server listens                                                  |
 | `api.onShutdown(hook)`             | Runs during `close()`, in reverse registration order. The hook receives the signal name, if any               |
@@ -206,7 +206,7 @@ Registering a Fastify plugin works the same way: `await server.register(somePlug
 
 ## Response encoders
 
-An adapter knows how to write six kinds of result: `json`, `text`, `blob`, `stream`, `sse` and `empty`. An encoder converts a result of another kind into one of those, which lets a package add a response format without touching the adapters.
+The server knows how to write six kinds of result: `json`, `text`, `blob`, `stream`, `sse` and `empty`. An encoder converts a result of another kind into one of those, which lets a package add a response format without touching the adapters.
 
 A handler produces a custom kind with `result(kind, body)`, usually behind a helper the package exports:
 

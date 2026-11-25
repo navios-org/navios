@@ -17,7 +17,7 @@ import type { ConformanceSuite } from './suite.mjs'
  * @internal
  */
 export function defineErrorsTopic(suite: ConformanceSuite) {
-  const { it, expect, url } = suite
+  const { it, expect, url, fetch } = suite
 
   class BadlyMapped extends Error {}
 

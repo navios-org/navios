@@ -60,7 +60,7 @@ describe('TestContainer', () => {
       container.bind(TOKEN).toValue('eager')
 
       container.expectResolved(TOKEN)
-      expect(container.tryGetSync(TOKEN)).toBe('eager')
+      expect(container.peek(TOKEN)).toBe('eager')
     })
 
     it('should replace the default provider of an injectable class', async () => {

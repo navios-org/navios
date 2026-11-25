@@ -3,8 +3,6 @@
  *
  * Tests that request-scoped services are properly garbage collected
  * when the scoped container is ended/disposed.
- *
- * Run with: NODE_OPTIONS=--expose-gc yarn run -T vitest run src/__tests__/gc
  */
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -12,20 +10,14 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { Container } from '../../container/container.mjs'
 import { Injectable } from '../../decorators/injectable.mjs'
 import { InjectableScope } from '../../injectable-scope.mjs'
-import { inject } from '../../injection/injectors.mjs'
+import { asyncInject, inject } from '../../injection/injectors.mjs'
 
 import type { ScopedContainer } from '../../container/scoped-container.mjs'
 import type { OnServiceDestroy } from '../../lifecycle-hooks.mjs'
 
-import {
-  createGCTracker,
-  forceGC,
-  getHeapUsed,
-  isGCAvailable,
-  waitForGC,
-} from './gc-test-utils.mjs'
+import { countAlive, createGCTracker, memoryInUse, waitForGC } from './gc-test-utils.mjs'
 
-describe.skipIf(!isGCAvailable)('GC: Scoped Container', () => {
+describe('GC: Scoped Container', () => {
   let container: Container
 
   beforeEach(() => {
@@ -36,8 +28,8 @@ describe.skipIf(!isGCAvailable)('GC: Scoped Container', () => {
     await container.dispose()
   })
 
-  describe('Request-scoped services released on endRequest', () => {
-    it('should garbage collect request-scoped service after endRequest', async () => {
+  describe('Request-scoped services released on disposal', () => {
+    it('should garbage collect request-scoped service after disposal', async () => {
       @Injectable({ scope: InjectableScope.Request })
       class RequestService {
         public readonly id = Math.random()
@@ -57,7 +49,7 @@ describe.skipIf(!isGCAvailable)('GC: Scoped Container', () => {
       expect(collected).toBe(true)
     })
 
-    it('should collect multiple request-scoped services on endRequest', async () => {
+    it('should collect multiple request-scoped services on disposal', async () => {
       @Injectable({ scope: InjectableScope.Request })
       class ServiceA {
         public readonly data = Array.from({ length: 500 }, () => 'a')
@@ -145,7 +137,7 @@ describe.skipIf(!isGCAvailable)('GC: Scoped Container', () => {
   })
 
   describe('Scoped container itself is collected', () => {
-    it('should garbage collect scoped container after endRequest', async () => {
+    it('should garbage collect scoped container after disposal', async () => {
       @Injectable({ scope: InjectableScope.Request })
       class RequestService {}
 
@@ -330,7 +322,7 @@ describe.skipIf(!isGCAvailable)('GC: Scoped Container', () => {
   })
 
   describe('Memory reclamation for request scopes', () => {
-    it.todo('should reclaim memory when request ends', async () => {
+    it('should reclaim memory when request ends', async () => {
       const ALLOCATION_SIZE = 1024 * 100 // 100KB
       const SERVICE_COUNT = 10
 
@@ -344,8 +336,7 @@ describe.skipIf(!isGCAvailable)('GC: Scoped Container', () => {
         services.push(LargeRequestService)
       }
 
-      forceGC()
-      const baselineMemory = getHeapUsed()
+      const baselineMemory = await memoryInUse()
 
       const scoped = container.createScope()
 
@@ -354,23 +345,21 @@ describe.skipIf(!isGCAvailable)('GC: Scoped Container', () => {
         await scoped.get(Service)
       }
 
-      forceGC()
-      const afterAllocationMemory = getHeapUsed()
+      const afterAllocationMemory = await memoryInUse()
       const allocated = afterAllocationMemory - baselineMemory
 
       expect(allocated).toBeGreaterThan(ALLOCATION_SIZE * SERVICE_COUNT * 0.8)
 
       await scoped.dispose()
 
-      forceGC()
-      const afterReleaseMemory = getHeapUsed()
+      const afterReleaseMemory = await memoryInUse()
       const reclaimed = afterAllocationMemory - afterReleaseMemory
 
       // Should reclaim most memory (at least 70%)
       expect(reclaimed).toBeGreaterThan(allocated * 0.7)
     })
 
-    it.todo('should not leak memory across multiple requests', async () => {
+    it('should not leak memory across multiple requests', async () => {
       const ALLOCATION_SIZE = 1024 * 50 // 50KB
       const REQUEST_COUNT = 20
 
@@ -379,8 +368,7 @@ describe.skipIf(!isGCAvailable)('GC: Scoped Container', () => {
         public readonly data = new Uint8Array(ALLOCATION_SIZE)
       }
 
-      forceGC()
-      const baselineMemory = getHeapUsed()
+      const baselineMemory = await memoryInUse()
 
       // Process many requests
       for (let i = 0; i < REQUEST_COUNT; i++) {
@@ -389,8 +377,7 @@ describe.skipIf(!isGCAvailable)('GC: Scoped Container', () => {
         await scoped.dispose()
       }
 
-      forceGC()
-      const finalMemory = getHeapUsed()
+      const finalMemory = await memoryInUse()
       const memoryGrowth = finalMemory - baselineMemory
 
       // Memory growth should be minimal (less than 2 allocations worth)
@@ -399,36 +386,50 @@ describe.skipIf(!isGCAvailable)('GC: Scoped Container', () => {
   })
 
   describe('Concurrent request handling', () => {
-    // This test is flaky and no matter how many requests we make, the last instance is never collected.
-    it.skip('should properly collect services from concurrent requests', async () => {
+    it('should collect services from concurrent requests', async () => {
       @Injectable({ scope: InjectableScope.Request })
       class RequestService {
-        public readonly id = Math.random()
         public readonly data = Array.from({ length: 500 }, () => 'concurrent')
       }
 
-      const requestCount = 10
-      const scopedContainers: ScopedContainer[] = []
-      const trackers: ReturnType<typeof createGCTracker>[] = []
-
-      // Start multiple concurrent requests
-      for (let i = 0; i < requestCount; i++) {
-        const scoped = container.createScope()
-        scopedContainers.push(scoped)
-        const instance = await scoped.get(RequestService)
-        trackers.push(createGCTracker(instance))
+      const handle = async () => {
+        const scopes = Array.from({ length: 10 }, () => container.createScope())
+        const refs = await Promise.all(
+          scopes.map(async (scope) => new WeakRef(await scope.get(RequestService))),
+        )
+        await Promise.all(scopes.map((scope) => scope.dispose()))
+        return refs
       }
 
-      // End all requests
-      await Promise.all(scopedContainers.map((s) => s.dispose()))
+      expect(await countAlive(await handle())).toBe(0)
+    })
+  })
 
-      forceGC()
-      // All should be collected
-      let collected = 0
-      for (const tracker of trackers) {
-        console.log('waiting for GC', collected++, tracker().collected)
-        expect(await waitForGC(tracker().ref)).toBe(true)
+  describe('A singleton first built in a request', () => {
+    it('should not keep the request alive through an asyncInject() promise', async () => {
+      @Injectable()
+      class Dependency {}
+
+      @Injectable()
+      class Single {
+        readonly dependency = asyncInject(Dependency)
       }
+
+      @Injectable({ scope: InjectableScope.Request })
+      class Handler {
+        readonly single = inject(Single)
+      }
+
+      const handle = async () => {
+        const scope = container.createScope()
+        const handler = await scope.get(Handler)
+        await handler.single.dependency
+        await scope.dispose()
+        return [new WeakRef<object>(scope), new WeakRef<object>(handler)]
+      }
+
+      expect(await countAlive(await handle())).toBe(0)
+      expect(container.peek(Single)).not.toBeNull()
     })
   })
 })

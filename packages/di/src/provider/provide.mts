@@ -1,12 +1,18 @@
-import { DIError } from '../errors/di-error.mjs'
 import { InjectableScope } from '../injectable-scope.mjs'
+import { requireToken } from '../internal/normalize.mjs'
 import { findInjectableToken } from '../token/injectable-token.mjs'
 
-import type { ClassType } from '../token/class-type.mjs'
-import type { InjectionToken } from '../token/injection-token.mjs'
+import type { ClassType, ClassTypeWithInstance } from '../token/class-type.mjs'
+import type {
+  BoundInjectionToken,
+  FactoryInjectionToken,
+  InjectionToken,
+} from '../token/injection-token.mjs'
+import type { PublicPart } from '../token/public-part.mjs'
 
 import { createRecord } from './provider-record.mjs'
 
+import type { Factorable, ProvidedFor } from './factorable.mjs'
 import type { FactoryContext } from './factory-context.mjs'
 import type { ProviderKind, ProviderRecord } from './provider-record.mjs'
 
@@ -15,72 +21,84 @@ import type { ProviderKind, ProviderRecord } from './provider-record.mjs'
  * and `container.provide()`.
  */
 export interface Provider {
-  token: InjectionToken<any, any>
-  record: ProviderRecord
+  readonly token: InjectionToken<any, any>
+  /** @internal */
+  readonly record: ProviderRecord
 }
 
-export type ProviderInput<T> =
-  | ClassType
-  | { value: T }
-  | { class: ClassType; scope?: InjectableScope }
-  | { factory: (ctx: FactoryContext, args: any) => T | Promise<T>; scope?: InjectableScope }
+/** A class whose instances, or whose products if it is a `@Factory`, are a `T`. */
+type ImplementationOf<T> = ClassTypeWithInstance<PublicPart<T> | Factorable<PublicPart<T>>>
 
-function tokenOf(target: ClassType | InjectionToken<any, any>): InjectionToken<any, any> {
-  if (typeof target !== 'function') {
-    return target
-  }
-  const token = findInjectableToken(target)
-  if (!token) {
-    throw DIError.classNotInjectable(target.name)
-  }
-  return token
-}
+type FactoryOf<T> = (ctx: FactoryContext, args: any) => PublicPart<T> | Promise<PublicPart<T>>
+
+type ProviderForms<T, F> =
+  | ImplementationOf<T>
+  | { value: PublicPart<T> }
+  | { class: ImplementationOf<T>; scope?: InjectableScope }
+  | { factory: F; scope?: InjectableScope }
+  | {
+      /** Another class or token: the same instance, with the same lifecycle. */
+      existing:
+        | ImplementationOf<T>
+        | InjectionToken<PublicPart<T>, any>
+        | BoundInjectionToken<PublicPart<T>, any>
+        | FactoryInjectionToken<PublicPart<T>, any>
+    }
 
 /**
- * Binds a token (or a class) to an implementation, a value or a factory.
+ * How to come by a `T`. Only the public members of a class count: a mock does
+ * not have to declare its private ones.
+ */
+export type ProviderInput<T> = ProviderForms<T, FactoryOf<T>>
+
+/**
+ * A `ProviderInput` for the class or token `K`. The type of a factory is a
+ * condition on `K`, so that TypeScript looks at what `K` was inferred to be
+ * before it checks the function: literals in what it returns keep their types.
+ */
+export type ProviderInputFor<K> = ProviderForms<
+  ProvidedFor<K>,
+  K extends unknown ? FactoryOf<ProvidedFor<K>> : never
+>
+
+/**
+ * Binds a token (or a class) to an implementation, a value, a factory or
+ * another token.
  *
  * ```ts
  * new Container({ providers: [provide(Mailer, SesMailer), provide(Clock, { value: fakeClock })] })
  * ```
  *
- * A class implementation keeps the scope it was registered with unless a
- * scope is given explicitly.
+ * Unless a scope is given, the binding keeps the scope of the token's default
+ * provider; a token without one takes the scope of a class implementation.
  */
-export function provide<T>(
-  target: ClassType | InjectionToken<T, any>,
-  impl: ProviderInput<T>,
+export function provide<K extends ClassType | InjectionToken<any, any>>(
+  target: K,
+  impl: ProviderInputFor<K>,
 ): Provider {
-  const token = tokenOf(target)
+  const token = requireToken(target)
+  return { token, record: recordFor(token, impl) }
+}
+
+function recordFor(token: InjectionToken<any, any>, impl: ProviderInput<any>): ProviderRecord {
   if (typeof impl === 'function') {
-    return { token, record: classRecord(token, impl, undefined) }
-  }
-  if ('value' in impl) {
-    return {
-      token,
-      record: createRecord(
-        token,
-        'value',
-        token.scope ?? InjectableScope.Singleton,
-        undefined,
-        undefined,
-        impl.value,
-      ),
-    }
+    return classRecord(token, impl, undefined)
   }
   if ('class' in impl) {
-    return { token, record: classRecord(token, impl.class, impl.scope) }
+    return classRecord(token, impl.class, impl.scope)
   }
-  return {
-    token,
-    record: createRecord(
-      token,
-      'function',
-      impl.scope ?? token.scope ?? InjectableScope.Singleton,
-      undefined,
-      impl.factory,
-      undefined,
-    ),
+  const scope = tokenScope(token) ?? InjectableScope.Singleton
+  if ('value' in impl) {
+    return createRecord(token, 'value', scope, undefined, undefined, impl.value)
   }
+  if ('existing' in impl) {
+    return createRecord(token, 'existing', scope, undefined, undefined, impl.existing)
+  }
+  return createRecord(token, 'function', impl.scope ?? scope, undefined, impl.factory, undefined)
+}
+
+function tokenScope(token: InjectionToken<any, any>): InjectableScope | undefined {
+  return token.provider?.scope ?? token.scope
 }
 
 function classRecord(
@@ -93,7 +111,10 @@ function classRecord(
   return createRecord(
     token,
     kind,
-    scope ?? (own?.target === target ? own.scope : undefined) ?? InjectableScope.Singleton,
+    scope ??
+      tokenScope(token) ??
+      (own?.target === target ? own.scope : undefined) ??
+      InjectableScope.Singleton,
     target,
     undefined,
     undefined,

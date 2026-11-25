@@ -11,9 +11,11 @@ export interface EventSourceClient {
    * Register an event listener.
    *
    * @param event - Event name to listen for
-   * @param handler - Handler function called when event is received
+   * @param handler - Handler function called when event is received, with the
+   *   decoded data. A client that decodes text also passes the text: a payload
+   *   that fails its schema decoded is tried as text
    */
-  on(event: string, handler: (data: unknown) => void): void
+  on(event: string, handler: (data: unknown, text?: string) => void): void
 
   /**
    * Remove an event listener.
@@ -21,7 +23,7 @@ export interface EventSourceClient {
    * @param event - Event name
    * @param handler - Handler function to remove (optional, removes all if not provided)
    */
-  off(event: string, handler?: (data: unknown) => void): void
+  off(event: string, handler?: (data: unknown, text?: string) => void): void
 
   /**
    * Close the EventSource connection.

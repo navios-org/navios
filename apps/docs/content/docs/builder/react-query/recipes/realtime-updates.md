@@ -50,7 +50,7 @@ export function useUserEvents() {
   const queryClient = useQueryClient()
 
   useEffect(() => {
-    const connection = connectEvents({})
+    const connection = connectEvents()
     socket.provideClient(connection)
 
     const stop = [
@@ -74,8 +74,6 @@ export function useUserEvents() {
 ```
 
 The handlers receive validated payloads: `user` has the type `userQuery` stores, so `setData` accepts it as is. A message that fails its schema is skipped and never reaches the cache; it is reported to the `onError` hook of `socketBuilder`.
-
-`socket.provideClient` also accepts a Socket.IO client in place of the `declareWebSocket` connection. The subscriptions and the hook stay the same.
 
 ## From Server-Sent Events
 
@@ -139,7 +137,7 @@ const stopOnOpen = connection.onOpen(() => {
 })
 ```
 
-The first open after mounting triggers it too, which costs one refetch of the mounted queries. A Socket.IO client also reconnects by itself: listen for its `connect` event. A `declareWebSocket` connection does not reconnect; when your code opens a new one, invalidate after `provideClient`.
+The first open after mounting triggers it too, which costs one refetch of the mounted queries. A `declareWebSocket` connection does not reconnect; when your code opens a new one, invalidate after `provideClient`.
 
 ## Polling
 

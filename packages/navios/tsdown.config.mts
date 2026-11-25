@@ -7,7 +7,8 @@ export default defineConfig({
   clean: true,
   treeshake: true,
   sourcemap: true,
-  platform: 'node',
+  platform: 'neutral',
+  fixedExtension: true,
   dts: true,
   target: 'es2022',
 })

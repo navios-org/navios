@@ -1,282 +1,176 @@
+type MaybePromise<T> = T | Promise<T>
+
 /**
- * Function type for dynamic origin validation.
- * Called with the request origin and a callback to return the validation result.
+ * What an origin is compared with: the origin itself, `'*'` for any origin, a
+ * pattern, or `true` for any origin and `false` for none.
+ */
+export type CorsOrigin = string | boolean | RegExp | (string | boolean | RegExp)[]
+
+/**
+ * Decides about the origin of a request, like the function that
+ * `@fastify/cors` takes: it calls the callback, or returns a promise of what
+ * the origin is compared with. A function that takes no callback may return
+ * that as it is; what one with a callback returns, unless it is a promise,
+ * decides nothing. An error fails the request, before the handler runs. Not
+ * called for a request without an origin.
  */
 export type OriginFunction = (
   origin: string | undefined,
-  callback: (error: Error | null, allow?: boolean | string) => void,
-) => void
+  callback: (error: Error | null, allow?: CorsOrigin) => void,
+) => CorsOrigin | void | Promise<CorsOrigin | void>
 
 /**
- * Extended CORS options for the Bun adapter.
- * Extends the core AbstractHttpCorsOptions with support for function-based origin.
+ * CORS options of the Bun adapter. They have the names and the meaning of the
+ * options of `@fastify/cors` that the Fastify adapter takes.
  */
 export interface BunCorsOptions {
   /** Allowed origin(s). @default '*' */
-  origin?: string | boolean | RegExp | (string | boolean | RegExp)[] | OriginFunction
+  origin?: CorsOrigin | OriginFunction
   credentials?: boolean
   exposedHeaders?: string | string[]
+  /** The request headers a preflight allows. Those that it asks for, if not set. */
   allowedHeaders?: string | string[]
+  /** The methods a preflight allows. @default 'GET,HEAD,PUT,PATCH,POST,DELETE' */
   methods?: string | string[]
   maxAge?: number
   cacheControl?: number | string
 }
 
-/**
- * CORS headers that can be set on a response.
- */
-export interface CorsHeaders {
-  'Access-Control-Allow-Origin'?: string
-  'Access-Control-Allow-Credentials'?: string
-  'Access-Control-Expose-Headers'?: string
-  'Access-Control-Allow-Headers'?: string
-  'Access-Control-Allow-Methods'?: string
-  'Access-Control-Max-Age'?: string
-  'Cache-Control'?: string
-  Vary?: string
-}
-
-/**
- * Default allowed methods for CORS.
- */
 const DEFAULT_METHODS = 'GET,HEAD,PUT,PATCH,POST,DELETE'
 
-/**
- * Checks if the origin is allowed based on the CORS configuration.
- * Returns the origin to reflect or false if not allowed.
- */
-async function matchOrigin(
-  requestOrigin: string | undefined,
-  origin: BunCorsOptions['origin'],
-): Promise<string | false> {
-  // No origin header = same-origin request, allow but don't add CORS header
-  if (!requestOrigin) {
-    return false
-  }
+function list(value: string | string[]): string {
+  return Array.isArray(value) ? value.join(', ') : value
+}
 
-  // Boolean true = allow all origins (reflect the request origin)
-  if (origin === true) {
-    return requestOrigin
+function matches(origin: string, value: string | boolean | RegExp): boolean {
+  if (value instanceof RegExp) {
+    // One with the flag `g` or `y` goes on where it has stopped.
+    value.lastIndex = 0
+    return value.test(origin)
   }
+  return value === origin || value === true
+}
 
-  // Boolean false = no CORS
-  if (origin === false) {
-    return false
+/** The value of `Access-Control-Allow-Origin`, or `null` for an origin that is not allowed. */
+function allow(origin: string, value: CorsOrigin | void): string | null {
+  const values = Array.isArray(value) ? value : [value ?? false]
+  if (values.includes('*')) {
+    return '*'
   }
+  return values.some((candidate) => matches(origin, candidate)) ? origin : null
+}
 
-  // String match
-  if (typeof origin === 'string') {
-    if (origin === '*') {
-      return '*'
+function ask(decide: OriginFunction, origin: string): Promise<CorsOrigin | void> {
+  return new Promise((resolve, reject) => {
+    const answer = decide(origin, (error, value) => (error ? reject(error) : resolve(value)))
+    if (typeof (answer as PromiseLike<unknown> | undefined)?.then === 'function') {
+      Promise.resolve(answer).then(resolve, reject)
+    } else if (decide.length < 2 && (answer !== undefined || decide.length === 1)) {
+      // A function that declares the callback returns whatever its last
+      // expression gives, such as the `true` of an emitter that has a
+      // listener. One that declares nothing may hand its arguments on.
+      resolve(answer)
     }
-    return origin === requestOrigin ? requestOrigin : false
+  })
+}
+
+function assertCredentials(allowed: string | null, credentials: boolean | undefined): void {
+  if (credentials && allowed === '*') {
+    throw new Error(
+      '[Navios] CORS with credentials needs an explicit origin: browsers reject ' +
+        'Access-Control-Allow-Origin: * on credentialed requests. Set cors.origin to the allowed origin(s).',
+    )
+  }
+}
+
+export class Cors {
+  private readonly origin: CorsOrigin | OriginFunction
+  /** Whether every origin gets the same response headers. */
+  private readonly isFixed: boolean
+
+  constructor(private readonly options: BunCorsOptions) {
+    // Like @fastify/cors: enabling CORS without an origin allows any origin,
+    // and so does a list with `*` in it.
+    const { origin = '*' } = options
+    this.origin = Array.isArray(origin) && origin.includes('*') ? '*' : origin
+    this.isFixed = this.origin === '*' || this.origin === false
+    assertCredentials(this.origin === '*' ? '*' : null, options.credentials)
   }
 
-  // RegExp match
-  if (origin instanceof RegExp) {
-    return origin.test(requestOrigin) ? requestOrigin : false
-  }
-
-  // Array - check if any entry matches
-  if (Array.isArray(origin)) {
-    for (const entry of origin) {
-      const result = await matchOrigin(requestOrigin, entry)
-      if (result) {
-        return result
-      }
+  /** The origin that the response to a request allows. */
+  check(request: Request): MaybePromise<string | null> {
+    const origin = request.headers.get('origin')
+    if (origin === null) {
+      return null
     }
-    return false
-  }
-
-  // Function - promisify the callback style
-  if (typeof origin === 'function') {
-    return new Promise((resolve) => {
-      origin(requestOrigin, (error, allow) => {
-        if (error) {
-          resolve(false)
-          return
-        }
-        if (allow === true) {
-          resolve(requestOrigin)
-        } else if (typeof allow === 'string') {
-          resolve(allow)
-        } else {
-          resolve(false)
-        }
-      })
+    if (typeof this.origin !== 'function') {
+      return allow(origin, this.origin)
+    }
+    return ask(this.origin, origin).then((answer) => {
+      const allowed = allow(origin, answer)
+      assertCredentials(allowed, this.options.credentials)
+      return allowed
     })
   }
 
-  return false
-}
-
-/**
- * Normalizes a string or array of strings to a comma-separated string.
- */
-function normalizeToString(value: string | string[] | undefined): string {
-  if (!value) return ''
-  if (Array.isArray(value)) {
-    return value.join(', ')
-  }
-  return value
-}
-
-/**
- * Calculates CORS headers for a request based on the provided options.
- *
- * @param requestOrigin - The Origin header from the request
- * @param options - CORS configuration options
- * @returns CORS headers object or null if origin is not allowed
- */
-export async function calculateCorsHeaders(
-  requestOrigin: string | undefined,
-  options: BunCorsOptions,
-): Promise<CorsHeaders | null> {
-  const allowedOrigin = await matchOrigin(requestOrigin, options.origin)
-
-  // If origin not allowed, return null (no CORS headers)
-  if (!allowedOrigin) {
-    return null
+  /** Adds the headers to a response. */
+  apply(headers: Headers, allowed: string | null): void {
+    // For an origin that is not allowed too: a cache must not serve its
+    // response to an allowed origin.
+    if (!this.isFixed) {
+      addVary(headers, 'Origin')
+    }
+    if (allowed === null) {
+      return
+    }
+    const { credentials, exposedHeaders } = this.options
+    headers.set('access-control-allow-origin', allowed)
+    if (credentials) {
+      headers.set('access-control-allow-credentials', 'true')
+    }
+    if (exposedHeaders !== undefined) {
+      headers.set('access-control-expose-headers', list(exposedHeaders))
+    }
   }
 
-  // Security: Cannot use wildcard origin with credentials
-  // Per CORS spec, Access-Control-Allow-Origin cannot be '*' when credentials are included
-  if (allowedOrigin === '*' && options.credentials) {
-    throw new Error(
-      'CORS configuration error: Cannot use wildcard origin (*) with credentials: true. ' +
-        'Set a specific origin or use origin: true to reflect the request origin.',
+  static isPreflight({ method, headers }: Request): boolean {
+    return (
+      method === 'OPTIONS' && headers.has('origin') && headers.has('access-control-request-method')
     )
   }
 
-  const headers: CorsHeaders = {
-    'Access-Control-Allow-Origin': allowedOrigin,
-  }
-
-  // Always set Vary: Origin when not using wildcard
-  if (allowedOrigin !== '*') {
-    headers.Vary = 'Origin'
-  }
-
-  // Credentials
-  if (options.credentials) {
-    headers['Access-Control-Allow-Credentials'] = 'true'
-  }
-
-  // Exposed headers (for actual requests)
-  if (options.exposedHeaders) {
-    headers['Access-Control-Expose-Headers'] = normalizeToString(options.exposedHeaders)
-  }
-
-  return headers
-}
-
-/**
- * Calculates CORS headers specifically for preflight (OPTIONS) requests.
- *
- * @param requestOrigin - The Origin header from the request
- * @param requestMethod - The Access-Control-Request-Method header
- * @param requestHeaders - The Access-Control-Request-Headers header
- * @param options - CORS configuration options
- * @returns CORS headers object or null if origin is not allowed
- */
-export async function calculatePreflightHeaders(
-  requestOrigin: string | undefined,
-  requestMethod: string | null,
-  requestHeaders: string | null,
-  options: BunCorsOptions,
-): Promise<CorsHeaders | null> {
-  const baseHeaders = await calculateCorsHeaders(requestOrigin, options)
-
-  if (!baseHeaders) {
-    return null
-  }
-
-  // Add preflight-specific headers
-  const headers: CorsHeaders = { ...baseHeaders }
-
-  // Allowed methods
-  headers['Access-Control-Allow-Methods'] = options.methods
-    ? normalizeToString(options.methods)
-    : DEFAULT_METHODS
-
-  // Allowed headers - reflect request headers if not specified
-  if (options.allowedHeaders) {
-    headers['Access-Control-Allow-Headers'] = normalizeToString(options.allowedHeaders)
-  } else if (requestHeaders) {
-    // Reflect the requested headers
-    headers['Access-Control-Allow-Headers'] = requestHeaders
-    // Add Vary for Access-Control-Request-Headers since we're reflecting
-    headers.Vary = headers.Vary
-      ? `${headers.Vary}, Access-Control-Request-Headers`
-      : 'Access-Control-Request-Headers'
-  }
-
-  // Max age
-  if (options.maxAge !== undefined) {
-    headers['Access-Control-Max-Age'] = String(options.maxAge)
-  }
-
-  // Cache control for preflight
-  if (options.cacheControl !== undefined) {
-    if (typeof options.cacheControl === 'number') {
-      headers['Cache-Control'] = `max-age=${options.cacheControl}`
+  /** The response to a preflight request of an origin that is allowed. */
+  preflight(request: Request, allowed: string): Response {
+    const { methods, allowedHeaders, maxAge, cacheControl } = this.options
+    const headers = new Headers()
+    this.apply(headers, allowed)
+    headers.set('access-control-allow-methods', list(methods ?? DEFAULT_METHODS))
+    if (allowedHeaders !== undefined) {
+      headers.set('access-control-allow-headers', list(allowedHeaders))
     } else {
-      headers['Cache-Control'] = options.cacheControl
+      addVary(headers, 'Access-Control-Request-Headers')
+      const requested = request.headers.get('access-control-request-headers')
+      if (requested !== null) {
+        headers.set('access-control-allow-headers', requested)
+      }
     }
+    if (maxAge !== undefined) {
+      headers.set('access-control-max-age', String(maxAge))
+    }
+    if (cacheControl !== undefined) {
+      headers.set(
+        'cache-control',
+        typeof cacheControl === 'number' ? `max-age=${cacheControl}` : cacheControl,
+      )
+    }
+    return new Response(null, { status: 204, headers })
   }
-
-  return headers
 }
 
-/**
- * Checks if a request is a CORS preflight request.
- *
- * @param method - The HTTP method of the request
- * @param origin - The Origin header value
- * @param accessControlRequestMethod - The Access-Control-Request-Method header
- * @returns true if this is a preflight request
- */
-export function isPreflight(
-  method: string,
-  origin: string | null,
-  accessControlRequestMethod: string | null,
-): boolean {
-  return method === 'OPTIONS' && !!origin && accessControlRequestMethod !== null
-}
-
-/**
- * Applies CORS headers to a Response object.
- *
- * @param response - The original response
- * @param requestOrigin - The Origin header from the request
- * @param options - CORS configuration options
- * @returns A new Response with CORS headers, or the original if origin not allowed
- */
-export async function applyCorsToResponse(
-  response: Response,
-  requestOrigin: string | null,
-  options: BunCorsOptions | null,
-): Promise<Response> {
-  if (!options) {
-    return response
+/** Adds a name to the `Vary` header, keeping what the handler has set. */
+function addVary(headers: Headers, name: string): void {
+  const names = (headers.get('vary') ?? '').split(',').map((entry) => entry.trim().toLowerCase())
+  if (!names.includes('*') && !names.includes(name.toLowerCase())) {
+    headers.append('vary', name)
   }
-
-  const corsHeaders = await calculateCorsHeaders(requestOrigin ?? undefined, options)
-
-  if (!corsHeaders) {
-    return response
-  }
-
-  const headers = new Headers(response.headers)
-  for (const [key, value] of Object.entries(corsHeaders)) {
-    if (value) {
-      headers.set(key, value)
-    }
-  }
-
-  return new Response(response.body, {
-    status: response.status,
-    statusText: response.statusText,
-    headers,
-  })
 }

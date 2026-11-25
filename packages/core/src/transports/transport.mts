@@ -1,6 +1,7 @@
 import type { ClassType, Container } from '@navios/di'
 
 import type { ContextHost } from '../execution/context-host.mjs'
+import type { OptionsArgument } from '../internal/options-argument.mjs'
 import type { LoggerService } from '../logger/logger-output.mjs'
 import type { ModuleNode } from '../modules/module-graph.mjs'
 
@@ -38,9 +39,11 @@ export interface Transport {
   start?(): void | Promise<void>
   /**
    * Stops accepting work and waits, up to `timeoutMs`, for what is in flight.
-   * Called at most once. When the application fails to initialise it is
-   * called for every transport that was created, so possibly before `setup`
-   * or `start` ran; it must release what `create` acquired.
+   * One that takes much longer is left behind. When the application fails to
+   * initialise or to start it is called for every transport that was created,
+   * with no time to wait and possibly before `setup` or `start` ran; it must
+   * release what `create` acquired. Called once, and again when `start` settles
+   * only after that.
    */
   stop(timeoutMs: number): void | Promise<void>
 }
@@ -56,6 +59,7 @@ export interface TransportDefinition<Options, T extends Transport> {
  */
 export interface TransportInstance<T extends Transport = Transport> {
   readonly definition: TransportDefinition<any, T>
+  /** `{}` when the transport was given none. */
   readonly options: unknown
   /** Unique within the application. Defaults to the definition's name. */
   readonly instanceName: string
@@ -66,7 +70,7 @@ export interface TransportInstance<T extends Transport = Transport> {
  * to list in an application, and it is the key to look the transport up with.
  */
 export interface TransportFactory<Options, T extends Transport> {
-  (options: Options, instanceName?: string): TransportInstance<T>
+  (...args: OptionsArgument<Options, [instanceName?: string]>): TransportInstance<T>
   readonly definition: TransportDefinition<Options, T>
 }
 
@@ -94,9 +98,9 @@ export interface TransportFactory<Options, T extends Transport> {
 export function defineTransport<Options = void, T extends Transport = Transport>(
   definition: TransportDefinition<Options, T>,
 ): TransportFactory<Options, T> {
-  const factory = (options: Options, instanceName?: string): TransportInstance<T> => ({
+  const factory = (options?: Options, instanceName?: string): TransportInstance<T> => ({
     definition,
-    options,
+    options: options ?? {},
     instanceName: instanceName ?? definition.name,
   })
   return Object.assign(factory, { definition })

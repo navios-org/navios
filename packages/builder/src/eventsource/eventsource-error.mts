@@ -1,6 +1,7 @@
 import { NaviosError } from '../shared/navios-error.mjs'
+import { toSchemaIssue } from '../shared/schema.mjs'
 
-import type { SchemaIssue } from '../shared/schema.mjs'
+import type { SchemaIssue, StandardIssue } from '../shared/schema.mjs'
 
 /**
  * Why handling a server-sent event failed.
@@ -17,7 +18,7 @@ export interface EventSourceErrorInit {
   eventName: string
   message?: string
   url?: string
-  issues?: readonly SchemaIssue[]
+  issues?: readonly StandardIssue[]
   rawData?: unknown
   cause?: unknown
 }
@@ -50,7 +51,7 @@ export class EventSourceError extends NaviosError {
     this.kind = init.kind
     this.eventName = init.eventName
     if (init.url !== undefined) this.url = init.url
-    if (init.issues !== undefined) this.issues = init.issues
+    if (init.issues !== undefined) this.issues = init.issues.map(toSchemaIssue)
     if ('rawData' in init) this.rawData = init.rawData
   }
 

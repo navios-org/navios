@@ -198,6 +198,57 @@ describe('handlers', () => {
     )
   })
 
+  it('fails init when a controller is not a class, naming the module', async () => {
+    @Module({ controllers: [undefined as never] })
+    class CyclicModule {}
+
+    const app = await createApp(CyclicModule)
+    await expect(app.init()).rejects.toThrow('Module CyclicModule lists undefined in controllers')
+  })
+
+  it('lets a subclass serve an inherited handler with another endpoint', async () => {
+    @Controller()
+    class Base {
+      @Endpoint(ping)
+      async show() {
+        return { ok: true }
+      }
+    }
+
+    const other = api.declareEndpoint({
+      method: 'GET',
+      url: '/other',
+      responseSchema: z.object({ ok: z.boolean() }),
+    })
+    @Controller()
+    class Derived extends Base {
+      @Endpoint(other)
+      override async show() {
+        return { ok: false }
+      }
+    }
+
+    @Module({ controllers: [Derived] })
+    class AppModule {}
+
+    const app = await createApp(AppModule)
+    const call = createTestClient(app)
+    expect((await call(other)).body).toEqual({ ok: false })
+    expect((await call(ping)).status).toBe(404)
+
+    expect(() => {
+      class Twice {
+        // @ts-ignore: decorated twice on purpose
+        @Endpoint(ping)
+        @Endpoint(other)
+        async show() {
+          return { ok: true }
+        }
+      }
+      return Twice
+    }).toThrow('show already serves GET /other')
+  })
+
   it('fails init with the original error when a controller constructor throws', async () => {
     @Controller()
     class Broken {
@@ -410,14 +461,57 @@ describe('guards, attributes and request state', () => {
     const app = await createApp(Root)
     const response = await createTestClient(app)(ping)
     expect(order).toEqual([
-      'interceptor:in',
       'module',
       'controller',
       'handler-guard',
+      'interceptor:in',
       'handler',
       'interceptor:out',
     ])
     expect(response.headers['x-timed']).toBe('yes')
+  })
+
+  it('runs an interceptor of the application for a denied request, and one of a module not', async () => {
+    const seen: string[] = []
+    const recorder = (name: string) => {
+      @Injectable()
+      class Recorder implements Interceptor {
+        intercept(_ctx: RequestContext, next: () => Promise<RouteResult>) {
+          seen.push(name)
+          return next()
+        }
+      }
+      return Recorder
+    }
+
+    @Injectable()
+    class Deny implements Guard {
+      canActivate() {
+        return false
+      }
+    }
+
+    @Controller()
+    class Ctl {
+      @Endpoint(ping)
+      async ping() {
+        return { ok: true }
+      }
+    }
+
+    @Module({ controllers: [Ctl], guards: [Deny], interceptors: [recorder('module')] })
+    class Root {}
+
+    const app = await NaviosFactory.create(Root, {
+      adapter: defineInMemoryEnvironment(),
+      logger: false,
+    })
+    app.intercept(recorder('application'))
+    await app.init()
+    expect((await createTestClient(app)(ping)).status).toBe(403)
+    expect(seen).toEqual(['application'])
+    expect(app.routes()[0].interceptors).toHaveLength(2)
+    await app.close()
   })
 
   it('creates a DI scope only for handlers that use a request-scoped service', async () => {
@@ -790,6 +884,58 @@ describe('in-memory adapter', () => {
     const response = await app.inject({ method: 'GET', url: '/unserialisable' })
     expect(response.status).toBe(500)
     expect(response.headers['content-type']).toContain('application/problem+json')
+  })
+})
+
+describe('guards of the application', () => {
+  it('run for every route, before those of modules, and for modules that plugins add', async () => {
+    const order: string[] = []
+
+    @Injectable()
+    class AppGuard implements Guard {
+      canActivate(ctx: RequestContext) {
+        order.push('app')
+        return ctx.headers.get('x-key') === 'k'
+      }
+    }
+    @Injectable()
+    class ModuleGuard implements Guard {
+      canActivate() {
+        order.push('module')
+        return true
+      }
+    }
+
+    @Controller()
+    class OwnController {
+      ping = handler(ping, () => ({ ok: true }))
+    }
+    @Module({ controllers: [OwnController], guards: [ModuleGuard, AppGuard] })
+    class AppModule {}
+
+    @Controller()
+    class AddedController {
+      list = handler(listUsers, () => [])
+    }
+    @Module({ controllers: [AddedController] })
+    class AddedModule {}
+    const plugin = definePlugin({ name: 'added', setup: (it) => void it.addModule(AddedModule) })
+
+    const app = await createApp(AppModule, { guards: [AppGuard], plugins: [plugin()] })
+    const call = createTestClient(app)
+    expect((await call(ping)).status).toBe(403)
+    expect((await call(listUsers, { params: {} } as never)).status).toBe(403)
+    expect(order).toEqual(['app', 'app'])
+
+    const allowed = createTestClient(app, { headers: { 'x-key': 'k' } })
+    expect((await allowed(ping)).status).toBe(200)
+    expect((await allowed(listUsers, { params: {} } as never)).status).toBe(200)
+    expect(order).toEqual(['app', 'app', 'app', 'module', 'app'])
+    expect(app.routes().map((route) => route.guards.map((guard) => guard.name))).toContainEqual([
+      'AppGuard',
+      'ModuleGuard',
+    ])
+    await app.close()
   })
 })
 

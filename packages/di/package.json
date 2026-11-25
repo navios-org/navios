@@ -1,6 +1,6 @@
 {
   "name": "@navios/di",
-  "version": "1.0.0",
+  "version": "2.0.0-alpha.0",
   "license": "MIT",
   "author": {
     "name": "Oleksandr Hanzha",
@@ -8,9 +8,15 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/Arilas/navios.git",
+    "url": "https://github.com/navios-org/navios.git",
     "directory": "packages/di"
   },
+  "files": [
+    "lib",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ],
   "sideEffects": [
     "./src/symbol-metadata.mts",
     "./lib/symbol-metadata-*"
@@ -47,6 +53,16 @@
         "default": "./lib/index.cjs"
       }
     },
+    "./internal": {
+      "import": {
+        "types": "./lib/internal/index.d.mts",
+        "default": "./lib/internal/index.mjs"
+      },
+      "require": {
+        "types": "./lib/internal/index.d.cts",
+        "default": "./lib/internal/index.cjs"
+      }
+    },
     "./testing": {
       "import": {
         "types": "./lib/testing/index.d.mts",
@@ -72,13 +88,13 @@
     "check": "tsc -b",
     "lint": "yarn run -T oxlint --fix && yarn run -T oxfmt",
     "test:ci": "vitest run",
-    "test:gc": "NODE_OPTIONS=--expose-gc vitest run src/__tests__/gc",
     "build": "tsdown",
-    "publish": "yarn npm publish --access public",
+    "publish": "node ../../scripts/assert-stable-version.mjs && yarn npm publish --access public",
     "publish:next": "yarn npm publish --access public --tag next",
     "bench": "NODE_ENV=production node benchmarks/di.bench.mjs"
   },
   "devDependencies": {
+    "esbuild": "^0.28.2",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2",
     "zod": "^4.6.7"

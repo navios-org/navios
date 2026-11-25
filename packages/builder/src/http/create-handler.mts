@@ -4,6 +4,7 @@ import { NaviosError } from '../shared/navios-error.mjs'
 import { validate } from '../shared/validate.mjs'
 
 import type { Schema } from '../shared/schema.mjs'
+import type { ValidationOutcome } from '../shared/validate.mjs'
 
 import { EndpointError } from './endpoint-error.mjs'
 import { makeConfig } from './make-config.mjs'
@@ -12,7 +13,7 @@ import { classifyTransportFailure } from './transport-failure.mjs'
 
 import type { BuilderContext } from './builder-config.mjs'
 import type { AbstractRequestConfig, AbstractResponse, Client } from './client.mjs'
-import type { EndpointErrorInit } from './endpoint-error.mjs'
+import type { EndpointErrorInit, RequestPart } from './endpoint-error.mjs'
 import type { BaseEndpointOptions } from './endpoint-options.mjs'
 import type { SafeResult } from './safe-result.mjs'
 
@@ -46,13 +47,61 @@ function isSuccessStatus(status: unknown): boolean {
 }
 
 /**
- * Checks, once, that an endpoint's declaration is internally consistent.
- *
- * @throws {NaviosError} when `urlParamsSchema` keys differ from the URL's
- *   `$param` names.
+ * What `JSON.stringify` throws for a body, when that is why the client failed.
+ * From here it looks like a network failure. A client that can send more than
+ * JSON (a `BigInt`) fails for other reasons, whose messages differ.
  */
-export function assertValidDeclaration(options: BaseEndpointOptions): void {
-  const { urlParamsSchema, url, method } = options
+function serializationError(data: unknown, failure: unknown): Error | undefined {
+  try {
+    JSON.stringify(data)
+  } catch (error) {
+    const { message, cause } = (failure ?? {}) as Partial<Error> & { cause?: Partial<Error> }
+    if (!(error instanceof Error)) return undefined
+    if (error.message === message || error.message === cause?.message) return error
+  }
+  return undefined
+}
+
+/** The problems of all invalid parts, or `null` when every part is valid. */
+function invalidParts(
+  parts: Record<RequestPart, ValidationOutcome>,
+): Pick<EndpointErrorInit, 'issues' | 'cause'> | null {
+  const invalid = (Object.keys(parts) as RequestPart[]).flatMap((part) => {
+    const outcome = parts[part]
+    return outcome.ok ? [] : [{ part, ...outcome }]
+  })
+  if (invalid.length === 0) return null
+  return {
+    issues: invalid.flatMap(({ part, issues }) =>
+      issues.map(({ message, path }) => ({ message, path, part })),
+    ),
+    cause: invalid[0]!.cause,
+  }
+}
+
+/**
+ * Checks, once, that an endpoint's declaration is internally consistent. The
+ * types reject most of this as well, but not for options of a wider type.
+ *
+ * @throws {NaviosError} when options contradict each other, or when
+ *   `urlParamsSchema` keys differ from the URL's `$param` names.
+ */
+function assertValidDeclaration(options: BaseEndpointOptions): void {
+  const { urlParamsSchema, url, method, response = 'json' } = options
+  const invalid = (reason: string) => new NaviosError(`[Navios-API]: ${method} ${url} ${reason}`)
+
+  if (options.responses && options.responseSchema) {
+    throw invalid('declares both responses and responseSchema')
+  }
+  if (response !== 'json' && (options.responses || options.responseSchema)) {
+    throw invalid(`declares a response schema, which response: '${response}' does not use`)
+  }
+  if (
+    (method === 'GET' || method === 'HEAD') &&
+    (options.requestSchema || options.body === 'multipart')
+  ) {
+    throw invalid('declares a body, which a GET or HEAD request cannot have')
+  }
   if (!urlParamsSchema) return
 
   const urlNames = getUrlParamNames(url)
@@ -68,8 +117,8 @@ export function assertValidDeclaration(options: BaseEndpointOptions): void {
       missing.length > 0 ? `missing in schema: ${missing.join(', ')}` : null,
       extra.length > 0 ? `not in URL: ${extra.join(', ')}` : null,
     ].filter(Boolean)
-    throw new NaviosError(
-      `[Navios-API]: urlParamsSchema of ${method} ${url} does not match its URL parameters (${parts.join('; ')})`,
+    throw invalid(
+      `has a urlParamsSchema that does not match its URL parameters (${parts.join('; ')})`,
     )
   }
 }
@@ -82,10 +131,7 @@ export function assertValidDeclaration(options: BaseEndpointOptions): void {
  * {@link EndpointError} for a given failure; they differ only in whether it is
  * thrown or returned.
  */
-export function createHandler<Options extends BaseEndpointOptions>(
-  options: Options,
-  context: BuilderContext,
-) {
+export function createHandler(options: BaseEndpointOptions, context: BuilderContext) {
   assertValidDeclaration(options)
 
   const { method, url, errorSchema } = options
@@ -93,9 +139,8 @@ export function createHandler<Options extends BaseEndpointOptions>(
   const responseKind = options.response ?? 'json'
   const shouldValidate = options.validateResponse !== false
   const { responses } = options
-  // The request is validated here, so the config helpers get options without
-  // the request schemas and never validate a second time.
-  const configOptions = { ...options, querySchema: undefined, requestSchema: undefined }
+  const sendOutput = context.config.send === 'output'
+  const urlParamNames = options.urlParamsSchema ? getUrlParamNames(url) : []
 
   function fail(init: Omit<EndpointErrorInit, 'endpoint'>): SafeResult<never, EndpointError> {
     const error = new EndpointError({ ...init, endpoint })
@@ -127,20 +172,38 @@ export function createHandler<Options extends BaseEndpointOptions>(
   }
 
   /** Validates one part of the input; `undefined` schema passes it through. */
-  async function validateInput(schema: Schema | undefined, value: unknown) {
-    return schema ? validate(schema, value) : ({ ok: true, value } as const)
+  async function validateInput(
+    schema: Schema | undefined,
+    value: unknown,
+  ): Promise<ValidationOutcome> {
+    return schema ? validate(schema, value) : { ok: true, value }
   }
 
   /**
-   * Validates the request body. `data` may be left out when its schema has no
-   * required fields (the call signature makes it optional in that case), so
-   * an omitted body is also tried as an empty object before it is rejected.
+   * Validates the body or the query. Either may be left out when its schema
+   * accepts `undefined` or has no required fields (the call signature makes it
+   * optional in both cases), so one that was is also tried as an empty object.
+   * `input` is the value that was accepted; `asEmpty` why an empty object was not.
    */
-  async function validateBody(data: unknown) {
-    const outcome = await validateInput(options.requestSchema, data)
-    if (outcome.ok || data !== undefined || !options.requestSchema) return outcome
-    const asEmpty = await validate(options.requestSchema, {})
-    return asEmpty.ok ? asEmpty : outcome
+  async function validateOptional(
+    schema: Schema | undefined,
+    value: unknown,
+  ): Promise<{ outcome: ValidationOutcome; input: unknown; asEmpty?: ValidationOutcome }> {
+    const outcome = await validateInput(schema, value)
+    if (outcome.ok || value !== undefined || !schema) return { outcome, input: value }
+    const asEmpty = await validate(schema, {})
+    return asEmpty.ok ? { outcome: asEmpty, input: {} } : { outcome, input: value, asEmpty }
+  }
+
+  /**
+   * The URL params to send. One that was left out has no input to send, and a
+   * URL has to have it, so it is what the schema produced: its default.
+   */
+  function fillUrlParams(input: HandlerRequest['urlParams'], output: unknown) {
+    const leftOut = urlParamNames.filter((name) => (input?.[name] ?? null) === null)
+    if (leftOut.length === 0) return input
+    const defaults = (output ?? {}) as Record<string, unknown>
+    return { ...input, ...Object.fromEntries(leftOut.map((name) => [name, defaults[name]])) }
   }
 
   /** Picks the schema for a successful response, or reports why there is none. */
@@ -187,24 +250,40 @@ export function createHandler<Options extends BaseEndpointOptions>(
     }
 
     // 2. Validate input and build the request. Nothing is sent on failure.
-    const urlParams = await validateInput(options.urlParamsSchema, request.urlParams)
-    const params = await validateInput(options.querySchema, request.params ?? {})
-    const data = await validateBody(request.data)
-    const invalid = [urlParams, params, data].find((part) => !part.ok)
-    if (invalid && !invalid.ok) {
-      return fail({ kind: 'request-validation', issues: invalid.issues, cause: invalid.cause })
+    const body = await validateOptional(options.requestSchema, request.data)
+    const query = await validateOptional(options.querySchema, request.params ?? undefined)
+    const parts = {
+      urlParams: await validateInput(options.urlParamsSchema, request.urlParams),
+      // A query is an object, so the fields it lacks say more than that it is missing
+      params: query.asEmpty ?? query.outcome,
+      data: body.outcome,
+    }
+    const invalid = invalidParts(parts)
+    if (invalid) {
+      return fail({ kind: 'request-validation', ...invalid })
     }
 
     let config: AbstractRequestConfig
     try {
-      const validated = {
-        ...request,
-        urlParams: (urlParams as { value: unknown }).value as Record<string, unknown>,
-        params: (params as { value: unknown }).value as Record<string, unknown>,
-        data: (data as { value: unknown }).value,
-      }
-      const finalUrl = bindUrlParams(url, validated)
-      config = makeConfig(validated, configOptions, finalUrl)
+      // The schemas describe what is on the wire by their input, and a Navios
+      // server parses it as such: sending their output would apply transforms
+      // twice.
+      const sent = sendOutput
+        ? {
+            urlParams: (parts.urlParams as { value: unknown }).value,
+            params: (parts.params as { value: unknown }).value,
+            data: (parts.data as { value: unknown }).value,
+          }
+        : {
+            urlParams: fillUrlParams(
+              request.urlParams,
+              (parts.urlParams as { value: unknown }).value,
+            ),
+            params: request.params,
+            data: body.input,
+          }
+      const validated = { ...request, ...sent } as HandlerRequest
+      config = makeConfig(validated, options, bindUrlParams(url, validated))
     } catch (cause) {
       return fail({
         kind: 'config',
@@ -219,8 +298,33 @@ export function createHandler<Options extends BaseEndpointOptions>(
       response = await client.request(config)
     } catch (cause) {
       const errorResponse = getResponse(cause)
-      if (errorResponse) {
+      if (errorResponse && !isSuccessStatus(errorResponse.status)) {
         return failHttp(errorResponse, cause)
+      }
+      if (errorResponse && !request.signal?.aborted) {
+        // The server answered with a success status and the client still
+        // rejected: it could not read the body as what the endpoint expects.
+        return fail({
+          kind: 'response-validation',
+          status: errorResponse.status,
+          body: errorResponse.data,
+          issues: [
+            {
+              message: `Response body could not be parsed${cause instanceof Error ? `: ${cause.message}` : ''}`,
+            },
+          ],
+          response: toResponseMeta(errorResponse),
+          cause,
+        })
+      }
+      const unsendable =
+        options.body === 'multipart' ? undefined : serializationError(config.data, cause)
+      if (unsendable) {
+        return fail({
+          kind: 'config',
+          message: `${method} ${url}: the body cannot be serialised: ${unsendable.message}`,
+          cause,
+        })
       }
       return fail({ kind: classifyTransportFailure(cause, request.signal), cause })
     }

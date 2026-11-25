@@ -7,8 +7,10 @@ A dependency injection container for TypeScript. Classes are registered with sta
 ## Install
 
 ```bash
-npm install @navios/di
+npm install @navios/di@next
 ```
+
+The 2.0 alpha is published under the `next` tag. All `@navios` packages of a project must have the same alpha version, because an alpha may break between releases.
 
 `@Injectable` and `@Factory` are standard TC39 decorators: TypeScript 5.0 or later, with `experimentalDecorators` off. A schema library is needed only for tokens that take arguments; any [Standard Schema](https://standardschema.dev) library works.
 
@@ -62,7 +64,7 @@ const testContainer = new Container({
 | One instance per use, or per unit of work   | `InjectableScope.Transient`, `InjectableScope.Request`, `createScope()` | [Scopes](https://navios.tech/docs/di/essentials/scopes)                           |
 | Depend on an interface, pass validated args | `InjectionToken.create`, `.bound`, `.factory`                           | [Tokens](https://navios.tech/docs/di/essentials/tokens)                           |
 | Build a value that is not a class instance  | `@Factory()`, `create(ctx)`                                             | [Factories](https://navios.tech/docs/di/essentials/factories)                     |
-| Replace or supply an implementation         | `provide()`, `container.provide()`, `decorate()`, `strict`              | [Providers](https://navios.tech/docs/di/essentials/providers)                     |
+| Replace or supply an implementation         | `provide()`, `registerProvider()`, `decorate()`, `strict`               | [Providers](https://navios.tech/docs/di/essentials/providers)                     |
 | Open and close resources                    | `onServiceInit()`, `onServiceDestroy()`, `dispose()`                    | [Lifecycle](https://navios.tech/docs/di/essentials/lifecycle)                     |
 | Drop an instance and what depends on it     | `container.invalidate()`, `onInvalidate()`                              | [Invalidation](https://navios.tech/docs/di/guides/invalidation)                   |
 | Two services that need each other           | a `CircularDependency` error with the path; `asyncInject()`             | [Circular dependencies](https://navios.tech/docs/di/guides/circular-dependencies) |
@@ -70,7 +72,7 @@ const testContainer = new Container({
 | Know what happens inside `get()`            | synchronous first, asynchronous `onServiceInit`, constructor replay     | [How resolution works](https://navios.tech/docs/di/how-it-works)                  |
 | Services in React components                | [`@navios/di-react`](https://www.npmjs.com/package/@navios/di-react)    | [React](https://navios.tech/docs/di/react/)                                       |
 
-Every failure is a `DIError` with a `code`; the codes are listed in the [API reference](https://navios.tech/docs/di/reference/api#error-codes).
+Every failed resolution is a `DIError` with a `code`; the codes are listed in the [API reference](https://navios.tech/docs/di/reference/api#error-codes).
 
 ## Entry points
 

@@ -3,8 +3,6 @@
  *
  * Tests that the Container and singleton services are properly
  * garbage collected after disposal.
- *
- * Run with: NODE_OPTIONS=--expose-gc yarn run -T vitest run src/__tests__/gc
  */
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -15,9 +13,9 @@ import { inject } from '../../injection/injectors.mjs'
 
 import type { OnServiceDestroy } from '../../lifecycle-hooks.mjs'
 
-import { createGCTracker, forceGC, isGCAvailable, waitForGC } from './gc-test-utils.mjs'
+import { createGCTracker, forceGC, waitForGC } from './gc-test-utils.mjs'
 
-describe.skipIf(!isGCAvailable)('GC: Basic Container', () => {
+describe('GC: Basic Container', () => {
   let container: Container
 
   beforeEach(() => {

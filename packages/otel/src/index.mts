@@ -45,8 +45,6 @@ export {
   hasTracedMetadata,
   Traceable,
   Traced,
-  // Deprecated - use TracedMetadataKey
-  TRACED_METADATA_KEY,
   TracedMetadataKey,
   TracedProxyFactory,
   traceInstance,

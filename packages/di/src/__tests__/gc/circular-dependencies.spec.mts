@@ -6,8 +6,6 @@
  *
  * Note: Direct circular dependencies throw CircularDependencyError.
  * Use asyncInject() to handle circular dependencies correctly.
- *
- * Run with: NODE_OPTIONS=--expose-gc yarn run -T vitest run src/__tests__/gc
  */
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -20,15 +18,9 @@ import { asyncInject } from '../../injection/injectors.mjs'
 
 import type { OnServiceDestroy } from '../../lifecycle-hooks.mjs'
 
-import {
-  createGCTracker,
-  forceGC,
-  getHeapUsed,
-  isGCAvailable,
-  waitForGC,
-} from './gc-test-utils.mjs'
+import { countAlive, createGCTracker, forceGC, memoryInUse, waitForGC } from './gc-test-utils.mjs'
 
-describe.skipIf(!isGCAvailable)('GC: Circular Dependencies', () => {
+describe('GC: Circular Dependencies', () => {
   let container: Container
 
   beforeEach(() => {
@@ -286,7 +278,7 @@ describe.skipIf(!isGCAvailable)('GC: Circular Dependencies', () => {
   })
 
   describe('Circular dependencies in request scope', () => {
-    it('should collect request-scoped circular services on endRequest', async () => {
+    it('should collect request-scoped circular services on disposal', async () => {
       @Injectable({ scope: InjectableScope.Request })
       class RequestServiceA {
         public readonly id = Math.random()
@@ -336,8 +328,7 @@ describe.skipIf(!isGCAvailable)('GC: Circular Dependencies', () => {
       const ALLOCATION_SIZE = 1024 * 50 // 50KB
       const ITERATIONS = 10
 
-      forceGC()
-      const baselineMemory = getHeapUsed()
+      const baselineMemory = await memoryInUse()
 
       for (let i = 0; i < ITERATIONS; i++) {
         const localContainer = new Container()
@@ -360,87 +351,45 @@ describe.skipIf(!isGCAvailable)('GC: Circular Dependencies', () => {
         await localContainer.dispose()
       }
 
-      // Let the microtask queue drain so that settled promise chains are
-      // collectable before measuring
-      await new Promise((resolve) => setTimeout(resolve, 0))
-      forceGC()
-      const finalMemory = getHeapUsed()
+      const finalMemory = await memoryInUse()
       const memoryGrowth = finalMemory - baselineMemory
 
       // Memory growth should be minimal (less than 2 iteration's allocations)
       expect(memoryGrowth).toBeLessThan(ALLOCATION_SIZE * 2 * 2)
     })
 
-    // This test is Kinda working, but it's not very reliable and V8 optimizations can make it fail.
-    it.skip('should reclaim all memory from complex circular graph', async () => {
-      const ALLOCATION_SIZE = 1024 * 20 // 20KB
+    it('should collect a complex circular graph', async () => {
       const NODE_COUNT = 5
 
-      // Create a fully connected circular graph
-      let services: Array<{ new (): object }> = []
-
-      for (let i = 0; i < NODE_COUNT; i++) {
-        const token = InjectionToken.create<GraphNode>(`GraphNode${i}`)
-        @Injectable({ token })
-        class GraphNode implements OnServiceDestroy {
-          public readonly nodeId = i
-          public readonly data = new Uint8Array(ALLOCATION_SIZE)
-          // Each node references all others via asyncInject
-          private _deps = services
-            .filter((S) => S !== GraphNode)
-            .map((S) => asyncInject(S).catch(() => null))
-
-          onServiceDestroy(): void {
-            // Clear the promises array to allow garbage collection
-            // Resolved promises hold references to their resolved values,
-            // so we need to clear them explicitly
-            this._deps.length = 0
+      const build = async () => {
+        const services: Array<{ new (): object }> = []
+        for (let i = 0; i < NODE_COUNT; i++) {
+          const token = InjectionToken.create<GraphNode>(`GraphNode${i}`)
+          @Injectable({ token })
+          class GraphNode {
+            public readonly data = new Uint8Array(1024 * 20)
+            // Each node references all others via asyncInject
+            readonly others = services
+              .filter((S) => S !== GraphNode)
+              .map((S) => asyncInject(S).catch(() => null))
           }
+          services.push(GraphNode)
         }
-        services.push(GraphNode)
+        const refs: WeakRef<object>[] = []
+        for (const service of services) {
+          const node = (await container.get(service)) as { others: Promise<unknown>[] }
+          await Promise.all(node.others)
+          refs.push(new WeakRef(node))
+        }
+        return refs
       }
 
-      forceGC()
-      const baselineMemory = getHeapUsed()
-
-      // Resolve all services
-      let instances: object[] = await Promise.all(services.map((S) => container.get(S)))
-
-      forceGC()
-      // Get the memory after the services are allocated
-      const afterAllocationMemory = getHeapUsed()
-      const allocated = afterAllocationMemory - baselineMemory
-      expect(allocated).toBeGreaterThan(ALLOCATION_SIZE * NODE_COUNT * 0.5)
-
-      let trackers = instances.map((inst) => createGCTracker(inst))
+      const refs = await build()
+      expect(await countAlive(refs)).toBe(NODE_COUNT)
 
       await container.dispose()
-
       container = new Container()
-
-      // Release local references
-      instances = []
-      // services = []
-
-      // All nodes should be collected
-      for (const tracker of trackers) {
-        expect(await waitForGC(tracker().ref)).toBe(true)
-      }
-      // Clear the trackers array to allow garbage collection
-      trackers = []
-      // Force GC again to ensure everything is collected
-      forceGC()
-
-      const afterReleaseMemory = getHeapUsed()
-      const reclaimed = afterAllocationMemory - afterReleaseMemory
-
-      console.log('baselineMemory', baselineMemory)
-      console.log('reclaimed', reclaimed)
-      console.log('allocated', allocated)
-      console.log('afterAllocationMemory', afterAllocationMemory)
-      console.log('afterReleaseMemory', afterReleaseMemory)
-      // Should reclaim most memory
-      expect(reclaimed).toBeGreaterThan(allocated * 0.7)
+      expect(await countAlive(refs)).toBe(0)
     })
   })
 })

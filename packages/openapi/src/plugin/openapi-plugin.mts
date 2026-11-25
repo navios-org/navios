@@ -52,6 +52,12 @@ export interface OpenApiPluginOptions extends Omit<OpenApiGenerationOptions, 'lo
   ) => OpenApiDocument | void
 }
 
+/** A path as an endpoint declares it, whatever slashes are around it. */
+function toUrl(path: string): string {
+  const trimmed = path.replace(/^\/+|\/+$/g, '')
+  return trimmed === '' ? '' : `/${trimmed}`
+}
+
 /**
  * Generates an OpenAPI 3.1 document from the application's routes and serves
  * it, with a Scalar API reference page. It works with every adapter, because
@@ -106,13 +112,15 @@ export const openApiPlugin = definePlugin({
     const attributes = [ApiExclude()]
     const handlers: Record<string, FieldHandler> = {}
     if (!disableJson) {
-      handlers.json = handler({ config: { method: 'GET', url: jsonPath } }, { attributes }, () =>
-        ready(),
+      handlers.json = handler(
+        { config: { method: 'GET', url: toUrl(jsonPath) } },
+        { attributes },
+        () => ready(),
       ) as FieldHandler
     }
     if (!disableYaml) {
       handlers.yaml = handler(
-        { config: { method: 'GET', url: yamlPath, response: 'text' } },
+        { config: { method: 'GET', url: toUrl(yamlPath), response: 'text' } },
         { attributes },
         (_params, ctx) => {
           ctx.reply.header('content-type', 'text/yaml; charset=utf-8')
@@ -122,7 +130,7 @@ export const openApiPlugin = definePlugin({
     }
     if (!disableScalar) {
       handlers.docs = handler(
-        { config: { method: 'GET', url: docsPath, response: 'text' } },
+        { config: { method: 'GET', url: toUrl(docsPath), response: 'text' } },
         { attributes },
         (_params, ctx) => {
           ctx.reply.header('content-type', 'text/html; charset=utf-8')
@@ -163,8 +171,3 @@ export const openApiPlugin = definePlugin({
     })
   },
 })
-
-/**
- * @deprecated Renamed to {@link openApiPlugin}.
- */
-export const defineOpenApiPlugin = openApiPlugin

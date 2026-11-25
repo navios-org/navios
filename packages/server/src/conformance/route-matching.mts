@@ -17,7 +17,7 @@ import type { ConformanceSuite } from './suite.mjs'
  * @internal
  */
 export function defineRouteMatchingTopic(suite: ConformanceSuite) {
-  const { it, expect, url } = suite
+  const { it, expect, url, fetch } = suite
 
   // Declared with the param route first: matching must not depend on the
   // order of registration.

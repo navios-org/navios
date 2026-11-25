@@ -1,8 +1,9 @@
 import { Container } from '@navios/di'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { filterLogLevels, LOG_LEVELS } from '../logger/log-levels.mjs'
 import { LoggerOutput } from '../logger/logger-output.mjs'
-import { LoggerInstance } from '../logger/logger.mjs'
+import { Logger, LoggerInstance } from '../logger/logger.mjs'
 
 import type { LoggerService } from '../index.mjs'
 
@@ -142,5 +143,30 @@ describe('LoggerInstance', () => {
       // Should not throw
       expect(() => logger.fatal('Fatal message')).not.toThrow()
     })
+  })
+
+  it('is built anew for whoever asks, and leaves nothing in the container', async () => {
+    container.addInstance(LoggerOutput, mockLoggerOutput as LoggerService)
+    const before = container.instances().length
+
+    for (let i = 0; i < 10; i++) {
+      await container.get(Logger, { context: `order-${i}` })
+    }
+
+    expect(container.instances()).toHaveLength(before)
+    expect(await container.get(Logger)).not.toBe(await container.get(Logger))
+  })
+})
+
+describe('filterLogLevels', () => {
+  it('lists levels', () => {
+    expect(filterLogLevels()).toEqual(LOG_LEVELS)
+    expect(filterLogLevels('error')).toEqual(['error'])
+    expect(filterLogLevels('error, warn')).toEqual(['error', 'warn'])
+    expect(filterLogLevels('>=warn')).toEqual(['warn', 'error', 'fatal'])
+  })
+
+  it.each(['typo', 'error,wran', '>=typo'])('refuses %j', (levels) => {
+    expect(() => filterLogLevels(levels)).toThrow('unknown log level')
   })
 })

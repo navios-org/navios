@@ -1,4 +1,4 @@
-export { defineOpenApiPlugin, openApiPlugin } from './plugin/index.mjs'
+export { openApiPlugin } from './plugin/index.mjs'
 export type {
   OpenApiPluginOptions,
   ScalarMetaData,
@@ -12,7 +12,6 @@ export type {
   OpenApiDocumentOptions,
   OpenApiExternalDocs,
   OpenApiGenerationOptions,
-  OpenApiGeneratorOptions,
   OpenApiInfo,
   OpenApiMediaType,
   OpenApiOperation,

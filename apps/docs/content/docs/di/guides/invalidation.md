@@ -32,9 +32,11 @@ const after = await container.get(GatewayClient)
 before === after // false: a new GatewayClient with new Credentials
 ```
 
-The returned promise resolves when every `onServiceDestroy` hook involved has finished. A `get()` for the same token, or for a service that depends on it, that arrives in the meantime waits for the teardown and then builds the new instance; it never receives the one being destroyed.
+The returned promise resolves when every `onServiceDestroy` hook involved has finished. A `get()` for the same token, or for a service that depends on it, that arrives in the meantime waits for the teardown and then builds the new instance; it never receives the one being destroyed. A destroy hook of the cascade itself is the exception: at its start it still [gets its dependencies](/docs/di/essentials/lifecycle#destruction-order).
 
-Passing something the container does not hold does nothing. That includes transients resolved directly from the root container and primitive values, which have no identity to look up.
+Passing something the container does not hold does nothing. That includes transients resolved directly from the root container and primitive values, which have no identity to look up. Passing the container itself is an error; use [`dispose()`](/docs/di/essentials/lifecycle#dispose).
+
+An object that several tokens stand for is one instance: all of them are invalidated.
 
 ## What is destroyed
 
@@ -57,6 +59,12 @@ The container knows the dependents from what happened during construction:
 | A value copied out of the dependency and stored in a field   | No      |
 
 Tracking crosses scopes. If a request-scoped service in an open scope injected a singleton, invalidating the singleton also destroys that request-scoped instance.
+
+## While something is being built
+
+A dependent that is still being built when its dependency is invalidated is not waited for, since it may be waiting for that very invalidation. It is destroyed as soon as it is ready, and whoever asked for it receives one that was built after the invalidation. Its own initialisation may therefore still use the destroyed dependency.
+
+A service that invalidates its own dependency in `onServiceInit` is never finished; resolving it fails after 32 attempts.
 
 ## What is rebuilt
 
@@ -85,7 +93,9 @@ stop()
 | `args`     | The arguments of the instance to watch, for a [token with a schema](/docs/di/essentials/tokens#tokens-with-a-schema). `undefined` otherwise. Ignored for bound and factory tokens, which carry their own |
 | `listener` | Called with no arguments, after the whole cascade is over                                                                           |
 
-Listeners run once everything the call destroys is gone and every `onServiceDestroy()` has settled, just before the promise returned by `invalidate()` or `dispose()` resolves. They run in the order the instances were destroyed, dependents first. A listener can therefore resolve the service again, as above, and gets a fully rebuilt instance. Every listener runs even if one throws; the first error rejects that promise.
+Listeners run once everything the call destroys is gone and every `onServiceDestroy()` has settled, just before the promise returned by `invalidate()` or `dispose()` resolves. They run in the order the instances were destroyed, dependents first. A listener can therefore resolve the service again, as above, and gets a fully rebuilt instance. Every listener runs even if one throws; the first error rejects that promise. The promise does not wait for asynchronous listeners; what they reject with goes to the [`logger`](/docs/di/reference/api#container).
+
+A listener is also called by `dispose()`. Resolving again is then refused with `ContainerDisposed`, which the listener does not have to handle.
 
 The listener is attached to the address, not to one object. It stays registered across rebuilds and fires each time, until the returned function is called. It can be registered before the instance exists.
 

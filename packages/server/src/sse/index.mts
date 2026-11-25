@@ -1,6 +1,5 @@
 export { sse } from './sse-event.mjs'
 export type { EventDeclaration } from './sse-event.mjs'
-export { encodeSse } from './sse-message.mjs'
 export type { SseMessage } from './sse-message.mjs'
-export { isSseStream, sseStream } from './sse-stream.mjs'
+export { sseStream } from './sse-stream.mjs'
 export type { SseStream } from './sse-stream.mjs'

@@ -38,7 +38,7 @@ describe('ScopedContainer: Basic Functionality', () => {
     it('should create a scoped container', () => {
       const scoped = container.createScope()
       expect(scoped).toBeDefined()
-      expect(scoped.getParent()).toBe(container)
+      expect(scoped.parent).toBe(container)
     })
 
     it('should support metadata', () => {
@@ -128,7 +128,7 @@ describe('ScopedContainer: Basic Functionality', () => {
   })
 
   describe('Disposal and cleanup', () => {
-    it('should clean up request-scoped services on endRequest', async () => {
+    it('should clean up request-scoped services on dispose', async () => {
       let destroyCount = 0
 
       @Injectable({ scope: InjectableScope.Request })
@@ -146,13 +146,6 @@ describe('ScopedContainer: Basic Functionality', () => {
     })
 
     it('should prevent operations after disposal', async () => {
-      const scoped = container.createScope()
-      await scoped.dispose()
-
-      await expect(scoped.get(Container)).rejects.toThrow('ScopedContainer has been disposed')
-    })
-
-    it('should support dispose alias', async () => {
       const scoped = container.createScope()
       await scoped.dispose()
 
@@ -286,7 +279,7 @@ describe('ScopedContainer: addInstance Method', () => {
       })() as DIError
 
       expect(error.code).toBe(DIErrorCode.TokenSchemaRequiredError)
-      expect(error.message).toContain('requires schema arguments')
+      expect(error.message).toContain('requires args')
 
       scoped.dispose()
     })

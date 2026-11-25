@@ -10,11 +10,11 @@ import type { SocketError } from './socket-error.mjs'
  * @param topic - Topic/event name
  * @param payload - Message payload
  * @param ackId - Optional acknowledgement ID for request-response pattern
- * @returns Wire format to be sent (default: Socket.IO array format)
+ * @returns Wire format to be sent (default: array format)
  *
  * @example
  * ```ts
- * // Default Socket.IO format
+ * // Default format
  * const formatMessage = (topic, payload, ackId) =>
  *   ackId ? [topic, payload, ackId] : [topic, payload]
  *
@@ -38,7 +38,7 @@ export type MessageFormatter = (topic: string, payload: unknown, ackId?: string)
  *
  * @example
  * ```ts
- * // Default Socket.IO format parser
+ * // Default format parser
  * const parseMessage = (data) => {
  *   if (Array.isArray(data) && data.length >= 2) {
  *     return { topic: data[0], payload: data[1], ackId: data[2] }
@@ -60,14 +60,14 @@ export interface SocketBuilderConfig {
   /**
    * Custom message formatter for outgoing messages.
    *
-   * Default: Socket.IO array format `[topic, payload]` or `[topic, payload, ackId]`
+   * Default: array format `[topic, payload]` or `[topic, payload, ackId]`
    */
   formatMessage?: MessageFormatter
 
   /**
    * Custom message parser for incoming messages.
    *
-   * Default: Expects Socket.IO array format `[topic, payload, ackId?]`
+   * Default: Expects the array format `[topic, payload, ackId?]`
    *
    * When the returned `ackId` belongs to a send that is waiting for its
    * acknowledgement, `payload` is that acknowledgement: it settles the send
@@ -83,11 +83,12 @@ export interface SocketBuilderConfig {
    *   is the schema library's own error when it has one (a `ZodError` for Zod).
    * - `kind: 'ack-timeout'` when an acknowledgement does not arrive in time.
    * - `kind: 'transport'` when a subscribe handler throws, when
-   *   `formatMessage` or the client throws while sending (`cause` is the
-   *   thrown value), or when the client is replaced while an acknowledgement
-   *   is pending.
+   *   `formatMessage` or the client throws while sending, when `parseMessage`
+   *   throws (`cause` is the thrown value), or when the client is replaced or
+   *   disconnected while an acknowledgement is pending.
    *
-   * `topic` is always the topic the handler was defined with. Failures of a
+   * `topic` is the topic the handler was defined with, and `'message'` for a
+   * message that could not be parsed. Failures of a
    * send handler are also thrown or used as the rejection reason; the hook
    * receives that same instance.
    *
@@ -97,7 +98,8 @@ export interface SocketBuilderConfig {
   onError?: (error: SocketError) => void
 
   /**
-   * Default timeout for acknowledgements in milliseconds.
+   * Default timeout for acknowledgements in milliseconds. `Infinity` waits
+   * without limit.
    *
    * @default 30000 (30 seconds)
    */
@@ -127,8 +129,9 @@ export interface SendOptions<
    * Optional schema (any Standard Schema) for validating the outgoing payload.
    *
    * When provided, the payload is validated before sending and the schema's
-   * output is what goes on the wire. An invalid payload throws a
-   * `SocketError` of kind `'validation'` and nothing is sent.
+   * output is what goes on the wire. With an invalid payload the call throws a
+   * `SocketError` of kind `'validation'`, or rejects with it when there is an
+   * `ackSchema`, and nothing is sent.
    *
    * A schema that validates asynchronously is awaited when `ackSchema` is
    * set (the call returns a promise anyway). Without `ackSchema` the call

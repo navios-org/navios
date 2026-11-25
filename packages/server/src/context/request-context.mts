@@ -1,17 +1,24 @@
-import { PlainContextKey } from '@navios/core'
-import { ExecutionContextToken } from '@navios/core'
+import { ExecutionContextToken, PlainContextKey } from '@navios/core'
+import { needsScope, runInContext } from '@navios/core/transport'
 import { DIError, DIErrorCode } from '@navios/di'
 
-import type { ContextValue } from '@navios/core'
-import type { ExecutionContext } from '@navios/core'
-import type { ContextHost } from '@navios/core/transport'
-import type { AnyInjectableType, ScopedContainer } from '@navios/di'
+import type { ContextValue, ExecutionContext } from '@navios/core'
+import type { AnyInjectableType, Container, ScopedContainer } from '@navios/di'
 
-import { adopt } from '../internal/promises.mjs'
+import { cookieKey, serializeCookie } from '../adapter/serialize-cookie.mjs'
+import { readParts } from '../decoding/read-parts.mjs'
+import { adopt, ignore, isPromise } from '../internal/promises.mjs'
+import { settledWithin } from '../internal/waiting.mjs'
+import { ManagedBody } from '../responses/managed-body.mjs'
+import { appendHeader, describesSuccess, setHeader } from '../responses/response-headers.mjs'
 
+import type { BodyDecoder } from '../decoding/body-decoder.mjs'
+import type { MaybePromise } from '../internal/promises.mjs'
+import type { BodyOwner, Source } from '../responses/managed-body.mjs'
 import type { SetCookie } from '../routing/cookies.mjs'
 import type { RouteInfo } from '../routing/route-info.mjs'
-import type { RouteInput } from '../routing/route-input.mjs'
+import type { BodySource, RouteInput } from '../routing/route-input.mjs'
+import type { ResponseHeaders } from '../routing/route-result.mjs'
 
 import { RequestContextToken } from './request-context-token.mjs'
 
@@ -19,11 +26,31 @@ import type { AdapterEnvironment, RegisteredEnvironment } from './environment.mj
 import type { ContextKey } from './http-context-key.mjs'
 import type { ReplyControls } from './reply-controls.mjs'
 import type { RequestCookies, RequestHeaders, RequestQuery } from './request-data.mjs'
+import type { RequestHost } from './request-host.mjs'
 import type { RequestValueClass, RequestValueProvider } from './request-value.mjs'
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 let requestCounter = 0
+
+/**
+ * How long the release of a request waits for its bodies to close. A
+ * generator that waits for something that never comes cannot be closed, and
+ * must not keep the rest from being released.
+ */
+const CLOSE_TIMEOUT_MS = 1000
+
+const UNREAD = Symbol('unread')
+
+/** A relative url has no host, and one with an invalid host is not a url. */
+function parseUrl(text: string): URL {
+  const base = 'http://localhost'
+  if (URL.canParse(text, base)) {
+    return new URL(text, base)
+  }
+  const query = text.indexOf('?')
+  return new URL(query < 0 ? '/' : `/${text.slice(query)}`, base)
+}
 
 /**
  * One request. Passed to guards and interceptors, and as the second argument
@@ -43,8 +70,26 @@ export class RequestContext<
   private cookiesView: RequestCookies | null = null
   private replyView: ReplyControls | null = null
   private parsedQuery: RequestQuery | null = null
-  private released = false
+  private parsedUrl: URL | null = null
+  /**
+   * Whether the response has finished: nothing more will be released, so
+   * nothing more may be acquired. Set by `release()`, and by the pipeline for
+   * a response that holds nothing to release.
+   * @internal
+   */
+  released = false
+  private releasing: Promise<void> | null = null
   private finishers: Array<() => void | Promise<void>> | null = null
+  /** The lazy bodies the request has produced, sent or not. */
+  private bodies: ManagedBody[] | null = null
+  private requestBody: unknown = UNREAD
+  private bytes: MaybePromise<Uint8Array> | null = null
+  private partsRead = false
+  /**
+   * Whether the handler wrote the response itself.
+   * @internal
+   */
+  takenOver = false
   /**
    * The status of the response, once it is known: after the handler, response
    * validation and error mapping. `undefined` before that. Read it in an
@@ -53,14 +98,17 @@ export class RequestContext<
    */
   responseStatus: number | undefined = undefined
   /** @internal */
-  responseHeaders: Record<string, string> | null = null
-  /** @internal */
-  responseCookies: SetCookie[] | null = null
+  responseHeaders: ResponseHeaders | null = null
+  /**
+   * The serialised cookies, by what makes two of them the same cookie.
+   * @internal
+   */
+  responseCookies: Map<string, string> | null = null
 
   constructor(
     private readonly input: RouteInput,
     public readonly route: RouteInfo,
-    private readonly host: ContextHost,
+    private readonly host: RequestHost,
   ) {}
 
   /** The transport kind. A getter, so that it adds nothing to the instance. */
@@ -82,8 +130,36 @@ export class RequestContext<
     return this.input.method
   }
 
+  /**
+   * The path of the request, as the route matched it: fixed text as declared
+   * and the url params in between, percent-encoded where they have to be.
+   * Whatever the request target looked like, one path has one form here.
+   */
   get path(): string {
-    return this.input.path
+    return this.host.path(this.input.urlParams)
+  }
+
+  /**
+   * The url of the request. Its path is `path`; the host is what the client
+   * says, or `localhost` when it does not name a valid one.
+   */
+  get url(): URL {
+    if (this.parsedUrl === null) {
+      const url = parseUrl(this.input.url())
+      url.pathname = this.path
+      url.hash = ''
+      this.parsedUrl = url
+    }
+    return this.parsedUrl
+  }
+
+  /**
+   * The address of the client, as the adapter knows it. Behind a proxy it is
+   * the proxy's, unless the adapter is told to trust it. `undefined` when
+   * there is no connection, as in a test.
+   */
+  get ip(): string | undefined {
+    return this.input.remoteAddress()
   }
 
   /**
@@ -134,19 +210,111 @@ export class RequestContext<
   get reply(): ReplyControls {
     return (this.replyView ??= {
       header: (name, value) => {
-        ;(this.responseHeaders ??= {})[name.toLowerCase()] = value
+        setHeader((this.responseHeaders ??= {}), name, value)
+      },
+      append: (name, value) => {
+        appendHeader((this.responseHeaders ??= {}), name, value)
       },
       cookie: (name, value, options) => {
-        ;(this.responseCookies ??= []).push({ name, value, options })
+        this.setCookie({ name, value, options })
+      },
+      deleteCookie: (name, options) => {
+        const secure = options?.secure ?? /^__(?:Host|Secure)-/.test(name)
+        this.setCookie({
+          name,
+          value: '',
+          options: { ...options, secure, maxAge: 0, expires: new Date(0) },
+        })
       },
     })
+  }
+
+  private setCookie(cookie: SetCookie): void {
+    const text = serializeCookie(cookie)
+    ;(this.responseCookies ??= new Map()).set(cookieKey(cookie), text)
+  }
+
+  /**
+   * Takes back the headers that described the response a failed handler was
+   * going to send.
+   * @internal
+   */
+  dropSuccessHeaders(): void {
+    const headers = this.responseHeaders
+    if (headers !== null) {
+      for (const name of Object.keys(headers)) {
+        if (describesSuccess(name, headers[name])) {
+          delete headers[name]
+        }
+      }
+    }
+  }
+
+  /**
+   * The bytes of the request body, exactly as they were sent, for example to
+   * check the signature of a webhook. Reading them does not keep the body from
+   * being decoded, before or after. Only the bytes of a multipart body, which
+   * is not kept in one piece, have to be read before it is decoded: in a
+   * guard.
+   */
+  rawBody(): Promise<Uint8Array> {
+    let bytes: Promise<Uint8Array>
+    try {
+      bytes = Promise.resolve(this.bodyBytes())
+    } catch (error) {
+      bytes = Promise.reject(error)
+    }
+    bytes.catch(ignore)
+    return bytes
+  }
+
+  /**
+   * The bytes of the request body, read from the adapter once.
+   * @internal
+   */
+  bodyBytes(): MaybePromise<Uint8Array> {
+    if (this.partsRead) {
+      throw new Error(
+        `[Navios] ${this.method} ${this.route.path} has read the parts of its multipart body, so ` +
+          `ctx.rawBody() comes too late. Call it before the body is decoded, in a guard.`,
+      )
+    }
+    return (this.bytes ??= this.input.body.bytes())
+  }
+
+  /** @internal */
+  bodyParts(): ReturnType<BodySource['parts']> {
+    const { body } = this.input
+    const { bytes } = this
+    if (bytes !== null) {
+      const contentType = body.contentType ?? ''
+      return isPromise(bytes)
+        ? bytes.then((read) => readParts(read, contentType))
+        : readParts(bytes, contentType)
+    }
+    this.partsRead = true
+    return body.parts()
+  }
+
+  /**
+   * The decoded request body. Decoded once: an interceptor may call `next()`
+   * again.
+   * @internal
+   */
+  readBody(decode: BodyDecoder): unknown {
+    if (this.requestBody === UNREAD) {
+      this.requestBody = adopt(decode(this as unknown as RequestContext, this.input.body))
+    }
+    return this.requestBody
   }
 
   private parseCookies(): Record<string, string> {
     if (this.cookieJar !== null) {
       return this.cookieJar
     }
-    const jar: Record<string, string> = {}
+    // Without a prototype: cookie names come from the client, and `toString`
+    // or `constructor` must be neither found when not sent nor lost when sent.
+    const jar: Record<string, string> = Object.create(null)
     const header = this.input.header('cookie')
     if (header) {
       for (const part of header.split(';')) {
@@ -258,11 +426,20 @@ export class RequestContext<
     } finally {
       resolving.pop()
     }
+    if (value instanceof Promise) {
+      // Whoever awaits it sees the rejection. Nobody may.
+      value.catch(ignore)
+    }
     ;(this.slots ??= new Map()).set(key, value)
+    this.disposeLater(provider, value)
+    return value
+  }
+
+  private disposeLater(provider: RequestValueProvider<unknown>, value: unknown): void {
     if (typeof provider.dispose === 'function') {
+      this.hold()
       ;(this.disposers ??= []).push([provider, value])
     }
-    return value
   }
 
   /**
@@ -284,12 +461,11 @@ export class RequestContext<
       (provider) => {
         this.assertNotReleased(key, provider)
         const resolved = provider.resolve(this as unknown as RequestContext)
-        if (typeof provider.dispose === 'function') {
-          ;(this.disposers ??= []).push([provider, resolved])
-        }
+        this.disposeLater(provider, resolved)
         return resolved
       },
     )
+    value.catch(ignore)
     ;(this.slots ??= new Map()).set(key, value)
     return value
   }
@@ -308,16 +484,21 @@ export class RequestContext<
   // --------------------------------------------------------------------------
 
   /** @internal */
-  scopeFor(token: AnyInjectableType): ScopedContainer {
+  resolverFor(token: AnyInjectableType): Container | ScopedContainer {
     this.host.onScopedUse?.(token)
     if (this.scope === null) {
+      const { container } = this.host
+      if (!needsScope(container, token)) {
+        return container
+      }
       if (this.released) {
         throw new Error(
           '[Navios] Request-scoped services cannot be used: the response has finished, so nothing ' +
             'would dispose them.',
         )
       }
-      this.scope = this.host.container.createScope()
+      this.hold()
+      this.scope = container.createScope()
       this.scope.addInstance(RequestContextToken, this as unknown as RequestContext)
       this.scope.addInstance(ExecutionContextToken, this as unknown as RequestContext)
     }
@@ -347,69 +528,219 @@ export class RequestContext<
    * reverse registration order, before request values and the DI scope are
    * disposed. An interceptor uses this to end a span or record a duration
    * with the final `responseStatus`. A callback registered after the response
-   * has finished runs at once.
+   * has finished runs at once. What a callback throws is logged.
    */
   onFinish(callback: () => void | Promise<void>): void {
     if (this.released) {
-      void runQuietly(callback)
+      void this.finishNow(callback)
       return
     }
+    this.hold()
     ;(this.finishers ??= []).push(callback)
+  }
+
+  private async finishNow(callback: () => void | Promise<void>): Promise<void> {
+    try {
+      await callback()
+    } catch (error) {
+      this.logFailure('an onFinish callback', error)
+    }
+  }
+
+  // --------------------------------------------------------------------------
+  // Response bodies
+  // --------------------------------------------------------------------------
+
+  /**
+   * Makes the request the owner of a lazy body, which is closed when the
+   * request is released, or at once when it already has been.
+   * @internal
+   */
+  ownBody(body: object): ManagedBody {
+    const owned = this.bodies?.find((managed) => managed.body === body)
+    if (owned !== undefined) {
+      return owned
+    }
+    const managed = new ManagedBody(
+      body,
+      new RequestOwner(this as unknown as RequestContext, this.host),
+    )
+    if (this.released) {
+      void managed.close()
+    } else {
+      this.hold()
+      ;(this.bodies ??= []).push(managed)
+    }
+    return managed
+  }
+
+  /**
+   * Notes that the handler wrote the response itself, through `raw`. It may
+   * go on doing so, so the request is released like any other.
+   * @internal
+   */
+  takeOver(): void {
+    this.hold()
+    this.takenOver = true
+  }
+
+  /**
+   * Sets the status of the response.
+   * @internal
+   */
+  respondWith(status: number): void {
+    this.responseStatus = this.takenOver ? this.input.respondedStatus?.() : status
   }
 
   // --------------------------------------------------------------------------
   // Disposal
   // --------------------------------------------------------------------------
 
+  /** Runs code of the application inside the async context, if there is one. */
+  private run<R>(fn: () => R): R {
+    return this.host.asyncContext ? runInContext(this as unknown as RequestContext, fn) : fn()
+  }
+
+  /** Called before the request acquires anything that has to be released. */
+  private hold(): void {
+    if (!this.needsRelease) {
+      this.host.live.add(this as unknown as RequestContext)
+    }
+  }
+
   /**
    * Whether anything has to be released when the response has finished.
    * @internal
    */
   get needsRelease(): boolean {
-    return this.scope !== null || this.disposers !== null || this.finishers !== null
+    return (
+      this.scope !== null ||
+      this.disposers !== null ||
+      this.finishers !== null ||
+      this.bodies !== null ||
+      this.takenOver
+    )
   }
 
   /**
-   * Runs `dispose` hooks of computed request values in reverse order, then
-   * disposes the DI scope.
+   * Closes the lazy bodies of the request, runs its `onFinish` callbacks and
+   * the `dispose` hooks of computed request values, each in reverse order, and
+   * then disposes the DI scope. Never rejects. Calling it again waits for the
+   * first call.
    * @internal
    */
-  async release(): Promise<void> {
-    const finishers = this.finishers
-    this.finishers = null
-    if (finishers !== null) {
-      for (let i = finishers.length - 1; i >= 0; i--) {
-        await runQuietly(finishers[i])
-      }
+  release(): Promise<void> {
+    return (this.releasing ??= this.host.asyncContext
+      ? this.run(() => this.releaseAll())
+      : this.releaseAll())
+  }
+
+  private async releaseAll(): Promise<void> {
+    // Adapters call this from an event of the connection. Whoever listens to
+    // `ctx.signal` hears of a disconnect first.
+    await undefined
+    if (this.takenOver) {
+      this.responseStatus = this.input.respondedStatus?.()
     }
-    const disposers = this.disposers
-    this.disposers = null
-    if (disposers !== null) {
-      for (let i = disposers.length - 1; i >= 0; i--) {
-        const [provider, value] = disposers[i]
-        try {
-          await provider.dispose!(await value, this as unknown as RequestContext)
-        } catch {
-          // A failing dispose hook must not stop the others.
-        }
+    // Any of these may start or register more.
+    for (;;) {
+      const open = this.bodies?.filter((body) => body.isOpen)
+      if (open !== undefined && open.length > 0) {
+        await closeBodies(open)
+        continue
       }
+      const finisher = this.finishers?.pop()
+      if (finisher !== undefined) {
+        try {
+          await finisher()
+        } catch (error) {
+          this.logFailure('an onFinish callback', error)
+        }
+        continue
+      }
+      const disposer = this.disposers?.pop()
+      if (disposer === undefined) {
+        break
+      }
+      await this.disposeValue(...disposer)
     }
     const scope = this.scope
     this.scope = null
     this.released = true
     if (scope !== null) {
-      await scope.dispose()
+      try {
+        await scope.dispose()
+      } catch (error) {
+        this.logFailure('the disposal of the request scope', error)
+      }
+    }
+    this.host.live.delete(this as unknown as RequestContext)
+  }
+
+  private async disposeValue(
+    provider: RequestValueProvider<unknown>,
+    value: unknown,
+  ): Promise<void> {
+    let settled: unknown
+    try {
+      settled = await value
+    } catch {
+      // There is no value to dispose.
+      return
+    }
+    try {
+      await provider.dispose!(settled, this as unknown as RequestContext)
+    } catch (error) {
+      this.logFailure(`the dispose hook of ${provider.constructor.name}`, error)
+    }
+  }
+
+  /** Reports what must not stop the rest of the release. */
+  private logFailure(what: string, error: unknown): void {
+    try {
+      this.host.logger?.error(`Error in ${what} of ${this.method} ${this.route.path}`, error)
+    } catch {
+      // Nor may a failing logger.
     }
   }
 }
 
-/** Runs a callback whose failure must not stop what follows. */
-async function runQuietly(callback: () => void | Promise<void>): Promise<void> {
-  try {
-    await callback()
-  } catch {
-    // Nothing to report it to: the response is gone.
+/** A request as the owner of the bodies it has produced. */
+class RequestOwner implements BodyOwner {
+  constructor(
+    private readonly ctx: RequestContext,
+    private readonly host: RequestHost,
+  ) {}
+
+  get name(): string {
+    return `${this.ctx.method} ${this.ctx.route.path}`
   }
+
+  step<Step extends keyof Source>(source: Source, step: Step): ReturnType<Source[Step]> {
+    return this.host.asyncContext
+      ? runInContext(this.ctx, () => source[step]() as ReturnType<Source[Step]>)
+      : (source[step]() as ReturnType<Source[Step]>)
+  }
+
+  failed(error: unknown): void {
+    // Nobody is there to miss the rest, and a source that listens to
+    // `ctx.signal` usually fails because of it.
+    if (!this.ctx.signal.aborted) {
+      this.host.report(error, this.ctx)
+    }
+  }
+
+  closeFailed(error: unknown): void {
+    if ((error as Error | null)?.name !== 'AbortError') {
+      this.host.report(error, this.ctx)
+    }
+  }
+}
+
+async function closeBodies(bodies: ManagedBody[]): Promise<void> {
+  // A later body may wrap an earlier one, and then closes it itself.
+  const closing = bodies.reverse().map((body) => body.close())
+  await settledWithin(Promise.all(closing), CLOSE_TIMEOUT_MS)
 }
 
 RequestContext.prototype.use = function use(
@@ -417,7 +748,7 @@ RequestContext.prototype.use = function use(
   token: AnyInjectableType,
   args?: unknown,
 ) {
-  return (this.scopeFor(token).getSync as any)(token, args)
+  return (this.resolverFor(token).getSync as any)(token, args)
 } as ScopedContainer['getSync']
 
 RequestContext.prototype.resolve = function resolve(
@@ -425,5 +756,9 @@ RequestContext.prototype.resolve = function resolve(
   token: AnyInjectableType,
   args?: unknown,
 ) {
-  return (this.scopeFor(token).get as any)(token, args)
+  const pending: Promise<unknown> = (this.resolverFor(token).get as any)(token, args)
+  // A handler that fails while it is under way leaves it behind, and the
+  // scope it belongs to is disposed.
+  pending.catch(ignore)
+  return pending
 } as ScopedContainer['get']

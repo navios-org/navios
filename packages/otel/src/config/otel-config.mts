@@ -1,5 +1,5 @@
 import type { AttributeValue } from '@opentelemetry/api'
-import type { SpanProcessor } from '@opentelemetry/sdk-trace-node'
+import type { SpanProcessor } from '@opentelemetry/sdk-trace'
 
 /**
  * Configuration for auto-instrumentation features.

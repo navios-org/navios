@@ -1,20 +1,45 @@
+import {
+  asyncInitRequired,
+  circularDependency,
+  containerDisposed,
+  initializationError,
+  misuse,
+  notYetDestroyed,
+  providerNotFound,
+  requestScopeFromRoot,
+} from '../errors/create.mjs'
 import { DIError } from '../errors/di-error.mjs'
 import { InjectableScope } from '../injectable-scope.mjs'
 import { validateSync } from '../schema/standard-schema.mjs'
 
-import type { PlanEntry, ProviderRecord } from '../provider/provider-record.mjs'
-import type { AnyInjectableType, InjectionToken } from '../token/injection-token.mjs'
+import type { ProviderRecord } from '../provider/provider-record.mjs'
+import type {
+  AnyInjectableType,
+  FactoryInjectionToken,
+  InjectionToken,
+} from '../token/injection-token.mjs'
 
 import { argsKey } from './args-key.mjs'
-import { destroyEntry } from './destruction.mjs'
-import { createEntry, EntryStatus } from './entry.mjs'
+import { inBackground, trackBuild } from './background.mjs'
+import { discard, rejectWith, runDestroyListeners } from './destruction.mjs'
+import { createEntry, EntryStatus, isLeaving, markReady } from './entry.mjs'
+import { current, enter, framePath, hookOwner, onStack, outside, runHook } from './frame.mjs'
 import { createFactoryContext } from './inject-impl.mjs'
 import { isDestroying, leavingIn } from './leaving.mjs'
 import { addWaitEdge, unlink } from './links.mjs'
-import { baseToken, lookupRecord, normalize, normArgs, normToken } from './normalize.mjs'
+import {
+  baseToken,
+  followAlias,
+  lookupRecord,
+  normalize,
+  normArgs,
+  normToken,
+} from './normalize.mjs'
+import { findReady } from './stored-values.mjs'
 import { isThenable, noop } from './thenable.mjs'
 
 import type { Entry } from './entry.mjs'
+import type { Frame, Pass } from './frame.mjs'
 import type { Host } from './host.mjs'
 import type { Store } from './store.mjs'
 
@@ -23,30 +48,19 @@ import type { Store } from './store.mjs'
 /**
  * A resolution that cannot proceed until `promise` settles; the caller
  * retries afterwards.
- * @internal
  */
 export class Wait {
-  constructor(public readonly promise: Promise<unknown>) {}
-}
-
-export interface Frame {
-  readonly host: Host
-  readonly entry: Entry
-  readonly parent: Frame | null
-  /** Requests made in the current pass; `null` once the plan is known. */
-  requests: PlanEntry[] | null
-  /** Set when the current pass met a dependency that is not ready. */
-  pending: Promise<unknown>[] | null
-  /** Transients built or reused in the current pass. */
-  used: Entry[] | null
-  /** Transients left over from a discarded pass, handed back on replay. */
-  reuse: Entry[] | null
-  /**
-   * Stop the pass at the first dependency that is not ready instead of
-   * handing out a placeholder. Set while a factory runs: unlike a constructor
-   * it goes on to use what it injected.
-   */
-  stopWhenPending: boolean
+  constructor(
+    public readonly promise: Promise<unknown>,
+    /** What is being destroyed, when that is the reason. */
+    public readonly leaving: Entry | null = null,
+    /** Set when it was built for this request and is already gone. */
+    public readonly rebuild = false,
+    /** The factory token whose value is being computed, when that is the reason. */
+    public readonly factory: FactoryInjectionToken<any, any> | null = null,
+    /** What it waits for, if it is an entry. */
+    public readonly until: Entry | null = leaving,
+  ) {}
 }
 
 /**
@@ -60,24 +74,21 @@ export class DependencyNotReady extends Error {
   }
 }
 
-export let current: Frame | null = null
-
-function framePath(): string[] {
-  const path: string[] = []
-  for (let frame = current; frame !== null; frame = frame.parent) {
-    path.unshift(frame.entry.token.toString())
+/** Throws when nothing may be built in `host` any more. */
+export function assertLive(host: Host): void {
+  if (host.disposed || host.root.disposed) {
+    throw containerDisposed(host.disposed && host.isScope ? 'ScopedContainer' : 'Container')
   }
-  return path
 }
 
-function onStack(entry: Entry): boolean {
-  for (let frame = current; frame !== null; frame = frame.parent) {
-    if (frame.entry === entry) {
-      return true
-    }
-  }
-  return false
+/** Whether the container that holds `entry` is being, or has been, disposed. */
+function isHostDisposed(entry: Entry): boolean {
+  return entry.host.disposed || entry.host.root.disposed
 }
+
+// What the resolution that is in progress outside any construction was started
+// for: an entry that used `asyncInject()` or the context of a factory.
+let startedBy: Entry | null = null
 
 function cyclePath(entry: Entry): string[] {
   const path = framePath()
@@ -86,9 +97,49 @@ function cyclePath(entry: Entry): string[] {
   return [...(start >= 0 ? path.slice(start) : path), name]
 }
 
+// A transient is not stored, so one that leads back to itself is only visible
+// on the construction stack, and beyond it in what started that construction.
+// A stored entry on the way ends such a chain, since it is built once.
+function assertNoTransientCycle(token: InjectionToken<any, any>, key: string | null): void {
+  let bottom: Entry | null = null
+  let endsHere = false
+  for (let frame = current; frame !== null; frame = frame.parent) {
+    bottom = frame.entry
+    if (bottom.store !== null) {
+      endsHere = true
+    } else if (bottom.token === token && bottom.key === key) {
+      throw circularDependency(cyclePath(bottom))
+    }
+  }
+  const first = endsHere ? null : bottom === null ? startedBy : bottom.creator
+  for (let entry = first; entry !== null && entry.store === null; entry = entry.creator) {
+    if (entry.token === token && entry.key === key) {
+      const path = framePath()
+      for (let step: Entry = first!; step !== entry; step = step.creator!) {
+        path.unshift(step.token.toString())
+      }
+      throw circularDependency([entry.token.toString(), ...path, token.toString()])
+    }
+  }
+}
+
+// Whether an entry whose dependents are being destroyed may still be handed
+// out: to a destroy hook, which runs before the teardown of what its service
+// injected, and to anyone while the container is being disposed. Never to a
+// construction, which would end up with an instance that is about to go.
+function isStillUsable(entry: Entry): boolean {
+  return (
+    current === null &&
+    startedBy?.status !== EntryStatus.Creating &&
+    (isHostDisposed(entry) ||
+      (hookOwner !== null && isLeaving(hookOwner) && hookOwner.host.root === entry.host.root))
+  )
+}
+
 /**
  * Resolves a normalised token against `host`. Returns a ready entry, an entry
- * that is still being created (await `entry.promise`), or a `Wait`.
+ * that is still being created (await `entry.promise`), or a `Wait`. An entry
+ * in `Leaving` state is returned only to callers that may still use it.
  *
  * Never awaits: everything that can be built synchronously is built before
  * this returns.
@@ -115,11 +166,18 @@ export function resolve(
           return existing
         case EntryStatus.Creating:
           if (onStack(existing)) {
-            throw DIError.circularDependency(cyclePath(existing))
+            throw circularDependency(cyclePath(existing))
           }
           return existing
+        case EntryStatus.Leaving:
         case EntryStatus.Destroying:
-          return new Wait(existing.destroyPromise ?? Promise.resolve())
+          if (existing.status === EntryStatus.Leaving && isStillUsable(existing)) {
+            return existing
+          }
+          if (isHostDisposed(existing)) {
+            throw containerDisposed(existing.host.isScope ? 'ScopedContainer' : 'Container')
+          }
+          return new Wait(existing.promise ?? Promise.resolve(), existing)
         default:
           // A failed or destroyed entry that was not removed; drop it and retry.
           existing.store?.delete(existing)
@@ -130,23 +188,47 @@ export function resolve(
     const record = lookupRecord(host, token)
     if (record === undefined) {
       if (token.scope === InjectableScope.Request && !host.isScope) {
-        throw DIError.requestScopeFromRoot(token.toString(), framePath())
+        throw requestScopeFromRoot(token.toString(), framePath())
       }
-      throw DIError.factoryNotFound(token.toString())
+      throw providerNotFound(token.toString(), framePath())
+    }
+    if (record.kind === 'existing') {
+      return resolveAlias(host, token, rawArgs)
     }
 
     switch (record.scope) {
       case InjectableScope.Singleton:
+        assertLive(host.root)
         return build(host.root, host.root.store, record, token, key, args)
       case InjectableScope.Request:
         if (!host.isScope) {
-          throw DIError.requestScopeFromRoot(token.toString(), framePath())
+          throw requestScopeFromRoot(token.toString(), framePath())
         }
+        assertLive(host)
         return build(host, host.store, record, token, key, args)
       default:
+        assertLive(host)
+        if (current !== null || startedBy !== null) {
+          assertNoTransientCycle(token, key)
+        }
         return build(host, null, record, token, key, args)
     }
   }
+}
+
+function resolveAlias(host: Host, alias: InjectionToken<any, any>, rawArgs: unknown): Entry | Wait {
+  const target = followAlias(host, alias, (host.root.usedAliases ??= new Set()))
+  if (host.root.decorators?.has(alias) === true) {
+    throw misuse(`${alias} is an alias of ${String(baseToken(target))}; decorate that instead`)
+  }
+  const value = normalize(host, target, rawArgs)
+  return value !== null
+    ? waitForValue(target as FactoryInjectionToken<any, any>, value)
+    : resolve(host, normToken, normArgs)
+}
+
+function waitForValue(token: FactoryInjectionToken<any, any>, value: Entry): Wait {
+  return new Wait(value.promise!, null, false, token, value)
 }
 
 function build(
@@ -156,25 +238,25 @@ function build(
   token: InjectionToken<any, any>,
   key: string | null,
   args: unknown,
-): Entry {
-  const entry = createEntry(record, token, key, args, store)
+): Entry | Wait {
+  const creator = store !== null ? null : current !== null ? current.entry : startedBy
+  const entry = createEntry(record, token, key, args, host, store, creator)
+  store?.set(token, key, entry)
   if (record.kind === 'value') {
-    entry.instance = record.value
-    entry.status = EntryStatus.Ready
-    store?.set(token, key, entry)
-    store?.trackInstance(entry)
+    markReady(entry, record.value)
     return entry
   }
-  store?.set(token, key, entry)
 
   const frame: Frame = {
-    host,
     entry,
     parent: current,
-    requests: null,
+    requests: record.plan === null ? [] : null,
     pending: null,
+    given: 0,
+    pass: null,
     used: null,
     reuse: null,
+    failures: null,
     stopWhenPending: false,
   }
 
@@ -184,83 +266,38 @@ function build(
     // ask for may be on its way out. Constructing now would only produce a
     // pass that has to be thrown away, so wait for the destruction first.
     const leaving = isDestroying(host) && record.plan !== null ? leavingIn(host, record.plan) : null
-    if (leaving !== null) {
-      outcome = afterDestruction(frame, leaving)
-    } else {
-      const waits =
-        record.preResolve === true && record.plan !== null ? preResolve(frame, record.plan) : null
-      if (waits === null && record.preResolve === true && record.plan !== null) {
-        // Everything was ready this time; stop paying for the extra lookups
-        // until a pass has to be discarded again.
-        record.preResolve = false
-      }
-      outcome = waits === null ? pass(frame) : waits.then(() => replay(frame, true))
-    }
+    outcome = leaving !== null ? afterDestruction(frame, leaving) : pass(frame)
   } catch (error) {
-    throw fail(entry, error)
+    throw fail(frame, error)
   }
   if (outcome !== undefined) {
     const tracked = outcome.then(undefined, (error) => {
-      throw fail(entry, error)
+      throw fail(frame, error)
     })
     tracked.catch(noop)
     entry.promise = tracked
+    if (store === null) {
+      trackBuild(host, entry)
+    }
+  } else if (entry.status !== EntryStatus.Ready) {
+    return new Wait(entry.promise ?? Promise.resolve(), null, true)
   }
   return entry
 }
 
-/**
- * Resolves the dependencies a class is known to ask for before constructing
- * it, so that a dependency with an asynchronous initialiser does not force a
- * discarded construction pass. Only used for classes that needed a replay
- * before.
- */
-function preResolve(frame: Frame, plan: PlanEntry[]): Promise<unknown> | null {
-  let waits: Promise<unknown>[] | null = null
-  const previous = current
-  current = frame
-  try {
-    for (const request of plan) {
-      const record = lookupRecord(frame.host, request.token)
-      if (record === undefined || record.scope === InjectableScope.Transient) {
-        continue
-      }
-      let resolved: Entry | Wait
-      try {
-        resolved = resolve(frame.host, request.token, request.args)
-      } catch {
-        // The constructor may not ask for this one this time. If it does, it
-        // gets the error itself.
-        continue
-      }
-      if (resolved instanceof Wait) {
-        ;(waits ??= []).push(resolved.promise)
-      } else if (resolved.status !== EntryStatus.Ready) {
-        addWaitEdge(frame.entry, resolved)
-        ;(waits ??= []).push(resolved.promise!.then(noop, noop))
-      }
-    }
-  } finally {
-    current = previous
-  }
-  return waits === null ? null : Promise.all(waits)
-}
-
-/**
- * Builds `frame` once the dependencies that were being destroyed are gone,
- * so that the first construction pass already sees their replacements.
- */
-async function afterDestruction(frame: Frame, first: Promise<unknown>): Promise<void> {
-  const { host, entry } = frame
-  let leaving: Promise<unknown> | null = first
+// Builds `frame` once the dependencies that were being destroyed are gone,
+// so that the first construction pass already sees their replacements.
+async function afterDestruction(frame: Frame, first: Entry[]): Promise<void> {
+  const { entry } = frame
+  const { host } = entry
+  let leaving: Entry[] | null = first
   while (leaving !== null) {
-    await leaving
+    leaving.forEach((dependency) => addWaitEdge(entry, dependency))
+    // Without a promise the destruction is in its synchronous part and is
+    // over, or has a promise, one microtask later.
+    await Promise.all(leaving.map((dependency) => dependency.promise))
+    entry.waitingFor = null
     leaving = isDestroying(host) ? leavingIn(host, entry.record.plan!) : null
-  }
-  const record = entry.record
-  const waits = record.preResolve === true ? preResolve(frame, record.plan!) : null
-  if (waits !== null) {
-    await waits
   }
   await replay(frame, true)
 }
@@ -280,130 +317,151 @@ function instantiate(frame: Frame): unknown {
         throw new Error('Factory does not implement the create method')
       }
       frame.stopWhenPending = true
-      return builder.create(createFactoryContext(frame), args)
+      return builder.create(createFactoryContext(frame.entry), args)
     }
     default:
       frame.stopWhenPending = true
-      return record.fn!(createFactoryContext(frame), args)
+      return record.fn!(createFactoryContext(frame.entry), args)
   }
 }
 
-/**
- * Runs the class or factory of `frame` once. When the pass met a dependency
- * that is not ready (`frame.pending`), what it produced is worthless, and so
- * is the way a factory reacted to being stopped.
- */
+// Runs the class or factory of `frame` once. When the pass met a dependency
+// that is not ready (`frame.pending`), what it produced or threw is worthless,
+// and so is the way a factory reacted to being stopped.
 function runOnce(frame: Frame): unknown {
-  const previous = current
-  current = frame
+  const previous = enter(frame)
   let produced: unknown
+  frame.pass = null
   try {
     produced = instantiate(frame)
   } catch (error) {
-    if (frame.pending === null || !(error instanceof DependencyNotReady)) {
+    // With something pending the pass is repeated anyway, and what it threw
+    // may come from using a placeholder. The error of a dependency that has
+    // failed does not, and waiting for the others would not change it.
+    if (frame.pending === null || frame.failures?.some((failure) => failure.error === error)) {
       throw error
     }
   } finally {
-    current = previous
+    enter(previous)
   }
-  if (frame.pending !== null && frame.entry.record.kind !== 'class' && isThenable(produced)) {
-    // An asynchronous factory reports being stopped, or failing on a
-    // placeholder, through a promise that nobody else observes.
-    Promise.resolve(produced).then(noop, noop)
+  if (frame.pending !== null) {
+    frame.given = (frame.entry.deps?.length ?? 0) + (frame.used?.length ?? 0)
+    const pass = frame.pass as Pass | null
+    if (pass !== null) {
+      pass.discarded = true
+    }
+    // The pass is discarded, so nothing depends on what it was given.
+    unlink(frame.entry)
+    if (frame.entry.record.kind !== 'class' && isThenable(produced)) {
+      // An asynchronous factory reports being stopped, or failing on a
+      // placeholder, through a promise that nobody else observes.
+      Promise.resolve(produced).then(noop, noop)
+    }
   }
   return produced
 }
 
-/**
- * One construction pass. Returns a promise when the entry cannot become ready
- * synchronously.
- */
+// One construction pass. Returns a promise when the entry cannot become ready
+// synchronously.
 function pass(frame: Frame): void | Promise<void> {
-  const record = frame.entry.record
-  frame.requests = record.plan === null ? [] : null
-  frame.pending = null
-  frame.used = null
-
   const produced = runOnce(frame)
-
-  if (frame.pending !== null) {
-    // The pass saw a dependency that is not ready. Whatever it produced was
-    // built against placeholders and is discarded.
-    record.preResolve = true
-    return replay(frame, false)
-  }
-  return settle(frame, produced)
+  // With something pending, what the pass produced was built against
+  // placeholders and is discarded.
+  return frame.pending !== null ? replay(frame, false) : settle(frame, produced)
 }
 
+// How often a build is repeated, and how many passes in a row may get no
+// further than those before them.
 const MAX_PASSES = 32
 
 async function replay(frame: Frame, planned: boolean): Promise<void> {
-  const entry = frame.entry
-  for (let attempt = 0; attempt < MAX_PASSES; attempt++) {
+  const { entry } = frame
+  const missed = new Set<unknown>()
+  let mostGiven = 0
+  for (let attempt = 0, idle = 0; idle < MAX_PASSES; attempt++) {
     if (!planned || attempt > 0) {
-      await Promise.all(frame.pending!)
+      await pendingOf(frame)
       frame.reuse = frame.used
+      frame.requests = entry.record.plan === null ? [] : null
+      frame.pending = null
+      frame.used = null
     }
     entry.waitingFor = null
-
-    const record = entry.record
-    frame.requests = record.plan === null ? [] : null
-    frame.pending = null
-    frame.used = null
+    assertLive(entry.host)
+    if (entry.stale && entry.store === null) {
+      throw misuse(`What ${entry.token} was built for is gone`)
+    }
 
     const produced = runOnce(frame)
 
     if (frame.reuse !== null) {
       // Transients the discarded pass built that this pass did not ask for.
-      for (const leftover of frame.reuse) {
-        void destroyEntry(leftover)
-      }
+      frame.reuse.forEach(discard)
       frame.reuse = null
     }
 
     if (frame.pending === null) {
-      const settled = settle(frame, produced)
-      if (settled !== undefined) {
-        await settled
-      }
-      return
+      return settle(frame, produced)
     }
-    record.preResolve = true
+    // By token: args that differ in every pass are no progress.
+    const known = missed.size
+    frame.pending.forEach((dependency) => missed.add(baseToken(dependency.token)))
+    idle = missed.size > known || frame.given > mostGiven ? 0 : idle + 1
+    mostGiven = Math.max(mostGiven, frame.given)
   }
-  throw DIError.unknown(
-    `[DI] ${entry.token.toString()} did not settle after ${MAX_PASSES} construction passes`,
+  const pending = frame.pending!
+  throw misuse(
+    `${entry.token} did not settle: ${MAX_PASSES} construction passes in a row got no further than ` +
+      `${pending.map((dependency) => dependency.name).join(', ')}, which was not ready.` +
+      (pending.some((dependency) => dependency.key !== null)
+        ? ' What has an asynchronous initialiser and args that differ in every pass, such as a ' +
+          'function created in the constructor, is built anew each time.'
+        : ''),
   )
 }
 
+// Waits for what a discarded pass was missing. A dependency that fails ends
+// the wait at once: the next pass throws its error where it is injected.
+async function pendingOf(frame: Frame): Promise<void> {
+  const pending = frame.pending!
+  try {
+    await Promise.all(pending.map((dependency) => dependency.promise))
+  } catch {
+    const failed = pending.filter((dependency) => dependency.failed)
+    frame.failures = frame.failures === null ? failed : frame.failures.concat(failed)
+  }
+}
+
 function settle(frame: Frame, produced: unknown): void | Promise<void> {
-  const { entry, host } = frame
+  const { entry } = frame
   const record = entry.record
   if (record.plan === null && frame.requests !== null) {
     record.plan = frame.requests
   }
   if (frame.used !== null) {
     entry.transients = entry.transients === null ? frame.used : entry.transients.concat(frame.used)
+    frame.used = null
   }
 
   if (record.kind === 'class') {
     const instance = produced as { onServiceInit?: () => unknown }
     if (typeof instance.onServiceInit === 'function') {
-      const initialised = instance.onServiceInit()
+      const initialised = runHook(entry, () => instance.onServiceInit!())
       if (isThenable(initialised)) {
-        return Promise.resolve(initialised).then(() => complete(entry, instance, host))
+        return Promise.resolve(initialised).then(() => complete(entry, instance))
       }
     }
-    complete(entry, instance, host)
+    complete(entry, instance)
     return
   }
 
   if (isThenable(produced)) {
-    return Promise.resolve(produced).then((value) => complete(entry, value, host))
+    return Promise.resolve(produced).then((value) => complete(entry, value))
   }
-  complete(entry, produced, host)
+  complete(entry, produced)
 }
 
-function complete(entry: Entry, produced: unknown, host: Host): void {
+function complete(entry: Entry, produced: unknown): void {
   if (entry.status !== EntryStatus.Creating) {
     return
   }
@@ -414,120 +472,207 @@ function complete(entry: Entry, produced: unknown, host: Host): void {
     }
   }
   let value = produced
-  const decorators = host.root.decorators?.get(entry.token)
+  const decorators = entry.host.root.decorators?.get(entry.token)
   if (decorators !== undefined) {
     const info = { token: entry.token, args: entry.args }
-    for (const decorate of decorators) {
-      value = decorate(value, info)
-    }
+    outside(() => {
+      for (const decorate of decorators) {
+        value = decorate(value, info)
+      }
+    })
   }
-  entry.instance = value
-  entry.status = EntryStatus.Ready
   entry.promise = null
   entry.waitingFor = null
-  entry.store?.trackInstance(entry)
+  markReady(entry, value)
+  if (entry.stale) {
+    discard(entry)
+  }
 }
 
-function fail(entry: Entry, error: unknown): DIError {
+function fail(frame: Frame, error: unknown): DIError {
+  const entry = frame.entry
   const wrapped =
-    error instanceof DIError ? error : DIError.initializationError(entry.token.toString(), error)
+    error instanceof DIError ? error : initializationError(entry.token.toString(), error)
   if (entry.status === EntryStatus.Creating) {
     entry.status = EntryStatus.Failed
-    entry.error = wrapped
     entry.promise = null
     entry.waitingFor = null
     entry.store?.delete(entry)
     unlink(entry)
-    if (entry.transients !== null) {
-      for (const transient of entry.transients) {
-        void destroyEntry(transient)
-      }
-      entry.transients = null
-    }
+    cleanUpFailed(entry, frame)
   }
   return wrapped
 }
 
 /**
- * Resolves from outside any construction (a `get` call), so the current
- * construction stack, if any, is not treated as the caller.
- * @internal
+ * Releases what a build that failed had acquired: the destroy listeners its
+ * factory registered, and its transients, also those of the pass that failed,
+ * which no one adopted.
  */
-export function resolveTop(host: Host, raw: AnyInjectableType, rawArgs: unknown): Entry | Wait {
-  const previous = current
-  current = null
-  try {
-    const wait = normalize(host, raw, rawArgs)
-    if (wait !== null) {
-      return new Wait(wait)
-    }
-    const resolved = resolve(host, normToken, normArgs)
-    if (
-      host.isScope &&
-      !(resolved instanceof Wait) &&
-      resolved.store === null &&
-      resolved.status === EntryStatus.Ready &&
-      (resolved.destroyListeners !== null || resolved.transients !== null)
-    ) {
-      ;(host.looseTransients ??= []).push(resolved)
-    }
-    return resolved
-  } finally {
-    current = previous
+export function cleanUpFailed(entry: Entry, frame: Frame | null): void {
+  const released = runDestroyListeners(entry)
+  if (released !== null) {
+    inBackground(entry.host, Promise.all(released))
+  }
+  entry.transients?.forEach(discard)
+  entry.transients = null
+  if (frame !== null) {
+    frame.used?.forEach(discard)
+    frame.reuse?.forEach(discard)
+    frame.used = frame.reuse = null
   }
 }
 
-/** @internal */
+/**
+ * Resolves from outside any construction (a `get` call), so the current
+ * construction stack, if any, is not treated as the caller. `by` is the entry
+ * it is resolved for, if any.
+ */
+export function resolveTop(
+  host: Host,
+  raw: AnyInjectableType,
+  rawArgs: unknown,
+  by: Entry | null,
+): Entry | Wait {
+  const previous = enter(null)
+  const previousStarter = startedBy
+  startedBy = by
+  try {
+    const value = normalize(host, raw, rawArgs)
+    return value !== null
+      ? waitForValue(raw as FactoryInjectionToken<any, any>, value)
+      : resolve(host, normToken, normArgs)
+  } finally {
+    startedBy = previousStarter
+    enter(previous)
+  }
+}
+
+/** Lets `host` destroy a transient that it handed out to no owner. */
+export function keepLoose(host: Host, entry: Entry): void {
+  if (
+    host.isScope &&
+    entry.store === null &&
+    (entry.destroyListeners !== null || entry.transients !== null)
+  ) {
+    ;(host.looseTransients ??= []).push(entry)
+  }
+}
+
+/**
+ * Throws when `entry` became ready only after its container was disposed. A
+ * stored entry is left to the disposal.
+ */
+export function assertInTime(entry: Entry): void {
+  if (isHostDisposed(entry)) {
+    if (entry.store === null) {
+      discard(entry)
+    }
+    throw containerDisposed(entry.host.isScope ? 'ScopedContainer' : 'Container')
+  }
+}
+
+/** Fails a request whose result has been invalidated over and over. */
+export function assertSettles(raw: AnyInjectableType, restarts: number): void {
+  if (restarts > MAX_PASSES) {
+    throw misuse(
+      `${String(baseToken(raw))} was invalidated ${restarts} times in a row while it was being built`,
+    )
+  }
+}
+
+/**
+ * Resolves to an entry that is ready. `first` is what a synchronous attempt
+ * came to; `watch` is told which entry is being waited for, and `null` when
+ * the wait is over.
+ */
 export async function resolveAsync(
   host: Host,
   raw: AnyInjectableType,
   rawArgs: unknown,
-  /** Told which entry is being waited for, and `null` when the wait is over. */
+  by: Entry | null = null,
+  first?: Entry | Wait,
   watch?: (waitingFor: Entry | null) => void,
 ): Promise<Entry> {
-  for (;;) {
-    const resolved = resolveTop(host, raw, rawArgs)
+  let resolved = first ?? resolveTop(host, raw, rawArgs, by)
+  for (let restarts = 0; ; resolved = resolveTop(host, raw, rawArgs, by)) {
     if (resolved instanceof Wait) {
+      if (resolved.rebuild) {
+        assertSettles(raw, ++restarts)
+      }
       await resolved.promise
       continue
     }
-    if (resolved.status === EntryStatus.Ready) {
+    if (resolved.status !== EntryStatus.Creating) {
+      if (by === null) {
+        keepLoose(host, resolved)
+      }
       return resolved
     }
-    if (resolved.status === EntryStatus.Creating) {
-      if (watch === undefined) {
+    if (watch === undefined) {
+      await resolved.promise
+    } else {
+      watch(resolved)
+      try {
         await resolved.promise
-      } else {
-        watch(resolved)
-        try {
-          await resolved.promise
-        } finally {
-          watch(null)
-        }
-      }
-      if ((resolved.status as number) === EntryStatus.Ready) {
-        if (
-          host.isScope &&
-          resolved.store === null &&
-          (resolved.destroyListeners !== null || resolved.transients !== null)
-        ) {
-          ;(host.looseTransients ??= []).push(resolved)
-        }
-        return resolved
+      } finally {
+        watch(null)
       }
     }
+    if ((resolved.status as number) === EntryStatus.Ready) {
+      assertInTime(resolved)
+      if (by === null) {
+        keepLoose(host, resolved)
+      }
+      return resolved
+    }
+    assertSettles(raw, ++restarts)
   }
 }
 
-/** @internal */
-export function resolveSyncOrThrow(host: Host, raw: AnyInjectableType, rawArgs: unknown): Entry {
-  const resolved = resolveTop(host, raw, rawArgs)
-  if (resolved instanceof Wait || resolved.status !== EntryStatus.Ready) {
-    if (!(resolved instanceof Wait)) {
-      // Someone must observe the rejection if the pending work fails.
-      resolved.promise?.catch(noop)
+/**
+ * What `get()` returns. Resolves in one step when nothing is asynchronous.
+ */
+export function resolveInstance(
+  host: Host,
+  raw: AnyInjectableType,
+  rawArgs: unknown,
+): Promise<unknown> {
+  try {
+    const ready = findReady(host, raw, rawArgs)
+    if (ready !== undefined) {
+      return Promise.resolve(ready.instance)
     }
-    throw DIError.asyncInitRequired(baseToken(raw)?.toString() ?? String(raw))
+    const first = resolveTop(host, raw, rawArgs, null)
+    if (!(first instanceof Wait) && first.status !== EntryStatus.Creating) {
+      keepLoose(host, first)
+      return Promise.resolve(first.instance)
+    }
+    return resolveAsync(host, raw, rawArgs, null, first).then(instanceOf)
+  } catch (error) {
+    return rejectWith(error)
   }
+}
+
+function instanceOf(entry: Entry): unknown {
+  return entry.instance
+}
+
+export function resolveSyncOrThrow(host: Host, raw: AnyInjectableType, rawArgs: unknown): Entry {
+  const resolved = resolveTop(host, raw, rawArgs, null)
+  if (resolved instanceof Wait) {
+    throw resolved.leaving !== null
+      ? notYetDestroyed(resolved.leaving.token.toString())
+      : asyncInitRequired(String(baseToken(raw)))
+  }
+  if (resolved.status === EntryStatus.Creating) {
+    if (resolved.store === null) {
+      // Nobody will receive the transient. A stored one is left to be ready
+      // for a later call.
+      discard(resolved)
+    }
+    throw asyncInitRequired(String(baseToken(raw)))
+  }
+  keepLoose(host, resolved)
   return resolved
 }

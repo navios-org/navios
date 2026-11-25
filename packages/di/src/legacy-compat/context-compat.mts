@@ -5,47 +5,61 @@
  * from legacy decorator arguments, and manages metadata storage using WeakMap.
  */
 
-import type { ClassType } from '../token/class-type.mjs'
+import { misuse } from '../errors/create.mjs'
 
-// WeakMap to store metadata for legacy decorators
-// Keyed by class constructor for class decorators
-// For method decorators, we use the class constructor (extracted from the prototype)
-const classMetadataMap = new WeakMap<ClassType, Record<string | symbol, any>>()
+import type { AbstractClassType, ClassType } from '../token/class-type.mjs'
+
+type Metadata = Record<PropertyKey, unknown>
+
+// Metadata of legacy decorated classes, by constructor. Member decorators use
+// the same object as the decorators of their class.
+const classMetadata = new WeakMap<AbstractClassType, Metadata>()
 
 /**
- * Gets the constructor from a prototype (for method decorators).
+ * The metadata object of a class. As with standard decorators its prototype is
+ * the metadata of the base class, so a subclass inherits what was recorded
+ * there: guards, attributes, endpoints.
  */
-function getConstructor(prototype: any): ClassType | null {
-  if (!prototype || typeof prototype !== 'object') {
-    return null
+function metadataOf(target: AbstractClassType): Metadata {
+  let metadata = classMetadata.get(target)
+  if (metadata === undefined) {
+    const base: unknown = Object.getPrototypeOf(target)
+    metadata = Object.create(
+      typeof base === 'function' && base !== Function.prototype
+        ? metadataOf(base as AbstractClassType)
+        : null,
+    ) as Metadata
+    classMetadata.set(target, metadata)
   }
-  // In legacy decorators, target is the prototype
-  // The constructor is typically available via prototype.constructor
-  const constructor = prototype.constructor
-  if (constructor && typeof constructor === 'function') {
-    return constructor as ClassType
+  return metadata
+}
+
+/** The class whose member a legacy decorator was applied to. */
+function classOf(target: unknown): AbstractClassType {
+  // A static member comes with its class, any other with the prototype.
+  const constructor =
+    typeof target === 'function'
+      ? target
+      : (target as { constructor?: unknown } | null)?.constructor
+  if (typeof constructor !== 'function') {
+    throw misuse('Could not determine the class of a legacy member decorator')
   }
-  return null
+  return constructor as AbstractClassType
+}
+
+function addInitializer() {
+  // Legacy decorators don't support initializers
 }
 
 /**
  * Creates a mock ClassDecoratorContext for legacy class decorators.
- * @internal
  */
 export function createClassContext(target: ClassType): ClassDecoratorContext {
-  // Get or create metadata storage for this class
-  if (!classMetadataMap.has(target)) {
-    classMetadataMap.set(target, {})
-  }
-  const metadata = classMetadataMap.get(target)!
-
   return {
     kind: 'class',
     name: target.name,
-    metadata,
-    addInitializer() {
-      // Legacy decorators don't support initializers
-    },
+    metadata: metadataOf(target),
+    addInitializer,
   } as ClassDecoratorContext
 }
 
@@ -54,40 +68,23 @@ export function createClassContext(target: ClassType): ClassDecoratorContext {
  *
  * Note: Method decorators need to share metadata with the class context
  * because endpoint metadata is stored at the class level.
- * @internal
  */
 export function createMethodContext(
   target: any,
   propertyKey: string | symbol,
   descriptor: PropertyDescriptor,
 ): ClassMethodDecoratorContext {
-  // For method decorators, target is the prototype
-  // We need to get the class constructor to access class-level metadata
-  const constructor = getConstructor(target)
-  if (!constructor) {
-    throw new Error('[Navios] Could not determine class constructor from method decorator target.')
-  }
-
-  // Get or create metadata storage for the class
-  // Method decorators share metadata with the class
-  if (!classMetadataMap.has(constructor)) {
-    classMetadataMap.set(constructor, {})
-  }
-  const metadata = classMetadataMap.get(constructor)!
-
   return {
     kind: 'method',
     name: propertyKey,
-    metadata,
-    static: false, // We can't determine this from legacy decorators
-    private: false, // We can't determine this from legacy decorators
+    metadata: metadataOf(classOf(target)),
+    static: typeof target === 'function',
+    private: false, // Legacy decorators cannot be applied to private members
     access: {
       has: () => true,
       get: () => descriptor.value,
       set: () => {},
     },
-    addInitializer() {
-      // Legacy decorators don't support initializers
-    },
+    addInitializer,
   } as ClassMethodDecoratorContext
 }

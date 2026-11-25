@@ -1,14 +1,11 @@
 import { attachClasses } from '../metadata/attach-classes.mjs'
 
-import type { Interceptor } from './interceptor.mjs'
-
-/* eslint-disable @typescript-eslint/no-explicit-any */
-
-type InterceptorClass = new (...args: any[]) => Interceptor<any, any>
+import type { InterceptorClass } from './interceptor.mjs'
 
 /**
  * Adds interceptors to a module, a controller or a handler. The first one
- * given is the outermost.
+ * given is the outermost. They run for what the guards let through, unlike the
+ * interceptors of the application.
  *
  * On a class, place it above `@Controller` / `@Module`.
  */

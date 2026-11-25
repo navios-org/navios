@@ -1,5 +1,6 @@
 import { InjectionToken, registerInjectable } from '@navios/di'
 
+import type { EndpointReply } from '../responses/reply.mjs'
 import type { RouteResult } from '../routing/route-result.mjs'
 
 import { problem } from './problem.mjs'
@@ -10,7 +11,7 @@ import { formatPath, ValidationError } from './validation-error.mjs'
  * with `provide(NotFoundResponderToken, MyResponder)`.
  */
 export interface ErrorResponder {
-  getResponse(error: unknown, description?: string): RouteResult
+  getResponse(error: unknown, description?: string): RouteResult | EndpointReply
 }
 
 export const NotFoundResponderToken = InjectionToken.create<ErrorResponder>('NotFoundResponder')

@@ -124,7 +124,7 @@ describe('scope', () => {
 
     const empty = container.createScope()
     const missing = await empty.get(Reader).catch((e) => e)
-    expect(missing.code).toBe(DIErrorCode.FactoryNotFound)
+    expect(missing.code).toBe(DIErrorCode.ProviderNotFound)
     await scope.dispose()
     await empty.dispose()
   })

@@ -1,59 +1,32 @@
 /**
- * Shared utilities for garbage collection tests
+ * Shared utilities for garbage collection tests.
  *
- * These tests require Node.js to be started with --expose-gc flag
- * to enable manual garbage collection triggering via global.gc()
+ * They need `--expose-gc`, which the vitest config of the package passes to
+ * its workers.
  */
 
-/**
- * Check if garbage collection is available
- */
-export const isGCAvailable = typeof global.gc === 'function'
+const tick = () => new Promise<void>((resolve) => setTimeout(resolve, 1))
 
-/**
- * Force garbage collection if available
- * Should be called after removing references to test objects
- */
 export function forceGC(): void {
-  if (isGCAvailable) {
-    global.gc!()
+  if (typeof global.gc !== 'function') {
+    throw new Error('Garbage collection is not exposed; run the tests with --expose-gc')
   }
+  global.gc()
 }
 
 /**
- * Get current heap memory usage in bytes
+ * The memory in use, in bytes, after everything collectable is collected.
+ * Counts the contents of typed arrays, which are not on the JavaScript heap.
  */
-export function getHeapUsed(): number {
-  return process.memoryUsage().heapUsed
-}
-
-/**
- * Get current heap memory usage in MB
- */
-export function getHeapUsedMB(): number {
-  return getHeapUsed() / 1024 / 1024
-}
-
-/**
- * Measure memory delta during a callback execution
- * Forces GC before and after to get accurate measurements
- */
-export async function measureMemoryDelta(
-  callback: () => Promise<void>,
-): Promise<{ before: number; after: number; delta: number }> {
-  forceGC()
-  const before = getHeapUsed()
-
-  await callback()
-
-  forceGC()
-  const after = getHeapUsed()
-
-  return {
-    before,
-    after,
-    delta: after - before,
+export async function memoryInUse(): Promise<number> {
+  // Settled promise chains become collectable when the microtask queue has
+  // drained, and the contents of array buffers are freed a little later.
+  for (let i = 0; i < 4; i++) {
+    await tick()
+    forceGC()
   }
+  const { heapUsed, arrayBuffers } = process.memoryUsage()
+  return heapUsed + arrayBuffers
 }
 
 /**
@@ -94,43 +67,8 @@ export async function waitForGC<T extends object>(
   return false
 }
 
-/**
- * Create a large object to simulate memory pressure
- * Size is in bytes (approximately)
- */
-export function createLargeObject(sizeBytes: number): { data: Uint8Array } {
-  return {
-    data: new Uint8Array(sizeBytes),
-  }
-}
-
-/**
- * Create multiple large objects to simulate batch allocations
- */
-export function createLargeObjects(
-  count: number,
-  sizePerObject: number,
-): Array<{ data: Uint8Array }> {
-  return Array.from({ length: count }, () => createLargeObject(sizePerObject))
-}
-
-/**
- * Memory threshold check - verifies memory is within expected bounds
- * Useful for detecting memory leaks
- */
-export function assertMemoryWithinBounds(
-  actualBytes: number,
-  expectedBytes: number,
-  tolerancePercent: number = 20,
-): void {
-  const tolerance = expectedBytes * (tolerancePercent / 100)
-  const lowerBound = expectedBytes - tolerance
-  const upperBound = expectedBytes + tolerance
-
-  if (actualBytes < lowerBound || actualBytes > upperBound) {
-    throw new Error(
-      `Memory usage ${actualBytes} bytes is outside expected bounds ` +
-        `[${lowerBound}, ${upperBound}] (expected: ${expectedBytes} ±${tolerancePercent}%)`,
-    )
-  }
+/** How many of the objects are still alive after a collection. */
+export async function countAlive(refs: WeakRef<object>[]): Promise<number> {
+  await memoryInUse()
+  return refs.filter((ref) => ref.deref() !== undefined).length
 }

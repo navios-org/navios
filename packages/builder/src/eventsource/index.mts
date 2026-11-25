@@ -1,6 +1,9 @@
 // EventSource builder
 export { eventSourceBuilder } from './eventsource-builder.mjs'
-export type { EventSourceBuilderInstance } from './eventsource-builder-instance.mjs'
+export type {
+  EventSourceBuilderInstance,
+  ProvideEventSourceClientOptions,
+} from './eventsource-builder-instance.mjs'
 export type { EventOptions, EventSourceBuilderConfig } from './eventsource-options.mjs'
 export type { EventHandler, EventUnsubscribe, InferEventPayload } from './eventsource-handlers.mjs'
 
@@ -17,6 +20,8 @@ export { createEventSourceHandler, declareEventSource } from './declare-eventsou
 export type {
   CreateEventSourceHandlerConfig,
   DeclareEventSourceOptions,
+  EventSourceConstructor,
+  EventSourceLike,
   InferEventSourceConnectParams,
 } from './declare-eventsource-options.mjs'
 export type {

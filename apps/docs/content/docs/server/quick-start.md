@@ -9,10 +9,16 @@ This page builds a small users API and runs it on Fastify. The declarations, the
 ## Install
 
 ```bash
-npm install @navios/server @navios/builder @navios/adapter-fastify fastify zod
+npm install @navios/server@next @navios/builder@next @navios/adapter-fastify@next fastify zod
 ```
 
-`@navios/builder` declares endpoints and `zod` is the schema library used in these docs; any [Standard Schema](https://standardschema.dev) library works in its place.
+:::info
+2.0 is an alpha, published under the `next` tag. All `@navios` packages of a project must have the same alpha version, because an alpha may break between releases.
+:::
+
+`@navios/builder` declares endpoints and `zod` is the schema library used in these docs; any [Standard Schema](https://standardschema.dev) library works in its place. `@navios/core` and `@navios/di` come with the server.
+
+Node.js 24 or newer is required, or Bun 1.4.5 or newer.
 
 Navios uses standard (TC39) decorators. Leave `experimentalDecorators` off in `tsconfig.json`. A project that has to keep it on uses the [legacy decorators](/docs/server/reference/legacy-decorators) entry point instead.
 
@@ -153,7 +159,7 @@ npx tsx main.mts
 
 ### On Bun
 
-The same code runs on Bun. Install `@navios/adapter-bun` instead of the Fastify packages and change two lines of `main.mts`:
+The same code runs on Bun. Install `@navios/adapter-bun@next` instead of the Fastify packages and change two lines of `main.mts`:
 
 ```ts title="main.mts"
 import { defineBunEnvironment } from '@navios/adapter-bun'

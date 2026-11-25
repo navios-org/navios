@@ -3,8 +3,6 @@
  *
  * Tests that transient services are properly garbage collected
  * when no longer referenced, since they are not cached by the container.
- *
- * Run with: NODE_OPTIONS=--expose-gc yarn run -T vitest run src/__tests__/gc
  */
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -16,15 +14,9 @@ import { inject } from '../../injection/injectors.mjs'
 
 import type { OnServiceDestroy } from '../../lifecycle-hooks.mjs'
 
-import {
-  createGCTracker,
-  forceGC,
-  getHeapUsed,
-  isGCAvailable,
-  waitForGC,
-} from './gc-test-utils.mjs'
+import { countAlive, createGCTracker, forceGC, memoryInUse, waitForGC } from './gc-test-utils.mjs'
 
-describe.skipIf(!isGCAvailable)('GC: Transient Services', () => {
+describe('GC: Transient Services', () => {
   let container: Container
 
   beforeEach(() => {
@@ -186,43 +178,25 @@ describe.skipIf(!isGCAvailable)('GC: Transient Services', () => {
   })
 
   describe('Memory is reclaimed for transient services', () => {
-    // This test is flaky and no matter how many instances we create, the last instance is never collected.
-    it.skip('should reclaim memory when transient instances are released', async () => {
-      const INSTANCE_COUNT = 10
-
+    it('should collect transient instances when they are released', async () => {
       @Injectable({ scope: InjectableScope.Transient })
       class LargeTransientService {
         public readonly data = new Uint8Array(1024 * 100) // 100KB
       }
 
-      // Track all instances with WeakRefs
-      const trackers: ReturnType<typeof createGCTracker>[] = []
-      let instances: LargeTransientService[] = []
-
-      for (let i = 0; i < INSTANCE_COUNT; i++) {
-        const instance = await container.get(LargeTransientService)
-        instances.push(instance)
-        trackers.push(createGCTracker(instance))
+      // In a function of its own: the frame of the test would hold the last one.
+      const create = async () => {
+        const instances: LargeTransientService[] = []
+        for (let i = 0; i < 10; i++) {
+          instances.push(await container.get(LargeTransientService))
+        }
+        return instances.map((instance) => new WeakRef(instance))
       }
 
-      // Verify none collected yet
-      for (const tracker of trackers) {
-        expect(tracker().collected).toBe(false)
-      }
-
-      // Release all references
-      instances = []
-      forceGC()
-
-      let collected = 0
-      // All should be collected
-      for (const tracker of trackers) {
-        console.log('waiting for GC', collected++, tracker().collected)
-        expect(await waitForGC(tracker().ref)).toBe(true)
-      }
+      expect(await countAlive(await create())).toBe(0)
     })
 
-    it.todo('should not accumulate memory with repeated transient creations', async () => {
+    it('should not accumulate memory with repeated transient creations', async () => {
       const ALLOCATION_SIZE = 1024 * 50 // 50KB per instance
       const ITERATIONS = 50
 
@@ -231,8 +205,7 @@ describe.skipIf(!isGCAvailable)('GC: Transient Services', () => {
         public readonly data = new Uint8Array(ALLOCATION_SIZE)
       }
 
-      forceGC()
-      const baselineMemory = getHeapUsed()
+      const baselineMemory = await memoryInUse()
 
       // Repeatedly create and discard transient instances
       for (let i = 0; i < ITERATIONS; i++) {
@@ -241,8 +214,7 @@ describe.skipIf(!isGCAvailable)('GC: Transient Services', () => {
         void instance
       }
 
-      forceGC()
-      const finalMemory = getHeapUsed()
+      const finalMemory = await memoryInUse()
       const memoryGrowth = finalMemory - baselineMemory
 
       // Memory growth should be minimal (less than 2 instances worth)

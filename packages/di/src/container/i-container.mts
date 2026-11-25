@@ -1,10 +1,16 @@
-import type { AsyncResolve, SyncResolve } from '../injection/resolve-signatures.mjs'
+import type {
+  AsyncResolve,
+  OptionalResolve,
+  SyncResolve,
+} from '../injection/resolve-signatures.mjs'
+import type { ProvidedFor } from '../provider/factorable.mjs'
 import type { ClassType } from '../token/class-type.mjs'
 import type {
   AnyInjectableType,
   BoundInjectionToken,
   InjectionToken,
 } from '../token/injection-token.mjs'
+import type { PublicPart } from '../token/public-part.mjs'
 
 export interface IContainer {
   /** Resolves an instance, waiting for asynchronous initialisers. */
@@ -17,7 +23,7 @@ export interface IContainer {
   getSync: SyncResolve
 
   /** Returns an instance that is already built, or `null`. Never constructs. */
-  tryGetSync<T>(token: AnyInjectableType, args?: unknown): T | null
+  peek: OptionalResolve
 
   invalidate(service: unknown): Promise<void>
 
@@ -29,9 +35,9 @@ export interface IContainer {
 
   isRegistered(token: AnyInjectableType): boolean
 
-  addInstance<T>(
-    token: ClassType | InjectionToken<T, any> | BoundInjectionToken<T, any>,
-    instance: T,
+  addInstance<K extends ClassType | InjectionToken<any, any> | BoundInjectionToken<any, any>>(
+    token: K,
+    instance: PublicPart<ProvidedFor<K>>,
   ): void
 
   dispose(): Promise<void>

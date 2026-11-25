@@ -1,6 +1,6 @@
 {
   "name": "@navios/jwt",
-  "version": "1.0.0",
+  "version": "2.0.0-alpha.0",
   "description": "JWT authentication and authorization for Navios",
   "license": "MIT",
   "author": {
@@ -9,9 +9,15 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/Arilas/navios.git",
+    "url": "https://github.com/navios-org/navios.git",
     "directory": "packages/jwt"
   },
+  "files": [
+    "lib",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ],
   "main": "./lib/index.cjs",
   "module": "./lib/index.mjs",
   "typings": "./lib/index.d.mts",
@@ -32,7 +38,7 @@
     "lint": "yarn run -T oxlint --fix && yarn run -T oxfmt",
     "test:ci": "vitest run",
     "build": "tsdown",
-    "publish": "yarn npm publish --access public",
+    "publish": "node ../../scripts/assert-stable-version.mjs && yarn npm publish --access public",
     "publish:next": "yarn npm publish --access public --tag next"
   },
   "dependencies": {
@@ -40,9 +46,13 @@
   },
   "devDependencies": {
     "@navios/core": "workspace:^",
+    "@navios/di": "workspace:^",
     "@types/jsonwebtoken": "^9.0.10"
   },
   "peerDependencies": {
-    "@navios/core": "workspace:^"
+    "@navios/core": "workspace:*"
+  },
+  "engines": {
+    "node": ">=24"
   }
 }

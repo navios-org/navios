@@ -51,8 +51,8 @@ describe('UnitTestContainer', () => {
 
       const error = await container.get(NotProvided).catch((e) => e)
       expect(error).toBeInstanceOf(DIError)
-      expect(error.code).toBe(DIErrorCode.FactoryNotFound)
-      expect(error.context).toEqual({ name: 'NotProvided' })
+      expect(error.code).toBe(DIErrorCode.ProviderNotFound)
+      expect(error.context).toEqual({ name: 'NotProvided', path: [] })
       expect(error.message).toBe(
         '[UnitTestContainer] NotProvided is not in the providers list. ' +
           'Add it to providers, or set allowUnregistered: true to get an auto-mock for it.',
@@ -894,7 +894,7 @@ describe('UnitTestContainer', () => {
       const error = await container.get(Signup).catch((e: unknown) => e)
 
       expect(error).toBeInstanceOf(DIError)
-      expect((error as DIError).code).toBe(DIErrorCode.FactoryNotFound)
+      expect((error as DIError).code).toBe(DIErrorCode.ProviderNotFound)
       expect(container.getAutoMockedTokens().size).toBe(0)
 
       await container.dispose()
@@ -915,7 +915,7 @@ describe('UnitTestContainer', () => {
 
       const signup = await container.get(Signup)
 
-      await expect(signup.mailer).rejects.toMatchObject({ code: DIErrorCode.FactoryNotFound })
+      await expect(signup.mailer).rejects.toMatchObject({ code: DIErrorCode.ProviderNotFound })
 
       await container.dispose()
     })
@@ -968,7 +968,7 @@ describe('UnitTestContainer', () => {
 
       container.disableAutoMocking()
       await expect(container.get(Reminder)).rejects.toMatchObject({
-        code: DIErrorCode.FactoryNotFound,
+        code: DIErrorCode.ProviderNotFound,
       })
 
       await container.dispose()

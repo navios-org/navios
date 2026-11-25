@@ -26,11 +26,11 @@ await uploadAvatar({
 })
 ```
 
-Everything else about the endpoint works as usual: URL and query parameters, `errorSchema`, `.safe()`, and a JSON response validated by `responseSchema`.
+Everything else about the endpoint works as usual: URL and query parameters, `errorSchema`, `.safe()`, and a JSON response validated by `responseSchema`. As everywhere, the fields are built from [what you pass](/docs/builder/essentials/inputs#what-is-sent), not from what the schema made of it.
 
 ## How values become form fields
 
-Each key of the validated object becomes one or more fields:
+Each key of `data` becomes one or more fields:
 
 | Value                          | Sent as                                           |
 | ------------------------------ | ------------------------------------------------- |
@@ -43,7 +43,9 @@ Each key of the validated object becomes one or more fields:
 | `null`                         | an empty string                                   |
 | `undefined`                    | left out                                          |
 
-So several files under one key are an array:
+Form fields are text, but the schema does not have to be. A Navios server decodes each field with the schema's JSON Schema before it validates: `z.number()`, `z.boolean()`, objects and arrays, also of one item, can be used as they are. That needs a schema library that implements Standard JSON Schema, as Zod 4 does; Valibot does not by itself, so there describe the text. Never use `z.coerce.boolean()`, which turns `"false"` into `true`.
+
+Several files under one key are an array:
 
 ```ts
 export const uploadAttachments = API.declareEndpoint({
@@ -83,6 +85,6 @@ Client-side checks are a convenience for the user. The server must enforce the s
 
 ## Client requirements
 
-Your HTTP client must send a `FormData` body as it is and let the runtime set the `Content-Type` header with its boundary. `@navios/http` and axios both do. If you wrote your own `fetch` wrapper, make sure it does not `JSON.stringify` a `FormData` body or force a JSON content type.
+Your HTTP client must send a `FormData` body as it is and let the runtime set the `Content-Type` header with its boundary. `@navios/http`, axios and the [`fetch` wrapper](/docs/builder/essentials/http-client#choosing-a-client) in these docs do. If you wrote your own, make sure it does not `JSON.stringify` a `FormData` body or force a JSON content type.
 
 For file inputs and upload state in React, see [Uploads and downloads](/docs/builder/react-query/uploads-and-downloads) in the React Query docs. Receiving the upload on a Navios server is covered in the server's [File uploads](/docs/server/guides/file-uploads) guide.

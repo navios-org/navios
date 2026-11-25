@@ -37,11 +37,15 @@ export const deleteUser = API.declareEndpoint({
 | `timeout`          | Timeout in milliseconds                                         | this page                                                                |
 | `clientOptions`    | Extra keys for your HTTP client                                 | this page                                                                |
 
-A `responseSchema` is required unless the declaration has `responses` or a non-JSON `response` kind. Any key that is not in this table is a compile error, so a typo such as `requstSchema` cannot slip through.
+A `responseSchema` is required unless the declaration has `responses` or a non-JSON `response` kind. Any key that is not in this table is a compile error, so a typo such as `requstSchema` cannot slip through. So are options that contradict each other, which also throw a `NaviosError` when the endpoint is declared:
+
+- `responses` together with `responseSchema`
+- `responseSchema` or `responses` together with a non-JSON `response`
+- `requestSchema` or a multipart `body` on a `GET` or `HEAD` endpoint
 
 ## Headers and timeout
 
-`headers` and `timeout` set defaults for one endpoint. A call can override both: per-call headers are merged over the endpoint's, and a per-call timeout wins.
+`headers` and `timeout` set defaults for one endpoint. A call can override both: per-call headers are merged over the endpoint's, whatever the case of their names, and a per-call timeout wins.
 
 ```ts
 export const exportUsers = API.declareEndpoint({
@@ -59,7 +63,7 @@ Headers that every endpoint needs, such as authorization, belong on the [HTTP cl
 
 ## Client options
 
-`clientOptions` passes keys through to your HTTP client that Builder itself has no opinion about, such as axios `withCredentials` or fetch `credentials`.
+`clientOptions` passes keys through to your HTTP client that Builder itself has no opinion about, such as `withCredentials` (axios and `@navios/http`) or `credentials` (`fetch` and `@navios/http`).
 
 ```ts
 export const getSession = API.declareEndpoint({
@@ -70,7 +74,7 @@ export const getSession = API.declareEndpoint({
 })
 ```
 
-It cannot override what Builder controls: `method`, `url`, `params`, `data`, `headers`, `signal`, `timeout` and `responseType` are always set from the declaration and the call.
+It cannot override what Builder controls: `method`, `url`, `params`, `data`, `signal`, `timeout` and `responseType` are always set from the declaration and the call. `headers` in `clientOptions` are sent, merged underneath the endpoint's `headers` and the headers of the call.
 
 ## Reading a declaration back
 

@@ -11,32 +11,16 @@ export interface ScheduleMetadata {
   jobs: Set<CronMetadata>
 }
 
-export function getScheduleMetadata(
-  target: ClassType,
-  context: ClassDecoratorContext,
-): ScheduleMetadata {
-  if (context.metadata) {
-    const metadata = context.metadata[ScheduleMetadataKey] as ScheduleMetadata | undefined
-    if (metadata) {
-      return metadata
-    } else {
-      const jobsMetadata = getAllCronMetadata(context)
-      const newMetadata: ScheduleMetadata = {
-        name: target.name,
-        jobs: jobsMetadata,
-      }
-      context.metadata[ScheduleMetadataKey] = newMetadata
-      // @ts-expect-error We add a custom metadata key to the target
-      target[ScheduleMetadataKey] = newMetadata
-      return newMetadata
-    }
+export function defineScheduleMetadata(target: ClassType, context: ClassDecoratorContext): void {
+  const metadata: ScheduleMetadata = {
+    name: target.name,
+    jobs: getAllCronMetadata(context),
   }
-  throw new Error('[Navios-Schedule] Wrong environment.')
+  Object.defineProperty(target, ScheduleMetadataKey, { value: metadata, configurable: true })
 }
 
 export function extractScheduleMetadata(target: ClassType): ScheduleMetadata {
-  // @ts-expect-error We add a custom metadata key to the target
-  const metadata = target[ScheduleMetadataKey] as ScheduleMetadata | undefined
+  const metadata = ownMetadata(target)
   if (!metadata) {
     throw new Error(
       `[Navios-Schedule] Schedule metadata not found on ${target.name}. Make sure to use the @Schedulable decorator.`,
@@ -46,8 +30,15 @@ export function extractScheduleMetadata(target: ClassType): ScheduleMetadata {
 }
 
 export function hasScheduleMetadata(target: ClassType): boolean {
-  // @ts-expect-error We add a custom metadata key to the target
-  const metadata = target[ScheduleMetadataKey] as ScheduleMetadata | undefined
+  return ownMetadata(target) !== undefined
+}
 
-  return !!metadata
+/**
+ * Only an own property counts: a subclass without the decorator inherits the
+ * static members of its parent, and is not schedulable itself.
+ */
+function ownMetadata(target: ClassType): ScheduleMetadata | undefined {
+  return Object.hasOwn(target, ScheduleMetadataKey)
+    ? (target as unknown as Record<symbol, ScheduleMetadata>)[ScheduleMetadataKey]
+    : undefined
 }

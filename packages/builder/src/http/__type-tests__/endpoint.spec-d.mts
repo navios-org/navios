@@ -6,8 +6,10 @@ import { builder } from '../builder.mjs'
 
 import type { EndpointError, EndpointErrorOf } from '../../index.mjs'
 import type {
+  BaseEndpointOptions,
   ClientRequestArgs,
   EndpointErrorType,
+  EndpointOptions,
   EndpointParams,
   EndpointResult,
   ParsePathParams,
@@ -30,6 +32,9 @@ describe('ParsePathParams', () => {
     expectTypeOf<ParsePathParams<'/f/$a-$b'>>().toEqualTypeOf<'a' | 'b'>()
     expectTypeOf<ParsePathParams<'/price/$5/$id'>>().toEqualTypeOf<'id'>()
     expectTypeOf<ParsePathParams<'/trailing/$'>>().toEqualTypeOf<never>()
+    expectTypeOf<ParsePathParams<'/c/$id:verb'>>().toEqualTypeOf<'id'>()
+    expectTypeOf<ParsePathParams<'/c/$a(1)/$b$c/$_x9'>>().toEqualTypeOf<'a' | 'b' | 'c' | '_x9'>()
+    expectTypeOf<ParsePathParams<'/a/$$id/$-x'>>().toEqualTypeOf<'id'>()
   })
 })
 
@@ -97,6 +102,123 @@ describe('declareEndpoint', () => {
     const none = api.declareEndpoint({ method: 'DELETE', url: '/f/$id', response: 'void' })
     expectTypeOf(none).returns.resolves.toEqualTypeOf<undefined>()
     expectTypeOf<EndpointResult<typeof none>>().toEqualTypeOf<undefined>()
+  })
+
+  test('options that contradict each other are rejected', () => {
+    api.declareEndpoint({
+      method: 'GET',
+      url: '/x',
+      // @ts-expect-error responses takes the place of responseSchema
+      responseSchema: userSchema,
+      responses: { 200: userSchema },
+    })
+    api.declareEndpoint({
+      method: 'GET',
+      url: '/x',
+      response: 'blob',
+      // @ts-expect-error a blob is not validated
+      responseSchema: userSchema,
+    })
+    api.declareEndpoint({
+      method: 'GET',
+      url: '/x',
+      response: 'void',
+      // @ts-expect-error a void response has no body
+      responses: { 204: null },
+    })
+    api.declareEndpoint({
+      method: 'GET',
+      url: '/x',
+      // @ts-expect-error a GET request has no body
+      requestSchema: userSchema,
+      responseSchema: userSchema,
+    })
+    api.declareEndpoint({
+      method: 'HEAD',
+      url: '/x',
+      // @ts-expect-error a HEAD request has no body
+      body: 'multipart',
+      response: 'void',
+    })
+
+    api.declareEndpoint({
+      method: 'POST',
+      url: '/x',
+      requestSchema: userSchema,
+      responses: { 200: userSchema, 204: null },
+    })
+    api.declareEndpoint({ method: 'GET', url: '/x', response: 'json', responseSchema: userSchema })
+    api.declareEndpoint({
+      method: 'DELETE',
+      url: '/x',
+      requestSchema: userSchema,
+      response: 'text',
+    })
+  })
+
+  test('options that do not have to contradict each other are accepted', () => {
+    const errorSchema = { 404: z.object({ title: z.string() }) }
+    const flag = Math.random() > 0.5
+
+    // A key without a value
+    api.declareEndpoint({
+      method: 'GET',
+      url: '/x',
+      body: 'json',
+      requestSchema: undefined,
+      responses: undefined,
+      responseSchema: userSchema,
+    })
+    api.declareEndpoint({
+      method: 'GET',
+      url: '/x',
+      response: 'blob',
+      responseSchema: undefined,
+      responses: undefined,
+    })
+    api.declareEndpoint({
+      method: 'GET',
+      url: '/x',
+      responses: { 200: userSchema, 204: null },
+      responseSchema: undefined,
+    })
+
+    // A key that may be there: options that are shared, or of a wider type
+    const shared: Pick<BaseEndpointOptions, 'headers' | 'errorSchema' | 'requestSchema' | 'body'> =
+      { errorSchema }
+    api.declareEndpoint({ ...shared, method: 'GET', url: '/x', responseSchema: userSchema })
+    const partial: Partial<BaseEndpointOptions> = {}
+    api.declareEndpoint({ ...partial, method: 'GET', url: '/x', responseSchema: userSchema })
+    interface Get extends EndpointOptions {
+      method: 'GET'
+    }
+    api.declareEndpoint({ method: 'GET', url: '/x', responseSchema: userSchema } as Get)
+    interface Download extends BaseEndpointOptions {
+      response: 'blob'
+    }
+    const download = { method: 'GET', url: '/x', response: 'blob' } as Download
+    const getFile = api.declareEndpoint(download)
+    expectTypeOf(getFile).returns.resolves.toEqualTypeOf<Blob>()
+    api.declareEndpoint({ ...getFile.config, url: '/v2/x' })
+
+    // One of several declarations
+    api.declareEndpoint(
+      flag
+        ? { method: 'GET', url: '/a', responseSchema: userSchema }
+        : { method: 'POST', url: '/b', requestSchema: userSchema, responseSchema: userSchema },
+    )
+    api.declareEndpoint({
+      method: flag ? 'GET' : 'POST',
+      url: '/x',
+      requestSchema: userSchema,
+      responseSchema: userSchema,
+    })
+    api.declareEndpoint({
+      method: 'GET',
+      url: '/x',
+      response: flag ? 'blob' : 'json',
+      responseSchema: userSchema,
+    })
   })
 
   test('unknown option keys are rejected', () => {
@@ -216,6 +338,10 @@ describe('safe()', () => {
     }
     if (error.kind === 'request-validation' || error.kind === 'response-validation') {
       expectTypeOf(error.issues).toExtend<readonly unknown[]>()
+      expectTypeOf(error.issues[0]!.path).toEqualTypeOf<readonly PropertyKey[] | undefined>()
+    }
+    if (error.kind === 'request-validation') {
+      expectTypeOf(error.issues[0]!.part).toEqualTypeOf<'urlParams' | 'params' | 'data'>()
     }
     if (error.kind === 'aborted') {
       expectTypeOf(error.response).toEqualTypeOf<null>()
@@ -249,5 +375,8 @@ describe('builder', () => {
       },
     })
     expectTypeOf(api.withClient).returns.toEqualTypeOf<typeof api>()
+    builder({ send: 'output' })
+    // @ts-expect-error not a way of sending
+    builder({ send: 'both' })
   })
 })

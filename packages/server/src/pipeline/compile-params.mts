@@ -1,10 +1,14 @@
+import { compileBodyDecoder } from '../decoding/body-decoder.mjs'
+import { fieldDecoder } from '../decoding/field-decoder.mjs'
 import { adopt, isPromise } from '../internal/promises.mjs'
+import { compileRoutePath } from '../routing/route-path.mjs'
 
 import type { RequestContext } from '../context/request-context.mjs'
 import type { ValidationSource } from '../errors/validation-error.mjs'
 import type { MaybePromise } from '../internal/promises.mjs'
 import type { RouteEndpointConfig, SchemaLike } from '../routing/endpoint-config.mjs'
 import type { RouteInput } from '../routing/route-input.mjs'
+import type { RoutePath } from '../routing/route-path.mjs'
 
 import { validateSchema } from './validate-schema.mjs'
 
@@ -61,15 +65,25 @@ function headerRecord(input: RouteInput): Record<string, string | undefined> {
  * argument. A schema describes the params of the endpoint's own url, so what
  * it returns is laid over the raw params of the prefixes.
  */
-function urlParamsStep(schema: SchemaLike | undefined, ownUrl: string, path: string): ParamStep {
+function urlParamsStep(
+  schema: SchemaLike | undefined,
+  ownUrl: string,
+  params: readonly string[],
+): ParamStep {
   if (schema === undefined) {
     return (target, input) => {
       target.urlParams = input.urlParams
     }
   }
-  const validate = validated('urlParams', schema, 'urlParams', (input) => input.urlParams)
-  const own = paramNames(ownUrl)
-  const inherited = paramNames(path).filter((name) => !own.includes(name))
+  const { decode } = fieldDecoder(schema)
+  const validate = validated(
+    'urlParams',
+    schema,
+    'urlParams',
+    decode === undefined ? (input) => input.urlParams : (input) => decode(input.urlParams),
+  )
+  const own = ownUrl === '' ? [] : compileRoutePath(ownUrl).params
+  const inherited = params.filter((name) => !own.includes(name))
   if (inherited.length === 0) {
     return validate
   }
@@ -89,28 +103,32 @@ function urlParamsStep(schema: SchemaLike | undefined, ownUrl: string, path: str
   }
 }
 
-function paramNames(path: string): string[] {
-  return Array.from(path.matchAll(/\$([A-Za-z0-9_]+)/g), (match) => match[1])
-}
-
 /**
  * Builds the function that produces a handler's first argument. URL params,
  * query, headers and cookies are validated before the body is read.
  *
- * `path` is the full route path: a module or global prefix may have params of
- * its own.
+ * `path` is that of the whole route: a module or global prefix may have params
+ * of its own.
  */
 export function compileParams(
   config: RouteEndpointConfig,
-  path: string,
+  path: RoutePath,
 ): (input: RouteInput, ctx: RequestContext) => MaybePromise<Record<string, unknown>> {
   const steps: ParamStep[] = []
 
-  if (path.includes('$')) {
-    steps.push(urlParamsStep(config.urlParamsSchema, config.url, path))
+  if (path.params.length > 0) {
+    steps.push(urlParamsStep(config.urlParamsSchema, config.url, path.params))
   }
   if (config.querySchema) {
-    steps.push(validated('params', config.querySchema, 'query', (_input, ctx) => ctx.query))
+    const { decode } = fieldDecoder(config.querySchema)
+    steps.push(
+      validated(
+        'params',
+        config.querySchema,
+        'query',
+        decode === undefined ? (_input, ctx) => ctx.query : (_input, ctx) => decode(ctx.query),
+      ),
+    )
   }
   if (config.headersSchema) {
     steps.push(validated('headers', config.headersSchema, 'headers', headerRecord))
@@ -124,7 +142,8 @@ export function compileParams(
   }
 
   if (requestSchema) {
-    steps.push(validated('data', requestSchema, 'body', (input) => input.body()))
+    const decode = compileBodyDecoder(config)
+    steps.push(validated('data', requestSchema, 'body', (_input, ctx) => ctx.readBody(decode)))
   }
 
   return (input, ctx) => {

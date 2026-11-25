@@ -1,8 +1,13 @@
 import type { InferSchemaInput, InferSchemaOutput, Schema } from '../shared/schema.mjs'
+import type { RequiredKeys } from '../shared/type-helpers.mjs'
 
 import type { Client } from './client.mjs'
 import type { EndpointErrorOf } from './endpoint-error.mjs'
-import type { BaseEndpointOptions, SuccessSchemaRecord } from './endpoint-options.mjs'
+import type {
+  BaseEndpointOptions,
+  EndpointResponseKind,
+  SuccessSchemaRecord,
+} from './endpoint-options.mjs'
 import type { ErrorSchemaRecord } from './error-schema.mjs'
 import type { ClientRequestArgs } from './request-args.mjs'
 import type { SafeResult } from './safe-result.mjs'
@@ -78,8 +83,6 @@ export interface EndpointCallOptions {
   client?: Client
 }
 
-type RequiredKeys<T> = { [K in keyof T]-?: {} extends Pick<T, K> ? never : K }[keyof T]
-
 /**
  * Call signature of an endpoint: the args object is optional when the
  * endpoint has no URL params, query schema or request schema.
@@ -115,15 +118,46 @@ export type EndpointHandler<Options extends BaseEndpointOptions> = ((
   config: Options
 }
 
+type NonJsonResponse = Exclude<EndpointResponseKind, 'json'>
+
 /**
- * `responseSchema` is required unless the endpoint declares a non-JSON
- * `response` kind or a per-status `responses` map.
+ * Options that contradict others of the same declaration. Both have to be there
+ * for certain: a key that may be missing, or has no value, contradicts nothing.
  */
-export type RequireResponseSchema<Options> = Options extends
-  | { response: 'blob' | 'text' | 'stream' | 'void' }
+type ContradictoryKeys<Options> =
+  | (Options extends { responses: SuccessSchemaRecord; responseSchema: Schema }
+      ? 'responseSchema'
+      : never)
+  | (Options extends { response: NonJsonResponse; responseSchema: Schema }
+      ? 'responseSchema'
+      : never)
+  | (Options extends { response: NonJsonResponse; responses: SuccessSchemaRecord }
+      ? 'responses'
+      : never)
+  | (Options extends { method: 'GET' | 'HEAD'; requestSchema: Schema } ? 'requestSchema' : never)
+  | (Options extends { method: 'GET' | 'HEAD'; body: 'multipart' } ? 'body' : never)
+
+/**
+ * Checks that the options of a declaration go together:
+ *
+ * - `responseSchema` is required unless the endpoint declares a non-JSON
+ *   `response` kind or a per-status `responses` map
+ * - `responses` takes the place of `responseSchema`
+ * - a non-JSON `response` is not validated, so it has neither
+ * - a `GET` or `HEAD` request has no body
+ *
+ * A schema that is there is not mentioned in the result: intersecting it with
+ * `Schema` would cost the compiler a new type for every endpoint. `Extract`
+ * keeps the mapped type from being a place `Options` is inferred from.
+ */
+export type RequireResponseSchema<Options> = (Options extends
+  | { responseSchema: Schema }
+  | { response: NonJsonResponse }
   | { responses: SuccessSchemaRecord }
   ? {}
-  : { responseSchema: Schema }
+  : { responseSchema: Schema }) & {
+  [K in Extract<keyof Options, ContradictoryKeys<Options>>]: never
+}
 
 /**
  * Rejects option keys the builder does not know. Inference through a generic

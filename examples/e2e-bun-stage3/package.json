@@ -4,7 +4,8 @@
   "type": "module",
   "scripts": {
     "start": "bun run src/bootstrap.mts",
-    "test": "bun test"
+    "test": "bun test",
+    "test:ci": "bun test"
   },
   "dependencies": {
     "@navios/adapter-bun": "workspace:*",

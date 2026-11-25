@@ -1,21 +1,28 @@
-import { DIError } from '../errors/di-error.mjs'
+import { containerDisposed, misuse } from '../errors/create.mjs'
 import { InjectableScope } from '../injectable-scope.mjs'
-import { destroyAll, destroyEntry } from '../internal/destruction.mjs'
+import { abandonBuilds, settleHost, settleStore } from '../internal/background.mjs'
+import { destroyAll, destroyLoose, rejectWith } from '../internal/destruction.mjs'
 import { EntryStatus } from '../internal/entry.mjs'
-import { baseToken, hasProvider, lookupRecord } from '../internal/normalize.mjs'
-import { resolveAsync, resolveSyncOrThrow } from '../internal/resolution.mjs'
+import { hookOwner } from '../internal/frame.mjs'
+import { hasProvider, lookupRecord } from '../internal/normalize.mjs'
+import { resolveInstance, resolveSyncOrThrow } from '../internal/resolution.mjs'
 import { Store } from '../internal/store.mjs'
-import { peek, settleStore, storeValue } from '../internal/stored-values.mjs'
+import { peek, storeValue } from '../internal/stored-values.mjs'
+import { registerProvider } from '../provider/registration.mjs'
+import { attachToken } from '../token/injectable-token.mjs'
+import { InjectionToken } from '../token/injection-token.mjs'
 
-import type { AsyncResolve, SyncResolve } from '../injection/resolve-signatures.mjs'
-import type { Entry } from '../internal/entry.mjs'
-import type { Host, RootHost } from '../internal/host.mjs'
-import type { ClassType } from '../token/class-type.mjs'
 import type {
-  AnyInjectableType,
-  BoundInjectionToken,
-  InjectionToken,
-} from '../token/injection-token.mjs'
+  AsyncResolve,
+  OptionalResolve,
+  SyncResolve,
+} from '../injection/resolve-signatures.mjs'
+import type { Entry } from '../internal/entry.mjs'
+import type { RootHost } from '../internal/host.mjs'
+import type { ProvidedFor } from '../provider/factorable.mjs'
+import type { ClassType } from '../token/class-type.mjs'
+import type { AnyInjectableType, BoundInjectionToken } from '../token/injection-token.mjs'
+import type { PublicPart } from '../token/public-part.mjs'
 
 import { addInvalidateListener } from './invalidate-listener.mjs'
 
@@ -24,9 +31,10 @@ import type { IContainer } from './i-container.mjs'
 
 /**
  * A scope of a root container. Holds request-scoped instances; singletons are
- * resolved from, and stored in, the parent.
+ * resolved from, and stored in, the parent. `inject(ScopedContainer)` in a
+ * request-scoped service gives the scope it belongs to.
  */
-export class ScopedContainer implements IContainer, Host {
+export class ScopedContainer implements IContainer {
   /** @internal */
   readonly root: RootHost
   /** @internal */
@@ -37,8 +45,15 @@ export class ScopedContainer implements IContainer, Host {
   readonly facade: IContainer = this
   /** @internal */
   looseTransients: Entry[] | null = null
+  /** @internal */
+  background: Set<Promise<unknown>> | null = null
+  /** @internal */
+  building: Set<Entry> | null = null
 
-  private disposed = false
+  /** @internal */
+  disposed = false
+
+  private disposal: Promise<void> | null = null
   private metadata: Record<string, any> | undefined
 
   constructor(
@@ -47,10 +62,6 @@ export class ScopedContainer implements IContainer, Host {
   ) {
     this.root = parent
     this.metadata = metadata
-  }
-
-  getParent(): Container {
-    return this.parent
   }
 
   getMetadata(key: string): any | undefined {
@@ -63,19 +74,15 @@ export class ScopedContainer implements IContainer, Host {
 
   private assertUsable(): void {
     if (this.disposed) {
-      throw DIError.containerDisposed('ScopedContainer')
+      throw containerDisposed('ScopedContainer')
     }
   }
 
   get: AsyncResolve = ((token: AnyInjectableType, args?: unknown) => {
     if (this.disposed) {
-      return Promise.reject(DIError.containerDisposed('ScopedContainer'))
+      return rejectWith(containerDisposed('ScopedContainer'))
     }
-    const entry = peek(this, token, args)
-    if (entry !== undefined) {
-      return Promise.resolve(entry.instance)
-    }
-    return resolveAsync(this, token, args).then(instanceOf)
+    return resolveInstance(this, token, args)
   }) as AsyncResolve
 
   getSync: SyncResolve = ((token: AnyInjectableType, args?: unknown) => {
@@ -83,16 +90,13 @@ export class ScopedContainer implements IContainer, Host {
     return resolveSyncOrThrow(this, token, args).instance
   }) as SyncResolve
 
-  tryGetSync<T>(token: AnyInjectableType, args?: unknown): T | null {
-    const entry = peek(this, token, args)
-    return entry === undefined ? null : (entry.instance as T)
-  }
+  /** Returns an instance that is already built, or `null`. Never constructs. */
+  declare peek: OptionalResolve
 
-  addInstance<T>(
-    token: ClassType | InjectionToken<T, any> | BoundInjectionToken<T, any>,
-    instance: T,
+  addInstance<K extends ClassType | InjectionToken<any, any> | BoundInjectionToken<any, any>>(
+    token: K,
+    instance: PublicPart<ProvidedFor<K>>,
   ): void {
-    this.assertUsable()
     storeValue(this, token, instance, InjectableScope.Request)
   }
 
@@ -100,24 +104,31 @@ export class ScopedContainer implements IContainer, Host {
     return hasProvider(this, token)
   }
 
+  /**
+   * Destroys an instance this scope or its parent holds, after everything that
+   * was built from it. The next resolution builds it again.
+   */
   async invalidate(service: unknown): Promise<void> {
-    const entry = this.store.findByInstance(service)
-    if (entry === undefined || entry.status !== EntryStatus.Ready) {
+    if (service === this) {
+      throw misuse('A scope cannot be invalidated; use dispose()')
+    }
+    const entries = this.store.findByInstance(service)
+    if (entries.length === 0) {
       return this.parent.invalidate(service)
     }
-    await destroyEntry(entry)
+    await destroyAll([...entries])
   }
 
   onInvalidate(token: AnyInjectableType, args: unknown, listener: () => void): () => void {
-    const base = baseToken(token)
-    const record = base === undefined ? undefined : lookupRecord(this, base)
-    const local =
-      (base !== undefined && this.store.hasToken(base)) ||
-      record?.scope === InjectableScope.Request ||
-      (record === undefined && base?.scope === InjectableScope.Request)
     return addInvalidateListener(
       this.root,
-      local ? this.store : this.parent.store,
+      (base) => {
+        const record = lookupRecord(this, base)
+        const scope = record === undefined ? base.scope : record.scope
+        return scope === InjectableScope.Request || this.store.hasToken(base)
+          ? this.store
+          : this.parent.store
+      },
       token,
       args,
       listener,
@@ -129,27 +140,32 @@ export class ScopedContainer implements IContainer, Host {
   }
 
   /**
-   * Destroys every request-scoped instance in reverse creation order. Does
-   * no asynchronous work when nothing has a destroy hook.
+   * Destroys the transients this scope handed out, then every request-scoped
+   * instance in reverse creation order, after waiting for those that are still
+   * being created. Does no asynchronous work when nothing has a destroy hook.
+   *
+   * A second call returns the disposal in flight. A call from a lifecycle hook
+   * of this scope does not wait for it, since the hook is part of what the
+   * disposal waits for.
    */
   dispose(): Promise<void> {
-    if (this.disposed) {
+    if (this.disposal === null) {
+      this.disposed = true
+      try {
+        const builds = abandonBuilds(this)
+        this.disposal =
+          (builds === undefined ? this.destroyOwned() : builds.then(() => this.destroyOwned())) ??
+          resolved
+      } catch (error) {
+        // An `onInvalidate` listener threw after a synchronous teardown.
+        this.disposal = Promise.reject(error)
+      }
+    }
+    if (hookOwner !== null && hookOwner.host === this) {
+      this.disposal.catch((error) => this.root.reportError?.(error, 'Disposing the scope failed'))
       return resolved
     }
-    this.disposed = true
-    let result: void | Promise<void>
-    try {
-      result = this.destroyOwned()
-    } catch (error) {
-      // An `onInvalidate` listener threw after a synchronous teardown.
-      return Promise.reject(error)
-    }
-    return result === undefined ? resolved : result
-  }
-
-  /** @deprecated Use `dispose()`. */
-  endRequest(): Promise<void> {
-    return this.dispose()
+    return this.disposal
   }
 
   [Symbol.asyncDispose](): Promise<void> {
@@ -157,23 +173,33 @@ export class ScopedContainer implements IContainer, Host {
   }
 
   private destroyOwned(): void | Promise<void> {
-    if (this.store.size === 0 && this.looseTransients === null) {
+    if (this.store.size === 0 && this.looseTransients === null && this.background === null) {
       return
     }
     const entries = this.store.entries()
-    if (entries.some((entry) => entry.status === EntryStatus.Creating)) {
-      return settleStore(this.store).then(() => this.destroyOwned())
+    if (
+      (this.background !== null && this.background.size > 0) ||
+      entries.some((entry) => entry.status === EntryStatus.Creating)
+    ) {
+      return settleHost(this).then(() => this.destroyOwned())
     }
-    if (this.looseTransients !== null) {
-      entries.push(...this.looseTransients)
-      this.looseTransients = null
+    const loose = destroyLoose(this)
+    if (loose !== undefined) {
+      return loose.then(() => destroyAll(entries))
     }
     return destroyAll(entries)
   }
 }
 
+ScopedContainer.prototype.peek = peek as OptionalResolve
+
 const resolved: Promise<void> = Promise.resolve()
 
-function instanceOf(entry: Entry): unknown {
-  return entry.instance
-}
+/** What `inject(ScopedContainer)` asks for. */
+export const scopeToken = new InjectionToken<ScopedContainer, undefined>(
+  ScopedContainer,
+  undefined,
+  InjectableScope.Request,
+)
+attachToken(ScopedContainer, scopeToken)
+registerProvider(scopeToken, { factory: (ctx) => ctx.container as ScopedContainer })

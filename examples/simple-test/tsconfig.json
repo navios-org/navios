@@ -1,18 +1,10 @@
 {
   "extends": "../../tsconfig.json",
   "compilerOptions": {
-    "module": "Node18",
-    "outDir": "dist"
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "noEmit": true
   },
-  "references": [
-    {
-      "path": "./tsconfig.lib.json"
-    },
-    {
-      "path": "../../packages/builder"
-    },
-    {
-      "path": "../../packages/di"
-    }
-  ]
+  "include": ["src/**/*.mts"],
+  "references": []
 }

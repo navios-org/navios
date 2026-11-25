@@ -1,10 +1,6 @@
 import { attachClasses } from '../metadata/attach-classes.mjs'
 
-import type { Guard } from './guard.mjs'
-
-/* eslint-disable @typescript-eslint/no-explicit-any */
-
-type GuardClass = new (...args: any[]) => Guard<any>
+import type { GuardClass } from './guard.mjs'
 
 /**
  * Adds guards to a module, a controller or a handler. Guards run in the

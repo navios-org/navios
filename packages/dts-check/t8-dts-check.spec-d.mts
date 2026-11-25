@@ -7,6 +7,7 @@ import { z } from 'zod/v4'
 
 import type * as Fastify from '../adapter-fastify/lib/index.d.mts'
 import type * as Builder from '../builder/lib/index.d.mts'
+import type * as Adapter from '../server/lib/adapter/index.d.mts'
 import type * as Core from '../server/lib/index.d.mts'
 import type * as Di from '../di/lib/index.d.mts'
 import type * as ReactQuery from '../react-query/lib/index.d.mts'
@@ -112,7 +113,7 @@ expectTypeOf<Core.HandlerParams<typeof getUser>>().toEqualTypeOf<{ urlParams: { 
 
 // ---------------------------------------------------- @navios/adapter-fastify
 expectTypeOf<ReturnType<typeof defineFastifyEnvironment>>().toEqualTypeOf<
-  Core.AdapterDefinition<Fastify.FastifyEnvironment>
+  Adapter.AdapterDefinition<Fastify.FastifyEnvironment>
 >()
 expectTypeOf<Fastify.FastifyEnvironment['raw']['request']>().toEqualTypeOf<
   import('fastify').FastifyRequest

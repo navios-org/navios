@@ -2,6 +2,11 @@ import type { SocketClient } from './socket-client.mjs'
 import type { SendHandler, SubscribeHandler } from './socket-handlers.mjs'
 import type { SendOptions, SubscribeOptions } from './socket-options.mjs'
 
+export interface ProvideSocketClientOptions {
+  /** Close the client that is replaced. It is left open by default. */
+  closePrevious?: boolean
+}
+
 /**
  * Socket builder instance interface.
  *
@@ -9,14 +14,14 @@ import type { SendOptions, SubscribeOptions } from './socket-options.mjs'
  *
  * @example
  * ```ts
- * import { socketBuilder } from '@navios/builder/socket'
- * import { io } from 'socket.io-client'
+ * import { declareWebSocket, socketBuilder } from '@navios/builder/socket'
  * // `z` is Zod here; any Standard Schema library works the same way
  *
  * const socket = socketBuilder()
  *
- * // Inject Socket.IO client
- * socket.provideClient(io('ws://localhost:3000'))
+ * // Open a connection
+ * const connect = declareWebSocket({ url: 'ws://localhost:3000' })
+ * socket.provideClient(connect())
  *
  * // Define typed send/subscribe handlers
  * const sendMessage = socket.defineSend({
@@ -36,24 +41,26 @@ import type { SendOptions, SubscribeOptions } from './socket-options.mjs'
  */
 export interface SocketBuilderInstance {
   /**
-   * Provide a socket client instance.
+   * Sets the client messages are sent and received over.
    *
-   * Must be called before using any send/subscribe handlers.
-   * The client must implement the SocketClient interface (Socket.IO compatible).
+   * Sending needs a client; subscriptions made before are attached when it
+   * arrives. Another client takes over the subscriptions, and sends that wait
+   * for an acknowledgement are rejected. Providing the client it already has
+   * does nothing.
    *
-   * @param client - Socket client (e.g., io() from socket.io-client)
+   * @param client - A `declareWebSocket` handle, or anything with the
+   *   `SocketClient` interface
    *
    * @example
    * ```ts
-   * import { io } from 'socket.io-client'
-   * socket.provideClient(io('ws://localhost:3000'))
+   * const connect = declareWebSocket({ url: 'wss://api.example.com/rooms/$roomId' })
+   * socket.provideClient(connect({ urlParams: { roomId: '123' } }))
    *
-   * // Or with custom WebSocket wrapper
-   * const wsHandle = chatSocket.connect({ roomId: '123' })
-   * socket.provideClient(wsHandle)
+   * // Move on to another room
+   * socket.provideClient(connect({ urlParams: { roomId: '456' } }), { closePrevious: true })
    * ```
    */
-  provideClient(client: SocketClient): void
+  provideClient(client: SocketClient, options?: ProvideSocketClientOptions): void
 
   /**
    * Get the current socket client.

@@ -4,14 +4,14 @@ title: Bun
 
 # Bun
 
-`@navios/adapter-bun` runs a Navios application on `Bun.serve`. The adapter registers the application's routes with Bun's router, turns each `Request` into the input of a compiled route and builds a `Response` from the result. Guards, validation and error mapping happen in core and behave the same as on every other adapter.
+`@navios/adapter-bun` runs a Navios application on `Bun.serve`. The adapter registers the application's routes with Bun's router, turns each `Request` into the input of a compiled route and builds a `Response` from the result. Guards, validation and error mapping happen in `@navios/server` and behave the same as on every other adapter.
 
 Bun runs the standard decorators Navios uses as they are, so an application needs no extra build step or compiler option.
 
 ## Install and use
 
 ```bash
-bun add @navios/adapter-bun
+bun add @navios/adapter-bun@next
 ```
 
 The adapter has no runtime dependencies of its own.
@@ -24,7 +24,10 @@ import { AppModule } from './app.module.mjs'
 
 const app = await NaviosFactory.create(AppModule, {
   adapter: defineBunEnvironment({
-    cors: { origin: true },
+    cors: {
+      origin: ['https://app.example.com'],
+      methods: ['GET', 'POST', 'PUT', 'DELETE'],
+    },
   }),
 })
 
@@ -33,16 +36,16 @@ const url = await app.listen({ port: 3000, hostname: '0.0.0.0' })
 
 `app.listen({ port?, hostname? })` defaults to port 3000 on `localhost` and resolves to the server's base URL. Pass `port: 0` for an ephemeral port. `app.getServer()` returns the Bun `Server`; Bun creates it when it starts listening, so the call throws before `listen()`.
 
-In tests, `app.inject()` builds a `Request` and runs it through the same route handlers and CORS handling without opening a socket. It chooses the route as `Bun.serve` does: a static segment is preferred to a URL parameter, and a path with a trailing slash matches no route. See [Testing](/docs/server/essentials/testing).
+In tests, `app.inject()` builds a `Request` and runs it through the same route handlers and CORS handling without opening a socket. It chooses the route as `Bun.serve` does. See [Testing](/docs/server/essentials/testing).
 
 ## Options
 
 Both options of `defineBunEnvironment(options)` are optional.
 
-| Option  | Type                   | Meaning                                                                                                                                                                                            |
-| ------- | ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `cors`  | `BunCorsOptions`       | Enables CORS. See [CORS](#cors).                                                                                                                                                                   |
-| `serve` | options of `Bun.serve` | Extra options for `Bun.serve`, for example `tls`, `maxRequestBodySize`, `idleTimeout` or `development`. `routes`, `fetch`, `port` and `hostname` are set by the adapter and cannot be passed here. |
+| Option  | Type                   | Meaning                                                                                                                                                                                                         |
+| ------- | ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `cors`  | `BunCorsOptions`       | Enables CORS. See [CORS](#cors).                                                                                                                                                                                |
+| `serve` | options of `Bun.serve` | Extra options for `Bun.serve`, for example `tls`, `maxRequestBodySize`, `idleTimeout`, `websocket` or `development`. `routes`, `fetch`, `port` and `hostname` are set by the adapter and cannot be passed here. |
 
 ```ts
 defineBunEnvironment({
@@ -52,6 +55,10 @@ defineBunEnvironment({
   },
 })
 ```
+
+With `serve.unix` the server listens on that socket, and `app.listen({})` takes no port or hostname.
+
+An error that Bun raises while it sends a response, for example for a `Bun.file()` that is not there, is logged and answered with a 500 problem response. `serve.error` replaces that.
 
 ## The `Register` declaration
 
@@ -77,26 +84,63 @@ Write this once in the application, usually next to `NaviosFactory.create`. It t
 `ctx.raw.server` is `null` for requests handled through `app.inject()` before `app.listen()` has been called.
 
 ```ts
-// whoami is declared with GET /whoami and a responseSchema of { ip }
-@Endpoint(whoami)
-async whoami(_params: HandlerParams<typeof whoami>, ctx: RequestContext) {
-  return {
-    ip: ctx.raw.server?.requestIP(ctx.raw.request)?.address ?? null,
+// pending is declared with GET /pending and a responseSchema of { requests }
+@Endpoint(pending)
+async pending(_params: HandlerParams<typeof pending>, ctx: RequestContext) {
+  return { requests: ctx.raw.server?.pendingRequests ?? 0 }
+}
+```
+
+Bun has no request id, so `ctx.id` is generated by `@navios/server` on first read. `ctx.signal` is the request's own `signal`, and `ctx.ip` the address of the connection, from `server.requestIP()`.
+
+Code that uses `ctx.raw` runs on this adapter only. Prefer the adapter-neutral members of the context (`ctx.ip`, `ctx.headers`, `ctx.cookies`, `ctx.reply.header()`, `ctx.signal`) where they cover the need.
+
+## Taking over the response
+
+There is no native reply object on Bun, so a handler cannot write the response itself, except by upgrading its request to a [WebSocket](#websockets). It returns a value, and for streaming it returns a `ReadableStream` or an async iterable from an endpoint declared with `response: 'stream'`. See [Streams and server-sent events](/docs/server/guides/streams-and-sse).
+
+## WebSockets
+
+Pass the handlers of the sockets as `serve.websocket`, as for `Bun.serve`, and upgrade the request in a handler, behind its guards:
+
+```ts
+interface SocketData {
+  userId: string
+}
+
+defineBunEnvironment<SocketData>({
+  serve: {
+    websocket: {
+      data: {} as SocketData,
+      message: (socket, message) => void socket.send(`${socket.data.userId}: ${message}`),
+    },
+  },
+})
+
+// feed is declared with GET /feed/$userId and response: 'void'
+@Endpoint(feed)
+feed({ urlParams }: HandlerParams<typeof feed>, ctx: RequestContext) {
+  const { request, server } = ctx.raw
+  if (!server?.upgrade(request, { data: { userId: urlParams.userId } })) {
+    throw new HttpException(426, 'A WebSocket is expected')
   }
 }
 ```
 
-Bun has no request id, so `ctx.id` is generated by core on first read. `ctx.signal` is the request's own `signal`.
+- `BunEnvironment<SocketData>` in the `Register` declaration types `data` and `app.getServer()`.
+- What the handler of an upgraded request returns is ignored, whatever the endpoint declares. `ctx.responseStatus` is 101.
+- The request is released when it has been upgraded. The handlers of the socket run outside any request.
+- Closing the application closes the sockets as soon as no request is in flight.
 
-Code that uses `ctx.raw` runs on this adapter only. Prefer the adapter-neutral members of the context (`ctx.headers`, `ctx.cookies`, `ctx.reply.header()`, `ctx.signal`) where they cover the need.
+## Idle connections
 
-## Taking over the response
+Bun closes a connection on which nothing has been sent for `serve.idleTimeout`, 10 seconds by default, also while a handler is running. Raise it for handlers that need longer, and for streams that are quiet for longer.
 
-There is no native reply object on Bun, so a handler cannot write the response itself. It returns a value, and for streaming it returns a `ReadableStream` or an async iterable from an endpoint declared with `response: 'stream'`. See [Streams and server-sent events](/docs/server/guides/streams-and-sse).
+It does not apply to an event stream (`sseStream()`, or another stream with the content type `text/event-stream`): the adapter turns it off for the request, with `server.timeout(request, 0)`, until the stream has ended.
 
 ## CORS
 
-CORS is implemented by the adapter and applied once per response, including error and not-found responses. A preflight request (`OPTIONS` with `Origin` and `Access-Control-Request-Method`) is answered with 204.
+CORS is implemented by the adapter and applied once per response, including error and not-found responses. A preflight request (`OPTIONS` with `Origin` and `Access-Control-Request-Method`) is answered with 204, also on a path with an `OPTIONS` route.
 
 ```ts
 defineBunEnvironment({
@@ -111,17 +155,19 @@ defineBunEnvironment({
 })
 ```
 
-| Option           | Type                                                        | Meaning                                                                                                                                                                                                                                                                                |
-| ---------------- | ----------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `origin`         | `string \| boolean \| RegExp \| array of those \| function` | `true` reflects the request's origin, `'*'` allows any origin, a string must match exactly, a `RegExp` is tested against the origin. A function receives `(origin, callback)` and calls `callback(error, allow)`, where `allow` is a boolean or the origin to send. Defaults to `'*'`. |
-| `credentials`    | `boolean`                                                   | Sends `Access-Control-Allow-Credentials: true`.                                                                                                                                                                                                                                        |
-| `methods`        | `string \| string[]`                                        | Allowed methods for preflight. Defaults to `GET,HEAD,PUT,PATCH,POST,DELETE`.                                                                                                                                                                                                           |
-| `allowedHeaders` | `string \| string[]`                                        | Allowed request headers for preflight. When omitted, the headers the browser asks for are allowed.                                                                                                                                                                                     |
-| `exposedHeaders` | `string \| string[]`                                        | Response headers scripts may read.                                                                                                                                                                                                                                                     |
-| `maxAge`         | `number`                                                    | Seconds a preflight result may be cached.                                                                                                                                                                                                                                              |
-| `cacheControl`   | `number \| string`                                          | `Cache-Control` for preflight responses. A number is sent as `max-age=<number>`.                                                                                                                                                                                                       |
+| Option           | Type                                                        | Meaning                                                                                                                                                                           |
+| ---------------- | ----------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `origin`         | `string \| boolean \| RegExp \| array of those \| function` | `true` reflects the request's origin, `'*'` allows any origin, a string must match exactly, a `RegExp` is tested against the origin. Defaults to `'*'`. See below for a function. |
+| `credentials`    | `boolean`                                                   | Sends `Access-Control-Allow-Credentials: true`.                                                                                                                                   |
+| `methods`        | `string \| string[]`                                        | Allowed methods for preflight. Defaults to `GET,HEAD,PUT,PATCH,POST,DELETE`.                                                                                                      |
+| `allowedHeaders` | `string \| string[]`                                        | Allowed request headers for preflight. When omitted, the headers the browser asks for are allowed.                                                                                |
+| `exposedHeaders` | `string \| string[]`                                        | Response headers scripts may read.                                                                                                                                                |
+| `maxAge`         | `number`                                                    | Seconds a preflight result may be cached.                                                                                                                                         |
+| `cacheControl`   | `number \| string`                                          | `Cache-Control` for preflight responses. A number is sent as `max-age=<number>`.                                                                                                  |
 
-A request from an origin that is not allowed is still handled; it gets no CORS headers, and the browser blocks the response. A preflight request from such an origin gets the not-found response.
+A function for `origin` receives `(origin, callback)`. It answers with any of the other values: by calling `callback(null, value)`, or by returning a promise of the value. One that takes only `origin` may return the value itself; from a function with a callback, a value that is not a promise decides nothing. It is called before the handler, for requests that have an origin. When it fails, or calls back with an error, the error is logged and the request is answered with a 500 problem response.
+
+A request from an origin that is not allowed is still handled; it gets no CORS headers, and the browser blocks the response. A preflight request from such an origin is answered like any other `OPTIONS` request: with 405 on a path that is served for other methods, and with the not-found response elsewhere.
 
 `origin: '*'` together with `credentials: true` is not allowed by the CORS specification, so the adapter throws when the application is initialised with that combination, including when `origin` is left out. Set `origin` to the allowed origin or origins, or use `origin: true` to reflect the request's origin.
 
@@ -131,12 +177,13 @@ Multipart needs no option. An endpoint declared with `body: 'multipart'` receive
 
 The body is parsed with `request.formData()`, which reads the whole body into memory. Limit the size with `serve.maxRequestBodySize`; the limit applies to the whole multipart body, not to each file.
 
+Bun takes the `type` of a `File` from the extension of its name, not from the content type of the part. The name is never a path: `../../etc/passwd` arrives as `passwd`.
+
 ## Request bodies
 
-- The body is read only when the pipeline asks for it, which is after guards have passed.
-- A body with a JSON content type, or with no content type, is parsed as JSON. An empty body is `undefined`.
-- A body with any other content type is passed to validation as a string.
-- A malformed JSON body is a 400 problem response with `source: 'body'`, like the errors described in [Errors](/docs/server/essentials/errors).
+- The body is read only when the pipeline asks for it, which is after guards have passed, and then [decoded by its content type](/docs/server/essentials/controllers#request-bodies).
+- A request with two `Content-Type` headers is a 415, because Bun joins them.
+- A body can be read once. A handler that reads `ctx.raw.request` itself belongs to an endpoint without a `requestSchema`; next to one, use [`ctx.rawBody()`](/docs/server/essentials/request-context#the-raw-body).
 
 ### Body size limit
 
@@ -144,17 +191,26 @@ The body is parsed with `request.formData()`, which reads the whole body into me
 
 The adapter enforces the limit itself and starts `Bun.serve` without one, because Bun answers an oversize body with an empty 413 that no handler or `error` hook can replace. When the limit applies depends on whether the request declares its length:
 
-| Request                                                            | When it is rejected                                                                                                               |
-| ------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------- |
-| `content-length` over the limit                                    | Before guards run, on any route, including one that reads no body and a path that matches no route.                               |
-| No `content-length` (chunked transfer encoding, or `app.inject()`) | When the pipeline asks for the body, which is after guards. The body is counted while it is read, and reading stops at the limit. |
-| No `content-length`, on a route that never reads the body          | Never. Bun discards the body as it arrives and does not buffer it.                                                                |
+| Request                                                   | When it is rejected                                                                                                               |
+| --------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `content-length` over the limit                           | Before guards run, on any route, including one that reads no body and a path that matches no route.                               |
+| No `content-length` (chunked transfer encoding)           | When the pipeline asks for the body, which is after guards. The body is counted while it is read, and reading stops at the limit. |
+| No `content-length`, on a route that never reads the body | Never. Bun discards the body as it arrives and does not buffer it.                                                                |
+
+## Routing
+
+Routes are matched by Bun's router, with these rules of its own:
+
+- Fixed text is compared as it is sent. A character that needs no percent-encoding is not recognised when it is encoded: `/%75sers` is not `/users`, and `/users/m%65` reaches `/users/$id` rather than `/users/me`.
+- A URL parameter that is not valid percent-encoding is a 400, as on Fastify.
+- The methods are `GET`, `POST`, `PUT`, `DELETE`, `PATCH`, `HEAD` and `OPTIONS`. An endpoint with another one makes `init()` throw.
+- A request that Bun cannot read is answered with an empty 400 or 431, or its connection is closed.
 
 ## Shutdown
 
-`app.close()` stops the server and waits for in-flight requests, for at most the application's `shutdownTimeout` (10 seconds by default). After that the server is stopped forcibly, which closes the remaining connections, and the application continues with its shutdown hooks. [Application setup](/docs/server/essentials/application) describes the whole shutdown sequence.
+`app.close()` stops accepting connections and waits for requests in flight, streams included, for at most the application's `shutdownTimeout` (10 seconds by default). Then it closes the connections that are left, and the application continues with its shutdown hooks. A connection on which no request was sent is not waited for. [Application setup](/docs/server/essentials/application) describes the whole shutdown sequence.
 
 ## Requirements
 
-- Bun 1.3.10 or newer
-- `@navios/server` 2.x and `@navios/builder` 2.x (peer dependencies)
+- Bun 1.4.5 or newer
+- `@navios/server` of the same version (peer dependency), with `@navios/builder`

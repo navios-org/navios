@@ -97,7 +97,7 @@ while (true) {
 }
 ```
 
-Pass a `signal` to stop reading early. Aborting it cancels the request.
+Pass a `signal` to stop reading early. Aborting it cancels the request. With `@navios/http`, a `timeout` covers the time until the headers arrive, not the reading of the stream. Read a stream to its end or cancel it, so that its connection and its listener on your `signal` are released.
 
 For a stream of discrete server events, the [Server-Sent Events](/docs/builder/realtime/server-sent-events) builder gives you typed, validated events instead of raw bytes.
 
@@ -105,7 +105,7 @@ For a stream of discrete server events, the [Server-Sent Events](/docs/builder/r
 
 A non-2xx reply produces the same `EndpointError` as on any endpoint, so `error.kind` and `error.status` work as usual.
 
-The error **body** needs care. The HTTP client reads it in the format the endpoint asked for, so on a `'blob'` endpoint an error body typically arrives as a `Blob`, even if the server sent JSON. Branch on the status, and decode the body yourself when you need its content:
+The error **body** needs care, because its form depends on the HTTP client. `@navios/http` reads an error body as text and parses it when the server sent JSON, `application/problem+json` included, whatever the endpoint asked for. A client that reads it in the format the endpoint asked for, as axios does, returns a `Blob` on a `'blob'` endpoint even if the server sent JSON. Branch on the status, and decode the body yourself when it is a `Blob` and you need its content:
 
 ```ts
 const res = await downloadInvoice.safe({ urlParams: { invoiceId: '2026-001' } })
@@ -117,10 +117,10 @@ if (!res.ok && res.error.status === 404) {
 }
 ```
 
-An `errorSchema` entry is validated against whatever the client returned, so on these endpoints a schema that expects an object will not match a `Blob`.
+An `errorSchema` entry is validated against whatever the client returned, so with a client that returns a `Blob` a schema that expects an object will not match.
 
 ## Client requirements
 
-Builder sets `responseType` on the request (`'blob'`, `'text'` or `'stream'`), and the HTTP client has to honor it. `@navios/http` and axios do. A hand-written `fetch` wrapper must branch on `config.responseType` and return `response.blob()`, `response.text()` or `response.body` as `data`.
+Builder sets `responseType` on the request (`'blob'`, `'text'` or `'stream'`), and the HTTP client has to honor it. `@navios/http` and axios do. A hand-written `fetch` wrapper must branch on `config.responseType` and return `response.blob()`, `response.text()` or `response.body` as `data`, as [this one](/docs/builder/essentials/http-client#choosing-a-client) does.
 
 Using downloads from React components is covered in [Uploads and downloads](/docs/builder/react-query/uploads-and-downloads).

@@ -4,12 +4,12 @@ import type {
   AnyInjectableType,
   BoundInjectionToken,
   ClassType,
-  Factorable,
   FactoryInjectionToken,
   InferInput,
   InjectionToken,
-  InjectionTokenSchemaType,
   MissingArgsError,
+  ResolvedInstance,
+  StandardSchemaV1,
 } from '@navios/di'
 
 import { useContainer } from '../container/use-container.mjs'
@@ -55,23 +55,21 @@ export interface UseServiceResult<T> {
 }
 
 // #1 Simple class
-export function useService<T extends ClassType>(
-  token: T,
-): UseServiceResult<InstanceType<T> extends Factorable<infer R> ? R : InstanceType<T>>
+export function useService<T extends ClassType>(token: T): UseServiceResult<ResolvedInstance<T>>
 
 // #2 Token with required Schema
-export function useService<T, S extends InjectionTokenSchemaType>(
+export function useService<T, S extends StandardSchemaV1>(
   token: InjectionToken<T, S>,
   args: InferInput<S>,
 ): UseServiceResult<T>
 
 // #3 Token with optional Schema
-export function useService<T, S extends InjectionTokenSchemaType, R extends boolean>(
+export function useService<T, S extends StandardSchemaV1, R extends boolean>(
   token: InjectionToken<T, S, R>,
 ): R extends false ? UseServiceResult<T> : MissingArgsError<S>
 
 // #4 Token with no Schema
-export function useService<T>(token: InjectionToken<T, undefined>): UseServiceResult<T>
+export function useService<T>(token: InjectionToken<T, unknown>): UseServiceResult<T>
 
 export function useService<T>(token: BoundInjectionToken<T, any>): UseServiceResult<T>
 
@@ -102,7 +100,7 @@ export function useService(
   const initialSyncRef = useRef<InitialSync | null | undefined>(undefined)
 
   if (initialSyncRef.current === undefined) {
-    const instance = container.tryGetSync(token, args)
+    const instance = container.peek(token as InjectionToken<any, any>, args)
     initialSyncRef.current = instance === null ? null : { container, token, argsKey, instance }
   }
 

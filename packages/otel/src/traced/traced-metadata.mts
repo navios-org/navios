@@ -7,11 +7,6 @@ import type { AttributeValue } from '@opentelemetry/api'
 export const TracedMetadataKey = Symbol('navios:traced:metadata')
 
 /**
- * @deprecated Use TracedMetadataKey instead
- */
-export const TRACED_METADATA_KEY = TracedMetadataKey
-
-/**
  * Metadata stored by the @Traced decorator.
  */
 export interface TracedMetadata {
@@ -70,34 +65,28 @@ export function getTracedMetadata(
     throw new Error('[Navios] Wrong environment.')
   }
 
-  const existingMetadata = context.metadata[TracedMetadataKey] as ClassTracedMetadata | undefined
-
-  if (existingMetadata) {
-    // For class decorators, ensure metadata is stored on target for runtime extraction
-    // This handles the case where method decorators created the metadata first
-    if (target) {
-      // @ts-expect-error Store on target for extraction later
-      target[TracedMetadataKey] = existingMetadata
-    }
-    return existingMetadata
+  // A subclass starts from a copy: the metadata object of its base class is the
+  // prototype of its own, and other subclasses share it.
+  if (!Object.hasOwn(context.metadata, TracedMetadataKey)) {
+    const inherited = context.metadata[TracedMetadataKey] as ClassTracedMetadata | undefined
+    context.metadata[TracedMetadataKey] = {
+      name: undefined,
+      attributes: undefined,
+      enabled: false,
+      ...inherited,
+      methods: new Map(inherited?.methods),
+    } satisfies ClassTracedMetadata
   }
+  const metadata = context.metadata[TracedMetadataKey] as ClassTracedMetadata
 
-  const newMetadata: ClassTracedMetadata = {
-    name: undefined,
-    attributes: undefined,
-    enabled: false,
-    methods: new Map(),
-  }
-
-  context.metadata[TracedMetadataKey] = newMetadata
-
-  // For class decorators, also store on target for runtime extraction
+  // For class decorators, also store on target for runtime extraction. Method
+  // decorators, which run first, may have created the metadata.
   if (target) {
     // @ts-expect-error Store on target for extraction later
-    target[TracedMetadataKey] = newMetadata
+    target[TracedMetadataKey] = metadata
   }
 
-  return newMetadata
+  return metadata
 }
 
 /**

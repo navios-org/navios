@@ -3,7 +3,6 @@ import { defineTransport } from '@navios/core/transport'
 import type { Transport } from '@navios/core'
 import type { ModuleNode } from '@navios/core/transport'
 import type { TransportHost } from '@navios/core/transport'
-import type { ClassType } from '@navios/di'
 
 import { isRequestValueClass } from '../context/request-value.mjs'
 import { useClientErrorStacks } from '../errors/client-error-stacks.mjs'
@@ -14,7 +13,10 @@ import {
   NotFoundResponderToken,
   ValidationErrorResponderToken,
 } from '../errors/error-responders.mjs'
+import { settledWithin } from '../internal/waiting.mjs'
+import { encodeResult } from '../pipeline/encode-result.mjs'
 import { joinPaths } from '../routing/join-paths.mjs'
+import { RouteTable } from '../routing/route-table.mjs'
 
 import type {
   AdapterDefinition,
@@ -22,10 +24,12 @@ import type {
   HttpAdapterEnvironment,
 } from '../adapter/http-adapter.mjs'
 import type { TestRequest, TestResponse } from '../adapter/test-request.mjs'
+import type { RequestContext } from '../context/request-context.mjs'
 import type { ClientErrorStacks } from '../errors/client-error-stacks.mjs'
 import type { ErrorClass, ErrorMapper } from '../errors/error-pipeline.mjs'
 import type { ResponseEncoder } from '../pipeline/response-encoder.mjs'
-import type { CompiledRoute } from '../routing/compiled-route.mjs'
+import type { CompiledRoute, RouteExecutor } from '../routing/compiled-route.mjs'
+import type { HttpGuardClass, HttpInterceptorClass } from '../routing/http-contracts.mjs'
 import type { RouteInfo } from '../routing/route-info.mjs'
 
 import { assembleRoutes } from './assemble-routes.mjs'
@@ -34,6 +38,12 @@ import { computeModulePrefixes } from './module-prefixes.mjs'
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
+/**
+ * How long `stop()` waits for requests to release what they hold. Their
+ * lazy bodies get a second to close, and the rest comes after that.
+ */
+const RELEASE_TIMEOUT_MS = 2000
+
 export interface HttpTransportOptions<Env extends HttpAdapterEnvironment = HttpAdapterEnvironment> {
   adapter: AdapterDefinition<Env>
   /** When given, the application's `start()` listens with these. */
@@ -41,11 +51,13 @@ export interface HttpTransportOptions<Env extends HttpAdapterEnvironment = HttpA
   /** Prefix for every route. */
   globalPrefix?: string
   /**
-   * When handler results are validated against the declared schema.
-   * `'development'` validates unless `NODE_ENV` is `production`.
+   * Whether handler results are validated against the declared schema, which
+   * also removes the fields it does not declare. There is no setting that
+   * differs between environments: what development strips, production would
+   * send.
    * @default 'always'
    */
-  validateResponses?: 'always' | 'development' | 'never'
+  validateResponses?: 'always' | 'never'
   /** Send the message of unexpected errors to the client. @default false */
   exposeErrorDetails?: boolean
   /**
@@ -56,10 +68,15 @@ export interface HttpTransportOptions<Env extends HttpAdapterEnvironment = HttpA
   /** Error mappers to start with; `mapError` adds more later. */
   errorMappers?: ReadonlyArray<readonly [ErrorClass<any>, ErrorMapper<any>]>
   /**
+   * Guards of every route, whichever module it belongs to: those of modules
+   * that plugins add as well. They run before the guards of the module.
+   */
+  guards?: readonly HttpGuardClass[]
+  /**
    * Interceptors around every route and nothing else, outermost first, inside
    * the application-wide ones. Read when the routes are compiled.
    */
-  interceptors?: readonly ClassType[]
+  interceptors?: readonly HttpInterceptorClass[]
 }
 
 /**
@@ -85,22 +102,11 @@ export interface HttpTransport<
    * Adds an interceptor around every route, inside the application-wide
    * ones, and around nothing else. Before routes are compiled.
    */
-  intercept(interceptor: ClassType): void
+  intercept(interceptor: HttpInterceptorClass): void
 }
 
 function tokenName(token: unknown): string {
   return typeof token === 'function' ? token.name : String(token)
-}
-
-function resolveValidateResponses(mode: HttpTransportOptions['validateResponses']): boolean {
-  switch (mode ?? 'always') {
-    case 'never':
-      return false
-    case 'development':
-      return process.env.NODE_ENV !== 'production'
-    default:
-      return true
-  }
 }
 
 async function createHttpTransport(
@@ -116,12 +122,8 @@ async function createHttpTransport(
       validation: await container.get(ValidationErrorResponderToken),
       internal: await container.get(InternalServerErrorResponderToken),
       exposeErrorDetails: options.exposeErrorDetails ?? false,
-      checkDeclaredErrors: process.env.NODE_ENV !== 'production',
-      onUnhandled: (error, ctx) => {
-        logger.error(
-          ctx ? `Unhandled error in ${ctx.method} ${ctx.path}` : 'Unhandled error',
-          error,
-        )
+      onUnhandled: (error, at) => {
+        logger.error(at ? `Unhandled error in ${at.method} ${at.path}` : 'Unhandled error', error)
       },
     })
     for (const [errorClass, mapper] of options.errorMappers ?? []) {
@@ -136,9 +138,13 @@ async function createHttpTransport(
     })
 
     const encoders = new Map<string, ResponseEncoder>()
-    const interceptors: ClassType[] = []
+    const interceptors: HttpInterceptorClass[] = []
+    const table = new RouteTable<CompiledRoute>()
+    /** The requests that hold something: until it is released, or the transport stops. */
+    const live = new Set<RequestContext>()
     let compiled: CompiledRoute[] = []
     let isSetUp = false
+    let isStopped = false
     let listening: Promise<string> | null = null
 
     const assertBeforeSetup = (what: string) => {
@@ -147,12 +153,44 @@ async function createHttpTransport(
       }
     }
 
-    const listen = (listenOptions: unknown): Promise<string> =>
-      (listening ??= adapter.listen(listenOptions).catch((error: unknown) => {
+    const assertRunning = () => {
+      if (isStopped) {
+        throw new Error('[Navios] The application is closed.')
+      }
+    }
+
+    const allowedMethods = (path: string): string[] => {
+      try {
+        return table.methods(path)
+      } catch {
+        // The path is not valid percent-encoding.
+        return []
+      }
+    }
+
+    const notFound: RouteExecutor = (input) => {
+      try {
+        const { method, path } = input
+        const allowed = allowedMethods(path)
+        return encodeResult(
+          allowed.length > 0 && !allowed.includes(method)
+            ? errors.methodNotAllowed(method, path, allowed)
+            : errors.notFound(`Route [${method}] ${path} not found`, input),
+        )
+      } catch (defect) {
+        return errors.unexpected(defect, input)
+      }
+    }
+
+    const listen = async (listenOptions: unknown): Promise<string> => {
+      assertRunning()
+      listening ??= adapter.listen(listenOptions).catch((error: unknown) => {
         // A failed bind is not remembered: the caller may try another port.
         listening = null
         throw error
-      }))
+      })
+      return listening
+    }
 
     return {
       adapter,
@@ -161,7 +199,10 @@ async function createHttpTransport(
       },
       routes: () => compiled.map((route) => route.info),
       listen,
-      inject: (request) => adapter.inject(request),
+      async inject(request) {
+        assertRunning()
+        return adapter.inject(request)
+      },
       mapError: (errorClass, mapper) => errors.add(errorClass, mapper),
       encoder(kind, encoder) {
         assertBeforeSetup('encoder()')
@@ -188,6 +229,7 @@ async function createHttpTransport(
         compiled = await assembleRoutes(graph, {
           container,
           prefixes: computeModulePrefixes(graph, globalPrefix),
+          globalGuards: [...(options.guards ?? [])],
           globalInterceptors: [
             ...host.interceptors,
             ...(options.interceptors ?? []),
@@ -196,17 +238,18 @@ async function createHttpTransport(
           compile: {
             host: host.contextHost,
             errors,
-            validateResponses: resolveValidateResponses(options.validateResponses),
+            validateResponses: options.validateResponses !== 'never',
             asyncContext: host.asyncContext,
             encoders,
+            live,
           },
+          notFound,
         })
         for (const route of compiled) {
+          table.add(route.info.method, route.path, route)
           adapter.register(route)
         }
-        adapter.setNotFound((input) =>
-          errors.notFound(`Route [${input.method}] ${input.path} not found`),
-        )
+        adapter.setNotFound(notFound)
         await adapter.ready()
         logger.debug?.(`HTTP transport set up with ${compiled.length} route(s)`)
       },
@@ -219,9 +262,17 @@ async function createHttpTransport(
       },
 
       async stop(timeoutMs: number) {
+        isStopped = true
         try {
           await adapter.close(timeoutMs)
         } finally {
+          // The container is disposed next. What the last responses still
+          // release, and what a request that outlived the timeout holds, comes
+          // before that.
+          const releasing = Array.from(live, (ctx) => ctx.release())
+          if (releasing.length > 0) {
+            await settledWithin(Promise.all(releasing), RELEASE_TIMEOUT_MS)
+          }
           releaseClientErrorStacks()
         }
       },
@@ -243,7 +294,7 @@ async function createHttpTransport(
  * ```
  *
  * `NaviosFactory.create` builds exactly this, for an application whose main
- * job is HTTP.
+ * job is HTTP. An application has one HTTP transport.
  */
 export const httpTransport = defineTransport<HttpTransportOptions<any>, HttpTransport<any>>({
   name: 'http',

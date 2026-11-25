@@ -25,14 +25,13 @@ import type { SchedulableOptions } from '../schedulable/schedulable.mjs'
  *   }
  * }
  *
- * // Register the service
- * schedulerService.register(TaskService)
+ * // List it in a module, next to what it belongs to
+ * @Module({ jobs: [TaskService] })
+ * class TasksModule {}
  * ```
  */
 export function Schedulable(options: SchedulableOptions = {}) {
   return function <T extends ClassType>(target: T): T {
-    const context = createClassContext(target)
-    const originalDecorator = OriginalSchedulable(options)
-    return originalDecorator(target, context)
+    return OriginalSchedulable(options)(target, createClassContext(target))
   }
 }

@@ -2,6 +2,11 @@ import type { EventSourceClient } from './eventsource-client.mjs'
 import type { EventHandler } from './eventsource-handlers.mjs'
 import type { EventOptions } from './eventsource-options.mjs'
 
+export interface ProvideEventSourceClientOptions {
+  /** Close the client that is replaced. It is left open by default. */
+  closePrevious?: boolean
+}
+
 /**
  * EventSource builder instance interface.
  *
@@ -36,20 +41,23 @@ import type { EventOptions } from './eventsource-options.mjs'
  */
 export interface EventSourceBuilderInstance {
   /**
-   * Provide an EventSource client instance.
+   * Sets the client events are received from.
    *
-   * Must be called before using any event handlers.
-   * The client must implement the EventSourceClient interface.
+   * Handlers registered before are attached when it arrives. Another client
+   * takes over the handlers. Providing the client it already has does nothing.
    *
-   * @param client - EventSource client (e.g., from declareEventSource())
+   * @param client - A `declareEventSource` handle, or anything with the
+   *   `EventSourceClient` interface
    *
    * @example
    * ```ts
-   * const handle = chatEvents({ urlParams: { roomId: '123' } })
-   * sse.provideClient(handle)
+   * sse.provideClient(chatEvents({ urlParams: { roomId: '123' } }))
+   *
+   * // Move on to another room
+   * sse.provideClient(chatEvents({ urlParams: { roomId: '456' } }), { closePrevious: true })
    * ```
    */
-  provideClient(client: EventSourceClient): void
+  provideClient(client: EventSourceClient, options?: ProvideEventSourceClientOptions): void
 
   /**
    * Get the current EventSource client.

@@ -5,4 +5,4 @@ export interface NaviosResponse<T> {
   headers: Headers
 }
 
-export type NaviosPromise<T = any> = Promise<NaviosResponse<T>>
+export type NaviosPromise<T = unknown> = Promise<NaviosResponse<T>>

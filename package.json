@@ -16,8 +16,8 @@
     "test": "turbo run test",
     "test:ci": "turbo run test:ci",
     "lint": "turbo run lint",
-    "publish:all": "turbo run publish",
-    "publish:next": "turbo run publish:next"
+    "publish:all": "turbo run publish --filter='./packages/*'",
+    "publish:next": "turbo run publish:next --filter='./packages/*' --filter=!@navios/cli --filter=!@navios/queues --filter=!@navios/microservice"
   },
   "devDependencies": {
     "@microsoft/api-extractor": "^7.60.1",

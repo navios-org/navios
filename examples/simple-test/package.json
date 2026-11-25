@@ -3,16 +3,21 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "check": "tsc --noEmit -p tsconfig.json",
     "start:bun": "bun run src/bun.mts",
     "start:bun-fastify": "bun run src/fastify.mts",
     "start:fastify": "yarn tsx src/fastify.mts"
   },
   "dependencies": {
+    "@navios/adapter-bun": "workspace:*",
+    "@navios/adapter-fastify": "workspace:*",
     "@navios/builder": "workspace:*",
-    "@navios/di": "workspace:*",
-    "@navios/server": "workspace:*"
+    "@navios/server": "workspace:*",
+    "fastify": "^5.12.8",
+    "zod": "^4.6.7"
   },
   "devDependencies": {
-    "tsx": "^4.23.15"
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2"
   }
 }

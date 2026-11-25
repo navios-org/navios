@@ -1,3 +1,4 @@
+import { dispatch } from '../shared/dispatch.mjs'
 import { isPendingOutcome, validateEager } from '../shared/validate.mjs'
 
 import type { ValidationOutcome } from '../shared/validate.mjs'
@@ -5,12 +6,11 @@ import type { ValidationOutcome } from '../shared/validate.mjs'
 import { reportSocketError } from './report-socket-error.mjs'
 
 import type { PendingAck } from './create-send.mjs'
-import type { SocketClient } from './socket-client.mjs'
 import type { SubscribeHandler, Unsubscribe } from './socket-handlers.mjs'
 import type { MessageParser, SocketBuilderConfig, SubscribeOptions } from './socket-options.mjs'
 
 /**
- * Default message parser for Socket.IO array format.
+ * Default message parser for the array format.
  *
  * Expected format: [topic, payload] or [topic, payload, ackId]
  */
@@ -26,10 +26,11 @@ export const defaultParseMessage: MessageParser = (data) => {
 }
 
 export interface CreateSubscribeContext {
-  getClient: () => SocketClient
+  /** The URL of the current connection, if there is one and it has a URL. */
+  connectionUrl: () => string | undefined
   config: SocketBuilderConfig
   topicHandlers: Map<string, Set<(payload: unknown) => void>>
-  globalListenerSetup: boolean
+  /** Listens to the client, once there is one. */
   setupGlobalListener: () => void
 }
 
@@ -45,20 +46,9 @@ export function createSubscribeHandler<Options extends SubscribeOptions>(
   context: CreateSubscribeContext,
 ): SubscribeHandler<Options> {
   const { topic, payloadSchema } = options
-  const { getClient, config, topicHandlers, setupGlobalListener } = context
-
-  const connectionUrl = (): string | undefined => {
-    try {
-      return getClient().url
-    } catch {
-      return undefined
-    }
-  }
+  const { connectionUrl, config, topicHandlers, setupGlobalListener } = context
 
   const handler = ((userHandler: (payload: unknown) => void): Unsubscribe => {
-    // Ensure global listener is set up
-    setupGlobalListener()
-
     let subscribed = true
 
     // Wrapper that validates the payload and isolates handler errors. It never throws.
@@ -109,6 +99,7 @@ export function createSubscribeHandler<Options extends SubscribeOptions>(
       topicHandlers.set(topic, handlers)
     }
     handlers.add(wrappedHandler)
+    setupGlobalListener()
 
     // Return unsubscribe function
     return () => {
@@ -140,31 +131,48 @@ export function createSubscribeHandler<Options extends SubscribeOptions>(
  * @param config - Socket builder config
  * @param topicHandlers - Map of topic to handler sets
  * @param ackHandlers - Pending acknowledgements by ackId
+ * @param connectionUrl - The URL of the current connection
  */
 export function createGlobalMessageHandler(
   config: SocketBuilderConfig,
   topicHandlers: Map<string, Set<(payload: unknown) => void>>,
-  ackHandlers?: Map<string, Pick<PendingAck, 'settle'>>,
+  ackHandlers: Map<string, Pick<PendingAck, 'settle'>>,
+  connectionUrl: () => string | undefined,
 ): (data: unknown) => void {
   const parseMessage = config.parseMessage ?? defaultParseMessage
 
   return (data: unknown) => {
-    const parsed = parseMessage(data)
+    let parsed: ReturnType<MessageParser>
+    try {
+      parsed = parseMessage(data)
+    } catch (cause) {
+      // It must not reach the client, whose emitter would pass it on as uncaught
+      reportSocketError(config.onError, {
+        kind: 'transport',
+        topic: 'message',
+        url: connectionUrl(),
+        message: 'parseMessage threw; the message was skipped',
+        rawData: data,
+        cause,
+      })
+      return
+    }
     if (!parsed) {
       return
     }
 
     const { topic, payload, ackId } = parsed
 
-    const pendingAck = typeof ackId === 'string' ? ackHandlers?.get(ackId) : undefined
+    const pendingAck = typeof ackId === 'string' ? ackHandlers.get(ackId) : undefined
     if (pendingAck) {
       pendingAck.settle(payload)
       return
     }
 
-    const handlers = topicHandlers.get(topic)
-    if (handlers) {
-      handlers.forEach((handler) => handler(payload))
-    }
+    // Registered handlers validate, isolate and report on their own; they never throw.
+    dispatch(
+      () => topicHandlers.get(topic),
+      (handler) => handler(payload),
+    )
   }
 }

@@ -339,7 +339,7 @@ describe('declareEventSource', () => {
 
         getMock(handle.source).simulateMessage('{"text":"hello"}')
 
-        expect(handler).toHaveBeenCalledWith({ text: 'hello' })
+        expect(handler).toHaveBeenCalledWith({ text: 'hello' }, '{"text":"hello"}')
       })
 
       it('should register custom event handlers', () => {
@@ -351,7 +351,7 @@ describe('declareEventSource', () => {
 
         getMock(handle.source).simulateEvent('custom-event', '{"data":"value"}')
 
-        expect(handler).toHaveBeenCalledWith({ data: 'value' })
+        expect(handler).toHaveBeenCalledWith({ data: 'value' }, '{"data":"value"}')
       })
 
       it('should remove specific handler with off', () => {
@@ -542,7 +542,7 @@ describe('declareEventSource', () => {
 
       getMock(handle.source).simulateMessage(JSON.stringify({ foo: 'bar', num: 123 }))
 
-      expect(handler).toHaveBeenCalledWith({ foo: 'bar', num: 123 })
+      expect(handler).toHaveBeenCalledWith({ foo: 'bar', num: 123 }, '{"foo":"bar","num":123}')
     })
 
     it('should return raw string if not valid JSON', () => {
@@ -554,7 +554,7 @@ describe('declareEventSource', () => {
 
       getMock(handle.source).simulateMessage('not json')
 
-      expect(handler).toHaveBeenCalledWith('not json')
+      expect(handler).toHaveBeenCalledWith('not json', 'not json')
     })
   })
 })

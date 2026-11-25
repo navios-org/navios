@@ -24,6 +24,7 @@ const createUser = api.declareEndpoint({
 })
 
 const download = api.declareEndpoint({ method: 'GET', url: '/file', response: 'stream' })
+const text = api.declareEndpoint({ method: 'GET', url: '/text', response: 'text' })
 const remove = api.declareEndpoint({ method: 'DELETE', url: '/users/$id', response: 'void' })
 
 describe('handler() field form', () => {
@@ -51,6 +52,21 @@ describe('handler() field form', () => {
     handler(createUser, () => reply(201, { id: 1 }))
     // @ts-expect-error a stream endpoint must return a stream
     handler(download, () => 'text')
+  })
+
+  it('types the chunks of a stream', () => {
+    handler(download, async function* () {
+      yield 'text'
+      yield new Uint8Array()
+    })
+    // @ts-expect-error a chunk is a string or bytes
+    handler(download, async function* () {
+      yield { a: 1 }
+    })
+    // @ts-expect-error a chunk is a string or bytes
+    handler(text, async function* () {
+      yield 1
+    })
   })
 
   it('accepts declared error replies, bodiless statuses, streams and void', () => {
@@ -189,6 +205,21 @@ describe('@Endpoint method form without a return annotation', () => {
 })
 
 describe('request context', () => {
+  it('types the controls of the response', () => {
+    const check = (ctx: RequestContext) => {
+      ctx.reply.header('x-a', ['a', 'b'] as const)
+      ctx.reply.header('retry-after', 5)
+      ctx.reply.append('x-a', 'c')
+      ctx.reply.cookie('a', '1', { partitioned: true, secure: true })
+      ctx.reply.deleteCookie('a', { path: '/', domain: 'a.test' })
+      // @ts-expect-error a header value is text or a number
+      ctx.reply.header('x-a', true)
+      // @ts-expect-error a deleted cookie has no lifetime
+      ctx.reply.deleteCookie('a', { maxAge: 1 })
+    }
+    expectTypeOf(check).toBeFunction()
+  })
+
   it('types context keys and request values', () => {
     const CurrentUser = createContextKey<{ name: string }>('CurrentUser')
 

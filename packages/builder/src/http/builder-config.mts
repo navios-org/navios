@@ -9,6 +9,21 @@ export interface BuilderConfig {
   client?: Client
 
   /**
+   * What is sent once `urlParamsSchema`, `querySchema` and `requestSchema`
+   * have accepted a call's arguments.
+   *
+   * - `'input'` — the arguments as the caller passed them. The server parses
+   *   them with the same schemas, so transforms, defaults and the removal of
+   *   unknown keys happen there.
+   * - `'output'` — what the schemas produced. For APIs that are not described
+   *   by the schemas' input: the schemas then convert to the format on the
+   *   wire, and their transforms and defaults run before sending.
+   *
+   * @default 'input'
+   */
+  send?: 'input' | 'output'
+
+  /**
    * Called once for every failed call, with the same {@link EndpointError}
    * the caller receives — whether it is thrown by `endpoint(args)` or
    * returned by `endpoint.safe(args)`.

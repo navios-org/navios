@@ -1,6 +1,7 @@
 import { NaviosFactory } from '@navios/server'
 
-import type { AdapterDefinition, NaviosApplication } from '@navios/server'
+import type { NaviosApplication } from '@navios/server'
+import type { AdapterDefinition } from '@navios/server/adapter'
 
 import { xmlPlugin } from '../src/index.mjs'
 
