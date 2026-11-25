@@ -12,9 +12,9 @@ import {
   provide,
   registerFactory,
   registerInjectable,
-  validateSync,
 } from '../index.mjs'
 import { argsKey } from '../internal/args-key.mjs'
+import { validateSync } from '../internal/index.mjs'
 
 import type { StandardSchemaV1 } from '../index.mjs'
 
@@ -41,7 +41,8 @@ describe('argsKey', () => {
     expect(argsKey('1')).not.toBe(argsKey(1))
     expect(argsKey(null)).not.toBe(argsKey(undefined))
     expect(argsKey([1, 2])).not.toBe(argsKey([2, 1]))
-    expect(argsKey({ a: undefined })).not.toBe(argsKey({}))
+    expect(argsKey({ a: undefined })).toBe(argsKey({}))
+    expect(argsKey({ a: null })).not.toBe(argsKey({}))
     expect(argsKey('a,b')).not.toBe(argsKey(['a', 'b']))
   })
 
@@ -212,7 +213,7 @@ describe('tokens and providers', () => {
       expect.objectContaining({ code: DIErrorCode.TokenSchemaRequiredError }),
     )
     container.addInstance(InjectionToken.bound(Token, { n: 1 }), { n: 1 })
-    expect(container.tryGetSync(Token, { n: 1 })).toEqual({ n: 1 })
+    expect(container.peek(Token, { n: 1 })).toEqual({ n: 1 })
   })
 })
 

@@ -159,10 +159,10 @@ describe('ScopedContainer.get', () => {
 })
 
 describe('ScopedContainer methods', () => {
-  test('getParent returns Container', () => {
+  test('parent is the Container', () => {
     const container = new Container()
     const scopedContainer = container.createScope()
-    assertType<Container>(scopedContainer.getParent())
+    assertType<Container>(scopedContainer.parent)
   })
 
   test('getMetadata returns any', () => {
@@ -184,12 +184,6 @@ describe('ScopedContainer methods', () => {
     const container = new Container()
     const scopedContainer = container.createScope()
     assertType<Promise<void>>(scopedContainer.dispose())
-  })
-
-  test('endRequest returns Promise<void>', async () => {
-    const container = new Container()
-    const scopedContainer = container.createScope()
-    assertType<Promise<void>>(scopedContainer.endRequest())
   })
 
   test('invalidate returns Promise<void>', async () => {

@@ -1,3 +1,4 @@
+import { warnAboutSecondCopy } from '../internal/single-copy.mjs'
 import { isStandardSchema } from '../schema/standard-schema.mjs'
 
 import type { InjectableScope } from '../injectable-scope.mjs'
@@ -5,12 +6,7 @@ import type { FactoryContext } from '../provider/factory-context.mjs'
 import type { ProviderRecord } from '../provider/provider-record.mjs'
 import type { InferInput, StandardSchemaV1 } from '../schema/standard-schema.mjs'
 
-import type { ClassType } from './class-type.mjs'
-
-/**
- * Any Standard Schema can describe a token's args.
- */
-export type InjectionTokenSchemaType = StandardSchemaV1
+import type { AbstractClassType, ClassType } from './class-type.mjs'
 
 /**
  * `true` when the token's args are required, `false` when the schema accepts
@@ -22,6 +18,9 @@ export type TokenArgsRequired<S> = S extends StandardSchemaV1
     : true
   : false
 
+// Here because every entry point of the package loads this module.
+warnAboutSecondCopy()
+
 export interface InjectionTokenOptions<Schema extends StandardSchemaV1 | undefined = undefined> {
   schema?: Schema
   /**
@@ -32,12 +31,13 @@ export interface InjectionTokenOptions<Schema extends StandardSchemaV1 | undefin
 }
 
 export class InjectionToken<
-  // oxlint-disable-next-line no-unused-vars
   T,
-  S extends InjectionTokenSchemaType | unknown = unknown,
+  S extends StandardSchemaV1 | unknown = unknown,
   // oxlint-disable-next-line no-unused-vars
   Required extends boolean = TokenArgsRequired<S>,
 > {
+  /** Exists in types only, so that tokens of different types are not the same type. */
+  declare readonly _types?: { value: T; schema: S }
   /**
    * The default provider, set by `@Injectable` / `@Factory`. A container may
    * replace it with `provide()`.
@@ -47,13 +47,13 @@ export class InjectionToken<
   private formattedName: string | null = null
 
   constructor(
-    public readonly name: string | symbol | ClassType,
+    public readonly name: string | symbol | AbstractClassType,
     public readonly schema: StandardSchemaV1 | undefined = undefined,
     public readonly scope: InjectableScope | undefined = undefined,
   ) {}
 
-  static create<T extends ClassType>(name: T): InjectionToken<InstanceType<T>, undefined>
-  static create<T extends ClassType, Schema extends InjectionTokenSchemaType>(
+  static create<T extends AbstractClassType>(name: T): InjectionToken<InstanceType<T>, undefined>
+  static create<T extends AbstractClassType, Schema extends StandardSchemaV1>(
     name: T,
     schema: Schema,
   ): InjectionToken<InstanceType<T>, Schema>
@@ -62,16 +62,16 @@ export class InjectionToken<
     name: string | symbol,
     options: { scope?: InjectableScope; schema?: undefined },
   ): InjectionToken<T, undefined>
-  static create<T, Schema extends InjectionTokenSchemaType>(
+  static create<T, Schema extends StandardSchemaV1>(
     name: string | any,
     schema: Schema,
   ): InjectionToken<T, Schema>
-  static create<T, Schema extends InjectionTokenSchemaType>(
+  static create<T, Schema extends StandardSchemaV1>(
     name: string | any,
     options: { scope?: InjectableScope; schema: Schema },
   ): InjectionToken<T, Schema>
   static create(
-    name: string | symbol | ClassType,
+    name: string | symbol | AbstractClassType,
     schemaOrOptions?: StandardSchemaV1 | InjectionTokenOptions<StandardSchemaV1 | undefined>,
   ) {
     if (schemaOrOptions === undefined || isStandardSchema(schemaOrOptions)) {
@@ -80,14 +80,14 @@ export class InjectionToken<
     return new InjectionToken(name, schemaOrOptions.schema, schemaOrOptions.scope)
   }
 
-  static bound<T, S extends InjectionTokenSchemaType>(
+  static bound<T, S extends StandardSchemaV1>(
     token: InjectionToken<T, S>,
     value: InferInput<S>,
   ): BoundInjectionToken<T, S> {
     return new BoundInjectionToken(token, value)
   }
 
-  static factory<T, S extends InjectionTokenSchemaType>(
+  static factory<T, S extends StandardSchemaV1>(
     token: InjectionToken<T, S>,
     factory: (ctx: FactoryContext) => Promise<InferInput<S>> | InferInput<S>,
   ): FactoryInjectionToken<T, S> {
@@ -109,8 +109,8 @@ export class InjectionToken<
   }
 }
 
-export class BoundInjectionToken<T, S extends InjectionTokenSchemaType> {
-  public readonly name: string | symbol | ClassType
+export class BoundInjectionToken<T, S extends StandardSchemaV1> {
+  public readonly name: string | symbol | AbstractClassType
   public readonly schema: StandardSchemaV1 | undefined
 
   constructor(
@@ -130,8 +130,8 @@ export class BoundInjectionToken<T, S extends InjectionTokenSchemaType> {
  * A token whose args are computed by a factory. The factory runs at most once
  * per root container; the value is cached on the container, not on the token.
  */
-export class FactoryInjectionToken<T, S extends InjectionTokenSchemaType> {
-  public readonly name: string | symbol | ClassType
+export class FactoryInjectionToken<T, S extends StandardSchemaV1> {
+  public readonly name: string | symbol | AbstractClassType
   public readonly schema: StandardSchemaV1 | undefined
 
   constructor(

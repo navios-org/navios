@@ -1,4 +1,5 @@
-import { DIError } from '../errors/di-error.mjs'
+import { argsNotValidated, invalidArgs } from '../errors/create.mjs'
+import { isThenable, noop } from '../internal/thenable.mjs'
 
 /**
  * The Standard Schema interface (https://standardschema.dev), inlined so that
@@ -53,20 +54,19 @@ export function isStandardSchema(value: unknown): value is StandardSchemaV1 {
  * whose `validate` returns a promise is rejected.
  */
 export function validateSync(schema: StandardSchemaV1, value: unknown, tokenName: string): unknown {
-  const result = schema['~standard'].validate(value)
-  if (result instanceof Promise) {
+  let result: ReturnType<StandardSchemaV1['~standard']['validate']>
+  try {
+    result = schema['~standard'].validate(value)
+  } catch (error) {
+    throw argsNotValidated(tokenName, 'the schema threw an error', { cause: error })
+  }
+  if (isThenable(result)) {
     // Avoid an unhandled rejection from the validator we are not awaiting.
-    result.catch(() => {})
-    throw DIError.tokenValidationError(
-      `Validation failed for ${tokenName}: token args schemas must validate synchronously`,
-      schema,
-      value,
-    )
+    result.then(noop, noop)
+    throw argsNotValidated(tokenName, 'token args schemas must validate synchronously')
   }
   if (result.issues) {
-    throw DIError.tokenValidationError(`Validation failed for ${tokenName}`, schema, value, [
-      ...result.issues,
-    ])
+    throw invalidArgs(tokenName, result.issues)
   }
   return result.value
 }

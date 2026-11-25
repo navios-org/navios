@@ -5,6 +5,9 @@ import type { Factorable, FactorableWithArgs } from '../provider/factorable.mjs'
 import type { StandardSchemaV1 } from '../schema/standard-schema.mjs'
 import type { ClassTypeWithInstance } from '../token/class-type.mjs'
 import type { InjectionToken } from '../token/injection-token.mjs'
+import type { PublicPart } from '../token/public-part.mjs'
+
+import { assertClassDecorator } from './assert-class-decorator.mjs'
 
 export interface FactoryOptions {
   scope?: InjectableScope
@@ -24,11 +27,11 @@ export function Factory<R, S>(options: {
 }): R extends undefined
   ? never
   : S extends StandardSchemaV1
-    ? <T extends ClassTypeWithInstance<FactorableWithArgs<R, S>>>(
+    ? <T extends ClassTypeWithInstance<FactorableWithArgs<PublicPart<R>, S>>>(
         target: T,
         context?: ClassDecoratorContext,
       ) => T
-    : <T extends ClassTypeWithInstance<Factorable<R>>>(
+    : <T extends ClassTypeWithInstance<Factorable<PublicPart<R>>>>(
         target: T,
         context?: ClassDecoratorContext,
       ) => T
@@ -38,9 +41,7 @@ export function Factory(options: FactoryOptions = {}) {
     target: T,
     context?: ClassDecoratorContext,
   ): T => {
-    if ((context && context.kind !== 'class') || (target instanceof Function && !context)) {
-      throw new Error('[DI] @Factory decorator can only be used on classes.')
-    }
+    assertClassDecorator('Factory', context)
     registerFactory(target, options)
     return target
   }

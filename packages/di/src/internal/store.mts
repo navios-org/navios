@@ -1,32 +1,28 @@
 import type { InjectionToken } from '../token/injection-token.mjs'
 
+import { EntryStatus } from './entry.mjs'
+
 import type { Entry } from './entry.mjs'
 
-export type InvalidateListener = () => void
-
-/** @internal */
-export type DestroyErrorReporter = (error: unknown, entry: Entry) => void
+export type InvalidateListener = () => unknown
 
 /**
  * Listener key that matches every instance of a token, whatever its args.
- * @internal
  */
 export const ANY_ARGS = '*'
 
 /**
  * Entries of one container, addressed by token and, for tokens with args, by
  * args key.
- * @internal
  */
 export class Store {
   /** How many of its entries are in `Destroying` state. */
   destroying = 0
-  // Receives what a destroy hook of an entry threw; `null` drops it.
-  report: DestroyErrorReporter | null = null
 
   private readonly plain = new Map<InjectionToken<any, any>, Entry>()
   private keyed: Map<InjectionToken<any, any>, Map<string, Entry>> | null = null
-  private byInstance: WeakMap<object, Entry> | null = null
+  /** Entries by instance. Two tokens may hold the same object. */
+  private byInstance: WeakMap<object, Entry | Holders> | null = null
   private listeners: Map<InjectionToken<any, any>, Map<string, Set<InvalidateListener>>> | null =
     null
 
@@ -98,16 +94,25 @@ export class Store {
   trackInstance(entry: Entry): void {
     const instance = entry.instance
     if (instance !== null && (typeof instance === 'object' || typeof instance === 'function')) {
-      this.byInstance ??= new WeakMap()
-      this.byInstance.set(instance, entry)
+      const known = (this.byInstance ??= new WeakMap()).get(instance)
+      if (known instanceof Holders) {
+        known.add(entry)
+      } else {
+        this.byInstance.set(instance, known === undefined ? entry : new Holders(known, entry))
+      }
     }
   }
 
-  findByInstance(instance: unknown): Entry | undefined {
+  /** The live entries that hold `instance`. */
+  findByInstance(instance: unknown): Entry[] {
     if (instance === null || (typeof instance !== 'object' && typeof instance !== 'function')) {
-      return undefined
+      return none
     }
-    return this.byInstance?.get(instance)
+    const found = this.byInstance?.get(instance)
+    if (found === undefined) {
+      return none
+    }
+    return (found instanceof Holders ? found.entries : [found]).filter(isReady)
   }
 
   addListener(
@@ -143,26 +148,33 @@ export class Store {
     return this.listeners?.has(token) ?? false
   }
 
-  /**
-   * Calls the listeners for the address of `entry`. A listener that throws
-   * does not stop the others; `onError` receives what it threw.
-   */
-  notifyInvalidated(entry: Entry, onError: (error: unknown) => void): void {
+  /** The listeners for the address of `entry`. */
+  listenersFor(entry: Entry): InvalidateListener[] {
     const byKey = this.listeners?.get(entry.token)
-    if (byKey === undefined) {
-      return
+    return byKey === undefined
+      ? []
+      : [...(byKey.get(entry.key ?? '') ?? []), ...(byKey.get(ANY_ARGS) ?? [])]
+  }
+}
+
+const none: Entry[] = []
+
+const isReady = (entry: Entry): boolean => entry.status === EntryStatus.Ready
+
+// The entries that hold one object, and some that no longer do.
+class Holders {
+  entries: Entry[]
+  private limit = 16
+
+  constructor(...entries: Entry[]) {
+    this.entries = entries
+  }
+
+  add(entry: Entry): void {
+    if (this.entries.length >= this.limit) {
+      this.entries = this.entries.filter(isReady)
+      this.limit = Math.max(16, 2 * this.entries.length)
     }
-    for (const key of [entry.key ?? '', ANY_ARGS]) {
-      const set = byKey.get(key)
-      if (set !== undefined && set.size > 0) {
-        for (const listener of Array.from(set)) {
-          try {
-            listener()
-          } catch (error) {
-            onError(error)
-          }
-        }
-      }
-    }
+    this.entries.push(entry)
   }
 }

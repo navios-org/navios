@@ -13,6 +13,8 @@ export default defineProject({
     }),
   ],
   test: {
+    // For the tests in `__tests__/gc`.
+    execArgv: ['--expose-gc'],
     include: ['src/**/__tests__/**/*.spec.mts'],
     typecheck: {
       enabled: true,

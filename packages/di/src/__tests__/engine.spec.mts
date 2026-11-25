@@ -113,7 +113,7 @@ describe('engine: sync-first resolution', () => {
     await second.dispose()
   })
 
-  it('constructs once per build after the first when a request-scoped dependency is always async', async () => {
+  it('constructs twice on every build when a request-scoped dependency is always async', async () => {
     let constructed = 0
 
     @Injectable({ scope: InjectableScope.Request })
@@ -139,7 +139,8 @@ describe('engine: sync-first resolution', () => {
     const second = container.createScope()
     const uses = await second.get(Uses)
     expect(uses.dep).toBeInstanceOf(SlowPerRequest)
-    expect(constructed).toBe(1)
+    // The constructor is what asks for it: nothing is built ahead of that.
+    expect(constructed).toBe(2)
 
     await first.dispose()
     await second.dispose()
@@ -586,7 +587,7 @@ describe('engine: sync-first resolution', () => {
     const error = await container.get(Flaky).catch((e) => e)
     expect(error.code).toBe(DIErrorCode.InitializationError)
     expect(error.cause).toBeInstanceOf(Error)
-    expect(container.tryGetSync(Flaky)).toBeNull()
+    expect(container.peek(Flaky)).toBeNull()
     expect(await container.get(Flaky)).toBeInstanceOf(Flaky)
     expect(attempts).toBe(2)
   })
@@ -740,7 +741,7 @@ describe('engine: sync-first resolution', () => {
     class NumberFactory {
       dep = inject(Dep)
       async create(ctx?: FactoryContext) {
-        const again = await ctx!.inject<Dep>(Dep)
+        const again = await ctx!.inject(Dep)
         return { total: this.dep.value + again.value }
       }
     }
@@ -772,6 +773,8 @@ describe('engine: sync-first resolution', () => {
     @Injectable()
     class Service {}
 
-    expect(() => inject(Service)).toThrow(/outside of a injectable context/)
+    expect(() => inject(Service)).toThrow(
+      /can only be called synchronously while a class or factory is being built/,
+    )
   })
 })

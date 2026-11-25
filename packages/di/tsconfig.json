@@ -2,7 +2,8 @@
   "extends": "../../tsconfig.json",
   "compilerOptions": {
     "module": "Node18",
-    "outDir": "dist"
+    "outDir": "dist",
+    "stripInternal": true
   },
   "include": ["src/**/*"]
 }

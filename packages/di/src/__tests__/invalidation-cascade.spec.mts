@@ -83,7 +83,7 @@ describe('invalidation cascade', () => {
       expect(second.dependency).toBeInstanceOf(Dependency)
     })
 
-    it('constructs the dependent once when the dependency also initialises asynchronously', async () => {
+    it('discards one pass when the dependency also initialises asynchronously', async () => {
       let constructed = 0
 
       @Injectable()
@@ -105,17 +105,16 @@ describe('invalidation cascade', () => {
       }
 
       const first = await container.get(Dependent)
-      // The very first build of a class may discard one pass.
       constructed = 0
 
       let rebuilt: Promise<Dependent> | null = null
       container.onInvalidate(Dependent, undefined, () => {
-        rebuilt = container.get(Dependent)
+        rebuilt ??= container.get(Dependent)
       })
       await container.invalidate(first.dependency)
       await rebuilt!
 
-      expect(constructed).toBe(1)
+      expect(constructed).toBe(2)
     })
 
     it('lets a listener resolve synchronously: the cascade has settled', async () => {
@@ -249,8 +248,8 @@ describe('invalidation cascade', () => {
       expect(second).toBe(1)
       expect(third).toBe(1)
       // The teardown itself is complete: nothing is left half-destroyed.
-      expect(container.tryGetSync(Dependent)).toBeNull()
-      expect(container.tryGetSync(Dependency)).toBeNull()
+      expect(container.peek(Dependent)).toBeNull()
+      expect(container.peek(Dependency)).toBeNull()
       const again = await container.get(Dependent)
       expect(again).not.toBe(dependent)
     })
@@ -589,7 +588,7 @@ describe('invalidation cascade', () => {
         disposed = scope.dispose()
       }).not.toThrow()
       await expect(disposed).rejects.toThrow('listener failed')
-      expect(scope.tryGetSync(Session)).toBeNull()
+      expect(scope.peek(Session)).toBeNull()
     })
 
     it('notifies once per instance, after everything is destroyed', async () => {
@@ -617,22 +616,22 @@ describe('invalidation cascade', () => {
 
       const local = new Container()
       await local.get(Dependent)
-      let rebuilt: Promise<Dependent> | null = null
+      let rebuilt: Promise<unknown> | null = null
       local.onInvalidate(Dependent, undefined, () => {
         order.push('dependent: listener')
-        rebuilt ??= local.get(Dependent)
+        rebuilt ??= local.get(Dependent).catch((error) => error.code)
       })
 
       await local.dispose()
-      await rebuilt
 
       expect(order).toEqual([
         'dependent: destroyed',
         'dependency: destroyed',
         'dependent: listener',
       ])
-      expect(constructed).toBe(2)
-      await local.dispose()
+      // A disposed container builds nothing more.
+      expect(await rebuilt).toBe('ContainerDisposed')
+      expect(constructed).toBe(1)
     })
   })
 })

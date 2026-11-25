@@ -2,31 +2,23 @@
  * Garbage Collection Tests: Memory Pressure
  *
  * Tests that verify the DI container properly handles memory under pressure
- * and doesn't leak memory over time. These tests use process.memoryUsage()
- * to measure actual heap usage.
- *
- * Run with: NODE_OPTIONS=--expose-gc yarn run -T vitest run src/__tests__/gc
+ * and doesn't leak memory over time, by measuring the memory in use.
  */
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import { Container } from '../../container/container.mjs'
 import { Injectable } from '../../decorators/injectable.mjs'
-import { InjectionToken } from '../../index.mjs'
 import { InjectableScope } from '../../injectable-scope.mjs'
 import { inject } from '../../injection/injectors.mjs'
 
 import type { OnServiceDestroy } from '../../lifecycle-hooks.mjs'
 
-import {
-  forceGC,
-  getHeapUsed,
-  getHeapUsedMB,
-  isGCAvailable,
-  measureMemoryDelta,
-} from './gc-test-utils.mjs'
+import { memoryInUse } from './gc-test-utils.mjs'
 
-describe.skipIf(!isGCAvailable)('GC: Memory Pressure', () => {
+const MB = 1024 * 1024
+
+describe('GC: Memory Pressure', () => {
   let container: Container
 
   beforeEach(() => {
@@ -37,474 +29,121 @@ describe.skipIf(!isGCAvailable)('GC: Memory Pressure', () => {
     await container.dispose()
   })
 
-  describe('Container disposal memory reclamation', () => {
-    it.todo('should reclaim memory when container with many singletons is disposed', async () => {
-      const SERVICE_COUNT = 50
-      const ALLOCATION_SIZE = 1024 * 100 // 100KB per service
+  it('is measured with typed arrays, which are not on the heap', async () => {
+    const before = await memoryInUse()
+    let kept: Uint8Array[] = Array.from({ length: 10 }, () => new Uint8Array(MB))
+    expect((await memoryInUse()) - before).toBeGreaterThan(9 * MB)
+    expect(kept).toHaveLength(10)
 
-      // Create many singleton services
-      const services: Array<{ new (): { data: Uint8Array } }> = []
-      for (let i = 0; i < SERVICE_COUNT; i++) {
-        @Injectable()
-        class LargeService {
-          public readonly data = new Uint8Array(ALLOCATION_SIZE)
-        }
-        services.push(LargeService)
-      }
+    kept = []
+    expect((await memoryInUse()) - before).toBeLessThan(MB)
+  })
 
-      forceGC()
-      const beforeAllocation = getHeapUsed()
-
-      // Resolve all services
-      for (const Service of services) {
-        await container.get(Service)
-      }
-
-      forceGC()
-      const afterAllocation = getHeapUsed()
-      const allocated = afterAllocation - beforeAllocation
-
-      // Should have allocated approximately SERVICE_COUNT * ALLOCATION_SIZE
-      const expectedAllocation = SERVICE_COUNT * ALLOCATION_SIZE
-      expect(allocated).toBeGreaterThan(expectedAllocation * 0.8)
-
-      // Dispose container
-      await container.dispose()
-
-      // Create new container for afterEach cleanup
-      container = new Container()
-
-      forceGC()
-      const afterDisposal = getHeapUsed()
-      const reclaimed = afterAllocation - afterDisposal
-
-      // Should reclaim at least 80% of allocated memory
-      expect(reclaimed).toBeGreaterThan(allocated * 0.8)
-    })
-
-    it.todo('should measure memory baseline and peak correctly', async () => {
-      const ALLOCATION_SIZE = 1024 * 1024 // 1MB
-
+  it('should reclaim memory when container with many singletons is disposed', async () => {
+    const services = Array.from({ length: 50 }, () => {
       @Injectable()
       class LargeService {
-        public readonly data = new Uint8Array(ALLOCATION_SIZE)
+        public readonly data = new Uint8Array(MB / 10)
       }
-
-      const { after, delta } = await measureMemoryDelta(async () => {
-        await container.get(LargeService)
-      })
-
-      // Delta should be roughly the allocation size (with some overhead)
-      expect(delta).toBeGreaterThan(ALLOCATION_SIZE * 0.8)
-      expect(delta).toBeLessThan(ALLOCATION_SIZE * 1.5)
-
-      // Cleanup and measure reclamation
-      await container.dispose()
-      container = new Container()
-
-      forceGC()
-      const final = getHeapUsed()
-
-      // Memory should return close to baseline
-      const memoryReturn = after - final
-      expect(memoryReturn).toBeGreaterThan(ALLOCATION_SIZE * 0.8)
+      return LargeService
     })
+
+    const before = await memoryInUse()
+    for (const service of services) {
+      await container.get(service)
+    }
+    expect((await memoryInUse()) - before).toBeGreaterThan(4 * MB)
+
+    await container.dispose()
+    container = new Container()
+    expect((await memoryInUse()) - before).toBeLessThan(MB / 2)
   })
 
-  describe('Long-running container stress tests', () => {
-    it('should not accumulate memory with repeated service invalidation', async () => {
-      const ALLOCATION_SIZE = 1024 * 50 // 50KB
-      const ITERATIONS = 30
+  it('should reclaim the memory of each container on its own', async () => {
+    @Injectable()
+    class LargeService {
+      public readonly data = new Uint8Array(MB)
+    }
 
-      @Injectable()
-      class InvalidatableService implements OnServiceDestroy {
-        public readonly id = Math.random()
-        public readonly data = new Uint8Array(ALLOCATION_SIZE)
+    const before = await memoryInUse()
+    const containers = Array.from({ length: 5 }, () => new Container())
+    for (const other of containers) {
+      await other.get(LargeService)
+    }
+    expect((await memoryInUse()) - before).toBeGreaterThan(4.5 * MB)
 
-        onServiceDestroy(): void {
-          // Cleanup
-        }
-      }
-
-      forceGC()
-      const baselineMemory = getHeapUsed()
-
-      // Repeatedly create and invalidate
-      for (let i = 0; i < ITERATIONS; i++) {
-        const instance = await container.get(InvalidatableService)
-        await container.invalidate(instance)
-      }
-
-      // Get one final instance
-      await container.get(InvalidatableService)
-
-      // Let the microtask queue drain so that settled promise chains are
-      // collectable before measuring
-      await new Promise((resolve) => setTimeout(resolve, 0))
-      forceGC()
-      const finalMemory = getHeapUsed()
-      const memoryGrowth = finalMemory - baselineMemory
-
-      // Memory growth should be roughly one service instance
-      // (only the latest should remain)
-      expect(memoryGrowth).toBeLessThan(ALLOCATION_SIZE * 3)
-    })
-
-    it('should handle many request lifecycles without leaking', async () => {
-      const ALLOCATION_SIZE = 1024 * 20 // 20KB
-      const REQUEST_COUNT = 50
-      const SERVICES_PER_REQUEST = 5
-
-      // Create request-scoped services
-      const services: Array<{ new (): { data: Uint8Array } }> = []
-      for (let i = 0; i < SERVICES_PER_REQUEST; i++) {
-        const token = InjectionToken.create<RequestService>(`RequestService${i}`)
-        @Injectable({ scope: InjectableScope.Request, token })
-        class RequestService {
-          public readonly data = new Uint8Array(ALLOCATION_SIZE)
-        }
-        services.push(RequestService)
-      }
-
-      forceGC()
-      const baselineMemory = getHeapUsed()
-
-      // Simulate many request lifecycles
-      for (let reqId = 0; reqId < REQUEST_COUNT; reqId++) {
-        const scoped = container.createScope()
-
-        // Resolve all services in this request
-        for (const Service of services) {
-          await scoped.get(Service)
-        }
-
-        await scoped.dispose()
-
-        // Periodically force GC to help cleanup
-        if (reqId % 10 === 0) {
-          forceGC()
-        }
-      }
-
-      forceGC()
-      const finalMemory = getHeapUsed()
-      const memoryGrowth = finalMemory - baselineMemory
-
-      // Memory growth should be minimal after all requests end
-      const maxExpectedGrowth = ALLOCATION_SIZE * SERVICES_PER_REQUEST * 2
-      expect(memoryGrowth).toBeLessThan(maxExpectedGrowth)
-    })
+    for (let remaining = 4; remaining >= 0; remaining--) {
+      await containers[remaining].dispose()
+      const inUse = (await memoryInUse()) - before
+      expect(inUse).toBeLessThan((remaining + 0.5) * MB)
+      expect(inUse).toBeGreaterThan((remaining - 0.5) * MB)
+    }
   })
 
-  describe('High memory allocation scenarios', () => {
-    it.todo('should handle allocation spike and recovery', async () => {
-      const SPIKE_SIZE = 1024 * 1024 * 10 // 10MB spike
+  it('should reclaim deep dependency chains', async () => {
+    @Injectable()
+    class Bottom {
+      public readonly data = new Uint8Array(MB / 2)
+    }
+
+    let Top: new () => object = Bottom
+    for (let i = 0; i < 9; i++) {
+      const Below = Top
 
       @Injectable()
-      class SpikeService {
-        public readonly data = new Uint8Array(SPIKE_SIZE)
+      class Level {
+        public readonly next = inject(Below)
+        public readonly data = new Uint8Array(MB / 2)
       }
+      Top = Level
+    }
 
-      forceGC()
-      const beforeSpike = getHeapUsedMB()
+    const before = await memoryInUse()
+    await container.get(Top)
+    expect((await memoryInUse()) - before).toBeGreaterThan(4.5 * MB)
 
-      // Create spike
-      await container.get(SpikeService)
-
-      forceGC()
-      const atSpike = getHeapUsedMB()
-      const spikeDelta = atSpike - beforeSpike
-
-      // Verify spike occurred
-      expect(spikeDelta).toBeGreaterThan(8) // At least 8MB
-
-      // Release spike
-      await container.dispose()
-      container = new Container()
-
-      forceGC()
-      const afterRecovery = getHeapUsedMB()
-      const recovered = atSpike - afterRecovery
-
-      // Should recover most of the spike
-      expect(recovered).toBeGreaterThan(spikeDelta * 0.8)
-    })
-
-    it.todo('should handle multiple containers without cross-contamination', async () => {
-      const ALLOCATION_SIZE = 1024 * 1024 // 1MB per container's services
-      const CONTAINER_COUNT = 5
-
-      forceGC()
-      const baselineMemory = getHeapUsed()
-
-      const containers: Array<{ container: Container }> = []
-
-      // Create multiple containers
-      for (let i = 0; i < CONTAINER_COUNT; i++) {
-        const localContainer = new Container()
-
-        @Injectable()
-        class ContainerService {
-          public readonly containerId = i
-          public readonly data = new Uint8Array(ALLOCATION_SIZE)
-        }
-
-        await localContainer.get(ContainerService)
-        containers.push({ container: localContainer })
-      }
-
-      forceGC()
-      const peakMemory = getHeapUsed()
-      const totalAllocated = peakMemory - baselineMemory
-
-      // Should have allocated approximately CONTAINER_COUNT * ALLOCATION_SIZE
-      expect(totalAllocated).toBeGreaterThan(ALLOCATION_SIZE * CONTAINER_COUNT * 0.8)
-
-      // Dispose containers one by one and verify memory reclamation
-      for (let i = 0; i < CONTAINER_COUNT; i++) {
-        await containers[i].container.dispose()
-        forceGC()
-
-        const currentMemory = getHeapUsed()
-        const remainingContainers = CONTAINER_COUNT - (i + 1)
-        const expectedMemory = baselineMemory + ALLOCATION_SIZE * remainingContainers
-
-        // Memory should decrease as containers are disposed
-        // Allow 50% tolerance for GC timing
-        expect(currentMemory).toBeLessThan(expectedMemory * 1.5)
-      }
-    })
+    await container.dispose()
+    container = new Container()
+    expect((await memoryInUse()) - before).toBeLessThan(MB / 2)
   })
 
-  describe('Memory fragmentation prevention', () => {
-    it.todo('should handle alternating allocations without fragmentation issues', async () => {
-      const SMALL_SIZE = 1024 * 10 // 10KB
-      const LARGE_SIZE = 1024 * 500 // 500KB
-      const ITERATIONS = 20
+  it('should not accumulate memory with repeated service invalidation', async () => {
+    @Injectable()
+    class InvalidatableService implements OnServiceDestroy {
+      public readonly data = new Uint8Array(MB / 2)
 
-      let smallServices: Array<{ new (): object }> = []
-      let largeServices: Array<{ new (): object }> = []
-
-      forceGC()
-      const baselineMemory = getHeapUsed()
-
-      // Alternate between small and large allocations
-      for (let i = 0; i < ITERATIONS; i++) {
-        @Injectable()
-        class SmallService {
-          public readonly data = new Uint8Array(SMALL_SIZE)
-        }
-        smallServices.push(SmallService)
-        await container.get(SmallService)
-
-        @Injectable()
-        class LargeService {
-          public readonly data = new Uint8Array(LARGE_SIZE)
-        }
-        largeServices.push(LargeService)
-        await container.get(LargeService)
+      onServiceDestroy(): void {
+        // Cleanup
       }
+    }
 
-      forceGC()
-      const peakMemory = getHeapUsed()
-      const allocated = peakMemory - baselineMemory
+    const before = await memoryInUse()
+    for (let i = 0; i < 30; i++) {
+      await container.invalidate(await container.get(InvalidatableService))
+    }
+    await container.get(InvalidatableService)
 
-      // Dispose and verify reclamation
-      await container.dispose()
-      container = new Container()
-
-      // Clear references
-      smallServices = []
-      largeServices = []
-
-      forceGC()
-      const finalMemory = getHeapUsed()
-      const reclaimed = peakMemory - finalMemory
-
-      // Should reclaim at least 80% despite fragmentation potential
-      expect(reclaimed).toBeGreaterThan(allocated * 0.8)
-    })
+    // Only the last instance is left.
+    expect((await memoryInUse()) - before).toBeLessThan(MB)
   })
 
-  describe('Dependency chain memory', () => {
-    it.todo('should properly reclaim deep dependency chains', async () => {
-      const ALLOCATION_SIZE = 1024 * 50 // 50KB per service
-
-      // Build a static chain of 10 services
-      @Injectable()
-      class Level10 {
-        public readonly data = new Uint8Array(ALLOCATION_SIZE)
+  it('should handle many request lifecycles without leaking', async () => {
+    const services = Array.from({ length: 5 }, () => {
+      @Injectable({ scope: InjectableScope.Request })
+      class RequestService {
+        public readonly data = new Uint8Array(MB / 50)
       }
-
-      @Injectable()
-      class Level9 {
-        public readonly next = inject(Level10)
-        public readonly data = new Uint8Array(ALLOCATION_SIZE)
-      }
-
-      @Injectable()
-      class Level8 {
-        public readonly next = inject(Level9)
-        public readonly data = new Uint8Array(ALLOCATION_SIZE)
-      }
-
-      @Injectable()
-      class Level7 {
-        public readonly next = inject(Level8)
-        public readonly data = new Uint8Array(ALLOCATION_SIZE)
-      }
-
-      @Injectable()
-      class Level6 {
-        public readonly next = inject(Level7)
-        public readonly data = new Uint8Array(ALLOCATION_SIZE)
-      }
-
-      @Injectable()
-      class Level5 {
-        public readonly next = inject(Level6)
-        public readonly data = new Uint8Array(ALLOCATION_SIZE)
-      }
-
-      @Injectable()
-      class Level4 {
-        public readonly next = inject(Level5)
-        public readonly data = new Uint8Array(ALLOCATION_SIZE)
-      }
-
-      @Injectable()
-      class Level3 {
-        public readonly next = inject(Level4)
-        public readonly data = new Uint8Array(ALLOCATION_SIZE)
-      }
-
-      @Injectable()
-      class Level2 {
-        public readonly next = inject(Level3)
-        public readonly data = new Uint8Array(ALLOCATION_SIZE)
-      }
-
-      @Injectable()
-      class Level1 {
-        public readonly next = inject(Level2)
-        public readonly data = new Uint8Array(ALLOCATION_SIZE)
-      }
-
-      const DEPTH = 10
-
-      forceGC()
-      const baselineMemory = getHeapUsed()
-
-      // Resolve the top of the chain (causes entire chain to resolve)
-      await container.get(Level1)
-
-      forceGC()
-      const peakMemory = getHeapUsed()
-      const allocated = peakMemory - baselineMemory
-
-      // Should have allocated approximately DEPTH * ALLOCATION_SIZE
-      expect(allocated).toBeGreaterThan(DEPTH * ALLOCATION_SIZE * 0.8)
-
-      // Dispose
-      await container.dispose()
-      container = new Container()
-
-      forceGC()
-      const finalMemory = getHeapUsed()
-      const reclaimed = peakMemory - finalMemory
-
-      // Should reclaim entire chain
-      expect(reclaimed).toBeGreaterThan(allocated * 0.8)
+      return RequestService
     })
 
-    it.todo('should handle diamond dependency pattern without memory duplication', async () => {
-      const ALLOCATION_SIZE = 1024 * 100 // 100KB
-
-      // Diamond pattern: A depends on B and C, both B and C depend on D
-      @Injectable()
-      class ServiceD {
-        public readonly data = new Uint8Array(ALLOCATION_SIZE)
+    const before = await memoryInUse()
+    for (let i = 0; i < 50; i++) {
+      const scope = container.createScope()
+      for (const service of services) {
+        await scope.get(service)
       }
-
-      @Injectable()
-      class ServiceB {
-        public readonly d = inject(ServiceD)
-        public readonly data = new Uint8Array(ALLOCATION_SIZE)
-      }
-
-      @Injectable()
-      class ServiceC {
-        public readonly d = inject(ServiceD)
-        public readonly data = new Uint8Array(ALLOCATION_SIZE)
-      }
-
-      @Injectable()
-      class ServiceA {
-        public readonly b = inject(ServiceB)
-        public readonly c = inject(ServiceC)
-        public readonly data = new Uint8Array(ALLOCATION_SIZE)
-      }
-
-      forceGC()
-      const baselineMemory = getHeapUsed()
-
-      const a = await container.get(ServiceA)
-
-      // Verify diamond - B and C should share same D instance
-      expect(a.b.d).toBe(a.c.d)
-
-      forceGC()
-      const peakMemory = getHeapUsed()
-      const allocated = peakMemory - baselineMemory
-
-      // Should be 4 services worth (not 5), since D is shared
-      const expectedMax = 4 * ALLOCATION_SIZE * 1.3 // 30% overhead tolerance
-      expect(allocated).toBeLessThan(expectedMax)
-
-      // Dispose and verify reclamation
-      await container.dispose()
-      container = new Container()
-
-      forceGC()
-      const finalMemory = getHeapUsed()
-      const reclaimed = peakMemory - finalMemory
-
-      expect(reclaimed).toBeGreaterThan(allocated * 0.8)
-    })
-  })
-
-  describe('Concurrent resolution memory', () => {
-    it.todo('should not duplicate memory with concurrent resolutions of same service', async () => {
-      const ALLOCATION_SIZE = 1024 * 500 // 500KB
-      const CONCURRENT_REQUESTS = 10
-
-      @Injectable()
-      class ExpensiveService {
-        public readonly data = new Uint8Array(ALLOCATION_SIZE)
-        public readonly createdAt = Date.now()
-      }
-
-      forceGC()
-      const baselineMemory = getHeapUsed()
-
-      // Request same singleton concurrently
-      const instances = await Promise.all(
-        Array.from({ length: CONCURRENT_REQUESTS }, () => container.get(ExpensiveService)),
-      )
-
-      // All should be same instance
-      const first = instances[0]
-      for (const instance of instances) {
-        expect(instance).toBe(first)
-      }
-
-      forceGC()
-      const peakMemory = getHeapUsed()
-      const allocated = peakMemory - baselineMemory
-
-      // Should only have allocated once, not CONCURRENT_REQUESTS times
-      const maxExpected = ALLOCATION_SIZE * 1.5 // Allow 50% overhead
-      expect(allocated).toBeLessThan(maxExpected)
-    })
+      await scope.dispose()
+    }
+    expect((await memoryInUse()) - before).toBeLessThan(MB / 2)
   })
 })

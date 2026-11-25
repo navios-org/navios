@@ -1,44 +1,39 @@
-import { DIError } from '../errors/di-error.mjs'
+import { argsRequired, misuse, requestInstanceInRoot } from '../errors/create.mjs'
+import { InjectableScope } from '../injectable-scope.mjs'
+import { createRecord } from '../provider/provider-record.mjs'
 import { validateSync } from '../schema/standard-schema.mjs'
-import { findInjectableToken } from '../token/injectable-token.mjs'
 import { BoundInjectionToken, FactoryInjectionToken } from '../token/injection-token.mjs'
 
-import type { InjectableScope } from '../injectable-scope.mjs'
+import type { AbstractClassType } from '../token/class-type.mjs'
 import type { AnyInjectableType, InjectionToken } from '../token/injection-token.mjs'
 
 import { argsKey } from './args-key.mjs'
-import { createEntry, EntryStatus } from './entry.mjs'
-import { baseToken } from './normalize.mjs'
-import { noop } from './thenable.mjs'
+import { createEntry, EntryStatus, markReady } from './entry.mjs'
+import { baseToken, followAlias, lookupRecord, requireToken } from './normalize.mjs'
+import { assertLive } from './resolution.mjs'
 
 import type { Entry } from './entry.mjs'
 import type { Host } from './host.mjs'
-import type { Store } from './store.mjs'
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 /**
  * Looks up a ready instance without constructing anything.
- * @internal
  */
-export function peek(host: Host, raw: AnyInjectableType, rawArgs: unknown): Entry | undefined {
-  let token: InjectionToken<any, any> | undefined
-  let args = rawArgs
-  if (raw instanceof BoundInjectionToken) {
-    token = raw.token
-    args = raw.value
-  } else if (raw instanceof FactoryInjectionToken) {
-    const state = host.root.factoryValues.get(raw)
-    if (state === undefined || !state.done) {
-      return undefined
-    }
-    token = raw.token
-    args = state.value
-  } else {
-    token = baseToken(raw)
-  }
+export function findReady(host: Host, raw: AnyInjectableType, rawArgs: unknown): Entry | undefined {
+  const token = baseToken(raw)
   if (token === undefined) {
     return undefined
+  }
+  let args = rawArgs
+  if (raw instanceof BoundInjectionToken) {
+    args = raw.value
+  } else if (raw instanceof FactoryInjectionToken) {
+    const value = host.root.factoryValues.get(raw)
+    if (value === undefined || value.status !== EntryStatus.Ready) {
+      return undefined
+    }
+    args = value.instance
   }
   if (token.schema !== undefined) {
     try {
@@ -54,8 +49,16 @@ export function peek(host: Host, raw: AnyInjectableType, rawArgs: unknown): Entr
 }
 
 /**
+ * The `peek()` method of containers. Unlike `findReady` it also sees what an
+ * alias points to.
+ */
+export function peek(this: Host, raw: AnyInjectableType, rawArgs?: unknown): unknown {
+  const entry = findReady(this, raw, rawArgs) ?? findReady(this, followAlias(this, raw), rawArgs)
+  return entry === undefined ? null : entry.instance
+}
+
+/**
  * Stores a ready value for a token in `host`.
- * @internal
  */
 export function storeValue(
   host: Host,
@@ -63,73 +66,51 @@ export function storeValue(
   value: unknown,
   scope: InjectableScope,
 ): void {
-  let token: InjectionToken<any, any>
+  assertLive(host)
+  const token = requireToken(raw as AnyInjectableType)
   let args: unknown
-  if (typeof raw === 'function') {
-    const found = findInjectableToken(raw)
-    if (found === undefined) {
-      throw DIError.classNotInjectable(raw.name)
-    }
-    token = found
-  } else if (raw instanceof BoundInjectionToken) {
-    token = raw.token
+  if (raw instanceof BoundInjectionToken) {
     args = raw.value
-  } else {
-    token = raw
     if (token.schema !== undefined) {
-      const probe = token.schema['~standard'].validate(undefined)
-      if (probe instanceof Promise || probe.issues) {
-        if (probe instanceof Promise) {
-          probe.catch(noop)
-        }
-        throw DIError.tokenSchemaRequiredError(token.name)
-      }
+      args = validateSync(token.schema, args, token.toString())
+    }
+  } else if (token.schema !== undefined) {
+    // Without args it can only be stored for the args that the schema makes
+    // of nothing.
+    try {
+      args = validateSync(token.schema, undefined, token.toString())
+    } catch {
+      throw argsRequired(token.toString())
     }
   }
-  if (args !== undefined && token.schema !== undefined) {
-    args = validateSync(token.schema, args, token.toString())
+  if (!host.isScope) {
+    const declared = lookupRecord(host, token)?.scope ?? token.scope
+    if (declared === InjectableScope.Request) {
+      throw requestInstanceInRoot(token.toString())
+    }
   }
   const key = args === undefined ? null : argsKey(args)
   const existing = host.store.get(token, key)
   if (existing !== undefined && existing.status <= EntryStatus.Ready) {
-    throw DIError.unknown(
-      `[DI] ${token.toString()} already has an instance in this container; invalidate it before adding another`,
+    throw misuse(
+      `${token.toString()} already has an instance in this container; invalidate it before adding another`,
     )
   }
   const entry = createEntry(
-    { token, kind: 'value', target: undefined, fn: undefined, value, scope, plan: null },
+    createRecord(token, 'value', scope, undefined, undefined, value),
     token,
     key,
     args,
+    host,
     host.store,
+    null,
   )
-  entry.instance = value
-  entry.status = EntryStatus.Ready
   const hooks = value as { onServiceDestroy?: () => void | Promise<void> } | null
   if (hooks !== null && typeof hooks === 'object' && typeof hooks.onServiceDestroy === 'function') {
     entry.destroyListeners = [() => hooks.onServiceDestroy!()]
   }
   host.store.set(token, key, entry)
-  host.store.trackInstance(entry)
+  markReady(entry, value)
 }
 
-type ClassOrToken =
-  | (new (...args: any[]) => any)
-  | InjectionToken<any, any>
-  | BoundInjectionToken<any, any>
-
-/**
- * Waits until no entry of the store is still being created.
- * @internal
- */
-export async function settleStore(store: Store): Promise<void> {
-  for (;;) {
-    const creating = store
-      .entries()
-      .filter((entry) => entry.status === EntryStatus.Creating && entry.promise !== null)
-    if (creating.length === 0) {
-      return
-    }
-    await Promise.all(creating.map((entry) => entry.promise!.then(noop, noop)))
-  }
-}
+type ClassOrToken = AbstractClassType | InjectionToken<any, any> | BoundInjectionToken<any, any>

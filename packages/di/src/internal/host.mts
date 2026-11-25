@@ -12,16 +12,12 @@ export type InstanceDecorator = (
   info: { token: InjectionToken<any, any>; args: unknown },
 ) => unknown
 
-export interface FactoryValue {
-  done: boolean
-  value: unknown
-  promise: Promise<void> | null
-}
+/** Told what a destroy hook or a listener threw, and whose it was. */
+export type ErrorReporter = (error: unknown, description: string) => void
 
 /**
- * What the engine needs from a container. Both `Container` and
- * `ScopedContainer` implement it.
- * @internal
+ * What the engine needs from a container. `Container` and `ScopedContainer`
+ * have this shape; their published types do not show it.
  */
 export interface Host {
   readonly root: RootHost
@@ -29,13 +25,16 @@ export interface Host {
   readonly isScope: boolean
   /** The public container, handed to factories. */
   readonly facade: IContainer
-  /** Set by a scope once it is disposed; nothing may be built in it afterwards. */
-  readonly disposed?: boolean
-  /** Transients built by a top-level `get` on a scope that need destroying. */
+  /** Set when disposal starts; nothing may be built here afterwards. */
+  readonly disposed: boolean
+  /** Transients nobody else destroys: those a scope handed out by `get`. */
   looseTransients: Entry[] | null
+  /** Work nobody awaits, which the disposal has to wait for. */
+  background: Set<Promise<unknown>> | null
+  /** Transients in the making. No store lists them. */
+  building: Set<Entry> | null
 }
 
-/** @internal */
 export interface RootHost extends Host {
   readonly overrides: Map<InjectionToken<any, any>, ProviderRecord>
   /**
@@ -44,7 +43,12 @@ export interface RootHost extends Host {
    */
   readonly strict: boolean
   decorators: Map<InjectionToken<any, any>, InstanceDecorator[]> | null
-  readonly factoryValues: Map<FactoryInjectionToken<any, any>, FactoryValue>
+  /** The aliases that something was asked for by. */
+  usedAliases: Set<InjectionToken<any, any>> | null
+  /** The args that factory tokens computed. */
+  readonly factoryValues: Map<FactoryInjectionToken<any, any>, Entry>
+  /** `null` drops the errors. */
+  reportError: ErrorReporter | null
   /**
    * Asked by a strict container for a token none of its providers covers,
    * wherever the request comes from. `undefined` leaves the token unprovided.

@@ -1042,12 +1042,12 @@ describe('E2E: Advanced Scenarios', () => {
     })
   })
 
-  describe('tryGetSync functionality', () => {
+  describe('peek functionality', () => {
     it('should return null when service does not exist', () => {
       @Injectable({ scope: InjectableScope.Singleton })
       class LazyService {}
 
-      const result = container.tryGetSync<LazyService>(LazyService)
+      const result = container.peek(LazyService)
       expect(result).toBeNull()
     })
 
@@ -1061,7 +1061,7 @@ describe('E2E: Advanced Scenarios', () => {
       await container.get(EagerService)
 
       // Now sync get should work
-      const result = container.tryGetSync<EagerService>(EagerService)
+      const result = container.peek(EagerService)
       expect(result).not.toBeNull()
       expect(result!.value).toBe(42)
     })

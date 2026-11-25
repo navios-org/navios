@@ -1,11 +1,5 @@
 /**
- * Library Findings - Issues to Investigate
- *
- * This file documents potential issues or edge cases found during e2e testing
- * that require further investigation and potential fixes.
- *
- * Each test case is marked with `.skip` to prevent CI failures.
- * When investigating, remove `.skip` to reproduce the issue.
+ * Edge cases found during e2e testing, all of them resolved since.
  */
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'

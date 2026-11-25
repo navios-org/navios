@@ -1,4 +1,9 @@
-import { DIError } from '../errors/di-error.mjs'
+import {
+  circularDependency,
+  classNotInjectable,
+  foreignCopy,
+  notInjectable,
+} from '../errors/create.mjs'
 import { findInjectableToken } from '../token/injectable-token.mjs'
 import {
   BoundInjectionToken,
@@ -9,9 +14,11 @@ import {
 import type { ProviderRecord } from '../provider/provider-record.mjs'
 import type { AnyInjectableType } from '../token/injection-token.mjs'
 
-import { isThenable, noop } from './thenable.mjs'
+import { EntryStatus } from './entry.mjs'
+import { factoryValue } from './factory-value.mjs'
 
-import type { FactoryValue, Host } from './host.mjs'
+import type { Entry } from './entry.mjs'
+import type { Host, RootHost } from './host.mjs'
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -20,18 +27,14 @@ export let normToken: InjectionToken<any, any> = undefined as never
 export let normArgs: unknown = undefined
 
 /**
- * Reduces any injectable reference to a plain token plus args. Returns a
- * promise when a factory token's value is not computed yet.
+ * Reduces any injectable reference to a plain token plus args. Returns the
+ * value of a factory token if it is still being computed.
  */
-export function normalize(
-  host: Host,
-  raw: AnyInjectableType,
-  rawArgs: unknown,
-): Promise<unknown> | null {
+export function normalize(host: Host, raw: AnyInjectableType, rawArgs: unknown): Entry | null {
   if (typeof raw === 'function') {
     const token = findInjectableToken(raw)
     if (token === undefined) {
-      throw DIError.classNotInjectable(raw.name)
+      throw classNotInjectable(raw.name)
     }
     normToken = token
     normArgs = rawArgs
@@ -48,64 +51,28 @@ export function normalize(
     return null
   }
   if (raw instanceof FactoryInjectionToken) {
-    const state = factoryValue(host, raw)
-    if (!state.done) {
-      return state.promise!
+    const value = factoryValue(host.root, raw)
+    if (value.status === EntryStatus.Creating) {
+      return value
     }
     normToken = raw.token
-    normArgs = state.value
+    normArgs = value.instance
     return null
   }
-  throw DIError.unknown(`[DI] ${String(raw)} is not an injectable class or token`)
+  throw unknownReference(raw)
 }
 
-function factoryValue(host: Host, token: FactoryInjectionToken<any, any>): FactoryValue {
-  const values = host.root.factoryValues
-  let state = values.get(token)
-  if (state !== undefined) {
-    return state
+// The error for something that is neither a class nor a token of this copy.
+function unknownReference(raw: unknown): Error {
+  if (typeof raw === 'object' && raw !== null && 'name' in raw && 'schema' in raw) {
+    return foreignCopy(`Token ${String(raw)}`)
   }
-  state = { done: false, value: undefined, promise: null }
-  values.set(token, state)
-  const created = state
-  // The value is cached per root container, so it is computed against the
-  // root: a scope's own values must not leak into it.
-  const container = host.root.facade
-  let result: unknown
-  try {
-    result = token.factory({
-      inject: (t, a) => (container as any).get(t, a),
-      container,
-      addDestroyListener: noop,
-    })
-  } catch (error) {
-    values.delete(token)
-    throw error
-  }
-  if (isThenable(result)) {
-    const promise = Promise.resolve(result).then(
-      (value) => {
-        created.value = value
-        created.done = true
-        created.promise = null
-      },
-      (error) => {
-        values.delete(token)
-        throw error
-      },
-    )
-    promise.catch(noop)
-    created.promise = promise
-  } else {
-    created.value = result
-    created.done = true
-  }
-  return created
+  return notInjectable(raw)
 }
 
 /**
- * The token behind any injectable reference, without resolving anything.
- * @internal
+ * The token behind any injectable reference, without resolving anything;
+ * `undefined` for a class that is not registered.
  */
 export function baseToken(raw: AnyInjectableType): InjectionToken<any, any> | undefined {
   if (typeof raw === 'function') {
@@ -114,10 +81,20 @@ export function baseToken(raw: AnyInjectableType): InjectionToken<any, any> | un
   if (raw instanceof InjectionToken) {
     return raw
   }
-  return (raw as BoundInjectionToken<any, any>).token
+  if (raw instanceof BoundInjectionToken || raw instanceof FactoryInjectionToken) {
+    return raw.token
+  }
+  throw unknownReference(raw)
 }
 
-/** @internal */
+export function requireToken(raw: AnyInjectableType): InjectionToken<any, any> {
+  const token = baseToken(raw)
+  if (token === undefined) {
+    throw classNotInjectable((raw as { name: string }).name)
+  }
+  return token
+}
+
 export function lookupRecord(
   host: Host,
   token: InjectionToken<any, any>,
@@ -130,15 +107,86 @@ export function lookupRecord(
   return root.strict ? root.providerForUnlisted(token) : token.provider
 }
 
-/** @internal */
+// What an alias (`{ existing }`) points to in the end, with the args that the
+// way there adds. Anything else is returned as it is. `passed` collects the
+// aliases on the way.
+export function followAlias(
+  host: Host,
+  raw: AnyInjectableType,
+  passed?: Set<InjectionToken<any, any>>,
+): AnyInjectableType {
+  let target = raw
+  let withArgs: BoundInjectionToken<any, any> | FactoryInjectionToken<any, any> | null = null
+  const seen: InjectionToken<any, any>[] = []
+  for (;;) {
+    if (target instanceof BoundInjectionToken || target instanceof FactoryInjectionToken) {
+      withArgs = target
+    }
+    const token = baseToken(target)
+    const record = token === undefined ? undefined : lookupRecord(host, token)
+    if (token === undefined || record === undefined || record.kind !== 'existing') {
+      break
+    }
+    seen.push(token)
+    passed?.add(token)
+    target = record.value as AnyInjectableType
+    const next = baseToken(target)
+    if (next !== undefined && seen.includes(next)) {
+      throw circularDependency([...seen, next].map(String))
+    }
+  }
+  if (withArgs === null || withArgs === target) {
+    return target
+  }
+  // A factory token is known by its identity, so it stays the one that computes
+  // the args, for an alias that is followed in turn.
+  return withArgs instanceof FactoryInjectionToken
+    ? withArgs
+    : new BoundInjectionToken(requireToken(target), withArgs.value)
+}
+
+// The token of what `raw` stands for, aliases being followed to their end.
+export function finalToken(
+  host: Host,
+  raw: AnyInjectableType,
+): InjectionToken<any, any> | undefined {
+  const token = baseToken(followAlias(host, raw))
+  return token === undefined ? undefined : baseToken(followAlias(host, token))
+}
+
+// Whether `root` holds an instance for `token`. For an alias that is what it
+// points to, once somebody asked for it by that alias.
+export function isResolved(root: RootHost, token: InjectionToken<any, any>): boolean {
+  if (root.store.hasToken(token)) {
+    return true
+  }
+  const target = aliasTarget(root, token)
+  return target !== undefined && root.store.hasToken(target)
+}
+
+// What an alias that was asked for in `root` points to.
+export function aliasTarget(
+  root: RootHost,
+  alias: InjectionToken<any, any>,
+): InjectionToken<any, any> | undefined {
+  return root.usedAliases?.has(alias) === true ? finalToken(root, alias) : undefined
+}
+
+export function hasInstance(host: Host, token: InjectionToken<any, any>): boolean {
+  return (host.isScope && host.store.hasToken(token)) || host.root.store.hasToken(token)
+}
+
 export function hasProvider(host: Host, raw: AnyInjectableType): boolean {
   const token = baseToken(raw)
   if (token === undefined) {
     return false
   }
-  return (
-    (host.isScope && host.store.hasToken(token)) ||
-    host.root.store.hasToken(token) ||
-    lookupRecord(host, token) !== undefined
-  )
+  if (hasInstance(host, token)) {
+    return true
+  }
+  const record = lookupRecord(host, token)
+  if (record === undefined || record.kind !== 'existing') {
+    return record !== undefined
+  }
+  return hasProvider(host, followAlias(host, token))
 }

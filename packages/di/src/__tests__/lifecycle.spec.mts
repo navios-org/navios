@@ -88,8 +88,8 @@ describe('lifecycle', () => {
     const a = await container.get(A)
     await a.b
     await container.invalidate(a)
-    expect(container.tryGetSync(A)).toBeNull()
-    expect(container.tryGetSync(B)).toBeNull()
+    expect(container.peek(A)).toBeNull()
+    expect(container.peek(B)).toBeNull()
   })
 
   it('fires onInvalidate only for the scope that owns the instance', async () => {
@@ -191,7 +191,7 @@ describe('lifecycle', () => {
     const scope = container.createScope()
     scope.getSync(PerRequest)
     void scope.dispose()
-    expect(scope.tryGetSync(PerRequest)).toBeNull()
+    expect(scope.peek(PerRequest)).toBeNull()
   })
 
   it('waits for services that are still initialising in ready()', async () => {
@@ -257,8 +257,9 @@ describe('lifecycle: ownership edge cases', () => {
     expect(destroyed).toBe(1)
   })
 
-  it('recomputes a factory token after the container is disposed', async () => {
+  it('recomputes a factory token after a testing container is cleared', async () => {
     const { InjectionToken } = await import('../index.mjs')
+    const { TestContainer } = await import('../testing/index.mjs')
     const { z } = await import('zod/v4')
     const schema = z.object({ n: z.number() })
     const Token = InjectionToken.create<{ n: number }, typeof schema>('Cfg', schema)
@@ -274,10 +275,11 @@ describe('lifecycle: ownership edge cases', () => {
 
     let calls = 0
     const FromFactory = InjectionToken.factory(Token, () => ({ n: ++calls }))
-    const container = new Container()
+    const container = new TestContainer()
     expect((await container.get(FromFactory)).n).toBe(1)
-    await container.dispose()
+    await container.clear()
     expect((await container.get(FromFactory)).n).toBe(2)
+    await container.dispose()
   })
 })
 

@@ -1,3 +1,6 @@
+/** Any class, also an abstract one. */
+export type AbstractClassType = abstract new (...args: any[]) => any
+
 export type ClassType = new (...args: any[]) => any
 export type ClassTypeWithoutArguments = new () => any
 export type ClassTypeWithArgument<Arg> = new (arg: Arg) => any

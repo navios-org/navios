@@ -4,13 +4,12 @@ import type { InjectionToken } from '../token/injection-token.mjs'
 
 import type { FactoryContext } from './factory-context.mjs'
 
-export type ProviderKind = 'class' | 'factory' | 'function' | 'value'
+export type ProviderKind = 'class' | 'factory' | 'function' | 'value' | 'existing'
 
 /**
  * One request made by a class while it was being constructed. Only requests
  * without args are recorded: args belong to one build, and the plan is shared
  * by every build of the provider, in every container.
- * @internal
  */
 export interface PlanEntry {
   token: InjectionToken<any, any>
@@ -26,24 +25,30 @@ export interface ProviderRecord {
   target: ClassType | undefined
   /** `function`: called with the factory context and the validated args. */
   fn: ((ctx: FactoryContext, args: any) => unknown) | undefined
-  /** `value`: the value itself. */
+  /** `value`: the value itself. `existing`: the class or token that is meant. */
   value: unknown
   scope: InjectableScope
   /**
    * Requests without args made during the first successful construction, in
    * order. `null` until then.
-   * @internal
    */
   plan: PlanEntry[] | null
-  /**
-   * Set once a construction pass of this provider had to be discarded because
-   * a dependency was not ready; later builds resolve the plan up front.
-   * @internal
-   */
-  preResolve?: boolean
+  /** Set when what it produces stands in for something, like an auto-mock. */
+  isMock?: boolean
 }
 
-/** @internal */
+/** What can be known about a provider from the outside. */
+export interface ProviderInfo {
+  /**
+   * `class`: instances of `target`. `factory`: products of the `@Factory` class
+   * `target`. `function`: products of a factory function. `value`: a ready
+   * value. `existing`: an alias of another class or token.
+   */
+  readonly kind: ProviderKind
+  readonly scope: InjectableScope
+  readonly target: ClassType | undefined
+}
+
 export function createRecord(
   token: InjectionToken<any, any>,
   kind: ProviderKind,

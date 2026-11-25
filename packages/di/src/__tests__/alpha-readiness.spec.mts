@@ -442,7 +442,8 @@ describe('alpha readiness regressions', () => {
       expect(error).toBeInstanceOf(DIError)
       expect((error as DIError).code).toBe(DIErrorCode.OutsideInjectionContext)
       expect((error as DIError).message).toBe(
-        '[Injector] Trying to access inject outside of a injectable context',
+        'inject() can only be called synchronously while a class or factory is being built; ' +
+          'after an await use ctx.inject()',
       )
     })
   })
