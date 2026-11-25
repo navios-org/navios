@@ -1,7 +1,7 @@
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { createApplication } from '../application/application.mjs'
-import { Injectable } from '../index.mjs'
+import { inject, Injectable, InjectionToken, Logger, LoggerOutput, provide } from '../index.mjs'
 import { registerModule } from '../modules/index.mjs'
 import { definePlugin } from '../plugins/index.mjs'
 import { fakeTransport } from '../testing/index.mjs'
@@ -383,5 +383,161 @@ describe('Application', () => {
     await expect(app.init()).rejects.toThrow('[Navios] The application is closed.')
     await expect(app.start()).rejects.toThrow('[Navios] The application is closed.')
     expect(log).toEqual([])
+  })
+
+  it('gives every caller of close() the same shutdown', async () => {
+    const log: string[] = []
+    let release!: () => void
+    const gate = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    const slow = defineTransport({
+      name: 'slow',
+      create: () => ({
+        setup() {},
+        async stop() {
+          await gate
+          log.push('stopped')
+        },
+      }),
+    })
+    const app = createApplication(module('Root'), { logger: false, transports: [slow()] })
+    await app.start()
+
+    const first = app.close()
+    const second = app.close().then(() => log.push('second close resolved'))
+    await new Promise((resolve) => setTimeout(resolve, 5))
+    expect(log).toEqual([])
+    release()
+    await Promise.all([first, second])
+
+    expect(log).toEqual(['stopped', 'second close resolved'])
+  })
+
+  it('stops every transport when one fails to start', async () => {
+    const log: string[] = []
+    const app = create(module('Root'), {
+      transports: [
+        fakeTransport({ kind: 'a', entry: 'as', log }, 'a'),
+        fakeTransport({ kind: 'b', entry: 'bs', log, failStart: true }, 'b'),
+        fakeTransport({ kind: 'c', entry: 'cs', log }, 'c'),
+      ],
+    })
+
+    await expect(app.start()).rejects.toThrow('b start failed')
+
+    expect(log.slice(-5)).toEqual(['a:start', 'b:start', 'a:stop', 'b:stop', 'c:stop'])
+    await app.close()
+    expect(log.filter((line) => line.endsWith(':stop'))).toHaveLength(3)
+  })
+
+  it('reports a close that fails after a signal instead of leaving it unhandled', async () => {
+    const error = vi.fn()
+    const logger = { log() {}, error, warn() {}, debug() {}, verbose() {}, fatal() {} }
+    const app = createApplication(module('Root'), { logger })
+    await app.init()
+    const failure = new Error('dispose failed')
+    const dispose = vi.spyOn(app.container, 'dispose').mockRejectedValueOnce(failure)
+    app.enableShutdownHooks(['SIGUSR2'])
+
+    process.emit('SIGUSR2')
+    await expect(app.close()).rejects.toThrow('dispose failed')
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    expect(error.mock.calls.some((call) => call.includes(failure))).toBe(true)
+    dispose.mockRestore()
+    await app.container.dispose()
+  })
+
+  it('applies the providers of a module before the logger is resolved', async () => {
+    const lines: unknown[] = []
+    const output = {
+      log: (message: unknown) => void lines.push(message),
+      error() {},
+      warn() {},
+      debug() {},
+      verbose() {},
+      fatal() {},
+    }
+    class Root {
+      private readonly logger = inject(Logger, { context: 'Root' })
+      onModuleInit() {
+        this.logger.log('hello from the module')
+      }
+    }
+    registerModule(Root, { providers: [provide(LoggerOutput, { value: output })] })
+    const stdout = vi.spyOn(process.stdout, 'write').mockReturnValue(true)
+
+    try {
+      const app = createApplication(Root)
+      apps.push(app)
+      await app.init()
+    } finally {
+      stdout.mockRestore()
+    }
+
+    expect(lines).toContain('hello from the module')
+  })
+
+  it('applies the providers of a module before transports and plugins are set up', async () => {
+    const Token = InjectionToken.create<string>('early-token')
+    const seen: string[] = []
+    const reader = defineTransport({
+      name: 'reader',
+      async create(host) {
+        seen.push(`transport:${await host.container.get(Token)}`)
+        return { setup() {}, stop() {} }
+      },
+    })
+    const plugin = definePlugin({
+      name: 'reader',
+      async setup(api) {
+        seen.push(`plugin:${await api.container.get(Token)}`)
+      },
+    })
+    const Root = module('Root', { providers: [provide(Token, { value: 'from-module' })] })
+    const app = create(Root, { plugins: [plugin()], transports: [reader()] })
+
+    await app.init()
+
+    expect(seen).toEqual(['transport:from-module', 'plugin:from-module'])
+  })
+
+  it('applies the providers of a module that a plugin adds', async () => {
+    const Token = InjectionToken.create<string>('plugin-module-token')
+    const Extra = module('Extra', { providers: [provide(Token, { value: 'from-extra' })] })
+    const plugin = definePlugin({
+      name: 'adder',
+      setup(api) {
+        api.addModule(Extra)
+      },
+    })
+    const app = create(module('Root'), { plugins: [plugin()] })
+
+    await app.init()
+
+    await expect(app.get(Token)).resolves.toBe('from-extra')
+  })
+
+  it('refuses one plugin registered twice with different options', async () => {
+    const applied: string[] = []
+    const plugin = definePlugin({
+      name: 'twice',
+      setup(_api, options: { value: string }) {
+        applied.push(options.value)
+      },
+    })
+    const once = plugin({ value: 'one' })
+
+    const same = create(module('Root'), { plugins: [once, once] })
+    await same.init()
+    expect(applied).toEqual(['one'])
+
+    const different = create(module('Root'), {
+      plugins: [plugin({ value: 'one' }), plugin({ value: 'two' })],
+    })
+    await expect(different.init()).rejects.toThrow(
+      '[Navios] Plugin "twice" is registered twice with different options.',
+    )
   })
 })

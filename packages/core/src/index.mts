@@ -4,9 +4,7 @@
  * transport builds on. Nothing here knows about HTTP; that is
  * `@navios/server`.
  */
-import { registerCopy } from './internal/single-copy.mjs'
-
-registerCopy(import.meta.url, (message) => console.warn(message))
+import './internal/this-copy.mjs'
 
 export * from '@navios/di'
 export { Application, createApplication } from './application/application.mjs'

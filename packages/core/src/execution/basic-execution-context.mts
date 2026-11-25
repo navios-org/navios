@@ -89,7 +89,7 @@ export class BasicExecutionContext implements ExecutionContext {
 
   onFinish(callback: () => void | Promise<void>): void {
     if (this.finished) {
-      void runQuietly(callback)
+      void this.runFinisher(callback)
       return
     }
     ;(this.finishers ??= []).push(callback)
@@ -108,13 +108,27 @@ export class BasicExecutionContext implements ExecutionContext {
     this.finishers = null
     if (finishers !== null) {
       for (let i = finishers.length - 1; i >= 0; i--) {
-        await runQuietly(finishers[i])
+        await this.runFinisher(finishers[i])
       }
     }
     const scope = this.scope
     this.scope = null
     if (scope !== null) {
       await scope.dispose()
+    }
+  }
+
+  /** Runs a callback whose failure must not stop what follows. */
+  private async runFinisher(callback: () => void | Promise<void>): Promise<void> {
+    try {
+      await callback()
+    } catch (error) {
+      // A failing callback must not stop the others, so it is only reported.
+      try {
+        this.host.logger?.error(`Error in an onFinish callback of ${this.kind} ${this.id}`, error)
+      } catch {
+        // Nor may a failing logger.
+      }
     }
   }
 }
@@ -134,12 +148,3 @@ BasicExecutionContext.prototype.resolve = function resolve(
 ) {
   return (this.scopeFor(token).get as any)(token, args)
 } as ScopedContainer['get']
-
-/** Runs a callback whose failure must not stop what follows. */
-async function runQuietly(callback: () => void | Promise<void>): Promise<void> {
-  try {
-    await callback()
-  } catch {
-    // A failing callback must not stop the others.
-  }
-}

@@ -94,6 +94,29 @@ describe('BasicExecutionContext', () => {
     expect(order).toEqual(['b', 'a'])
   })
 
+  it('reports a throwing finisher to the logger of the host', async () => {
+    const error = vi.fn()
+    const failure = new Error('finisher failed')
+    const logged = new BasicExecutionContext({
+      kind: 'test',
+      id: 'run-2',
+      handler,
+      host: { ...host, logger: { error } },
+    })
+    logged.onFinish(() => {
+      throw failure
+    })
+
+    await expect(logged.finish()).resolves.toBeUndefined()
+    logged.onFinish(async () => {
+      throw failure
+    })
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    expect(error).toHaveBeenCalledTimes(2)
+    expect(error.mock.calls[0]).toContain(failure)
+  })
+
   it('runs a finisher registered after finish at once', async () => {
     await ctx.finish()
     const late = vi.fn()

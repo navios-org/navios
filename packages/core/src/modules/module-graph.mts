@@ -1,6 +1,8 @@
 import type { ClassType, Provider } from '@navios/di'
 
-import { getModuleMetadata } from './module-metadata.mjs'
+import { assertImportsDefined, getModuleMetadata } from './module-metadata.mjs'
+
+import type { ModuleMetadata } from './module-metadata.mjs'
 
 /**
  * A module as it applies to one application: its guards, interceptors and
@@ -20,6 +22,16 @@ export interface ModuleNode {
   isRoot: boolean
 }
 
+/** What a module has while the graph is being computed. */
+interface Draft {
+  node: ModuleNode
+  metadata: ModuleMetadata
+  /** How many edges away each attribute was set; 0 is the module itself. */
+  distances: Map<symbol, number>
+  /** Position in the outermost-first order, once known. */
+  rank: number
+}
+
 function addAll<T>(target: T[], source: Iterable<T>): void {
   for (const item of source) {
     if (!target.includes(item)) {
@@ -33,75 +45,104 @@ function addAll<T>(target: T[], source: Iterable<T>): void {
  * application only, what applies to each module.
  *
  * - Guards and interceptors are the union over every path that reaches a
- *   module, outermost first. Nothing is written back to the classes, so two
- *   applications importing one module under different parents do not affect
- *   each other.
- * - For attributes, the nearest module that sets a value wins.
+ *   module, outermost first: what the importers contribute, importers in
+ *   import order, then the module's own. Nothing is written back to the
+ *   classes, so two applications importing one module under different parents
+ *   do not affect each other.
+ * - For attributes, the nearest module that sets a value wins: the one the
+ *   fewest imports away, and of two equally near, the outermost.
  *
+ * Neither depends on the order in which a module happens to be reached.
  * Modules are returned in dependency order: a module comes after everything
  * it imports.
  */
 export function buildModuleGraph(roots: ClassType[]): ModuleNode[] {
-  const nodes = new Map<ClassType, ModuleNode>()
-  const order: ClassType[] = []
-  const stack: ClassType[] = []
+  const drafts = new Map<ClassType, Draft>()
+  const order: ModuleNode[] = []
 
-  const visit = (
-    module: ClassType,
-    importer: ModuleNode | null,
-    inheritedGuards: ClassType[],
-    inheritedInterceptors: ClassType[],
-    inheritedAttributes: Map<symbol, unknown>,
-  ): void => {
-    let node = nodes.get(module)
-    if (node && importer && !node.importers.includes(importer)) {
-      node.importers.push(importer)
-    }
-    if (stack.includes(module)) {
+  // First walk: every module once, in dependency order, with its importers.
+  const visit = (module: ClassType, importer: ModuleNode | null): void => {
+    const known = drafts.get(module)
+    if (known) {
+      if (importer && !known.node.importers.includes(importer)) {
+        known.node.importers.push(importer)
+      }
       return
     }
     const metadata = getModuleMetadata(module)
-    if (!node) {
-      node = {
-        module,
-        providers: metadata.providers,
-        entries: metadata.entries,
-        guards: [],
-        interceptors: [],
-        attributes: new Map(),
-        importers: importer ? [importer] : [],
-        isRoot: false,
-      }
-      nodes.set(module, node)
+    const imports = metadata.imports
+    assertImportsDefined(module, imports)
+    const node: ModuleNode = {
+      module,
+      providers: metadata.providers,
+      entries: metadata.entries,
+      guards: [],
+      interceptors: [],
+      attributes: new Map(),
+      importers: importer ? [importer] : [],
+      isRoot: false,
     }
-    addAll(node.guards, inheritedGuards)
-    addAll(node.guards, metadata.guards)
-    addAll(node.interceptors, inheritedInterceptors)
-    addAll(node.interceptors, metadata.interceptors)
-
-    const attributes = new Map(inheritedAttributes)
-    for (const [key, value] of metadata.attributes) {
-      attributes.set(key, value)
+    drafts.set(module, { node, metadata, distances: new Map(), rank: -1 })
+    for (const imported of imports) {
+      visit(imported, node)
     }
-    for (const [key, value] of attributes) {
-      if (!node.attributes.has(key) || metadata.attributes.has(key)) {
-        node.attributes.set(key, value)
-      }
-    }
-
-    stack.push(module)
-    for (const imported of metadata.imports) {
-      visit(imported, node, node.guards, node.interceptors, attributes)
-    }
-    stack.pop()
-    if (!order.includes(module)) {
-      order.push(module)
-    }
+    order.push(node)
   }
-
   for (const root of roots) {
-    visit(root, null, [], [], new Map())
-    nodes.get(root)!.isRoot = true
+    visit(root, null)
+    drafts.get(root)!.node.isRoot = true
   }
-  return order.map((module) => nodes.get(module)!)
+
+  // Second walk: importers before what they import, siblings in import
+  // order. That is the reverse of a post-order that takes the imports last
+  // to first. An import that closes a cycle points back up this order.
+  const outermostFirst: Draft[] = []
+  const rank = (draft: Draft): void => {
+    if (draft.rank !== -1) {
+      return
+    }
+    draft.rank = 0
+    const imports = draft.metadata.imports
+    for (let i = imports.length - 1; i >= 0; i--) {
+      rank(drafts.get(imports[i])!)
+    }
+    outermostFirst.push(draft)
+  }
+  for (let i = roots.length - 1; i >= 0; i--) {
+    rank(drafts.get(roots[i])!)
+  }
+  outermostFirst.reverse()
+  outermostFirst.forEach((draft, index) => {
+    draft.rank = index
+  })
+
+  // Each module is complete when its turn comes, because everything that
+  // imports it came before; it then hands what it has to its imports.
+  for (const draft of outermostFirst) {
+    const { node, metadata, distances } = draft
+    addAll(node.guards, metadata.guards)
+    addAll(node.interceptors, metadata.interceptors)
+    for (const [key, value] of metadata.attributes) {
+      node.attributes.set(key, value)
+      distances.set(key, 0)
+    }
+    for (const imported of metadata.imports) {
+      const child = drafts.get(imported)!
+      if (child.rank <= draft.rank) {
+        // Closes a cycle: nothing is inherited against the direction of it.
+        continue
+      }
+      addAll(child.node.guards, node.guards)
+      addAll(child.node.interceptors, node.interceptors)
+      for (const [key, value] of node.attributes) {
+        const distance = distances.get(key)! + 1
+        const current = child.distances.get(key)
+        if (current === undefined || distance < current) {
+          child.node.attributes.set(key, value)
+          child.distances.set(key, distance)
+        }
+      }
+    }
+  }
+  return order
 }

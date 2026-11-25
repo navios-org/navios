@@ -12,6 +12,7 @@ import { orderPlugins } from '../plugins/order-plugins.mjs'
 
 import type { LoggerService } from '../logger/logger-output.mjs'
 import type { LoggerInstance } from '../logger/logger.mjs'
+import type { ModuleNode } from '../modules/module-graph.mjs'
 import type { PluginApi, PluginInstance } from '../plugins/plugin.mjs'
 import type {
   Transport,
@@ -70,6 +71,7 @@ export class Application {
   private initialisation: Promise<void> | null = null
   private startup: Promise<void> | null = null
   private closed = false
+  private closing: Promise<void> | null = null
   private signalHandlers: Array<[NodeJS.Signals, () => void]> = []
 
   constructor(
@@ -204,6 +206,11 @@ export class Application {
   private async build(): Promise<void> {
     const { applicationOptions: options, container } = this
 
+    // The providers of the modules come first: whatever is resolved from here
+    // on, the logger included, must already see them.
+    let graph = buildModuleGraph([this.appModule])
+    this.applyModuleProviders(graph)
+
     this.setupLogger()
     this.logger = (await container.get(Logger, { context: 'Navios' })) as LoggerInstance
 
@@ -230,13 +237,10 @@ export class Application {
     await this.setupPlugins()
     this.initialised = true
 
-    const graph = buildModuleGraph([this.appModule, ...this.extraModules])
-    for (const node of graph) {
-      for (const provider of node.providers) {
-        if (!container.overrides.has(provider.token)) {
-          container.overrides.set(provider.token, provider.record)
-        }
-      }
+    if (this.extraModules.length > 0) {
+      // Modules that plugins added are only known now.
+      graph = buildModuleGraph([this.appModule, ...this.extraModules])
+      this.applyModuleProviders(graph)
     }
     for (const node of graph) {
       const instance = (await container.get(node.module)) as Partial<OnModuleInit>
@@ -255,6 +259,18 @@ export class Application {
     for (const instance of container.instances() as Partial<OnApplicationBootstrap>[]) {
       if (instance !== null && typeof instance?.onApplicationBootstrap === 'function') {
         await instance.onApplicationBootstrap()
+      }
+    }
+  }
+
+  /** Supplies the providers of the modules for tokens nothing else provides. */
+  private applyModuleProviders(graph: ModuleNode[]): void {
+    const { overrides } = this.container
+    for (const node of graph) {
+      for (const provider of node.providers) {
+        if (!overrides.has(provider.token)) {
+          overrides.set(provider.token, provider.record)
+        }
       }
     }
   }
@@ -328,11 +344,18 @@ export class Application {
   }
 
   private async startTransports(): Promise<void> {
-    for (const slot of this.slots) {
-      if (!slot.started) {
-        slot.started = true
-        await slot.transport!.start?.()
+    try {
+      for (const slot of this.slots) {
+        if (!slot.started) {
+          slot.started = true
+          await slot.transport!.start?.()
+        }
       }
+    } catch (error) {
+      // Nothing may be left running: the transports that did start would
+      // keep accepting work for an application that failed to start.
+      await Promise.allSettled(this.slots.map((slot) => this.stopTransport(slot, 0)))
+      throw error
     }
   }
 
@@ -342,7 +365,14 @@ export class Application {
   enableShutdownHooks(signals: NodeJS.Signals[] = ['SIGTERM', 'SIGINT']): this {
     for (const signal of signals) {
       const handler = () => {
-        void this.close(signal)
+        this.close(signal).catch((error: unknown) => {
+          const message = `Error closing the application on ${signal}`
+          if (this.logger) {
+            this.logger.error(message, error)
+          } else {
+            console.error(`[Navios] ${message}`, error)
+          }
+        })
       }
       process.once(signal, handler)
       this.signalHandlers.push([signal, handler])
@@ -353,12 +383,15 @@ export class Application {
   /**
    * Shuts down: every transport stops accepting work and waits for what is
    * in flight, shutdown hooks run in reverse order, then the container is
-   * disposed, which runs `onServiceDestroy` hooks.
+   * disposed, which runs `onServiceDestroy` hooks. Runs once, however often
+   * and from wherever it is called; every caller gets the outcome of that run.
    */
-  async close(signal?: string): Promise<void> {
-    if (this.closed) {
-      return
-    }
+  close(signal?: string): Promise<void> {
+    this.closing ??= this.shutdown(signal)
+    return this.closing
+  }
+
+  private async shutdown(signal?: string): Promise<void> {
     this.closed = true
     for (const [name, handler] of this.signalHandlers) {
       process.off(name, handler)

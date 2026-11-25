@@ -9,6 +9,8 @@ export interface ContextHost {
   readonly container: Container
   /** Called the first time a request-scoped token is used; may throw. */
   onScopedUse: ((token: AnyInjectableType) => void) | null
+  /** Receives what an `onFinish` callback throws; without it that is dropped. */
+  readonly logger?: Pick<LoggerService, 'error'>
 }
 
 function tokenName(token: unknown): string {
@@ -25,11 +27,12 @@ export function createContextHost(
   logger: LoggerService,
 ): ContextHost {
   if (mode === 'allow') {
-    return { container, onScopedUse: null }
+    return { container, onScopedUse: null, logger }
   }
   const seen = new Set<unknown>()
   return {
     container,
+    logger,
     onScopedUse: (token) => {
       if (mode === 'forbid') {
         throw new Error(

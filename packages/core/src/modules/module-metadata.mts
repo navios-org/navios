@@ -42,8 +42,10 @@ export function defineModuleMetadata(
       entries.set(name, value)
     }
   }
+  const imports = unique([...(options.imports ?? [])])
+  assertImportsDefined(target, imports)
   const module: ModuleMetadata = {
-    imports: unique([...(options.imports ?? [])]),
+    imports,
     guards: prepend(classGuards(context), options.guards),
     interceptors: prepend(classInterceptors(context), options.interceptors),
     providers: [...(options.providers ?? [])],
@@ -56,6 +58,22 @@ export function defineModuleMetadata(
     enumerable: false,
   })
   return module
+}
+
+/**
+ * An import that is `undefined` is what an import cycle between files leaves
+ * behind: the importing file ran before the imported one defined its class.
+ * @internal
+ */
+export function assertImportsDefined(target: ClassType, imports: readonly unknown[]): void {
+  const index = imports.findIndex((imported) => imported === undefined || imported === null)
+  if (index !== -1) {
+    throw new Error(
+      `[Navios] Module ${target.name} imports ${String(imports[index])} at index ${index} of ` +
+        `its imports. This usually means the files of the two modules import each other, so the ` +
+        `imported module was not defined yet when ${target.name} was. Break the import cycle.`,
+    )
+  }
 }
 
 export function getModuleMetadata(target: ClassType): ModuleMetadata {

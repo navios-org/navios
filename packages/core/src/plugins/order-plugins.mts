@@ -1,15 +1,22 @@
 import type { PluginInstance } from './plugin.mjs'
 
 /**
- * Orders plugins so that each comes after the plugins it depends on, and
- * removes duplicates by name.
+ * Orders plugins so that each comes after the plugins it depends on. A plugin
+ * registered twice is applied once; registering it again with other options
+ * is an error, since only one of the two could take effect.
  * @internal
  */
 export function orderPlugins(plugins: PluginInstance[]): PluginInstance[] {
   const byName = new Map<string, PluginInstance>()
   for (const plugin of plugins) {
-    if (!byName.has(plugin.definition.name)) {
+    const existing = byName.get(plugin.definition.name)
+    if (existing === undefined) {
       byName.set(plugin.definition.name, plugin)
+    } else if (existing.options !== plugin.options) {
+      throw new Error(
+        `[Navios] Plugin "${plugin.definition.name}" is registered twice with different ` +
+          `options. Register it once.`,
+      )
     }
   }
   const ordered: PluginInstance[] = []

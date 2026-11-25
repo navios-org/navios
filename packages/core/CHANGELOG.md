@@ -30,6 +30,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`@navios/core/testing`** with `fakeTransport`.
 - **A warning when two copies of the package are loaded.**
 
+### Fixed
+
+- **`close()` called again while a shutdown is in flight** returns that shutdown instead of resolving at once.
+- **A transport that fails to start** no longer leaves the transports started before it running: every transport is stopped, then `start()` rejects.
+- **A `close()` that rejects after a signal** from `enableShutdownHooks()` is reported through the logger instead of becoming an unhandled rejection.
+- **`providers` of a module are applied before anything is resolved**, so `@Module({ providers: [provide(LoggerOutput, …)] })` takes effect. Providers of modules that a plugin adds are applied after the plugins are set up.
+- **`buildModuleGraph` visits a module once** however many paths reach it; diamond imports used to cost exponential time. Inherited guards and interceptors now always come before the module's own, and what a shared module inherits no longer depends on the path that reached it first: for attributes the fewest imports away wins.
+- **An `undefined` entry in `imports`**, the usual sign of an import cycle between files, throws an error that names the importing module.
+- **A plugin registered twice with different options** throws instead of dropping the second registration.
+- **`envInt`** returns the default for a value that is not a number, instead of `NaN`.
+- **The second-copy warning** also covers copies loaded only through `@navios/core/transport`, `/testing` or `/legacy-compat`.
+- **An `onFinish` callback that throws** is reported to the application's logger; it used to be dropped silently.
+
 ## [1.1.0] - 2026-01-15
 
 ### Added

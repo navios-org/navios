@@ -7,6 +7,8 @@
  * implementation as the standard decorator of the same name, so behaviour is
  * identical.
  */
+import '../internal/this-copy.mjs'
+
 export {
   createClassContext,
   createMethodContext,

@@ -5,6 +5,8 @@
  *
  * Application code imports from `@navios/core`.
  */
+import './internal/this-copy.mjs'
+
 export {
   enableAsyncContext,
   isAsyncContextEnabled,
