@@ -7,8 +7,10 @@ OpenAPI 3.1 documentation for [Navios](https://navios.tech) applications. One pl
 ## Install
 
 ```bash
-npm install @navios/openapi
+npm install @navios/openapi@next
 ```
+
+The 2.0 alpha is published under the `next` tag. All `@navios` packages of a project must have the same alpha version, because an alpha may break between releases.
 
 `@navios/server` is a peer dependency. The plugin's routes are ordinary Navios routes, so it works the same on every adapter. The example also uses `@navios/adapter-fastify`, `@navios/builder` and `zod`.
 

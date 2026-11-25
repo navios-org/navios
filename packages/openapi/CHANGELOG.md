@@ -5,14 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.0.0] - Unreleased
+## [2.0.0-alpha.0] - Unreleased
 
 ### Added
 
 - **`openApiPlugin(options)`**, one adapter-neutral plugin made with `definePlugin`. It builds the document from `app.routes()` and serves it as JSON, optionally YAML, with the Scalar page, through ordinary Navios routes. No adapter package is needed.
 - **Any Standard Schema.** JSON Schema comes from the Standard JSON Schema extension (`~standard.jsonSchema`, implemented by Zod 4 and ArkType), `input` for request slots and `output` for responses; otherwise from the new `toJsonSchema(schema, io)` option; otherwise the slot is an unconstrained schema and one warning naming the endpoint is logged at `init()`.
 - `generateOpenApiDocument(routes, options)`, `extractOpenApiMetadata(route)`, `SchemaConverter`, `describeMultipartFields`, `toOpenApiPath`, `extractUrlParamNames`.
-- Options `disableJson` and `transformDocument`.
+- Options `disableJson` and `transformDocument`. Slashes around `jsonPath`, `yamlPath` and `docsPath` do not matter.
 - `response: 'void'` endpoints are described as `No content`, and per-status `responses` endpoints get one response entry per declared status.
 - Upload fields declared with `z.instanceof(File)` or `z.instanceof(Blob)` are described as binary strings; other custom schemas become unconstrained schemas instead of failing generation.
 - `headersSchema`, `cookiesSchema` and `urlParamsSchema` are documented as parameters.

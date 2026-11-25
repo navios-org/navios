@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.0.0] - Unreleased
+## [2.0.0-alpha.0] - Unreleased
 
 Ported to the 2.0 APIs of `@navios/di` and `@navios/core`. The package is now adapter-neutral and complete on its own: it no longer needs `@navios/otel-fastify` or `@navios/otel-bun`. Its main entry depends on `@navios/core` only and works in an application without HTTP; `@navios/server` is an optional peer dependency, needed for HTTP request spans.
 

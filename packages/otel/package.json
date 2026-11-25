@@ -1,6 +1,6 @@
 {
   "name": "@navios/otel",
-  "version": "1.0.0-alpha.3",
+  "version": "2.0.0-alpha.0",
   "description": "OpenTelemetry integration for Navios framework",
   "license": "MIT",
   "author": {
@@ -9,9 +9,15 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/Arilas/navios.git",
+    "url": "https://github.com/navios-org/navios.git",
     "directory": "packages/otel"
   },
+  "files": [
+    "lib",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ],
   "main": "./lib/index.cjs",
   "module": "./lib/index.mjs",
   "typings": "./lib/index.d.mts",
@@ -52,7 +58,7 @@
     "lint": "yarn run -T oxlint --fix && yarn run -T oxfmt",
     "test:ci": "vitest run",
     "build": "tsdown",
-    "publish": "yarn npm publish --access public",
+    "publish": "node ../../scripts/assert-stable-version.mjs && yarn npm publish --access public",
     "publish:next": "yarn npm publish --access public --tag next"
   },
   "dependencies": {
@@ -73,9 +79,9 @@
     "zod": "^4.6.7"
   },
   "peerDependencies": {
-    "@navios/core": "workspace:^",
-    "@navios/di": "workspace:^",
-    "@navios/server": "workspace:^",
+    "@navios/core": "workspace:*",
+    "@navios/di": "workspace:*",
+    "@navios/server": "workspace:*",
     "@opentelemetry/api": ">=1.9.0 <1.10.0",
     "@opentelemetry/exporter-metrics-otlp-http": ">=0.200.0",
     "@opentelemetry/exporter-trace-otlp-http": ">=0.200.0"
@@ -90,5 +96,8 @@
     "@opentelemetry/exporter-trace-otlp-http": {
       "optional": true
     }
+  },
+  "engines": {
+    "node": ">=22"
   }
 }

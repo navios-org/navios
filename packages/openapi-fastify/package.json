@@ -1,6 +1,6 @@
 {
   "name": "@navios/openapi-fastify",
-  "version": "1.0.0",
+  "version": "2.0.0-alpha.0",
   "license": "MIT",
   "author": {
     "name": "Oleksandr Hanzha",
@@ -8,9 +8,15 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/Arilas/navios.git",
+    "url": "https://github.com/navios-org/navios.git",
     "directory": "packages/openapi-fastify"
   },
+  "files": [
+    "lib",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ],
   "main": "./lib/index.cjs",
   "module": "./lib/index.mjs",
   "typings": "./lib/index.d.mts",
@@ -31,7 +37,7 @@
     "lint": "yarn run -T oxlint --fix && yarn run -T oxfmt",
     "test:ci": "vitest run",
     "build": "tsdown",
-    "publish": "yarn npm publish --access public",
+    "publish": "node ../../scripts/assert-stable-version.mjs && yarn npm publish --access public",
     "publish:next": "yarn npm publish --access public --tag next"
   },
   "devDependencies": {
@@ -45,8 +51,11 @@
     "zod": "^4.6.7"
   },
   "peerDependencies": {
-    "@navios/core": "workspace:^",
-    "@navios/openapi": "workspace:^",
-    "@navios/server": "workspace:^"
+    "@navios/core": "workspace:*",
+    "@navios/openapi": "workspace:*",
+    "@navios/server": "workspace:*"
+  },
+  "engines": {
+    "node": ">=22"
   }
 }

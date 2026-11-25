@@ -133,6 +133,26 @@ describe('openApiPlugin', () => {
     expect((await app.inject({ method: 'GET', url: '/docs' })).status).toBe(404)
   })
 
+  it('takes a path with or without slashes around it', async () => {
+    for (const [docsPath, jsonPath, yamlPath, globalPrefix, docs, json, yaml] of [
+      ['docs', 'openapi.json', 'openapi.yaml', '', '/docs', '/openapi.json', '/openapi.yaml'],
+      ['/ref/', '/spec/api/', 'a/b', '', '/ref', '/spec/api', '/a/b'],
+      ['docs/', 'openapi.json', '/y', 'v1', '/v1/docs', '/v1/openapi.json', '/v1/y'],
+      ['/', 'j', 'y', '', '/', '/j', '/y'],
+      ['', 'j', 'y', '/api', '/api', '/api/j', '/api/y'],
+    ]) {
+      const app = await createApp([UsersController], {
+        globalPrefix,
+        plugins: [openApiPlugin({ info, docsPath, jsonPath, yamlPath, disableYaml: false })],
+      })
+      const paths = app.routes().map((route: RouteInfo) => route.path)
+      expect(paths).toEqual(expect.arrayContaining([docs, json, yaml]))
+      const page = await app.inject({ method: 'GET', url: docs })
+      expect(page.status).toBe(200)
+      expect(page.text).toContain(`"${json}"`)
+    }
+  })
+
   it('can disable the Scalar page and the JSON route', async () => {
     const app = await createApp([UsersController], {
       plugins: [

@@ -7,11 +7,13 @@ OpenTelemetry tracing for [Navios](https://navios.tech) applications. One plugin
 ## Install
 
 ```bash
-npm install @navios/otel @opentelemetry/api
+npm install @navios/otel@next @opentelemetry/api
 
 # For OTLP export (Jaeger, Tempo, an OpenTelemetry Collector, ...)
 npm install @opentelemetry/exporter-trace-otlp-http
 ```
+
+The 2.0 alpha is published under the `next` tag. All `@navios` packages of a project must have the same alpha version, because an alpha may break between releases.
 
 `@navios/core`, `@navios/di` and `@opentelemetry/api` are peer dependencies, and `@navios/server` is an optional one, needed for HTTP request spans; the OpenTelemetry SDK packages are installed with the plugin. The OTLP exporters are optional and loaded only when `exporter` is `'otlp'`. The example also uses `@navios/adapter-fastify`.
 
