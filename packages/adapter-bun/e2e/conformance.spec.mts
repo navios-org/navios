@@ -10,6 +10,7 @@ runAdapterConformance({
   runner: { describe, it, expect, beforeAll, afterAll },
   name: 'bun',
   adapter: () => defineBunEnvironment({ serve: { maxRequestBodySize: BODY_LIMIT } }),
+  cors: (cors) => defineBunEnvironment({ cors }),
   listenOptions: { port: 0, hostname: '127.0.0.1' },
   bodyLimit: BODY_LIMIT,
 })

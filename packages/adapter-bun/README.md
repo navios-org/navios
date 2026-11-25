@@ -7,8 +7,10 @@ Runs a [Navios](https://navios.tech) application on `Bun.serve`. The adapter reg
 ## Install
 
 ```bash
-bun add @navios/adapter-bun @navios/server @navios/builder
+bun add @navios/adapter-bun@next @navios/server@next @navios/builder@next
 ```
+
+The 2.0 alpha is published under the `next` tag. All `@navios` packages of a project must have the same alpha version, because an alpha may break between releases.
 
 Requires Bun 1.3.10 or newer. The adapter has no runtime dependencies of its own.
 
@@ -31,7 +33,11 @@ declare module '@navios/server' {
 
 const app = await NaviosFactory.create(AppModule, {
   adapter: defineBunEnvironment({
-    cors: { origin: ['https://app.example.com', /\.example\.org$/], credentials: true },
+    cors: {
+      origin: ['https://app.example.com', /\.example\.org$/],
+      credentials: true,
+      methods: ['GET', 'POST', 'PUT', 'DELETE'],
+    },
     serve: {
       maxRequestBodySize: 10 * 1024 * 1024,
       idleTimeout: 30,
@@ -54,6 +60,7 @@ const url = await app.listen({ port: 3000, hostname: '0.0.0.0' })
 | File uploads                        | `body: 'multipart'`, no option needed                       | [Multipart](https://navios.tech/docs/server/adapters/bun#multipart)                               |
 | Body size limit                     | `serve.maxRequestBodySize`, answered with a 413 problem     | [Body size limit](https://navios.tech/docs/server/adapters/bun#body-size-limit)                   |
 | Streaming responses                 | `response: 'stream'`; there is no native reply to take over | [Taking over the response](https://navios.tech/docs/server/adapters/bun#taking-over-the-response) |
+| WebSockets                          | `serve.websocket`, `ctx.raw.server.upgrade()`               | [WebSockets](https://navios.tech/docs/server/adapters/bun#websockets)                             |
 | Graceful shutdown                   | `app.close()`, `shutdownTimeout`                            | [Shutdown](https://navios.tech/docs/server/adapters/bun#shutdown)                                 |
 | Tests without a socket              | `app.inject()`                                              | [Testing](https://navios.tech/docs/server/essentials/testing)                                     |
 
