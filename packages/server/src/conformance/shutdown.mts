@@ -95,13 +95,20 @@ export function defineShutdownTopic(suite: ConformanceSuite) {
         await withApp(async (app, base) => {
           const { hostname, port } = new URL(base)
           const socket = connect(Number(port), hostname)
+          let received = ''
+          socket.on('data', (data) => (received += String(data)))
           socket.on('error', () => {})
           const closed = new Promise<void>((resolve) => socket.once('close', () => resolve()))
           await new Promise<void>((resolve) => socket.once('connect', () => resolve()))
-          // The server has accepted it by the time it answers another client.
+          // A server that accepts it does so before it answers another client.
           await (await fetch(`${base}/simple`)).text()
           expect((await timeToClose(app)) < SHUTDOWN_TIMEOUT / 2).toBe(true)
+          // One that leaves it to the system until the client sends something,
+          // as Bun does on Linux, has no connection that it could close. The
+          // client learns that the server is gone when it sends its request.
+          socket.write('GET /simple HTTP/1.1\r\nhost: localhost\r\n\r\n')
           await closed
+          expect(received).toBe('')
         })
       })
 
