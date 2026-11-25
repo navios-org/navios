@@ -1,6 +1,15 @@
-import type { CronJobParams } from 'cron'
+import type { JobRun } from '../jobs/scheduled-job.mjs'
 
 import { getCronMetadata, takeInheritedCronMetadata } from './cron-metadata.mjs'
+
+/**
+ * What happens when a job is due while a run of it is still in progress in
+ * this process: `'skip'` leaves that run out, `'allow'` starts it next to the
+ * other one.
+ *
+ * @public
+ */
+export type OverlapPolicy = 'skip' | 'allow'
 
 /**
  * Options for configuring a cron job.
@@ -18,17 +27,27 @@ export interface CronOptions {
 
   /**
    * IANA time zone the cron expression is evaluated in, for example
-   * `'Europe/Kyiv'`. Defaults to the time zone of the process.
+   * `'Europe/Kyiv'`. Defaults to the `timeZone` of `scheduleTransport()`, and
+   * without one to the time zone of the process.
    */
   timeZone?: string
+
+  /**
+   * What happens when the job is due while a run of it is still in progress.
+   * Only runs in this process count: several instances of an application each
+   * run the job.
+   *
+   * @default 'skip'
+   */
+  overlap?: OverlapPolicy
 }
 
 /**
  * Decorator that marks a method to run on a cron schedule.
  *
- * The method must be in a class decorated with `@Schedulable()`.
- * The method will be automatically executed according to the provided cron expression.
- * It may be synchronous or return a promise. A method takes one `@Cron()`.
+ * The method must be in a class decorated with `@Schedulable()`. It may be
+ * synchronous or return a promise, and may take the {@link JobRun} it is
+ * called with; what it returns is ignored. A method takes one `@Cron()`.
  *
  * @param cronTime - Cron expression (5 or 6 fields) or a pre-defined Schedule constant
  * @param options - Optional configuration for the cron job
@@ -43,10 +62,10 @@ export interface CronOptions {
  *     console.log('Running daily task')
  *   }
  *
- *   // Use pre-defined schedule
+ *   // Use pre-defined schedule, and stop early when the application closes
  *   @Cron(Schedule.EveryFiveMinutes)
- *   async frequentTask() {
- *     console.log('Running every 5 minutes')
+ *   async frequentTask({ signal }: JobRun) {
+ *     await fetch('https://example.com/refresh', { signal })
  *   }
  *
  *   // Disabled job (won't start automatically)
@@ -57,30 +76,45 @@ export interface CronOptions {
  * }
  * ```
  *
- * @throws {Error} If applied to something other than a method
+ * @throws {Error} If applied to something other than a public instance method with a string name
  * @throws {Error} If the method already has a `@Cron()`
  *
  * @public
  */
-export function Cron(cronTime: CronJobParams['cronTime'], options?: CronOptions) {
-  return <T extends () => void | Promise<void>>(
+export function Cron(cronTime: string, options?: CronOptions) {
+  return <T extends (run: JobRun) => unknown>(
     target: T,
     context: ClassMethodDecoratorContext,
   ): T => {
     if (context.kind !== 'method') {
-      throw new Error(`Cron can only be applied to methods, not ${context.kind}`)
+      throw new Error(
+        `[Navios-Schedule] @Cron can only be applied to methods, not ${context.kind as string}`,
+      )
     }
-    if (context.metadata) {
-      const metadata = getCronMetadata(target, context)
-      if (metadata.cronTime !== null && !takeInheritedCronMetadata(metadata)) {
-        throw new Error(
-          `[Navios-Schedule] Method ${metadata.classMethod} has more than one @Cron. A method can have one schedule.`,
-        )
-      }
-      metadata.cronTime = cronTime
-      metadata.disabled = options?.disabled ?? false
-      metadata.timeZone = options?.timeZone
+    // A job is called by name on an instance of its class.
+    const unsupported = context.private
+      ? 'private'
+      : context.static
+        ? 'static'
+        : typeof context.name === 'symbol'
+          ? 'symbol-named'
+          : null
+    if (unsupported !== null) {
+      throw new Error(
+        `[Navios-Schedule] @Cron cannot be applied to the ${unsupported} method ${String(context.name)}. ` +
+          `A job must be a public instance method with a string name.`,
+      )
     }
+    const metadata = getCronMetadata(context)
+    if (metadata.cronTime !== null && !takeInheritedCronMetadata(metadata)) {
+      throw new Error(
+        `[Navios-Schedule] Method ${metadata.classMethod} has more than one @Cron. A method can have one schedule.`,
+      )
+    }
+    metadata.cronTime = cronTime
+    metadata.disabled = options?.disabled ?? false
+    metadata.overlap = options?.overlap ?? 'skip'
+    metadata.timeZone = options?.timeZone
     return target
   }
 }

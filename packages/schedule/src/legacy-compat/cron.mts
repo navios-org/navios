@@ -1,8 +1,9 @@
 import { createMethodContext } from '@navios/core/legacy-compat'
 
-import type { CronJobParams } from 'cron'
+import { Cron as OriginalCron } from '../cron/cron.mjs'
 
-import { Cron as OriginalCron, type CronOptions } from '../cron/cron.mjs'
+import type { CronOptions } from '../cron/cron.mjs'
+import type { JobRun } from '../jobs/scheduled-job.mjs'
 
 /**
  * Legacy-compatible Cron decorator.
@@ -30,8 +31,8 @@ import { Cron as OriginalCron, type CronOptions } from '../cron/cron.mjs'
  * }
  * ```
  */
-export function Cron(cronTime: CronJobParams['cronTime'], options?: CronOptions) {
-  return function <T extends object, M extends () => void | Promise<void>>(
+export function Cron(cronTime: string, options?: CronOptions) {
+  return function <T extends object, M extends (run: JobRun) => unknown>(
     target: T,
     propertyKey: string | symbol,
     descriptor: TypedPropertyDescriptor<M>,

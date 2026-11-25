@@ -2,7 +2,7 @@ import { registerInjectable } from '@navios/core'
 
 import type { ClassType, InjectableScope } from '@navios/core'
 
-import { getScheduleMetadata } from './schedule-metadata.mjs'
+import { defineScheduleMetadata } from './schedule-metadata.mjs'
 
 /**
  * Options for the `@Schedulable()` decorator.
@@ -35,8 +35,9 @@ export interface SchedulableOptions {
  *   }
  * }
  *
- * // Register the service
- * schedulerService.register(TaskService)
+ * // List it in a module, next to what it belongs to
+ * @Module({ jobs: [TaskService] })
+ * class TasksModule {}
  * ```
  *
  * @throws {Error} If applied to something other than a class
@@ -46,11 +47,11 @@ export interface SchedulableOptions {
 export function Schedulable({ scope }: SchedulableOptions = {}) {
   return <T extends ClassType>(target: T, context: ClassDecoratorContext): T => {
     if (context.kind !== 'class') {
-      throw new Error(`SchedulableDecorator can only be applied to classes, not ${context.kind}`)
+      throw new Error(
+        `[Navios-Schedule] @Schedulable can only be applied to classes, not ${context.kind as string}`,
+      )
     }
-    if (context.metadata) {
-      getScheduleMetadata(target, context)
-    }
+    defineScheduleMetadata(target, context)
     registerInjectable(target, { scope })
     return target
   }

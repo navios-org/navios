@@ -91,6 +91,109 @@ describe('SchedulerService registration and ticks', () => {
     })
   })
 
+  describe('a job that cannot be scheduled', () => {
+    it.each([
+      ['an empty expression', '', undefined, /the cron expression is empty/],
+      ['a blank expression', '  ', undefined, /the cron expression is empty/],
+      ['an expression that is not set', undefined as unknown as string, undefined, /is empty/],
+      ['an empty time zone', '0 4 * * *', '', /the time zone is empty/],
+      ['an unknown time zone', '0 4 * * *', 'Nowhere/Land', /Invalid timezone/],
+      ['an expression that never occurs', '0 0 31 2 *', undefined, /'0 0 31 2 \*' never occurs/],
+      ['too many fields', '* * * * * * *', undefined, /Too many fields/],
+    ])('should name the class and method of %s', (_, expression, timeZone, message) => {
+      @Schedulable()
+      class BadService {
+        @Cron('*/1 * * * * *')
+        async ok() {}
+
+        @Cron(expression, { timeZone })
+        async bad() {}
+      }
+
+      for (const started of [false, true]) {
+        if (started) {
+          schedulerService.start()
+        }
+        expect(() => schedulerService.register(BadService)).toThrow(/BadService\.bad\(\)/)
+        expect(() => schedulerService.register(BadService)).toThrow(message)
+        expect(schedulerService.getJob(BadService, 'ok')).toBeUndefined()
+      }
+      expect(vi.getTimerCount()).toBe(0)
+    })
+
+    it('should stop what start() started when a job cannot be started', () => {
+      @Schedulable()
+      class Good {
+        @Cron('*/1 * * * * *')
+        async job() {}
+      }
+      @Schedulable()
+      class Bad {
+        @Cron('*/1 * * * * *')
+        async job() {}
+      }
+      schedulerService.register(Good)
+      schedulerService.register(Bad)
+      vi.spyOn((schedulerService.getJob(Bad, 'job') as any).timer, 'arm').mockImplementation(() => {
+        throw new Error('nothing left')
+      })
+
+      expect(() => schedulerService.start()).toThrow(/Bad\.job\(\): nothing left/)
+      expect(schedulerService.getJob(Good, 'job')?.active).toBe(false)
+      expect(vi.getTimerCount()).toBe(0)
+    })
+
+    it('should refuse a subclass that is not decorated itself', () => {
+      @Schedulable()
+      class Base {
+        @Cron('*/1 * * * * *')
+        async job() {}
+      }
+      class Child extends Base {}
+
+      expect(() => schedulerService.register(Child)).toThrow(/Child is not schedulable/)
+    })
+  })
+
+  describe('warnings', () => {
+    it('should warn about a class registered on a scheduler that nothing started', () => {
+      @Schedulable()
+      class TestService {
+        @Cron('*/1 * * * * *')
+        async job() {}
+      }
+
+      schedulerService.register(TestService)
+
+      expect(loggerOutput.warn).toHaveBeenCalledTimes(1)
+      expect(loggerOutput.warn.mock.calls[0][0]).toMatch(/TestService.*scheduleTransport\(\)/)
+    })
+
+    it('should not warn when the scheduler is started', () => {
+      @Schedulable()
+      class TestService {
+        @Cron('*/1 * * * * *')
+        async job() {}
+      }
+
+      schedulerService.start()
+      schedulerService.register(TestService)
+
+      expect(loggerOutput.warn).not.toHaveBeenCalled()
+    })
+
+    it('should warn about a schedulable class without jobs', () => {
+      @Schedulable()
+      class TestService {}
+
+      schedulerService.start()
+      schedulerService.register(TestService)
+
+      expect(loggerOutput.warn).toHaveBeenCalledTimes(1)
+      expect(loggerOutput.warn.mock.calls[0][0]).toMatch(/TestService.*@Cron/)
+    })
+  })
+
   describe('a tick that cannot create its scope', () => {
     it('should log the error and not reject', async () => {
       const unhandled = vi.fn()
@@ -126,55 +229,6 @@ describe('SchedulerService registration and ticks', () => {
         process.off('unhandledRejection', unhandled)
         createScope.mockRestore()
       }
-    })
-  })
-
-  describe('errors raised by the cron library', () => {
-    it('should go to the logger, not to the console', async () => {
-      const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
-
-      @Schedulable()
-      class TestService {
-        @Cron('*/1 * * * * *')
-        async job() {}
-      }
-
-      schedulerService.register(TestService)
-      schedulerService.start()
-      vi.spyOn(schedulerService as any, 'run').mockImplementation(() => {
-        throw new Error('tick failed')
-      })
-      await vi.advanceTimersByTimeAsync(1000)
-
-      expect(consoleError).not.toHaveBeenCalled()
-      expect(loggerOutput.error).toHaveBeenCalledTimes(1)
-      expect(JSON.stringify(loggerOutput.error.mock.calls[0])).toContain('TestService.job()')
-    })
-  })
-
-  describe('timeZone', () => {
-    it('should run the job at the given time in the given time zone', async () => {
-      const mockJob = vi.fn()
-
-      @Schedulable()
-      class TestService {
-        // 04:00 in Kyiv is 02:00 UTC in winter.
-        @Cron('0 4 * * *', { timeZone: 'Europe/Kyiv' })
-        async job() {
-          mockJob()
-        }
-      }
-
-      schedulerService.register(TestService)
-      schedulerService.start()
-
-      const next = schedulerService.getJob(TestService, 'job')!.nextDate()
-      expect(next.toUTC().toISO()).toBe('2021-01-01T02:00:00.000Z')
-
-      await vi.advanceTimersByTimeAsync(2 * 60 * 60 * 1000 - 1000)
-      expect(mockJob).not.toHaveBeenCalled()
-      await vi.advanceTimersByTimeAsync(1000)
-      expect(mockJob).toHaveBeenCalledTimes(1)
     })
   })
 })

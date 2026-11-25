@@ -1,19 +1,11 @@
-export {
-  Cron,
-  CronMetadataKey,
-  getAllCronMetadata,
-  getCronMetadata,
-  Schedule,
-} from './cron/index.mjs'
-export type { CronMetadata, CronOptions } from './cron/index.mjs'
-export {
-  extractScheduleMetadata,
-  getScheduleMetadata,
-  hasScheduleMetadata,
-  Schedulable,
-  ScheduleMetadataKey,
-} from './schedulable/index.mjs'
-export type { SchedulableOptions, ScheduleMetadata } from './schedulable/index.mjs'
-export { schedulePlugin } from './schedule-plugin.mjs'
-export type { SchedulePluginOptions } from './schedule-plugin.mjs'
+// Adds `jobs` to the options of `@Module`.
+import './transport/module-options.mjs'
+
+export { Cron, Schedule } from './cron/index.mjs'
+export type { CronOptions, OverlapPolicy } from './cron/index.mjs'
+export type { JobRun, ScheduledJob } from './jobs/scheduled-job.mjs'
+export { Schedulable } from './schedulable/index.mjs'
+export type { SchedulableOptions } from './schedulable/index.mjs'
 export { SchedulerService } from './scheduler-service.mjs'
+export { scheduleTransport } from './transport/schedule-transport.mjs'
+export type { ScheduleTransportOptions } from './transport/schedule-transport.mjs'

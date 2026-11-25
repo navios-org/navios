@@ -1,8 +1,10 @@
-import { Container, InjectableScope, LoggerOutput } from '@navios/core'
+import { Container, createApplication, InjectableScope, LoggerOutput } from '@navios/core'
+import { Module } from '@navios/core/legacy-compat'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { extractScheduleMetadata, hasScheduleMetadata } from '../index.mjs'
-import { Cron, Schedulable, SchedulerService } from '../legacy-compat/index.mjs'
+import { scheduleTransport, SchedulerService } from '../index.mjs'
+import { Cron, Schedulable } from '../legacy-compat/index.mjs'
+import { extractScheduleMetadata, hasScheduleMetadata } from '../schedulable/schedule-metadata.mjs'
 
 const loggerOutput = {
   log: vi.fn(),
@@ -56,8 +58,8 @@ describe('legacy-compat decorators', () => {
     const metadata = extractScheduleMetadata(TestService)
     expect(metadata.name).toBe('TestService')
     expect([...metadata.jobs]).toEqual([
-      { classMethod: 'first', cronTime: '*/1 * * * * *', disabled: false },
-      { classMethod: 'second', cronTime: '*/2 * * * * *', disabled: true },
+      { classMethod: 'first', cronTime: '*/1 * * * * *', disabled: false, overlap: 'skip' },
+      { classMethod: 'second', cronTime: '*/2 * * * * *', disabled: true, overlap: 'skip' },
     ])
     expect(await container.get(TestService)).toBeInstanceOf(TestService)
   })
@@ -99,5 +101,30 @@ describe('legacy-compat decorators', () => {
     expect(mockJob).toHaveBeenCalledTimes(2)
     expect(mockJob.mock.calls[0][0]).toBeInstanceOf(TestService)
     expect(mockJob.mock.calls[0][0]).not.toBe(mockJob.mock.calls[1][0])
+  })
+
+  it('should run the jobs of a legacy-decorated module', async () => {
+    const mockJob = vi.fn()
+
+    class TestService {
+      async testJob() {
+        mockJob()
+      }
+    }
+    decorateMethod(TestService, 'testJob', Cron('*/1 * * * * *'))
+    Schedulable()(TestService)
+
+    class AppModule {}
+    Module({ jobs: [TestService] })(AppModule)
+
+    const app = createApplication(AppModule, {
+      logger: false,
+      transports: [scheduleTransport()],
+    })
+    await app.start()
+    await vi.advanceTimersByTimeAsync(1000)
+    await app.close()
+
+    expect(mockJob).toHaveBeenCalledTimes(1)
   })
 })

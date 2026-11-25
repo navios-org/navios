@@ -41,7 +41,7 @@ describe('Schedule Module', () => {
     schedulerService.start()
     const job = schedulerService.getJob(TestService, 'testJob')
     expect(job).toBeDefined()
-    expect(job?.isActive).toBe(true)
+    expect(job?.active).toBe(true)
   })
 
   it('should throw an error when registering a non-schedulable service', () => {
@@ -90,14 +90,14 @@ describe('Schedule Module', () => {
 
     schedulerService.register(TestService)
     schedulerService.start()
-    schedulerService.stopAll()
+    await schedulerService.stop()
 
     // Advance time but expect no execution
     await vi.advanceTimersByTimeAsync(3000)
     expect(mockJob).not.toHaveBeenCalled()
 
     // Start jobs and verify they execute
-    schedulerService.startAll()
+    schedulerService.start()
     await vi.advanceTimersByTimeAsync(1000)
     expect(mockJob).toHaveBeenCalledTimes(1)
   })
@@ -147,11 +147,16 @@ describe('Schedule Module', () => {
     schedulerService.register(TestService)
     schedulerService.start()
     const job = schedulerService.getJob(TestService, 'testJob')
-    expect(job?.isActive).toBe(false)
+    expect(job?.active).toBe(false)
 
     // Advance time but expect no execution
     await vi.advanceTimersByTimeAsync(3000)
     expect(mockJob).not.toHaveBeenCalled()
+
+    // Pausing and resuming the scheduler does not start it either
+    await schedulerService.stop()
+    schedulerService.start()
+    expect(job?.active).toBe(false)
   })
 
   it('should handle errors in job execution without crashing', async () => {
@@ -179,7 +184,7 @@ describe('Schedule Module', () => {
 
     // Job should still be active
     const job = schedulerService.getJob(TestService, 'testJob')
-    expect(job?.isActive).toBe(true)
+    expect(job?.active).toBe(true)
   })
 
   describe('lifecycle', () => {
@@ -195,7 +200,7 @@ describe('Schedule Module', () => {
       }
 
       schedulerService.register(TestService)
-      expect(schedulerService.getJob(TestService, 'testJob')?.isActive).toBe(false)
+      expect(schedulerService.getJob(TestService, 'testJob')?.active).toBe(false)
 
       await vi.advanceTimersByTimeAsync(3000)
       expect(mockJob).not.toHaveBeenCalled()
@@ -216,28 +221,6 @@ describe('Schedule Module', () => {
       schedulerService.register(TestService)
 
       await vi.advanceTimersByTimeAsync(1000)
-      expect(mockJob).toHaveBeenCalledTimes(1)
-    })
-
-    it('should start on onApplicationBootstrap and stop on onApplicationShutdown', async () => {
-      const mockJob = vi.fn()
-
-      @Schedulable()
-      class TestService {
-        @Cron('*/1 * * * * *')
-        async testJob() {
-          mockJob()
-        }
-      }
-
-      schedulerService.register(TestService)
-      schedulerService.onApplicationBootstrap()
-      await vi.advanceTimersByTimeAsync(1000)
-      expect(mockJob).toHaveBeenCalledTimes(1)
-
-      await schedulerService.onApplicationShutdown()
-      expect(schedulerService.getJob(TestService, 'testJob')?.isActive).toBe(false)
-      await vi.advanceTimersByTimeAsync(3000)
       expect(mockJob).toHaveBeenCalledTimes(1)
     })
 
@@ -291,7 +274,7 @@ describe('Schedule Module', () => {
 
       await local.dispose()
 
-      expect(scheduler.getJob(TestService, 'testJob')?.isActive).toBe(false)
+      expect(scheduler.getJob(TestService, 'testJob')?.active).toBe(false)
       await vi.advanceTimersByTimeAsync(3000)
       expect(mockJob).not.toHaveBeenCalled()
     })

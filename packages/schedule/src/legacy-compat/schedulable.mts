@@ -2,10 +2,8 @@ import { createClassContext } from '@navios/core/legacy-compat'
 
 import type { ClassType } from '@navios/core'
 
-import { CronMetadataKey, getAllCronMetadata, inheritCronMetadata } from '../cron/cron-metadata.mjs'
 import { Schedulable as OriginalSchedulable } from '../schedulable/schedulable.mjs'
 
-import type { CronMetadata } from '../cron/cron-metadata.mjs'
 import type { SchedulableOptions } from '../schedulable/schedulable.mjs'
 
 /**
@@ -27,30 +25,13 @@ import type { SchedulableOptions } from '../schedulable/schedulable.mjs'
  *   }
  * }
  *
- * // Register the service
- * schedulerService.register(TaskService)
+ * // List it in a module, next to what it belongs to
+ * @Module({ jobs: [TaskService] })
+ * class TasksModule {}
  * ```
  */
 export function Schedulable(options: SchedulableOptions = {}) {
   return function <T extends ClassType>(target: T): T {
-    const context = createClassContext(target)
-    // Legacy metadata is kept per class and, unlike Stage 3 metadata, does not
-    // inherit from the parent class. Copy the jobs of the parent classes, so a
-    // subclass has them as it does with Stage 3 decorators.
-    const jobs = getAllCronMetadata(context)
-    for (
-      let parent = Object.getPrototypeOf(target);
-      typeof parent === 'function' && parent !== Function.prototype;
-      parent = Object.getPrototypeOf(parent)
-    ) {
-      const parentJobs = createClassContext(parent).metadata?.[CronMetadataKey] as
-        | Set<CronMetadata>
-        | undefined
-      if (parentJobs) {
-        inheritCronMetadata(jobs, parentJobs)
-      }
-    }
-    const originalDecorator = OriginalSchedulable(options)
-    return originalDecorator(target, context)
+    return OriginalSchedulable(options)(target, createClassContext(target))
   }
 }

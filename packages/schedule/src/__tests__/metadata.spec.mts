@@ -1,8 +1,9 @@
 import { Container, LoggerOutput } from '@navios/core'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { Cron, extractScheduleMetadata, Schedulable, SchedulerService } from '../index.mjs'
+import { Cron, Schedulable, SchedulerService } from '../index.mjs'
 import { Cron as LegacyCron, Schedulable as LegacySchedulable } from '../legacy-compat/index.mjs'
+import { extractScheduleMetadata, hasScheduleMetadata } from '../schedulable/schedule-metadata.mjs'
 
 const loggerOutput = {
   log: vi.fn(),
@@ -83,10 +84,10 @@ describe('schedule metadata', () => {
       }
 
       expect([...extractScheduleMetadata(Base).jobs]).toEqual([
-        { classMethod: 'a', cronTime: '*/1 * * * * *', disabled: false },
+        { classMethod: 'a', cronTime: '*/1 * * * * *', disabled: false, overlap: 'skip' },
       ])
       expect([...extractScheduleMetadata(Child).jobs]).toEqual([
-        { classMethod: 'a', cronTime: '*/5 * * * * *', disabled: true },
+        { classMethod: 'a', cronTime: '*/5 * * * * *', disabled: true, overlap: 'skip' },
       ])
     })
 
@@ -138,6 +139,44 @@ describe('schedule metadata', () => {
       expect(extractScheduleMetadata(Child).name).toBe('Child')
       const inherited = [...extractScheduleMetadata(Child).jobs].find((j) => j.classMethod === 'a')
       expect([...extractScheduleMetadata(Base).jobs]).not.toContain(inherited)
+    })
+
+    it('should let a legacy subclass reschedule a method of its parent', () => {
+      class Root {
+        async r() {}
+      }
+      decorateMethod(Root, 'r', LegacyCron('*/1 * * * * *'))
+
+      class Base extends Root {
+        async a() {}
+      }
+      decorateMethod(Base, 'a', LegacyCron('*/1 * * * * *'))
+      LegacySchedulable()(Base)
+
+      class Child extends Base {
+        override async a() {}
+        override async r() {}
+      }
+      decorateMethod(Child, 'a', LegacyCron('*/5 * * * * *', { disabled: true }))
+      LegacySchedulable()(Child)
+
+      const jobs = (target: new () => object) =>
+        [...extractScheduleMetadata(target).jobs].map((job) => `${job.classMethod} ${job.cronTime}`)
+      expect(jobs(Base).sort()).toEqual(['a */1 * * * * *', 'r */1 * * * * *'])
+      expect(jobs(Child).sort()).toEqual(['a */5 * * * * *', 'r */1 * * * * *'])
+    })
+
+    it('should not take an undecorated subclass for its schedulable parent', () => {
+      @Schedulable()
+      class Base {
+        @Cron('*/1 * * * * *')
+        async a() {}
+      }
+      class Child extends Base {}
+
+      expect(hasScheduleMetadata(Base)).toBe(true)
+      expect(hasScheduleMetadata(Child)).toBe(false)
+      expect(() => extractScheduleMetadata(Child)).toThrow(/Child/)
     })
   })
 
@@ -209,6 +248,67 @@ describe('schedule metadata', () => {
       expect(() => decorateMethod(TestService, 'job', LegacyCron('*/5 * * * * *'))).toThrow(
         /more than one @Cron/,
       )
+    })
+
+    it('should throw on a private method', () => {
+      expect(() => {
+        class TestService {
+          @Cron('*/1 * * * * *')
+          async #job() {}
+
+          run() {
+            return this.#job()
+          }
+        }
+        return TestService
+      }).toThrow(/private method #job/)
+    })
+
+    it('should throw on a static method, also next to an instance method of that name', () => {
+      expect(() => {
+        class TestService {
+          @Cron('*/1 * * * * *')
+          static async job() {}
+
+          @Cron('*/1 * * * * *')
+          async job() {}
+        }
+        return TestService
+      }).toThrow(/static method job/)
+    })
+
+    it('should throw on a symbol-named method', () => {
+      const key = Symbol('job')
+      expect(() => {
+        class TestService {
+          @Cron('*/1 * * * * *')
+          async [key]() {}
+        }
+        return TestService
+      }).toThrow(/symbol-named method Symbol\(job\)/)
+    })
+
+    it('should throw on a static and on a symbol-named method with the legacy decorator', () => {
+      const key = Symbol('job')
+      class TestService {
+        static async job() {}
+        async [key]() {}
+      }
+      const decorate = (target: object, name: string | symbol) =>
+        LegacyCron('*/1 * * * * *')(
+          target,
+          name as string,
+          Object.getOwnPropertyDescriptor(target, name)!,
+        )
+
+      expect(() => decorate(TestService, 'job')).toThrow(/static method job/)
+      expect(() => decorate(TestService.prototype, key)).toThrow(/symbol-named method/)
+    })
+
+    it('should throw when the environment has no decorator metadata', () => {
+      const context = { kind: 'method', name: 'job' } as ClassMethodDecoratorContext
+
+      expect(() => Cron('*/1 * * * * *')(() => {}, context)).toThrow(/decorator metadata/)
     })
 
     it('should keep the time zone in the metadata', () => {
