@@ -25,9 +25,19 @@ Ported to `@navios/core` 2.0 and `@navios/di` 2.0.
 - `SchedulerService.start()` and `SchedulerService.stop()`.
 - `schedulePlugin({ services })`: registers schedulable services and ties them to the application lifecycle without writing `onModuleInit`.
 - `SchedulableOptions`.
+- `CronOptions.timeZone`: the IANA time zone the cron expression is evaluated in, for example `@Cron('0 4 * * *', { timeZone: 'Europe/Kyiv' })`.
+- `@Cron()` accepts a synchronous method as well as an `async` one.
+- `files` in `package.json`: only `lib`, the README, the changelog and the license are published.
 
 ### Fixed
 
+- A `@Schedulable()` class that extends another one no longer adds its jobs to the parent or shares the parent's metadata (and its name). The subclass gets its own copy of the parent's jobs and may reschedule one by decorating its override. With the legacy decorators a subclass now inherits the jobs too.
+- `@Cron()` names the job after the decorated method even when a decorator applied before it replaced the function. Before, the job was keyed by the function's `name` and could not be run.
+- **BREAKING**: A second `@Cron()` on one method throws. Before, the last one applied silently replaced the other.
+- `SchedulerService.register()` with an invalid cron expression no longer leaves the service half registered, with a second `register()` silently ignored. Nothing is registered, and the error names the class and the method.
+- A tick that cannot create its DI scope, for example after the container was disposed, is logged instead of causing an unhandled rejection.
+- Errors that `cron` catches around a tick are reported through the Navios logger instead of `console.error`.
+- `repository.url` points to `navios-org/navios`.
 - The symbol behind `ScheduleMetadataKey` was described as `ControllerMetadataKey`, and the error for a class without metadata told the user to add `@Controller`. Both now name the schedule metadata and `@Schedulable`.
 
 ### Removed

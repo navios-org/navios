@@ -61,10 +61,13 @@ app.enableShutdownHooks()
 | ---------------------------------------- | ----------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
 | Five- and six-field expressions, presets | `@Cron('*/30 * * * * *')`, the `Schedule` enum              | [Cron expressions](https://navios.tech/docs/server/guides/scheduled-jobs#cron-expressions)                                 |
 | Keep a feature's jobs in its module      | `inject(SchedulerService).register(Jobs)` in `onModuleInit` | [Running them with an application](https://navios.tech/docs/server/guides/scheduled-jobs#running-them-with-an-application) |
+| A schedule in a given time zone          | `@Cron('0 4 * * *', { timeZone: 'Europe/Kyiv' })`           | [Cron expressions](https://navios.tech/docs/server/guides/scheduled-jobs#cron-expressions)                                 |
 | Fresh services for every run             | `@Schedulable({ scope: InjectableScope.Request })`          | [A DI scope per run](https://navios.tech/docs/server/guides/scheduled-jobs#a-di-scope-per-run)                             |
 | Start, stop or trigger a job at run time | `SchedulerService`: `getJob()`, `startAll()`, `stopAll()`   | [Managing jobs at run time](https://navios.tech/docs/server/guides/scheduled-jobs#managing-jobs-at-run-time)               |
 | Know what happens when a job throws      | logged, not retried, other jobs unaffected                  | [Errors](https://navios.tech/docs/server/guides/scheduled-jobs#errors)                                                     |
 | Jobs without an HTTP application         | `new Container()`, `scheduler.start()`                      | [Without an application](https://navios.tech/docs/server/guides/scheduled-jobs#without-an-application)                     |
+
+A job method may be synchronous or `async` and takes one `@Cron()`; a second one on the same method throws. A subclass of a schedulable class inherits its jobs and may reschedule one by decorating its override. `register()` throws, naming the class and the method, when a cron expression or time zone is invalid, and then registers none of the jobs of that class.
 
 Runs of one job are not serialised: a run that outlasts its interval overlaps with the next one. Projects that keep `experimentalDecorators` on import `Schedulable` and `Cron` from `@navios/schedule/legacy-compat`; see [Legacy decorators](https://navios.tech/docs/server/reference/legacy-decorators).
 

@@ -16,9 +16,10 @@ export function getScheduleMetadata(
   context: ClassDecoratorContext,
 ): ScheduleMetadata {
   if (context.metadata) {
-    const metadata = context.metadata[ScheduleMetadataKey] as ScheduleMetadata | undefined
-    if (metadata) {
-      return metadata
+    // The metadata object of a subclass inherits from the one of its parent,
+    // so only an own property is the metadata of this class.
+    if (Object.hasOwn(context.metadata, ScheduleMetadataKey)) {
+      return context.metadata[ScheduleMetadataKey] as ScheduleMetadata
     } else {
       const jobsMetadata = getAllCronMetadata(context)
       const newMetadata: ScheduleMetadata = {

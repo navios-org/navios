@@ -72,6 +72,8 @@ export class SchedulerService
    *
    * @param service - The schedulable service class to register. Must be decorated with `@Schedulable()`.
    * @throws {Error} If the service is not decorated with `@Schedulable()`
+   * @throws {Error} If a job has an invalid cron expression or time zone. The
+   *   error names the class and the method, and nothing of the service is registered.
    *
    * @example
    * ```typescript
@@ -101,8 +103,9 @@ export class SchedulerService
     const metadata = extractScheduleMetadata(service)
     this.logger.debug('Scheduling service', metadata.name)
 
+    // Create every job before storing any: a job that cannot be created must
+    // not leave the service half registered.
     const jobs = new Map<string, RegisteredJob>()
-    this.services.set(service, jobs)
     for (const job of metadata.jobs) {
       if (!job.cronTime) {
         this.logger.debug('Skipping job', job.classMethod)
@@ -110,15 +113,31 @@ export class SchedulerService
       }
       const name = `${metadata.name}.${job.classMethod}()`
       const method = job.classMethod
-      const cronJob = CronJob.from({
-        cronTime: job.cronTime,
-        name,
-        onTick: () => this.track(this.run(service, method, name)),
-        start: false,
-      })
+      let cronJob: CronJob
+      try {
+        cronJob = CronJob.from({
+          cronTime: job.cronTime,
+          timeZone: job.timeZone,
+          name,
+          onTick: () => this.track(this.run(service, method, name)),
+          // Without it `cron` writes the errors of a tick to the console.
+          errorHandler: (error) => this.logger.error('Error executing job', name, error),
+          start: false,
+        })
+      } catch (error) {
+        throw new Error(
+          `[Navios-Schedule] Cannot schedule ${name}: ${error instanceof Error ? error.message : String(error)}`,
+          { cause: error },
+        )
+      }
       jobs.set(method, { name, job: cronJob, disabled: job.disabled })
-      if (this.started && !job.disabled) {
-        cronJob.start()
+    }
+    this.services.set(service, jobs)
+    if (this.started) {
+      for (const { job, disabled } of jobs.values()) {
+        if (!disabled) {
+          job.start()
+        }
       }
     }
   }
@@ -255,8 +274,10 @@ export class SchedulerService
    * and destroyed after it. Never rejects: errors are logged.
    */
   private async run(service: ClassType, method: string, name: string): Promise<void> {
-    const scope = this.container.createScope()
+    let scope: ReturnType<Container['createScope']> | undefined
     try {
+      // Inside the `try`: it throws when the container is already disposed.
+      scope = this.container.createScope()
       this.logger.debug('Executing job', name)
       const instance = await scope.get(service)
       await instance[method]()
@@ -264,7 +285,7 @@ export class SchedulerService
       this.logger.error('Error executing job', name, error)
     } finally {
       try {
-        await scope.dispose()
+        await scope?.dispose()
       } catch (error) {
         this.logger.error('Error disposing the scope of job', name, error)
       }
