@@ -112,10 +112,22 @@ easy to reverse now and expensive after the release.
   error classes and codes in core, shared CORS.
 - **Bun:** a percent-encoded literal path (`/%73imple`) is 404; the idle
   timeout of 10 s applies to slow handlers and plain streams (Bun's default,
-  documented); short streams are 13 to 17 % slower than in the first pass,
-  because the server now owns and closes every body and reads the client
-  address while the response is open. **Fastify:** listening on `localhost` opens two servers and only
-  one is drained; pass `host`.
+  documented); a stream of a few chunks is 4 to 8 % slower than in the first
+  pass, about 0.5 µs, mostly for reading the client address while the response
+  is open. One of 100 small chunks is 14 % faster. Before streams were written
+  directly, that was 12 to 17 % and 29 % slower. Responses that are not streams
+  do not pay for them: without any code for streams a JSON request costs the
+  same (0.02 µs of 6), so there is no option to turn them off. The minimum is
+  Bun 1.4.5: on 1.3.10 a stream is not held back for a slow client, also
+  without Navios, and 12 of 90 conformance tests failed before this change.
+  Versions between the two have not been tried. Files: `Bun.file()` as a `blob`
+  is as fast as Bun itself; a `createReadStream` of 4 KB is 11 % slower, because
+  the first chunk is read before the response is decided. **Fastify:** listening
+  on `localhost` opens two servers and only one is drained; pass `host`. A
+  `createReadStream` is 10 to 18 % slower than in the first pass, at every size,
+  because its chunks go through the server's iterator and are no longer piped.
+  Small chunks that are there at once are sent together on Node 24.22.1, but one
+  by one on 24.11.0 and 24.13.0, which the minimum, Node 24, allows.
 - **Packages outside the set.** `@navios/otel` still mixes OpenTelemetry 2.x
   and 3.x, whose peer ranges exclude each other (npm warns). `queues`
   consumers and the findings of the first pass on `openapi`, `adapter-xml`,
