@@ -6,6 +6,7 @@ import type { LogLevel } from './log-levels.mjs'
 export interface ConsoleLoggerOptions {
   /**
    * Enabled log levels.
+   * Default every level, `log` and above when `NODE_ENV` is `production`.
    */
   logLevels?: LogLevel[]
   /**
@@ -59,7 +60,7 @@ export interface ConsoleLoggerOptions {
   json?: boolean
   /**
    * If enabled, will print the log message in color.
-   * Default true if json is disabled, false otherwise
+   * Default true if json is disabled and stdout is a terminal, false otherwise.
    */
   colors?: boolean
   /**

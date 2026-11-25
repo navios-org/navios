@@ -1,4 +1,4 @@
-/** @internal */
+/** The `metadata` of a decorator context. */
 export type DecoratorMetadata = Record<PropertyKey, unknown>
 
 /**
@@ -15,7 +15,7 @@ export function own<T>(metadata: DecoratorMetadata, key: symbol, create: (inheri
   return metadata[key] as T
 }
 
-/** @internal */
+/** The metadata of a decorator context, which has to have one. */
 export function requireMetadata(context: { metadata?: DecoratorMetadata }): DecoratorMetadata {
   if (!context.metadata) {
     throw new Error(

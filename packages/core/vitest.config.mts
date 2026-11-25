@@ -1,7 +1,7 @@
 import swc from 'unplugin-swc'
 import { defineProject } from 'vitest/config'
 
-const legacyTests = ['**/legacy-compat/__type-tests__/**']
+const legacyTests = ['**/legacy-compat/__tests__/**']
 
 export default defineProject({
   plugins: [
@@ -14,7 +14,7 @@ export default defineProject({
         transform: { decoratorVersion: '2022-03' },
       },
     }),
-    // Legacy (experimentalDecorators) type tests
+    // Legacy (experimentalDecorators) tests
     swc.vite({
       include: legacyTests,
       jsc: {

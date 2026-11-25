@@ -13,7 +13,13 @@ interface Registry {
   warned: boolean
 }
 
-export function registerCopy(location: string, warn: (message: string) => void): void {
+export function registerCopy(url: string | undefined, warn: (message: string) => void): void {
+  if (typeof url !== 'string') {
+    // `import.meta` is empty in a bundle that is not a module.
+    return
+  }
+  // A development server adds a query when it loads a file again.
+  const location = url.replace(/[?#].*$/, '')
   const holder = globalThis as { [registryKey]?: Registry }
   const registry = (holder[registryKey] ??= { locations: new Set(), warned: false })
   if (registry.locations.has(location)) {

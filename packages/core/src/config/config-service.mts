@@ -1,8 +1,3 @@
-import { inject, InjectionToken, registerInjectable } from '@navios/di'
-
-import { schemaFromGuard } from '../internal/schema-from-guard.mjs'
-import { Logger } from '../logger/index.mjs'
-
 import type { Path, PathValue } from './config-path.mjs'
 
 /**
@@ -12,7 +7,7 @@ import type { Path, PathValue } from './config-path.mjs'
  *
  * @typeParam Config - The configuration object type
  */
-export interface ConfigServiceInterface<Config = Record<string, unknown>> {
+export interface ConfigServiceInterface<Config extends object = Record<string, unknown>> {
   /**
    * Gets the entire configuration object.
    */
@@ -23,7 +18,7 @@ export interface ConfigServiceInterface<Config = Record<string, unknown>> {
    * @param key - Dot-separated path to the configuration value (e.g., 'database.host')
    * @returns The configuration value or `null` if not found
    */
-  get: <Key extends Path<Config>>(key: Key) => PathValue<Config, Key> | null
+  get: <Key extends Path<Config>>(key: Key) => NonNullable<PathValue<Config, Key>> | null
 
   /**
    * Gets a configuration value by key path, or returns a default value if not found.
@@ -34,8 +29,8 @@ export interface ConfigServiceInterface<Config = Record<string, unknown>> {
    */
   getOrDefault: <Key extends Path<Config>>(
     key: Key,
-    defaultValue: PathValue<Config, Key>,
-  ) => PathValue<Config, Key>
+    defaultValue: NonNullable<PathValue<Config, Key>>,
+  ) => NonNullable<PathValue<Config, Key>>
 
   /**
    * Gets a configuration value by key path, or throws an error if not found.
@@ -45,36 +40,18 @@ export interface ConfigServiceInterface<Config = Record<string, unknown>> {
    * @returns The configuration value
    * @throws Error if the key is not found
    */
-  getOrThrow: <Key extends Path<Config>>(key: Key, errorMessage?: string) => PathValue<Config, Key>
+  getOrThrow: <Key extends Path<Config>>(
+    key: Key,
+    errorMessage?: string,
+  ) => NonNullable<PathValue<Config, Key>>
 }
-
-/**
- * Schema for validating configuration service options.
- */
-export type ConfigServiceOptions = Record<string, unknown>
-
-export const ConfigServiceOptionsSchema = schemaFromGuard<ConfigServiceOptions>(
-  (value): value is ConfigServiceOptions =>
-    typeof value === 'object' && value !== null && !Array.isArray(value),
-  'Configuration must be an object',
-)
-/**
- * Type for configuration service options.
- */
-
-/**
- * Injection token for ConfigService.
- */
-export const ConfigServiceToken = InjectionToken.create<
-  ConfigServiceInterface,
-  typeof ConfigServiceOptionsSchema
->(Symbol.for('ConfigService'), ConfigServiceOptionsSchema)
 
 /**
  * Service for managing application configuration with type-safe access.
  *
  * Provides methods to access configuration values using dot-notation paths
- * with full TypeScript type inference.
+ * with full TypeScript type inference. `provideConfig()` gives the token of
+ * one; `new ConfigService({ ... })` is what a test provides for it.
  *
  * @typeParam Config - The configuration object type
  *
@@ -90,9 +67,11 @@ export const ConfigServiceToken = InjectionToken.create<
  *   }
  * }
  *
+ * export const AppConfig = provideConfig<AppConfig>({ load: () => readConfig() })
+ *
  * @Injectable()
  * export class DatabaseService {
- *   private config = inject(MyConfigService)
+ *   private config = inject(AppConfig)
  *
  *   connect() {
  *     const host = this.config.getOrThrow('database.host')
@@ -103,18 +82,14 @@ export const ConfigServiceToken = InjectionToken.create<
  * ```
  */
 export class ConfigService<
-  Config extends ConfigServiceOptions = Record<string, unknown>,
+  Config extends object = Record<string, unknown>,
 > implements ConfigServiceInterface<Config> {
-  private readonly logger = inject(Logger, {
-    context: ConfigService.name,
-  })
-
   /**
    * Creates a new ConfigService instance.
    *
    * @param config - The configuration object
    */
-  constructor(private config: Config = {} as Config) {}
+  constructor(private readonly config: Config = {} as Config) {}
 
   /**
    * Gets the entire configuration object.
@@ -139,23 +114,15 @@ export class ConfigService<
    * const port = config.get('database.port') // number | null
    * ```
    */
-  get<Key extends Path<Config>>(key: Key): PathValue<Config, Key> | null {
-    try {
-      const parts = String(key).split('.')
-      let value: any = this.config
-
-      for (const part of parts) {
-        if (value === null || value === undefined || typeof value !== 'object') {
-          return null
-        }
-        value = value[part]
+  get<Key extends Path<Config>>(key: Key): NonNullable<PathValue<Config, Key>> | null {
+    let value: any = this.config
+    for (const part of String(key).split('.')) {
+      if (value === null || value === undefined || typeof value !== 'object') {
+        return null
       }
-
-      return (value as PathValue<Config, Key>) ?? null
-    } catch (error) {
-      this.logger.debug?.(`Failed to get config value for key ${String(key)}`, error)
-      return null
+      value = value[part]
     }
+    return (value as NonNullable<PathValue<Config, Key>>) ?? null
   }
 
   /**
@@ -172,10 +139,9 @@ export class ConfigService<
    */
   getOrDefault<Key extends Path<Config>>(
     key: Key,
-    defaultValue: PathValue<Config, Key>,
-  ): PathValue<Config, Key> {
-    const value = this.get(key)
-    return value !== null ? value : defaultValue
+    defaultValue: NonNullable<PathValue<Config, Key>>,
+  ): NonNullable<PathValue<Config, Key>> {
+    return this.get(key) ?? defaultValue
   }
 
   /**
@@ -192,17 +158,14 @@ export class ConfigService<
    * const apiKey = config.getOrThrow('api.key', 'API key is required') // string
    * ```
    */
-  getOrThrow<Key extends Path<Config>>(key: Key, errorMessage?: string): PathValue<Config, Key> {
+  getOrThrow<Key extends Path<Config>>(
+    key: Key,
+    errorMessage?: string,
+  ): NonNullable<PathValue<Config, Key>> {
     const value = this.get(key)
-
     if (value === null) {
-      const message = errorMessage || `Configuration value for key "${String(key)}" is not defined`
-      this.logger.error(message)
-      throw new Error(message)
+      throw new Error(errorMessage || `Configuration value for key "${String(key)}" is not defined`)
     }
-
     return value
   }
 }
-
-registerInjectable(ConfigService, { token: ConfigServiceToken })

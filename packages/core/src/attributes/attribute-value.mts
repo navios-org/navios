@@ -1,7 +1,7 @@
 /** An attribute value as returned by calling an attribute. */
 export type AttributeValue = { readonly token: symbol; readonly value: unknown }
 
-/** @internal */
+/** Sets the values of attributes on a map of them. */
 export function applyAttributes(
   target: Map<symbol, unknown>,
   attributes: AttributeValue[] | undefined,

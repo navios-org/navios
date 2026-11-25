@@ -1,8 +1,9 @@
-import { inject, InjectionToken, registerInjectable } from '@navios/di'
+import { Container, inject, InjectableScope, InjectionToken, registerInjectable } from '@navios/di'
 
 import { schemaFromGuard } from '../internal/schema-from-guard.mjs'
 
 import { LoggerOutput } from './logger-output.mjs'
+import { pendingOutput } from './pending-output.mjs'
 
 import type { LoggerService } from './logger-output.mjs'
 
@@ -57,7 +58,7 @@ export const Logger = InjectionToken.create<LoggerInstance, typeof loggerOptions
  * ```
  */
 export class LoggerInstance implements LoggerService {
-  protected localInstance = inject(LoggerOutput)
+  protected localInstance: LoggerService = pendingOutput(inject(Container)) ?? inject(LoggerOutput)
 
   protected context?: string
 
@@ -129,4 +130,6 @@ export class LoggerInstance implements LoggerService {
   }
 }
 
-registerInjectable(LoggerInstance, { token: Logger })
+// Transient: the context is free text, so a stored instance per context would
+// be one for every id that is logged with.
+registerInjectable(LoggerInstance, { token: Logger, scope: InjectableScope.Transient })

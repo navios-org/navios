@@ -14,6 +14,8 @@ import type { Guard } from '../guards/guard.mjs'
 import type { ModuleOptions } from '../modules/index.mjs'
 import type { FakeTransport } from '../testing/index.mjs'
 
+import { settleWithin } from './settle-within.mjs'
+
 const apps: Application[] = []
 
 function create(module: new () => unknown, options: ApplicationOptions = {}) {
@@ -28,9 +30,7 @@ function module(name: string, options: ModuleOptions & Record<string, unknown> =
 }
 
 afterEach(async () => {
-  while (apps.length > 0) {
-    await apps.pop()!.close()
-  }
+  await settleWithin(apps.splice(0).map((app) => app.close()))
 })
 
 describe('Application', () => {
@@ -438,6 +438,7 @@ describe('Application', () => {
     await app.init()
     const failure = new Error('dispose failed')
     const dispose = vi.spyOn(app.container, 'dispose').mockRejectedValueOnce(failure)
+    const kill = vi.spyOn(process, 'kill').mockImplementation(() => true)
     app.enableShutdownHooks(['SIGUSR2'])
 
     process.emit('SIGUSR2')
@@ -445,6 +446,8 @@ describe('Application', () => {
     await new Promise((resolve) => setTimeout(resolve, 0))
 
     expect(error.mock.calls.some((call) => call.includes(failure))).toBe(true)
+    expect(kill).toHaveBeenCalledTimes(1)
+    kill.mockRestore()
     dispose.mockRestore()
     await app.container.dispose()
   })

@@ -1,38 +1,57 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
 /**
  * Evaluates to `true` if `T` is `any`. `false` otherwise.
  * (c) https://stackoverflow.com/a/68633327/5290447
  */
 type IsAny<T> = unknown extends T ? ([keyof T] extends [never] ? false : true) : false
 
-export type PathImpl<T, Key extends keyof T> = Key extends string
-  ? IsAny<T[Key]> extends true
+/** Objects that are values of a configuration, not sections of it. */
+type ObjectValue =
+  | readonly any[]
+  | ((...args: any[]) => any)
+  | Date
+  | RegExp
+  | ReadonlyMap<any, any>
+  | ReadonlySet<any>
+  | PromiseLike<any>
+  | ArrayBufferView
+
+/** `T` if it is a section, which has paths of its own; `never` if it is a value. */
+type Section<T> =
+  IsAny<T> extends true
     ? never
-    : T[Key] extends string
-      ? never
-      : T[Key] extends any[]
+    : [NonNullable<T>] extends [object]
+      ? [NonNullable<T>] extends [ObjectValue]
         ? never
-        : T[Key] extends Record<string, any>
-          ? | `${Key}.${PathImpl<T[Key], Exclude<keyof T[Key], keyof any[]>> & string}`
-            | `${Key}.${Exclude<keyof T[Key], keyof any[]> & string}`
-          : never
-  : never
-
-export type PathImpl2<T> = PathImpl<T, keyof T> | keyof T
-
-export type Path<T> = keyof T extends string
-  ? PathImpl2<T> extends infer P
-    ? P extends string | keyof T
-      ? P
-      : keyof T
-    : keyof T
-  : never
-
-export type PathValue<T, P extends Path<T>> = P extends `${infer Key}.${infer Rest}`
-  ? Key extends keyof T
-    ? Rest extends Path<T[Key]>
-      ? PathValue<T[Key], Rest>
+        : NonNullable<T>
       : never
+
+/** Deep enough for a configuration, and an end for a type that contains itself. */
+type MaxDepth = 6
+
+type Paths<T, Depth extends unknown[]> = {
+  [Key in keyof T & string]-?: Depth['length'] extends MaxDepth
+    ? Key
+    : Section<T[Key]> extends infer S
+      ? [S] extends [never]
+        ? Key
+        : Key | `${Key}.${Paths<S, [...Depth, Key]>}`
+      : never
+}[keyof T & string]
+
+/** The keys of a configuration, and those of its sections: `'database.host'`. */
+export type Path<T> = Paths<T, []>
+
+type ValueAt<T, P> = P extends `${infer Key}.${infer Rest}`
+  ? Key extends keyof T
+    ? | ValueAt<NonNullable<T[Key]>, Rest>
+      // A value in a section that may be missing may be missing as well.
+      | (null extends T[Key] ? undefined : Extract<T[Key], undefined>)
     : never
   : P extends keyof T
     ? T[P]
     : never
+
+/** The type of the value at a path. */
+export type PathValue<T, P extends Path<T>> = ValueAt<T, P>

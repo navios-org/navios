@@ -21,6 +21,27 @@ describe('registerCopy', () => {
     expect(warn).not.toHaveBeenCalled()
   })
 
+  it('takes a reload with a query, as development servers make it, for the same copy', () => {
+    delete (globalThis as any)[registryKey]
+    const warn = vi.fn()
+
+    registerCopy('file:///app/node_modules/@navios/core/lib/index.mjs', warn)
+    registerCopy('file:///app/node_modules/@navios/core/lib/index.mjs?t=1732551000000', warn)
+
+    expect(warn).not.toHaveBeenCalled()
+  })
+
+  it('counts nothing in a bundle, which does not know where the copy came from', () => {
+    delete (globalThis as any)[registryKey]
+    const warn = vi.fn()
+
+    registerCopy(undefined, warn)
+    registerCopy('file:///app/node_modules/@navios/core/lib/index.mjs', warn)
+
+    expect(warn).not.toHaveBeenCalled()
+    expect((globalThis as any)[registryKey].locations.size).toBe(1)
+  })
+
   it.each([
     '../index.mjs',
     '../transport.mjs',

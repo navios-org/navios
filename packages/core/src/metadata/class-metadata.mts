@@ -8,19 +8,19 @@ const ClassAttributesKey = Symbol.for('navios.core.classAttributes')
 const ClassGuardsKey = Symbol.for('navios.core.classGuards')
 const ClassInterceptorsKey = Symbol.for('navios.core.classInterceptors')
 
-/** @internal */
+/** The attributes of a class, inherited ones included, to read and to add to. */
 export function classAttributes(context: { metadata?: DecoratorMetadata }): Map<symbol, unknown> {
   return own(requireMetadata(context), ClassAttributesKey, (inherited) => new Map(inherited))
 }
 
-/** @internal */
+/** The guards of a class, as `classAttributes`. */
 export function classGuards(context: { metadata?: DecoratorMetadata }): ClassType[] {
   return own<ClassType[]>(requireMetadata(context), ClassGuardsKey, (inherited) => [
     ...(inherited ?? []),
   ])
 }
 
-/** @internal */
+/** The interceptors of a class, as `classAttributes`. */
 export function classInterceptors(context: { metadata?: DecoratorMetadata }): ClassType[] {
   return own<ClassType[]>(requireMetadata(context), ClassInterceptorsKey, (inherited) => [
     ...(inherited ?? []),
@@ -34,7 +34,6 @@ export function unique(list: ClassType[]): ClassType[] {
 
 /**
  * Puts `first` in front of `list`, in place, skipping duplicates.
- * @internal
  */
 export function prepend(list: ClassType[], first: Iterable<ClassType> | undefined): ClassType[] {
   if (first) {

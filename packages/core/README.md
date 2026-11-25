@@ -10,8 +10,10 @@ What a Navios application is made of, whatever reaches it: dependency injection,
 ## Install
 
 ```bash
-npm install @navios/core
+npm install @navios/core@next
 ```
+
+The 2.0 alpha is published under the `next` tag. All `@navios` packages of a project must have the same alpha version, because an alpha may break between releases.
 
 Navios uses standard (TC39) decorators, so leave `experimentalDecorators` off. A project that has to keep it on imports from `@navios/core/legacy-compat`.
 
@@ -21,7 +23,7 @@ A worker that runs scheduled jobs, with [`@navios/schedule`](https://www.npmjs.c
 
 ```ts
 import { createApplication, inject, Injectable, Logger, Module } from '@navios/core'
-import { Cron, Schedulable, Schedule, schedulePlugin } from '@navios/schedule'
+import { Cron, Schedulable, Schedule, scheduleTransport } from '@navios/schedule'
 
 @Injectable()
 class SessionsService {
@@ -41,15 +43,15 @@ class MaintenanceJobs {
   }
 }
 
-@Module()
+@Module({ jobs: [MaintenanceJobs] })
 class WorkerModule {}
 
 const app = createApplication(WorkerModule, {
-  plugins: [schedulePlugin({ services: [MaintenanceJobs] })],
+  transports: [scheduleTransport()],
 })
+app.enableShutdownHooks()
 
 await app.start()
-app.enableShutdownHooks()
 ```
 
 ## Transports
@@ -58,7 +60,7 @@ An application hosts zero or more transports: the ways work reaches it. They sha
 
 ```ts
 const app = createApplication(AppModule, {
-  transports: [messageTransport({})], // from @navios/microservice
+  transports: [messageTransport()], // from @navios/microservice
 })
 ```
 
@@ -66,6 +68,7 @@ const app = createApplication(AppModule, {
 | --------- | ---------------------------------------------------------------------------- | -------------------- |
 | HTTP      | [`@navios/server`](https://www.npmjs.com/package/@navios/server)             | `controllers`        |
 | Messages  | [`@navios/microservice`](https://www.npmjs.com/package/@navios/microservice) | `messageControllers` |
+| Cron jobs | [`@navios/schedule`](https://www.npmjs.com/package/@navios/schedule)         | `jobs`               |
 
 A module lists what it has for each transport, and an application ignores the options of transports it does not have, so one module can serve several.
 
@@ -73,7 +76,7 @@ A module lists what it has for each transport, and an application ignores the op
 
 | Need                                      | How                                                                          |
 | ----------------------------------------- | ---------------------------------------------------------------------------- |
-| Services and their scopes                 | `@Injectable()`, `inject()`, everything of `@navios/di`                      |
+| Services and their scopes                 | `@Injectable()`, `inject()`, `provide()` and the rest of `@navios/di`        |
 | Grouping, shared guards and attributes    | `@Module()`                                                                  |
 | The application and its lifecycle         | `createApplication`, `init()`, `start()`, `close()`                          |
 | Hooks                                     | `onModuleInit`, `onApplicationBootstrap`, `onApplicationShutdown`            |
@@ -85,16 +88,16 @@ A module lists what it has for each transport, and an application ignores the op
 
 ## Entry points
 
-| Import                       | Contents                                                                                               |
-| ---------------------------- | ------------------------------------------------------------------------------------------------------ |
-| `@navios/core`               | The above, plus everything from `@navios/di`.                                                          |
-| `@navios/core/transport`     | For transport authors: `defineTransport`, the module graph, handler metadata, `BasicExecutionContext`. |
-| `@navios/core/testing`       | `fakeTransport`, a transport for tests of plugins and of the application lifecycle.                    |
-| `@navios/core/legacy-compat` | Decorators for `experimentalDecorators` projects.                                                      |
+| Import                       | Contents                                                                                        |
+| ---------------------------- | ----------------------------------------------------------------------------------------------- |
+| `@navios/core`               | The above, with what applications use of `@navios/di`.                                          |
+| `@navios/core/transport`     | For transport authors: the contract, the module graph, handler chains, `BasicExecutionContext`. |
+| `@navios/core/testing`       | `fakeTransport`, a transport for tests of plugins and of the application lifecycle.             |
+| `@navios/core/legacy-compat` | Decorators for `experimentalDecorators` projects.                                               |
 
 ## One copy
 
-Every package of an application has to resolve the same `@navios/core`. `@navios/server` depends on it; adapters, plugins and other transports list it as a peer dependency. If two copies are loaded, a warning names both locations.
+Every package of an application has to resolve the same `@navios/core`. `@navios/server` depends on it; adapters, plugins and other transports list it as a peer dependency. If two copies are loaded, a warning names both locations. Two copies that a bundler put into one file are not noticed.
 
 ## Upgrading from 1.x
 
@@ -102,4 +105,4 @@ In 1.x this package was the HTTP framework. That is now `@navios/server`: replac
 
 ## License
 
-MIT
+MIT. The console logger is ported from [NestJS](https://github.com/nestjs/nest) (MIT). Big thanks to the NestJS team for their work.

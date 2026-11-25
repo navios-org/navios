@@ -1,5 +1,6 @@
-import type { AnyInjectableType, ScopedContainer } from '@navios/di'
+import type { AnyInjectableType, Container, ScopedContainer } from '@navios/di'
 
+import { needsScope } from './context-host.mjs'
 import { ExecutionContextToken } from './execution-context-token.mjs'
 
 import type { ContextHost } from './context-host.mjs'
@@ -14,11 +15,9 @@ export interface BasicExecutionContextInit {
   id: string
   handler: HandlerInfo
   host: ContextHost
-  /** Defaults to a signal that never aborts. */
+  /** Defaults to a signal of the context's own that never aborts. */
   signal?: AbortSignal
 }
-
-let neverAborted: AbortSignal | null = null
 
 /**
  * An `ExecutionContext` for transports that need nothing beyond the neutral
@@ -29,19 +28,26 @@ export class BasicExecutionContext implements ExecutionContext {
   readonly kind: string
   readonly id: string
   readonly handler: HandlerInfo
-  readonly signal: AbortSignal
   private readonly host: ContextHost
+  private readonly givenSignal: AbortSignal | undefined
+  private ownSignal: AbortSignal | null = null
   private slots: Map<ContextKey, unknown> | null = null
   private scope: ScopedContainer | null = null
   private finishers: Array<() => void | Promise<void>> | null = null
   private finished = false
+  private finishing: Promise<void> | null = null
 
   constructor(init: BasicExecutionContextInit) {
     this.kind = init.kind
     this.id = init.id
     this.handler = init.handler
     this.host = init.host
-    this.signal = init.signal ?? (neverAborted ??= new AbortController().signal)
+    this.givenSignal = init.signal
+  }
+
+  /** Not shared between contexts: listeners would outlive their execution. */
+  get signal(): AbortSignal {
+    return this.givenSignal ?? (this.ownSignal ??= new AbortController().signal)
   }
 
   get<K extends ContextKey>(key: K): ContextValue<K> {
@@ -59,7 +65,7 @@ export class BasicExecutionContext implements ExecutionContext {
     return this.slots?.get(key) as ContextValue<K> | undefined
   }
 
-  set<K extends ContextKey>(key: K, value: Awaited<ContextValue<K>>): void {
+  set<K extends ContextKey>(key: K, value: ContextValue<K>): void {
     ;(this.slots ??= new Map()).set(key, value)
   }
 
@@ -67,8 +73,16 @@ export class BasicExecutionContext implements ExecutionContext {
     return this.slots?.has(key) ?? false
   }
 
-  /** @internal */
-  scopeFor(token: AnyInjectableType): ScopedContainer {
+  /**
+   * What resolves a token for this execution: its DI scope, which is created
+   * when something needs it.
+   * @internal
+   */
+  resolverFor(token: AnyInjectableType): Container | ScopedContainer {
+    const { container } = this.host
+    if (this.scope === null && !needsScope(container, token)) {
+      return container
+    }
     this.host.onScopedUse?.(token)
     if (this.scope === null) {
       if (this.finished) {
@@ -77,7 +91,7 @@ export class BasicExecutionContext implements ExecutionContext {
             'nothing would dispose them.',
         )
       }
-      this.scope = this.host.container.createScope()
+      this.scope = container.createScope()
       this.scope.addInstance(ExecutionContextToken, this)
     }
     return this.scope
@@ -96,21 +110,21 @@ export class BasicExecutionContext implements ExecutionContext {
   }
 
   /**
-   * Runs the `onFinish` callbacks in reverse order, then disposes the DI
-   * scope. Calling it again does nothing.
+   * Runs the `onFinish` callbacks in reverse order, those they register
+   * included, then disposes the DI scope. Runs once, however often it is
+   * called; every caller waits for that run.
    */
-  async finish(): Promise<void> {
-    if (this.finished) {
-      return
+  finish(): Promise<void> {
+    return (this.finishing ??= this.runFinishers())
+  }
+
+  private async runFinishers(): Promise<void> {
+    let finisher: (() => void | Promise<void>) | undefined
+    while ((finisher = this.finishers?.pop()) !== undefined) {
+      await this.runFinisher(finisher)
     }
     this.finished = true
-    const finishers = this.finishers
-    this.finishers = null
-    if (finishers !== null) {
-      for (let i = finishers.length - 1; i >= 0; i--) {
-        await this.runFinisher(finishers[i])
-      }
-    }
+    this.ownSignal = null
     const scope = this.scope
     this.scope = null
     if (scope !== null) {
@@ -138,7 +152,7 @@ BasicExecutionContext.prototype.use = function use(
   token: AnyInjectableType,
   args?: unknown,
 ) {
-  return (this.scopeFor(token).getSync as any)(token, args)
+  return (this.resolverFor(token).getSync as any)(token, args)
 } as ScopedContainer['getSync']
 
 BasicExecutionContext.prototype.resolve = function resolve(
@@ -146,5 +160,5 @@ BasicExecutionContext.prototype.resolve = function resolve(
   token: AnyInjectableType,
   args?: unknown,
 ) {
-  return (this.scopeFor(token).get as any)(token, args)
+  return (this.resolverFor(token).get as any)(token, args)
 } as ScopedContainer['get']

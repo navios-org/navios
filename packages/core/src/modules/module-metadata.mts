@@ -27,7 +27,7 @@ export interface ModuleMetadata {
   entries: Map<string, unknown>
 }
 
-export const ModuleMetadataKey = Symbol.for('navios.core.module')
+const ModuleMetadataKey = Symbol.for('navios.core.module')
 
 const ownOptions = new Set(['imports', 'guards', 'interceptors', 'providers', 'attributes'])
 
@@ -36,6 +36,11 @@ export function defineModuleMetadata(
   context: { metadata?: DecoratorMetadata },
   options: ModuleOptions,
 ): ModuleMetadata {
+  if (hasModuleMetadata(target)) {
+    throw new Error(
+      `[Navios] ${target.name} is already a module. One @Module takes all of its options.`,
+    )
+  }
   const entries = new Map<string, unknown>()
   for (const [name, value] of Object.entries(options)) {
     if (!ownOptions.has(name) && value !== undefined) {
@@ -44,13 +49,26 @@ export function defineModuleMetadata(
   }
   const imports = unique([...(options.imports ?? [])])
   assertImportsDefined(target, imports)
+  const providers = [...(options.providers ?? [])]
+  assertProviders(target.name, providers)
+  // Decorator metadata inherits by itself between two decorated classes. This
+  // covers a class or a base class that was registered without decorators.
+  const base = Object.getPrototypeOf(target)[ModuleMetadataKey] as ModuleMetadata | undefined
   const module: ModuleMetadata = {
     imports,
-    guards: prepend(classGuards(context), options.guards),
-    interceptors: prepend(classInterceptors(context), options.interceptors),
-    providers: [...(options.providers ?? [])],
+    guards: prepend(prepend(classGuards(context), base?.guards), options.guards),
+    interceptors: prepend(
+      prepend(classInterceptors(context), base?.interceptors),
+      options.interceptors,
+    ),
+    providers,
     attributes: classAttributes(context),
     entries,
+  }
+  for (const [key, value] of base?.attributes ?? []) {
+    if (!module.attributes.has(key)) {
+      module.attributes.set(key, value)
+    }
   }
   Object.defineProperty(target, ModuleMetadataKey, {
     value: module,
@@ -72,6 +90,28 @@ export function assertImportsDefined(target: ClassType, imports: readonly unknow
       `[Navios] Module ${target.name} imports ${String(imports[index])} at index ${index} of ` +
         `its imports. This usually means the files of the two modules import each other, so the ` +
         `imported module was not defined yet when ${target.name} was. Break the import cycle.`,
+    )
+  }
+}
+
+/**
+ * Where there are no types, a class is easily listed for itself.
+ * @internal
+ */
+export function assertProviders(owner: string, providers: readonly unknown[]): void {
+  for (const provider of providers) {
+    if (typeof provider === 'object' && provider !== null && 'token' in provider) {
+      continue
+    }
+    const listed =
+      typeof provider === 'function'
+        ? provider.name
+        : typeof provider === 'object' && provider !== null
+          ? 'an object'
+          : String(provider)
+    throw new Error(
+      `[Navios] ${owner} lists ${listed} in providers, which is not a provider. Use ` +
+        `provide(token, ...); an @Injectable class needs no entry.`,
     )
   }
 }

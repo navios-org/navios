@@ -6,7 +6,58 @@
  */
 import './internal/this-copy.mjs'
 
-export * from '@navios/di'
+// By name: what @navios/di exports is not part of this package by itself.
+export {
+  asyncInject,
+  BoundInjectionToken,
+  Container,
+  DIError,
+  DIErrorCode,
+  Factory,
+  FactoryInjectionToken,
+  getInjectableToken,
+  inject,
+  Injectable,
+  InjectableScope,
+  InjectionToken,
+  optional,
+  provide,
+  registerFactory,
+  registerInjectable,
+  registerProvider,
+  ScopedContainer,
+} from '@navios/di'
+export type {
+  AnyInjectableType,
+  AsyncResolve,
+  ClassType,
+  ClassTypeWithInstance,
+  ContainerOptions,
+  Factorable,
+  FactorableWithArgs,
+  FactoryContext,
+  FactoryOptions,
+  IContainer,
+  InferInput,
+  InferOutput,
+  InjectableOptions,
+  InjectionTokenOptions,
+  InjectionTokenType,
+  OnServiceDestroy,
+  OnServiceInit,
+  OptionalResolve,
+  Provider,
+  ProviderInfo,
+  ProviderInput,
+  RegisterFactoryOptions,
+  RegisterInjectableOptions,
+  RegisterProviderOptions,
+  ResolvedInstance,
+  StandardSchemaIssue,
+  StandardSchemaV1,
+  SyncResolve,
+} from '@navios/di'
+
 export { Application, createApplication } from './application/application.mjs'
 export type { ApplicationOptions } from './application/application-options.mjs'
 export type {
@@ -14,6 +65,7 @@ export type {
   OnApplicationShutdown,
   OnModuleInit,
 } from './application/lifecycle-hooks.mjs'
+export type { ShutdownHooksOptions } from './application/shutdown-signals.mjs'
 export * from './attributes/index.mjs'
 export * from './config/index.mjs'
 export { currentContext } from './execution/async-context.mjs'
@@ -21,18 +73,12 @@ export { createContextKey, PlainContextKey } from './execution/context-key.mjs'
 export type { ContextKey, ContextValue } from './execution/context-key.mjs'
 export type { AttributeMap, ExecutionContext, HandlerInfo } from './execution/execution-context.mjs'
 export { ExecutionContextToken } from './execution/execution-context-token.mjs'
-export type { Guard } from './guards/guard.mjs'
+export type { Guard, GuardClass } from './guards/guard.mjs'
 export { UseGuards } from './guards/use-guards.mjs'
-export type { Interceptor } from './interceptors/interceptor.mjs'
+export type { Interceptor, InterceptorClass } from './interceptors/interceptor.mjs'
 export { UseInterceptors } from './interceptors/use-interceptors.mjs'
 export * from './logger/index.mjs'
 export { Module, registerModule } from './modules/module.mjs'
-export {
-  getModuleMetadata,
-  hasModuleMetadata,
-  ModuleMetadataKey,
-} from './modules/module-metadata.mjs'
-export type { ModuleMetadata } from './modules/module-metadata.mjs'
 export type { ModuleOptions } from './modules/module-options.mjs'
 export * from './plugins/index.mjs'
 export type { Transport, TransportFactory, TransportInstance } from './transports/transport.mjs'

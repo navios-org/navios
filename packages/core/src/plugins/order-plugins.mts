@@ -1,21 +1,25 @@
+import { isDeepStrictEqual } from 'node:util'
+
 import type { PluginInstance } from './plugin.mjs'
 
 /**
  * Orders plugins so that each comes after the plugins it depends on. A plugin
  * registered twice is applied once; registering it again with other options
- * is an error, since only one of the two could take effect.
- * @internal
+ * is an error, since only one of the two could take effect, and so are two
+ * plugins of one name.
  */
-export function orderPlugins(plugins: PluginInstance[]): PluginInstance[] {
+export function orderPlugins(plugins: readonly PluginInstance[]): PluginInstance[] {
   const byName = new Map<string, PluginInstance>()
   for (const plugin of plugins) {
-    const existing = byName.get(plugin.definition.name)
+    const { name } = plugin.definition
+    const existing = byName.get(name)
     if (existing === undefined) {
-      byName.set(plugin.definition.name, plugin)
-    } else if (existing.options !== plugin.options) {
+      byName.set(name, plugin)
+    } else if (existing.definition !== plugin.definition) {
+      throw new Error(`[Navios] Two plugins are named "${name}".`)
+    } else if (!isDeepStrictEqual(existing.options, plugin.options)) {
       throw new Error(
-        `[Navios] Plugin "${plugin.definition.name}" is registered twice with different ` +
-          `options. Register it once.`,
+        `[Navios] Plugin "${name}" is registered twice with different options. Register it once.`,
       )
     }
   }
