@@ -4,6 +4,7 @@ import { createApplication } from '../application/application.mjs'
 import { Injectable } from '../index.mjs'
 import { registerModule } from '../modules/index.mjs'
 import { definePlugin } from '../plugins/index.mjs'
+import { defineTransport } from '../transports/index.mjs'
 
 import type { ApplicationOptions } from '../application/application-options.mjs'
 import type { Application } from '../application/application.mjs'
@@ -290,5 +291,99 @@ describe('Application', () => {
     const app = createApplication(module('Root'), { logger: false })
 
     await expect(app.close()).resolves.toBeUndefined()
+  })
+
+  it('stops each transport once when a failed application is closed', async () => {
+    const log: string[] = []
+    const app = createApplication(module('Root'), {
+      logger: false,
+      transports: [
+        fakeTransport({ kind: 'a', entry: 'as', log }, 'a'),
+        fakeTransport({ kind: 'b', entry: 'bs', log, failSetup: true }, 'b'),
+      ],
+    })
+    await expect(app.init()).rejects.toThrow('b setup failed')
+
+    await app.close()
+
+    expect(log.filter((line) => line === 'a:stop')).toHaveLength(1)
+    expect(log.filter((line) => line === 'b:stop')).toHaveLength(1)
+  })
+
+  it('finishes an init in flight before it stops, and starts nothing afterwards', async () => {
+    const log: string[] = []
+    let release!: () => void
+    const gate = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    const slow = defineTransport({
+      name: 'slow',
+      async create() {
+        await gate
+        log.push('create')
+        return {
+          setup: () => void log.push('setup'),
+          start: () => void log.push('start'),
+          stop: () => void log.push('stop'),
+        }
+      },
+    })
+    const app = createApplication(module('Root'), { logger: false, transports: [slow()] })
+
+    const starting = app.start()
+    const closing = app.close()
+    release()
+
+    await expect(starting).rejects.toThrow('[Navios] The application is closed.')
+    await closing
+    expect(log).toEqual(['create', 'setup', 'stop'])
+  })
+
+  it('waits for a start in flight before it stops', async () => {
+    const log: string[] = []
+    let release!: () => void
+    const gate = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    let entered!: () => void
+    const inStart = new Promise<void>((resolve) => {
+      entered = resolve
+    })
+    const slow = defineTransport({
+      name: 'slow',
+      create: () => ({
+        setup() {},
+        async start() {
+          entered()
+          await gate
+          log.push('started')
+        },
+        stop: () => void log.push('stop'),
+      }),
+    })
+    const app = createApplication(module('Root'), { logger: false, transports: [slow()] })
+    await app.init()
+
+    const starting = app.start()
+    await inStart
+    const closing = app.close()
+    release()
+    await starting
+    await closing
+
+    expect(log).toEqual(['started', 'stop'])
+  })
+
+  it('refuses to initialise or start after it was closed', async () => {
+    const log: string[] = []
+    const app = createApplication(module('Root'), {
+      logger: false,
+      transports: [fakeTransport({ kind: 'a', entry: 'as', log })],
+    })
+    await app.close()
+
+    await expect(app.init()).rejects.toThrow('[Navios] The application is closed.')
+    await expect(app.start()).rejects.toThrow('[Navios] The application is closed.')
+    expect(log).toEqual([])
   })
 })

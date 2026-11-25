@@ -42,6 +42,7 @@ interface TransportSlot {
   readonly instance: TransportInstance
   transport: Transport | null
   started: boolean
+  stopped: boolean
 }
 
 /**
@@ -88,7 +89,7 @@ export class Application {
       if (this.slots.some((slot) => slot.instance.instanceName === instance.instanceName)) {
         throw new Error(`[Navios] Two transports are named "${instance.instanceName}".`)
       }
-      this.slots.push({ instance, transport: null, started: false })
+      this.slots.push({ instance, transport: null, started: false, stopped: false })
     }
   }
 
@@ -164,8 +165,29 @@ export class Application {
    * failed to initialise stays failed, because it is only partly built.
    */
   async init(): Promise<this> {
-    await (this.initialisation ??= this.initialise())
+    if (this.initialisation === null) {
+      this.assertOpen()
+      this.initialisation = this.initialise()
+    }
+    await this.initialisation
     return this
+  }
+
+  private assertOpen(): void {
+    if (this.closed) {
+      throw new Error('[Navios] The application is closed.')
+    }
+  }
+
+  /**
+   * Stops a transport that was created, once, however often and from
+   * wherever this is asked for.
+   */
+  private async stopTransport(slot: TransportSlot, timeoutMs: number): Promise<void> {
+    if (slot.transport !== null && !slot.stopped) {
+      slot.stopped = true
+      await slot.transport.stop(timeoutMs)
+    }
   }
 
   private async initialise(): Promise<void> {
@@ -174,11 +196,7 @@ export class Application {
     } catch (error) {
       // Nothing may be left half-open: a transport that was created holds
       // whatever its `create` acquired.
-      await Promise.allSettled(
-        this.slots.map(async (slot) => {
-          await slot.transport?.stop(0)
-        }),
-      )
+      await Promise.allSettled(this.slots.map((slot) => this.stopTransport(slot, 0)))
       throw error
     }
   }
@@ -300,7 +318,12 @@ export class Application {
    */
   async start(): Promise<this> {
     await this.init()
-    await (this.startup ??= this.startTransports())
+    if (this.startup === null) {
+      // The application may have been closed while it was initialising.
+      this.assertOpen()
+      this.startup = this.startTransports()
+    }
+    await this.startup
     return this
   }
 
@@ -342,6 +365,12 @@ export class Application {
     }
     this.signalHandlers = []
 
+    // Whatever is still being built or started is let finish first, so that
+    // nothing is created or started after it was stopped. Their failures
+    // belong to whoever called init() or start().
+    await this.initialisation?.catch(() => {})
+    await this.startup?.catch(() => {})
+
     const report = (message: string, error: unknown) => {
       this.logger?.error(message, error)
     }
@@ -349,7 +378,7 @@ export class Application {
     await Promise.all(
       this.slots.map(async (slot) => {
         try {
-          await slot.transport?.stop(timeout)
+          await this.stopTransport(slot, timeout)
         } catch (error) {
           report(`Error stopping transport ${slot.instance.instanceName}`, error)
         }

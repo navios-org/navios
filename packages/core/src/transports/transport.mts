@@ -36,7 +36,12 @@ export interface Transport {
   setup(graph: readonly ModuleNode[]): void | Promise<void>
   /** Starts accepting work. Called at most once. */
   start?(): void | Promise<void>
-  /** Stops accepting work and waits, up to `timeoutMs`, for what is in flight. */
+  /**
+   * Stops accepting work and waits, up to `timeoutMs`, for what is in flight.
+   * Called at most once. When the application fails to initialise it is
+   * called for every transport that was created, so possibly before `setup`
+   * or `start` ran; it must release what `create` acquired.
+   */
   stop(timeoutMs: number): void | Promise<void>
 }
 

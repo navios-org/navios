@@ -304,4 +304,30 @@ describe('httpTransport', () => {
     expect((await app.inject({ method: 'GET', url: '/early' })).status).toBe(418)
     expect((await app.inject({ method: 'GET', url: '/late' })).status).toBe(419)
   })
+
+  it('lets listen() be tried again after it failed', async () => {
+    @Module({ controllers: [Ping] })
+    class Root {}
+    const attempts: number[] = []
+    const definition: AdapterDefinition<ListeningEnvironment> = {
+      name: 'busy-port',
+      create(context) {
+        const adapter = new InMemoryAdapter(context.errors) as any
+        adapter.listen = async (options: { port: number }) => {
+          attempts.push(options.port)
+          if (options.port === 3000) {
+            throw new Error('EADDRINUSE')
+          }
+          return `http://localhost:${options.port}`
+        }
+        return adapter
+      },
+    }
+    const app = track(await NaviosFactory.create(Root, { adapter: definition, logger: false }))
+
+    await expect(app.listen({ port: 3000 })).rejects.toThrow('EADDRINUSE')
+
+    expect(await app.listen({ port: 3001 })).toBe('http://localhost:3001')
+    expect(attempts).toEqual([3000, 3001])
+  })
 })

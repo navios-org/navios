@@ -146,7 +146,11 @@ async function createHttpTransport(
     }
 
     const listen = (listenOptions: unknown): Promise<string> =>
-      (listening ??= adapter.listen(listenOptions))
+      (listening ??= adapter.listen(listenOptions).catch((error: unknown) => {
+        // A failed bind is not remembered: the caller may try another port.
+        listening = null
+        throw error
+      }))
 
     return {
       adapter,
