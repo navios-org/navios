@@ -2,7 +2,7 @@ import type { Socket } from 'node:net'
 
 import cors from '@fastify/cors'
 import multipart from '@fastify/multipart'
-import { problem, ValidationError } from '@navios/core'
+import { problem, ValidationError } from '@navios/server'
 import { fastify } from 'fastify'
 
 import type {
@@ -14,7 +14,7 @@ import type {
   SchemaLike,
   TestRequest,
   TestResponse,
-} from '@navios/core'
+} from '@navios/server'
 import type { FastifyInstance, FastifyListenOptions, FastifyReply, FastifyRequest } from 'fastify'
 
 import { FastifyRouteInput, RAW_BODY } from './request-input.mjs'

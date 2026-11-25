@@ -3,7 +3,7 @@ import type {
   EndpointResult,
   MultipartParams,
   MultipartResult,
-} from '@navios/core'
+} from '@navios/server'
 
 import {
   Controller,
@@ -12,7 +12,7 @@ import {
   Logger,
   Multipart,
   UseGuards,
-} from '@navios/core'
+} from '@navios/server'
 
 import {
   discriminatorEndpoint,

@@ -1,6 +1,6 @@
 import 'dotenv/config'
 import { defineFastifyEnvironment } from '@navios/adapter-fastify'
-import { NaviosFactory } from '@navios/core'
+import { NaviosFactory } from '@navios/server'
 import { otelPlugin } from '@navios/otel'
 
 import type { FastifyEnvironment } from '@navios/adapter-fastify'
@@ -10,7 +10,7 @@ import { getOtelConfig, logOtelConfig } from './config/otel.config.mjs'
 // the classes they marked once, during init().
 import { AppModule } from './modules/app/app.module.mjs'
 
-declare module '@navios/core' {
+declare module '@navios/server' {
   interface Register {
     environment: FastifyEnvironment
   }

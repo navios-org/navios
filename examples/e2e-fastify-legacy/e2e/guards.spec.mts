@@ -1,7 +1,7 @@
 import supertest from 'supertest'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 
-import type { NaviosApplication } from '@navios/core'
+import type { NaviosApplication } from '@navios/server'
 
 import { createApp } from '../src/bootstrap.mjs'
 

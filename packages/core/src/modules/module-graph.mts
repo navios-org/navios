@@ -1,25 +1,23 @@
 import type { ClassType, Provider } from '@navios/di'
 
-import { joinPaths } from '../routing/join-paths.mjs'
-
-import type { RequestValueClass } from '../context/request-value.mjs'
-
 import { getModuleMetadata } from './module-metadata.mjs'
 
 /**
- * A module as it applies to one application: its prefix with every importer's
- * prefix in front, and its guards, interceptors and attributes together with
- * those it inherits.
+ * A module as it applies to one application: its guards, interceptors and
+ * attributes together with those it inherits, and the modules that import it.
  */
 export interface ModuleNode {
   module: ClassType
-  prefix: string
-  controllers: ClassType[]
+  providers: Provider[]
+  /** The module's transport-specific options, by option name. */
+  entries: ReadonlyMap<string, unknown>
   guards: ClassType[]
   interceptors: ClassType[]
   attributes: Map<symbol, unknown>
-  providers: Provider[]
-  requestValues: RequestValueClass[]
+  /** The modules that import this one, in the order they were reached. */
+  importers: ModuleNode[]
+  /** Whether the module was given to the application directly. */
+  isRoot: boolean
 }
 
 function addAll<T>(target: T[], source: Iterable<T>): void {
@@ -38,51 +36,44 @@ function addAll<T>(target: T[], source: Iterable<T>): void {
  *   module, outermost first. Nothing is written back to the classes, so two
  *   applications importing one module under different parents do not affect
  *   each other.
- * - A module's prefix is its importers' prefixes followed by its own. A
- *   module with controllers that is reached under two different prefixes is
- *   an error, because its routes would be ambiguous.
  * - For attributes, the nearest module that sets a value wins.
  *
  * Modules are returned in dependency order: a module comes after everything
  * it imports.
  */
-export function buildModuleGraph(roots: ClassType[], globalPrefix: string): ModuleNode[] {
+export function buildModuleGraph(roots: ClassType[]): ModuleNode[] {
   const nodes = new Map<ClassType, ModuleNode>()
   const order: ClassType[] = []
   const stack: ClassType[] = []
 
   const visit = (
     module: ClassType,
-    parentPrefix: string,
+    importer: ModuleNode | null,
     inheritedGuards: ClassType[],
     inheritedInterceptors: ClassType[],
     inheritedAttributes: Map<symbol, unknown>,
   ): void => {
+    let node = nodes.get(module)
+    if (node && importer && !node.importers.includes(importer)) {
+      node.importers.push(importer)
+    }
     if (stack.includes(module)) {
       return
     }
     const metadata = getModuleMetadata(module)
-    const prefix = joinPaths(parentPrefix, metadata.prefix)
-    let node = nodes.get(module)
     if (!node) {
       node = {
         module,
-        prefix,
-        controllers: metadata.controllers,
+        providers: metadata.providers,
+        entries: metadata.entries,
         guards: [],
         interceptors: [],
         attributes: new Map(),
-        providers: metadata.providers,
-        requestValues: metadata.requestValues,
+        importers: importer ? [importer] : [],
+        isRoot: false,
       }
       nodes.set(module, node)
-    } else if (node.prefix !== prefix && metadata.controllers.length > 0) {
-      throw new Error(
-        `[Navios] Module ${module.name} is imported under two different prefixes ` +
-          `("${node.prefix || '/'}" and "${prefix || '/'}"). A module with controllers can be mounted once.`,
-      )
     }
-
     addAll(node.guards, inheritedGuards)
     addAll(node.guards, metadata.guards)
     addAll(node.interceptors, inheritedInterceptors)
@@ -100,17 +91,17 @@ export function buildModuleGraph(roots: ClassType[], globalPrefix: string): Modu
 
     stack.push(module)
     for (const imported of metadata.imports) {
-      visit(imported, prefix, node.guards, node.interceptors, attributes)
+      visit(imported, node, node.guards, node.interceptors, attributes)
     }
     stack.pop()
-
     if (!order.includes(module)) {
       order.push(module)
     }
   }
 
   for (const root of roots) {
-    visit(root, globalPrefix, [], [], new Map())
+    visit(root, null, [], [], new Map())
+    nodes.get(root)!.isRoot = true
   }
   return order.map((module) => nodes.get(module)!)
 }

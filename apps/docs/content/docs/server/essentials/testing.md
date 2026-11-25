@@ -16,14 +16,14 @@ The examples use Vitest. Nothing here depends on it.
 
 ## The in-memory adapter
 
-`defineInMemoryEnvironment()` from `@navios/core/testing` is an adapter without a server. `createTestClient(app)` returns a function that calls a declaration against the application in process.
+`defineInMemoryEnvironment()` from `@navios/server/testing` is an adapter without a server. `createTestClient(app)` returns a function that calls a declaration against the application in process.
 
 ```ts title="users.spec.mts"
-import { NaviosFactory } from '@navios/core'
-import { createTestClient, defineInMemoryEnvironment } from '@navios/core/testing'
+import { NaviosFactory } from '@navios/server'
+import { createTestClient, defineInMemoryEnvironment } from '@navios/server/testing'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
-import type { NaviosApplication } from '@navios/core'
+import type { NaviosApplication } from '@navios/server'
 
 // AppModule, getUser and createUser come from the Quick start
 import { AppModule } from './app.module.mjs'
@@ -132,7 +132,7 @@ const response = await fetch(`${base}/users/1`)
 Pass providers to the application. They win over everything declared in modules.
 
 ```ts
-import { Injectable, provide } from '@navios/core'
+import { Injectable, provide } from '@navios/server'
 
 @Injectable()
 class EmptyUsers extends UsersService {

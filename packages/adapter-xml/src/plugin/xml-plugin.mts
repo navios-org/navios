@@ -1,6 +1,6 @@
-import { definePlugin } from '@navios/core'
+import { definePlugin, httpTransport } from '@navios/server'
 
-import type { RequestContext, RouteResult } from '@navios/core'
+import type { RequestContext, RouteResult } from '@navios/server'
 
 import { renderToXml } from '../render/render-to-xml.mjs'
 import { XML_RESULT_KIND } from '../response/xml.mjs'
@@ -39,8 +39,12 @@ export const xmlPlugin = definePlugin({
   name: 'xml',
   setup(api, defaults: XmlPluginOptions | void) {
     const container = api.container
+    const http = api.transport(httpTransport)
+    if (!http) {
+      throw new Error('[Navios] @navios/adapter-xml needs the HTTP transport.')
+    }
 
-    api.encoder(
+    http.encoder(
       XML_RESULT_KIND,
       async (result: RouteResult, ctx: RequestContext): Promise<RouteResult> => {
         const payload = result.body as XmlPayload

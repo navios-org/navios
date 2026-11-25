@@ -22,14 +22,14 @@ export const getUser = API.declareEndpoint({
 })
 ```
 
-Implement it on a server with `@navios/core`. The handler's parameters and return value are checked against the declaration.
+Implement it on a server with `@navios/server`. The handler's parameters and return value are checked against the declaration.
 
 ```ts
 // server.mts
 import { defineFastifyEnvironment } from '@navios/adapter-fastify'
-import { Controller, Endpoint, Module, NaviosFactory } from '@navios/core'
+import { Controller, Endpoint, Module, NaviosFactory } from '@navios/server'
 
-import type { HandlerParams } from '@navios/core'
+import type { HandlerParams } from '@navios/server'
 
 import { getUser } from './users.mjs'
 
@@ -69,7 +69,8 @@ const user = await getUser({ urlParams: { userId: '42' } })
 | [`@navios/builder`](./packages/builder)                 | Endpoint declarations and the typed client            | [Builder](https://navios.tech/docs/builder/)                            |
 | [`@navios/react-query`](./packages/react-query)         | TanStack Query hooks derived from declarations        | [React Query](https://navios.tech/docs/builder/react-query/)            |
 | [`@navios/http`](./packages/navios)                     | A small `fetch`-based HTTP client                     | [HTTP client](https://navios.tech/docs/builder/essentials/http-client)  |
-| [`@navios/core`](./packages/core)                       | The server framework                                  | [Server](https://navios.tech/docs/server/)                              |
+| [`@navios/server`](./packages/server)                   | The server framework                                  | [Server](https://navios.tech/docs/server/)                              |
+| [`@navios/core`](./packages/core)                       | Modules, plugins and lifecycle, without HTTP          | [Other transports](https://navios.tech/docs/server/guides/other-transports) |
 | [`@navios/adapter-fastify`](./packages/adapter-fastify) | Runs a server on Fastify and Node.js                  | [Fastify](https://navios.tech/docs/server/adapters/fastify)             |
 | [`@navios/adapter-bun`](./packages/adapter-bun)         | Runs a server on `Bun.serve`                          | [Bun](https://navios.tech/docs/server/adapters/bun)                     |
 | [`@navios/adapter-xml`](./packages/adapter-xml)         | XML responses written as JSX                          | [XML responses](https://navios.tech/docs/server/adapters/xml)           |
@@ -101,7 +102,7 @@ yarn test:ci
 yarn lint
 ```
 
-To work on one package, filter the task: `yarn turbo run test:ci --filter=@navios/core`. The docs site lives in `apps/docs`.
+To work on one package, filter the task: `yarn turbo run test:ci --filter=@navios/server`. The docs site lives in `apps/docs`.
 
 ## License
 

@@ -12,7 +12,7 @@ title: XML responses
 yarn add @navios/adapter-xml
 ```
 
-`@navios/core` 2.x is a peer dependency.
+`@navios/server` 2.x is a peer dependency.
 
 Point TypeScript's JSX transform at the package. Files that contain JSX use the `.tsx` extension.
 
@@ -32,7 +32,7 @@ Then add the plugin:
 ```ts title="main.mts"
 import { defineFastifyEnvironment } from '@navios/adapter-fastify'
 import { xmlPlugin } from '@navios/adapter-xml'
-import { NaviosFactory } from '@navios/core'
+import { NaviosFactory } from '@navios/server'
 
 import { AppModule } from './app.module.mjs'
 
@@ -57,7 +57,7 @@ Declare the endpoint with `response: 'text'` (`'stream'` and `'blob'` work too) 
 
 ```tsx title="feed.controller.tsx"
 import { xml } from '@navios/adapter-xml'
-import { Controller, Endpoint, inject } from '@navios/core'
+import { Controller, Endpoint, inject } from '@navios/server'
 
 import { API } from './api.mjs'
 import { PostsService } from './posts.service.mjs'
@@ -112,9 +112,9 @@ What happens to the returned value:
 
 ```tsx
 import { renderToXml } from '@navios/adapter-xml'
-import { Container, Controller, Endpoint, inject } from '@navios/core'
+import { Container, Controller, Endpoint, inject } from '@navios/server'
 
-import type { HandlerParams, RequestContext } from '@navios/core'
+import type { HandlerParams, RequestContext } from '@navios/server'
 
 @Controller()
 export class FeedController {
@@ -137,7 +137,7 @@ Components are not run when the JSX expression is evaluated. They run when the t
 A function component receives its props and, as second argument, the `RequestContext` of the request being served. It may be asynchronous.
 
 ```tsx
-import type { RequestContext } from '@navios/core'
+import type { RequestContext } from '@navios/server'
 
 async function LatestPosts({ limit }: { limit: number }, ctx: RequestContext) {
   const tenant = ctx.get(CurrentTenant) // a context key or request value
@@ -166,10 +166,10 @@ A class component is registered with `@Component()` and implements `render(ctx)`
 
 ```tsx
 import { Component } from '@navios/adapter-xml'
-import { inject } from '@navios/core'
+import { inject } from '@navios/server'
 
 import type { XmlComponent } from '@navios/adapter-xml'
-import type { RequestContext } from '@navios/core'
+import type { RequestContext } from '@navios/server'
 
 @Component()
 class LatestPosts implements XmlComponent {

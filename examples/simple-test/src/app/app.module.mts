@@ -1,4 +1,4 @@
-import { Module } from '@navios/core'
+import { Module } from '@navios/server'
 
 import { AppGuard } from './acl/app.guard.mjs'
 import { AppController } from './app.controller.mjs'

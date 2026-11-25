@@ -1,8 +1,8 @@
 import { Readable } from 'node:stream'
 
-import { serializeCookie } from '@navios/core'
+import { serializeCookie } from '@navios/server'
 
-import type { RouteResult } from '@navios/core'
+import type { RouteResult } from '@navios/server'
 import type { FastifyReply } from 'fastify'
 
 /* eslint-disable @typescript-eslint/no-explicit-any */

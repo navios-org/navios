@@ -1,6 +1,6 @@
 import type { FastifyCorsOptions } from '@fastify/cors'
 import type { FastifyMultipartOptions } from '@fastify/multipart'
-import type { AdapterDefinition, HttpAdapterEnvironment } from '@navios/core'
+import type { AdapterDefinition, HttpAdapterEnvironment } from '@navios/server'
 import type {
   FastifyInstance,
   FastifyListenOptions,
@@ -15,7 +15,7 @@ import { FastifyAdapter } from './fastify-adapter.mjs'
  * Types an application that runs on Fastify:
  *
  * ```ts
- * declare module '@navios/core' {
+ * declare module '@navios/server' {
  *   interface Register {
  *     environment: FastifyEnvironment
  *   }

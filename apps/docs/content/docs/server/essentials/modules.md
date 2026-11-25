@@ -9,7 +9,7 @@ A module is a group of routes with a shared path prefix, shared guards and share
 A module is not a dependency-injection boundary. Services are visible application-wide, and a module never has to list or export them.
 
 ```ts
-import { Module, provide } from '@navios/core'
+import { Module, provide } from '@navios/server'
 
 // UsersController comes from the Quick start
 @Module({
@@ -115,9 +115,9 @@ Relying on the second rule is fragile. Provide a token in one place.
 A module class is instantiated once and may implement `onModuleInit()` for work that has to happen before the application serves requests:
 
 ```ts
-import { inject, Module } from '@navios/core'
+import { inject, Module } from '@navios/server'
 
-import type { OnModuleInit } from '@navios/core'
+import type { OnModuleInit } from '@navios/server'
 
 @Module({ imports: [UsersModule] })
 export class AppModule implements OnModuleInit {

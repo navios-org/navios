@@ -20,9 +20,9 @@ import {
   Injectable,
   InjectionToken,
   Module,
-} from '@navios/core'
+} from '@navios/server'
 
-import type { Interceptor, RequestContext, RouteResult } from '@navios/core'
+import type { Interceptor, RequestContext, RouteResult } from '@navios/server'
 
 export interface MetricsOptions {
   prefix: string
@@ -98,22 +98,49 @@ Plugins are set up in dependency order, whatever order they were registered in. 
 
 ## The plugin API
 
-`setup` runs after the adapter has been created and before modules are loaded. Each call on `api` is recorded and applied at the right point of `init()`, so a plugin does not choose a stage.
+`setup` runs after the application's transports, and so the HTTP adapter, have been created and before modules are loaded. Each call on `api` is recorded and applied at the right point of `init()`, so a plugin does not choose a stage.
 
 | Call                               | Effect                                                                                                        |
 | ---------------------------------- | ------------------------------------------------------------------------------------------------------------- |
 | `api.provide(token, impl)`         | Supplies or replaces a provider. `impl` is a class, `{ value }`, `{ class, scope? }` or `{ factory, scope? }` |
 | `api.decorate(token, fn)`          | Wraps every instance of a service after it is built. `fn` receives the instance and returns the one to use    |
-| `api.intercept(InterceptorClass)`  | Adds an interceptor around every route                                                                        |
-| `api.mapError(ErrorClass, mapper)` | Maps an error class to a response, like `app.mapError`                                                        |
+| `api.intercept(InterceptorClass)`  | Adds an interceptor around every handler, on every [transport](/docs/server/guides/other-transports)          |
 | `api.addModule(ModuleClass)`       | Adds a module, and so its routes, to the application                                                          |
-| `api.encoder(kind, encoder)`       | Registers a [response encoder](#response-encoders) for a custom result kind                                   |
-| `api.onBootstrap(hook)`            | Runs after routes are compiled and before the server listens. The hook receives `app.routes()`                |
+| `api.transport(httpTransport)`     | The application's HTTP transport, or `undefined` when it has none. See [The HTTP transport](#the-http-transport) |
+| `api.onBootstrap(hook)`            | Runs after routes are compiled and before the server listens                                                  |
 | `api.onShutdown(hook)`             | Runs during `close()`, in reverse registration order. The hook receives the signal name, if any               |
 | `api.container`                    | The DI container                                                                                              |
-| `api.adapter`                      | The adapter instance                                                                                          |
 
 Providers are described in [Providers](/docs/di/essentials/providers), interceptors in [Guards and interceptors](/docs/server/essentials/guards-and-interceptors) and error mappers in [Errors](/docs/server/essentials/errors).
+
+## The HTTP transport
+
+Everything in the table above works in any application, with or without HTTP. What belongs to HTTP is reached through the transport:
+
+```ts
+import { definePlugin, httpTransport } from '@navios/server'
+
+export const myPlugin = definePlugin({
+  name: 'my-plugin',
+  setup(api) {
+    const http = api.transport(httpTransport)
+    if (!http) {
+      throw new Error('my-plugin needs the HTTP transport.')
+    }
+    // ...
+  },
+})
+```
+
+| Call                                | Effect                                                                                |
+| ----------------------------------- | ------------------------------------------------------------------------------------- |
+| `http.intercept(InterceptorClass)`  | Adds an interceptor around every route, and around nothing else                       |
+| `http.mapError(ErrorClass, mapper)` | Maps an error class to a response, like `app.mapError`                                |
+| `http.encoder(kind, encoder)`       | Registers a [response encoder](#response-encoders) for a custom result kind           |
+| `http.routes()`                     | Every route. Complete from `api.onBootstrap` on                                       |
+| `http.adapter`                      | The adapter instance                                                                  |
+
+An interceptor that reads the request, such as its headers or path, is registered with `http.intercept`. One registered with `api.intercept` also runs for the handlers of other transports and receives their contexts.
 
 ## Contributing routes
 
@@ -147,9 +174,9 @@ Routes added this way get the application's global prefix, pass through applicat
 `api.onBootstrap` is where a plugin looks at the finished application. Its route list includes routes added by other plugins, because it is built after every `setup` has run:
 
 ```ts
-api.onBootstrap(async (routes) => {
+api.onBootstrap(async () => {
   const registry = await api.container.get(MetricsRegistry)
-  for (const route of routes) {
+  for (const route of http.routes()) {
     registry.count(route.path, 0) // start every route at a known series
   }
 })
@@ -157,17 +184,17 @@ api.onBootstrap(async (routes) => {
 
 ## Using the native server
 
-`api.adapter` is typed as the adapter-neutral `HttpAdapter`, whose `server` is `unknown`. A plugin written for one adapter narrows it:
+`http.adapter` is typed as the adapter-neutral `HttpAdapter`, whose `server` is `unknown`. A plugin written for one adapter narrows it:
 
 ```ts
-import { definePlugin } from '@navios/core'
+import { definePlugin, httpTransport } from '@navios/server'
 
 import type { FastifyAdapter } from '@navios/adapter-fastify'
 
 export const poweredBy = definePlugin({
   name: 'powered-by',
   setup(api) {
-    const { server } = api.adapter as FastifyAdapter
+    const { server } = api.transport(httpTransport)!.adapter as FastifyAdapter
     server.addHook('onSend', async (_request, reply) => {
       reply.header('x-powered-by', 'navios')
     })
@@ -175,7 +202,7 @@ export const poweredBy = definePlugin({
 })
 ```
 
-Registering a Fastify plugin works the same way: `await server.register(somePlugin)` in an `async setup`. On Bun the native server does not exist until `listen()`, so `api.adapter.server` throws during `setup`.
+Registering a Fastify plugin works the same way: `await server.register(somePlugin)` in an `async setup`. On Bun the native server does not exist until `listen()`, so `http.adapter.server` throws during `setup`.
 
 ## Response encoders
 
@@ -184,14 +211,14 @@ An adapter knows how to write six kinds of result: `json`, `text`, `blob`, `stre
 A handler produces a custom kind with `result(kind, body)`, usually behind a helper the package exports:
 
 ```ts title="csv.plugin.mts"
-import { definePlugin, result } from '@navios/core'
+import { definePlugin, httpTransport, result } from '@navios/server'
 
 export const csv = (rows: string[][]) => result('csv', rows)
 
 export const csvPlugin = definePlugin({
   name: 'csv',
   setup(api) {
-    api.encoder('csv', (value, ctx) => ({
+    api.transport(httpTransport)!.encoder('csv', (value, ctx) => ({
       ...value,
       kind: 'text',
       headers: { ...value.headers, 'content-type': 'text/csv; charset=utf-8' },

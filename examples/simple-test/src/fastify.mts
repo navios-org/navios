@@ -1,5 +1,5 @@
 import { defineFastifyEnvironment } from '@navios/adapter-fastify'
-import { NaviosFactory } from '@navios/core'
+import { NaviosFactory } from '@navios/server'
 
 import { AppModule } from './app/app.module.mjs'
 import { ConfigService } from './config/config.service.mjs'

@@ -36,9 +36,9 @@ const user = await getUser({ urlParams: { userId: '42' } })
 **Implement it** in a Navios server controller. The handler's parameters and return type come from the same declaration:
 
 ```ts
-import { Controller, Endpoint } from '@navios/core'
+import { Controller, Endpoint } from '@navios/server'
 
-import type { HandlerParams } from '@navios/core'
+import type { HandlerParams } from '@navios/server'
 
 @Controller()
 class UserController {

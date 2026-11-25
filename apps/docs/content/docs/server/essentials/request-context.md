@@ -7,7 +7,7 @@ title: Request context
 `RequestContext` is one object per request. Handlers receive it as their second argument, guards and interceptors as their first. Everything on it is the same on every adapter except `raw`.
 
 ```ts
-import type { HandlerParams, RequestContext } from '@navios/core'
+import type { HandlerParams, RequestContext } from '@navios/server'
 
 // getUser comes from the Quick start
 @Endpoint(getUser)
@@ -77,9 +77,9 @@ There is no way to set the status here. The status comes from the declaration: r
 `ctx.onFinish(callback)` runs a callback once the response is done: the body has been sent, a stream has ended, or the client has gone away. By then `ctx.responseStatus` holds the final status, including the status an error was mapped to. An interceptor uses the pair to write an access log or end a span:
 
 ```ts
-import { Injectable } from '@navios/core'
+import { Injectable } from '@navios/server'
 
-import type { Interceptor, RequestContext, RouteResult } from '@navios/core'
+import type { Interceptor, RequestContext, RouteResult } from '@navios/server'
 
 @Injectable()
 export class AccessLogInterceptor implements Interceptor {
@@ -115,7 +115,7 @@ Without further setup `ctx.raw` is `unknown`. Its type comes from one declaratio
 ```ts title="main.mts"
 import type { FastifyEnvironment } from '@navios/adapter-fastify'
 
-declare module '@navios/core' {
+declare module '@navios/server' {
   interface Register {
     environment: FastifyEnvironment
   }
@@ -142,7 +142,7 @@ const app = await NaviosFactory.create(AppModule, {
 ```
 
 ```ts
-import { currentContext, Injectable } from '@navios/core'
+import { currentContext, Injectable } from '@navios/server'
 
 @Injectable()
 export class AuditLog {

@@ -1,4 +1,4 @@
-import type { InferInput, StandardSchemaV1 } from '@navios/core'
+import type { InferInput, StandardSchemaV1 } from '@navios/server'
 
 import type { XmlNode, XmlRenderable } from '../nodes/xml-node.mjs'
 

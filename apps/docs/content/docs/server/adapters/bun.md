@@ -18,7 +18,7 @@ The adapter has no runtime dependencies of its own.
 
 ```ts title="main.mts"
 import { defineBunEnvironment } from '@navios/adapter-bun'
-import { NaviosFactory } from '@navios/core'
+import { NaviosFactory } from '@navios/server'
 
 import { AppModule } from './app.module.mjs'
 
@@ -58,7 +58,7 @@ defineBunEnvironment({
 ```ts
 import type { BunEnvironment } from '@navios/adapter-bun'
 
-declare module '@navios/core' {
+declare module '@navios/server' {
   interface Register {
     environment: BunEnvironment
   }
@@ -157,4 +157,4 @@ The adapter enforces the limit itself and starts `Bun.serve` without one, becaus
 ## Requirements
 
 - Bun 1.3.10 or newer
-- `@navios/core` 2.x and `@navios/builder` 2.x (peer dependencies)
+- `@navios/server` 2.x and `@navios/builder` 2.x (peer dependencies)

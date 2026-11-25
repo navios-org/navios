@@ -1,4 +1,4 @@
-import { Module } from '@navios/core/legacy-compat'
+import { Module } from '@navios/server/legacy-compat'
 
 import { FilesController } from './files.controller.mjs'
 

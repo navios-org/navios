@@ -1,6 +1,6 @@
-import { isCustomResult, result } from '@navios/core'
+import { isCustomResult, result } from '@navios/server'
 
-import type { CustomResult } from '@navios/core'
+import type { CustomResult } from '@navios/server'
 
 import type { AnyXmlNode, XmlRenderable } from '../nodes/xml-node.mjs'
 

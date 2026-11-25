@@ -1,12 +1,12 @@
 import { defineFastifyEnvironment } from '@navios/adapter-fastify'
-import { NaviosFactory } from '@navios/core'
+import { NaviosFactory } from '@navios/server'
 
 import type { FastifyEnvironment } from '@navios/adapter-fastify'
 
 import { AppModule } from './modules/app/app.module.mjs'
 
 // Types `ctx.raw` and `app.getServer()` for the whole application.
-declare module '@navios/core' {
+declare module '@navios/server' {
   interface Register {
     environment: FastifyEnvironment
   }

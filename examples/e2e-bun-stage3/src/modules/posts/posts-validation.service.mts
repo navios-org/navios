@@ -1,4 +1,4 @@
-import { Injectable, InjectableScope } from '@navios/core'
+import { Injectable, InjectableScope } from '@navios/server'
 
 @Injectable({ scope: InjectableScope.Request })
 export class PostsValidationService {

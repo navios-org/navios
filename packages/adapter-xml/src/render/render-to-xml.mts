@@ -1,4 +1,4 @@
-import type { Container, RequestContext, ScopedContainer } from '@navios/core'
+import type { Container, RequestContext, ScopedContainer } from '@navios/server'
 
 import { CDataSymbol } from '../nodes/cdata.mjs'
 import { RawXmlSymbol } from '../nodes/raw-xml.mjs'

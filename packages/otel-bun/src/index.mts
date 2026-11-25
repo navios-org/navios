@@ -16,8 +16,8 @@
  */
 import { otelPlugin } from '@navios/otel'
 
-import type { PluginInstance } from '@navios/core'
 import type { OtelPluginOptions } from '@navios/otel'
+import type { PluginInstance } from '@navios/server'
 
 /**
  * Returns the plugin of `@navios/otel` in a one-element array, because 1.x

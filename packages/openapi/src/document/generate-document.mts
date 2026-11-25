@@ -1,4 +1,4 @@
-import type { RouteInfo } from '@navios/core'
+import type { RouteInfo } from '@navios/server'
 
 import { extractOpenApiMetadata } from '../annotations/index.mjs'
 import { SchemaConverter } from '../json-schema/index.mjs'

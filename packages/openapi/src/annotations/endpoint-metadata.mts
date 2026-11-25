@@ -1,6 +1,6 @@
-import { AttributeFactory } from '@navios/core'
+import { AttributeFactory } from '@navios/server'
 
-import type { RouteInfo } from '@navios/core'
+import type { RouteInfo } from '@navios/server'
 
 import { ApiDeprecatedAttribute } from './api-deprecated.mjs'
 import { ApiExclude } from './api-exclude.mjs'

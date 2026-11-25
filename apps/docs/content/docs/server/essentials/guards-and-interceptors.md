@@ -13,9 +13,9 @@ Where the two sit among the other stages of a request is shown in [How a request
 A guard is a class with a `canActivate(ctx)` method.
 
 ```ts title="api-key.guard.mts"
-import { inject, Injectable, UnauthorizedException } from '@navios/core'
+import { inject, Injectable, UnauthorizedException } from '@navios/server'
 
-import type { Guard, RequestContext } from '@navios/core'
+import type { Guard, RequestContext } from '@navios/server'
 
 @Injectable()
 export class ApiKeyGuard implements Guard {
@@ -88,9 +88,9 @@ A class listed as a guard must be `@Injectable()` and have a `canActivate` metho
 An interceptor is a class with an `intercept(ctx, next)` method. Calling `next()` runs the rest of the pipeline: inner interceptors, guards, validation and the handler.
 
 ```ts title="timing.interceptor.mts"
-import { inject, Injectable, Logger } from '@navios/core'
+import { inject, Injectable, Logger } from '@navios/server'
 
-import type { Interceptor, RequestContext, RouteResult } from '@navios/core'
+import type { Interceptor, RequestContext, RouteResult } from '@navios/server'
 
 @Injectable()
 export class TimingInterceptor implements Interceptor {

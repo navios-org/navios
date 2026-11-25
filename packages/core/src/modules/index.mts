@@ -1,6 +1,6 @@
 export { Module, registerModule } from './module.mjs'
-export type { ModuleOptions } from './module.mjs'
 export { buildModuleGraph } from './module-graph.mjs'
 export type { ModuleNode } from './module-graph.mjs'
 export { getModuleMetadata, hasModuleMetadata, ModuleMetadataKey } from './module-metadata.mjs'
 export type { ModuleMetadata } from './module-metadata.mjs'
+export type { ModuleOptions } from './module-options.mjs'

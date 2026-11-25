@@ -1,7 +1,5 @@
 import type { ClassType } from '@navios/di'
 
-import type { RouteEndpointConfig } from '../routing/endpoint-config.mjs'
-
 import { own, requireMetadata } from './decorator-metadata.mjs'
 
 import type { DecoratorMetadata } from './decorator-metadata.mjs'
@@ -16,11 +14,16 @@ export interface HandlerExtras {
 }
 
 /**
- * A handler declared with `@Endpoint` on a method.
+ * A class member that is, or may become, a handler: what decorators attached
+ * to it.
  */
 export interface MethodHandlerMetadata extends HandlerExtras {
   name: string
-  config: RouteEndpointConfig | null
+  /**
+   * What makes the member a handler of a transport, under that transport's
+   * own symbol.
+   */
+  entries: Map<symbol, unknown>
 }
 
 /** @internal */
@@ -43,6 +46,7 @@ export function memberMetadata(
             guards: [...value.guards],
             interceptors: [...value.interceptors],
             attributes: new Map(value.attributes),
+            entries: new Map(value.entries),
           })
         }
       }
@@ -51,7 +55,7 @@ export function memberMetadata(
   )
   let member = members.get(name)
   if (!member) {
-    member = { name, config: null, guards: [], interceptors: [], attributes: new Map() }
+    member = { name, guards: [], interceptors: [], attributes: new Map(), entries: new Map() }
     members.set(name, member)
   }
   return member

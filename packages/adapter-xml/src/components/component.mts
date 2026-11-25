@@ -1,6 +1,6 @@
-import { InjectableScope, registerInjectable } from '@navios/core'
+import { InjectableScope, registerInjectable } from '@navios/server'
 
-import type { InferOutput, StandardSchemaV1 } from '@navios/core'
+import type { InferOutput, StandardSchemaV1 } from '@navios/server'
 
 import type { ComponentClass, XmlComponent } from './xml-component.mjs'
 

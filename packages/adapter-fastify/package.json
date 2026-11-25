@@ -43,6 +43,7 @@
   "devDependencies": {
     "@navios/builder": "workspace:^",
     "@navios/core": "workspace:^",
+    "@navios/server": "workspace:^",
     "@types/supertest": "^7.2.1",
     "supertest": "^7.3.2",
     "tsx": "^4.23.15",
@@ -52,6 +53,7 @@
   "peerDependencies": {
     "@navios/builder": "workspace:^",
     "@navios/core": "workspace:^",
+    "@navios/server": "workspace:^",
     "fastify": "^5.6.0"
   }
 }

@@ -1,13 +1,13 @@
 # @navios/adapter-bun
 
-Runs a [Navios](https://navios.tech) application on `Bun.serve`. The adapter registers the application's routes with Bun's router, turns each `Request` into the input of a compiled route and builds a `Response` from the result. Guards, validation and error mapping happen in `@navios/core` and behave the same as on every other adapter.
+Runs a [Navios](https://navios.tech) application on `Bun.serve`. The adapter registers the application's routes with Bun's router, turns each `Request` into the input of a compiled route and builds a `Response` from the result. Guards, validation and error mapping happen in `@navios/server` and behave the same as on every other adapter.
 
 **[Documentation](https://navios.tech/docs/server/adapters/bun)** · [Server quick start](https://navios.tech/docs/server/quick-start)
 
 ## Install
 
 ```bash
-bun add @navios/adapter-bun @navios/core @navios/builder
+bun add @navios/adapter-bun @navios/server @navios/builder
 ```
 
 Requires Bun 1.3.10 or newer. The adapter has no runtime dependencies of its own.
@@ -16,14 +16,14 @@ Requires Bun 1.3.10 or newer. The adapter has no runtime dependencies of its own
 
 ```ts
 import { defineBunEnvironment } from '@navios/adapter-bun'
-import { NaviosFactory } from '@navios/core'
+import { NaviosFactory } from '@navios/server'
 
 import type { BunEnvironment } from '@navios/adapter-bun'
 
 import { AppModule } from './app.module.mjs'
 
 // Types ctx.raw, app.getServer() and the options of app.listen() for Bun
-declare module '@navios/core' {
+declare module '@navios/server' {
   interface Register {
     environment: BunEnvironment
   }
@@ -59,7 +59,7 @@ const url = await app.listen({ port: 3000, hostname: '0.0.0.0' })
 
 ## Development
 
-The adapter is tested with the shared suite from `@navios/core/conformance`, over real HTTP on an ephemeral port, using `bun:test`; the spec is `e2e/conformance.spec.mts`. `e2e/cors.spec.mts` covers CORS, which is specific to this adapter. [Writing an adapter](https://navios.tech/docs/server/adapters/writing-an-adapter#running-the-conformance-suite) describes the suite.
+The adapter is tested with the shared suite from `@navios/server/conformance`, over real HTTP on an ephemeral port, using `bun:test`; the spec is `e2e/conformance.spec.mts`. `e2e/cors.spec.mts` covers CORS, which is specific to this adapter. [Writing an adapter](https://navios.tech/docs/server/adapters/writing-an-adapter#running-the-conformance-suite) describes the suite.
 
 ```bash
 cd packages/adapter-bun && bun test

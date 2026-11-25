@@ -2,7 +2,7 @@
 
 Message queue clients for Navios with zod-validated messages. One `QueueClient` interface covers RabbitMQ, Kafka and AWS SQS/SNS, and three small services (`QueuePublisher`, `QueueSender`, `QueueRequester`) send typed messages through it.
 
-The package depends only on `@navios/di`, so it works with or without `@navios/core`.
+The package depends only on `@navios/di`, so it works with or without `@navios/server`.
 
 ## Installation
 
@@ -55,8 +55,8 @@ export class AppQueueConfig implements QueueConfigService {
 The class may use `inject()` to read from your own configuration service. Bind it with `provide()` in whichever place fits:
 
 ```ts
-import { NaviosFactory, provide } from '@navios/core'
 import { QueueConfigServiceToken } from '@navios/queues'
+import { NaviosFactory, provide } from '@navios/server'
 
 // for the whole application
 const app = await NaviosFactory.create(AppModule, {

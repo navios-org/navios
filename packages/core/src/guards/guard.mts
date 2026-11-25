@@ -1,5 +1,9 @@
-import type { RequestContext } from '../context/request-context.mjs'
+import type { ExecutionContext } from '../execution/execution-context.mjs'
 
-export interface Guard {
-  canActivate(ctx: RequestContext): boolean | Promise<boolean>
+/**
+ * Decides whether a handler may run. `Ctx` is the context of the transport
+ * the guard is written for; the default works on every transport.
+ */
+export interface Guard<Ctx extends ExecutionContext = ExecutionContext> {
+  canActivate(ctx: Ctx): boolean | Promise<boolean>
 }

@@ -1,63 +1,89 @@
-import { Injectable } from '@navios/di'
+import { InjectableScope, registerInjectable } from '@navios/core'
+import {
+  classAttributes,
+  classGuards,
+  classInterceptors,
+  MembersKey,
+  prepend,
+  requireMetadata,
+} from '@navios/core/transport'
 
-import type { ClassType, InjectableScope } from '@navios/di'
+import type { ClassType } from '@navios/core'
+import type { DecoratorMetadata, MethodHandlerMetadata } from '@navios/core/transport'
 
-import { getMessageControllerMetadata } from './message-controller-metadata.mjs'
+/* eslint-disable @typescript-eslint/no-explicit-any */
 
-/**
- * Options for configuring a Navios message controller.
- */
 export interface MessageControllerOptions {
-  /**
-   * Guards to apply to all message handlers in this controller.
-   * Guards are executed in reverse order (last guard first).
-   */
-  guards?: ClassType[] | Set<ClassType>
-  /**
-   * Scope to use for the controller.
-   * Scope is used to determine the scope of the controller.
-   */
-  scope?: InjectableScope
+  /** Guards for every handler of the controller, after the module's. */
+  guards?: ClassType[]
+  /** Interceptors around every handler of the controller, inside the module's. */
+  interceptors?: ClassType[]
+}
+
+export interface MessageControllerMetadata {
+  guards: ClassType[]
+  interceptors: ClassType[]
+  attributes: Map<symbol, unknown>
+  /** The members decorators were applied to, by name. */
+  members: Map<string, MethodHandlerMetadata>
+}
+
+const MessageControllerMetadataKey = Symbol.for('navios.microservice.controller')
+
+function defineMetadata(
+  target: ClassType,
+  context: { metadata?: DecoratorMetadata },
+  options: MessageControllerOptions,
+): void {
+  const metadata = requireMetadata(context)
+  const controller: MessageControllerMetadata = {
+    // The live lists: @UseGuards / @UseInterceptors placed above this
+    // decorator run after it and must still be seen.
+    guards: prepend(classGuards(context), options.guards),
+    interceptors: prepend(classInterceptors(context), options.interceptors),
+    attributes: classAttributes(context),
+    members: (metadata[MembersKey] as Map<string, MethodHandlerMetadata> | undefined) ?? new Map(),
+  }
+  Object.defineProperty(target, MessageControllerMetadataKey, {
+    value: controller,
+    configurable: true,
+    enumerable: false,
+  })
 }
 
 /**
- * Decorator that marks a class as a Navios message controller.
+ * Marks a class as a message controller: a singleton whose `@Message`
+ * methods handle messages. List it in a module's `messageControllers`.
  *
- * Message controllers handle messages from queues and define message handlers.
- * They are request-scoped by default, meaning a new instance is created for each message.
- *
- * @param options - Message controller configuration options
- * @returns A class decorator
- *
- * @example
- * ```typescript
- * @MessageController({ guards: [AuthGuard] })
- * export class UserMessageController {
- *   @Message(createUserMessage)
- *   async handleCreateUser(params: MessageParams<typeof createUserMessage>) {
- *     // Handle message
- *   }
+ * ```ts
+ * @MessageController()
+ * class UsersConsumer {
+ *   @Message(userCreated)
+ *   async onCreated({ payload }: MessageParams<typeof userCreated>) {}
  * }
  * ```
  */
-export function MessageController({ guards, scope }: MessageControllerOptions = {}) {
-  return function (target: ClassType, context: ClassDecoratorContext) {
+export function MessageController(options: MessageControllerOptions = {}) {
+  return <T extends ClassType>(target: T, context: ClassDecoratorContext): T => {
     if (context.kind !== 'class') {
-      throw new Error(
-        '[Navios/Microservice] @MessageController decorator can only be used on classes.',
-      )
+      throw new Error('[Navios] @MessageController can only be used on classes.')
     }
-    if (context.metadata) {
-      const messageControllerMetadata = getMessageControllerMetadata(target, context)
-      if (guards) {
-        for (const guard of Array.from(guards).reverse()) {
-          messageControllerMetadata.guards.add(guard)
-        }
-      }
-      // Store reference to metadata in managed key for AttributeFactory
-    }
-    return scope === undefined
-      ? Injectable()(target, context)
-      : Injectable({ scope })(target, context)
+    defineMetadata(target, context, options)
+    registerInjectable(target, { scope: InjectableScope.Singleton })
+    return target
   }
+}
+
+export function hasMessageControllerMetadata(target: ClassType): boolean {
+  return Object.hasOwn(target, MessageControllerMetadataKey)
+}
+
+export function getMessageControllerMetadata(target: ClassType): MessageControllerMetadata {
+  if (!hasMessageControllerMetadata(target)) {
+    throw new Error(
+      `[Navios] ${target.name} is not a message controller. ` +
+        `Make sure it is decorated with @MessageController.`,
+    )
+  }
+  return (target as any)[MessageControllerMetadataKey] as MessageControllerMetadata
 }

@@ -19,7 +19,7 @@ Use the first that fits.
 `createContextKey<T>(name)` creates a slot of type `T`.
 
 ```ts
-import { createContextKey } from '@navios/core'
+import { createContextKey } from '@navios/server'
 
 export interface AuthUser {
   id: string
@@ -57,9 +57,9 @@ The guard that sets this key is built in [Authentication with JWT](/docs/server/
 A request value is a class with a `resolve(ctx)` method, decorated with `@RequestValue()`. The class is a singleton and can `inject()` other singletons. `ctx.get(TheClass)` calls `resolve` on the first read and returns the stored result for the rest of the request.
 
 ```ts
-import { BadRequestException, inject, RequestValue } from '@navios/core'
+import { BadRequestException, inject, RequestValue } from '@navios/server'
 
-import type { RequestContext } from '@navios/core'
+import type { RequestContext } from '@navios/server'
 
 import { TenantsService } from './tenants.service.mjs'
 
@@ -154,7 +154,7 @@ Without decorator syntax, register the class with `registerRequestValue(TheClass
 A service with `scope: InjectableScope.Request` is constructed once per request by the DI container. It can inject other request-scoped services, and `inject(RequestContextToken)` gives it the `RequestContext`.
 
 ```ts
-import { inject, Injectable, InjectableScope, RequestContextToken } from '@navios/core'
+import { inject, Injectable, InjectableScope, RequestContextToken } from '@navios/server'
 
 import { AuditStore } from './audit-store.service.mjs'
 

@@ -1,4 +1,4 @@
-import { inject, Logger, Module } from '@navios/core'
+import { inject, Logger, Module } from '@navios/server'
 
 import { AclModernGuard } from '../acl/acl-modern.guard.mjs'
 import { UserController } from './user.controller.mjs'

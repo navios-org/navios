@@ -7,12 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [2.0.0] - Unreleased
 
-Ported to the 2.0 APIs of `@navios/di` and `@navios/core`. The package is now adapter-neutral and complete on its own: it no longer needs `@navios/otel-fastify` or `@navios/otel-bun`.
+Ported to the 2.0 APIs of `@navios/di` and `@navios/core`. The package is now adapter-neutral and complete on its own: it no longer needs `@navios/otel-fastify` or `@navios/otel-bun`. Its main entry depends on `@navios/core` only and works in an application without HTTP; `@navios/server` is an optional peer dependency, needed for HTTP request spans.
 
 ### Breaking
 
 - **One plugin, `otelPlugin(options)`.** It starts the SDK, traces HTTP requests, traces `@Traced` services and shuts the SDK down. It replaces `defineOtelPlugin` from the adapter packages and `defineOtelTracingPlugin` from this one; `defineOtelTracingPlugin` and `OtelTracingPluginOptions` are removed.
-- **HTTP requests are traced by an interceptor**, `OtelHttpInterceptor`, on every adapter. A request that matches no route gets no span (1.x on Fastify created one). The span ends when the response has finished, including a streamed body, and reports the final status, including one produced by an `app.mapError()` mapper. The status is set as `http.status_code` and `http.response.status_code`.
+- **HTTP requests are traced by an interceptor**, `OtelHttpInterceptor`, on every adapter. It is exported from `@navios/otel/http`, together with `compileIgnoreRoutes` and `instrumentHttp`; the plugin loads that entry by itself when the application serves HTTP. A request that matches no route gets no span (1.x on Fastify created one). The span ends when the response has finished, including a streamed body, and reports the final status, including one produced by an `app.mapError()` mapper. The status is set as `http.status_code` and `http.response.status_code`.
 - **Removed options that did nothing or can no longer be honoured:** `autoInstrument.handlers`, `autoInstrument.guards`, `propagateContext`, `metrics.requestDuration` and `metrics.errorCount`. A request has one server span covering guards, validation and the handler.
 - **The OpenTelemetry SDK is no longer bundled into the build.** `@opentelemetry/resources`, `sdk-metrics`, `sdk-trace-node` and `semantic-conventions` are regular dependencies; the two OTLP exporters are optional peer dependencies.
 - **`http.url` is the request path** without the query string.
@@ -23,6 +23,7 @@ Ported to the 2.0 APIs of `@navios/di` and `@navios/core`. The package is now ad
 
 ### Added
 
+- `autoInstrument.transports` and `OtelHandlerInterceptor`: one span per handler run of a transport other than HTTP (a queue message, a job), named `<transport> <Class>.<handler>`. The default, `'auto'`, traces them in an application that has no HTTP transport; set `true` in one that serves HTTP as well.
 - `RequestSpan`: a request-context key holding the request's server span (`ctx.find(RequestSpan)`).
 - The request span is the active OpenTelemetry span while the request is handled, and each traced method runs with its own span active, so nested spans get the right parent.
 - `ignoreRoutes` is part of `OtelConfig`. `*` may appear anywhere in a pattern.
@@ -30,7 +31,7 @@ Ported to the 2.0 APIs of `@navios/di` and `@navios/core`. The package is now ad
 - `registerGlobally`: set to `false` to keep the provider, context manager and propagators out of the process-wide registration.
 - `MeterToken` is always provided; it is a no-op meter unless metrics are enabled.
 - `OtelSetupService.forceFlush()` and `getConfig()`.
-- `traceInstance()`, `extractTraceContext()`, `parentContext()`, `recordSpanError()`, `resolveOtelConfig()`, `compileIgnoreRoutes()`.
+- `traceInstance()`, `extractTraceContext()`, `parentContext()`, `recordSpanError()`, `resolveOtelConfig()`.
 - `TraceContextService.extractFromHeaders()` accepts a web `Headers` object and `ctx.headers` as well as a plain record.
 - Without a context manager, a `@Traced` method called during a request is parented to the request span when the application runs with `asyncContext: true`.
 

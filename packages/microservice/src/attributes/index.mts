@@ -12,4 +12,3 @@ export {
   BatchProcessing,
   Priority,
 } from './message-attributes.mjs'
-export type { MessageMetadata } from './message-metadata.mjs'

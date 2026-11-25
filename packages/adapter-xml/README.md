@@ -10,7 +10,7 @@ Build XML responses, such as RSS and Atom feeds or sitemaps, with JSX in a [Navi
 npm install @navios/adapter-xml
 ```
 
-`@navios/core` 2.x is a peer dependency. Point TypeScript's JSX transform at the package, and write JSX in `.tsx` files:
+`@navios/server` 2.x is a peer dependency. Point TypeScript's JSX transform at the package, and write JSX in `.tsx` files:
 
 ```json
 {
@@ -27,7 +27,7 @@ npm install @navios/adapter-xml
 import { defineFastifyEnvironment } from '@navios/adapter-fastify'
 import { xml, xmlPlugin } from '@navios/adapter-xml'
 import { builder } from '@navios/builder'
-import { Controller, Endpoint, Module, NaviosFactory } from '@navios/core'
+import { Controller, Endpoint, Module, NaviosFactory } from '@navios/server'
 
 const API = builder()
 

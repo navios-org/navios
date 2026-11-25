@@ -4,7 +4,7 @@ title: Services and injection
 
 # Services and injection
 
-A service is a class that holds logic controllers should not: data access, calls to other systems, business rules. Navios wires services with [`@navios/di`](/docs/di/), and `@navios/core` re-exports all of it, so server code imports `Injectable`, `inject` and `provide` from `@navios/core`.
+A service is a class that holds logic controllers should not: data access, calls to other systems, business rules. Navios wires services with [`@navios/di`](/docs/di/), and `@navios/server` re-exports all of it, so server code imports `Injectable`, `inject` and `provide` from `@navios/server`.
 
 This page covers what a server developer uses every day. The DI section covers the rest: [tokens](/docs/di/essentials/tokens), [providers](/docs/di/essentials/providers), [scopes](/docs/di/essentials/scopes), [lifecycle](/docs/di/essentials/lifecycle) and [factories](/docs/di/essentials/factories).
 
@@ -13,7 +13,7 @@ This page covers what a server developer uses every day. The DI section covers t
 `@Injectable()` makes a class resolvable. `inject(Class)` in a field initialiser asks for an instance.
 
 ```ts title="signup.service.mts"
-import { inject, Injectable } from '@navios/core'
+import { inject, Injectable } from '@navios/server'
 
 // UsersService comes from the Quick start
 @Injectable()
@@ -69,7 +69,7 @@ A scope says how long an instance lives. `@Injectable()` without options is a si
 | `InjectableScope.Request`   | request                    | A class that must be constructed per request. Reached through `ctx.use()`         |
 
 ```ts
-import { Injectable, InjectableScope } from '@navios/core'
+import { Injectable, InjectableScope } from '@navios/server'
 
 @Injectable({ scope: InjectableScope.Transient })
 export class Stopwatch {
@@ -90,7 +90,7 @@ A singleton cannot inject a request-scoped service: the application fails at `in
 A provider says what a token or a class resolves to. Use one to swap an implementation or to supply a value that is not a class. `provide(target, implementation)` creates it, and the `providers` option of a module or of the application registers it.
 
 ```ts
-import { InjectionToken, Module, provide } from '@navios/core'
+import { InjectionToken, Module, provide } from '@navios/server'
 
 export const MailFrom = InjectionToken.create<string>('MailFrom')
 

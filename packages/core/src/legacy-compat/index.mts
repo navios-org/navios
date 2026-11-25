@@ -13,16 +13,15 @@ export {
   Factory,
   Injectable,
 } from '@navios/di/legacy-compat'
-export type { ControllerOptions } from '../controllers/controller.mjs'
-export type { ModuleOptions } from '../modules/module.mjs'
+export type { ModuleOptions } from '../modules/module-options.mjs'
 export { AttributeFactory } from './attribute-factory.mjs'
 export type {
   LegacyAttributeApplication,
   LegacyClassAttribute,
   LegacyClassSchemaAttribute,
 } from './attribute-factory.mjs'
-export { Controller } from './controller.mjs'
-export { Endpoint } from './endpoint.mjs'
+export { legacy } from './legacy-decorator.mjs'
+export type { LegacyAnyDecorator, StandardDecorator } from './legacy-decorator.mjs'
 export { Module } from './module.mjs'
 export { UseGuards } from './use-guards.mjs'
 export { UseInterceptors } from './use-interceptors.mjs'

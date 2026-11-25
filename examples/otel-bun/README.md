@@ -135,7 +135,7 @@ const app = await NaviosFactory.create(AppModule, {
 The `@Traced` decorator makes a service start a child span around its method calls:
 
 ```typescript
-import { Injectable } from '@navios/core/legacy-compat'
+import { Injectable } from '@navios/server/legacy-compat'
 import { Traceable, Traced } from '@navios/otel/legacy-compat'
 
 // Trace all methods in the class
@@ -158,7 +158,7 @@ export class AnotherService {
 }
 ```
 
-This example uses TypeScript's legacy decorators (`experimentalDecorators`), hence the `legacy-compat` imports. With standard decorators, import from `@navios/core` and `@navios/otel`.
+This example uses TypeScript's legacy decorators (`experimentalDecorators`), hence the `legacy-compat` imports. With standard decorators, import from `@navios/server` and `@navios/otel`.
 
 ## Architecture
 

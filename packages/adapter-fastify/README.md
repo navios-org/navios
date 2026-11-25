@@ -1,13 +1,13 @@
 # @navios/adapter-fastify
 
-Runs a [Navios](https://navios.tech) application on [Fastify](https://fastify.dev) 5, on Node.js. The adapter registers the application's routes with Fastify, turns each Fastify request into the input of a compiled route and writes the result. Guards, validation and error mapping happen in `@navios/core` and behave the same as on every other adapter; Fastify's own schema validation and serialisation are not used.
+Runs a [Navios](https://navios.tech) application on [Fastify](https://fastify.dev) 5, on Node.js. The adapter registers the application's routes with Fastify, turns each Fastify request into the input of a compiled route and writes the result. Guards, validation and error mapping happen in `@navios/server` and behave the same as on every other adapter; Fastify's own schema validation and serialisation are not used.
 
 **[Documentation](https://navios.tech/docs/server/adapters/fastify)** · [Server quick start](https://navios.tech/docs/server/quick-start)
 
 ## Install
 
 ```bash
-npm install @navios/adapter-fastify @navios/core @navios/builder fastify
+npm install @navios/adapter-fastify @navios/server @navios/builder fastify
 ```
 
 Requires Node.js and `fastify` 5.6 or newer. `@fastify/cors` and `@fastify/multipart` are dependencies of the adapter and do not need to be installed separately.
@@ -16,14 +16,14 @@ Requires Node.js and `fastify` 5.6 or newer. `@fastify/cors` and `@fastify/multi
 
 ```ts
 import { defineFastifyEnvironment } from '@navios/adapter-fastify'
-import { NaviosFactory } from '@navios/core'
+import { NaviosFactory } from '@navios/server'
 
 import type { FastifyEnvironment } from '@navios/adapter-fastify'
 
 import { AppModule } from './app.module.mjs'
 
 // Types ctx.raw, app.getServer() and the options of app.listen() for Fastify
-declare module '@navios/core' {
+declare module '@navios/server' {
   interface Register {
     environment: FastifyEnvironment
   }
@@ -62,7 +62,7 @@ const url = await app.listen({ port: 3000, host: '0.0.0.0' })
 
 ## Development
 
-The adapter is tested with the shared suite from `@navios/core/conformance`, over real HTTP on an ephemeral port; the spec is `e2e/conformance.spec.mts`. [Writing an adapter](https://navios.tech/docs/server/adapters/writing-an-adapter#running-the-conformance-suite) describes the suite.
+The adapter is tested with the shared suite from `@navios/server/conformance`, over real HTTP on an ephemeral port; the spec is `e2e/conformance.spec.mts`. [Writing an adapter](https://navios.tech/docs/server/adapters/writing-an-adapter#running-the-conformance-suite) describes the suite.
 
 ```bash
 # from the repository root

@@ -1,4 +1,4 @@
-import { Module } from '@navios/core/legacy-compat'
+import { Module } from '@navios/server/legacy-compat'
 
 import { AuthGuard } from '../../guards/auth.guard.mjs'
 import { FilesModule } from '../files/files.module.mjs'

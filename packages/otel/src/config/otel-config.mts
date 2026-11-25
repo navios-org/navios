@@ -11,6 +11,16 @@ export interface AutoInstrumentConfig {
    * @default true
    */
   http?: boolean
+  /**
+   * Trace handlers of the application's other transports (queue messages,
+   * commands, jobs): one span per run, named `<transport> <Class>.<handler>`.
+   *
+   * `'auto'` traces them in an application that has no HTTP transport. In
+   * one that serves HTTP as well, set `true`: the interceptor is then also
+   * placed around every route, where it does nothing but pass the call on.
+   * @default 'auto'
+   */
+  transports?: boolean | 'auto'
 }
 
 /**

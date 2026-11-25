@@ -10,13 +10,12 @@ Cron jobs for [Navios](https://navios.tech) applications. Mark a method with `@C
 npm install @navios/schedule
 ```
 
-`@navios/core` is a peer dependency. The example also uses `@navios/adapter-fastify`; any adapter works.
+`@navios/core` is a peer dependency. Nothing else is needed: the example is a worker that only runs scheduled jobs. In an HTTP application, pass the same plugin to `NaviosFactory.create` from `@navios/server`.
 
 ## Example
 
 ```ts
-import { defineFastifyEnvironment } from '@navios/adapter-fastify'
-import { inject, Injectable, Logger, Module, NaviosFactory } from '@navios/core'
+import { createApplication, inject, Injectable, Logger, Module } from '@navios/core'
 import { Cron, Schedulable, Schedule, schedulePlugin } from '@navios/schedule'
 
 @Injectable()
@@ -46,12 +45,12 @@ class MaintenanceJobs {
 @Module()
 class AppModule {}
 
-const app = await NaviosFactory.create(AppModule, {
-  adapter: defineFastifyEnvironment(),
+const app = createApplication(AppModule, {
   plugins: [schedulePlugin({ services: [MaintenanceJobs] })],
 })
 
-await app.listen({ port: 3000 })
+await app.start()
+app.enableShutdownHooks()
 ```
 
 `@Schedulable()` registers the class as a service, so it takes no `@Injectable()`. Jobs start at the end of `app.init()`; `app.close()` stops them and waits for the runs in progress. An error thrown by a job is logged and the job stays on its schedule.

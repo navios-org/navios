@@ -11,7 +11,7 @@ The request span created by the [plugin](/docs/server/opentelemetry) covers a wh
 Mark a service with `@Traced` and each of its methods gets a child span on every call. No registration besides the plugin is needed.
 
 ```ts title="users.service.mts"
-import { Injectable } from '@navios/core'
+import { Injectable } from '@navios/server'
 import { Traced } from '@navios/otel'
 
 @Injectable()
@@ -32,7 +32,7 @@ export class UsersService {
 `@Traceable` marks a class without tracing its methods. `@Traced` on a method then traces that method only.
 
 ```ts title="orders.service.mts"
-import { Injectable } from '@navios/core'
+import { Injectable } from '@navios/server'
 import { Traceable, Traced } from '@navios/otel'
 
 @Injectable()
@@ -88,7 +88,7 @@ Parenting depends on the context manager described in [Context propagation](/doc
 To trace an object you create yourself, inject `TracedProxyFactory` and call `wrap(object, Class)`:
 
 ```ts
-import { inject, Injectable } from '@navios/core'
+import { inject, Injectable } from '@navios/server'
 import { Traced, TracedProxyFactory } from '@navios/otel'
 
 @Traced({ name: 'report-builder' })
@@ -118,7 +118,7 @@ Projects compiled with `experimentalDecorators` import `Traced` and `Traceable` 
 Inject the application's tracer with `TracerToken` and use the OpenTelemetry API directly:
 
 ```ts title="reports.service.mts"
-import { inject, Injectable } from '@navios/core'
+import { inject, Injectable } from '@navios/server'
 import { TracerToken } from '@navios/otel'
 
 @Injectable()
@@ -164,7 +164,7 @@ What the plugin provides:
 Pass the trace on by injecting it into the outgoing headers. The called service then continues the same trace.
 
 ```ts title="billing.client.mts"
-import { inject, Injectable } from '@navios/core'
+import { inject, Injectable } from '@navios/server'
 import { TraceContextService } from '@navios/otel'
 
 @Injectable()
@@ -188,8 +188,8 @@ export class BillingClient {
 Collect spans in memory with `spanProcessors` and call the application through the in-memory adapter from [Testing](/docs/server/essentials/testing):
 
 ```ts
-import { NaviosFactory } from '@navios/core'
-import { defineInMemoryEnvironment } from '@navios/core/testing'
+import { NaviosFactory } from '@navios/server'
+import { defineInMemoryEnvironment } from '@navios/server/testing'
 import { otelPlugin } from '@navios/otel'
 import { InMemorySpanExporter, SimpleSpanProcessor } from '@opentelemetry/sdk-trace-node'
 import { expect, it } from 'vitest'

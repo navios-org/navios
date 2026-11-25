@@ -125,9 +125,9 @@ export const onUserUpdated = events.defineEvent({
 ```
 
 ```ts title="team-events.controller.mts"
-import { Controller, Endpoint, inject, sse, sseStream } from '@navios/core'
+import { Controller, Endpoint, inject, sse, sseStream } from '@navios/server'
 
-import type { HandlerParams, RequestContext } from '@navios/core'
+import type { HandlerParams, RequestContext } from '@navios/server'
 
 import { onUserUpdated, teamEvents } from './team-events.mjs'
 import { UserChanges } from './user-changes.service.mjs'

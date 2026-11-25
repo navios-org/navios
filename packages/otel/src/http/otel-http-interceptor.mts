@@ -1,7 +1,7 @@
 import { inject, registerInjectable } from '@navios/di'
 import { context as otelContext, SpanKind, SpanStatusCode, trace } from '@opentelemetry/api'
 
-import type { Interceptor, RequestContext, RouteInfo, RouteResult } from '@navios/core'
+import type { Interceptor, RequestContext, RouteInfo, RouteResult } from '@navios/server'
 import type { AttributeValue } from '@opentelemetry/api'
 
 import { OtelConfigToken } from '../config/otel-config-token.mjs'

@@ -19,7 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- The peer dependencies are `@navios/core` and `@navios/otel` only.
+- The peer dependencies are `@navios/core`, `@navios/server` and `@navios/otel` only.
 - `FastifyOtelPluginOptions` is an alias of `OtelPluginOptions` from `@navios/otel`.
 
 ## [1.0.0-alpha.3] - 2026-01-18

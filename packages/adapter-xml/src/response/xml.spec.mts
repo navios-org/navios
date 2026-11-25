@@ -30,7 +30,7 @@ describe('xml()', () => {
   })
 
   it('should not be confused with a custom result of another kind', async () => {
-    const { result } = await import('@navios/core')
+    const { result } = await import('@navios/server')
 
     expect(isXmlResponse(result('csv', 'a,b'))).toBe(false)
   })

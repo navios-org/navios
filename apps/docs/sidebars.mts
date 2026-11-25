@@ -81,6 +81,7 @@ const server: Entry[] = [
       'server/guides/openapi',
       'server/guides/attributes',
       'server/guides/plugins',
+      'server/guides/other-transports',
       'server/guides/prisma',
     ],
     { collapsed: false },

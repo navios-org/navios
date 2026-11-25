@@ -1,4 +1,4 @@
-import { runAdapterConformance } from '@navios/core/conformance'
+import { runAdapterConformance } from '@navios/server/conformance'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 
 import { defineFastifyEnvironment } from '../src/index.mjs'

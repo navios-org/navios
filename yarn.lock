@@ -951,6 +951,7 @@ __metadata:
     "@navios/builder": "workspace:^"
     "@navios/core": "workspace:^"
     "@navios/di": "workspace:^"
+    "@navios/server": "workspace:^"
     "@types/bun": "npm:^1.4.5"
     "@types/supertest": "npm:^7.2.1"
     supertest: "npm:^7.3.2"
@@ -960,6 +961,7 @@ __metadata:
     "@navios/builder": "workspace:^"
     "@navios/core": "workspace:^"
     "@navios/di": "workspace:^"
+    "@navios/server": "workspace:^"
   languageName: unknown
   linkType: soft
 
@@ -971,6 +973,7 @@ __metadata:
     "@fastify/multipart": "npm:^10.1.9"
     "@navios/builder": "workspace:^"
     "@navios/core": "workspace:^"
+    "@navios/server": "workspace:^"
     "@types/supertest": "npm:^7.2.1"
     fastify: "npm:^5.12.8"
     supertest: "npm:^7.3.2"
@@ -980,6 +983,7 @@ __metadata:
   peerDependencies:
     "@navios/builder": "workspace:^"
     "@navios/core": "workspace:^"
+    "@navios/server": "workspace:^"
     fastify: ^5.6.0
   languageName: unknown
   linkType: soft
@@ -992,6 +996,7 @@ __metadata:
     "@navios/adapter-fastify": "workspace:^"
     "@navios/builder": "workspace:^"
     "@navios/core": "workspace:^"
+    "@navios/server": "workspace:^"
     "@types/bun": "npm:^1.4.5"
     tsx: "npm:^4.23.15"
     typescript: "npm:^7.0.2"
@@ -999,6 +1004,7 @@ __metadata:
     zod: "npm:^4.6.7"
   peerDependencies:
     "@navios/core": "workspace:^"
+    "@navios/server": "workspace:^"
   languageName: unknown
   linkType: soft
 
@@ -1042,19 +1048,14 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@navios/core@workspace:*, @navios/core@workspace:^, @navios/core@workspace:packages/core":
+"@navios/core@workspace:^, @navios/core@workspace:packages/core":
   version: 0.0.0-use.local
   resolution: "@navios/core@workspace:packages/core"
   dependencies:
-    "@navios/builder": "workspace:^"
     "@navios/di": "workspace:^"
-    "@types/supertest": "npm:^7.2.1"
-    supertest: "npm:^7.3.2"
     tsx: "npm:^4.23.15"
     typescript: "npm:^7.0.2"
     zod: "npm:^4.6.7"
-  peerDependencies:
-    "@navios/builder": "workspace:^"
   languageName: unknown
   linkType: soft
 
@@ -1108,9 +1109,9 @@ __metadata:
   dependencies:
     "@navios/adapter-fastify": "workspace:^"
     "@navios/builder": "workspace:^"
-    "@navios/core": "workspace:^"
     "@navios/di": "workspace:^"
     "@navios/react-query": "workspace:^"
+    "@navios/server": "workspace:^"
     typescript: "npm:^7.0.2"
     vitest: "npm:^5.1.1"
     zod: "npm:^4.6.7"
@@ -1182,11 +1183,13 @@ __metadata:
     "@navios/builder": "workspace:^"
     "@navios/core": "workspace:^"
     "@navios/openapi": "workspace:^"
+    "@navios/server": "workspace:^"
     typescript: "npm:^7.0.2"
     zod: "npm:^4.6.7"
   peerDependencies:
     "@navios/core": "workspace:^"
     "@navios/openapi": "workspace:^"
+    "@navios/server": "workspace:^"
   languageName: unknown
   linkType: soft
 
@@ -1198,12 +1201,14 @@ __metadata:
     "@navios/builder": "workspace:^"
     "@navios/core": "workspace:^"
     "@navios/openapi": "workspace:^"
+    "@navios/server": "workspace:^"
     fastify: "npm:^5.12.8"
     typescript: "npm:^7.0.2"
     zod: "npm:^4.6.7"
   peerDependencies:
     "@navios/core": "workspace:^"
     "@navios/openapi": "workspace:^"
+    "@navios/server": "workspace:^"
   languageName: unknown
   linkType: soft
 
@@ -1213,12 +1218,16 @@ __metadata:
   dependencies:
     "@navios/builder": "workspace:^"
     "@navios/core": "workspace:^"
+    "@navios/di": "workspace:^"
+    "@navios/server": "workspace:^"
     "@scalar/core": "npm:^0.5.55"
     typescript: "npm:^7.0.2"
     yaml: "npm:^2.9.1"
     zod: "npm:^4.6.7"
   peerDependencies:
     "@navios/core": "workspace:^"
+    "@navios/di": "workspace:^"
+    "@navios/server": "workspace:^"
   languageName: unknown
   linkType: soft
 
@@ -1231,6 +1240,7 @@ __metadata:
     "@navios/core": "workspace:^"
     "@navios/di": "workspace:^"
     "@navios/otel": "workspace:^"
+    "@navios/server": "workspace:^"
     "@opentelemetry/api": "npm:^1.9.0"
     "@opentelemetry/sdk-trace-node": "npm:^2.12.0"
     "@types/bun": "npm:^1.4.5"
@@ -1239,6 +1249,7 @@ __metadata:
   peerDependencies:
     "@navios/core": "workspace:^"
     "@navios/otel": "workspace:^"
+    "@navios/server": "workspace:^"
   languageName: unknown
   linkType: soft
 
@@ -1251,6 +1262,7 @@ __metadata:
     "@navios/core": "workspace:^"
     "@navios/di": "workspace:^"
     "@navios/otel": "workspace:^"
+    "@navios/server": "workspace:^"
     "@opentelemetry/api": "npm:^1.9.0"
     "@opentelemetry/sdk-trace-node": "npm:^2.12.0"
     typescript: "npm:^7.0.2"
@@ -1258,6 +1270,7 @@ __metadata:
   peerDependencies:
     "@navios/core": "workspace:^"
     "@navios/otel": "workspace:^"
+    "@navios/server": "workspace:^"
   languageName: unknown
   linkType: soft
 
@@ -1268,6 +1281,7 @@ __metadata:
     "@navios/builder": "workspace:^"
     "@navios/core": "workspace:^"
     "@navios/di": "workspace:^"
+    "@navios/server": "workspace:^"
     "@opentelemetry/api": "npm:^1.9.0"
     "@opentelemetry/exporter-metrics-otlp-http": "npm:^0.301.2"
     "@opentelemetry/exporter-trace-otlp-http": "npm:^0.301.2"
@@ -1280,10 +1294,13 @@ __metadata:
   peerDependencies:
     "@navios/core": "workspace:^"
     "@navios/di": "workspace:^"
+    "@navios/server": "workspace:^"
     "@opentelemetry/api": ">=1.9.0 <1.10.0"
     "@opentelemetry/exporter-metrics-otlp-http": ">=0.200.0"
     "@opentelemetry/exporter-trace-otlp-http": ">=0.200.0"
   peerDependenciesMeta:
+    "@navios/server":
+      optional: true
     "@opentelemetry/exporter-metrics-otlp-http":
       optional: true
     "@opentelemetry/exporter-trace-otlp-http":
@@ -1372,6 +1389,23 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@navios/server@workspace:*, @navios/server@workspace:^, @navios/server@workspace:packages/server":
+  version: 0.0.0-use.local
+  resolution: "@navios/server@workspace:packages/server"
+  dependencies:
+    "@navios/builder": "workspace:^"
+    "@navios/core": "workspace:^"
+    "@navios/di": "workspace:^"
+    "@types/supertest": "npm:^7.2.1"
+    supertest: "npm:^7.3.2"
+    tsx: "npm:^4.23.15"
+    typescript: "npm:^7.0.2"
+    zod: "npm:^4.6.7"
+  peerDependencies:
+    "@navios/builder": "workspace:^"
+  languageName: unknown
+  linkType: soft
+
 "@navios/size-check@workspace:packages/size-check":
   version: 0.0.0-use.local
   resolution: "@navios/size-check@workspace:packages/size-check"
@@ -1380,6 +1414,7 @@ __metadata:
     "@navios/adapter-fastify": "workspace:^"
     "@navios/core": "workspace:^"
     "@navios/di": "workspace:^"
+    "@navios/server": "workspace:^"
   languageName: unknown
   linkType: soft
 
@@ -3935,8 +3970,8 @@ __metadata:
   dependencies:
     "@navios/adapter-xml": "workspace:*"
     "@navios/builder": "workspace:*"
-    "@navios/core": "workspace:*"
     "@navios/di": "workspace:*"
+    "@navios/server": "workspace:*"
     tsx: "npm:^4.23.15"
     typescript: "npm:^7.0.2"
     zod: "npm:^4.6.7"
@@ -5257,8 +5292,8 @@ __metadata:
   dependencies:
     "@navios/adapter-bun": "workspace:*"
     "@navios/builder": "workspace:*"
-    "@navios/core": "workspace:*"
     "@navios/di": "workspace:*"
+    "@navios/server": "workspace:*"
     "@types/bun": "npm:^1.4.5"
     "@types/supertest": "npm:^7.2.1"
     supertest: "npm:^7.3.2"
@@ -5273,8 +5308,8 @@ __metadata:
   dependencies:
     "@navios/adapter-bun": "workspace:*"
     "@navios/builder": "workspace:*"
-    "@navios/core": "workspace:*"
     "@navios/di": "workspace:*"
+    "@navios/server": "workspace:*"
     "@types/bun": "npm:^1.4.5"
     "@types/supertest": "npm:^7.2.1"
     supertest: "npm:^7.3.2"
@@ -5289,8 +5324,8 @@ __metadata:
   dependencies:
     "@navios/adapter-fastify": "workspace:*"
     "@navios/builder": "workspace:*"
-    "@navios/core": "workspace:*"
     "@navios/di": "workspace:*"
+    "@navios/server": "workspace:*"
     "@types/supertest": "npm:^7.2.1"
     supertest: "npm:^7.3.2"
     tsx: "npm:^4.23.15"
@@ -5306,8 +5341,8 @@ __metadata:
   dependencies:
     "@navios/adapter-fastify": "workspace:*"
     "@navios/builder": "workspace:*"
-    "@navios/core": "workspace:*"
     "@navios/di": "workspace:*"
+    "@navios/server": "workspace:*"
     "@types/supertest": "npm:^7.2.1"
     supertest: "npm:^7.3.2"
     tsx: "npm:^4.23.15"
@@ -8311,9 +8346,9 @@ __metadata:
     "@navios/adapter-bun": "workspace:*"
     "@navios/adapter-fastify": "workspace:*"
     "@navios/builder": "workspace:*"
-    "@navios/core": "workspace:*"
     "@navios/di": "workspace:*"
     "@navios/openapi": "workspace:*"
+    "@navios/server": "workspace:*"
     tsx: "npm:^4.23.15"
     typescript: "npm:^7.0.2"
     zod: "npm:^4.6.7"
@@ -8326,9 +8361,9 @@ __metadata:
   dependencies:
     "@navios/adapter-bun": "workspace:*"
     "@navios/builder": "workspace:*"
-    "@navios/core": "workspace:*"
     "@navios/di": "workspace:*"
     "@navios/otel": "workspace:*"
+    "@navios/server": "workspace:*"
     "@opentelemetry/api": "npm:^1.9.0"
     "@types/bun": "npm:^1.4.5"
     typescript: "npm:^7.0.2"
@@ -8342,9 +8377,9 @@ __metadata:
   dependencies:
     "@navios/adapter-fastify": "workspace:*"
     "@navios/builder": "workspace:*"
-    "@navios/core": "workspace:*"
     "@navios/di": "workspace:*"
     "@navios/otel": "workspace:*"
+    "@navios/server": "workspace:*"
     "@opentelemetry/api": "npm:^1.9.0"
     dotenv: "npm:^17.2.3"
     tsx: "npm:^4.23.15"
@@ -9644,8 +9679,8 @@ __metadata:
   resolution: "simple-test@workspace:examples/simple-test"
   dependencies:
     "@navios/builder": "workspace:*"
-    "@navios/core": "workspace:*"
     "@navios/di": "workspace:*"
+    "@navios/server": "workspace:*"
     tsx: "npm:^4.23.15"
   languageName: unknown
   linkType: soft

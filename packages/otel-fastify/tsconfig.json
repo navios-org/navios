@@ -7,7 +7,7 @@
   "include": ["src/**/*", "e2e/**/*"],
   "references": [
     {
-      "path": "../core"
+      "path": "../server"
     },
     {
       "path": "../di"

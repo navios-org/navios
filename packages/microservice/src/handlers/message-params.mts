@@ -1,60 +1,22 @@
 import type { BaseMessageConfig } from '@navios/queues'
 import type { z } from 'zod/v4'
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
+type AnyDeclaration = { config: BaseMessageConfig<any, any, any> }
+
 /**
- * Extracts the typed parameters for a message handler function.
- *
- * This utility type extracts the payload from a message definition.
- *
- * @typeParam MessageDeclaration - The message declaration from @navios/queues messageBuilder
- *
- * @example
- * ```typescript
- * const createUserMessage = messageBuilder.declarePubSub({
- *   topic: 'user.create',
- *   payloadSchema: z.object({ name: z.string(), email: z.string().email() }),
- * })
- *
- * @Message(createUserMessage)
- * async handleCreateUser(params: MessageParams<typeof createUserMessage>) {
- *   // params.payload is typed as { name: string, email: string }
- * }
- * ```
+ * What a message handler receives: the payload after validation.
  */
-export type MessageParams<
-  MessageDeclaration extends {
-    config: BaseMessageConfig<any, any, any>
-  },
-> = {
-  payload: z.input<MessageDeclaration['config']['payloadSchema']>
+export type MessageParams<Declaration extends AnyDeclaration> = {
+  payload: z.output<Declaration['config']['payloadSchema']>
 }
 
 /**
- * Extracts the typed return value for a message handler function.
- *
- * This utility type extracts the response schema from a message declaration
- * for request/reply patterns.
- *
- * @typeParam MessageDeclaration - The message declaration from @navios/queues messageBuilder
- *
- * @example
- * ```typescript
- * const getUserMessage = messageBuilder.declareRequestReply({
- *   topic: 'user.get',
- *   payloadSchema: z.object({ userId: z.string() }),
- *   responseSchema: z.object({ id: z.string(), name: z.string() }),
- * })
- *
- * @Message(getUserMessage)
- * async handleGetUser(params: MessageParams<typeof getUserMessage>): MessageResult<typeof getUserMessage> {
- *   return { id: '1', name: 'John' } // Type-checked against responseSchema
- * }
- * ```
+ * What a message handler returns: the reply of a request-reply message,
+ * nothing otherwise.
  */
-export type MessageResult<
-  MessageDeclaration extends {
-    config: BaseMessageConfig<any, any, any>
-  },
-> = MessageDeclaration['config']['responseSchema'] extends z.ZodType
-  ? Promise<z.input<MessageDeclaration['config']['responseSchema']>>
-  : Promise<void>
+export type MessageResult<Declaration extends AnyDeclaration> =
+  Declaration['config']['responseSchema'] extends z.ZodType
+    ? Promise<z.input<Declaration['config']['responseSchema']>>
+    : Promise<void>

@@ -1,4 +1,4 @@
-import { AttributeFactory } from '@navios/core/legacy-compat'
+import { AttributeFactory } from '@navios/server/legacy-compat'
 
 import { ApiOperationSchema, ApiOperationToken } from '../annotations/api-operation.mjs'
 

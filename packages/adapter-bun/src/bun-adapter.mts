@@ -1,4 +1,4 @@
-import { problem } from '@navios/core'
+import { problem } from '@navios/server'
 
 import type {
   AdapterContext,
@@ -9,7 +9,7 @@ import type {
   SchemaLike,
   TestRequest,
   TestResponse,
-} from '@navios/core'
+} from '@navios/server'
 import type { BunRequest } from 'bun'
 
 import { BODY_TOO_LARGE, declaresTooLarge, DEFAULT_BODY_LIMIT } from './body-limit.mjs'

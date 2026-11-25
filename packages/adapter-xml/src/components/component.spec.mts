@@ -1,8 +1,8 @@
-import { Container, inject, Injectable, InjectableScope } from '@navios/core'
+import { Container, inject, Injectable, InjectableScope } from '@navios/server'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { z } from 'zod/v4'
 
-import type { RequestContext } from '@navios/core'
+import type { RequestContext } from '@navios/server'
 
 import { createElement } from '../jsx/create-element.mjs'
 import { ClassComponent } from '../nodes/xml-node.mjs'

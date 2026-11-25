@@ -1,9 +1,9 @@
 import { builder } from '@navios/builder'
-import { Controller, Endpoint, handler, Module, reply } from '@navios/core'
+import { Controller, Endpoint, handler, Module, reply } from '@navios/server'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { z } from 'zod/v4'
 
-import type { StandardSchemaV1 } from '@navios/core'
+import type { StandardSchemaV1 } from '@navios/server'
 
 import {
   ApiDeprecated,

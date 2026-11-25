@@ -4,7 +4,7 @@ import type { Guard } from './guard.mjs'
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-type GuardClass = new (...args: any[]) => Guard
+type GuardClass = new (...args: any[]) => Guard<any>
 
 /**
  * Adds guards to a module, a controller or a handler. Guards run in the

@@ -61,10 +61,10 @@ export class UsersController {
 
 ```ts title="Navios"
 import { builder } from '@navios/builder'
-import { Controller, Endpoint, inject, reply } from '@navios/core'
+import { Controller, Endpoint, inject, reply } from '@navios/server'
 import { z } from 'zod/v4'
 
-import type { HandlerParams } from '@navios/core'
+import type { HandlerParams } from '@navios/server'
 
 import { UsersService } from './users.service.mjs'
 
@@ -102,7 +102,7 @@ What follows from this:
 There is no constructor injection and no `emitDecoratorMetadata`. A dependency is a field initialised with `inject()`:
 
 ```ts
-import { inject, Injectable } from '@navios/core'
+import { inject, Injectable } from '@navios/server'
 
 @Injectable()
 export class UsersService {
@@ -130,9 +130,9 @@ Controllers, guards and interceptors are created once. Nothing is injected per r
 Per-request data travels in the `RequestContext`, which guards and interceptors receive as their first argument and handlers as their second:
 
 ```ts
-import { createContextKey } from '@navios/core'
+import { createContextKey } from '@navios/server'
 
-import type { HandlerParams, RequestContext } from '@navios/core'
+import type { HandlerParams, RequestContext } from '@navios/server'
 
 export const CurrentUser = createContextKey<{ id: string }>('CurrentUser')
 

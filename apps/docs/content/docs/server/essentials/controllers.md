@@ -29,9 +29,9 @@ export const deleteUser = API.declareEndpoint({
 ```
 
 ```ts title="users.controller.mts"
-import { Controller, Endpoint, inject, reply } from '@navios/core'
+import { Controller, Endpoint, inject, reply } from '@navios/server'
 
-import type { HandlerParams, RequestContext } from '@navios/core'
+import type { HandlerParams, RequestContext } from '@navios/server'
 
 // getUser and UsersService come from the Quick start
 @Controller()
@@ -139,7 +139,7 @@ Literal types are widened in this check: a field declared as `'low' | 'high'` is
 To have literal values checked too, annotate the return type with `HandlerResult<typeof endpoint>`:
 
 ```ts
-import type { HandlerResult } from '@navios/core'
+import type { HandlerResult } from '@navios/server'
 
 // getTask declares `priority: z.enum(['low', 'high'])`
 @Endpoint(getTask)
@@ -186,7 +186,7 @@ A controller has no path of its own. Path prefixes belong to [modules](/docs/ser
 `handler()` defines a handler as a class field instead of a decorated method. It produces the same route as `@Endpoint`, and one controller can mix both.
 
 ```ts
-import { Controller, handler, inject, reply } from '@navios/core'
+import { Controller, handler, inject, reply } from '@navios/server'
 
 @Controller()
 export class UsersController {
@@ -214,7 +214,7 @@ export class UsersController {
 Use `handler()` when you prefer inferred parameters to the `HandlerParams` annotation, or when the code is built without a decorator transform. For the second case, `registerController(Class, options?)` and `registerModule(Class, options?)` replace `@Controller` and `@Module` and take the same options, and [`registerInjectable`](/docs/di/essentials/services#registering-without-decorators) does the same for services:
 
 ```ts
-import { handler, registerController, registerModule } from '@navios/core'
+import { handler, registerController, registerModule } from '@navios/server'
 
 class StatusController {
   listUsers = handler(listUsers, () => [])

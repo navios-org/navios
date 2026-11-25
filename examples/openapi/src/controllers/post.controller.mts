@@ -1,7 +1,7 @@
-import { Controller, Endpoint, inject, NotFoundException, reply } from '@navios/core'
+import { Controller, Endpoint, inject, NotFoundException, reply } from '@navios/server'
 import { ApiOperation, ApiSecurity, ApiSummary, ApiTag } from '@navios/openapi'
 
-import type { HandlerParams } from '@navios/core'
+import type { HandlerParams } from '@navios/server'
 
 import { createPost, getPost, listPosts } from '../api.mjs'
 import { PostService } from '../services/post.service.mjs'

@@ -16,7 +16,7 @@ npm install @navios/openapi
 
 ```ts title="main.mts"
 import { defineFastifyEnvironment } from '@navios/adapter-fastify'
-import { NaviosFactory } from '@navios/core'
+import { NaviosFactory } from '@navios/server'
 import { openApiPlugin } from '@navios/openapi'
 
 import { AppModule } from './app.module.mjs'
@@ -114,10 +114,10 @@ Types that JSON Schema cannot express, such as `z.date()`, `z.instanceof(File)` 
 What a declaration cannot say (tags, summaries, security) is added with [attributes](/docs/server/guides/attributes). Each is a decorator for a handler, a controller or a module.
 
 ```ts title="users.controller.mts"
-import { Controller, Endpoint, inject, reply } from '@navios/core'
+import { Controller, Endpoint, inject, reply } from '@navios/server'
 import { ApiOperation, ApiSummary, ApiTag } from '@navios/openapi'
 
-import type { HandlerParams } from '@navios/core'
+import type { HandlerParams } from '@navios/server'
 
 import { createUser, getUser } from './users.mjs'
 import { UsersService } from './users.service.mjs'
@@ -205,7 +205,7 @@ To keep the documentation out of production, leave the plugin out of `plugins` t
 
 ```ts title="scripts/openapi.mts"
 const app = await NaviosFactory.create(AppModule, {
-  adapter: defineInMemoryEnvironment(), // from '@navios/core/testing'
+  adapter: defineInMemoryEnvironment(), // from '@navios/server/testing'
   logger: false,
 })
 await app.init()
@@ -231,6 +231,6 @@ The in-memory adapter opens no port, so the script needs nothing but the applica
 | `ApiTagToken`, `ApiOperationToken`, `ApiSummaryToken`, `ApiDeprecatedToken`, `ApiSecurityToken`, `ApiExcludeToken`, `ApiStreamToken` | The symbols the attributes are stored under |
 | `OpenApiPluginOptions`, `OpenApiDocumentOptions`, `ScalarOptions`, `ToJsonSchema`, `OpenApiDocument` and the other document types | Types |
 
-`defineOpenApiPlugin` is the deprecated name of `openApiPlugin`. `@navios/core` is the only peer dependency; no schema library is needed at run time.
+`defineOpenApiPlugin` is the deprecated name of `openApiPlugin`. `@navios/server` is the only peer dependency; no schema library is needed at run time.
 
 `@navios/openapi-fastify` and `@navios/openapi-bun` are deprecated packages that re-export `@navios/openapi`; import from `@navios/openapi` directly.

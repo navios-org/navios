@@ -1,4 +1,4 @@
-import { AttributeFactory } from '@navios/core'
+import { AttributeFactory } from '@navios/server'
 
 import { valueSchema } from './value-schema.mjs'
 

@@ -1,6 +1,6 @@
-import { serializeCookie } from '@navios/core'
+import { serializeCookie } from '@navios/server'
 
-import type { RouteResult } from '@navios/core'
+import type { RouteResult } from '@navios/server'
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 

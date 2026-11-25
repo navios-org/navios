@@ -65,9 +65,9 @@ A controller method is bound to a declaration with `@Endpoint`. The route, the v
 
 ```ts title="packages/server/src/user.controller.ts"
 import { getUser } from '@acme/api-contract'
-import { Controller, Endpoint, inject, reply } from '@navios/core'
+import { Controller, Endpoint, inject, reply } from '@navios/server'
 
-import type { HandlerParams } from '@navios/core'
+import type { HandlerParams } from '@navios/server'
 
 import { UserService } from './user.service.mjs'
 

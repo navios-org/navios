@@ -1,4 +1,4 @@
-import { envInt } from '@navios/core'
+import { envInt } from '@navios/server'
 
 export function configureConfig() {
   return {

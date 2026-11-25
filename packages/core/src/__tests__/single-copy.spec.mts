@@ -1,0 +1,36 @@
+import { afterEach, describe, expect, it, vi } from 'vitest'
+
+import { registerCopy } from '../internal/single-copy.mjs'
+
+const registryKey = Symbol.for('navios.core.copies')
+
+describe('registerCopy', () => {
+  const saved = (globalThis as any)[registryKey]
+
+  afterEach(() => {
+    ;(globalThis as any)[registryKey] = saved
+  })
+
+  it('stays silent for one copy, also when it is evaluated again', () => {
+    delete (globalThis as any)[registryKey]
+    const warn = vi.fn()
+
+    registerCopy('file:///app/node_modules/@navios/core/lib/index.mjs', warn)
+    registerCopy('file:///app/node_modules/@navios/core/lib/index.mjs', warn)
+
+    expect(warn).not.toHaveBeenCalled()
+  })
+
+  it('warns once, naming every location, when a second copy loads', () => {
+    delete (globalThis as any)[registryKey]
+    const warn = vi.fn()
+
+    registerCopy('file:///app/node_modules/@navios/core/lib/index.mjs', warn)
+    registerCopy('file:///app/node_modules/x/node_modules/@navios/core/lib/index.mjs', warn)
+    registerCopy('file:///app/node_modules/y/node_modules/@navios/core/lib/index.mjs', warn)
+
+    expect(warn).toHaveBeenCalledTimes(1)
+    expect(warn.mock.calls[0][0]).toContain('@navios/core is loaded more than once')
+    expect(warn.mock.calls[0][0]).toContain('node_modules/x/node_modules/@navios/core')
+  })
+})

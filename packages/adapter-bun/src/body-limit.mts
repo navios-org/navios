@@ -1,4 +1,4 @@
-import { HttpException } from '@navios/core'
+import { HttpException } from '@navios/server'
 
 /** The default of `Bun.serve`. */
 export const DEFAULT_BODY_LIMIT = 128 * 1024 * 1024

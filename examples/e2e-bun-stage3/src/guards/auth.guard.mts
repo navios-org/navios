@@ -1,6 +1,6 @@
-import type { Guard, RequestContext } from '@navios/core'
+import type { Guard, RequestContext } from '@navios/server'
 
-import { AttributeFactory, Injectable, UnauthorizedException } from '@navios/core'
+import { AttributeFactory, Injectable, UnauthorizedException } from '@navios/server'
 
 import { CurrentUser } from './current-user.mjs'
 import { Public } from './public.attribute.mjs'

@@ -11,9 +11,9 @@ Navios has no Prisma package and needs none. A `PrismaClient` is one long-lived 
 Extend the generated client and connect it to the service lifecycle:
 
 ```ts title="prisma.service.mts"
-import { Injectable } from '@navios/core'
+import { Injectable } from '@navios/server'
 
-import type { OnServiceDestroy, OnServiceInit } from '@navios/core'
+import type { OnServiceDestroy, OnServiceInit } from '@navios/server'
 
 // The path your Prisma generator writes to
 import { PrismaClient } from './generated/prisma/client.mjs'
@@ -41,7 +41,7 @@ The hooks are described in [Lifecycle](/docs/di/essentials/lifecycle).
 `PrismaService` is injected like any other service. This is the Quick start's `UsersService` backed by the database:
 
 ```ts title="users.service.mts"
-import { ConflictException, inject, Injectable } from '@navios/core'
+import { ConflictException, inject, Injectable } from '@navios/server'
 
 import type { Prisma } from './generated/prisma/client.mjs'
 
@@ -73,8 +73,8 @@ Response validation strips fields the declaration's schema does not list, so a c
 Give the application another provider for `PrismaService`. It wins over the class itself, and the real client is never constructed or connected.
 
 ```ts
-import { NaviosFactory, provide } from '@navios/core'
-import { createTestClient, defineInMemoryEnvironment } from '@navios/core/testing'
+import { NaviosFactory, provide } from '@navios/server'
+import { createTestClient, defineInMemoryEnvironment } from '@navios/server/testing'
 
 class FakePrisma {
   user = {
@@ -101,9 +101,9 @@ For tests that should run real queries, keep `PrismaService` and point it at a t
 Prisma's interactive transaction is a callback: `$transaction(fn)` commits when `fn` resolves and rolls back when it rejects. An [interceptor](/docs/server/essentials/guards-and-interceptors) has the same shape around a request, so one can wrap the other. The transaction client goes into a [context key](/docs/server/guides/request-state#context-keys) for the handler to pick up.
 
 ```ts title="transaction.interceptor.mts"
-import { createContextKey, inject, Injectable } from '@navios/core'
+import { createContextKey, inject, Injectable } from '@navios/server'
 
-import type { Interceptor, RequestContext, RouteResult } from '@navios/core'
+import type { Interceptor, RequestContext, RouteResult } from '@navios/server'
 
 import type { Prisma } from './generated/prisma/client.mjs'
 

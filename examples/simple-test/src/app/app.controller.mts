@@ -1,6 +1,6 @@
-import type { EndpointParams } from '@navios/core'
+import type { EndpointParams } from '@navios/server'
 
-import { Controller, Endpoint } from '@navios/core'
+import { Controller, Endpoint } from '@navios/server'
 
 import { appEndpoint } from '../api/index.mjs'
 

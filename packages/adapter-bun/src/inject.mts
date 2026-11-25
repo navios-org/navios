@@ -1,4 +1,4 @@
-import type { TestRequest, TestResponse } from '@navios/core'
+import type { TestRequest, TestResponse } from '@navios/server'
 
 import { pathOf } from './request-input.mjs'
 

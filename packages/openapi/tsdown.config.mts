@@ -9,7 +9,7 @@ export default defineConfig({
   treeshake: true,
   sourcemap: true,
   platform: 'node',
-  external: ['@navios/core', '@navios/core/legacy-compat', '@navios/di'],
+  external: ['@navios/server', '@navios/server/legacy-compat', '@navios/di'],
   dts: true,
   target: 'es2022',
 })

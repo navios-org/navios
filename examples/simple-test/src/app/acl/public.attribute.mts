@@ -1,4 +1,4 @@
-import { AttributeFactory } from '@navios/core'
+import { AttributeFactory } from '@navios/server'
 
 import { z } from 'zod/v4'
 

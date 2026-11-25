@@ -22,9 +22,9 @@ export const uploadAvatar = API.declareEndpoint({
 ```
 
 ```ts title="avatars.controller.mts"
-import { Controller, Endpoint, inject } from '@navios/core'
+import { Controller, Endpoint, inject } from '@navios/server'
 
-import type { HandlerParams } from '@navios/core'
+import type { HandlerParams } from '@navios/server'
 
 import { uploadAvatar } from './avatars.mjs'
 import { AvatarStorage } from './avatar-storage.service.mjs'
@@ -46,7 +46,7 @@ export class AvatarController {
 import { mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
-import { Injectable } from '@navios/core'
+import { Injectable } from '@navios/server'
 
 @Injectable()
 export class AvatarStorage {

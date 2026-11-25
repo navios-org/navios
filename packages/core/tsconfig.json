@@ -12,9 +12,6 @@
       "path": "./tsconfig.spec.json"
     },
     {
-      "path": "../builder"
-    },
-    {
       "path": "../di"
     }
   ]

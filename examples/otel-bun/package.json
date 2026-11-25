@@ -12,9 +12,9 @@
   "dependencies": {
     "@navios/adapter-bun": "workspace:*",
     "@navios/builder": "workspace:*",
-    "@navios/core": "workspace:*",
     "@navios/di": "workspace:*",
     "@navios/otel": "workspace:*",
+    "@navios/server": "workspace:*",
     "@opentelemetry/api": "^1.9.0",
     "zod": "^4.6.7"
   },

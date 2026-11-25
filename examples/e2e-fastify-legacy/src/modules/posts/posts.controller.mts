@@ -1,7 +1,7 @@
-import { BadRequestException, inject, reply } from '@navios/core'
-import { Controller, Endpoint } from '@navios/core/legacy-compat'
+import { BadRequestException, inject, reply } from '@navios/server'
+import { Controller, Endpoint } from '@navios/server/legacy-compat'
 
-import type { HandlerParams, RequestContext } from '@navios/core'
+import type { HandlerParams, RequestContext } from '@navios/server'
 
 import { createPostEndpoint, listPostsEndpoint } from '../../api/endpoints.mjs'
 import { Public } from '../../guards/public.attribute.mjs'

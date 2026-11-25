@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod/v4'
 
-import type { StandardSchemaV1 } from '@navios/core'
+import type { StandardSchemaV1 } from '@navios/server'
 
 import { renderToXml } from '../render/render-to-xml.mjs'
 

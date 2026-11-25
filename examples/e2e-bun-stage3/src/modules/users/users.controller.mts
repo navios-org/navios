@@ -5,9 +5,9 @@ import {
   inject,
   NotFoundException,
   reply,
-} from '@navios/core'
+} from '@navios/server'
 
-import type { HandlerParams } from '@navios/core'
+import type { HandlerParams } from '@navios/server'
 
 import {
   createUserEndpoint,

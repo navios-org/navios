@@ -1,4 +1,4 @@
-import { Module } from '@navios/core'
+import { Module } from '@navios/server'
 
 import { AuthGuard } from '../../guards/auth.guard.mjs'
 import { FilesModule } from '../files/files.module.mjs'

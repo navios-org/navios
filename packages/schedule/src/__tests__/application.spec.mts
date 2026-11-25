@@ -1,13 +1,13 @@
-import { inject, Module, NaviosFactory } from '@navios/core'
-import { defineInMemoryEnvironment } from '@navios/core/testing'
+import { createApplication, inject, Module } from '@navios/core'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { NaviosApplication } from '@navios/core'
+import type { Application } from '@navios/core'
 
 import { Cron, Schedulable, schedulePlugin, SchedulerService } from '../index.mjs'
 
+// The application has no transport at all: scheduled work needs none.
 describe('Schedule in a Navios application', () => {
-  let app: NaviosApplication | null = null
+  let app: Application | null = null
 
   beforeEach(() => {
     vi.useFakeTimers()
@@ -40,8 +40,7 @@ describe('Schedule in a Navios application', () => {
       }
     }
 
-    app = await NaviosFactory.create(AppModule, {
-      adapter: defineInMemoryEnvironment(),
+    app = createApplication(AppModule, {
       logger: false,
     })
     await vi.advanceTimersByTimeAsync(3000)
@@ -78,8 +77,7 @@ describe('Schedule in a Navios application', () => {
     @Module()
     class AppModule {}
 
-    app = await NaviosFactory.create(AppModule, {
-      adapter: defineInMemoryEnvironment(),
+    app = createApplication(AppModule, {
       logger: false,
       plugins: [schedulePlugin({ services: [TestService] })],
     })
@@ -118,8 +116,7 @@ describe('Schedule in a Navios application', () => {
     @Module()
     class AppModule {}
 
-    app = await NaviosFactory.create(AppModule, {
-      adapter: defineInMemoryEnvironment(),
+    app = createApplication(AppModule, {
       logger: false,
       plugins: [schedulePlugin({ services: [TestService] })],
     })

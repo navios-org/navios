@@ -66,4 +66,4 @@ Two consequences:
 
 ## The same on every adapter
 
-Stages 2 to 8 are implemented in `@navios/core`. An adapter only matches routes, hands the request over and writes the result, so the order and the error responses are identical on [Fastify](/docs/server/adapters/fastify), [Bun](/docs/server/adapters/bun) and the in-memory adapter used in [tests](/docs/server/essentials/testing).
+Stages 2 to 8 are implemented in `@navios/server`. An adapter only matches routes, hands the request over and writes the result, so the order and the error responses are identical on [Fastify](/docs/server/adapters/fastify), [Bun](/docs/server/adapters/bun) and the in-memory adapter used in [tests](/docs/server/essentials/testing).
