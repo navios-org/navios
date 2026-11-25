@@ -35,15 +35,15 @@ export function createContextHost(
         throw new Error(
           `[Navios] ${tokenName(token)} was requested with ctx.use()/ctx.resolve(), but this ` +
             `application forbids request-scoped services (requestScopedServices: 'forbid'). ` +
-            `Use a request value (@RequestValue) instead.`,
+            `Keep per-execution data in a context key instead.`,
         )
       }
       if (!seen.has(token)) {
         seen.add(token)
         logger.warn(
-          `${tokenName(token)} is resolved per request with ctx.use()/ctx.resolve(). ` +
-            `If it only carries data derived from the request, a request value (@RequestValue) ` +
-            `is cheaper and needs no DI scope. Set requestScopedServices: 'allow' to silence this.`,
+          `${tokenName(token)} is resolved for every execution with ctx.use()/ctx.resolve(). ` +
+            `If it only carries data derived from the context, a context key is cheaper and ` +
+            `needs no DI scope. Set requestScopedServices: 'allow' to silence this.`,
         )
       }
     },

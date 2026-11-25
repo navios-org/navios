@@ -16,7 +16,7 @@ export interface CustomResult<Kind extends string = string, Body = unknown> {
 /**
  * Answers a `response: 'text' | 'stream' | 'blob'` endpoint with a value of
  * a custom kind, for which a plugin has registered an encoder with
- * `api.encoder(kind, encoder)`. Packages wrap this in their own helper, for
+ * `api.transport(httpTransport).encoder(kind, encoder)`. Packages wrap this in their own helper, for
  * example `xml(<Feed />)`.
  */
 export function result<const Kind extends string, Body>(

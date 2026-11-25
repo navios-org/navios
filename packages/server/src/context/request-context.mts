@@ -63,7 +63,6 @@ export class RequestContext<
     private readonly host: ContextHost,
   ) {}
 
-  /** Request id from the adapter, or a process-unique one generated on first read. */
   /** The transport kind. A getter, so that it adds nothing to the instance. */
   get kind(): 'http' {
     return 'http'
@@ -74,6 +73,7 @@ export class RequestContext<
     return this.route
   }
 
+  /** Request id from the adapter, or a process-unique one generated on first read. */
   get id(): string {
     return (this.requestId ??= this.input.id ?? `req-${++requestCounter}`)
   }

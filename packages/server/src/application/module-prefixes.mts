@@ -17,33 +17,33 @@ export function computeModulePrefixes(
   graph: readonly ModuleNode[],
   globalPrefix: string,
 ): Map<ClassType, string> {
-  const prefixesOf = (node: ModuleNode, path: ModuleNode[]): string[] => {
+  // The graph lists a module before its importers, so walking it backwards
+  // meets every importer first. An importer that has not been met yet closes
+  // an import cycle and contributes nothing.
+  const prefixes = new Map<ModuleNode, string[]>()
+  for (let i = graph.length - 1; i >= 0; i--) {
+    const node = graph[i]
     const own = modulePrefix(node)
-    const prefixes: string[] = []
+    const found: string[] = []
     const add = (prefix: string) => {
-      if (!prefixes.includes(prefix)) {
-        prefixes.push(prefix)
+      if (!found.includes(prefix)) {
+        found.push(prefix)
       }
     }
     if (node.isRoot) {
       add(joinPaths(globalPrefix, own))
     }
-    path.push(node)
     for (const importer of node.importers) {
-      // An importer already on the path is an import cycle.
-      if (!path.includes(importer)) {
-        for (const prefix of prefixesOf(importer, path)) {
-          add(joinPaths(prefix, own))
-        }
+      for (const prefix of prefixes.get(importer) ?? []) {
+        add(joinPaths(prefix, own))
       }
     }
-    path.pop()
-    return prefixes
+    prefixes.set(node, found)
   }
 
   const result = new Map<ClassType, string>()
   for (const node of graph) {
-    const [first, other] = prefixesOf(node, [])
+    const [first, other] = prefixes.get(node)!
     if (other !== undefined && moduleControllers(node).length > 0) {
       throw new Error(
         `[Navios] Module ${node.module.name} is imported under two different prefixes ` +

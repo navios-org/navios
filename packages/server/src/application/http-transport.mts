@@ -213,7 +213,8 @@ async function createHttpTransport(
 
       async start() {
         if (options.listen !== undefined && listening === null) {
-          await listen(options.listen)
+          const address = await listen(options.listen)
+          logger.log(`Navios is listening on ${address}`)
         }
       },
 

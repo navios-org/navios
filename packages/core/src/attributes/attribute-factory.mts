@@ -86,8 +86,8 @@ function layers(source: AttributeSource): ReadonlyMap<symbol, unknown>[] {
  * export const Public = AttributeFactory.createAttribute(Symbol.for('Public'))
  * export const Roles = AttributeFactory.createAttribute(Symbol.for('Roles'), z.array(z.string()))
  *
- * if (AttributeFactory.has(Public, ctx.route)) return true
- * const roles = AttributeFactory.get(Roles, ctx.route) // string[] | null
+ * if (AttributeFactory.has(Public, ctx.handler)) return true
+ * const roles = AttributeFactory.get(Roles, ctx.handler) // string[] | null
  * ```
  */
 export class AttributeFactory {
@@ -121,7 +121,7 @@ export class AttributeFactory {
   }
 
   /**
-   * The attribute's value on a route: the handler's, else the controller's,
+   * The attribute's value for a handler: the handler's own, else the controller's,
    * else the module's. `null` when none has it.
    */
   static get(attribute: ReadableAttribute, source: AttributeSource): true | null
@@ -139,7 +139,7 @@ export class AttributeFactory {
   }
 
   /**
-   * Every value of the attribute on a route, most specific first.
+   * Every value of the attribute for a handler, most specific first.
    */
   static getAll(attribute: ReadableAttribute, source: AttributeSource): true[]
   static getAll<Schema extends StandardSchemaV1>(

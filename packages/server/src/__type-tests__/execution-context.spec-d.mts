@@ -7,9 +7,10 @@ import type {
 } from '@navios/core'
 import type { ExecutionContext, HandlerInfo } from '@navios/core'
 
-import { RequestValue } from '../index.mjs'
+import { isHttpContext, Module, RequestValue } from '../index.mjs'
 
 import type { ContextKey, RequestContext, RouteInfo } from '../index.mjs'
+import type { ModuleOptions as CoreModuleOptions } from '@navios/core'
 
 describe('execution context contracts', () => {
   it('is implemented by the request context', () => {
@@ -33,5 +34,16 @@ describe('execution context contracts', () => {
     const kernel: KernelContextKey = SessionValue
     void http
     void kernel
+  })
+
+  it('adds the HTTP options to @Module of @navios/core', () => {
+    class Users {}
+    expectTypeOf<CoreModuleOptions>().toHaveProperty('controllers')
+    expectTypeOf(Module).toBeCallableWith({ prefix: 'users', controllers: [Users] })
+  })
+
+  it('narrows a neutral context to the request context', () => {
+    const narrow = (ctx: ExecutionContext) => (isHttpContext(ctx) ? ctx : null)
+    expectTypeOf(narrow).returns.toEqualTypeOf<RequestContext | null>()
   })
 })

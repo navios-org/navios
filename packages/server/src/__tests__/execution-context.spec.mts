@@ -1,6 +1,10 @@
 import { builder } from '@navios/builder'
-import { currentContext as kernelCurrentContext } from '@navios/core'
-import { ExecutionContextToken } from '@navios/core'
+import {
+  Container,
+  currentContext as kernelCurrentContext,
+  ExecutionContextToken,
+} from '@navios/core'
+import { BasicExecutionContext } from '@navios/core/transport'
 import { afterEach, describe, expect, it } from 'vitest'
 import { z } from 'zod/v4'
 
@@ -14,6 +18,7 @@ import {
   inject,
   Injectable,
   InjectableScope,
+  isHttpContext,
   Module,
   NaviosFactory,
 } from '../index.mjs'
@@ -126,5 +131,32 @@ describe('RequestContext as an ExecutionContext', () => {
 
     const app = await createApp(Root)
     expect((await createTestClient(app)(probe)).body).toEqual(['admin'])
+  })
+
+  it('tells an HTTP context from another transport\'s', async () => {
+    @Controller()
+    class Ctl {
+      probe = handler(probe, (_params, ctx) => isHttpContext(ctx))
+    }
+    @Module({ controllers: [Ctl] })
+    class Root {}
+    const other = new BasicExecutionContext({
+      kind: 'queue',
+      id: 'job-1',
+      host: { container: new Container(), onScopedUse: null },
+      handler: {
+        module: null,
+        controller: Ctl,
+        handlerName: 'run',
+        guards: [],
+        interceptors: [],
+        attributes: { handler: new Map(), controller: new Map(), module: new Map() },
+      },
+    })
+
+    const app = await createApp(Root)
+
+    expect((await createTestClient(app)(probe)).body).toBe(true)
+    expect(isHttpContext(other)).toBe(false)
   })
 })
