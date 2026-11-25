@@ -19,8 +19,7 @@ import { reply } from '../responses/index.mjs'
 import { sseStream } from '../sse/index.mjs'
 
 import type { RequestContext } from '../context/index.mjs'
-import type { Guard } from '../guards/index.mjs'
-import type { Interceptor } from '../interceptors/index.mjs'
+import type { HttpGuard as Guard, HttpInterceptor as Interceptor } from '../routing/index.mjs'
 import type { RouteDefinition } from '../pipeline/index.mjs'
 import type { RouteEndpointConfig, RouteInfo, RouteInput, RouteResult } from '../routing/index.mjs'
 

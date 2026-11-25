@@ -4,7 +4,7 @@ import type { Interceptor } from './interceptor.mjs'
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-type InterceptorClass = new (...args: any[]) => Interceptor
+type InterceptorClass = new (...args: any[]) => Interceptor<any, any>
 
 /**
  * Adds interceptors to a module, a controller or a handler. The first one

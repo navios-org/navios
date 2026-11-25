@@ -9,7 +9,7 @@ import { handler } from '../handlers/handler.mjs'
 import { registerModule } from '../modules/module.mjs'
 
 import type { RequestContext } from '../context/request-context.mjs'
-import type { Guard } from '../guards/guard.mjs'
+import type { HttpGuard as Guard } from '../routing/http-contracts.mjs'
 
 import { s } from './schema.mjs'
 import { endpoint } from './suite.mjs'

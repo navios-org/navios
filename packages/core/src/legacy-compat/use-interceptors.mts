@@ -9,7 +9,7 @@ import type { LegacyAnyDecorator } from './legacy-decorator.mjs'
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 export function UseInterceptors(
-  ...interceptors: Array<new (...args: any[]) => Interceptor>
+  ...interceptors: Array<new (...args: any[]) => Interceptor<any, any>>
 ): LegacyAnyDecorator {
   return legacy(StandardUseInterceptors(...interceptors))
 }
