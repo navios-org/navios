@@ -1,39 +1,61 @@
-import { KeyObject } from 'node:crypto'
-
-import type { StandardSchemaV1 } from '@navios/core'
-
-import type { Secret, SignOptions, VerifyOptions } from './token-options.mjs'
+import type {
+  Algorithm,
+  JwtHeader,
+  JwtKey,
+  JwtPrivateKey,
+  SignOptions,
+  VerifyOptions,
+} from './token-options.mjs'
 
 /**
- * Request type for secret or key provider functions.
- *
- * Used to distinguish between signing and verification operations when
- * dynamically resolving secrets or keys.
+ * What `keys` is asked for: the key to verify a token with this header, or the key to sign
+ * this payload with. The header is parsed but not verified; it is whatever the sender of the
+ * token put there.
  */
-export enum RequestType {
-  /** Request is for signing a token */
-  Sign = 'Sign',
-  /** Request is for verifying a token */
-  Verify = 'Verify',
-}
+export type JwtKeyRequest =
+  | { use: 'verify'; header: JwtHeader }
+  | { use: 'sign'; payload: string | Buffer | object }
+
+/**
+ * A key returned by `keys`.
+ *
+ * A `KeyObject` is parsed once and says itself which algorithms it can be used with. Text and
+ * bytes do not, so they need `algorithms` here, or an `algorithms` or `algorithm` option.
+ *
+ * @property key - The key. `undefined` means that there is no such key
+ * @property keyid - The `kid` header of tokens signed with the key
+ * @property algorithms - The algorithms to verify with; the first one signs
+ */
+export type JwtKeyMaterial =
+  | JwtKey
+  | {
+      key: JwtKey | undefined
+      keyid?: string | undefined
+      algorithms?: readonly Algorithm[] | undefined
+    }
 
 /**
  * Configuration options for the JWT service.
+ *
+ * A key or an option that is present must have a value: `secret: process.env.JWT_SECRET` fails
+ * when the variable is not set. Leave the property out to configure none.
  *
  * @property signOptions - Default options for signing tokens
  * @property secret - Default secret for symmetric algorithms (HS256, HS384, HS512)
  * @property publicKey - Default public key for asymmetric algorithms (RS256, ES256, etc.)
  * @property privateKey - Default private key for asymmetric algorithms
  * @property verifyOptions - Default options for verifying tokens
- * @property secretOrKeyProvider - Optional function to dynamically resolve secrets/keys.
- *   It may return a promise (for example a JWKS lookup); then only `signAsync()` and
+ * @property keys - Optional function to choose the key of each call, for example by the `kid`
+ *   header of the token or by a claim of the payload. `undefined` means that there is no such
+ *   key. What is no key at all, which a hostile `kid` such as `constructor` finds in a plain
+ *   object, rejects the token as well. It may return a promise (for example a JWKS lookup); then only `signAsync()` and
  *   `verifyAsync()` can be used. It wins over `secret` and the keys configured here, but
  *   not over a `secret`, `privateKey` or `publicKey` passed to an individual call.
  *
  * @example
  * ```ts
  * const options: JwtServiceOptions = {
- *   secret: 'your-secret-key',
+ *   secret: process.env.JWT_SECRET,
  *   signOptions: {
  *     expiresIn: '1h',
  *     algorithm: 'HS256',
@@ -45,65 +67,12 @@ export enum RequestType {
  * ```
  */
 export interface JwtServiceOptions {
-  signOptions?: SignOptions
-  secret?: string | Buffer | KeyObject
-  publicKey?: string | Buffer | KeyObject
-  privateKey?: Secret
-  verifyOptions?: VerifyOptions
-  secretOrKeyProvider?: (
-    requestType: RequestType,
-    tokenOrPayload: any,
-    options?: SignOptions | VerifyOptions,
-  ) => Secret | Promise<Secret>
-}
-
-function isPlainObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
-function isOptional(value: unknown, check: (value: unknown) => boolean): boolean {
-  return value === undefined || check(value)
-}
-
-function isKey(value: unknown): boolean {
-  return typeof value === 'string' || Buffer.isBuffer(value) || value instanceof KeyObject
-}
-
-function isJwtServiceOptions(value: unknown): value is JwtServiceOptions {
-  if (!isPlainObject(value)) {
-    return false
-  }
-  return (
-    isOptional(value.secret, isKey) &&
-    isOptional(value.publicKey, isKey) &&
-    isOptional(value.privateKey, (v) => isKey(v) || isPlainObject(v)) &&
-    isOptional(value.signOptions, isPlainObject) &&
-    isOptional(value.verifyOptions, isPlainObject) &&
-    isOptional(value.secretOrKeyProvider, (v) => typeof v === 'function')
-  )
-}
-
-/**
- * Standard Schema that checks the shape of `JwtServiceOptions`. It is the
- * argument schema of `JwtServiceToken`, so options given to
- * `provideJwtService()` are checked when the service is resolved. It needs no
- * schema library; the options of individual sign and verify calls are checked
- * by `jsonwebtoken`.
- */
-export const JwtServiceOptionsSchema: StandardSchemaV1<JwtServiceOptions, JwtServiceOptions> = {
-  '~standard': {
-    version: 1,
-    vendor: 'navios',
-    validate: (value) =>
-      isJwtServiceOptions(value)
-        ? { value }
-        : {
-            issues: [
-              {
-                message:
-                  'JwtService options must be an object with optional `secret`, `publicKey` (string, Buffer or KeyObject), `privateKey` (string, Buffer, KeyObject or key with passphrase), `signOptions`, `verifyOptions` (objects) and `secretOrKeyProvider` (function)',
-              },
-            ],
-          },
-  },
+  signOptions?: SignOptions | undefined
+  secret?: JwtKey | undefined
+  publicKey?: JwtKey | undefined
+  privateKey?: JwtPrivateKey | undefined
+  verifyOptions?: VerifyOptions | undefined
+  keys?:
+    | ((request: JwtKeyRequest) => JwtKeyMaterial | undefined | Promise<JwtKeyMaterial | undefined>)
+    | undefined
 }

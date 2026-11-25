@@ -1,27 +1,16 @@
 import { createHmac, createPublicKey, createSecretKey, generateKeyPairSync } from 'node:crypto'
 
-import { Container, DIErrorCode, LoggerOutput } from '@navios/core'
+import { Container, DIErrorCode } from '@navios/core'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
   JsonWebTokenError,
   NotBeforeError,
   provideJwtService,
-  RequestType,
   TokenExpiredError,
 } from '../index.mjs'
 
-import type { JwtServiceOptions } from '../index.mjs'
-import type { JwtService } from '../jwt-service.mjs'
-
-const mockLoggerOutput = {
-  log: vi.fn(),
-  error: vi.fn(),
-  warn: vi.fn(),
-  debug: vi.fn(),
-  verbose: vi.fn(),
-  fatal: vi.fn(),
-}
+import type { JwtKeyMaterial, JwtKeyRequest, JwtServiceOptions } from '../index.mjs'
 
 const { publicKey, privateKey } = generateKeyPairSync('rsa', {
   modulusLength: 2048,
@@ -36,15 +25,16 @@ describe('JwtService keys and security', () => {
 
   beforeEach(() => {
     container = new Container()
-    container.addInstance(LoggerOutput, mockLoggerOutput)
+    vi.spyOn(process, 'emitWarning').mockImplementation(() => {})
   })
 
   afterEach(async () => {
+    vi.restoreAllMocks()
     await container.dispose()
   })
 
   async function createJwtService(options: JwtServiceOptions) {
-    return container.get(provideJwtService(options)) as Promise<JwtService>
+    return container.get(provideJwtService(options))
   }
 
   describe('asymmetric keys', () => {
@@ -58,7 +48,7 @@ describe('JwtService keys and security', () => {
 
       const token = service.sign({ sub: 'user' })
 
-      expect(service.decode(token, { complete: true }).header.alg).toBe('RS256')
+      expect(service.decode(token, { complete: true })?.header.alg).toBe('RS256')
       expect(service.verify<{ sub: string }>(token).sub).toBe('user')
       expect((await service.verifyAsync<{ sub: string }>(token)).sub).toBe('user')
     })
@@ -99,14 +89,6 @@ describe('JwtService keys and security', () => {
         JsonWebTokenError,
       )
     })
-
-    it('should reject it when the public key comes from the provider', async () => {
-      const service = await createJwtService({ secretOrKeyProvider: async () => publicKey })
-
-      await expect(service.verifyAsync(forgeHs256WithPublicKey())).rejects.toBeInstanceOf(
-        JsonWebTokenError,
-      )
-    })
   })
 
   describe('alg none', () => {
@@ -119,21 +101,6 @@ describe('JwtService keys and security', () => {
       expect(() => hmac.verify(unsigned)).toThrow(JsonWebTokenError)
       expect(() => rsa.verify(unsigned)).toThrow(JsonWebTokenError)
       await expect(hmac.verifyAsync(unsigned)).rejects.toBeInstanceOf(JsonWebTokenError)
-    })
-
-    it('should reject an unsigned token when no key is configured', async () => {
-      const service = await createJwtService({})
-
-      expect(() => service.verify(unsigned)).toThrow(JsonWebTokenError)
-      await expect(service.verifyAsync(unsigned)).rejects.toBeInstanceOf(JsonWebTokenError)
-    })
-
-    it('should reject an unsigned token when an async provider resolves no key', async () => {
-      const service = await createJwtService({
-        secretOrKeyProvider: async () => undefined as unknown as string,
-      })
-
-      await expect(service.verifyAsync(unsigned)).rejects.toBeInstanceOf(JsonWebTokenError)
     })
   })
 
@@ -188,11 +155,15 @@ describe('JwtService keys and security', () => {
     })
   })
 
-  describe('secretOrKeyProvider', () => {
-    it('should use a synchronous provider for sync and async calls', async () => {
-      const provider = vi.fn(() => 'provider-secret')
-      const service = await createJwtService({ secretOrKeyProvider: provider })
-      const reference = await createJwtService({ secret: 'provider-secret' })
+  describe('keys', () => {
+    const secretKey = (text: string) => createSecretKey(Buffer.from(text.padEnd(32, '-')))
+    const headerOf = async (token: string) =>
+      (await createJwtService({})).decode(token, { complete: true })!.header
+
+    it('should use a synchronous function for sync and async calls', async () => {
+      const keys = vi.fn((_request: JwtKeyRequest) => secretKey('keys'))
+      const service = await createJwtService({ keys })
+      const reference = await createJwtService({ secret: secretKey('keys') })
 
       const token = service.sign({ a: 1 })
       const asyncToken = await service.signAsync({ a: 2 })
@@ -201,15 +172,15 @@ describe('JwtService keys and security', () => {
       expect(reference.verify<{ a: number }>(asyncToken).a).toBe(2)
       expect(service.verify<{ a: number }>(token).a).toBe(1)
       expect((await service.verifyAsync<{ a: number }>(token)).a).toBe(1)
-      expect(provider).toHaveBeenCalledWith(RequestType.Sign, { a: 1 }, {})
-      expect(provider).toHaveBeenCalledWith(RequestType.Verify, token, {})
+      expect(keys).toHaveBeenCalledWith({ use: 'sign', payload: { a: 1 } })
+      expect(keys).toHaveBeenCalledWith({ use: 'verify', header: { alg: 'HS256', typ: 'JWT' } })
     })
 
-    it('should await an asynchronous provider in signAsync and verifyAsync', async () => {
+    it('should await an asynchronous function in signAsync and verifyAsync', async () => {
       const service = await createJwtService({
-        secretOrKeyProvider: async (requestType) => {
+        keys: async ({ use }) => {
           await new Promise((resolve) => setTimeout(resolve, 1))
-          return requestType === RequestType.Sign ? privateKey : publicKey
+          return use === 'sign' ? privateKey : publicKey
         },
         signOptions: { algorithm: 'RS256' },
         verifyOptions: { algorithms: ['RS256'] },
@@ -217,36 +188,162 @@ describe('JwtService keys and security', () => {
 
       const token = await service.signAsync({ sub: 'user' })
 
-      expect((await service.verifyAsync<{ sub: string }>(token)).sub).toBe('user')
+      expect((await service.verifyAsync(token)).sub).toBe('user')
     })
 
-    it('should reject a token signed with another key when the provider is asynchronous', async () => {
-      const service = await createJwtService({ secretOrKeyProvider: async () => 'right' })
-      const other = await createJwtService({ secret: 'wrong' })
+    it('should rotate keys by the kid header', async () => {
+      const known = new Map([
+        ['2025', secretKey('old')],
+        ['2026', secretKey('new')],
+      ])
+      const service = await createJwtService({
+        keys: (request) =>
+          request.use === 'sign'
+            ? { key: known.get('2026')!, keyid: '2026' }
+            : known.get(request.header.kid ?? ''),
+      })
+      const old = await createJwtService({ secret: secretKey('old') })
+
+      const token = service.sign({ sub: 'u' })
+
+      expect((await headerOf(token)).kid).toBe('2026')
+      expect(service.verify(token).sub).toBe('u')
+      expect(service.verify(old.sign({ sub: 'o' }, { keyid: '2025' })).sub).toBe('o')
+      // The right kid with the wrong key, an unknown kid and no kid at all.
+      for (const options of [{ keyid: '2026' }, { keyid: '2024' }, { keyid: '__proto__' }, {}]) {
+        expect(() => service.verify(old.sign({ sub: 'o' }, options))).toThrow(JsonWebTokenError)
+      }
+    })
+
+    it('should let the keyid of the call win over the one of the key', async () => {
+      const service = await createJwtService({
+        keys: () => ({ key: secretKey('k'), keyid: 'from-key' }),
+        signOptions: { keyid: 'from-config' },
+      })
+
+      expect((await headerOf(service.sign({}))).kid).toBe('from-key')
+      expect((await headerOf(service.sign({}, { keyid: 'from-call' }))).kid).toBe('from-call')
+    })
+
+    it('should choose the key by a claim of the payload', async () => {
+      const service = await createJwtService({
+        keys: (request) =>
+          request.use === 'sign'
+            ? {
+                key: secretKey((request.payload as { tenant: string }).tenant),
+                keyid: (request.payload as { tenant: string }).tenant,
+              }
+            : secretKey(request.header.kid!),
+      })
+
+      expect(service.verify(service.sign({ tenant: 'a' })).tenant).toBe('a')
+      expect((await headerOf(service.sign({ tenant: 'b' }))).kid).toBe('b')
+    })
+
+    it('should verify and sign with the algorithms of the key', async () => {
+      const key = secretKey('k')
+      const service = await createJwtService({ keys: () => ({ key, algorithms: ['HS512'] }) })
+      const other = await createJwtService({ secret: key })
+
+      expect((await headerOf(service.sign({}))).alg).toBe('HS512')
+      expect(service.verify(other.sign({ sub: 'u' }, { algorithm: 'HS512' })).sub).toBe('u')
+      expect(() => service.verify(other.sign({ sub: 'u' }))).toThrow(JsonWebTokenError)
+      expect(() => service.sign({}, { algorithm: 'HS256' })).toThrow(/cannot be used to sign/)
+    })
+
+    it('should not let the algorithms of the key widen the configured ones', async () => {
+      const key = secretKey('k')
+      const service = await createJwtService({
+        keys: () => ({ key, algorithms: ['HS256', 'HS512'] }),
+        verifyOptions: { algorithms: ['HS256'] },
+      })
+      const other = await createJwtService({ secret: key })
+
+      expect(service.verify(other.sign({ sub: 'u' })).sub).toBe('u')
+      expect(() => service.verify(other.sign({}, { algorithm: 'HS512' }))).toThrow(
+        JsonWebTokenError,
+      )
+    })
+
+    it('should reject a token whose kid names a key for other algorithms', async () => {
+      const service = await createJwtService({
+        keys: () => createPublicKey(publicKey),
+        verifyOptions: { algorithms: ['HS256'] },
+      })
+      const other = await createJwtService({ secret: secretKey('k') })
+
+      expect(() => service.verify(other.sign({}))).toThrow(JsonWebTokenError)
+    })
+
+    it('should accept text and bytes when the algorithms say what they are', async () => {
+      const text = 'k'.repeat(32)
+      const materials: JwtKeyMaterial[] = [
+        { key: text, algorithms: ['HS256'] },
+        { key: Buffer.from(text), algorithms: ['HS256'] },
+        { key: new Uint8Array(Buffer.from(text)), algorithms: ['HS256'] },
+      ]
+      for (const material of materials) {
+        const service = await createJwtService({ keys: () => material })
+        expect(service.verify(service.sign({ sub: 'u' })).sub).toBe('u')
+      }
+      const pinned = await createJwtService({
+        keys: () => text,
+        signOptions: { algorithm: 'HS256' },
+        verifyOptions: { algorithms: ['HS256'] },
+      })
+      expect(pinned.verify(pinned.sign({ sub: 'u' })).sub).toBe('u')
+    })
+
+    it('should reject a token with an unknown key, and fail to sign without one', async () => {
+      for (const nothing of [undefined, null as unknown as undefined]) {
+        const service = await createJwtService({ keys: () => nothing })
+        const token = (await createJwtService({ secret: secretKey('k') })).sign({ a: 1 })
+
+        expect(() => service.verify(token)).toThrow(JsonWebTokenError)
+        await expect(service.verifyAsync(token)).rejects.toBeInstanceOf(JsonWebTokenError)
+        expect(() => service.sign({ a: 1 })).toThrow(/`keys` returned no key/)
+        expect(() => service.sign({ a: 1 })).not.toThrow(JsonWebTokenError)
+      }
+    })
+
+    it('should reject a token signed with another key when the function is asynchronous', async () => {
+      const service = await createJwtService({ keys: async () => secretKey('right') })
+      const other = await createJwtService({ secret: secretKey('wrong') })
 
       await expect(service.verifyAsync(other.sign({ a: 1 }))).rejects.toBeInstanceOf(
         JsonWebTokenError,
       )
     })
 
-    it('should reject when an asynchronous provider rejects', async () => {
-      const service = await createJwtService({
-        secretOrKeyProvider: async () => {
-          throw new Error('jwks unavailable')
+    it('should pass on the error of the function', async () => {
+      class Unavailable extends Error {}
+      const asynchronous = await createJwtService({
+        keys: async () => {
+          throw new Unavailable('jwks unavailable')
         },
       })
-      const token = (await createJwtService({ secret: 'k' })).sign({ a: 1 })
+      const synchronous = await createJwtService({
+        keys: () => {
+          throw new Unavailable('jwks unavailable')
+        },
+      })
+      const token = (await createJwtService({ secret: secretKey('k') })).sign({ a: 1 })
 
-      await expect(service.verifyAsync(token)).rejects.toThrow('jwks unavailable')
-      await expect(service.signAsync({ a: 1 })).rejects.toThrow('jwks unavailable')
+      await expect(asynchronous.verifyAsync(token)).rejects.toBeInstanceOf(Unavailable)
+      await expect(asynchronous.signAsync({ a: 1 })).rejects.toBeInstanceOf(Unavailable)
+      expect(() => synchronous.verify(token)).toThrow(Unavailable)
+      expect(() => synchronous.sign({ a: 1 })).toThrow(Unavailable)
     })
 
-    it('should throw a clear error from sync sign and verify when the provider is asynchronous', async () => {
-      const service = await createJwtService({ secretOrKeyProvider: async () => 'k' })
-      const token = (await createJwtService({ secret: 'k' })).sign({ a: 1 })
+    it('should throw a clear error from sync sign and verify when the function is asynchronous', async () => {
+      const service = await createJwtService({ keys: async () => secretKey('k') })
+      const failing = await createJwtService({ keys: () => Promise.reject(new Error('late')) })
+      const token = (await createJwtService({ secret: secretKey('k') })).sign({ a: 1 })
 
-      expect(() => service.sign({ a: 1 })).toThrow(/signAsync/)
-      expect(() => service.verify(token)).toThrow(/verifyAsync/)
+      for (const jwt of [service, failing]) {
+        expect(() => jwt.sign({ a: 1 })).toThrow(/signAsync/)
+        expect(() => jwt.verify(token)).toThrow(/verifyAsync/)
+      }
     })
   })
 
@@ -273,23 +370,23 @@ describe('JwtService keys and security', () => {
       expect(() => service.verify(token)).toThrow(JsonWebTokenError)
     })
 
-    it('should prefer a per-call secret over the provider', async () => {
-      const provider = vi.fn(() => 'provider-secret')
-      const service = await createJwtService({ secretOrKeyProvider: provider })
+    it('should prefer a per-call secret over the keys function', async () => {
+      const keys = vi.fn(() => createSecretKey(Buffer.from('keys-secret')))
+      const service = await createJwtService({ keys })
       const other = await createJwtService({ secret: 'other' })
-      const providerToken = service.sign({ a: 1 })
+      const keysToken = service.sign({ a: 1 })
       const otherToken = other.sign({ a: 2 })
-      provider.mockClear()
+      keys.mockClear()
 
       expect(service.verify<{ a: number }>(otherToken, { secret: 'other' }).a).toBe(2)
-      expect(() => service.verify(providerToken, { secret: 'other' })).toThrow(JsonWebTokenError)
-      expect(provider).not.toHaveBeenCalled()
+      expect(() => service.verify(keysToken, { secret: 'other' })).toThrow(JsonWebTokenError)
+      expect(keys).not.toHaveBeenCalled()
     })
 
-    it('should prefer the provider over the instance secret', async () => {
+    it('should prefer the keys function over the instance secret', async () => {
       const service = await createJwtService({
         secret: 'instance-secret',
-        secretOrKeyProvider: () => 'provider-secret',
+        keys: () => createSecretKey(Buffer.from('keys-secret')),
       })
       const instance = await createJwtService({ secret: 'instance-secret' })
 
@@ -301,7 +398,7 @@ describe('JwtService keys and security', () => {
 
       const token = service.sign({ a: 1 })
 
-      expect(service.decode(token, { complete: true }).header.alg).toBe('HS256')
+      expect(service.decode(token, { complete: true })?.header.alg).toBe('HS256')
       expect(service.verify<{ a: number }>(token).a).toBe(1)
     })
   })
@@ -334,7 +431,7 @@ describe('JwtService keys and security', () => {
       const token = provideJwtService({ secret: { nope: true } } as unknown as JwtServiceOptions)
 
       await expect(container.get(token)).rejects.toMatchObject({
-        code: DIErrorCode.TokenValidationError,
+        code: DIErrorCode.InitializationError,
       })
     })
   })
@@ -348,7 +445,7 @@ describe('JwtService keys and security', () => {
 
       const token = service.sign('hello')
 
-      expect(service.verify(token)).toBe('hello')
+      expect(service.decode<string>(token)).toBe('hello')
       expect(await service.signAsync('hello')).toBe(token)
     })
 
@@ -358,7 +455,7 @@ describe('JwtService keys and security', () => {
         signOptions: { algorithm: 'HS512', expiresIn: '15m' },
       })
 
-      expect(service.decode(service.sign('hello'), { complete: true }).header.alg).toBe('HS512')
+      expect(service.decode(service.sign('hello'), { complete: true })?.header.alg).toBe('HS512')
     })
 
     it('should reject claim options the caller passes with a string payload', async () => {

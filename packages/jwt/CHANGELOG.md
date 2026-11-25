@@ -5,39 +5,57 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.0.0] - Unreleased
+## [2.0.0-alpha.0] - Unreleased
 
 Ported to `@navios/core` 2.0 and `@navios/di` 2.0.
 
 ### Changed
 
-- **BREAKING**: `zod` is no longer used or required. `SignOptions`, `VerifyOptions`, `JwtHeader`, `Secret` and `JwtServiceOptions` are plain TypeScript types with the same fields as before.
-- **BREAKING**: `JwtServiceOptionsSchema` is now a hand-written [Standard Schema](https://standardschema.dev) that checks the shape of the service configuration. It no longer has zod methods such as `.parse()`, and it does not strip unknown keys.
-- **BREAKING**: The configuration factory given to `provideJwtService()` receives a `FactoryContext`. Replace `await inject(ConfigService)` inside the factory with `await ctx.inject(ConfigService)`. The factory may now also be synchronous, and its result is cached per container instead of globally.
-- `JwtServiceToken` is named `'JwtService'` instead of `Symbol.for('JwtService')`. Tokens are identified by the token object, so this only changes error messages.
-- `JwtService` is registered with `registerInjectable()` instead of the `@Injectable()` decorator, so the package is built without a decorator transform.
+- **BREAKING**: `zod` is no longer used or required. `JwtHeader` and `JwtServiceOptions` are plain TypeScript types. The configuration is checked when the service is created; an error is a `DIError` with the code `InitializationError` when the service is resolved from a container.
+- **BREAKING**: `provideJwtService()` returns an `InjectionToken<JwtService>` of its own for every call, instead of a token bound to `JwtServiceToken`. Two services are two tokens, and each can be replaced with `provide(token, Impl)` or `TestContainer.bind(token)`. `provideJwtService(config, { name })` names the token in error messages.
+- **BREAKING**: The configuration factory given to `provideJwtService()` receives a `FactoryContext`. Replace `await inject(ConfigService)` inside the factory with `await ctx.inject(ConfigService)`. The factory may now also be synchronous, and it runs once per container instead of once globally.
+- **BREAKING**: `secretOrKeyProvider` is replaced by `keys`. It is called with `{ use: 'verify', header }` (the parsed header; a malformed token is rejected before) or `{ use: 'sign', payload }`, and returns a key, `{ key, keyid, algorithms }`, or `undefined` when there is no such key, which rejects the token. So does a value that is not a key, or a key of a type that is not supported (Ed25519 in a JWKS), because the sender of the token chooses the `kid`. `keyid` becomes the `kid` header when signing. It may return a promise, so a key can be looked up remotely (JWKS): `signAsync()` and `verifyAsync()` await it; `sign()` and `verify()` throw an error that names the async method. Text and bytes returned without algorithms are refused; a `KeyObject` needs none.
+- **BREAKING**: `TokenExpiredError`, `NotBeforeError` and `JsonWebTokenError` are classes of this package instead of those of `jsonwebtoken`, with the same names and fields. They carry the original error as `cause` instead of `inner`.
+- **BREAKING**: A key is parsed once, when the service is created, as what it is configured as. A `publicKey` or `privateKey` that is not a PEM or a `KeyObject`, and an encoded key in `secret`, are configuration errors.
+- **BREAKING**: Without `algorithms`, the accepted algorithms are those of the type of the key, and for an EC key those of its curve. `algorithms` that cannot be used with the key are a configuration error. The default `algorithm` for signing follows the type of the key too, instead of always being `HS256`.
+- **BREAKING**: A key that is present but `undefined` or empty (an environment variable that is not set), and a sign or verify option without a value, are configuration errors. `{}` is a service without keys. A call without any key throws a plain `Error` instead of a `JsonWebTokenError`, which guards answer with 401.
+- **BREAKING**: A wrong verify option is a plain `Error`. Options that would not check anything are refused: an empty `audience`, `issuer`, `subject`, `jwtid` or `nonce`, a `maxAge` of 0, a `clockTolerance` that is not a number.
+- **BREAKING**: `expiresIn`, `notBefore` and `maxAge` refuse a string without a unit; `'900'` was 900 milliseconds. Use a number of seconds or `'900s'`.
+- **BREAKING**: `verify()` rejects a token whose payload is not an object. Its result is `JwtPayload` by default instead of `any`, and `JwtComplete` with `complete: true`. `complete` is an option of a call only.
+- **BREAKING**: `new JwtService()` takes the configuration as a required argument and no longer needs an injection context. The public `logger` property is gone.
+- **BREAKING**: `Secret` is renamed to `JwtPrivateKey`; `JwtKey` is a key that cannot have a passphrase. `signOptions.audience` no longer allows a `RegExp`, which never worked.
 
 ### Removed
 
-- **BREAKING**: The zod schemas `AlgorithmType`, `JwtHeaderSchema`, `SignOptionsSchema`, `VerifyOptionsSchema` and `SecretSchema`. Use the types `Algorithm`, `JwtHeader`, `SignOptions`, `VerifyOptions` and `Secret`. Options of individual `sign()` and `verify()` calls are validated by `jsonwebtoken`, as before.
+- **BREAKING**: The zod schemas `AlgorithmType`, `JwtHeaderSchema`, `SignOptionsSchema`, `VerifyOptionsSchema`, `SecretSchema` and `JwtServiceOptionsSchema`. Use the types `Algorithm`, `JwtHeader`, `JwtSignOptions`, `JwtVerifyOptions` and `JwtServiceOptions`.
+- **BREAKING**: `JwtServiceToken`. Use the token `provideJwtService()` returns.
+- **BREAKING**: `RequestType`, `GetSecretKeyResult`, `SignOptions` and `VerifyOptions`.
+- **BREAKING**: The algorithm `none`, in every option and in `header.alg`.
+- **BREAKING**: The option `allowInvalidAsymmetricKeyTypes`. The type of the key decides.
 - `zod` from `peerDependencies`.
 
 ### Added
 
-- The `Algorithm` type.
-- `JwtService` is the default provider of `JwtServiceToken` and can be replaced with `provide(JwtServiceToken, Impl)` in application or module `providers`.
-- `secretOrKeyProvider` may return a promise, so a key can be looked up remotely (JWKS). `signAsync()` and `verifyAsync()` await it; `sign()` and `verify()` throw an error that names the async method.
-- `secret`, `publicKey` and `privateKey` accept a Node.js `KeyObject` everywhere, and `secret` in the configuration also accepts a `Buffer`.
+- The types `Algorithm`, `JwtPayload`, `JwtComplete`, `JwtDecodeOptions`, `JwtKey`, `JwtPrivateKey`, `JwtKeyRequest` and `JwtKeyMaterial`.
+- `secret`, `publicKey` and `privateKey` accept a Node.js `KeyObject` and a `Uint8Array` everywhere.
+- A process warning (`NAVIOS_JWT_SHORT_SECRET`) when the HMAC secret of a service is shorter than 32 bytes, once per process.
+- `null` for `expiresIn`, `notBefore`, `audience`, `issuer`, `subject` or `jwtid` of a single `sign()` call leaves out the default of the service.
+- `header` may be given without `alg`, for example `{ kid }`.
 - `TokenExpiredError`, `NotBeforeError` and `JsonWebTokenError` are exported as types as well as values, so `let error: TokenExpiredError` compiles.
 - `files` in `package.json`: only `lib`, the README, the changelog and the license are published.
 
 ### Fixed
 
-- **BREAKING**: A `secret`, `privateKey` or `publicKey` passed to a single call now wins over everything configured on the service. Before, `secretOrKeyProvider` silently overrode a per-call `secret`, and the `secret` of the service overrode a per-call key, so `verify(token, { publicKey, algorithms: ['RS256'] })` threw on a service configured with a `secret`. The order is: per-call `secret`, per-call key, `secretOrKeyProvider`, service `secret`, service key.
-- `provideJwtService({ secret: Buffer })` and `provideJwtService({ publicKey: KeyObject })` no longer fail the configuration check.
+- **Security**: A `publicKey` that does not parse (DER, base64, JWK, or a PEM whose line breaks are the characters `\n`) is no longer used as an HMAC secret, with which anyone who knows the public key could sign a token.
+- **Security**: An option of a call that is `undefined` no longer replaces the configured one. `verify(token, { audience: undefined })` switched off the configured audience check, and `sign(payload, { expiresIn: undefined })` threw.
+- **Security**: **BREAKING**: A `secret`, `privateKey` or `publicKey` passed to a single call always wins over everything configured on the service, and an `undefined` or empty one is an error. Before, `secretOrKeyProvider` silently overrode a per-call `secret`, the `secret` of the service overrode a per-call key, and an empty key fell back to the key of the service. The order is: per-call `secret`, per-call key, `keys`, service `secret`, service key.
+- **Security**: A service that is inspected, serialised or logged does not show its keys, and neither do configuration errors.
+- `verify()` and `verifyAsync()` throw a `JsonWebTokenError` for every token that cannot be accepted. A payload that is not JSON, an ECDSA signature of the wrong length and others were a `SyntaxError`, `TypeError` or `Error`, which answered 500.
+- `decode()` returns `null` for every token it cannot decode, and is typed as returning `T | null`. It threw a `SyntaxError` for a payload that is not JSON.
+- Keys are no longer parsed for every call: with a string secret `verify()` and `sign()` are more than four times as fast.
+- A default of `signOptions` is not applied to a claim the payload already has, so a verified payload can be signed again.
 - `sign('string payload')` no longer throws when the service has default `signOptions`. The claim defaults (`expiresIn`, `notBefore`, `noTimestamp`, `audience`, `issuer`, `subject`, `jwtid`) are not applied to a string or `Buffer` payload; a string payload is rejected only when the caller passes one of these options.
-- `decode()` is typed as returning `T | null`; it always returned `null` for a token it could not decode.
-- `@types/jsonwebtoken` is a dependency instead of a dev dependency: the published type declarations import from it.
+- The configuration types can be used with `exactOptionalPropertyTypes`, and the published type declarations no longer import from `jsonwebtoken`.
 - `repository.url` points to `navios-org/navios`.
 
 ## [1.0.0] - 2026-01-09
