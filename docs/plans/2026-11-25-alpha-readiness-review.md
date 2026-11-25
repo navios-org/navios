@@ -1,5 +1,138 @@
 # Navios 2.0: alpha readiness review
 
+Two passes, both on 2026-11-25. The first reviewed `next` at `6103e58` and
+fixed what it found on this branch (`d2479a3`). The second is a fresh review
+of that result: six independent reviewers (di, core, server, adapters, builder
+and http, jwt and schedule), every blocker reproduced before it was believed,
+fixes written test first, then four more reviewers who attacked only the
+changes of the second pass. This page starts with the second pass; the first
+one follows unchanged as history.
+
+Packages: `di`, `core`, `server`, `adapter-fastify`, `adapter-bun`, `jwt`,
+`schedule`, `builder`, `@navios/http`. Others were only adapted where these
+changed under them.
+
+## Verdict after the second pass
+
+Ready for a first alpha from the code's side. Every code blocker of both
+passes is fixed and has a regression test. What is left is listed under "Open"
+below; nothing in it, within the release set, is known to lose data, end a
+process or open a route.
+
+Versions are `2.0.0-alpha.0` in every package except `@navios/cli`. Nothing is
+published. `yarn publish:next` publishes the set under the `next` tag;
+`yarn publish:all` refuses a prerelease.
+
+State of the branch, all uncommitted: `yarn build` passes (95 tasks: types,
+lint, tests, the docs site), `yarn test:ci` passes (60 tasks), `check:size`
+and `check:dts` pass. Tests: di 716, core 342, server 515, adapter-fastify
+141, adapter-bun 142, builder 698, http 145, jwt 511, schedule 137. The packed
+tarballs were installed into an application outside the workspace: every entry
+point loads with import and require on Node 22, Node 24 and Bun, types check
+under Node16, NodeNext and bundler resolution, and npm resolves one copy of
+each package. Benchmarks are within the budgets of the 2.0 design: a plain GET
+costs up to 0.3 µs over raw Fastify, a POST with three schemas 0.6 µs, a
+request-scoped service 1.9 µs. The bundles grew (server 72 to 131 kB, di 59 to
+83 kB, unminified); `size-check` has the new budgets. The CI workflow is
+written and has not run.
+
+## Second pass: blockers found and fixed
+
+| # | Package | Problem |
+|---|---|---|
+| 1 | di, core, server | Legacy decorators: a subclass lost the guards, attributes and endpoints of its base class. A guarded base controller was served with 200 to anyone |
+| 2 | jwt | A public key that did not parse (DER, an environment variable with literal `\n`, base64) was used as an HMAC secret: a forged HS256 token was accepted |
+| 3 | jwt | `verify(token, { audience: undefined })` switched the configured audience, issuer or algorithm check off |
+| 4 | server | Interceptors ran before guards; the cache interceptor printed in the docs served one user's response to others |
+| 5 | adapters | `ctx.path` was not the path the router matched: an empty `Host` on Bun, or a percent-encoded path on Fastify, got past a guard that checks it |
+| 6 | adapter-bun | JSON was parsed from `text/plain; application/json` and from a missing content type: CSRF without a preflight |
+| 7 | server, adapter-fastify | A stream that was not read to its end was never closed: `HEAD` on an event stream ran its generator for ever, an aborted download leaked a file descriptor |
+| 8 | server, builder | A rejecting async zod refinement in an optional or union branch ended the process |
+| 9 | di, server | Un-awaited `ctx.resolve()` / `asyncInject()` ended the process once the request was over (a regression of the first pass) |
+| 10 | di | `invalidate()` during a build deadlocked the container for good |
+| 11 | di | `inject()` inside `InjectionToken.factory()` cached one request's value for every request |
+| 12 | schedule | `close()` shut a running job's dependencies down before the job had ended |
+| 13 | http | `application/problem+json` was not parsed, so every server error body was a string and no `errorSchema` matched |
+
+The regression hunt over the second pass itself found and fixed four more
+before they left the branch: any app bundled with esbuild crashed on import
+(copy detection), an async transient holding an `asyncInject()` could not be
+injected, aliases of async providers retried 33 times, and two modules
+providing one token could not be resolved by the means the error named.
+
+The second pass recorded 282 entries. Each has a spec here or is listed as
+open below. The repro scripts were not kept.
+
+## Decisions taken in the second pass
+
+They were on the maintainer's list, or reverse something written down. Each is
+easy to reverse now and expensive after the release.
+
+1. **Guards run before the interceptors of a module, a controller or a
+   handler.** Interceptors of the application (`app.intercept`, plugins) stay
+   outside the guards, so tracing sees denied requests.
+2. **The builder sends the caller's input**, not the schema's output.
+   `builder({ send: 'output' })` is the 1.x behaviour, for third-party APIs.
+   Defaults, stripping and transforms now run on the server.
+3. **`@navios/schedule` is a transport** (`scheduleTransport()`,
+   `@Module({ jobs })`); `schedulePlugin` is gone. Reverses call 12 of the
+   kernel design. Overlapping runs are skipped by default.
+4. **A path is fixed text and whole `$name` segments** on the server; anything
+   else fails at `init()`. The builder still accepts mid-segment params.
+   A declared url is kept verbatim after the prefix, trailing slash included.
+5. **Provider precedence:** container, then the `providers` option, then
+   plugins, then modules (importer before imported), then defaults.
+6. **A signal ends the process** once the last application has closed
+   (`enableShutdownHooks(signals, { exit: false })` opts out).
+7. **jwt:** algorithms follow the key type; an empty or undefined key or
+   option is an error at construction; `jsonwebtoken` stays, hidden behind own
+   types and errors; EdDSA is not supported.
+8. **Exact versions between packages** (`workspace:*`) while 2.0 is an alpha,
+   so that a mixed set cannot be installed. Go back to `workspace:^` for 2.0.0.
+9. **Adapters peer on `@navios/server` only** (and `fastify`).
+10. **`@navios/server/adapter`** holds the adapter contract; about 60 internals
+    left the main entries of di, core, server and builder.
+11. **di** no longer resolves a class's dependencies ahead of its constructor:
+    a class whose dependency is still initialising runs its constructor twice,
+    on every build and not only the first. Waiting for a dependency this build
+    might not ask for could hang or report a false cycle.
+12. `publish:next` leaves out `cli`, `queues` and `microservice`.
+
+## Open
+
+- **ESM only.** Two copies of di or core (import and require) are detected and
+  warned about, not prevented. Every supported Node has `require(esm)`, so
+  dropping the CommonJS build would remove the problem. Decide before beta.
+- **`create()` on a service.** `inject()` types a class with a zero-argument
+  `create()` as a factory. Documented; a brand would fix it.
+- **Deferred, all additive:** request timeout, pre-shutdown hook, two HTTP
+  transports in one application, API versioning, rate limiting, urlencoded
+  bodies, `@Interval`/`@Timeout` and dynamic jobs, JWKS helper, EdDSA,
+  Socket.IO, EventSource/WebSocket reconnect, response codecs, SSE keep-alive,
+  error classes and codes in core, shared CORS.
+- **Bun:** a percent-encoded literal path (`/%73imple`) is 404; the idle
+  timeout of 10 s applies to slow handlers and plain streams (Bun's default,
+  documented); short streams are 13 to 17 % slower than in the first pass,
+  because the server now owns and closes every body and reads the client
+  address while the response is open. **Fastify:** listening on `localhost` opens two servers and only
+  one is drained; pass `host`.
+- **Packages outside the set.** `@navios/otel` still mixes OpenTelemetry 2.x
+  and 3.x, whose peer ranges exclude each other (npm warns). `queues`
+  consumers and the findings of the first pass on `openapi`, `adapter-xml`,
+  `react-query` and `di-react` are as they were, except for `di-react`'s
+  CommonJS entry, which loads now.
+- **Docs site:** the `commander` section documents a package that is no longer
+  here. `specs/` is 1.x text.
+- **Slower on purpose:** a client-side schema that holds a function (`refine`,
+  `transform`) validates 3 to 5 times slower than before, about 0.6 µs a row,
+  because it may be asynchronous and a dropped rejection ends the process.
+- **Not covered:** Deno, HTTP/2, Windows, PM2, real browsers and React Native,
+  real message brokers.
+
+---
+
+# First pass
+
 Reviewed `next` at `6103e58` on 2026-11-25. Packages: `di`, `core`, `server`,
 `adapter-fastify`, `adapter-bun`, `jwt`, `schedule`, `builder` (with
 `@navios/http` where builder depends on it).
@@ -502,6 +635,46 @@ No blocker. Should fix:
   loops forever, creating scopes (61 in 300 ms; repro).
 
 All of these packages also lack a `files` field and carry pre-2.0 versions.
+
+## Documentation audit
+
+Every snippet on the first-run path (server, di and builder index pages,
+quick starts, essentials) resolves and type-checks, and every internal link
+and sidebar entry is valid. The pages that the fixes on this branch made
+stale, and a set of older inaccuracies in the server, di and builder
+sections and four READMEs, are corrected on the branch (see the commit after
+this report). Still open:
+
+- **`examples/simple-test` is 1.x throughout**: 22 type errors in 8 of 15
+  files, imports that no longer exist, and no turbo task touches it. Delete
+  or rewrite.
+- **The `commander` docs section** (14 pages, about 5,500 lines) documents a
+  package that is no longer in this repository and presents DI 1.x
+  (`Registry`, provider priorities, module `overrides`) as current.
+  Recommendation: remove it from this site, with its nav, footer and sidebar
+  entries and the root README row, and link to the commander repository.
+- **Migration guides miss breaking changes** that the CHANGELOGs list.
+  Server: the new adapter contract (1.x custom adapters and handler-adapter
+  services are gone), not-found bodies are problem+json, `HttpException`
+  extends `Error`, the `ExecutionContext` token and the legacy plugin shape
+  are removed, `onModuleInit` runs imported modules first, `app.close()`
+  disposes the container. DI: a factory is re-run when a dependency was still
+  initialising, awaiting an `asyncInject()` promise in `onServiceInit` now
+  fails with `CircularDependency`, `UnitTestContainer` auto-mocks with
+  `allowUnregistered`. Builder: `clientOptions` can no longer override
+  `method`, `url`, `params`, `data`, `signal`, `responseType`; several
+  react-query signature changes. `@navios/http` has no migration section.
+- **Undocumented:** `@navios/http` has no reference page and
+  `@navios/http/testing` is documented nowhere; `app.start()`,
+  `app.transport()`, `app.findTransport()` and the `transports` option are
+  missing from the application page; `fakeTransport`; console logger options;
+  `@navios/di/legacy-compat`; no minimum Node version is stated anywhere.
+- **Stale repository URL** `Arilas/navios` in `apps/docs/rspress.config.ts`,
+  the docs footer and home page, and in the `queues` and `microservice`
+  manifests.
+- **Install lines** name server and builder only, while the adapters also
+  peer on `core` (and `di` on Bun) without importing them. Resolved by the
+  dependency-shape decision above.
 
 ## Not covered
 
