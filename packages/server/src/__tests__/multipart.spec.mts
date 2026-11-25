@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod/v4'
 
-import { createMultipartCollector } from '../adapter/multipart-collector.mjs'
+import { createMultipartCollector } from '../decoding/multipart-collector.mjs'
 
 describe('createMultipartCollector', () => {
   it('uses the schema to tell arrays and objects from scalars', () => {
@@ -68,12 +68,148 @@ describe('createMultipartCollector', () => {
     expect((result as Record<string, unknown>).polluted).toBeUndefined()
   })
 
-  it('does not take a member of Object.prototype for a declared field', () => {
-    const schema = z.object({ title: z.string() })
+  it('knows a declared field named like the prototype of an object', () => {
+    const schema = {
+      '~standard': {
+        version: 1,
+        vendor: 'test',
+        validate: (value: unknown) => ({ value }),
+        jsonSchema: { input: () => JSON.parse('{"properties":{"__proto__":{"type":"array"}}}') },
+      },
+    } as never
     const collector = createMultipartCollector(schema)
-    collector.add('title', 'x')
-    collector.add('toString', 'y')
-    expect(schema.safeParse(collector.result())).toEqual({ success: true, data: { title: 'x' } })
-    expect(z.record(z.string(), z.string()).safeParse(collector.result()).success).toBe(true)
+    collector.add('__proto__', 'a')
+    // The schema describes its fields, so nothing is guessed about the others.
+    collector.add('title', '[1]')
+    collector.add('isArray', 'x')
+    const result = collector.result()
+    expect(Object.entries(result)).toEqual([
+      ['__proto__', ['a']],
+      ['title', '[1]'],
+      ['isArray', 'x'],
+    ])
+  })
+
+  it('keeps every part of a field that was sent several times', () => {
+    const collector = createMultipartCollector(z.object({ title: z.string() }))
+    collector.add('title', 'a')
+    collector.add('title', 'b')
+    collector.add('other', 'c')
+    expect(collector.result()).toEqual({ title: ['a', 'b'], other: 'c' })
+  })
+
+  it('does not take the JSON of one part for several parts', () => {
+    const collector = createMultipartCollector(undefined)
+    collector.add('list', '[1,2]')
+    collector.add('list', '[3]')
+    collector.add('bad', '{"__proto__":{"a":1}}')
+    expect({ ...collector.result() }).toEqual({
+      list: [[1, 2], [3]],
+      bad: '{"__proto__":{"a":1}}',
+    })
+  })
+
+  it('leaves text alone when the schema describes its fields without naming them', () => {
+    const collector = createMultipartCollector(z.record(z.string(), z.string()))
+    collector.add('title', '[1]')
+    expect({ ...collector.result() }).toEqual({ title: '[1]' })
+  })
+
+  it('gives an empty array for a required array of which no part was sent', () => {
+    const schema = z.object({ tags: z.array(z.string()), files: z.array(z.file()).optional() })
+    expect({ ...createMultipartCollector(schema).result() }).toEqual({ tags: [] })
+  })
+
+  it('reads the empty text that a client writes for null as null', () => {
+    const schema = z.object({
+      object: z.object({ a: z.number() }).nullable(),
+      number: z.number().nullable(),
+      boolean: z.boolean().nullish(),
+      file: z.instanceof(File).nullable(),
+      zodFile: z.file().nullable(),
+      blob: z.instanceof(Blob).nullable(),
+      maybe: z.union([z.file(), z.number(), z.null()]),
+      numbers: z.array(z.number().nullable()),
+      files: z.array(z.instanceof(File).nullable()),
+      list: z.array(z.string()).nullable(),
+      dictionary: z.record(z.string(), z.number()).nullable(),
+      nothing: z.null(),
+    })
+    const collector = createMultipartCollector(schema)
+    for (const name of Object.keys(schema.shape)) {
+      collector.add(name, '')
+    }
+    collector.add('numbers', '1')
+    const result = collector.result()
+    expect({ ...result }).toEqual({
+      object: null,
+      number: null,
+      boolean: null,
+      file: null,
+      zodFile: null,
+      blob: null,
+      maybe: null,
+      numbers: [null, 1],
+      files: [null],
+      list: null,
+      dictionary: null,
+      nothing: null,
+    })
+    expect(schema.safeParse(result).success).toBe(true)
+  })
+
+  it('leaves empty text alone where it may be meant', () => {
+    const schema = z.object({
+      text: z.string().nullable(),
+      state: z.enum(['', 'on']).nullable(),
+      either: z.union([z.string(), z.number(), z.null()]),
+      fileOrText: z.union([z.file(), z.string(), z.null()]),
+      anything: z.any().nullable(),
+      custom: z.custom<string>((value) => typeof value === 'string').nullable(),
+      number: z.number(),
+      file: z.instanceof(File),
+      texts: z.array(z.string().nullable()),
+    })
+    const collector = createMultipartCollector(schema)
+    const expected: Record<string, unknown> = {}
+    for (const name of Object.keys(schema.shape)) {
+      collector.add(name, '')
+      expected[name] = name === 'texts' ? [''] : ''
+    }
+    expect({ ...collector.result() }).toEqual(expected)
+  })
+
+  it('gives a file the last part of the name it was sent with', async () => {
+    const collect = (name: string | undefined) => {
+      const collector = createMultipartCollector(undefined)
+      const file = new File(['abc'], name ?? '', { type: 'text/x-a', lastModified: 5 })
+      if (name === undefined) {
+        // What a runtime may make of a part without a file name.
+        Object.defineProperty(file, 'name', { value: undefined })
+      }
+      collector.add('file', file)
+      return collector.result().file as File
+    }
+    for (const [sent, name] of [
+      ['../../etc/passwd', 'passwd'],
+      ['/etc/passwd', 'passwd'],
+      ['C:\\dir\\a.txt', 'a.txt'],
+      ['a/b\\c', 'c'],
+      ['dir/', ''],
+      ['..', ''],
+      ['.', ''],
+      ['a/..', ''],
+      ['', ''],
+      [undefined, ''],
+    ] as const) {
+      const file = collect(sent)
+      expect(file.name).toBe(name)
+      expect(file).toBeInstanceOf(File)
+      expect([file.type, file.lastModified, await file.text()]).toEqual(['text/x-a', 5, 'abc'])
+    }
+    const plain = new File(['abc'], 'a.b..c')
+    const collector = createMultipartCollector(undefined)
+    collector.add('file', plain)
+    expect(collector.result().file).toBe(plain)
   })
 })

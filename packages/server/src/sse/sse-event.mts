@@ -48,5 +48,11 @@ export function sse<Event extends EventDeclaration>(
     }
     data = result.value
   }
-  return { event: eventName, data, ...options }
+  // A string as well: whoever reads the event by its declaration parses the
+  // data, and must not take the text `42` for a number.
+  return {
+    event: eventName,
+    data: typeof data === 'string' ? JSON.stringify(data) : data,
+    ...options,
+  }
 }

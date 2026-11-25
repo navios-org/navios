@@ -13,14 +13,30 @@ export interface ConformanceRunner {
   afterAll: (fn: () => Promise<void> | void) => void
 }
 
+/** CORS for a list of origins, under the names that the options of adapters share. */
+export interface ConformanceCors {
+  origin: string[]
+  methods: string[]
+  credentials: boolean
+}
+
 export interface ConformanceOptions {
   runner: ConformanceRunner
   /** Shown in the suite title. */
   name: string
   /** Creates the adapter under test. `multipart` must be enabled. */
   adapter: () => AdapterDefinition<any>
-  /** Options for `app.listen()` that bind an ephemeral local port. */
-  listenOptions: unknown
+  /**
+   * Creates the adapter under test with CORS. Leave it out for an adapter
+   * without CORS.
+   */
+  cors?: (cors: ConformanceCors) => AdapterDefinition<any>
+  /**
+   * Options for `app.listen()` that bind an ephemeral local port. Leave it out
+   * for an adapter without a server: requests then go through `inject()`, and
+   * what needs a connection is not checked.
+   */
+  listenOptions?: unknown
   /**
    * The largest request body, in bytes, that the adapter created by `adapter`
    * accepts: a JSON or a text body, and a file of a multipart body. Use 16 KiB

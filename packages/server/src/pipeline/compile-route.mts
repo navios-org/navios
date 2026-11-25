@@ -5,7 +5,11 @@ import type { ContextHost } from '@navios/core/transport'
 import { RequestContext } from '../context/request-context.mjs'
 import { problem } from '../errors/problem.mjs'
 import { adopt, isPromise } from '../internal/promises.mjs'
+import { isLazyBody, ManagedBody } from '../responses/managed-body.mjs'
+import { isEventStream } from '../responses/response-headers.mjs'
+import { compileRequestPath } from '../routing/route-path.mjs'
 
+import type { RequestHost } from '../context/request-host.mjs'
 import type { ErrorPipeline } from '../errors/error-pipeline.mjs'
 import type { MaybePromise } from '../internal/promises.mjs'
 import type { RouteExecutor } from '../routing/compiled-route.mjs'
@@ -13,11 +17,15 @@ import type { HttpGuard as Guard } from '../routing/http-contracts.mjs'
 import type { HttpInterceptor as Interceptor } from '../routing/http-contracts.mjs'
 import type { RouteInfo } from '../routing/route-info.mjs'
 import type { RouteInput } from '../routing/route-input.mjs'
+import type { RoutePath } from '../routing/route-path.mjs'
+import type { RouteResponse } from '../routing/route-response.mjs'
 import type { RouteResult } from '../routing/route-result.mjs'
 
-import { compileFinalizer } from './compile-finalizer.mjs'
+import { compileFinalizer, PrimedGenerator } from './compile-finalizer.mjs'
 import { compileParams } from './compile-params.mjs'
+import { encodeResponse } from './encode-result.mjs'
 import { runGuards } from './run-guards.mjs'
+import { toRouteResult } from './to-route-result.mjs'
 
 import type { ResponseEncoder } from './response-encoder.mjs'
 
@@ -25,10 +33,15 @@ import type { ResponseEncoder } from './response-encoder.mjs'
 
 export interface RouteDefinition {
   info: RouteInfo
+  /** `info.path`, taken apart. */
+  path: RoutePath
   /** The handler, bound to its controller. */
   invoke: (params: any, ctx: RequestContext) => unknown
   guards: Guard[]
-  interceptors: Interceptor[]
+  /** Interceptors around the guards: those of the application and the transport. */
+  outer: Interceptor[]
+  /** Interceptors behind the guards: those of the module, the controller and the handler. */
+  inner: Interceptor[]
 }
 
 export interface CompileOptions {
@@ -43,194 +56,93 @@ export interface CompileOptions {
   encoders?: ReadonlyMap<string, ResponseEncoder>
   /** Run each request inside the async context, for `currentContext()`. */
   asyncContext?: boolean
+  /** Receives the requests that hold something, and loses them once it is released. */
+  live?: Set<RequestContext>
 }
 
-/** Placeholder result for a response the handler wrote itself. */
-const TAKEN_OVER: RouteResult = Object.freeze({ status: 200, body: undefined, kind: 'empty' })
+type Stage = (ctx: RequestContext, input: RouteInput) => MaybePromise<RouteResult>
 
-/**
- * Whether the body is produced while it is being sent. Code that runs then
- * may still acquire request resources, so such a response is always released.
- */
-function isLazyBody({ body }: RouteResult): boolean {
-  return (
-    typeof body === 'object' &&
-    body !== null &&
-    (typeof (body as AsyncIterable<unknown>)[Symbol.asyncIterator] === 'function' ||
-      typeof (body as ReadableStream).getReader === 'function')
-  )
+/** Makes the request the owner of a lazy body, whatever becomes of the result. */
+function own(result: RouteResult, ctx: RequestContext): RouteResult {
+  if (result.kind !== 'json' && isLazyBody(result.body)) {
+    ctx.ownBody(result.body)
+  }
+  return result
 }
 
 /**
- * Stops a body that will never be sent, so that a generator runs its
- * `finally` blocks and a web stream its `cancel`.
- */
-function cancelBody(body: unknown): void {
-  try {
-    const stream = body as { cancel?: () => unknown; return?: () => unknown }
-    const pending =
-      typeof stream.cancel === 'function'
-        ? stream.cancel()
-        : typeof stream.return === 'function'
-          ? stream.return()
-          : undefined
-    if (isPromise(pending)) {
-      pending.catch(() => {})
-    }
-  } catch {
-    // The response it belonged to is already replaced by an error.
-  }
-}
-
-function seal(result: RouteResult, ctx: RequestContext): RouteResult {
-  ctx.responseStatus = result.status
-  const headers = ctx.responseHeaders
-  const cookies = ctx.responseCookies
-  const release = ctx.needsRelease || (result.kind !== 'json' && isLazyBody(result))
-  if (!release) {
-    // Nothing will call release(), so nothing may be acquired from here on:
-    // detached work that reaches for the request later is refused instead of
-    // leaking a scope.
-    ctx.released = true
-    if (headers === null && cookies === null) {
-      return result
-    }
-  }
-  const sealed: RouteResult = { ...result }
-  if (headers !== null) {
-    sealed.headers = result.headers ? { ...headers, ...result.headers } : headers
-  }
-  if (cookies !== null) {
-    sealed.cookies = result.cookies ? [...cookies, ...result.cookies] : cookies
-  }
-  if (release) {
-    sealed.release = () => ctx.release()
-  }
-  return sealed
-}
-
-/**
- * Compiles one route into a function from an adapter's `RouteInput` to a
- * `RouteResult`.
+ * Compiles one route into a function from an adapter's `RouteInput` to the
+ * `RouteResponse` to write.
  *
- * Stage order: interceptors enter, guards, request validation (URL params,
- * query, headers, cookies, then the body), handler, response validation,
- * interceptors exit. Anything thrown is mapped to a response at the end.
+ * Stage order: outer interceptors enter, guards, inner interceptors enter,
+ * request validation (URL params, query, headers, cookies, then the body),
+ * handler, response validation, interceptors exit, encoding. Anything thrown
+ * is mapped to a response at the end.
+ *
+ * Guards come before the interceptors attached to handlers because one of
+ * those may answer without calling `next()`: a cached response must not be
+ * given to a caller the guards would refuse.
  *
  * Stages the route does not use are not part of its executor, and nothing is
  * awaited unless a stage is actually asynchronous.
  */
 export function compileRoute(definition: RouteDefinition, options: CompileOptions): RouteExecutor {
-  const { info, invoke, guards, interceptors } = definition
-  const { host, errors } = options
+  const { info, guards, outer, inner } = definition
+  const { errors } = options
   const config = info.endpoint
-  const params = compileParams(config, info.path)
-  const finalize = compileFinalizer(config, options.validateResponses, options.encoders)
-
-  // Request validation, handler and response validation.
-  const handle = (ctx: RequestContext, input: RouteInput): MaybePromise<RouteResult> => {
-    const args = params(input, ctx)
-    const produced = isPromise(args)
-      ? args.then((value) => invoke(value, ctx))
-      : adopt(invoke(args, ctx))
-    if (input.responded === undefined) {
-      return isPromise(produced) ? produced.then(finalize) : finalize(produced)
-    }
-    // The handler may have written the response itself through ctx.raw.
-    const finish = (value: unknown): MaybePromise<RouteResult> =>
-      input.responded!() ? TAKEN_OVER : finalize(value)
-    return isPromise(produced) ? produced.then(finish) : finish(produced)
+  const { container, onScopedUse, logger } = options.host
+  const host: RequestHost = {
+    container,
+    onScopedUse,
+    logger,
+    asyncContext: options.asyncContext ?? false,
+    live: options.live ?? new Set(),
+    path: compileRequestPath(definition.path),
+    report: (error, ctx) => errors.report(error, ctx),
   }
 
+  let pipeline = compileHandler(definition, options)
   const encoders = options.encoders
-  const encoded =
-    encoders === undefined || encoders.size === 0
-      ? handle
-      : (ctx: RequestContext, input: RouteInput): MaybePromise<RouteResult> => {
-          const encode = (result: RouteResult): MaybePromise<RouteResult> => {
-            const encoder = encoders.get(result.kind)
-            return encoder === undefined ? result : adopt(encoder(result, ctx))
-          }
-          const produced = handle(ctx, input)
-          return isPromise(produced) ? produced.then(encode) : encode(produced)
-        }
-
-  const guarded =
-    guards.length === 0
-      ? encoded
-      : (ctx: RequestContext, input: RouteInput): MaybePromise<RouteResult> => {
-          const pending = runGuards(guards, 0, ctx)
-          return pending === undefined
-            ? encoded(ctx, input)
-            : pending.then(() => encoded(ctx, input))
-        }
-
-  // A lazy body an interceptor received from next() and then threw away by
-  // throwing. Only a route that can produce one, behind an interceptor, keeps
-  // track of it.
-  const discardable =
-    interceptors.length > 0 && (config.response ?? 'json') !== 'json'
-      ? new WeakMap<RequestContext, unknown>()
-      : null
-
-  let pipeline = guarded
-  if (discardable !== null) {
-    const remember = (result: RouteResult, ctx: RequestContext): RouteResult => {
-      if (result.kind !== 'json' && isLazyBody(result)) {
-        discardable.set(ctx, result.body)
-      }
-      return result
-    }
+  if (encoders !== undefined && encoders.size > 0) {
+    pipeline = encoded(pipeline, encoders)
+  }
+  for (let i = inner.length - 1; i >= 0; i--) {
+    pipeline = intercepted(pipeline, inner[i], errors)
+  }
+  if (guards.length > 0) {
+    const allowed = pipeline
     pipeline = (ctx, input) => {
-      const result = guarded(ctx, input)
-      return isPromise(result)
-        ? result.then((value) => remember(value, ctx))
-        : remember(result, ctx)
+      const pending = runGuards(guards, 0, ctx)
+      return pending === undefined ? allowed(ctx, input) : pending.then(() => allowed(ctx, input))
     }
   }
-  for (let i = interceptors.length - 1; i >= 0; i--) {
-    const interceptor = interceptors[i]
-    const inner = pipeline
-    const checked = (result: RouteResult): RouteResult => {
-      if (typeof result?.status !== 'number') {
-        throw new Error(
-          `[Navios] Interceptor ${interceptor.constructor.name} did not return a result. ` +
-            `Return what next() resolves to, or a result of its own.`,
-        )
-      }
-      return result
-    }
-    pipeline = (ctx, input) => {
-      const result = adopt(
-        interceptor.intercept(ctx, () => {
-          try {
-            return Promise.resolve(inner(ctx, input))
-          } catch (error) {
-            return Promise.reject(error)
-          }
-        }),
-      )
-      return isPromise(result) ? result.then(checked) : checked(result)
-    }
-  }
-
-  if (options.asyncContext) {
-    const inner = pipeline
-    pipeline = (ctx, input) => runInContext(ctx, () => inner(ctx, input))
+  for (let i = outer.length - 1; i >= 0; i--) {
+    pipeline = intercepted(pipeline, outer[i], errors)
   }
 
   // The error pipeline calls user code: mappers, responders and the logger.
-  // If that throws as well, the adapter must still get a result, with the
+  // If that throws as well, the adapter must still get a response, with the
   // release of whatever the request holds.
-  const fallback = (ctx: RequestContext): RouteResult => seal(problem(500), ctx)
+  const fallback = (ctx: RequestContext): RouteResponse => {
+    ctx.responseHeaders = null
+    ctx.responseCookies = null
+    return encodeResponse(problem(500), ctx)
+  }
 
-  const fail = (error: unknown, ctx: RequestContext): MaybePromise<RouteResult> => {
-    if (discardable !== null) {
-      const body = discardable.get(ctx)
-      if (body !== undefined) {
-        cancelBody(body)
+  const respondToFailure = (result: RouteResult, ctx: RequestContext): RouteResponse => {
+    try {
+      return encodeResponse(result, ctx)
+    } catch (defect) {
+      try {
+        return encodeResponse(errors.defect(defect, ctx), ctx)
+      } catch {
+        return fallback(ctx)
       }
     }
+  }
+
+  const fail = (error: unknown, ctx: RequestContext): MaybePromise<RouteResponse> => {
+    ctx.dropSuccessHeaders()
     let mapped: MaybePromise<RouteResult>
     try {
       mapped = errors.toResult(error, ctx, config)
@@ -239,26 +151,156 @@ export function compileRoute(definition: RouteDefinition, options: CompileOption
     }
     return isPromise(mapped)
       ? mapped.then(
-          (result) => seal(result, ctx),
+          (result) => respondToFailure(result, ctx),
           () => fallback(ctx),
         )
-      : seal(mapped, ctx)
+      : respondToFailure(mapped, ctx)
   }
 
-  return (input) => {
-    const ctx = new RequestContext(input, info, host)
+  const respond = (result: RouteResult, ctx: RequestContext): MaybePromise<RouteResponse> => {
+    let response: RouteResponse
+    try {
+      response = encodeResponse(result, ctx)
+    } catch (error) {
+      return fail(error, ctx)
+    }
+    // A stream that cannot start, for example a file that is not there, is an
+    // error like any other. Not so an event stream, whose headers must not
+    // wait for its first event.
+    const { body, headers } = response
+    if (
+      !(body instanceof ManagedBody) ||
+      result.kind === 'sse' ||
+      isEventStream(headers) ||
+      ctx.method === 'HEAD'
+    ) {
+      return response
+    }
+    const first = result.body instanceof PrimedGenerator ? result.body.take() : null
+    if (first !== null) {
+      try {
+        body.accept(first)
+      } catch (error) {
+        return fail(error, ctx)
+      }
+      return response
+    }
+    return body
+      .prime(() => ctx.signal)
+      .then(
+        () => response,
+        (error) => fail(error, ctx),
+      )
+  }
+
+  const execute = (ctx: RequestContext, input: RouteInput): MaybePromise<RouteResponse> => {
     let result: MaybePromise<RouteResult>
     try {
       result = pipeline(ctx, input)
     } catch (error) {
       return fail(error, ctx)
     }
-    if (isPromise(result)) {
-      return result.then(
-        (value) => seal(value, ctx),
-        (error) => fail(error, ctx),
-      )
+    return isPromise(result)
+      ? result.then(
+          (value) => respond(value, ctx),
+          (error) => fail(error, ctx),
+        )
+      : respond(result, ctx)
+  }
+
+  if (host.asyncContext) {
+    return (input) => {
+      const ctx = new RequestContext(input, info, host)
+      return runInContext(ctx, () => execute(ctx, input))
     }
-    return seal(result, ctx)
+  }
+  return (input) => execute(new RequestContext(input, info, host), input)
+}
+
+/** Request validation, handler and response validation. */
+function compileHandler(definition: RouteDefinition, options: CompileOptions): Stage {
+  const { info, invoke } = definition
+  const config = info.endpoint
+  const params = compileParams(config, definition.path)
+  const finalize = compileFinalizer(config, options.validateResponses, options.encoders)
+
+  return (ctx, input) => {
+    const args = params(input, ctx)
+    const produced = isPromise(args)
+      ? args.then((value) => invoke(value, ctx))
+      : adopt(invoke(args, ctx))
+    if (input.responded === undefined) {
+      return isPromise(produced)
+        ? produced.then((value) => finalize(value, ctx))
+        : finalize(produced, ctx)
+    }
+    // The handler may have written the response itself through ctx.raw.
+    const finish = (value: unknown): MaybePromise<RouteResult> => {
+      if (input.responded!()) {
+        ctx.takeOver()
+        return { status: input.respondedStatus?.() ?? 200, body: undefined, kind: 'empty' }
+      }
+      return finalize(value, ctx)
+    }
+    return isPromise(produced) ? produced.then(finish) : finish(produced)
+  }
+}
+
+function encoded(inner: Stage, encoders: ReadonlyMap<string, ResponseEncoder>): Stage {
+  return (ctx, input) => {
+    const encode = (result: RouteResult): MaybePromise<RouteResult> => {
+      const encoder = encoders.get(result.kind)
+      if (encoder === undefined) {
+        return result
+      }
+      const accept = (value: unknown) =>
+        own(
+          toRouteResult(value, () => `The encoder of "${result.kind}" responses`),
+          ctx,
+        )
+      const answer = adopt<unknown>(encoder(result, ctx))
+      return isPromise(answer) ? answer.then(accept) : accept(answer)
+    }
+    const produced = inner(ctx, input)
+    return isPromise(produced) ? produced.then(encode) : encode(produced)
+  }
+}
+
+const INTERCEPTOR_ADVICE = 'Return what next() resolves to, or a result of its own.'
+
+function intercepted(inner: Stage, interceptor: Interceptor, errors: ErrorPipeline): Stage {
+  const name = () => `Interceptor ${interceptor.constructor.name}`
+  return (ctx, input) => {
+    let settled = false
+    const next = (): Promise<RouteResult> => {
+      let pending: Promise<RouteResult>
+      try {
+        pending = Promise.resolve(inner(ctx, input))
+      } catch (error) {
+        pending = Promise.reject(error)
+      }
+      // The interceptor may not wait for it, and then nobody else sees it fail.
+      pending.catch((error) => {
+        if (settled) {
+          errors.reportUnseen(error, ctx)
+        }
+      })
+      return pending
+    }
+    const accept = (value: unknown): RouteResult => {
+      settled = true
+      return own(toRouteResult(value, name, INTERCEPTOR_ADVICE), ctx)
+    }
+    const refuse = (error: unknown): never => {
+      settled = true
+      throw error
+    }
+    let answer: unknown
+    try {
+      answer = adopt<unknown>(interceptor.intercept(ctx, next))
+    } catch (error) {
+      return refuse(error)
+    }
+    return isPromise(answer) ? answer.then(accept, refuse) : accept(answer)
   }
 }

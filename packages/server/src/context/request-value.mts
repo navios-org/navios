@@ -15,12 +15,22 @@ export interface RequestValueProvider<T> {
 
 export type RequestValueClass<T = any> = new () => RequestValueProvider<T>
 
-const requestValueBrand = Symbol.for('navios.core.RequestValue')
+const requestValueBrand = Symbol.for('navios.server.RequestValue')
+
+/**
+ * A class whose `dispose` takes what its `resolve` computes. Inferred for the
+ * two separately, `T` would become their union.
+ */
+type CheckedRequestValue<C extends RequestValueClass> = new () => RequestValueProvider<
+  ReturnType<InstanceType<C>['resolve']>
+>
 
 /**
  * Registers a class as a request value without decorator syntax.
  */
-export function registerRequestValue<C extends RequestValueClass>(target: C): C {
+export function registerRequestValue<C extends RequestValueClass>(
+  target: C & CheckedRequestValue<C>,
+): C {
   registerInjectable(target)
   Object.defineProperty(target, requestValueBrand, { value: true, enumerable: false })
   return target
@@ -41,7 +51,10 @@ export function registerRequestValue<C extends RequestValueClass>(target: C): C 
  * ```
  */
 export function RequestValue() {
-  return <C extends RequestValueClass>(target: C, context?: ClassDecoratorContext): C => {
+  return <C extends RequestValueClass>(
+    target: C & CheckedRequestValue<C>,
+    context?: ClassDecoratorContext,
+  ): C => {
     if (context && context.kind !== 'class') {
       throw new Error('[Navios] @RequestValue can only be used on classes.')
     }

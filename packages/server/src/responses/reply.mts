@@ -1,4 +1,4 @@
-const endpointReplyBrand: unique symbol = Symbol.for('navios.core.EndpointReply')
+const endpointReplyBrand: unique symbol = Symbol.for('navios.server.EndpointReply')
 
 /**
  * A handler's answer with an explicit status, created with `reply()`.

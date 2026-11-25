@@ -3,9 +3,12 @@ import { resumeStacks, suspendStacks } from './client-error-stacks.mjs'
 /**
  * An error that maps to an HTTP response.
  *
- * When the endpoint declares the status in `errorSchema`, `response` is sent
- * as the body. Otherwise the response is `application/problem+json`, with a
- * string `response` as `detail` and an object `response` merged in.
+ * When the endpoint declares the status in `errorSchema`, an object `response`
+ * is the body, as the declared schema parses it. Otherwise the response is
+ * `application/problem+json`, with a string `response` as `detail` and an
+ * object `response` merged in.
+ *
+ * The status is one of an error, 400 to 599. Pass another error as `cause`.
  *
  * Below 500 its stack is captured as the `clientErrorStacks` application
  * option says.
@@ -16,6 +19,7 @@ export class HttpException extends Error {
     public readonly response: string | object,
     cause?: unknown,
   ) {
+    assertErrorResponse(statusCode, response)
     const limit = statusCode < 500 ? suspendStacks() : undefined
     super(
       typeof response === 'string' ? response : `HTTP ${statusCode}`,
@@ -23,6 +27,21 @@ export class HttpException extends Error {
     )
     resumeStacks(limit)
     this.name = new.target.name
+  }
+}
+
+function assertErrorResponse(statusCode: number, response: unknown): void {
+  if (!(statusCode >= 400 && statusCode <= 599 && Number.isInteger(statusCode))) {
+    throw new Error(
+      `[Navios] HttpException cannot have the status ${statusCode}: it is not the status of an ` +
+        `error (400 to 599). Return reply(status, body) for another.`,
+    )
+  }
+  if (Array.isArray(response) || response instanceof Error) {
+    throw new Error(
+      `[Navios] The response of an HttpException is a text or an object of fields, not ` +
+        `${Array.isArray(response) ? 'an array' : 'an error. Pass the error as the third argument, its cause'}.`,
+    )
   }
 }
 

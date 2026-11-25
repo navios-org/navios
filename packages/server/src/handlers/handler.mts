@@ -1,15 +1,16 @@
 import type { BaseEndpointOptions } from '@navios/builder'
 import type { AttributeApplication } from '@navios/core'
-import type { ClassType } from '@navios/di'
+
+import type { HttpGuardClass, HttpInterceptorClass } from '../routing/http-contracts.mjs'
 
 import type { EndpointDeclaration } from './endpoint-declaration.mjs'
 import type { AnyHandlerFunction, HandlerFunction } from './handler-types.mjs'
 
-const handlerBrand: unique symbol = Symbol.for('navios.core.handler')
+const handlerBrand: unique symbol = Symbol.for('navios.server.handler')
 
 export interface HandlerOptions {
-  guards?: ClassType[]
-  interceptors?: ClassType[]
+  guards?: HttpGuardClass[]
+  interceptors?: HttpInterceptorClass[]
   /**
    * Attribute values, as returned by calling an attribute: `[Public()]`.
    * Attributes from `@navios/server/legacy-compat` are accepted as well.

@@ -1,5 +1,11 @@
+import { registerInjectable } from '@navios/di'
+
 import { registerController } from '../controllers/controller.mjs'
 import { handler } from '../handlers/handler.mjs'
+
+import type { RequestContext } from '../context/request-context.mjs'
+import type { HttpInterceptor as Interceptor } from '../routing/http-contracts.mjs'
+import type { RouteResult } from '../routing/route-result.mjs'
 
 import { s } from './schema.mjs'
 import { endpoint } from './suite.mjs'
@@ -9,14 +15,33 @@ import type { ConformanceSuite } from './suite.mjs'
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 /**
- * Request bodies: multipart, and the size limit of a JSON, a text and a
- * multipart body.
+ * Request bodies: multipart, a body that is needed twice, and the size limit
+ * of a JSON, a text and a multipart body.
  * @internal
  */
 export function defineRequestBodiesTopic(suite: ConformanceSuite) {
-  const { it, expect, url, json, options } = suite
+  const { it, expect, url, fetch, json, options } = suite
+
+  class RetryInterceptor implements Interceptor {
+    async intercept(_ctx: RequestContext, next: () => Promise<RouteResult>) {
+      await next()
+      return next()
+    }
+  }
+  registerInjectable(RetryInterceptor)
 
   class RequestBodiesController {
+    retried = handler(
+      endpoint({
+        method: 'POST',
+        url: '/retried',
+        requestSchema: s.object({ name: s.string() }),
+        responseSchema: s.object({ name: s.string() }),
+      }),
+      { interceptors: [RetryInterceptor] },
+      ({ data }: any) => data,
+    )
+
     upload = handler(
       endpoint({
         method: 'POST',
@@ -30,6 +55,17 @@ export function defineRequestBodiesTopic(suite: ConformanceSuite) {
         filename: data.file.name,
         size: (await data.file.arrayBuffer()).byteLength,
       }),
+    )
+
+    files = handler(
+      endpoint({ method: 'POST', url: '/file-names', body: 'multipart', requestSchema: s.any() }),
+      ({ data }: any) =>
+        data === undefined
+          ? { body: 'none' }
+          : Object.entries(data).map(([field, value]) => [
+              field,
+              value instanceof File ? { name: value.name } : value,
+            ]),
     )
 
     echoText = handler(
@@ -54,6 +90,42 @@ export function defineRequestBodiesTopic(suite: ConformanceSuite) {
         const response = await fetch(url('/upload'), { method: 'POST', body: form })
         expect(response.status).toBe(200)
         expect(await response.json()).toEqual({ title: 'report', filename: 'hello.txt', size: 11 })
+      })
+
+      it('gives a file the last part of its name, so that it is never a path', async () => {
+        const named = async (name: string) => {
+          const body =
+            `--xx\r\ncontent-disposition: form-data; name="file"; filename="${name}"\r\n` +
+            `content-type: text/plain\r\n\r\ncontent\r\n--xx--\r\n`
+          const response = await fetch(url('/file-names'), {
+            method: 'POST',
+            headers: { 'content-type': 'multipart/form-data; boundary=xx' },
+            body,
+          })
+          expect(response.status).toBe(200)
+          return (await response.json())[0][1].name
+        }
+        expect(await named('report.v1.txt')).toBe('report.v1.txt')
+        expect(await named('../../etc/passwd')).toBe('passwd')
+        expect(await named('/etc/passwd')).toBe('passwd')
+        expect(await named('C:\\\\dir\\\\a.txt')).toBe('a.txt')
+        expect(await named('..')).toBe('')
+        expect(await named('')).toBe('')
+      })
+
+      it('takes a multipart body without bytes for no body', async () => {
+        const response = await fetch(url('/file-names'), {
+          method: 'POST',
+          headers: { 'content-type': 'multipart/form-data; boundary=xx' },
+          body: '',
+        })
+        expect(await response.json()).toEqual({ body: 'none' })
+      })
+
+      it('reads the body once, however often an interceptor calls next()', async () => {
+        const response = await fetch(url('/retried'), json({ name: 'ann' }))
+        expect(response.status).toBe(200)
+        expect(await response.json()).toEqual({ name: 'ann' })
       })
 
       const { bodyLimit } = options

@@ -40,6 +40,34 @@ export function defineApplicationTopic(suite: ConformanceSuite) {
         expect(response.body).toEqual({ message: 'ok' })
       })
 
+      it('sends a body with inject() as fetch does', async () => {
+        const post = async (path: string, body: unknown) =>
+          (await suite.app.inject({ method: 'POST', url: `/api${path}`, body })).body
+        const form = new FormData()
+        form.append('title', 'a')
+        form.append('file', new File(['b'], 'b.txt'))
+        expect(await post('/upload', form)).toEqual({ title: 'a', filename: 'b.txt', size: 1 })
+        expect(await post('/echo-text', 'text')).toEqual({ length: 4 })
+        const json = new Blob(['{"name":"ann"}'], { type: 'application/json' })
+        expect(await post('/retried', json)).toEqual({ name: 'ann' })
+        expect(await post('/retried', new URLSearchParams({ name: 'ann' }))).toMatchObject({
+          status: 415,
+        })
+        expect(await post('/retried', { name: 'ann' })).toEqual({ name: 'ann' })
+      })
+
+      it('rejects inject() when the response fails after it has begun', async () => {
+        const outcome = await suite.app.inject({ method: 'GET', url: '/api/failing-stream' }).then(
+          () => 'answered',
+          (error: unknown) => error instanceof Error,
+        )
+        expect(outcome).toBe(true)
+      })
+
+      if (!suite.isServed) {
+        return
+      }
+
       it('waits for in-flight requests when closing', async () => {
         const started = new Promise<void>((resolve) => {
           slowStarted = resolve

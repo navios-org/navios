@@ -1,12 +1,12 @@
 import { builder } from '@navios/builder'
+import { getModuleMetadata } from '@navios/core/transport'
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod/v4'
 
+import { getControllerMetadata } from '../controllers/controller-metadata.mjs'
 import {
   Controller as StandardController,
   Endpoint as StandardEndpoint,
-  getControllerMetadata,
-  getModuleMetadata,
   handler,
   NaviosFactory,
 } from '../index.mjs'

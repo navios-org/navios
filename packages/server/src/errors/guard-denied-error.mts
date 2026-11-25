@@ -1,8 +1,8 @@
 import { resumeStacks, suspendStacks } from './client-error-stacks.mjs'
 
 /**
- * Thrown by the pipeline when a guard returns `false`.
- * @internal
+ * Thrown by the pipeline when a guard does not return `true`. Map it with
+ * `app.mapError(GuardDeniedError, …)` to answer a denied guard differently.
  */
 export class GuardDeniedError extends Error {
   constructor(public readonly guard: string) {

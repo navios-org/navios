@@ -4,6 +4,7 @@ import type { ClassAttribute } from '@navios/core'
 
 import type { NaviosApplication } from '../application/navios-application.mjs'
 
+import { injectFetch } from './inject-fetch.mjs'
 import { s } from './schema.mjs'
 
 import type { ConformanceOptions, ConformanceRunner } from './conformance-options.mjs'
@@ -21,8 +22,14 @@ export interface ConformanceSuite {
   readonly expect: ConformanceRunner['expect']
   /** The application under test. Set before the first test runs. */
   app: NaviosApplication<any>
-  /** The address the application listens on. Set before the first test runs. */
+  /** The address the application listens on, or one that stands for it. Set before the first test runs. */
   base: string
+  /** Whether requests go over a connection, and not through `inject()`. */
+  readonly isServed: boolean
+  /** The address that `listen()` resolved with, as one that a client can use. */
+  local(address: string): string
+  /** Calls the application, over its connection or with `inject()`. */
+  fetch(url: string, init?: RequestInit & { duplex?: 'half' }): Promise<Response>
   /** What handlers, guards and request values record, for a test to check. */
   readonly events: string[]
   /** Marks a controller as open to requests without an authorization header. */
@@ -46,7 +53,11 @@ export function createSuite(options: ConformanceOptions): ConformanceSuite {
     it: options.runner.it,
     expect: options.runner.expect,
     app: undefined as unknown as NaviosApplication<any>,
-    base: '',
+    base: 'http://localhost',
+    isServed: options.listenOptions !== undefined,
+    local: (address) => address.replace(/\/$/, '').replace('[::1]', '127.0.0.1'),
+    fetch: (url, init) =>
+      suite.isServed ? globalThis.fetch(url, init) : injectFetch(suite.app, url, init),
     events: [],
     Public: AttributeFactory.createAttribute(Symbol.for('navios.conformance.Public')),
     url: (path) => `${suite.base}/api${path}`,

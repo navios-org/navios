@@ -1,14 +1,14 @@
-import type { ApplicationOptions } from '@navios/core'
+import type { ApplicationOptions, TransportInstance } from '@navios/core'
 
 import type { HttpAdapterEnvironment } from '../adapter/http-adapter.mjs'
 import type { RegisteredEnvironment } from '../context/environment.mjs'
+import type { ClientErrorStacks } from '../errors/client-error-stacks.mjs'
 
 import type { HttpTransportOptions } from './http-transport.mjs'
 
 /**
  * The environment of the adapter registered through `Register`, or any HTTP
  * adapter's when none is registered.
- * @internal
  */
 export type ApplicationEnvironment = RegisteredEnvironment extends HttpAdapterEnvironment
   ? RegisteredEnvironment
@@ -35,7 +35,7 @@ export interface NaviosApplicationOptions<
    * several applications, stacks are captured if any of them wants them.
    * @default 'development'
    */
-  clientErrorStacks?: HttpTransportOptions<Env>['clientErrorStacks']
+  clientErrorStacks?: ClientErrorStacks
   /**
    * Keep the current `RequestContext` in an `AsyncLocalStorage`, so that
    * `currentContext()` works in code that cannot receive it as an argument.
@@ -55,5 +55,5 @@ export interface NaviosApplicationOptions<
    * Transports beside HTTP: queue consumers, a command line. They share the
    * application's modules and container, and `listen()` starts them.
    */
-  transports?: ApplicationOptions['transports']
+  transports?: TransportInstance[]
 }

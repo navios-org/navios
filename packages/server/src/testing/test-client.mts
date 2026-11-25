@@ -1,5 +1,8 @@
 import type { BaseEndpointOptions, ClientRequestArgs } from '@navios/builder'
 
+import { isJsonType, mediaType } from '../decoding/media-type.mjs'
+import { compileRequestPath, compileRoutePath } from '../routing/route-path.mjs'
+
 import type { TestResponse } from '../adapter/test-request.mjs'
 import type { EndpointDeclaration } from '../handlers/endpoint-declaration.mjs'
 
@@ -42,7 +45,64 @@ function appendQuery(search: URLSearchParams, key: string, value: unknown): void
     }
     return
   }
-  search.append(key, String(value))
+  search.append(key, toText(value))
+}
+
+/** As clients of the builder write it: a date as its ISO form, other objects as JSON. */
+function toText(value: unknown): string {
+  if (typeof value !== 'object') {
+    return String(value)
+  }
+  return value instanceof Date ? value.toISOString() : JSON.stringify(value)
+}
+
+function toFormData(data: object): FormData {
+  if (data instanceof FormData) {
+    return data
+  }
+  const form = new FormData()
+  for (const [key, value] of Object.entries(data)) {
+    for (const item of Array.isArray(value) ? value : [value]) {
+      if (item instanceof Blob) {
+        form.append(key, item)
+      } else if (item !== undefined) {
+        form.append(key, item === null ? '' : toText(item))
+      }
+    }
+  }
+  return form
+}
+
+/** A body as the builder hands it to a client, which sends any value but these as JSON. */
+function toBody(endpoint: BaseEndpointOptions, data: unknown, headers: Headers): unknown {
+  if (endpoint.body === 'multipart') {
+    return toFormData((data ?? {}) as object)
+  }
+  if (data === undefined || (typeof data === 'object' && data !== null)) {
+    return data
+  }
+  if (!headers.has('content-type')) {
+    headers.set('content-type', 'application/json')
+  } else if (!isJsonType(mediaType(headers.get('content-type')!) ?? '')) {
+    return data
+  }
+  return JSON.stringify(data)
+}
+
+function requestPath(
+  { method, url }: BaseEndpointOptions,
+  values: Record<string, unknown> = {},
+): string {
+  const path = compileRoutePath(url)
+  const urlParams: Record<string, string> = {}
+  for (const name of path.params) {
+    const value = values[name]
+    if (value === undefined) {
+      throw new Error(`[Navios] Missing url param "${name}" for ${method} ${url}`)
+    }
+    urlParams[name] = String(value)
+  }
+  return compileRequestPath(path)(urlParams)
 }
 
 /**
@@ -58,13 +118,7 @@ function appendQuery(search: URLSearchParams, key: string, value: unknown): void
 export function createTestClient(app: Injectable_, options: TestClientOptions = {}): TestClient {
   return ((endpoint: EndpointDeclaration, args: any = {}) => {
     const { config } = endpoint
-    let path = config.url.replace(/\$([^/]+)/g, (_match, name: string) => {
-      const value = args.urlParams?.[name]
-      if (value === undefined) {
-        throw new Error(`[Navios] Missing url param "${name}" for ${config.method} ${config.url}`)
-      }
-      return encodeURIComponent(String(value))
-    })
+    let path = config.url === '' ? '' : requestPath(config, args.urlParams)
     if (args.params) {
       const search = new URLSearchParams()
       for (const [key, value] of Object.entries(args.params)) {
@@ -75,11 +129,16 @@ export function createTestClient(app: Injectable_, options: TestClientOptions = 
         path += `?${query}`
       }
     }
+    const headers = new Headers(options.headers)
+    for (const [name, value] of Object.entries<string>(args.headers ?? {})) {
+      headers.set(name, value)
+    }
+    const body = toBody(config, args.data, headers)
     return app.inject({
       method: config.method,
       url: `${options.prefix ?? ''}${path}`,
-      headers: { ...options.headers, ...args.headers },
-      body: args.data,
+      headers: Object.fromEntries(headers),
+      body,
     })
   }) as TestClient
 }

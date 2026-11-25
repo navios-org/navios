@@ -28,3 +28,10 @@ export type MaybePromise<T> = T | Promise<T>
 export function isPromise<T>(value: MaybePromise<T>): value is Promise<T> {
   return value instanceof Promise
 }
+
+/**
+ * Handles the rejection of a promise that is handed out, so that it is not an
+ * unhandled one when nobody awaits it. Whoever does still sees it.
+ * @internal
+ */
+export function ignore(): void {}

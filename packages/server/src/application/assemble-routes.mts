@@ -7,15 +7,16 @@ import { getControllerMetadata } from '../controllers/controller-metadata.mjs'
 import { memberEndpoint } from '../handlers/endpoint-declaration.mjs'
 import { isFieldHandler } from '../handlers/handler.mjs'
 import { compileRoute } from '../pipeline/compile-route.mjs'
-import { joinPaths } from '../routing/join-paths.mjs'
+import { compileRoutePath, isUnmatchable } from '../routing/route-path.mjs'
 
 import type { ControllerMetadata } from '../controllers/controller-metadata.mjs'
 import type { CompileOptions, RouteDefinition } from '../pipeline/compile-route.mjs'
-import type { CompiledRoute } from '../routing/compiled-route.mjs'
+import type { CompiledRoute, RouteExecutor } from '../routing/compiled-route.mjs'
 import type { RouteEndpointConfig } from '../routing/endpoint-config.mjs'
 import type { HttpGuard as Guard } from '../routing/http-contracts.mjs'
 import type { HttpInterceptor as Interceptor } from '../routing/http-contracts.mjs'
 import type { RouteInfo } from '../routing/route-info.mjs'
+import type { RoutePath } from '../routing/route-path.mjs'
 
 import { moduleControllers } from './http-module-options.mjs'
 
@@ -29,10 +30,14 @@ export interface RouteAssemblyOptions {
   container: Container
   /** Each module's route prefix, from `computeModulePrefixes`. */
   prefixes: ReadonlyMap<ClassType, string>
+  /** Guards of every route, before those of its module. */
+  globalGuards: ClassType[]
   /** Interceptors around every route, outermost first. */
   globalInterceptors: ClassType[]
   /** Passed to the compiler of every route. */
   compile: CompileOptions
+  /** Answers a request that a router took for one of a route and that is not. */
+  notFound: RouteExecutor
 }
 
 /**
@@ -45,7 +50,7 @@ export async function assembleRoutes(
   graph: readonly ModuleNode[],
   options: RouteAssemblyOptions,
 ): Promise<CompiledRoute[]> {
-  const { container, globalInterceptors } = options
+  const { container, globalGuards, globalInterceptors } = options
   const compiled: CompiledRoute[] = []
   const taken = new Map<string, string>()
 
@@ -56,25 +61,26 @@ export async function assembleRoutes(
       const controller = (await container.get(controllerClass)) as Record<string, unknown>
 
       for (const draft of collectHandlers(controllerClass, metadata, controller)) {
-        const { guards, interceptors } = handlerChain({
+        const { guards, interceptors, outer, inner } = handlerChain({
           application: globalInterceptors,
-          node,
+          node: { ...node, guards: [...globalGuards, ...node.guards] },
           owner: metadata,
           member: draft,
         })
-        const path = joinPaths(prefix, draft.config.url) || '/'
         const where = `${controllerClass.name}.${draft.name}`
-        const key = `${draft.config.method} ${path.replace(/\$[^/]+/g, '$')}`
+        const method = draft.config.method.toUpperCase()
+        const { path, compiledPath } = routePath(prefix, draft.config.url, where)
+        const key = `${method} ${JSON.stringify(
+          compiledPath.segments.map((segment) => ('param' in segment ? null : segment.literal)),
+        )}`
         const existing = taken.get(key)
         if (existing) {
-          throw new Error(
-            `[Navios] ${draft.config.method} ${path} is served by both ${existing} and ${where}.`,
-          )
+          throw new Error(`[Navios] ${method} ${path} is served by both ${existing} and ${where}.`)
         }
         taken.set(key, where)
 
         const info: RouteInfo = {
-          method: draft.config.method,
+          method,
           path,
           endpoint: draft.config,
           module: node.module,
@@ -90,21 +96,65 @@ export async function assembleRoutes(
         }
         const definition: RouteDefinition = {
           info,
+          path: compiledPath,
           invoke: draft.invoke,
           guards: await instances<Guard>(container, guards, 'Guard', 'canActivate'),
-          interceptors: await instances<Interceptor>(
-            container,
-            interceptors,
-            'Interceptor',
-            'intercept',
-          ),
+          outer: await instances<Interceptor>(container, outer, 'Interceptor', 'intercept'),
+          inner: await instances<Interceptor>(container, inner, 'Interceptor', 'intercept'),
         }
-        const execute = compileRoute(definition, options.compile)
-        compiled.push({ info, execute })
+        const execute = matching(
+          compiledPath,
+          compileRoute(definition, options.compile),
+          options.notFound,
+        )
+        compiled.push({ info, path: compiledPath, execute })
       }
     }
   }
   return compiled
+}
+
+/**
+ * The url as it is declared, after the prefix, also its trailing slash: that
+ * is what a client calls when its base url is the prefix.
+ */
+function routePath(
+  prefix: string,
+  url: string,
+  where: string,
+): { path: string; compiledPath: RoutePath } {
+  const path = `${prefix}${url}` || '/'
+  try {
+    // A prefix must not hide that a url does not start with a slash.
+    return { path, compiledPath: compileRoutePath(url === '' || url[0] === '/' ? path : url) }
+  } catch (error) {
+    throw new Error(`[Navios] ${where} cannot be served: ${(error as Error).message}.`, {
+      cause: error,
+    })
+  }
+}
+
+/**
+ * A router may match `/users/` to `/users/$id` with an empty `id`, and most
+ * take `..` for a value. Neither is a request for the route.
+ */
+function matching(
+  { params }: RoutePath,
+  execute: RouteExecutor,
+  notFound: RouteExecutor,
+): RouteExecutor {
+  if (params.length === 0) {
+    return execute
+  }
+  return (input) => {
+    const { urlParams } = input
+    for (const name of params) {
+      if (isUnmatchable(urlParams[name])) {
+        return notFound(input)
+      }
+    }
+    return execute(input)
+  }
 }
 
 async function instances<T>(

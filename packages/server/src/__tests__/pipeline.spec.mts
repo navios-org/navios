@@ -1,91 +1,27 @@
 import { createContextKey } from '@navios/core'
-import { Container, inject, Injectable, InjectableScope } from '@navios/di'
+import { inject, Injectable, InjectableScope } from '@navios/di'
 import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod/v4'
 
 import { RequestContextToken, RequestValue } from '../context/index.mjs'
 import {
-  ErrorPipeline,
-  ForbiddenResponder,
   GuardDeniedError,
   HttpException,
-  InternalServerErrorResponder,
   NotFoundException,
-  NotFoundResponder,
   ValidationError,
-  ValidationErrorResponder,
 } from '../errors/index.mjs'
-import { compileRoute, validateSchema } from '../pipeline/index.mjs'
+import { validateSchema } from '../pipeline/validate-schema.mjs'
 import { reply } from '../responses/index.mjs'
+import { ManagedBody } from '../responses/managed-body.mjs'
 import { sseStream } from '../sse/index.mjs'
 
 import type { RequestContext } from '../context/index.mjs'
-import type { RouteDefinition } from '../pipeline/index.mjs'
 import type { HttpGuard as Guard, HttpInterceptor as Interceptor } from '../routing/index.mjs'
-import type { RouteEndpointConfig, RouteInfo, RouteInput, RouteResult } from '../routing/index.mjs'
+import type { RouteEndpointConfig, RouteResult } from '../routing/index.mjs'
 
-function input(overrides: Partial<RouteInput> & { headerMap?: Record<string, string> } = {}) {
-  const headerMap = overrides.headerMap ?? {}
-  const base: RouteInput = {
-    method: 'GET',
-    path: '/test',
-    header: (name) => headerMap[name.toLowerCase()],
-    headers: () => new Headers(headerMap),
-    urlParams: {},
-    query: () => ({}),
-    body: () => undefined,
-    signal: () => new AbortController().signal,
-    raw: { native: true },
-  }
-  return { ...base, ...overrides }
-}
+import { drain, input, JSON_TYPE, setup } from './pipeline-setup.mjs'
 
-function setup(
-  config: Partial<RouteEndpointConfig>,
-  invoke: RouteDefinition['invoke'],
-  extra: {
-    guards?: Guard[]
-    interceptors?: Interceptor[]
-    validateResponses?: boolean
-    exposeErrorDetails?: boolean
-    container?: Container
-    onUnhandled?: (error: unknown) => void
-    /** Full route path, when a prefix makes it differ from the endpoint's url. */
-    path?: string
-  } = {},
-) {
-  const container = extra.container ?? new Container()
-  const unhandled: unknown[] = []
-  const errors = new ErrorPipeline({
-    notFound: new NotFoundResponder(),
-    forbidden: new ForbiddenResponder(),
-    validation: new ValidationErrorResponder(),
-    internal: new InternalServerErrorResponder(),
-    exposeErrorDetails: extra.exposeErrorDetails ?? false,
-    onUnhandled: extra.onUnhandled ?? ((error) => unhandled.push(error)),
-  })
-  const endpoint: RouteEndpointConfig = { method: 'GET', url: '/test', ...config }
-  const info: RouteInfo = {
-    method: endpoint.method,
-    path: extra.path ?? endpoint.url,
-    endpoint,
-    module: null,
-    controller: class TestController {},
-    handlerName: 'handle',
-    guards: [],
-    interceptors: [],
-    attributes: { handler: new Map(), controller: new Map(), module: new Map() },
-  }
-  const execute = compileRoute(
-    { info, invoke, guards: extra.guards ?? [], interceptors: extra.interceptors ?? [] },
-    {
-      host: { container, onScopedUse: null },
-      errors,
-      validateResponses: extra.validateResponses ?? true,
-    },
-  )
-  return { execute, errors, unhandled, container }
-}
+import type { Answer } from './pipeline-setup.mjs'
 
 describe('validateSchema', () => {
   it('returns the value directly for a synchronous schema', () => {
@@ -120,7 +56,12 @@ describe('compileRoute', () => {
     }))
     const result = execute(input())
     expect(result).not.toBeInstanceOf(Promise)
-    expect(result).toEqual({ status: 200, body: { ok: true }, kind: 'json' })
+    expect(result).toEqual({
+      status: 200,
+      headers: JSON_TYPE,
+      body: { ok: true },
+      sent: expect.any(String),
+    })
   })
 
   it('validates url params, query and body and passes them to the handler', async () => {
@@ -146,13 +87,18 @@ describe('compileRoute', () => {
       }),
     )
     expect(seen).toEqual([{ urlParams: { id: '7' }, params: { page: 2 }, data: { name: 'n' } }])
-    expect(result).toEqual({ status: 200, body: { id: '7' }, kind: 'json' })
+    expect(result).toEqual({
+      status: 200,
+      headers: JSON_TYPE,
+      body: { id: '7' },
+      sent: expect.any(String),
+    })
   })
 
   it('answers 400 problem+json with issues for an invalid query', () => {
     const handler = vi.fn()
     const { execute } = setup({ querySchema: z.object({ page: z.number() }) }, handler)
-    const result = execute(input({ query: () => ({ page: 'x' }) })) as RouteResult
+    const result = execute(input({ query: () => ({ page: 'x' }) })) as Answer
     expect(result.status).toBe(400)
     expect(result.headers).toEqual({ 'content-type': 'application/problem+json' })
     expect(result.body).toMatchObject({
@@ -172,7 +118,7 @@ describe('compileRoute', () => {
       handler,
       { guards: [deny] },
     )
-    const result = (await execute(input({ body }))) as RouteResult
+    const result = (await execute(input({ body }))) as Answer
     expect(result.status).toBe(403)
     expect(result.body).toMatchObject({ title: 'Forbidden' })
     expect(body).not.toHaveBeenCalled()
@@ -203,7 +149,7 @@ describe('compileRoute', () => {
       },
     }
     const { execute, unhandled } = setup({}, handler, { guards: [broken] })
-    const result = execute(input()) as RouteResult
+    const result = execute(input()) as Answer
     expect(result.status).toBe(500)
     expect(JSON.stringify(result.body)).not.toContain('hunter2')
     expect(unhandled).toHaveLength(1)
@@ -218,7 +164,7 @@ describe('compileRoute', () => {
       },
       { exposeErrorDetails: true },
     )
-    expect((execute(input()) as RouteResult).body).toMatchObject({ detail: 'visible' })
+    expect((execute(input()) as Answer).body).toMatchObject({ detail: 'visible' })
   })
 
   it('sends HttpException as problem+json unless the status is declared', () => {
@@ -236,8 +182,9 @@ describe('compileRoute', () => {
     })
     expect(declared.execute(input())).toEqual({
       status: 404,
+      headers: JSON_TYPE,
       body: { message: 'gone' },
-      kind: 'json',
+      sent: expect.any(String),
     })
   })
 
@@ -248,60 +195,69 @@ describe('compileRoute', () => {
     }
     expect(setup(config, () => reply(201, { id: '1', x: 1 })).execute(input())).toEqual({
       status: 201,
+      headers: JSON_TYPE,
       body: { id: '1' },
-      kind: 'json',
+      sent: expect.any(String),
     })
     expect(setup(config, () => reply(204)).execute(input())).toEqual({
       status: 204,
-      body: undefined,
-      kind: 'empty',
+      headers: {},
+      body: null,
+      sent: null,
     })
     expect(setup(config, () => reply(409, { reason: 'taken' })).execute(input())).toEqual({
       status: 409,
+      headers: JSON_TYPE,
       body: { reason: 'taken' },
-      kind: 'json',
+      sent: expect.any(String),
     })
   })
 
   it('answers 500 for an undeclared status or a non-reply value', () => {
     const config = { responses: { 201: z.object({ id: z.string() }) } }
     const undeclared = setup(config, () => reply(202, {}))
-    expect((undeclared.execute(input()) as RouteResult).status).toBe(500)
+    expect((undeclared.execute(input()) as Answer).status).toBe(500)
     expect(String(undeclared.unhandled[0])).toContain('status 202')
 
     const plain = setup(config, () => ({ id: '1' }))
-    expect((plain.execute(input()) as RouteResult).status).toBe(500)
+    expect((plain.execute(input()) as Answer).status).toBe(500)
     expect(String(plain.unhandled[0])).toContain('must return reply(status, body)')
   })
 
   it('answers 500 when the response violates its schema, and skips the check when disabled', () => {
     const config = { responseSchema: z.object({ ok: z.boolean() }) }
     const strict = setup(config, () => ({ ok: 'no' }))
-    expect((strict.execute(input()) as RouteResult).status).toBe(500)
+    expect((strict.execute(input()) as Answer).status).toBe(500)
     expect(strict.unhandled[0]).toBeInstanceOf(ValidationError)
 
     const loose = setup(config, () => ({ ok: 'no' }), { validateResponses: false })
-    expect(loose.execute(input())).toEqual({ status: 200, body: { ok: 'no' }, kind: 'json' })
+    expect(loose.execute(input())).toEqual({
+      status: 200,
+      headers: JSON_TYPE,
+      body: { ok: 'no' },
+      sent: expect.any(String),
+    })
   })
 
-  it('answers 204 for a void endpoint and passes streams through', () => {
+  it('answers 204 for a void endpoint and passes streams through', async () => {
     expect(setup({ response: 'void' }, () => 'ignored').execute(input())).toEqual({
       status: 204,
-      body: undefined,
-      kind: 'empty',
+      headers: {},
+      body: null,
+      sent: null,
     })
-    const stream = new ReadableStream()
     // A stream may acquire request resources while it is sent, so it is always
     // released.
-    expect(setup({ response: 'stream' }, () => stream).execute(input())).toEqual({
+    const { execute } = setup({ response: 'stream' }, () => new Response('a').body)
+    expect(await execute(input())).toMatchObject({
       status: 200,
-      body: stream,
-      kind: 'stream',
+      headers: { 'content-type': 'application/octet-stream' },
+      body: expect.any(ManagedBody),
       release: expect.any(Function),
     })
   })
 
-  it('wraps the pipeline with interceptors, outermost first', async () => {
+  it('runs outer interceptors around the guards and inner ones behind them', async () => {
     const order: string[] = []
     const make = (name: string): Interceptor => ({
       async intercept(_ctx, next) {
@@ -323,11 +279,67 @@ describe('compileRoute', () => {
         order.push('handler')
         return 'ok'
       },
-      { interceptors: [make('outer'), make('inner')], guards: [guard] },
+      { outer: [make('app')], interceptors: [make('outer'), make('inner')], guards: [guard] },
     )
     const result = await execute(input())
-    expect(order).toEqual(['outer:in', 'inner:in', 'guard', 'handler', 'inner:out', 'outer:out'])
-    expect(result.headers).toEqual({ 'x-inner': '1', 'x-outer': '1' })
+    expect(order).toEqual([
+      'app:in',
+      'guard',
+      'outer:in',
+      'inner:in',
+      'handler',
+      'inner:out',
+      'outer:out',
+      'app:out',
+    ])
+    expect(result.headers).toEqual({ ...JSON_TYPE, 'x-inner': '1', 'x-outer': '1', 'x-app': '1' })
+  })
+
+  it('does not run an inner interceptor for a request that a guard denies', async () => {
+    const cached: Interceptor = {
+      intercept: async () => ({ status: 200, body: { secret: 42 }, kind: 'json' }),
+    }
+    const seen: unknown[] = []
+    const outer: Interceptor = {
+      async intercept(_ctx, next) {
+        try {
+          return await next()
+        } catch (error) {
+          seen.push(error)
+          throw error
+        }
+      },
+    }
+    const { execute } = setup({}, () => 'ok', {
+      outer: [outer],
+      interceptors: [cached],
+      guards: [{ canActivate: async () => false }],
+    })
+    expect((await execute(input())).status).toBe(403)
+    expect(seen[0]).toBeInstanceOf(GuardDeniedError)
+  })
+
+  it('gives an inner interceptor what a guard has set', async () => {
+    const User = createContextKey<string>('user')
+    const { execute } = setup({}, () => 'ok', {
+      guards: [
+        {
+          canActivate(ctx) {
+            ctx.set(User, 'ann')
+            return true
+          },
+        },
+      ],
+      interceptors: [
+        {
+          async intercept(ctx, next) {
+            ctx.reply.header('x-user', ctx.get(User))
+            return next()
+          },
+        },
+      ],
+    })
+    expect((await execute(input())).headers).toMatchObject({ 'x-user': 'ann' })
   })
 
   it('lets an interceptor observe a thrown error, which is mapped afterwards', async () => {
@@ -361,7 +373,12 @@ describe('compileRoute', () => {
     })
     errors.add(DomainError, () => reply(400, { kind: 'domain' }))
     errors.add(UserMissing, async (error) => reply(404, { message: error.message }))
-    expect(await execute(input())).toEqual({ status: 404, body: { message: 'u' }, kind: 'json' })
+    expect(await execute(input())).toEqual({
+      status: 404,
+      headers: JSON_TYPE,
+      body: { message: 'u' },
+      sent: expect.any(String),
+    })
   })
 })
 
@@ -384,7 +401,7 @@ describe('RequestContext', () => {
         headerMap: { authorization: 'Bearer t', cookie: 'a=1; theme=dark%20mode' },
         id: 'r1',
       }),
-    ) as RouteResult
+    ) as Answer
     expect(result.body).toEqual({
       auth: 'Bearer t',
       web: 'Bearer t',
@@ -393,8 +410,11 @@ describe('RequestContext', () => {
       route: 'handle',
       id: 'r1',
     })
-    expect(result.headers).toEqual({ 'x-rate-limit': '10' })
-    expect(result.cookies).toEqual([{ name: 'sid', value: 'abc', options: { httpOnly: true } }])
+    expect(result.headers).toEqual({
+      ...JSON_TYPE,
+      'x-rate-limit': '10',
+      'set-cookie': ['sid=abc; Path=/; HttpOnly'],
+    })
     expect(result.release).toBeUndefined()
   })
 
@@ -409,16 +429,16 @@ describe('RequestContext', () => {
     const { execute } = setup({}, (_params, ctx: RequestContext) => ctx.get(CurrentUser).name, {
       guards: [guard],
     })
-    expect((execute(input()) as RouteResult).body).toBe('ann')
+    expect((execute(input()) as Answer).body).toBe('ann')
   })
 
   it('throws for an unset key and returns undefined from find()', () => {
     const Missing = createContextKey<string>('Missing')
     const found = setup({}, (_params, ctx: RequestContext) => String(ctx.find(Missing)))
-    expect((found.execute(input()) as RouteResult).body).toBe('undefined')
+    expect((found.execute(input()) as Answer).body).toBe('undefined')
 
     const thrown = setup({}, (_params, ctx: RequestContext) => ctx.get(Missing))
-    expect((thrown.execute(input()) as RouteResult).status).toBe(500)
+    expect((thrown.execute(input()) as Answer).status).toBe(500)
     expect(String(thrown.unhandled[0])).toContain('Context key Missing is not set')
   })
 
@@ -458,7 +478,7 @@ describe('RequestContext', () => {
     expect(disposed).toBe(1)
 
     const unread = setup({}, () => 'ok', { container: reads.container })
-    const second = unread.execute(input()) as RouteResult
+    const second = unread.execute(input()) as Answer
     expect(resolved).toBe(1)
     expect(second.release).toBeUndefined()
   })
@@ -475,7 +495,7 @@ describe('RequestContext', () => {
       ctx.set(Tenant, 'acme')
       return ctx.get(Tenant)
     })
-    expect((execute(input()) as RouteResult).body).toBe('acme')
+    expect((execute(input()) as Answer).body).toBe('acme')
   })
 
   it('rejects every reader once when a request value fails, and retries on the next request', async () => {
@@ -518,7 +538,7 @@ describe('RequestContext', () => {
     }
 
     const { execute, unhandled } = setup({}, (_params, ctx: RequestContext) => ctx.get(A))
-    expect((execute(input()) as RouteResult).status).toBe(500)
+    expect((execute(input()) as Answer).status).toBe(500)
     expect(String(unhandled[0])).toContain('Circular request values: A -> B -> A')
   })
 
@@ -541,14 +561,14 @@ describe('RequestContext', () => {
       const first = ctx.use(UnitOfWork)
       return first === ctx.use(UnitOfWork) && first.ctx === ctx
     })
-    const result = used.execute(input()) as RouteResult
+    const result = used.execute(input()) as Answer
     expect(result.body).toBe(true)
     expect(created).toBe(1)
     await result.release!()
     expect(destroyed).toBe(1)
 
     const unused = setup({}, () => 'ok')
-    expect((unused.execute(input()) as RouteResult).release).toBeUndefined()
+    expect((unused.execute(input()) as Answer).release).toBeUndefined()
   })
 })
 
@@ -573,7 +593,7 @@ describe('compileRoute: streams and declared errors', () => {
 
   it('takes the content type of a Blob', () => {
     const { execute } = setup({ response: 'blob' }, () => new Blob(['x'], { type: 'image/png' }))
-    expect((execute(input()) as RouteResult).headers).toEqual({ 'content-type': 'image/png' })
+    expect((execute(input()) as Answer).headers).toEqual({ 'content-type': 'image/png' })
   })
 
   it('reports a string HttpException as a problem even when the status is declared', () => {
@@ -595,8 +615,9 @@ describe('compileRoute: taking the response over', () => {
       sent = true
       return undefined
     })
-    const result = execute({ ...input(), responded: () => sent }) as RouteResult
-    expect(result.kind).toBe('empty')
+    const result = execute({ ...input(), responded: () => sent }) as Answer
+    expect(result.status).toBe(200)
+    expect(result.body).toBeNull()
     expect(unhandled).toEqual([])
   })
 })
@@ -639,7 +660,7 @@ describe('compileRoute: custom result kinds', () => {
   it('answers 500 naming the kind when no encoder is registered for it', async () => {
     const { result } = await import('../responses/custom-result.mjs')
     const { execute, unhandled } = setup({ response: 'text' }, () => result('xml', '<a/>'))
-    expect((execute(input()) as RouteResult).status).toBe(500)
+    expect((execute(input()) as Answer).status).toBe(500)
     expect(String(unhandled[0])).toContain('no encoder is registered')
   })
 })
@@ -715,7 +736,12 @@ describe('compileRoute: thenables that are not native promises', () => {
       throw new Custom()
     })
     errors.add(Custom, () => thenable(reply(418, { mapped: true })))
-    expect(await execute(input())).toEqual({ status: 418, body: { mapped: true }, kind: 'json' })
+    expect(await execute(input())).toEqual({
+      status: 418,
+      headers: JSON_TYPE,
+      body: { mapped: true },
+      sent: expect.any(String),
+    })
   })
 
   it('computes a request value that is a lazy thenable once per request', async () => {
@@ -762,14 +788,6 @@ describe('compileRoute: resources used while a response streams', () => {
       }
     }
     return { events, UnitOfWork }
-  }
-
-  async function drain(result: RouteResult) {
-    const chunks: unknown[] = []
-    for await (const chunk of result.body as AsyncIterable<unknown>) {
-      chunks.push(chunk)
-    }
-    return chunks
   }
 
   it('releases a scope first used inside a server-sent event generator', async () => {
@@ -830,17 +848,18 @@ describe('compileRoute: resources used while a response streams', () => {
 
   it('refuses to create a scope once the response has finished', async () => {
     const { events, UnitOfWork } = tracked()
+    let late: RequestContext | undefined
     const { execute } = setup(
       { response: 'stream' },
       async function* (_params, ctx: RequestContext) {
+        late = ctx
         yield 'a'
-        ctx.use(UnitOfWork)
       },
     )
     const result = await execute(input())
-    // The client went away before the generator continued.
+    // The client went away.
     await result.release?.()
-    await expect(drain(result)).rejects.toThrow('response has finished')
+    expect(() => late!.use(UnitOfWork)).toThrow('response has finished')
     expect(events).toEqual([])
   })
 
@@ -939,6 +958,34 @@ describe('compileRoute: url params and query', () => {
   })
 })
 
+describe('compileRoute: next() called again', () => {
+  it('reads the body from the adapter once', async () => {
+    const body = vi.fn(async () => ({ name: 'n' }))
+    const seen: unknown[] = []
+    const retry: Interceptor = {
+      async intercept(_ctx, next) {
+        await next().catch(() => {})
+        return next()
+      },
+    }
+    let calls = 0
+    const { execute } = setup(
+      { method: 'POST', requestSchema: z.object({ name: z.string() }) },
+      (params) => {
+        seen.push(params.data)
+        if (calls++ === 0) {
+          throw new Error('try again')
+        }
+        return 'ok'
+      },
+      { interceptors: [retry] },
+    )
+    expect((await execute(input({ body }))).body).toBe('ok')
+    expect(seen).toEqual([{ name: 'n' }, { name: 'n' }])
+    expect(body).toHaveBeenCalledTimes(1)
+  })
+})
+
 describe('ErrorPipeline: a mapper that returns no response', () => {
   it('answers 500 from the pipeline itself, not from an adapter fallback', async () => {
     class Weird extends Error {}
@@ -946,7 +993,7 @@ describe('ErrorPipeline: a mapper that returns no response', () => {
       throw new Weird()
     })
     sync.errors.add(Weird, () => undefined as never)
-    const result = sync.execute(input()) as RouteResult
+    const result = sync.execute(input()) as Answer
     expect(result.status).toBe(500)
     expect(result.headers).toEqual({ 'content-type': 'application/problem+json' })
     expect(String(sync.unhandled[0])).toContain('error mapper for Weird did not return a response')
@@ -977,103 +1024,6 @@ describe('headersSchema', () => {
   })
 })
 
-describe('compileRoute: a stream body that is never read', () => {
-  it('runs the finally of a generator whose body is dropped before the first read', async () => {
-    const events: string[] = []
-    const { execute } = setup({ response: 'stream' }, async function* () {
-      try {
-        yield 'a'
-        yield 'b'
-      } finally {
-        events.push('finally')
-      }
-    })
-    const result = await execute(input())
-    // The client went away before the adapter pulled the first chunk.
-    await (result.body as AsyncGenerator<unknown>).return(undefined)
-    expect(events).toEqual(['finally'])
-  })
-
-  it('forwards an error thrown into the body to the generator', async () => {
-    const events: unknown[] = []
-    const { execute } = setup({ response: 'stream' }, async function* () {
-      try {
-        yield 'a'
-      } catch (error) {
-        events.push((error as Error).message)
-        throw error
-      }
-    })
-    const result = await execute(input())
-    await expect((result.body as AsyncGenerator<unknown>).throw(new Error('gone'))).rejects.toThrow(
-      'gone',
-    )
-    expect(events).toEqual(['gone'])
-  })
-
-  it('still yields every chunk of a generator, the first one included', async () => {
-    const { execute } = setup({ response: 'stream' }, async function* () {
-      yield 'a'
-      yield 'b'
-    })
-    const result = await execute(input())
-    const chunks: unknown[] = []
-    for await (const chunk of result.body as AsyncIterable<unknown>) {
-      chunks.push(chunk)
-    }
-    expect(chunks).toEqual(['a', 'b'])
-  })
-
-  it('cancels a generator when an interceptor throws after next() resolved with it', async () => {
-    const events: string[] = []
-    const late: Interceptor = {
-      async intercept(_ctx, next) {
-        await next()
-        throw new Error('late')
-      },
-    }
-    const { execute } = setup(
-      { response: 'stream' },
-      async function* () {
-        try {
-          yield 'a'
-        } finally {
-          events.push('finally')
-        }
-      },
-      { interceptors: [late] },
-    )
-    const result = await execute(input())
-    expect(result.status).toBe(500)
-    await new Promise((resolve) => setImmediate(resolve))
-    expect(events).toEqual(['finally'])
-  })
-
-  it('cancels a web stream when an interceptor throws after next() resolved with it', async () => {
-    const events: string[] = []
-    const late: Interceptor = {
-      async intercept(_ctx, next) {
-        await next()
-        throw new Error('late')
-      },
-    }
-    const { execute } = setup(
-      { response: 'stream' },
-      () =>
-        new ReadableStream({
-          cancel() {
-            events.push('cancel')
-          },
-        }),
-      { interceptors: [late] },
-    )
-    const result = await execute(input())
-    expect(result.status).toBe(500)
-    await new Promise((resolve) => setImmediate(resolve))
-    expect(events).toEqual(['cancel'])
-  })
-})
-
 describe('compileRoute: a context used after a response that holds nothing', () => {
   it('refuses a scope, and a disposable request value, once such a response is sealed', () => {
     let created = 0
@@ -1098,7 +1048,7 @@ describe('compileRoute: a context used after a response that holds nothing', () 
       late = ctx
       return { ok: true }
     })
-    const result = execute(input()) as RouteResult
+    const result = execute(input()) as Answer
     expect(result.release).toBeUndefined()
     // Detached work the handler started reaches for the request afterwards.
     expect(() => late!.use(UnitOfWork)).toThrow('response has finished')
@@ -1121,14 +1071,14 @@ describe('compileRoute: a context used after a response that holds nothing', () 
       ctx.reply.header('x-a', '1')
       return { ok: true }
     })
-    expect((withHeader.execute(input()) as RouteResult).release).toBeUndefined()
+    expect((withHeader.execute(input()) as Answer).release).toBeUndefined()
     expect(() => late!.use(UnitOfWork)).toThrow('response has finished')
 
     const failing = setup({}, (_params, ctx: RequestContext) => {
       late = ctx
       throw new NotFoundException('nope')
     })
-    expect((failing.execute(input()) as RouteResult).status).toBe(404)
+    expect((failing.execute(input()) as Answer).status).toBe(404)
     expect(() => late!.use(UnitOfWork)).toThrow('response has finished')
   })
 })
@@ -1160,7 +1110,7 @@ describe('compileRoute: an error pipeline that fails', () => {
         },
       },
     )
-    const result = execute(input()) as RouteResult
+    const result = execute(input()) as Answer
     expect(result.status).toBe(500)
     expect(result.body).toMatchObject({ status: 500, title: 'Internal Server Error' })
     await result.release!()
@@ -1201,26 +1151,26 @@ describe('ErrorPipeline: built-in mappings and user mappers', () => {
       throw new NotFoundException('User not found')
     })
     thrown.errors.add(Error, catchAll)
-    expect((thrown.execute(input()) as RouteResult).status).toBe(404)
+    expect((thrown.execute(input()) as Answer).status).toBe(404)
 
     const denied = setup({}, () => ({}), { guards: [{ canActivate: () => false }] })
     denied.errors.add(Error, catchAll)
-    expect((denied.execute(input()) as RouteResult).status).toBe(403)
+    expect((denied.execute(input()) as Answer).status).toBe(403)
 
     const invalid = setup({ querySchema: schema }, () => ({}))
     invalid.errors.add(Error, catchAll)
-    expect((invalid.execute(input()) as RouteResult).status).toBe(400)
+    expect((invalid.execute(input()) as Answer).status).toBe(400)
 
     // What no built-in handles still reaches the mapper.
     const unknown = setup({}, () => {
       throw new TypeError('boom')
     })
     unknown.errors.add(Error, catchAll)
-    expect((unknown.execute(input()) as RouteResult).status).toBe(418)
+    expect((unknown.execute(input()) as Answer).status).toBe(418)
 
     const response = setup({ responseSchema: schema }, () => ({ a: 'x' }))
     response.errors.add(Error, catchAll)
-    expect((response.execute(input()) as RouteResult).status).toBe(418)
+    expect((response.execute(input()) as Answer).status).toBe(418)
   })
 
   it('lets a mapper registered for a built-in class, or a subclass of it, override it', () => {
@@ -1228,22 +1178,22 @@ describe('ErrorPipeline: built-in mappings and user mappers', () => {
       throw new NotFoundException('User not found')
     })
     thrown.errors.add(HttpException, catchAll)
-    expect((thrown.execute(input()) as RouteResult).status).toBe(418)
+    expect((thrown.execute(input()) as Answer).status).toBe(418)
 
     const specific = setup({}, () => {
       throw new NotFoundException('User not found')
     })
     specific.errors.add(Error, () => reply(599, {}))
     specific.errors.add(NotFoundException, catchAll)
-    expect((specific.execute(input()) as RouteResult).status).toBe(418)
+    expect((specific.execute(input()) as Answer).status).toBe(418)
 
     const invalid = setup({ querySchema: z.object({ a: z.number() }) }, () => ({}))
     invalid.errors.add(ValidationError, catchAll)
-    expect((invalid.execute(input()) as RouteResult).status).toBe(418)
+    expect((invalid.execute(input()) as Answer).status).toBe(418)
 
     const denied = setup({}, () => ({}), { guards: [{ canActivate: () => false }] })
     denied.errors.add(GuardDeniedError, catchAll)
-    expect((denied.execute(input()) as RouteResult).status).toBe(418)
+    expect((denied.execute(input()) as Answer).status).toBe(418)
   })
 })
 
@@ -1253,7 +1203,7 @@ describe('ErrorPipeline: HttpException', () => {
     const { execute, unhandled } = setup({}, () => {
       throw error
     })
-    const result = execute(input()) as RouteResult
+    const result = execute(input()) as Answer
     expect(result.status).toBe(503)
     expect(result.body).toMatchObject({ status: 503, detail: 'Database is down' })
     expect(unhandled).toEqual([error])
@@ -1263,7 +1213,7 @@ describe('ErrorPipeline: HttpException', () => {
     const { execute, unhandled } = setup({}, () => {
       throw new NotFoundException('nope')
     })
-    expect((execute(input()) as RouteResult).status).toBe(404)
+    expect((execute(input()) as Answer).status).toBe(404)
     expect(unhandled).toEqual([])
   })
 
@@ -1276,7 +1226,7 @@ describe('ErrorPipeline: HttpException', () => {
         reason: 'banned',
       })
     })
-    const result = execute(input()) as RouteResult
+    const result = execute(input()) as Answer
     expect(result.status).toBe(403)
     expect(result.body).toEqual({
       type: 'https://example.com/problems/suspended',
@@ -1293,7 +1243,7 @@ describe('RequestContext: cookies', () => {
       missing: ctx.cookies.get('constructor') ?? null,
       proto: ctx.cookies.get('__proto__') ?? null,
     }))
-    expect((execute(input({ headerMap: { cookie: 'a=1' } })) as RouteResult).body).toEqual({
+    expect((execute(input({ headerMap: { cookie: 'a=1' } })) as Answer).body).toEqual({
       missing: null,
       proto: null,
     })
@@ -1303,8 +1253,7 @@ describe('RequestContext: cookies', () => {
       names: Object.keys(ctx.cookies.all()),
     }))
     expect(
-      (sent.execute(input({ headerMap: { cookie: 'constructor=x; toString=y' } })) as RouteResult)
-        .body,
+      (sent.execute(input({ headerMap: { cookie: 'constructor=x; toString=y' } })) as Answer).body,
     ).toEqual({ value: 'x', names: ['constructor', 'toString'] })
   })
 
@@ -1313,7 +1262,7 @@ describe('RequestContext: cookies', () => {
       { cookiesSchema: z.object({ session: z.string() }) } as Partial<RouteEndpointConfig>,
       (params) => params.cookies,
     )
-    expect((execute(input({ headerMap: { cookie: 'session=abc' } })) as RouteResult).body).toEqual({
+    expect((execute(input({ headerMap: { cookie: 'session=abc' } })) as Answer).body).toEqual({
       session: 'abc',
     })
   })

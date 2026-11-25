@@ -9,14 +9,19 @@ import {
   definePlugin,
   handler,
   httpTransport,
+  inject,
   Injectable,
+  InjectableScope,
   Module,
   NaviosFactory,
   NotFoundException,
+  NotFoundResponderToken,
+  provide,
 } from '../index.mjs'
 import { defineInMemoryEnvironment, InMemoryAdapter } from '../testing/index.mjs'
 
-import type { AdapterDefinition, ExecutionContext, HttpAdapterEnvironment } from '../index.mjs'
+import type { AdapterDefinition } from '../adapter/index.mjs'
+import type { ExecutionContext, HttpAdapterEnvironment, NaviosApplication } from '../index.mjs'
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -56,8 +61,8 @@ interface ListeningEnvironment extends HttpAdapterEnvironment {
 function defineListeningEnvironment(calls: number[]): AdapterDefinition<ListeningEnvironment> {
   return {
     name: 'listening',
-    create(context) {
-      const adapter = new InMemoryAdapter(context.errors) as any
+    create() {
+      const adapter = new InMemoryAdapter() as any
       adapter.listen = async (options: { port: number }) => {
         calls.push(options.port)
         return `http://localhost:${options.port}/${calls.length}`
@@ -310,8 +315,8 @@ describe('httpTransport', () => {
     const attempts: number[] = []
     const definition: AdapterDefinition<ListeningEnvironment> = {
       name: 'busy-port',
-      create(context) {
-        const adapter = new InMemoryAdapter(context.errors) as any
+      create() {
+        const adapter = new InMemoryAdapter() as any
         adapter.listen = async (options: { port: number }) => {
           attempts.push(options.port)
           if (options.port === 3000) {
@@ -328,5 +333,136 @@ describe('httpTransport', () => {
 
     expect(await app.listen({ port: 3001 })).toBe('http://localhost:3001')
     expect(attempts).toEqual([3000, 3001])
+  })
+
+  it('neither listens nor takes a request once it has been closed', async () => {
+    @Module({ controllers: [Ping] })
+    class Root {}
+    const calls: number[] = []
+    const closeAfter = async (use: (app: NaviosApplication<any>) => Promise<unknown>) => {
+      const app = await NaviosFactory.create(Root, {
+        adapter: defineListeningEnvironment(calls),
+        logger: false,
+      })
+      await use(app)
+      await app.close()
+      await expect(app.listen({ port: 3002 })).rejects.toThrow('The application is closed')
+      await expect(app.inject({ method: 'GET', url: '/ping' })).rejects.toThrow(
+        'The application is closed',
+      )
+    }
+    await closeAfter((app) => app.listen({ port: 3000 }))
+    await closeAfter((app) => app.init())
+    expect(calls).toEqual([3000])
+  })
+
+  it('releases what a request holds before the container is disposed', async () => {
+    const order: string[] = []
+
+    @Injectable()
+    class Pool {
+      onServiceDestroy() {
+        order.push('container')
+      }
+    }
+
+    @Injectable({ scope: InjectableScope.Request })
+    class Lease {
+      pool = inject(Pool)
+      async onServiceDestroy() {
+        await new Promise((resolve) => setTimeout(resolve, 5))
+        order.push('scope')
+      }
+    }
+
+    let finish: (() => void) | undefined
+    @Controller()
+    class Slow {
+      slow = handler(
+        api.declareEndpoint({ method: 'GET', url: '/slow', responseSchema: z.object({}) }),
+        async (_params, ctx) => {
+          ctx.use(Lease)
+          ctx.onFinish(() => {
+            order.push('finish')
+          })
+          await new Promise<void>((resolve) => {
+            finish = resolve
+          })
+          return {}
+        },
+      )
+    }
+
+    @Module({ controllers: [Slow] })
+    class Root {}
+
+    const app = await NaviosFactory.create(Root, {
+      adapter: defineInMemoryEnvironment(),
+      logger: false,
+      requestScopedServices: 'allow',
+      shutdownTimeout: 20,
+    })
+    await app.init()
+    // Outlives the timeout: its handler is still waiting.
+    const pending = app.inject({ method: 'GET', url: '/slow' })
+    await vi.waitFor(() => expect(finish).toBeDefined())
+    await app.close()
+    expect(order).toEqual(['finish', 'scope', 'container'])
+    finish!()
+    expect((await pending).status).toBe(200)
+    expect(order).toHaveLength(3)
+  })
+
+  it('answers a request that matched no route when its responder is broken', async () => {
+    const logger = { log: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() }
+    for (const getResponse of [
+      () => undefined,
+      () => ({ status: 99, body: {}, kind: 'json' }),
+      () => {
+        throw new Error('responder down')
+      },
+    ]) {
+      logger.error.mockClear()
+
+      @Module({
+        controllers: [Ping],
+        providers: [provide(NotFoundResponderToken, { value: { getResponse } as never })],
+      })
+      class Root {}
+      const app = track(
+        await NaviosFactory.create(Root, { adapter: defineInMemoryEnvironment(), logger }),
+      )
+      await app.init()
+      const response = await app.inject({ method: 'GET', url: '/missing?a=1' })
+      expect(response.status).toBeGreaterThanOrEqual(400)
+      expect(response.headers['content-type']).toBe('application/problem+json')
+      expect(logger.error).toHaveBeenCalledTimes(1)
+      expect(logger.error.mock.calls[0][0]).toBe('Unhandled error in GET /missing')
+    }
+  })
+
+  it('logs an error while a response streams with the route', async () => {
+    const logger = { log: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() }
+
+    @Controller()
+    class Streams {
+      fails = handler(
+        api.declareEndpoint({ method: 'GET', url: '/fails/$id', response: 'stream' }),
+        async function* () {
+          yield 'one'
+          throw new Error('mid-stream')
+        },
+      )
+    }
+
+    @Module({ controllers: [Streams] })
+    class Root {}
+    const app = track(
+      await NaviosFactory.create(Root, { adapter: defineInMemoryEnvironment(), logger }),
+    )
+    await app.init()
+    await expect(app.inject({ method: 'GET', url: '/fails/1' })).rejects.toThrow('mid-stream')
+    expect(logger.error).toHaveBeenCalledTimes(1)
+    expect(logger.error.mock.calls[0][0]).toBe('Unhandled error in GET /fails/1')
   })
 })

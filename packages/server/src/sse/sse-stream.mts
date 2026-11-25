@@ -1,8 +1,6 @@
-import { encodeSse } from './sse-message.mjs'
-
 import type { SseMessage } from './sse-message.mjs'
 
-const sseBrand: unique symbol = Symbol.for('navios.core.SseStream')
+const sseBrand: unique symbol = Symbol.for('navios.server.SseStream')
 
 /**
  * A stream of server-sent events, created with `sseStream()`.
@@ -13,8 +11,11 @@ export interface SseStream {
 }
 
 /**
- * Answers a `response: 'stream'` endpoint with server-sent events. Iteration
- * stops when the client disconnects.
+ * Answers a `response: 'stream'` endpoint with server-sent events. When the
+ * client disconnects, the source is closed: its `return()` is called.
+ *
+ * The response is decided before the source runs. An error the source throws
+ * ends the stream, so what may refuse the request belongs before this call.
  *
  * ```ts
  * feed = handler(feedEndpoint, (_params, ctx) =>
@@ -32,11 +33,4 @@ export function sseStream(source: AsyncIterable<SseMessage>): SseStream {
 
 export function isSseStream(value: unknown): value is SseStream {
   return typeof value === 'object' && value !== null && sseBrand in value
-}
-
-/** @internal */
-export async function* encodeSseStream(stream: SseStream): AsyncGenerator<string> {
-  for await (const message of stream.source) {
-    yield encodeSse(message)
-  }
 }

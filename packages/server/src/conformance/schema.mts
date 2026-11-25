@@ -8,18 +8,24 @@ export interface Issue {
   path: PropertyKey[]
 }
 
-function schema<T>(check: Check<T>): StandardSchemaV1<unknown, T> & { check: Check<T> } {
+/** `json` is what the schema says of itself as JSON Schema: nothing, unless given. */
+function schema<T>(check: Check<T>, json: Record<string, unknown> = {}): Checked<T> {
   return {
     check,
+    json,
     '~standard': {
       version: 1,
       vendor: 'navios-conformance',
       validate: (value) => check(value, []) as any,
-    },
+      jsonSchema: { input: () => json },
+    } as StandardSchemaV1<unknown, T>['~standard'],
   }
 }
 
-type Checked<T> = StandardSchemaV1<unknown, T> & { check: Check<T> }
+type Checked<T> = StandardSchemaV1<unknown, T> & {
+  check: Check<T>
+  json: Record<string, unknown>
+}
 
 /**
  * A tiny hand-written Standard Schema library. The conformance suite uses it
@@ -29,71 +35,90 @@ type Checked<T> = StandardSchemaV1<unknown, T> & { check: Check<T> }
  */
 export const s = {
   string: (options: { min?: number } = {}): Checked<string> =>
-    schema<string>((value, path) =>
-      typeof value === 'string' && value.length >= (options.min ?? 0)
-        ? { value }
-        : { issues: [{ message: 'Expected a string', path }] },
+    schema<string>(
+      (value, path) =>
+        typeof value === 'string' && value.length >= (options.min ?? 0)
+          ? { value }
+          : { issues: [{ message: 'Expected a string', path }] },
+      { type: 'string' },
     ),
   number: (options: { coerce?: boolean } = {}): Checked<number> =>
-    schema<number>((value, path) => {
-      const candidate = options.coerce && typeof value === 'string' ? Number(value) : value
-      return typeof candidate === 'number' && !Number.isNaN(candidate)
-        ? { value: candidate }
-        : { issues: [{ message: 'Expected a number', path }] }
-    }),
+    schema<number>(
+      (value, path) => {
+        const candidate = options.coerce && typeof value === 'string' ? Number(value) : value
+        return typeof candidate === 'number' && !Number.isNaN(candidate)
+          ? { value: candidate }
+          : { issues: [{ message: 'Expected a number', path }] }
+      },
+      options.coerce ? {} : { type: 'number' },
+    ),
   boolean: (): Checked<boolean> =>
-    schema<boolean>((value, path) =>
-      typeof value === 'boolean'
-        ? { value }
-        : { issues: [{ message: 'Expected a boolean', path }] },
+    schema<boolean>(
+      (value, path) =>
+        typeof value === 'boolean'
+          ? { value }
+          : { issues: [{ message: 'Expected a boolean', path }] },
+      { type: 'boolean' },
     ),
   file: (): Checked<File> =>
     schema<File>((value, path) =>
       value instanceof File ? { value } : { issues: [{ message: 'Expected a file', path }] },
     ),
   optional: <T,>(inner: Checked<T>): Checked<T | undefined> =>
-    schema<T | undefined>((value, path) =>
-      value === undefined ? { value: undefined } : inner.check(value, path),
+    schema<T | undefined>(
+      (value, path) => (value === undefined ? { value: undefined } : inner.check(value, path)),
+      inner.json,
     ),
   nullable: <T,>(inner: Checked<T>): Checked<T | null> =>
     schema<T | null>((value, path) =>
       value === null ? { value: null } : inner.check(value, path),
     ),
   array: <T,>(inner: Checked<T>): Checked<T[]> =>
-    schema<T[]>((value, path) => {
-      if (!Array.isArray(value)) {
-        return { issues: [{ message: 'Expected an array', path }] }
-      }
-      const out: T[] = []
-      const issues: Issue[] = []
-      value.forEach((item, index) => {
-        const result = inner.check(item, [...path, index])
-        if ('issues' in result) {
-          issues.push(...result.issues)
-        } else {
-          out.push(result.value)
+    schema<T[]>(
+      (value, path) => {
+        if (!Array.isArray(value)) {
+          return { issues: [{ message: 'Expected an array', path }] }
         }
-      })
-      return issues.length > 0 ? { issues } : { value: out }
-    }),
+        const out: T[] = []
+        const issues: Issue[] = []
+        value.forEach((item, index) => {
+          const result = inner.check(item, [...path, index])
+          if ('issues' in result) {
+            issues.push(...result.issues)
+          } else {
+            out.push(result.value)
+          }
+        })
+        return issues.length > 0 ? { issues } : { value: out }
+      },
+      { type: 'array', items: inner.json },
+    ),
   /** Unknown keys are dropped, as most schema libraries do by default. */
   object: <Shape extends Record<string, Checked<any>>>(
     shape: Shape,
   ): Checked<{ [K in keyof Shape]: Shape[K] extends Checked<infer T> ? T : never }> =>
-    schema((value, path) => {
-      if (typeof value !== 'object' || value === null || Array.isArray(value)) {
-        return { issues: [{ message: 'Expected an object', path }] }
-      }
-      const out: Record<string, unknown> = {}
-      const issues: Issue[] = []
-      for (const key of Object.keys(shape)) {
-        const result = shape[key].check((value as Record<string, unknown>)[key], [...path, key])
-        if ('issues' in result) {
-          issues.push(...result.issues)
-        } else if (result.value !== undefined) {
-          out[key] = result.value
+    schema(
+      (value, path) => {
+        if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+          return { issues: [{ message: 'Expected an object', path }] }
         }
-      }
-      return issues.length > 0 ? { issues } : { value: out as any }
-    }),
+        const out: Record<string, unknown> = {}
+        const issues: Issue[] = []
+        for (const key of Object.keys(shape)) {
+          const result = shape[key].check((value as Record<string, unknown>)[key], [...path, key])
+          if ('issues' in result) {
+            issues.push(...result.issues)
+          } else if (result.value !== undefined) {
+            out[key] = result.value
+          }
+        }
+        return issues.length > 0 ? { issues } : { value: out as any }
+      },
+      {
+        type: 'object',
+        properties: Object.fromEntries(Object.entries(shape).map(([key, { json }]) => [key, json])),
+      },
+    ),
+  /** Any value, about which it says nothing. */
+  any: (): Checked<any> => schema<any>((value) => ({ value })),
 }

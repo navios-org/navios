@@ -26,7 +26,18 @@ export function modulePrefix(node: ModuleNode): string {
 /** A module's controllers, without duplicates. */
 export function moduleControllers(node: ModuleNode): ClassType[] {
   const controllers = node.entries.get('controllers') as Iterable<ClassType> | undefined
-  return controllers ? Array.from(new Set(controllers)) : []
+  if (!controllers) {
+    return []
+  }
+  const classes = Array.from(new Set(controllers))
+  const index = classes.findIndex((controller) => typeof controller !== 'function')
+  if (index >= 0) {
+    throw new Error(
+      `[Navios] Module ${node.module.name} lists ${String(classes[index])} in controllers. When it ` +
+        `should be a class, the files of the two usually import each other.`,
+    )
+  }
+  return classes
 }
 
 /** The request values a module asks to build at boot. */

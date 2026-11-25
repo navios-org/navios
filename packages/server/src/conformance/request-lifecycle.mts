@@ -190,7 +190,9 @@ export function defineRequestLifecycleTopic(suite: ConformanceSuite) {
       it('releases what a stream acquires while it is being sent', async () => {
         events.length = 0
         const response = await fetch(url('/feed'))
-        expect(await response.text()).toBe('data: one\n\ndata: two\n\n')
+        // The server may open the stream with a comment.
+        const text = (await response.text()).replace(/^:\n\n/, '')
+        expect(text).toBe('data: one\n\ndata: two\n\n')
         await waitFor(() => events.includes('uow:destroy'))
         expect(events).toEqual(['feed:finish', 'uow:destroy'])
       })
@@ -200,6 +202,7 @@ export function defineRequestLifecycleTopic(suite: ConformanceSuite) {
         const controller = new AbortController()
         const response = await fetch(url('/feed-until-gone'), { signal: controller.signal })
         await response.body!.getReader().read()
+        await waitFor(() => events.includes('feed:start'))
         controller.abort()
         await waitFor(() => events.includes('uow:destroy'))
         expect(events).toEqual(['feed:start', 'uow:destroy'])

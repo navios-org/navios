@@ -1,6 +1,6 @@
 {
   "name": "@navios/server",
-  "version": "1.1.0",
+  "version": "2.0.0-alpha.0",
   "license": "MIT",
   "author": {
     "name": "Oleksandr Hanzha",
@@ -29,6 +29,16 @@
       "require": {
         "types": "./lib/index.d.cts",
         "default": "./lib/index.cjs"
+      }
+    },
+    "./adapter": {
+      "import": {
+        "types": "./lib/adapter/index.d.mts",
+        "default": "./lib/adapter/index.mjs"
+      },
+      "require": {
+        "types": "./lib/adapter/index.d.cts",
+        "default": "./lib/adapter/index.cjs"
       }
     },
     "./testing": {
@@ -67,12 +77,12 @@
     "lint": "yarn run -T oxlint --fix && yarn run -T oxfmt",
     "test:ci": "vitest run",
     "build": "tsdown",
-    "publish": "yarn npm publish --access public",
+    "publish": "node ../../scripts/assert-stable-version.mjs && yarn npm publish --access public",
     "publish:next": "yarn npm publish --access public --tag next"
   },
   "dependencies": {
-    "@navios/core": "workspace:^",
-    "@navios/di": "workspace:^"
+    "@navios/core": "workspace:*",
+    "@navios/di": "workspace:*"
   },
   "devDependencies": {
     "@navios/builder": "workspace:^",
@@ -83,6 +93,9 @@
     "zod": "^4.6.7"
   },
   "peerDependencies": {
-    "@navios/builder": "workspace:^"
+    "@navios/builder": "workspace:*"
+  },
+  "engines": {
+    "node": ">=22"
   }
 }

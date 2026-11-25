@@ -17,7 +17,7 @@ import type { ConformanceSuite } from './suite.mjs'
  * @internal
  */
 export function defineHeadersTopic(suite: ConformanceSuite) {
-  const { it, expect, url } = suite
+  const { it, expect, url, fetch } = suite
 
   class HeadersController {
     headersSchema = handler(

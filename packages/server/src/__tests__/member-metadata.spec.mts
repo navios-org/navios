@@ -3,8 +3,9 @@ import { memberMetadata } from '@navios/core/transport'
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod/v4'
 
+import { getControllerMetadata } from '../controllers/controller-metadata.mjs'
 import { endpointConfig, memberEndpoint } from '../handlers/endpoint-declaration.mjs'
-import { Controller, Endpoint, getControllerMetadata, Module, NaviosFactory } from '../index.mjs'
+import { Controller, Endpoint, Module, NaviosFactory } from '../index.mjs'
 import { createTestClient, defineInMemoryEnvironment } from '../testing/index.mjs'
 
 const api = builder()

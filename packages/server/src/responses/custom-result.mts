@@ -1,4 +1,6 @@
-const customResultBrand: unique symbol = Symbol.for('navios.core.CustomResult')
+import type { ResponseHeaders } from '../routing/route-result.mjs'
+
+const customResultBrand: unique symbol = Symbol.for('navios.server.CustomResult')
 
 /**
  * A handler's answer of a custom response kind, created with `result()`. A
@@ -10,7 +12,7 @@ export interface CustomResult<Kind extends string = string, Body = unknown> {
   readonly kind: Kind
   readonly body: Body
   readonly status: number
-  readonly headers: Record<string, string> | undefined
+  readonly headers: ResponseHeaders | undefined
 }
 
 /**
@@ -22,7 +24,7 @@ export interface CustomResult<Kind extends string = string, Body = unknown> {
 export function result<const Kind extends string, Body>(
   kind: Kind,
   body: Body,
-  options: { status?: number; headers?: Record<string, string> } = {},
+  options: { status?: number; headers?: ResponseHeaders } = {},
 ): CustomResult<Kind, Body> {
   return {
     [customResultBrand]: true,

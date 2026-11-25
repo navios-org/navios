@@ -1,13 +1,22 @@
 import { memberMetadata } from '@navios/core/transport'
 
 import type { BaseEndpointOptions } from '@navios/builder'
+import type { MethodHandlerMetadata } from '@navios/core/transport'
 
 import { assertStandardDecorator } from '../internal/standard-decorator.mjs'
 
-import { endpointConfig, EndpointEntryKey, memberEndpoint } from './endpoint-declaration.mjs'
+import type { RouteEndpointConfig } from '../routing/endpoint-config.mjs'
+
+import { endpointConfig, EndpointEntryKey } from './endpoint-declaration.mjs'
 
 import type { EndpointDeclaration } from './endpoint-declaration.mjs'
 import type { MethodHandlerFunction } from './handler-types.mjs'
+
+/**
+ * The members that a class declares itself. A member it inherits starts as a
+ * copy of the one it overrides, with the endpoint of that.
+ */
+const declared = new WeakMap<MethodHandlerMetadata, RouteEndpointConfig>()
 
 /**
  * Serves a builder endpoint with a controller method. The body kind, response
@@ -25,6 +34,9 @@ import type { MethodHandlerFunction } from './handler-types.mjs'
  *   }
  * }
  * ```
+ *
+ * A method that overrides one of a base class serves the endpoint it is
+ * decorated with, under the guards, interceptors and attributes of both.
  *
  * The parameter type is written with `HandlerParams<typeof endpoint>`. The
  * return value is checked against the declaration; add
@@ -44,13 +56,14 @@ export function Endpoint<const Config extends BaseEndpointOptions>(
     }
     const member = memberMetadata(context, context.name)
     const config = endpointConfig(endpoint)
-    const existing = memberEndpoint(member)
-    if (existing !== null && existing !== config) {
+    const existing = declared.get(member)
+    if (existing !== undefined && existing !== config) {
       throw new Error(
         `[Navios] ${context.name} already serves ${existing.method} ${existing.url}; ` +
           `a method can serve one endpoint.`,
       )
     }
+    declared.set(member, config)
     member.entries.set(EndpointEntryKey, config)
   }
 }

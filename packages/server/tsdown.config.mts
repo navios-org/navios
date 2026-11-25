@@ -3,6 +3,7 @@ import { defineConfig } from 'tsdown'
 export default defineConfig({
   entry: [
     'src/index.mts',
+    'src/adapter/index.mts',
     'src/testing/index.mts',
     'src/legacy-compat/index.mts',
     'src/conformance/index.mts',
@@ -23,6 +24,6 @@ export default defineConfig({
     '@navios/di/legacy-compat',
     '@navios/builder',
   ],
-  dts: true,
+  dts: { tsconfig: 'tsconfig.dts.json' },
   target: 'es2022',
 })

@@ -28,9 +28,9 @@ type SuccessReturnOf<Config> = Config extends { response: 'void' }
   : Config extends { responses: infer Responses extends Record<number, StandardSchemaV1 | null> }
     ? RepliesOf<Responses>
     : Config extends { response: 'stream' }
-      ? ReadableStream | AsyncIterable<unknown> | SseStream | CustomResult
+      ? ReadableStream | AsyncIterable<string | Uint8Array> | SseStream | CustomResult
       : Config extends { response: 'text' }
-        ? string | ReadableStream | AsyncIterable<unknown> | CustomResult
+        ? string | ReadableStream | AsyncIterable<string | Uint8Array> | CustomResult
         : Config extends { response: 'blob' }
           ? Blob | ArrayBuffer | Uint8Array | ReadableStream | CustomResult
           : Config extends { responseSchema: infer Schema extends StandardSchemaV1 }

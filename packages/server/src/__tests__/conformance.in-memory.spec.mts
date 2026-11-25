@@ -1,6 +1,8 @@
-import { describe, expect, it } from 'vitest'
+import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 
+import { runAdapterConformance } from '../conformance/index.mjs'
 import { s } from '../conformance/schema.mjs'
+import { defineInMemoryEnvironment } from '../testing/index.mjs'
 
 describe('conformance schema helper', () => {
   it('validates, coerces and strips like a Standard Schema', () => {
@@ -11,4 +13,10 @@ describe('conformance schema helper', () => {
     const failed = schema['~standard'].validate({ name: '', age: 'x' }) as { issues: unknown[] }
     expect(failed.issues).toHaveLength(2)
   })
+})
+
+runAdapterConformance({
+  runner: { describe, it, expect, beforeAll, afterAll },
+  name: 'in-memory',
+  adapter: defineInMemoryEnvironment,
 })
