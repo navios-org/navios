@@ -20,23 +20,23 @@ Each legacy decorator adapts the legacy call signature and then calls the same i
 
 | Entry point                      | Decorators                                                                                   | Also exports                                                                                           |
 | -------------------------------- | -------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| `@navios/core/legacy-compat`     | `Controller`, `Module`, `Endpoint`, `UseGuards`, `UseInterceptors`, `Injectable`, `Factory`  | `AttributeFactory`, `createClassContext`, `createMethodContext`                                        |
+| `@navios/server/legacy-compat`     | `Controller`, `Module`, `Endpoint`, `UseGuards`, `UseInterceptors`, `Injectable`, `Factory`  | `AttributeFactory`, `createClassContext`, `createMethodContext`                                        |
 | `@navios/di/legacy-compat`       | `Injectable`, `Factory`                                                                      | `createClassContext`, `createMethodContext`                                                            |
 | `@navios/schedule/legacy-compat` | `Schedulable`, `Cron`                                                                        | `Schedule`, `SchedulerService`, `schedulePlugin`, the metadata helpers, and the two context functions  |
 
 `Injectable` and `Factory` from the core entry point are the ones from `@navios/di/legacy-compat`. Server code imports them from core, like every other DI name.
 
-Everything that is not a decorator is imported from the package's main entry as usual: `handler`, `reply`, `inject`, `NaviosFactory`, `createContextKey`, exceptions and types from `@navios/core`. `@RequestValue()` from `@navios/core` works under both decorator modes.
+Everything that is not a decorator is imported from the package's main entry as usual: `handler`, `reply`, `inject`, `NaviosFactory`, `createContextKey`, exceptions and types from `@navios/server`. `@RequestValue()` from `@navios/server` works under both decorator modes.
 
 ## Controllers and modules
 
 A controller is written the same way as with standard decorators. Only the import path of the decorators changes.
 
 ```ts title="users.controller.mts"
-import { inject, reply } from '@navios/core'
-import { Controller, Endpoint, Injectable, Module, UseGuards } from '@navios/core/legacy-compat'
+import { inject, reply } from '@navios/server'
+import { Controller, Endpoint, Injectable, Module, UseGuards } from '@navios/server/legacy-compat'
 
-import type { HandlerParams, RequestContext } from '@navios/core'
+import type { HandlerParams, RequestContext } from '@navios/server'
 
 import { AuthGuard } from './auth.guard.mjs'
 import { getUser } from './users.mjs'
@@ -66,14 +66,14 @@ export class AppModule {}
 
 `@Endpoint` checks the method's parameters and return value against the declaration exactly as the standard decorator does. See [Controllers and handlers](/docs/server/essentials/controllers).
 
-`handler()` is not a decorator, so it is imported from `@navios/core` and works unchanged. A controller whose handlers are all `handler()` fields uses only class decorators from the legacy entry point.
+`handler()` is not a decorator, so it is imported from `@navios/server` and works unchanged. A controller whose handlers are all `handler()` fields uses only class decorators from the legacy entry point.
 
 ## Attributes
 
 Create attributes with the `AttributeFactory` from the legacy entry point, so that calling one returns a legacy decorator:
 
 ```ts
-import { AttributeFactory, Controller, Endpoint } from '@navios/core/legacy-compat'
+import { AttributeFactory, Controller, Endpoint } from '@navios/server/legacy-compat'
 
 export const Public = AttributeFactory.createAttribute(Symbol.for('Public'))
 
@@ -89,7 +89,7 @@ export class HealthController {
 
 Reading is the same as with the standard factory, for example `AttributeFactory.has(Public, ctx.route)` in a guard. See [Attributes](/docs/server/guides/attributes).
 
-An attribute created with the standard `AttributeFactory` from `@navios/core` cannot be applied as a decorator in a legacy-decorator file. It can still be passed in options: `@Controller({ attributes: [Public()] })`, or `handler(endpoint, { attributes: [Public()] }, fn)`.
+An attribute created with the standard `AttributeFactory` from `@navios/server` cannot be applied as a decorator in a legacy-decorator file. It can still be passed in options: `@Controller({ attributes: [Public()] })`, or `handler(endpoint, { attributes: [Public()] }, fn)`.
 
 ## Services and factories outside a server
 
@@ -147,9 +147,9 @@ export class CleanupService {
 `createClassContext(target)` and `createMethodContext(target, propertyKey, descriptor)` build the context object a standard decorator expects from the arguments a legacy decorator receives. A library that ships a standard decorator can offer a legacy form by wrapping it:
 
 ```ts
-import { createClassContext } from '@navios/core/legacy-compat'
+import { createClassContext } from '@navios/server/legacy-compat'
 
-import type { ClassType } from '@navios/core'
+import type { ClassType } from '@navios/server'
 
 import { Audited as StandardAudited } from './audited.mjs'
 

@@ -29,7 +29,7 @@ yarn add @opentelemetry/exporter-metrics-otlp-http  # if metrics are enabled
 
 ```ts title="main.mts"
 import { defineFastifyEnvironment } from '@navios/adapter-fastify'
-import { NaviosFactory } from '@navios/core'
+import { NaviosFactory } from '@navios/server'
 import { otelPlugin } from '@navios/otel'
 
 import { AppModule } from './app.module.mjs'
@@ -62,6 +62,7 @@ await app.listen({ port: 3000 })
 | `exporterOptions`         | `{ endpoint?, headers? }`       |          | OTLP endpoint and headers.                                                                |
 | `spanProcessors`          | `SpanProcessor[]`               | `[]`     | Extra span processors, for an exporter of your own or for tests.                          |
 | `autoInstrument.http`     | `boolean`                       | `true`   | Trace HTTP requests. `false` registers no interceptor.                                    |
+| `autoInstrument.transports` | `boolean \| 'auto'`            | `'auto'` | Trace the handlers of [other transports](/docs/server/guides/other-transports): one span per run, named `<transport> <Class>.<handler>`. `'auto'` does so in an application without HTTP; in one that also serves HTTP, set `true`. |
 | `ignoreRoutes`            | `string[]`                      | `[]`     | Request paths without a server span. `*` matches any run of characters (`'/docs/*'`).     |
 | `includeNaviosAttributes` | `boolean`                       | `false`  | Add `navios.controller`, `navios.handler` and `navios.module` to request spans.           |
 | `sampling.ratio`          | `number`                        | `1.0`    | Share of traces to sample, from `0` to `1`.                                               |
@@ -93,7 +94,7 @@ otelPlugin({
 
 ## HTTP request spans
 
-The plugin registers one [interceptor](/docs/server/essentials/guards-and-interceptors), `OtelHttpInterceptor`, around every route.
+The plugin registers one [interceptor](/docs/server/essentials/guards-and-interceptors), `OtelHttpInterceptor` from `@navios/otel/http`, around every route.
 
 | Property   | Value                                                                                                                                                                                                              |
 | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -161,7 +162,7 @@ The plugin records no metrics of its own. `metrics: { enabled: true }` creates a
 | `'none'`    | Nowhere.                                                                                                                            |
 
 ```ts
-import { inject, Injectable } from '@navios/core'
+import { inject, Injectable } from '@navios/server'
 import { MeterToken } from '@navios/otel'
 
 @Injectable()

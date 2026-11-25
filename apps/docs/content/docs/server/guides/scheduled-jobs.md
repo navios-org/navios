@@ -10,12 +10,14 @@ title: Scheduled jobs
 npm install @navios/schedule
 ```
 
+The package depends on `@navios/core` only. In an HTTP application the jobs run next to the server; a worker that does nothing but run jobs needs no adapter at all, see [Other transports](/docs/server/guides/other-transports).
+
 ## Declaring jobs
 
 `@Schedulable()` marks a class that contains jobs and registers it as a service; do not add `@Injectable()` to the same class. `@Cron` marks a job method. A job method is `async` and takes no arguments.
 
 ```ts title="maintenance.jobs.mts"
-import { inject, Logger } from '@navios/core'
+import { inject, Logger } from '@navios/server'
 import { Cron, Schedulable, Schedule } from '@navios/schedule'
 
 import { SessionsService } from './sessions.service.mjs'
@@ -44,7 +46,7 @@ List the classes in `schedulePlugin`:
 
 ```ts title="main.mts"
 import { defineFastifyEnvironment } from '@navios/adapter-fastify'
-import { NaviosFactory } from '@navios/core'
+import { NaviosFactory } from '@navios/server'
 import { schedulePlugin } from '@navios/schedule'
 
 import { AppModule } from './app.module.mjs'
@@ -70,7 +72,7 @@ So a job never runs before the application is fully built, and never after `clos
 A module can register classes itself instead of the plugin, which keeps a feature's jobs next to the feature:
 
 ```ts
-import { inject, Module } from '@navios/core'
+import { inject, Module } from '@navios/server'
 import { SchedulerService } from '@navios/schedule'
 
 @Module()
@@ -127,7 +129,7 @@ Every run of a job happens in its own DI scope, created when the run starts and 
 A `@Schedulable()` class is a singleton by default: one instance handles every run and may keep state between runs. Give it the request scope to get a fresh instance, and fresh request-scoped dependencies, for each run:
 
 ```ts title="import.jobs.mts"
-import { inject, Injectable, InjectableScope } from '@navios/core'
+import { inject, Injectable, InjectableScope } from '@navios/server'
 import { Cron, Schedulable, Schedule } from '@navios/schedule'
 
 @Injectable({ scope: InjectableScope.Request })
@@ -195,7 +197,7 @@ An error thrown by a job is caught and logged by the scheduler with the job's na
 The scheduler needs only a DI container. Without an application nothing calls the bootstrap hook, so start it yourself:
 
 ```ts
-import { Container } from '@navios/core'
+import { Container } from '@navios/server'
 import { SchedulerService } from '@navios/schedule'
 
 import { MaintenanceJobs } from './maintenance.jobs.mjs'

@@ -7,9 +7,9 @@ title: Introduction
 Navios Server is an HTTP framework for TypeScript built on one idea: an endpoint is declared once, with [`@navios/builder`](/docs/builder/), and the server implements that declaration. The route, the request validation, the response validation and the handler's types all come from it, and a client can call the same declaration with the same types.
 
 ```ts
-import { Controller, Endpoint, inject, reply } from '@navios/core'
+import { Controller, Endpoint, inject, reply } from '@navios/server'
 
-import type { HandlerParams } from '@navios/core'
+import type { HandlerParams } from '@navios/server'
 
 // getUser and UsersService come from the Quick start
 @Controller()
@@ -33,13 +33,13 @@ Return a user without `email`, or answer with a status the declaration does not 
 - **Adapters.** The HTTP server is Fastify on Node.js or `Bun.serve` on Bun. Application code is the same on both.
 - **Singletons by default.** Controllers, guards and interceptors are created once at start-up. Per-request data travels in a typed request context, so nothing is constructed per request unless you ask for it.
 - **One error format.** Every error response the framework produces is `application/problem+json`, unless the endpoint declares its own body for that status.
-- **Dependency injection.** Services are wired by [`@navios/di`](/docs/di/), which `@navios/core` re-exports.
+- **Dependency injection.** Services are wired by [`@navios/di`](/docs/di/), which `@navios/server` re-exports.
 
 ## Packages
 
 | Package                   | What it is                                                                        |
 | ------------------------- | --------------------------------------------------------------------------------- |
-| `@navios/core`            | The framework: controllers, modules, guards, interceptors, errors, config, logger |
+| `@navios/server`            | The framework: controllers, modules, guards, interceptors, errors, config, logger |
 | `@navios/builder`         | Endpoint declarations, shared with clients                                        |
 | `@navios/adapter-fastify` | [Fastify adapter](/docs/server/adapters/fastify) for Node.js                      |
 | `@navios/adapter-bun`     | [Bun adapter](/docs/server/adapters/bun)                                          |
@@ -49,7 +49,7 @@ Return a user without `email`, or answer with a status the declaration does not 
 | `@navios/openapi`         | [An OpenAPI document](/docs/server/guides/openapi) generated from the routes      |
 | `@navios/otel`            | [OpenTelemetry](/docs/server/opentelemetry/) traces and metrics                   |
 
-An application needs `@navios/core`, `@navios/builder` and one adapter. The rest are optional.
+An application needs `@navios/server`, `@navios/builder` and one adapter. The rest are optional.
 
 ## Who it is for
 

@@ -83,7 +83,7 @@ export const otelPlugin = definePlugin({
       api.decorate(token, (instance) => traceInstance(instance as object, serviceClass, tracer))
     }
 
-    const { http: traceHttp, handlers: traceHandlers } = config.autoInstrument
+    const { http: traceHttp, transports: traceHandlers } = config.autoInstrument
 
     // The HTTP part is loaded only here, so that this package works where
     // `@navios/server` is not installed.

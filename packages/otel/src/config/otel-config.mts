@@ -20,7 +20,7 @@ export interface AutoInstrumentConfig {
    * placed around every route, where it does nothing but pass the call on.
    * @default 'auto'
    */
-  handlers?: boolean | 'auto'
+  transports?: boolean | 'auto'
 }
 
 /**

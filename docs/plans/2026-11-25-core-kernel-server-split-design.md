@@ -1,7 +1,9 @@
 # Navios 2.0: transport-neutral core and `@navios/server`
 
 **Date:** 2026-11-25
-**Status:** Design approved 2026-11-25. Implementation plans are written per phase.
+**Status:** Design approved 2026-11-25. Phases 1 to 3 are implemented on
+`refactor/core-server-split`; phase 4 (commander) is open. Section 16 lists
+where the implementation differs from the text below.
 **Base branch:** `next`
 **Amends:** `2026-11-24-navios-2-0-framework-design.md`. Sections 6.5 (modules),
 6.6 (lifecycle) and 6.7 (plugins) of that design are replaced by sections 6 to 9
@@ -610,3 +612,20 @@ Each phase leaves `next` green.
 | 18 | `ExecutionContext` includes `find` and `onFinish`, so tracing works on any transport (9.1) | Keep the interface to keys and services; span handling stays HTTP-only |
 | 19 | `@navios/otel` is neutral at its main entry, with HTTP under `@navios/otel/http` (8) | Keep otel depending on server |
 | 20 | An HTTP-only interceptor around every route is registered on the HTTP transport; `app.intercept` on the facade means that, and on a kernel application means every transport (10) | One `intercept` everywhere, HTTP ones narrow by `kind` |
+
+## 16. As built
+
+Differences from the sections above, found while implementing.
+
+| Section | As built | Why |
+|---|---|---|
+| 9.2 | Server shadows three names, not five: `Guard`, `Interceptor`, `currentContext`, plus the `ContextKey` type. `ContextValue` is one structural type in core | Two conditional `ContextValue` types made `RequestContext` unassignable to `ExecutionContext` |
+| 7.2 | When `init()` fails, the application stops every transport it created, then rethrows | Otherwise an HTTP adapter and its process-wide settings stay half-open |
+| 7.2 | `close()` lets an `init()` or `start()` in flight finish before it stops; a closed application refuses to initialise or start; a transport is stopped once | Found in review: shutdown during boot left transports running |
+| 6.3 | Route assembly skips a controller member that only has another transport's entry | One class may hold handlers of two transports |
+| 8 | `otelPlugin` loads `@navios/otel/http` with a dynamic import, and adds `autoInstrument.transports` (`'auto'` by default): handler spans for other transports, on by default only where there is no HTTP | The main entry must load without `@navios/server`; an application-wide interceptor would otherwise add a pass-through call to every HTTP request |
+| 10 | `httpTransport` options include `errorMappers` and `interceptors`; `app.transport(httpTransport)` is `HttpTransport<any>` | The facade queues `mapError()` / `intercept()` calls made before `init()`; a factory value cannot carry the adapter's environment type |
+| 5 | Server also re-exports `buildModuleGraph` and four types from `@navios/core/transport` | They were on the main entry before the split |
+| 5 | Packages built on server (adapters, openapi, adapter-xml, otel-fastify, otel-bun) peer-depend on `@navios/core` as well | Without it their bundled declarations inlined a private copy of core's types |
+| 11.2, 12 | `@navios/microservice` is a working transport, not only handler discovery: it subscribes through `QueueClient`, validates, runs guards and interceptors, and drains on close. The acknowledgement and retry attributes are still not acted on | `QueueClient` already had `subscribe`, `receive` and `reply`, so stopping at discovery would have left `start()` throwing |
+| 12 | `@navios/core/testing` exports `fakeTransport` | As planned for phase 3 |

@@ -82,7 +82,7 @@ if (res.ok) {
 | Typed error bodies, logging                    | `errorSchema`, `onError`                                                   | [Errors](https://navios.tech/docs/builder/essentials/errors)                           |
 | Another HTTP client, auth, per-request clients | `builder({ client })`, `endpoint(args, { client })`                        | [HTTP client](https://navios.tech/docs/builder/essentials/http-client)                 |
 | Another schema library                         | any Standard Schema, mixed per slot                                        | [Schemas](https://navios.tech/docs/builder/essentials/schemas)                         |
-| One contract for client and server             | `@Endpoint(getUser)` in `@navios/core`                                     | [Sharing with Navios Server](https://navios.tech/docs/builder/guides/navios-server)    |
+| One contract for client and server             | `@Endpoint(getUser)` in `@navios/server`                                   | [Sharing with Navios Server](https://navios.tech/docs/builder/guides/navios-server)    |
 | React hooks                                    | [`@navios/react-query`](https://www.npmjs.com/package/@navios/react-query) | [React Query](https://navios.tech/docs/builder/react-query/)                           |
 | Typed WebSocket and Socket.IO messages         | `@navios/builder/socket`                                                   | [WebSocket](https://navios.tech/docs/builder/realtime/websocket)                       |
 | Typed Server-Sent Events                       | `@navios/builder/eventsource`                                              | [Server-Sent Events](https://navios.tech/docs/builder/realtime/server-sent-events)     |

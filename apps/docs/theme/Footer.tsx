@@ -16,7 +16,7 @@ const columns = [
   },
   {
     title: 'Core Packages',
-    links: ['@navios/core', '@navios/builder', '@navios/di', '@navios/http'].map(npm),
+    links: ['@navios/server', '@navios/core', '@navios/builder', '@navios/di', '@navios/http'].map(npm),
   },
   {
     title: 'Adapters & Tools',

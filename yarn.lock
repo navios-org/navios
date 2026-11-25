@@ -1411,6 +1411,7 @@ __metadata:
     "@navios/adapter-fastify": "workspace:^"
     "@navios/core": "workspace:^"
     "@navios/di": "workspace:^"
+    "@navios/server": "workspace:^"
   languageName: unknown
   linkType: soft
 

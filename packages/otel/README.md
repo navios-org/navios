@@ -13,14 +13,14 @@ npm install @navios/otel @opentelemetry/api
 npm install @opentelemetry/exporter-trace-otlp-http
 ```
 
-`@navios/core`, `@navios/di` and `@opentelemetry/api` are peer dependencies; the OpenTelemetry SDK packages are installed with the plugin. The OTLP exporters are optional and loaded only when `exporter` is `'otlp'`. The example also uses `@navios/adapter-fastify`.
+`@navios/core`, `@navios/di` and `@opentelemetry/api` are peer dependencies, and `@navios/server` is an optional one, needed for HTTP request spans; the OpenTelemetry SDK packages are installed with the plugin. The OTLP exporters are optional and loaded only when `exporter` is `'otlp'`. The example also uses `@navios/adapter-fastify`.
 
 ## Example
 
 ```ts
 import { defineFastifyEnvironment } from '@navios/adapter-fastify'
-import { Injectable, Module, NaviosFactory } from '@navios/core'
 import { otelPlugin, Traced } from '@navios/otel'
+import { Injectable, Module, NaviosFactory } from '@navios/server'
 
 @Injectable()
 @Traced({ name: 'users-service' })

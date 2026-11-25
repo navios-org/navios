@@ -110,11 +110,11 @@ describe('otelPlugin without HTTP', () => {
     expect(span.events.map((event) => event.name)).toContain('exception')
   })
 
-  it('creates no handler spans when autoInstrument.handlers is false', async () => {
+  it('creates no handler spans when autoInstrument.transports is false', async () => {
     class SendEmail {}
     @Module({ jobs: [SendEmail] } as any)
     class AppModule {}
-    const { jobs, spans } = await createApp(AppModule, { autoInstrument: { handlers: false } })
+    const { jobs, spans } = await createApp(AppModule, { autoInstrument: { transports: false } })
 
     await jobs.run(SendEmail)
 
@@ -154,8 +154,8 @@ describe('otelPlugin in an application with HTTP and another transport', () => {
     expect(exporter.getFinishedSpans()).toHaveLength(0)
   })
 
-  it('traces the other transport when autoInstrument.handlers is true', async () => {
-    const { run, exporter } = await createHybrid({ autoInstrument: { handlers: true } })
+  it('traces the other transport when autoInstrument.transports is true', async () => {
+    const { run, exporter } = await createHybrid({ autoInstrument: { transports: true } })
 
     await run()
 

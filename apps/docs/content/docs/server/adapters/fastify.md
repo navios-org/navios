@@ -16,7 +16,7 @@ yarn add @navios/adapter-fastify fastify
 
 ```ts title="main.mts"
 import { defineFastifyEnvironment } from '@navios/adapter-fastify'
-import { NaviosFactory } from '@navios/core'
+import { NaviosFactory } from '@navios/server'
 
 import { AppModule } from './app.module.mjs'
 
@@ -66,7 +66,7 @@ defineFastifyEnvironment({
 ```ts
 import type { FastifyEnvironment } from '@navios/adapter-fastify'
 
-declare module '@navios/core' {
+declare module '@navios/server' {
   interface Register {
     environment: FastifyEnvironment
   }
@@ -171,4 +171,4 @@ When the timeout passes, the adapter closes the remaining connections, which abo
 
 - Node.js
 - `fastify` 5.6 or newer (peer dependency)
-- `@navios/core` 2.x and `@navios/builder` 2.x (peer dependencies)
+- `@navios/server` 2.x and `@navios/builder` 2.x (peer dependencies)

@@ -4,7 +4,7 @@ title: Migrating to 2.0
 
 # Migrating to 2.0
 
-This page lists what changed between 1.x and 2.0 of `@navios/core`, the Fastify and Bun adapters, `@navios/jwt`, `@navios/schedule`, `@navios/openapi`, `@navios/otel` and `@navios/adapter-xml`. Upgrade them together: every 2.0 package requires `@navios/core` 2.0.
+This page lists what changed between `@navios/core` 1.x and `@navios/server` 2.0, the Fastify and Bun adapters, `@navios/jwt`, `@navios/schedule`, `@navios/openapi`, `@navios/otel` and `@navios/adapter-xml`. Upgrade them together: every 2.0 package requires `@navios/server` 2.0.
 
 2.0 rewrites the request pipeline. Endpoint declarations made with `@navios/builder` stay as they are apart from the changes in [Builder's migration page](/docs/builder/reference/migrating-to-2). Controllers, guards, bootstrap code and tests change. The main ideas:
 
@@ -14,6 +14,30 @@ This page lists what changed between 1.x and 2.0 of `@navios/core`, the Fastify 
 - Guards run before the request body is read.
 - Any Standard Schema library works on the server. Zod keeps working unchanged.
 - CORS, multipart, OpenAPI, OpenTelemetry and XML are configured the same way on every adapter.
+- The HTTP framework is now `@navios/server`. `@navios/core` is the part that does not depend on HTTP.
+
+## The package is now `@navios/server`
+
+In 1.x `@navios/core` was the HTTP framework. In 2.0 it is split in two:
+
+- `@navios/core` holds what an application is made of whatever reaches it: dependency injection, modules, plugins, lifecycle, configuration and logging.
+- `@navios/server` is the HTTP framework on top of it: controllers, endpoints, the request pipeline, adapters and `NaviosFactory`. It re-exports everything from `@navios/core`.
+
+For an HTTP application the change is the package name:
+
+```diff
+- npm install @navios/core
++ npm install @navios/server
+```
+
+```diff
+- import { Controller, inject, Injectable, Module, NaviosFactory } from '@navios/core'
++ import { Controller, inject, Injectable, Module, NaviosFactory } from '@navios/server'
+```
+
+The same goes for the entry points `@navios/core/testing` and `@navios/core/legacy-compat`, and for the `Register` declaration, which is now written `declare module '@navios/server'`.
+
+Packages that do not need HTTP depend on `@navios/core` alone: `@navios/jwt`, `@navios/schedule` and the main entry of `@navios/otel`. An application can also run without HTTP, or with HTTP and something else side by side; see [Other transports](/docs/server/guides/other-transports).
 
 ## What changed
 
@@ -81,7 +105,7 @@ These are the DI changes that show up in server code. [DI's migration page](/doc
 | a handler result that failed its response schema was a 400 (Bun)                                        | a 500                                                                                                                                                                               |
 | `definePreAdapterResolvePlugin` and the other nine stage helpers                                        | `definePlugin({ name, dependsOn?, setup(api, options) })`                                                                                                                           |
 | `TestingModule`                                                                                         | `NaviosFactory.create` with `defineInMemoryEnvironment()` and `providers`; `createTestClient(app)`                                                                                  |
-| `Controller`, `Endpoint`, `Multipart`, `Stream`, `HttpCode`, `Header` from `@navios/core/legacy-compat` | `Controller`, `Module`, `Endpoint`, `UseGuards`, `UseInterceptors`, `Injectable`, `Factory`, `AttributeFactory`. See [Legacy decorators](/docs/server/reference/legacy-decorators). |
+| `Controller`, `Endpoint`, `Multipart`, `Stream`, `HttpCode`, `Header` from `@navios/server/legacy-compat` | `Controller`, `Module`, `Endpoint`, `UseGuards`, `UseInterceptors`, `Injectable`, `Factory`, `AttributeFactory`. See [Legacy decorators](/docs/server/reference/legacy-decorators). |
 
 ### @navios/jwt
 
@@ -102,6 +126,7 @@ These are the DI changes that show up in server code. [DI's migration page](/doc
 | `@Schedulable({ registry })`                                    | `@Schedulable({ scope })`                                                                  |
 | runs were not scoped                                            | every run has its own DI scope; a request-scoped `@Schedulable` class is built per run     |
 | a scheduler used without an application started on `register()` | call `schedulerService.start()`                                                            |
+| an HTTP adapter was needed to run jobs                          | `createApplication(AppModule, { plugins: [schedulePlugin(...)] })` runs them with no adapter |
 
 ### @navios/openapi
 
@@ -123,6 +148,7 @@ These are the DI changes that show up in server code. [DI's migration page](/doc
 | `app.usePlugin(defineOtelTracingPlugin({}))`                                                       | not needed; `otelPlugin` traces `@Traced` services                                         |
 | `request.otelSpan` (Fastify)                                                                       | `ctx.find(RequestSpan)`                                                                    |
 | `autoInstrument.handlers` / `guards`, `propagateContext`, `metrics.requestDuration` / `errorCount` | removed. One server span covers guards, validation and the handler.                        |
+| `OtelHttpInterceptor`, `compileIgnoreRoutes` from `@navios/otel`                                   | from `@navios/otel/http`. The main entry no longer needs `@navios/server`.                 |
 | a span for a request that matched no route (Fastify), `guard:<name>` child spans (Bun)             | removed                                                                                    |
 | the `http.url` span attribute                                                                      | holds the request path, without the query string                                           |
 | `getSpanContextStore()`                                                                            | removed; the active span lives in the OpenTelemetry context                                |
@@ -156,7 +182,7 @@ These are the DI changes that show up in server code. [DI's migration page](/doc
 - app.enableCors({ origin: true })
 - app.enableMultipart({ limits: { fileSize: 10_000_000 } })
 - await app.init()
-+ declare module '@navios/core' {
++ declare module '@navios/server' {
 +   interface Register {
 +     environment: FastifyEnvironment
 +   }
@@ -329,7 +355,8 @@ Plugins no longer choose a stage. The same shape applies to the plugins of `@nav
 +   name: 'my-plugin',
 +   setup(api, options: MyOptions) {
 +     api.intercept(MyInterceptor)
-+     api.onBootstrap((routes) => {
++     api.onBootstrap(() => {
++       const routes = api.transport(httpTransport)?.routes()
 +       // ...
 +     })
 +   },

@@ -9,7 +9,7 @@ An attribute is typed metadata attached to a module, a controller or a handler. 
 ## Creating an attribute
 
 ```ts title="roles.mts"
-import { AttributeFactory } from '@navios/core'
+import { AttributeFactory } from '@navios/server'
 import { z } from 'zod/v4'
 
 // A flag: present or absent
@@ -31,7 +31,7 @@ An attribute is identified by its symbol. Use `Symbol.for('name')` when the attr
 Calling an attribute gives a decorator for a module, a controller or a handler.
 
 ```ts
-import { Controller, Endpoint, Module } from '@navios/core'
+import { Controller, Endpoint, Module } from '@navios/server'
 
 import { AuthGuard } from './auth.guard.mjs'
 import { getStats, purgeUsers } from './admin.mjs'
@@ -73,9 +73,9 @@ export class ReportsController {
 `AttributeFactory` reads from a `RouteInfo`. During a request that is `ctx.route`.
 
 ```ts title="roles.guard.mts"
-import { AttributeFactory, Injectable } from '@navios/core'
+import { AttributeFactory, Injectable } from '@navios/server'
 
-import type { Guard, RequestContext } from '@navios/core'
+import type { Guard, RequestContext } from '@navios/server'
 
 import { CurrentUser } from './auth.guard.mjs'
 import { Roles } from './roles.mjs'

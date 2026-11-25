@@ -34,7 +34,7 @@ A response body that fails its schema is not a validation error in the sense of 
 Throw an `HttpException` to answer with a specific status from anywhere in the pipeline.
 
 ```ts
-import { ConflictException, HttpException, NotFoundException } from '@navios/core'
+import { ConflictException, HttpException, NotFoundException } from '@navios/server'
 
 throw new NotFoundException('User not found')
 throw new ConflictException('Email is already registered')
@@ -71,7 +71,7 @@ The subclasses, each with a default message:
 Services should throw their own errors and not know about HTTP. A mapper registered on the application turns an error class into a response.
 
 ```ts
-import { problem, reply } from '@navios/core'
+import { problem, reply } from '@navios/server'
 
 export class UserNotFound extends Error {
   constructor(readonly userId: string) {
@@ -154,7 +154,7 @@ A request that fails [validation](/docs/server/essentials/controllers#validation
 In code, the error is a `ValidationError` with `source` and `issues` (the Standard Schema issues). It can be mapped like any other class:
 
 ```ts
-import { problem, ValidationError } from '@navios/core'
+import { problem, ValidationError } from '@navios/server'
 
 app.mapError(ValidationError, (error) => {
   if (error.source === 'response') {
@@ -182,9 +182,9 @@ Four framework responses are produced by replaceable singletons:
 A responder implements `ErrorResponder` and is put in place with a provider:
 
 ```ts
-import { Injectable, NotFoundResponderToken, provide } from '@navios/core'
+import { Injectable, NotFoundResponderToken, provide } from '@navios/server'
 
-import type { ErrorResponder, RouteResult } from '@navios/core'
+import type { ErrorResponder, RouteResult } from '@navios/server'
 
 @Injectable()
 class JsonNotFound implements ErrorResponder {

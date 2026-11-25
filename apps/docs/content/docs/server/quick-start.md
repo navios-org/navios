@@ -9,7 +9,7 @@ This page builds a small users API and runs it on Fastify. The declarations, the
 ## Install
 
 ```bash
-npm install @navios/core @navios/builder @navios/adapter-fastify fastify zod
+npm install @navios/server @navios/builder @navios/adapter-fastify fastify zod
 ```
 
 `@navios/builder` declares endpoints and `zod` is the schema library used in these docs; any [Standard Schema](https://standardschema.dev) library works in its place.
@@ -61,7 +61,7 @@ The builder has no HTTP client here, because a server never calls its own endpoi
 A service is a class marked `@Injectable()`. This one keeps users in memory.
 
 ```ts title="users.service.mts"
-import { Injectable } from '@navios/core'
+import { Injectable } from '@navios/server'
 
 import type { z } from 'zod/v4'
 
@@ -93,9 +93,9 @@ export class UsersService {
 A controller is a class whose methods implement declarations. `@Endpoint(getUser)` binds a method to an endpoint, `HandlerParams<typeof getUser>` types its argument, and `inject()` gives it the service.
 
 ```ts title="users.controller.mts"
-import { Controller, Endpoint, inject, reply } from '@navios/core'
+import { Controller, Endpoint, inject, reply } from '@navios/server'
 
-import type { HandlerParams } from '@navios/core'
+import type { HandlerParams } from '@navios/server'
 
 import { createUser, getUser } from './users.mjs'
 import { UsersService } from './users.service.mjs'
@@ -121,7 +121,7 @@ A plain return value is sent with status 200. `reply(status, body)` answers with
 ## Group routes in a module
 
 ```ts title="app.module.mts"
-import { Module } from '@navios/core'
+import { Module } from '@navios/server'
 
 import { UsersController } from './users.controller.mjs'
 
@@ -135,7 +135,7 @@ The service is not listed anywhere. An `@Injectable()` class is resolvable as so
 
 ```ts title="main.mts"
 import { defineFastifyEnvironment } from '@navios/adapter-fastify'
-import { NaviosFactory } from '@navios/core'
+import { NaviosFactory } from '@navios/server'
 
 import { AppModule } from './app.module.mjs'
 

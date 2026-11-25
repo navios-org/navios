@@ -4,14 +4,14 @@ title: Configuration and logging
 
 # Configuration and logging
 
-`@navios/core` ships two small services most applications need from the first day: a typed configuration service and a logger.
+`@navios/server` ships two small services most applications need from the first day: a typed configuration service and a logger.
 
 ## Configuration
 
 `provideConfig` creates an injection token for a `ConfigService` whose content comes from a `load` function. Declare it once and inject it wherever a setting is needed.
 
 ```ts title="app.config.mts"
-import { envInt, envString, provideConfig } from '@navios/core'
+import { envInt, envString, provideConfig } from '@navios/server'
 import { z } from 'zod/v4'
 
 export const AppConfig = provideConfig({
@@ -30,7 +30,7 @@ export const AppConfig = provideConfig({
 ```
 
 ```ts title="database.mts"
-import { inject, Injectable } from '@navios/core'
+import { inject, Injectable } from '@navios/server'
 
 import { AppConfig } from './app.config.mjs'
 
@@ -63,10 +63,10 @@ export class Database {
 
 `envString(key, default?)` and `envInt(key, default)` read single variables, as in `load` above.
 
-`EnvConfigProvider` is a ready-made token for a `ConfigService` over a snapshot of `process.env`, taken when `@navios/core` is imported. It suits a small application that does not need a schema:
+`EnvConfigProvider` is a ready-made token for a `ConfigService` over a snapshot of `process.env`, taken when `@navios/server` is imported. It suits a small application that does not need a schema:
 
 ```ts
-import { EnvConfigProvider, inject, Injectable } from '@navios/core'
+import { EnvConfigProvider, inject, Injectable } from '@navios/server'
 
 @Injectable()
 export class Mailer {
@@ -83,7 +83,7 @@ A config token is an ordinary injection token, so a test replaces it with a prov
 Inject a `Logger` with a context name. The name appears with every message the instance writes.
 
 ```ts
-import { inject, Injectable, Logger } from '@navios/core'
+import { inject, Injectable, Logger } from '@navios/server'
 
 @Injectable()
 export class SignupService {
@@ -111,7 +111,7 @@ Where the output goes is decided by the application's `logger` option.
 | an object implementing `LoggerService`   | Your own logger                                           |
 
 ```ts
-import { ConsoleLogger, NaviosFactory } from '@navios/core'
+import { ConsoleLogger, NaviosFactory } from '@navios/server'
 
 const app = await NaviosFactory.create(AppModule, {
   adapter: defineFastifyEnvironment(),
@@ -126,7 +126,7 @@ The levels are `verbose`, `debug`, `log`, `warn`, `error` and `fatal`.
 A `LoggerService` is any object with `log`, `error` and `warn` methods; `debug`, `verbose` and `fatal` are optional. This is the place to connect pino, winston or a hosted log service.
 
 ```ts
-import type { LoggerService } from '@navios/core'
+import type { LoggerService } from '@navios/server'
 
 const jsonLines: LoggerService = {
   log: (message, ...rest) => console.log(JSON.stringify({ level: 'info', message, rest })),

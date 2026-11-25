@@ -6,14 +6,14 @@ title: Writing an adapter
 
 An adapter binds Navios to an HTTP server. It registers routes with the server, turns each native request into a `RouteInput`, calls the route's executor and writes the `RouteResult` it gets back. It contains no guard, validation or error-mapping logic: all of that is inside the executor and is the same on every adapter.
 
-The shipped adapters are the working references. `@navios/adapter-fastify` and `@navios/adapter-bun` are each one source file, and the in-memory adapter in `@navios/core/testing` is the smallest implementation.
+The shipped adapters are the working references. `@navios/adapter-fastify` and `@navios/adapter-bun` are each one source file, and the in-memory adapter in `@navios/server/testing` is the smallest implementation.
 
 ## The definition
 
 An adapter package exports a function that returns an `AdapterDefinition`. Its environment type says what the application sees.
 
 ```ts
-import type { AdapterDefinition, HttpAdapterEnvironment } from '@navios/core'
+import type { AdapterDefinition, HttpAdapterEnvironment } from '@navios/server'
 
 export interface MyEnvironment extends HttpAdapterEnvironment {
   raw: { request: MyRequest } // what ctx.raw is
@@ -42,7 +42,7 @@ An application opts in to these types with the `Register` declaration described 
 
 Server features such as CORS, body limits and multipart are options of the definition function, because the application has no methods for them.
 
-A body over the adapter's limit must be answered with a 413 problem response: write `problem(413, detail)` from `@navios/core` when the server reports it before the executor runs, or throw `new HttpException(413, detail)` from `body()`. Do not let the server answer with a page of its own.
+A body over the adapter's limit must be answered with a 413 problem response: write `problem(413, detail)` from `@navios/server` when the server reports it before the executor runs, or throw `new HttpException(413, detail)` from `body()`. Do not let the server answer with a page of its own.
 
 ## The `HttpAdapter` contract
 
@@ -139,7 +139,7 @@ interface RouteResult {
 | `empty`  | Ignore `body`. Send no body.                                         | none                        |
 
 - A `content-type` in `result.headers` wins over the default. Core writes lower-case header names into `result.headers`.
-- Serialise each entry of `result.cookies` with `serializeCookie(cookie)` from `@navios/core` and send one `Set-Cookie` header per entry.
+- Serialise each entry of `result.cookies` with `serializeCookie(cookie)` from `@navios/server` and send one `Set-Cookie` header per entry.
 - When the client disconnects while a stream is being written, stop iterating and call the iterator's `return()`.
 - Custom kinds registered by [plugins](/docs/server/guides/plugins) are converted to one of the kinds above before the result reaches the adapter.
 
@@ -153,7 +153,7 @@ A result whose body cannot be written, because `JSON.stringify` throws or a head
 
 ## Running the conformance suite
 
-`runAdapterConformance` from `@navios/core/conformance` exercises an adapter over real HTTP. It covers:
+`runAdapterConformance` from `@navios/server/conformance` exercises an adapter over real HTTP. It covers:
 
 - JSON routes with URL parameters and a coerced query, prefix parameters, JSON `null`
 - route precedence (static before parameter) and no match for a trailing slash or an empty URL parameter, over HTTP and with `inject()`
@@ -170,7 +170,7 @@ A result whose body cannot be written, because `JSON.stringify` throws or a head
 It takes the test runner's functions as an argument, so it runs under Vitest, `bun:test` or anything with the same five functions. It uses a small built-in Standard Schema implementation and depends on no schema library.
 
 ```ts title="e2e/conformance.spec.mts"
-import { runAdapterConformance } from '@navios/core/conformance'
+import { runAdapterConformance } from '@navios/server/conformance'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 
 import { defineMyEnvironment } from '../src/index.mjs'

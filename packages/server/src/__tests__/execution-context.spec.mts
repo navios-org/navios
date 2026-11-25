@@ -133,7 +133,7 @@ describe('RequestContext as an ExecutionContext', () => {
     expect((await createTestClient(app)(probe)).body).toEqual(['admin'])
   })
 
-  it('tells an HTTP context from another transport\'s', async () => {
+  it("tells an HTTP context from another transport's", async () => {
     @Controller()
     class Ctl {
       probe = handler(probe, (_params, ctx) => isHttpContext(ctx))

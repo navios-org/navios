@@ -1,42 +1,41 @@
-// Message modules
-export {
-  MessageModule,
-  getMessageModuleMetadata,
-  hasMessageModuleMetadata,
-} from './modules/index.mjs'
-export type { MessageModuleMetadata } from './modules/index.mjs'
+// Adds `messageControllers` to `@Module`.
+import './module-options.mjs'
 
-// Message controllers
+export { messageTransport } from './transport/message-transport.mjs'
+export type {
+  MessageHandlerInfo,
+  MessageTransport,
+  MessageTransportOptions,
+} from './transport/message-transport.mjs'
+
 export {
-  MessageController,
   getMessageControllerMetadata,
   hasMessageControllerMetadata,
+  MessageController,
 } from './controllers/index.mjs'
-export type { MessageControllerMetadata } from './controllers/index.mjs'
+export type { MessageControllerMetadata, MessageControllerOptions } from './controllers/index.mjs'
 
-// Message handlers
-export { Message, getMessageHandlerMetadata } from './handlers/index.mjs'
-export type { MessageHandlerMetadata, MessageParams, MessageResult } from './handlers/index.mjs'
+export { Message } from './handlers/index.mjs'
+export type { MessageParams, MessageResult } from './handlers/index.mjs'
 
-// Guards
-export type { MessageExecutionContext, MessageGuard } from './guards/index.mjs'
+export { isMessageContext, MessageContext } from './context/message-context.mjs'
+export type { MessageGuard, MessageInterceptor } from './guards/index.mjs'
+export { MessageDeniedError, MessageValidationError } from './errors.mjs'
 
-// Attributes
+// Attributes that describe how a handler wants its messages treated. They
+// are stored on the handler and can be read with `AttributeFactory`; this
+// package does not act on them yet.
 export {
   Ack,
-  NoAck,
-  ManualAck,
-  Retry,
-  DeadLetterQueue,
+  BatchProcessing,
   Concurrency,
-  Timeout,
+  DeadLetterQueue,
   ErrorHandling,
   Idempotency,
-  RateLimit,
-  BatchProcessing,
+  ManualAck,
+  NoAck,
   Priority,
+  RateLimit,
+  Retry,
+  Timeout,
 } from './attributes/index.mjs'
-export type { MessageMetadata } from './attributes/index.mjs'
-
-// Runtime
-export { MessageHandlerService, MicroserviceFactory } from './runtime/index.mjs'

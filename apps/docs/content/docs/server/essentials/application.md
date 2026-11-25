@@ -8,7 +8,7 @@ An application is created from a root module and an adapter, then initialised an
 
 ```ts title="main.mts"
 import { defineFastifyEnvironment } from '@navios/adapter-fastify'
-import { NaviosFactory } from '@navios/core'
+import { NaviosFactory } from '@navios/server'
 
 import { AppModule } from './app.module.mjs'
 
@@ -88,9 +88,9 @@ An error in any step rejects the promise returned by `init()`, and therefore the
 Any singleton service may implement these:
 
 ```ts
-import { Injectable } from '@navios/core'
+import { Injectable } from '@navios/server'
 
-import type { OnApplicationBootstrap, OnApplicationShutdown } from '@navios/core'
+import type { OnApplicationBootstrap, OnApplicationShutdown } from '@navios/server'
 
 @Injectable()
 export class SearchIndex implements OnApplicationBootstrap, OnApplicationShutdown {

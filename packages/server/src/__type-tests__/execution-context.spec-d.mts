@@ -6,11 +6,11 @@ import type {
   PlainContextKey,
 } from '@navios/core'
 import type { ExecutionContext, HandlerInfo } from '@navios/core'
+import type { ModuleOptions as CoreModuleOptions } from '@navios/core'
 
 import { isHttpContext, Module, RequestValue } from '../index.mjs'
 
 import type { ContextKey, RequestContext, RouteInfo } from '../index.mjs'
-import type { ModuleOptions as CoreModuleOptions } from '@navios/core'
 
 describe('execution context contracts', () => {
   it('is implemented by the request context', () => {

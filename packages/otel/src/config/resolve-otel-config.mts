@@ -8,7 +8,7 @@ export function resolveOtelConfig(config: OtelConfig): ResolvedOtelConfig {
     ...config,
     autoInstrument: {
       http: config.autoInstrument?.http ?? true,
-      handlers: config.autoInstrument?.handlers ?? 'auto',
+      transports: config.autoInstrument?.transports ?? 'auto',
     },
     metrics: {
       enabled: config.metrics?.enabled ?? false,

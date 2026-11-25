@@ -104,9 +104,9 @@ export const getMe = API.declareEndpoint({
 The handler checks the credentials and signs a payload. `PasswordsService` stands for however your application verifies a password; its `check` resolves to `{ id, roles }` or `null`. `Public` is defined with the guard in the next section.
 
 ```ts title="auth.controller.mts"
-import { Controller, Endpoint, inject, reply } from '@navios/core'
+import { Controller, Endpoint, inject, reply } from '@navios/server'
 
-import type { HandlerParams } from '@navios/core'
+import type { HandlerParams } from '@navios/server'
 
 @Controller()
 export class AuthController {
@@ -138,10 +138,10 @@ import {
   inject,
   Injectable,
   UnauthorizedException,
-} from '@navios/core'
+} from '@navios/server'
 import { JsonWebTokenError, TokenExpiredError } from '@navios/jwt'
 
-import type { Guard, RequestContext } from '@navios/core'
+import type { Guard, RequestContext } from '@navios/server'
 
 import { Jwt } from './jwt.mjs'
 
@@ -265,7 +265,7 @@ app.mapError(JsonWebTokenError, () => problem(401, 'Invalid or expired token'))
 `JwtService` is the default provider of `JwtServiceToken`, and the token `provideJwtService` returns is bound to it. To use another implementation, for example a fake in a test, bind it with `provide()`:
 
 ```ts
-import { NaviosFactory, provide } from '@navios/core'
+import { NaviosFactory, provide } from '@navios/server'
 import { JwtServiceToken } from '@navios/jwt'
 
 const app = await NaviosFactory.create(AppModule, {

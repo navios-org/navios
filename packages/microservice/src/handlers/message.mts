@@ -1,61 +1,58 @@
-import type { BaseMessageConfig } from '@navios/queues'
-import type { z, ZodType } from 'zod/v4'
+import { memberMetadata } from '@navios/core/transport'
 
-import { getMessageHandlerMetadata } from './message-handler-metadata.mjs'
+import type { MethodHandlerMetadata } from '@navios/core/transport'
+import type { BaseMessageConfig } from '@navios/queues'
+
+import type { MessageParams, MessageResult } from './message-params.mjs'
+
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
+/** Where `@Message` keeps a member's message declaration among its entries. */
+const MessageEntryKey = Symbol.for('navios.microservice.message')
+
+type AnyDeclaration = { config: BaseMessageConfig<any, any, any> }
 
 /**
- * Decorator that marks a method as a message handler.
+ * Makes a method of a message controller the handler of a message declared
+ * with `messageBuilder()`.
  *
- * The message must be defined using @navios/queues messageBuilder helper methods.
- * This ensures type safety and consistency between message publishers and handlers.
- *
- * @param message - The message definition from @navios/queues messageBuilder
- * @returns A method decorator
- *
- * @example
- * ```typescript
- * import { messageBuilder } from '@navios/queues'
- *
- * const createUserMessage = messageBuilder.declarePubSub({
- *   topic: 'user.create',
- *   payloadSchema: z.object({ name: z.string(), email: z.string().email() }),
- * })
- *
- * @MessageController()
- * export class UserMessageController {
- *   @Message(createUserMessage)
- *   async handleCreateUser(params: MessageParams<typeof createUserMessage>) {
- *     const { payload } = params
- *     // Handle message
- *   }
- * }
+ * ```ts
+ * @Message(userCreated)
+ * async onCreated({ payload }: MessageParams<typeof userCreated>) {}
  * ```
  */
-export function Message<
-  Pattern extends 'pubsub' | 'point-to-point' | 'request-reply' = any,
-  PayloadSchema extends ZodType = ZodType,
-  ResponseSchema extends ZodType = ZodType,
->(message: { config: BaseMessageConfig<Pattern, PayloadSchema, ResponseSchema> }) {
+export function Message<Declaration extends AnyDeclaration>(message: Declaration) {
   return (
-    target: (params: {
-      payload: z.input<PayloadSchema>
-    }) => Promise<z.input<ResponseSchema> | void> | z.input<ResponseSchema> | void,
+    _target: (
+      params: MessageParams<Declaration>,
+      ...rest: any[]
+    ) => MessageResult<Declaration> | Awaited<MessageResult<Declaration>> | Promise<void> | void,
     context: ClassMethodDecoratorContext,
-  ) => {
+  ): void => {
     if (context.kind !== 'method') {
-      throw new Error('[Navios/Microservice] Message decorator can only be used on methods.')
+      throw new Error('[Navios] @Message can only be used on methods.')
     }
-    const config = message.config
-    if (context.metadata) {
-      let handlerMetadata = getMessageHandlerMetadata<BaseMessageConfig>(target, context)
-      if (handlerMetadata.config && handlerMetadata.config.pattern) {
-        throw new Error(
-          `[Navios/Microservice] Message handler ${config.pattern} ${config.topic || config.queue} already exists. Please use a different message definition.`,
-        )
-      }
-      handlerMetadata.config = config
-      handlerMetadata.classMethod = target.name
+    if (typeof context.name !== 'string') {
+      throw new Error('[Navios] @Message cannot be used on symbol-named methods.')
     }
-    return target
+    const member = memberMetadata(context, context.name)
+    const existing = memberMessage(member)
+    if (existing !== null && existing !== message.config) {
+      throw new Error(
+        `[Navios] ${context.name} already handles ${existing.pattern} ` +
+          `${messageDestination(existing)}; a method can handle one message.`,
+      )
+    }
+    member.entries.set(MessageEntryKey, message.config)
   }
+}
+
+/** The message a member handles, or `null` when it is not a message handler. */
+export function memberMessage(member: MethodHandlerMetadata): BaseMessageConfig | null {
+  return (member.entries.get(MessageEntryKey) as BaseMessageConfig | undefined) ?? null
+}
+
+/** The topic or queue a message travels on. */
+export function messageDestination(config: BaseMessageConfig<any, any, any>): string {
+  return (config.pattern === 'point-to-point' ? config.queue : config.topic) ?? ''
 }

@@ -22,9 +22,18 @@ const packagesDir = join(dirname(fileURLToPath(import.meta.url)), '..')
 
 const ZOD_IMPORT = /from\s*["']zod(\/[^"']*)?["']|require\(["']zod(\/[^"']*)?["']\)/
 
+/** An import of the HTTP layer or of the endpoint builder. */
+const HTTP_IMPORT = /(from\s*|require\()["']@navios\/(server|builder)/
+
 const targets = [
   { name: 'di', budget: 60_000, forbidden: [/_apply_decs/, ZOD_IMPORT, /node:async_hooks/] },
-  { name: 'core', budget: 105_000, forbidden: [/_apply_decs/, ZOD_IMPORT] },
+  // No HTTP in core: none of its files may import the server or the builder.
+  {
+    name: 'core',
+    budget: 62_000,
+    forbidden: [/_apply_decs/, ZOD_IMPORT, HTTP_IMPORT],
+  },
+  { name: 'server', budget: 76_000, forbidden: [/_apply_decs/, ZOD_IMPORT] },
   { name: 'adapter-fastify', budget: 12_000, forbidden: [/_apply_decs/, ZOD_IMPORT] },
   { name: 'adapter-bun', budget: 20_000, forbidden: [/_apply_decs/, ZOD_IMPORT] },
 ]
