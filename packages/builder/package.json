@@ -1,6 +1,6 @@
 {
   "name": "@navios/builder",
-  "version": "2.0.0",
+  "version": "2.0.0-alpha.0",
   "license": "MIT",
   "author": {
     "name": "Oleksandr Hanzha",
@@ -58,7 +58,7 @@
     "lint": "yarn run -T oxlint --fix && yarn run -T oxfmt",
     "test:ci": "vitest run",
     "build": "tsdown",
-    "publish": "yarn npm publish --access public",
+    "publish": "node ../../scripts/assert-stable-version.mjs && yarn npm publish --access public",
     "publish:next": "yarn npm publish --access public --tag next"
   },
   "devDependencies": {
@@ -67,13 +67,5 @@
     "typescript": "^7.0.2",
     "valibot": "^1.5.0",
     "zod": "^4.6.7"
-  },
-  "peerDependencies": {
-    "zod": "^3.25.0 || ^4.0.0"
-  },
-  "peerDependenciesMeta": {
-    "zod": {
-      "optional": true
-    }
   }
 }

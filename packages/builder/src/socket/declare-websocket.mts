@@ -1,6 +1,8 @@
 import { appendQuery } from '../shared/append-query.mjs'
 import { bindUrlParams } from '../shared/bind-url-params.mjs'
-import { parseSync } from '../shared/validate.mjs'
+import { dispatch } from '../shared/dispatch.mjs'
+import { NaviosError } from '../shared/navios-error.mjs'
+import { parseQuery } from '../shared/validate.mjs'
 
 import { reportSocketError } from './report-socket-error.mjs'
 
@@ -27,6 +29,17 @@ const LIFECYCLE_EVENTS: ReadonlySet<string> = new Set([
   'connect_error',
   'message',
 ])
+
+/** A socket such as the one of `ws`, whose `send` takes a callback. Others ignore it. */
+interface CallbackSocket {
+  send(data: string, done: (error?: unknown) => void): void
+}
+
+// The states of a WebSocket, as numbers: the constructor may be one of the
+// caller's, where there is no global `WebSocket` to read them from.
+const CONNECTING = 0
+const OPEN = 1
+const CLOSING = 2
 
 /**
  * Creates a WebSocket handler factory function.
@@ -65,32 +78,40 @@ export function createWebSocketHandler(config: CreateWebSocketHandlerConfig = {}
   return function declareWebSocket<const Options extends DeclareWebSocketOptions>(
     options: Options,
   ): WebSocketHandler<Options> {
-    const handlerFn = (params: Record<string, unknown>): WebSocketSocketHandle => {
-      // Build URL with params
-      const urlPart = bindUrlParams(
-        options.url,
-        params as { urlParams?: Record<string, string | number> },
-        options.urlParamsSchema,
-      )
+    const handlerFn = (
+      params: {
+        urlParams?: Record<string, unknown>
+        params?: Record<string, unknown>
+      } = {},
+    ): WebSocketSocketHandle => {
+      const WebSocketImpl = config.WebSocket ?? globalThis.WebSocket
+      if (!WebSocketImpl) {
+        throw new NaviosError(
+          '[Navios-Socket]: this runtime has no WebSocket. Pass one to createWebSocketHandler({ WebSocket })',
+        )
+      }
 
-      // Validate query parameters
-      const query =
-        options.querySchema && 'params' in params && params.params
-          ? (parseSync(options.querySchema, params.params) as Record<string, unknown>)
-          : undefined
+      // Build URL with params
+      const urlPart = bindUrlParams(options.url, params, options.urlParamsSchema)
+
+      // Validate query parameters, so that defaults and required fields apply
+      // to a call without any
+      const query = parseQuery(options.querySchema, params.params)
 
       // Construct full WebSocket URL
       const fullUrl = appendQuery(`${config.baseUrl ?? ''}${urlPart}`, query)
 
       // Create WebSocket
-      const ws = new WebSocket(fullUrl, options.protocols)
+      const ws = new WebSocketImpl(fullUrl, options.protocols) as WebSocket
+      const isPlatformSocket =
+        typeof globalThis.WebSocket === 'function' && ws instanceof globalThis.WebSocket
 
       // Track state
       let currentState: WebSocketHandleState = 'connecting'
 
-      // Listener management (Socket.IO compatible). Lifecycle events of the
-      // connection and topics of server messages are kept apart, so a server
-      // topic named like a lifecycle event can never run a lifecycle listener.
+      // Lifecycle events of the connection and topics of server messages are
+      // kept apart, so a server topic named like a lifecycle event can never run
+      // a lifecycle listener.
       type Handler = (...args: unknown[]) => void
       const lifecycleHandlers = new Map<string, Set<Handler>>()
       const topicHandlers = new Map<string, Set<Handler>>()
@@ -107,11 +128,23 @@ export function createWebSocketHandler(config: CreateWebSocketHandlerConfig = {}
         handlers.add(handler)
       }
 
-      // Helper to dispatch to the listeners of one registry
-      const dispatch = (registry: Map<string, Set<Handler>>, event: string, ...args: unknown[]) => {
+      // Every acknowledgement is an event of its own, so an event without
+      // handlers must not stay in the registry
+      const removeHandler = (
+        registry: Map<string, Set<Handler>>,
+        event: string,
+        handler?: Handler,
+      ) => {
         const handlers = registry.get(event)
-        if (handlers) {
-          handlers.forEach((handler) => {
+        if (handler) handlers?.delete(handler)
+        if (!handler || handlers?.size === 0) registry.delete(event)
+      }
+
+      // Helper to notify the listeners of one registry
+      const notify = (registry: Map<string, Set<Handler>>, event: string, ...args: unknown[]) => {
+        dispatch(
+          () => registry.get(event),
+          (handler) => {
             try {
               handler(...args)
             } catch (cause) {
@@ -122,26 +155,26 @@ export function createWebSocketHandler(config: CreateWebSocketHandlerConfig = {}
                 cause,
               })
             }
-          })
-        }
+          },
+        )
       }
 
       // Set up WebSocket event handlers
       ws.onopen = (event) => {
         currentState = 'open'
-        dispatch(lifecycleHandlers, 'open', event)
-        dispatch(lifecycleHandlers, 'connect') // Socket.IO compatibility
+        notify(lifecycleHandlers, 'open', event)
+        notify(lifecycleHandlers, 'connect')
       }
 
       ws.onclose = (event) => {
         currentState = 'closed'
-        dispatch(lifecycleHandlers, 'close', event)
-        dispatch(lifecycleHandlers, 'disconnect', event.reason) // Socket.IO compatibility
+        notify(lifecycleHandlers, 'close', event)
+        notify(lifecycleHandlers, 'disconnect', event.reason)
       }
 
       ws.onerror = (event) => {
-        dispatch(lifecycleHandlers, 'error', event)
-        dispatch(lifecycleHandlers, 'connect_error', event) // Socket.IO compatibility
+        notify(lifecycleHandlers, 'error', event)
+        notify(lifecycleHandlers, 'connect_error', event)
       }
 
       ws.onmessage = (event) => {
@@ -158,57 +191,53 @@ export function createWebSocketHandler(config: CreateWebSocketHandlerConfig = {}
 
         // Every frame goes to the 'message' listeners once (socketBuilder
         // listens here and routes by its own parseMessage)
-        dispatch(lifecycleHandlers, 'message', data)
+        notify(lifecycleHandlers, 'message', data)
 
         // A frame in the array format also goes to the listeners of its topic.
         // This handles both regular messages and acknowledgement responses
         if (Array.isArray(data) && data.length >= 2 && typeof data[0] === 'string') {
-          dispatch(topicHandlers, data[0], data[1])
+          notify(topicHandlers, data[0], data[1])
         }
       }
 
-      // Serializes and sends one frame. A frame that could not be sent (the
-      // socket is still connecting, already closed, ...) is reported to
-      // `onError` and thrown, so the caller knows that nothing was sent.
+      const failSend = (event: string, reason: string, cause?: unknown) =>
+        reportSocketError(config.onError, {
+          kind: 'transport',
+          topic: event,
+          url: fullUrl,
+          message: `Failed to send "${event}" over the WebSocket${reason}`,
+          ...(cause !== undefined ? { cause } : {}),
+        })
+
+      // Serializes and sends one frame. A frame that could not be sent is
+      // reported to `onError` and thrown, so the caller knows that nothing was
+      // sent. A closed `WebSocket` would not throw, but discard the frame. A
+      // class of the caller may keep it until it is open again, so it decides;
+      // `ws` tells the callback that it did not.
       const transmit = (event: string, data: unknown) => {
+        if (isPlatformSocket && ws.readyState !== OPEN) {
+          throw failSend(event, ': it is not open')
+        }
         try {
-          ws.send(JSON.stringify(data))
+          const frame = JSON.stringify(data)
+          if (isPlatformSocket) ws.send(frame)
+          else (ws as CallbackSocket).send(frame, (cause) => cause && failSend(event, '', cause))
         } catch (cause) {
-          throw reportSocketError(config.onError, {
-            kind: 'transport',
-            topic: event,
-            url: fullUrl,
-            message: `Failed to send "${event}" over the WebSocket`,
-            cause,
-          })
+          throw failSend(event, '', cause)
         }
       }
 
-      // Create Socket.IO-compatible handle
       const handle: WebSocketSocketHandle = {
         emit(event: string, ...args: unknown[]): void {
-          // Check if last arg is a callback (for ack support in direct usage)
-          let callback: Handler | undefined
-          let messageArgs = args
-          if (args.length > 0 && typeof args[args.length - 1] === 'function') {
-            callback = args[args.length - 1] as Handler
-            messageArgs = args.slice(0, -1)
+          if (args.some((arg) => typeof arg === 'function')) {
+            throw failSend(
+              event,
+              ': a function cannot be sent. Use defineSend with an ackSchema to wait for a reply',
+            )
           }
-
-          // Socket.IO format [event, ...args], whatever the arguments look like.
+          // The format is [event, ...args], whatever the arguments look like.
           // Messages that are already formatted go through sendRaw instead.
-          transmit(event, [event, ...messageArgs])
-
-          // If callback provided, set up one-time listener for ack
-          if (callback) {
-            // Use reserved namespace for acks to match socketBuilder
-            const ackEvent = `__navios_ack:${event}`
-            const ackHandler = (...ackArgs: unknown[]) => {
-              handle.off(ackEvent, ackHandler)
-              callback!(...ackArgs)
-            }
-            handle.on(ackEvent, ackHandler)
-          }
+          transmit(event, [event, ...args])
         },
 
         sendRaw(topic: string, message: unknown): void {
@@ -220,19 +249,12 @@ export function createWebSocketHandler(config: CreateWebSocketHandlerConfig = {}
         },
 
         off(event: string, handler?: Handler): void {
-          const registry = handlersFor(event)
-          if (handler) {
-            registry.get(event)?.delete(handler)
-          } else {
-            registry.delete(event)
-          }
+          removeHandler(handlersFor(event), event, handler)
         },
 
         onTopic(topic: string, handler: (payload: unknown) => void): () => void {
           addHandler(topicHandlers, topic, handler)
-          return () => {
-            topicHandlers.get(topic)?.delete(handler)
-          }
+          return () => removeHandler(topicHandlers, topic, handler)
         },
 
         disconnect(code = 1000, reason?: string): void {
@@ -249,7 +271,7 @@ export function createWebSocketHandler(config: CreateWebSocketHandlerConfig = {}
         },
 
         get connected(): boolean {
-          return ws.readyState === WebSocket.OPEN
+          return ws.readyState === OPEN
         },
 
         get state(): WebSocketHandleState {
@@ -257,14 +279,12 @@ export function createWebSocketHandler(config: CreateWebSocketHandlerConfig = {}
             return currentState
           }
           switch (ws.readyState) {
-            case WebSocket.CONNECTING:
+            case CONNECTING:
               return 'connecting'
-            case WebSocket.OPEN:
+            case OPEN:
               return 'open'
-            case WebSocket.CLOSING:
+            case CLOSING:
               return 'closing'
-            case WebSocket.CLOSED:
-              return 'closed'
             default:
               return 'closed'
           }

@@ -16,9 +16,12 @@ export function getRetryAfterMs(meta: ResponseMeta | null): number | null {
 
 /**
  * Reads one cookie value from the response's `Set-Cookie` headers.
+ *
+ * Browsers do not let scripts read `Set-Cookie`: there it is always `null`, as
+ * it is on runtimes without `Headers.getSetCookie`.
  */
 export function getCookie(meta: ResponseMeta | null, name: string): string | null {
-  if (!meta) return null
+  if (typeof meta?.headers.getSetCookie !== 'function') return null
   const prefix = `${name}=`
   for (const entry of meta.headers.getSetCookie()) {
     const trimmed = entry.trim()

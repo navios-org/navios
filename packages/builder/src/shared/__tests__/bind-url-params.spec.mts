@@ -17,6 +17,38 @@ describe('bindUrlParams', () => {
     })
   })
 
+  describe('values', () => {
+    it('should write a Date as ISO string', () => {
+      const date = new Date(5)
+
+      expect(bindUrlParams('/at/$date', { urlParams: { date } })).toBe(
+        `/at/${encodeURIComponent(date.toISOString())}`,
+      )
+    })
+
+    it.each([
+      ['bigint', 5n, '5'],
+      ['boolean', false, 'false'],
+      ['zero', 0, '0'],
+    ])('should write a %s', (_name, value, text) => {
+      expect(bindUrlParams('/x/$v', { urlParams: { v: value } })).toBe(`/x/${text}`)
+    })
+
+    it.each([
+      ['an object', { a: 1 }],
+      ['an array', ['a']],
+      ['NaN', NaN],
+      ['Infinity', Infinity],
+      ['an invalid Date', new Date(NaN)],
+      ['a symbol', Symbol('x')],
+      ['a function', () => 'x'],
+    ])('should refuse %s, which has no form in a URL', (_name, value) => {
+      expect(() => bindUrlParams('/x/$v', { urlParams: { v: value } })).toThrow(
+        'Invalid URL parameters (not a string, finite number, boolean or Date): v',
+      )
+    })
+  })
+
   describe('basic replacements', () => {
     it('should replace url params', () => {
       const url = bindUrlParams('/users/$id', {
@@ -217,6 +249,12 @@ describe('bindUrlParams', () => {
       expect(url).toBe('/range/1-20')
     })
 
+    it('should end a param name at a colon', () => {
+      const url = bindUrlParams('/c/$id:verb', { urlParams: { id: 'x' } })
+
+      expect(url).toBe('/c/x:verb')
+    })
+
     it('should keep a $ followed by a digit literal', () => {
       expect(bindUrlParams('/price/$5', {})).toBe('/price/$5')
       expect(bindUrlParams('/price/$5/$id', { urlParams: { id: 3 } })).toBe('/price/$5/3')
@@ -250,6 +288,10 @@ describe('getUrlParamNames', () => {
       'b',
       '_x9',
     ])
+  })
+
+  it('should end a name at any other character', () => {
+    expect(getUrlParamNames('/c/$id:verb/$a(1)/$b$c')).toEqual(['id', 'a', 'b', 'c'])
   })
 
   it('should ignore a $ that does not start an identifier', () => {

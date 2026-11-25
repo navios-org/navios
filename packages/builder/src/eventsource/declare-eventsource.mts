@@ -1,6 +1,8 @@
 import { appendQuery } from '../shared/append-query.mjs'
 import { bindUrlParams } from '../shared/bind-url-params.mjs'
-import { parseSync } from '../shared/validate.mjs'
+import { dispatch } from '../shared/dispatch.mjs'
+import { NaviosError } from '../shared/navios-error.mjs'
+import { parseQuery } from '../shared/validate.mjs'
 
 import { reportEventSourceError } from './report-eventsource-error.mjs'
 
@@ -13,6 +15,29 @@ import type {
   EventSourceHandleState,
   EventSourceHandle,
 } from './eventsource-handle.mjs'
+
+// The states of an EventSource, as numbers: the constructor may be one of the
+// caller's, where there is no global `EventSource` to read them from.
+const CONNECTING = 0
+const OPEN = 1
+const CLOSED = 2
+
+/**
+ * Whether an event was sent by the server. The connection has events of its own,
+ * `open` and `error`, and nothing keeps a server from using these names.
+ */
+function isServerEvent(event: object): event is MessageEvent<string> {
+  return 'data' in event
+}
+
+/** Event data as JSON, or as it is when it is not JSON. */
+function parseData(text: string): unknown {
+  try {
+    return JSON.parse(text)
+  } catch {
+    return text
+  }
+}
 
 /**
  * Creates an EventSource handler factory function.
@@ -51,46 +76,57 @@ export function createEventSourceHandler(config: CreateEventSourceHandlerConfig 
   return function declareEventSource<const Options extends DeclareEventSourceOptions>(
     options: Options,
   ): EventSourceHandler<Options> {
-    const handlerFn = (params: Record<string, unknown> = {}): EventSourceHandle => {
-      // Build URL with params
-      const urlPart = bindUrlParams(
-        options.url,
-        params as { urlParams?: Record<string, string | number> },
-        options.urlParamsSchema,
-      )
+    const handlerFn = (
+      params: {
+        urlParams?: Record<string, unknown>
+        params?: Record<string, unknown>
+      } = {},
+    ): EventSourceHandle => {
+      const EventSourceImpl = config.EventSource ?? globalThis.EventSource
+      if (!EventSourceImpl) {
+        throw new NaviosError(
+          '[Navios-EventSource]: this runtime has no EventSource. Pass one to createEventSourceHandler({ EventSource })',
+        )
+      }
 
-      // Validate query parameters
-      const query =
-        options.querySchema && 'params' in params && params.params
-          ? (parseSync(options.querySchema, params.params) as Record<string, unknown>)
-          : undefined
+      // Build URL with params
+      const urlPart = bindUrlParams(options.url, params, options.urlParamsSchema)
+
+      // Validate query parameters, so that defaults and required fields apply
+      // to a call without any
+      const query = parseQuery(options.querySchema, params.params)
 
       // Construct full EventSource URL
       const fullUrl = appendQuery(`${config.baseUrl ?? ''}${urlPart}`, query)
 
       // Create EventSource
-      const eventSource = new EventSource(fullUrl, {
+      const eventSource = new EventSourceImpl(fullUrl, {
         withCredentials: options.withCredentials,
-      })
+      }) as EventSource
 
       // Track state
       let currentState: EventSourceHandleState = 'connecting'
 
-      // A throwing listener must not stop its siblings; it is reported instead.
-      const reportHandlerError = (eventName: string, cause: unknown) => {
-        reportEventSourceError(config.onError, {
-          kind: 'transport',
-          eventName,
-          url: fullUrl,
-          cause,
-        })
-      }
-
       // Event listener management
-      type Handler = (data: unknown) => void
+      type Handler = (data: unknown, text?: string) => void
       const eventHandlers = new Map<string, Set<Handler>>()
       const errorHandlers = new Set<(error: Event) => void>()
       const openHandlers = new Set<(event: Event) => void>()
+
+      // Calls one listener. A throwing listener must not stop its siblings; it
+      // is reported instead.
+      const callSafely = (eventName: string, call: () => void) => {
+        try {
+          call()
+        } catch (cause) {
+          reportEventSourceError(config.onError, {
+            kind: 'transport',
+            eventName,
+            url: fullUrl,
+            cause,
+          })
+        }
+      }
 
       // Helper to get or create handler set
       const getHandlers = (event: string): Set<Handler> => {
@@ -102,58 +138,45 @@ export function createEventSourceHandler(config: CreateEventSourceHandlerConfig 
         return handlers
       }
 
-      // Helper to parse event data (JSON by default)
-      const parseData = (rawData: string): unknown => {
-        try {
-          return JSON.parse(rawData)
-        } catch {
-          return rawData
-        }
+      const deliver = (eventName: string, event: MessageEvent<string>) => {
+        const data = parseData(event.data)
+        dispatch(
+          () => eventHandlers.get(eventName),
+          (handler) => callSafely(eventName, () => handler(data, event.data)),
+        )
       }
+
+      // The last `open` event, for listeners that are added after it
+      let openEvent: Event | undefined
 
       // Set up EventSource event handlers
       eventSource.onopen = (event) => {
+        if (isServerEvent(event)) return
         currentState = 'open'
-        openHandlers.forEach((handler) => {
-          try {
-            handler(event)
-          } catch (cause) {
-            reportHandlerError('open', cause)
-          }
-        })
+        openEvent = event
+        dispatch(
+          () => openHandlers,
+          (handler) => callSafely('open', () => handler(event)),
+        )
       }
 
       eventSource.onerror = (event) => {
-        errorHandlers.forEach((handler) => {
-          try {
-            handler(event)
-          } catch (cause) {
-            reportHandlerError('error', cause)
-          }
-        })
-        if (eventSource.readyState === EventSource.CLOSED) {
+        if (isServerEvent(event)) return
+        dispatch(
+          () => errorHandlers,
+          (handler) => callSafely('error', () => handler(event)),
+        )
+        if (eventSource.readyState === CLOSED) {
           currentState = 'closed'
         }
       }
 
       // Handle default 'message' events (events without a specific type)
-      eventSource.onmessage = (event) => {
-        const data = parseData(event.data)
-        const handlers = eventHandlers.get('message')
-        if (handlers) {
-          handlers.forEach((handler) => {
-            try {
-              handler(data)
-            } catch (cause) {
-              reportHandlerError('message', cause)
-            }
-          })
-        }
-      }
+      eventSource.onmessage = (event) => deliver('message', event)
 
       // Track which custom event listeners have been set up on the EventSource
       // Store listener references for cleanup
-      const eventSourceListeners = new Map<string, (event: MessageEvent) => void>()
+      const eventSourceListeners = new Map<string, (event: Event) => void>()
 
       // Helper to set up listener for custom events
       const setupEventListener = (eventName: string) => {
@@ -161,18 +184,8 @@ export function createEventSourceHandler(config: CreateEventSourceHandlerConfig 
           return
         }
 
-        const listener = (event: MessageEvent) => {
-          const data = parseData(event.data)
-          const handlers = eventHandlers.get(eventName)
-          if (handlers) {
-            handlers.forEach((handler) => {
-              try {
-                handler(data)
-              } catch (cause) {
-                reportHandlerError(eventName, cause)
-              }
-            })
-          }
+        const listener = (event: Event) => {
+          if (isServerEvent(event)) deliver(eventName, event)
         }
 
         eventSource.addEventListener(eventName, listener)
@@ -205,12 +218,8 @@ export function createEventSourceHandler(config: CreateEventSourceHandlerConfig 
         onOpen(handler: (event: Event) => void): () => void {
           openHandlers.add(handler)
           // If already open, call immediately
-          if (eventSource.readyState === EventSource.OPEN) {
-            try {
-              handler(new Event('open'))
-            } catch (cause) {
-              reportHandlerError('open', cause)
-            }
+          if (eventSource.readyState === OPEN) {
+            callSafely('open', () => handler(openEvent ?? ({ type: 'open' } as Event)))
           }
           return () => {
             openHandlers.delete(handler)
@@ -235,18 +244,16 @@ export function createEventSourceHandler(config: CreateEventSourceHandlerConfig 
         },
 
         get connected(): boolean {
-          return eventSource.readyState === EventSource.OPEN
+          return eventSource.readyState === OPEN
         },
 
         get state(): EventSourceHandleState {
           if (currentState === 'closed') return 'closed'
           switch (eventSource.readyState) {
-            case EventSource.CONNECTING:
+            case CONNECTING:
               return 'connecting'
-            case EventSource.OPEN:
+            case OPEN:
               return 'open'
-            case EventSource.CLOSED:
-              return 'closed'
             default:
               return 'closed'
           }

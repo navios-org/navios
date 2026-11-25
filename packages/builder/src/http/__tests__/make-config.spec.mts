@@ -112,116 +112,85 @@ describe('makeConfig', () => {
     })
   })
 
-  describe('with querySchema', () => {
-    const querySchema = z.object({
-      page: z.number(),
-      limit: z.number(),
-    })
+  describe('params', () => {
+    it('should be the params of the call, or an empty object', () => {
+      const options = { method: 'GET', url: '/users', responseSchema } as const
 
-    it('should parse and include query params', () => {
-      const config = makeConfig(
-        { params: { page: 1, limit: 10 } } as any,
-        {
-          method: 'GET',
-          url: '/users',
-          querySchema,
-          responseSchema,
-        } as any,
-        '/users',
-      )
-
-      expect(config.params).toEqual({ page: 1, limit: 10 })
-    })
-
-    it('should validate query params with schema', () => {
-      const schemaWithCoercion = z.object({
-        page: z.coerce.number(),
-        limit: z.coerce.number(),
-      })
-
-      const config = makeConfig(
-        { params: { page: '1', limit: '10' } } as any,
-        {
-          method: 'GET',
-          url: '/users',
-          querySchema: schemaWithCoercion,
-          responseSchema,
-        } as any,
-        '/users',
-      )
-
-      expect(config.params).toEqual({ page: 1, limit: 10 })
-    })
-
-    it('should return empty object when no querySchema and no params', () => {
-      const config = makeConfig(
-        {} as any,
-        {
-          method: 'GET',
-          url: '/users',
-          responseSchema,
-        } as any,
-        '/users',
-      )
-
-      expect(config.params).toEqual({})
+      expect(makeConfig({ params: { page: 1 } }, options, '/users').params).toEqual({ page: 1 })
+      expect(makeConfig({}, options, '/users').params).toEqual({})
     })
   })
 
-  describe('with requestSchema', () => {
-    const requestSchema = z.object({
-      name: z.string(),
-      email: z.string().email(),
-    })
-
-    it('should parse and include request data', () => {
+  describe('header names', () => {
+    it('should let a later level replace a header spelled differently', () => {
       const config = makeConfig(
-        { data: { name: 'John', email: 'john@example.com' } } as any,
-        {
-          method: 'POST',
-          url: '/users',
-          requestSchema,
-          responseSchema,
-        } as any,
-        '/users',
-      )
-
-      expect(config.data).toEqual({ name: 'John', email: 'john@example.com' })
-    })
-
-    it('should transform data with schema', () => {
-      const schemaWithTransform = z.object({
-        name: z.string().transform((s) => s.trim()),
-        count: z.coerce.number(),
-      })
-
-      const config = makeConfig(
-        { data: { name: '  John  ', count: '42' } } as any,
-        {
-          method: 'POST',
-          url: '/users',
-          requestSchema: schemaWithTransform,
-          responseSchema,
-        } as any,
-        '/users',
-      )
-
-      expect(config.data).toEqual({ name: 'John', count: 42 })
-    })
-
-    it('should set data to undefined when no requestSchema', () => {
-      const config = makeConfig(
-        {} as any,
+        { headers: { 'x-feature': 'call' } },
         {
           method: 'GET',
           url: '/users',
           responseSchema,
-        } as any,
+          headers: { 'X-Feature': 'endpoint', Accept: 'text/csv' },
+          clientOptions: { headers: { ACCEPT: '*/*' } },
+        },
         '/users',
       )
 
-      expect(config.data).toBeUndefined()
+      expect(config.headers).toEqual({ 'x-feature': 'call', Accept: 'text/csv' })
     })
+
+    it('should leave out undefined headers', () => {
+      const config = makeConfig(
+        { headers: { a: undefined as never } },
+        { method: 'GET', url: '/users', responseSchema, headers: { A: '1' } },
+        '/users',
+      )
+
+      expect(config.headers).toEqual({ A: '1' })
+    })
+  })
+
+  describe('primitive JSON bodies', () => {
+    const options = { method: 'POST', url: '/x', responseSchema } as const
+
+    it('should encode a string', () => {
+      const config = makeConfig({ data: '42' }, options, '/x')
+
+      expect(config.data).toBe('"42"')
+      expect(config.headers).toEqual({ 'content-type': 'application/json' })
+    })
+
+    it.each([0, 5, true, false, null])('should mark %j as JSON', (data) => {
+      const config = makeConfig({ data }, options, '/x')
+
+      expect(config.data).toBe(data)
+      expect(config.headers).toEqual({ 'content-type': 'application/json' })
+    })
+
+    it('should encode a string under a JSON content type of the endpoint', () => {
+      const headers = { 'Content-Type': 'application/vnd.api+json' }
+      const config = makeConfig({ data: 'x' }, { ...options, headers }, '/x')
+
+      expect(config.data).toBe('"x"')
+      expect(config.headers).toEqual(headers)
+    })
+
+    it('should leave a string under any other content type alone', () => {
+      const headers = { 'Content-Type': 'application/xml' }
+      const config = makeConfig({ data: '<a/>' }, { ...options, headers }, '/x')
+
+      expect(config.data).toBe('<a/>')
+      expect(config.headers).toEqual(headers)
+    })
+
+    it.each([undefined, { a: 1 }, ['a'], new FormData(), new Blob([])])(
+      'should leave %o to the client',
+      (data) => {
+        const config = makeConfig({ data }, options, '/x')
+
+        expect(config.data).toBe(data)
+        expect(config).not.toHaveProperty('headers')
+      },
+    )
   })
 
   describe('multipart mode', () => {
@@ -251,65 +220,37 @@ describe('makeConfig', () => {
       expect(formData.get('file')).toBeInstanceOf(File)
     })
   })
-
-  describe('combined schemas', () => {
-    const querySchema = z.object({ page: z.number() })
-    const requestSchema = z.object({ name: z.string() })
-
-    it('should handle both querySchema and requestSchema', () => {
-      const config = makeConfig(
-        {
-          params: { page: 1 },
-          data: { name: 'John' },
-        } as any,
-        {
-          method: 'POST',
-          url: '/users',
-          querySchema,
-          requestSchema,
-          responseSchema,
-        } as any,
-        '/users',
-      )
-
-      expect(config.params).toEqual({ page: 1 })
-      expect(config.data).toEqual({ name: 'John' })
-    })
-  })
 })
 
 describe('makeFormData', () => {
   describe('basic types', () => {
     it('should handle string values', () => {
-      const formData = makeFormData({ data: { name: 'John' } } as any, {} as any)
+      const formData = makeFormData({ name: 'John' })
 
       expect(formData.get('name')).toBe('John')
     })
 
     it('should handle number values', () => {
-      const formData = makeFormData({ data: { count: 42 } } as any, {} as any)
+      const formData = makeFormData({ count: 42 })
 
       expect(formData.get('count')).toBe('42')
     })
 
     it('should handle boolean values', () => {
-      const formData = makeFormData({ data: { active: true, disabled: false } } as any, {} as any)
+      const formData = makeFormData({ active: true, disabled: false })
 
       expect(formData.get('active')).toBe('true')
       expect(formData.get('disabled')).toBe('false')
     })
 
     it('should handle null values as empty string', () => {
-      const formData = makeFormData({ data: { value: null } } as any, {} as any)
+      const formData = makeFormData({ value: null })
 
       expect(formData.get('value')).toBe('')
     })
 
     it('should leave undefined values out', () => {
-      const formData = makeFormData(
-        { data: { value: undefined, list: ['a', undefined], kept: null } } as any,
-        {} as any,
-      )
+      const formData = makeFormData({ value: undefined, list: ['a', undefined], kept: null })
 
       expect(formData.has('value')).toBe(false)
       expect(formData.getAll('list')).toEqual(['a'])
@@ -317,10 +258,10 @@ describe('makeFormData', () => {
     })
 
     it('should send a Blob as a binary part', async () => {
-      const formData = makeFormData(
-        { data: { file: new Blob(['hello']), files: [new Blob(['a']), new Blob(['b'])] } } as any,
-        {} as any,
-      )
+      const formData = makeFormData({
+        file: new Blob(['hello']),
+        files: [new Blob(['a']), new Blob(['b'])],
+      })
 
       const part = formData.get('file') as Blob
       expect(part).toBeInstanceOf(Blob)
@@ -334,7 +275,7 @@ describe('makeFormData', () => {
       input.append('a', '1')
       input.append('a', '2')
 
-      const formData = makeFormData({ data: input } as any, {} as any)
+      const formData = makeFormData(input)
 
       expect(formData).toBe(input)
       expect([...formData.keys()]).toEqual(['a', 'a'])
@@ -344,7 +285,7 @@ describe('makeFormData', () => {
       const data = Object.create({ inherited: 'no' })
       data.own = 'yes'
 
-      const formData = makeFormData({ data } as any, {} as any)
+      const formData = makeFormData(data)
 
       expect([...formData.keys()]).toEqual(['own'])
     })
@@ -354,7 +295,7 @@ describe('makeFormData', () => {
     it('should handle File objects', () => {
       const file = new File(['content'], 'test.txt', { type: 'text/plain' })
 
-      const formData = makeFormData({ data: { file } } as any, {} as any)
+      const formData = makeFormData({ file })
 
       const result = formData.get('file') as File
       expect(result).toBeInstanceOf(File)
@@ -365,7 +306,7 @@ describe('makeFormData', () => {
       const file1 = new File(['content1'], 'file1.txt', { type: 'text/plain' })
       const file2 = new File(['content2'], 'file2.txt', { type: 'text/plain' })
 
-      const formData = makeFormData({ data: { files: [file1, file2] } } as any, {} as any)
+      const formData = makeFormData({ files: [file1, file2] })
 
       const files = formData.getAll('files') as File[]
       expect(files).toHaveLength(2)
@@ -378,7 +319,7 @@ describe('makeFormData', () => {
     it('should convert Date to ISO string', () => {
       const date = new Date('2024-01-15T12:00:00.000Z')
 
-      const formData = makeFormData({ data: { createdAt: date } } as any, {} as any)
+      const formData = makeFormData({ createdAt: date })
 
       expect(formData.get('createdAt')).toBe('2024-01-15T12:00:00.000Z')
     })
@@ -386,10 +327,7 @@ describe('makeFormData', () => {
 
   describe('object handling', () => {
     it('should JSON stringify plain objects', () => {
-      const formData = makeFormData(
-        { data: { metadata: { key: 'value', nested: { a: 1 } } } } as any,
-        {} as any,
-      )
+      const formData = makeFormData({ metadata: { key: 'value', nested: { a: 1 } } })
 
       expect(formData.get('metadata')).toBe('{"key":"value","nested":{"a":1}}')
     })
@@ -399,7 +337,7 @@ describe('makeFormData', () => {
         toISOString: () => '2024-custom-date',
       }
 
-      const formData = makeFormData({ data: { date: customDate } } as any, {} as any)
+      const formData = makeFormData({ date: customDate })
 
       expect(formData.get('date')).toBe('2024-custom-date')
     })
@@ -409,7 +347,7 @@ describe('makeFormData', () => {
         toJSON: () => ({ serialized: true }),
       }
 
-      const formData = makeFormData({ data: { obj: customObject } } as any, {} as any)
+      const formData = makeFormData({ obj: customObject })
 
       expect(formData.get('obj')).toBe('{"serialized":true}')
     })
@@ -417,14 +355,14 @@ describe('makeFormData', () => {
 
   describe('array handling', () => {
     it('should handle array of strings', () => {
-      const formData = makeFormData({ data: { tags: ['a', 'b', 'c'] } } as any, {} as any)
+      const formData = makeFormData({ tags: ['a', 'b', 'c'] })
 
       const tags = formData.getAll('tags')
       expect(tags).toEqual(['a', 'b', 'c'])
     })
 
     it('should handle array of numbers', () => {
-      const formData = makeFormData({ data: { ids: [1, 2, 3] } } as any, {} as any)
+      const formData = makeFormData({ ids: [1, 2, 3] })
 
       const ids = formData.getAll('ids')
       expect(ids).toEqual(['1', '2', '3'])
@@ -433,40 +371,13 @@ describe('makeFormData', () => {
     it('should handle mixed array with files and other types', () => {
       const file = new File(['content'], 'test.txt', { type: 'text/plain' })
 
-      const formData = makeFormData({ data: { items: [file, 'text', 123] } } as any, {} as any)
+      const formData = makeFormData({ items: [file, 'text', 123] })
 
       const items = formData.getAll('items')
       expect(items).toHaveLength(3)
       expect(items[0]).toBeInstanceOf(File)
       expect(items[1]).toBe('text')
       expect(items[2]).toBe('123')
-    })
-  })
-
-  describe('with requestSchema validation', () => {
-    it('should validate data with schema before creating FormData', () => {
-      const requestSchema = z.object({
-        name: z.string(),
-        count: z.coerce.number(),
-      })
-
-      const formData = makeFormData(
-        { data: { name: 'Test', count: '42' } } as any,
-        { requestSchema } as any,
-      )
-
-      expect(formData.get('name')).toBe('Test')
-      expect(formData.get('count')).toBe('42')
-    })
-
-    it('should transform data with schema', () => {
-      const requestSchema = z.object({
-        name: z.string().transform((s) => s.toUpperCase()),
-      })
-
-      const formData = makeFormData({ data: { name: 'test' } } as any, { requestSchema } as any)
-
-      expect(formData.get('name')).toBe('TEST')
     })
   })
 })

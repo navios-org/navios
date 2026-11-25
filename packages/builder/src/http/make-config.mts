@@ -1,13 +1,8 @@
-import { parseSync } from '../shared/validate.mjs'
-
 import type { AbstractRequestConfig } from './client.mjs'
 import type { BaseEndpointOptions, EndpointResponseKind } from './endpoint-options.mjs'
 
-/**
- * Request type for config creation.
- */
+/** The validated arguments of one call. */
 export interface ConfigRequest {
-  urlParams?: Record<string, unknown>
   params?: Record<string, unknown>
   data?: unknown
   signal?: AbortSignal | null
@@ -24,11 +19,43 @@ const RESPONSE_TYPES = {
   void: 'text',
 } as const satisfies Partial<Record<EndpointResponseKind, AbstractRequestConfig['responseType']>>
 
+const JSON_CONTENT_TYPE = /^\s*application\/(?:[\w.-]+\+)?json\s*(?:;|$)/i
+
+/**
+ * Merges headers; a later source replaces a header of the same name, however
+ * either is spelled. Two spellings of one name would both be sent, joined into
+ * one value.
+ */
+function mergeHeaders(...sources: (Record<string, string> | undefined)[]): Record<string, string> {
+  const merged = new Map<string, [name: string, value: string]>()
+  for (const source of sources) {
+    for (const [name, value] of Object.entries(source ?? {})) {
+      if (value !== undefined) merged.set(name.toLowerCase(), [name, value])
+    }
+  }
+  return Object.fromEntries(merged.values())
+}
+
+/**
+ * Makes sure a primitive body is sent as JSON. Objects are left to the client;
+ * a primitive is not recognised as JSON by clients: a string is sent as it is
+ * (so it is encoded here), and others are dropped or refused unless the content
+ * type says they are JSON.
+ */
+function encodePrimitive(data: unknown, headers: Record<string, string>): unknown {
+  if (data === undefined || (typeof data === 'object' && data !== null)) return data
+  const name = Object.keys(headers).find((key) => key.toLowerCase() === 'content-type')
+  if (name === undefined) {
+    headers['content-type'] = 'application/json'
+  } else if (!JSON_CONTENT_TYPE.test(headers[name]!)) {
+    return data
+  }
+  return typeof data === 'string' ? JSON.stringify(data) : data
+}
+
 /**
  * Creates the request configuration object handed to the HTTP client.
  *
- * - Validates and parses query parameters with `querySchema` (if provided)
- * - Validates and parses the body with `requestSchema` (if provided)
  * - Converts the body to FormData when the endpoint declares `body: 'multipart'`
  * - Merges endpoint and per-call `headers` / `timeout`
  * - Merges `clientOptions` underneath the keys the builder owns
@@ -37,17 +64,13 @@ const RESPONSE_TYPES = {
  * `clientOptions` reach the client. Call arguments the builder consumes
  * itself (`urlParams`) are never forwarded.
  *
- * @param request - The call arguments
+ * @param request - The validated call arguments
  * @param options - Endpoint configuration
  * @param finalUrlPart - The URL with parameters bound
- * @throws If the query or body fails its schema: the schema library's own
- *   error when it has one (a `ZodError` for Zod), a `NaviosError` otherwise
- *
- * @internal
  */
-export function makeConfig<Options extends BaseEndpointOptions>(
+export function makeConfig(
   request: ConfigRequest,
-  options: Options,
+  options: BaseEndpointOptions,
   finalUrlPart: string,
 ): AbstractRequestConfig {
   // Builder-owned keys are stripped from clientOptions so they can never be
@@ -66,11 +89,11 @@ export function makeConfig<Options extends BaseEndpointOptions>(
     headers?: Record<string, string>
   }
 
-  const headers = {
-    ...clientHeaders,
-    ...options.headers,
-    ...request.headers,
-  }
+  const headers = mergeHeaders(clientHeaders, options.headers, request.headers)
+  const data =
+    options.body === 'multipart'
+      ? makeFormData(request.data)
+      : encodePrimitive(request.data, headers)
   const timeout = request.timeout ?? options.timeout
   const responseType =
     options.response && options.response in RESPONSE_TYPES
@@ -81,11 +104,8 @@ export function makeConfig<Options extends BaseEndpointOptions>(
     ...clientOptions,
     method: options.method,
     url: finalUrlPart,
-    params: parseSync(options.querySchema, request.params ?? {}) as Record<string, unknown>,
-    data:
-      options.body === 'multipart'
-        ? makeFormData(request, options)
-        : parseSync(options.requestSchema, request.data),
+    params: request.params ?? {},
+    data,
     ...(Object.keys(headers).length > 0 ? { headers } : {}),
     ...(request.signal !== undefined ? { signal: request.signal } : {}),
     ...(timeout !== undefined ? { timeout } : {}),
@@ -100,8 +120,6 @@ export function makeConfig<Options extends BaseEndpointOptions>(
  * - Dates (and anything with `toISOString`) become ISO strings
  * - Objects with `toJSON` use it; other objects are JSON stringified
  * - Primitives are converted to strings
- *
- * @internal
  */
 function serializeFormDataValue(value: unknown): string {
   if (value == null) {
@@ -143,42 +161,23 @@ function appendFormDataValue(formData: FormData, key: string, value: unknown): v
 /**
  * Converts request data to FormData for multipart/form-data requests.
  *
- * - Validates the request data against `requestSchema` (if provided)
  * - A `FormData` instance is sent as it is
  * - `File` and `Blob` values are appended as binary parts
  * - Arrays are appended once per item under the same key
  * - `undefined` fields are left out; `null` becomes an empty string
  * - Other values are serialized with `serializeFormDataValue`
- *
- * @param request - The request parameters object
- * @param options - Endpoint configuration containing request schema
- * @returns A FormData instance ready for multipart requests
- *
- * @example
- * ```ts
- * const formData = makeFormData(
- *   { data: { file: new File(['content'], 'file.txt'), name: 'My File' } },
- *   { requestSchema: z.object({ file: z.instanceof(File), name: z.string() }) }
- * )
- * ```
- *
- * @internal
  */
-export function makeFormData<Options extends BaseEndpointOptions>(
-  request: ConfigRequest,
-  options: Options,
-) {
-  const validatedRequest = parseSync(options.requestSchema, request.data)
-  if (validatedRequest instanceof FormData) {
-    return validatedRequest
+export function makeFormData(data: unknown): FormData {
+  if (data instanceof FormData) {
+    return data
   }
 
   const formData = new FormData()
-  if (!validatedRequest || typeof validatedRequest !== 'object') {
+  if (!data || typeof data !== 'object') {
     return formData
   }
 
-  const fields = validatedRequest as Record<string, unknown>
+  const fields = data as Record<string, unknown>
   for (const key of Object.keys(fields)) {
     const value = fields[key]
     if (value === undefined) continue

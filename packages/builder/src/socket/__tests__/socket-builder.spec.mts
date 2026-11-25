@@ -806,7 +806,7 @@ describe('socketBuilder', () => {
       expect(error.kind).toBe('validation')
       expect(error.issues).toEqual([{ message: 'n must be positive', path: ['field'] }])
       expect(error.rawData).toEqual({ n: -1 })
-      expect(error.cause).toBeUndefined()
+      expect(error.cause).toEqual([{ message: 'n must be positive', path: ['field'] }])
       expect(onError).toHaveBeenCalledWith(error)
       expect(client.emitMock).not.toHaveBeenCalled()
     })

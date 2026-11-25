@@ -1,6 +1,9 @@
 // Socket builder
 export { socketBuilder } from './socket-builder.mjs'
-export type { SocketBuilderInstance } from './socket-builder-instance.mjs'
+export type {
+  ProvideSocketClientOptions,
+  SocketBuilderInstance,
+} from './socket-builder-instance.mjs'
 export type {
   MessageFormatter,
   MessageParser,
@@ -21,14 +24,6 @@ export type {
 export { isSocketClient } from './socket-client.mjs'
 export type { SocketClient } from './socket-client.mjs'
 
-// Handlers (for advanced use)
-export { createSendHandler, defaultFormatMessage } from './create-send.mjs'
-export {
-  createSubscribeHandler,
-  createGlobalMessageHandler,
-  defaultParseMessage,
-} from './create-subscribe.mjs'
-
 // Errors
 export { SocketError, isSocketError } from './socket-error.mjs'
 export type { SocketErrorInit, SocketErrorKind } from './socket-error.mjs'
@@ -39,6 +34,8 @@ export type {
   CreateWebSocketHandlerConfig,
   DeclareWebSocketOptions,
   InferWebSocketConnectParams,
+  WebSocketConstructor,
+  WebSocketLike,
 } from './declare-websocket-options.mjs'
 export type {
   WebSocketHandler,

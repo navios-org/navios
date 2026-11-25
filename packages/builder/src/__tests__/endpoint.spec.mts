@@ -5,7 +5,12 @@ import { builder } from '../http/builder.mjs'
 import { getCookie } from '../http/response-headers.mjs'
 import { EndpointError, isEndpointError, isHttpError, NaviosError } from '../index.mjs'
 
-import type { AbstractRequestConfig, AbstractResponse, Client } from '../index.mjs'
+import type {
+  AbstractRequestConfig,
+  AbstractResponse,
+  BaseEndpointOptions,
+  Client,
+} from '../index.mjs'
 
 type Reply = Partial<AbstractResponse<unknown>> | (() => never)
 
@@ -396,6 +401,178 @@ describe('endpoint handler', () => {
           responseSchema: z.any(),
         }),
       ).toThrow(/missing in schema: userId; not in URL: id/)
+    })
+
+    // The types reject these as well; here the options are of a wider type.
+    it.each<[string, Partial<BaseEndpointOptions>, RegExp]>([
+      [
+        'responses with responseSchema',
+        { responses: { 200: z.any() }, responseSchema: z.any() },
+        /GET \/x declares both responses and responseSchema/,
+      ],
+      [
+        'a blob with a responseSchema',
+        { response: 'blob', responseSchema: z.any() },
+        /response: 'blob' does not use/,
+      ],
+      [
+        'a void response with responses',
+        { response: 'void', responses: { 204: null } },
+        /response: 'void' does not use/,
+      ],
+      [
+        'a GET with a requestSchema',
+        { requestSchema: z.any(), responseSchema: z.any() },
+        /a GET or HEAD request cannot have/,
+      ],
+      [
+        'a HEAD with a multipart body',
+        { method: 'HEAD', body: 'multipart', response: 'void' },
+        /HEAD \/x declares a body/,
+      ],
+    ])('rejects %s at declaration', (_name, options, message) => {
+      expect(() => api.declareEndpoint({ method: 'GET', url: '/x', ...options } as never)).toThrow(
+        message,
+      )
+    })
+
+    it('reports a body that cannot be serialised as config, whatever the client throws', async () => {
+      const stringifying: Client = {
+        request: async (config) => {
+          JSON.stringify(config.data)
+          return { data: null, status: 200, statusText: '', headers: {} } as never
+        },
+      }
+      const ep = api.declareEndpoint({
+        method: 'POST',
+        url: '/x',
+        requestSchema: z.object({ n: z.bigint() }),
+        response: 'void',
+      })
+
+      const res = await ep.safe({ data: { n: 1n } }, { client: stringifying })
+
+      expect(res.error?.kind).toBe('config')
+      expect(res.error?.message).toMatch(/the body cannot be serialised: .*BigInt/)
+      expect(res.error?.cause).toBeInstanceOf(TypeError)
+    })
+
+    it.each([
+      ['network', new TypeError('fetch failed'), undefined],
+      ['aborted', new DOMException('stop', 'AbortError'), undefined],
+      ['timeout', new DOMException('late', 'TimeoutError'), undefined],
+      [
+        'timeout',
+        new Error('cut off'),
+        AbortSignal.abort(new DOMException('late', 'TimeoutError')),
+      ],
+    ])(
+      'reports %s for a client that can send a body JSON cannot express',
+      async (kind, thrown, signal) => {
+        const ep = api.declareEndpoint({
+          method: 'POST',
+          url: '/x',
+          requestSchema: z.object({ n: z.bigint() }),
+          response: 'void',
+        })
+        const request = async () => {
+          throw thrown
+        }
+
+        const res = await ep.safe({ data: { n: 1n }, signal }, { client: { request } })
+
+        expect(res.error?.kind).toBe(kind)
+        expect(res.error?.cause).toBe(thrown)
+      },
+    )
+
+    it('reports config for a client that wraps what JSON.stringify threw', async () => {
+      const ep = api.declareEndpoint({
+        method: 'POST',
+        url: '/x',
+        requestSchema: z.any(),
+        response: 'void',
+      })
+      const data: Record<string, unknown> = {}
+      data.self = data
+      const request = async (config: { data?: unknown }): Promise<never> => {
+        try {
+          JSON.stringify(config.data)
+        } catch (cause) {
+          throw new Error('Request failed', { cause })
+        }
+        throw new Error('unreachable')
+      }
+
+      const res = await ep.safe({ data }, { client: { request } })
+
+      expect(res.error?.kind).toBe('config')
+      expect(res.error?.message).toMatch(/the body cannot be serialised: .*circular/)
+    })
+
+    it('reports a URL parameter without a form in a URL as config', async () => {
+      const ep = api.declareEndpoint({
+        method: 'GET',
+        url: '/x/$id',
+        urlParamsSchema: z.object({ id: z.object({ a: z.number() }) }),
+        response: 'void',
+      })
+
+      const res = await ep.safe({ urlParams: { id: { a: 1 } } })
+
+      expect(res.error?.kind).toBe('config')
+      expect(client.calls).toHaveLength(0)
+    })
+  })
+
+  describe('clients', () => {
+    it('reports an aborted call as aborted when the client rejects with a 2xx response', async () => {
+      const controller = new AbortController()
+      controller.abort(new Error('navigated away'))
+      client.reply(() => {
+        throw httpRejection(200, undefined)
+      })
+      const ep = api.declareEndpoint({ method: 'GET', url: '/x', responseSchema: z.any() })
+
+      const res = await ep.safe({ signal: controller.signal })
+
+      expect(res.error?.kind).toBe('aborted')
+      expect(res.response).toBeNull()
+    })
+
+    it.each(['ERR_BAD_OPTION', 'ERR_BAD_OPTION_VALUE', 'ERR_INVALID_URL'])(
+      'reports a request the client could not build (%s) as config',
+      async (code) => {
+        client.reply(() => {
+          throw Object.assign(new Error('bad'), { code })
+        })
+        const ep = api.declareEndpoint({ method: 'GET', url: '/x', responseSchema: z.any() })
+
+        expect((await ep.safe()).error?.kind).toBe('config')
+      },
+    )
+
+    it('reads the headers of a Headers implementation other than the global one', async () => {
+      const inner = new Headers([
+        ['x-a', '1'],
+        ['set-cookie', 'a=1'],
+        ['set-cookie', 'b=2'],
+      ])
+      client.reply({ headers: { entries: () => inner.entries() } as never })
+      const ep = api.declareEndpoint({ method: 'GET', url: '/x', responseSchema: z.any() })
+
+      const res = await ep.safe()
+
+      expect(res.response?.headers).toBeInstanceOf(Headers)
+      expect(res.response?.headers.get('x-a')).toBe('1')
+      expect(getCookie(res.response, 'b')).toBe('2')
+    })
+
+    it('finds no cookie where Headers cannot list them', () => {
+      const headers = new Headers({ 'set-cookie': 'a=1' })
+      Object.defineProperty(headers, 'getSetCookie', { value: undefined })
+
+      expect(getCookie({ status: 200, statusText: '', headers }, 'a')).toBeNull()
     })
   })
 

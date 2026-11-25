@@ -31,13 +31,20 @@ export interface AbstractResponse<T> {
  * their own names. Builder-owned keys always win over `clientOptions`.
  */
 export interface AbstractRequestConfig {
-  /** Query parameters (will be appended to URL) */
+  /**
+   * Query parameters (will be appended to URL): a plain object. `undefined` and
+   * `null` are to be left out, and an array repeats its key for each item.
+   */
   params?: Record<string, unknown> | URLSearchParams
   /** HTTP method */
   method?: HttpMethod
   /** Request URL with path parameters already bound */
   url: string
-  /** Request body data */
+  /**
+   * Request body. `undefined` is no body, `FormData` is sent as it is, and so is
+   * a string: the builder has encoded it already, with a `content-type` header.
+   * Anything else is to be sent as JSON.
+   */
   data?: unknown
   /** Additional request headers */
   headers?: Record<string, string>
@@ -72,27 +79,9 @@ export interface AbstractRequestConfig {
  * - A rejection without `response` is a transport failure and is classified
  *   as `network`, `timeout` or `aborted`.
  *
- * A thin `fetch` wrapper is therefore a valid client:
- *
- * @example
- * ```ts
- * const client: Client = {
- *   request: async (config) => {
- *     const response = await fetch(config.url, {
- *       method: config.method,
- *       body: config.data ? JSON.stringify(config.data) : undefined,
- *       headers: config.headers,
- *       signal: config.signal,
- *     })
- *     return {
- *       data: await response.json(),
- *       status: response.status,
- *       statusText: response.statusText,
- *       headers: response.headers,
- *     }
- *   }
- * }
- * ```
+ * A `fetch` wrapper is therefore a valid client. One that covers everything a
+ * declaration can ask for (query arrays, uploads, empty bodies, the non-JSON
+ * responses) is at https://navios.tech/docs/builder/essentials/http-client.
  */
 export interface Client {
   /**

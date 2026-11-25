@@ -8,25 +8,28 @@ import {
 } from './create-subscribe.mjs'
 import { reportSocketError } from './report-socket-error.mjs'
 
-import type { SocketBuilderInstance } from './socket-builder-instance.mjs'
+import type {
+  ProvideSocketClientOptions,
+  SocketBuilderInstance,
+} from './socket-builder-instance.mjs'
 import type { SocketClient } from './socket-client.mjs'
 import type { SendHandler, SubscribeHandler } from './socket-handlers.mjs'
 import type { SendOptions, SocketBuilderConfig, SubscribeOptions } from './socket-options.mjs'
 
 /**
- * Creates a socket builder instance for declarative WebSocket/Socket.IO messaging.
+ * Creates a socket builder instance for declarative WebSocket messaging.
  *
  * The builder allows you to define type-safe send and subscribe handlers
- * validated by any Standard Schema (Zod, Valibot, ArkType, ...). It uses a
- * Socket.IO-compatible interface, so it works with socket.io-client or any WebSocket wrapper implementing the SocketClient interface.
+ * validated by any Standard Schema (Zod, Valibot, ArkType, ...). It sends over
+ * a `declareWebSocket` handle, or any other client with the SocketClient
+ * interface.
  *
  * @param config - Optional configuration for message formatting and error handling
  * @returns A SocketBuilderInstance with methods to define send/subscribe handlers
  *
  * @example
  * ```ts
- * import { socketBuilder } from '@navios/builder/socket'
- * import { io } from 'socket.io-client'
+ * import { declareWebSocket, socketBuilder } from '@navios/builder/socket'
  * // `z` is Zod here; any Standard Schema library works the same way
  *
  * // Create builder
@@ -36,8 +39,9 @@ import type { SendOptions, SocketBuilderConfig, SubscribeOptions } from './socke
  *   }
  * })
  *
- * // Provide Socket.IO client
- * socket.provideClient(io('ws://localhost:3000'))
+ * // Open a connection
+ * const connect = declareWebSocket({ url: 'ws://localhost:3000' })
+ * socket.provideClient(connect())
  *
  * // Define typed send function
  * const sendMessage = socket.defineSend({
@@ -64,9 +68,8 @@ export function socketBuilder(config: SocketBuilderConfig = {}): SocketBuilderIn
   const topicHandlers = new Map<string, Set<(payload: unknown) => void>>()
   const ackHandlers = new Map<string, PendingAck>()
 
-  // Track if global listener is set up
-  let globalListenerSetup = false
-  let globalMessageHandler: ((data: unknown) => void) | null = null
+  // What the builder listens to on the current client, once it does
+  let listeners: [event: string, listener: (...args: unknown[]) => void][] | null = null
 
   /**
    * Gets the current socket client instance.
@@ -80,60 +83,69 @@ export function socketBuilder(config: SocketBuilderConfig = {}): SocketBuilderIn
     return client
   }
 
+  const connectionUrl = () => client?.url
+
   /**
-   * Sets up the global message listener on the client.
-   * This is called lazily when the first subscribe handler is created or the
-   * first send waits for an acknowledgement.
+   * Listens to the client, when there is one. This is called lazily when the
+   * first subscription is made or the first send waits for an acknowledgement,
+   * and by `provideClient` for subscriptions made before.
    */
   function setupGlobalListener(): void {
-    if (globalListenerSetup) {
+    if (listeners || !client) {
       return
     }
-
-    const currentClient = getClient()
-    globalMessageHandler = createGlobalMessageHandler(config, topicHandlers, ackHandlers)
-
-    // Listen for the 'message' event (common pattern)
-    currentClient.on('message', globalMessageHandler)
-
-    globalListenerSetup = true
+    listeners = [
+      ['message', createGlobalMessageHandler(config, topicHandlers, ackHandlers, connectionUrl)],
+      ['disconnect', () => abandonAcks('The connection was closed')],
+    ]
+    for (const [event, listener] of listeners) {
+      client.on(event, listener)
+    }
   }
 
   /**
-   * Sets the socket client instance.
-   *
-   * @param newClient - Socket client (Socket.IO or compatible)
+   * Stops waiting for acknowledgements: clears the timers, removes their
+   * listeners from the client and rejects the sends.
    */
-  function provideClient(newClient: SocketClient): void {
-    // If switching clients, clean up old state
-    if (client) {
-      // Remove global listener
-      if (globalListenerSetup && globalMessageHandler) {
-        client.off('message', globalMessageHandler)
-        globalListenerSetup = false
-        globalMessageHandler = null
-      }
+  function abandonAcks(reason: string): void {
+    // A copy: the onError hook may send again
+    const pending = Array.from(ackHandlers.values())
+    for (const { topic, release, reject } of pending) {
+      release()
+      reject(
+        reportSocketError(config.onError, {
+          kind: 'transport',
+          topic,
+          url: connectionUrl(),
+          message: `[Navios-Socket]: ${reason} while acknowledgement pending`,
+        }),
+      )
+    }
+  }
 
-      // Stop waiting for acknowledgements on the old client: clear the timers,
-      // remove their listeners from it and reject the sends
-      const previousUrl = client.url
-      for (const { topic, release, reject } of ackHandlers.values()) {
-        release()
-        reject(
-          reportSocketError(config.onError, {
-            kind: 'transport',
-            topic,
-            url: previousUrl,
-            message: '[Navios-Socket]: Client was replaced while acknowledgement pending',
-          }),
-        )
+  function provideClient(
+    newClient: SocketClient,
+    { closePrevious = false }: ProvideSocketClientOptions = {},
+  ): void {
+    if (newClient === client) {
+      return
+    }
+
+    if (client) {
+      const previous = client
+      for (const [event, listener] of listeners ?? []) {
+        previous.off(event, listener)
       }
-      ackHandlers.clear()
+      listeners = null
+      abandonAcks('Client was replaced')
+      if (closePrevious) {
+        const close = previous.close ?? previous.disconnect
+        close?.call(previous)
+      }
     }
 
     client = newClient
 
-    // Re-setup global listener if we have subscribers
     if (topicHandlers.size > 0) {
       setupGlobalListener()
     }
@@ -149,12 +161,9 @@ export function socketBuilder(config: SocketBuilderConfig = {}): SocketBuilderIn
 
   // Context for subscribe handlers
   const subscribeContext: CreateSubscribeContext = {
-    getClient,
+    connectionUrl,
     config,
     topicHandlers,
-    get globalListenerSetup() {
-      return globalListenerSetup
-    },
     setupGlobalListener,
   }
 

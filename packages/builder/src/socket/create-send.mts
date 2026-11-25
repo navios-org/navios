@@ -10,13 +10,16 @@ import type { SendHandler } from './socket-handlers.mjs'
 import type { MessageFormatter, SendOptions, SocketBuilderConfig } from './socket-options.mjs'
 
 /**
- * Default message formatter using Socket.IO array format.
+ * Default message formatter using the array format.
  *
  * Format: [topic, payload] or [topic, payload, ackId]
  */
 export const defaultFormatMessage: MessageFormatter = (topic, payload, ackId) => {
   return ackId ? [topic, payload, ackId] : [topic, payload]
 }
+
+/** What a timer can wait for. It fires at once for anything longer. */
+const MAX_TIMEOUT = 2 ** 31 - 1
 
 /**
  * Generate a unique acknowledgement ID.
@@ -35,7 +38,8 @@ export interface PendingAck {
   topic: string
   resolve: (value: unknown) => void
   reject: (error: Error) => void
-  timeoutId: ReturnType<typeof setTimeout>
+  /** The timer of the `ackTimeout`, unless the acknowledgement is awaited without limit. */
+  timeoutId: ReturnType<typeof setTimeout> | undefined
   /**
    * Validates the acknowledgement data and settles the send with it. Only the
    * first call for a pending acknowledgement has an effect, whichever way the
@@ -170,7 +174,7 @@ export function createSendHandler<Options extends SendOptions>(
         }
       }
 
-      const timeoutId = setTimeout(() => {
+      const giveUp = () => {
         release()
         reject(
           fail(client, {
@@ -178,7 +182,8 @@ export function createSendHandler<Options extends SendOptions>(
             message: `Acknowledgement timeout for topic "${topic}" (ackId: ${ackId})`,
           }),
         )
-      }, timeout)
+      }
+      const timeoutId = timeout > MAX_TIMEOUT ? undefined : setTimeout(giveUp, timeout)
 
       ackHandlers.set(ackId, { topic, resolve, reject, timeoutId, settle: ackHandler, release })
 
@@ -204,45 +209,40 @@ export function createSendHandler<Options extends SendOptions>(
     })
   }
 
-  const handler = ((payload: unknown) => {
+  const validatePayload = (payload: unknown): ValidationOutcome | Promise<ValidationOutcome> =>
+    payloadSchema ? validateEager(payloadSchema, payload) : { ok: true, value: payload }
+
+  // The call returns nothing, so a failure can only be reported by throwing,
+  // and that has to happen before the call returns.
+  function sendAndForget(payload: unknown): void {
     const client = getClient()
-
-    const outcome: ValidationOutcome | Promise<ValidationOutcome> = payloadSchema
-      ? validateEager(payloadSchema, payload)
-      : { ok: true, value: payload }
-
-    // Fire and forget: the call returns nothing, so a failure can only be
-    // reported by throwing, and that has to happen before the call returns.
-    if (!ackSchema) {
-      if (isPendingOutcome(outcome)) {
-        const message = `payloadSchema of "${topic}" validates asynchronously, which a send without ackSchema cannot wait for; nothing was sent. Use a synchronous schema or add an ackSchema`
-        throw fail(client, { kind: 'validation', message, issues: [{ message }], rawData: payload })
-      }
-      if (!outcome.ok) {
-        throw invalidPayload(client, payload, outcome)
-      }
-      const error = transmit(client, outcome.value)
-      if (error) {
-        throw error
-      }
-      return
-    }
-
-    // With an ack schema the call returns a promise, so an asynchronous
-    // payloadSchema is awaited before the message is sent.
+    const outcome = validatePayload(payload)
     if (isPendingOutcome(outcome)) {
-      return outcome.then((resolved) => {
-        if (!resolved.ok) {
-          throw invalidPayload(client, payload, resolved)
-        }
-        return sendWithAck(client, resolved.value)
-      })
+      const message = `payloadSchema of "${topic}" validates asynchronously, which a send without ackSchema cannot wait for; nothing was sent. Use a synchronous schema or add an ackSchema`
+      throw fail(client, { kind: 'validation', message, issues: [{ message }], rawData: payload })
     }
     if (!outcome.ok) {
       throw invalidPayload(client, payload, outcome)
     }
+    const error = transmit(client, outcome.value)
+    if (error) {
+      throw error
+    }
+  }
+
+  // The call returns a promise, so every failure rejects it, and an
+  // asynchronous payloadSchema is awaited before the message is sent.
+  async function sendForAck(payload: unknown): Promise<unknown> {
+    const client = getClient()
+    const pending = validatePayload(payload)
+    const outcome = isPendingOutcome(pending) ? await pending : pending
+    if (!outcome.ok) {
+      throw invalidPayload(client, payload, outcome)
+    }
     return sendWithAck(client, outcome.value)
-  }) as SendHandler<Options>
+  }
+
+  const handler = (ackSchema ? sendForAck : sendAndForget) as SendHandler<Options>
 
   // Attach config to handler
   handler.config = options

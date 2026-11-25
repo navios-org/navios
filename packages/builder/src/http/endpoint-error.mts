@@ -1,6 +1,7 @@
 import { NaviosError } from '../shared/navios-error.mjs'
+import { toSchemaIssue } from '../shared/schema.mjs'
 
-import type { InferSchemaOutput, SchemaIssue } from '../shared/schema.mjs'
+import type { InferSchemaOutput, SchemaIssue, StandardIssue } from '../shared/schema.mjs'
 
 import type { HttpMethod } from './client.mjs'
 import type { ErrorSchemaRecord } from './error-schema.mjs'
@@ -17,11 +18,13 @@ import type { ResponseMeta } from './response-meta.mjs'
  *   in `responses`), a 2xx body could not be parsed by the client (HTML where
  *   JSON was expected), a 2xx status is not declared in `responses`, or an
  *   error body failed its `errorSchema` entry.
- * - `network` — no response was received and the request was not cancelled.
+ * - `network` — no complete response was received and the request was not
+ *   cancelled, or an interceptor of the client threw.
  * - `timeout` — the request timed out.
  * - `aborted` — the request was cancelled through its `AbortSignal`.
- * - `config` — the call could not be made: no client was provided, or a
- *   required URL parameter is missing.
+ * - `config` — the call could not be made: no client was provided, a URL
+ *   parameter is missing or cannot be part of a URL, or the body cannot be
+ *   serialised.
  */
 export type EndpointErrorKind =
   | 'http'
@@ -33,6 +36,15 @@ export type EndpointErrorKind =
   | 'aborted'
   | 'config'
 
+/** The part of a call's arguments a validation issue belongs to. */
+export type RequestPart = 'urlParams' | 'params' | 'data'
+
+/** A validation issue of an {@link EndpointError}. */
+export interface EndpointIssue extends SchemaIssue {
+  /** Set for `request-validation`. `path` starts inside this part. */
+  readonly part?: RequestPart
+}
+
 export interface EndpointErrorInit {
   kind: EndpointErrorKind
   endpoint: { method: HttpMethod; url: string }
@@ -40,7 +52,7 @@ export interface EndpointErrorInit {
   status?: number
   body?: unknown
   response?: ResponseMeta | null
-  issues?: readonly SchemaIssue[]
+  issues?: readonly (StandardIssue & { part?: RequestPart })[]
   cause?: unknown
 }
 
@@ -65,6 +77,9 @@ function defaultMessage(init: EndpointErrorInit): string {
   }
 }
 
+/** A session is in there, and the result of `toJSON()` ends up in logs. */
+const COOKIE_HEADER = /^set-cookie2?$/i
+
 /**
  * The single error type for a failed endpoint call.
  *
@@ -88,7 +103,7 @@ export class EndpointError extends NaviosError {
   /** Response metadata, or `null` when no response was received. */
   readonly response: ResponseMeta | null
   /** Validation issues for `request-validation` and `response-validation`. */
-  declare readonly issues?: readonly SchemaIssue[]
+  declare readonly issues?: readonly EndpointIssue[]
 
   constructor(init: EndpointErrorInit) {
     super(init.message ?? defaultMessage(init), { cause: init.cause })
@@ -98,12 +113,19 @@ export class EndpointError extends NaviosError {
     this.response = init.response ?? null
     if (init.status !== undefined) this.status = init.status
     if ('body' in init) this.body = init.body
-    if (init.issues !== undefined) this.issues = init.issues
+    if (init.issues !== undefined) {
+      this.issues = init.issues.map((issue) => ({
+        ...toSchemaIssue(issue),
+        ...(issue.part !== undefined ? { part: issue.part } : {}),
+      }))
+    }
   }
 
   /**
-   * Plain-object form without `cause`, with headers flattened to a record.
-   * Safe to pass through `JSON.stringify`, React Query dehydration and loggers.
+   * Plain-object form without `cause`, with headers flattened to a record and
+   * without `set-cookie`.
+   * Safe to pass through `JSON.stringify`, React Query dehydration and loggers,
+   * as long as `body` itself is serializable.
    */
   toJSON(): {
     name: string
@@ -112,7 +134,7 @@ export class EndpointError extends NaviosError {
     endpoint: { method: HttpMethod; url: string }
     status?: number
     body?: unknown
-    issues?: readonly SchemaIssue[]
+    issues?: readonly EndpointIssue[]
     response: { status: number; statusText: string; headers: Record<string, string> } | null
   } {
     return {
@@ -127,7 +149,9 @@ export class EndpointError extends NaviosError {
         ? {
             status: this.response.status,
             statusText: this.response.statusText,
-            headers: Object.fromEntries(this.response.headers.entries()),
+            headers: Object.fromEntries(
+              [...this.response.headers].filter(([name]) => !COOKIE_HEADER.test(name)),
+            ),
           }
         : null,
     }
@@ -160,7 +184,7 @@ export type UnknownHttpEndpointError = EndpointError & {
 
 export type RequestValidationEndpointError = EndpointError & {
   readonly kind: 'request-validation'
-  readonly issues: readonly SchemaIssue[]
+  readonly issues: readonly (EndpointIssue & { readonly part: RequestPart })[]
   readonly response: null
 }
 

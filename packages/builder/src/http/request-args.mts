@@ -1,5 +1,5 @@
 import type { InferSchemaInput, InferSchemaOutput, Schema } from '../shared/schema.mjs'
-import type { Simplify } from '../shared/type-helpers.mjs'
+import type { OptionalIfEmpty, Simplify } from '../shared/type-helpers.mjs'
 import type { UrlHasParams, UrlParams } from '../shared/url-params.mjs'
 
 import type { AbstractRequestConfig } from './client.mjs'
@@ -21,17 +21,6 @@ export interface RequestArgsOptions {
   requestSchema?: Schema
   urlParamsSchema?: Schema
 }
-
-/**
- * `{ [Key]: Value }`, with the key optional when `Value` has no required
- * fields or accepts `undefined` — a query schema whose fields are all optional
- * does not force the caller to pass `params: {}`.
- */
-type OptionalIfEmpty<Key extends string, Value> = {} extends Value
-  ? { [K in Key]?: Value }
-  : undefined extends Value
-    ? { [K in Key]?: Value }
-    : { [K in Key]: Value }
 
 /**
  * Client-side request arguments derived from an endpoint's options.

@@ -18,6 +18,8 @@ import type { BaseEndpointOptions } from './endpoint-options.mjs'
  *
  * @param config - Configuration options for the builder
  * @param config.client - HTTP client used by every endpoint
+ * @param config.send - Whether the caller's arguments (`'input'`, the default)
+ *   or the output of the request schemas (`'output'`) is sent
  * @param config.onError - Telemetry hook, called once per failed call with the
  *   `EndpointError` the caller receives
  *

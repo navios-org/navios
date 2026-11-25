@@ -1,3 +1,5 @@
+import type { RequiredKeys } from '../shared/type-helpers.mjs'
+
 import type {
   InferEventSourceConnectParams,
   DeclareEventSourceOptions,
@@ -16,19 +18,25 @@ export type EventSourceHandleState = 'connecting' | 'open' | 'closed'
  */
 export interface EventSourceHandle extends EventSourceClient {
   /**
-   * Register an event listener.
+   * Register a listener for an event the server sends. Events without a name
+   * arrive as `message`.
    *
-   * Supports 'open', 'error', 'message', and custom event names.
+   * The listener receives the data decoded from JSON, or the text itself when
+   * it is not JSON, and the text as second argument.
+   *
+   * `open` and `error` are server events of that name, too. The connection
+   * reports through {@link EventSourceHandle.onOpen} and
+   * {@link EventSourceHandle.onError}.
    */
-  on(event: string, handler: (data: unknown) => void): void
+  on(event: string, handler: (data: unknown, text?: string) => void): void
 
   /**
    * Remove an event listener.
    */
-  off(event: string, handler?: (data: unknown) => void): void
+  off(event: string, handler?: (data: unknown, text?: string) => void): void
 
   /**
-   * Register an error handler.
+   * Register a handler for a failure of the connection.
    */
   onError(handler: (error: Event) => void): () => void
 
@@ -67,11 +75,12 @@ export interface EventSourceHandle extends EventSourceClient {
 /**
  * EventSource handler function type returned by declareEventSource.
  *
- * When called with connection parameters, returns an EventSourceHandle.
+ * When called with connection parameters, returns an EventSourceHandle. The
+ * parameters can be left out when none is required.
  */
 export type EventSourceHandler<Options extends DeclareEventSourceOptions> = ((
-  ...args: keyof InferEventSourceConnectParams<Options> extends never
-    ? []
+  ...args: [RequiredKeys<InferEventSourceConnectParams<Options>>] extends [never]
+    ? [params?: InferEventSourceConnectParams<Options>]
     : [params: InferEventSourceConnectParams<Options>]
 ) => EventSourceHandle) & {
   config: Options

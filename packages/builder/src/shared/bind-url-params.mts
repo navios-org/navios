@@ -3,13 +3,6 @@ import { parseSync } from './validate.mjs'
 import type { Schema } from './schema.mjs'
 
 /**
- * Request parameters containing optional URL parameters.
- */
-export interface UrlParamsRequest {
-  urlParams?: Record<string, unknown>
-}
-
-/**
  * The one definition of a URL parameter: `$` followed by a letter or
  * underscore, then letters, digits or underscores. The type-level
  * `ParsePathParams` follows the same rule.
@@ -32,11 +25,25 @@ export function getUrlParamNames(urlPart: string): string[] {
   return names
 }
 
+/** Writes a value as it appears in a URL, or returns `null` when it has no such form. */
+function toUrlText(value: unknown): string | null {
+  switch (typeof value) {
+    case 'string':
+    case 'boolean':
+    case 'bigint':
+      return String(value)
+    case 'number':
+      return Number.isFinite(value) ? String(value) : null
+    default:
+      return value instanceof Date && !Number.isNaN(value.getTime()) ? value.toISOString() : null
+  }
+}
+
 /**
  * Binds URL parameters to a URL template string.
  *
  * Replaces `$paramName` placeholders with values from `urlParams`. All values
- * are URL-encoded.
+ * are URL-encoded. A `Date` is written as ISO string.
  *
  * When `urlParamsSchema` is provided, the URL parameters are validated and
  * transformed by the schema before being bound.
@@ -46,7 +53,7 @@ export function getUrlParamNames(urlPart: string): string[] {
  * @param urlParamsSchema - Optional schema for validating and transforming URL parameters
  * @returns The URL with parameters replaced and URL-encoded
  * @throws {Error} If required URL parameters are missing, or a value is
- *   exactly `.` or `..`
+ *   exactly `.` or `..`, or has no form in a URL (an object, an array, `NaN`)
  * @throws If urlParamsSchema is provided and validation fails: the schema
  *   library's own error when it has one (a `ZodError` for Zod), a
  *   `NaviosError` otherwise
@@ -61,7 +68,7 @@ export function getUrlParamNames(urlPart: string): string[] {
  */
 export function bindUrlParams<Url extends string>(
   urlPart: Url,
-  params: UrlParamsRequest,
+  params: { urlParams?: Record<string, unknown> },
   urlParamsSchema?: Schema,
 ) {
   const requiredParams = getUrlParamNames(urlPart)
@@ -91,13 +98,20 @@ export function bindUrlParams<Url extends string>(
     throw new Error(`Missing required URL parameters: ${missingParams.join(', ')}`)
   }
 
+  const texts = new Map<string, string | null>(
+    requiredParams.map((param) => [param, toUrlText(urlParamsToUse[param])]),
+  )
+  const unwritable = requiredParams.filter((param) => texts.get(param) === null)
+  if (unwritable.length > 0) {
+    throw new Error(
+      `Invalid URL parameters (not a string, finite number, boolean or Date): ${unwritable.join(', ')}`,
+    )
+  }
+
   // `encodeURIComponent` leaves dots alone, and a `.` or `..` segment is
   // resolved away by URL parsing (`/users/../profile` -> `/profile`), so the
   // request would hit a different route.
-  const dotParams = requiredParams.filter((param) => {
-    const value = String(urlParamsToUse[param])
-    return value === '.' || value === '..'
-  })
+  const dotParams = requiredParams.filter((param) => ['.', '..'].includes(texts.get(param)!))
   if (dotParams.length > 0) {
     throw new Error(
       `Invalid URL parameters (a value cannot be "." or ".."): ${dotParams.join(', ')}`,
@@ -106,7 +120,7 @@ export function bindUrlParams<Url extends string>(
 
   // Single-pass replacement using callback to avoid issues with values containing $
   const result = urlPart.replace(URL_PARAM_PATTERN, (_, paramName: string) =>
-    encodeURIComponent(String(urlParamsToUse[paramName])),
+    encodeURIComponent(texts.get(paramName)!),
   )
 
   return result as Url

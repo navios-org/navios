@@ -1,6 +1,6 @@
 # Changelog
 
-## [2.0.0] - 2026-05-15
+## [2.0.0-alpha.0] - Unreleased
 
 2.0 reworks how endpoints are declared, called and how they fail. There is one way to declare an endpoint, two ways to call it, and one error type.
 
@@ -15,43 +15,57 @@
 - **`body` option** on `declareEndpoint`: `'json'` (default) or `'multipart'` (converts `data` to `FormData`).
 - **Endpoint `headers` and `timeout` options**, and a per-call `timeout` argument. Per-call values win over the endpoint's.
 - **Per-call client**: `endpoint(args, { client })` uses that HTTP client for one call.
+- **`builder({ send })`**: `'input'` (the default) sends the arguments of a call as they were passed, `'output'` sends what the schemas produced, as 1.x did. See Changed.
 - **`builder({ client })`** and **`api.withClient(client)`**, which returns a new builder with the same configuration and a different client.
 - **Optional arguments**: `endpoint()` can be called without arguments when nothing is required; `params` / `data` are optional when their schema has no required fields.
 - **`ResponseMeta`** (`status`, `statusText`, `headers`) on every `SafeResult` and `EndpointError`, with the helpers `getHeader`, `getCookie` and `getRetryAfterMs`.
 - **`validateResponse: false`** endpoint option to skip the runtime parse of the response while keeping the inferred type.
-- **Standard Schema support**: every schema slot (`requestSchema`, `querySchema`, `urlParamsSchema`, `responseSchema`, `errorSchema`, `responses`) accepts any Standard Schema v1 implementation — Zod, Valibot, ArkType and others. Libraries can be mixed per slot and asynchronous validation is supported. New exports: `Schema`, `SchemaProps`, `SchemaResult`, `SchemaIssue`, `InferSchemaInput`, `InferSchemaOutput`. `EndpointError.issues` is `readonly SchemaIssue[]` (`{ message, path? }`); for a Zod schema the original `ZodError` is on `error.cause`. The declaration-time `urlParamsSchema` check runs for schemas that expose `.shape` (Zod objects).
-- **`zod` is an optional peer dependency.** The builder no longer imports Zod, at runtime or in its types. The Zod-narrowed option types (`ZodBaseEndpointOptions`, `ZodEndpointOptions`, `ZodSchemaSlots`) live in `@navios/core`, which reads Zod schemas directly for controllers and OpenAPI generation.
+- **Standard Schema support**: every schema slot (`requestSchema`, `querySchema`, `urlParamsSchema`, `responseSchema`, `errorSchema`, `responses`) accepts any Standard Schema v1 implementation — Zod, Valibot, ArkType and others. Libraries can be mixed per slot and asynchronous validation is supported. An asynchronous check of an endpoint runs once per call; the socket and EventSource builders check the first message twice when a Zod 3 schema or a transform of Zod Mini turns out to be asynchronous. A Zod schema that holds a function of the user (`refine`, `transform`, `codec` and so on) does not use Zod's compiled code, and takes several times as long for large data. New exports: `Schema`, `SchemaIssue`, `InferSchemaInput`, `InferSchemaOutput`. `EndpointError.issues` is `readonly EndpointIssue[]`, plain objects `{ message, path?, part? }` without the validated value; `part` names the part of the arguments for `request-validation`, which lists the problems of all of them. `error.cause` is what the library reported: the `ZodError` of a Zod schema, the issues of any other. The declaration-time `urlParamsSchema` check runs for schemas that expose `.shape` (Zod objects).
+- **`zod` is no longer a peer dependency.** The builder does not import Zod, at runtime or in its types. The Zod-narrowed option types `ZodBaseEndpointOptions`, `ZodEndpointOptions` and `ZodSchemaSlots` are removed.
 - **`responses` option** on `declareEndpoint`: per-status success schemas, e.g. `{ 200: userSchema, 201: createdSchema, 204: null }`, in place of `responseSchema`. The result type is the union of every entry (`null` → `undefined`); a 2xx status that is not listed is reported as `response-validation`. New types: `SuccessSchemaRecord`, `InferSuccessOutput`.
-- **`getUrlParamNames(url)`** helper.
-- **New type exports**: `SafeResult`, `SafeResultOk`, `SafeResultErr`, `ResponseMeta`, `EndpointErrorKind`, `EndpointErrorOf`, `EndpointErrorType`, `EndpointParams`, `EndpointResult`, `EndpointConfig`, `InferEndpointError`, `InferEndpointSafeResult`, `EndpointCallOptions`, `EndpointBodyKind`, `EndpointResponseKind`, `RequireResponseSchema`, `ClientRequestArgs`, `ServerRequestArgs`.
+- **`getUrlParamNames(url)`** helper, the definition of the URL parameter grammar.
+- **New type exports**: `SafeResult`, `SafeResultOk`, `SafeResultErr`, `ResponseMeta`, `EndpointErrorKind`, `EndpointErrorOf`, `EndpointIssue`, `RequestPart`, `EndpointErrorType`, `EndpointParams`, `EndpointResult`, `EndpointConfig`, `InferEndpointError`, `InferEndpointSafeResult`, `EndpointCallOptions`, `EndpointBodyKind`, `EndpointResponseKind`, `RequireResponseSchema`, `ClientRequestArgs`, `ServerRequestArgs`.
 - **`SocketError`** (`@navios/builder/socket`) and **`EventSourceError`** (`@navios/builder/eventsource`): the error types of the socket and EventSource builders, both `extends NaviosError`. `SocketError` has `kind` (`'validation' | 'ack-timeout' | 'transport'`), `topic`, `url?`, `issues?`, `rawData?`, `cause` and `toJSON()`; `EventSourceError` has `kind` (`'validation' | 'transport'`), `eventName`, `url?`, `issues?`, `rawData?`, `cause` and `toJSON()`. Each entry point also exports its guard (`isSocketError`, `isEventSourceError`) and the `SocketErrorKind` / `SocketErrorInit` / `EventSourceErrorKind` / `EventSourceErrorInit` types.
 - **Standard Schema support in the socket and EventSource builders**: `payloadSchema`, `ackSchema`, `urlParamsSchema` and `querySchema` accept any Standard Schema v1 implementation. Asynchronous schemas are awaited for incoming messages and events, for acknowledgements and for the payload of a send that has an `ackSchema`. A send without `ackSchema` and the `declareWebSocket` / `declareEventSource` connection parameters are synchronous and reject an asynchronous schema.
+- **`createWebSocketHandler({ WebSocket })`** and **`createEventSourceHandler({ EventSource })`**: the class connections are opened with, for runtimes without a global one or to send headers. A `WebSocket` class may keep messages until it is open (`reconnecting-websocket`): only the standard class refuses to send while it is not.
+- **`provideClient(client, { closePrevious })`** on the socket and EventSource builders closes the client that is replaced.
 - **`url`** on the handles returned by `declareWebSocket` and `declareEventSource`, and an optional `url` on the `SocketClient` / `EventSourceClient` interfaces; when a client has one it is copied to the error's `url`.
 
 ### Changed
 
+- **The arguments of a call are sent as they were passed.** 1.x sent the output of `urlParamsSchema`, `querySchema` and `requestSchema`; a server that parses the request with the same schemas then applied every transform twice. Arguments are still validated, but defaults, transforms and the removal of unknown keys no longer run before sending. `builder({ send: 'output' })` restores that for APIs that do not share the schemas. A URL parameter that is left out is still sent as the default of `urlParamsSchema`. Responses are not affected.
 - **`data` and `params` are optional whenever their schema accepts an empty object or `undefined`**, in the types and at runtime.
 - **`validateResponse: false` types the result as the schema's input**, because transforms and defaults are not applied.
 - **Multipart bodies**: `Blob` values are sent as binary parts, a `FormData` instance is sent as it is, and `undefined` fields are left out.
-- **An empty-string URL parameter counts as missing** instead of producing a shorter path.
-- **`safe()` never rejects**, including for header bags `Headers` refuses, a client that resolves with nothing, and `null` args. Array-valued headers such as `set-cookie` keep every value.
+- **JSON bodies of any type are sent**: a string is encoded as JSON, and `0`, `false` and `null` are sent with a JSON content type.
+- **An empty-string URL parameter counts as missing** instead of producing a shorter path. A `Date` is written as an ISO string; an object, an array or `NaN` is refused with a `config` error.
+- **Header names are merged without regard to case** across `clientOptions.headers`, the endpoint's `headers` and the call's.
+- **`safe()` never rejects**, including for header bags `Headers` refuses, a client that resolves with nothing, and `null` args. Array-valued headers such as `set-cookie` keep every value, and the headers of any `Headers` implementation are read.
+- **A body the client cannot serialize** (a `BigInt` or a circular object in JSON) is a `config` error.
 - **Socket and EventSource**: acks resolve with custom wire formats, a throwing `emit` is a `SocketError` of kind `transport`, query strings serialize dates and arrays correctly, and server topics can no longer trigger lifecycle listeners.
+- **EventSource payloads** are validated as decoded from JSON. A number, a boolean or `null` that fails is tried as the text that arrived, so plain-text events like `42` reach a `z.string()` schema.
+- **`open` and `error` of an EventSource handle** are server events in `on()` and `defineEvent`, and connection events in `onOpen` and `onError`. Neither triggers the other.
+- **`querySchema` of `declareWebSocket` and `declareEventSource`** is applied when `params` is left out, so its defaults are sent and its required fields are required. Both handlers are called without arguments when nothing is required.
+- **A send with an `ackSchema` rejects** for every failure; it never throws. Pending acknowledgements are rejected when the connection closes. `ackTimeout: Infinity` waits without limit.
+- **`provideClient`** of the socket and EventSource builders ignores the client it already has, and `eventSourceBuilder` no longer closes the previous one by default. `socketBuilder` accepts subscriptions before there is a client.
+- **Listeners may subscribe and unsubscribe while a message is delivered.** One that is added waits for the next message instead of being called at once, which looped forever for a listener that resubscribed itself.
+- **A throwing `parseMessage`** is reported to `onError` and skips the message.
 
 - **Unknown endpoint options are compile errors.** `declareEndpoint` rejects keys it does not know, so a typo such as `requstSchema` or a removed option such as `result` no longer passes silently.
+- **Contradicting endpoint options are compile errors**, and throw when the endpoint is declared: `responses` with `responseSchema`, `responseSchema` or `responses` with a non-JSON `response`, and a body on `GET` or `HEAD`.
 
 - **Every failure of `endpoint(args)` is an `EndpointError`.** HTTP errors are no longer the HTTP client's own error, and invalid input is no longer a raw `ZodError` — it is an `EndpointError` of kind `request-validation`, and nothing is sent.
 - **`errorSchema` applies to every call.** A non-2xx response whose status has an entry is parsed and reported as kind `http` with a typed `body`; without an entry it is `http-unknown` with the raw body. `body` is exactly the schema output — nothing is added to it.
 - **`onError(error: unknown)`** → **`onError(error: EndpointError)`**. The hook is called once per failed call with the same instance the caller receives. An exception thrown inside it is caught and logged.
 - **The builder decides what is an error.** A client may resolve or reject on a non-2xx response; any status outside 200–299 is an error. A rejection carrying `response` is treated as an HTTP error; one without it is `network`, `timeout` or `aborted`. A thin `fetch` wrapper is a valid client.
-- **URL parameter grammar**: a parameter is `$` followed by a letter or underscore, then letters, digits or underscores — the same rule in the types and at runtime. `/users/$user_id` and `/files/$id.json` are parsed as `user_id` and `id`.
+- **URL parameter grammar**: a parameter is `$` followed by a letter or underscore, then letters, digits or underscores — the same rule in the types and at runtime. `/users/$user_id`, `/files/$id.json` and `/carts/$id:checkout` are parsed as `user_id`, `id` and `id`.
 - **`urlParamsSchema` keys must equal the URL's parameter names**; a mismatch throws a `NaviosError` when the endpoint is declared.
 - **`clientOptions`** carries client-specific keys only (for example `withCredentials`). It is merged into the request config and cannot override `method`, `url`, `params`, `data`, `signal`, `timeout` or `responseType`, nor any header set through the endpoint's `headers` or the call. Use the endpoint's `headers` / `timeout` options for those.
-- **`makeConfig(request, options, finalUrl)`** takes three arguments; the method comes from `options`.
 - **`EndpointHandler<Options>`** is the only handler type; `endpoint.config` is the declared options object.
 - **`RequestArgs<Url, QuerySchema, RequestSchema, UrlParamsSchema, IsServer>`** is split into `ClientRequestArgs<Options>` (`z.input`) and `ServerRequestArgs<Options>` (`z.output`).
 - **`AbstractRequestConfig.data`** is `unknown` (was `any`); `timeout` and `responseType` are declared fields.
 - **Socket and EventSource builders** use a single `onError` hook that receives a `SocketError` / `EventSourceError`. The hook is called once per failure; an exception thrown inside it is caught and logged.
-- **Send handlers fail with a `SocketError`.** An invalid payload throws kind `validation` (was a raw `ZodError`) and nothing is sent; an invalid acknowledgement rejects with kind `validation`, a timeout with kind `ack-timeout`, and replacing the client while an acknowledgement is pending with kind `transport` (were a `ZodError` and plain `Error`s). The same instance is passed to `onError`, which now also fires for invalid send payloads and replaced clients. For a Zod schema the original `ZodError` is on `error.cause`.
+- **Send handlers fail with a `SocketError`.** An invalid payload throws kind `validation` (was a raw `ZodError`) and nothing is sent; an invalid acknowledgement rejects with kind `validation`, a timeout with kind `ack-timeout`, and replacing the client while an acknowledgement is pending with kind `transport` (were a `ZodError` and plain `Error`s). The same instance is passed to `onError`, which now also fires for invalid send payloads and replaced clients. For a Zod schema the original `ZodError` is on `error.cause`. Their `issues` are plain objects `{ message, path? }`.
 - **`error.topic` of an acknowledgement validation failure** is the topic of the send (was the internal `__navios_ack:<id>` topic).
 - **`createWebSocketHandler({ onError })` and `createEventSourceHandler({ onError })`** receive a `SocketError` / `EventSourceError` of kind `transport` with the thrown value on `cause` (was the thrown value itself).
 
@@ -62,6 +76,9 @@
 - **`useDiscriminatorResponse`** builder flag, the **`isErrorStatus`** / **`isErrorResponse`** guards, the **`__status`** field injected into parsed error bodies, the **`InferErrorSchemaOutputWithStatus`** type and the **`UnknownResponseError`** class — use `endpoint.safe()` and narrow on `error.kind` / `error.status`.
 - **`onZodError`** builder callback — use `onError` and check `error.kind === 'request-validation'` / `'response-validation'` (`error.issues` holds the validation issues).
 - **`handleError`** export.
+- **Internals that were exported**: `createHandler`, `makeConfig`, `makeFormData`, `Simplify` and the types `HandlerRequest`, `ConfigRequest`, `UrlParamsRequest`; from `/socket` `createSendHandler`, `createSubscribeHandler`, `createGlobalMessageHandler`, `defaultFormatMessage` and `defaultParseMessage`. `bindUrlParams` stays.
+- **Socket.IO**. A stock Socket.IO client never understood the frames of `socketBuilder`. Use `declareWebSocket`, or a client with the same methods.
+- **Callbacks in `handle.emit(topic, payload, callback)`**: replies were matched by topic, so two sends got the same one. Use `defineSend` with an `ackSchema`.
 - **`clientOptions.timeout`** — it is ignored; use the endpoint's `timeout`. (`clientOptions.headers` is still merged underneath the endpoint's `headers`, but `headers` is the place for them.) **`clientOptions.transformRequest` / `transformResponse`** are gone.
 - **Types**: `BaseEndpointConfig`, `BaseStreamConfig`, `AnyEndpointConfig`, `AnyStreamConfig`, `StreamOptions`, `AbstractEndpoint`, `AbstractStream`, `StreamHandler`, `InferStreamReturn`, `InferEndpointParams`, `InferStreamParams`, `EndpointFunctionArgs`, `NaviosZodRequest`, `NaviosZodRequestBase`, `Util_FlatObject`, `RequestArgs`.
 - **Socket `onValidationError` and `onAckTimeout`, EventSource `onValidationError` and the legacy `onError(error)`** — use `onError(error)` and filter on `error.kind`.
@@ -71,7 +88,7 @@
 - **`response: 'void'` and `responses: { 204: null }` with `@navios/http`**: an empty body failed JSON parsing and surfaced as a `network` error. A `'void'` endpoint now asks the client for `responseType: 'text'`, and `@navios/http` resolves an empty JSON body as `undefined`.
 - **`.` and `..` as URL parameter values are rejected**: `encodeURIComponent` leaves them alone, so `/users/$id/profile` with `id: '..'` requested `/profile`. `bindUrlParams` now throws, which an endpoint reports as a `config` error; `declareWebSocket` and `declareEventSource` throw as well.
 - **Unparsable bodies keep their status**: a client rejection that carries a `response` with a 2xx status (HTML where JSON was expected) is reported as `response-validation` with `status`, `body` and `response`, not as `network`. With `@navios/http`, an error status with an empty or malformed JSON body is reported as `http-unknown` with its status.
-- **Sending over a `declareWebSocket` handle that cannot send**: `emit` and `sendRaw` now throw the `transport` `SocketError` they report to `onError` (for example while the socket is still connecting). A fire-and-forget send throws and a send with ack rejects at once instead of failing as `ack-timeout` after the full timeout.
+- **Sending over a `declareWebSocket` handle that cannot send**: `emit` and `sendRaw` throw the `transport` `SocketError` they report to `onError` while the socket is not open; a closed `WebSocket` discards what it is asked to send without an error. A fire-and-forget send throws and a send with ack rejects at once instead of failing as `ack-timeout` after the full timeout.
 - **JSDoc** no longer describes the builder as Zod-only.
 - **Package metadata**: `sideEffects: false`, a `files` allowlist and the `navios-org/navios` repository URL.
 

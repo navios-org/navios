@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
+import { EndpointError } from './endpoint-error.mjs'
 import { getCookie, getHeader, getRetryAfterMs } from './response-headers.mjs'
 
 describe('response header helpers', () => {
@@ -37,5 +38,26 @@ describe('response header helpers', () => {
       headers: new Headers({ 'retry-after': future }),
     }
     expect(getRetryAfterMs(b)).toBeGreaterThan(0)
+  })
+})
+
+describe('EndpointError.toJSON', () => {
+  it('should leave out the cookies a response sets', () => {
+    const error = new EndpointError({
+      kind: 'http-unknown',
+      endpoint: { method: 'POST', url: '/login' },
+      status: 429,
+      response: {
+        status: 429,
+        statusText: 'Too Many Requests',
+        headers: new Headers([
+          ['set-cookie', 'session=secret'],
+          ['retry-after', '30'],
+        ]),
+      },
+    })
+
+    expect(error.toJSON().response?.headers).toEqual({ 'retry-after': '30' })
+    expect(error.response?.headers.get('set-cookie')).toBe('session=secret')
   })
 })

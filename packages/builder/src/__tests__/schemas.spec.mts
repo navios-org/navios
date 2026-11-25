@@ -56,7 +56,7 @@ describe('Standard Schema support', () => {
     expectTypeOf(ep).returns.resolves.toEqualTypeOf<{ total: number }>()
   })
 
-  it('validates request and response with the schema and uses its output', async () => {
+  it('validates request and response with the schema and returns its output', async () => {
     const { client, calls } = clientReturning(() => ({ data: { total: 3 } }))
     const api = builder({ client })
     const ep = api.declareEndpoint({
@@ -71,7 +71,7 @@ describe('Standard Schema support', () => {
     })
 
     await expect(ep({ data: { n: 2 } })).resolves.toEqual({ total: 3 })
-    expect(calls[0]).toMatchObject({ data: { n: 2, checked: true } })
+    expect(calls[0]).toHaveProperty('data', { n: 2 })
   })
 
   it('reports issues from a non-Zod schema as request-validation', async () => {
@@ -86,7 +86,9 @@ describe('Standard Schema support', () => {
     const res = await ep.safe({ data: { n: -1 } })
 
     expect(res.error?.kind).toBe('request-validation')
-    expect(res.error?.issues).toEqual([{ message: 'n must be positive', path: ['field'] }])
+    expect(res.error?.issues).toEqual([
+      { message: 'n must be positive', path: ['field'], part: 'data' },
+    ])
     expect(calls).toHaveLength(0)
   })
 

@@ -1,6 +1,7 @@
 import { NaviosError } from '../shared/navios-error.mjs'
+import { toSchemaIssue } from '../shared/schema.mjs'
 
-import type { SchemaIssue } from '../shared/schema.mjs'
+import type { SchemaIssue, StandardIssue } from '../shared/schema.mjs'
 
 /**
  * Why a socket operation failed.
@@ -9,9 +10,10 @@ import type { SchemaIssue } from '../shared/schema.mjs'
  *   handler, an incoming message, or an acknowledgement. `issues` and
  *   `rawData` are set.
  * - `ack-timeout` — no acknowledgement arrived within `ackTimeout`.
- * - `transport` — everything else: a subscriber threw, the client was replaced
- *   while an acknowledgement was pending, or the underlying socket failed to
- *   send. `cause` holds the original value when there is one.
+ * - `transport` — everything else: a subscriber or `parseMessage` threw, the
+ *   client was replaced or disconnected while an acknowledgement was pending,
+ *   or the underlying socket could not send. `cause` holds the original value
+ *   when there is one.
  */
 export type SocketErrorKind = 'validation' | 'ack-timeout' | 'transport'
 
@@ -20,7 +22,7 @@ export interface SocketErrorInit {
   topic: string
   message?: string
   url?: string
-  issues?: readonly SchemaIssue[]
+  issues?: readonly StandardIssue[]
   rawData?: unknown
   cause?: unknown
 }
@@ -51,7 +53,7 @@ export class SocketError extends NaviosError {
   declare readonly url?: string
   /** Validation issues, for `validation`. */
   declare readonly issues?: readonly SchemaIssue[]
-  /** The value that failed validation, exactly as it was received or passed. */
+  /** The value that failed validation or parsing, exactly as it was received or passed. */
   declare readonly rawData?: unknown
 
   constructor(init: SocketErrorInit) {
@@ -60,7 +62,7 @@ export class SocketError extends NaviosError {
     this.kind = init.kind
     this.topic = init.topic
     if (init.url !== undefined) this.url = init.url
-    if (init.issues !== undefined) this.issues = init.issues
+    if (init.issues !== undefined) this.issues = init.issues.map(toSchemaIssue)
     if ('rawData' in init) this.rawData = init.rawData
   }
 
