@@ -1,11 +1,25 @@
-export { MessageController } from './decorators/message-controller.decorator.mjs'
-export { Message } from './decorators/message.decorator.mjs'
-export { MessageModule } from './decorators/message-module.decorator.mjs'
-export type { MessageParams, MessageResult } from './types/message-params.mjs'
-export type { MessageExecutionContext } from './interfaces/message-execution-context.mjs'
-export type { MessageGuard, MessageMetadata } from './interfaces/message-guard.mjs'
-export { MessageHandlerService } from './services/message-handler.service.mjs'
-export { MicroserviceFactory } from './services/microservice-factory.mjs'
+// Message modules
+export {
+  MessageModule,
+  getMessageModuleMetadata,
+  hasMessageModuleMetadata,
+} from './modules/index.mjs'
+export type { MessageModuleMetadata } from './modules/index.mjs'
+
+// Message controllers
+export {
+  MessageController,
+  getMessageControllerMetadata,
+  hasMessageControllerMetadata,
+} from './controllers/index.mjs'
+export type { MessageControllerMetadata } from './controllers/index.mjs'
+
+// Message handlers
+export { Message, getMessageHandlerMetadata } from './handlers/index.mjs'
+export type { MessageHandlerMetadata, MessageParams, MessageResult } from './handlers/index.mjs'
+
+// Guards
+export type { MessageExecutionContext, MessageGuard } from './guards/index.mjs'
 
 // Attributes
 export {
@@ -22,13 +36,7 @@ export {
   BatchProcessing,
   Priority,
 } from './attributes/index.mjs'
+export type { MessageMetadata } from './attributes/index.mjs'
 
-// Metadata helpers
-export { hasMessageControllerMetadata } from './metadata/message-controller.metadata.mjs'
-export { hasMessageModuleMetadata } from './metadata/message-module.metadata.mjs'
-export { getMessageControllerMetadata } from './metadata/message-controller.metadata.mjs'
-export { getMessageModuleMetadata } from './metadata/message-module.metadata.mjs'
-export { getMessageHandlerMetadata } from './metadata/message-handler.metadata.mjs'
-export type { MessageControllerMetadata } from './metadata/message-controller.metadata.mjs'
-export type { MessageModuleMetadata } from './metadata/message-module.metadata.mjs'
-export type { MessageHandlerMetadata } from './metadata/message-handler.metadata.mjs'
+// Runtime
+export { MessageHandlerService, MicroserviceFactory } from './runtime/index.mjs'

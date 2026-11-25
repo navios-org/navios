@@ -4,8 +4,8 @@ import { z } from 'zod/v4'
 import { SocketError } from '../index.mjs'
 import { socketBuilder } from '../socket-builder.mjs'
 
-import type { SocketClient } from '../types/socket-client.mjs'
-import type { SocketBuilderConfig } from '../types/socket-options.mjs'
+import type { SocketClient } from '../socket-client.mjs'
+import type { SocketBuilderConfig } from '../socket-options.mjs'
 
 type Listener = (...args: unknown[]) => void
 

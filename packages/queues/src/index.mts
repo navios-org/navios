@@ -1,61 +1,70 @@
-// Services
-export { messageBuilder } from './services/message-builder.mjs'
-export { DefaultQueueConfigService } from './services/default-queue-config.service.mjs'
+// Client contract and injection token
+export type { QueueClient } from './client/index.mjs'
+export { QueueClientToken, queueClientOptionsSchema } from './client/index.mjs'
+
+// Factory that builds the configured broker client for QueueClientToken
+export { QueueClientFactory } from './queue-client-factory.mjs'
+
+// Broker clients and their configuration
+export {
+  KafkaClient,
+  RabbitMQClient,
+  SQSClient,
+  deadLetterConfigSchema,
+  kafkaConfigSchema,
+  kafkaSaslConfigSchema,
+  rabbitmqConfigSchema,
+  retryConfigSchema,
+  sqsConfigSchema,
+  tlsConfigSchema,
+} from './brokers/index.mjs'
+export type {
+  DeadLetterConfig,
+  KafkaConfig,
+  KafkaSaslConfig,
+  RabbitmqConfig,
+  RetryConfig,
+  SqsConfig,
+  TlsConfig,
+} from './brokers/index.mjs'
+
+// Queue configuration and the service that provides it
+export {
+  DefaultQueueConfigService,
+  QueueConfigServiceToken,
+  abstractQueueConfigSchema,
+  queueConfigSchema,
+} from './config/index.mjs'
+export type { AbstractQueueConfig, QueueConfig, QueueConfigService } from './config/index.mjs'
+
+// Message definitions and the pattern services that send them
 export {
   QueuePublisher,
   QueuePublisherToken,
-  queuePublisherOptionsSchema,
-} from './services/queue-publisher.service.mjs'
-export {
-  QueueSender,
-  QueueSenderToken,
-  queueSenderOptionsSchema,
-} from './services/queue-sender.service.mjs'
-export {
   QueueRequester,
   QueueRequesterToken,
+  QueueSender,
+  QueueSenderToken,
+  abstractMessageConfigSchema,
+  abstractMessageDefinitionSchema,
+  messageBuilder,
+  pointToPointMessageConfigSchema,
+  pointToPointMessageDefinitionSchema,
+  pubsubMessageConfigSchema,
+  pubsubMessageDefinitionSchema,
+  queuePublisherOptionsSchema,
   queueRequesterOptionsSchema,
-} from './services/queue-requester.service.mjs'
-
-// Interfaces
-export type { QueueClient } from './interfaces/queue-client.mjs'
-export type { QueueConfigService } from './interfaces/queue-config-service.mjs'
-
-// Factory
-export { QueueClientFactory } from './factories/queue-client.factory.mjs'
-
-// Tokens
-export { QueueClientToken, queueClientOptionsSchema } from './tokens/queue-client.token.mjs'
-export { QueueConfigServiceToken } from './tokens/queue-config-service.token.mjs'
-
-// Adapters
-export { RabbitMQClient } from './adapters/rabbitmq.adapter.mjs'
-export { KafkaClient } from './adapters/kafka.adapter.mjs'
-export { SQSClient } from './adapters/sqs.adapter.mjs'
-
-// Config types and schemas
+  queueSenderOptionsSchema,
+  requestReplyMessageConfigSchema,
+  requestReplyMessageDefinitionSchema,
+} from './messaging/index.mjs'
 export type {
-  QueueConfig,
-  AbstractQueueConfig,
-  RabbitmqConfig,
-  KafkaConfig,
-  SqsConfig,
-  KafkaSaslConfig,
-  TlsConfig,
-  RetryConfig,
-  DeadLetterConfig,
-} from './types/queue-config.mjs'
-export {
-  queueConfigSchema,
-  abstractQueueConfigSchema,
-  rabbitmqConfigSchema,
-  kafkaConfigSchema,
-  sqsConfigSchema,
-  kafkaSaslConfigSchema,
-  tlsConfigSchema,
-  retryConfigSchema,
-  deadLetterConfigSchema,
-} from './types/queue-config.mjs'
-
-// Message config types and schemas
-export * from './types/message-config.mjs'
+  AbstractMessageConfig,
+  AbstractMessageDefinition,
+  BaseMessageConfig,
+  MessageDefinition,
+  MessagePattern,
+  PointToPointMessageDefinition,
+  PubSubMessageDefinition,
+  RequestReplyMessageDefinition,
+} from './messaging/index.mjs'

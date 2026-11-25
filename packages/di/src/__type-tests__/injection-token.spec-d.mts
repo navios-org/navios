@@ -1,7 +1,7 @@
 import { expectTypeOf, test } from 'vitest'
 import { z } from 'zod/v4'
 
-import { InjectableScope } from '../enums/index.mjs'
+import { InjectableScope } from '../injectable-scope.mjs'
 import {
   BoundInjectionToken,
   FactoryInjectionToken,
@@ -15,7 +15,7 @@ import type {
   ClassTypeWithInstance,
   ClassTypeWithInstanceAndArgument,
   ClassTypeWithOptionalArgument,
-} from '../token/injection-token.mjs'
+} from '../token/class-type.mjs'
 
 interface FooService {
   makeFoo(): string

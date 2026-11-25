@@ -10,26 +10,18 @@ import {
   InternalServerErrorResponder,
   NotFoundException,
   NotFoundResponder,
+  ValidationError,
   ValidationErrorResponder,
 } from '../errors/index.mjs'
-import {
-  compileRoute,
-  reply,
-  sseStream,
-  validateSchema,
-  ValidationError,
-} from '../routing/index.mjs'
+import { compileRoute, validateSchema } from '../pipeline/index.mjs'
+import { reply } from '../responses/index.mjs'
+import { sseStream } from '../sse/index.mjs'
 
 import type { RequestContext } from '../context/index.mjs'
-import type {
-  RouteEndpointConfig,
-  Guard,
-  Interceptor,
-  RouteDefinition,
-  RouteInfo,
-  RouteInput,
-  RouteResult,
-} from '../routing/index.mjs'
+import type { Guard } from '../guards/index.mjs'
+import type { Interceptor } from '../interceptors/index.mjs'
+import type { RouteDefinition } from '../pipeline/index.mjs'
+import type { RouteEndpointConfig, RouteInfo, RouteInput, RouteResult } from '../routing/index.mjs'
 
 function input(overrides: Partial<RouteInput> & { headerMap?: Record<string, string> } = {}) {
   const headerMap = overrides.headerMap ?? {}
@@ -643,7 +635,7 @@ describe('RequestContext: onFinish', () => {
 
 describe('compileRoute: custom result kinds', () => {
   it('answers 500 naming the kind when no encoder is registered for it', async () => {
-    const { result } = await import('../routing/reply.mjs')
+    const { result } = await import('../responses/custom-result.mjs')
     const { execute, unhandled } = setup({ response: 'text' }, () => result('xml', '<a/>'))
     expect((execute(input()) as RouteResult).status).toBe(500)
     expect(String(unhandled[0])).toContain('no encoder is registered')

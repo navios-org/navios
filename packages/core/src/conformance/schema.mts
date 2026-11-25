@@ -3,7 +3,7 @@ import type { StandardSchemaV1 } from '@navios/di'
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 type Check<T> = (value: unknown, path: PropertyKey[]) => { value: T } | { issues: Issue[] }
-interface Issue {
+export interface Issue {
   message: string
   path: PropertyKey[]
 }

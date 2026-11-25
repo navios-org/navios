@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { ConsoleLogger } from '../logger/console-logger.service.mjs'
+import { ConsoleLogger } from '../logger/console-logger.mjs'
 
 describe('ConsoleLogger', () => {
   let stdoutSpy: ReturnType<typeof vi.spyOn>

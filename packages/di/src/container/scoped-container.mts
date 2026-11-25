@@ -1,33 +1,26 @@
-import { InjectableScope } from '../enums/index.mjs'
 import { DIError } from '../errors/di-error.mjs'
-import {
-  baseToken,
-  destroyAll,
-  destroyEntry,
-  hasProvider,
-  lookupRecord,
-  peek,
-  resolveAsync,
-  resolveSyncOrThrow,
-  settleStore,
-  storeValue,
-} from '../internal/engine.mjs'
-import { EntryStatus, Store } from '../internal/entry.mjs'
+import { InjectableScope } from '../injectable-scope.mjs'
+import { destroyAll, destroyEntry } from '../internal/destruction.mjs'
+import { EntryStatus } from '../internal/entry.mjs'
+import { baseToken, hasProvider, lookupRecord } from '../internal/normalize.mjs'
+import { resolveAsync, resolveSyncOrThrow } from '../internal/resolution.mjs'
+import { Store } from '../internal/store.mjs'
+import { peek, settleStore, storeValue } from '../internal/stored-values.mjs'
 
-import type { IContainer } from '../interfaces/container.interface.mjs'
-import type { Host, RootHost } from '../internal/engine.mjs'
+import type { AsyncResolve, SyncResolve } from '../injection/resolve-signatures.mjs'
 import type { Entry } from '../internal/entry.mjs'
+import type { Host, RootHost } from '../internal/host.mjs'
+import type { ClassType } from '../token/class-type.mjs'
 import type {
   AnyInjectableType,
   BoundInjectionToken,
-  ClassType,
   InjectionToken,
 } from '../token/injection-token.mjs'
-import type { AsyncResolve, SyncResolve } from '../utils/types.mjs'
 
-import { addInvalidateListener } from './container.mjs'
+import { addInvalidateListener } from './invalidate-listener.mjs'
 
 import type { Container } from './container.mjs'
+import type { IContainer } from './i-container.mjs'
 
 /**
  * A scope of a root container. Holds request-scoped instances; singletons are

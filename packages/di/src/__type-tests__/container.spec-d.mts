@@ -6,7 +6,7 @@ import { ScopedContainer } from '../container/scoped-container.mjs'
 import { Injectable, Factory } from '../decorators/index.mjs'
 import { InjectionToken } from '../token/injection-token.mjs'
 
-import type { Factorable } from '../interfaces/index.mjs'
+import type { Factorable } from '../provider/factorable.mjs'
 
 interface FooService {
   makeFoo(): string

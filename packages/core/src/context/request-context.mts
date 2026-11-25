@@ -1,88 +1,24 @@
-import { DIError, DIErrorCode, InjectableScope, InjectionToken } from '@navios/di'
+import { DIError, DIErrorCode } from '@navios/di'
 
-import type { AnyInjectableType, Container, ScopedContainer } from '@navios/di'
+import type { AnyInjectableType, ScopedContainer } from '@navios/di'
 
-import { adopt } from '../routing/promises.mjs'
+import { adopt } from '../internal/promises.mjs'
 
-import type { CookieOptions, RouteInfo, RouteInput, SetCookie } from '../routing/types.mjs'
+import type { SetCookie } from '../routing/cookies.mjs'
+import type { RouteInfo } from '../routing/route-info.mjs'
+import type { RouteInput } from '../routing/route-input.mjs'
 
 import { PlainContextKey } from './context-key.mjs'
+import { RequestContextToken } from './request-context-token.mjs'
 
-import type {
-  ContextKey,
-  ContextValue,
-  RequestValueClass,
-  RequestValueProvider,
-} from './context-key.mjs'
+import type { ContextHost } from './context-host.mjs'
+import type { ContextKey, ContextValue } from './context-key.mjs'
+import type { AdapterEnvironment, RegisteredEnvironment } from './environment.mjs'
+import type { ReplyControls } from './reply-controls.mjs'
+import type { RequestCookies, RequestHeaders, RequestQuery } from './request-data.mjs'
+import type { RequestValueClass, RequestValueProvider } from './request-value.mjs'
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
-
-/**
- * Declares the application's adapter so that `ctx.raw` is typed:
- *
- * ```ts
- * declare module '@navios/core' {
- *   interface Register {
- *     environment: FastifyEnvironment
- *   }
- * }
- * ```
- */
-// oxlint-disable-next-line no-empty-interface
-export interface Register {}
-
-/**
- * What an adapter contributes to the types.
- */
-export interface AdapterEnvironment {
-  /** The adapter's native request objects, exposed as `ctx.raw`. */
-  raw: unknown
-}
-
-export type RegisteredEnvironment = Register extends {
-  environment: infer E extends AdapterEnvironment
-}
-  ? E
-  : AdapterEnvironment
-
-/**
- * The request context, available to request-scoped services with
- * `inject(RequestContextToken)`.
- */
-export const RequestContextToken = InjectionToken.create<RequestContext>('RequestContext', {
-  scope: InjectableScope.Request,
-})
-
-export interface RequestHeaders {
-  get(name: string): string | undefined
-  /** All request headers as a web `Headers` object. Built on first call. */
-  toWebHeaders(): Headers
-}
-
-/** The parsed query string: a repeated parameter is an array. */
-export type RequestQuery = Readonly<Record<string, string | string[] | undefined>>
-
-export interface RequestCookies {
-  get(name: string): string | undefined
-  all(): Readonly<Record<string, string>>
-}
-
-export interface ReplyControls {
-  /** Sets a response header. */
-  header(name: string, value: string): void
-  /** Adds a `Set-Cookie` to the response. */
-  cookie(name: string, value: string, options?: CookieOptions): void
-}
-
-/**
- * Dependencies shared by every request context of an application.
- * @internal
- */
-export interface ContextHost {
-  readonly container: Container
-  /** Called the first time a request-scoped token is used; may throw. */
-  onScopedUse: ((token: AnyInjectableType) => void) | null
-}
 
 let requestCounter = 0
 

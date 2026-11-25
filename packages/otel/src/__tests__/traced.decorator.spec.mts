@@ -8,7 +8,7 @@ import {
   Traced,
   TracedMetadataKey,
   TRACED_METADATA_KEY,
-} from '../decorators/traced.decorator.mjs'
+} from '../traced/index.mjs'
 
 describe('@Traced decorator', () => {
   describe('class decorator', () => {

@@ -1,15 +1,17 @@
-import { adopt } from '../routing/promises.mjs'
-import { isEndpointReply } from '../routing/reply.mjs'
-import { ValidationError } from '../routing/validation.mjs'
+import { adopt } from '../internal/promises.mjs'
+import { isEndpointReply } from '../responses/reply.mjs'
 
 import type { RequestContext } from '../context/request-context.mjs'
-import type { EndpointReply } from '../routing/reply.mjs'
-import type { RouteEndpointConfig, RouteResult } from '../routing/types.mjs'
+import type { EndpointReply } from '../responses/reply.mjs'
+import type { RouteEndpointConfig } from '../routing/endpoint-config.mjs'
+import type { RouteResult } from '../routing/route-result.mjs'
 
-import { GuardDeniedError, HttpException } from './http-exception.mjs'
+import { GuardDeniedError } from './guard-denied-error.mjs'
+import { HttpException } from './http-exception.mjs'
 import { problem } from './problem.mjs'
+import { ValidationError } from './validation-error.mjs'
 
-import type { ErrorResponder } from './problem.mjs'
+import type { ErrorResponder } from './error-responders.mjs'
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 

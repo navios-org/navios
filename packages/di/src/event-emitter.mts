@@ -2,8 +2,8 @@
 /* eslint-disable @typescript-eslint/no-empty-object-type */
 /* eslint-disable @typescript-eslint/no-unsafe-function-type */
 
-import { InjectableScope } from './enums/index.mjs'
-import { registerInjectable } from './token/provider.mjs'
+import { InjectableScope } from './injectable-scope.mjs'
+import { registerInjectable } from './provider/registration.mjs'
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 export type EventsConfig = {

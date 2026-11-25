@@ -2,7 +2,7 @@ import { isCustomResult, result } from '@navios/core'
 
 import type { CustomResult } from '@navios/core'
 
-import type { AnyXmlNode, XmlRenderable } from '../types/xml-node.mjs'
+import type { AnyXmlNode, XmlRenderable } from '../nodes/xml-node.mjs'
 
 /** The response kind `xml()` produces and `xmlPlugin()` encodes. */
 export const XML_RESULT_KIND = 'xml'

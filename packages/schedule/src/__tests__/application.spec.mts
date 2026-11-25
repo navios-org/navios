@@ -4,9 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { NaviosApplication } from '@navios/core'
 
-import { Cron, Schedulable } from '../decorators/index.mjs'
-import { schedulePlugin } from '../schedule.plugin.mjs'
-import { SchedulerService } from '../scheduler.service.mjs'
+import { Cron, Schedulable, schedulePlugin, SchedulerService } from '../index.mjs'
 
 describe('Schedule in a Navios application', () => {
   let app: NaviosApplication | null = null

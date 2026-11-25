@@ -3,14 +3,14 @@ import { z } from 'zod/v4'
 
 import { Container } from '../container/container.mjs'
 import { Injectable } from '../decorators/index.mjs'
-import { InjectableScope } from '../enums/index.mjs'
+import { InjectableScope } from '../injectable-scope.mjs'
 import {
   BoundInjectionToken,
   FactoryInjectionToken,
   InjectionToken,
 } from '../token/injection-token.mjs'
 
-import type { FactoryContext } from '../token/injection-token.mjs'
+import type { FactoryContext } from '../provider/factory-context.mjs'
 
 describe('InjectionToken', () => {
   describe('constructor', () => {

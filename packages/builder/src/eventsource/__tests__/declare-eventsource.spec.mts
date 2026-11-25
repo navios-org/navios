@@ -1,13 +1,10 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
 import { z } from 'zod/v4'
 
-import {
-  createEventSourceHandler,
-  declareEventSource,
-} from '../eventsource/declare-eventsource.mjs'
+import { createEventSourceHandler, declareEventSource } from '../declare-eventsource.mjs'
 import { EventSourceError } from '../index.mjs'
 
-import type { Schema } from '../../types/schema.mjs'
+import type { Schema } from '../../shared/schema.mjs'
 
 // Mock EventSource for Node.js environment
 class MockEventSource {

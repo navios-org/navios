@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { createElement } from '../runtime/create-element.mjs'
+import { createElement } from '../jsx/create-element.mjs'
 
 import { isXmlResponse, xml } from './xml.mjs'
 

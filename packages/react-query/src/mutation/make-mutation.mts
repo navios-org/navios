@@ -3,24 +3,24 @@ import { useIsMutating, useMutation } from '@tanstack/react-query'
 import type { BaseEndpointOptions, EndpointHandler } from '@navios/builder'
 import type { MutationFunctionContext } from '@tanstack/react-query'
 
-import { createCaller } from '../common/call.mjs'
-import { callOptionsFor } from '../common/http-client.mjs'
-import { createMutationKey } from '../query/key.mjs'
+import { createMutationKey } from '../endpoint/cache-key.mjs'
+import { createCaller } from '../endpoint/create-caller.mjs'
+import { callOptionsFor } from '../endpoint/http-client.mjs'
 
-import type { MaybeWithResponse } from '../common/call.mjs'
-import type { EndpointData, EndpointFailure } from '../common/types.mjs'
+import type { MaybeWithResponse } from '../endpoint/create-caller.mjs'
+import type { EndpointData, EndpointFailure } from '../endpoint/types.mjs'
 
 import { applyOptimisticUpdate, settleOptimisticUpdate } from './optimistic-registry.mjs'
-import { optimisticUpdate } from './optimistic.mjs'
+import { optimisticUpdate } from './optimistic-update.mjs'
 
-import type { PendingUpdate } from './optimistic-registry.mjs'
 import type {
   InvalidateTarget,
   MutationObject,
   MutationSettings,
   MutationVariables,
-  OptimisticUpdate,
-} from './types.mjs'
+} from './mutation-object.mjs'
+import type { PendingUpdate } from './optimistic-registry.mjs'
+import type { OptimisticUpdate } from './optimistic-update.mjs'
 
 function toArray<T>(value: T | readonly T[] | undefined): readonly T[] {
   if (value === undefined) return []

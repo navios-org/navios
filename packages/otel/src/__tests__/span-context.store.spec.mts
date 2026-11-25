@@ -6,7 +6,7 @@ import {
   getCurrentSpan,
   getCurrentSpanContext,
   runWithSpanContext,
-} from '../stores/span-context.store.mjs'
+} from '../tracing/span-context.mjs'
 
 describe('span-context.store', () => {
   // The helpers are thin wrappers over the OpenTelemetry context, which needs

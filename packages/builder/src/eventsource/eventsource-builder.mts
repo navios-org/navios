@@ -1,14 +1,14 @@
-import { NaviosError } from '../errors/navios-error.mjs'
-import { isPendingOutcome, validateEager } from '../request/validate.mjs'
+import { NaviosError } from '../shared/navios-error.mjs'
+import { isPendingOutcome, validateEager } from '../shared/validate.mjs'
 
-import type { ValidationOutcome } from '../request/validate.mjs'
+import type { ValidationOutcome } from '../shared/validate.mjs'
 
-import { reportEventSourceError } from './report-error.mjs'
+import { reportEventSourceError } from './report-eventsource-error.mjs'
 
-import type { EventSourceBuilderInstance } from './types/eventsource-builder-instance.mjs'
-import type { EventSourceClient } from './types/eventsource-client.mjs'
-import type { EventHandler, EventUnsubscribe } from './types/eventsource-handlers.mjs'
-import type { EventSourceBuilderConfig, EventOptions } from './types/eventsource-options.mjs'
+import type { EventSourceBuilderInstance } from './eventsource-builder-instance.mjs'
+import type { EventSourceClient } from './eventsource-client.mjs'
+import type { EventHandler, EventUnsubscribe } from './eventsource-handlers.mjs'
+import type { EventSourceBuilderConfig, EventOptions } from './eventsource-options.mjs'
 
 /**
  * Creates an EventSource builder instance for declarative SSE event handling.

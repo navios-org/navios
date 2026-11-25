@@ -4,7 +4,7 @@ import type { HttpAdapterEnvironment } from '../adapter/http-adapter.mjs'
 
 import { NaviosApplication } from './navios-application.mjs'
 
-import type { NaviosApplicationOptions } from './navios-application.mjs'
+import type { NaviosApplicationOptions } from './navios-application-options.mjs'
 
 export class NaviosFactory {
   /**

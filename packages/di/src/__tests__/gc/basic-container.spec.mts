@@ -10,10 +10,10 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import { Container } from '../../container/container.mjs'
-import { Injectable } from '../../decorators/injectable.decorator.mjs'
-import { inject } from '../../injectors.mjs'
+import { Injectable } from '../../decorators/injectable.mjs'
+import { inject } from '../../injection/injectors.mjs'
 
-import type { OnServiceDestroy } from '../../interfaces/on-service-destroy.interface.mjs'
+import type { OnServiceDestroy } from '../../lifecycle-hooks.mjs'
 
 import { createGCTracker, forceGC, isGCAvailable, waitForGC } from './gc-test-utils.mjs'
 

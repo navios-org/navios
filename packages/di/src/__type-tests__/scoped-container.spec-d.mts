@@ -5,7 +5,7 @@ import { Container } from '../container/container.mjs'
 import { Factory, Injectable } from '../decorators/index.mjs'
 import { InjectionToken } from '../token/injection-token.mjs'
 
-import type { Factorable } from '../interfaces/index.mjs'
+import type { Factorable } from '../provider/factorable.mjs'
 
 interface FooService {
   makeFoo(): string

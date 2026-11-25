@@ -1,12 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { z } from 'zod/v4'
 
-import { NaviosError } from '../../errors/index.mjs'
+import { NaviosError } from '../../shared/navios-error.mjs'
+import { createWebSocketHandler, declareWebSocket } from '../declare-websocket.mjs'
 import { SocketError } from '../index.mjs'
 import { socketBuilder } from '../socket-builder.mjs'
-import { createWebSocketHandler, declareWebSocket } from '../websocket/declare-websocket.mjs'
 
-import type { Schema } from '../../types/schema.mjs'
+import type { Schema } from '../../shared/schema.mjs'
 
 // Mock WebSocket for Node.js environment
 class MockWebSocket {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { create } from '../createNavios.mjs'
+import { create } from '../client/create-navios.mjs'
 import { makeNaviosFakeAdapter } from '../testing/index.mjs'
 
 describe('navios::post', () => {

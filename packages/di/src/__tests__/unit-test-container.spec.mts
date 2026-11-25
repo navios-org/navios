@@ -1,12 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { z } from 'zod'
 
-import { Injectable } from '../decorators/injectable.decorator.mjs'
+import { Injectable } from '../decorators/injectable.mjs'
 import { DIError, DIErrorCode } from '../errors/di-error.mjs'
-import { asyncInject, inject, optional } from '../injectors.mjs'
+import { asyncInject, inject, optional } from '../injection/injectors.mjs'
 import { UnitTestContainer } from '../testing/unit-test-container.mjs'
+import { getInjectableToken } from '../token/injectable-token.mjs'
 import { InjectionToken } from '../token/injection-token.mjs'
-import { getInjectableToken } from '../utils/get-injectable-token.mjs'
 
 describe('UnitTestContainer', () => {
   describe('Strict Mode (default)', () => {

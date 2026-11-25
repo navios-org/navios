@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { z } from 'zod/v4'
 
-import { builder } from '../../builder.mjs'
-import { EndpointError } from '../../errors/index.mjs'
+import { builder } from '../../http/builder.mjs'
+import { EndpointError } from '../../index.mjs'
 
 import { createMockClient, successResponse, type MockClient } from './mock-client.mjs'
 

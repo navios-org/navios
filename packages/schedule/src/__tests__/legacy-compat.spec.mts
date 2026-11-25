@@ -1,8 +1,8 @@
 import { Container, InjectableScope, LoggerOutput } from '@navios/core'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { extractScheduleMetadata, hasScheduleMetadata } from '../index.mjs'
 import { Cron, Schedulable, SchedulerService } from '../legacy-compat/index.mjs'
-import { extractScheduleMetadata, hasScheduleMetadata } from '../metadata/index.mjs'
 
 const loggerOutput = {
   log: vi.fn(),

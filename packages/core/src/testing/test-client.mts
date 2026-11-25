@@ -1,7 +1,7 @@
 import type { BaseEndpointOptions, ClientRequestArgs } from '@navios/builder'
 
-import type { TestResponse } from '../adapter/http-adapter.mjs'
-import type { EndpointDeclaration } from '../decorators/handler-types.mjs'
+import type { TestResponse } from '../adapter/test-request.mjs'
+import type { EndpointDeclaration } from '../handlers/endpoint-declaration.mjs'
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 

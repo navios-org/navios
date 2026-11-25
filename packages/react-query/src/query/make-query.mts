@@ -3,15 +3,15 @@ import { queryOptions, skipToken, useQuery, useSuspenseQuery } from '@tanstack/r
 import type { BaseEndpointOptions, EndpointHandler } from '@navios/builder'
 import type { QueryClient } from '@tanstack/react-query'
 
-import { createCaller } from '../common/call.mjs'
-import { callOptionsFor } from '../common/http-client.mjs'
+import { createKeyBuilder } from '../endpoint/cache-key.mjs'
+import { createCaller } from '../endpoint/create-caller.mjs'
+import { callOptionsFor } from '../endpoint/http-client.mjs'
 
-import type { MaybeWithResponse } from '../common/call.mjs'
-import type { EndpointData, EndpointFailure, SurfaceOptions } from '../common/types.mjs'
+import type { MaybeWithResponse } from '../endpoint/create-caller.mjs'
+import type { SurfaceOptions } from '../endpoint/surface-options.mjs'
+import type { EndpointData, EndpointFailure } from '../endpoint/types.mjs'
 
-import { createKeyBuilder } from './key.mjs'
-
-import type { QueryObject } from './types.mjs'
+import type { QueryObject } from './query-object.mjs'
 
 function noop() {}
 

@@ -1,12 +1,12 @@
 import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod/v4'
 
-import { NaviosError } from '../../errors/index.mjs'
+import { NaviosError } from '../../shared/navios-error.mjs'
 import { isSocketError, SocketError } from '../index.mjs'
 import { socketBuilder } from '../socket-builder.mjs'
 
-import type { Schema } from '../../types/schema.mjs'
-import type { SocketClient } from '../types/socket-client.mjs'
+import type { Schema } from '../../shared/schema.mjs'
+import type { SocketClient } from '../socket-client.mjs'
 
 /** A hand-written Standard Schema, standing in for any non-Zod library. */
 function standard<Input, Output>(

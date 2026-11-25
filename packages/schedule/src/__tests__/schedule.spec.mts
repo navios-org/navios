@@ -1,8 +1,7 @@
 import { Container, Injectable, InjectableScope, inject, LoggerOutput } from '@navios/core'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { Cron, Schedulable } from '../decorators/index.mjs'
-import { SchedulerService } from '../scheduler.service.mjs'
+import { Cron, Schedulable, SchedulerService } from '../index.mjs'
 
 const loggerOutput = {
   log: vi.fn(),

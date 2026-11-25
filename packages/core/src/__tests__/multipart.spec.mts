@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod/v4'
 
-import { createMultipartCollector } from '../routing/multipart.mjs'
+import { createMultipartCollector } from '../adapter/multipart-collector.mjs'
 
 describe('createMultipartCollector', () => {
   it('uses the schema to tell arrays and objects from scalars', () => {
