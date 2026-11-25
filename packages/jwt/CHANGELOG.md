@@ -26,6 +26,19 @@ Ported to `@navios/core` 2.0 and `@navios/di` 2.0.
 
 - The `Algorithm` type.
 - `JwtService` is the default provider of `JwtServiceToken` and can be replaced with `provide(JwtServiceToken, Impl)` in application or module `providers`.
+- `secretOrKeyProvider` may return a promise, so a key can be looked up remotely (JWKS). `signAsync()` and `verifyAsync()` await it; `sign()` and `verify()` throw an error that names the async method.
+- `secret`, `publicKey` and `privateKey` accept a Node.js `KeyObject` everywhere, and `secret` in the configuration also accepts a `Buffer`.
+- `TokenExpiredError`, `NotBeforeError` and `JsonWebTokenError` are exported as types as well as values, so `let error: TokenExpiredError` compiles.
+- `files` in `package.json`: only `lib`, the README, the changelog and the license are published.
+
+### Fixed
+
+- **BREAKING**: A `secret`, `privateKey` or `publicKey` passed to a single call now wins over everything configured on the service. Before, `secretOrKeyProvider` silently overrode a per-call `secret`, and the `secret` of the service overrode a per-call key, so `verify(token, { publicKey, algorithms: ['RS256'] })` threw on a service configured with a `secret`. The order is: per-call `secret`, per-call key, `secretOrKeyProvider`, service `secret`, service key.
+- `provideJwtService({ secret: Buffer })` and `provideJwtService({ publicKey: KeyObject })` no longer fail the configuration check.
+- `sign('string payload')` no longer throws when the service has default `signOptions`. The claim defaults (`expiresIn`, `notBefore`, `noTimestamp`, `audience`, `issuer`, `subject`, `jwtid`) are not applied to a string or `Buffer` payload; a string payload is rejected only when the caller passes one of these options.
+- `decode()` is typed as returning `T | null`; it always returned `null` for a token it could not decode.
+- `@types/jsonwebtoken` is a dependency instead of a dev dependency: the published type declarations import from it.
+- `repository.url` points to `navios-org/navios`.
 
 ## [1.0.0] - 2026-01-09
 

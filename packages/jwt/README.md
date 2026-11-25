@@ -65,6 +65,36 @@ export class SessionService {
 | The current user in a handler             | a context key set by the guard                             | [Read the user in a handler](https://navios.tech/docs/server/guides/authentication#read-the-user-in-a-handler) |
 | A fake service in tests                   | `provide(JwtServiceToken, FakeJwtService)`                 | [Replacing the service](https://navios.tech/docs/server/guides/authentication#replacing-the-service)           |
 
+## Which key is used
+
+`secret`, `privateKey` and `publicKey` accept a string, a `Buffer` or a Node.js `KeyObject`, in the configuration and in the options of a single call.
+
+For each call the first of these that is set is used:
+
+1. `secret`, then `privateKey` (sign) or `publicKey` (verify), passed to the call
+2. `secretOrKeyProvider` of the service
+3. `secret`, then `privateKey` or `publicKey`, of the service
+
+So a key passed to one call always wins over the configuration, including the provider. The key is never chosen by the algorithm of the token; list the accepted `algorithms` yourself.
+
+`secretOrKeyProvider` may return a promise, for example to fetch a key from a JWKS endpoint:
+
+```ts
+export const Jwt = provideJwtService({
+  secretOrKeyProvider: async (requestType, tokenOrPayload) => {
+    if (requestType === RequestType.Sign) {
+      return signingKey
+    }
+    return keys.get(decodeKeyId(tokenOrPayload))
+  },
+  verifyOptions: { algorithms: ['RS256'] },
+})
+```
+
+With an asynchronous provider use `signAsync()` and `verifyAsync()`; `sign()` and `verify()` throw, because they cannot wait for the key.
+
+A string payload is signed as is: the claim defaults in `signOptions` (`expiresIn`, `issuer` and so on) are not applied to it, and passing one of them with a string payload throws.
+
 ## Upgrading from 1.x
 
 The configuration factory receives a `FactoryContext`, and the Zod schemas were replaced by plain types, so `zod` is no longer a peer dependency. See [Migrating to 2.0](https://navios.tech/docs/server/reference/migrating-to-2#naviosjwt), or [CHANGELOG.md](./CHANGELOG.md) for the full list.

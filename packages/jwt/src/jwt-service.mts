@@ -40,6 +40,17 @@ import type {
  * }
  * ```
  */
+/** Sign options `jsonwebtoken` accepts only together with an object payload. */
+const OBJECT_PAYLOAD_SIGN_OPTIONS = [
+  'expiresIn',
+  'notBefore',
+  'noTimestamp',
+  'audience',
+  'issuer',
+  'subject',
+  'jwtid',
+] as const
+
 export class JwtService {
   logger = inject(Logger, {
     context: 'JwtService',
@@ -55,13 +66,16 @@ export class JwtService {
   /**
    * Signs a JWT payload synchronously.
    *
-   * When the payload is a string, only `secret` and `privateKey` options are allowed.
-   * For object or Buffer payloads, all sign options are available.
+   * A string payload is signed as is: the claim options (`expiresIn`, `notBefore`,
+   * `noTimestamp`, `audience`, `issuer`, `subject`, `jwtid`) cannot be passed with it, and
+   * the `signOptions` defaults of the service for them are not applied.
+   * For object payloads, all sign options are available.
    *
    * @param payload - The payload to sign. Can be a string, Buffer, or object.
    * @param options - Signing options. When payload is a string, only `secret` and `privateKey` are allowed.
    * @returns The signed JWT token as a string
    * @throws {Error} If payload is a string and invalid options are provided
+   * @throws {Error} If `secretOrKeyProvider` returns a promise; use `signAsync()`
    *
    * @example
    * ```ts
@@ -85,14 +99,19 @@ export class JwtService {
    */
   sign(payload: Buffer | object, options?: JwtSignOptions): string
   sign(payload: string | Buffer | object, options: JwtSignOptions = {}): string {
-    const { signOptions, secret } = this.prepareSign(payload, options)
+    const signOptions = this.prepareSign(payload, options)
+    const secret = this.requireSyncKey(
+      this.getSecretKey(payload, options, 'privateKey', RequestType.Sign),
+      'sign',
+    )
     return jwt.sign(payload, secret, signOptions)
   }
 
   /**
    * Signs a JWT payload asynchronously.
    *
-   * Supports the same payload types and options as `sign()`.
+   * Supports the same payload types and options as `sign()`, and awaits a
+   * `secretOrKeyProvider` that returns a promise.
    *
    * @param payload - The payload to sign. Can be a string, Buffer, or object.
    * @param options - Signing options. When payload is a string, only `secret` and `privateKey` are allowed.
@@ -116,8 +135,12 @@ export class JwtService {
    * @returns A Promise that resolves to the signed JWT token as a string
    */
   signAsync(payload: Buffer | object, options?: JwtSignOptions): Promise<string>
-  signAsync(payload: string | Buffer | object, options: JwtSignOptions = {}): Promise<string> {
-    const { signOptions, secret } = this.prepareSign(payload, options)
+  async signAsync(
+    payload: string | Buffer | object,
+    options: JwtSignOptions = {},
+  ): Promise<string> {
+    const signOptions = this.prepareSign(payload, options)
+    const secret = await this.getSecretKey(payload, options, 'privateKey', RequestType.Sign)
     return new Promise((resolve, reject) => {
       jwt.sign(payload, secret, signOptions, (err, encoded) =>
         err ? reject(err) : resolve(encoded as string),
@@ -138,6 +161,7 @@ export class JwtService {
    * @throws {TokenExpiredError} If the token has expired
    * @throws {NotBeforeError} If the token is not yet valid (nbf claim)
    * @throws {JsonWebTokenError} If the token is invalid or malformed
+   * @throws {Error} If `secretOrKeyProvider` returns a promise; use `verifyAsync()`
    *
    * @example
    * ```ts
@@ -152,7 +176,11 @@ export class JwtService {
    * ```
    */
   verify<T extends object = any>(token: string, options: JwtVerifyOptions = {}): T {
-    const { verifyOptions, secret } = this.prepareVerify(token, options)
+    const verifyOptions = this.mergeJwtOptions({ ...options }, 'verifyOptions')
+    const secret = this.requireSyncKey(
+      this.getSecretKey(token, options, 'publicKey', RequestType.Verify),
+      'verify',
+    )
     // @ts-expect-error We check it
     return jwt.verify(token, secret, verifyOptions) as unknown as T
   }
@@ -160,7 +188,8 @@ export class JwtService {
   /**
    * Verifies and decodes a JWT token asynchronously.
    *
-   * Provides the same validation as `verify()`.
+   * Provides the same validation as `verify()`, and awaits a `secretOrKeyProvider`
+   * that returns a promise (for example a JWKS lookup).
    *
    * @template T - The expected type of the decoded payload
    * @param token - The JWT token string to verify
@@ -182,8 +211,12 @@ export class JwtService {
    * }
    * ```
    */
-  verifyAsync<T extends object = any>(token: string, options: JwtVerifyOptions = {}): Promise<T> {
-    const { verifyOptions, secret } = this.prepareVerify(token, options)
+  async verifyAsync<T extends object = any>(
+    token: string,
+    options: JwtVerifyOptions = {},
+  ): Promise<T> {
+    const verifyOptions = this.mergeJwtOptions({ ...options }, 'verifyOptions')
+    const secret = await this.getSecretKey(token, options, 'publicKey', RequestType.Verify)
     return new Promise((resolve, reject) => {
       // @ts-expect-error We check it
       jwt.verify(token, secret, verifyOptions, (err, decoded) =>
@@ -213,44 +246,37 @@ export class JwtService {
    * }
    * ```
    */
-  decode<T = any>(token: string, options?: jwt.DecodeOptions): T {
-    return jwt.decode(token, options) as T
+  decode<T = any>(token: string, options?: jwt.DecodeOptions): T | null {
+    return jwt.decode(token, options) as T | null
   }
 
-  private prepareSign(
-    payload: string | Buffer | object,
-    options: JwtSignOptions,
-  ): { signOptions: jwt.SignOptions; secret: GetSecretKeyResult } {
-    const signOptions = this.mergeJwtOptions({ ...options }, 'signOptions') as jwt.SignOptions
-    const secret = this.getSecretKey(payload, options, 'privateKey', RequestType.Sign)
-
-    const allowedSignOptKeys = ['secret', 'privateKey']
-    const signOptKeys = Object.keys(signOptions)
-    if (typeof payload === 'string' && signOptKeys.some((k) => !allowedSignOptKeys.includes(k))) {
-      throw new Error(
-        'Payload as string is not allowed with the following sign options: ' +
-          signOptKeys.join(', '),
-      )
+  private prepareSign(payload: string | Buffer | object, options: JwtSignOptions): jwt.SignOptions {
+    if (typeof payload === 'object' && !Buffer.isBuffer(payload)) {
+      return this.mergeJwtOptions({ ...options }, 'signOptions') as jwt.SignOptions
     }
 
-    return { signOptions, secret }
-  }
-
-  private prepareVerify(
-    token: string,
-    options: JwtVerifyOptions,
-  ): {
-    verifyOptions: VerifyOptions | SignOptions
-    secret: GetSecretKeyResult
-  } {
-    const verifyOptions = this.mergeJwtOptions({ ...options }, 'verifyOptions')
-    const secret = this.getSecretKey(token, options, 'publicKey', RequestType.Verify)
-    return { verifyOptions, secret }
+    // `jsonwebtoken` refuses these options unless the payload is an object.
+    if (typeof payload === 'string') {
+      const forbidden = OBJECT_PAYLOAD_SIGN_OPTIONS.filter((k) => options[k] !== undefined)
+      if (forbidden.length > 0) {
+        throw new Error(
+          'Payload as string is not allowed with the following sign options: ' +
+            forbidden.join(', '),
+        )
+      }
+    }
+    // So the defaults of the service are not applied to such a payload either.
+    const defaults = { ...this.options.signOptions }
+    for (const key of OBJECT_PAYLOAD_SIGN_OPTIONS) {
+      delete defaults[key]
+    }
+    return this.mergeJwtOptions({ ...options }, 'signOptions', defaults) as jwt.SignOptions
   }
 
   private mergeJwtOptions(
     options: JwtVerifyOptions | JwtSignOptions,
     key: 'verifyOptions' | 'signOptions',
+    defaults: VerifyOptions | SignOptions | undefined = this.options[key],
   ): VerifyOptions | SignOptions {
     delete options.secret
     if (key === 'signOptions') {
@@ -258,30 +284,50 @@ export class JwtService {
     } else {
       delete (options as JwtVerifyOptions).publicKey
     }
-    return options
-      ? {
-          ...this.options[key],
-          ...options,
-        }
-      : // @ts-expect-error We check it
-        this.options[key]
+    return {
+      ...defaults,
+      ...options,
+    }
   }
 
+  /**
+   * Picks the secret or key of one call. What the caller passes wins over what
+   * the service was configured with: per-call `secret`, per-call key, then
+   * `secretOrKeyProvider`, the `secret` of the service and its key.
+   */
   private getSecretKey(
     token: string | object | Buffer,
     options: JwtVerifyOptions | JwtSignOptions,
     key: 'publicKey' | 'privateKey',
     secretRequestType: RequestType,
-  ): GetSecretKeyResult {
-    const secret = this.options.secretOrKeyProvider
-      ? this.options.secretOrKeyProvider(secretRequestType, token, options)
-      : options?.secret ||
-        this.options.secret ||
-        (key === 'privateKey'
-          ? (options as JwtSignOptions)?.privateKey || this.options.privateKey
-          : (options as JwtVerifyOptions)?.publicKey || this.options.publicKey) ||
-        this.options[key]
+  ): GetSecretKeyResult | Promise<GetSecretKeyResult> {
+    const perCall =
+      options.secret ||
+      (key === 'privateKey'
+        ? (options as JwtSignOptions).privateKey
+        : (options as JwtVerifyOptions).publicKey)
+    if (perCall) {
+      return perCall as GetSecretKeyResult
+    }
+    if (this.options.secretOrKeyProvider) {
+      return this.options.secretOrKeyProvider(secretRequestType, token, options) as
+        | GetSecretKeyResult
+        | Promise<GetSecretKeyResult>
+    }
+    return (this.options.secret || this.options[key]) as GetSecretKeyResult
+  }
 
+  private requireSyncKey(
+    secret: GetSecretKeyResult | Promise<GetSecretKeyResult>,
+    method: 'sign' | 'verify',
+  ): GetSecretKeyResult {
+    if (typeof (secret as PromiseLike<unknown> | undefined)?.then === 'function') {
+      // The promise is dropped; do not let its rejection go unhandled.
+      ;(secret as Promise<GetSecretKeyResult>).then(undefined, () => {})
+      throw new Error(
+        `JwtService.${method}() cannot be used with a secretOrKeyProvider that returns a promise. Use ${method}Async() instead.`,
+      )
+    }
     return secret as GetSecretKeyResult
   }
 }

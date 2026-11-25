@@ -18,6 +18,8 @@ import jwt from 'jsonwebtoken'
  * ```
  */
 export const TokenExpiredError = jwt.TokenExpiredError
+// The type of an instance, so the name works in type positions as well.
+export type TokenExpiredError = jwt.TokenExpiredError
 
 /**
  * Error thrown when a JWT token is not yet valid.
@@ -37,6 +39,8 @@ export const TokenExpiredError = jwt.TokenExpiredError
  * ```
  */
 export const NotBeforeError = jwt.NotBeforeError
+// The type of an instance, so the name works in type positions as well.
+export type NotBeforeError = jwt.NotBeforeError
 
 /**
  * Base error class for JWT-related errors.
@@ -56,3 +60,5 @@ export const NotBeforeError = jwt.NotBeforeError
  * ```
  */
 export const JsonWebTokenError = jwt.JsonWebTokenError
+// The type of an instance, so the name works in type positions as well.
+export type JsonWebTokenError = jwt.JsonWebTokenError

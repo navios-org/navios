@@ -9,9 +9,15 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/Arilas/navios.git",
+    "url": "https://github.com/navios-org/navios.git",
     "directory": "packages/jwt"
   },
+  "files": [
+    "lib",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ],
   "main": "./lib/index.cjs",
   "module": "./lib/index.mjs",
   "typings": "./lib/index.d.mts",
@@ -36,11 +42,11 @@
     "publish:next": "yarn npm publish --access public --tag next"
   },
   "dependencies": {
+    "@types/jsonwebtoken": "^9.0.10",
     "jsonwebtoken": "^9.0.3"
   },
   "devDependencies": {
-    "@navios/core": "workspace:^",
-    "@types/jsonwebtoken": "^9.0.10"
+    "@navios/core": "workspace:^"
   },
   "peerDependencies": {
     "@navios/core": "workspace:^"

@@ -1,3 +1,5 @@
+import type { KeyObject } from 'node:crypto'
+
 import type { Secret as JwtSecret } from 'jsonwebtoken'
 
 /**
@@ -88,6 +90,7 @@ export interface VerifyOptions {
 export type Secret =
   | string
   | Buffer
+  | KeyObject
   | { type: string; [key: string]: unknown }
   | { key: string | Buffer; passphrase: string }
 
@@ -97,12 +100,15 @@ export type Secret =
  * Extends `SignOptions` with additional properties for specifying
  * the secret or private key to use for signing.
  *
+ * A `secret` or `privateKey` given here wins over everything configured on the
+ * service, including `secretOrKeyProvider`. If both are given, `secret` is used.
+ *
  * @property secret - Secret key for symmetric algorithms (overrides service default)
  * @property privateKey - Private key for asymmetric algorithms (overrides service default)
  */
 export interface JwtSignOptions extends SignOptions {
   /** Secret key for symmetric algorithms */
-  secret?: string | Buffer
+  secret?: string | Buffer | KeyObject
   /** Private key for asymmetric algorithms */
   privateKey?: Secret
 }
@@ -113,14 +119,17 @@ export interface JwtSignOptions extends SignOptions {
  * Extends `VerifyOptions` with additional properties for specifying
  * the secret or public key to use for verification.
  *
+ * A `secret` or `publicKey` given here wins over everything configured on the
+ * service, including `secretOrKeyProvider`. If both are given, `secret` is used.
+ *
  * @property secret - Secret key for symmetric algorithms (overrides service default)
  * @property publicKey - Public key for asymmetric algorithms (overrides service default)
  */
 export interface JwtVerifyOptions extends VerifyOptions {
   /** Secret key for symmetric algorithms */
-  secret?: string | Buffer
+  secret?: string | Buffer | KeyObject
   /** Public key for asymmetric algorithms */
-  publicKey?: string | Buffer
+  publicKey?: string | Buffer | KeyObject
 }
 
 /**

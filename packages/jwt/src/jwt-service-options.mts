@@ -1,3 +1,5 @@
+import { KeyObject } from 'node:crypto'
+
 import type { StandardSchemaV1 } from '@navios/core'
 
 import type { Secret, SignOptions, VerifyOptions } from './token-options.mjs'
@@ -23,7 +25,10 @@ export enum RequestType {
  * @property publicKey - Default public key for asymmetric algorithms (RS256, ES256, etc.)
  * @property privateKey - Default private key for asymmetric algorithms
  * @property verifyOptions - Default options for verifying tokens
- * @property secretOrKeyProvider - Optional function to dynamically resolve secrets/keys
+ * @property secretOrKeyProvider - Optional function to dynamically resolve secrets/keys.
+ *   It may return a promise (for example a JWKS lookup); then only `signAsync()` and
+ *   `verifyAsync()` can be used. It wins over `secret` and the keys configured here, but
+ *   not over a `secret`, `privateKey` or `publicKey` passed to an individual call.
  *
  * @example
  * ```ts
@@ -41,15 +46,15 @@ export enum RequestType {
  */
 export interface JwtServiceOptions {
   signOptions?: SignOptions
-  secret?: string
-  publicKey?: string | Buffer
+  secret?: string | Buffer | KeyObject
+  publicKey?: string | Buffer | KeyObject
   privateKey?: Secret
   verifyOptions?: VerifyOptions
   secretOrKeyProvider?: (
     requestType: RequestType,
     tokenOrPayload: any,
     options?: SignOptions | VerifyOptions,
-  ) => Secret
+  ) => Secret | Promise<Secret>
 }
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
@@ -61,7 +66,7 @@ function isOptional(value: unknown, check: (value: unknown) => boolean): boolean
 }
 
 function isKey(value: unknown): boolean {
-  return typeof value === 'string' || Buffer.isBuffer(value)
+  return typeof value === 'string' || Buffer.isBuffer(value) || value instanceof KeyObject
 }
 
 function isJwtServiceOptions(value: unknown): value is JwtServiceOptions {
@@ -69,7 +74,7 @@ function isJwtServiceOptions(value: unknown): value is JwtServiceOptions {
     return false
   }
   return (
-    isOptional(value.secret, (v) => typeof v === 'string') &&
+    isOptional(value.secret, isKey) &&
     isOptional(value.publicKey, isKey) &&
     isOptional(value.privateKey, (v) => isKey(v) || isPlainObject(v)) &&
     isOptional(value.signOptions, isPlainObject) &&
@@ -96,7 +101,7 @@ export const JwtServiceOptionsSchema: StandardSchemaV1<JwtServiceOptions, JwtSer
             issues: [
               {
                 message:
-                  'JwtService options must be an object with optional `secret` (string), `publicKey` (string or Buffer), `privateKey` (string, Buffer or key object), `signOptions`, `verifyOptions` (objects) and `secretOrKeyProvider` (function)',
+                  'JwtService options must be an object with optional `secret`, `publicKey` (string, Buffer or KeyObject), `privateKey` (string, Buffer, KeyObject or key with passphrase), `signOptions`, `verifyOptions` (objects) and `secretOrKeyProvider` (function)',
               },
             ],
           },
