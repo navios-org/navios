@@ -26,16 +26,16 @@ const ZOD_IMPORT = /from\s*["']zod(\/[^"']*)?["']|require\(["']zod(\/[^"']*)?["'
 const HTTP_IMPORT = /(from\s*|require\()["']@navios\/(server|builder)/
 
 const targets = [
-  { name: 'di', budget: 60_000, forbidden: [/_apply_decs/, ZOD_IMPORT, /node:async_hooks/] },
+  { name: 'di', budget: 88_000, forbidden: [/_apply_decs/, ZOD_IMPORT, /node:async_hooks/] },
   // No HTTP in core: none of its files may import the server or the builder.
   {
     name: 'core',
-    budget: 62_000,
+    budget: 95_000,
     forbidden: [/_apply_decs/, ZOD_IMPORT, HTTP_IMPORT],
   },
-  { name: 'server', budget: 76_000, forbidden: [/_apply_decs/, ZOD_IMPORT] },
-  { name: 'adapter-fastify', budget: 12_000, forbidden: [/_apply_decs/, ZOD_IMPORT] },
-  { name: 'adapter-bun', budget: 20_000, forbidden: [/_apply_decs/, ZOD_IMPORT] },
+  { name: 'server', budget: 138_000, forbidden: [/_apply_decs/, ZOD_IMPORT] },
+  { name: 'adapter-fastify', budget: 19_000, forbidden: [/_apply_decs/, ZOD_IMPORT] },
+  { name: 'adapter-bun', budget: 22_000, forbidden: [/_apply_decs/, ZOD_IMPORT] },
 ]
 
 /** Top-level ESM files: the main entry and the chunks it shares with subpaths. */

@@ -26,6 +26,9 @@
       ]
     },
     "lint": {
+      "dependsOn": [
+        "^build"
+      ],
       "inputs": [
         "$TURBO_DEFAULT$",
         "src/**/*.{ts,tsx,mts}"
@@ -41,15 +44,6 @@
       ]
     },
     "test": {
-      "inputs": [
-        "$TURBO_DEFAULT$",
-        "src/**/*.{ts,tsx,mts}"
-      ]
-    },
-    "test:gc": {
-      "dependsOn": [
-        "^build"
-      ],
       "inputs": [
         "$TURBO_DEFAULT$",
         "src/**/*.{ts,tsx,mts}"

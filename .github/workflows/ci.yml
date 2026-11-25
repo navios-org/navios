@@ -1,0 +1,61 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+      - next
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ['22', '24']
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: .bun-version
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Install dependencies
+        run: yarn install --immutable
+
+      # Type checks, lint and tests are dependencies of the build.
+      - name: Build
+        run: yarn build
+
+      # `lint` fixes what it can instead of failing, so a change that was not
+      # formatted shows up here.
+      - name: Check that lint changed nothing
+        run: git diff --exit-code
+
+      # The suites nothing depends on: the conformance examples.
+      - name: Test
+        run: yarn test:ci
+
+      - name: Check bundle sizes
+        run: yarn check:size
+
+      - name: Check published types
+        run: yarn check:dts
