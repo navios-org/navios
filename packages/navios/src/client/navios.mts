@@ -1,5 +1,5 @@
-import type { NaviosConfig } from '../navios-config.mjs'
-import type { NaviosError } from '../navios-error.mjs'
+import type { InterceptorManager } from '../interceptors/index.mjs'
+import type { NaviosConfig, NaviosDefaults } from '../navios-config.mjs'
 import type {
   NaviosDeleteConfig,
   NaviosGetConfig,
@@ -9,68 +9,58 @@ import type {
   NaviosPostConfig,
   NaviosPutConfig,
   NaviosRequestConfig,
-} from '../request/request-config.mjs'
-import type { NaviosResponse } from '../response/navios-response.mjs'
+  PreparedRequestConfig,
+} from '../request/index.mjs'
+import type { NaviosResponse } from '../response/index.mjs'
 
 export interface Navios {
   create: (baseConfig?: NaviosConfig) => Navios
-  get: <Result, Params extends {} = {}>(
+  get: <Result, Params extends object = object>(
     url: string,
     config?: NaviosGetConfig<Params>,
   ) => Promise<NaviosResponse<Result>>
-  post: <Result, Data = Result, Params extends {} = {}>(
+  post: <Result, Data = unknown, Params extends object = object>(
     url: string,
-    data?: any,
+    data?: Data,
     config?: NaviosPostConfig<Data, Params>,
   ) => Promise<NaviosResponse<Result>>
-  put: <Result, Data = Result, Params extends {} = {}>(
+  put: <Result, Data = unknown, Params extends object = object>(
     url: string,
-    data?: any,
+    data?: Data,
     config?: NaviosPutConfig<Data, Params>,
   ) => Promise<NaviosResponse<Result>>
-  delete: <Result, Params extends {} = {}>(
+  delete: <Result, Params extends object = object>(
     url: string,
     config?: NaviosDeleteConfig<Params>,
   ) => Promise<NaviosResponse<Result>>
-  patch: <Result, Data = Result, Params extends {} = {}>(
+  patch: <Result, Data = unknown, Params extends object = object>(
     url: string,
-    data?: any,
+    data?: Data,
     config?: NaviosPatchConfig<Data, Params>,
   ) => Promise<NaviosResponse<Result>>
-  head: <Result, Params extends {} = {}>(
+  head: <Result, Params extends object = object>(
     url: string,
     config?: NaviosHeadConfig<Params>,
   ) => Promise<NaviosResponse<Result>>
-  options: <Result, Params extends {} = {}>(
+  options: <Result, Params extends object = object>(
     url: string,
     config?: NaviosOptionsConfig<Params>,
   ) => Promise<NaviosResponse<Result>>
-  request: <Result, Data = Result, Params extends {} = {}>(
+  request: <Result, Data = unknown, Params extends object = object>(
     config: NaviosRequestConfig<Data, Params>,
   ) => Promise<NaviosResponse<Result>>
-  defaults: NaviosConfig
+  /** The configuration of the client. Changes apply to every later request. */
+  defaults: NaviosDefaults
   interceptors: {
-    request: {
-      use: (
-        onInit: (onInit: NaviosRequestConfig<any, any>) => any,
-        onRejected?: (config: NaviosError) => any,
-      ) => number
-      eject: (id: number) => void
-      clear: () => void
-    }
-    response: {
-      use: (
-        onSuccess: (response: NaviosResponse<any>) => any,
-        onRejected?: (error: NaviosError) => any,
-      ) => number
-      eject: (id: number) => void
-      clear: () => void
-    }
+    /** Run before the request is serialised, so they can change `params`, `data` and `headers`. */
+    request: InterceptorManager<PreparedRequestConfig>
+    /** Run after the body was read. */
+    response: InterceptorManager<NaviosResponse<unknown>>
   }
 }
 
 export interface NaviosStatic extends Navios {
-  <Result, Data = Result, Params extends {} = {}>(
+  <Result, Data = unknown, Params extends object = object>(
     config: NaviosRequestConfig<Data, Params>,
   ): Promise<NaviosResponse<Result>>
 }
