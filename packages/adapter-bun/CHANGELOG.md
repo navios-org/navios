@@ -70,7 +70,8 @@ The adapter is rewritten on the adapter contract of `@navios/server` 2.0, the pa
 
 ### Performance
 
-- The request pipeline is the one measured in the `@navios/adapter-fastify` changelog. No Bun-specific benchmark has been run.
+- The request pipeline is the one measured in the `@navios/adapter-fastify` changelog.
+- Streams are written to the connection directly, with Bun's `direct` streams, at the pace of the client.
 
 ## [1.1.0] - 2026-01-15
 

@@ -229,7 +229,7 @@ When the error came after the headers of another response were set, remove those
 - text and streamed responses, responses without a body, and bodies that cannot be sent
 - multipart, file names that are paths, and a request body that is needed twice
 - client disconnect, with and without a request body
-- streams: read one chunk at a time; the headers of an event stream before its first event; closed when the client leaves, also before the first chunk, for a `HEAD` and when they cannot be sent; errors before and after the first chunk; the request scope until a stream is closed
+- streams: read one chunk at a time, and no faster than the client reads; a chunk is sent when it is produced; the headers of an event stream before its first event; closed when the client leaves, also before the first chunk, for a `HEAD` and when they cannot be sent; errors before and after the first chunk; the request scope until a stream is closed
 - `inject()`, also of a response that fails after it has begun
 - closing: connections without a request, requests and streams in flight, what outlives the timeout, and calls to a closed application
 - with `cors` set, preflight requests, and the CORS headers and `Vary` of every other response, errors included

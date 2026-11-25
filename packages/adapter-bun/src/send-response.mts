@@ -1,38 +1,48 @@
 import type { ManagedBody, RouteResponse } from '@navios/server/adapter'
 
-const encoder = new TextEncoder()
-
-/** A body that is produced while it is being sent, as the stream that Bun takes. */
+/**
+ * A body that is produced while it is being sent, as the stream that Bun takes.
+ * A direct one writes to the connection, without a queue between the two.
+ */
 function streamFrom(
   body: ManagedBody,
   opening: string | null,
   done: () => Promise<void>,
 ): ReadableStream<Uint8Array> {
-  let first = opening
-  return new ReadableStream({
+  const source: Bun.DirectUnderlyingSource<Uint8Array> = {
+    type: 'direct',
     async pull(controller) {
-      if (first !== null) {
-        controller.enqueue(encoder.encode(first))
-        first = null
-        return
-      }
       try {
-        const { done: ended, value } = await body.next()
-        if (ended) {
-          controller.close()
-          void done()
-          return
+        if (opening !== null) {
+          controller.write(opening)
+          controller.flush()
         }
-        controller.enqueue(typeof value === 'string' ? encoder.encode(value) : value)
+        for (;;) {
+          const { done: ended, value } = await body.next()
+          if (ended) {
+            controller.close()
+            return
+          }
+          const written = controller.write(value)
+          controller.flush()
+          if (typeof written !== 'number') {
+            // The client reads more slowly than the body is produced. Only this
+            // holds the producer back, `flush()` does not.
+            await written
+          }
+        }
       } catch {
-        // The server has reported the error. With it as the reason, Bun would
-        // print it as well.
-        controller.error()
+        // The server has reported the error. Bun closes the connection for any
+        // reason, and prints one that is an error as well.
+        throw undefined
+      } finally {
         void done()
       }
     },
     cancel: done,
-  })
+  }
+  // The type of the constructor is that of the DOM.
+  return new ReadableStream(source as unknown as UnderlyingDefaultSource<Uint8Array>)
 }
 
 /** Like the headers of a `GET`, for a `HEAD`: a stream, which Bun does not read. */
