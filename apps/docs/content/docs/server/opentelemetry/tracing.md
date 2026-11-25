@@ -191,7 +191,7 @@ Collect spans in memory with `spanProcessors` and call the application through t
 import { NaviosFactory } from '@navios/server'
 import { defineInMemoryEnvironment } from '@navios/server/testing'
 import { otelPlugin } from '@navios/otel'
-import { InMemorySpanExporter, SimpleSpanProcessor } from '@opentelemetry/sdk-trace-node'
+import { InMemorySpanExporter, SimpleSpanProcessor } from '@opentelemetry/sdk-trace'
 import { expect, it } from 'vitest'
 
 import { AppModule } from '../src/app.module.mjs'
@@ -205,7 +205,7 @@ it('traces a request', async () => {
       otelPlugin({
         serviceName: 'test',
         exporter: 'none',
-        spanProcessors: [new SimpleSpanProcessor(exporter)],
+        spanProcessors: [new SimpleSpanProcessor({ exporter })],
       }),
     ],
   })

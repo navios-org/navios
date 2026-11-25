@@ -1,6 +1,6 @@
-import { ConsoleSpanExporter } from '@opentelemetry/sdk-trace-node'
+import { ConsoleSpanExporter } from '@opentelemetry/sdk-trace'
 
-import type { SpanExporter } from '@opentelemetry/sdk-trace-node'
+import type { SpanExporter } from '@opentelemetry/sdk-trace'
 
 import type { ResolvedOtelConfig } from '../config/otel-config.mjs'
 

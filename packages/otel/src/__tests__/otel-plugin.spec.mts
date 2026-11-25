@@ -16,12 +16,12 @@ import {
   BatchSpanProcessor,
   InMemorySpanExporter,
   SimpleSpanProcessor,
-} from '@opentelemetry/sdk-trace-node'
+} from '@opentelemetry/sdk-trace'
 import { afterEach, describe, expect, it } from 'vitest'
 import { z } from 'zod/v4'
 
 import type { Guard, NaviosApplication, NaviosApplicationOptions } from '@navios/server'
-import type { ReadableSpan, SpanExporter } from '@opentelemetry/sdk-trace-node'
+import type { ReadableSpan, SpanExporter } from '@opentelemetry/sdk-trace'
 
 import {
   MeterToken,
@@ -83,7 +83,7 @@ async function createApp(
       otelPlugin({
         serviceName: 'otel-test',
         exporter: 'none',
-        spanProcessors: [new SimpleSpanProcessor(exporter)],
+        spanProcessors: [new SimpleSpanProcessor({ exporter })],
         ...otel,
       }),
     ],
@@ -267,7 +267,7 @@ describe('otelPlugin: HTTP request spans', () => {
         otelPlugin({
           serviceName: 'otel-test',
           exporter: 'none',
-          spanProcessors: [new SimpleSpanProcessor(exporter)],
+          spanProcessors: [new SimpleSpanProcessor({ exporter })],
         }),
       ],
     })
@@ -738,7 +738,7 @@ describe('otelPlugin: providers and shutdown', () => {
 
     const { app } = await createApp(AppModule, {
       // Batched with a long delay: nothing is exported until a flush.
-      spanProcessors: [new BatchSpanProcessor(exporter, { scheduledDelayMillis: 60_000 })],
+      spanProcessors: [new BatchSpanProcessor({ exporter, scheduledDelayMillis: 60_000 })],
     })
     await app.inject({ method: 'GET', url: '/health' })
     expect(exported).toEqual([])
@@ -768,7 +768,7 @@ describe('otelPlugin: providers and shutdown', () => {
     class AppModule {}
 
     const { app } = await createApp(AppModule, {
-      spanProcessors: [new BatchSpanProcessor(exporter, { scheduledDelayMillis: 60_000 })],
+      spanProcessors: [new BatchSpanProcessor({ exporter, scheduledDelayMillis: 60_000 })],
     })
     const setup = await app.container.get(OtelSetupService)
     setup.getTracer().startSpan('job').end()
@@ -790,7 +790,7 @@ describe('otelPlugin: providers and shutdown', () => {
     const options: OtelPluginOptions = {
       serviceName: 'otel-test',
       exporter: 'none',
-      spanProcessors: [new SimpleSpanProcessor(exporter)],
+      spanProcessors: [new SimpleSpanProcessor({ exporter })],
     }
     const app = await NaviosFactory.create(AppModule, {
       adapter: defineInMemoryEnvironment(),

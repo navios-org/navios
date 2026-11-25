@@ -6,11 +6,7 @@ import {
   SpanStatusCode,
   trace,
 } from '@opentelemetry/api'
-import {
-  InMemorySpanExporter,
-  NodeTracerProvider,
-  SimpleSpanProcessor,
-} from '@opentelemetry/sdk-trace-node'
+import { InMemorySpanExporter, SimpleSpanProcessor, TracerProvider } from '@opentelemetry/sdk-trace'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import {
@@ -23,16 +19,17 @@ import {
   TracedProxyFactory,
   TracerToken,
 } from '../index.mjs'
+import { registerTracerProvider } from '../sdk/register-tracer-provider.mjs'
 
 describe('services', () => {
   let container: Container
   let exporter: InMemorySpanExporter
-  let provider: NodeTracerProvider
+  let provider: TracerProvider
 
   beforeEach(() => {
     exporter = new InMemorySpanExporter()
-    provider = new NodeTracerProvider({ spanProcessors: [new SimpleSpanProcessor(exporter)] })
-    provider.register()
+    provider = new TracerProvider({ spanProcessors: [new SimpleSpanProcessor({ exporter })] })
+    registerTracerProvider(provider)
     container = new Container()
     container.provide(TracerToken, { value: provider.getTracer('test') })
     container.provide(OtelConfigToken, {

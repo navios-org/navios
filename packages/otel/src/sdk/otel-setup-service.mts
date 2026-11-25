@@ -7,21 +7,18 @@ import {
   trace,
 } from '@opentelemetry/api'
 import { MeterProvider } from '@opentelemetry/sdk-metrics'
-import {
-  BatchSpanProcessor,
-  NodeTracerProvider,
-  SimpleSpanProcessor,
-} from '@opentelemetry/sdk-trace-node'
+import { BatchSpanProcessor, SimpleSpanProcessor, TracerProvider } from '@opentelemetry/sdk-trace'
 
 import type { Meter, Tracer } from '@opentelemetry/api'
 import type { Resource } from '@opentelemetry/resources'
-import type { SpanProcessor } from '@opentelemetry/sdk-trace-node'
+import type { SpanProcessor } from '@opentelemetry/sdk-trace'
 
 import { resolveOtelConfig } from '../config/resolve-otel-config.mjs'
 
 import type { OtelConfig, ResolvedOtelConfig } from '../config/otel-config.mjs'
 
 import { createMetricReaders } from './metric-readers.mjs'
+import { registerTracerProvider } from './register-tracer-provider.mjs'
 import { createResource } from './resource.mjs'
 import { createSampler } from './sampler.mjs'
 import { createSpanExporter } from './span-exporter.mjs'
@@ -48,7 +45,7 @@ import type { OtelSetupLogger } from './otel-setup-logger.mjs'
  * ```
  */
 export class OtelSetupService {
-  private tracerProvider: NodeTracerProvider | null = null
+  private tracerProvider: TracerProvider | null = null
   private meterProvider: MeterProvider | null = null
   private resolved: ResolvedOtelConfig | null = null
   private activeTracer: Tracer | null = null
@@ -151,23 +148,21 @@ export class OtelSetupService {
       // Console output is immediate; real exporters are batched.
       spanProcessors.push(
         config.exporter === 'console'
-          ? new SimpleSpanProcessor(exporter)
-          : new BatchSpanProcessor(exporter),
+          ? new SimpleSpanProcessor({ exporter })
+          : new BatchSpanProcessor({ exporter }),
       )
     }
     if (config.spanProcessors) {
       spanProcessors.push(...config.spanProcessors)
     }
 
-    this.tracerProvider = new NodeTracerProvider({
+    this.tracerProvider = new TracerProvider({
       resource,
       sampler: createSampler(config),
       spanProcessors,
     })
     if (config.registerGlobally) {
-      // Also installs the AsyncLocalStorage context manager and the W3C
-      // trace-context and baggage propagators.
-      this.tracerProvider.register()
+      registerTracerProvider(this.tracerProvider)
     }
     this.activeTracer = this.tracerProvider.getTracer(config.serviceName, config.serviceVersion)
   }

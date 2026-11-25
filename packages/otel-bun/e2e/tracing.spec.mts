@@ -13,11 +13,11 @@ import {
   NotFoundException,
 } from '@navios/server'
 import { SpanKind, SpanStatusCode, trace } from '@opentelemetry/api'
-import { BatchSpanProcessor, SimpleSpanProcessor } from '@opentelemetry/sdk-trace-node'
+import { BatchSpanProcessor, SimpleSpanProcessor } from '@opentelemetry/sdk-trace'
 import { z } from 'zod/v4'
 
 import type { NaviosApplication } from '@navios/server'
-import type { ReadableSpan, SpanExporter, SpanProcessor } from '@opentelemetry/sdk-trace-node'
+import type { ReadableSpan, SpanExporter, SpanProcessor } from '@opentelemetry/sdk-trace'
 
 import { defineOtelPlugin } from '../src/index.mjs'
 
@@ -106,7 +106,7 @@ describe('otel plugin on the Bun adapter', () => {
     for (const plugin of defineOtelPlugin({
       serviceName: 'otel-bun-test',
       exporter: 'none',
-      spanProcessors: [processor ?? new SimpleSpanProcessor(exporter)],
+      spanProcessors: [processor ?? new SimpleSpanProcessor({ exporter })],
       ignoreRoutes: ['/health'],
     })) {
       app.usePlugin(plugin)
@@ -221,7 +221,7 @@ describe('otel plugin on the Bun adapter', () => {
     const exporter = new CollectingExporter()
     const server = await start(
       exporter,
-      new BatchSpanProcessor(exporter, { scheduledDelayMillis: 60_000 }),
+      new BatchSpanProcessor({ exporter, scheduledDelayMillis: 60_000 }),
     )
 
     await get('/users/1')

@@ -1,7 +1,8 @@
 import { context as otelContext, propagation, trace } from '@opentelemetry/api'
-import { NodeTracerProvider } from '@opentelemetry/sdk-trace-node'
+import { TracerProvider } from '@opentelemetry/sdk-trace'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 
+import { registerTracerProvider } from '../sdk/register-tracer-provider.mjs'
 import {
   getCurrentSpan,
   getCurrentSpanContext,
@@ -12,7 +13,7 @@ describe('span-context.store', () => {
   // The helpers are thin wrappers over the OpenTelemetry context, which needs
   // a context manager to hold anything. Registering a provider installs one.
   beforeAll(() => {
-    new NodeTracerProvider().register()
+    registerTracerProvider(new TracerProvider())
   })
 
   afterAll(() => {

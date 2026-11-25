@@ -23,10 +23,10 @@ npm install @opentelemetry/exporter-trace-otlp-http
 npm install @opentelemetry/exporter-metrics-otlp-http  # if metrics are enabled
 
 # For a span processor or exporter of your own
-npm install @opentelemetry/sdk-trace-node
+npm install @opentelemetry/sdk-trace
 ```
 
-`@opentelemetry/api` is a peer dependency. The OpenTelemetry SDK packages the plugin runs on are installed with it. The two OTLP exporters are optional and are loaded only when `exporter` is `'otlp'`.
+`@opentelemetry/api` 1.10 is a peer dependency. The OpenTelemetry SDK 3 packages the plugin runs on are installed with it, and the exporters must be of the matching 0.3xx versions. The two OTLP exporters are optional and are loaded only when `exporter` is `'otlp'`.
 
 ## Add the plugin
 
@@ -83,15 +83,15 @@ await app.listen({ port: 3000 })
 
 With `'otlp'`, `exporterOptions.endpoint` is the full URL of the traces endpoint, for example `http://localhost:4318/v1/traces`, and `exporterOptions.headers` is sent with every export, for example for authentication. When the exporter package is not installed, `init()` fails with a message naming it.
 
-To send spans somewhere this package has no exporter for, pass a span processor of your own. The processor classes come from `@opentelemetry/sdk-trace-node`:
+To send spans somewhere this package has no exporter for, pass a span processor of your own. The processor classes come from `@opentelemetry/sdk-trace`:
 
 ```ts
-import { BatchSpanProcessor } from '@opentelemetry/sdk-trace-node'
+import { BatchSpanProcessor } from '@opentelemetry/sdk-trace'
 
 otelPlugin({
   serviceName: 'users-api',
   exporter: 'none',
-  spanProcessors: [new BatchSpanProcessor(myExporter)],
+  spanProcessors: [new BatchSpanProcessor({ exporter: myExporter })],
 })
 ```
 

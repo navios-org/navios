@@ -2,7 +2,7 @@ import {
   AlwaysOffSampler,
   AlwaysOnSampler,
   TraceIdRatioBasedSampler,
-} from '@opentelemetry/sdk-trace-node'
+} from '@opentelemetry/sdk-trace'
 
 import type { ResolvedOtelConfig } from '../config/otel-config.mjs'
 
