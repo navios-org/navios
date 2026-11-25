@@ -21,6 +21,11 @@ export * from './sse/index.mjs'
 
 // HTTP-typed versions of names the neutral layer also exports. An explicit
 // export takes precedence over `export *`.
+export { Module, registerModule } from './application/http-module-options.mjs'
+export type { HttpModuleOptions as ModuleOptions } from './application/http-module-options.mjs'
 export { currentContext } from './context/current-request-context.mjs'
 export type { ContextKey } from './context/http-context-key.mjs'
-export type { HttpGuard as Guard, HttpInterceptor as Interceptor } from './routing/http-contracts.mjs'
+export type {
+  HttpGuard as Guard,
+  HttpInterceptor as Interceptor,
+} from './routing/http-contracts.mjs'

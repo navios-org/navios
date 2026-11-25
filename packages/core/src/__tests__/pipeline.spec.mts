@@ -3,7 +3,6 @@ import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod/v4'
 
 import { RequestContextToken, RequestValue } from '../context/index.mjs'
-import { createContextKey } from '../execution/index.mjs'
 import {
   ErrorPipeline,
   ForbiddenResponder,
@@ -14,13 +13,14 @@ import {
   ValidationError,
   ValidationErrorResponder,
 } from '../errors/index.mjs'
+import { createContextKey } from '../execution/index.mjs'
 import { compileRoute, validateSchema } from '../pipeline/index.mjs'
 import { reply } from '../responses/index.mjs'
 import { sseStream } from '../sse/index.mjs'
 
 import type { RequestContext } from '../context/index.mjs'
-import type { HttpGuard as Guard, HttpInterceptor as Interceptor } from '../routing/index.mjs'
 import type { RouteDefinition } from '../pipeline/index.mjs'
+import type { HttpGuard as Guard, HttpInterceptor as Interceptor } from '../routing/index.mjs'
 import type { RouteEndpointConfig, RouteInfo, RouteInput, RouteResult } from '../routing/index.mjs'
 
 function input(overrides: Partial<RouteInput> & { headerMap?: Record<string, string> } = {}) {

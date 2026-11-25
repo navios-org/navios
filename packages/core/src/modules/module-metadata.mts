@@ -8,47 +8,47 @@ import {
   unique,
 } from '../metadata/class-metadata.mjs'
 
-import type { RequestValueClass } from '../context/request-value.mjs'
 import type { DecoratorMetadata } from '../metadata/decorator-metadata.mjs'
+
+import type { ModuleOptions } from './module-options.mjs'
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 export interface ModuleMetadata {
-  prefix: string
   imports: ClassType[]
-  controllers: ClassType[]
   guards: ClassType[]
   interceptors: ClassType[]
   providers: Provider[]
-  requestValues: RequestValueClass[]
   attributes: Map<symbol, unknown>
+  /**
+   * Every option the module system itself does not use, by option name, as
+   * written. A transport reads its own from here.
+   */
+  entries: Map<string, unknown>
 }
 
 export const ModuleMetadataKey = Symbol.for('navios.core.module')
 
-/** @internal */
+const ownOptions = new Set(['imports', 'guards', 'interceptors', 'providers', 'attributes'])
+
 export function defineModuleMetadata(
   target: ClassType,
   context: { metadata?: DecoratorMetadata },
-  options: {
-    prefix?: string
-    imports?: Iterable<ClassType>
-    controllers?: Iterable<ClassType>
-    guards?: Iterable<ClassType>
-    interceptors?: Iterable<ClassType>
-    providers?: Iterable<Provider>
-    requestValues?: Iterable<RequestValueClass>
-  },
+  options: ModuleOptions,
 ): ModuleMetadata {
+  const entries = new Map<string, unknown>()
+  for (const [name, value] of Object.entries(options)) {
+    if (!ownOptions.has(name) && value !== undefined) {
+      entries.set(name, value)
+    }
+  }
   const module: ModuleMetadata = {
-    prefix: options.prefix ?? '',
     imports: unique([...(options.imports ?? [])]),
-    controllers: unique([...(options.controllers ?? [])]),
     guards: prepend(classGuards(context), options.guards),
     interceptors: prepend(classInterceptors(context), options.interceptors),
     providers: [...(options.providers ?? [])],
-    requestValues: [...(options.requestValues ?? [])],
     attributes: classAttributes(context),
+    entries,
   }
   Object.defineProperty(target, ModuleMetadataKey, {
     value: module,

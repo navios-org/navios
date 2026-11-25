@@ -1,5 +1,5 @@
 import { NaviosFactory } from '../application/navios-factory.mjs'
-import { registerModule } from '../modules/module.mjs'
+import { registerModule } from '../application/http-module-options.mjs'
 
 import { defineApplicationTopic } from './application.mjs'
 import { defineErrorsTopic } from './errors.mjs'

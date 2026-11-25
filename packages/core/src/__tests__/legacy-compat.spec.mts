@@ -57,7 +57,7 @@ describe('legacy-compat', () => {
     class LegacyModule {}
     Module({ controllers: [LegacyController], prefix: 'legacy' })(LegacyModule)
 
-    expect(getModuleMetadata(LegacyModule).prefix).toBe('legacy')
+    expect(getModuleMetadata(LegacyModule).entries.get('prefix')).toBe('legacy')
     expect(getControllerMetadata(LegacyController).guards).toEqual([DenyUnlessPublic])
 
     const app = await NaviosFactory.create(LegacyModule, {

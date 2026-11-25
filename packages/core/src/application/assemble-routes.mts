@@ -6,13 +6,15 @@ import { compileRoute } from '../pipeline/compile-route.mjs'
 import { joinPaths } from '../routing/join-paths.mjs'
 
 import type { ControllerMetadata } from '../controllers/controller-metadata.mjs'
-import type { HttpGuard as Guard } from '../routing/http-contracts.mjs'
-import type { HttpInterceptor as Interceptor } from '../routing/http-contracts.mjs'
 import type { ModuleNode } from '../modules/module-graph.mjs'
 import type { CompileOptions, RouteDefinition } from '../pipeline/compile-route.mjs'
 import type { CompiledRoute } from '../routing/compiled-route.mjs'
 import type { RouteEndpointConfig } from '../routing/endpoint-config.mjs'
+import type { HttpGuard as Guard } from '../routing/http-contracts.mjs'
+import type { HttpInterceptor as Interceptor } from '../routing/http-contracts.mjs'
 import type { RouteInfo } from '../routing/route-info.mjs'
+
+import { moduleControllers } from './http-module-options.mjs'
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -22,6 +24,8 @@ import type { RouteInfo } from '../routing/route-info.mjs'
  */
 export interface RouteAssemblyOptions {
   container: Container
+  /** Each module's route prefix, from `computeModulePrefixes`. */
+  prefixes: ReadonlyMap<ClassType, string>
   /** Interceptors around every route, outermost first. */
   globalInterceptors: ClassType[]
   /** Passed to the compiler of every route. */
@@ -35,7 +39,7 @@ export interface RouteAssemblyOptions {
  * @internal
  */
 export async function assembleRoutes(
-  graph: ModuleNode[],
+  graph: readonly ModuleNode[],
   options: RouteAssemblyOptions,
 ): Promise<CompiledRoute[]> {
   const { container, globalInterceptors } = options
@@ -43,7 +47,8 @@ export async function assembleRoutes(
   const taken = new Map<string, string>()
 
   for (const node of graph) {
-    for (const controllerClass of node.controllers) {
+    const prefix = options.prefixes.get(node.module) ?? ''
+    for (const controllerClass of moduleControllers(node)) {
       const metadata = getControllerMetadata(controllerClass)
       const controller = (await container.get(controllerClass)) as Record<string, unknown>
 
@@ -55,7 +60,7 @@ export async function assembleRoutes(
           ...metadata.interceptors,
           ...draft.interceptors,
         ])
-        const path = joinPaths(node.prefix, draft.config.url) || '/'
+        const path = joinPaths(prefix, draft.config.url) || '/'
         const where = `${controllerClass.name}.${draft.name}`
         const key = `${draft.config.method} ${path.replace(/\$[^/]+/g, '$')}`
         const existing = taken.get(key)

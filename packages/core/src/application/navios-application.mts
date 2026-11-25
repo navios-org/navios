@@ -2,8 +2,6 @@ import { Container, provide } from '@navios/di'
 
 import type { ClassType, InjectionToken, ProviderInput } from '@navios/di'
 
-import { enableAsyncContext } from '../execution/async-context.mjs'
-import { createContextHost } from '../execution/context-host.mjs'
 import { isRequestValueClass } from '../context/request-value.mjs'
 import { useClientErrorStacks } from '../errors/client-error-stacks.mjs'
 import { ErrorPipeline } from '../errors/error-pipeline.mjs'
@@ -13,6 +11,8 @@ import {
   NotFoundResponderToken,
   ValidationErrorResponderToken,
 } from '../errors/error-responders.mjs'
+import { enableAsyncContext } from '../execution/async-context.mjs'
+import { createContextHost } from '../execution/context-host.mjs'
 import { ConsoleLogger } from '../logger/console-logger.mjs'
 import { LoggerOutput } from '../logger/logger-output.mjs'
 import { Logger } from '../logger/logger.mjs'
@@ -31,6 +31,8 @@ import type { CompiledRoute } from '../routing/compiled-route.mjs'
 import type { RouteInfo } from '../routing/route-info.mjs'
 
 import { assembleRoutes } from './assemble-routes.mjs'
+import { moduleRequestValues } from './http-module-options.mjs'
+import { computeModulePrefixes } from './module-prefixes.mjs'
 
 import type {
   OnApplicationBootstrap,
@@ -224,7 +226,7 @@ export class NaviosApplication<Env extends HttpAdapterEnvironment = ApplicationE
     await this.setupPlugins()
     this.initialised = true
 
-    const graph = buildModuleGraph([this.appModule, ...this.extraModules], globalPrefix)
+    const graph = buildModuleGraph([this.appModule, ...this.extraModules])
     for (const node of graph) {
       for (const provider of node.providers) {
         if (!container.overrides.has(provider.token)) {
@@ -240,7 +242,7 @@ export class NaviosApplication<Env extends HttpAdapterEnvironment = ApplicationE
     }
 
     for (const node of graph) {
-      for (const requestValue of node.requestValues) {
+      for (const requestValue of moduleRequestValues(node)) {
         if (!isRequestValueClass(requestValue)) {
           throw new Error(
             `[Navios] Module ${node.module.name} lists ${tokenName(requestValue)} in requestValues, ` +
@@ -253,6 +255,7 @@ export class NaviosApplication<Env extends HttpAdapterEnvironment = ApplicationE
 
     this.compiledRoutes = await assembleRoutes(graph, {
       container,
+      prefixes: computeModulePrefixes(graph, globalPrefix),
       globalInterceptors: this.globalInterceptors,
       compile: {
         host: createContextHost(

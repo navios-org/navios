@@ -14,7 +14,7 @@ export {
   Injectable,
 } from '@navios/di/legacy-compat'
 export type { ControllerOptions } from '../controllers/controller.mjs'
-export type { ModuleOptions } from '../modules/module.mjs'
+export type { HttpModuleOptions as ModuleOptions } from '../application/http-module-options.mjs'
 export { AttributeFactory } from './attribute-factory.mjs'
 export type {
   LegacyAttributeApplication,

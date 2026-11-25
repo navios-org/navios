@@ -1,12 +1,12 @@
 import { registerInjectable } from '@navios/di'
 
 import { AttributeFactory } from '../attributes/attribute-factory.mjs'
-import { createContextKey } from '../execution/context-key.mjs'
 import { registerRequestValue } from '../context/request-value.mjs'
 import { registerController } from '../controllers/controller.mjs'
 import { UnauthorizedException } from '../errors/http-exception.mjs'
+import { createContextKey } from '../execution/context-key.mjs'
 import { handler } from '../handlers/handler.mjs'
-import { registerModule } from '../modules/module.mjs'
+import { registerModule } from '../application/http-module-options.mjs'
 
 import type { RequestContext } from '../context/request-context.mjs'
 import type { HttpGuard as Guard } from '../routing/http-contracts.mjs'
