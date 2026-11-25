@@ -1,0 +1,21 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "types": ["bun"]
+  },
+  "include": ["e2e/**/*"],
+  "references": [
+    {
+      "path": "./tsconfig.json"
+    },
+    {
+      "path": "../server"
+    },
+    {
+      "path": "../adapter-bun"
+    },
+    {
+      "path": "../adapter-fastify"
+    }
+  ]
+}

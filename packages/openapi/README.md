@@ -81,7 +81,7 @@ The attributes only describe: `ApiSecurity` does not protect a route, a guard do
 
 ## Upgrading from 1.x
 
-`openApiPlugin` from this package replaces `defineOpenApiPlugin` from `@navios/openapi-fastify` and `@navios/openapi-bun`, which are now deprecated re-exports, and any Standard Schema library works instead of Zod only. See [Migrating to 2.0](https://navios.tech/docs/server/reference/migrating-to-2#naviosopenapi), or [CHANGELOG.md](./CHANGELOG.md) for the full list.
+`openApiPlugin` from this package replaces `defineOpenApiPlugin` from `@navios/openapi-fastify` and `@navios/openapi-bun`, which are removed in 2.0, and any Standard Schema library works instead of Zod only. See [Migrating to 2.0](https://navios.tech/docs/server/reference/migrating-to-2#naviosopenapi), or [CHANGELOG.md](./CHANGELOG.md) for the full list.
 
 ## License
 

@@ -31,6 +31,7 @@ export default defineProject({
     },
     include: [
       'src/**/*.spec.mts',
+      'e2e/**/*.spec.mts',
       'src/**/*.spec-d.mts',
       'src/legacy-compat/__type-tests__/**/*.spec-d.mts',
     ],

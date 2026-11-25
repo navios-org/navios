@@ -7,11 +7,6 @@ import type { AttributeValue } from '@opentelemetry/api'
 export const TracedMetadataKey = Symbol('navios:traced:metadata')
 
 /**
- * @deprecated Use TracedMetadataKey instead
- */
-export const TRACED_METADATA_KEY = TracedMetadataKey
-
-/**
  * Metadata stored by the @Traced decorator.
  */
 export interface TracedMetadata {

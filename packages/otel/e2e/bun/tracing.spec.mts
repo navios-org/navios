@@ -1,6 +1,7 @@
-import { defineFastifyEnvironment } from '@navios/adapter-fastify'
+import { afterEach, describe, expect, it } from 'bun:test'
+
+import { defineBunEnvironment } from '@navios/adapter-bun'
 import { builder } from '@navios/builder'
-import { RequestSpan, Traced } from '@navios/otel'
 import {
   Controller,
   handler,
@@ -12,16 +13,15 @@ import {
 } from '@navios/server'
 import { SpanKind, SpanStatusCode, trace } from '@opentelemetry/api'
 import { BatchSpanProcessor, SimpleSpanProcessor } from '@opentelemetry/sdk-trace'
-import { afterEach, describe, expect, it } from 'vitest'
 import { z } from 'zod/v4'
 
 import type { NaviosApplication } from '@navios/server'
 import type { ReadableSpan, SpanExporter, SpanProcessor } from '@opentelemetry/sdk-trace'
 
-import { defineOtelPlugin } from '../src/index.mjs'
+import { otelPlugin, RequestSpan, Traced } from '../../src/index.mjs'
 
-// The plugin is adapter-neutral. These tests run it on the real Fastify
-// adapter, through Fastify's own router and request objects.
+// The plugin is adapter-neutral. These tests run it on the real Bun adapter:
+// the application listens on a port and is called with fetch.
 
 const api = builder()
 
@@ -88,23 +88,28 @@ class AppController {
 @Module({ controllers: [AppController] })
 class AppModule {}
 
-describe('otel plugin on the Fastify adapter', () => {
+describe('otel plugin on the Bun adapter', () => {
   let app: NaviosApplication<any> | null = null
+  let url = ''
+
+  function get(path: string, headers?: Record<string, string>) {
+    return fetch(`${url}${path}`, { headers })
+  }
 
   async function start(exporter: CollectingExporter, processor?: SpanProcessor) {
     app = await NaviosFactory.create(AppModule, {
-      adapter: defineFastifyEnvironment(),
+      adapter: defineBunEnvironment(),
       logger: false,
       plugins: [
-        defineOtelPlugin({
-          serviceName: 'otel-fastify-test',
+        otelPlugin({
+          serviceName: 'otel-bun-test',
           exporter: 'none',
           spanProcessors: [processor ?? new SimpleSpanProcessor({ exporter })],
           ignoreRoutes: ['/health'],
         }),
       ],
     })
-    await app.init()
+    url = await app.listen({ port: 0 })
     return app
   }
 
@@ -115,11 +120,11 @@ describe('otel plugin on the Fastify adapter', () => {
 
   it('creates a server span per request with the route name and status', async () => {
     const exporter = new CollectingExporter()
-    const server = await start(exporter)
+    await start(exporter)
 
-    const response = await server.inject({ method: 'GET', url: '/users/42?verbose=1' })
+    const response = await get('/users/42?verbose=1')
     expect(response.status).toBe(200)
-    expect(response.body).toEqual({ id: '42', name: 'user-42' })
+    expect(await response.json()).toEqual({ id: '42', name: 'user-42' })
 
     const request = exporter.spans.find((span) => span.kind === SpanKind.SERVER)!
     expect(request.name).toBe('HTTP GET /users/$id')
@@ -135,9 +140,9 @@ describe('otel plugin on the Fastify adapter', () => {
 
   it('parents the span of a traced service method to the request span', async () => {
     const exporter = new CollectingExporter()
-    const server = await start(exporter)
+    await start(exporter)
 
-    await server.inject({ method: 'GET', url: '/users/7' })
+    await get('/users/7')
 
     const [child, request] = exporter.spans
     expect(child.name).toBe('user-service.findName')
@@ -148,10 +153,10 @@ describe('otel plugin on the Fastify adapter', () => {
 
   it('records the error for a 500 and for a thrown HttpException', async () => {
     const exporter = new CollectingExporter()
-    const server = await start(exporter)
+    await start(exporter)
 
-    expect((await server.inject({ method: 'GET', url: '/fail/crash' })).status).toBe(500)
-    expect((await server.inject({ method: 'GET', url: '/fail/missing' })).status).toBe(404)
+    expect((await get('/fail/crash')).status).toBe(500)
+    expect((await get('/fail/missing')).status).toBe(404)
 
     const [crash, missing] = exporter.spans
     expect(crash.name).toBe('HTTP GET /fail/$kind')
@@ -165,12 +170,10 @@ describe('otel plugin on the Fastify adapter', () => {
 
   it('continues the trace of an incoming traceparent header', async () => {
     const exporter = new CollectingExporter()
-    const server = await start(exporter)
+    await start(exporter)
 
-    await server.inject({
-      method: 'GET',
-      url: '/users/1',
-      headers: { traceparent: '00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01' },
+    await get('/users/1', {
+      traceparent: '00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01',
     })
 
     const request = exporter.spans.find((span) => span.kind === SpanKind.SERVER)!
@@ -180,27 +183,25 @@ describe('otel plugin on the Fastify adapter', () => {
 
   it('does not trace ignored paths', async () => {
     const exporter = new CollectingExporter()
-    const server = await start(exporter)
+    await start(exporter)
 
-    expect((await server.inject({ method: 'GET', url: '/health' })).status).toBe(200)
+    expect((await get('/health')).status).toBe(200)
     expect(exporter.spans).toHaveLength(0)
   })
 
   it('creates no span for a request that matches no route', async () => {
     const exporter = new CollectingExporter()
-    const server = await start(exporter)
+    await start(exporter)
 
-    expect((await server.inject({ method: 'GET', url: '/nonexistent' })).status).toBe(404)
+    expect((await get('/nonexistent')).status).toBe(404)
     expect(exporter.spans).toHaveLength(0)
   })
 
   it('keeps concurrent requests in separate traces', async () => {
     const exporter = new CollectingExporter()
-    const server = await start(exporter)
+    await start(exporter)
 
-    await Promise.all(
-      ['1', '2', '3'].map((id) => server.inject({ method: 'GET', url: `/users/${id}` })),
-    )
+    await Promise.all(['1', '2', '3'].map((id) => get(`/users/${id}`)))
 
     const requests = exporter.spans.filter((span) => span.kind === SpanKind.SERVER)
     const children = exporter.spans.filter((span) => span.kind === SpanKind.INTERNAL)
@@ -221,7 +222,7 @@ describe('otel plugin on the Fastify adapter', () => {
       new BatchSpanProcessor({ exporter, scheduledDelayMillis: 60_000 }),
     )
 
-    await server.inject({ method: 'GET', url: '/users/1' })
+    await get('/users/1')
     expect(exporter.spans).toHaveLength(0)
 
     await server.close()

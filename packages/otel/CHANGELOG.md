@@ -11,6 +11,7 @@ Ported to the 2.0 APIs of `@navios/di` and `@navios/core`. The package is now ad
 
 ### Breaking
 
+- **The packages `@navios/otel-fastify` and `@navios/otel-bun` are removed.** `OtelPluginOptions` replaces `FastifyOtelPluginOptions` and `BunOtelPluginOptions`. `otelPlugin(options)` is one plugin, so the loop over the result of the Bun `defineOtelPlugin` goes away. Removed with them: `request.otelSpan` on Fastify (use `ctx.find(RequestSpan)`), the `http.response_content_length` attribute on Fastify and the `guard:<name>` child spans on Bun.
 - **One plugin, `otelPlugin(options)`.** It starts the SDK, traces HTTP requests, traces `@Traced` services and shuts the SDK down. It replaces `defineOtelPlugin` from the adapter packages and `defineOtelTracingPlugin` from this one; `defineOtelTracingPlugin` and `OtelTracingPluginOptions` are removed.
 - **HTTP requests are traced by an interceptor**, `OtelHttpInterceptor`, on every adapter. It is exported from `@navios/otel/http`, together with `compileIgnoreRoutes` and `instrumentHttp`; the plugin loads that entry by itself when the application serves HTTP. A request that matches no route gets no span (1.x on Fastify created one). The span ends when the response has finished, including a streamed body, and reports the final status, including one produced by an `app.mapError()` mapper. The status is set as `http.status_code` and `http.response.status_code`.
 - **Removed options that did nothing or can no longer be honoured:** `autoInstrument.handlers`, `autoInstrument.guards`, `propagateContext`, `metrics.requestDuration` and `metrics.errorCount`. A request has one server span covering guards, validation and the handler.
@@ -20,6 +21,7 @@ Ported to the 2.0 APIs of `@navios/di` and `@navios/core`. The package is now ad
 - **`@Traced` services are instrumented in place** through `container.decorate` instead of being re-registered under a `:original` token behind a wrapper factory. `createTracedWrapperFactory` is removed. The object the container returns is the service itself rather than a `Proxy` around it.
 - **The package's own `AsyncLocalStorage` store is removed**, with `getSpanContextStore()`. The active span lives in the OpenTelemetry context. `getCurrentSpan()`, `getCurrentSpanContext()` and `runWithSpanContext()` remain and read or write that context.
 - **`OtelSetupService` no longer registers tokens itself** and takes no injected dependencies. The plugin creates it and provides it; `initialize(config, logger?)` takes an optional logger.
+- `TRACED_METADATA_KEY` is removed, deprecated since 1.0.0-alpha.3. Use `TracedMetadataKey`.
 - `SpanFactoryService` and `TracedProxyFactory` use the tracer provided by the plugin instead of the global one.
 
 ### Added

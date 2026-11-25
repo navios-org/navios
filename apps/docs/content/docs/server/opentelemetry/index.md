@@ -191,5 +191,3 @@ app.enableShutdownHooks() // closes the application on SIGTERM and SIGINT
 [Application setup](/docs/server/essentials/application) describes shutdown hooks and the order of `close()`.
 
 To export without shutting down, for example at the end of a job, inject `OtelSetupService` and call `forceFlush()`.
-
-`@navios/otel-fastify` and `@navios/otel-bun` are deprecated packages that re-export this plugin so that 1.x imports resolve; import from `@navios/otel` directly.

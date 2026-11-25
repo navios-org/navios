@@ -1,15 +1,17 @@
 import { defineFastifyEnvironment } from '@navios/adapter-fastify'
 import { builder } from '@navios/builder'
-import * as openapi from '@navios/openapi'
-import { handler, NaviosFactory } from '@navios/server'
-import { Controller, Module } from '@navios/server/legacy-compat'
+import { Controller, handler, Module, NaviosFactory } from '@navios/server'
 import { afterEach, describe, expect, it } from 'vitest'
 import { z } from 'zod/v4'
 
-import type { OpenApiDocument } from '@navios/openapi'
 import type { NaviosApplication } from '@navios/server'
 
-import * as legacy from '../index.mjs'
+import { ApiSummary, openApiPlugin } from '../src/index.mjs'
+
+import type { OpenApiDocument } from '../src/index.mjs'
+
+// The plugin is adapter-neutral. This test runs it on the real Fastify
+// adapter, through Fastify's own router and reply.
 
 const api = builder()
 const getUser = api.declareEndpoint({
@@ -18,36 +20,29 @@ const getUser = api.declareEndpoint({
   responseSchema: z.object({ id: z.string() }),
 })
 
-let app: NaviosApplication<any> | undefined
+@Controller()
+class UsersController {
+  getUser = handler(getUser, { attributes: [ApiSummary('Get a user')] }, () => ({ id: '1' }))
+}
 
-afterEach(async () => {
-  await app?.close()
-  app = undefined
-})
+@Module({ controllers: [UsersController] })
+class AppModule {}
 
-describe('@navios/openapi-fastify', () => {
-  it('re-exports @navios/openapi', () => {
-    expect(legacy.openApiPlugin).toBe(openapi.openApiPlugin)
-    expect(legacy.defineOpenApiPlugin).toBe(openapi.openApiPlugin)
-    expect(legacy.ApiTag).toBe(openapi.ApiTag)
+describe('openapi plugin on the Fastify adapter', () => {
+  let app: NaviosApplication<any> | null = null
+
+  afterEach(async () => {
+    await app?.close()
+    app = null
   })
 
-  it('serves the document, YAML and the Scalar page on the Fastify adapter', async () => {
-    class UsersController {
-      getUser = handler(getUser, { attributes: [legacy.ApiSummary('Get a user')] }, () => ({
-        id: '1',
-      }))
-    }
-    Controller()(UsersController)
-    class AppModule {}
-    Module({ controllers: [UsersController] })(AppModule)
-
+  it('serves the document, YAML and the Scalar page', async () => {
     app = await NaviosFactory.create(AppModule, {
       adapter: defineFastifyEnvironment(),
       logger: false,
       globalPrefix: '/api',
       plugins: [
-        legacy.defineOpenApiPlugin({
+        openApiPlugin({
           info: { title: 'Fastify API', version: '1.0.0' },
           disableYaml: false,
         }),

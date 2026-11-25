@@ -76,7 +76,7 @@ A traced class must be imported before `app.init()`, which importing the root mo
 
 ## Upgrading from 1.x
 
-`otelPlugin` from this package replaces `defineOtelPlugin` from `@navios/otel-fastify` and `@navios/otel-bun`, which are now deprecated re-exports, and it traces `@Traced` services without a second plugin. See [Migrating to 2.0](https://navios.tech/docs/server/reference/migrating-to-2#naviosotel), or [CHANGELOG.md](./CHANGELOG.md) for the full list.
+`otelPlugin` from this package replaces `defineOtelPlugin` from `@navios/otel-fastify` and `@navios/otel-bun`, which are removed in 2.0, and it traces `@Traced` services without a second plugin. See [Migrating to 2.0](https://navios.tech/docs/server/reference/migrating-to-2#naviosotel), or [CHANGELOG.md](./CHANGELOG.md) for the full list.
 
 ## License
 

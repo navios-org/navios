@@ -241,6 +241,4 @@ The in-memory adapter opens no port, so the script needs nothing but the applica
 | `ApiTagToken`, `ApiOperationToken`, `ApiSummaryToken`, `ApiDeprecatedToken`, `ApiSecurityToken`, `ApiExcludeToken`, `ApiStreamToken` | The symbols the attributes are stored under |
 | `OpenApiPluginOptions`, `OpenApiDocumentOptions`, `ScalarOptions`, `ToJsonSchema`, `OpenApiDocument` and the other document types | Types |
 
-`defineOpenApiPlugin` is the deprecated name of `openApiPlugin`. `@navios/server`, with the `@navios/core` it comes with, is the only peer dependency; no schema library is needed at run time.
-
-`@navios/openapi-fastify` and `@navios/openapi-bun` are deprecated packages that re-export `@navios/openapi`; import from `@navios/openapi` directly.
+`@navios/server`, with the `@navios/core` it comes with, is the only peer dependency; no schema library is needed at run time.

@@ -608,6 +608,10 @@ no-op decorators from the root export.
 line re-exports. Recommendation: do not publish 2.0 alphas of them;
 deprecate the existing releases on npm with a pointer.
 
+*Done after the second pass:* the four packages are removed, and their tests on
+the real adapters moved to `otel/e2e` and `openapi/e2e`. The releases on npm
+are still to be deprecated.
+
 ### @navios/react-query
 
 No blocker. Should fix:

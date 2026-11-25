@@ -32,7 +32,6 @@ export {
   extractTracedMetadata,
   getTracedMetadata,
   hasTracedMetadata,
-  TRACED_METADATA_KEY,
   TracedMetadataKey,
 } from '../traced/traced-metadata.mjs'
 export { getTraceableServices } from '../traced/traceable-services.mjs'

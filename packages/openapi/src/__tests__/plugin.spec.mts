@@ -7,7 +7,7 @@ import { z } from 'zod/v4'
 
 import type { LoggerService, RouteInfo, StandardSchemaV1 } from '@navios/server'
 
-import { ApiSummary, ApiTag, defineOpenApiPlugin, openApiPlugin } from '../index.mjs'
+import { ApiSummary, ApiTag, openApiPlugin } from '../index.mjs'
 
 import type { OpenApiDocument } from '../index.mjs'
 
@@ -232,7 +232,7 @@ describe('openApiPlugin', () => {
     expect(document.info.description).toBe('3 routes')
   })
 
-  it('can be registered with app.usePlugin, under its deprecated name too', async () => {
+  it('can be registered with app.usePlugin', async () => {
     @Module({ controllers: [UsersController] })
     class AppModule {}
 
@@ -240,7 +240,7 @@ describe('openApiPlugin', () => {
       adapter: defineInMemoryEnvironment(),
       logger: false,
     })
-    app.usePlugin(defineOpenApiPlugin({ info }))
+    app.usePlugin(openApiPlugin({ info }))
     await app.init()
 
     const response = await app.inject({ method: 'GET', url: '/openapi.json' })

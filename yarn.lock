@@ -1162,46 +1162,11 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@navios/openapi-bun@workspace:packages/openapi-bun":
-  version: 0.0.0-use.local
-  resolution: "@navios/openapi-bun@workspace:packages/openapi-bun"
-  dependencies:
-    "@navios/builder": "workspace:^"
-    "@navios/core": "workspace:^"
-    "@navios/openapi": "workspace:^"
-    "@navios/server": "workspace:^"
-    typescript: "npm:^7.0.2"
-    zod: "npm:^4.6.7"
-  peerDependencies:
-    "@navios/core": "workspace:*"
-    "@navios/openapi": "workspace:*"
-    "@navios/server": "workspace:*"
-  languageName: unknown
-  linkType: soft
-
-"@navios/openapi-fastify@workspace:packages/openapi-fastify":
-  version: 0.0.0-use.local
-  resolution: "@navios/openapi-fastify@workspace:packages/openapi-fastify"
-  dependencies:
-    "@navios/adapter-fastify": "workspace:^"
-    "@navios/builder": "workspace:^"
-    "@navios/core": "workspace:^"
-    "@navios/openapi": "workspace:^"
-    "@navios/server": "workspace:^"
-    fastify: "npm:^5.12.8"
-    typescript: "npm:^7.0.2"
-    zod: "npm:^4.6.7"
-  peerDependencies:
-    "@navios/core": "workspace:*"
-    "@navios/openapi": "workspace:*"
-    "@navios/server": "workspace:*"
-  languageName: unknown
-  linkType: soft
-
-"@navios/openapi@workspace:*, @navios/openapi@workspace:^, @navios/openapi@workspace:packages/openapi":
+"@navios/openapi@workspace:*, @navios/openapi@workspace:packages/openapi":
   version: 0.0.0-use.local
   resolution: "@navios/openapi@workspace:packages/openapi"
   dependencies:
+    "@navios/adapter-fastify": "workspace:^"
     "@navios/builder": "workspace:^"
     "@navios/core": "workspace:^"
     "@navios/di": "workspace:^"
@@ -1216,53 +1181,12 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@navios/otel-bun@workspace:packages/otel-bun":
-  version: 0.0.0-use.local
-  resolution: "@navios/otel-bun@workspace:packages/otel-bun"
-  dependencies:
-    "@navios/adapter-bun": "workspace:^"
-    "@navios/builder": "workspace:^"
-    "@navios/core": "workspace:^"
-    "@navios/di": "workspace:^"
-    "@navios/otel": "workspace:^"
-    "@navios/server": "workspace:^"
-    "@opentelemetry/api": "npm:~1.10.0"
-    "@opentelemetry/sdk-trace": "npm:^3.1.1"
-    "@types/bun": "npm:^1.4.5"
-    typescript: "npm:^7.0.2"
-    zod: "npm:^4.6.7"
-  peerDependencies:
-    "@navios/core": "workspace:*"
-    "@navios/otel": "workspace:*"
-    "@navios/server": "workspace:*"
-  languageName: unknown
-  linkType: soft
-
-"@navios/otel-fastify@workspace:packages/otel-fastify":
-  version: 0.0.0-use.local
-  resolution: "@navios/otel-fastify@workspace:packages/otel-fastify"
-  dependencies:
-    "@navios/adapter-fastify": "workspace:^"
-    "@navios/builder": "workspace:^"
-    "@navios/core": "workspace:^"
-    "@navios/di": "workspace:^"
-    "@navios/otel": "workspace:^"
-    "@navios/server": "workspace:^"
-    "@opentelemetry/api": "npm:~1.10.0"
-    "@opentelemetry/sdk-trace": "npm:^3.1.1"
-    typescript: "npm:^7.0.2"
-    zod: "npm:^4.6.7"
-  peerDependencies:
-    "@navios/core": "workspace:*"
-    "@navios/otel": "workspace:*"
-    "@navios/server": "workspace:*"
-  languageName: unknown
-  linkType: soft
-
-"@navios/otel@workspace:*, @navios/otel@workspace:^, @navios/otel@workspace:packages/otel":
+"@navios/otel@workspace:*, @navios/otel@workspace:packages/otel":
   version: 0.0.0-use.local
   resolution: "@navios/otel@workspace:packages/otel"
   dependencies:
+    "@navios/adapter-bun": "workspace:^"
+    "@navios/adapter-fastify": "workspace:^"
     "@navios/builder": "workspace:^"
     "@navios/core": "workspace:^"
     "@navios/di": "workspace:^"
@@ -1276,6 +1200,7 @@ __metadata:
     "@opentelemetry/sdk-metrics": "npm:^3.1.1"
     "@opentelemetry/sdk-trace": "npm:^3.1.1"
     "@opentelemetry/semantic-conventions": "npm:^1.45.0"
+    "@types/bun": "npm:^1.4.5"
     typescript: "npm:^7.0.2"
     zod: "npm:^4.6.7"
   peerDependencies:

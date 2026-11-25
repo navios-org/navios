@@ -192,11 +192,12 @@ These are the DI changes that show up in server code. [DI's migration page](/doc
 
 | 1.x                                                                                                                             | 2.0                                                                                              |
 | ------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
-| `defineOpenApiPlugin` from `@navios/openapi-fastify` / `@navios/openapi-bun`                                                    | `openApiPlugin` from `@navios/openapi`. The adapter packages are deprecated re-exports.          |
+| `defineOpenApiPlugin` from `@navios/openapi-fastify` / `@navios/openapi-bun`                                                    | `openApiPlugin` from `@navios/openapi`. The adapter packages are removed.                        |
 | Fastify: `/docs` ignored the global prefix                                                                                      | the plugin's routes get the global prefix on every adapter                                       |
 | `servers` defaulted to the global prefix                                                                                        | documented paths contain the prefix; `servers` is only what you configure                        |
 | `@Stream` + `@ApiStream`, `@Multipart`, `@HttpCode`                                                                             | the declaration decides: `response: 'stream'`, `body: 'multipart'`, `responses: { 201: schema }` |
 | `OpenApiGeneratorService`, `EndpointScannerService`, `PathBuilderService`, `MetadataExtractorService`, `SchemaConverterService` | `generateOpenApiDocument`, `extractOpenApiMetadata`, `SchemaConverter`                           |
+| the type `OpenApiGeneratorOptions`                                                                                              | `OpenApiDocumentOptions`                                                                         |
 | Zod only, through `zod-openapi`                                                                                                 | any Standard Schema that can produce JSON Schema, or the `toJsonSchema` option                   |
 | option schemas (`scalarOptionsSchema`, ...)                                                                                     | removed; options are plain TypeScript types                                                      |
 
@@ -204,7 +205,7 @@ These are the DI changes that show up in server code. [DI's migration page](/doc
 
 | 1.x                                                                                                | 2.0                                                                                        |
 | -------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
-| `defineOtelPlugin(options)` from `@navios/otel-fastify` / `@navios/otel-bun`                       | `otelPlugin(options)` from `@navios/otel`. The adapter packages are deprecated re-exports. |
+| `defineOtelPlugin(options)` from `@navios/otel-fastify` / `@navios/otel-bun`                       | `otelPlugin(options)` from `@navios/otel`. The adapter packages are removed.               |
 | `app.usePlugin(defineOtelTracingPlugin({}))`                                                       | not needed; `otelPlugin` traces `@Traced` services                                         |
 | `request.otelSpan` (Fastify)                                                                       | `ctx.find(RequestSpan)`                                                                    |
 | `autoInstrument.handlers` / `guards`, `propagateContext`, `metrics.requestDuration` / `errorCount` | removed. One server span covers guards, validation and the handler.                        |
@@ -213,6 +214,7 @@ These are the DI changes that show up in server code. [DI's migration page](/doc
 | the `http.url` span attribute                                                                      | holds the request path, without the query string                                           |
 | `getSpanContextStore()`                                                                            | removed; the active span lives in the OpenTelemetry context                                |
 | `createTracedWrapperFactory()`                                                                     | removed; use `traceInstance()`                                                             |
+| `TRACED_METADATA_KEY`                                                                              | `TracedMetadataKey`                                                                        |
 | `container.get(OtelSetupService)` then `initialize()` / `shutdown()`                               | done by the plugin                                                                         |
 
 ### @navios/adapter-xml

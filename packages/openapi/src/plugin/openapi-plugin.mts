@@ -171,8 +171,3 @@ export const openApiPlugin = definePlugin({
     })
   },
 })
-
-/**
- * @deprecated Renamed to {@link openApiPlugin}.
- */
-export const defineOpenApiPlugin = openApiPlugin

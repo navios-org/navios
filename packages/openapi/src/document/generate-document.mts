@@ -46,9 +46,6 @@ export interface OpenApiGenerationOptions extends OpenApiDocumentOptions {
   }
 }
 
-/** @deprecated Renamed to {@link OpenApiDocumentOptions}. */
-export type OpenApiGeneratorOptions = OpenApiDocumentOptions
-
 /**
  * Builds an OpenAPI 3.1 document from an application's routes.
  *

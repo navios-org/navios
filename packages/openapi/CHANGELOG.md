@@ -34,7 +34,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
+- **Breaking:** the packages `@navios/openapi-fastify` and `@navios/openapi-bun`. `openApiPlugin(options)` from this package replaces their `defineOpenApiPlugin(options)`, and `OpenApiPluginOptions` replaces `FastifyOpenApiPluginOptions` and `BunOpenApiPluginOptions`. Their option schemas, controller factories and services have no replacement.
 - **Breaking:** `OpenApiGeneratorService`, `EndpointScannerService`, `MetadataExtractorService`, `PathBuilderService`, `SchemaConverterService` and `DiscoveredEndpoint`. Use the functions listed above.
+- **Breaking:** the type `OpenApiGeneratorOptions`. Use `OpenApiDocumentOptions`.
 - **Breaking:** the `oas31` types of `zod-openapi` in the public API; the package exports its own document types.
 
 ## [1.0.0] - 2026-01-09

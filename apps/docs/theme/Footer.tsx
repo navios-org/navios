@@ -29,11 +29,7 @@ const columns = [
       '@navios/commander',
       '@navios/react-query',
       '@navios/openapi',
-      '@navios/openapi-fastify',
-      '@navios/openapi-bun',
       '@navios/otel',
-      '@navios/otel-fastify',
-      '@navios/otel-bun',
     ].map(npm),
   },
   {
