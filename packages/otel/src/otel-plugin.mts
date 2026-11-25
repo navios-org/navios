@@ -34,7 +34,7 @@ export type OtelPluginOptions = OtelConfig
  *
  * @example
  * ```typescript
- * import { NaviosFactory } from '@navios/core'
+ * import { NaviosFactory } from '@navios/server'
  * import { otelPlugin } from '@navios/otel'
  *
  * const app = await NaviosFactory.create(AppModule, {
@@ -123,6 +123,7 @@ function isMissingServerPackage(error: unknown): boolean {
   return (
     (code === 'ERR_MODULE_NOT_FOUND' || code === 'MODULE_NOT_FOUND') &&
     typeof message === 'string' &&
-    message.includes('@navios/server')
+    // The package itself, not something a file inside it failed to import.
+    /Cannot find (package|module) '@navios\/server['/]/.test(message)
   )
 }

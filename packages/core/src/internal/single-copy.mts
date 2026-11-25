@@ -27,7 +27,8 @@ export function registerCopy(location: string, warn: (message: string) => void):
       `[Navios] @navios/core is loaded more than once:\n` +
         [...registry.locations].map((entry) => `  - ${entry}`).join('\n') +
         `\nModule options, currentContext() and context keys are not shared between copies. ` +
-        `Make sure every package resolves the same @navios/core (one version, not bundled).`,
+        `Make sure every package resolves the same @navios/core: one version, not bundled into ` +
+        `another package, and not loaded with both import and require.`,
     )
   }
 }

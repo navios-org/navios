@@ -51,7 +51,7 @@ export interface MessageTransport extends Transport {
   handlers(): readonly MessageHandlerInfo[]
   /**
    * Handles a message in process, the way a delivery from the broker is
-   * handled: validation, interceptors, guards, the handler. Resolves to the
+   * handled: interceptors, guards, validation, the handler. Resolves to the
    * handler's reply. For tests, and for delivering from a source of your own.
    */
   dispatch(
@@ -139,20 +139,20 @@ function createMessageTransport(
       const inner = next
       next = async () => interceptor.intercept(ctx, inner)
     }
-    try {
-      return await (host.asyncContext ? runInContext(ctx, next) : next())
-    } finally {
-      await ctx.finish()
+    // Finishing happens inside the context too, so that `currentContext()`
+    // still answers in `onFinish` callbacks.
+    const handle = async () => {
+      try {
+        return await next()
+      } finally {
+        await ctx.finish()
+      }
     }
+    return host.asyncContext ? runInContext(ctx, handle) : handle()
   }
 
   /** Handles one delivery and keeps it in sight until it is done. */
   const deliver = (handler: CompiledHandler, payload: unknown, raw: unknown): Promise<unknown> => {
-    if (stopped) {
-      return Promise.reject(
-        new Error(`[Navios] The message transport is stopped; ${handler.info.name} takes no more.`),
-      )
-    }
     const running = run(handler, payload, raw)
     inFlight.add(running)
     const forget = () => inFlight.delete(running)
@@ -164,6 +164,9 @@ function createMessageTransport(
     handlers: () => [...compiled.values()].map((handler) => handler.info),
 
     dispatch(message, payload, raw) {
+      if (stopped) {
+        return Promise.reject(new Error('[Navios] The message transport is stopped.'))
+      }
       const handler = compiled.get(key(message.config))
       if (!handler) {
         return Promise.reject(new Error(`[Navios] No handler for ${key(message.config)}.`))
@@ -172,8 +175,15 @@ function createMessageTransport(
     },
 
     async setup(graph: readonly ModuleNode[]) {
+      // A controller that several modules list is handled once, as a member
+      // of the first of them in the graph.
+      const seen = new Set<ClassType>()
       for (const node of graph) {
         for (const controllerClass of moduleMessageControllers(node)) {
+          if (seen.has(controllerClass)) {
+            continue
+          }
+          seen.add(controllerClass)
           const metadata = getMessageControllerMetadata(controllerClass)
           const controller = (await host.container.get(controllerClass)) as Record<string, unknown>
 
@@ -241,6 +251,14 @@ function createMessageTransport(
       if (compiled.size === 0) {
         return
       }
+      // What the broker delivers after the stop is left unanswered. A client
+      // has no way to unsubscribe, and failing the delivery would have it
+      // reject the message, which a broker may then drop; an unanswered one
+      // is redelivered when the client disconnects.
+      const unanswered = new Promise<never>(() => {})
+      const consume = (handler: CompiledHandler, payload: unknown): Promise<unknown> =>
+        stopped ? unanswered : deliver(handler, payload, payload)
+
       const client =
         options.client ??
         ((await host.container.get(QueueClientToken, {
@@ -250,14 +268,14 @@ function createMessageTransport(
         const { pattern, destination } = handler.info
         if (pattern === 'pubsub') {
           await client.subscribe(destination, async (payload) => {
-            await deliver(handler, payload, payload)
+            await consume(handler, payload)
           })
         } else if (pattern === 'point-to-point') {
           await client.receive(destination, async (payload) => {
-            await deliver(handler, payload, payload)
+            await consume(handler, payload)
           })
         } else {
-          await client.reply(destination, (payload) => deliver(handler, payload, payload))
+          await client.reply(destination, (payload) => consume(handler, payload))
         }
       }
     },
@@ -292,8 +310,10 @@ function createMessageTransport(
  *
  * On start it subscribes every handler with the queue client: `subscribe`
  * for pub/sub, `receive` for point-to-point, `reply` for request-reply. On
- * close it takes no more messages and waits for the ones in flight. It does
- * not disconnect the client, which belongs to whoever created it.
+ * close it waits for the messages in flight. It cannot unsubscribe, so what
+ * the broker still delivers after that is left unanswered and is redelivered
+ * once the client disconnects. Disconnecting is up to whoever created the
+ * client.
  */
 export const messageTransport = defineTransport<MessageTransportOptions, MessageTransport>({
   name: 'message',

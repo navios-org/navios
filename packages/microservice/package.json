@@ -29,7 +29,7 @@
   "scripts": {
     "check": "tsc -b",
     "lint": "yarn run -T oxlint --fix && yarn run -T oxfmt",
-    "test:ci": "vitest run --passWithNoTests",
+    "test:ci": "vitest run",
     "build": "tsdown",
     "publish": "yarn npm publish --access public",
     "publish:next": "yarn npm publish --access public --tag next"

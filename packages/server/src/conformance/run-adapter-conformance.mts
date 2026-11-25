@@ -21,7 +21,7 @@ import type { ConformanceOptions } from './conformance-options.mjs'
  *
  * ```ts
  * import { afterAll, beforeAll, describe, expect, it } from 'vitest'
- * import { runAdapterConformance } from '@navios/core/conformance'
+ * import { runAdapterConformance } from '@navios/server/conformance'
  *
  * runAdapterConformance({
  *   runner: { describe, it, expect, beforeAll, afterAll },

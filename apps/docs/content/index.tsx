@@ -285,8 +285,8 @@ export const getUser = API.declareEndpoint({
     key: 'serve',
     label: 'Serve',
     file: 'server/user.controller.ts',
-    code: `import { Controller, Endpoint } from '@navios/core'
-import type { HandlerParams } from '@navios/core'
+    code: `import { Controller, Endpoint } from '@navios/server'
+import type { HandlerParams } from '@navios/server'
 import { getUser } from '../shared/api.js'
 
 @Controller()
@@ -418,7 +418,7 @@ function Comparison() {
 
 const packages = [
   {
-    name: '@navios/core',
+    name: '@navios/server',
     description: 'HTTP server framework with decorators, modules, and controllers',
     link: '/docs/server/',
   },

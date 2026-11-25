@@ -2,6 +2,7 @@ import {
   AttributeFactory,
   createApplication,
   createContextKey,
+  currentContext,
   Injectable,
   Module,
 } from '@navios/core'
@@ -268,7 +269,7 @@ describe('messageTransport', () => {
     expect(received).toEqual([{ id: '1', name: 'Ada' }, { to: 'ada@example.com' }])
   })
 
-  it('waits for messages in flight on close and refuses new ones afterwards', async () => {
+  it('waits for messages in flight on close, then leaves later deliveries unanswered', async () => {
     let finish!: () => void
     const done: string[] = []
 
@@ -300,7 +301,100 @@ describe('messageTransport', () => {
     await closing
 
     expect(done).toEqual(['handled', 'closed'])
-    await expect(deliver({ id: '2' })).rejects.toThrow('is stopped')
+
+    // A delivery after the stop is neither handled nor failed: failing it
+    // would make a client reject the message, and a broker drop it. Left
+    // unanswered, it is redelivered once the client disconnects.
+    let settled = false
+    const late = () => {
+      settled = true
+    }
+    void deliver({ id: '2' }).then(late, late)
+    await new Promise((resolve) => setTimeout(resolve, 10))
+    expect(settled).toBe(false)
+    expect(done).toEqual(['handled', 'closed'])
+    await expect(
+      app.transport(messageTransport).dispatch(userCreated, { id: '3' }),
+    ).rejects.toThrow('[Navios] The message transport is stopped.')
+  })
+
+  it('finishes the context when a guard throws', async () => {
+    const finished: string[] = []
+
+    @Injectable()
+    class Failing implements Guard {
+      canActivate(ctx: ExecutionContext): boolean {
+        ctx.onFinish(() => void finished.push(ctx.id))
+        throw new Error('directory unreachable')
+      }
+    }
+    @MessageController({ guards: [Failing] })
+    class Consumer {
+      @Message(userCreated)
+      async onCreated() {}
+    }
+    @Module({ messageControllers: [Consumer] })
+    class AppModule {}
+    const { transport } = await createApp(AppModule)
+
+    await expect(transport.dispatch(userCreated, { id: '1' })).rejects.toThrow(
+      'directory unreachable',
+    )
+
+    expect(finished).toHaveLength(1)
+  })
+
+  it('makes the message context the current one, also while it finishes', async () => {
+    const seen: Array<string | undefined> = []
+
+    @MessageController()
+    class Consumer {
+      @Message(userCreated)
+      async onCreated() {
+        await Promise.resolve()
+        const ctx = currentContext()
+        seen.push(ctx?.kind)
+        ctx?.onFinish(() => void seen.push(currentContext()?.kind))
+      }
+    }
+    @Module({ messageControllers: [Consumer] })
+    class AppModule {}
+    const app = createApplication(AppModule, {
+      logger: false,
+      asyncContext: true,
+      transports: [messageTransport({})],
+    })
+    apps.push(app)
+    await app.init()
+
+    await app.transport(messageTransport).dispatch(userCreated, { id: '1' })
+
+    expect(seen).toEqual(['message', 'message'])
+  })
+
+  it('starts without a queue client when there is nothing to subscribe', async () => {
+    @Module({})
+    class AppModule {}
+    const { app } = await createApp(AppModule)
+
+    await expect(app.start()).resolves.toBe(app)
+  })
+
+  it('handles a controller that two modules list once', async () => {
+    @MessageController()
+    class Consumer {
+      @Message(userCreated)
+      async onCreated() {}
+    }
+    @Module({ messageControllers: [Consumer] })
+    class First {}
+    @Module({ messageControllers: [Consumer], imports: [First] })
+    class AppModule {}
+
+    const { transport } = await createApp(AppModule)
+
+    expect(transport.handlers().map((handler) => handler.name)).toEqual(['Consumer.onCreated'])
+    expect(transport.handlers()[0].handler.module).toBe(First)
   })
 
   it('refuses two handlers for one destination', async () => {

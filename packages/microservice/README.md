@@ -48,7 +48,7 @@ await app.start()
 app.enableShutdownHooks()
 ```
 
-On start the transport subscribes every handler with the queue client: `subscribe` for pub/sub, `receive` for point-to-point and `reply` for request-reply. The client is `QueueClientToken` from the container, or the `client` option. On `close()` the transport takes no more messages and waits for the ones in flight; it does not disconnect the client.
+On start the transport subscribes every handler with the queue client: `subscribe` for pub/sub, `receive` for point-to-point and `reply` for request-reply. The client is `QueueClientToken` from the container, or the `client` option. On `close()` the transport waits for the messages in flight. A queue client cannot unsubscribe, so a message the broker delivers after that is left unanswered rather than failed: it stays unacknowledged and is redelivered once the client disconnects. Disconnecting the client is up to whoever created it.
 
 ## What a delivery goes through
 

@@ -1218,6 +1218,7 @@ __metadata:
   dependencies:
     "@navios/builder": "workspace:^"
     "@navios/core": "workspace:^"
+    "@navios/di": "workspace:^"
     "@navios/server": "workspace:^"
     "@scalar/core": "npm:^0.5.55"
     typescript: "npm:^7.0.2"
@@ -1225,6 +1226,7 @@ __metadata:
     zod: "npm:^4.6.7"
   peerDependencies:
     "@navios/core": "workspace:^"
+    "@navios/di": "workspace:^"
     "@navios/server": "workspace:^"
   languageName: unknown
   linkType: soft
@@ -1393,6 +1395,7 @@ __metadata:
   dependencies:
     "@navios/builder": "workspace:^"
     "@navios/core": "workspace:^"
+    "@navios/di": "workspace:^"
     "@types/supertest": "npm:^7.2.1"
     supertest: "npm:^7.3.2"
     tsx: "npm:^4.23.15"
