@@ -7,8 +7,10 @@ Turns [`@navios/builder`](https://www.npmjs.com/package/@navios/builder) endpoin
 ## Install
 
 ```bash
-npm install @navios/react-query @navios/builder @tanstack/react-query
+npm install @navios/react-query@next @navios/builder@next @tanstack/react-query
 ```
+
+The 2.0 alpha is published under the `next` tag. All `@navios` packages of a project must have the same alpha version, because an alpha may break between releases.
 
 Requires `@tanstack/react-query` `^5.102.0`. The examples also use `@navios/http` and `zod`; any HTTP client and any [Standard Schema](https://standardschema.dev) library work.
 

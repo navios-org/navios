@@ -1,4 +1,5 @@
-import { Container, inject, Injectable, InjectionToken } from '@navios/di'
+import { Container, inject, Injectable, InjectionToken, provide } from '@navios/di'
+import { UnitTestContainer } from '@navios/di/testing'
 import { act, render, screen, waitFor } from '@testing-library/react'
 import { createElement, useMemo } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -141,6 +142,75 @@ describe('useOptionalService', () => {
         // Either not-found or error is acceptable for unregistered services
         expect(notFound || error).toBeTruthy()
       })
+    })
+
+    const statusOf = async (token: any, container: Container) => {
+      function TestComponent() {
+        const result = useOptionalService(token as InjectionToken<unknown>)
+        const status = result.isNotFound
+          ? 'not-found'
+          : result.isError
+            ? result.error!.message
+            : result.isSuccess
+              ? 'success'
+              : 'pending'
+        return createElement('div', { 'data-testid': 'status' }, status)
+      }
+      const { unmount } = render(
+        createElement(ContainerProvider, {
+          container,
+          children: createElement(TestComponent),
+        }),
+      )
+      await waitFor(() => {
+        expect(screen.getByTestId('status').textContent).not.toBe('pending')
+      })
+      const status = screen.getByTestId('status').textContent
+      unmount()
+      await container.dispose()
+      return status
+    }
+
+    it('should return isNotFound true for what a UnitTestContainer does not list', async () => {
+      @Injectable()
+      class Unlisted {}
+
+      expect(await statusOf(Unlisted, new UnitTestContainer({ providers: [] }))).toBe('not-found')
+    })
+
+    it('should return an error when something the service asks for is missing', async () => {
+      const MISSING = InjectionToken.create<string>('Missing')
+      const FACTORY = InjectionToken.create<object>('Factory')
+      const ALIAS = InjectionToken.create<string>('Alias')
+
+      @Injectable()
+      class Injecting {
+        readonly missing = inject(MISSING)
+      }
+
+      @Injectable()
+      class Getting {
+        private readonly container = inject(Container)
+
+        async onServiceInit() {
+          await this.container.get(MISSING)
+        }
+      }
+
+      const create = () =>
+        new Container({
+          providers: [
+            provide(FACTORY, {
+              factory: async (ctx) => ({ missing: await ctx.inject(MISSING) }),
+            }),
+            provide(ALIAS, { existing: MISSING }),
+          ],
+        })
+      for (const token of [Injecting, Getting, FACTORY]) {
+        expect(await statusOf(token, create())).toContain('No provider for')
+      }
+      // An alias of nothing is nothing.
+      expect(await statusOf(ALIAS, create())).toBe('not-found')
     })
 
     it('should return isNotFound true for unregistered injection token', async () => {

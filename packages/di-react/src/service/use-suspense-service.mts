@@ -4,13 +4,13 @@ import type {
   BoundInjectionToken,
   ClassType,
   Container,
-  Factorable,
   FactoryInjectionToken,
   InferInput,
   InjectionToken,
-  InjectionTokenSchemaType,
   MissingArgsError,
+  ResolvedInstance,
   ScopedContainer,
+  StandardSchemaV1,
 } from '@navios/di'
 
 import { useContainer } from '../container/use-container.mjs'
@@ -78,23 +78,21 @@ function setupInvalidationSubscription(
 }
 
 // #1 Simple class
-export function useSuspenseService<T extends ClassType>(
-  token: T,
-): InstanceType<T> extends Factorable<infer R> ? R : InstanceType<T>
+export function useSuspenseService<T extends ClassType>(token: T): ResolvedInstance<T>
 
 // #2 Token with required Schema
-export function useSuspenseService<T, S extends InjectionTokenSchemaType>(
+export function useSuspenseService<T, S extends StandardSchemaV1>(
   token: InjectionToken<T, S>,
   args: InferInput<S>,
 ): T
 
 // #3 Token with optional Schema
-export function useSuspenseService<T, S extends InjectionTokenSchemaType, R extends boolean>(
+export function useSuspenseService<T, S extends StandardSchemaV1, R extends boolean>(
   token: InjectionToken<T, S, R>,
 ): R extends false ? T : MissingArgsError<S>
 
 // #4 Token with no Schema
-export function useSuspenseService<T>(token: InjectionToken<T, undefined>): T
+export function useSuspenseService<T>(token: InjectionToken<T, unknown>): T
 
 export function useSuspenseService<T>(token: BoundInjectionToken<T, any>): T
 
@@ -118,7 +116,7 @@ export function useSuspenseService(
   if (!cache.has(cacheKey)) {
     // Try to get the instance synchronously first for better performance
     // This avoids suspense when the instance is already cached
-    const syncInstance = container.tryGetSync(token, args)
+    const syncInstance = container.peek(token as InjectionToken<any, any>, args)
 
     const entry: CacheEntry<any> = {
       promise: null,

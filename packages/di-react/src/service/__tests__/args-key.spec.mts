@@ -26,4 +26,30 @@ describe('getArgsKey', () => {
     expect(getArgsKey(1n)).toBe(getArgsKey(1n))
     expect(getArgsKey(1n)).not.toBe(getArgsKey(2n))
   })
+
+  it('should tell apart what the container compares by value and JSON does not', () => {
+    const pairs: [() => unknown, () => unknown][] = [
+      [() => new Set([1]), () => new Set([2])],
+      [() => new Map([['a', 1]]), () => new Map([['a', 2]])],
+      [() => new Map(), () => new Set()],
+      [() => /a/, () => /b/],
+      [() => new Date(0), () => new Date(1)],
+      [() => new URL('http://a'), () => new URL('http://b')],
+      [() => 1n, () => 2n],
+      [() => 1n, () => '1'],
+      [() => new Set(['a']), () => ['a']],
+    ]
+    for (const [left, right] of pairs) {
+      expect(getArgsKey({ value: left() })).toBe(getArgsKey({ value: left() }))
+      expect(getArgsKey({ value: left() })).not.toBe(getArgsKey({ value: right() }))
+      expect(getArgsKey(left())).not.toBe(getArgsKey(right()))
+    }
+    expect(getArgsKey({ ids: new Set([new Map([['a', 1]])]) })).not.toBe(
+      getArgsKey({ ids: new Set([new Map([['a', 2]])]) }),
+    )
+  })
+
+  it('should not count a new function as a change', () => {
+    expect(getArgsKey({ id: 1, onChange: () => 1 })).toBe(getArgsKey({ id: 1, onChange: () => 1 }))
+  })
 })

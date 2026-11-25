@@ -7,8 +7,10 @@ React bindings for [`@navios/di`](https://www.npmjs.com/package/@navios/di). A p
 ## Install
 
 ```bash
-npm install @navios/di-react @navios/di
+npm install @navios/di-react@next @navios/di@next
 ```
+
+The 2.0 alpha is published under the `next` tag. All `@navios` packages of a project must have the same alpha version, because an alpha may break between releases.
 
 Requires `react` `^18.0.0 || ^19.0.0`. The services are compiled by your bundler, so it has to handle standard TC39 decorators.
 
