@@ -1,8 +1,11 @@
 import type { ClassType } from '@navios/di'
 
-import type { RequestValueClass } from '../context/request-value.mjs'
-import { Module as NeutralModule, registerModule as registerNeutralModule } from '../modules/module.mjs'
+import {
+  Module as NeutralModule,
+  registerModule as registerNeutralModule,
+} from '../modules/module.mjs'
 
+import type { RequestValueClass } from '../context/request-value.mjs'
 import type { ModuleNode } from '../modules/module-graph.mjs'
 import type { ModuleOptions } from '../modules/module-options.mjs'
 

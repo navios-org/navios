@@ -1,7 +1,9 @@
 import type { ClassType, Container } from '@navios/di'
 
 import { getControllerMetadata } from '../controllers/controller-metadata.mjs'
+import { memberEndpoint } from '../handlers/endpoint-declaration.mjs'
 import { isFieldHandler } from '../handlers/handler.mjs'
+import { handlerChain } from '../metadata/handler-chain.mjs'
 import { compileRoute } from '../pipeline/compile-route.mjs'
 import { joinPaths } from '../routing/join-paths.mjs'
 
@@ -53,13 +55,12 @@ export async function assembleRoutes(
       const controller = (await container.get(controllerClass)) as Record<string, unknown>
 
       for (const draft of collectHandlers(controllerClass, metadata, controller)) {
-        const guards = unique([...node.guards, ...metadata.guards, ...draft.guards])
-        const interceptors = unique([
-          ...globalInterceptors,
-          ...node.interceptors,
-          ...metadata.interceptors,
-          ...draft.interceptors,
-        ])
+        const { guards, interceptors } = handlerChain({
+          application: globalInterceptors,
+          node,
+          owner: metadata,
+          member: draft,
+        })
         const path = joinPaths(prefix, draft.config.url) || '/'
         const where = `${controllerClass.name}.${draft.name}`
         const key = `${draft.config.method} ${path.replace(/\$[^/]+/g, '$')}`
@@ -166,7 +167,12 @@ function collectHandlers(
     if (seen.has(name)) {
       continue
     }
-    if (member.config === null) {
+    const config = memberEndpoint(member)
+    if (config === null) {
+      // The member is another transport's handler; it has nothing to serve here.
+      if (member.entries.size > 0) {
+        continue
+      }
       throw new Error(
         `[Navios] ${controllerClass.name}.${name} has guards, interceptors or attributes but ` +
           `is not a handler. Add @Endpoint(...) or define it with handler(...).`,
@@ -178,7 +184,7 @@ function collectHandlers(
     }
     drafts.push({
       name,
-      config: member.config,
+      config,
       invoke: method.bind(controller) as RouteDefinition['invoke'],
       guards: member.guards,
       interceptors: member.interceptors,
@@ -186,8 +192,4 @@ function collectHandlers(
     })
   }
   return drafts
-}
-
-function unique<T>(list: T[]): T[] {
-  return Array.from(new Set(list))
 }

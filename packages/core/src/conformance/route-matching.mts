@@ -1,6 +1,6 @@
+import { registerModule } from '../application/http-module-options.mjs'
 import { registerController } from '../controllers/controller.mjs'
 import { handler } from '../handlers/handler.mjs'
-import { registerModule } from '../application/http-module-options.mjs'
 
 import type { RequestContext } from '../context/request-context.mjs'
 

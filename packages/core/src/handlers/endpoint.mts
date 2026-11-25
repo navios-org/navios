@@ -2,7 +2,7 @@ import type { BaseEndpointOptions } from '@navios/builder'
 
 import { memberMetadata } from '../metadata/member-metadata.mjs'
 
-import { endpointConfig } from './endpoint-declaration.mjs'
+import { endpointConfig, EndpointEntryKey, memberEndpoint } from './endpoint-declaration.mjs'
 
 import type { EndpointDeclaration } from './endpoint-declaration.mjs'
 import type { MethodHandlerFunction } from './handler-types.mjs'
@@ -41,12 +41,13 @@ export function Endpoint<const Config extends BaseEndpointOptions>(
     }
     const member = memberMetadata(context, context.name)
     const config = endpointConfig(endpoint)
-    if (member.config !== null && member.config !== config) {
+    const existing = memberEndpoint(member)
+    if (existing !== null && existing !== config) {
       throw new Error(
-        `[Navios] ${context.name} already serves ${member.config.method} ${member.config.url}; ` +
+        `[Navios] ${context.name} already serves ${existing.method} ${existing.url}; ` +
           `a method can serve one endpoint.`,
       )
     }
-    member.config = config
+    member.entries.set(EndpointEntryKey, config)
   }
 }
