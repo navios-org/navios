@@ -5,6 +5,7 @@ import type { ClassType, InjectionToken, Provider, ProviderInput } from '@navios
 import { enableAsyncContext } from '../context/async-context.mjs'
 import { isRequestValueClass } from '../context/context-key.mjs'
 import { isFieldHandler } from '../decorators/handler.mjs'
+import { useClientErrorStacks } from '../errors/client-error-stacks.mjs'
 import { ErrorPipeline } from '../errors/error-pipeline.mjs'
 import {
   ForbiddenResponderToken,
@@ -25,6 +26,7 @@ import type {
   TestResponse,
 } from '../adapter/http-adapter.mjs'
 import type { ContextHost, RegisteredEnvironment } from '../context/request-context.mjs'
+import type { ClientErrorStacks } from '../errors/client-error-stacks.mjs'
 import type { ErrorClass, ErrorMapper } from '../errors/error-pipeline.mjs'
 import type { LogLevel } from '../logger/log-levels.mjs'
 import type { LoggerService } from '../logger/logger-service.interface.mjs'
@@ -69,6 +71,18 @@ export interface NaviosApplicationOptions<
   validateResponses?: 'always' | 'development' | 'never'
   /** Send the message of unexpected errors to the client. @default false */
   exposeErrorDetails?: boolean
+  /**
+   * When errors that are answered with a 4xx status capture a stack: an
+   * `HttpException` below 500, a denied guard, a request that does not match
+   * its schema. Capturing one costs more than the rest of the pipeline, and
+   * nothing in the framework reads it. `'development'` captures unless
+   * `NODE_ENV` is `production`. Other errors always have their stack.
+   *
+   * The choice applies to the process while the application runs: with
+   * several applications, stacks are captured if any of them wants them.
+   * @default 'development'
+   */
+  clientErrorStacks?: ClientErrorStacks
   /**
    * Keep the current `RequestContext` in an `AsyncLocalStorage`, so that
    * `currentContext()` works in code that cannot receive it as an argument.
@@ -131,6 +145,7 @@ export class NaviosApplication<Env extends HttpAdapterEnvironment = ApplicationE
   private compiledRoutes: CompiledRoute[] = []
   private initialised = false
   private initialisation: Promise<void> | null = null
+  private releaseClientErrorStacks: (() => void) | null = null
   private closed = false
   private signalHandlers: Array<[NodeJS.Signals, () => void]> = []
 
@@ -222,8 +237,20 @@ export class NaviosApplication<Env extends HttpAdapterEnvironment = ApplicationE
    * failed, because it is only partly built.
    */
   async init(): Promise<this> {
-    await (this.initialisation ??= this.initialise())
+    await (this.initialisation ??= this.start())
     return this
+  }
+
+  private async start(): Promise<void> {
+    this.releaseClientErrorStacks = useClientErrorStacks(
+      this.options.clientErrorStacks ?? 'development',
+    )
+    try {
+      await this.initialise()
+    } catch (error) {
+      this.releaseClientErrorStacks()
+      throw error
+    }
   }
 
   private async initialise(): Promise<void> {
@@ -594,8 +621,12 @@ export class NaviosApplication<Env extends HttpAdapterEnvironment = ApplicationE
     }
     this.signalHandlers = []
 
-    if (this.adapterInstance !== null) {
-      await this.adapterInstance.close(this.options.shutdownTimeout ?? 10_000)
+    try {
+      if (this.adapterInstance !== null) {
+        await this.adapterInstance.close(this.options.shutdownTimeout ?? 10_000)
+      }
+    } finally {
+      this.releaseClientErrorStacks?.()
     }
 
     const report = (error: unknown) => {

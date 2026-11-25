@@ -108,7 +108,10 @@ function validated(
   }
 }
 
-function headerRecord(input: RouteInput): Record<string, string> {
+function headerRecord(input: RouteInput): Record<string, string | undefined> {
+  if (input.headerRecord !== undefined) {
+    return input.headerRecord()
+  }
   const record: Record<string, string> = {}
   input.headers().forEach((value, name) => {
     record[name] = value

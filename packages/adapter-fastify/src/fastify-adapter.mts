@@ -135,6 +135,17 @@ class FastifyRouteInput implements RouteInput {
     return headers
   }
 
+  headerRecord(): Record<string, string | undefined> {
+    // `set-cookie` is the only header Node keeps as a list, and not one that
+    // a request normally has.
+    const { 'set-cookie': cookies, ...headers } = this.request.headers
+    const record = headers as Record<string, string | undefined>
+    if (cookies !== undefined) {
+      record['set-cookie'] = cookies.join(', ')
+    }
+    return record
+  }
+
   query(): unknown {
     return this.request.query
   }

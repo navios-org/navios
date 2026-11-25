@@ -964,3 +964,21 @@ describe('ErrorPipeline: a mapper that returns no response', () => {
     expect((await asynchronous.execute(input())).status).toBe(500)
   })
 })
+
+describe('headersSchema', () => {
+  const schema = z.looseObject({ 'x-tenant': z.string() })
+
+  it('reads the record of the adapter without building web headers', async () => {
+    const headers = vi.fn(() => new Headers())
+    const { execute } = setup({ headersSchema: schema }, ({ headers }) => headers)
+    const result = await execute(input({ headers, headerRecord: () => ({ 'x-tenant': 'acme' }) }))
+    expect(result.body).toEqual({ 'x-tenant': 'acme' })
+    expect(headers).not.toHaveBeenCalled()
+  })
+
+  it('builds the record from web headers for an adapter that has none', async () => {
+    const { execute } = setup({ headersSchema: schema }, ({ headers }) => headers)
+    const result = await execute(input({ headerMap: { 'X-Tenant': 'acme' } }))
+    expect(result.body).toEqual({ 'x-tenant': 'acme' })
+  })
+})

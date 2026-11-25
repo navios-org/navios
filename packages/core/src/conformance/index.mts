@@ -1,5 +1,7 @@
 import { InjectableScope, registerInjectable } from '@navios/di'
 
+import type { StandardSchemaV1 } from '@navios/di'
+
 import { NaviosFactory } from '../application/navios-factory.mjs'
 import { createContextKey, registerRequestValue } from '../context/context-key.mjs'
 import { AttributeFactory } from '../decorators/attribute.mjs'
@@ -201,6 +203,32 @@ export function runAdapterConformance(options: ConformanceOptions): void {
       badResponse = handler(
         endpoint({ method: 'GET', url: '/bad-response', responseSchema: user }),
         () => ({ id: 1 }) as any,
+      )
+
+      headersSchema = handler(
+        endpoint({
+          method: 'GET',
+          url: '/headers-schema',
+          headersSchema: {
+            '~standard': {
+              version: 1,
+              vendor: 'navios-conformance',
+              validate: (value: any) =>
+                typeof value['x-agent'] === 'string'
+                  ? { value }
+                  : { issues: [{ message: 'Expected a string', path: ['x-agent'] }] },
+            },
+          } as StandardSchemaV1<unknown, Record<string, string>>,
+          responseSchema: s.object({ agent: s.string(), list: s.string(), native: s.string() }),
+        }),
+        (args, ctx) => {
+          // Not part of the handler types: builder declares no header schemas.
+          const { headers } = args as unknown as { headers: Record<string, string> }
+          const { 'x-agent': agent, 'x-list': list } = headers
+          // What a schema passes on is the handler's own.
+          headers['x-agent'] = 'changed'
+          return { agent, list, native: ctx.headers.get('x-agent') ?? '' }
+        },
       )
 
       headers = handler(
@@ -614,6 +642,26 @@ export function runAdapterConformance(options: ConformanceOptions): void {
       expect(await me.json()).toEqual({ name: 'ann' })
       await waitFor(() => events.includes('session:dispose'))
       expect(events).toEqual(['session:resolve', 'session:dispose'])
+    })
+
+    it('validates request headers against a schema, by lower-case name', async () => {
+      const response = await fetch(url('/headers-schema'), {
+        headers: [
+          ['X-Agent', 'conformance'],
+          ['X-List', 'a'],
+          ['X-List', 'b'],
+        ],
+      })
+      expect(response.status).toBe(200)
+      expect(await response.json()).toEqual({
+        agent: 'conformance',
+        list: 'a, b',
+        native: 'conformance',
+      })
+
+      const missing = await fetch(url('/headers-schema'))
+      expect(missing.status).toBe(400)
+      expect((await missing.json()).source).toBe('headers')
     })
 
     it('reads request headers and cookies and writes response headers and cookies', async () => {

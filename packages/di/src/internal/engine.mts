@@ -363,7 +363,7 @@ function build(
     // While something is being destroyed, a dependency this class is known to
     // ask for may be on its way out. Constructing now would only produce a
     // pass that has to be thrown away, so wait for the destruction first.
-    const leaving = destroying > 0 && record.plan !== null ? leavingIn(host, record.plan) : null
+    const leaving = isDestroying(host) && record.plan !== null ? leavingIn(host, record.plan) : null
     if (leaving !== null) {
       outcome = afterDestruction(frame, leaving)
     } else {
@@ -495,7 +495,7 @@ async function afterDestruction(frame: Frame, first: Promise<unknown>): Promise<
   let leaving: Promise<unknown> | null = first
   while (leaving !== null) {
     await leaving
-    leaving = destroying > 0 ? leavingIn(host, entry.record.plan!) : null
+    leaving = isDestroying(host) ? leavingIn(host, entry.record.plan!) : null
   }
   const record = entry.record
   const waits = record.preResolve === true ? preResolve(frame, record.plan!) : null
@@ -1195,8 +1195,14 @@ interface Cascade {
   gone: Entry[] | null
 }
 
-/** Entries in `Destroying` state, over all containers. */
-let destroying = 0
+/**
+ * Whether something that a build in `host` could ask for is being destroyed.
+ * It reaches its own store and the root's, so the teardown of another scope
+ * or container does not slow it down.
+ */
+function isDestroying(host: Host): boolean {
+  return host.store.destroying > 0 || (host.isScope && host.root.store.destroying > 0)
+}
 
 /**
  * Destroys an entry: its dependents first, then its own destroy listeners,
@@ -1228,7 +1234,9 @@ function destroy(entry: Entry, cascade: Cascade): void | Promise<void> {
   }
 
   entry.status = EntryStatus.Destroying
-  destroying++
+  if (entry.store !== null) {
+    entry.store.destroying++
+  }
   let waits: Promise<void>[] | null = null
   if (entry.dependents !== null && entry.dependents.size > 0) {
     for (const dependent of Array.from(entry.dependents)) {
@@ -1280,8 +1288,10 @@ function teardown(entry: Entry, cascade: Cascade): void | Promise<void> {
 
 function finalize(entry: Entry, cascade: Cascade): void {
   entry.status = EntryStatus.Destroyed
-  destroying--
-  entry.store?.delete(entry)
+  if (entry.store !== null) {
+    entry.store.destroying--
+    entry.store.delete(entry)
+  }
   unlink(entry)
   entry.dependents = null
   entry.transients = null

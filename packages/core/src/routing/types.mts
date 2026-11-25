@@ -54,6 +54,12 @@ export interface RouteInput {
   header(name: string): string | undefined
   /** Every request header, for code that needs a web `Headers` object. */
   headers(): Headers
+  /**
+   * Every request header as a record of the caller's own, with lower-case
+   * names and a repeated header joined with `, `. Optional: for an adapter
+   * that has no cheaper source, the record is built from `headers()`.
+   */
+  headerRecord?(): Record<string, string | undefined>
   /** Decoded URL params of the whole path, prefixes included. */
   readonly urlParams: Record<string, string>
   /** Parsed query string. Called at most once per request. */
