@@ -7,15 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [2.0.0] - Unreleased
 
-The adapter is rewritten on the `@navios/core` 2.0 adapter contract. It no longer contains guard, validation or error-handling logic; those run in core and are the same on every adapter.
+The adapter is rewritten on the adapter contract of `@navios/server` 2.0, the package that now holds the HTTP layer of Navios. It no longer contains guard, validation or error-handling logic; those run in the request pipeline of `@navios/server` and are the same on every adapter.
 
 ### Breaking
 
 - **CORS and multipart are adapter options.** `defineFastifyEnvironment({ cors, multipart })` replaces `app.enableCors()` and `app.enableMultipart()`.
 - **Stream handlers no longer receive `FastifyReply` as an argument.** Return a `ReadableStream` or an async iterable, or use `ctx.raw.reply` to take over the response.
 - **`inject(FastifyRequestToken)` and the other per-request tokens are removed.** Use `ctx.raw.request` and `ctx.raw.reply`.
-- **Fastify schema validation and `fastify-type-provider-zod` are no longer used.** Routes are registered without schemas, and error bodies are the `application/problem+json` documents produced by core.
-- Requires `@navios/core` 2.0.
+- **Fastify schema validation and `fastify-type-provider-zod` are no longer used.** Routes are registered without schemas, and error bodies are the `application/problem+json` documents produced by `@navios/server`.
+- **`fastify` is a peer dependency only.** Install it in the application; the adapter no longer brings a second copy.
+- **A route with `body: 'multipart'` needs the `multipart` option.** Without it the application fails to start, naming the route. It used to start and answer every upload with 415.
+- Requires `@navios/server` 2.0, with `@navios/core` 2.0.
 
 ### Added
 
@@ -24,7 +26,7 @@ The adapter is rewritten on the `@navios/core` 2.0 adapter contract. It no longe
 - **Taking over the response**: when a handler has sent the response through `ctx.raw.reply`, the adapter writes nothing.
 - **`app.inject()`** through `fastify.inject()`.
 - **`ctx.signal`** aborts when the client disconnects before the response is complete.
-- The `@navios/core/conformance` suite runs against the adapter over real HTTP, including its cases for a request body over `bodyLimit` and a file over `multipart.limits.fileSize`.
+- The `@navios/server/conformance` suite runs against the adapter over real HTTP, including its cases for a request body over `bodyLimit` and a file over `multipart.limits.fileSize`.
 - An HTTP benchmark against raw Fastify: `yarn bench`.
 - Serves `response: 'void'` endpoints (204, no body) and per-status `responses` endpoints.
 
@@ -50,6 +52,10 @@ The adapter is rewritten on the `@navios/core` 2.0 adapter contract. It no longe
 - **A multipart body over one of `multipart.limits` is answered with 413 `application/problem+json`**, not 500. This covers `fileSize`, `files`, `fields` and `parts`; the other 4xx errors of `@fastify/multipart` keep their status as well. A field over `fieldSize`, which `@fastify/multipart` truncates silently, is rejected with 413 too.
 - **A request with an empty URL parameter matches no route.** `find-my-way` matches `/users/` to `/users/$id` with an empty `id`; the adapter now answers such a request with the not-found response, as the Bun and in-memory adapters do.
 - **A repeated `set-cookie` request header reaches a `headersSchema` as one joined value.** Only the last one did.
+- **A `Content-Type` header of a result is kept whatever its case.** `{ 'Content-Type': 'text/html' }` from an error mapper was replaced by the default of the result's kind.
+- **A result that cannot be written goes through the application's error pipeline**, as on Bun: the internal-error responder, `exposeErrorDetails` and the logging of unhandled errors apply. The adapter used to answer with its own 500.
+- **A multipart body that cannot be parsed is a 400** problem response with `source: 'body'`, not a 500.
+- **Errors of the router are `application/problem+json`**: a URL with malformed percent-encoding (400) and a URL parameter over `maxParamLength` (414) were answered with Fastify's own JSON. Pass `frameworkErrors` to replace this.
 
 ### Performance
 

@@ -40,6 +40,22 @@ function toNodeBody(result: RouteResult): unknown | Promise<unknown> {
   return body
 }
 
+/** Whether a result sets its content type, in any case of the name. */
+function hasContentType(headers: Record<string, string> | undefined): boolean {
+  if (headers === undefined) {
+    return false
+  }
+  if (headers['content-type'] !== undefined) {
+    return true
+  }
+  for (const name in headers) {
+    if (name.length === 12 && name.toLowerCase() === 'content-type') {
+      return true
+    }
+  }
+  return false
+}
+
 export function write(
   reply: FastifyReply,
   result: RouteResult,
@@ -78,14 +94,14 @@ export function write(
   }
   switch (result.kind) {
     case 'json':
-      if (result.headers?.['content-type'] === undefined) {
+      if (!hasContentType(result.headers)) {
         reply.type('application/json; charset=utf-8')
       }
       return reply.send(JSON.stringify(result.body))
     case 'empty':
       return reply.send()
     default: {
-      if (result.headers?.['content-type'] === undefined) {
+      if (!hasContentType(result.headers)) {
         const type = DEFAULT_CONTENT_TYPES[result.kind]
         if (type !== undefined) {
           reply.type(type)

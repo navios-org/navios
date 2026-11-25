@@ -8,9 +8,15 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/Arilas/navios.git",
+    "url": "https://github.com/navios-org/navios.git",
     "directory": "packages/adapter-fastify"
   },
+  "files": [
+    "lib",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ],
   "main": "./lib/index.cjs",
   "module": "./lib/index.mjs",
   "typings": "./lib/index.d.mts",
@@ -37,14 +43,14 @@
   },
   "dependencies": {
     "@fastify/cors": "^11.4.3",
-    "@fastify/multipart": "^10.1.9",
-    "fastify": "^5.12.8"
+    "@fastify/multipart": "^10.1.9"
   },
   "devDependencies": {
     "@navios/builder": "workspace:^",
     "@navios/core": "workspace:^",
     "@navios/server": "workspace:^",
     "@types/supertest": "^7.2.1",
+    "fastify": "^5.12.8",
     "supertest": "^7.3.2",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2",

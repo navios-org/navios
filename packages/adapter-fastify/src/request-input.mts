@@ -1,4 +1,4 @@
-import { createMultipartCollector, HttpException } from '@navios/server'
+import { createMultipartCollector, HttpException, ValidationError } from '@navios/server'
 
 import type { RouteInput, SchemaLike } from '@navios/server'
 import type { FastifyReply, FastifyRequest } from 'fastify'
@@ -150,17 +150,19 @@ export class FastifyRouteInput implements RouteInput {
  * other bodies a client got wrong, with a Fastify error that carries a 4xx
  * status. The body is read inside the pipeline, where Fastify's error handler
  * does not see it, so the error is turned into the same problem response here.
+ * A body the parser cannot read fails with a plain error: a 400.
  */
 function toClientError(error: unknown): unknown {
-  const { code, statusCode } = (error ?? {}) as { code?: unknown; statusCode?: unknown }
-  if (
-    typeof code === 'string' &&
-    code.startsWith('FST_') &&
-    typeof statusCode === 'number' &&
-    statusCode >= 400 &&
-    statusCode < 500
-  ) {
-    return new HttpException(statusCode, String((error as Error).message ?? ''), error)
+  if (error instanceof HttpException) {
+    return error
   }
-  return error
+  const { code, statusCode } = (error ?? {}) as { code?: unknown; statusCode?: unknown }
+  if (typeof code === 'string' && code.startsWith('FST_') && typeof statusCode === 'number') {
+    return statusCode >= 400 && statusCode < 500
+      ? new HttpException(statusCode, String((error as Error).message ?? ''), error)
+      : error
+  }
+  return new ValidationError('body', [
+    { message: `Malformed multipart body: ${String((error as Error)?.message ?? error)}` },
+  ])
 }

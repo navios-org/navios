@@ -42,8 +42,13 @@ export class FastifyAdapter implements HttpAdapter<FastifyEnvironment> {
     context: AdapterContext,
   ): Promise<FastifyAdapter> {
     const { cors: corsOptions, multipart: multipartOptions, configure, ...serverOptions } = options
-    const server = fastify(serverOptions)
-    const adapter = new FastifyAdapter(server, context)
+    // Errors of the router, such as a url that cannot be decoded.
+    let adapter: FastifyAdapter | undefined
+    const server = fastify({
+      frameworkErrors: (error, _request, reply) => adapter!.fail(error, reply) as never,
+      ...serverOptions,
+    })
+    adapter = new FastifyAdapter(server, context)
     adapter.install()
     if (corsOptions) {
       await server.register(cors, corsOptions)
@@ -75,15 +80,27 @@ export class FastifyAdapter implements HttpAdapter<FastifyEnvironment> {
       },
     )
 
-    server.setErrorHandler((error: any, request, reply) => {
-      const status =
-        typeof error?.statusCode === 'number' && error.statusCode >= 400 ? error.statusCode : 500
-      if (status >= 500) {
-        this.context.logger.error(`Error on ${request.method} ${request.url}`, error)
+    server.setErrorHandler((error, _request, reply) => this.fail(error, reply))
+  }
+
+  /** Answers an error that Fastify raised outside the pipeline. @internal */
+  fail(error: any, reply: FastifyReply): FastifyReply | Promise<FastifyReply> {
+    const status =
+      typeof error?.statusCode === 'number' && error.statusCode >= 400 ? error.statusCode : 500
+    let result: RouteResult
+    if (status < 500) {
+      result = problem(status, String(error?.message ?? ''))
+    } else {
+      // For example a result that cannot be written. The application decides
+      // how a defect is reported and answered.
+      try {
+        result = this.context.errors.unexpected(error)
+      } catch (responderError) {
+        this.context.logger.error('The error response could not be written', responderError)
+        result = problem(500)
       }
-      const result = problem(status, status >= 500 ? undefined : String(error?.message ?? ''))
-      return write(reply, result)
-    })
+    }
+    return write(reply, result)
   }
 
   /** @internal */
@@ -132,6 +149,15 @@ export class FastifyAdapter implements HttpAdapter<FastifyEnvironment> {
 
   register(route: CompiledRoute): void {
     const { info } = route
+    if (
+      info.endpoint.body === 'multipart' &&
+      !this.server.hasContentTypeParser('multipart/form-data')
+    ) {
+      throw new Error(
+        `[Navios] ${info.method} ${info.path} has a multipart body, which needs the adapter option: ` +
+          `defineFastifyEnvironment({ multipart: true }).`,
+      )
+    }
     const handler = this.handlerFor(
       route.execute,
       info.endpoint.body === 'multipart' ? info.endpoint.requestSchema : undefined,
