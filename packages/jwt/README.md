@@ -1,73 +1,50 @@
-# Navios JWT
+# @navios/jwt
 
-## Overview
+JSON Web Tokens for [Navios](https://navios.tech) applications. An injectable service: configure it once, then sign and verify tokens wherever the service is injected.
 
-Navios JWT is a TypeScript library that provides a robust implementation for JSON Web Token (JWT) operations in Navios applications. It wraps the functionality of the `jsonwebtoken` library with a service-oriented approach that integrates seamlessly with the Navios dependency injection system.
+**[Documentation](https://navios.tech/docs/server/guides/authentication)** — bearer-token authentication from start to finish: a login endpoint, a guard, public routes and tests.
 
-It was forked from a [NestJS](https://github.com/nestjs/jwt) library and is designed to be used with the Navios framework, providing a type-safe and developer-friendly experience for signing and verifying JWTs.
-
-## Installation
+## Install
 
 ```bash
-npm install @navios/jwt
-# or
-yarn add @navios/jwt
+npm install @navios/jwt@next
 ```
 
-## Features
+The 2.0 alpha is published under the `next` tag. All `@navios` packages of a project must have the same alpha version, because an alpha may break between releases.
 
-- **Token Signing**: Create JWTs with customizable options (expiration, algorithm, claims, etc.)
-- **Token Verification**: Comprehensive validation with support for all standard JWT claims
-- **Multiple Algorithms**: Support for symmetric (HS256, HS384, HS512) and asymmetric (RS256, ES256, PS256, etc.) algorithms
-- **Dependency Injection**: Seamless integration with Navios DI system
-- **Type Safety**: Full TypeScript support with Zod schema validation
-- **Async Support**: Both synchronous and asynchronous APIs for flexible key management
-- **Dynamic Key Providers**: Support for dynamic secret/key resolution based on request context
+`@navios/core` is a peer dependency. No schema library is required.
 
-## Quick Start
+## Example
 
-### Basic Setup
+```ts
+import { inject, Injectable } from '@navios/core'
+import { provideJwtService, TokenExpiredError } from '@navios/jwt'
 
-```typescript
-import { provideJwtService } from '@navios/jwt'
-
-// Static configuration
-const JwtService = provideJwtService({
-  secret: 'your-secret-key',
-  signOptions: {
-    expiresIn: '1h',
-    algorithm: 'HS256',
-  },
-  verifyOptions: {
-    algorithms: ['HS256'],
-  },
+export const Jwt = provideJwtService({
+  secret: process.env.JWT_SECRET,
+  signOptions: { expiresIn: '15m', audience: 'session' },
+  verifyOptions: { algorithms: ['HS256'], audience: 'session' },
 })
-```
 
-### Using with Dependency Injection
-
-```typescript
-import { Injectable, inject } from '@navios/core'
-import { JwtService } from '@navios/jwt'
+interface SessionPayload {
+  sub: string
+  roles: string[]
+}
 
 @Injectable()
-class AuthService {
-  jwtService = inject(JwtService)
+export class SessionService {
+  private readonly jwt = inject(Jwt)
 
-  async login(userId: string, role: string) {
-    // Sign a token
-    const token = this.jwtService.sign({ userId, role }, { expiresIn: '1h' })
-    return { token }
+  issue(userId: string, roles: string[]) {
+    return this.jwt.sign({ sub: userId, roles } satisfies SessionPayload)
   }
 
-  async validateToken(token: string) {
+  read(token: string) {
     try {
-      // Verify and decode the token
-      const payload = this.jwtService.verify<{ userId: string; role: string }>(token)
-      return payload
+      return this.jwt.verify<SessionPayload>(token)
     } catch (error) {
       if (error instanceof TokenExpiredError) {
-        throw new Error('Token expired')
+        return null
       }
       throw error
     }
@@ -75,215 +52,61 @@ class AuthService {
 }
 ```
 
-## Usage Examples
+`provideJwtService` returns an injection token with a configured service behind it. Export it from one file; every `inject()` of it gives the same `JwtService`. Every call makes a service of its own, so an application with access and refresh tokens has two; give each an `audience`. Never use `decode()` for an access decision: it does not check the signature.
 
-### Async Configuration
+The configuration is checked when the service is first resolved. A key that is empty or cannot be parsed, and an option without a value, stop the application with an error that names them, instead of rejecting every token later. A `secret` should have at least 32 random bytes; a shorter one is a warning, once per process.
 
-When you need to load configuration dynamically:
+## What else it does
 
-```typescript
-import { inject } from '@navios/core'
-import { provideJwtService } from '@navios/jwt'
+| Need                                      | How                                                        | Docs                                                                                                           |
+| ----------------------------------------- | ---------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| Configuration from another service        | `provideJwtService(async (ctx) => ...)`                    | [Configure the service](https://navios.tech/docs/server/guides/authentication#configure-the-service)           |
+| RSA and ECDSA key pairs                   | `privateKey`, `publicKey`                                  | [Asymmetric keys](https://navios.tech/docs/server/guides/authentication#asymmetric-keys)                       |
+| Key rotation, a key per tenant            | `keys`                                                     | [Choosing the key per token](https://navios.tech/docs/server/guides/authentication#choosing-the-key-per-token) |
+| Sign, verify and decode, sync or async    | `sign`, `signAsync`, `verify`, `verifyAsync`, `decode`     | [The service](https://navios.tech/docs/server/guides/authentication#the-service)                               |
+| Tell an expired token from an invalid one | `TokenExpiredError`, `NotBeforeError`, `JsonWebTokenError` | [Errors](https://navios.tech/docs/server/guides/authentication#errors)                                         |
+| Protect every route, leave some public    | a guard on the root module and a `Public` attribute        | [Verify in a guard](https://navios.tech/docs/server/guides/authentication#verify-in-a-guard)                   |
+| The current user in a handler             | a context key set by the guard                             | [Read the user in a handler](https://navios.tech/docs/server/guides/authentication#read-the-user-in-a-handler) |
+| A fake service in tests                   | `provide(Jwt, FakeJwtService)`                             | [Replacing the service](https://navios.tech/docs/server/guides/authentication#replacing-the-service)           |
 
-const JwtService = provideJwtService(async () => {
-  const configService = await inject(ConfigService)
-  return {
-    secret: configService.jwt.secret,
-    signOptions: {
-      expiresIn: configService.jwt.expiresIn,
-      algorithm: configService.jwt.algorithm,
-    },
-  }
+## Which key is used
+
+`secret`, `privateKey` and `publicKey` accept a string, a `Uint8Array` (so also a `Buffer`) or a Node.js `KeyObject`, in the configuration and in the options of a single call. A string or bytes in `privateKey` and `publicKey` are a PEM; for DER or JWK pass a `KeyObject` made with `createPublicKey()` or `createPrivateKey()`. RSA, RSA-PSS and ECDSA keys are supported, EdDSA is not.
+
+For each call the first of these that is set is used:
+
+1. `secret`, then `privateKey` (sign) or `publicKey` (verify), passed to the call
+2. `keys` of the service
+3. `secret`, then `privateKey` or `publicKey`, of the service
+
+So a key passed to one call always wins over the configuration. A key that is passed but `undefined` or empty is an error; it does not fall back to the key of the service.
+
+The key decides which algorithms are possible: a `secret` verifies only HMAC, a public key only the algorithms of its type, whatever the token says. `algorithms` narrows them further.
+
+`keys` chooses a key per token or payload. It may return a promise, for example to fetch a key from a JWKS endpoint:
+
+```ts
+export const Jwt = provideJwtService({
+  keys: async (request) =>
+    request.use === 'sign'
+      ? { key: signingKey, keyid: signingKeyId }
+      : publicKeys.get(request.header.kid ?? ''),
+  verifyOptions: { algorithms: ['RS256'] },
 })
 ```
 
-### Asymmetric Keys (RS256)
+`undefined`, also as the `key` of `{ key, algorithms }`, means that there is no such key, and the token is rejected. It is rejected too when `keys` returns something else that is not a key, or a key of a type that is not supported: the sender chooses the `kid`. An empty string or empty bytes are still an error of the application. With an asynchronous function use `signAsync()` and `verifyAsync()`; `sign()` and `verify()` throw, because they cannot wait for the key.
 
-For applications using RSA or ECDSA keys:
+## Options of a call
 
-```typescript
-import fs from 'fs'
+They are merged over the `signOptions` or `verifyOptions` of the service. An option that is `undefined` is not given and never switches off a configured check. When signing, `null` leaves out a default claim, and a default is not applied to a claim the payload already has.
 
-import { provideJwtService } from '@navios/jwt'
+A string payload is signed as is: the claim defaults in `signOptions` (`expiresIn`, `issuer` and so on) are not applied to it, and passing one of them with a string payload throws. `verify()` accepts only object payloads.
 
-const JwtService = provideJwtService({
-  privateKey: fs.readFileSync('private.pem'),
-  publicKey: fs.readFileSync('public.pem'),
-  signOptions: {
-    algorithm: 'RS256',
-    expiresIn: '1h',
-  },
-  verifyOptions: {
-    algorithms: ['RS256'],
-  },
-})
-```
+## Upgrading from 1.x
 
-### Dynamic Key Provider
-
-For applications that need to resolve keys dynamically based on the token:
-
-```typescript
-import { provideJwtService, RequestType } from '@navios/jwt'
-
-const JwtService = provideJwtService({
-  secretOrKeyProvider: (requestType, token, options) => {
-    if (requestType === RequestType.Sign) {
-      // Return signing key
-      return getSigningKey()
-    } else {
-      // Extract key ID from token and return corresponding public key
-      const decoded = jwt.decode(token, { complete: true })
-      const kid = decoded?.header?.kid
-      return getPublicKeyByKid(kid)
-    }
-  },
-})
-```
-
-### Signing Tokens
-
-```typescript
-// Synchronous signing
-const token = jwtService.sign({ userId: '123', role: 'admin' }, { expiresIn: '1h' })
-
-// Asynchronous signing
-const token = await jwtService.signAsync({ userId: '123', role: 'admin' }, { expiresIn: '1h' })
-```
-
-### Verifying Tokens
-
-```typescript
-// Synchronous verification
-try {
-  const payload = jwtService.verify<{ userId: string; role: string }>(token)
-  console.log(payload.userId) // '123'
-} catch (error) {
-  if (error instanceof TokenExpiredError) {
-    console.error('Token expired')
-  } else if (error instanceof JsonWebTokenError) {
-    console.error('Invalid token')
-  }
-}
-
-// Asynchronous verification
-try {
-  const payload = await jwtService.verifyAsync<{ userId: string }>(token)
-  console.log(payload.userId)
-} catch (error) {
-  // Handle errors
-}
-```
-
-### Decoding Without Verification
-
-```typescript
-// Decode without verification (use with caution)
-const payload = jwtService.decode<{ userId: string }>(token)
-if (payload) {
-  console.log(payload.userId)
-}
-```
-
-## API Reference
-
-### `JwtService`
-
-The main service class for JWT operations.
-
-#### Methods
-
-- **`sign(payload, options?)`**: Signs a JWT payload synchronously
-- **`signAsync(payload, options?)`**: Signs a JWT payload asynchronously
-- **`verify<T>(token, options?)`**: Verifies and decodes a JWT token synchronously
-- **`verifyAsync<T>(token, options?)`**: Verifies and decodes a JWT token asynchronously
-- **`decode<T>(token, options?)`**: Decodes a JWT token without verification
-
-### `provideJwtService(config)`
-
-Creates a JWT service provider for dependency injection.
-
-**Overloads:**
-
-- `provideJwtService(config: JwtServiceOptions)`: Static configuration
-- `provideJwtService(config: () => Promise<JwtServiceOptions>)`: Async factory configuration
-
-### `JwtServiceOptions`
-
-Configuration options for the JWT service:
-
-```typescript
-interface JwtServiceOptions {
-  /** Default options for signing tokens */
-  signOptions?: SignOptions
-  /** Default secret for symmetric algorithms (HS256, HS384, HS512) */
-  secret?: string
-  /** Default public key for asymmetric algorithms (RS256, ES256, etc.) */
-  publicKey?: string | Buffer
-  /** Default private key for asymmetric algorithms */
-  privateKey?: Secret
-  /** Default options for verifying tokens */
-  verifyOptions?: VerifyOptions
-  /** Optional function to dynamically resolve secrets/keys */
-  secretOrKeyProvider?: (
-    requestType: RequestType,
-    token?: string,
-    options?: SignOptions | VerifyOptions,
-  ) => Secret
-}
-```
-
-### Error Classes
-
-The library exports error classes from the underlying `jsonwebtoken` library:
-
-- **`TokenExpiredError`**: Thrown when the token has expired
-  - `expiredAt`: Date when the token expired
-- **`NotBeforeError`**: Thrown when the token is not yet valid (nbf claim)
-  - `date`: Date when the token becomes valid
-- **`JsonWebTokenError`**: Base class for all JWT errors
-  - `message`: Error message describing the issue
-
-### Type Definitions
-
-- **`SignOptions`**: Options for signing tokens (algorithm, expiration, audience, issuer, etc.)
-- **`VerifyOptions`**: Options for verifying tokens (algorithms, audience, issuer, expiration handling, etc.)
-- **`JwtSignOptions`**: Extends `SignOptions` with `secret` and `privateKey` properties
-- **`JwtVerifyOptions`**: Extends `VerifyOptions` with `secret` and `publicKey` properties
-- **`RequestType`**: Enum for distinguishing sign vs verify operations (`Sign` | `Verify`)
-
-## Best Practices
-
-1. **Always use `verify()` or `verifyAsync()`** for production code. Never use `decode()` for security-sensitive operations.
-
-2. **Specify allowed algorithms** in `verifyOptions` to prevent algorithm confusion attacks:
-
-   ```typescript
-   verifyOptions: {
-     algorithms: ['HS256', 'RS256'], // Explicitly allow only these algorithms
-   }
-   ```
-
-3. **Set appropriate expiration times** based on your security requirements:
-
-   ```typescript
-   signOptions: {
-     expiresIn: '15m', // Short-lived access tokens
-   }
-   ```
-
-4. **Use asymmetric keys** for distributed systems where public keys can be shared:
-   ```typescript
-   // Sign with private key
-   privateKey: fs.readFileSync('private.pem')
-   // Verify with public key (can be shared)
-   publicKey: fs.readFileSync('public.pem')
-   ```
-
-## Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
+The configuration factory receives a `FactoryContext`, `secretOrKeyProvider` is replaced by `keys`, keys and options are checked when the service is created, and the Zod schemas were replaced by plain types, so `zod` is no longer a peer dependency. See [Migrating to 2.0](https://navios.tech/docs/server/reference/migrating-to-2#naviosjwt), or [CHANGELOG.md](./CHANGELOG.md) for the full list.
 
 ## License
 
-[MIT](LICENSE)
+MIT

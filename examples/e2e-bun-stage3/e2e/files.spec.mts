@@ -1,19 +1,16 @@
-import type { NaviosApplication } from '@navios/core'
-
 import { afterAll, beforeAll, describe, expect, it } from 'bun:test'
+
 import supertest from 'supertest'
 
 import { createApp } from '../src/bootstrap.mjs'
 
 describe('Files API', () => {
-  let server: NaviosApplication
+  let server: Awaited<ReturnType<typeof createApp>>
   let baseUrl: string
 
   beforeAll(async () => {
     server = await createApp()
-    await server.init()
-    await server.listen({ port: 0, host: 'localhost' })
-    baseUrl = server.getServer().url.href
+    baseUrl = await server.listen({ port: 0, hostname: '127.0.0.1' })
   })
 
   afterAll(async () => {
@@ -70,6 +67,19 @@ describe('Files API', () => {
       expect(response.body.total).toBe(3)
       expect(response.body.uploaded[0]).toHaveProperty('id')
       expect(response.body.uploaded[0]).toHaveProperty('filename')
+    })
+
+    // FRAMEWORK: createMultipartCollector cannot read the field shapes of a zod schema that
+    // contains z.instanceof(File) (it passes `unrepresentable` at the top level instead of in
+    // `libraryOptions`), so a single part for an array field is not wrapped in an array.
+    it('should accept a single file for an array field', async () => {
+      const response = await request()
+        .post('/files/upload-multiple')
+        .set('Authorization', 'Bearer valid-token')
+        .attach('files', Buffer.from('only file'), 'only.txt')
+
+      expect(response.status).toBe(200)
+      expect(response.body.total).toBe(1)
     })
 
     it('should reject without files', async () => {

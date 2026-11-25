@@ -1,7 +1,7 @@
-import type { MultipartParams, StreamParams } from '@navios/core'
+import { BadRequestException, inject, NotFoundException } from '@navios/server'
+import { Controller, Endpoint } from '@navios/server/legacy-compat'
 
-import { BadRequestException, inject, NotFoundException } from '@navios/core'
-import { Controller, Multipart, Stream } from '@navios/core/legacy-compat'
+import type { HandlerParams, RequestContext } from '@navios/server'
 
 import {
   downloadFileEndpoint,
@@ -12,6 +12,7 @@ import {
 } from '../../api/endpoints.mjs'
 import { Public } from '../../guards/public.attribute.mjs'
 import { UsersService } from '../users/users.service.mjs'
+
 import { FilesService } from './files.service.mjs'
 
 @Controller()
@@ -19,19 +20,17 @@ export class FilesController {
   private readonly filesService = inject(FilesService)
   private readonly usersService = inject(UsersService)
 
-  @Multipart(uploadFileEndpoint)
-  async uploadFile(params: MultipartParams<typeof uploadFileEndpoint>) {
-    const { file } = params.data
+  @Endpoint(uploadFileEndpoint)
+  async uploadFile({ data: { file } }: HandlerParams<typeof uploadFileEndpoint>) {
     if (!file) {
       throw new BadRequestException('File is required')
     }
 
-    const content = await file.arrayBuffer()
     const metadata = await this.filesService.upload({
       filename: file.name,
       size: file.size,
       mimeType: file.type,
-      content,
+      content: await file.arrayBuffer(),
     })
 
     return {
@@ -43,9 +42,8 @@ export class FilesController {
     }
   }
 
-  @Multipart(uploadMultipleEndpoint)
-  async uploadMultiple(params: MultipartParams<typeof uploadMultipleEndpoint>) {
-    const { files } = params.data
+  @Endpoint(uploadMultipleEndpoint)
+  async uploadMultiple({ data: { files } }: HandlerParams<typeof uploadMultipleEndpoint>) {
     if (!files || files.length === 0) {
       throw new BadRequestException('At least one file is required')
     }
@@ -53,12 +51,11 @@ export class FilesController {
     const uploaded: { id: string; filename: string }[] = []
 
     for (const file of files) {
-      const content = await file.arrayBuffer()
       const metadata = await this.filesService.upload({
         filename: file.name,
         size: file.size,
         mimeType: file.type,
-        content,
+        content: await file.arrayBuffer(),
       })
       uploaded.push({ id: metadata.id, filename: metadata.filename })
     }
@@ -66,110 +63,72 @@ export class FilesController {
     return { uploaded, total: uploaded.length }
   }
 
-  @Stream(downloadFileEndpoint)
+  // response: 'blob'
+  @Endpoint(downloadFileEndpoint)
   @Public()
-  async downloadFile(params: StreamParams<typeof downloadFileEndpoint>) {
-    const fileId = params.urlParams.fileId
-    const file = await this.filesService.findById(fileId)
-
+  async downloadFile(
+    { urlParams }: HandlerParams<typeof downloadFileEndpoint>,
+    ctx: RequestContext,
+  ) {
+    const file = await this.filesService.findById(urlParams.fileId)
     if (!file) {
       throw new NotFoundException('File not found')
     }
 
-    return new Response(Buffer.from(file.content), {
-      status: 200,
-      headers: {
-        'Content-Type': file.mimeType,
-        'Content-Disposition': `attachment; filename="${file.filename}"`,
-        'Content-Length': file.size.toString(),
-      },
-    })
+    ctx.reply.header('content-type', file.mimeType)
+    ctx.reply.header('content-disposition', `attachment; filename="${file.filename}"`)
+    return file.content
   }
 
-  @Stream(streamEventsEndpoint)
+  // response: 'stream'
+  @Endpoint(streamEventsEndpoint)
   @Public()
-  async streamEvents(params: StreamParams<typeof streamEventsEndpoint>) {
-    const topic = params.params.topic ?? 'default'
+  streamEvents({ params }: HandlerParams<typeof streamEventsEndpoint>, ctx: RequestContext) {
+    const topic = params.topic ?? 'default'
 
-    const encoder = new TextEncoder()
-    const stream = new ReadableStream({
-      async start(controller) {
-        for (let i = 1; i <= 3; i++) {
-          const event = {
-            id: i,
-            topic,
-            message: `Event ${i}`,
-            timestamp: new Date().toISOString(),
-          }
-          controller.enqueue(
-            encoder.encode(`data: ${JSON.stringify(event)}\n\n`),
-          )
-          await new Promise((resolve) => setTimeout(resolve, 10))
+    ctx.reply.header('content-type', 'text/event-stream')
+    ctx.reply.header('cache-control', 'no-cache')
+
+    return (async function* () {
+      for (let i = 1; i <= 3; i++) {
+        const event = {
+          id: i,
+          topic,
+          message: `Event ${i}`,
+          timestamp: new Date().toISOString(),
         }
-        controller.close()
-      },
-    })
-
-    return new Response(stream, {
-      status: 200,
-      headers: {
-        'Content-Type': 'text/event-stream',
-        'Cache-Control': 'no-cache',
-        Connection: 'keep-alive',
-      },
-    })
+        yield `data: ${JSON.stringify(event)}\n\n`
+        await new Promise((resolve) => setTimeout(resolve, 10))
+      }
+    })()
   }
 
-  @Stream(exportDataEndpoint)
+  // response: 'text'
+  @Endpoint(exportDataEndpoint)
   @Public()
-  async exportData(params: StreamParams<typeof exportDataEndpoint>) {
-    const { format, type } = params.data
+  async exportData(
+    { data: { format, type } }: HandlerParams<typeof exportDataEndpoint>,
+    ctx: RequestContext,
+  ) {
+    // Posts would need injection
+    const rows: object[] = type === 'users' ? (await this.usersService.findAll(1, 1000)).users : []
 
-    let data: unknown[]
-    if (type === 'users') {
-      const result = await this.usersService.findAll(1, 1000)
-      data = result.users
-    } else {
-      data = [] // Posts would need injection
-    }
+    ctx.reply.header('content-disposition', `attachment; filename="${type}.${format}"`)
 
     if (format === 'json') {
-      return new Response(JSON.stringify(data, null, 2), {
-        status: 200,
-        headers: {
-          'Content-Type': 'application/json',
-          'Content-Disposition': `attachment; filename="${type}.json"`,
-        },
-      })
-    } else {
-      // CSV format
-      if (data.length === 0) {
-        return new Response('', {
-          status: 200,
-          headers: {
-            'Content-Type': 'text/csv',
-            'Content-Disposition': `attachment; filename="${type}.csv"`,
-          },
-        })
-      }
-
-      const headers = Object.keys(data[0] as object)
-      const rows = data.map((item) =>
-        headers
-          .map((h) =>
-            JSON.stringify((item as Record<string, unknown>)[h] ?? ''),
-          )
-          .join(','),
-      )
-      const csv = [headers.join(','), ...rows].join('\n')
-
-      return new Response(csv, {
-        status: 200,
-        headers: {
-          'Content-Type': 'text/csv',
-          'Content-Disposition': `attachment; filename="${type}.csv"`,
-        },
-      })
+      ctx.reply.header('content-type', 'application/json')
+      return JSON.stringify(rows, null, 2)
     }
+
+    ctx.reply.header('content-type', 'text/csv')
+    if (rows.length === 0) {
+      return ''
+    }
+
+    const columns = Object.keys(rows[0])
+    const lines = rows.map((row) =>
+      columns.map((column) => JSON.stringify(Reflect.get(row, column) ?? '')).join(','),
+    )
+    return [columns.join(','), ...lines].join('\n')
   }
 }

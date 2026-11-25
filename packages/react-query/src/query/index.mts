@@ -1,5 +1,19 @@
-export * from './types.mjs'
-export * from './key-creator.mjs'
-export * from './make-options.mjs'
-export * from './make-infinite-options.mjs'
-export * from './prefetch.mjs'
+export { makeInfiniteQuery } from './make-infinite-query.mjs'
+export { makeQuery } from './make-query.mjs'
+
+export type {
+  InfiniteEndpointOptions,
+  InfiniteQueryHookOptions,
+  InfiniteQueryObject,
+  InfiniteQueryOptionsResult,
+  InfiniteQuerySettings,
+  PageParam,
+  SuspenseInfiniteQueryHookOptions,
+} from './infinite-query-object.mjs'
+export type {
+  QueryHookOptions,
+  QueryObject,
+  QueryOptionsResult,
+  SuspenseQueryHookOptions,
+} from './query-object.mjs'
+export type { AnyQueryObject, InvalidateFilters, TaggedKey } from './types.mjs'

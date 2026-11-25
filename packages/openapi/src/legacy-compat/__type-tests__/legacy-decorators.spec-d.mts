@@ -1,10 +1,10 @@
 import { builder } from '@navios/builder'
-import { Controller, Endpoint } from '@navios/core/legacy-compat'
+import { Controller, Endpoint } from '@navios/server/legacy-compat'
 import { describe, expectTypeOf, test } from 'vitest'
 import { z } from 'zod/v4'
 
 // oxlint-disable no-unused-vars
-import type { EndpointParams, EndpointResult } from '@navios/core/legacy-compat'
+import type { HandlerParams, HandlerResult } from '@navios/server'
 
 import {
   ApiDeprecated,
@@ -48,9 +48,10 @@ const createUserEndpoint = api.declareEndpoint({
   responseSchema,
 })
 
-const downloadFileEndpoint = api.declareStream({
+const downloadFileEndpoint = api.declareEndpoint({
   method: 'GET',
   url: '/files/$fileId',
+  response: 'blob',
   querySchema,
 })
 
@@ -62,8 +63,8 @@ describe('Legacy OpenAPI Decorators Type Safety', () => {
       class UserController {
         @Endpoint(getUserEndpoint)
         async getUser(
-          request: EndpointParams<typeof getUserEndpoint>,
-        ): EndpointResult<typeof getUserEndpoint> {
+          request: HandlerParams<typeof getUserEndpoint>,
+        ): HandlerResult<typeof getUserEndpoint> {
           return { id: '1', name: 'John' }
         }
       }
@@ -77,8 +78,8 @@ describe('Legacy OpenAPI Decorators Type Safety', () => {
         @ApiTag('Users')
         @Endpoint(getUserEndpoint)
         async getUser(
-          request: EndpointParams<typeof getUserEndpoint>,
-        ): EndpointResult<typeof getUserEndpoint> {
+          request: HandlerParams<typeof getUserEndpoint>,
+        ): HandlerResult<typeof getUserEndpoint> {
           return { id: '1', name: 'John' }
         }
       }
@@ -111,8 +112,8 @@ describe('Legacy OpenAPI Decorators Type Safety', () => {
         })
         @Endpoint(getUserEndpoint)
         async getUser(
-          request: EndpointParams<typeof getUserEndpoint>,
-        ): EndpointResult<typeof getUserEndpoint> {
+          request: HandlerParams<typeof getUserEndpoint>,
+        ): HandlerResult<typeof getUserEndpoint> {
           return { id: '1', name: 'John' }
         }
       }
@@ -128,8 +129,8 @@ describe('Legacy OpenAPI Decorators Type Safety', () => {
         })
         @Endpoint(getUserEndpoint)
         async getUser(
-          request: EndpointParams<typeof getUserEndpoint>,
-        ): EndpointResult<typeof getUserEndpoint> {
+          request: HandlerParams<typeof getUserEndpoint>,
+        ): HandlerResult<typeof getUserEndpoint> {
           return { id: '1', name: 'John' }
         }
       }
@@ -145,8 +146,8 @@ describe('Legacy OpenAPI Decorators Type Safety', () => {
         @ApiSummary('Get user by ID')
         @Endpoint(getUserEndpoint)
         async getUser(
-          request: EndpointParams<typeof getUserEndpoint>,
-        ): EndpointResult<typeof getUserEndpoint> {
+          request: HandlerParams<typeof getUserEndpoint>,
+        ): HandlerResult<typeof getUserEndpoint> {
           return { id: '1', name: 'John' }
         }
       }
@@ -162,8 +163,8 @@ describe('Legacy OpenAPI Decorators Type Safety', () => {
         @ApiDeprecated()
         @Endpoint(getUserEndpoint)
         async getUser(
-          request: EndpointParams<typeof getUserEndpoint>,
-        ): EndpointResult<typeof getUserEndpoint> {
+          request: HandlerParams<typeof getUserEndpoint>,
+        ): HandlerResult<typeof getUserEndpoint> {
           return { id: '1', name: 'John' }
         }
       }
@@ -177,8 +178,8 @@ describe('Legacy OpenAPI Decorators Type Safety', () => {
         @ApiDeprecated('Use GET /v2/users/:id instead')
         @Endpoint(getUserEndpoint)
         async getUser(
-          request: EndpointParams<typeof getUserEndpoint>,
-        ): EndpointResult<typeof getUserEndpoint> {
+          request: HandlerParams<typeof getUserEndpoint>,
+        ): HandlerResult<typeof getUserEndpoint> {
           return { id: '1', name: 'John' }
         }
       }
@@ -194,8 +195,8 @@ describe('Legacy OpenAPI Decorators Type Safety', () => {
         @ApiSecurity({ bearerAuth: [] })
         @Endpoint(getUserEndpoint)
         async getUser(
-          request: EndpointParams<typeof getUserEndpoint>,
-        ): EndpointResult<typeof getUserEndpoint> {
+          request: HandlerParams<typeof getUserEndpoint>,
+        ): HandlerResult<typeof getUserEndpoint> {
           return { id: '1', name: 'John' }
         }
       }
@@ -209,8 +210,8 @@ describe('Legacy OpenAPI Decorators Type Safety', () => {
         @ApiSecurity({ oauth2: ['users:read', 'users:write'] })
         @Endpoint(getUserEndpoint)
         async getUser(
-          request: EndpointParams<typeof getUserEndpoint>,
-        ): EndpointResult<typeof getUserEndpoint> {
+          request: HandlerParams<typeof getUserEndpoint>,
+        ): HandlerResult<typeof getUserEndpoint> {
           return { id: '1', name: 'John' }
         }
       }
@@ -224,8 +225,8 @@ describe('Legacy OpenAPI Decorators Type Safety', () => {
         @ApiSecurity({ bearerAuth: [], apiKey: [] })
         @Endpoint(getUserEndpoint)
         async getUser(
-          request: EndpointParams<typeof getUserEndpoint>,
-        ): EndpointResult<typeof getUserEndpoint> {
+          request: HandlerParams<typeof getUserEndpoint>,
+        ): HandlerResult<typeof getUserEndpoint> {
           return { id: '1', name: 'John' }
         }
       }
@@ -241,8 +242,8 @@ describe('Legacy OpenAPI Decorators Type Safety', () => {
         @ApiExclude()
         @Endpoint(getUserEndpoint)
         async healthCheck(
-          request: EndpointParams<typeof getUserEndpoint>,
-        ): EndpointResult<typeof getUserEndpoint> {
+          request: HandlerParams<typeof getUserEndpoint>,
+        ): HandlerResult<typeof getUserEndpoint> {
           return { id: 'health', name: 'ok' }
         }
       }
@@ -261,8 +262,8 @@ describe('Legacy OpenAPI Decorators Type Safety', () => {
         })
         @Endpoint(getUserEndpoint)
         async downloadFile(
-          request: EndpointParams<typeof getUserEndpoint>,
-        ): EndpointResult<typeof getUserEndpoint> {
+          request: HandlerParams<typeof getUserEndpoint>,
+        ): HandlerResult<typeof getUserEndpoint> {
           return { id: '1', name: 'file.bin' }
         }
       }
@@ -279,8 +280,8 @@ describe('Legacy OpenAPI Decorators Type Safety', () => {
         })
         @Endpoint(getUserEndpoint)
         async streamEvents(
-          request: EndpointParams<typeof getUserEndpoint>,
-        ): EndpointResult<typeof getUserEndpoint> {
+          request: HandlerParams<typeof getUserEndpoint>,
+        ): HandlerResult<typeof getUserEndpoint> {
           return { id: 'stream', name: 'events' }
         }
       }
@@ -302,8 +303,8 @@ describe('Legacy OpenAPI Decorators Type Safety', () => {
         @ApiSecurity({ bearerAuth: [] })
         @Endpoint(getUserEndpoint)
         async getUser(
-          request: EndpointParams<typeof getUserEndpoint>,
-        ): EndpointResult<typeof getUserEndpoint> {
+          request: HandlerParams<typeof getUserEndpoint>,
+        ): HandlerResult<typeof getUserEndpoint> {
           return {
             id: request.urlParams.userId.toString(),
             name: 'John',
@@ -314,8 +315,8 @@ describe('Legacy OpenAPI Decorators Type Safety', () => {
         @ApiSecurity({ bearerAuth: [] })
         @Endpoint(createUserEndpoint)
         async createUser(
-          request: EndpointParams<typeof createUserEndpoint>,
-        ): EndpointResult<typeof createUserEndpoint> {
+          request: HandlerParams<typeof createUserEndpoint>,
+        ): HandlerResult<typeof createUserEndpoint> {
           return {
             id: '1',
             name: request.data.name,
@@ -326,16 +327,16 @@ describe('Legacy OpenAPI Decorators Type Safety', () => {
         @ApiTag('Legacy')
         @Endpoint(getUserEndpoint)
         async getLegacyUser(
-          request: EndpointParams<typeof getUserEndpoint>,
-        ): EndpointResult<typeof getUserEndpoint> {
+          request: HandlerParams<typeof getUserEndpoint>,
+        ): HandlerResult<typeof getUserEndpoint> {
           return { id: '1', name: 'John' }
         }
 
         @ApiExclude()
         @Endpoint(getUserEndpoint)
         async internalEndpoint(
-          request: EndpointParams<typeof getUserEndpoint>,
-        ): EndpointResult<typeof getUserEndpoint> {
+          request: HandlerParams<typeof getUserEndpoint>,
+        ): HandlerResult<typeof getUserEndpoint> {
           return { id: 'internal', name: 'hidden' }
         }
       }

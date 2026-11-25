@@ -1,10 +1,10 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
 import { z } from 'zod/v4'
 
-import {
-  createEventSourceHandler,
-  declareEventSource,
-} from '../eventsource/declare-eventsource.mjs'
+import { createEventSourceHandler, declareEventSource } from '../declare-eventsource.mjs'
+import { EventSourceError } from '../index.mjs'
+
+import type { Schema } from '../../shared/schema.mjs'
 
 // Mock EventSource for Node.js environment
 class MockEventSource {
@@ -124,7 +124,67 @@ describe('declareEventSource', () => {
       // Simulate message
       getMock(handle.source).simulateMessage('{}')
 
-      expect(onError).toHaveBeenCalledWith(error)
+      expect(onError).toHaveBeenCalledTimes(1)
+      const reported = onError.mock.calls[0]![0] as EventSourceError
+      expect(reported).toBeInstanceOf(EventSourceError)
+      expect(reported.kind).toBe('transport')
+      expect(reported.eventName).toBe('message')
+      expect(reported.url).toBe('/events')
+      expect(reported.cause).toBe(error)
+    })
+
+    it('should keep calling sibling listeners when onError throws', () => {
+      const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
+      const factory = createEventSourceHandler({
+        onError: () => {
+          throw new Error('hook exploded')
+        },
+      })
+      const handle = factory({ url: '/events' })()
+
+      const sibling = vi.fn()
+      handle.on('message', () => {
+        throw new Error('Test error')
+      })
+      handle.on('message', sibling)
+
+      expect(() => getMock(handle.source).simulateMessage('{}')).not.toThrow()
+      expect(sibling).toHaveBeenCalledTimes(1)
+      expect(consoleError).toHaveBeenCalled()
+      consoleError.mockRestore()
+    })
+
+    it('should accept non-Zod schemas for URL and query parameters', () => {
+      const urlParamsSchema: Schema<{ roomId: string }, { roomId: string }> = {
+        '~standard': {
+          version: 1,
+          vendor: 'test',
+          validate: (value) => {
+            const roomId = (value as { roomId?: unknown }).roomId
+            return typeof roomId === 'string' && roomId.length > 0
+              ? { value: { roomId: roomId.toUpperCase() } }
+              : { issues: [{ message: 'roomId is required' }] }
+          },
+        },
+      }
+      const querySchema: Schema<{ token: string }, { token: string }> = {
+        '~standard': {
+          version: 1,
+          vendor: 'test',
+          validate: (value) => ({ value: value as { token: string } }),
+        },
+      }
+      const chatEvents = declareEventSource({
+        url: '/events/$roomId',
+        urlParamsSchema,
+        querySchema,
+      })
+
+      const handle = chatEvents({ urlParams: { roomId: 'abc' }, params: { token: 't' } })
+      expect(handle.url).toBe('/events/ABC?token=t')
+      expect(() => chatEvents({ urlParams: { roomId: '' }, params: { token: 't' } })).toThrow(
+        'roomId is required',
+      )
     })
   })
 
@@ -214,6 +274,39 @@ describe('declareEventSource', () => {
 
       expect(handle.source.url).toBe('/rooms/123/events?token=secret')
     })
+
+    it('should serialize dates as ISO strings and arrays as repeated keys', () => {
+      const events = declareEventSource({
+        url: '/events',
+        querySchema: z.object({
+          since: z.date(),
+          tag: z.array(z.string()),
+          skipped: z.string().optional(),
+          empty: z.string().nullable(),
+        }),
+      })
+      const handle = events({
+        params: {
+          since: new Date('2024-01-02T03:04:05.678Z'),
+          tag: ['urgent', 'bug'],
+          skipped: undefined,
+          empty: null,
+        },
+      })
+
+      expect(handle.url).toBe('/events?since=2024-01-02T03%3A04%3A05.678Z&tag=urgent&tag=bug')
+      expect(handle.source.url).toBe(handle.url)
+    })
+
+    it('should append to a query string the URL template already has', () => {
+      const events = createEventSourceHandler({ baseUrl: 'https://api.example.com' })({
+        url: '/rooms/$roomId/events?v=2',
+        querySchema: z.object({ token: z.string() }),
+      })
+      const handle = events({ urlParams: { roomId: '123' }, params: { token: 'secret' } })
+
+      expect(handle.url).toBe('https://api.example.com/rooms/123/events?v=2&token=secret')
+    })
   })
 
   describe('withCredentials option', () => {
@@ -246,7 +339,7 @@ describe('declareEventSource', () => {
 
         getMock(handle.source).simulateMessage('{"text":"hello"}')
 
-        expect(handler).toHaveBeenCalledWith({ text: 'hello' })
+        expect(handler).toHaveBeenCalledWith({ text: 'hello' }, '{"text":"hello"}')
       })
 
       it('should register custom event handlers', () => {
@@ -258,7 +351,7 @@ describe('declareEventSource', () => {
 
         getMock(handle.source).simulateEvent('custom-event', '{"data":"value"}')
 
-        expect(handler).toHaveBeenCalledWith({ data: 'value' })
+        expect(handler).toHaveBeenCalledWith({ data: 'value' }, '{"data":"value"}')
       })
 
       it('should remove specific handler with off', () => {
@@ -449,7 +542,7 @@ describe('declareEventSource', () => {
 
       getMock(handle.source).simulateMessage(JSON.stringify({ foo: 'bar', num: 123 }))
 
-      expect(handler).toHaveBeenCalledWith({ foo: 'bar', num: 123 })
+      expect(handler).toHaveBeenCalledWith({ foo: 'bar', num: 123 }, '{"foo":"bar","num":123}')
     })
 
     it('should return raw string if not valid JSON', () => {
@@ -461,7 +554,7 @@ describe('declareEventSource', () => {
 
       getMock(handle.source).simulateMessage('not json')
 
-      expect(handler).toHaveBeenCalledWith('not json')
+      expect(handler).toHaveBeenCalledWith('not json', 'not json')
     })
   })
 })

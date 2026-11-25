@@ -1,12 +1,12 @@
-import { inject } from '@navios/core'
-import { Injectable } from '@navios/core/legacy-compat'
+import { Injectable } from '@navios/server/legacy-compat'
 import { Traced, Traceable } from '@navios/otel/legacy-compat'
 
 /**
  * Processing service demonstrating nested spans and custom span attributes.
  *
  * This service shows how to use @Traced with custom options for more
- * fine-grained control over span names and attributes.
+ * fine-grained control over span names and attributes. @Traceable marks the
+ * class for the plugin; only the methods carrying @Traced get a span.
  */
 @Traceable()
 @Injectable()

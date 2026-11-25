@@ -6,7 +6,7 @@ import { ScopedContainer } from '../container/scoped-container.mjs'
 import { Injectable, Factory } from '../decorators/index.mjs'
 import { InjectionToken } from '../token/injection-token.mjs'
 
-import type { Factorable } from '../interfaces/index.mjs'
+import type { Factorable } from '../provider/factorable.mjs'
 
 interface FooService {
   makeFoo(): string
@@ -147,22 +147,10 @@ describe('Container.get', () => {
 })
 
 describe('Container methods', () => {
-  test('beginRequest returns ScopedContainer', () => {
+  test('createScope returns ScopedContainer', () => {
     const container = new Container()
-    const scopedContainer = container.beginRequest('request-1')
+    const scopedContainer = container.createScope()
     assertType<ScopedContainer>(scopedContainer)
-  })
-
-  test('getActiveRequestIds returns ReadonlySet<string>', () => {
-    const container = new Container()
-    const activeIds = container.getActiveRequestIds()
-    assertType<ReadonlySet<string>>(activeIds)
-  })
-
-  test('hasActiveRequest returns boolean', () => {
-    const container = new Container()
-    const hasRequest = container.hasActiveRequest('request-1')
-    assertType<boolean>(hasRequest)
   })
 
   test('dispose returns Promise<void>', async () => {

@@ -1,259 +1,88 @@
 # @navios/openapi
 
-Core OpenAPI package for Navios - Automatic OpenAPI 3.1 documentation generation.
+OpenAPI 3.1 documentation for [Navios](https://navios.tech) applications. One plugin builds the document from the application's routes and serves it as JSON, optionally as YAML, with a [Scalar](https://scalar.com) API reference page. The endpoint declarations already say what each route accepts and returns, so most of the document needs no extra code.
 
-This package provides the core functionality for generating OpenAPI documentation from your Navios controllers and endpoints. It automatically discovers endpoints, extracts type information from Zod schemas, and generates comprehensive OpenAPI specifications.
+**[Documentation](https://navios.tech/docs/server/guides/openapi)**
 
-## Overview
-
-`@navios/openapi` is the foundation package that provides decorators and services for OpenAPI documentation. It works with provider packages to add runtime-specific UI integration:
-
-- `@navios/openapi-fastify` - For Fastify applications with Scalar UI
-- `@navios/openapi-bun` - For Bun applications with Scalar UI
-
-## Features
-
-- Automatic endpoint discovery from controllers
-- Zod schema to OpenAPI schema conversion
-- Comprehensive decorator system for API documentation
-- Type-safe metadata extraction
-- Support for all endpoint types (standard, multipart, stream)
-- OpenAPI 3.1 specification generation
-- Rich schema metadata support via Zod `.meta()`
-
-## Installation
+## Install
 
 ```bash
-npm install @navios/openapi zod
+npm install @navios/openapi@next
 ```
 
-Or with yarn:
+The 2.0 alpha is published under the `next` tag. All `@navios` packages of a project must have the same alpha version, because an alpha may break between releases.
 
-```bash
-yarn add @navios/openapi zod
-```
+`@navios/server` is a peer dependency. The plugin's routes are ordinary Navios routes, so it works the same on every adapter. The example also uses `@navios/adapter-fastify`, `@navios/builder` and `zod`.
 
-## Usage
-
-### Basic Setup
-
-This package is typically used through provider packages (`@navios/openapi-fastify` or `@navios/openapi-bun`), but you can also use the core services directly:
+## Example
 
 ```ts
-import { NaviosFactory } from '@navios/core'
-import {
-  EndpointScannerService,
-  MetadataExtractorService,
-  OpenApiGeneratorService,
-} from '@navios/openapi'
+import { defineFastifyEnvironment } from '@navios/adapter-fastify'
+import { builder } from '@navios/builder'
+import { ApiSummary, ApiTag, openApiPlugin } from '@navios/openapi'
+import { Controller, Endpoint, Module, NaviosFactory, reply } from '@navios/server'
+import { z } from 'zod/v4'
 
-// Use the services to generate OpenAPI spec programmatically
-const generator = await container.get(OpenApiGeneratorService)
+import type { HandlerParams } from '@navios/server'
 
-const spec = await generator.generate({
-  info: {
-    title: 'My API',
-    version: '1.0.0',
-  },
+const API = builder()
+
+const userSchema = z.object({ id: z.string(), name: z.string() }).meta({ id: 'User' }) // a shared entry in components.schemas
+
+const getUser = API.declareEndpoint({
+  method: 'GET',
+  url: '/users/$userId',
+  responseSchema: userSchema,
+  errorSchema: { 404: z.object({ message: z.string() }) },
 })
-```
 
-### Decorators
-
-The package provides decorators to enhance your API documentation:
-
-#### @ApiTag
-
-Groups endpoints under tags in the documentation:
-
-```ts
-import { Controller, Endpoint } from '@navios/core'
-import { ApiTag } from '@navios/openapi'
-
+@ApiTag('Users', 'Accounts and profiles')
 @Controller()
-@ApiTag('Users', 'User management operations')
-class UserController {
+class UsersController {
+  @ApiSummary('Get a user by id')
   @Endpoint(getUser)
-  async getUser() {}
+  async getUser({ urlParams }: HandlerParams<typeof getUser>) {
+    if (urlParams.userId !== '1') {
+      return reply(404, { message: 'User not found' })
+    }
+    return { id: '1', name: 'Ada' }
+  }
 }
-```
 
-#### @ApiOperation
+@Module({ controllers: [UsersController] })
+class AppModule {}
 
-Provides detailed operation metadata:
-
-```ts
-import { ApiOperation } from '@navios/openapi'
-
-@Endpoint(getUser)
-@ApiOperation({
-  summary: 'Get user by ID',
-  description: 'Retrieves a user by their unique identifier.',
-  operationId: 'getUserById',
-  deprecated: false,
+const app = await NaviosFactory.create(AppModule, {
+  adapter: defineFastifyEnvironment(),
+  plugins: [openApiPlugin({ info: { title: 'Users API', version: '1.0.0' } })],
 })
-async getUser() {}
+
+await app.listen({ port: 3000 })
+// GET /docs          the Scalar page
+// GET /openapi.json  the document
 ```
 
-#### @ApiSummary
+The document is built once, while the application initialises, and contains every route, including those added by other plugins. Paths, parameters, request bodies, responses per status and error bodies come from the declarations.
 
-Shorthand for adding just a summary:
+## What else it does
 
-```ts
-import { ApiSummary } from '@navios/openapi'
+| Need                                         | How                                                                                               | Docs                                                                                                                                    |
+| -------------------------------------------- | ------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| See what a declaration turns into            | `querySchema`, `responses`, `body: 'multipart'`, `response: 'stream'`, ...                        | [What is documented](https://navios.tech/docs/server/guides/openapi#what-is-documented)                                                 |
+| Zod, ArkType, Valibot or another library     | Standard JSON Schema, or the `toJsonSchema` option                                                | [Schemas](https://navios.tech/docs/server/guides/openapi#schemas)                                                                       |
+| Tags, summaries, security, exclusions        | `ApiTag`, `ApiSummary`, `ApiOperation`, `ApiSecurity`, `ApiDeprecated`, `ApiExclude`, `ApiStream` | [Attributes](https://navios.tech/docs/server/guides/openapi#attributes)                                                                 |
+| Paths, YAML, the Scalar theme, final edits   | `jsonPath`, `disableYaml`, `scalar`, `transformDocument`, ...                                     | [Options](https://navios.tech/docs/server/guides/openapi#options)                                                                       |
+| Write the document to a file in a build step | `generateOpenApiDocument(app.routes(), options)`                                                  | [Generating the document without serving it](https://navios.tech/docs/server/guides/openapi#generating-the-document-without-serving-it) |
+| The building blocks                          | `extractOpenApiMetadata`, `SchemaConverter`, the attribute tokens                                 | [Other exports](https://navios.tech/docs/server/guides/openapi#other-exports)                                                           |
 
-@Endpoint(getUser)
-@ApiSummary('Get user by ID')
-async getUser() {}
-```
+The attributes only describe: `ApiSecurity` does not protect a route, a guard does. Projects that keep `experimentalDecorators` on import the attributes from `@navios/openapi/legacy-compat`; see [Legacy decorators](https://navios.tech/docs/server/reference/legacy-decorators).
 
-#### @ApiDeprecated
+[examples/openapi](../../examples/openapi) runs one application on Fastify and on Bun.
 
-Marks an endpoint as deprecated:
+## Upgrading from 1.x
 
-```ts
-import { ApiDeprecated } from '@navios/openapi'
+`openApiPlugin` from this package replaces `defineOpenApiPlugin` from `@navios/openapi-fastify` and `@navios/openapi-bun`, which are removed in 2.0, and any Standard Schema library works instead of Zod only. See [Migrating to 2.0](https://navios.tech/docs/server/reference/migrating-to-2#naviosopenapi), or [CHANGELOG.md](./CHANGELOG.md) for the full list.
 
-@Endpoint(legacyGetUser)
-@ApiDeprecated('Use /v2/users/:id instead')
-async getLegacyUser() {}
-```
+## License
 
-#### @ApiSecurity
-
-Specifies security requirements:
-
-```ts
-import { ApiSecurity } from '@navios/openapi'
-
-@Endpoint(getUser)
-@ApiSecurity({ bearerAuth: [] })
-async getUser() {}
-```
-
-#### @ApiExclude
-
-Excludes an endpoint from documentation:
-
-```ts
-import { ApiExclude } from '@navios/openapi'
-
-@Endpoint(healthCheck)
-@ApiExclude()
-async healthCheck() {
-  return { status: 'ok' }
-}
-```
-
-#### @ApiStream
-
-Specifies content type for stream endpoints:
-
-```ts
-import { ApiStream } from '@navios/openapi'
-import { Stream } from '@navios/core'
-
-@Stream(downloadFile)
-@ApiStream({
-  contentType: 'application/octet-stream',
-  description: 'Download file as binary stream',
-})
-async download() {}
-```
-
-### Schema Metadata
-
-Add OpenAPI metadata to your Zod schemas:
-
-```ts
-import { z } from 'zod'
-
-const userSchema = z
-  .object({
-    id: z.string().meta({
-      openapi: {
-        description: 'Unique user identifier',
-        example: 'usr_123abc',
-      },
-    }),
-    name: z.string().meta({
-      openapi: {
-        description: 'User display name',
-        example: 'John Doe',
-      },
-    }),
-    email: z
-      .string()
-      .email()
-      .meta({
-        openapi: {
-          description: 'User email address',
-          example: 'john@example.com',
-          format: 'email',
-        },
-      }),
-  })
-  .meta({
-    openapi: {
-      title: 'User',
-      description: 'Represents a user in the system',
-    },
-  })
-```
-
-## API Reference
-
-### Decorators
-
-- `@ApiTag(name: string, description?: string)` - Tag endpoints
-- `@ApiOperation(options: ApiOperationOptions)` - Full operation metadata
-- `@ApiSummary(summary: string)` - Quick summary
-- `@ApiDeprecated(reason?: string)` - Mark as deprecated
-- `@ApiSecurity(requirements: ApiSecurityRequirement)` - Security requirements
-- `@ApiExclude()` - Exclude from docs
-- `@ApiStream(options: ApiStreamOptions)` - Stream endpoint metadata
-
-### Services
-
-- `OpenApiGeneratorService` - Main service for generating OpenAPI specs
-- `EndpointScannerService` - Discovers endpoints from controllers
-- `MetadataExtractorService` - Extracts decorator metadata
-- `SchemaConverterService` - Converts Zod schemas to OpenAPI
-- `PathBuilderService` - Builds OpenAPI path items
-
-### Types
-
-- `OpenApiGeneratorOptions` - Options for generating OpenAPI spec
-- `OpenApiEndpointMetadata` - Endpoint metadata type
-- `ApiOperationOptions` - Options for @ApiOperation decorator
-- `ApiSecurityRequirement` - Security requirement type
-
-## Requirements
-
-- **Dependencies**:
-  - `zod` ^3.25.0 || ^4.0.0 - Schema validation
-- **Peer Dependencies**:
-  - `@navios/core` - Core Navios framework
-
-## Provider Packages
-
-This core package is used by provider packages that add runtime-specific UI:
-
-- **[@navios/openapi-fastify](../openapi-fastify/README.md)** - Fastify integration with Scalar UI
-- **[@navios/openapi-bun](../openapi-bun/README.md)** - Bun integration with Scalar UI
-
-## Examples
-
-For complete working examples, see:
-
-- [OpenAPI Examples](../../examples/openapi) - Full examples for both Fastify and Bun
-- [OpenAPI Guide](../../apps/docs/docs/server/guides/openapi.md) - Comprehensive documentation
-
-## Documentation
-
-For complete documentation on using OpenAPI with Navios, see:
-
-- [OpenAPI Guide](../../apps/docs/docs/server/guides/openapi.md)
-- [Controllers & Endpoints](../core/docs/controllers.md)
-- [Streaming](../core/docs/streaming.md)
-- [Multipart](../core/docs/multipart.md)
+MIT

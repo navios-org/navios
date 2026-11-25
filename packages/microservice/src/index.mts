@@ -1,33 +1,41 @@
-export { MessageController } from './decorators/message-controller.decorator.mjs'
-export { Message } from './decorators/message.decorator.mjs'
-export { MessageModule } from './decorators/message-module.decorator.mjs'
-export type { MessageParams, MessageResult } from './types/message-params.mjs'
-export type { MessageExecutionContext } from './interfaces/message-execution-context.mjs'
-export { MessageHandlerService } from './services/message-handler.service.mjs'
-export { MicroserviceFactory } from './services/microservice-factory.mjs'
+// Adds `messageControllers` to `@Module`.
+import './module-options.mjs'
 
-// Attributes
+export { messageTransport } from './transport/message-transport.mjs'
+export type {
+  MessageHandlerInfo,
+  MessageTransport,
+  MessageTransportOptions,
+} from './transport/message-transport.mjs'
+
+export {
+  getMessageControllerMetadata,
+  hasMessageControllerMetadata,
+  MessageController,
+} from './controllers/index.mjs'
+export type { MessageControllerMetadata, MessageControllerOptions } from './controllers/index.mjs'
+
+export { Message } from './handlers/index.mjs'
+export type { MessageParams, MessageResult } from './handlers/index.mjs'
+
+export { isMessageContext, MessageContext } from './context/message-context.mjs'
+export type { MessageGuard, MessageInterceptor } from './guards/index.mjs'
+export { MessageDeniedError, MessageValidationError } from './errors.mjs'
+
+// Attributes that describe how a handler wants its messages treated. They
+// are stored on the handler and can be read with `AttributeFactory`; this
+// package does not act on them yet.
 export {
   Ack,
-  NoAck,
-  ManualAck,
-  Retry,
-  DeadLetterQueue,
+  BatchProcessing,
   Concurrency,
-  Timeout,
+  DeadLetterQueue,
   ErrorHandling,
   Idempotency,
-  RateLimit,
-  BatchProcessing,
+  ManualAck,
+  NoAck,
   Priority,
+  RateLimit,
+  Retry,
+  Timeout,
 } from './attributes/index.mjs'
-
-// Metadata helpers
-export { hasMessageControllerMetadata } from './metadata/message-controller.metadata.mjs'
-export { hasMessageModuleMetadata } from './metadata/message-module.metadata.mjs'
-export { getMessageControllerMetadata } from './metadata/message-controller.metadata.mjs'
-export { getMessageModuleMetadata } from './metadata/message-module.metadata.mjs'
-export { getMessageHandlerMetadata } from './metadata/message-handler.metadata.mjs'
-export type { MessageControllerMetadata } from './metadata/message-controller.metadata.mjs'
-export type { MessageModuleMetadata } from './metadata/message-module.metadata.mjs'
-export type { MessageHandlerMetadata } from './metadata/message-handler.metadata.mjs'

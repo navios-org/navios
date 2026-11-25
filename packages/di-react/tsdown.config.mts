@@ -8,6 +8,9 @@ export default defineConfig({
   treeshake: true,
   sourcemap: true,
   platform: 'browser',
+  // Without it a browser build names the CommonJS file `index.js`, which the
+  // package.json does not point at.
+  fixedExtension: true,
   dts: true,
   target: 'es2022',
   external: ['react', '@navios/di'],

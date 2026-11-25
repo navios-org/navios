@@ -1,10 +1,41 @@
 import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod/v4'
 
-import { NaviosError } from '../../errors/index.mjs'
+import { NaviosError } from '../../shared/navios-error.mjs'
 import { eventSourceBuilder } from '../eventsource-builder.mjs'
+import { EventSourceError, isEventSourceError } from '../index.mjs'
 
-import type { EventSourceClient } from '../types/eventsource-client.mjs'
+import type { Schema } from '../../shared/schema.mjs'
+import type { EventSourceClient } from '../eventsource-client.mjs'
+
+/** A hand-written Standard Schema, standing in for any non-Zod library. */
+function standard<Input, Output>(
+  check: (value: unknown) => Output | Error,
+  options: { async?: boolean } = {},
+): Schema<Input, Output> {
+  return {
+    '~standard': {
+      version: 1,
+      vendor: 'test',
+      validate: (value) => {
+        const outcome = check(value)
+        const result =
+          outcome instanceof Error
+            ? { issues: [{ message: outcome.message, path: ['field'] }] }
+            : { value: outcome }
+        return options.async ? Promise.resolve(result) : result
+      },
+    },
+  }
+}
+
+/** Accepts `{ n: number > 0 }` and adds `checked: true` to its output. */
+function positive(options: { async?: boolean } = {}) {
+  return standard<{ n: number }, { n: number; checked: true }>((value) => {
+    const n = (value as { n?: unknown } | null)?.n
+    return typeof n === 'number' && n > 0 ? { n, checked: true } : new Error('n must be positive')
+  }, options)
+}
 
 describe('eventSourceBuilder', () => {
   const messageSchema = z.object({
@@ -73,11 +104,9 @@ describe('eventSourceBuilder', () => {
     })
 
     it('should accept optional config', () => {
-      const onValidationError = vi.fn()
       const onError = vi.fn()
 
       const sse = eventSourceBuilder({
-        onValidationError,
         onError,
       })
 
@@ -134,17 +163,6 @@ describe('eventSourceBuilder', () => {
 
       // Verify new listener was set up on new client
       expect(client2.onMock).toHaveBeenCalledWith('message', expect.any(Function))
-    })
-
-    it('should close old client when replacing', () => {
-      const sse = eventSourceBuilder()
-      const client1 = createMockClient()
-      const client2 = createMockClient()
-
-      sse.provideClient(client1)
-      sse.provideClient(client2)
-
-      expect(client1.closeMock).toHaveBeenCalled()
     })
   })
 
@@ -211,9 +229,9 @@ describe('eventSourceBuilder', () => {
       expect(handler).toHaveBeenCalledWith({ text: 'Hello', from: 'Alice' })
     })
 
-    it('should skip invalid events and call onValidationError', () => {
-      const onValidationError = vi.fn()
-      const sse = eventSourceBuilder({ onValidationError })
+    it('should skip invalid events and fire onError with kind validation', () => {
+      const onError = vi.fn()
+      const sse = eventSourceBuilder({ onError })
       const client = createMockClient()
       sse.provideClient(client)
 
@@ -225,14 +243,27 @@ describe('eventSourceBuilder', () => {
       const handler = vi.fn()
       onMessage(handler)
 
+      const invalidPayload = { text: 'Hello' } // missing 'from'
       // Simulate invalid event (missing 'from')
-      simulateEvent(client, 'message', { text: 'Hello' })
+      simulateEvent(client, 'message', invalidPayload)
 
       expect(handler).not.toHaveBeenCalled()
-      expect(onValidationError).toHaveBeenCalled()
+      expect(onError).toHaveBeenCalledWith(
+        expect.objectContaining({
+          kind: 'validation',
+          eventName: 'message',
+          rawData: invalidPayload,
+        }),
+      )
+      const error = onError.mock.calls[0]![0] as EventSourceError
+      expect(error).toBeInstanceOf(EventSourceError)
+      expect(error).toBeInstanceOf(NaviosError)
+      expect(Array.isArray(error.issues)).toBe(true)
+      expect(error.issues!.length).toBeGreaterThan(0)
+      expect(error.cause).toBeInstanceOf(z.ZodError)
     })
 
-    it('should call onError when handler throws', () => {
+    it('should fire onError with kind transport when handler throws', () => {
       const onError = vi.fn()
       const sse = eventSourceBuilder({ onError })
       const client = createMockClient()
@@ -253,7 +284,17 @@ describe('eventSourceBuilder', () => {
       simulateEvent(client, 'message', { text: 'Hello', from: 'Alice' })
 
       expect(handler).toHaveBeenCalled()
-      expect(onError).toHaveBeenCalledWith(error)
+      expect(onError).toHaveBeenCalledWith(
+        expect.objectContaining({
+          kind: 'transport',
+          eventName: 'message',
+          cause: error,
+        }),
+      )
+      const reported = onError.mock.calls[0]![0] as EventSourceError
+      expect(reported).toBeInstanceOf(EventSourceError)
+      expect('issues' in reported).toBe(false)
+      expect('rawData' in reported).toBe(false)
     })
 
     it('should unsubscribe handler when unsubscribe is called', () => {
@@ -422,8 +463,170 @@ describe('eventSourceBuilder', () => {
       expect(handler1).toHaveBeenCalled()
       expect(handler2).toHaveBeenCalled()
 
-      // Error should have been reported
-      expect(onError).toHaveBeenCalled()
+      // Error should have been reported as structured transport error
+      expect(onError).toHaveBeenCalledWith(
+        expect.objectContaining({
+          kind: 'transport',
+          eventName: 'message',
+        }),
+      )
+    })
+  })
+
+  describe('Standard Schema support', () => {
+    it('should validate events with a non-Zod schema and pass its output', () => {
+      const onError = vi.fn()
+      const sse = eventSourceBuilder({ onError })
+      const client = createMockClient()
+      sse.provideClient(client)
+
+      const onNumber = sse.defineEvent({ eventName: 'number', payloadSchema: positive() })
+      const handler = vi.fn()
+      onNumber(handler)
+
+      simulateEvent(client, 'number', { n: 3 })
+      simulateEvent(client, 'number', { n: 0 })
+
+      expect(handler).toHaveBeenCalledTimes(1)
+      expect(handler).toHaveBeenCalledWith({ n: 3, checked: true })
+      expect(onError).toHaveBeenCalledTimes(1)
+      const error = onError.mock.calls[0]![0] as EventSourceError
+      expect(error).toBeInstanceOf(EventSourceError)
+      expect(error.kind).toBe('validation')
+      expect(error.eventName).toBe('number')
+      expect(error.rawData).toEqual({ n: 0 })
+      expect(error.issues).toEqual([{ message: 'n must be positive', path: ['field'] }])
+      expect(error.cause).toEqual([{ message: 'n must be positive', path: ['field'] }])
+    })
+
+    it('should await an async schema before calling the handler', async () => {
+      const onError = vi.fn()
+      const sse = eventSourceBuilder({ onError })
+      const client = createMockClient()
+      sse.provideClient(client)
+
+      const onNumber = sse.defineEvent({
+        eventName: 'number',
+        payloadSchema: positive({ async: true }),
+      })
+      const handler = vi.fn()
+      onNumber(handler)
+
+      simulateEvent(client, 'number', { n: 3 })
+      simulateEvent(client, 'number', { n: -3 })
+      expect(handler).not.toHaveBeenCalled()
+
+      await Promise.resolve()
+      await Promise.resolve()
+
+      expect(handler).toHaveBeenCalledTimes(1)
+      expect(handler).toHaveBeenCalledWith({ n: 3, checked: true })
+      expect(onError).toHaveBeenCalledTimes(1)
+      expect(onError.mock.calls[0]![0]).toMatchObject({ kind: 'validation', eventName: 'number' })
+    })
+
+    it('should not deliver an event whose async validation finishes after unsubscribe', async () => {
+      const sse = eventSourceBuilder()
+      const client = createMockClient()
+      sse.provideClient(client)
+
+      const onNumber = sse.defineEvent({
+        eventName: 'number',
+        payloadSchema: positive({ async: true }),
+      })
+      const handler = vi.fn()
+      const unsubscribe = onNumber(handler)
+
+      simulateEvent(client, 'number', { n: 3 })
+      unsubscribe()
+      await Promise.resolve()
+      await Promise.resolve()
+
+      expect(handler).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('onError hook protection', () => {
+    it('should keep delivering events when onError throws', () => {
+      const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
+      const hookError = new Error('hook exploded')
+      const sse = eventSourceBuilder({
+        onError: () => {
+          throw hookError
+        },
+      })
+      const client = createMockClient()
+      sse.provideClient(client)
+
+      const onMessage = sse.defineEvent({ eventName: 'message', payloadSchema: messageSchema })
+      const throwing = vi.fn(() => {
+        throw new Error('handler exploded')
+      })
+      const sibling = vi.fn()
+      onMessage(throwing)
+      onMessage(sibling)
+
+      // Invalid event, then a valid one whose first handler throws.
+      expect(() => simulateEvent(client, 'message', { text: 'Hi' })).not.toThrow()
+      expect(() => simulateEvent(client, 'message', { text: 'Hi', from: 'A' })).not.toThrow()
+
+      expect(sibling).toHaveBeenCalledTimes(1)
+      expect(consoleError).toHaveBeenCalledWith(
+        '[Navios-EventSource]: onError hook threw',
+        hookError,
+      )
+      consoleError.mockRestore()
+    })
+  })
+
+  describe('EventSourceError', () => {
+    it('should serialize without the cause', () => {
+      const error = new EventSourceError({
+        kind: 'validation',
+        eventName: 'message',
+        url: 'https://example.com/events',
+        issues: [{ message: 'bad' }],
+        rawData: { text: 1 },
+        cause: new Error('original'),
+      })
+
+      expect(error.name).toBe('EventSourceError')
+      expect((error.cause as Error).message).toBe('original')
+      expect(JSON.parse(JSON.stringify(error))).toEqual({
+        name: 'EventSourceError',
+        message: 'Event "message" failed validation',
+        kind: 'validation',
+        eventName: 'message',
+        url: 'https://example.com/events',
+        issues: [{ message: 'bad' }],
+        rawData: { text: 1 },
+      })
+    })
+
+    it('should omit unset optional fields', () => {
+      const error = new EventSourceError({ kind: 'transport', eventName: 'message' })
+
+      expect(error.toJSON()).toEqual({
+        name: 'EventSourceError',
+        message: 'EventSource handler for "message" failed',
+        kind: 'transport',
+        eventName: 'message',
+      })
+      expect(isEventSourceError(error)).toBe(true)
+      expect(isEventSourceError(new NaviosError('other'))).toBe(false)
+    })
+
+    it('should copy the url of the client when it exposes one', () => {
+      const onError = vi.fn()
+      const sse = eventSourceBuilder({ onError })
+      const client = { ...createMockClient(), url: 'https://example.com/events' }
+      sse.provideClient(client)
+
+      const onMessage = sse.defineEvent({ eventName: 'message', payloadSchema: messageSchema })
+      onMessage(vi.fn())
+      simulateEvent(client, 'message', {})
+
+      expect((onError.mock.calls[0]![0] as EventSourceError).url).toBe('https://example.com/events')
     })
   })
 })

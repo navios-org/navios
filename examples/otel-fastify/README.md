@@ -97,8 +97,6 @@ cp .env.development .env  # or .env.production, etc.
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `OTEL_AUTO_INSTRUMENT_HTTP` | Instrument HTTP requests | `true` |
-| `OTEL_AUTO_INSTRUMENT_HANDLERS` | Instrument handlers | `true` |
-| `OTEL_AUTO_INSTRUMENT_GUARDS` | Instrument guards | `false` |
 | `OTEL_INCLUDE_NAVIOS_ATTRIBUTES` | Add Navios span attributes | `false` |
 
 ### Metrics & Sampling
@@ -110,13 +108,30 @@ cp .env.development .env  # or .env.production, etc.
 | `OTEL_SAMPLING_RATIO` | Sampling ratio (0.0-1.0) | `1.0` |
 | `OTEL_IGNORE_ROUTES` | Comma-separated routes to ignore | `/health` |
 
-## Using the @Traced Decorator
+## How tracing is set up
 
-The `@Traced` decorator adds manual tracing to services:
+One plugin from `@navios/otel` does everything, and it is the same on every adapter:
 
 ```typescript
-import { Injectable } from '@navios/core/legacy-compat'
-import { Traced } from '@navios/otel/legacy-compat'
+import { otelPlugin } from '@navios/otel'
+
+const app = await NaviosFactory.create(AppModule, {
+  adapter: defineFastifyEnvironment(),
+  plugins: [otelPlugin(getOtelConfig())],
+})
+```
+
+- Every request that matches a route gets a server span named `HTTP <METHOD> <route>`, for example `HTTP GET /items/$id`.
+- A handler reaches that span with `ctx.find(RequestSpan)` (see `items.controller.mts`).
+- Spans are flushed when the application closes; `bootstrap.mts` calls `app.close()` on `SIGINT` and `SIGTERM`.
+
+## Using the @Traced Decorator
+
+The `@Traced` decorator makes a service start a child span around its method calls:
+
+```typescript
+import { Injectable } from '@navios/server/legacy-compat'
+import { Traceable, Traced } from '@navios/otel/legacy-compat'
 
 // Trace all methods in the class
 @Injectable()
@@ -127,8 +142,9 @@ export class MyService {
   }
 }
 
-// Trace specific methods
+// Trace specific methods: mark the class with @Traceable
 @Injectable()
+@Traceable()
 export class AnotherService {
   @Traced({ name: 'critical-operation', attributes: { critical: true } })
   async criticalOperation() {
@@ -136,6 +152,8 @@ export class AnotherService {
   }
 }
 ```
+
+This example uses TypeScript's legacy decorators (`experimentalDecorators`), hence the `legacy-compat` imports. With standard decorators, import from `@navios/server` and `@navios/otel`.
 
 ## Architecture
 

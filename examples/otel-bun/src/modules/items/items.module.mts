@@ -1,11 +1,10 @@
-import { Module } from '@navios/core/legacy-compat'
+import { Module } from '@navios/server/legacy-compat'
 
 import { ItemsController } from './items.controller.mjs'
-import { ItemsService } from './items.service.mjs'
-import { ProcessingService } from './processing.service.mjs'
 
+// ItemsService and ProcessingService are `@Injectable()` and resolved through
+// `inject()` in the controller, so they need no registration here.
 @Module({
   controllers: [ItemsController],
-  services: [ItemsService, ProcessingService],
 })
 export class ItemsModule {}

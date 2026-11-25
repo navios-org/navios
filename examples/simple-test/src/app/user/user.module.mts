@@ -1,14 +1,13 @@
-import { inject, Logger, Module } from '@navios/core'
+import { inject, Logger, Module } from '@navios/server'
 
-import { AclModernGuard } from '../acl/acl-modern.guard.mjs'
+import type { OnModuleInit } from '@navios/server'
+
 import { UserController } from './user.controller.mjs'
 
-@Module({
-  controllers: [UserController],
-  guards: [AclModernGuard],
-})
-export class UserModule {
-  logger = inject(Logger)
+@Module({ controllers: [UserController] })
+export class UserModule implements OnModuleInit {
+  private readonly logger = inject(Logger, { context: UserModule.name })
+
   onModuleInit() {
     this.logger.debug('Inside UserModule.onModuleInit')
   }

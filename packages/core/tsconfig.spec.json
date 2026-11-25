@@ -3,13 +3,16 @@
   "compilerOptions": {
     "outDir": "./dist"
   },
-  "include": ["src/**/*.spec.mts", "e2e/**/*.mts", "vitest.config.mts"],
+  "include": [
+    "src/**/*.spec.mts",
+    "src/__type-tests__/**/*.spec-d.mts",
+    "e2e/**/*.mts",
+    "vitest.config.mts"
+  ],
+  "exclude": ["src/legacy-compat/__tests__/**/*.mts"],
   "references": [
     {
       "path": "./tsconfig.lib.json"
-    },
-    {
-      "path": "./src/legacy-compat/__type-tests__/tsconfig.json"
     }
   ]
 }

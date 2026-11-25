@@ -1,156 +1,87 @@
 # @navios/adapter-fastify
 
-Fastify adapter for Navios - a Type-Safe HTTP Server with Zod Validation.
+Runs a [Navios](https://navios.tech) application on [Fastify](https://fastify.dev) 5, on Node.js. The adapter registers the application's routes with Fastify, turns each Fastify request into the input of a compiled route and writes the result. Guards, validation and error mapping happen in `@navios/server` and behave the same as on every other adapter; Fastify's own schema validation and serialisation are not used.
 
-This package provides the Fastify adapter for Navios, allowing you to run Navios applications using the high-performance [Fastify](https://www.fastify.io/) web framework.
+**[Documentation](https://navios.tech/docs/server/adapters/fastify)** · [Server quick start](https://navios.tech/docs/server/quick-start)
 
-## Overview
-
-**Important**: `@navios/core` requires an HTTP adapter to function as a server. This package provides the Fastify implementation. You must install and configure an adapter to use Navios as an HTTP server.
-
-## Features
-
-- High-performance HTTP server based on Fastify
-- Full TypeScript support with comprehensive JSDoc documentation
-- Rich ecosystem of Fastify plugins
-- Production-ready with extensive documentation
-- Built-in request/response validation with Zod schemas
-- Comprehensive middleware support
-- Native CORS and multipart form data support
-
-## Installation
+## Install
 
 ```bash
-npm install @navios/adapter-fastify @navios/core fastify
+npm install @navios/adapter-fastify@next @navios/server@next @navios/builder@next fastify
 ```
 
-Or with yarn:
+The 2.0 alpha is published under the `next` tag. All `@navios` packages of a project must have the same alpha version, because an alpha may break between releases.
 
-```bash
-yarn add @navios/adapter-fastify @navios/core fastify
-```
+Requires Node.js 24 or newer and `fastify` 5.6 or newer. `@fastify/cors` and `@fastify/multipart` are dependencies of the adapter and do not need to be installed separately.
 
-## Usage
-
-### Basic Setup
+## Example
 
 ```ts
 import { defineFastifyEnvironment } from '@navios/adapter-fastify'
-import { NaviosFactory } from '@navios/core'
+import { NaviosFactory } from '@navios/server'
 
-import { AppModule } from './app.module.js'
+import type { FastifyEnvironment } from '@navios/adapter-fastify'
 
-async function bootstrap() {
-  const app = await NaviosFactory.create(AppModule, {
-    adapter: defineFastifyEnvironment(), // Required!
-  })
+import { AppModule } from './app.module.mjs'
 
-  app.setGlobalPrefix('/api')
-  app.enableCors({
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  })
-
-  await app.init()
-  await app.listen({ port: 3000, host: '0.0.0.0' })
+// Types ctx.raw, app.getServer() and the options of app.listen() for Fastify
+declare module '@navios/server' {
+  interface Register {
+    environment: FastifyEnvironment
+  }
 }
 
-bootstrap()
-```
-
-### Advanced Configuration
-
-```ts
-import { defineFastifyEnvironment } from '@navios/adapter-fastify'
-import { NaviosFactory } from '@navios/core'
-
 const app = await NaviosFactory.create(AppModule, {
-  adapter: defineFastifyEnvironment(),
+  adapter: defineFastifyEnvironment({
+    bodyLimit: 1_048_576,
+    cors: {
+      origin: ['https://app.example.com'],
+      credentials: true,
+      methods: ['GET', 'POST', 'PUT', 'DELETE'],
+    },
+    multipart: { limits: { fileSize: 10 * 1024 * 1024, files: 5 } },
+    configure: async (server) => {
+      server.addHook('onRequest', async (request) => {
+        request.log.info({ url: request.url }, 'incoming')
+      })
+    },
+  }),
 })
 
-// Enable CORS support
-app.enableCors({
-  origin: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE'],
-  credentials: true,
-})
-
-// Enable multipart support for file uploads
-app.enableMultipart({
-  limits: {
-    fileSize: 1024 * 1024 * 10, // 10MB
-    files: 5, // Max 5 files
-  },
-})
-
-await app.init()
-await app.listen({ port: 3000, host: '0.0.0.0' })
+const url = await app.listen({ port: 3000, host: '0.0.0.0' })
 ```
 
-### Accessing Fastify Instance
+`defineFastifyEnvironment(options)` accepts the options of the `fastify()` factory for an HTTP/1.1 server, `https` included, and three of its own: `cors`, `multipart` and `configure`. `AppModule` is an ordinary Navios module, such as the one with `getUser` at `/users/$userId` from the [quick start](https://navios.tech/docs/server/quick-start); nothing in it depends on the adapter.
 
-```ts
-// Get access to the underlying Fastify instance if needed
-const fastifyInstance = app.getServer()
+## What else it does
 
-// Register Fastify plugins
-await fastifyInstance.register(require('@fastify/static'), {
-  root: path.join(__dirname, 'public'),
-  prefix: '/public/',
-})
+| Need                                   | How                                                   | Docs                                                                                                  |
+| -------------------------------------- | ----------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| Fastify options, plugins, hooks        | `logger`, `bodyLimit`, `trustProxy`, ..., `configure` | [Options](https://navios.tech/docs/server/adapters/fastify#options)                                   |
+| Typed native request and reply         | the `Register` declaration, `ctx.raw`                 | [What `ctx.raw` contains](https://navios.tech/docs/server/adapters/fastify#what-ctxraw-contains)      |
+| Writing the response yourself          | `ctx.raw.reply.hijack()`                              | [Taking over the response](https://navios.tech/docs/server/adapters/fastify#taking-over-the-response) |
+| CORS                                   | `cors`, passed to `@fastify/cors`                     | [CORS](https://navios.tech/docs/server/adapters/fastify#cors)                                         |
+| File uploads and their limits          | `multipart`, `body: 'multipart'`                      | [Multipart](https://navios.tech/docs/server/adapters/fastify#multipart)                               |
+| Body size limit, content type parsers  | `bodyLimit`; `addContentTypeParser` in `configure`    | [Request bodies](https://navios.tech/docs/server/adapters/fastify#request-bodies)                     |
+| Graceful shutdown                      | `app.close()`, `shutdownTimeout`                      | [Shutdown](https://navios.tech/docs/server/adapters/fastify#shutdown)                                 |
+| Tests through Fastify without a socket | `app.inject()`                                        | [Testing](https://navios.tech/docs/server/essentials/testing)                                         |
+
+## Development
+
+The adapter is tested with the shared suite from `@navios/server/conformance`, over real HTTP on an ephemeral port; the spec is `e2e/conformance.spec.mts`. [Writing an adapter](https://navios.tech/docs/server/adapters/writing-an-adapter#running-the-conformance-suite) describes the suite.
+
+```bash
+# from the repository root
+yarn turbo run test:ci --filter=@navios/adapter-fastify
+
+# HTTP benchmark against raw Fastify doing the same validation by hand
+cd packages/adapter-fastify && yarn bench
 ```
 
-## Features
+## Upgrading from 1.x
 
-- **High Performance**: Built on Fastify, one of the fastest Node.js web frameworks
-- **Rich Ecosystem**: Access to extensive Fastify plugin system
-- **Type Safety**: Maintains Navios' complete type-safe API with full JSDoc support
-- **Production Ready**: Battle-tested Fastify foundation
-- **Plugin System**: Full support for Fastify plugins and hooks
-- **Schema Validation**: Built-in Zod schema validation with Fastify type provider
-- **Request/Response Lifecycle**: Complete control over request/response handling
-- **Error Handling**: Comprehensive error handling integration with RFC 7807 Problem Details format for standardized, machine-readable error responses
-- **CORS Support**: Native CORS support via @fastify/cors
-- **Multipart Support**: Native file upload support via @fastify/multipart
-- **WebSocket Support**: Via Fastify WebSocket plugins
-- **Static File Serving**: Via @fastify/static plugin
+CORS and multipart are adapter options in 2.0, and the adapter is passed to `NaviosFactory.create` as a single definition. See [Migrating to 2.0](https://navios.tech/docs/server/reference/migrating-to-2) for before-and-after examples, or [CHANGELOG.md](./CHANGELOG.md) for the full list.
 
-## Requirements
+## License
 
-- **Runtime**: Node.js 18+
-- **Dependencies**:
-  - `@navios/core` - Core Navios framework
-  - `fastify` ^5.6.0 - Fastify web framework
-  - `@navios/di` - Dependency injection (peer dependency)
-
-## When to Use Fastify Adapter
-
-Choose the Fastify adapter when:
-
-- ✅ Running on Node.js environments
-- ✅ Need access to Fastify's rich plugin ecosystem
-- ✅ Require mature, production-proven HTTP server
-- ✅ Working with teams familiar with Express/Fastify patterns
-- ✅ Need comprehensive middleware support
-- ✅ Deploying to traditional Node.js hosting platforms
-
-## Comparison with Other Adapters
-
-| Feature     | Fastify Adapter  | Bun Adapter |
-| ----------- | ---------------- | ----------- |
-| Runtime     | Node.js          | Bun         |
-| Performance | High             | Very High   |
-| Ecosystem   | Rich             | Growing     |
-| Maturity    | Production Ready | Emerging    |
-| Plugins     | Extensive        | Limited     |
-
-## Examples
-
-Check out the [examples directory](../../examples/simple-test/src/fastify.mts) for complete working examples.
-
-## Documentation
-
-For complete documentation on using Navios with adapters, see:
-
-- [Navios Core Documentation](../core/README.md)
-- [Adapter Guide](../core/docs/adapters.md)
-- [Quick Start Guide](../core/docs/quick-start.md)
+MIT

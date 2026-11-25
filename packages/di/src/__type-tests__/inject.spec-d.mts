@@ -1,9 +1,12 @@
-import { assertType, describe, test } from 'vitest'
+import { assertType, describe, expectTypeOf, test } from 'vitest'
 import { z } from 'zod/v4'
 
-import { Injectable } from '../decorators/index.mjs'
+import { Factory, Injectable } from '../decorators/index.mjs'
+import { asyncInject, inject, optional } from '../injection/injectors.mjs'
 import { InjectionToken } from '../token/injection-token.mjs'
-import { asyncInject, inject, optional } from '../utils/default-injectors.mjs'
+
+import type { Factorable } from '../provider/factorable.mjs'
+import type { StandardSchemaV1 } from '../schema/standard-schema.mjs'
 
 interface FooService {
   makeFoo(): string
@@ -212,5 +215,76 @@ describe('optional', () => {
   test('#4 Token with no Schema', () => {
     const result = optional(typedToken)
     assertType<FooService | null>(result)
+  })
+})
+
+describe('factory classes', () => {
+  test('resolve to the created type', async () => {
+    @Factory()
+    class SyncFactory implements Factorable<string> {
+      create() {
+        return 'created'
+      }
+    }
+
+    @Factory()
+    class AsyncFactory implements Factorable<number> {
+      async create() {
+        return 42
+      }
+    }
+
+    expectTypeOf(inject(SyncFactory)).toEqualTypeOf<string>()
+    expectTypeOf(inject(AsyncFactory)).toEqualTypeOf<number>()
+    expectTypeOf(asyncInject(SyncFactory)).toEqualTypeOf<Promise<string>>()
+    expectTypeOf(asyncInject(AsyncFactory)).toEqualTypeOf<Promise<number>>()
+    expectTypeOf(optional(SyncFactory)).toEqualTypeOf<string | null>()
+  })
+})
+
+describe('schemas whose input and output differ', () => {
+  const transformSchema = z.object({ foo: z.string() }).transform((value) => ({
+    length: value.foo.length,
+  }))
+  const transformToken = InjectionToken.create<FooService, typeof transformSchema>(
+    Symbol.for('Transform token'),
+    transformSchema,
+  )
+
+  test('call sites take the schema input', () => {
+    expectTypeOf(inject(transformToken, { foo: 'bar' })).toEqualTypeOf<FooService>()
+    expectTypeOf(asyncInject(transformToken, { foo: 'bar' })).toEqualTypeOf<Promise<FooService>>()
+    expectTypeOf(optional(transformToken, { foo: 'bar' })).toEqualTypeOf<FooService | null>()
+
+    // @ts-expect-error the schema output is not accepted as args
+    inject(transformToken, { length: 3 })
+    // @ts-expect-error the schema output is not accepted as args
+    void asyncInject(transformToken, { length: 3 })
+  })
+})
+
+describe('Standard Schema that is not zod', () => {
+  const requiredSchema = {} as StandardSchemaV1<{ id: string }, { id: number }>
+  const optionalSchema = {} as StandardSchemaV1<{ id: string } | undefined, { id: number }>
+  const requiredToken = InjectionToken.create<FooService, typeof requiredSchema>(
+    Symbol.for('Standard required'),
+    requiredSchema,
+  )
+  const optionalToken = InjectionToken.create<FooService, typeof optionalSchema>(
+    Symbol.for('Standard optional'),
+    optionalSchema,
+  )
+
+  test('required args', () => {
+    expectTypeOf(inject(requiredToken, { id: 'a' })).toEqualTypeOf<FooService>()
+    expectTypeOf(inject(requiredToken)).toEqualTypeOf<'Error: Your token requires args: id'>()
+
+    // @ts-expect-error args must match the schema input
+    inject(requiredToken, { id: 1 })
+  })
+
+  test('optional args', () => {
+    expectTypeOf(inject(optionalToken)).toEqualTypeOf<FooService>()
+    expectTypeOf(inject(optionalToken, { id: 'a' })).toEqualTypeOf<FooService>()
   })
 })

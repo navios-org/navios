@@ -1,25 +1,16 @@
-import type { AbstractExecutionContext, CanActivate } from '@navios/core'
+import { AttributeFactory, inject, Injectable, Logger } from '@navios/server'
 
-import { AttributeFactory, inject, Injectable, Logger } from '@navios/core'
+import type { Guard, RequestContext } from '@navios/server'
 
-import { Public } from './public.attribute.mjs'
+import { Public } from './attributes.mjs'
 
 @Injectable()
-export class AppGuard implements CanActivate {
-  logger = inject(Logger, {
-    context: AppGuard.name,
-  })
+export class AppGuard implements Guard {
+  private readonly logger = inject(Logger, { context: AppGuard.name })
 
-  canActivate(
-    executionContext: AbstractExecutionContext,
-  ): Promise<boolean> | boolean {
-    const isPublic = AttributeFactory.getLast(Public, [
-      executionContext.getModule(),
-      executionContext.getController(),
-      executionContext.getHandler(),
-    ])
-    // this.logger.log('App Guard activated')
-    // this.logger.log('isPublic', isPublic)
+  canActivate(ctx: RequestContext): boolean {
+    const isPublic = AttributeFactory.has(Public, ctx.route)
+    this.logger.log(`${ctx.method} ${ctx.path} is ${isPublic ? 'public' : 'protected'}`)
     return true
   }
 }

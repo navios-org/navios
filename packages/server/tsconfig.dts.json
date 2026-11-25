@@ -1,0 +1,7 @@
+{
+  // The published declarations, without what is for the rest of the package.
+  "extends": "./tsconfig.lib.json",
+  "compilerOptions": {
+    "stripInternal": true
+  }
+}

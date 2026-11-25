@@ -5,6 +5,45 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0-alpha.0] - Unreleased
+
+Ported to the 2.0 APIs of `@navios/di` and `@navios/core`. The package is now adapter-neutral and complete on its own: it no longer needs `@navios/otel-fastify` or `@navios/otel-bun`. Its main entry depends on `@navios/core` only and works in an application without HTTP; `@navios/server` is an optional peer dependency, needed for HTTP request spans.
+
+### Breaking
+
+- **The packages `@navios/otel-fastify` and `@navios/otel-bun` are removed.** `OtelPluginOptions` replaces `FastifyOtelPluginOptions` and `BunOtelPluginOptions`. `otelPlugin(options)` is one plugin, so the loop over the result of the Bun `defineOtelPlugin` goes away. Removed with them: `request.otelSpan` on Fastify (use `ctx.find(RequestSpan)`), the `http.response_content_length` attribute on Fastify and the `guard:<name>` child spans on Bun.
+- **One plugin, `otelPlugin(options)`.** It starts the SDK, traces HTTP requests, traces `@Traced` services and shuts the SDK down. It replaces `defineOtelPlugin` from the adapter packages and `defineOtelTracingPlugin` from this one; `defineOtelTracingPlugin` and `OtelTracingPluginOptions` are removed.
+- **HTTP requests are traced by an interceptor**, `OtelHttpInterceptor`, on every adapter. It is exported from `@navios/otel/http`, together with `compileIgnoreRoutes` and `instrumentHttp`; the plugin loads that entry by itself when the application serves HTTP. A request that matches no route gets no span (1.x on Fastify created one). The span ends when the response has finished, including a streamed body, and reports the final status, including one produced by an `app.mapError()` mapper. The status is set as `http.status_code` and `http.response.status_code`.
+- **Removed options that did nothing or can no longer be honoured:** `autoInstrument.handlers`, `autoInstrument.guards`, `propagateContext`, `metrics.requestDuration` and `metrics.errorCount`. A request has one server span covering guards, validation and the handler.
+- **The OpenTelemetry SDK is no longer bundled into the build.** `@opentelemetry/context-async-hooks`, `core`, `resources`, `sdk-metrics`, `sdk-trace` and `semantic-conventions` are regular dependencies; the two OTLP exporters are optional peer dependencies.
+- **OpenTelemetry SDK 3 throughout.** The deprecated `@opentelemetry/sdk-trace-node` 2.x is replaced by `@opentelemetry/sdk-trace` 3.x. The peer range of `@opentelemetry/api` is `>=1.10.0 <1.11.0` and that of the OTLP exporters `>=0.300.0 <0.400.0`. A span processor passed in `spanProcessors` must come from `@opentelemetry/sdk-trace`, where it takes an options object: `new BatchSpanProcessor({ exporter })`. The 3.x trace SDK reads no environment variables, so the `OTEL_BSP_*` settings and the span limits (`OTEL_SPAN_*_LIMIT`, `OTEL_ATTRIBUTE_*_LIMIT`) have no effect any more.
+- **`http.url` is the request path** without the query string.
+- **`@Traced` services are instrumented in place** through `container.decorate` instead of being re-registered under a `:original` token behind a wrapper factory. `createTracedWrapperFactory` is removed. The object the container returns is the service itself rather than a `Proxy` around it.
+- **The package's own `AsyncLocalStorage` store is removed**, with `getSpanContextStore()`. The active span lives in the OpenTelemetry context. `getCurrentSpan()`, `getCurrentSpanContext()` and `runWithSpanContext()` remain and read or write that context.
+- **`OtelSetupService` no longer registers tokens itself** and takes no injected dependencies. The plugin creates it and provides it; `initialize(config, logger?)` takes an optional logger.
+- `TRACED_METADATA_KEY` is removed, deprecated since 1.0.0-alpha.3. Use `TracedMetadataKey`.
+- `SpanFactoryService` and `TracedProxyFactory` use the tracer provided by the plugin instead of the global one.
+
+### Added
+
+- `autoInstrument.transports` and `OtelHandlerInterceptor`: one span per handler run of a transport other than HTTP (a queue message, a job), named `<transport> <Class>.<handler>`. The default, `'auto'`, traces them in an application that has no HTTP transport; set `true` in one that serves HTTP as well.
+- `RequestSpan`: a request-context key holding the request's server span (`ctx.find(RequestSpan)`).
+- The request span is the active OpenTelemetry span while the request is handled, and each traced method runs with its own span active, so nested spans get the right parent.
+- `ignoreRoutes` is part of `OtelConfig`. `*` may appear anywhere in a pattern.
+- `spanProcessors`: extra span processors, for custom exporters and for tests.
+- `registerGlobally`: set to `false` to keep the provider, context manager and propagators out of the process-wide registration.
+- `MeterToken` is always provided; it is a no-op meter unless metrics are enabled.
+- `OtelSetupService.forceFlush()` and `getConfig()`.
+- `traceInstance()`, `extractTraceContext()`, `parentContext()`, `recordSpanError()`, `resolveOtelConfig()`.
+- `TraceContextService.extractFromHeaders()` accepts a web `Headers` object and `ctx.headers` as well as a plain record.
+- Without a context manager, a `@Traced` method called during a request is parented to the request span when the application runs with `asyncContext: true`.
+
+### Changed
+
+- Shutting down takes back the process-wide tracer provider, context manager and propagators if this package registered them.
+- `#private` members work on traced services.
+- The package's own classes are registered with `registerInjectable`; the build no longer needs a decorator transform.
+
 ## [1.0.0-alpha.3] - 2026-01-18
 
 ### Added

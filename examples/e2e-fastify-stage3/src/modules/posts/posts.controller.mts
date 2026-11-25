@@ -1,44 +1,41 @@
-import type { EndpointParams } from '@navios/core'
+import { BadRequestException, Controller, Endpoint, inject, reply } from '@navios/server'
 
-import { BadRequestException, Controller, Endpoint, HttpCode, inject } from '@navios/core'
+import type { HandlerParams, RequestContext } from '@navios/server'
 
 import { createPostEndpoint, listPostsEndpoint } from '../../api/endpoints.mjs'
 import { Public } from '../../guards/public.attribute.mjs'
 
-import { PostsService } from './posts.service.mjs'
 import { PostsValidationService } from './posts-validation.service.mjs'
+import { PostsService } from './posts.service.mjs'
 
 @Controller()
 export class PostsController {
   private readonly postsService = inject(PostsService)
-  private readonly validationService = inject(PostsValidationService)
 
   @Endpoint(listPostsEndpoint)
   @Public()
-  async listPosts(params: EndpointParams<typeof listPostsEndpoint>) {
-    const posts = await this.postsService.findAll({
-      authorId: params.params.authorId,
-      published: params.params.published,
-    })
+  async listPosts({ params }: HandlerParams<typeof listPostsEndpoint>) {
+    const posts = await this.postsService.findAll(params)
     return { posts }
   }
 
   @Endpoint(createPostEndpoint)
-  @HttpCode(201)
-  async createPost(params: EndpointParams<typeof createPostEndpoint>) {
-    const { title, content, authorId, published } = params.data
+  async createPost({ data }: HandlerParams<typeof createPostEndpoint>, ctx: RequestContext) {
+    const { title, content, authorId, published } = data
 
-    // Use request-scoped validation service
-    const validation = this.validationService.validate(title, content)
+    // Controllers are singletons: a request-scoped service comes from the
+    // request's DI scope.
+    const validationService = ctx.use(PostsValidationService)
+    const validation = validationService.validate(title, content)
     if (!validation.isValid) {
       throw new BadRequestException(validation.errors.join(', '))
     }
 
     const post = await this.postsService.create({ title, content, authorId, published })
 
-    return {
+    return reply(201, {
       ...post,
-      validationId: this.validationService.getValidationId(),
-    }
+      validationId: validationService.getValidationId(),
+    })
   }
 }

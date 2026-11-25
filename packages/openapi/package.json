@@ -1,6 +1,6 @@
 {
   "name": "@navios/openapi",
-  "version": "1.0.0",
+  "version": "2.0.0-alpha.0",
   "license": "MIT",
   "author": {
     "name": "Oleksandr Hanzha",
@@ -8,9 +8,15 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/Arilas/navios.git",
+    "url": "https://github.com/navios-org/navios.git",
     "directory": "packages/openapi"
   },
+  "files": [
+    "lib",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ],
   "main": "./lib/index.cjs",
   "module": "./lib/index.mjs",
   "typings": "./lib/index.d.mts",
@@ -41,21 +47,27 @@
     "lint": "yarn run -T oxlint --fix && yarn run -T oxfmt",
     "test:ci": "vitest run",
     "build": "tsdown",
-    "publish": "yarn npm publish --access public",
+    "publish": "node ../../scripts/assert-stable-version.mjs && yarn npm publish --access public",
     "publish:next": "yarn npm publish --access public --tag next"
   },
   "dependencies": {
-    "yaml": "^2.9.1",
-    "zod-openapi": "^6.0.2"
+    "@scalar/core": "^0.5.55",
+    "yaml": "^2.9.1"
   },
   "devDependencies": {
+    "@navios/adapter-fastify": "workspace:^",
     "@navios/builder": "workspace:^",
     "@navios/core": "workspace:^",
+    "@navios/di": "workspace:^",
+    "@navios/server": "workspace:^",
     "typescript": "^7.0.2",
     "zod": "^4.6.7"
   },
   "peerDependencies": {
-    "@navios/core": "workspace:^",
-    "zod": "^3.25.0 || ^4.0.0"
+    "@navios/core": "workspace:*",
+    "@navios/server": "workspace:*"
+  },
+  "engines": {
+    "node": ">=24"
   }
 }

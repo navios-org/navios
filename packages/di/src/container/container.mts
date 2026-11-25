@@ -1,258 +1,327 @@
-import type { z, ZodType } from 'zod/v4'
-
-import { Injectable } from '../decorators/injectable.decorator.mjs'
-import { InjectableScope, InjectableType } from '../enums/index.mjs'
-import { DIError } from '../errors/index.mjs'
-import { InstanceResolver } from '../internal/core/instance-resolver.mjs'
-import { NameResolver } from '../internal/core/name-resolver.mjs'
-import { ScopeTracker } from '../internal/core/scope-tracker.mjs'
-import { ServiceInitializer } from '../internal/core/service-initializer.mjs'
-import { ServiceInvalidator } from '../internal/core/service-invalidator.mjs'
-import { TokenResolver } from '../internal/core/token-resolver.mjs'
-import { UnifiedStorage } from '../internal/holder/unified-storage.mjs'
-import { LifecycleEventBus } from '../internal/lifecycle/lifecycle-event-bus.mjs'
+import { misuse } from '../errors/create.mjs'
+import { InjectableScope } from '../injectable-scope.mjs'
+import { instancesOf, readyEntries } from '../internal/access.mjs'
+import { abandonBuilds, settleHost, settleStore } from '../internal/background.mjs'
+import { destroyAll, destroyLoose } from '../internal/destruction.mjs'
+import { EntryStatus } from '../internal/entry.mjs'
+import { hookOwner } from '../internal/frame.mjs'
 import {
+  baseToken,
+  followAlias,
+  hasProvider,
+  isResolved,
+  lookupRecord,
+  requireToken,
+} from '../internal/normalize.mjs'
+import { assertLive, resolveInstance, resolveSyncOrThrow } from '../internal/resolution.mjs'
+import { Store } from '../internal/store.mjs'
+import { peek, storeValue } from '../internal/stored-values.mjs'
+import { provide } from '../provider/provide.mjs'
+import { registerInjectable } from '../provider/registration.mjs'
+import { findInjectableToken } from '../token/injectable-token.mjs'
+
+import type {
+  AsyncResolve,
+  OptionalResolve,
+  SyncResolve,
+} from '../injection/resolve-signatures.mjs'
+import type { Entry } from '../internal/entry.mjs'
+import type { ErrorReporter, InstanceDecorator, RootHost } from '../internal/host.mjs'
+import type { ProvidedFor, ResolvedInstance } from '../provider/factorable.mjs'
+import type { Provider, ProviderInputFor } from '../provider/provide.mjs'
+import type { ProviderInfo, ProviderRecord } from '../provider/provider-record.mjs'
+import type { AbstractClassType, ClassType } from '../token/class-type.mjs'
+import type {
+  AnyInjectableType,
   BoundInjectionToken,
-  FactoryInjectionToken,
   InjectionToken,
 } from '../token/injection-token.mjs'
-import { globalRegistry } from '../token/registry.mjs'
-import { defaultInjectors } from '../utils/default-injectors.mjs'
-import { getInjectableToken } from '../utils/index.mjs'
+import type { PublicPart } from '../token/public-part.mjs'
 
-import type { Factorable } from '../interfaces/factory.interface.mjs'
-import type {
-  ClassType,
-  ClassTypeWithArgument,
-  InjectionTokenSchemaType,
-} from '../token/injection-token.mjs'
-import type { Registry } from '../token/registry.mjs'
-import type { Injectors } from '../utils/get-injectors.mjs'
-import type { Join, UnionToArray } from '../utils/types.mjs'
+import { addInvalidateListener } from './invalidate-listener.mjs'
+import { ScopedContainer, scopeToken } from './scoped-container.mjs'
 
-import { AbstractContainer } from './abstract-container.mjs'
-import { ScopedContainer } from './scoped-container.mjs'
+import type { IContainer } from './i-container.mjs'
+
+export interface ContainerOptions {
+  /** Providers that replace or supply the defaults registered on tokens. */
+  providers?: Provider[]
+  /**
+   * Use only the providers given to this container and ignore the defaults
+   * registered with `@Injectable`. Meant for isolated unit tests.
+   */
+  strict?: boolean
+  /**
+   * Told about errors nobody receives, such as those of destroy hooks. They go
+   * to `console.error` without a logger and are dropped with `null`.
+   */
+  logger?: Console | null
+}
+
+// A condition on `K` for the same reason as in `ProviderInputFor`.
+type DecoratorFor<K> = K extends unknown
+  ? (
+      instance: K extends AbstractClassType ? ResolvedInstance<K> : ProvidedFor<K>,
+      info: { token: InjectionToken<any, any>; args: unknown },
+    ) => ProvidedFor<K>
+  : never
 
 /**
- * Main dependency injection container.
- *
- * Provides a simplified public API for dependency injection.
- * Handles singleton and transient services directly,
- * while request-scoped services require using beginRequest() to create a ScopedContainer.
+ * The root container. Holds singletons and creates scopes.
  */
-@Injectable()
-export class Container extends AbstractContainer {
-  protected readonly defaultScope = InjectableScope.Singleton
-  protected readonly requestId = undefined
-
-  private readonly storage: UnifiedStorage
-  private readonly serviceInitializer: ServiceInitializer
-  private readonly serviceInvalidator: ServiceInvalidator
-  private readonly tokenResolver: TokenResolver
-  private readonly nameResolver: NameResolver
-  private readonly scopeTracker: ScopeTracker
-  private readonly eventBus: LifecycleEventBus
-  private readonly instanceResolver: InstanceResolver
-  private readonly activeRequestIds = new Set<string>()
-
-  constructor(
-    protected readonly registry: Registry = globalRegistry,
-    protected readonly logger: Console | null = null,
-    protected readonly injectors: Injectors = defaultInjectors,
-  ) {
-    super()
-    // Initialize components
-    this.storage = new UnifiedStorage(InjectableScope.Singleton)
-    this.eventBus = new LifecycleEventBus(logger)
-    this.nameResolver = new NameResolver(logger)
-    this.tokenResolver = new TokenResolver(logger)
-    this.scopeTracker = new ScopeTracker(registry, this.nameResolver, logger)
-    this.serviceInitializer = new ServiceInitializer(injectors)
-    this.serviceInvalidator = new ServiceInvalidator(this.eventBus, logger)
-    this.instanceResolver = new InstanceResolver(
-      registry,
-      this.storage,
-      this.serviceInitializer,
-      this.tokenResolver,
-      this.nameResolver,
-      this.scopeTracker,
-      this.serviceInvalidator,
-      this.eventBus,
-      logger,
-    )
-    this.registerSelf()
-  }
-
-  private registerSelf() {
-    const token = getInjectableToken(Container)
-    this.registry.set(token, InjectableScope.Singleton, Container, InjectableType.Class)
-    const instanceName = this.nameResolver.generateInstanceName(
-      token,
-      undefined,
-      undefined,
-      InjectableScope.Singleton,
-    )
-    this.storage.storeInstance(instanceName, this)
-  }
-
+export class Container implements IContainer {
+  /** @internal */
+  readonly root: RootHost = this
+  /** @internal */
+  readonly store = new Store()
+  /** @internal */
+  readonly isScope = false
+  /** @internal */
+  readonly facade: IContainer = this
+  /** @internal */
+  disposed = false
+  /** @internal */
+  looseTransients: Entry[] | null = null
+  /** @internal */
+  background: Set<Promise<unknown>> | null = null
+  /** @internal */
+  building: Set<Entry> | null = null
+  /** @internal */
+  readonly overrides = new Map<InjectionToken<any, any>, ProviderRecord>()
+  /** @internal */
+  decorators: Map<InjectionToken<any, any>, InstanceDecorator[]> | null = null
+  /** @internal */
+  usedAliases: Set<InjectionToken<any, any>> | null = null
+  /** @internal */
+  readonly factoryValues: RootHost['factoryValues'] = new Map()
+  /** @internal */
+  readonly strict: boolean
+  /** @internal */
+  reportError: ErrorReporter | null
   /**
-   * Gets an instance from the container.
-   * NOTE: Request-scoped services cannot be resolved directly from Container.
-   * Use beginRequest() to create a ScopedContainer for request-scoped services.
+   * Whether `reportError` is what the `logger` option asked for.
+   * @internal
    */
-  // #1 Simple class
-  get<T extends ClassType>(
-    token: T,
-  ): InstanceType<T> extends Factorable<infer R> ? Promise<R> : Promise<InstanceType<T>>
-  // #1.1 Simple class with args
-  get<T extends ClassTypeWithArgument<R>, R>(token: T, args: R): Promise<InstanceType<T>>
-  // #2 Token with required Schema
-  get<T, S extends InjectionTokenSchemaType>(
-    token: InjectionToken<T, S>,
-    args: z.input<S>,
-  ): Promise<T>
-  // #3 Token with optional Schema
-  get<T, S extends InjectionTokenSchemaType, R extends boolean>(
-    token: InjectionToken<T, S, R>,
-  ): R extends false
-    ? Promise<T>
-    : S extends ZodType<infer Type>
-      ? `Error: Your token requires args: ${Join<UnionToArray<keyof Type>, ', '>}`
-      : 'Error: Your token requires args'
-  // #4 Token with no Schema
-  get<T>(token: InjectionToken<T, undefined>): Promise<T>
-  get<T>(token: BoundInjectionToken<T, any>): Promise<T>
-  get<T>(token: FactoryInjectionToken<T, any>): Promise<T>
+  readonly hasOwnReporter: boolean
 
-  async get(
-    token:
-      | ClassType
-      | InjectionToken<any>
-      | BoundInjectionToken<any, any>
-      | FactoryInjectionToken<any, any>,
-    args?: unknown,
-  ) {
-    // Check if this is a request-scoped service
-    const realToken = this.tokenResolver.getRegistryToken(token)
+  protected readonly logger: Console | null
 
-    if (this.registry.has(realToken)) {
-      const record = this.registry.get(realToken)
-      if (record.scope === InjectableScope.Request) {
-        throw DIError.scopeMismatchError(realToken.name, 'ScopedContainer', 'Container')
+  private disposal: Promise<void> | null = null
+  private staysUsable = false
+
+  constructor(options: ContainerOptions = {}) {
+    const { logger } = options
+    this.logger = logger ?? null
+    this.hasOwnReporter = logger !== undefined
+    this.reportError =
+      logger === null
+        ? null
+        : (error, description) => (logger ?? console).error(`[Container] ${description}`, error)
+    this.strict = options.strict ?? false
+    if (this.strict) {
+      this.overrides.set(scopeToken, scopeToken.provider!)
+    }
+    if (options.providers) {
+      for (const provider of options.providers) {
+        this.overrides.set(provider.token, provider.record)
       }
     }
-
-    const [error, instance] = await this.instanceResolver.resolveInstance(token, args, this)
-
-    if (error) {
-      throw error
-    }
-
-    return instance
+    storeValue(this, Container, this, InjectableScope.Singleton)
   }
 
   /**
-   * Invalidates a service and its dependencies.
+   * The provider a strict container uses for a token that is not among its
+   * own. None by default.
+   * @internal
+   */
+  providerForUnlisted(_token: InjectionToken<any, any>): ProviderRecord | undefined {
+    return undefined
+  }
+
+  get: AsyncResolve = ((token: AnyInjectableType, args?: unknown) => {
+    return resolveInstance(this, token, args)
+  }) as AsyncResolve
+
+  getSync: SyncResolve = ((token: AnyInjectableType, args?: unknown) =>
+    resolveSyncOrThrow(this, token, args).instance) as SyncResolve
+
+  /** Returns an instance that is already built, or `null`. Never constructs. */
+  declare peek: OptionalResolve
+
+  /**
+   * Replaces or supplies the provider for a token in this container. Must be
+   * called before the token is first resolved here.
+   */
+  provide<K extends ClassType | InjectionToken<any, any>>(
+    token: K,
+    impl: ProviderInputFor<K>,
+  ): void {
+    const provider = provide(token, impl)
+    this.assertUnresolved(provider.token, 'provide()')
+    this.overrides.set(provider.token, provider.record)
+  }
+
+  private assertUnresolved(token: InjectionToken<any, any>, call: string): void {
+    assertLive(this)
+    if (isResolved(this, token)) {
+      throw misuse(
+        `${token} is already resolved in this container; ${call} must be called before its first resolution`,
+      )
+    }
+  }
+
+  /**
+   * Wraps every instance of `token` after it is constructed and initialised
+   * and before anything can observe it. Must be called before the token is
+   * first resolved here.
+   */
+  decorate<K extends ClassType | InjectionToken<any, any>>(
+    token: K,
+    decorator: DecoratorFor<K>,
+  ): void {
+    const base = requireToken(token)
+    this.assertUnresolved(base, 'decorate()')
+    this.decorators ??= new Map()
+    const list = this.decorators.get(base)
+    if (list) {
+      list.push(decorator as InstanceDecorator)
+    } else {
+      this.decorators.set(base, [decorator as InstanceDecorator])
+    }
+  }
+
+  addInstance<K extends ClassType | InjectionToken<any, any> | BoundInjectionToken<any, any>>(
+    token: K,
+    instance: PublicPart<ProvidedFor<K>>,
+  ): void {
+    storeValue(this, token, instance, InjectableScope.Singleton)
+  }
+
+  isRegistered(token: AnyInjectableType): boolean {
+    return hasProvider(this, token)
+  }
+
+  /**
+   * The provider that would be used for `token` in this container.
+   */
+  getProvider(token: ClassType | InjectionToken<any, any>): ProviderInfo | undefined {
+    const base = baseToken(token)
+    const record = base === undefined ? undefined : lookupRecord(this, base)
+    if (record === undefined) {
+      return undefined
+    }
+    const { kind, scope, target } = record
+    if (kind !== 'existing') {
+      return { kind, scope, target }
+    }
+    const aliased = this.getProvider(followAlias(this, token) as InjectionToken<any, any>)
+    return { kind, scope: aliased?.scope ?? scope, target }
+  }
+
+  /**
+   * Creates a scope for request-scoped services. Dispose it when the unit of
+   * work ends, or use `await using scope = container.createScope()`.
+   */
+  createScope(metadata?: Record<string, any>): ScopedContainer {
+    assertLive(this)
+    return new ScopedContainer(this, metadata)
+  }
+
+  /**
+   * Every instance this container currently holds, in the order in which they
+   * became ready: dependencies before their dependents. An object that several
+   * tokens stand for is listed once. The container itself is not included.
+   */
+  instances(): unknown[] {
+    return instancesOf(readyEntries(this))
+  }
+
+  /**
+   * Destroys an instance this container holds, after everything that was built
+   * from it. The next resolution builds it again.
    */
   async invalidate(service: unknown): Promise<void> {
-    // Find the service by instance
-    const holder = this.storage.findByInstance(service)
-    if (!holder) {
+    if (service === this) {
+      throw misuse('A container cannot be invalidated; use dispose()')
+    }
+    const entries = this.store.findByInstance(service)
+    if (entries.length === 0) {
       this.logger?.warn(`[Container] Service instance not found for invalidation`)
       return
     }
+    await destroyAll([...entries])
+  }
 
-    await this.serviceInvalidator.invalidateWithStorage(holder.name, this.storage)
+  onInvalidate(token: AnyInjectableType, args: unknown, listener: () => void): () => void {
+    return addInvalidateListener(this, () => this.store, token, args, listener)
+  }
+
+  async ready(): Promise<void> {
+    await settleStore(this.store)
   }
 
   /**
-   * Disposes the container and cleans up all resources.
+   * Destroys every instance in reverse creation order, after waiting for those
+   * that are still being created. Nothing can be built here afterwards, and
+   * a resolution in flight fails with `ContainerDisposed`.
+   *
+   * A second call returns the disposal in flight. A call from a lifecycle hook
+   * does not wait for it, since the hook is part of what the disposal waits for.
    */
-  async dispose(): Promise<void> {
-    await this.serviceInvalidator.clearAllWithStorage(this.storage)
-  }
-
-  /**
-   * @internal
-   * Attempts to get an instance synchronously if it already exists.
-   * Overrides base class to support requestId parameter for ScopedContainer compatibility.
-   */
-  override tryGetSync<T>(token: any, args?: any, requestId?: string): T | null {
-    return this.tryGetSyncFromStorage(token, args, this.storage, requestId ?? this.requestId)
-  }
-
-  /**
-   * Begins a new request context and returns a ScopedContainer.
-   */
-  beginRequest(requestId: string, metadata?: Record<string, any>): ScopedContainer {
-    if (this.activeRequestIds.has(requestId)) {
-      throw new Error(`Request with ID ${requestId} already exists`)
+  dispose(): Promise<void> {
+    this.staysUsable = false
+    this.disposal ??= this.destroyEverything()
+    if (hookOwner !== null && hookOwner.host.root === this.root) {
+      this.disposal.catch((error) => this.reportError?.(error, 'Disposing the container failed'))
+      return Promise.resolve()
     }
+    return this.disposal
+  }
 
-    this.activeRequestIds.add(requestId)
-
-    return new ScopedContainer(this, this.registry, requestId, metadata)
+  [Symbol.asyncDispose](): Promise<void> {
+    return this.dispose()
   }
 
   /**
-   * Gets all active request IDs.
+   * Destroys what `dispose()` does and leaves the container usable.
+   * @internal
    */
-  getActiveRequestIds(): ReadonlySet<string> {
-    return this.activeRequestIds
+  protected reset(): Promise<void> {
+    if (this.disposal === null) {
+      this.staysUsable = true
+      this.disposal = this.destroyEverything()
+    }
+    return this.disposal
   }
 
-  /**
-   * Checks if a request is active.
-   */
-  hasActiveRequest(requestId: string): boolean {
-    return this.activeRequestIds.has(requestId)
-  }
-
-  /**
-   * Removes a request ID from active requests.
-   * Called by ScopedContainer when request ends.
-   */
-  removeRequestId(requestId: string): void {
-    this.activeRequestIds.delete(requestId)
-  }
-
-  // ============================================================================
-  // INTERNAL METHODS FOR COMPONENT ACCESS
-  // ============================================================================
-
-  getStorage(): UnifiedStorage {
-    return this.storage
-  }
-
-  getServiceInitializer(): ServiceInitializer {
-    return this.serviceInitializer
-  }
-
-  getServiceInvalidator(): ServiceInvalidator {
-    return this.serviceInvalidator
-  }
-
-  getTokenResolver(): TokenResolver {
-    return this.tokenResolver
-  }
-
-  getNameResolver(): NameResolver {
-    return this.nameResolver
-  }
-
-  getScopeTracker(): ScopeTracker {
-    return this.scopeTracker
-  }
-
-  getEventBus(): LifecycleEventBus {
-    return this.eventBus
-  }
-
-  getRegistry(): Registry {
-    return this.registry
-  }
-
-  getInstanceResolver(): InstanceResolver {
-    return this.instanceResolver
+  private async destroyEverything(): Promise<void> {
+    this.disposed = true
+    const self = this.store.get(findInjectableToken(Container)!, null)!
+    await abandonBuilds(this)
+    await settleHost(this)
+    try {
+      await destroyLoose(this)
+      await destroyAll(this.store.entries().filter((entry) => entry !== self))
+      await destroyAll(
+        Array.from(this.factoryValues.values()).filter(
+          (value) => value.status !== EntryStatus.Creating,
+        ),
+      )
+      await settleHost(this)
+    } finally {
+      this.factoryValues.clear()
+      this.usedAliases = null
+      if (this.staysUsable) {
+        this.disposed = false
+        this.disposal = null
+      } else {
+        this.store.delete(self)
+      }
+    }
   }
 }
+
+// A method with the overloads of `OptionalResolve`.
+Container.prototype.peek = peek as OptionalResolve
+
+registerInjectable(Container)

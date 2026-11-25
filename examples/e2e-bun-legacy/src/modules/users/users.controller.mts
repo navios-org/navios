@@ -1,8 +1,7 @@
-import type { EndpointParams, MultipartParams } from '@navios/core'
+import { BadRequestException, inject, NotFoundException, reply } from '@navios/server'
+import { Controller, Endpoint } from '@navios/server/legacy-compat'
 
-import { inject } from '@navios/core'
-import { BadRequestException, NotFoundException } from '@navios/core'
-import { Controller, Endpoint, HttpCode, Multipart } from '@navios/core/legacy-compat'
+import type { HandlerParams } from '@navios/server'
 
 import {
   createUserEndpoint,
@@ -22,56 +21,46 @@ export class UsersController {
 
   @Endpoint(listUsersEndpoint)
   @Public()
-  async listUsers(params: EndpointParams<typeof listUsersEndpoint>) {
-    const { page, limit } = params.params
+  async listUsers({ params: { page, limit } }: HandlerParams<typeof listUsersEndpoint>) {
     const { users, total } = await this.usersService.findAll(page, limit)
     return { users, total, page, limit }
   }
 
   @Endpoint(getUserEndpoint)
   @Public()
-  async getUser(params: EndpointParams<typeof getUserEndpoint>) {
-    const user = await this.usersService.findById(params.urlParams.id)
-    if (!user) {
-      throw new NotFoundException('User not found')
-    }
-    return user
+  async getUser({ urlParams }: HandlerParams<typeof getUserEndpoint>) {
+    const user = await this.usersService.findById(urlParams.id)
+    return user ?? reply(404, { message: 'User not found' })
   }
 
   @Endpoint(createUserEndpoint)
-  @HttpCode(201)
-  async createUser(params: EndpointParams<typeof createUserEndpoint>) {
-    return this.usersService.create(params.data)
+  async createUser({ data }: HandlerParams<typeof createUserEndpoint>) {
+    return reply(201, await this.usersService.create(data))
   }
 
   @Endpoint(updateUserEndpoint)
-  async updateUser(params: EndpointParams<typeof updateUserEndpoint>) {
-    const user = await this.usersService.update(params.urlParams.id, params.data)
-    if (!user) {
-      throw new NotFoundException('User not found')
-    }
-    return user
+  async updateUser({ urlParams, data }: HandlerParams<typeof updateUserEndpoint>) {
+    const user = await this.usersService.update(urlParams.id, data)
+    return user ?? reply(404, { message: 'User not found' })
   }
 
   @Endpoint(deleteUserEndpoint)
-  async deleteUser(params: EndpointParams<typeof deleteUserEndpoint>) {
-    const deleted = await this.usersService.delete(params.urlParams.id)
+  async deleteUser({ urlParams }: HandlerParams<typeof deleteUserEndpoint>) {
+    const deleted = await this.usersService.delete(urlParams.id)
     if (!deleted) {
-      throw new NotFoundException('User not found')
+      return reply(404, { message: 'User not found' })
     }
     return { success: true, message: 'User deleted successfully' }
   }
 
-  @Multipart(uploadAvatarEndpoint)
-  async uploadAvatar(params: MultipartParams<typeof uploadAvatarEndpoint>) {
-    const userId = params.urlParams.id
-    const { avatar } = params.data
+  @Endpoint(uploadAvatarEndpoint)
+  async uploadAvatar({ urlParams, data: { avatar } }: HandlerParams<typeof uploadAvatarEndpoint>) {
     if (!avatar) {
       throw new BadRequestException('Avatar file not provided')
     }
 
-    const avatarUrl = `/avatars/${userId}/${avatar.name}`
-    const user = await this.usersService.setAvatar(userId, avatarUrl)
+    const avatarUrl = `/avatars/${urlParams.id}/${avatar.name}`
+    const user = await this.usersService.setAvatar(urlParams.id, avatarUrl)
     if (!user) {
       throw new NotFoundException('User not found')
     }

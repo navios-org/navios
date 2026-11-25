@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { RabbitMQClient } from '../adapters/rabbitmq.adapter.mjs'
+import { RabbitMQClient } from '../brokers/rabbitmq/rabbitmq-client.mjs'
 
-import type { RabbitmqConfig } from '../types/queue-config.mjs'
+import type { RabbitmqConfig } from '../brokers/rabbitmq/rabbitmq-config.mjs'
 
 interface FakeMessage {
   content: Buffer

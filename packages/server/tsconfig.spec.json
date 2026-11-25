@@ -1,0 +1,17 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "outDir": "./dist"
+  },
+  "include": [
+    "src/**/*.spec.mts",
+    "src/__type-tests__/**/*.spec-d.mts",
+    "e2e/**/*.mts",
+    "vitest.config.mts"
+  ],
+  "references": [
+    {
+      "path": "./tsconfig.lib.json"
+    }
+  ]
+}

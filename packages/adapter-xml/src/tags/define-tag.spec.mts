@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod/v4'
 
-import { renderToXml } from '../runtime/render-to-xml.mjs'
+import type { StandardSchemaV1 } from '@navios/server'
+
+import { renderToXml } from '../render/render-to-xml.mjs'
 
 import { defineTag } from './define-tag.mjs'
 
@@ -188,6 +190,42 @@ describe('defineTag', () => {
         rel: 'self',
         type: 'application/rss+xml',
       })
+    })
+  })
+
+  describe('Standard Schema validation', () => {
+    it('should name the tag and the failing prop', () => {
+      const atomLink = defineTag('atom:link', z.object({ href: z.string().url() }))
+
+      expect(() => atomLink({ href: 'nope' })).toThrow(/Invalid props for <atom:link>: href: /)
+    })
+
+    it('should accept any Standard Schema', () => {
+      const schema: StandardSchemaV1<{ id: string }> = {
+        '~standard': {
+          version: 1 as const,
+          vendor: 'test',
+          validate: (value: unknown) =>
+            typeof (value as { id?: unknown }).id === 'string'
+              ? { value: value as { id: string } }
+              : { issues: [{ message: 'id must be a string', path: ['id'] }] },
+        },
+      }
+      const entry = defineTag('entry', schema)
+
+      expect(entry({ id: 'a' }).props).toEqual({ id: 'a' })
+      expect(() => entry({ id: 1 as any })).toThrow(
+        'Invalid props for <entry>: id: id must be a string',
+      )
+    })
+
+    it('should validate when the tag is rendered from JSX', async () => {
+      const { createElement } = await import('../jsx/create-element.mjs')
+      const atomLink = defineTag('atom:link', z.object({ href: z.string().url() }))
+
+      const node = createElement(atomLink, { href: 'nope' })
+
+      await expect(renderToXml(node)).rejects.toThrow(/Invalid props for <atom:link>/)
     })
   })
 

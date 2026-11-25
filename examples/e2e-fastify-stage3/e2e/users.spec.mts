@@ -1,7 +1,7 @@
-import type { NaviosApplication } from '@navios/core'
-
 import supertest from 'supertest'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+
+import type { NaviosApplication } from '@navios/server'
 
 import { createApp } from '../src/bootstrap.mjs'
 
@@ -78,6 +78,8 @@ describe('Users API', () => {
         })
 
       expect(response.status).toBe(400)
+      expect(response.body.source).toBe('body')
+      expect(response.body.errors).toEqual([{ path: 'email', message: expect.any(String) }])
     })
 
     it('should return 400 for missing required fields', async () => {
@@ -124,6 +126,9 @@ describe('Users API', () => {
       const response = await request().get('/users/non-existent-id')
 
       expect(response.status).toBe(404)
+      // 404 is declared in the endpoint's errorSchema: the body is that schema
+      expect(response.headers['content-type']).toContain('application/json')
+      expect(response.body).toEqual({ message: 'User not found' })
     })
   })
 
@@ -154,6 +159,8 @@ describe('Users API', () => {
         .send({ name: 'Updated' })
 
       expect(response.status).toBe(404)
+      // 404 is not declared for this endpoint: the exception is a problem detail
+      expect(response.body).toMatchObject({ title: 'Not Found', detail: 'User not found' })
     })
 
     it('should reject without authorization', async () => {

@@ -1,16 +1,84 @@
-export * from '@navios/di'
+/**
+ * What an application is made of whatever reaches it: dependency injection,
+ * modules, plugins, lifecycle, configuration, logging, and the contracts a
+ * transport builds on. Nothing here knows about HTTP; that is
+ * `@navios/server`.
+ */
+import './internal/this-copy.mjs'
+
+// By name: what @navios/di exports is not part of this package by itself.
+export {
+  asyncInject,
+  BoundInjectionToken,
+  Container,
+  DIError,
+  DIErrorCode,
+  Factory,
+  FactoryInjectionToken,
+  getInjectableToken,
+  inject,
+  Injectable,
+  InjectableScope,
+  InjectionToken,
+  optional,
+  provide,
+  registerFactory,
+  registerInjectable,
+  registerProvider,
+  ScopedContainer,
+} from '@navios/di'
+export type {
+  AnyInjectableType,
+  AsyncResolve,
+  ClassType,
+  ClassTypeWithInstance,
+  ContainerOptions,
+  Factorable,
+  FactorableWithArgs,
+  FactoryContext,
+  FactoryOptions,
+  IContainer,
+  InferInput,
+  InferOutput,
+  InjectableOptions,
+  InjectionTokenOptions,
+  InjectionTokenType,
+  OnServiceDestroy,
+  OnServiceInit,
+  OptionalResolve,
+  Provider,
+  ProviderInfo,
+  ProviderInput,
+  RegisterFactoryOptions,
+  RegisterInjectableOptions,
+  RegisterProviderOptions,
+  ResolvedInstance,
+  StandardSchemaIssue,
+  StandardSchemaV1,
+  SyncResolve,
+} from '@navios/di'
+
+export { Application, createApplication } from './application/application.mjs'
+export type { ApplicationOptions } from './application/application-options.mjs'
+export type {
+  OnApplicationBootstrap,
+  OnApplicationShutdown,
+  OnModuleInit,
+} from './application/lifecycle-hooks.mjs'
+export type { ShutdownHooksOptions } from './application/shutdown-signals.mjs'
+export * from './attributes/index.mjs'
 export * from './config/index.mjs'
-export * from './decorators/index.mjs'
-export * from './exceptions/index.mjs'
-export * from './interfaces/index.mjs'
+export { currentContext } from './execution/async-context.mjs'
+export { createContextKey, PlainContextKey } from './execution/context-key.mjs'
+export type { ContextKey, ContextValue } from './execution/context-key.mjs'
+export type { AttributeMap, ExecutionContext, HandlerInfo } from './execution/execution-context.mjs'
+export { ExecutionContextToken } from './execution/execution-context-token.mjs'
+export type { Guard, GuardClass } from './guards/guard.mjs'
+export { UseGuards } from './guards/use-guards.mjs'
+export type { Interceptor, InterceptorClass } from './interceptors/interceptor.mjs'
+export { UseInterceptors } from './interceptors/use-interceptors.mjs'
 export * from './logger/index.mjs'
-export * from './metadata/index.mjs'
-export * from './responders/index.mjs'
-export * from './services/index.mjs'
-export * from './stores/index.mjs'
-export * from './tokens/index.mjs'
-export * from './utils/index.mjs'
-export * from './attribute.factory.mjs'
-export * from './factories/index.mjs'
-export * from './navios.application.mjs'
-export * from './navios.factory.mjs'
+export { Module, registerModule } from './modules/module.mjs'
+export type { ModuleOptions } from './modules/module-options.mjs'
+export * from './plugins/index.mjs'
+export type { Transport, TransportFactory, TransportInstance } from './transports/transport.mjs'

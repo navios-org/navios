@@ -1,0 +1,16 @@
+{
+  "name": "@navios/size-check",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "check:size": "node check-size.mjs"
+  },
+  "devDependencies": {
+    "@navios/adapter-bun": "workspace:^",
+    "@navios/adapter-fastify": "workspace:^",
+    "@navios/core": "workspace:^",
+    "@navios/di": "workspace:^",
+    "@navios/server": "workspace:^"
+  }
+}

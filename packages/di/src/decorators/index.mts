@@ -1,2 +1,5 @@
-export * from './factory.decorator.mjs'
-export * from './injectable.decorator.mjs'
+export { Factory } from './factory.mjs'
+export { Injectable } from './injectable.mjs'
+
+export type { FactoryOptions } from './factory.mjs'
+export type { InjectableOptions } from './injectable.mjs'

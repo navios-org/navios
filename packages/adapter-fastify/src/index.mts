@@ -1,5 +1,3 @@
-export * from './adapters/index.mjs'
-export * from './interfaces/index.mjs'
-export * from './services/index.mjs'
-export * from './tokens/index.mjs'
-export * from './define-environment.mjs'
+export { defineFastifyEnvironment } from './environment.mjs'
+export type { FastifyAdapterOptions, FastifyEnvironment, MultipartOptions } from './environment.mjs'
+export { FastifyAdapter } from './fastify-adapter.mjs'

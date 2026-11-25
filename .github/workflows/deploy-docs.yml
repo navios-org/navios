@@ -28,7 +28,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24'
 
       - name: Enable Corepack
         run: corepack enable
@@ -38,6 +38,10 @@ jobs:
 
       - name: Build docs
         run: yarn workspace @navios/docs build
+
+      - name: Check published URLs still resolve
+        working-directory: apps/docs
+        run: node scripts/check-urls.mts build
 
       - name: Setup Pages
         uses: actions/configure-pages@v4

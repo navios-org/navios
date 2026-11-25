@@ -1,6 +1,4 @@
-import { withFilter } from 'rolldown/filter'
 import { defineConfig } from 'tsdown'
-import swc from 'unplugin-swc'
 
 export default defineConfig({
   entry: ['src/index.mts'],
@@ -12,25 +10,7 @@ export default defineConfig({
   sourcemap: true,
   platform: 'node',
   dts: true,
-  // 'bun' must stay external (dts bundler cannot resolve it via @types/bun); '@navios/di' must stay external so InjectionToken keeps a single identity
-  external: ['bun', '@navios/di'],
+  // 'bun' must stay external (the dts bundler cannot resolve it via @types/bun).
+  external: ['bun'],
   target: 'es2022',
-  plugins: [
-    withFilter(
-      swc.rolldown({
-        jsc: {
-          target: 'es2022',
-          parser: {
-            syntax: 'typescript',
-            decorators: true,
-          },
-          transform: {
-            decoratorVersion: '2022-03',
-          },
-        },
-      }),
-      // Only run this transform if the file contains a decorator.
-      { transform: { code: '@' } },
-    ),
-  ],
 })

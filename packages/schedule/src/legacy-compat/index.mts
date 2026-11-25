@@ -1,12 +1,11 @@
 /**
- * Legacy-compatible decorators for projects that cannot use Stage 3 decorators.
- *
- * These decorators use the TypeScript experimental decorator API and convert
- * the arguments to Stage 3 format internally.
+ * The decorators for projects that keep `experimentalDecorators: true`.
+ * Everything else comes from `@navios/schedule`, and works with both.
  *
  * @example
  * ```typescript
- * import { Schedulable, Cron, Schedule } from '@navios/schedule/legacy-compat'
+ * import { Schedule } from '@navios/schedule'
+ * import { Cron, Schedulable } from '@navios/schedule/legacy-compat'
  *
  * @Schedulable()
  * class TaskService {
@@ -18,29 +17,11 @@
  * ```
  */
 
-// Export legacy-compatible decorators
-export {
-  Cron,
-  Schedulable,
-  type CronOptions,
-  type SchedulableOptions,
-} from './decorators/index.mjs'
+// Adds `jobs` to the options of `@Module`.
+import '../transport/module-options.mjs'
 
-// Re-export Schedule constants for convenience
-export { Schedule } from '../cron.constants.mjs'
-
-// Re-export metadata types and functions (these work with both decorator styles)
-export type { CronMetadata, ScheduleMetadata } from '../metadata/index.mjs'
-export {
-  getAllCronMetadata,
-  getCronMetadata,
-  getScheduleMetadata,
-  extractScheduleMetadata,
-  hasScheduleMetadata,
-} from '../metadata/index.mjs'
-
-// Re-export SchedulerService (works with both decorator styles)
-export { SchedulerService } from '../scheduler.service.mjs'
-
-// Re-export context compatibility utilities from core
-export { createClassContext, createMethodContext } from '@navios/core/legacy-compat'
+export type { CronOptions, OverlapPolicy } from '../cron/index.mjs'
+export type { JobRun } from '../jobs/scheduled-job.mjs'
+export type { SchedulableOptions } from '../schedulable/index.mjs'
+export { Cron } from './cron.mjs'
+export { Schedulable } from './schedulable.mjs'

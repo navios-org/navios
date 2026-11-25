@@ -6,7 +6,7 @@ import {
   HttpAttributes,
   NaviosAttributes,
   parseUrlAttributes,
-} from '../utils/attributes.util.mjs'
+} from '../tracing/index.mjs'
 
 describe('attributes.util', () => {
   describe('createHttpRequestAttributes', () => {

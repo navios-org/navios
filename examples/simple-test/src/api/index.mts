@@ -1,12 +1,15 @@
 import { builder } from '@navios/builder'
+import { z } from 'zod'
 
-import { z } from 'zod/v4'
+export const api = builder()
 
-export const authApi = builder({
-  useDiscriminatorResponse: true,
+const userSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  email: z.string(),
 })
 
-export const appEndpoint = authApi.declareEndpoint({
+export const appEndpoint = api.declareEndpoint({
   method: 'GET',
   url: '/',
   responseSchema: z.object({
@@ -14,42 +17,29 @@ export const appEndpoint = authApi.declareEndpoint({
   }),
 })
 
-export const userEndpoint = authApi.declareEndpoint({
+export const userEndpoint = api.declareEndpoint({
   method: 'GET',
   url: '/user',
-  responseSchema: z.object({
-    id: z.string(),
-    name: z.string(),
-    email: z.string(),
-  }),
+  responseSchema: userSchema,
 })
 
-export const patchUserEndpoint = authApi.declareEndpoint({
+export const patchUserEndpoint = api.declareEndpoint({
   method: 'PATCH',
   url: '/user',
   requestSchema: z.object({
     name: z.string(),
     email: z.string(),
   }),
-  responseSchema: z.object({
-    id: z.string(),
-    name: z.string(),
-    email: z.string(),
-  }),
+  responseSchema: userSchema,
 })
 
-export const discriminatorEndpoint = authApi.declareEndpoint({
+export const discriminatorEndpoint = api.declareEndpoint({
   method: 'GET',
   url: '/discriminator',
   responseSchema: z.discriminatedUnion('success', [
     z.object({
       success: z.literal(true),
-      data: z.object({
-        id: z.string(),
-        name: z.string(),
-
-        email: z.string(),
-      }),
+      data: userSchema,
     }),
     z.object({
       success: z.literal(false),
@@ -61,12 +51,15 @@ export const discriminatorEndpoint = authApi.declareEndpoint({
   ]),
 })
 
-export const multipartEndpoint = authApi.declareMultipart({
+export const multipartEndpoint = api.declareEndpoint({
   method: 'POST',
   url: '/multipart',
+  body: 'multipart',
   requestSchema: z.object({
     files: z.array(z.instanceof(File)),
     something: z.string(),
   }),
-  responseSchema: z.object({}),
+  responseSchema: z.object({
+    names: z.array(z.string()),
+  }),
 })

@@ -1,4 +1,15 @@
-export * from './types.mjs'
-export * from './key-creator.mjs'
-export * from './make-hook.mjs'
-export * from './optimistic.mjs'
+export { makeMutation } from './make-mutation.mjs'
+export { optimisticUpdate } from './optimistic-update.mjs'
+
+export type {
+  InvalidateTarget,
+  MutationCallbackContext,
+  MutationObject,
+  MutationSettings,
+  MutationVariables,
+} from './mutation-object.mjs'
+export type {
+  OptimisticUpdate,
+  OptimisticUpdateSpec,
+  OptimisticUpdater,
+} from './optimistic-update.mjs'

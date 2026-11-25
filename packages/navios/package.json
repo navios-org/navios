@@ -1,11 +1,23 @@
 {
   "name": "@navios/http",
-  "version": "0.6.1",
+  "version": "2.0.0-alpha.0",
   "license": "MIT",
   "author": {
     "name": "Oleksandr Hanzha",
     "email": "alex@granted.name"
   },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/navios-org/navios.git",
+    "directory": "packages/navios"
+  },
+  "files": [
+    "lib",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ],
+  "sideEffects": false,
   "main": "./lib/index.cjs",
   "module": "./lib/index.mjs",
   "typings": "./lib/index.d.mts",
@@ -36,7 +48,7 @@
     "lint": "yarn run -T oxlint --fix && yarn run -T oxfmt",
     "test:ci": "vitest run",
     "build": "tsdown",
-    "publish": "yarn npm publish --access public",
+    "publish": "node ../../scripts/assert-stable-version.mjs && yarn npm publish --access public",
     "publish:next": "yarn npm publish --access public --tag next"
   },
   "devDependencies": {

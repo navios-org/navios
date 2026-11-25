@@ -1,133 +1,125 @@
-# Navios Framework
+# Navios
 
-> Type-safe, decorator-based framework for building modern APIs
+Navios is a set of TypeScript packages built around one idea: describe an HTTP endpoint once, and use that declaration everywhere. A client calls it, a server implements it, and React hooks are derived from it, all with the same types and the same runtime validation.
 
-Navios is a powerful TypeScript framework for building type-safe HTTP servers with built-in validation, dependency injection, and a declarative API. It leverages Zod for runtime validation and provides a seamless developer experience with full type safety from API definition to implementation.
+**[Documentation](https://navios.tech)** · [Builder](https://navios.tech/docs/builder/) · [Server](https://navios.tech/docs/server/) · [DI](https://navios.tech/docs/di/)
 
-## 🚀 Features
+## Example
 
-- **Type Safety**: End-to-end type safety from API definitions to server implementation
-- **Zod Validation**: Built-in request and response validation using Zod schemas
-- **Dependency Injection**: Powerful DI container with support for services, factories, and scopes
-- **Adapter-Based**: Choose your HTTP server implementation (Fastify, Bun, or custom)
-- **Declarative API**: Clean, decorator-based syntax for defining controllers, endpoints, and modules
-- **Shared Definitions**: Use the same API definitions for both client and server with Navios Builder
-- **Modern TypeScript**: Built with TypeScript 5+ and Stage 3 decorators
+Declare an endpoint with `@navios/builder`. Any [Standard Schema](https://standardschema.dev) library works; this example uses Zod.
 
-## 📦 Core Packages
-
-### Framework Core
-- **[@navios/core](https://www.npmjs.com/package/@navios/core)** - Core framework for building type-safe HTTP servers
-- **[@navios/builder](https://www.npmjs.com/package/@navios/builder)** - Type-safe API definitions and HTTP client builder
-- **[@navios/di](https://www.npmjs.com/package/@navios/di)** - Dependency injection container
-
-### Adapters
-- **[@navios/adapter-fastify](https://www.npmjs.com/package/@navios/adapter-fastify)** - Fastify HTTP adapter
-- **[@navios/adapter-bun](https://www.npmjs.com/package/@navios/adapter-bun)** - Bun HTTP adapter
-- **[@navios/adapter-xml](https://www.npmjs.com/package/@navios/adapter-xml)** - XML adapter
-
-### Additional Packages
-- **[@navios/jwt](https://www.npmjs.com/package/@navios/jwt)** - JWT authentication utilities
-- **[@navios/schedule](https://www.npmjs.com/package/@navios/schedule)** - Task scheduling
-- **[@navios/commander](https://www.npmjs.com/package/@navios/commander)** - CLI command framework
-- **[@navios/react-query](https://www.npmjs.com/package/@navios/react-query)** - React Query integration
-- **[@navios/di-react](https://www.npmjs.com/package/@navios/di-react)** - React integration for DI
-
-## 📚 Documentation
-
-**👉 [Full Documentation](https://navios.tech)**
-
-The complete documentation includes:
-- [Server Guide](https://navios.tech/docs/server) - Building HTTP servers with Navios
-- [Builder Guide](https://navios.tech/docs/builder) - Creating type-safe API definitions
-- [DI Guide](https://navios.tech/docs/di) - Dependency injection patterns and best practices
-- [Packages](https://navios.tech/docs/packages) - All available packages and their usage
-
-## 🏁 Quick Start
-
-### 1. Install Dependencies
-
-```bash
-# Core packages
-npm install @navios/core @navios/builder zod
-
-# Choose an adapter
-npm install @navios/adapter-fastify
-# OR
-npm install @navios/adapter-bun
-```
-
-### 2. Define Your API
-
-```typescript
+```ts
+// users.mts
 import { builder } from '@navios/builder'
-import { z } from 'zod'
+import { z } from 'zod/v4'
 
-const api = builder()
+export const API = builder()
 
-const getUser = api.declareEndpoint({
-  method: 'get',
-  url: '/users/:id',
-  paramsSchema: z.object({ id: z.string() }),
-  responseSchema: z.object({
-    id: z.string(),
-    name: z.string(),
-    email: z.string().email(),
-  }),
+export const getUser = API.declareEndpoint({
+  method: 'GET',
+  url: '/users/$userId',
+  responseSchema: z.object({ id: z.string(), name: z.string() }),
 })
 ```
 
-### 3. Create Your Server
+Implement it on a server with `@navios/server`. The handler's parameters and return value are checked against the declaration.
 
-```typescript
-import { Controller, Endpoint, Module } from '@navios/core'
+```ts
+// server.mts
 import { defineFastifyEnvironment } from '@navios/adapter-fastify'
-import { NaviosFactory } from '@navios/core'
-import type { EndpointParams } from '@navios/core'
+import { Controller, Endpoint, Module, NaviosFactory } from '@navios/server'
+
+import type { HandlerParams } from '@navios/server'
+
+import { getUser } from './users.mjs'
 
 @Controller()
-export class UserController {
+class UsersController {
   @Endpoint(getUser)
-  async getUser(request: EndpointParams<typeof getUser>) {
-    return {
-      id: request.params.id,
-      name: 'John Doe',
-      email: 'john@example.com',
-    }
+  async getUser({ urlParams }: HandlerParams<typeof getUser>) {
+    return { id: urlParams.userId, name: 'Ada' }
   }
 }
 
-@Module({
-  controllers: [UserController],
-})
-export class AppModule {}
+@Module({ controllers: [UsersController] })
+class AppModule {}
 
-// Bootstrap
-const app = await NaviosFactory.create(AppModule, {
-  adapter: defineFastifyEnvironment(),
-})
-
+const app = await NaviosFactory.create(AppModule, { adapter: defineFastifyEnvironment() })
 await app.listen({ port: 3000 })
 ```
 
-## 🎯 Why Navios?
+Call it from a client. Input is validated before the request is sent and the response before your code sees it.
 
-- **Type Safety First**: Catch errors at compile time, not runtime
-- **Developer Experience**: Intuitive decorator-based API that feels natural
-- **Flexibility**: Adapter pattern allows you to choose the best runtime for your needs
-- **Validation Built-in**: Zod integration ensures data integrity
-- **Modern Stack**: Built for TypeScript 5+ with modern decorators
+```ts
+// client.mts
+import { create } from '@navios/http'
 
-## 🤝 Contributing
+import { API, getUser } from './users.mjs'
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+API.provideClient(create({ baseURL: 'http://localhost:3000' }))
 
-## 📄 License
+const user = await getUser({ urlParams: { userId: '42' } })
+//    ^? { id: string; name: string }
+```
+
+## Install
+
+A server on Node.js, and the client of the example:
+
+```bash
+npm install @navios/server@next @navios/builder@next @navios/adapter-fastify@next fastify zod
+```
+
+```bash
+npm install @navios/builder@next @navios/http@next zod
+```
+
+The 2.0 alpha is published under the `next` tag. All `@navios` packages of a project must have the same alpha version, because an alpha may break between releases. `@navios/core` and `@navios/di` come with the server. Node.js 24 or newer is required, or Bun 1.4.5 or newer.
+
+## Packages
+
+| Package                                                 | What it is                                            | Docs                                                                    |
+| ------------------------------------------------------- | ----------------------------------------------------- | ----------------------------------------------------------------------- |
+| [`@navios/builder`](./packages/builder)                 | Endpoint declarations and the typed client            | [Builder](https://navios.tech/docs/builder/)                            |
+| [`@navios/react-query`](./packages/react-query)         | TanStack Query hooks derived from declarations        | [React Query](https://navios.tech/docs/builder/react-query/)            |
+| [`@navios/http`](./packages/navios)                     | A small `fetch`-based HTTP client                     | [HTTP client](https://navios.tech/docs/builder/essentials/http-client)  |
+| [`@navios/server`](./packages/server)                   | The server framework                                  | [Server](https://navios.tech/docs/server/)                              |
+| [`@navios/core`](./packages/core)                       | Modules, plugins and lifecycle, without HTTP          | [Other transports](https://navios.tech/docs/server/guides/other-transports) |
+| [`@navios/adapter-fastify`](./packages/adapter-fastify) | Runs a server on Fastify and Node.js                  | [Fastify](https://navios.tech/docs/server/adapters/fastify)             |
+| [`@navios/adapter-bun`](./packages/adapter-bun)         | Runs a server on `Bun.serve`                          | [Bun](https://navios.tech/docs/server/adapters/bun)                     |
+| [`@navios/adapter-xml`](./packages/adapter-xml)         | XML responses written as JSX                          | [XML responses](https://navios.tech/docs/server/adapters/xml)           |
+| [`@navios/jwt`](./packages/jwt)                         | Signing and verifying JSON Web Tokens                 | [Authentication](https://navios.tech/docs/server/guides/authentication) |
+| [`@navios/schedule`](./packages/schedule)               | Cron jobs                                             | [Scheduled jobs](https://navios.tech/docs/server/guides/scheduled-jobs) |
+| [`@navios/microservice`](./packages/microservice)       | Message handlers on a queue                           | [Messages](https://navios.tech/docs/server/guides/other-transports#messages) |
+| [`@navios/queues`](./packages/queues)                   | Queue clients and typed messages                      | [README](./packages/queues/README.md)                                   |
+| [`@navios/openapi`](./packages/openapi)                 | An OpenAPI document generated from the routes         | [OpenAPI](https://navios.tech/docs/server/guides/openapi)               |
+| [`@navios/otel`](./packages/otel)                       | OpenTelemetry traces and metrics                      | [OpenTelemetry](https://navios.tech/docs/server/opentelemetry/)         |
+| [`@navios/di`](./packages/di)                           | The dependency injection container, usable on its own | [DI](https://navios.tech/docs/di/)                                      |
+| [`@navios/di-react`](./packages/di-react)               | React bindings for the container                      | [DI React](https://navios.tech/docs/di/react/)                          |
+| [`@navios/commander`](./packages/commander)             | A CLI framework on the same module and DI model       | [Commander](https://navios.tech/docs/commander/getting-started)         |
+
+## Development
+
+The repository is a Yarn workspace driven by Turborepo.
+
+```bash
+yarn install
+```
+
+```bash
+yarn build
+```
+
+```bash
+yarn test:ci
+```
+
+```bash
+yarn lint
+```
+
+To work on one package, filter the task: `yarn turbo run test:ci --filter=@navios/server`. The docs site lives in `apps/docs`.
+
+## License
 
 MIT
-
-## 🔗 Links
-
-- **Documentation**: [navios.tech](https://navios.tech)
-- **GitHub**: [github.com/Arilas/navios](https://github.com/Arilas/navios)
-- **NPM**: [npmjs.com/org/navios](https://www.npmjs.com/org/navios)

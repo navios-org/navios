@@ -1,19 +1,16 @@
-import type { NaviosApplication } from '@navios/core'
-
 import { afterAll, beforeAll, describe, expect, it } from 'bun:test'
+
 import supertest from 'supertest'
 
 import { createApp } from '../src/bootstrap.mjs'
 
 describe('Posts API', () => {
-  let server: NaviosApplication
+  let server: Awaited<ReturnType<typeof createApp>>
   let baseUrl: string
 
   beforeAll(async () => {
     server = await createApp()
-    await server.init()
-    await server.listen({ port: 0, host: 'localhost' })
-    baseUrl = server.getServer().url.href
+    baseUrl = await server.listen({ port: 0, hostname: '127.0.0.1' })
   })
 
   afterAll(async () => {
@@ -33,37 +30,35 @@ describe('Posts API', () => {
 
     it('should filter by authorId', async () => {
       // Create a post first
-      await request()
-        .post('/posts')
-        .set('Authorization', 'Bearer valid-token')
-        .send({
-          title: 'Test Post',
-          content: 'This is test content for filtering',
-          authorId: 'author-123',
-        })
+      await request().post('/posts').set('Authorization', 'Bearer valid-token').send({
+        title: 'Test Post',
+        content: 'This is test content for filtering',
+        authorId: 'author-123',
+      })
 
       const response = await request().get('/posts').query({ authorId: 'author-123' })
 
       expect(response.status).toBe(200)
-      expect(response.body.posts.every((p: { authorId: string }) => p.authorId === 'author-123')).toBe(true)
+      expect(
+        response.body.posts.every((p: { authorId: string }) => p.authorId === 'author-123'),
+      ).toBe(true)
     })
 
     it('should filter by published status', async () => {
       // Create published and unpublished posts
-      await request()
-        .post('/posts')
-        .set('Authorization', 'Bearer valid-token')
-        .send({
-          title: 'Published Post',
-          content: 'This is a published post content',
-          authorId: 'author-456',
-          published: true,
-        })
+      await request().post('/posts').set('Authorization', 'Bearer valid-token').send({
+        title: 'Published Post',
+        content: 'This is a published post content',
+        authorId: 'author-456',
+        published: true,
+      })
 
       const response = await request().get('/posts').query({ published: true })
 
       expect(response.status).toBe(200)
-      expect(response.body.posts.every((p: { published: boolean }) => p.published === true)).toBe(true)
+      expect(response.body.posts.every((p: { published: boolean }) => p.published === true)).toBe(
+        true,
+      )
     })
   })
 
@@ -96,8 +91,10 @@ describe('Posts API', () => {
           authorId: 'author-789',
         })
 
-      // Bun adapter doesn't convert validation errors to 400
-      expect(response.status).toBeGreaterThanOrEqual(400)
+      expect(response.status).toBe(400)
+      expect(response.headers['content-type']).toContain('application/problem+json')
+      expect(response.body.source).toBe('body')
+      expect(response.body.errors).toEqual([{ path: 'title', message: expect.any(String) }])
     })
 
     it('should reject invalid content (validation error)', async () => {
@@ -110,8 +107,10 @@ describe('Posts API', () => {
           authorId: 'author-789',
         })
 
-      // Bun adapter doesn't convert validation errors to 400
-      expect(response.status).toBeGreaterThanOrEqual(400)
+      expect(response.status).toBe(400)
+      expect(response.headers['content-type']).toContain('application/problem+json')
+      expect(response.body.source).toBe('body')
+      expect(response.body.errors).toEqual([{ path: 'content', message: expect.any(String) }])
     })
 
     it('should reject without authorization', async () => {

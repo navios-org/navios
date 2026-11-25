@@ -1,12 +1,27 @@
-import { describe, expect, it, vi } from 'vitest'
+import { context as otelContext, propagation, trace } from '@opentelemetry/api'
+import { TracerProvider } from '@opentelemetry/sdk-trace'
+import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 
+import { registerTracerProvider } from '../sdk/register-tracer-provider.mjs'
 import {
   getCurrentSpan,
   getCurrentSpanContext,
   runWithSpanContext,
-} from '../stores/span-context.store.mjs'
+} from '../tracing/span-context.mjs'
 
 describe('span-context.store', () => {
+  // The helpers are thin wrappers over the OpenTelemetry context, which needs
+  // a context manager to hold anything. Registering a provider installs one.
+  beforeAll(() => {
+    registerTracerProvider(new TracerProvider())
+  })
+
+  afterAll(() => {
+    trace.disable()
+    otelContext.disable()
+    propagation.disable()
+  })
+
   describe('runWithSpanContext', () => {
     it('should run function within span context', () => {
       const mockSpan = { name: 'test-span' } as any
@@ -96,5 +111,15 @@ describe('span-context.store', () => {
         expect(context?.baggage).toBe(mockBaggage)
       })
     })
+  })
+})
+
+describe('span-context.store without a context manager', () => {
+  it('runs the function but has no active span to report', () => {
+    const mockSpan = { name: 'test-span' } as any
+
+    const seen = runWithSpanContext({ span: mockSpan }, () => getCurrentSpan())
+
+    expect(seen).toBeUndefined()
   })
 })

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { create } from '../createNavios.mjs'
+import { create } from '../client/create-navios.mjs'
 import { makeNaviosFakeAdapter } from '../testing/index.mjs'
 
 describe('navios::post', () => {
@@ -46,7 +46,7 @@ describe('navios::post', () => {
         ),
     )
     const failedRequest = navios.post('/test')
-    await expect(failedRequest).rejects.toThrow('Request failed with Bad Request')
+    await expect(failedRequest).rejects.toThrow('Request failed with status 400 (Bad Request)')
     await expect(failedRequest).rejects.toMatchObject({
       response: {
         data: { error: 'message' },

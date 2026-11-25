@@ -24,8 +24,8 @@
 
 ### Test File Structure
 
-```typescript
-import { asyncInject, Container, inject, Injectable } from '@navios/di'
+```ts
+import { Container, inject, Injectable } from '@navios/di'
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
@@ -54,48 +54,50 @@ describe('MyService', () => {
 
 ### Key Patterns
 
-- Always create a **fresh `Container`** in `beforeEach`
+- Always create a **fresh `Container`** in `beforeEach`. A new container is the isolation; there is no `Registry`.
 - Always call **`container.dispose()`** in `afterEach`
-- Use **custom `Registry`** when isolating test services
 - Define **`@Injectable()` classes inside test blocks** (not at module level) to avoid cross-test pollution
-- Use **`inject()`** for synchronous property injection
-- Use **`asyncInject()`** for async property injection
+- A token has **one default provider**. Give an alternative implementation a plain `@Injectable()` and bind it with `provide()`; a second `@Injectable({ token })` throws `ProviderConflict`.
+- Resolve request-scoped services from **`container.createScope()`** and dispose the scope
 - Test **scope boundaries** explicitly:
   - Singleton: same instance (`expect(inst1).toBe(inst2)`)
   - Transient: different instances (`expect(inst1).not.toBe(inst2)`)
+  - Singleton injecting a request-scoped service: `DIErrorCode.ScopeMismatchError`
 - Test **lifecycle hooks** (`onServiceInit`, `onServiceDestroy`) explicitly
 
-### Mocking Dependencies with TestContainer
+### Mocking Dependencies
 
-```typescript
-import { InjectionToken } from '@navios/di'
+```ts
+import { Container, InjectionToken, provide } from '@navios/di'
 import { TestContainer } from '@navios/di/testing'
 
-const container = new TestContainer()
-
-// Bind value
+// Providers on a plain container
 const TOKEN = InjectionToken.create<string>('token')
-container.bind(TOKEN).toValue('mock-value')
+const container = new Container({
+  providers: [provide(SomeToken, MockClass), provide(TOKEN, { value: 'mock-value' })],
+})
 
-// Bind class
-container.bind(SomeToken).toClass(MockClass)
+// Or the fluent API of TestContainer
+const testContainer = new TestContainer()
+testContainer.bind(TOKEN).toValue('mock-value')
+testContainer.bind(SomeToken).toClass(MockClass)
 
 // Clear between tests
-await container.clear()
+await testContainer.clear()
 ```
 
 ### Injection Patterns
 
-```typescript
+```ts
 @Injectable()
 class MyService {
-  // Synchronous injection - service must already be initialized
+  // Returns the real instance. Works for every scope; a transient gets a new instance per call.
   private readonly userService = inject(UserService)
 
-  // Async injection - can wait for initialization (useful for circular dependencies)
+  // Returns a promise. Only for breaking a circular dependency.
   private readonly apiService = asyncInject(ApiService)
 
-  // Optional injection - returns null if service fails
-  private readonly optionalService = optional(OptionalService)
+  // Returns null only when nothing provides the token. Other errors propagate.
+  private readonly optionalService = optional(OptionalToken)
 }
 ```

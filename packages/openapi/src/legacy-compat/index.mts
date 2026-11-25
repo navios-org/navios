@@ -1,58 +1,43 @@
 /**
- * Legacy-compatible decorators for projects that cannot use Stage 3 decorators.
+ * The documentation attributes for projects that compile with
+ * `experimentalDecorators`. They store the same values under the same tokens
+ * as the standard ones, so the generated document is identical.
  *
- * These decorators use the TypeScript experimental decorator API and convert
- * the arguments to Stage 3 format internally.
+ * ```ts
+ * import { ApiSummary, ApiTag } from '@navios/openapi/legacy-compat'
  *
- * @example
- * ```typescript
- * import { ApiTag, ApiOperation, ApiSummary } from '@navios/openapi/legacy-compat'
- *
+ * @ApiTag('Users')
  * @Controller()
- * @ApiTag('Users', 'User management operations')
- * export class UserController {
+ * export class UsersController {
+ *   @ApiSummary('Get a user')
  *   @Endpoint(getUser)
- *   @ApiSummary('Get user by ID')
  *   async getUser() {}
  * }
  * ```
  */
-
-// Export legacy-compatible decorators
 export {
-  ApiTag,
-  ApiOperation,
-  ApiSummary,
-  ApiDeprecated,
-  ApiSecurity,
-  ApiExclude,
-  ApiStream,
-  type ApiTagOptions,
-  type ApiOperationOptions,
-  type ApiDeprecatedOptions,
-  type ApiSecurityRequirement,
-  type ApiStreamOptions,
-} from './decorators/index.mjs'
-
-// Re-export tokens for attribute access
-export {
-  ApiTagToken,
-  ApiOperationToken,
-  ApiSummaryToken,
   ApiDeprecatedToken,
-  ApiSecurityToken,
   ApiExcludeToken,
+  ApiOperationToken,
+  ApiSecurityToken,
   ApiStreamToken,
-} from '../tokens/index.mjs'
-
-// Re-export services (they don't need legacy compatibility)
-export {
-  OpenApiGeneratorService,
-  EndpointScannerService,
-  MetadataExtractorService,
-  SchemaConverterService,
-  PathBuilderService,
-} from '../services/index.mjs'
-
-// Re-export metadata types
-export type { OpenApiEndpointMetadata } from '../metadata/index.mjs'
+  ApiSummaryToken,
+  ApiTagToken,
+  extractOpenApiMetadata,
+} from '../annotations/index.mjs'
+export type {
+  ApiDeprecatedOptions,
+  ApiOperationOptions,
+  ApiSecurityRequirement,
+  ApiStreamOptions,
+  ApiTagOptions,
+} from '../annotations/index.mjs'
+export { generateOpenApiDocument } from '../document/index.mjs'
+export { openApiPlugin } from '../plugin/index.mjs'
+export { ApiDeprecated } from './api-deprecated.mjs'
+export { ApiExclude } from './api-exclude.mjs'
+export { ApiOperation } from './api-operation.mjs'
+export { ApiSecurity } from './api-security.mjs'
+export { ApiStream } from './api-stream.mjs'
+export { ApiSummary } from './api-summary.mjs'
+export { ApiTag } from './api-tag.mjs'

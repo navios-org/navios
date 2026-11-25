@@ -1,4 +1,4 @@
-import { Module } from '@navios/core'
+import { Module } from '@navios/server'
 
 import { FilesController } from './files.controller.mjs'
 

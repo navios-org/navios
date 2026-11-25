@@ -1,5 +1,10 @@
-export * from './context/index.mjs'
-export * from './core/index.mjs'
-export * from './holder/index.mjs'
-export * from './lifecycle/index.mjs'
-export * from './stub-factory-class.mjs'
+/**
+ * What other Navios packages need of the container. Not for applications:
+ * nothing here is covered by semantic versioning.
+ */
+import '../symbol-metadata.mjs'
+
+export { constructedInstances, hasOwnProvider, setErrorReporter, setProvider } from './access.mjs'
+export { validateSync } from '../schema/standard-schema.mjs'
+
+export type { ErrorReporter } from './host.mjs'

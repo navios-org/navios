@@ -1,7 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
-import { Injectable } from '../decorators/injectable.decorator.mjs'
-import { InjectableScope } from '../enums/index.mjs'
+import { Container } from '../container/container.mjs'
+import { Injectable } from '../decorators/injectable.mjs'
+import { InjectableScope } from '../injectable-scope.mjs'
+import { inject } from '../injection/injectors.mjs'
 import { TestContainer } from '../testing/test-container.mjs'
 import { InjectionToken } from '../token/injection-token.mjs'
 
@@ -50,6 +52,56 @@ describe('TestContainer', () => {
 
       const result = await container.get(TOKEN)
       expect(result.id).toBe(1)
+    })
+
+    it('should make a bound value available before the first get', () => {
+      const TOKEN = InjectionToken.create<string>('eager-token')
+
+      container.bind(TOKEN).toValue('eager')
+
+      container.expectResolved(TOKEN)
+      expect(container.peek(TOKEN)).toBe('eager')
+    })
+
+    it('should replace the default provider of an injectable class', async () => {
+      @Injectable()
+      class RealService {
+        getValue(): string {
+          return 'real'
+        }
+      }
+
+      @Injectable()
+      class Consumer {
+        readonly service = inject(RealService)
+      }
+
+      container.bind(RealService).toValue({ getValue: () => 'mock' })
+
+      const consumer = await container.get(Consumer)
+      expect(consumer.service.getValue()).toBe('mock')
+    })
+
+    it('should rebind a token that is already resolved', async () => {
+      const TOKEN = InjectionToken.create<{ name: string }>('rebind-token')
+      let destroyed = 0
+
+      class First {
+        name = 'first'
+        onServiceDestroy() {
+          destroyed++
+        }
+      }
+
+      container.bind(TOKEN).toClass(First)
+      expect((await container.get(TOKEN)).name).toBe('first')
+
+      container.bind(TOKEN).toFactory(() => ({ name: 'second' }))
+      expect(destroyed).toBe(1)
+      expect((await container.get(TOKEN)).name).toBe('second')
+
+      container.bind(TOKEN).toValue({ name: 'third' })
+      expect((await container.get(TOKEN)).name).toBe('third')
     })
 
     it('should clear all bindings', async () => {
@@ -259,6 +311,44 @@ describe('TestContainer', () => {
       const graph = container.getDependencyGraph()
       expect(graph.nodes).toBeDefined()
       expect(Object.keys(graph.nodes).length).toBeGreaterThan(0)
+    })
+
+    it('should describe dependencies by token name and leave the container out', async () => {
+      @Injectable()
+      class Repository {}
+
+      @Injectable()
+      class Service {
+        readonly repository = inject(Repository)
+        readonly sameRepository = inject(Repository)
+        readonly container = inject(Container)
+      }
+
+      await container.get(Service)
+
+      expect(container.getDependencyGraph()).toEqual({
+        nodes: {
+          Repository: {
+            token: 'Repository',
+            instanceName: 'Repository',
+            scope: InjectableScope.Singleton,
+            dependencies: [],
+            dependents: ['Service'],
+          },
+          Service: {
+            token: 'Service',
+            instanceName: 'Service',
+            scope: InjectableScope.Singleton,
+            dependencies: ['Repository'],
+            dependents: [],
+          },
+        },
+        rootTokens: ['Service'],
+      })
+      expect(container.getSimplifiedDependencyGraph()).toEqual({
+        Repository: [],
+        Service: ['Repository'],
+      })
     })
 
     it('should get simplified dependency graph', async () => {

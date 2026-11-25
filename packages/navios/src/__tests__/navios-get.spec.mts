@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { create } from '../createNavios.mjs'
+import { create } from '../client/create-navios.mjs'
 import { makeNaviosFakeAdapter } from '../testing/index.mjs'
 
 describe('navios::get', () => {
@@ -51,6 +51,8 @@ describe('navios::get', () => {
           },
         }),
     )
-    await expect(navios.get('/test')).rejects.toThrow('Request failed with Internal Server Error')
+    await expect(navios.get('/test')).rejects.toThrow(
+      'Request failed with status 500 (Internal Server Error)',
+    )
   })
 })

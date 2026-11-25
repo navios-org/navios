@@ -29,6 +29,10 @@ export const FileSchema = z.object({
   createdAt: z.string(),
 })
 
+export const ErrorSchema = z.object({
+  message: z.string(),
+})
+
 // ============ Health Endpoints ============
 export const healthEndpoint = api.declareEndpoint({
   method: 'GET',
@@ -59,6 +63,7 @@ export const getUserEndpoint = api.declareEndpoint({
   method: 'GET',
   url: '/users/$id',
   responseSchema: UserSchema,
+  errorSchema: { 404: ErrorSchema },
 })
 
 export const createUserEndpoint = api.declareEndpoint({
@@ -69,7 +74,7 @@ export const createUserEndpoint = api.declareEndpoint({
     email: z.string().email(),
     role: z.enum(['admin', 'user', 'guest']).optional().default('user'),
   }),
-  responseSchema: UserSchema,
+  responses: { 201: UserSchema },
 })
 
 export const updateUserEndpoint = api.declareEndpoint({
@@ -81,6 +86,7 @@ export const updateUserEndpoint = api.declareEndpoint({
     role: z.enum(['admin', 'user', 'guest']).optional(),
   }),
   responseSchema: UserSchema,
+  errorSchema: { 404: ErrorSchema },
 })
 
 export const deleteUserEndpoint = api.declareEndpoint({
@@ -90,6 +96,7 @@ export const deleteUserEndpoint = api.declareEndpoint({
     success: z.boolean(),
     message: z.string(),
   }),
+  errorSchema: { 404: ErrorSchema },
 })
 
 // ============ Post Endpoints ============
@@ -114,28 +121,33 @@ export const createPostEndpoint = api.declareEndpoint({
     authorId: z.string(),
     published: z.boolean().optional().default(false),
   }),
-  responseSchema: PostSchema.extend({
-    validationId: z.string(),
-  }),
+  responses: {
+    201: PostSchema.extend({
+      validationId: z.string(),
+    }),
+  },
 })
 
 // ============ Streaming Endpoints ============
-export const streamEventsEndpoint = api.declareStream({
+export const streamEventsEndpoint = api.declareEndpoint({
   method: 'GET',
   url: '/events/stream',
+  response: 'stream',
   querySchema: z.object({
     topic: z.string().optional(),
   }),
 })
 
-export const downloadFileEndpoint = api.declareStream({
+export const downloadFileEndpoint = api.declareEndpoint({
   method: 'GET',
   url: '/files/$fileId/download',
+  response: 'blob',
 })
 
-export const exportDataEndpoint = api.declareStream({
+export const exportDataEndpoint = api.declareEndpoint({
   method: 'POST',
   url: '/export',
+  response: 'text',
   requestSchema: z.object({
     format: z.enum(['json', 'csv']),
     type: z.enum(['users', 'posts']),
@@ -143,9 +155,10 @@ export const exportDataEndpoint = api.declareStream({
 })
 
 // ============ Multipart/File Upload Endpoints ============
-export const uploadFileEndpoint = api.declareMultipart({
+export const uploadFileEndpoint = api.declareEndpoint({
   method: 'POST',
   url: '/files/upload',
+  body: 'multipart',
   requestSchema: z.object({
     file: z.instanceof(File).optional(),
     description: z.string().optional(),
@@ -153,25 +166,29 @@ export const uploadFileEndpoint = api.declareMultipart({
   responseSchema: FileSchema,
 })
 
-export const uploadMultipleEndpoint = api.declareMultipart({
+export const uploadMultipleEndpoint = api.declareEndpoint({
   method: 'POST',
   url: '/files/upload-multiple',
+  body: 'multipart',
   requestSchema: z.object({
     files: z.array(z.instanceof(File)).optional(),
     category: z.string().optional(),
   }),
   responseSchema: z.object({
-    uploaded: z.array(z.object({
-      id: z.string(),
-      filename: z.string(),
-    })),
+    uploaded: z.array(
+      z.object({
+        id: z.string(),
+        filename: z.string(),
+      }),
+    ),
     total: z.number(),
   }),
 })
 
-export const uploadAvatarEndpoint = api.declareMultipart({
+export const uploadAvatarEndpoint = api.declareEndpoint({
   method: 'POST',
   url: '/users/$id/avatar',
+  body: 'multipart',
   requestSchema: z.object({
     avatar: z.instanceof(File).optional(),
   }),
@@ -205,5 +222,14 @@ export const protectedEndpoint = api.declareEndpoint({
   url: '/test/protected',
   responseSchema: z.object({
     data: z.string(),
+  }),
+})
+
+export const whoAmIEndpoint = api.declareEndpoint({
+  method: 'GET',
+  url: '/test/whoami',
+  responseSchema: z.object({
+    id: z.string(),
+    role: z.enum(['admin', 'user', 'guest']),
   }),
 })

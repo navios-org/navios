@@ -1,6 +1,4 @@
-import type { EndpointParams, EndpointResult } from '@navios/core'
-
-import { Controller, Endpoint } from '@navios/core'
+import { Controller, Endpoint } from '@navios/server'
 import { ApiSummary, ApiTag } from '@navios/openapi'
 
 import { healthCheck } from '../api.mjs'
@@ -10,11 +8,9 @@ import { healthCheck } from '../api.mjs'
 export class HealthController {
   @Endpoint(healthCheck)
   @ApiSummary('Health check')
-  async healthCheck(
-    params: EndpointParams<typeof healthCheck>,
-  ): EndpointResult<typeof healthCheck> {
+  healthCheck() {
     return {
-      status: 'healthy' as const,
+      status: 'healthy',
       timestamp: new Date().toISOString(),
       version: '1.0.0',
     }

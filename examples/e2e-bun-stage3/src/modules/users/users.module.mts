@@ -1,4 +1,4 @@
-import { Module } from '@navios/core'
+import { Module } from '@navios/server'
 
 import { UsersController } from './users.controller.mjs'
 

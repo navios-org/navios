@@ -1,0 +1,40 @@
+import type { ResponseHeaders } from '../routing/route-result.mjs'
+
+const customResultBrand: unique symbol = Symbol.for('navios.server.CustomResult')
+
+/**
+ * A handler's answer of a custom response kind, created with `result()`. A
+ * response encoder registered for that kind turns it into something an
+ * adapter can write.
+ */
+export interface CustomResult<Kind extends string = string, Body = unknown> {
+  readonly [customResultBrand]: true
+  readonly kind: Kind
+  readonly body: Body
+  readonly status: number
+  readonly headers: ResponseHeaders | undefined
+}
+
+/**
+ * Answers a `response: 'text' | 'stream' | 'blob'` endpoint with a value of
+ * a custom kind, for which a plugin has registered an encoder with
+ * `api.transport(httpTransport).encoder(kind, encoder)`. Packages wrap this in their own helper, for
+ * example `xml(<Feed />)`.
+ */
+export function result<const Kind extends string, Body>(
+  kind: Kind,
+  body: Body,
+  options: { status?: number; headers?: ResponseHeaders } = {},
+): CustomResult<Kind, Body> {
+  return {
+    [customResultBrand]: true,
+    kind,
+    body,
+    status: options.status ?? 200,
+    headers: options.headers,
+  }
+}
+
+export function isCustomResult(value: unknown): value is CustomResult {
+  return typeof value === 'object' && value !== null && customResultBrand in value
+}

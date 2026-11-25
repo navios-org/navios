@@ -1,5 +1,197 @@
 # Changelog
 
+## [2.0.0-alpha.0] - Unreleased
+
+### Highlights
+
+`@navios/react-query` 2.0 is a rewrite on top of `@navios/builder` 2.0. One object per endpoint carries the hooks, the cache key and the cache helpers; failures are always in React Query's error channel as the endpoint's typed `EndpointError`; and mutations declare what they invalidate and update. Requires `@tanstack/react-query ^5.102.0`.
+
+### Added
+
+- **Typed errors in the error channel**: queries and mutations call the throwing form of the endpoint, so `query.error`, `mutation.error`, `onError` and error boundaries receive the endpoint's `EndpointError`. Narrow with `error.kind` and `error.status`; `error.body` is typed from `errorSchema`.
+- **`query.use(args | skipToken, options)` / `query.useSuspense(args, options)`** accept every TanStack option except `queryKey` / `queryFn` (`enabled`, `staleTime`, `select`, ...). `skipToken` disables a query until its inputs are known.
+- **`query.key(args?)`**: no args is the prefix of every entry of the endpoint, partial args the prefix of the matching entries, full args the exact key. Keys are tagged with the data and error types.
+- **Cache helpers on every query and infinite query**: `fetch`, `prefetch` (never rejects), `ensure` (cached data however stale, else fetch), `getData`, `setData`, `invalidate(queryClient, args?, filters?)`. `fetch` / `prefetch` / `ensure` are built on TanStack's `queryClient.query()` / `queryClient.infiniteQuery()`, since `fetchQuery`, `prefetchQuery` and `ensureQueryData` are deprecated upstream.
+- **`query.endpoint` / `mutation.endpoint`**: the endpoint handler behind the object.
+- **`invalidates` mutation setting**: query objects (whole endpoint) or `(data, variables) => key` functions, invalidated after a successful mutation.
+- **`optimistic` mutation setting**: `(update) => update(query, { args, update, rollbackOnError?, invalidateOnSettled? })`, or an array of such updates. `args` is required when the target query has required inputs. Cancels in-flight fetches, snapshots, applies the update, rolls back on failure and invalidates on settle.
+- **`mutation.mutationKey`** on every mutation (`[...keyPrefix, method, url, ...keySuffix]`) and **`mutation.useIsMutating({ urlParams? })`** to track mutations for specific URL params.
+- **Mutation callback context** includes TanStack's `{ client, meta, mutationKey }`; the `QueryClient` is `context.client`.
+- **Any TanStack mutation option** (`retry`, `scope`, `meta`, `gcTime`, ...) is accepted by `client.mutation`.
+- **`setHttpClient(queryClient, client)` / `getHttpClient(queryClient)`**: bind an HTTP client to a `QueryClient`. Every query, infinite query and mutation run through that `QueryClient` uses it instead of the builder's shared client — the per-request client for SSR (cookies, auth).
+- **Non-JSON endpoints** (`response: 'blob' | 'text' | 'stream' | 'void'`) and multipart endpoints (`body: 'multipart'`) work with `client.query` and `client.mutation`.
+- **Standalone factories** `makeQuery(endpoint, keyOptions?)`, `makeInfiniteQuery(endpoint, settings)`, `makeMutation(endpoint, settings?)`.
+- **`withResponse: true`** on `client.query`, `client.infiniteQuery` and `client.mutation` (inline or in the options argument): data is delivered as `{ data, response: { status, statusText, headers } }` (`DataWithResponse<Data>`). `headers` is a plain record with lower-cased names, so the value is serializable for SSR dehydration and persistence. Such queries live under their own cache key, marked `'with-response'`; failures still go to the error channel. New types: `DataWithResponse`, `MaybeWithResponse`, `SurfaceOptions`.
+- **Any Standard Schema library**: endpoints declared with Valibot, ArkType or another Standard Schema v1 library work with every client method, as in `@navios/builder`; so does the builder's per-status `responses` option.
+
+### Changed
+
+- **Optimistic rollback** restores the right value when the entry was empty before the mutation and when several mutations overlap on one entry.
+- **Cache keys tell non-plain inputs apart**: `URLSearchParams`, `FormData`, `File`, `Blob`, `Map`, `Set` and `bigint` are keyed by content instead of collapsing to one entry.
+- **Query options work with `useQueries` and `useSuspenseQueries`**, with the endpoint's typed error.
+
+- **Unknown options are compile errors** on inline `client.query`, `client.infiniteQuery` and `client.mutation` declarations, so removed options such as `unwrap` and `useKey` are reported by the compiler.
+
+- **`declareClient({ api, defaults })` returns `{ query, infiniteQuery, mutation }`.** Each method accepts an inline endpoint declaration or an existing endpoint handler (with options as the second argument).
+- **Cache key shape** is now `[...keyPrefix, method, urlTemplate, ...keySuffix, 'with-response'?, 'infinite'?, inputs?]` with `inputs = { urlParams?, params?, data? }`. The method and the request body are part of the key, URL param values are stringified, empty parts are dropped, and infinite queries have their own entries. **Every key changed: persisted caches from 1.x must be discarded.**
+- **`invalidate(queryClient, args?, filters?)`** returns the promise directly and covers three scopes: whole endpoint (no args), partial args, and one entry (`{ exact: true }`).
+- **Mutation hooks take no arguments.** URL params are always passed to `mutate`.
+- **Mutation callbacks** receive the merged context as their last argument: `onMutate(variables, context)`, `onSuccess(data, variables, context)`, `onError(error, variables, context)`, `onSettled(data, error, variables, context)`; the value returned from `onMutate` is `context.onMutateResult`.
+- **Infinite queries**: the page param is merged over the call's `params`; the first page param defaults to the call's `params`, exactly as passed and not run through `querySchema` (`initialPageParam` is optional). `getNextPageParam(lastPage, allPages, lastPageParam, allPageParams)` returns query params or `undefined`.
+- **Peer dependency**: `@tanstack/react-query ^5.102.0`.
+
+### Removed
+
+- **`client.multipartMutation`** — use `client.mutation` with an endpoint declared with `body: 'multipart'`.
+- **`client.queryFromEndpoint`, `client.mutationFromEndpoint`, `client.infiniteQueryFromEndpoint`** — pass the endpoint to `client.query`, `client.mutation`, `client.infiniteQuery`.
+- **`useDiscriminatorResponse` support and the `UseDiscriminator` generic** — errors are never returned as data; read them from the error channel.
+- **`onFail`** on every helper — register `onError` on the builder, or use the mutation's `onError`.
+- **`processResponse`** on every helper — use TanStack's `select` on the hook call; transform mutation results in `onSuccess` or at the call site.
+- **`query.queryKey` (`dataTag`, `filterKey`, `bindToUrl`, `template`) and `queryKeyCreator`** — use `query.key(args?)`.
+- **`query.invalidateAll`** — use `query.invalidate` with no or partial args.
+- **`useKey`** and the `mutation({ urlParams })` hook argument — every mutation has a `mutationKey`; use `mutation.useIsMutating({ urlParams })`.
+- **`createOptimisticUpdate`, `createMultiOptimisticUpdate`** — use the `optimistic` setting.
+- **`createPrefetchHelper`, `createPrefetchHelpers`, `prefetchAll`** — use `query.prefetch` / `query.ensure` / `query.fetch`.
+- **`makeQueryOptions`, `makeInfiniteQueryOptions`** — use `makeQuery`, `makeInfiniteQuery`.
+- **Types** `AbstractEndpoint`, `ClientEndpointHelper`, `EndpointHelper`, `StreamHelper`, `ComputeBaseResult`, `ComputeQueryResult`, `ComputeInfinitePageResult`, `ResponseDataType`.
+
+### Migration
+
+Errors:
+
+```diff
+- const api = builder({ useDiscriminatorResponse: true })
+- const { data } = getUser.use({ urlParams: { userId } })
+- if ('message' in data) showError(data.message)
++ const api = builder({ client })
++ const { data, error } = getUser.use({ urlParams: { userId } })
++ if (error?.kind === 'http' && error.status === 404) showError(error.body.message)
+```
+
+From-endpoint methods and `processResponse`:
+
+```diff
+- const getUser = client.queryFromEndpoint(getUserEndpoint, {
+-   processResponse: (data) => data.name,
+- })
+- const name = getUser.useSuspense({ urlParams: { userId } })
++ const getUser = client.query(getUserEndpoint)
++ const { data: name } = getUser.useSuspense(
++   { urlParams: { userId } },
++   { select: (user) => user.name },
++ )
+```
+
+Uploads:
+
+```diff
+- const uploadAvatar = client.multipartMutation({
+-   method: 'POST',
+-   url: '/users/$userId/avatar',
+-   requestSchema: z.object({ file: z.instanceof(File) }),
+-   responseSchema: avatarSchema,
+- })
++ const uploadAvatar = client.mutation({
++   method: 'POST',
++   url: '/users/$userId/avatar',
++   body: 'multipart',
++   requestSchema: z.object({ file: z.instanceof(File) }),
++   responseSchema: avatarSchema,
++ })
+```
+
+Downloads:
+
+```diff
+- const downloadFileEndpoint = api.declareStream({ method: 'GET', url: '/files/$fileId' })
+- const downloadFile = client.mutationFromEndpoint(downloadFileEndpoint)
++ const downloadFile = client.mutation({ method: 'GET', url: '/files/$fileId', response: 'blob' })
+```
+
+Keys and invalidation:
+
+```diff
+- const key = getUser.queryKey.dataTag({ urlParams: { userId } })
+- await getUser.invalidateAll(queryClient, { urlParams: { userId } })
+- await queryClient.invalidateQueries({ queryKey: ['users'] })
++ const key = getUser.key({ urlParams: { userId } })
++ await getUser.invalidate(queryClient, { urlParams: { userId } })
++ await listUsers.invalidate(queryClient)
+```
+
+Mutation context and invalidation after success:
+
+```diff
+  const updateUser = client.mutation({
+    method: 'PATCH',
+    url: '/users/$userId',
+    requestSchema: updateUserSchema,
+    responseSchema: userSchema,
+-   useContext: () => ({ queryClient: useQueryClient() }),
+-   onSuccess: (data, variables, context) => {
+-     context.queryClient.invalidateQueries({ queryKey: ['users'] })
+-   },
++   invalidates: [listUsers, (_data, v) => getUser.key({ urlParams: v.urlParams })],
++   onSuccess: (data, variables, context) => {
++     getUser.setData(context.client, { urlParams: variables.urlParams }, data)
++   },
+  })
+```
+
+Scoped mutations:
+
+```diff
+- const updateUser = client.mutation({ ...config, useKey: true })
+- const { mutate } = updateUser({ urlParams: { userId } })
+- const isUpdating = updateUser.useIsMutating({ userId })
+- mutate({ data })
++ const updateUser = client.mutation(config)
++ const { mutate } = updateUser()
++ const isUpdating = updateUser.useIsMutating({ urlParams: { userId } })
++ mutate({ urlParams: { userId }, data })
+```
+
+Optimistic updates:
+
+```diff
+- ...createOptimisticUpdate({
+-   queryKey: ['users', userId],
+-   updateFn: (old, variables) => ({ ...old, ...variables.data }),
+- }),
++ optimistic: (update) =>
++   update(getUser, {
++     args: (variables) => ({ urlParams: variables.urlParams }),
++     update: (current, variables) => current && { ...current, ...variables.data },
++   }),
+```
+
+Prefetching:
+
+```diff
+- const userPrefetch = createPrefetchHelper(getUser)
+- await userPrefetch.prefetch(queryClient, { urlParams: { userId } })
+- const user = await userPrefetch.ensureData(queryClient, { urlParams: { userId } })
++ await getUser.prefetch(queryClient, { urlParams: { userId } })
++ const user = await getUser.ensure(queryClient, { urlParams: { userId } })
+```
+
+Infinite queries:
+
+```diff
+  const listUsers = client.infiniteQuery({
+    method: 'GET',
+    url: '/users',
+    querySchema: z.object({ cursor: z.string().optional() }),
+    responseSchema: usersPageSchema,
+-   getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
+-   initialPageParam: undefined,
++   getNextPageParam: (lastPage) =>
++     lastPage.nextCursor ? { cursor: lastPage.nextCursor } : undefined,
+  })
+```
+
+Persisted caches: every cache key changed shape. Discard caches persisted by 1.x (for example by changing the persister's `buster`).
+
 ## [1.0.1] - 2026-01-09
 
 ### Fixed

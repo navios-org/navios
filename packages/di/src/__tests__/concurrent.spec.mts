@@ -2,8 +2,8 @@ import { describe, expect, it, beforeEach, afterEach } from 'vitest'
 
 import { Container } from '../container/container.mjs'
 import { Injectable } from '../decorators/index.mjs'
-import { InjectableScope } from '../enums/index.mjs'
-import { inject, asyncInject } from '../utils/index.mjs'
+import { InjectableScope } from '../injectable-scope.mjs'
+import { asyncInject, inject } from '../injection/injectors.mjs'
 
 describe('Concurrent Operations', () => {
   let container: Container
@@ -95,9 +95,7 @@ describe('Concurrent Operations', () => {
       }
 
       // Create multiple scoped containers concurrently
-      const scopedContainers = Array.from({ length: 5 }, (_, i) =>
-        container.beginRequest(`request-${i}`),
-      )
+      const scopedContainers = Array.from({ length: 5 }, () => container.createScope())
 
       const promises = scopedContainers.map((sc) => sc.get(RequestService))
       const instances = await Promise.all(promises)
@@ -107,7 +105,7 @@ describe('Concurrent Operations', () => {
       expect(uniqueInstances.size).toBe(5)
 
       // Clean up
-      await Promise.all(scopedContainers.map((sc) => sc.endRequest()))
+      await Promise.all(scopedContainers.map((sc) => sc.dispose()))
     })
 
     it('should return same instance within same ScopedContainer', async () => {
@@ -116,7 +114,7 @@ describe('Concurrent Operations', () => {
         id = Math.random()
       }
 
-      const scopedContainer = container.beginRequest('test-request')
+      const scopedContainer = container.createScope()
 
       // Multiple concurrent requests within same scoped container
       const promises = Array.from({ length: 10 }, () => scopedContainer.get(RequestService))
@@ -127,7 +125,7 @@ describe('Concurrent Operations', () => {
       const first = instances[0]
       expect(instances.every((i) => i === first)).toBe(true)
 
-      await scopedContainer.endRequest()
+      await scopedContainer.dispose()
     })
   })
 
@@ -333,13 +331,12 @@ describe('Concurrent Operations', () => {
       }
 
       // Create, use, and dispose many scoped containers sequentially
-      // (concurrent beginRequest with same IDs would throw)
       const ids: number[] = []
       for (let i = 0; i < 10; i++) {
-        const scoped = container.beginRequest(`request-${i}`)
+        const scoped = container.createScope()
         const service = await scoped.get(RequestService)
         ids.push(service.id)
-        await scoped.endRequest()
+        await scoped.dispose()
       }
 
       // All should have unique IDs

@@ -5,8 +5,7 @@
 /build
 
 # Generated files
-.docusaurus
-.cache-loader
+.rspress
 
 # Misc
 .DS_Store

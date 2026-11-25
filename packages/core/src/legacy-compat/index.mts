@@ -1,57 +1,29 @@
 /**
- * Legacy-compatible decorators for projects that cannot use Stage 3 decorators.
+ * Decorators for projects that keep `experimentalDecorators: true`
+ * (TypeScript legacy decorators). Projects that use standard decorators,
+ * including under Bun, use the main entry point instead.
  *
- * These decorators use the TypeScript experimental decorator API and convert
- * the arguments to Stage 3 format internally.
- *
- * @example
- * ```typescript
- * import { Module, Controller, Endpoint } from '@navios/core/legacy-compat'
- *
- * @Module({
- *   controllers: [UserController],
- * })
- * export class AppModule {}
- * ```
+ * Each one adapts the legacy decorator signature and calls the same
+ * implementation as the standard decorator of the same name, so behaviour is
+ * identical.
  */
+import '../internal/this-copy.mjs'
 
-// Re-export types
-export type {
-  ModuleOptions,
-  ControllerOptions,
-  EndpointParams,
-  EndpointResult,
-  MultipartParams,
-  MultipartResult,
-  StreamParams,
-} from '../decorators/index.mjs'
-
-// Export legacy-compatible decorators (core-specific)
 export {
-  Module,
-  Controller,
-  Endpoint,
-  UseGuards,
-  Header,
-  HttpCode,
-  Multipart,
-  Stream,
-} from './decorators/index.mjs'
-
-// Re-export DI decorators and context utilities from @navios/di/legacy-compat
-export {
-  Injectable,
-  Factory,
   createClassContext,
   createMethodContext,
-  type InjectableOptions,
-  type FactoryOptions,
+  Factory,
+  Injectable,
 } from '@navios/di/legacy-compat'
-
-// Export legacy-compatible AttributeFactory
-export {
-  AttributeFactory,
-  LegacyAttributeFactory,
-  type LegacyClassAttribute,
-  type LegacyClassSchemaAttribute,
-} from './attribute.factory.mjs'
+export type { ModuleOptions } from '../modules/module-options.mjs'
+export { AttributeFactory } from './attribute-factory.mjs'
+export type {
+  LegacyAttributeApplication,
+  LegacyClassAttribute,
+  LegacyClassSchemaAttribute,
+} from './attribute-factory.mjs'
+export { legacy } from './legacy-decorator.mjs'
+export type { LegacyAnyDecorator, StandardDecorator } from './legacy-decorator.mjs'
+export { Module } from './module.mjs'
+export { UseGuards } from './use-guards.mjs'
+export { UseInterceptors } from './use-interceptors.mjs'

@@ -1,240 +1,82 @@
 # @navios/otel
 
-OpenTelemetry integration for the Navios framework. This package provides distributed tracing and metrics collection capabilities.
+OpenTelemetry tracing for [Navios](https://navios.tech) applications. One plugin, the same on every adapter, starts the OpenTelemetry SDK, creates a server span for every HTTP request, adds child spans for the methods of services marked with `@Traced`, and provides the tracer and the meter through dependency injection.
 
-## Installation
+**[Documentation](https://navios.tech/docs/server/opentelemetry/)** · [Tracing services and custom spans](https://navios.tech/docs/server/opentelemetry/tracing)
+
+## Install
 
 ```bash
-# Core package
-yarn add @navios/otel @opentelemetry/api
+npm install @navios/otel@next @opentelemetry/api
 
-# For OTLP export (Jaeger, Tempo, etc.)
-yarn add @opentelemetry/exporter-trace-otlp-http
-yarn add @opentelemetry/exporter-metrics-otlp-http  # If using metrics
+# For OTLP export (Jaeger, Tempo, an OpenTelemetry Collector, ...)
+npm install @opentelemetry/exporter-trace-otlp-http
 ```
 
-## Quick Start
+The 2.0 alpha is published under the `next` tag. All `@navios` packages of a project must have the same alpha version, because an alpha may break between releases.
 
-### With Fastify Adapter
+`@navios/core`, `@navios/di` and `@opentelemetry/api` are peer dependencies, and `@navios/server` is an optional one, needed for HTTP request spans; the OpenTelemetry SDK packages are installed with the plugin. The OTLP exporters are optional and loaded only when `exporter` is `'otlp'`. The example also uses `@navios/adapter-fastify`.
 
-```typescript
-import { FastifyApplicationService } from '@navios/adapter-fastify'
-import { NaviosFactory } from '@navios/core'
-import { defineOtelPlugin } from '@navios/otel-fastify'
+## Example
 
-const app = await NaviosFactory.create(FastifyApplicationService, {
-  module: AppModule,
+```ts
+import { defineFastifyEnvironment } from '@navios/adapter-fastify'
+import { otelPlugin, Traced } from '@navios/otel'
+import { Injectable, Module, NaviosFactory } from '@navios/server'
+
+@Injectable()
+@Traced({ name: 'users-service' })
+export class UsersService {
+  async findById(id: string) {
+    // span "users-service.findById", a child of the request span
+    return { id, name: 'Ada' }
+  }
+}
+
+@Module()
+class AppModule {}
+
+const app = await NaviosFactory.create(AppModule, {
+  adapter: defineFastifyEnvironment(),
+  plugins: [
+    otelPlugin({
+      serviceName: 'users-api',
+      exporter: 'otlp',
+      exporterOptions: { endpoint: 'http://localhost:4318/v1/traces' },
+      ignoreRoutes: ['/health'],
+    }),
+  ],
 })
 
-app.usePlugin(
-  defineOtelPlugin({
-    serviceName: 'my-api',
-    exporter: 'otlp',
-    exporterOptions: {
-      endpoint: 'http://localhost:4318/v1/traces',
-    },
-    autoInstrument: {
-      http: true,
-      handlers: true,
-    },
-  }),
-)
-
+app.enableShutdownHooks() // close() flushes the last spans on SIGTERM and SIGINT
 await app.listen({ port: 3000 })
 ```
 
-### With Bun Adapter
+Each request that matches a route gets one `SERVER` span named after the route pattern, such as `HTTP GET /users/$userId`. It continues the caller's trace when a `traceparent` header is present and ends when the response has finished. Guards, validation and the handler are covered by that one span; `@Traced` gives finer ones.
 
-```typescript
-import { BunApplicationService } from '@navios/adapter-bun'
-import { NaviosFactory } from '@navios/core'
-import { defineOtelPlugin } from '@navios/otel-bun'
+## What else it does
 
-const app = await NaviosFactory.create(BunApplicationService, {
-  module: AppModule,
-})
+| Need                                          | How                                                         | Docs                                                                                                          |
+| --------------------------------------------- | ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| Sampling, ignored routes, resource attributes | `sampling.ratio`, `ignoreRoutes`, `resourceAttributes`, ... | [Configuration](https://navios.tech/docs/server/opentelemetry/#configuration)                                 |
+| OTLP, console or your own span processor      | `exporter`, `exporterOptions`, `spanProcessors`             | [Exporters](https://navios.tech/docs/server/opentelemetry/#exporters)                                         |
+| Know what a request span contains             | name, attributes, status, recorded errors                   | [HTTP request spans](https://navios.tech/docs/server/opentelemetry/#http-request-spans)                       |
+| Add attributes to the request span            | `ctx.find(RequestSpan)`                                     | [The request span in a handler](https://navios.tech/docs/server/opentelemetry/#the-request-span-in-a-handler) |
+| Run next to an SDK the process already has    | `registerGlobally: false`                                   | [Context propagation](https://navios.tech/docs/server/opentelemetry/#context-propagation)                     |
+| Record metrics                                | `metrics: { enabled: true }`, `inject(MeterToken)`          | [Metrics](https://navios.tech/docs/server/opentelemetry/#metrics)                                             |
+| Trace only some methods of a service          | `@Traceable` on the class, `@Traced` on methods             | [Tracing selected methods](https://navios.tech/docs/server/opentelemetry/tracing#tracing-selected-methods)    |
+| Trace an object you create yourself           | `TracedProxyFactory`, `traceInstance()`                     | [How instrumentation works](https://navios.tech/docs/server/opentelemetry/tracing#how-instrumentation-works)  |
+| Start spans by hand                           | `inject(TracerToken)`                                       | [Custom spans](https://navios.tech/docs/server/opentelemetry/tracing#custom-spans)                            |
+| Pass the trace to another service             | `TraceContextService.injectIntoHeaders()`                   | [Calling another service](https://navios.tech/docs/server/opentelemetry/tracing#calling-another-service)      |
+| Assert on spans in tests                      | `exporter: 'none'` with an in-memory span processor         | [Testing](https://navios.tech/docs/server/opentelemetry/tracing#testing)                                      |
 
-app.usePlugin(
-  defineOtelPlugin({
-    serviceName: 'my-bun-api',
-    exporter: 'console', // For development
-    autoInstrument: {
-      http: true,
-    },
-  }),
-)
+A traced class must be imported before `app.init()`, which importing the root module normally does. Projects that keep `experimentalDecorators` on import `Traced` and `Traceable` from `@navios/otel/legacy-compat`; see [Legacy decorators](https://navios.tech/docs/server/reference/legacy-decorators).
 
-await app.listen({ port: 3000 })
-```
+[examples/otel-fastify](../../examples/otel-fastify) and [examples/otel-bun](../../examples/otel-bun) are runnable applications.
 
-## Configuration
+## Upgrading from 1.x
 
-```typescript
-interface OtelConfig {
-  // Required
-  serviceName: string
-
-  // Exporter type
-  exporter: 'otlp' | 'console' | 'none'
-  exporterOptions?: {
-    endpoint?: string
-    headers?: Record<string, string>
-  }
-
-  // Auto-instrumentation
-  autoInstrument: {
-    http?: boolean // Trace incoming HTTP requests (default: true)
-    handlers?: boolean // Trace controller handlers (default: true)
-    guards?: boolean // Trace guard execution (default: false)
-  }
-
-  // Metrics (optional)
-  metrics?: {
-    enabled: boolean
-    requestDuration?: boolean // default: true
-    errorCount?: boolean // default: true
-  }
-
-  // Include navios.* span attributes
-  includeNaviosAttributes?: boolean // default: false
-
-  // Sampling
-  sampling?: {
-    ratio?: number // 0.0 to 1.0, default: 1.0
-  }
-}
-```
-
-## Automatic Service Tracing
-
-Use the `@Traced` and `@Traceable` decorators combined with the `defineOtelTracingPlugin` to automatically trace your services.
-
-### Setup
-
-```typescript
-import { NaviosFactory } from '@navios/core'
-import { defineOtelTracingPlugin } from '@navios/otel'
-
-const app = await NaviosFactory.create(AppModule)
-
-// Register the tracing plugin to wrap decorated services
-app.usePlugin(defineOtelTracingPlugin({}))
-
-await app.listen({ port: 3000 })
-```
-
-### @Traced Decorator
-
-Use `@Traced` on a class to trace all methods automatically:
-
-```typescript
-import { Injectable } from '@navios/di'
-import { Traced } from '@navios/otel'
-
-// Class-level: traces all methods
-@Injectable()
-@Traced({ name: 'user-service' })
-class UserService {
-  async getUser(id: string) {
-    // Creates span: "user-service.getUser"
-  }
-
-  async updateUser(id: string, data: UserData) {
-    // Creates span: "user-service.updateUser"
-  }
-}
-```
-
-### @Traceable Decorator
-
-Use `@Traceable` when you only want to trace specific methods:
-
-```typescript
-import { Injectable } from '@navios/di'
-import { Traceable, Traced } from '@navios/otel'
-
-@Injectable()
-@Traceable({ name: 'order-service' })
-class OrderService {
-  @Traced({ name: 'process-order', attributes: { critical: true } })
-  async processOrder(orderId: string) {
-    // Traced as "process-order" with critical=true attribute
-  }
-
-  async getOrder(orderId: string) {
-    // NOT traced - no @Traced decorator on this method
-  }
-
-  @Traced() // Uses default naming: "order-service.validateOrder"
-  async validateOrder(orderId: string) {
-    // Traced with default span name
-  }
-}
-```
-
-### Combined Usage
-
-You can combine class-level `@Traced` with method-level overrides:
-
-```typescript
-@Injectable()
-@Traced({ name: 'payment-service' })
-class PaymentService {
-  async createPayment(data: PaymentData) {
-    // Creates span: "payment-service.createPayment"
-  }
-
-  @Traced({ name: 'heavy-validation', attributes: { critical: true } })
-  async validatePayment(paymentId: string) {
-    // Overridden: traced as "heavy-validation" with critical=true
-  }
-}
-```
-
-### Decorator Options
-
-```typescript
-interface TracedOptions {
-  // Custom span name (defaults to "className.methodName")
-  name?: string
-
-  // Additional span attributes
-  attributes?: Record<string, AttributeValue>
-}
-```
-
-## Custom Spans
-
-Create custom spans using the injected tracer:
-
-```typescript
-import { inject, Injectable } from '@navios/di'
-import { TracerToken } from '@navios/otel'
-
-@Injectable()
-class MyService {
-  private readonly tracer = inject(TracerToken)
-
-  async doWork() {
-    const span = this.tracer.startSpan('custom-operation')
-    try {
-      // ... do work
-      span.setAttribute('custom.attribute', 'value')
-    } catch (error) {
-      span.recordException(error)
-      throw error
-    } finally {
-      span.end()
-    }
-  }
-}
-```
-
-## Packages
-
-- `@navios/otel` - Core OpenTelemetry abstractions (this package)
-- `@navios/otel-fastify` - Fastify adapter integration
-- `@navios/otel-bun` - Bun adapter integration
+`otelPlugin` from this package replaces `defineOtelPlugin` from `@navios/otel-fastify` and `@navios/otel-bun`, which are removed in 2.0, and it traces `@Traced` services without a second plugin. See [Migrating to 2.0](https://navios.tech/docs/server/reference/migrating-to-2#naviosotel), or [CHANGELOG.md](./CHANGELOG.md) for the full list.
 
 ## License
 

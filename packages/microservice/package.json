@@ -1,6 +1,6 @@
 {
   "name": "@navios/microservice",
-  "version": "0.1.0",
+  "version": "2.0.0-alpha.0",
   "license": "MIT",
   "author": {
     "name": "Oleksandr Hanzha",
@@ -8,9 +8,15 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/Arilas/navios.git",
+    "url": "https://github.com/navios-org/navios.git",
     "directory": "packages/microservice"
   },
+  "files": [
+    "lib",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ],
   "main": "./lib/index.cjs",
   "module": "./lib/index.mjs",
   "typings": "./lib/index.d.mts",
@@ -29,9 +35,9 @@
   "scripts": {
     "check": "tsc -b",
     "lint": "yarn run -T oxlint --fix && yarn run -T oxfmt",
-    "test:ci": "vitest run --passWithNoTests",
+    "test:ci": "vitest run",
     "build": "tsdown",
-    "publish": "yarn npm publish --access public",
+    "publish": "node ../../scripts/assert-stable-version.mjs && yarn npm publish --access public",
     "publish:next": "yarn npm publish --access public --tag next"
   },
   "devDependencies": {
@@ -42,9 +48,12 @@
     "zod": "^4.6.7"
   },
   "peerDependencies": {
-    "@navios/core": "workspace:^",
-    "@navios/di": "workspace:^",
-    "@navios/queues": "workspace:^",
+    "@navios/core": "workspace:*",
+    "@navios/di": "workspace:*",
+    "@navios/queues": "workspace:*",
     "zod": "^3.25.0 || ^4.0.0"
+  },
+  "engines": {
+    "node": ">=24"
   }
 }

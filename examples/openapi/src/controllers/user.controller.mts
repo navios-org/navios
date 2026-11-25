@@ -1,23 +1,9 @@
-import type { EndpointParams, EndpointResult } from '@navios/core'
+import { Controller, Endpoint, inject, NotFoundException, reply } from '@navios/server'
+import { ApiDeprecated, ApiOperation, ApiSecurity, ApiSummary, ApiTag } from '@navios/openapi'
 
-import { Controller, Endpoint, HttpCode, NotFoundException } from '@navios/core'
-import { inject } from '@navios/di'
-import {
-  ApiDeprecated,
-  ApiOperation,
-  ApiSecurity,
-  ApiSummary,
-  ApiTag,
-} from '@navios/openapi'
+import type { HandlerParams, HandlerResult } from '@navios/server'
 
-import {
-  createUser,
-  deleteUser,
-  getUser,
-  legacyEndpoint,
-  listUsers,
-  updateUser,
-} from '../api.mjs'
+import { createUser, deleteUser, getUser, legacyEndpoint, listUsers, updateUser } from '../api.mjs'
 import { UserService } from '../services/user.service.mjs'
 
 @ApiTag('Users', 'User management operations')
@@ -28,46 +14,37 @@ export class UserController {
   @Endpoint(listUsers)
   @ApiOperation({
     summary: 'List all users',
-    description:
-      'Retrieves a paginated list of users. Supports search filtering by name or email.',
+    description: 'Retrieves a paginated list of users. Supports search filtering by name or email.',
     operationId: 'listUsers',
   })
-  async listUsers(params: EndpointParams<typeof listUsers>) {
-    const { page, pageSize, search } = params.params
-    return this.userService.findAll({ page, pageSize, search })
+  listUsers({ params }: HandlerParams<typeof listUsers>) {
+    return this.userService.findAll(params)
   }
 
+  // The 404 is declared in the endpoint's errorSchema, so it is documented
+  // and reply(404, ...) is type-checked.
   @Endpoint(getUser)
   @ApiSummary('Get user by ID')
-  async getUser(params: EndpointParams<typeof getUser>) {
-    const user = await this.userService.findById(
-      params.urlParams.userId.toString(),
-    )
-    if (!user) {
-      throw new NotFoundException('User not found')
-    }
-    return user
+  async getUser({ urlParams }: HandlerParams<typeof getUser>) {
+    const user = await this.userService.findById(urlParams.userId.toString())
+    return user ?? reply(404, { message: 'User not found' })
   }
 
   @Endpoint(createUser)
-  @HttpCode(201)
   @ApiOperation({
     summary: 'Create new user',
     description: 'Creates a new user with the provided data.',
   })
   @ApiSecurity({ bearerAuth: [] })
-  async createUser(params: EndpointParams<typeof createUser>) {
-    return this.userService.create(params.data)
+  async createUser({ data }: HandlerParams<typeof createUser>) {
+    return reply(201, await this.userService.create(data))
   }
 
   @Endpoint(updateUser)
   @ApiSummary('Update user')
   @ApiSecurity({ bearerAuth: [] })
-  async updateUser(params: EndpointParams<typeof updateUser>) {
-    const user = await this.userService.update(
-      params.urlParams.userId.toString(),
-      params.data,
-    )
+  async updateUser({ urlParams, data }: HandlerParams<typeof updateUser>) {
+    const user = await this.userService.update(urlParams.userId.toString(), data)
     if (!user) {
       throw new NotFoundException('User not found')
     }
@@ -77,28 +54,21 @@ export class UserController {
   @Endpoint(deleteUser)
   @ApiSummary('Delete user')
   @ApiSecurity({ bearerAuth: [] })
-  async deleteUser(
-    params: EndpointParams<typeof deleteUser>,
-  ): EndpointResult<typeof deleteUser> {
-    const success = await this.userService.delete(
-      params.urlParams.userId.toString(),
-    )
+  async deleteUser({ urlParams }: HandlerParams<typeof deleteUser>) {
+    const success = await this.userService.delete(urlParams.userId.toString())
     if (!success) {
       throw new NotFoundException('User not found')
     }
     return { success }
   }
 
-  @Endpoint(legacyEndpoint)
   @ApiTag('Legacy')
   @ApiDeprecated('Use GET /users instead')
+  @Endpoint(legacyEndpoint)
   async legacyListUsers(
-    params: EndpointParams<typeof legacyEndpoint>,
-  ): EndpointResult<typeof legacyEndpoint> {
-    const result = await this.userService.findAll({
-      page: 1,
-      pageSize: 100,
-    })
+    _params: HandlerParams<typeof legacyEndpoint>,
+  ): HandlerResult<typeof legacyEndpoint> {
+    const result = await this.userService.findAll({ page: 1, pageSize: 100 })
     return result.users
   }
 }

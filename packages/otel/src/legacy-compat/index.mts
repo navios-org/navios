@@ -20,15 +20,22 @@
  */
 
 // Re-export types from main module
-export type { TracedOptions } from '../interfaces/index.mjs'
+export type { TracedOptions } from '../traced/traced-options.mjs'
 export type {
   TracedMetadata,
   ClassTracedMetadata,
   MethodTracedMetadata,
-} from '../decorators/index.mjs'
+} from '../traced/traced-metadata.mjs'
 
-// Re-export metadata utilities from main module
-export { getTracedMetadata, hasTracedMetadata, TRACED_METADATA_KEY } from '../decorators/index.mjs'
+// Re-export metadata utilities from main module (they work the same for both APIs)
+export {
+  extractTracedMetadata,
+  getTracedMetadata,
+  hasTracedMetadata,
+  TracedMetadataKey,
+} from '../traced/traced-metadata.mjs'
+export { getTraceableServices } from '../traced/traceable-services.mjs'
 
 // Export legacy-compatible decorators
-export * from './decorators/index.mjs'
+export { Traceable } from './traceable.mjs'
+export { Traced } from './traced.mjs'
