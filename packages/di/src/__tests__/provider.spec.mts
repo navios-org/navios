@@ -158,14 +158,19 @@ describe('tokens and providers', () => {
     expect(await container.get(PlainFactory)).toEqual({ made: true })
   })
 
-  it('keeps the implementation scope in provide() unless one is given', () => {
+  it('keeps the scope of the token in provide() unless one is given', () => {
     @Injectable()
     class Base {}
 
     @Injectable({ scope: InjectableScope.Transient })
     class Impl {}
 
-    expect(provide(Base, Impl).record.scope).toBe(InjectableScope.Transient)
+    const Bare = InjectionToken.create<Impl>('Bare')
+
+    expect(provide(Base, Impl).record.scope).toBe(InjectableScope.Singleton)
+    // A token without a default provider or a declared scope takes the scope
+    // of the implementation.
+    expect(provide(Bare, Impl).record.scope).toBe(InjectableScope.Transient)
     expect(provide(Base, { class: Impl, scope: InjectableScope.Request }).record.scope).toBe(
       InjectableScope.Request,
     )

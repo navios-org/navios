@@ -63,7 +63,11 @@ export class Container implements IContainer, RootHost {
   protected readonly logger: Console | null
 
   constructor(options: ContainerOptions = {}) {
-    this.logger = options.logger ?? null
+    const logger = (this.logger = options.logger ?? null)
+    if (logger !== null) {
+      this.store.report = (error, entry) =>
+        logger.error(`[Container] A destroy hook of ${entry.token.toString()} failed`, error)
+    }
     this.strict = options.strict ?? false
     if (options.providers) {
       for (const provider of options.providers) {

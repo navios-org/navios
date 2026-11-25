@@ -4,6 +4,9 @@ import type { Entry } from './entry.mjs'
 
 export type InvalidateListener = () => void
 
+/** @internal */
+export type DestroyErrorReporter = (error: unknown, entry: Entry) => void
+
 /**
  * Listener key that matches every instance of a token, whatever its args.
  * @internal
@@ -18,6 +21,8 @@ export const ANY_ARGS = '*'
 export class Store {
   /** How many of its entries are in `Destroying` state. */
   destroying = 0
+  // Receives what a destroy hook of an entry threw; `null` drops it.
+  report: DestroyErrorReporter | null = null
 
   private readonly plain = new Map<InjectionToken<any, any>, Entry>()
   private keyed: Map<InjectionToken<any, any>, Map<string, Entry>> | null = null
@@ -124,7 +129,12 @@ export class Store {
     }
     set.add(listener)
     return () => {
-      set.delete(listener)
+      if (set.delete(listener) && set.size === 0 && byKey.get(k) === set) {
+        byKey.delete(k)
+        if (byKey.size === 0 && this.listeners!.get(token) === byKey) {
+          this.listeners!.delete(token)
+        }
+      }
     }
   }
 

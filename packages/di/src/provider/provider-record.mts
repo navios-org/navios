@@ -7,12 +7,13 @@ import type { FactoryContext } from './factory-context.mjs'
 export type ProviderKind = 'class' | 'factory' | 'function' | 'value'
 
 /**
- * One request made by a class while it was being constructed.
+ * One request made by a class while it was being constructed. Only requests
+ * without args are recorded: args belong to one build, and the plan is shared
+ * by every build of the provider, in every container.
  * @internal
  */
 export interface PlanEntry {
   token: InjectionToken<any, any>
-  args: unknown
 }
 
 /**
@@ -29,8 +30,8 @@ export interface ProviderRecord {
   value: unknown
   scope: InjectableScope
   /**
-   * Requests made during the first successful construction, in order.
-   * `null` until then.
+   * Requests without args made during the first successful construction, in
+   * order. `null` until then.
    * @internal
    */
   plan: PlanEntry[] | null

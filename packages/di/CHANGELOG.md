@@ -34,13 +34,13 @@ The resolution engine was rewritten. See the [migration guide](https://navios.te
 - `ContainerOptions.strict` makes a container ignore default providers and use only its own.
 - Tokens that declare a scope and need no provider: `InjectionToken.create(name, { scope: InjectableScope.Request })`, supplied with `scope.addInstance()`.
 - Any Standard Schema library can describe token args: zod, valibot, arktype and others.
-- `DIErrorCode.ProviderConflict`, `AsyncInitRequired` and `ContainerDisposed`.
+- `DIErrorCode.ProviderConflict`, `AsyncInitRequired`, `ContainerDisposed`, `OutsideInjectionContext` and `AccessBeforeInit`.
 
 ### Changed
 
 - **Sync-first resolution**: `inject()` builds a missing dependency immediately, inside the constructor that asked for it, and returns the real instance. A service whose dependencies initialise synchronously is built without awaiting anything.
 - `inject()` of a transient returns a fresh instance for each call. `asyncInject()` is needed only to break a circular dependency.
-- A constructor runs once. It runs a second time only on the first build of a class, when a dependency has an asynchronous `onServiceInit()` that has not finished.
+- A constructor runs once. It runs a second time only on the first build of a class, when a dependency has an asynchronous `onServiceInit()` that has not finished. A dependency requested with args is the exception: it is never resolved ahead of the constructor, so the constructor runs a second time whenever that dependency is not ready.
 - A factory (`provide(token, { factory })`, or `create()` of a `@Factory` class) that calls `inject()` on a service whose asynchronous initialiser has not finished is stopped at that call and run again once the service is ready. Code before the call runs again; code after it runs once.
 - Conditional `inject()` calls are allowed; the "Wrong token order" error is gone.
 - Circular dependencies made of `inject()` calls are detected in production as well, with the path. Cycles between concurrently built services fail instead of hanging.
@@ -48,6 +48,23 @@ The resolution engine was rewritten. See the [migration guide](https://navios.te
 - Instances of a token with args are keyed by the full, key-sorted validated args.
 - `TestContainer.bind()` uses the provider mechanism. `UnitTestContainer` is a strict container.
 - `zod` is no longer a peer dependency. The package has no runtime dependencies.
+
+### Fixed
+
+- A dependency requested with args (`inject(Token, { id })`) is never pre-built with the args of an earlier build of the same class. The construction plan of a provider records only requests without args, so a class with such a dependency whose initialiser is asynchronous runs its constructor twice on every build.
+- A constructor that uses a dependency whose asynchronous initialiser has not finished (`db = inject(Db); table = this.db.table()`) is run again once the dependency is ready instead of failing on the first, cold `get()`. What it throws is reported only when nothing was pending.
+- A cycle made only of transient services throws `CircularDependency` with the path instead of overflowing the stack.
+- `provide(token, impl)` keeps the scope of the token's default provider unless a scope is given. A request-scoped token is no longer turned into a singleton by a mock, and a singleton that injects it fails with `ScopeMismatchError` again.
+- Transients built by a construction that fails are destroyed.
+- `ctx.inject()` called by a factory product after its construction no longer adds every transient to its owner. Such a transient is destroyed with the scope when it is injected in one, and is not tracked in the root container.
+- `ctx.inject()` of a transient with an asynchronous initialiser resolves instead of building a new instance forever.
+- The function returned by `onInvalidate()` removes the listener's bookkeeping completely.
+- A scope disposed while a resolution is in flight builds nothing more: the pending `get()` rejects with `ContainerDisposed`, and what it built is destroyed.
+- An error thrown by `onServiceDestroy()` or a destroy listener is reported with `logger.error()` when the container has a logger. `dispose()` still resolves.
+- `inject()`, `asyncInject()` and `optional()` outside a construction throw `DIError` `OutsideInjectionContext`; using a dependency before it is initialised throws `DIError` `AccessBeforeInit`. The messages are unchanged.
+- `UnitTestContainer.get()` returns the same tracking proxy for the same instance, and methods that use `#private` members work through it.
+- `TestContainer.bind()` on a resolved token no longer leaves an unhandled rejection when the teardown of the old instance fails.
+- The published package contains only `lib`, the README, the changelog and the licence.
 
 ### Removed
 

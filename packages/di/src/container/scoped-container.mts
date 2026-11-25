@@ -38,7 +38,9 @@ export class ScopedContainer implements IContainer, Host {
   /** @internal */
   looseTransients: Entry[] | null = null
 
-  private disposed = false
+  /** @internal */
+  disposed = false
+
   private metadata: Record<string, any> | undefined
 
   constructor(
@@ -46,6 +48,7 @@ export class ScopedContainer implements IContainer, Host {
     metadata?: Record<string, any>,
   ) {
     this.root = parent
+    this.store.report = parent.store.report
     this.metadata = metadata
   }
 
@@ -168,7 +171,7 @@ export class ScopedContainer implements IContainer, Host {
       entries.push(...this.looseTransients)
       this.looseTransients = null
     }
-    return destroyAll(entries)
+    return destroyAll(entries, this.store.report)
   }
 }
 

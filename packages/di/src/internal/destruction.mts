@@ -3,6 +3,7 @@ import { unlink } from './links.mjs'
 import { isThenable, noop } from './thenable.mjs'
 
 import type { Entry } from './entry.mjs'
+import type { DestroyErrorReporter } from './store.mjs'
 
 /**
  * One `invalidate()` or `dispose()` call: the entries it destroyed that
@@ -11,6 +12,8 @@ import type { Entry } from './entry.mjs'
  */
 interface Cascade {
   gone: Entry[] | null
+  /** Told about what a destroy hook threw; taken from the first store met. */
+  report: DestroyErrorReporter | null
 }
 
 /**
@@ -20,7 +23,7 @@ interface Cascade {
  * @internal
  */
 export function destroyEntry(entry: Entry): void | Promise<void> {
-  const cascade: Cascade = { gone: null }
+  const cascade: Cascade = { gone: null, report: null }
   const result = destroy(entry, cascade)
   if (result !== undefined) {
     return result.then(() => notify(cascade))
@@ -45,6 +48,7 @@ function destroy(entry: Entry, cascade: Cascade): void | Promise<void> {
   entry.status = EntryStatus.Destroying
   if (entry.store !== null) {
     entry.store.destroying++
+    cascade.report ??= entry.store.report
   }
   let waits: Promise<void>[] | null = null
   if (entry.dependents !== null && entry.dependents.size > 0) {
@@ -71,13 +75,16 @@ function teardown(entry: Entry, cascade: Cascade): void | Promise<void> {
   let waits: Promise<unknown>[] | null = null
   if (entry.destroyListeners !== null) {
     for (let i = entry.destroyListeners.length - 1; i >= 0; i--) {
+      // A failing destroy hook must not stop the rest of the teardown.
       try {
         const result = entry.destroyListeners[i]()
         if (isThenable(result)) {
-          ;(waits ??= []).push(Promise.resolve(result).then(noop, noop))
+          ;(waits ??= []).push(
+            Promise.resolve(result).then(noop, (error) => cascade.report?.(error, entry)),
+          )
         }
-      } catch {
-        // A failing destroy hook must not stop the rest of the teardown.
+      } catch (error) {
+        cascade.report?.(error, entry)
       }
     }
   }
@@ -143,14 +150,17 @@ function notify(cascade: Cascade): void {
  * `onInvalidate` listeners are called after the last entry is destroyed.
  * @internal
  */
-export function destroyAll(entries: Entry[]): void | Promise<void> {
+export function destroyAll(
+  entries: Entry[],
+  report: DestroyErrorReporter | null = null,
+): void | Promise<void> {
   if (entries.length === 0) {
     return
   }
   if (entries.length > 1) {
     entries.sort((a, b) => b.seq - a.seq)
   }
-  const cascade: Cascade = { gone: null }
+  const cascade: Cascade = { gone: null, report }
   const result = destroyFrom(entries, 0, cascade)
   if (result !== undefined) {
     return result.then(() => notify(cascade))

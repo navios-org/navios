@@ -11,6 +11,8 @@ export enum DIErrorCode {
   AsyncInitRequired = 'AsyncInitRequired',
   ContainerDisposed = 'ContainerDisposed',
   InitializationError = 'InitializationError',
+  OutsideInjectionContext = 'OutsideInjectionContext',
+  AccessBeforeInit = 'AccessBeforeInit',
   UnknownError = 'UnknownError',
 }
 
@@ -131,6 +133,24 @@ export class DIError extends Error {
 
   static containerDisposed(kind: string): DIError {
     return new DIError(DIErrorCode.ContainerDisposed, `${kind} has been disposed`, { kind })
+  }
+
+  // `inject()`, `asyncInject()` or `optional()` called outside a construction.
+  static outsideInjectionContext(what: string): DIError {
+    return new DIError(
+      DIErrorCode.OutsideInjectionContext,
+      `[Injector] Trying to access ${what} outside of a injectable context`,
+      { what },
+    )
+  }
+
+  // A dependency was used in a constructor before it finished initialising.
+  static accessBeforeInit(name: string): DIError {
+    return new DIError(
+      DIErrorCode.AccessBeforeInit,
+      `[Injector] Trying to access ${name} before it's initialized, please move the code to a onServiceInit method`,
+      { name },
+    )
   }
 
   static initializationError(serviceName: string, error: unknown): DIError {

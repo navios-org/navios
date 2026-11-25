@@ -142,8 +142,18 @@ export function resolve(
         if (!host.isScope) {
           throw DIError.requestScopeFromRoot(token.toString(), framePath())
         }
+        assertLive(host, null)
         return build(host, host.store, record, token, key, args)
       default:
+        assertLive(host, null)
+        // A transient is not stored, so one that leads back to itself is only
+        // visible on the construction stack.
+        for (let frame = current; frame !== null; frame = frame.parent) {
+          const building = frame.entry
+          if (building.store === null && building.token === token && building.key === key) {
+            throw DIError.circularDependency(cyclePath(building))
+          }
+        }
         return build(host, null, record, token, key, args)
     }
   }
@@ -197,11 +207,11 @@ function build(
       outcome = waits === null ? pass(frame) : waits.then(() => replay(frame, true))
     }
   } catch (error) {
-    throw fail(entry, error)
+    throw fail(frame, error)
   }
   if (outcome !== undefined) {
     const tracked = outcome.then(undefined, (error) => {
-      throw fail(entry, error)
+      throw fail(frame, error)
     })
     tracked.catch(noop)
     entry.promise = tracked
@@ -227,7 +237,7 @@ function preResolve(frame: Frame, plan: PlanEntry[]): Promise<unknown> | null {
       }
       let resolved: Entry | Wait
       try {
-        resolved = resolve(frame.host, request.token, request.args)
+        resolved = resolve(frame.host, request.token, undefined)
       } catch {
         // The constructor may not ask for this one this time. If it does, it
         // gets the error itself.
@@ -290,8 +300,8 @@ function instantiate(frame: Frame): unknown {
 
 /**
  * Runs the class or factory of `frame` once. When the pass met a dependency
- * that is not ready (`frame.pending`), what it produced is worthless, and so
- * is the way a factory reacted to being stopped.
+ * that is not ready (`frame.pending`), what it produced or threw is worthless,
+ * and so is the way a factory reacted to being stopped.
  */
 function runOnce(frame: Frame): unknown {
   const previous = current
@@ -300,7 +310,9 @@ function runOnce(frame: Frame): unknown {
   try {
     produced = instantiate(frame)
   } catch (error) {
-    if (frame.pending === null || !(error instanceof DependencyNotReady)) {
+    // With something pending the pass is repeated anyway, and what it threw
+    // may come from using a placeholder.
+    if (frame.pending === null) {
       throw error
     }
   } finally {
@@ -383,6 +395,7 @@ function settle(frame: Frame, produced: unknown): void | Promise<void> {
   }
   if (frame.used !== null) {
     entry.transients = entry.transients === null ? frame.used : entry.transients.concat(frame.used)
+    frame.used = null
   }
 
   if (record.kind === 'class') {
@@ -428,7 +441,8 @@ function complete(entry: Entry, produced: unknown, host: Host): void {
   entry.store?.trackInstance(entry)
 }
 
-function fail(entry: Entry, error: unknown): DIError {
+function fail(frame: Frame, error: unknown): DIError {
+  const entry = frame.entry
   const wrapped =
     error instanceof DIError ? error : DIError.initializationError(entry.token.toString(), error)
   if (entry.status === EntryStatus.Creating) {
@@ -438,14 +452,30 @@ function fail(entry: Entry, error: unknown): DIError {
     entry.waitingFor = null
     entry.store?.delete(entry)
     unlink(entry)
-    if (entry.transients !== null) {
-      for (const transient of entry.transients) {
-        void destroyEntry(transient)
+    // Also the transients of the pass that failed, which no one adopted.
+    for (const transients of [entry.transients, frame.used, frame.reuse]) {
+      if (transients !== null) {
+        for (const transient of transients) {
+          void destroyEntry(transient)
+        }
       }
-      entry.transients = null
     }
+    entry.transients = frame.used = frame.reuse = null
   }
   return wrapped
+}
+
+// Throws `ContainerDisposed` when `host` is a scope that has been disposed,
+// so that nothing is built into it or handed out of it afterwards. `late` is
+// what a resolution that was in flight produced; a transient is destroyed, a
+// stored entry is left to the disposal.
+export function assertLive(host: Host, late: Entry | null): void {
+  if (host.disposed === true) {
+    if (late !== null && late.store === null) {
+      void destroyEntry(late)
+    }
+    throw DIError.containerDisposed('ScopedContainer')
+  }
 }
 
 /**
@@ -492,6 +522,7 @@ export async function resolveAsync(
       continue
     }
     if (resolved.status === EntryStatus.Ready) {
+      assertLive(host, resolved)
       return resolved
     }
     if (resolved.status === EntryStatus.Creating) {
@@ -506,6 +537,7 @@ export async function resolveAsync(
         }
       }
       if ((resolved.status as number) === EntryStatus.Ready) {
+        assertLive(host, resolved)
         if (
           host.isScope &&
           resolved.store === null &&

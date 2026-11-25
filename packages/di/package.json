@@ -8,9 +8,15 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/Arilas/navios.git",
+    "url": "https://github.com/navios-org/navios.git",
     "directory": "packages/di"
   },
+  "files": [
+    "lib",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ],
   "sideEffects": [
     "./src/symbol-metadata.mts",
     "./lib/symbol-metadata-*"

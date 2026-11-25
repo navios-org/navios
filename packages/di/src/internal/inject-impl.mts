@@ -1,3 +1,5 @@
+import { DIError } from '../errors/di-error.mjs'
+
 import type { FactoryContext } from '../provider/factory-context.mjs'
 import type { AnyInjectableType } from '../token/injection-token.mjs'
 
@@ -5,6 +7,7 @@ import { EntryStatus } from './entry.mjs'
 import { addWaitEdge, link, storedOwner } from './links.mjs'
 import { hasProvider, normalize, normArgs, normToken } from './normalize.mjs'
 import {
+  assertLive,
   current,
   DependencyNotReady,
   resolve,
@@ -25,9 +28,7 @@ function placeholder(name: string): any {
     {},
     {
       get() {
-        throw new Error(
-          `[Injector] Trying to access ${name} before it's initialized, please move the code to a onServiceInit method`,
-        )
+        throw DIError.accessBeforeInit(name)
       },
     },
   )
@@ -35,7 +36,7 @@ function placeholder(name: string): any {
 
 function requireFrame(what: string): Frame {
   if (current === null) {
-    throw new Error(`[Injector] Trying to access ${what} outside of a injectable context`)
+    throw DIError.outsideInjectionContext(what)
   }
   return current
 }
@@ -61,7 +62,10 @@ export function injectImpl(raw: AnyInjectableType, rawArgs?: unknown): any {
   }
   const token = normToken
   const args = normArgs
-  frame.requests?.push({ token, args })
+  if (args === undefined) {
+    // A request with args is never planned: the args are those of this build.
+    frame.requests?.push({ token })
+  }
 
   if (frame.reuse !== null) {
     const index = frame.reuse.findIndex((candidate) => candidate.token === token)
@@ -237,14 +241,7 @@ async function contextInject(
       await resolved.promise
       continue
     }
-    if (resolved.status === EntryStatus.Ready) {
-      if (resolved.store === null) {
-        ;(owner.transients ??= []).push(resolved)
-      } else if (owner.store !== null) {
-        link(owner, resolved)
-      }
-      return resolved.instance
-    }
+    const wasReady = resolved.status === EntryStatus.Ready
     if (resolved.status === EntryStatus.Creating) {
       addWaitEdge(owner, resolved)
       try {
@@ -252,6 +249,26 @@ async function contextInject(
       } finally {
         owner.waitingFor?.delete(resolved)
       }
+    }
+    if ((resolved.status as number) === EntryStatus.Ready) {
+      assertLive(host, resolved)
+      if (resolved.store !== null) {
+        if (owner.store !== null) {
+          link(owner, resolved)
+        }
+      } else if (owner.status === EntryStatus.Creating) {
+        ;(owner.transients ??= []).push(resolved)
+      } else if (
+        // Once the owner is built, `inject` may be called any number of times,
+        // so the owner does not keep what it hands out. A scope does, as for a
+        // `get`; `resolveTop` saw to it unless the transient was not ready.
+        !wasReady &&
+        host.isScope &&
+        (resolved.destroyListeners !== null || resolved.transients !== null)
+      ) {
+        ;(host.looseTransients ??= []).push(resolved)
+      }
+      return resolved.instance
     }
   }
 }

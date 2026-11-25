@@ -449,7 +449,17 @@ export class TestContainer extends Container {
   private setBinding(provider: Provider): void {
     for (const entry of this.store.entries()) {
       if (entry.token === provider.token) {
-        void destroyEntry(entry)
+        const destroyed = destroyEntry(entry)
+        if (destroyed !== undefined) {
+          // Nobody awaits the teardown; what an `onInvalidate` listener throws
+          // at the end of it must not become an unhandled rejection.
+          destroyed.catch((error) =>
+            this.logger?.error(
+              `[TestContainer] Destroying ${entry.token.toString()} for a new binding failed`,
+              error,
+            ),
+          )
+        }
         // An asynchronous destroy leaves the entry in place until it is done;
         // the next resolution must already see the new binding.
         this.store.delete(entry)

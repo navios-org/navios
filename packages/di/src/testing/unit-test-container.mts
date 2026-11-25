@@ -96,6 +96,8 @@ export class UnitTestContainer extends Container {
   private readonly registeredTokens = new Set<Token>()
   private readonly autoMockedTokens = new Set<Token>()
   private readonly autoMocks = new Map<Token, { mock: object; record: ProviderRecord }>()
+  /** The tracking proxy of each instance handed out, so that it has one identity. */
+  private readonly trackers = new WeakMap<object, object>()
   private allowUnregistered: boolean
 
   constructor(options: UnitTestContainerOptions) {
@@ -505,7 +507,12 @@ export class UnitTestContainer extends Container {
   /** Wraps an object instance in a proxy that records its method calls. */
   private track<T>(token: Token, instance: T): T {
     if (instance && typeof instance === 'object') {
-      return createTrackingProxy(instance, token, this.methodCalls)
+      let proxy = this.trackers.get(instance)
+      if (proxy === undefined) {
+        proxy = createTrackingProxy(instance, token, this.methodCalls)
+        this.trackers.set(instance, proxy)
+      }
+      return proxy as T
     }
     return instance
   }

@@ -40,7 +40,7 @@ export function createTrackingProxy<T extends object>(
   tokenId: Token,
   methodCalls: Map<Token, MethodCallRecord[]>,
 ): T {
-  return new Proxy(target, {
+  const proxy: T = new Proxy(target, {
     get(obj, prop) {
       const value = Reflect.get(obj, prop)
 
@@ -54,7 +54,9 @@ export function createTrackingProxy<T extends object>(
           }
 
           try {
-            const result = value.apply(this === undefined ? obj : this, args)
+            // Called on the proxy, the method runs on the instance itself:
+            // `#private` members do not exist on a proxy.
+            const result = value.apply(this === undefined || this === proxy ? obj : this, args)
 
             if (result instanceof Promise) {
               return result
@@ -88,6 +90,7 @@ export function createTrackingProxy<T extends object>(
       return value
     },
   })
+  return proxy
 }
 
 /**

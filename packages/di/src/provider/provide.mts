@@ -43,8 +43,8 @@ function tokenOf(target: ClassType | InjectionToken<any, any>): InjectionToken<a
  * new Container({ providers: [provide(Mailer, SesMailer), provide(Clock, { value: fakeClock })] })
  * ```
  *
- * A class implementation keeps the scope it was registered with unless a
- * scope is given explicitly.
+ * Unless a scope is given, the binding keeps the scope of the token's default
+ * provider; a token without one takes the scope of a class implementation.
  */
 export function provide<T>(
   target: ClassType | InjectionToken<T, any>,
@@ -60,7 +60,7 @@ export function provide<T>(
       record: createRecord(
         token,
         'value',
-        token.scope ?? InjectableScope.Singleton,
+        tokenScope(token) ?? InjectableScope.Singleton,
         undefined,
         undefined,
         impl.value,
@@ -75,12 +75,16 @@ export function provide<T>(
     record: createRecord(
       token,
       'function',
-      impl.scope ?? token.scope ?? InjectableScope.Singleton,
+      impl.scope ?? tokenScope(token) ?? InjectableScope.Singleton,
       undefined,
       impl.factory,
       undefined,
     ),
   }
+}
+
+function tokenScope(token: InjectionToken<any, any>): InjectableScope | undefined {
+  return token.provider?.scope ?? token.scope
 }
 
 function classRecord(
@@ -93,7 +97,10 @@ function classRecord(
   return createRecord(
     token,
     kind,
-    scope ?? (own?.target === target ? own.scope : undefined) ?? InjectableScope.Singleton,
+    scope ??
+      tokenScope(token) ??
+      (own?.target === target ? own.scope : undefined) ??
+      InjectableScope.Singleton,
     target,
     undefined,
     undefined,

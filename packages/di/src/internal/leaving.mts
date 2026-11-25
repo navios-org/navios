@@ -23,14 +23,14 @@ export function isDestroying(host: Host): boolean {
 }
 
 /**
- * The entry stored for a token and raw args in `host` or its root, in
- * whatever state it is. Builds nothing.
+ * The entry stored for a token requested without args in `host` or its root,
+ * in whatever state it is. Builds nothing.
  */
-function stored(host: Host, token: InjectionToken<any, any>, rawArgs: unknown): Entry | undefined {
-  let args = rawArgs
+function stored(host: Host, token: InjectionToken<any, any>): Entry | undefined {
+  let args: unknown
   if (token.schema !== undefined) {
     try {
-      args = validateSync(token.schema, rawArgs, token.toString())
+      args = validateSync(token.schema, undefined, token.toString())
     } catch {
       return undefined
     }
@@ -47,7 +47,7 @@ function collectLeaving(
 ): void {
   seen.add(plan)
   for (const request of plan) {
-    const entry = stored(host, request.token, request.args)
+    const entry = stored(host, request.token)
     if (entry !== undefined && entry.status === EntryStatus.Destroying) {
       // Without a promise the destruction is in its synchronous part and is
       // over, or has a promise, one microtask later.

@@ -29,6 +29,8 @@ export interface Host {
   readonly isScope: boolean
   /** The public container, handed to factories. */
   readonly facade: IContainer
+  /** Set by a scope once it is disposed; nothing may be built in it afterwards. */
+  readonly disposed?: boolean
   /** Transients built by a top-level `get` on a scope that need destroying. */
   looseTransients: Entry[] | null
 }
