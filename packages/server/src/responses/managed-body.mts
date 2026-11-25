@@ -23,6 +23,8 @@ export interface BodyOwner {
 /** One chunk of a lazy body, or its end. */
 type Chunk = IteratorResult<string | Uint8Array, undefined>
 
+const END: Chunk = Object.freeze({ done: true, value: undefined })
+
 /** How one of the four kinds of lazy body is read and closed. */
 export interface Source {
   next(): PromiseLike<{ done?: boolean; value?: unknown }>
@@ -204,30 +206,46 @@ export class ManagedBody implements AsyncIterableIterator<string | Uint8Array> {
     this.first = Promise.resolve(this.toChunk(done, value))
   }
 
-  private async read(report: boolean): Promise<Chunk> {
-    if (this.ended || this.closing !== null) {
-      return { done: true, value: undefined }
+  // Every chunk passes here, so it is one promise of its own per chunk and not
+  // an async function around another.
+  private read(report: boolean): Promise<Chunk> {
+    if (!this.isOpen) {
+      return Promise.resolve(END)
     }
+    let pending: ReturnType<Source['next']>
     try {
-      const { done, value } = await this.owner.step(this.source, 'next')
-      return this.toChunk(done, value)
+      pending = this.owner.step(this.source, 'next')
     } catch (error) {
-      if (this.closing !== null) {
-        // It was closed while this read was under way, so nobody reads on.
-        return { done: true, value: undefined }
-      }
-      this.failed = true
-      if (report) {
-        this.owner.failed(error)
-      }
-      throw error
+      pending = Promise.reject(error)
     }
+    return Promise.resolve(pending).then(
+      (result) => {
+        try {
+          return this.toChunk(result.done, result.value)
+        } catch (error) {
+          return this.fail(error, report)
+        }
+      },
+      (error) => this.fail(error, report),
+    )
+  }
+
+  private fail(error: unknown, report: boolean): Chunk {
+    if (this.closing !== null) {
+      // It was closed while this read was under way, so nobody reads on.
+      return END
+    }
+    this.failed = true
+    if (report) {
+      this.owner.failed(error)
+    }
+    throw error
   }
 
   private toChunk(done: boolean | undefined, value: unknown): Chunk {
     if (done) {
       this.ended = true
-      return { done: true, value: undefined }
+      return END
     }
     if (typeof value === 'string' || value instanceof Uint8Array) {
       return { done: false, value }
@@ -244,7 +262,7 @@ export class ManagedBody implements AsyncIterableIterator<string | Uint8Array> {
   /** Stops the body, for a reader that uses `for await`. */
   async return(): Promise<Chunk> {
     await this.close()
-    return { done: true, value: undefined }
+    return END
   }
 
   /**

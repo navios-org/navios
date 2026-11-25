@@ -717,8 +717,9 @@ class RequestOwner implements BodyOwner {
   }
 
   step<Step extends keyof Source>(source: Source, step: Step): ReturnType<Source[Step]> {
-    const run = () => source[step]() as ReturnType<Source[Step]>
-    return this.host.asyncContext ? runInContext(this.ctx, run) : run()
+    return this.host.asyncContext
+      ? runInContext(this.ctx, () => source[step]() as ReturnType<Source[Step]>)
+      : (source[step]() as ReturnType<Source[Step]>)
   }
 
   failed(error: unknown): void {

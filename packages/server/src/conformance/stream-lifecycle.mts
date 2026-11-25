@@ -1,3 +1,5 @@
+import { connect } from 'node:net'
+
 import { registerModule } from '@navios/core'
 import { inject, InjectableScope, registerInjectable } from '@navios/di'
 
@@ -14,6 +16,10 @@ import { endpoint } from './suite.mjs'
 import type { ConformanceSuite } from './suite.mjs'
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
+
+/** More than the buffers of a connection hold. */
+const UNREAD_TOTAL = 64 * 1024 * 1024
+const UNREAD_CHUNK = 64 * 1024
 
 /**
  * Bodies that are produced while they are sent: whatever becomes of the
@@ -32,6 +38,8 @@ export function defineStreamLifecycleTopic(suite: ConformanceSuite) {
   }
   registerInjectable(Transaction, { scope: InjectableScope.Request })
 
+  /** What the handler of `/unread` has produced. */
+  let unreadBytes = 0
   let gone = false
   /** Lets the client go away before the handler answers. */
   const afterClientLeft = async () => {
@@ -153,6 +161,30 @@ export function defineStreamLifecycleTopic(suite: ConformanceSuite) {
       },
     )
 
+    unread = handler(
+      endpoint({ method: 'GET', url: '/unread', response: 'stream' }),
+      async function* () {
+        const chunk = new Uint8Array(UNREAD_CHUNK)
+        try {
+          for (let sent = 0; sent < UNREAD_TOTAL; sent += UNREAD_CHUNK) {
+            unreadBytes += UNREAD_CHUNK
+            yield chunk
+          }
+        } finally {
+          events.push('unread:finally')
+        }
+      },
+    )
+
+    halting = handler(
+      endpoint({ method: 'GET', url: '/halting', response: 'stream' }),
+      async function* () {
+        yield 'one'
+        await waitFor(() => events.includes('halting:go'))
+        yield 'two'
+      },
+    )
+
     idleEvents = handler(endpoint({ method: 'GET', url: '/idle/events', response: 'stream' }), () =>
       sseStream(
         (async function* () {
@@ -263,6 +295,46 @@ export function defineStreamLifecycleTopic(suite: ConformanceSuite) {
         expect(await response.text()).toBe('x'.repeat(60 * 5000))
         expect([...new Set(events)]).toEqual(['pending:1'])
       })
+
+      it('sends a chunk when it has been produced', async () => {
+        events.length = 0
+        const response = await fetch(url('/halting'))
+        const reader = response.body!.getReader()
+        const first = await Promise.race([reader.read(), pause(500)])
+        events.push('halting:go')
+        expect(new TextDecoder().decode(first?.value)).toBe('one')
+        expect(new TextDecoder().decode((await reader.read()).value)).toBe('two')
+        expect((await reader.read()).done).toBe(true)
+      })
+
+      if (suite.isServed) {
+        it('produces no more than a client that does not read has room for', async () => {
+          events.length = 0
+          unreadBytes = 0
+          // Not `fetch`, which may read ahead of whoever reads its response.
+          const { hostname, port, pathname, host } = new URL(url('/unread'))
+          const socket = connect(Number(port), hostname)
+          try {
+            socket.on('error', () => {})
+            socket.pause()
+            socket.write(`GET ${pathname} HTTP/1.1\r\nHost: ${host}\r\n\r\n`)
+            await waitFor(() => unreadBytes > 0)
+            let before: number
+            do {
+              before = unreadBytes
+              await pause(100)
+            } while (unreadBytes !== before)
+            expect(unreadBytes > 0).toBe(true)
+            // The connection has buffers of some megabytes.
+            expect(unreadBytes < UNREAD_TOTAL / 2).toBe(true)
+            expect(events).toEqual([])
+          } finally {
+            socket.destroy()
+          }
+          await waitFor(() => events.includes('unread:finally'))
+          expect(events).toEqual(['unread:finally'])
+        })
+      }
 
       it('sends the headers of an event stream before its first event', async () => {
         events.length = 0
