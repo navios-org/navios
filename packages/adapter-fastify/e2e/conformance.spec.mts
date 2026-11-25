@@ -13,6 +13,7 @@ runAdapterConformance({
       bodyLimit: BODY_LIMIT,
       multipart: { limits: { fileSize: BODY_LIMIT } },
     }),
+  cors: (cors) => defineFastifyEnvironment({ cors }),
   listenOptions: { port: 0, host: '127.0.0.1' },
   bodyLimit: BODY_LIMIT,
 })

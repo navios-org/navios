@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.0.0] - Unreleased
+## [2.0.0-alpha.0] - Unreleased
 
 The adapter is rewritten on the adapter contract of `@navios/server` 2.0, the package that now holds the HTTP layer of Navios. It no longer contains guard, validation or error-handling logic; those run in the request pipeline of `@navios/server` and are the same on every adapter.
 
@@ -16,28 +16,34 @@ The adapter is rewritten on the adapter contract of `@navios/server` 2.0, the pa
 - **`inject(FastifyRequestToken)` and the other per-request tokens are removed.** Use `ctx.raw.request` and `ctx.raw.reply`.
 - **Fastify schema validation and `fastify-type-provider-zod` are no longer used.** Routes are registered without schemas, and error bodies are the `application/problem+json` documents produced by `@navios/server`.
 - **`fastify` is a peer dependency only.** Install it in the application; the adapter no longer brings a second copy.
-- **A route with `body: 'multipart'` needs the `multipart` option.** Without it the application fails to start, naming the route. It used to start and answer every upload with 415.
+- **A route with `body: 'multipart'` needs the `multipart` option**, or `@fastify/multipart` registered in `configure`. Without either the application fails to start, naming the route. It used to start and answer every upload with 415.
+- **The parts of a multipart body are limited together**: to `bodyLimit` bytes, and what `multipart.limits` allow on top (`fileSize` × `files`, `fieldSize` × `fields`, one of each unless set). They are in memory together, where a body of many parts could hold gigabytes. Set `limits.files` to accept several files of `fileSize`.
+- **Fastify's default content type parsers are replaced.** The adapter collects a body of any type as bytes and the server decodes it, so `+json` types are JSON, other types than JSON and text are a 415 only for an endpoint that reads the body, after its guards, and Fastify hooks see the undecoded `Buffer` in `request.body`. A parser that is added in `configure` keeps its content type.
 - Requires `@navios/server` 2.0, with `@navios/core` 2.0.
 
 ### Added
 
 - **`FastifyEnvironment`** for the `Register` declaration, which types `ctx.raw` as `{ request: FastifyRequest; reply: FastifyReply }` and `app.getServer()` as `FastifyInstance`.
+- **`https` option**, typed. The options are those of an HTTP/1.1 server; `http2` is not supported.
 - **`configure` option**: a function called with the Fastify instance before routes are registered.
-- **Taking over the response**: when a handler has sent the response through `ctx.raw.reply`, the adapter writes nothing.
-- **`app.inject()`** through `fastify.inject()`.
+- **Taking over the response**: when a handler has sent the response through `ctx.raw.reply`, the adapter writes nothing. `ctx.responseStatus` is the status the handler wrote, which it may do after it has returned, and a handler that fails after `reply.hijack()` closes the connection.
+- **`app.inject()`** through `fastify.inject()`. It rejects once the application is closed. Without a `remoteAddress`, `ctx.ip` is `undefined`, and `request.ip` what Fastify gives a request of its own `inject()`.
 - **`ctx.signal`** aborts when the client disconnects before the response is complete.
+- **`ctx.ip`** is Fastify's `request.ip`, so `trustProxy` applies, as it does to the protocol and the host of `ctx.url`. **`ctx.rawBody()`** gives the bytes of a body, also of a multipart one before it is decoded.
 - The `@navios/server/conformance` suite runs against the adapter over real HTTP, including its cases for a request body over `bodyLimit` and a file over `multipart.limits.fileSize`.
 - An HTTP benchmark against raw Fastify: `yarn bench`.
 - Serves `response: 'void'` endpoints (204, no body) and per-status `responses` endpoints.
 
 ### Changed
 
-- **Closing does not wait for keep-alive connections.** Responses sent while the server closes carry `connection: close`, and connections that become idle, or that never sent a request, are dropped.
-- **Guards run before the body is parsed and validated.** JSON bodies are collected as text and parsed when the pipeline asks for the body. `bodyLimit` still applies.
+- **Closing does not wait for keep-alive connections.** Responses sent while the server closes carry `connection: close`, and connections that become idle, or that never sent a request, are dropped. Once `shutdownTimeout` has passed every connection is closed, those of WebSockets included, so closing always ends.
+- **Guards run before the body is parsed and validated.** A body is collected as bytes and decoded when the pipeline asks for it. `bodyLimit` still applies.
 - A malformed JSON body is a 400 problem response with `source: 'body'`.
-- Errors raised by Fastify itself (for example 413 and 415) are answered as `application/problem+json`.
-- Multipart files arrive as `File` objects, and the whole body is validated against `requestSchema`.
-- A request scope is released when the response finishes or the connection closes, and only when the request created one.
+- Errors raised by Fastify itself (for example 413), by a plugin or by a hook are answered as `application/problem+json`. An `HttpException` keeps its status and body, and an error with a `statusCode` its status.
+- Plugins that `configure` registers are loaded before the adapter goes on, whether or not they are awaited.
+- A request that Node cannot read (400, 408, 431) is answered with a problem response. Pass `clientErrorHandler` to replace this.
+- Multipart files arrive as `File` objects, under the last part of the name they were sent with, and the whole body is validated against `requestSchema`.
+- A request is released when the response finishes or the connection closes, and only when it holds something. The headers of an event stream are sent before its first event.
 
 ### Removed
 
@@ -50,12 +56,14 @@ The adapter is rewritten on the adapter contract of `@navios/server` 2.0, the pa
 - **An unauthenticated request no longer gets validation details.** Validation used to run before guards.
 - **Response bodies are validated for statuses other than 200.**
 - **A multipart body over one of `multipart.limits` is answered with 413 `application/problem+json`**, not 500. This covers `fileSize`, `files`, `fields` and `parts`; the other 4xx errors of `@fastify/multipart` keep their status as well. A field over `fieldSize`, which `@fastify/multipart` truncates silently, is rejected with 413 too.
-- **A request with an empty URL parameter matches no route.** `find-my-way` matches `/users/` to `/users/$id` with an empty `id`; the adapter now answers such a request with the not-found response, as the Bun and in-memory adapters do.
+- **A `:` in a path is a colon**: `/things:batch` also served `/thingsX`.
 - **A repeated `set-cookie` request header reaches a `headersSchema` as one joined value.** Only the last one did.
-- **A `Content-Type` header of a result is kept whatever its case.** `{ 'Content-Type': 'text/html' }` from an error mapper was replaced by the default of the result's kind.
-- **A result that cannot be written goes through the application's error pipeline**, as on Bun: the internal-error responder, `exposeErrorDetails` and the logging of unhandled errors apply. The adapter used to answer with its own 500.
+- **A `Content-Type` header of a result is kept whatever its case.**
+- **A result that cannot be written goes through the application's error pipeline**, as on Bun: error mappers, the internal-error responder, `exposeErrorDetails` and the logging of unhandled errors apply, for a header that cannot be sent too. An error of a Fastify hook is logged with the method and path.
 - **A multipart body that cannot be parsed is a 400** problem response with `source: 'body'`, not a 500.
-- **Errors of the router are `application/problem+json`**: a URL with malformed percent-encoding (400) and a URL parameter over `maxParamLength` (414) were answered with Fastify's own JSON. Pass `frameworkErrors` to replace this.
+- **Errors of the router are `application/problem+json`**: a URL with malformed percent-encoding (400) and a URL parameter over `maxParamLength` (414) were answered with Fastify's own JSON, without CORS headers. Pass `frameworkErrors` to replace this.
+- **A `Vary` header set by the handler is sent next to the `Vary: Origin` of `@fastify/cors`**, which it replaced. A cache could serve a response with the CORS headers of another origin.
+- **A multipart part without a name is left out.** It became a field named `undefined`.
 
 ### Performance
 
@@ -68,8 +76,6 @@ Measured with `yarn bench --check`: Node 24.22, production mode, `fastify.inject
 | GET with one guard                                    | 7.40 µs     | 7.61 µs    | +0.21 µs | +3.5 µs      |
 | GET reading one request value                         | 7.40 µs     | 7.99 µs    | +0.59 µs | n/a          |
 | GET using one request-scoped service (2 dependencies) | 7.40 µs     | 8.70 µs    | +1.30 µs | +16.8 µs     |
-
-- ESM output is 8 KB, down from 110 KB.
 
 ## [1.0.0] - 2026-01-09
 

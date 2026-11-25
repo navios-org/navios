@@ -7,10 +7,12 @@ Runs a [Navios](https://navios.tech) application on [Fastify](https://fastify.de
 ## Install
 
 ```bash
-npm install @navios/adapter-fastify @navios/server @navios/builder fastify
+npm install @navios/adapter-fastify@next @navios/server@next @navios/builder@next fastify
 ```
 
-Requires Node.js and `fastify` 5.6 or newer. `@fastify/cors` and `@fastify/multipart` are dependencies of the adapter and do not need to be installed separately.
+The 2.0 alpha is published under the `next` tag. All `@navios` packages of a project must have the same alpha version, because an alpha may break between releases.
+
+Requires Node.js 22 or newer and `fastify` 5.6 or newer. `@fastify/cors` and `@fastify/multipart` are dependencies of the adapter and do not need to be installed separately.
 
 ## Example
 
@@ -32,7 +34,11 @@ declare module '@navios/server' {
 const app = await NaviosFactory.create(AppModule, {
   adapter: defineFastifyEnvironment({
     bodyLimit: 1_048_576,
-    cors: { origin: ['https://app.example.com'], credentials: true },
+    cors: {
+      origin: ['https://app.example.com'],
+      credentials: true,
+      methods: ['GET', 'POST', 'PUT', 'DELETE'],
+    },
     multipart: { limits: { fileSize: 10 * 1024 * 1024, files: 5 } },
     configure: async (server) => {
       server.addHook('onRequest', async (request) => {
@@ -45,7 +51,7 @@ const app = await NaviosFactory.create(AppModule, {
 const url = await app.listen({ port: 3000, host: '0.0.0.0' })
 ```
 
-`defineFastifyEnvironment(options)` accepts every option of the `fastify()` factory and three of its own: `cors`, `multipart` and `configure`. `AppModule` is an ordinary Navios module, such as the one with `getUser` at `/users/$userId` from the [quick start](https://navios.tech/docs/server/quick-start); nothing in it depends on the adapter.
+`defineFastifyEnvironment(options)` accepts the options of the `fastify()` factory for an HTTP/1.1 server, `https` included, and three of its own: `cors`, `multipart` and `configure`. `AppModule` is an ordinary Navios module, such as the one with `getUser` at `/users/$userId` from the [quick start](https://navios.tech/docs/server/quick-start); nothing in it depends on the adapter.
 
 ## What else it does
 
@@ -56,7 +62,7 @@ const url = await app.listen({ port: 3000, host: '0.0.0.0' })
 | Writing the response yourself          | `ctx.raw.reply.hijack()`                              | [Taking over the response](https://navios.tech/docs/server/adapters/fastify#taking-over-the-response) |
 | CORS                                   | `cors`, passed to `@fastify/cors`                     | [CORS](https://navios.tech/docs/server/adapters/fastify#cors)                                         |
 | File uploads and their limits          | `multipart`, `body: 'multipart'`                      | [Multipart](https://navios.tech/docs/server/adapters/fastify#multipart)                               |
-| Body size limit, malformed JSON        | `bodyLimit`; errors are `application/problem+json`    | [Request bodies](https://navios.tech/docs/server/adapters/fastify#request-bodies)                     |
+| Body size limit, content type parsers  | `bodyLimit`; `addContentTypeParser` in `configure`    | [Request bodies](https://navios.tech/docs/server/adapters/fastify#request-bodies)                     |
 | Graceful shutdown                      | `app.close()`, `shutdownTimeout`                      | [Shutdown](https://navios.tech/docs/server/adapters/fastify#shutdown)                                 |
 | Tests through Fastify without a socket | `app.inject()`                                        | [Testing](https://navios.tech/docs/server/essentials/testing)                                         |
 

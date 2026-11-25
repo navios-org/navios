@@ -2,24 +2,36 @@ import type { Socket } from 'node:net'
 
 import cors from '@fastify/cors'
 import multipart from '@fastify/multipart'
-import { problem, ValidationError } from '@navios/server'
+import { HttpException, problem } from '@navios/server'
+import {
+  canonicalPath,
+  describesSuccess,
+  encodeResult,
+  toTestMessage,
+  toTestResponse,
+} from '@navios/server/adapter'
 import { fastify } from 'fastify'
 
+import type { RouteResult } from '@navios/server'
 import type {
   AdapterContext,
   CompiledRoute,
+  ErrorSite,
   HttpAdapter,
   RouteExecutor,
-  RouteResult,
-  SchemaLike,
+  RoutePath,
+  RouteResponse,
   TestRequest,
   TestResponse,
-} from '@navios/server'
+} from '@navios/server/adapter'
 import type { FastifyInstance, FastifyListenOptions, FastifyReply, FastifyRequest } from 'fastify'
 
-import { FastifyRouteInput, RAW_BODY } from './request-input.mjs'
-import { write } from './send-result.mjs'
+import { answerClientError } from './client-error.mjs'
+import { corsHook } from './cors-hook.mjs'
+import { FastifyRouteInput, RAW_BODY, RequestWithoutAddress } from './request-input.mjs'
+import { write } from './send-response.mjs'
 
+import type { CorsHook } from './cors-hook.mjs'
 import type { FastifyAdapterOptions, FastifyEnvironment } from './environment.mjs'
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -27,9 +39,15 @@ import type { FastifyAdapterOptions, FastifyEnvironment } from './environment.mj
 /** How often `close()` looks for connections that have become idle. */
 const IDLE_SWEEP_MS = 50
 
+/** How long `close()` waits once it has dropped every connection. */
+const FORCED_CLOSE_MS = 1000
+
 export class FastifyAdapter implements HttpAdapter<FastifyEnvironment> {
-  private parseDefaultJson!: (request: FastifyRequest, body: string, done: any) => void
+  /** Routes that cannot be served without a parser for multipart bodies. */
+  private readonly multipartRoutes: string[] = []
+  private multipartLimit = 0
   private closing = false
+  private cors: CorsHook | null = null
   private readonly sockets = new Set<Socket>()
 
   private constructor(
@@ -42,147 +60,165 @@ export class FastifyAdapter implements HttpAdapter<FastifyEnvironment> {
     context: AdapterContext,
   ): Promise<FastifyAdapter> {
     const { cors: corsOptions, multipart: multipartOptions, configure, ...serverOptions } = options
-    // Errors of the router, such as a url that cannot be decoded.
+    assertMultipartOptions(multipartOptions)
     let adapter: FastifyAdapter | undefined
     const server = fastify({
-      frameworkErrors: (error, _request, reply) => adapter!.fail(error, reply) as never,
-      ...serverOptions,
+      frameworkErrors: (error, request, reply) => adapter!.refuse(error, request, reply),
+      clientErrorHandler: answerClientError,
+      ...(serverOptions as object),
     })
     adapter = new FastifyAdapter(server, context)
-    adapter.install()
+    adapter.install(multipartOptions)
     if (corsOptions) {
       await server.register(cors, corsOptions)
+      adapter.cors = corsHook(server, corsOptions)
     }
     if (multipartOptions) {
       await server.register(multipart, multipartOptions === true ? {} : multipartOptions)
     }
     await configure?.(server)
+    // Plugins that `configure` has registered without awaiting them.
+    await server.after()
+    adapter.collectBodies()
     return adapter
   }
 
-  private install(): void {
+  private install(multipartOptions: FastifyAdapterOptions['multipart']): void {
     const { server } = this
-    server.server.on('connection', (socket: Socket) => {
+    this.multipartLimit = multipartLimit(server.initialConfig.bodyLimit!, multipartOptions)
+    server.decorateRequest(RAW_BODY, null)
+    // Fastify does not tell whether there is a parser for any type. One that
+    // the application adds replaces this one.
+    server.addContentTypeParser('*', { parseAs: 'buffer' }, collectBody)
+    const keep = (socket: Socket) => {
       this.sockets.add(socket)
       socket.once('close', () => this.sockets.delete(socket))
-    })
-    this.parseDefaultJson = server.getDefaultJsonParser('error', 'error') as any
-
-    // JSON bodies are collected as text and parsed when the pipeline asks for
-    // the body, which is after guards have passed. Fastify still enforces
-    // `bodyLimit` while collecting.
-    server.removeContentTypeParser('application/json')
-    server.addContentTypeParser(
-      'application/json',
-      { parseAs: 'string' },
-      (_request, body, done) => {
-        done(null, { [RAW_BODY]: body })
-      },
-    )
-
-    server.setErrorHandler((error, _request, reply) => this.fail(error, reply))
+    }
+    server.server.on('connection', keep)
+    // What a TLS connection has read itself includes the handshake.
+    server.server.on('secureConnection', keep)
+    server.setErrorHandler((error, request, reply) => this.fail(error, request, reply))
   }
 
-  /** Answers an error that Fastify raised outside the pipeline. @internal */
-  fail(error: any, reply: FastifyReply): FastifyReply | Promise<FastifyReply> {
-    const status =
-      typeof error?.statusCode === 'number' && error.statusCode >= 400 ? error.statusCode : 500
-    let result: RouteResult
-    if (status < 500) {
-      result = problem(status, String(error?.message ?? ''))
-    } else {
-      // For example a result that cannot be written. The application decides
-      // how a defect is reported and answered.
+  /**
+   * Has Fastify collect a body of any type as bytes, up to `bodyLimit`. The
+   * server decodes it when the pipeline asks for it, after guards. A parser of
+   * the application keeps its content type.
+   */
+  private collectBodies(): void {
+    const { server } = this
+    // Fastify looks the parser for any type up more slowly than one for a type
+    // it knows, so the usual types are named.
+    for (const type of ['application/json', 'text/plain']) {
       try {
-        result = this.context.errors.unexpected(error)
-      } catch (responderError) {
-        this.context.logger.error('The error response could not be written', responderError)
-        result = problem(500)
+        server.addContentTypeParser(type, { parseAs: 'buffer' }, collectBody)
+      } catch (error) {
+        if ((error as { code?: unknown }).code !== 'FST_ERR_CTP_ALREADY_PRESENT') {
+          throw error
+        }
       }
     }
-    return write(reply, result)
   }
 
-  /** @internal */
-  parseJson(request: FastifyRequest, body: string): Promise<unknown> | unknown {
-    if (body === '') {
-      return undefined
+  /** Answers an error of the router, such as a bad url. No hook sees such a request. */
+  private refuse(error: unknown, request: FastifyRequest, reply: FastifyReply): void {
+    const fail = () => void this.fail(error, request, reply)
+    if (this.cors === null) {
+      fail()
+      return
     }
-    let parsed: unknown
-    let failure: any = null
-    this.parseDefaultJson(request, body, (error: any, value: unknown) => {
-      failure = error
-      parsed = value
-    })
-    if (failure) {
-      throw new ValidationError('body', [
-        { message: `Malformed JSON body: ${String(failure.message ?? failure)}` },
-      ])
+    try {
+      // What the CORS check itself fails with does not change the answer.
+      this.cors(request, reply, fail)
+    } catch {
+      fail()
     }
-    return parsed
   }
 
-  private notFound: (
+  /** Answers an error that Fastify, a plugin or a hook has raised. */
+  private async fail(
+    error: any,
     request: FastifyRequest,
     reply: FastifyReply,
-  ) => FastifyReply | Promise<FastifyReply> = (_request, reply) => {
-    reply.callNotFound()
-    return reply
+  ): Promise<FastifyReply> {
+    if (reply.raw.destroyed) {
+      // For example the end of a stream whose connection is gone.
+      return reply
+    }
+    // What the response was going to be, if a hook failed while it was sent.
+    for (const [name, value] of Object.entries(reply.getHeaders())) {
+      if (value !== undefined && describesSuccess(name, value)) {
+        reply.removeHeader(name)
+      }
+    }
+    const at = { method: request.method, path: canonicalPath(request.url) }
+    let response: RouteResponse
+    try {
+      response = encodeResult(await this.toResult(error, at))
+    } catch (defect) {
+      response = this.context.errors.unexpected(defect, at)
+    }
+    return write(reply, response)
   }
 
-  private handlerFor(execute: RouteExecutor, requestSchema: SchemaLike | undefined) {
+  private toResult(error: any, at: ErrorSite): RouteResult | Promise<RouteResult> {
+    const { errors } = this.context
+    const status = error instanceof HttpException ? undefined : error?.statusCode
+    if (status >= 400 && status < 500) {
+      return problem(status, String(error.message ?? ''))
+    }
+    if (status > 500 && status < 600) {
+      // The status is meant for the client, what went wrong is not.
+      errors.report(error, at)
+      return problem(status)
+    }
+    return errors.toResult(error, null, null, at)
+  }
+
+  private handlerFor(execute: RouteExecutor) {
     return (request: FastifyRequest, reply: FastifyReply) => {
-      const result = execute(new FastifyRouteInput(request, reply, this, requestSchema))
-      return result instanceof Promise
-        ? result.then((value) => this.respond(reply, value))
-        : this.respond(reply, result)
+      const response = execute(new FastifyRouteInput(request, reply, this.multipartLimit))
+      return response instanceof Promise
+        ? response.then((value) => this.respond(reply, value))
+        : this.respond(reply, response)
     }
   }
 
-  private respond(reply: FastifyReply, result: RouteResult): FastifyReply | Promise<FastifyReply> {
+  private respond(
+    reply: FastifyReply,
+    response: RouteResponse,
+  ): FastifyReply | Promise<FastifyReply> {
     if (this.closing && !reply.sent) {
       // Tell the client not to reuse the connection it is being answered on.
       reply.header('connection', 'close')
     }
-    return write(reply, result)
+    return write(reply, response)
   }
 
-  register(route: CompiledRoute): void {
-    const { info } = route
-    if (
-      info.endpoint.body === 'multipart' &&
-      !this.server.hasContentTypeParser('multipart/form-data')
-    ) {
-      throw new Error(
-        `[Navios] ${info.method} ${info.path} has a multipart body, which needs the adapter option: ` +
-          `defineFastifyEnvironment({ multipart: true }).`,
-      )
+  register({ info, path, execute }: CompiledRoute): void {
+    if (info.endpoint.body === 'multipart') {
+      this.multipartRoutes.push(`${info.method} ${info.path}`)
     }
-    const handler = this.handlerFor(
-      route.execute,
-      info.endpoint.body === 'multipart' ? info.endpoint.requestSchema : undefined,
-    )
     this.server.route({
       method: info.method as any,
-      url: info.path.replace(/\$([A-Za-z0-9_]+)/g, ':$1'),
-      // find-my-way matches `/users/` to `/users/:id` with an empty `id`. A url
-      // param is never empty, so such a request has matched no route.
-      handler: info.path.includes('$')
-        ? (request, reply) =>
-            hasEmptyParam(request.params as Record<string, string>)
-              ? this.notFound(request, reply)
-              : handler(request, reply)
-        : handler,
+      url: toFastifyPath(path),
+      handler: this.handlerFor(execute),
     })
   }
 
   setNotFound(execute: RouteExecutor): void {
-    this.notFound = this.handlerFor(execute, undefined)
-    this.server.setNotFoundHandler(this.notFound)
+    this.server.setNotFoundHandler(this.handlerFor(execute))
   }
 
   async ready(): Promise<void> {
     await this.server.ready()
+    const [route] = this.multipartRoutes
+    if (route !== undefined && !this.server.hasContentTypeParser('multipart/form-data')) {
+      throw new Error(
+        `[Navios] ${route} has a multipart body, which needs the adapter option: ` +
+          `defineFastifyEnvironment({ multipart: true }).`,
+      )
+    }
   }
 
   listen(options: FastifyListenOptions): Promise<string> {
@@ -190,34 +226,21 @@ export class FastifyAdapter implements HttpAdapter<FastifyEnvironment> {
   }
 
   async inject(request: TestRequest): Promise<TestResponse> {
-    const { body } = request
+    const { method, headers, bytes } = await toTestMessage(request)
     const response = await this.server.inject({
-      method: request.method as any,
+      method: method as any,
       url: request.url,
-      headers: request.headers,
-      payload: body as any,
+      headers: { ...headers },
+      payload: bytes === undefined ? undefined : Buffer.from(bytes),
+      ...(request.remoteAddress === undefined
+        ? { Request: RequestWithoutAddress }
+        : { remoteAddress: request.remoteAddress }),
     })
-    const headers: Record<string, string> = {}
-    for (const [name, value] of Object.entries(response.headers)) {
-      if (value !== undefined) {
-        headers[name] = Array.isArray(value) ? value.join('\n') : String(value)
-      }
-    }
-    const text = response.body
-    let parsed: unknown
-    if ((headers['content-type'] ?? '').includes('json') && text !== '') {
-      try {
-        parsed = JSON.parse(text)
-      } catch {
-        parsed = undefined
-      }
-    }
-    return { status: response.statusCode, headers, text, body: parsed }
+    const text = method === 'HEAD' ? '' : response.body
+    return toTestResponse(response.statusCode, response.headers, text)
   }
 
   async close(timeoutMs: number): Promise<void> {
-    let timer: ReturnType<typeof setTimeout> | undefined
-    let timedOut = false
     this.closing = true
     const closing = this.server.close()
     // Closing the server drops the keep-alive connections that are idle at
@@ -233,33 +256,67 @@ export class FastifyAdapter implements HttpAdapter<FastifyEnvironment> {
       }
     }, IDLE_SWEEP_MS)
     try {
-      await Promise.race([
-        closing,
-        new Promise<void>((resolve) => {
-          timer = setTimeout(() => {
-            timedOut = true
-            resolve()
-          }, timeoutMs)
-        }),
-      ])
+      if (!(await isDoneWithin(closing, timeoutMs))) {
+        // What has outlived the timeout: requests in flight, and connections
+        // that Fastify no longer knows, such as those of WebSockets.
+        // A request learns of it when its connection has been closed, and has
+        // to before the server releases what it holds.
+        const closed = Array.from(this.sockets, (socket) => {
+          const pending = new Promise<void>((resolve) => socket.once('close', () => resolve()))
+          socket.destroy()
+          return pending
+        })
+        await isDoneWithin(Promise.all([closing, ...closed]), FORCED_CLOSE_MS)
+      }
     } finally {
-      clearTimeout(timer)
       clearInterval(sweep)
-    }
-    if (timedOut) {
-      // In-flight requests outlived the timeout: drop their connections so
-      // that the server can finish closing.
-      this.server.server.closeAllConnections?.()
-      await closing
     }
   }
 }
 
-function hasEmptyParam(params: Record<string, string>): boolean {
-  for (const name in params) {
-    if (params[name] === '') {
-      return true
+/** Waits for `work`, for at most `ms`. */
+async function isDoneWithin(work: PromiseLike<unknown>, ms: number): Promise<boolean> {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const timeout = new Promise<boolean>((resolve) => {
+    timer = setTimeout(resolve, ms, false)
+  })
+  try {
+    return await Promise.race([work.then(() => true), timeout])
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+function collectBody(request: FastifyRequest, body: Buffer, done: any): void {
+  ;(request as any)[RAW_BODY] = body
+  done(null, body)
+}
+
+function toFastifyPath({ segments }: RoutePath): string {
+  return segments
+    .map((segment) =>
+      'param' in segment ? `/:${segment.param}` : `/${segment.literal.replaceAll(':', '::')}`,
+    )
+    .join('')
+}
+
+function assertMultipartOptions(options: object | true | undefined): void {
+  if (typeof options !== 'object') {
+    return
+  }
+  for (const name of ['attachFieldsToBody', 'onFile', 'sharedSchemaId']) {
+    if (name in options) {
+      throw new Error(
+        `[Navios] The multipart option ${name} cannot be used: the adapter collects the parts of a ` +
+          `body itself.`,
+      )
     }
   }
-  return false
+}
+
+/** How many bytes all parts of a body may have, which are in memory together. */
+function multipartLimit(bodyLimit: number, options: FastifyAdapterOptions['multipart']): number {
+  const { fileSize, files, fieldSize, fields } =
+    (typeof options === 'object' && options.limits) || {}
+  return bodyLimit + (fileSize ?? 0) * (files ?? 1) + (fieldSize ?? 0) * (fields ?? 1)
 }
