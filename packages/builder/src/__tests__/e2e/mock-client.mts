@@ -1,4 +1,4 @@
-import type { AbstractRequestConfig, AbstractResponse, Client } from '../../types/index.mjs'
+import type { AbstractRequestConfig, AbstractResponse, Client } from '../../index.mjs'
 
 /**
  * Mock response configuration for a specific endpoint.

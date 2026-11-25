@@ -1,16 +1,17 @@
-import { serializeCookie } from '../adapter/cookies.mjs'
+import { serializeCookie } from '../adapter/serialize-cookie.mjs'
 import { problem } from '../errors/problem.mjs'
-import { ValidationError } from '../routing/validation.mjs'
+import { ValidationError } from '../errors/validation-error.mjs'
 
 import type {
   AdapterDefinition,
   HttpAdapter,
   HttpAdapterEnvironment,
-  TestRequest,
-  TestResponse,
 } from '../adapter/http-adapter.mjs'
+import type { TestRequest, TestResponse } from '../adapter/test-request.mjs'
 import type { ErrorPipeline } from '../errors/error-pipeline.mjs'
-import type { CompiledRoute, RouteExecutor, RouteInput, RouteResult } from '../routing/types.mjs'
+import type { CompiledRoute, RouteExecutor } from '../routing/compiled-route.mjs'
+import type { RouteInput } from '../routing/route-input.mjs'
+import type { RouteResult } from '../routing/route-result.mjs'
 
 export interface InMemoryEnvironment extends HttpAdapterEnvironment {
   raw: { request: TestRequest }

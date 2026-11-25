@@ -12,9 +12,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { Container } from '../container/container.mjs'
-import { Injectable } from '../decorators/injectable.decorator.mjs'
-import { InjectableScope } from '../enums/index.mjs'
-import { inject } from '../injectors.mjs'
+import { Injectable } from '../decorators/injectable.mjs'
+import { InjectableScope } from '../injectable-scope.mjs'
+import { inject } from '../injection/injectors.mjs'
 
 import type { OnServiceDestroy, OnServiceInit } from '../index.mjs'
 

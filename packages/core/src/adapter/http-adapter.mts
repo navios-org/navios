@@ -1,9 +1,11 @@
 import type { Container } from '@navios/di'
 
-import type { AdapterEnvironment } from '../context/request-context.mjs'
+import type { AdapterEnvironment } from '../context/environment.mjs'
 import type { ErrorPipeline } from '../errors/error-pipeline.mjs'
-import type { LoggerService } from '../logger/logger-service.interface.mjs'
-import type { CompiledRoute, RouteExecutor } from '../routing/types.mjs'
+import type { LoggerService } from '../logger/logger-output.mjs'
+import type { CompiledRoute, RouteExecutor } from '../routing/compiled-route.mjs'
+
+import type { TestRequest, TestResponse } from './test-request.mjs'
 
 /**
  * What an HTTP adapter contributes to the types of an application.
@@ -13,28 +15,6 @@ export interface HttpAdapterEnvironment extends AdapterEnvironment {
   server: unknown
   /** Options accepted by `app.listen()`. */
   listenOptions: unknown
-}
-
-/**
- * A request sent through `adapter.inject()` / `app.inject()` without a
- * network socket.
- */
-export interface TestRequest {
-  method: string
-  /** Path with optional query string. */
-  url: string
-  headers?: Record<string, string>
-  /** Sent as JSON unless it is a string, `FormData`, `Blob` or stream. */
-  body?: unknown
-}
-
-export interface TestResponse {
-  status: number
-  headers: Record<string, string>
-  /** The raw response body. */
-  text: string
-  /** The body parsed as JSON when the content type is JSON, else `undefined`. */
-  body: unknown
 }
 
 /**

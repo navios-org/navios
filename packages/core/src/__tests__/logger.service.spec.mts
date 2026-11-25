@@ -1,8 +1,8 @@
 import { Container } from '@navios/di'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { LoggerInstance } from '../logger/logger.service.mjs'
-import { LoggerOutput } from '../logger/logger.tokens.mjs'
+import { LoggerOutput } from '../logger/logger-output.mjs'
+import { LoggerInstance } from '../logger/logger.mjs'
 
 import type { LoggerService } from '../index.mjs'
 

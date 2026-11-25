@@ -1,1 +1,1 @@
-export * from './di-error.mjs'
+export { DIError, DIErrorCode } from './di-error.mjs'

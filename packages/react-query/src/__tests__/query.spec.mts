@@ -3,7 +3,7 @@ import { hashKey, QueryClient, skipToken } from '@tanstack/react-query'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { z } from 'zod/v4'
 
-import { getHttpClient, setHttpClient } from '../common/http-client.mjs'
+import { getHttpClient, setHttpClient } from '../endpoint/http-client.mjs'
 
 import { makeHttp, setup } from './helpers.mjs'
 

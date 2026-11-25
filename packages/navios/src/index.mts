@@ -1,6 +1,6 @@
-import { create } from './createNavios.mjs'
+import { create } from './client/index.mjs'
 
-import type { NaviosStatic } from './types.mjs'
+import type { NaviosStatic } from './client/index.mjs'
 
 const navios = create()
 
@@ -25,5 +25,19 @@ export { create }
 
 export default defaultHandler
 
-export * from './NaviosError.mjs'
-export type * from './types.mjs'
+export { NaviosError, NaviosInternalError } from './navios-error.mjs'
+export type { Navios, NaviosStatic } from './client/index.mjs'
+export type { NaviosConfig } from './navios-config.mjs'
+export type {
+  HttpMethod,
+  NaviosDeleteConfig,
+  NaviosGetConfig,
+  NaviosHeadConfig,
+  NaviosOptionsConfig,
+  NaviosPatchConfig,
+  NaviosPostConfig,
+  NaviosPutConfig,
+  NaviosRequestConfig,
+  PreparedRequestConfig,
+} from './request/index.mjs'
+export type { NaviosPromise, NaviosResponse } from './response/index.mjs'

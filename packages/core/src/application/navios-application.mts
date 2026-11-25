@@ -1,10 +1,9 @@
 import { Container, provide } from '@navios/di'
 
-import type { ClassType, InjectionToken, Provider, ProviderInput } from '@navios/di'
+import type { ClassType, InjectionToken, ProviderInput } from '@navios/di'
 
 import { enableAsyncContext } from '../context/async-context.mjs'
-import { isRequestValueClass } from '../context/context-key.mjs'
-import { isFieldHandler } from '../decorators/handler.mjs'
+import { isRequestValueClass } from '../context/request-value.mjs'
 import { useClientErrorStacks } from '../errors/client-error-stacks.mjs'
 import { ErrorPipeline } from '../errors/error-pipeline.mjs'
 import {
@@ -12,105 +11,38 @@ import {
   InternalServerErrorResponderToken,
   NotFoundResponderToken,
   ValidationErrorResponderToken,
-} from '../errors/problem.mjs'
-import { ConsoleLogger } from '../logger/console-logger.service.mjs'
-import { Logger, LoggerOutput } from '../logger/logger.tokens.mjs'
-import { getControllerMetadata } from '../metadata/metadata.mjs'
-import { compileRoute } from '../routing/compile-route.mjs'
+} from '../errors/error-responders.mjs'
+import { ConsoleLogger } from '../logger/console-logger.mjs'
+import { LoggerOutput } from '../logger/logger-output.mjs'
+import { Logger } from '../logger/logger.mjs'
+import { buildModuleGraph } from '../modules/module-graph.mjs'
+import { orderPlugins } from '../plugins/order-plugins.mjs'
+import { joinPaths } from '../routing/join-paths.mjs'
+
+import type { HttpAdapter, HttpAdapterEnvironment } from '../adapter/http-adapter.mjs'
+import type { TestRequest, TestResponse } from '../adapter/test-request.mjs'
+import type { ContextHost } from '../context/context-host.mjs'
+import type { ErrorClass, ErrorMapper } from '../errors/error-pipeline.mjs'
+import type { LoggerService } from '../logger/logger-output.mjs'
+import type { LoggerInstance } from '../logger/logger.mjs'
+import type { ResponseEncoder } from '../pipeline/response-encoder.mjs'
+import type { PluginApi, PluginInstance } from '../plugins/plugin.mjs'
+import type { CompiledRoute } from '../routing/compiled-route.mjs'
+import type { RouteInfo } from '../routing/route-info.mjs'
+
+import { assembleRoutes } from './assemble-routes.mjs'
 
 import type {
-  AdapterDefinition,
-  HttpAdapter,
-  HttpAdapterEnvironment,
-  TestRequest,
-  TestResponse,
-} from '../adapter/http-adapter.mjs'
-import type { ContextHost, RegisteredEnvironment } from '../context/request-context.mjs'
-import type { ClientErrorStacks } from '../errors/client-error-stacks.mjs'
-import type { ErrorClass, ErrorMapper } from '../errors/error-pipeline.mjs'
-import type { LogLevel } from '../logger/log-levels.mjs'
-import type { LoggerService } from '../logger/logger-service.interface.mjs'
-import type { LoggerInstance } from '../logger/logger.service.mjs'
-import type { ControllerMetadata } from '../metadata/metadata.mjs'
-import type { Guard, Interceptor, RouteDefinition } from '../routing/compile-route.mjs'
-import type { CompiledRoute, RouteEndpointConfig, RouteInfo } from '../routing/types.mjs'
-
-import { buildModuleGraph, joinPaths } from './module-graph.mjs'
-import { orderPlugins } from './plugin.mjs'
-
-import type { ModuleNode } from './module-graph.mjs'
-import type { PluginApi, PluginInstance, ResponseEncoder } from './plugin.mjs'
+  OnApplicationBootstrap,
+  OnApplicationShutdown,
+  OnModuleInit,
+} from './lifecycle-hooks.mjs'
+import type {
+  ApplicationEnvironment,
+  NaviosApplicationOptions,
+} from './navios-application-options.mjs'
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
-
-type ApplicationEnvironment = RegisteredEnvironment extends HttpAdapterEnvironment
-  ? RegisteredEnvironment
-  : HttpAdapterEnvironment
-
-export interface NaviosApplicationOptions<
-  Env extends HttpAdapterEnvironment = ApplicationEnvironment,
-> {
-  adapter: AdapterDefinition<Env>
-  /** Providers that replace or supply defaults, application-wide. */
-  providers?: Provider[]
-  plugins?: PluginInstance[]
-  /** Use an existing container instead of creating one. */
-  container?: Container
-  /**
-   * `false` disables logging, an array selects the console logger's levels,
-   * and an object is used as the logger.
-   */
-  logger?: LoggerService | LogLevel[] | false
-  /** Prefix for every route. */
-  globalPrefix?: string
-  /**
-   * When handler results are validated against the declared schema.
-   * `'development'` validates unless `NODE_ENV` is `production`.
-   * @default 'always'
-   */
-  validateResponses?: 'always' | 'development' | 'never'
-  /** Send the message of unexpected errors to the client. @default false */
-  exposeErrorDetails?: boolean
-  /**
-   * When errors that are answered with a 4xx status capture a stack: an
-   * `HttpException` below 500, a denied guard, a request that does not match
-   * its schema. Capturing one costs more than the rest of the pipeline, and
-   * nothing in the framework reads it. `'development'` captures unless
-   * `NODE_ENV` is `production`. Other errors always have their stack.
-   *
-   * The choice applies to the process while the application runs: with
-   * several applications, stacks are captured if any of them wants them.
-   * @default 'development'
-   */
-  clientErrorStacks?: ClientErrorStacks
-  /**
-   * Keep the current `RequestContext` in an `AsyncLocalStorage`, so that
-   * `currentContext()` works in code that cannot receive it as an argument.
-   * @default false
-   */
-  asyncContext?: boolean
-  /**
-   * What happens the first time a handler uses a request-scoped service
-   * through `ctx.use()` / `ctx.resolve()`. Request values are the cheaper
-   * home for per-request data.
-   * @default 'warn' outside production, 'allow' in production
-   */
-  requestScopedServices?: 'allow' | 'warn' | 'forbid'
-  /** How long `close()` waits for in-flight requests, in milliseconds. @default 10000 */
-  shutdownTimeout?: number
-}
-
-export interface OnModuleInit {
-  onModuleInit(): void | Promise<void>
-}
-
-export interface OnApplicationBootstrap {
-  onApplicationBootstrap(): void | Promise<void>
-}
-
-export interface OnApplicationShutdown {
-  onApplicationShutdown(signal?: string): void | Promise<void>
-}
 
 const noopLogger: LoggerService = {
   log() {},
@@ -319,7 +251,17 @@ export class NaviosApplication<Env extends HttpAdapterEnvironment = ApplicationE
       }
     }
 
-    this.compiledRoutes = await this.compileRoutes(graph)
+    this.compiledRoutes = await assembleRoutes(graph, {
+      container,
+      globalInterceptors: this.globalInterceptors,
+      compile: {
+        host: this.createContextHost(),
+        errors: this.errors,
+        validateResponses: this.resolveValidateResponses(),
+        asyncContext: options.asyncContext ?? false,
+        encoders: this.encoders,
+      },
+    })
     for (const route of this.compiledRoutes) {
       this.adapterInstance.register(route)
     }
@@ -434,144 +376,6 @@ export class NaviosApplication<Env extends HttpAdapterEnvironment = ApplicationE
     }
   }
 
-  private async instances<T>(classes: ClassType[], kind: string, method: string): Promise<T[]> {
-    const result: T[] = []
-    for (const cls of classes) {
-      const instance = (await this.container.get(cls)) as any
-      if (typeof instance?.[method] !== 'function') {
-        throw new Error(`[Navios] ${kind} ${cls.name} does not implement ${method}()`)
-      }
-      result.push(instance)
-    }
-    return result
-  }
-
-  private async compileRoutes(graph: ModuleNode[]): Promise<CompiledRoute[]> {
-    const host = this.createContextHost()
-    const validateResponses = this.resolveValidateResponses()
-    const compiled: CompiledRoute[] = []
-    const taken = new Map<string, string>()
-
-    for (const node of graph) {
-      for (const controllerClass of node.controllers) {
-        const metadata = getControllerMetadata(controllerClass)
-        const controller = (await this.container.get(controllerClass)) as Record<string, unknown>
-
-        for (const draft of this.collectHandlers(controllerClass, metadata, controller)) {
-          const guards = unique([...node.guards, ...metadata.guards, ...draft.guards])
-          const interceptors = unique([
-            ...this.globalInterceptors,
-            ...node.interceptors,
-            ...metadata.interceptors,
-            ...draft.interceptors,
-          ])
-          const path = joinPaths(node.prefix, draft.config.url) || '/'
-          const where = `${controllerClass.name}.${draft.name}`
-          const key = `${draft.config.method} ${path.replace(/\$[^/]+/g, '$')}`
-          const existing = taken.get(key)
-          if (existing) {
-            throw new Error(
-              `[Navios] ${draft.config.method} ${path} is served by both ${existing} and ${where}.`,
-            )
-          }
-          taken.set(key, where)
-
-          const info: RouteInfo = {
-            method: draft.config.method,
-            path,
-            endpoint: draft.config,
-            module: node.module,
-            controller: controllerClass,
-            handlerName: draft.name,
-            guards,
-            interceptors,
-            attributes: {
-              handler: draft.attributes,
-              controller: metadata.attributes,
-              module: node.attributes,
-            },
-          }
-          const definition: RouteDefinition = {
-            info,
-            invoke: draft.invoke,
-            guards: await this.instances<Guard>(guards, 'Guard', 'canActivate'),
-            interceptors: await this.instances<Interceptor>(
-              interceptors,
-              'Interceptor',
-              'intercept',
-            ),
-          }
-          const execute = compileRoute(definition, {
-            host,
-            errors: this.errors,
-            validateResponses,
-            asyncContext: this.options.asyncContext ?? false,
-            encoders: this.encoders,
-          })
-          compiled.push({ info, execute })
-        }
-      }
-    }
-    return compiled
-  }
-
-  private collectHandlers(
-    controllerClass: ClassType,
-    metadata: ControllerMetadata,
-    controller: Record<string, unknown>,
-  ): HandlerDraft[] {
-    const drafts: HandlerDraft[] = []
-    const seen = new Set<string>()
-
-    // Field form: handler() values on the instance.
-    for (const name of Object.keys(controller)) {
-      const value = controller[name]
-      if (!isFieldHandler(value)) {
-        continue
-      }
-      seen.add(name)
-      const extras = metadata.members.get(name)
-      const attributes = new Map(extras?.attributes)
-      for (const application of value.options.attributes ?? []) {
-        attributes.set(application.token, application.value)
-      }
-      drafts.push({
-        name,
-        config: value.config as unknown as RouteEndpointConfig,
-        invoke: value.invoke as RouteDefinition['invoke'],
-        guards: [...(extras?.guards ?? []), ...(value.options.guards ?? [])],
-        interceptors: [...(extras?.interceptors ?? []), ...(value.options.interceptors ?? [])],
-        attributes,
-      })
-    }
-
-    // Method form: @Endpoint on a method.
-    for (const [name, member] of metadata.members) {
-      if (seen.has(name)) {
-        continue
-      }
-      if (member.config === null) {
-        throw new Error(
-          `[Navios] ${controllerClass.name}.${name} has guards, interceptors or attributes but ` +
-            `is not a handler. Add @Endpoint(...) or define it with handler(...).`,
-        )
-      }
-      const method = controller[name]
-      if (typeof method !== 'function') {
-        throw new Error(`[Navios] ${controllerClass.name}.${name} is not a method`)
-      }
-      drafts.push({
-        name,
-        config: member.config,
-        invoke: method.bind(controller) as RouteDefinition['invoke'],
-        guards: member.guards,
-        interceptors: member.interceptors,
-        attributes: member.attributes,
-      })
-    }
-    return drafts
-  }
-
   // --------------------------------------------------------------------------
   // Running
   // --------------------------------------------------------------------------
@@ -661,17 +465,4 @@ export class NaviosApplication<Env extends HttpAdapterEnvironment = ApplicationE
   async [Symbol.asyncDispose](): Promise<void> {
     await this.close()
   }
-}
-
-interface HandlerDraft {
-  name: string
-  config: RouteEndpointConfig
-  invoke: RouteDefinition['invoke']
-  guards: ClassType[]
-  interceptors: ClassType[]
-  attributes: Map<symbol, unknown>
-}
-
-function unique<T>(list: T[]): T[] {
-  return Array.from(new Set(list))
 }

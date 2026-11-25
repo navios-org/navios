@@ -1,7 +1,0 @@
-export { OtelSetupService, resolveOtelConfig } from './otel-setup.service.mjs'
-export type { OtelSetupLogger } from './otel-setup.service.mjs'
-export { SpanFactoryService } from './span-factory.service.mjs'
-export type { ChildSpanOptions, HttpSpanOptions } from './span-factory.service.mjs'
-export { extractTraceContext, TraceContextService } from './trace-context.service.mjs'
-export type { HeaderCarrier } from './trace-context.service.mjs'
-export { traceInstance, TracedProxyFactory } from './traced-proxy.factory.mjs'

@@ -1,6 +1,6 @@
 import type { InferInput, StandardSchemaV1 } from '@navios/core'
 
-import type { XmlNode, XmlRenderable } from '../types/xml-node.mjs'
+import type { XmlNode, XmlRenderable } from '../nodes/xml-node.mjs'
 
 /**
  * Type for XML tag components created by `defineTag`.

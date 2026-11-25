@@ -3,7 +3,7 @@ import * as v from 'valibot'
 import { describe, expect, expectTypeOf, it } from 'vitest'
 import { z } from 'zod/v4'
 
-import { builder } from '../builder.mjs'
+import { builder } from '../http/builder.mjs'
 
 import type { AbstractResponse, Client, EndpointParams } from '../index.mjs'
 

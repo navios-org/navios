@@ -13,12 +13,12 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import { Container } from '../../container/container.mjs'
-import { Injectable } from '../../decorators/injectable.decorator.mjs'
-import { InjectableScope } from '../../enums/injectable-scope.enum.mjs'
+import { Injectable } from '../../decorators/injectable.mjs'
 import { InjectionToken } from '../../index.mjs'
-import { asyncInject } from '../../injectors.mjs'
+import { InjectableScope } from '../../injectable-scope.mjs'
+import { asyncInject } from '../../injection/injectors.mjs'
 
-import type { OnServiceDestroy } from '../../interfaces/on-service-destroy.interface.mjs'
+import type { OnServiceDestroy } from '../../lifecycle-hooks.mjs'
 
 import {
   createGCTracker,

@@ -1,12 +1,20 @@
-import type { BaseEndpointOptions, EndpointHandler } from '@navios/builder'
+import type { BaseEndpointOptions, BuilderInstance, EndpointHandler } from '@navios/builder'
 
 import { makeMutation } from '../mutation/make-mutation.mjs'
 import { makeInfiniteQuery } from '../query/make-infinite-query.mjs'
 import { makeQuery } from '../query/make-query.mjs'
 
-import type { ClientOptions } from '../common/types.mjs'
+import type { KeyOptions } from '../endpoint/cache-key.mjs'
 
-import type { ClientInstance } from './types.mjs'
+import type { ClientInstance } from './client-instance.mjs'
+
+/**
+ * Options for creating a client instance.
+ */
+export type ClientOptions = {
+  api: BuilderInstance
+  defaults?: KeyOptions
+}
 
 /** Keys of an inline config that belong to the endpoint declaration. */
 const ENDPOINT_KEYS = [

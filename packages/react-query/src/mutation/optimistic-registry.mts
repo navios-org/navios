@@ -2,7 +2,7 @@ import { hashKey } from '@tanstack/react-query'
 
 import type { QueryClient } from '@tanstack/react-query'
 
-import type { OptimisticUpdate } from './types.mjs'
+import type { OptimisticUpdate } from './optimistic-update.mjs'
 
 /** One optimistic update that is applied to an entry and not yet settled. */
 export interface PendingUpdate {

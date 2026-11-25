@@ -1,11 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { z } from 'zod/v4'
 
-import { builder } from '../builder.mjs'
-import { EndpointError, isEndpointError, isHttpError, NaviosError } from '../errors/index.mjs'
-import { getCookie } from '../response/headers.mjs'
+import { builder } from '../http/builder.mjs'
+import { getCookie } from '../http/response-headers.mjs'
+import { EndpointError, isEndpointError, isHttpError, NaviosError } from '../index.mjs'
 
-import type { AbstractRequestConfig, AbstractResponse, Client } from '../types/index.mjs'
+import type { AbstractRequestConfig, AbstractResponse, Client } from '../index.mjs'
 
 type Reply = Partial<AbstractResponse<unknown>> | (() => never)
 

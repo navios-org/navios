@@ -1,4 +1,4 @@
-// Types
+// Nodes
 export type {
   XmlNode,
   AsyncXmlNode,
@@ -8,10 +8,7 @@ export type {
   FunctionComponentNode,
   AnyXmlNode,
   XmlRenderable,
-  XmlComponent,
-  ComponentClass,
-  FunctionComponent,
-} from './types/index.mjs'
+} from './nodes/index.mjs'
 export {
   Fragment,
   AsyncComponent,
@@ -19,26 +16,29 @@ export {
   RawXmlSymbol,
   ClassComponent,
   FunctionComponentSymbol,
-} from './types/index.mjs'
-
-// Runtime
-export {
-  createElement,
   CData,
   DangerouslyInsertRawXml,
-  renderToXml,
-  MissingContainerError,
-  MissingContextError,
-} from './runtime/index.mjs'
-export type { RenderOptions } from './runtime/index.mjs'
+} from './nodes/index.mjs'
+
+// Components
+export { Component, isComponentClass } from './components/index.mjs'
+export type {
+  ComponentOptions,
+  XmlComponent,
+  ComponentClass,
+  FunctionComponent,
+} from './components/index.mjs'
+
+// JSX
+export { createElement } from './jsx/index.mjs'
+
+// Rendering
+export { renderToXml, MissingContainerError, MissingContextError } from './render/index.mjs'
+export type { RenderOptions } from './render/index.mjs'
 
 // Tags
 export { defineTag } from './tags/index.mjs'
 export type { TagComponent } from './tags/index.mjs'
-
-// Components
-export { Component, isComponentClass } from './decorators/index.mjs'
-export type { ComponentOptions } from './decorators/index.mjs'
 
 // Responses
 export { xml, isXmlResponse, XML_RESULT_KIND } from './response/index.mjs'

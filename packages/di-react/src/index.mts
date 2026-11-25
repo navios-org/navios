@@ -1,8 +1,32 @@
-// Providers
-export * from './providers/index.mjs'
+// Container access
+export {
+  ContainerContext,
+  ContainerProvider,
+  ScopedContainerContext,
+  useContainer,
+  useRootContainer,
+} from './container/index.mjs'
+export type { ContainerProviderProps } from './container/index.mjs'
 
-// Hooks
-export * from './hooks/index.mjs'
+// Request scopes
+export {
+  ScopeProvider,
+  useScope,
+  useScopeMetadata,
+  useScopeOrThrow,
+  useScopedContainer,
+  useScopedContainerOrThrow,
+} from './scope/index.mjs'
+export type { ScopeProviderProps } from './scope/index.mjs'
 
-// Types
-export * from './types.mjs'
+// Service resolution
+export {
+  useInvalidateInstance,
+  useOptionalService,
+  useService,
+  useSuspenseService,
+} from './service/index.mjs'
+export type { UseOptionalServiceResult, UseServiceResult } from './service/index.mjs'
+
+// Type helpers
+export type { Join, UnionToArray } from './union-to-array.mjs'

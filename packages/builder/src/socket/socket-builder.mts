@@ -1,21 +1,17 @@
-import { NaviosError } from '../errors/index.mjs'
+import { NaviosError } from '../shared/navios-error.mjs'
 
-import {
-  createSendHandler,
-  type CreateSendContext,
-  type PendingAck,
-} from './handlers/create-send.mjs'
+import { createSendHandler, type CreateSendContext, type PendingAck } from './create-send.mjs'
 import {
   createGlobalMessageHandler,
   createSubscribeHandler,
   type CreateSubscribeContext,
-} from './handlers/create-subscribe.mjs'
-import { reportSocketError } from './report-error.mjs'
+} from './create-subscribe.mjs'
+import { reportSocketError } from './report-socket-error.mjs'
 
-import type { SocketBuilderInstance } from './types/socket-builder-instance.mjs'
-import type { SocketClient } from './types/socket-client.mjs'
-import type { SendHandler, SubscribeHandler } from './types/socket-handlers.mjs'
-import type { SendOptions, SocketBuilderConfig, SubscribeOptions } from './types/socket-options.mjs'
+import type { SocketBuilderInstance } from './socket-builder-instance.mjs'
+import type { SocketClient } from './socket-client.mjs'
+import type { SendHandler, SubscribeHandler } from './socket-handlers.mjs'
+import type { SendOptions, SocketBuilderConfig, SubscribeOptions } from './socket-options.mjs'
 
 /**
  * Creates a socket builder instance for declarative WebSocket/Socket.IO messaging.

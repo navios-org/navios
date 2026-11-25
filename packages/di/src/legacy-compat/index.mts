@@ -10,11 +10,12 @@
 import '../symbol-metadata.mjs'
 
 // Re-export decorator options types
-export type { InjectableOptions, FactoryOptions } from '../decorators/index.mjs'
+export type { InjectableOptions } from '../decorators/injectable.mjs'
+export type { FactoryOptions } from '../decorators/factory.mjs'
 
 // Export legacy-compatible decorators
-export { Injectable } from './injectable.decorator.mjs'
-export { Factory } from './factory.decorator.mjs'
+export { Injectable } from './injectable.mjs'
+export { Factory } from './factory.mjs'
 
 // Export context compatibility utilities for building custom legacy decorators
 export { createClassContext, createMethodContext } from './context-compat.mjs'

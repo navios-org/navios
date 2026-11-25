@@ -11,10 +11,10 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import { Container } from '../container/container.mjs'
-import { Injectable } from '../decorators/injectable.decorator.mjs'
-import { InjectableScope } from '../enums/index.mjs'
+import { Injectable } from '../decorators/injectable.mjs'
 import { DIError, DIErrorCode } from '../errors/index.mjs'
-import { inject } from '../injectors.mjs'
+import { InjectableScope } from '../injectable-scope.mjs'
+import { inject } from '../injection/injectors.mjs'
 
 // ============================================================================
 // FINDING #1: Circular Dependencies (FIXED)

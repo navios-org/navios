@@ -15,17 +15,7 @@
  * }
  * ```
  */
-import { AttributeFactory } from '@navios/core/legacy-compat'
-
-import {
-  ApiDeprecatedSchema,
-  ApiOperationSchema,
-  ApiSecuritySchema,
-  ApiStreamSchema,
-  ApiSummarySchema,
-  ApiTagSchema,
-} from '../attributes.mjs'
-import {
+export {
   ApiDeprecatedToken,
   ApiExcludeToken,
   ApiOperationToken,
@@ -33,48 +23,21 @@ import {
   ApiStreamToken,
   ApiSummaryToken,
   ApiTagToken,
-} from '../tokens.mjs'
-
-const BaseApiTag = AttributeFactory.createAttribute(ApiTagToken, ApiTagSchema)
-
-export function ApiTag(name: string, description?: string) {
-  return BaseApiTag(description === undefined ? { name } : { name, description })
-}
-
-export const ApiOperation = AttributeFactory.createAttribute(ApiOperationToken, ApiOperationSchema)
-
-export const ApiSummary = AttributeFactory.createAttribute(ApiSummaryToken, ApiSummarySchema)
-
-const BaseApiDeprecated = AttributeFactory.createAttribute(ApiDeprecatedToken, ApiDeprecatedSchema)
-
-export function ApiDeprecated(message?: string) {
-  return BaseApiDeprecated(message === undefined ? {} : { message })
-}
-
-export const ApiSecurity = AttributeFactory.createAttribute(ApiSecurityToken, ApiSecuritySchema)
-
-export const ApiExclude = AttributeFactory.createAttribute(ApiExcludeToken)
-
-export const ApiStream = AttributeFactory.createAttribute(ApiStreamToken, ApiStreamSchema)
-
+  extractOpenApiMetadata,
+} from '../annotations/index.mjs'
 export type {
   ApiDeprecatedOptions,
   ApiOperationOptions,
   ApiSecurityRequirement,
   ApiStreamOptions,
   ApiTagOptions,
-} from '../attributes.mjs'
-
-export {
-  ApiTagToken,
-  ApiOperationToken,
-  ApiSummaryToken,
-  ApiDeprecatedToken,
-  ApiSecurityToken,
-  ApiExcludeToken,
-  ApiStreamToken,
-} from '../tokens.mjs'
-
-export { openApiPlugin } from '../plugin.mjs'
-export { generateOpenApiDocument } from '../document.mjs'
-export { extractOpenApiMetadata } from '../metadata.mjs'
+} from '../annotations/index.mjs'
+export { generateOpenApiDocument } from '../document/index.mjs'
+export { openApiPlugin } from '../plugin/index.mjs'
+export { ApiDeprecated } from './api-deprecated.mjs'
+export { ApiExclude } from './api-exclude.mjs'
+export { ApiOperation } from './api-operation.mjs'
+export { ApiSecurity } from './api-security.mjs'
+export { ApiStream } from './api-stream.mjs'
+export { ApiSummary } from './api-summary.mjs'
+export { ApiTag } from './api-tag.mjs'

@@ -8,19 +8,18 @@ import {
 import type { EndpointHandler } from '@navios/builder'
 import type { QueryClient } from '@tanstack/react-query'
 
-import { createCaller } from '../common/call.mjs'
-import { callOptionsFor } from '../common/http-client.mjs'
+import { createKeyBuilder } from '../endpoint/cache-key.mjs'
+import { createCaller } from '../endpoint/create-caller.mjs'
+import { callOptionsFor } from '../endpoint/http-client.mjs'
 
-import type { MaybeWithResponse } from '../common/call.mjs'
-import type { EndpointData } from '../common/types.mjs'
-
-import { createKeyBuilder } from './key.mjs'
+import type { MaybeWithResponse } from '../endpoint/create-caller.mjs'
+import type { EndpointData } from '../endpoint/types.mjs'
 
 import type {
   InfiniteEndpointOptions,
   InfiniteQueryObject,
   InfiniteQuerySettings,
-} from './types.mjs'
+} from './infinite-query-object.mjs'
 
 function noop() {}
 

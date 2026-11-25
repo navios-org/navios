@@ -2,10 +2,10 @@ import { assertType, describe, expectTypeOf, test } from 'vitest'
 import { z } from 'zod/v4'
 
 import { Factory, Injectable } from '../decorators/index.mjs'
-import { asyncInject, inject, optional } from '../injectors.mjs'
+import { asyncInject, inject, optional } from '../injection/injectors.mjs'
 import { InjectionToken } from '../token/injection-token.mjs'
 
-import type { Factorable } from '../interfaces/index.mjs'
+import type { Factorable } from '../provider/factorable.mjs'
 import type { StandardSchemaV1 } from '../schema/standard-schema.mjs'
 
 interface FooService {

@@ -2,10 +2,10 @@ import { test } from 'vitest'
 import { z } from 'zod/v4'
 
 import { Factory } from '../decorators/index.mjs'
-import { InjectableScope } from '../enums/index.mjs'
+import { InjectableScope } from '../injectable-scope.mjs'
 import { InjectionToken } from '../token/injection-token.mjs'
 
-import type { Factorable, FactorableWithArgs } from '../interfaces/index.mjs'
+import type { Factorable, FactorableWithArgs } from '../provider/factorable.mjs'
 
 // Test factory without arguments
 @Factory()

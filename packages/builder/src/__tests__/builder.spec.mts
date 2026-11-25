@@ -1,10 +1,10 @@
 import { describe, expect, it, vi } from 'vitest'
 import { z, ZodError } from 'zod/v4'
 
-import { builder } from '../builder.mjs'
-import { EndpointError, NaviosError } from '../errors/index.mjs'
+import { builder } from '../http/builder.mjs'
+import { EndpointError, NaviosError } from '../index.mjs'
 
-import type { Client } from '../types/index.mjs'
+import type { Client } from '../index.mjs'
 
 describe('builder', () => {
   const responseSchema = z.object({

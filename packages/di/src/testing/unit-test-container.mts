@@ -1,22 +1,19 @@
 import { Container } from '../container/container.mjs'
-import { InjectableScope } from '../enums/index.mjs'
-import { DIError, DIErrorCode } from '../errors/index.mjs'
-import { baseToken } from '../internal/engine.mjs'
-import { InjectableTokenMeta } from '../symbols/index.mjs'
+import { DIError, DIErrorCode } from '../errors/di-error.mjs'
+import { InjectableScope } from '../injectable-scope.mjs'
+import { baseToken } from '../internal/normalize.mjs'
+import { provide } from '../provider/provide.mjs'
+import { findInjectableToken, InjectableTokenMeta } from '../token/injectable-token.mjs'
 import { BoundInjectionToken, InjectionToken } from '../token/injection-token.mjs'
-import { findInjectableToken, provide } from '../token/provider.mjs'
 
+import type { AsyncResolve, SyncResolve } from '../injection/resolve-signatures.mjs'
+import type { ProviderRecord } from '../provider/provider-record.mjs'
 import type { AnyInjectableType } from '../token/injection-token.mjs'
-import type { ProviderRecord } from '../token/provider.mjs'
-import type { AsyncResolve, SyncResolve } from '../utils/types.mjs'
 
-import type {
-  LifecycleRecord,
-  MethodCallRecord,
-  MockServiceStats,
-  ProviderConfig,
-  UnitTestContainerOptions,
-} from './types.mjs'
+import { createAutoMockProxy } from './auto-mock.mjs'
+import { argsMatch, createTrackingProxy } from './call-tracking.mjs'
+
+import type { LifecycleRecord, MethodCallRecord, MockServiceStats } from './call-tracking.mjs'
 
 type Token = InjectionToken<any, any>
 
@@ -26,85 +23,36 @@ type AnyToken =
   | (new (...args: any[]) => any)
 
 /**
- * Creates a tracking proxy that records method calls.
+ * Provider configuration for UnitTestContainer.
  */
-function createTrackingProxy<T extends object>(
-  target: T,
-  tokenId: Token,
-  methodCalls: Map<Token, MethodCallRecord[]>,
-): T {
-  return new Proxy(target, {
-    get(obj, prop) {
-      const value = Reflect.get(obj, prop)
-
-      if (typeof value === 'function' && typeof prop === 'string') {
-        return function (this: unknown, ...args: unknown[]) {
-          const calls = methodCalls.get(tokenId) || []
-          const record: MethodCallRecord = {
-            method: prop,
-            args,
-            timestamp: Date.now(),
-          }
-
-          try {
-            const result = value.apply(this === undefined ? obj : this, args)
-
-            if (result instanceof Promise) {
-              return result
-                .then((res) => {
-                  record.result = res
-                  calls.push(record)
-                  methodCalls.set(tokenId, calls)
-                  return res
-                })
-                .catch((err) => {
-                  record.error = err
-                  calls.push(record)
-                  methodCalls.set(tokenId, calls)
-                  throw err
-                })
-            }
-
-            record.result = result
-            calls.push(record)
-            methodCalls.set(tokenId, calls)
-            return result
-          } catch (err) {
-            record.error = err as Error
-            calls.push(record)
-            methodCalls.set(tokenId, calls)
-            throw err
-          }
-        }
-      }
-
-      return value
-    },
-  })
+export interface ProviderConfig<T = any> {
+  token: InjectionToken<T, any> | BoundInjectionToken<T, any> | (new (...args: any[]) => T)
+  useValue?: T
+  useClass?: new (...args: any[]) => T
+  useFactory?: () => T | Promise<T>
 }
 
 /**
- * Creates an auto-mock proxy that throws on method access.
+ * Options for UnitTestContainer.
  */
-function createAutoMockProxy(tokenId: string): object {
-  return new Proxy(
-    {},
-    {
-      get(_, prop) {
-        if (prop === 'then' || prop === 'catch' || prop === 'finally') {
-          return undefined
-        }
-        if (typeof prop === 'symbol') {
-          return undefined
-        }
-        throw new Error(
-          `[UnitTestContainer] Attempted to access '${prop}' on auto-mocked service '${tokenId}'. ` +
-            `This service is not in the providers list. ` +
-            `Add it to providers, or set allowUnregistered: false to fail as soon as it is requested.`,
-        )
-      },
-    },
-  )
+export interface UnitTestContainerOptions {
+  /**
+   * List of providers to register. Only these services can be resolved.
+   */
+  providers: ProviderConfig[]
+
+  /**
+   * If true, unregistered dependencies will be auto-mocked instead of throwing,
+   * whether they are requested with `container.get()` or injected into a
+   * listed service.
+   * Default: false (throws on unregistered dependencies)
+   */
+  allowUnregistered?: boolean
+
+  /**
+   * Logger for debugging.
+   */
+  logger?: Console | null
 }
 
 /**
@@ -427,7 +375,7 @@ export class UnitTestContainer extends Container {
   expectCalledWith(token: AnyToken, method: string, expectedArgs: unknown[]): void {
     const realToken = this.resolveToken(token)
     const calls = this.methodCalls.get(realToken) || []
-    const found = calls.some((c) => c.method === method && this.argsMatch(c.args, expectedArgs))
+    const found = calls.some((c) => c.method === method && argsMatch(c.args, expectedArgs))
 
     if (!found) {
       const methodCalls = calls.filter((c) => c.method === method)
@@ -596,19 +544,6 @@ export class UnitTestContainer extends Container {
       this.addInstance(realToken, value)
     }
     this.recordLifecycleEvent(realToken, 'created', realToken.toString())
-  }
-
-  private argsMatch(actual: unknown[], expected: unknown[]): boolean {
-    if (actual.length !== expected.length) {
-      return false
-    }
-    return actual.every((arg, index) => {
-      const exp = expected[index]
-      if (typeof exp === 'object' && exp !== null) {
-        return JSON.stringify(arg) === JSON.stringify(exp)
-      }
-      return arg === exp
-    })
   }
 }
 

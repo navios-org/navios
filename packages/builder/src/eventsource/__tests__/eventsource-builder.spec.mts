@@ -1,12 +1,12 @@
 import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod/v4'
 
-import { NaviosError } from '../../errors/index.mjs'
+import { NaviosError } from '../../shared/navios-error.mjs'
 import { eventSourceBuilder } from '../eventsource-builder.mjs'
 import { EventSourceError, isEventSourceError } from '../index.mjs'
 
-import type { Schema } from '../../types/schema.mjs'
-import type { EventSourceClient } from '../types/eventsource-client.mjs'
+import type { Schema } from '../../shared/schema.mjs'
+import type { EventSourceClient } from '../eventsource-client.mjs'
 
 /** A hand-written Standard Schema, standing in for any non-Zod library. */
 function standard<Input, Output>(

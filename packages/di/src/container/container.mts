@@ -1,31 +1,30 @@
-import { InjectableScope } from '../enums/index.mjs'
 import { DIError } from '../errors/di-error.mjs'
-import { argsKey } from '../internal/args-key.mjs'
-import {
-  baseToken,
-  destroyAll,
-  destroyEntry,
-  hasProvider,
-  lookupRecord,
-  peek,
-  resolveAsync,
-  resolveSyncOrThrow,
-  settleStore,
-  storeValue,
-} from '../internal/engine.mjs'
-import { ANY_ARGS, EntryStatus, Store } from '../internal/entry.mjs'
-import { validateSync } from '../schema/standard-schema.mjs'
-import { BoundInjectionToken, FactoryInjectionToken } from '../token/injection-token.mjs'
-import { provide, registerInjectable } from '../token/provider.mjs'
+import { InjectableScope } from '../injectable-scope.mjs'
+import { destroyAll, destroyEntry } from '../internal/destruction.mjs'
+import { EntryStatus } from '../internal/entry.mjs'
+import { baseToken, hasProvider, lookupRecord } from '../internal/normalize.mjs'
+import { resolveAsync, resolveSyncOrThrow } from '../internal/resolution.mjs'
+import { Store } from '../internal/store.mjs'
+import { peek, settleStore, storeValue } from '../internal/stored-values.mjs'
+import { provide } from '../provider/provide.mjs'
+import { registerInjectable } from '../provider/registration.mjs'
 
-import type { IContainer } from '../interfaces/container.interface.mjs'
-import type { InstanceDecorator, RootHost } from '../internal/engine.mjs'
+import type { AsyncResolve, SyncResolve } from '../injection/resolve-signatures.mjs'
 import type { Entry } from '../internal/entry.mjs'
-import type { AnyInjectableType, ClassType, InjectionToken } from '../token/injection-token.mjs'
-import type { Provider, ProviderInput, ProviderRecord } from '../token/provider.mjs'
-import type { AsyncResolve, SyncResolve } from '../utils/types.mjs'
+import type { InstanceDecorator, RootHost } from '../internal/host.mjs'
+import type { Provider, ProviderInput } from '../provider/provide.mjs'
+import type { ProviderRecord } from '../provider/provider-record.mjs'
+import type { ClassType } from '../token/class-type.mjs'
+import type {
+  AnyInjectableType,
+  BoundInjectionToken,
+  InjectionToken,
+} from '../token/injection-token.mjs'
 
+import { addInvalidateListener } from './invalidate-listener.mjs'
 import { ScopedContainer } from './scoped-container.mjs'
+
+import type { IContainer } from './i-container.mjs'
 
 export interface ContainerOptions {
   /** Providers that replace or supply the defaults registered on tokens. */
@@ -221,45 +220,4 @@ registerInjectable(Container)
 
 function instanceOf(entry: Entry): unknown {
   return entry.instance
-}
-
-/** @internal */
-export function addInvalidateListener(
-  root: RootHost,
-  store: Store,
-  token: AnyInjectableType,
-  args: unknown,
-  listener: () => void,
-): () => void {
-  const base = baseToken(token)
-  if (base === undefined) {
-    throw DIError.classNotInjectable((token as ClassType).name)
-  }
-  if (token instanceof BoundInjectionToken) {
-    return store.addListener(base, keyFor(base, token.value), listener)
-  }
-  if (token instanceof FactoryInjectionToken) {
-    const state = root.factoryValues.get(token)
-    // Until the factory has produced the args, the instance cannot be
-    // addressed, so listen for any instance of the underlying token.
-    return store.addListener(
-      base,
-      state?.done === true ? keyFor(base, state.value) : ANY_ARGS,
-      listener,
-    )
-  }
-  return store.addListener(base, keyFor(base, args), listener)
-}
-
-function keyFor(token: InjectionToken<any, any>, args: unknown): string | null {
-  let value = args
-  if (token.schema !== undefined) {
-    try {
-      value = validateSync(token.schema, args, token.toString())
-    } catch {
-      // Listen under the raw args; nothing will be stored there, which is the
-      // same as the instance never existing.
-    }
-  }
-  return value === undefined ? null : argsKey(value)
 }

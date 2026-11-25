@@ -1,19 +1,11 @@
 import { isStandardSchema } from '../schema/standard-schema.mjs'
 
-import type { InjectableScope } from '../enums/index.mjs'
-import type { IContainer } from '../interfaces/container.interface.mjs'
+import type { InjectableScope } from '../injectable-scope.mjs'
+import type { FactoryContext } from '../provider/factory-context.mjs'
+import type { ProviderRecord } from '../provider/provider-record.mjs'
 import type { InferInput, StandardSchemaV1 } from '../schema/standard-schema.mjs'
 
-import type { ProviderRecord } from './provider.mjs'
-
-export type ClassType = new (...args: any[]) => any
-export type ClassTypeWithoutArguments = new () => any
-export type ClassTypeWithArgument<Arg> = new (arg: Arg) => any
-export type ClassTypeWithOptionalArgument<Arg> = new (arg?: Arg) => any
-
-export type ClassTypeWithInstance<T> = new (...args: any[]) => T
-export type ClassTypeWithInstanceAndArgument<T, Arg> = new (arg: Arg) => T
-export type ClassTypeWithInstanceAndOptionalArgument<T, Arg> = new (arg?: Arg) => T
+import type { ClassType } from './class-type.mjs'
 
 /**
  * Any Standard Schema can describe a token's args.
@@ -37,15 +29,6 @@ export interface InjectionTokenOptions<Schema extends StandardSchemaV1 | undefin
    * `addInstance` (for example a per-request value).
    */
   scope?: InjectableScope
-}
-
-/**
- * Context handed to factory functions and `@Factory` classes.
- */
-export interface FactoryContext {
-  inject: <T = any>(token: AnyInjectableType, args?: unknown) => Promise<T>
-  container: IContainer
-  addDestroyListener: (listener: () => void | Promise<void>) => void
 }
 
 export class InjectionToken<

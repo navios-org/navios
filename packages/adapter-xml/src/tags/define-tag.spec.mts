@@ -3,7 +3,7 @@ import { z } from 'zod/v4'
 
 import type { StandardSchemaV1 } from '@navios/core'
 
-import { renderToXml } from '../runtime/render-to-xml.mjs'
+import { renderToXml } from '../render/render-to-xml.mjs'
 
 import { defineTag } from './define-tag.mjs'
 
@@ -220,7 +220,7 @@ describe('defineTag', () => {
     })
 
     it('should validate when the tag is rendered from JSX', async () => {
-      const { createElement } = await import('../runtime/create-element.mjs')
+      const { createElement } = await import('../jsx/create-element.mjs')
       const atomLink = defineTag('atom:link', z.object({ href: z.string().url() }))
 
       const node = createElement(atomLink, { href: 'nope' })

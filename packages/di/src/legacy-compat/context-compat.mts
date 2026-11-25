@@ -5,7 +5,7 @@
  * from legacy decorator arguments, and manages metadata storage using WeakMap.
  */
 
-import type { ClassType } from '../token/injection-token.mjs'
+import type { ClassType } from '../token/class-type.mjs'
 
 // WeakMap to store metadata for legacy decorators
 // Keyed by class constructor for class decorators

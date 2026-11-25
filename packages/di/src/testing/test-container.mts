@@ -1,23 +1,19 @@
 import { Container } from '../container/container.mjs'
-import { InjectableScope } from '../enums/index.mjs'
-import { destroyEntry } from '../internal/engine.mjs'
+import { InjectableScope } from '../injectable-scope.mjs'
+import { destroyEntry } from '../internal/destruction.mjs'
+import { provide } from '../provider/provide.mjs'
+import { findInjectableToken, getInjectableToken } from '../token/injectable-token.mjs'
 import { InjectionToken } from '../token/injection-token.mjs'
-import { findInjectableToken, provide } from '../token/provider.mjs'
-import { getInjectableToken } from '../utils/get-injectable-token.mjs'
 
 import type { Entry } from '../internal/entry.mjs'
+import type { Provider } from '../provider/provide.mjs'
 import type { BoundInjectionToken } from '../token/injection-token.mjs'
-import type { Provider } from '../token/provider.mjs'
 
-import type {
-  BindingBuilder,
-  DependencyGraph,
-  DependencyNode,
-  LifecycleRecord,
-  MethodCallRecord,
-  MockServiceStats,
-  TestContainerOptions,
-} from './types.mjs'
+import { argsMatch } from './call-tracking.mjs'
+import { buildDependencyGraph, buildSimplifiedDependencyGraph } from './dependency-graph.mjs'
+
+import type { LifecycleRecord, MethodCallRecord, MockServiceStats } from './call-tracking.mjs'
+import type { DependencyGraph } from './dependency-graph.mjs'
 
 type Token = InjectionToken<any, any>
 
@@ -25,6 +21,36 @@ type AnyToken =
   | InjectionToken<any, any>
   | BoundInjectionToken<any, any>
   | (new (...args: any[]) => any)
+
+/**
+ * Binding configuration for TestContainer.
+ */
+export interface BindingBuilder<T> {
+  /**
+   * Bind to a concrete value.
+   */
+  toValue(value: T): void
+
+  /**
+   * Bind to a class implementation.
+   */
+  toClass<C extends new (...args: any[]) => T>(cls: C): void
+
+  /**
+   * Bind to a factory function.
+   */
+  toFactory(factory: () => T | Promise<T>): void
+}
+
+/**
+ * Options for TestContainer.
+ */
+export interface TestContainerOptions {
+  /**
+   * Logger for debugging.
+   */
+  logger?: Console | null
+}
 
 /**
  * TestContainer extends Container with testing utilities.
@@ -329,7 +355,7 @@ export class TestContainer extends Container {
   expectCalledWith(token: AnyToken, method: string, expectedArgs: unknown[]): void {
     const realToken = this.resolveToken(token)
     const calls = this.methodCalls.get(realToken) || []
-    const found = calls.some((c) => c.method === method && this.argsMatch(c.args, expectedArgs))
+    const found = calls.some((c) => c.method === method && argsMatch(c.args, expectedArgs))
 
     if (!found) {
       throw new Error(
@@ -390,41 +416,7 @@ export class TestContainer extends Container {
    * Returns a serializable structure that can be used with vitest snapshots.
    */
   getDependencyGraph(): DependencyGraph {
-    const entries = this.graphEntries()
-    const included = new Set(entries)
-    const namesOf = (linked: Iterable<Entry> | null): string[] => {
-      const names = new Set<string>()
-      if (linked !== null) {
-        for (const entry of linked) {
-          if (included.has(entry)) {
-            names.add(nodeName(entry))
-          }
-        }
-      }
-      return Array.from(names)
-    }
-
-    const nodes: Record<string, DependencyNode> = {}
-    const rootTokens: string[] = []
-
-    for (const entry of entries) {
-      const name = nodeName(entry)
-      const dependents = namesOf(entry.dependents)
-      nodes[name] = {
-        token: entry.token.toString(),
-        instanceName: name,
-        scope: entry.record.scope,
-        dependencies: namesOf(entry.deps),
-        dependents,
-      }
-
-      // Root tokens have no dependents
-      if (dependents.length === 0) {
-        rootTokens.push(name)
-      }
-    }
-
-    return { nodes, rootTokens }
+    return buildDependencyGraph(this.graphEntries())
   }
 
   /**
@@ -432,29 +424,7 @@ export class TestContainer extends Container {
    * Useful for cleaner snapshot comparisons.
    */
   getSimplifiedDependencyGraph(): Record<string, string[]> {
-    const entries = this.graphEntries()
-    const included = new Set(entries)
-    const graph: Record<string, string[]> = {}
-
-    for (const entry of entries) {
-      const dependencies = (graph[entry.token.toString()] ??= [])
-      if (entry.deps === null) {
-        continue
-      }
-      for (const dependency of entry.deps) {
-        const name = dependency.token.toString()
-        if (included.has(dependency) && !dependencies.includes(name)) {
-          dependencies.push(name)
-        }
-      }
-    }
-
-    // Sort for consistent snapshots
-    for (const key of Object.keys(graph)) {
-      graph[key].sort()
-    }
-
-    return graph
+    return buildSimplifiedDependencyGraph(this.graphEntries())
   }
 
   // ============================================================================
@@ -523,22 +493,4 @@ export class TestContainer extends Container {
     const self = findInjectableToken(Container)
     return this.store.entries().filter((entry) => entry.token !== self)
   }
-
-  private argsMatch(actual: unknown[], expected: unknown[]): boolean {
-    if (actual.length !== expected.length) {
-      return false
-    }
-    return actual.every((arg, index) => {
-      const exp = expected[index]
-      if (typeof exp === 'object' && exp !== null) {
-        return JSON.stringify(arg) === JSON.stringify(exp)
-      }
-      return arg === exp
-    })
-  }
-}
-
-function nodeName(entry: Entry): string {
-  const name = entry.token.toString()
-  return entry.key === null ? name : `${name}:${entry.key}`
 }

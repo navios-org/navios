@@ -18,30 +18,21 @@
  * ```
  */
 
-// Export legacy-compatible decorators
+// The context helpers live in `@navios/di` and are re-exported by core, so
+// that every package's legacy decorators share one metadata store per class.
+export { createClassContext, createMethodContext } from '@navios/core/legacy-compat'
+// Metadata, constants, the scheduler and the plugin work with both decorator styles.
+export type { CronOptions } from '../cron/index.mjs'
+export { getAllCronMetadata, getCronMetadata, Schedule } from '../cron/index.mjs'
+export type { CronMetadata } from '../cron/index.mjs'
+export type { SchedulableOptions, ScheduleMetadata } from '../schedulable/index.mjs'
 export {
-  Cron,
-  Schedulable,
-  type CronOptions,
-  type SchedulableOptions,
-} from './decorators/index.mjs'
-
-// Re-export Schedule constants for convenience
-export { Schedule } from '../cron.constants.mjs'
-
-// Re-export metadata types and functions (these work with both decorator styles)
-export type { CronMetadata, ScheduleMetadata } from '../metadata/index.mjs'
-export {
-  getAllCronMetadata,
-  getCronMetadata,
-  getScheduleMetadata,
   extractScheduleMetadata,
+  getScheduleMetadata,
   hasScheduleMetadata,
-} from '../metadata/index.mjs'
-
-// Re-export SchedulerService and the plugin (they work with both decorator styles)
-export { SchedulerService } from '../scheduler.service.mjs'
-export { schedulePlugin, type SchedulePluginOptions } from '../schedule.plugin.mjs'
-
-// Context compatibility utilities
-export { createClassContext, createMethodContext } from './context-compat.mjs'
+} from '../schedulable/index.mjs'
+export { schedulePlugin } from '../schedule-plugin.mjs'
+export type { SchedulePluginOptions } from '../schedule-plugin.mjs'
+export { SchedulerService } from '../scheduler-service.mjs'
+export { Cron } from './cron.mjs'
+export { Schedulable } from './schedulable.mjs'
