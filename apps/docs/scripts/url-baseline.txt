@@ -24,6 +24,7 @@
 /docs/builder/essentials/schemas
 /docs/builder/guides/downloads-and-streams
 /docs/builder/guides/file-uploads
+/docs/builder/guides/mocking
 /docs/builder/guides/navios-server
 /docs/builder/guides/organizing
 /docs/builder/guides/testing
@@ -129,6 +130,7 @@
 /docs/server
 /docs/server/adapters/bun
 /docs/server/adapters/fastify
+/docs/server/adapters/srvx
 /docs/server/adapters/xml
 /docs/server/advanced/attributes
 /docs/server/advanced/multipart
