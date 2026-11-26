@@ -1,25 +1,9 @@
 // Nodes
-export type {
-  XmlNode,
-  CDataNode,
-  RawXmlNode,
-  ClassComponentNode,
-  FunctionComponentNode,
-  AnyXmlNode,
-  XmlRenderable,
-} from './nodes/index.mjs'
-export {
-  Fragment,
-  CDataSymbol,
-  RawXmlSymbol,
-  ClassComponent,
-  FunctionComponentSymbol,
-  CData,
-  DangerouslyInsertRawXml,
-} from './nodes/index.mjs'
+export type { XmlNode, AnyXmlNode, XmlRenderable } from './nodes/index.mjs'
+export { Fragment, CData, DangerouslyInsertRawXml } from './nodes/index.mjs'
 
 // Components
-export { Component, isComponentClass } from './components/index.mjs'
+export { Component } from './components/index.mjs'
 export type {
   ComponentOptions,
   XmlComponent,
@@ -39,7 +23,7 @@ export { defineTag } from './tags/index.mjs'
 export type { TagComponent } from './tags/index.mjs'
 
 // Responses
-export { xml, isXmlResponse, XML_RESULT_KIND } from './response/index.mjs'
+export { xml, isXmlResponse } from './response/index.mjs'
 export type { XmlPayload, XmlResponse, XmlResponseOptions } from './response/index.mjs'
 
 // Plugin

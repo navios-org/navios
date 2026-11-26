@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Removed
 
 - **Breaking:** `AsyncComponent` and `AsyncXmlNode`. Nothing created such a node; put the promise in the tree instead, as in `<item>{loadTitle()}</item>`.
+- **Breaking:** the internal node markers are no longer exported from the main entry: `CDataSymbol`, `RawXmlSymbol`, `ClassComponent`, `FunctionComponentSymbol`, `isComponentClass`, `XML_RESULT_KIND` and the types `CDataNode`, `RawXmlNode`, `ClassComponentNode`, `FunctionComponentNode`. `AnyXmlNode` still covers every node, and `isXmlResponse()` recognises the result of `xml()`.
 
 ## [2.0.0-alpha.0] - 2026-11-26
 
