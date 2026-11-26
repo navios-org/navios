@@ -159,17 +159,14 @@ In code, the error is a `ValidationError` with `source` and `issues` (the Standa
 ```ts
 import { problem, ValidationError } from '@navios/server'
 
-app.mapError(ValidationError, (error) => {
-  if (error.source === 'response') {
-    throw error
-  }
-  return problem(422, 'Validation failed', {
+app.mapError(ValidationError, (error) =>
+  problem(422, 'Validation failed', {
     fields: error.issues.map((issue) => issue.message),
-  })
-})
+  }),
+)
 ```
 
-Such a mapper also receives response validation errors, which have `source: 'response'`. Rethrow those, as above, so that they stay a 500.
+A response that does not match its schema is a `ResponseValidationError`, with `issues` and no `source`: what a handler returned, the body of an `HttpException` for a status the endpoint declares, or the payload of an [`sse()`](/docs/server/guides/streams-and-sse) event. It is the server's fault, so it is not a `ValidationError`: a mapper for `ValidationError` never sees it, and it becomes a logged 500 like any other unexpected error.
 
 ## Responders
 

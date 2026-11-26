@@ -1,6 +1,6 @@
 import type { InferInput, StandardSchemaV1 } from '@navios/di'
 
-import { ValidationError } from '../errors/validation-error.mjs'
+import { ResponseValidationError } from '../errors/validation-error.mjs'
 
 import type { SseMessage } from './sse-message.mjs'
 
@@ -44,7 +44,7 @@ export function sse<Event extends EventDeclaration>(
       )
     }
     if (result.issues) {
-      throw new ValidationError('response', result.issues)
+      throw new ResponseValidationError(result.issues)
     }
     data = result.value
   }

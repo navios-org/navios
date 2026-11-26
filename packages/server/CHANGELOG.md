@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0-alpha.1] - Unreleased
+
+### Breaking
+
+- **A response that does not match its schema is a `ResponseValidationError`**, no longer a `ValidationError` with `source: 'response'`: what a handler returned, the body of an `HttpException` for a declared status, and the payload of `sse()`. `ValidationSource` has no `'response'`. A mapper for `ValidationError` no longer sees response errors, which stay a 500 without rethrowing them; one for `ResponseValidationError` does.
+
+### Added
+
+- **`ResponseValidationError`**, with the `issues` of the schema.
+
 ## [2.0.0-alpha.0] - 2026-11-26
 
 This package is new: it is the HTTP framework that `@navios/core` was in 1.x, and the entries below are the changes from `@navios/core` 1.x. `@navios/core` itself is now the part that does not depend on HTTP, and this package re-exports it.

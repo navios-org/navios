@@ -36,6 +36,7 @@ describe('the main entry', () => {
       'RequestContext',
       'RequestContextToken',
       'RequestValue',
+      'ResponseValidationError',
       'TooManyRequestsException',
       'UnauthorizedException',
       'UnprocessableEntityException',

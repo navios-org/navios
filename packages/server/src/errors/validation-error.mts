@@ -2,12 +2,13 @@ import type { StandardSchemaIssue } from '@navios/di'
 
 import { resumeStacks, suspendStacks } from './client-error-stacks.mjs'
 
-export type ValidationSource = 'urlParams' | 'query' | 'headers' | 'cookies' | 'body' | 'response'
+/** The part of a request that a schema validates. */
+export type ValidationSource = 'urlParams' | 'query' | 'headers' | 'cookies' | 'body'
 
 /**
- * A value did not match its schema. `source` says which part of the request
- * (or the response) was being validated. For a request, the stack is captured
- * as the `clientErrorStacks` application option says.
+ * A part of the request did not match its schema: a client error, answered
+ * with a 400. `source` says which part. The stack is captured as the
+ * `clientErrorStacks` application option says.
  */
 export class ValidationError extends Error {
   static {
@@ -31,15 +32,35 @@ export class ValidationError extends Error {
     public readonly source: ValidationSource,
     public readonly issues: ReadonlyArray<StandardSchemaIssue>,
   ) {
-    // A response that does not match is a defect of the server.
-    const limit = source === 'response' ? undefined : suspendStacks()
+    const limit = suspendStacks()
     super(limit === undefined ? describeIssues(source, issues) : undefined)
     resumeStacks(limit)
   }
 }
 
+/**
+ * A response did not match its schema: what a handler returned, the body of
+ * an `HttpException` for a status the endpoint declares, or the payload of an
+ * event. A defect of the server, answered with a 500 and reported like any
+ * other. It is not a `ValidationError`, so a mapper for that class does not
+ * see it.
+ */
+export class ResponseValidationError extends Error {
+  static {
+    Object.defineProperty(this.prototype, 'name', {
+      value: 'ResponseValidationError',
+      writable: true,
+      configurable: true,
+    })
+  }
+
+  constructor(public readonly issues: ReadonlyArray<StandardSchemaIssue>) {
+    super(describeIssues('response', issues))
+  }
+}
+
 function describeIssues(
-  source: ValidationSource,
+  source: ValidationSource | 'response',
   issues: ReadonlyArray<StandardSchemaIssue>,
 ): string {
   return `Validation failed for ${source}: ${issues

@@ -12,6 +12,7 @@ import {
   Module,
   NaviosFactory,
   NotFoundException,
+  ResponseValidationError,
   UseGuards,
   ValidationError,
 } from '../index.mjs'
@@ -124,7 +125,7 @@ describe('clientErrorStacks', () => {
 
   it('keeps the stack of a response validation error with "never"', async () => {
     await start('never')
-    expect(hasFrames(new ValidationError('response', [{ message: 'bad' }]))).toBe(true)
+    expect(hasFrames(new ResponseValidationError([{ message: 'bad' }]))).toBe(true)
   })
 
   it('does not affect other errors', async () => {
@@ -254,8 +255,15 @@ describe('ValidationError', () => {
   })
 
   it('has the message in its stack', () => {
-    expect(new ValidationError('response', [{ message: 'bad' }]).stack).toContain(
+    expect(new ResponseValidationError([{ message: 'bad' }]).stack).toContain(
       'Validation failed for response: bad',
     )
+  })
+
+  it('is not one for a response, which is a ResponseValidationError', () => {
+    const error = new ResponseValidationError([{ message: 'bad' }])
+    expect(error.name).toBe('ResponseValidationError')
+    expect(String(error)).toBe('ResponseValidationError: Validation failed for response: bad')
+    expect(error).not.toBeInstanceOf(ValidationError)
   })
 })

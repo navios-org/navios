@@ -25,5 +25,5 @@ export {
 } from './http-exception.mjs'
 export { problem } from './problem.mjs'
 export type { ProblemDetails } from './problem.mjs'
-export { ValidationError } from './validation-error.mjs'
+export { ResponseValidationError, ValidationError } from './validation-error.mjs'
 export type { ValidationSource } from './validation-error.mjs'

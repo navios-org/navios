@@ -50,7 +50,7 @@ export interface ErrorPipelineOptions {
  * Turns anything thrown while handling a request into a response.
  *
  * The most specific class wins. The built-in mappings count as registered
- * for `HttpException`, for a denied guard and for a request `ValidationError`,
+ * for `HttpException`, for a denied guard and for a `ValidationError`,
  * so a mapper for one of these classes or a subclass replaces the built-in,
  * and a mapper for `Error` gets only what none of them handles. What nothing
  * maps goes to the internal-error responder.
@@ -82,7 +82,7 @@ export class ErrorPipeline {
       if (
         proto === HttpException.prototype ||
         proto === GuardDeniedError.prototype ||
-        (proto === ValidationError.prototype && (error as ValidationError).source !== 'response')
+        proto === ValidationError.prototype
       ) {
         return undefined
       }
@@ -114,7 +114,7 @@ export class ErrorPipeline {
     const isClientError =
       (error instanceof HttpException && error.statusCode < 500) ||
       error instanceof GuardDeniedError ||
-      (error instanceof ValidationError && error.source !== 'response')
+      error instanceof ValidationError
     if (!isClientError) {
       this.report(error, at)
     }
@@ -220,7 +220,7 @@ export class ErrorPipeline {
     if (error instanceof GuardDeniedError) {
       return this.respond('forbidden', 403, error, at)
     }
-    if (error instanceof ValidationError && error.source !== 'response') {
+    if (error instanceof ValidationError) {
       return this.respond('validation', 400, error, at)
     }
     return this.internal(error, at)
