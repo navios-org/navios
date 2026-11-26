@@ -109,8 +109,12 @@ function register(
   return token
 }
 
+/**
+ * @deprecated `registerProvider()` takes no options: give the scope with the
+ * provider, as `{ class, scope }` or `{ factory, scope }`. Kept for packages
+ * that re-export it; it will be removed.
+ */
 export interface RegisterProviderOptions {
-  /** Overrides the scope that `provide()` would give the provider. */
   scope?: InjectableScope
 }
 
@@ -122,22 +126,16 @@ export interface RegisterProviderOptions {
 export function registerProvider<K extends InjectionToken<any, any>>(
   token: K,
   input: ProviderInputFor<K>,
-  options?: RegisterProviderOptions,
 ): K
 export function registerProvider<C extends ClassType>(
   target: C,
   input: ProviderInputFor<C>,
-  options?: RegisterProviderOptions,
 ): InjectionToken<ResolvedInstance<C>, any>
 export function registerProvider(
   target: InjectionToken<any, any> | ClassType,
   input: ProviderInput<any>,
-  options: RegisterProviderOptions = {},
 ): InjectionToken<any, any> {
   const { token, record } = provide(target as InjectionToken<any, any>, input)
-  setDefaultProvider(
-    token,
-    options.scope === undefined ? record : { ...record, scope: options.scope },
-  )
+  setDefaultProvider(token, record)
   return token
 }

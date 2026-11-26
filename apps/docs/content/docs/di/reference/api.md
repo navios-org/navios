@@ -66,13 +66,13 @@ The interface both containers implement: `get`, `getSync`, `peek`, `invalidate`,
 | `Factory`                              | `(options?: { scope?, token? }) => ClassDecorator`                                     | [Factories](/docs/di/essentials/factories#factory)                        |
 | `registerInjectable`                   | `(target, options?: RegisterInjectableOptions) => InjectionToken`                      | [Services and injection](/docs/di/essentials/services#registering-without-decorators) |
 | `registerFactory`                      | `(target, options?: RegisterFactoryOptions) => InjectionToken`                         | [Factories](/docs/di/essentials/factories#registering-without-decorators) |
-| `registerProvider`                     | `(target, impl: ProviderInput<T>, options?: RegisterProviderOptions) => InjectionToken` | [Providers](/docs/di/essentials/providers#registerprovider)               |
+| `registerProvider`                     | `(target, impl: ProviderInput<T>) => InjectionToken`                                   | [Providers](/docs/di/essentials/providers#registerprovider)               |
 | `provide`                              | `(target: ClassType \| InjectionToken<T>, impl: ProviderInput<T>) => Provider`         | [Providers](/docs/di/essentials/providers#provide)                        |
 | `getInjectableToken`                   | `(target: ClassType) => InjectionToken`. Throws `ClassNotInjectable` when unregistered | [Tokens](/docs/di/essentials/tokens#creating-a-token)                     |
 
 Only a registration on the class itself counts. An undecorated subclass of an injectable class has no token.
 
-Option types: `InjectableOptions`, `FactoryOptions`, `RegisterInjectableOptions`, `RegisterFactoryOptions`, `RegisterProviderOptions`, `ContainerOptions`. `ClassType` is any class, `ClassTypeWithInstance<T>` one whose instances are a `T`, and `ResolvedInstance<C>` what a class resolves to: its instance, or the product of a factory class.
+Option types: `RegisterInjectableOptions` (also named `InjectableOptions`), `RegisterFactoryOptions` (also named `FactoryOptions`), `ContainerOptions`. `ClassType` is any class, `ClassTypeWithInstance<T>` one whose instances are a `T`, and `ResolvedInstance<C>` what a class resolves to: its instance, or the product of a factory class.
 
 ```ts
 // Only the public members of `T` count.

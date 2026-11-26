@@ -1,6 +1,7 @@
 import { registerInjectable } from '../provider/registration.mjs'
 
 import type { InjectableScope } from '../injectable-scope.mjs'
+import type { RegisterInjectableOptions } from '../provider/registration.mjs'
 import type { InferInput, InferOutput, StandardSchemaV1 } from '../schema/standard-schema.mjs'
 import type {
   ClassType,
@@ -16,11 +17,8 @@ import type { PublicPart } from '../token/public-part.mjs'
 
 import { assertClassDecorator } from './assert-class-decorator.mjs'
 
-export interface InjectableOptions {
-  scope?: InjectableScope
-  token?: InjectionToken<any, any>
-  schema?: StandardSchemaV1
-}
+/** The options of `@Injectable`, the same as those of `registerInjectable()`. */
+export type InjectableOptions = RegisterInjectableOptions
 
 // #1 Simple constructorless class
 export function Injectable(): <T extends ClassTypeWithoutArguments>(

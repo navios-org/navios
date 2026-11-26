@@ -436,7 +436,7 @@ describe('aliases and instances', () => {
 
       expect(registerProvider(VALUE, { value: 1 })).toBe(VALUE)
       registerProvider(PRODUCT, { factory: async (ctx) => ({ value: await ctx.inject(VALUE) }) })
-      registerProvider(IMPL, Impl, { scope: InjectableScope.Transient })
+      registerProvider(IMPL, { class: Impl, scope: InjectableScope.Transient })
       registerProvider(ALIAS, { existing: PRODUCT })
 
       expect(await container.get(PRODUCT)).toEqual({ value: 1 })
