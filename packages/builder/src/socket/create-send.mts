@@ -7,21 +7,10 @@ import { SocketError } from './socket-error.mjs'
 import type { SocketClient } from './socket-client.mjs'
 import type { SocketErrorInit } from './socket-error.mjs'
 import type { SendHandler } from './socket-handlers.mjs'
-import type { MessageFormatter, SendOptions, SocketBuilderConfig } from './socket-options.mjs'
-
-/**
- * Default message formatter using the array format.
- *
- * Format: [topic, payload] or [topic, payload, ackId]
- */
-export const defaultFormatMessage: MessageFormatter = (topic, payload, ackId) => {
-  return ackId ? [topic, payload, ackId] : [topic, payload]
-}
+import type { SendOptions, SocketBuilderConfig } from './socket-options.mjs'
+import type { AwaitedAck, SocketTransport } from './socket-transport.mjs'
 
 /** What a timer can wait for. It fires at once for anything longer. */
-/** The formatter of `topics: 'events'`: the payload is the event's argument. */
-const passPayload: MessageFormatter = (_topic, payload) => payload
-
 const MAX_TIMEOUT = 2 ** 31 - 1
 
 /**
@@ -50,9 +39,8 @@ export interface PendingAck {
    */
   settle: (ackData: unknown) => void
   /**
-   * Stops waiting without settling: clears the timer, removes the
-   * `__navios_ack:<id>` listener from the client it was registered on and
-   * forgets the record.
+   * Stops waiting without settling: clears the timer, stops listening for the
+   * acknowledgement on the client it was sent over and forgets the record.
    */
   release: () => void
 }
@@ -60,12 +48,14 @@ export interface PendingAck {
 export interface CreateSendContext {
   getClient: () => SocketClient
   config: SocketBuilderConfig
+  transport: SocketTransport
   ackHandlers: Map<string, PendingAck>
   /**
-   * Makes sure the builder listens to the client's `'message'` event, so an
-   * acknowledgement whose `ackId` comes out of `parseMessage` is seen.
+   * Makes sure the builder listens to the client, so that an acknowledgement
+   * whose `ackId` comes out of `parseMessage` is seen, and a disconnect ends
+   * the wait.
    */
-  setupGlobalListener?: () => void
+  setupGlobalListener: () => void
 }
 
 /**
@@ -80,10 +70,7 @@ export function createSendHandler<Options extends SendOptions>(
   context: CreateSendContext,
 ): SendHandler<Options> {
   const { topic, payloadSchema, ackSchema, ackTimeout: optionAckTimeout } = options
-  const { getClient, config, ackHandlers, setupGlobalListener } = context
-  const perTopicEvents = config.topics === 'events'
-  const formatMessage =
-    config.formatMessage ?? (perTopicEvents ? passPayload : defaultFormatMessage)
+  const { getClient, config, transport, ackHandlers, setupGlobalListener } = context
   const defaultTimeout = config.ackTimeout ?? 30000
   const timeout = optionAckTimeout ?? defaultTimeout
 
@@ -107,31 +94,12 @@ export function createSendHandler<Options extends SendOptions>(
   }
 
   /**
-   * Formats and transmits one message. A client with `sendRaw` gets the
-   * formatted message as it is; otherwise it goes through `emit`.
-   *
-   * Anything thrown by `formatMessage` or the client is reported and returned
-   * as a `SocketError` of kind `transport`.
+   * Formats and transmits one message. Anything thrown by `formatMessage` or
+   * the client is reported and returned as a `SocketError` of kind `transport`.
    */
-  function transmit(
-    client: SocketClient,
-    payload: unknown,
-    ack?: { id: string; callback: (data: unknown) => void },
-  ): SocketError | null {
+  function transmit(client: SocketClient, payload: unknown, ack?: AwaitedAck): SocketError | null {
     try {
-      if (perTopicEvents) {
-        // One event per topic; an acknowledgement is the client's callback.
-        const message = formatMessage(topic, payload)
-        if (ack) client.emit(topic, message, ack.callback)
-        else client.emit(topic, message)
-        return null
-      }
-      const message = ack ? formatMessage(topic, payload, ack.id) : formatMessage(topic, payload)
-      if (typeof client.sendRaw === 'function') {
-        client.sendRaw(topic, message)
-      } else {
-        client.emit(topic, message)
-      }
+      transport.send(client, topic, payload, ack)
       return null
     } catch (cause) {
       return fail(client, {
@@ -142,31 +110,20 @@ export function createSendHandler<Options extends SendOptions>(
     }
   }
 
-  /**
-   * With `topics: 'events'` an acknowledgement arrives as the callback's
-   * argument, encoded like any incoming message: `parseMessage` decodes it.
-   */
-  function decodeAck(ackData: unknown): unknown {
-    if (!config.parseMessage) return ackData
-    return config.parseMessage(ackData, topic)?.payload ?? ackData
-  }
-
   function sendWithAck(client: SocketClient, validatedPayload: unknown): Promise<unknown> {
     const schema = ackSchema!
     return new Promise<unknown>((resolve, reject) => {
       const ackId = generateAckId()
-      // Use reserved namespace to avoid collision with user-defined topics
-      const ackTopic = `__navios_ack:${ackId}`
+      let stopListening = () => {}
 
       // Stops waiting: timer, listener and record all go together
       const release = () => {
         clearTimeout(timeoutId)
         ackHandlers.delete(ackId)
-        if (!perTopicEvents) client.off(ackTopic, ackHandler)
+        stopListening()
       }
 
-      // Runs for an acknowledgement that arrives as a `__navios_ack:<id>` event
-      // or as a parsed message carrying this ackId; only the first one counts.
+      // Runs for an acknowledgement, however it arrives; only the first one counts.
       const ackHandler = (ackData: unknown) => {
         const pending = ackHandlers.get(ackId)
         if (!pending) {
@@ -214,10 +171,11 @@ export function createSendHandler<Options extends SendOptions>(
 
       // Listen for the acknowledgement, then send. If either throws, the send
       // never left: stop waiting now instead of reporting an ack-timeout later.
+      const ack: AwaitedAck = { id: ackId, settle: ackHandler }
       let error: SocketError | null
       try {
-        if (!perTopicEvents) client.on(ackTopic, ackHandler)
-        setupGlobalListener?.()
+        stopListening = transport.listenAck(client, ack)
+        setupGlobalListener()
         error = null
       } catch (cause) {
         error = fail(client, {
@@ -226,10 +184,7 @@ export function createSendHandler<Options extends SendOptions>(
           cause,
         })
       }
-      error ??= transmit(client, validatedPayload, {
-        id: ackId,
-        callback: (ackData) => ackHandler(decodeAck(ackData)),
-      })
+      error ??= transmit(client, validatedPayload, ack)
       if (error) {
         release()
         reject(error)
