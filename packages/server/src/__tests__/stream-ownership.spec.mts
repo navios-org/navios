@@ -4,6 +4,7 @@ import { Readable } from 'node:stream'
 import { Injectable, InjectableScope } from '@navios/di'
 import { describe, expect, it, vi } from 'vitest'
 
+import { LiveRequests } from '../context/live-requests.mjs'
 import { HttpException } from '../errors/index.mjs'
 import { result } from '../responses/index.mjs'
 import { sseStream } from '../sse/index.mjs'
@@ -462,7 +463,7 @@ describe('the release of a request with a lazy body', () => {
 
   it('closes a generator that waits for its first chunk once', async () => {
     const controller = new AbortController()
-    const live = new Set<RequestContext>()
+    const live = new LiveRequests()
     const { execute } = setup(
       stream,
       async function* () {

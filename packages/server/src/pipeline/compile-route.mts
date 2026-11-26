@@ -2,7 +2,6 @@ import { runInContext } from '@navios/core/transport'
 
 import type { ContextHost } from '@navios/core/transport'
 
-import { LiveRequests } from '../context/live-requests.mjs'
 import { RequestContext } from '../context/request-context.mjs'
 import { problem } from '../errors/problem.mjs'
 import { adopt, isPromise } from '../internal/promises.mjs'
@@ -13,7 +12,7 @@ import { compileRequestPath } from '../routing/route-path.mjs'
 import type { RouteExecutor } from '../adapter/compiled-route.mjs'
 import type { RouteInput } from '../adapter/route-input.mjs'
 import type { RouteResponse } from '../adapter/route-response.mjs'
-import type { LiveRequestSet } from '../context/live-requests.mjs'
+import type { LiveRequests } from '../context/live-requests.mjs'
 import type { RequestHost } from '../context/request-host.mjs'
 import type { ErrorPipeline } from '../errors/error-pipeline.mjs'
 import type { MaybePromise } from '../internal/promises.mjs'
@@ -59,7 +58,7 @@ export interface CompileOptions {
   /** Run each request inside the async context, for `currentContext()`. */
   asyncContext?: boolean
   /** Receives the requests that hold something, and loses them once it is released. */
-  live?: LiveRequestSet
+  live: LiveRequests
 }
 
 type Stage = (ctx: RequestContext, input: RouteInput) => MaybePromise<RouteResult>
@@ -98,7 +97,7 @@ export function compileRoute(definition: RouteDefinition, options: CompileOption
     onScopedUse,
     logger,
     asyncContext: options.asyncContext ?? false,
-    live: options.live ?? new LiveRequests(),
+    live: options.live,
     path: compileRequestPath(definition.path),
     report: (error, ctx) => errors.report(error, ctx),
   }

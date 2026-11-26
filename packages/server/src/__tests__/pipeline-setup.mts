@@ -1,5 +1,6 @@
 import { Container } from '@navios/di'
 
+import { LiveRequests } from '../context/live-requests.mjs'
 import { ErrorPipeline } from '../errors/error-pipeline.mjs'
 import {
   ForbiddenResponder,
@@ -12,7 +13,6 @@ import { compileRoutePath } from '../routing/route-path.mjs'
 
 import type { BodySource, RouteInput } from '../adapter/route-input.mjs'
 import type { RouteBody, RouteResponse } from '../adapter/route-response.mjs'
-import type { LiveRequestSet } from '../context/live-requests.mjs'
 import type { ErrorPipelineOptions } from '../errors/error-pipeline.mjs'
 import type { CompileOptions, RouteDefinition } from '../pipeline/compile-route.mjs'
 import type { ResponseEncoder } from '../pipeline/response-encoder.mjs'
@@ -74,7 +74,7 @@ export interface SetupOptions {
   encoders?: Record<string, ResponseEncoder>
   logger?: CompileOptions['host']['logger']
   asyncContext?: boolean
-  live?: LiveRequestSet
+  live?: LiveRequests
 }
 
 /** A response with its JSON body parsed. */
@@ -139,7 +139,7 @@ export function setup(
       validateResponses: extra.validateResponses ?? true,
       encoders: new Map(Object.entries(extra.encoders ?? {})),
       asyncContext: extra.asyncContext,
-      live: extra.live,
+      live: extra.live ?? new LiveRequests(),
     },
   )
   const execute = (request: RouteInput): Answer | Promise<Answer> => {

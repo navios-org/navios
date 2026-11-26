@@ -1,25 +1,14 @@
 import type { RequestContext } from './request-context.mjs'
 
 /**
- * What keeps the requests that hold something to release, so that a transport
- * that stops can release them. A `Set` will do.
- */
-export interface LiveRequestSet {
-  add(ctx: RequestContext): unknown
-  delete(ctx: RequestContext): unknown
-  readonly size: number
-  [Symbol.iterator](): Iterator<RequestContext>
-}
-
-/**
  * The requests that hold something to release, linked through the requests
- * themselves. Every request that uses a DI scope is added and removed. A `Set`
+ * themselves, so that a transport that stops can release them. Every request that uses a DI scope is added and removed. A `Set`
  * that lives as long as the server does allocates its new tables in the old
  * generation while it is churned like that, which brings on full garbage
  * collections; this allocates nothing.
  * @internal
  */
-export class LiveRequests implements LiveRequestSet {
+export class LiveRequests {
   private head: RequestContext | null = null
   size = 0
 
