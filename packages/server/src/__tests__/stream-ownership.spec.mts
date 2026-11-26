@@ -10,7 +10,7 @@ import { sseStream } from '../sse/index.mjs'
 
 import type { RequestContext } from '../context/index.mjs'
 import type { ManagedBody } from '../responses/managed-body.mjs'
-import type { HttpInterceptor as Interceptor } from '../routing/index.mjs'
+import type { Interceptor } from '../routing/http-contracts.mjs'
 import type { RouteResult } from '../routing/index.mjs'
 import type { SseMessage } from '../sse/index.mjs'
 

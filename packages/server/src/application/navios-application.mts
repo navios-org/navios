@@ -1,11 +1,11 @@
 import { Application } from '@navios/core'
 
+import type { InterceptorClass } from '@navios/core'
 import type { ClassType } from '@navios/di'
 
 import type { HttpAdapter, HttpAdapterEnvironment } from '../adapter/http-adapter.mjs'
 import type { TestRequest, TestResponse } from '../adapter/test-request.mjs'
 import type { ErrorClass, ErrorMapper } from '../errors/error-pipeline.mjs'
-import type { HttpInterceptorClass } from '../routing/http-contracts.mjs'
 import type { RouteInfo } from '../routing/route-info.mjs'
 
 import { httpTransport } from './http-transport.mjs'
@@ -27,7 +27,7 @@ export class NaviosApplication<
   Env extends HttpAdapterEnvironment = ApplicationEnvironment,
 > extends Application {
   private readonly errorMappers: Array<[ErrorClass<any>, ErrorMapper<any>]>
-  private readonly routeInterceptors: HttpInterceptorClass[]
+  private readonly routeInterceptors: InterceptorClass[]
 
   constructor(appModule: ClassType, options: NaviosApplicationOptions<Env>) {
     const {
@@ -43,7 +43,7 @@ export class NaviosApplication<
     // The transport reads both lists when it needs them, so what is added
     // between construction and init() is seen.
     const errorMappers: Array<[ErrorClass<any>, ErrorMapper<any>]> = []
-    const routeInterceptors: HttpInterceptorClass[] = []
+    const routeInterceptors: InterceptorClass[] = []
     super(appModule, {
       ...applicationOptions,
       transports: [
@@ -91,7 +91,7 @@ export class NaviosApplication<
   }
 
   /** Adds an interceptor around every route. */
-  override intercept(interceptor: HttpInterceptorClass): this {
+  override intercept(interceptor: InterceptorClass): this {
     if (this.http) {
       // Raises the "before init()" error.
       return super.intercept(interceptor)

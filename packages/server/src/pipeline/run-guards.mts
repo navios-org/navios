@@ -2,7 +2,7 @@ import { GuardDeniedError } from '../errors/guard-denied-error.mjs'
 import { adopt, isPromise } from '../internal/promises.mjs'
 
 import type { RequestContext } from '../context/request-context.mjs'
-import type { HttpGuard as Guard } from '../routing/http-contracts.mjs'
+import type { Guard } from '../routing/http-contracts.mjs'
 
 /** Only `true` lets a request through, whatever else a guard may return. */
 export function runGuards(

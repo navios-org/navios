@@ -17,7 +17,7 @@ import { ManagedBody } from '../responses/managed-body.mjs'
 import { sseStream } from '../sse/index.mjs'
 
 import type { RequestContext } from '../context/index.mjs'
-import type { HttpGuard as Guard, HttpInterceptor as Interceptor } from '../routing/index.mjs'
+import type { Guard, Interceptor } from '../routing/http-contracts.mjs'
 import type { RouteEndpointConfig, RouteResult } from '../routing/index.mjs'
 
 import { drain, input, JSON_TYPE, setup } from './pipeline-setup.mjs'

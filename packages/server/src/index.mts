@@ -21,7 +21,4 @@ export * from './sse/index.mjs'
 // export takes precedence over `export *`.
 export { currentContext } from './context/current-request-context.mjs'
 export type { ContextKey } from './context/http-context-key.mjs'
-export type {
-  HttpGuard as Guard,
-  HttpInterceptor as Interceptor,
-} from './routing/http-contracts.mjs'
+export type { Guard, Interceptor } from './routing/http-contracts.mjs'

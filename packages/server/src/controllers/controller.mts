@@ -1,17 +1,15 @@
 import { InjectableScope, registerInjectable } from '@navios/di'
 
-import type { AttributeValue } from '@navios/core'
+import type { AttributeValue, GuardClass, InterceptorClass } from '@navios/core'
 import type { ClassType } from '@navios/di'
 
 import { assertStandardDecorator } from '../internal/standard-decorator.mjs'
 
-import type { HttpGuardClass, HttpInterceptorClass } from '../routing/http-contracts.mjs'
-
 import { defineControllerMetadata } from './controller-metadata.mjs'
 
 export interface ControllerOptions {
-  guards?: HttpGuardClass[]
-  interceptors?: HttpInterceptorClass[]
+  guards?: GuardClass[]
+  interceptors?: InterceptorClass[]
   /** Attribute values for the whole controller: `[Public()]`. */
   attributes?: AttributeValue[]
 }

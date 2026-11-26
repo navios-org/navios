@@ -5,7 +5,7 @@ import { HttpException } from '../errors/http-exception.mjs'
 import { handler } from '../handlers/handler.mjs'
 
 import type { RequestContext } from '../context/request-context.mjs'
-import type { HttpInterceptor as Interceptor } from '../routing/http-contracts.mjs'
+import type { Interceptor } from '../routing/http-contracts.mjs'
 import type { RouteResult } from '../routing/route-result.mjs'
 
 import { endpoint } from './suite.mjs'

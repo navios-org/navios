@@ -9,7 +9,8 @@ import { HttpException, NotFoundException } from '../errors/index.mjs'
 import { sseStream } from '../sse/index.mjs'
 
 import type { RequestContext } from '../context/index.mjs'
-import type { HttpInterceptor as Interceptor, RouteResult } from '../routing/index.mjs'
+import type { Interceptor } from '../routing/http-contracts.mjs'
+import type { RouteResult } from '../routing/index.mjs'
 
 import { drain, input, setup, tick } from './pipeline-setup.mjs'
 

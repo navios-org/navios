@@ -16,7 +16,7 @@ import type { LiveRequestSet } from '../context/live-requests.mjs'
 import type { ErrorPipelineOptions } from '../errors/error-pipeline.mjs'
 import type { CompileOptions, RouteDefinition } from '../pipeline/compile-route.mjs'
 import type { ResponseEncoder } from '../pipeline/response-encoder.mjs'
-import type { HttpGuard as Guard, HttpInterceptor as Interceptor } from '../routing/index.mjs'
+import type { Guard, Interceptor } from '../routing/http-contracts.mjs'
 import type { RouteEndpointConfig, RouteInfo } from '../routing/index.mjs'
 
 /** A body with the given bytes or, with a function, what that returns as it is. */

@@ -9,7 +9,7 @@ import { UnauthorizedException } from '../errors/http-exception.mjs'
 import { handler } from '../handlers/handler.mjs'
 
 import type { RequestContext } from '../context/request-context.mjs'
-import type { HttpGuard as Guard } from '../routing/http-contracts.mjs'
+import type { Guard } from '../routing/http-contracts.mjs'
 
 import { s } from './schema.mjs'
 import { endpoint } from './suite.mjs'
