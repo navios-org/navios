@@ -1,7 +1,7 @@
 import { generateId } from '../generate-id.mjs'
+import { PendingRequests } from '../pending-requests.mjs'
 
 import type { QueueClient } from '../../client/queue-client.mjs'
-import type { PendingRequest } from '../pending-request.mjs'
 
 import { buildSaslConfig, getCompressionType } from './kafkajs-options.mjs'
 import { loadKafkaJS } from './load-kafkajs.mjs'
@@ -24,7 +24,7 @@ export class KafkaClient implements QueueClient {
   private consumer: Consumer | null = null
   private replyConsumer: Consumer | null = null
   private replyTopic: string | null = null
-  private pendingRequests = new Map<string, PendingRequest>()
+  private pendingRequests = new PendingRequests()
   private subscriptions = new Map<string, (message: unknown) => Promise<void>>()
   private isConsumerRunning = false
 
@@ -170,15 +170,10 @@ export class KafkaClient implements QueueClient {
     const correlationId = generateId()
     const requestTopic = `${topic}.request`
 
-    return new Promise((resolve, reject) => {
-      const timeout = setTimeout(() => {
-        this.pendingRequests.delete(correlationId)
-        reject(new Error(`Request timeout for topic: ${topic}`))
-      }, 30000)
+    const reply = this.pendingRequests.create(correlationId, `topic: ${topic}`)
 
-      this.pendingRequests.set(correlationId, { resolve, reject, timeout })
-
-      this.producer!.send({
+    this.producer
+      .send({
         topic: requestTopic,
         messages: [
           {
@@ -190,12 +185,10 @@ export class KafkaClient implements QueueClient {
             timestamp: Date.now().toString(),
           },
         ],
-      }).catch((error: unknown) => {
-        clearTimeout(timeout)
-        this.pendingRequests.delete(correlationId)
-        reject(error)
       })
-    })
+      .catch((error: unknown) => this.pendingRequests.fail(correlationId, error))
+
+    return reply
   }
 
   private async setupReplyConsumer(): Promise<void> {
@@ -219,19 +212,8 @@ export class KafkaClient implements QueueClient {
     await this.replyConsumer.run({
       eachMessage: async ({ message }: EachMessagePayload) => {
         const correlationId = message.headers?.correlationId?.toString()
-        if (!correlationId) return
-
-        const pending = this.pendingRequests.get(correlationId)
-        if (pending && message.value) {
-          clearTimeout(pending.timeout)
-          this.pendingRequests.delete(correlationId)
-
-          try {
-            const content = JSON.parse(message.value.toString())
-            pending.resolve(content)
-          } catch (err) {
-            pending.reject(err)
-          }
+        if (correlationId && message.value) {
+          this.pendingRequests.settle(correlationId, message.value.toString())
         }
       },
     })
@@ -288,12 +270,7 @@ export class KafkaClient implements QueueClient {
   }
 
   async disconnect(): Promise<void> {
-    // Clear pending requests
-    for (const [, pending] of this.pendingRequests) {
-      clearTimeout(pending.timeout)
-      pending.reject(new Error('Connection closed'))
-    }
-    this.pendingRequests.clear()
+    this.pendingRequests.rejectAll()
 
     // Disconnect reply consumer
     if (this.replyConsumer) {

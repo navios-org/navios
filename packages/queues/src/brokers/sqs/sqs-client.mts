@@ -1,7 +1,7 @@
 import { generateId } from '../generate-id.mjs'
+import { PendingRequests } from '../pending-requests.mjs'
 
 import type { QueueClient } from '../../client/queue-client.mjs'
-import type { PendingRequest } from '../pending-request.mjs'
 
 import { loadSNS, loadSQS } from './load-aws-sdk.mjs'
 import { parseMessageBody } from './sqs-message-body.mjs'
@@ -16,12 +16,6 @@ interface QueueInfo {
   arn: string
 }
 
-interface TopicInfo {
-  arn: string
-  subscriptionArn?: string
-  queueUrl?: string
-}
-
 /**
  * AWS SQS queue client adapter.
  * Implements QueueClient interface for AWS SQS with SNS for pub/sub.
@@ -31,13 +25,12 @@ export class SQSClient implements QueueClient {
   private sqsClient: SQSClientType | null = null
   private snsClient: SNSClientType | null = null
   private queues = new Map<string, QueueInfo>()
-  private topics = new Map<string, TopicInfo>()
+  /** SNS topic ARNs by topic name */
+  private topicArns = new Map<string, string>()
   private replyQueueUrl: string | null = null
-  private pendingRequests = new Map<string, PendingRequest>()
-  private pollingHandlers = new Map<
-    string,
-    { handler: (message: unknown) => Promise<void>; abortController: AbortController }
-  >()
+  private pendingRequests = new PendingRequests()
+  /** Stops the poll loop of each polled queue URL */
+  private pollers = new Map<string, AbortController>()
 
   constructor(private config: SqsConfig) {}
 
@@ -129,9 +122,9 @@ export class SQSClient implements QueueClient {
     return queueInfo
   }
 
-  private async ensureTopic(topicName: string): Promise<TopicInfo> {
-    if (this.topics.has(topicName)) {
-      return this.topics.get(topicName)!
+  private async ensureTopic(topicName: string): Promise<string> {
+    if (this.topicArns.has(topicName)) {
+      return this.topicArns.get(topicName)!
     }
 
     if (!this.snsClient) {
@@ -158,10 +151,10 @@ export class SQSClient implements QueueClient {
       }),
     )
 
-    const topicInfo: TopicInfo = { arn: result.TopicArn! }
-    this.topics.set(topicName, topicInfo)
+    const topicArn = result.TopicArn!
+    this.topicArns.set(topicName, topicArn)
 
-    return topicInfo
+    return topicArn
   }
 
   async publish(topic: string, message: unknown): Promise<void> {
@@ -171,12 +164,12 @@ export class SQSClient implements QueueClient {
 
     const { PublishCommand } = await loadSNS()
 
-    const topicInfo = await this.ensureTopic(topic)
+    const topicArn = await this.ensureTopic(topic)
     const isFifo = this.config.fifo.enabled
 
     await this.snsClient.send(
       new PublishCommand({
-        TopicArn: topicInfo.arn,
+        TopicArn: topicArn,
         Message: JSON.stringify(message),
         ...(isFifo
           ? {
@@ -196,7 +189,7 @@ export class SQSClient implements QueueClient {
     const { SubscribeCommand, SetSubscriptionAttributesCommand } = await loadSNS()
     const { SetQueueAttributesCommand } = await loadSQS()
 
-    const topicInfo = await this.ensureTopic(topic)
+    const topicArn = await this.ensureTopic(topic)
     const queueName = `${topic}-subscriber-${generateId()}`
     const queueInfo = await this.ensureQueue(queueName)
 
@@ -211,7 +204,7 @@ export class SQSClient implements QueueClient {
           Resource: queueInfo.arn,
           Condition: {
             ArnEquals: {
-              'aws:SourceArn': topicInfo.arn,
+              'aws:SourceArn': topicArn,
             },
           },
         },
@@ -230,7 +223,7 @@ export class SQSClient implements QueueClient {
     // Subscribe queue to topic
     const subscribeResult = await this.snsClient.send(
       new SubscribeCommand({
-        TopicArn: topicInfo.arn,
+        TopicArn: topicArn,
         Protocol: 'sqs',
         Endpoint: queueInfo.arn,
       }),
@@ -245,9 +238,6 @@ export class SQSClient implements QueueClient {
           AttributeValue: 'true',
         }),
       )
-
-      topicInfo.subscriptionArn = subscribeResult.SubscriptionArn
-      topicInfo.queueUrl = queueInfo.url
     }
 
     // Start polling the queue
@@ -288,12 +278,12 @@ export class SQSClient implements QueueClient {
     queueUrl: string,
     handler: (message: unknown) => Promise<void>,
   ): Promise<void> {
-    if (this.pollingHandlers.has(queueUrl)) {
+    if (this.pollers.has(queueUrl)) {
       return
     }
 
     const abortController = new AbortController()
-    this.pollingHandlers.set(queueUrl, { handler, abortController })
+    this.pollers.set(queueUrl, abortController)
 
     this.pollQueue(queueUrl, handler, abortController.signal)
   }
@@ -364,15 +354,10 @@ export class SQSClient implements QueueClient {
     const requestQueue = await this.ensureQueue(`${topic}-request`)
     const isFifo = this.config.fifo.enabled
 
-    return new Promise((resolve, reject) => {
-      const timeout = setTimeout(() => {
-        this.pendingRequests.delete(correlationId)
-        reject(new Error(`Request timeout for topic: ${topic}`))
-      }, 30000)
+    const reply = this.pendingRequests.create(correlationId, `topic: ${topic}`)
 
-      this.pendingRequests.set(correlationId, { resolve, reject, timeout })
-
-      this.sqsClient!.send(
+    this.sqsClient
+      .send(
         new SendMessageCommand({
           QueueUrl: requestQueue.url,
           MessageBody: JSON.stringify(message),
@@ -393,12 +378,10 @@ export class SQSClient implements QueueClient {
               }
             : {}),
         }),
-      ).catch((error: unknown) => {
-        clearTimeout(timeout)
-        this.pendingRequests.delete(correlationId)
-        reject(error)
-      })
-    })
+      )
+      .catch((error: unknown) => this.pendingRequests.fail(correlationId, error))
+
+    return reply
   }
 
   private async setupReplyQueue(): Promise<void> {
@@ -409,10 +392,7 @@ export class SQSClient implements QueueClient {
 
     // Start polling for replies
     const abortController = new AbortController()
-    this.pollingHandlers.set(queueInfo.url, {
-      handler: async () => {},
-      abortController,
-    })
+    this.pollers.set(queueInfo.url, abortController)
 
     this.pollReplies(queueInfo.url, abortController.signal)
   }
@@ -440,18 +420,7 @@ export class SQSClient implements QueueClient {
             const correlationId = message.MessageAttributes?.correlationId?.StringValue
             if (!correlationId) continue
 
-            const pending = this.pendingRequests.get(correlationId)
-            if (pending) {
-              clearTimeout(pending.timeout)
-              this.pendingRequests.delete(correlationId)
-
-              try {
-                const content = JSON.parse(message.Body ?? '{}')
-                pending.resolve(content)
-              } catch (err) {
-                pending.reject(err)
-              }
-            }
+            this.pendingRequests.settle(correlationId, message.Body ?? '{}')
 
             // Delete processed message
             await this.sqsClient.send(
@@ -481,7 +450,7 @@ export class SQSClient implements QueueClient {
 
     // Custom polling that extracts reply metadata
     const abortController = new AbortController()
-    this.pollingHandlers.set(requestQueue.url, { handler: async () => {}, abortController })
+    this.pollers.set(requestQueue.url, abortController)
 
     const { ReceiveMessageCommand, DeleteMessageCommand } = await loadSQS()
 
@@ -557,17 +526,12 @@ export class SQSClient implements QueueClient {
 
   async disconnect(): Promise<void> {
     // Stop all polling
-    for (const [, { abortController }] of this.pollingHandlers) {
+    for (const abortController of this.pollers.values()) {
       abortController.abort()
     }
-    this.pollingHandlers.clear()
+    this.pollers.clear()
 
-    // Clear pending requests
-    for (const [, pending] of this.pendingRequests) {
-      clearTimeout(pending.timeout)
-      pending.reject(new Error('Connection closed'))
-    }
-    this.pendingRequests.clear()
+    this.pendingRequests.rejectAll()
 
     // Destroy clients
     if (this.sqsClient) {
@@ -581,7 +545,7 @@ export class SQSClient implements QueueClient {
     }
 
     this.queues.clear()
-    this.topics.clear()
+    this.topicArns.clear()
     this.replyQueueUrl = null
   }
 }

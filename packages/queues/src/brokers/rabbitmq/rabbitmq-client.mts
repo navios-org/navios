@@ -3,12 +3,12 @@ import type {
   AmqpConnectionManagerOptions,
   ChannelWrapper,
 } from 'amqp-connection-manager'
-import type { Channel as AmqplibChannel, ConsumeMessage } from 'amqplib'
+import type { Channel as AmqplibChannel, ConsumeMessage, Options } from 'amqplib'
 
 import { generateId } from '../generate-id.mjs'
+import { PendingRequests } from '../pending-requests.mjs'
 
 import type { QueueClient } from '../../client/queue-client.mjs'
-import type { PendingRequest } from '../pending-request.mjs'
 
 import { loadAmqplib } from './load-amqplib.mjs'
 
@@ -23,8 +23,7 @@ export class RabbitMQClient implements QueueClient {
   private connection: AmqpConnectionManager | null = null
   private channel: ChannelWrapper | null = null
   private replyQueue: string | null = null
-  private pendingRequests = new Map<string, PendingRequest>()
-  private consumerTags = new Map<string, string>()
+  private pendingRequests = new PendingRequests()
 
   constructor(private config: RabbitmqConfig) {}
 
@@ -175,41 +174,9 @@ export class RabbitMQClient implements QueueClient {
       })
       await channel.bindQueue(queueName, exchangeName, topic)
 
-      const { consumerTag } = await channel.consume(
-        queueName,
-        async (msg: ConsumeMessage | null) => {
-          if (!msg) return
-
-          try {
-            const content = JSON.parse(msg.content.toString())
-            await handler(content)
-            channel.ack(msg)
-          } catch {
-            // Retry logic
-            const retryCount = (msg.properties.headers?.['x-retry-count'] ?? 0) as number
-            const maxRetries = this.config.retry.maxRetries
-
-            if (retryCount < maxRetries) {
-              // Requeue with incremented retry count
-              channel.nack(msg, false, false)
-              await this.channel?.publish(exchangeName, topic, JSON.parse(msg.content.toString()), {
-                persistent: true,
-                contentType: 'application/json',
-                headers: {
-                  ...msg.properties.headers,
-                  'x-retry-count': retryCount + 1,
-                },
-              })
-            } else {
-              // Send to DLQ or reject
-              channel.nack(msg, false, false)
-            }
-          }
-        },
-        { noAck: false },
+      await this.consumeWithRetry(channel, queueName, handler, (content, options) =>
+        this.channel?.publish(exchangeName, topic, content, options),
       )
-
-      this.consumerTags.set(queueName, consumerTag)
     })
   }
 
@@ -234,39 +201,46 @@ export class RabbitMQClient implements QueueClient {
     await this.ensureQueue(queue)
 
     await this.channel.addSetup(async (channel: AmqplibChannel) => {
-      const { consumerTag } = await channel.consume(
-        queue,
-        async (msg: ConsumeMessage | null) => {
-          if (!msg) return
-
-          try {
-            const content = JSON.parse(msg.content.toString())
-            await handler(content)
-            channel.ack(msg)
-          } catch {
-            const retryCount = (msg.properties.headers?.['x-retry-count'] ?? 0) as number
-            const maxRetries = this.config.retry.maxRetries
-
-            if (retryCount < maxRetries) {
-              channel.nack(msg, false, false)
-              await this.channel?.sendToQueue(queue, JSON.parse(msg.content.toString()), {
-                persistent: true,
-                contentType: 'application/json',
-                headers: {
-                  ...msg.properties.headers,
-                  'x-retry-count': retryCount + 1,
-                },
-              })
-            } else {
-              channel.nack(msg, false, false)
-            }
-          }
-        },
-        { noAck: false },
+      await this.consumeWithRetry(channel, queue, handler, (content, options) =>
+        this.channel?.sendToQueue(queue, content, options),
       )
-
-      this.consumerTags.set(queue, consumerTag)
     })
+  }
+
+  /**
+   * Consumes `queue` with `handler`. A message the handler accepts is acked. A
+   * failed one is nacked and, until `retry.maxRetries` is reached, handed to
+   * `resend` with its `x-retry-count` header incremented.
+   */
+  private async consumeWithRetry(
+    channel: AmqplibChannel,
+    queue: string,
+    handler: (message: unknown) => Promise<void>,
+    resend: (content: unknown, options: Options.Publish) => Promise<unknown> | undefined,
+  ): Promise<void> {
+    await channel.consume(
+      queue,
+      async (msg: ConsumeMessage | null) => {
+        if (!msg) return
+
+        try {
+          await handler(JSON.parse(msg.content.toString()))
+          channel.ack(msg)
+        } catch {
+          channel.nack(msg, false, false)
+
+          const retryCount = (msg.properties.headers?.['x-retry-count'] ?? 0) as number
+          if (retryCount < this.config.retry.maxRetries) {
+            await resend(JSON.parse(msg.content.toString()), {
+              persistent: true,
+              contentType: 'application/json',
+              headers: { ...msg.properties.headers, 'x-retry-count': retryCount + 1 },
+            })
+          }
+        }
+      },
+      { noAck: false },
+    )
   }
 
   async request(topic: string, message: unknown): Promise<unknown> {
@@ -284,21 +258,16 @@ export class RabbitMQClient implements QueueClient {
 
     await this.ensureExchange(exchangeName)
 
-    return new Promise((resolve, reject) => {
-      const timeout = setTimeout(() => {
-        this.pendingRequests.delete(correlationId)
-        reject(new Error(`Request timeout for topic: ${topic}`))
-      }, 30000)
+    const reply = this.pendingRequests.create(correlationId, `topic: ${topic}`)
 
-      this.pendingRequests.set(correlationId, { resolve, reject, timeout })
-
-      this.channel!.publish(exchangeName, `${topic}.request`, message, {
-        persistent: true,
-        contentType: 'application/json',
-        correlationId,
-        replyTo: this.replyQueue!,
-      })
+    this.channel.publish(exchangeName, `${topic}.request`, message, {
+      persistent: true,
+      contentType: 'application/json',
+      correlationId,
+      replyTo: this.replyQueue!,
     })
+
+    return reply
   }
 
   private async setupReplyQueue(): Promise<void> {
@@ -320,23 +289,9 @@ export class RabbitMQClient implements QueueClient {
         (msg: ConsumeMessage | null) => {
           if (!msg) return
 
-          const correlationId = msg.properties.correlationId
-          if (!correlationId) {
-            channel.ack(msg)
-            return
-          }
-          const pending = this.pendingRequests.get(correlationId)
-
-          if (pending) {
-            clearTimeout(pending.timeout)
-            this.pendingRequests.delete(correlationId)
-
-            try {
-              const content = JSON.parse(msg.content.toString())
-              pending.resolve(content)
-            } catch (err) {
-              pending.reject(err)
-            }
+          const { correlationId } = msg.properties
+          if (correlationId) {
+            this.pendingRequests.settle(correlationId, msg.content.toString())
           }
 
           channel.ack(msg)
@@ -363,7 +318,7 @@ export class RabbitMQClient implements QueueClient {
       })
       await channel.bindQueue(queueName, exchangeName, `${topic}.request`)
 
-      const { consumerTag } = await channel.consume(
+      await channel.consume(
         queueName,
         async (msg: ConsumeMessage | null) => {
           if (!msg) return
@@ -386,18 +341,11 @@ export class RabbitMQClient implements QueueClient {
         },
         { noAck: false },
       )
-
-      this.consumerTags.set(queueName, consumerTag)
     })
   }
 
   async disconnect(): Promise<void> {
-    // Clear pending requests
-    for (const [, pending] of this.pendingRequests) {
-      clearTimeout(pending.timeout)
-      pending.reject(new Error('Connection closed'))
-    }
-    this.pendingRequests.clear()
+    this.pendingRequests.rejectAll()
 
     // Close channel
     if (this.channel) {
@@ -412,6 +360,5 @@ export class RabbitMQClient implements QueueClient {
     }
 
     this.replyQueue = null
-    this.consumerTags.clear()
   }
 }
