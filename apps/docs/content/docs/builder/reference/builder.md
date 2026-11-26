@@ -422,7 +422,7 @@ function isSocketError(error: unknown): error is SocketError
 | ----------------------------- | ------------------------------------------------------------------------------------ |
 | `SocketClient`                | Interface a connection must satisfy: `emit`, `on`, `off`; optional `sendRaw`, `url`, `disconnect`, `close` |
 | `MessageFormatter`            | `(topic: string, payload: unknown, ackId?: string) => unknown`                       |
-| `MessageParser`               | `(data: unknown) => { topic: string; payload: unknown; ackId?: string } \| null`     |
+| `MessageParser`               | `(data: unknown, event: string) => { topic: string; payload: unknown; ackId?: string } \| null` |
 | `Unsubscribe`                 | `() => void`                                                                         |
 | `InferSendPayload<Options>`   | Input type of `payloadSchema`, or `unknown`                                          |
 | `InferSendReturn<Options>`    | `Promise` of the `ackSchema` output, or `void`                                       |
