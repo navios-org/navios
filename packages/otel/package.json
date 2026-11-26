@@ -74,7 +74,6 @@
     "@navios/adapter-fastify": "workspace:^",
     "@navios/builder": "workspace:^",
     "@navios/core": "workspace:^",
-    "@navios/di": "workspace:^",
     "@navios/server": "workspace:^",
     "@opentelemetry/api": "~1.10.0",
     "@opentelemetry/exporter-metrics-otlp-http": "^0.301.2",
@@ -85,7 +84,6 @@
   },
   "peerDependencies": {
     "@navios/core": "workspace:*",
-    "@navios/di": "workspace:*",
     "@navios/server": "workspace:*",
     "@opentelemetry/api": ">=1.10.0 <1.11.0",
     "@opentelemetry/exporter-metrics-otlp-http": ">=0.300.0 <0.400.0",

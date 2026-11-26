@@ -229,8 +229,10 @@ Each one has a regression test that failed before the fix.
   the package a second copy of di, with its own decorators and metadata, from
   the one core uses. A package built for core or server apps imports di's API
   through `@navios/core`, and `@navios/core/transport` keeps re-exporting
-  `constructedInstances` for that reason. otel peers on di and imports it in
-  12 files; that predates this cleanup and is listed under "Left for you".
+  `constructedInstances` for that reason. otel, which peered on di and
+  imported it in 12 files since before this cleanup, was switched the same
+  way: it imports the container through `@navios/core` and no longer peers on
+  di.
 - **Bun's `upgraded.has(request)` check was restored.** It was dropped as
   redundant with `takenOver`. However, a handler that upgrades and then throws
   never sets `takenOver`, and without the check its error response would go
@@ -280,11 +282,7 @@ a cleanup.
 9. **The size budget counts comments.** `check:size` measures unminified
    output with JSDoc, so documenting a public helper costs budget. Measuring
    minified, or comment-free, output would track code.
-10. **otel peers on `@navios/di`** and imports it directly in 12 files, so a
-    server application gets the same unmet peer and the same risk of a second
-    di copy that jwt would have had. Importing through `@navios/core` and
-    dropping the peer would match jwt and schedule.
-11. **`application.mts` is still about 800 lines.** If it should be split,
+10. **`application.mts` is still about 800 lines.** If it should be split,
     plain functions over its state would cost less than the reverted classes.
 
 ## Follow-ups

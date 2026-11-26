@@ -1,6 +1,6 @@
 import { SpanKind, SpanStatusCode } from '@opentelemetry/api'
 
-import type { ClassType } from '@navios/di'
+import type { ClassType } from '@navios/core'
 import type { AttributeValue, Tracer } from '@opentelemetry/api'
 
 import { ATTR_CODE_FUNCTION_NAME } from '../tracing/attributes.mjs'

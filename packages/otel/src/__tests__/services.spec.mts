@@ -1,4 +1,4 @@
-import { Container } from '@navios/di'
+import { Container } from '@navios/core'
 import { context as otelContext, propagation, trace } from '@opentelemetry/api'
 import { InMemorySpanExporter, SimpleSpanProcessor, TracerProvider } from '@opentelemetry/sdk-trace'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'

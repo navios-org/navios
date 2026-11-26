@@ -1,4 +1,4 @@
-import { inject, registerInjectable } from '@navios/di'
+import { inject, registerInjectable } from '@navios/core'
 import { context as otelContext, SpanKind, SpanStatusCode } from '@opentelemetry/api'
 
 import type { ExecutionContext, HandlerInfo, Interceptor } from '@navios/core'

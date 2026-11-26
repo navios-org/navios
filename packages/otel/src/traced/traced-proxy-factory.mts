@@ -1,6 +1,6 @@
-import { inject, registerInjectable } from '@navios/di'
+import { inject, registerInjectable } from '@navios/core'
 
-import type { ClassType } from '@navios/di'
+import type { ClassType } from '@navios/core'
 
 import { TracerToken } from '../sdk/tracer-token.mjs'
 

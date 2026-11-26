@@ -12,7 +12,6 @@
   "dependencies": {
     "@navios/adapter-bun": "workspace:*",
     "@navios/builder": "workspace:*",
-    "@navios/di": "workspace:*",
     "@navios/otel": "workspace:*",
     "@navios/server": "workspace:*",
     "@opentelemetry/api": "~1.10.0",

@@ -1,7 +1,7 @@
 import { trace } from '@opentelemetry/api'
 import { describe, expect, it } from 'vitest'
 
-import type { ClassType } from '@navios/di'
+import type { ClassType } from '@navios/core'
 
 import { Traceable as LegacyTraceable, Traced as LegacyTraced } from '../../legacy-compat/index.mjs'
 import { traceInstance } from '../trace-instance.mjs'

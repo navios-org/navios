@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import type { ClassType } from '@navios/di'
+import type { ClassType } from '@navios/core'
 
 import { tracedClasses } from '../traced/traced-metadata.mjs'
 import { Traceable, Traced } from '../traced/traced.mjs'

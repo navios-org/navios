@@ -1,4 +1,4 @@
-import { InjectionToken } from '@navios/di'
+import { InjectionToken } from '@navios/core'
 
 import type { AttributeValue } from '@opentelemetry/api'
 import type { SpanProcessor } from '@opentelemetry/sdk-trace'
@@ -183,7 +183,7 @@ export interface ResolvedOtelConfig extends OtelConfig {
  *
  * @example
  * ```typescript
- * import { inject, Injectable } from '@navios/di'
+ * import { inject, Injectable } from '@navios/core'
  * import { OtelConfigToken } from '@navios/otel'
  *
  * @Injectable()

@@ -1,6 +1,6 @@
 import { ownMetadata, requireMetadata } from '@navios/core/transport'
 
-import type { ClassType } from '@navios/di'
+import type { ClassType } from '@navios/core'
 import type { AttributeValue } from '@opentelemetry/api'
 
 // Where the decorators of a class keep their metadata in context.metadata.

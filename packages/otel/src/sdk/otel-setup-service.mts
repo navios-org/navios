@@ -1,4 +1,4 @@
-import { registerInjectable } from '@navios/di'
+import { registerInjectable } from '@navios/core'
 import {
   createNoopMeter,
   metrics,

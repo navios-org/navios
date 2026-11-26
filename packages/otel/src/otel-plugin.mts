@@ -1,5 +1,5 @@
 import { definePlugin, Logger } from '@navios/core'
-import { getInjectableToken } from '@navios/di'
+import { getInjectableToken } from '@navios/core'
 
 import { OtelConfigToken } from './otel-config.mjs'
 import { OtelHandlerInterceptor } from './otel-handler-interceptor.mjs'

@@ -5,7 +5,7 @@
  * @example
  * ```typescript
  * import { Traced } from '@navios/otel/legacy-compat'
- * import { Injectable } from '@navios/di/legacy-compat'
+ * import { Injectable } from '@navios/core/legacy-compat'
  *
  * @Injectable()
  * @Traced({ name: 'user-service' })
@@ -18,8 +18,8 @@
  */
 import { legacy } from '@navios/core/legacy-compat'
 
+import type { ClassType } from '@navios/core'
 import type { LegacyAnyDecorator } from '@navios/core/legacy-compat'
-import type { ClassType } from '@navios/di'
 
 import { Traceable as StandardTraceable, Traced as StandardTraced } from '../traced/traced.mjs'
 

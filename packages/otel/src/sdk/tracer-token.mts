@@ -1,4 +1,4 @@
-import { InjectionToken } from '@navios/di'
+import { InjectionToken } from '@navios/core'
 
 import type { Tracer } from '@opentelemetry/api'
 
@@ -9,7 +9,7 @@ import type { Tracer } from '@opentelemetry/api'
  *
  * @example
  * ```typescript
- * import { inject, Injectable } from '@navios/di'
+ * import { inject, Injectable } from '@navios/core'
  * import { TracerToken } from '@navios/otel'
  *
  * @Injectable()
