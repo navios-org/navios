@@ -1,5 +1,4 @@
-import type { PlanEntry } from '../provider/provider-record.mjs'
-import type { InjectionTokenType } from '../token/injection-token.mjs'
+import type { InjectionToken, InjectionTokenType } from '../token/injection-token.mjs'
 
 import type { Entry } from './entry.mjs'
 
@@ -24,8 +23,11 @@ export interface Pass {
 export interface Frame {
   readonly entry: Entry
   readonly parent: Frame | null
-  /** Requests made in the current pass; `null` once the plan is known. */
-  requests: PlanEntry[] | null
+  /**
+   * The tokens the current pass asked for without args; `null` once the plan
+   * is known.
+   */
+  requests: InjectionToken<any, any>[] | null
   /** Set when the current pass met a dependency that is not ready. */
   pending: Pending[] | null
   /** How much the last discarded pass was given. */

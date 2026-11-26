@@ -1,7 +1,6 @@
 import { InjectableScope } from '../injectable-scope.mjs'
 import { validateSync } from '../schema/standard-schema.mjs'
 
-import type { PlanEntry } from '../provider/provider-record.mjs'
 import type { InjectionToken } from '../token/injection-token.mjs'
 
 import { argsKey } from './args-key.mjs'
@@ -41,13 +40,13 @@ function stored(host: Host, token: InjectionToken<any, any>): Entry | undefined 
 
 function collectLeaving(
   host: Host,
-  plan: PlanEntry[],
-  seen: Set<PlanEntry[]>,
+  plan: InjectionToken<any, any>[],
+  seen: Set<InjectionToken<any, any>[]>,
   leaving: Entry[],
 ): void {
   seen.add(plan)
-  for (const request of plan) {
-    const entry = stored(host, request.token)
+  for (const token of plan) {
+    const entry = stored(host, token)
     if (entry !== undefined && isLeaving(entry)) {
       leaving.push(entry)
       continue
@@ -56,7 +55,7 @@ function collectLeaving(
       continue
     }
     // Not there: it is going to be built, and its own dependencies matter.
-    const record = lookupRecord(host, request.token)
+    const record = lookupRecord(host, token)
     if (record === undefined || record.plan === null || seen.has(record.plan)) {
       continue
     }
@@ -73,7 +72,7 @@ function collectLeaving(
  * What building something with `plan` would find being destroyed, directly or
  * through dependencies that have to be built first; `null` when there is none.
  */
-export function leavingIn(host: Host, plan: PlanEntry[]): Entry[] | null {
+export function leavingIn(host: Host, plan: InjectionToken<any, any>[]): Entry[] | null {
   const leaving: Entry[] = []
   collectLeaving(host, plan, new Set(), leaving)
   return leaving.length === 0 ? null : leaving

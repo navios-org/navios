@@ -150,7 +150,7 @@ export function injectImpl(raw: AnyInjectableType, rawArgs?: unknown): any {
   const args = normArgs
   if (args === undefined) {
     // A request with args is never planned: the args are those of this build.
-    frame.requests?.push({ token })
+    frame.requests?.push(token)
   }
 
   if (frame.reuse !== null || frame.failures !== null) {
