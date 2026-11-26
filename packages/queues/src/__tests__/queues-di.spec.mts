@@ -95,7 +95,7 @@ describe('queues with @navios/di', () => {
 
   describe('QueueClientToken', () => {
     it('should create and connect the default client once', async () => {
-      const init = vi.spyOn(RabbitMQClient.prototype, 'onServiceInit')
+      const init = vi.spyOn(RabbitMQClient.prototype, 'connect')
 
       const first = await container.get(QueueClientToken)
       const second = await container.get(QueueClientToken)
@@ -130,7 +130,7 @@ describe('queues with @navios/di', () => {
     })
 
     it('should disconnect the client once when the container is disposed', async () => {
-      const destroy = vi.spyOn(RabbitMQClient.prototype, 'onServiceDestroy')
+      const destroy = vi.spyOn(RabbitMQClient.prototype, 'disconnect')
       const local = new Container({
         providers: [provide(QueueConfigServiceToken, TestConfigService)],
       })

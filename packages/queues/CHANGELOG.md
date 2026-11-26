@@ -15,7 +15,7 @@ Ported to `@navios/di` 2.0.
 - `QueueClientToken` without arguments and with `{ name: 'default' }` now resolve to the same client. Its argument schema normalises missing arguments to `{ name: 'default' }`; before, the two forms created two connections.
 - `messageBuilder()` returns `PubSubMessageDefinition`, `PointToPointMessageDefinition` and `RequestReplyMessageDefinition`, which extend `MessageDefinition` and state that `topic`, `queue` and `responseSchema` are set.
 - `QueueClientFactory`, `DefaultQueueConfigService`, `QueuePublisher`, `QueueSender` and `QueueRequester` are registered with `registerFactory()` / `registerInjectable()` instead of decorators.
-- `QueueClientFactory` still connects the client itself (`onServiceInit`) and disconnects it through `ctx.addDestroyListener`: in `@navios/di` 2.0 the container calls the lifecycle hooks of classes it constructs, not of a factory's product.
+- **BREAKING**: `RabbitMQClient`, `KafkaClient` and `SQSClient` no longer implement `OnServiceInit` and `OnServiceDestroy`. `onServiceInit()` is renamed `connect()`, and `onServiceDestroy()` is removed: call `disconnect()`. `QueueClientFactory` calls `connect()` and registers `disconnect()` with `ctx.addDestroyListener`: in `@navios/di` 2.0 the container calls the lifecycle hooks of classes it constructs, not of a factory's product.
 
 ### Added
 

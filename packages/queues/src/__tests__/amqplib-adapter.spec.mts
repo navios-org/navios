@@ -83,7 +83,7 @@ describe('RabbitMQClient with amqplib 2.x channel API', () => {
   it('round-trips a message: send -> consume -> ack', async () => {
     const { connection, wrapper } = installConnectionManager()
     const client = new RabbitMQClient(config)
-    await client.onServiceInit()
+    await client.connect()
 
     expect(connectMock).toHaveBeenCalledTimes(1)
     expect(connectMock.mock.calls[0]![0]).toEqual(['amqp://localhost:5672'])
@@ -125,7 +125,7 @@ describe('RabbitMQClient with amqplib 2.x channel API', () => {
   it('publishes to an exchange and binds a subscriber queue', async () => {
     const { wrapper } = installConnectionManager()
     const client = new RabbitMQClient(config)
-    await client.onServiceInit()
+    await client.connect()
 
     await client.subscribe('events', async () => {})
     await client.publish('events', { hello: 'world' })

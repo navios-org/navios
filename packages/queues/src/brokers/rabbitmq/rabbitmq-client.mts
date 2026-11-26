@@ -1,4 +1,3 @@
-import type { OnServiceDestroy, OnServiceInit } from '@navios/di'
 import type {
   AmqpConnectionManager,
   AmqpConnectionManagerOptions,
@@ -20,7 +19,7 @@ import type { RabbitmqConfig } from './rabbitmq-config.mjs'
  * Implements QueueClient interface for RabbitMQ message broker.
  * Uses amqp-connection-manager for automatic reconnection.
  */
-export class RabbitMQClient implements QueueClient, OnServiceInit, OnServiceDestroy {
+export class RabbitMQClient implements QueueClient {
   private connection: AmqpConnectionManager | null = null
   private channel: ChannelWrapper | null = null
   private replyQueue: string | null = null
@@ -29,7 +28,8 @@ export class RabbitMQClient implements QueueClient, OnServiceInit, OnServiceDest
 
   constructor(private config: RabbitmqConfig) {}
 
-  async onServiceInit(): Promise<void> {
+  /** Opens the connection and its channel. `QueueClientFactory` calls it before it hands the client out. */
+  async connect(): Promise<void> {
     const amqp = await loadAmqplib()
 
     // Build TLS options if enabled
@@ -89,10 +89,6 @@ export class RabbitMQClient implements QueueClient, OnServiceInit, OnServiceDest
     })
 
     await this.channel.waitForConnect()
-  }
-
-  async onServiceDestroy(): Promise<void> {
-    await this.disconnect()
   }
 
   private getExchangeName(topic: string): string {

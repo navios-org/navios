@@ -1,5 +1,3 @@
-import type { OnServiceDestroy, OnServiceInit } from '@navios/di'
-
 import { generateId } from '../generate-id.mjs'
 
 import type { QueueClient } from '../../client/queue-client.mjs'
@@ -20,7 +18,7 @@ type EachMessagePayload = import('kafkajs').EachMessagePayload
  * Implements QueueClient interface for Apache Kafka.
  * Uses kafkajs for connection management.
  */
-export class KafkaClient implements QueueClient, OnServiceInit, OnServiceDestroy {
+export class KafkaClient implements QueueClient {
   private kafka: KafkaInstance | null = null
   private producer: Producer | null = null
   private consumer: Consumer | null = null
@@ -32,7 +30,8 @@ export class KafkaClient implements QueueClient, OnServiceInit, OnServiceDestroy
 
   constructor(private config: KafkaConfig) {}
 
-  async onServiceInit(): Promise<void> {
+  /** Connects the producer. `QueueClientFactory` calls it before it hands the client out. */
+  async connect(): Promise<void> {
     const kafkajs = await loadKafkaJS()
 
     const ssl =
@@ -81,10 +80,6 @@ export class KafkaClient implements QueueClient, OnServiceInit, OnServiceDestroy
     )
 
     await this.producer.connect()
-  }
-
-  async onServiceDestroy(): Promise<void> {
-    await this.disconnect()
   }
 
   private async ensureConsumer(): Promise<Consumer> {

@@ -1,5 +1,3 @@
-import type { OnServiceDestroy, OnServiceInit } from '@navios/di'
-
 import { generateId } from '../generate-id.mjs'
 
 import type { QueueClient } from '../../client/queue-client.mjs'
@@ -29,7 +27,7 @@ interface TopicInfo {
  * Implements QueueClient interface for AWS SQS with SNS for pub/sub.
  * Uses @aws-sdk/client-sqs and @aws-sdk/client-sns.
  */
-export class SQSClient implements QueueClient, OnServiceInit, OnServiceDestroy {
+export class SQSClient implements QueueClient {
   private sqsClient: SQSClientType | null = null
   private snsClient: SNSClientType | null = null
   private queues = new Map<string, QueueInfo>()
@@ -43,7 +41,8 @@ export class SQSClient implements QueueClient, OnServiceInit, OnServiceDestroy {
 
   constructor(private config: SqsConfig) {}
 
-  async onServiceInit(): Promise<void> {
+  /** Creates the SQS and SNS clients. `QueueClientFactory` calls it before it hands the client out. */
+  async connect(): Promise<void> {
     const { SQSClient: SQS } = await loadSQS()
     const { SNSClient: SNS } = await loadSNS()
 
@@ -68,10 +67,6 @@ export class SQSClient implements QueueClient, OnServiceInit, OnServiceDestroy {
       credentials,
       endpoint: this.config.sns?.endpoint ?? this.config.endpoint,
     })
-  }
-
-  async onServiceDestroy(): Promise<void> {
-    await this.disconnect()
   }
 
   private async ensureQueue(queueName: string): Promise<QueueInfo> {
