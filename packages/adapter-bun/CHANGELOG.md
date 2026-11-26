@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [2.0.0-alpha.1] - Unreleased
 
+### Changed
+
+- The definition that `defineBunEnvironment()` returns has no `name`, which `@navios/server` no longer reads.
+
 ### Fixed
 
 - **An `HttpException` that a CORS origin function fails with keeps its status**, as on Fastify: a `ForbiddenException` is a 403. It was a 500, and logged as an unexpected error.

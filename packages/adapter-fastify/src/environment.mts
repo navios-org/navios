@@ -74,8 +74,5 @@ export interface FastifyAdapterOptions extends FastifyServerOptions {
 export function defineFastifyEnvironment(
   options: FastifyAdapterOptions = {},
 ): AdapterDefinition<FastifyEnvironment> {
-  return {
-    name: 'fastify',
-    create: (context) => FastifyAdapter.create(options, context),
-  }
+  return { create: (context) => FastifyAdapter.create(options, context) }
 }

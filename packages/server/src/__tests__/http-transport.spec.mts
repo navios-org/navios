@@ -60,7 +60,6 @@ interface ListeningEnvironment extends HttpAdapterEnvironment {
 /** The in-memory adapter with a `listen` that counts its calls. */
 function defineListeningEnvironment(calls: number[]): AdapterDefinition<ListeningEnvironment> {
   return {
-    name: 'listening',
     create() {
       const adapter = new InMemoryAdapter() as any
       adapter.listen = async (options: { port: number }) => {
@@ -314,7 +313,6 @@ describe('httpTransport', () => {
     class Root {}
     const attempts: number[] = []
     const definition: AdapterDefinition<ListeningEnvironment> = {
-      name: 'busy-port',
       create() {
         const adapter = new InMemoryAdapter() as any
         adapter.listen = async (options: { port: number }) => {

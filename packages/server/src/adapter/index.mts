@@ -2,7 +2,7 @@
  * The contract between the server and an HTTP adapter, for packages that
  * implement one. Applications use `@navios/server`.
  */
-export { canonicalPath, compileRoutePath } from '../routing/route-path.mjs'
+export { canonicalPath } from '../routing/route-path.mjs'
 export type { RoutePath, RouteSegment } from '../routing/route-path.mjs'
 export { RouteTable } from '../routing/route-table.mjs'
 export type { RouteMatch } from '../routing/route-table.mjs'
@@ -14,8 +14,7 @@ export { malformedMultipart, readParts } from '../decoding/read-parts.mjs'
 export { encodeResult } from '../pipeline/encode-result.mjs'
 export { ManagedBody } from '../responses/managed-body.mjs'
 export { describesSuccess, isEventStream } from '../responses/response-headers.mjs'
-export { ErrorPipeline } from '../errors/error-pipeline.mjs'
-export type { ErrorPipelineOptions, ErrorSite } from '../errors/error-pipeline.mjs'
+export type { ErrorPipeline, ErrorSite } from '../errors/error-pipeline.mjs'
 export type {
   AdapterContext,
   AdapterDefinition,

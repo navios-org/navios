@@ -165,5 +165,5 @@ export class InMemoryAdapter implements HttpAdapter<InMemoryEnvironment> {
  * through `app.inject()`.
  */
 export function defineInMemoryEnvironment(): AdapterDefinition<InMemoryEnvironment> {
-  return { name: 'in-memory', create: () => new InMemoryAdapter() }
+  return { create: () => new InMemoryAdapter() }
 }

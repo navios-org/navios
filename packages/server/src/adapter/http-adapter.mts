@@ -1,5 +1,4 @@
 import type { LoggerService } from '@navios/core'
-import type { Container } from '@navios/di'
 
 import type { AdapterEnvironment } from '../context/environment.mjs'
 import type { ErrorPipeline } from '../errors/error-pipeline.mjs'
@@ -41,11 +40,12 @@ export interface HttpAdapter<Env extends HttpAdapterEnvironment = HttpAdapterEnv
   close(timeoutMs: number): Promise<void>
 }
 
+/** What an adapter is created with. */
 export interface AdapterContext {
-  container: Container
+  /** For the adapter's own messages. */
   logger: LoggerService
+  /** The application's error pipeline, for errors of the server itself. */
   errors: ErrorPipeline
-  globalPrefix: string
 }
 
 /**
@@ -53,6 +53,5 @@ export interface AdapterContext {
  * returning one, for example `defineFastifyEnvironment({ ... })`.
  */
 export interface AdapterDefinition<Env extends HttpAdapterEnvironment = HttpAdapterEnvironment> {
-  readonly name: string
   create(context: AdapterContext): HttpAdapter<Env> | Promise<HttpAdapter<Env>>
 }

@@ -136,12 +136,7 @@ async function createHttpTransport(
       errors.add(errorClass, mapper)
     }
     const globalPrefix = joinPaths(options.globalPrefix ?? '')
-    const adapter: HttpAdapter<any> = await options.adapter.create({
-      container,
-      logger,
-      errors,
-      globalPrefix,
-    })
+    const adapter: HttpAdapter<any> = await options.adapter.create({ logger, errors })
 
     const encoders = new Map<string, ResponseEncoder>()
     const interceptors: HttpInterceptorClass[] = []

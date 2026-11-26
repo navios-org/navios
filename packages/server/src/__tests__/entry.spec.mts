@@ -67,11 +67,9 @@ describe('the main entry', () => {
 describe('the adapter entry', () => {
   it('exports what an adapter is written with', () => {
     expect(names(adapter)).toEqual([
-      'ErrorPipeline',
       'ManagedBody',
       'RouteTable',
       'canonicalPath',
-      'compileRoutePath',
       'describesSuccess',
       'encodeResult',
       'isEventStream',

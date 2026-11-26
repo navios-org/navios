@@ -24,10 +24,7 @@ export interface MyEnvironment extends HttpAdapterEnvironment {
 }
 
 export function defineMyEnvironment(options: MyOptions = {}): AdapterDefinition<MyEnvironment> {
-  return {
-    name: 'my-server',
-    create: (context) => new MyAdapter(options, context),
-  }
+  return { create: (context) => new MyAdapter(options, context) }
 }
 ```
 
@@ -35,12 +32,12 @@ An application opts in to these types with the `Register` declaration described 
 
 `create(context)` is called once during `init()` and may return a promise. `context` is an `AdapterContext`:
 
-| Field          | Use                                                           |
-| -------------- | ------------------------------------------------------------- |
-| `container`    | The application's DI container.                               |
-| `logger`       | A logger for the adapter's own messages.                      |
-| `errors`       | The application's `ErrorPipeline`, for errors of the server itself. |
-| `globalPrefix` | The normalised global prefix. Route paths already include it. |
+| Field    | Use                                                                 |
+| -------- | ------------------------------------------------------------------- |
+| `logger` | A logger for the adapter's own messages.                            |
+| `errors` | The application's `ErrorPipeline`, for errors of the server itself. |
+
+Route paths already include the global prefix.
 
 Server features such as CORS, body limits and multipart are options of the definition function, because the application has no methods for them.
 
