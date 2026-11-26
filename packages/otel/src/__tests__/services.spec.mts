@@ -1,19 +1,15 @@
 import { Container } from '@navios/di'
-import {
-  context as otelContext,
-  propagation,
-  SpanKind,
-  SpanStatusCode,
-  trace,
-} from '@opentelemetry/api'
+import { context as otelContext, propagation, trace } from '@opentelemetry/api'
 import { InMemorySpanExporter, SimpleSpanProcessor, TracerProvider } from '@opentelemetry/sdk-trace'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import {
+  extractTraceContext,
+  getCurrentSpan,
+  injectTraceContext,
   OtelConfigToken,
   OtelSetupService,
   resolveOtelConfig,
-  TraceContextService,
   Traced,
   TracedProxyFactory,
   TracerToken,
@@ -48,41 +44,40 @@ describe('services', () => {
     propagation.disable()
   })
 
-  describe('TraceContextService', () => {
-    it('makes a span active for the duration of a function, across awaits', async () => {
-      const service = await container.get(TraceContextService)
+  describe('trace context', () => {
+    it('reports the active span, across awaits', async () => {
       const span = provider.getTracer('test').startSpan('outer')
 
-      expect(service.getCurrentSpan()).toBeUndefined()
-      const seen = await service.runWithSpan(span, async () => {
+      expect(getCurrentSpan()).toBeUndefined()
+      const seen = await otelContext.with(trace.setSpan(otelContext.active(), span), async () => {
         await new Promise((resolve) => setTimeout(resolve, 1))
-        return service.getCurrentSpan()
+        return getCurrentSpan()
       })
 
       expect(seen).toBe(span)
-      expect(service.getCurrentSpan()).toBeUndefined()
+      expect(getCurrentSpan()).toBeUndefined()
     })
 
-    it('injects the active span into headers and extracts it again', async () => {
-      const service = await container.get(TraceContextService)
+    it('injects the active span into headers and extracts it again', () => {
       const span = provider.getTracer('test').startSpan('client-call')
-      const headers: Record<string, string> = {}
 
-      service.runWithSpan(span, () => service.injectIntoHeaders(headers))
+      const headers = otelContext.with(trace.setSpan(otelContext.active(), span), () =>
+        injectTraceContext({ accept: '*/*' }),
+      )
 
       const { traceId, spanId } = span.spanContext()
-      expect(headers.traceparent).toBe(`00-${traceId}-${spanId}-01`)
-
+      expect(headers).toEqual({ accept: '*/*', traceparent: `00-${traceId}-${spanId}-01` })
       for (const carrier of [headers, new Headers(headers)]) {
-        const extracted = trace.getSpanContext(service.extractFromHeaders(carrier))
+        const extracted = trace.getSpanContext(extractTraceContext(carrier))
         expect(extracted).toMatchObject({ traceId, spanId, isRemote: true })
       }
     })
 
-    it('extracts nothing from headers without trace context', async () => {
-      const service = await container.get(TraceContextService)
+    it('injects nothing without an active span, and extracts nothing from such headers', () => {
+      const headers = injectTraceContext({ accept: '*/*' })
 
-      expect(trace.getSpanContext(service.extractFromHeaders({ accept: '*/*' }))).toBeUndefined()
+      expect(headers).toEqual({ accept: '*/*' })
+      expect(trace.getSpanContext(extractTraceContext(headers))).toBeUndefined()
     })
   })
 

@@ -3,7 +3,7 @@ import { context as otelContext, SpanKind, SpanStatusCode, trace } from '@opente
 import type { ClassType } from '@navios/di'
 import type { AttributeValue, Tracer } from '@opentelemetry/api'
 
-import { parentContext } from '../tracing/parent-context.mjs'
+import { parentContext } from '../tracing/context.mjs'
 import { recordSpanError } from '../tracing/record-span-error.mjs'
 
 import { extractTracedMetadata, hasTracedMetadata } from './traced-metadata.mjs'

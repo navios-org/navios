@@ -153,29 +153,34 @@ What the plugin provides:
 | `MeterToken`          | The application's `Meter`. See [Metrics](/docs/server/opentelemetry#metrics).       |
 | `OtelConfigToken`     | The configuration with defaults applied.                                            |
 | `OtelSetupService`    | The SDK owner: `forceFlush()`, `shutdown()`, `getTracer()`, `getMeter()`.           |
-| `TraceContextService` | `runWithSpan()`, `getCurrentSpan()`, `extractFromHeaders()`, `injectIntoHeaders()`. |
 | `TracedProxyFactory`  | `wrap(object, Class)`, shown above.                                                 |
 
-`getCurrentSpan()` is also exported as a function. It returns the active span, or `undefined` when there is none.
+Next to them, the package exports these functions:
+
+| Function                       | Does                                                                                                                         |
+| ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------- |
+| `getCurrentSpan()`             | The active span, or `undefined` when there is none.                                                                          |
+| `parentContext()`              | The context to start a child span in: the active context or, without a context manager and with `asyncContext: true`, the request span. |
+| `injectTraceContext(headers)`  | Adds `traceparent` (and `tracestate`, baggage) of the current span to outgoing headers, and returns them.                    |
+| `extractTraceContext(headers)` | The trace context that incoming headers carry. Takes a record, a web `Headers` object or `ctx.headers`.                      |
+| `recordSpanError(span, error)` | Records an error on a span as an exception event and marks the span as failed.                                               |
+
+`tracer.startActiveSpan()` parents a span to the active span. Where no context manager is registered (see [Context propagation](/docs/server/opentelemetry#context-propagation)), pass the parent yourself: `tracer.startSpan('report.build', {}, parentContext())`.
 
 ## Calling another service
 
 Pass the trace on by injecting it into the outgoing headers. The called service then continues the same trace.
 
 ```ts title="billing.client.mts"
-import { inject, Injectable } from '@navios/server'
-import { TraceContextService } from '@navios/otel'
+import { Injectable } from '@navios/server'
+import { injectTraceContext } from '@navios/otel'
 
 @Injectable()
 export class BillingClient {
-  private readonly traceContext = inject(TraceContextService)
-
   async charge(body: unknown) {
-    const headers: Record<string, string> = { 'content-type': 'application/json' }
-    this.traceContext.injectIntoHeaders(headers) // adds traceparent
     return fetch('https://billing.internal/charge', {
       method: 'POST',
-      headers,
+      headers: injectTraceContext({ 'content-type': 'application/json' }), // adds traceparent
       body: JSON.stringify(body),
     })
   }

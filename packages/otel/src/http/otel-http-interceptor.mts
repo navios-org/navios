@@ -6,8 +6,7 @@ import type { AttributeValue } from '@opentelemetry/api'
 
 import { OtelConfigToken } from '../config/otel-config-token.mjs'
 import { TracerToken } from '../sdk/tracer-token.mjs'
-import { extractTraceContext } from '../tracing/extract-trace-context.mjs'
-import { RequestSpan } from '../tracing/request-span.mjs'
+import { extractTraceContext, RequestSpan } from '../tracing/context.mjs'
 
 import { compileIgnoreRoutes } from './ignore-routes.mjs'
 

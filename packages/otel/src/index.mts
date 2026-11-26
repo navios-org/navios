@@ -17,14 +17,12 @@ export type { OtelSetupLogger } from './sdk/index.mjs'
 export {
   extractTraceContext,
   getCurrentSpan,
-  getCurrentSpanContext,
+  injectTraceContext,
   parentContext,
   recordSpanError,
   RequestSpan,
-  runWithSpanContext,
-  TraceContextService,
 } from './tracing/index.mjs'
-export type { HeaderCarrier, SpanContext } from './tracing/index.mjs'
+export type { HeaderCarrier } from './tracing/index.mjs'
 
 // @Traced / @Traceable
 export {

@@ -5,7 +5,7 @@ import type { ExecutionContext, HandlerInfo, Interceptor } from '@navios/core'
 import type { AttributeValue } from '@opentelemetry/api'
 
 import { TracerToken } from '../sdk/tracer-token.mjs'
-import { RequestSpan } from '../tracing/request-span.mjs'
+import { RequestSpan } from '../tracing/context.mjs'
 
 interface HandlerSpan {
   name: string

@@ -1,8 +1,9 @@
-export { extractTraceContext } from './extract-trace-context.mjs'
-export type { HeaderCarrier } from './extract-trace-context.mjs'
-export { parentContext } from './parent-context.mjs'
+export {
+  extractTraceContext,
+  getCurrentSpan,
+  injectTraceContext,
+  parentContext,
+  RequestSpan,
+} from './context.mjs'
+export type { HeaderCarrier } from './context.mjs'
 export { recordSpanError } from './record-span-error.mjs'
-export { RequestSpan } from './request-span.mjs'
-export { getCurrentSpan, getCurrentSpanContext, runWithSpanContext } from './span-context.mjs'
-export type { SpanContext } from './span-context.mjs'
-export { TraceContextService } from './trace-context-service.mjs'

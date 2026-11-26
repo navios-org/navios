@@ -16,6 +16,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **BREAKING**: the span helpers written for the removed `@navios/otel-fastify` and `@navios/otel-bun`, which nothing in the package used any more: `SpanFactoryService` with the types `HttpSpanOptions` and `ChildSpanOptions`, `HttpAttributes`, `createHttpRequestAttributes`, `parseUrlAttributes`, `NaviosAttributes` and `createNaviosAttributes`. Start a span with the tracer of `TracerToken`; `parentContext()` is the context to start a child span in when no context manager is registered.
 
+- **BREAKING**: `TraceContextService` is removed. Its methods wrapped functions the package exports: use `getCurrentSpan()`, `extractTraceContext(headers)`, `context.with(trace.setSpan(context.active(), span), fn)` of `@opentelemetry/api` instead of `runWithSpan(span, fn)`, and `trace.setSpan()` instead of `createContextWithSpan()`. `runWithSpanContext()`, `getCurrentSpanContext()` and the type `SpanContext`, which only it used, are removed too; the active baggage is `propagation.getBaggage(context.active())`.
+
+### Added
+
+- `injectTraceContext(headers)` adds the trace context of the current span to outgoing headers and returns them. It replaces `TraceContextService.injectIntoHeaders()`.
+
 ### Fixed
 
 - A subclass of a `@Traced` or `@Traceable` class that is not decorated itself is no longer traced with the metadata of its parent by `traceInstance()` and `TracedProxyFactory.wrap()`. Only what a class is decorated with itself counts, as with `@Schedulable()`.
