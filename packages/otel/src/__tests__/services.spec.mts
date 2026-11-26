@@ -3,7 +3,6 @@ import { context as otelContext, propagation, trace } from '@opentelemetry/api'
 import { InMemorySpanExporter, SimpleSpanProcessor, TracerProvider } from '@opentelemetry/sdk-trace'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
-import { resolveOtelConfig } from '../config/resolve-otel-config.mjs'
 import {
   extractTraceContext,
   getCurrentSpan,
@@ -14,7 +13,8 @@ import {
   TracedProxyFactory,
   TracerToken,
 } from '../index.mjs'
-import { registerTracerProvider } from '../sdk/register-tracer-provider.mjs'
+import { resolveOtelConfig } from '../otel-config.mjs'
+import { registerTracerProvider } from '../sdk/providers.mjs'
 
 describe('services', () => {
   let container: Container

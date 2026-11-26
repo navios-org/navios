@@ -4,7 +4,7 @@ import { SpanKind, SpanStatusCode } from '@opentelemetry/api'
 import type { Interceptor, RequestContext, RouteInfo, RouteResult } from '@navios/server'
 import type { Attributes } from '@opentelemetry/api'
 
-import { OtelConfigToken } from '../config/otel-config-token.mjs'
+import { OtelConfigToken } from '../otel-config.mjs'
 import { TracerToken } from '../sdk/tracer-token.mjs'
 import {
   ATTR_HTTP_REQUEST_ID,
@@ -18,7 +18,29 @@ import {
 import { extractTraceContext, RequestSpan } from '../tracing/context.mjs'
 import { describedOnce, recordException, runInSpan } from '../tracing/span.mjs'
 
-import { compileIgnoreRoutes } from './ignore-routes.mjs'
+/**
+ * Compiles `ignoreRoutes` patterns into one test. `*` matches any run of
+ * characters; everything else is literal.
+ */
+function compileIgnoreRoutes(patterns: readonly string[]): ((path: string) => boolean) | null {
+  if (patterns.length === 0) {
+    return null
+  }
+  const exact = new Set<string>()
+  const globs: RegExp[] = []
+  for (const pattern of patterns) {
+    if (pattern.includes('*')) {
+      const source = pattern
+        .split('*')
+        .map((part) => part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+        .join('.*')
+      globs.push(new RegExp(`^${source}$`))
+    } else {
+      exact.add(pattern)
+    }
+  }
+  return (path) => exact.has(path) || globs.some((glob) => glob.test(path))
+}
 
 /**
  * Traces HTTP requests: one server span per request that matches a route.

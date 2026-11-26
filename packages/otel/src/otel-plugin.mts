@@ -1,15 +1,15 @@
 import { definePlugin, Logger } from '@navios/core'
 import { getInjectableToken } from '@navios/di'
 
-import { OtelConfigToken } from './config/otel-config-token.mjs'
-import { OtelHandlerInterceptor } from './handlers/otel-handler-interceptor.mjs'
+import { OtelConfigToken } from './otel-config.mjs'
+import { OtelHandlerInterceptor } from './otel-handler-interceptor.mjs'
 import { MeterToken } from './sdk/meter-token.mjs'
 import { OtelSetupService } from './sdk/otel-setup-service.mjs'
 import { TracerToken } from './sdk/tracer-token.mjs'
 import { traceInstance } from './traced/trace-instance.mjs'
 import { tracedClasses } from './traced/traced-metadata.mjs'
 
-import type { OtelConfig } from './config/otel-config.mjs'
+import type { OtelConfig } from './otel-config.mjs'
 
 /**
  * Options of `otelPlugin`.

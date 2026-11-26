@@ -3,14 +3,14 @@ import { context as otelContext, SpanKind, SpanStatusCode } from '@opentelemetry
 
 import type { ExecutionContext, HandlerInfo, Interceptor } from '@navios/core'
 
-import { TracerToken } from '../sdk/tracer-token.mjs'
+import { TracerToken } from './sdk/tracer-token.mjs'
 import {
   ATTR_NAVIOS_EXECUTION_ID,
   ATTR_NAVIOS_TRANSPORT,
   naviosAttributes,
-} from '../tracing/attributes.mjs'
-import { RequestSpan } from '../tracing/context.mjs'
-import { describedOnce, recordException, runInSpan } from '../tracing/span.mjs'
+} from './tracing/attributes.mjs'
+import { RequestSpan } from './tracing/context.mjs'
+import { describedOnce, recordException, runInSpan } from './tracing/span.mjs'
 
 /**
  * Opens one span around every handler run that is not an HTTP request: a
