@@ -4,7 +4,7 @@ import type { ClassType } from '../token/class-type.mjs'
 import type { InjectionToken } from '../token/injection-token.mjs'
 
 import { EntryStatus } from './entry.mjs'
-import { baseToken, isResolved } from './normalize.mjs'
+import { baseToken, isResolved } from './lookup.mjs'
 
 import type { Entry } from './entry.mjs'
 import type { ErrorReporter } from './host.mjs'

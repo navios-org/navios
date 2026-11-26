@@ -1,4 +1,4 @@
-import { accessBeforeInit, misuse, outsideInjectionContext } from '../errors/create.mjs'
+import { accessBeforeInit, outsideInjectionContext } from '../errors/create.mjs'
 import { InjectableScope } from '../injectable-scope.mjs'
 
 import type {
@@ -6,28 +6,20 @@ import type {
   OptionalResolve,
   SyncResolve,
 } from '../injection/resolve-signatures.mjs'
-import type { FactoryContext } from '../provider/factory-context.mjs'
 import type {
   AnyInjectableType,
   FactoryInjectionToken,
   InjectionTokenType,
 } from '../token/injection-token.mjs'
 
-import { inBackground } from './background.mjs'
-import { discard, runDestroyListener } from './destruction.mjs'
-import { EntryStatus, isLeaving } from './entry.mjs'
-import { current, runHook } from './frame.mjs'
+import { DependencyNotReady, resolve, resolveTop, Wait } from './construction.mjs'
+import { discard } from './destruction.mjs'
+import { EntryStatus } from './entry.mjs'
+import { current } from './frame.mjs'
 import { addWaitEdge, linkTo } from './links.mjs'
-import { finalRecord, hasProvider, normalize, normArgs, normToken } from './normalize.mjs'
-import {
-  DependencyNotReady,
-  keepLoose,
-  resolve,
-  resolveAsync,
-  resolveTop,
-  untilReady,
-  Wait,
-} from './resolution.mjs'
+import { finalRecord, hasProvider } from './lookup.mjs'
+import { normalize, normArgs, normToken } from './normalize.mjs'
+import { keepLoose, resolveAsync } from './resolution.mjs'
 import { noop } from './thenable.mjs'
 
 import type { Entry } from './entry.mjs'
@@ -279,73 +271,4 @@ export const asyncInject: AsyncResolve = asyncInjectImpl as AsyncResolve
 
 function isTransient(host: Host, raw: AnyInjectableType): boolean {
   return finalRecord(host, raw)?.scope === InjectableScope.Transient
-}
-
-export function createFactoryContext(entry: Entry): FactoryContext {
-  const { host } = entry
-  return {
-    inject: (token: any, args?: unknown) => contextInject(entry, token, args),
-    container: host,
-    addDestroyListener: (listener) => {
-      if (entry.status <= EntryStatus.Ready || entry.status === EntryStatus.Leaving) {
-        ;(entry.destroyListeners ??= []).push(listener)
-        return
-      }
-      // The teardown is past the listeners, so what this one releases would
-      // stay behind.
-      const released = runDestroyListener(entry, listener)
-      if (released !== undefined) {
-        inBackground(host, released)
-      }
-    },
-  }
-}
-
-// `ctx.inject()`: resolves for `owner`, which may still be in the making,
-// ready, or on its way out.
-function contextInject(owner: Entry, raw: AnyInjectableType, rawArgs: unknown): Promise<any> {
-  const { host } = owner
-  let waitingOn: Entry | null = null
-  return untilReady(
-    raw,
-    () => {
-      const by = owner.status === EntryStatus.Creating ? owner : null
-      return isLeaving(owner)
-        ? runHook(owner, () => resolveTop(host, raw, rawArgs, by))
-        : resolveTop(host, raw, rawArgs, by)
-    },
-    (resolved) => {
-      if (resolved.store !== null) {
-        linkTo(resolved, owner)
-      } else if (owner.status === EntryStatus.Creating) {
-        ;(owner.transients ??= []).push(resolved)
-      } else if (owner.status === EntryStatus.Failed) {
-        discard(resolved)
-      } else {
-        // Once the owner is built, `inject` may be called any number of times,
-        // so the owner does not keep what it hands out. A scope does, as for a
-        // `get`.
-        keepLoose(host, resolved)
-      }
-      return resolved.instance
-    },
-    undefined,
-    (entry) => {
-      if (entry !== null) {
-        addWaitEdge(owner, entry)
-        waitingOn = entry
-      } else if (waitingOn !== null) {
-        owner.waitingFor?.delete(waitingOn)
-        waitingOn = null
-      }
-    },
-    (wait) => {
-      if (wait.leaving !== null && isLeaving(owner)) {
-        throw misuse(
-          `${wait.leaving.token} is being destroyed, and ${owner.token} cannot wait for that ` +
-            `while it is being destroyed itself`,
-        )
-      }
-    },
-  )
 }

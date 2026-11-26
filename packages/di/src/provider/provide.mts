@@ -1,5 +1,5 @@
 import { InjectableScope } from '../injectable-scope.mjs'
-import { requireToken } from '../internal/normalize.mjs'
+import { requireToken } from '../internal/lookup.mjs'
 import { findInjectableToken } from '../token/injectable-token.mjs'
 
 import type { ClassType, ClassTypeWithInstance } from '../token/class-type.mjs'

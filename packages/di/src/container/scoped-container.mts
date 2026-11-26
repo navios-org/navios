@@ -5,7 +5,7 @@ import { destroyAll, destroyLoose, rejectWith } from '../internal/destruction.mj
 import { EntryStatus } from '../internal/entry.mjs'
 import { hookOwner } from '../internal/frame.mjs'
 import { disposedError } from '../internal/liveness.mjs'
-import { hasProvider, lookupRecord } from '../internal/normalize.mjs'
+import { hasProvider, lookupRecord } from '../internal/lookup.mjs'
 import { resolveInstance, resolveSyncOrThrow } from '../internal/resolution.mjs'
 import { Store } from '../internal/store.mjs'
 import { peek, storeValue } from '../internal/stored-values.mjs'

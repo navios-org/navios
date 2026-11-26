@@ -13,7 +13,7 @@ import {
   isResolved,
   lookupRecord,
   requireToken,
-} from '../internal/normalize.mjs'
+} from '../internal/lookup.mjs'
 import { resolveInstance, resolveSyncOrThrow } from '../internal/resolution.mjs'
 import { Store } from '../internal/store.mjs'
 import { peek, storeValue } from '../internal/stored-values.mjs'

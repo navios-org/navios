@@ -5,7 +5,7 @@ import type { InjectionToken } from '../token/injection-token.mjs'
 
 import { keyOf } from './args-key.mjs'
 import { EntryStatus, isLeaving } from './entry.mjs'
-import { lookupRecord } from './normalize.mjs'
+import { lookupRecord } from './lookup.mjs'
 import { findStored } from './store.mjs'
 
 import type { Entry } from './entry.mjs'

@@ -6,9 +6,9 @@ import type { FactoryInjectionToken } from '../token/injection-token.mjs'
 
 import { createEntry, markReady } from './entry.mjs'
 import { outside } from './frame.mjs'
-import { createFactoryContext } from './inject-impl.mjs'
 import { assertLive } from './liveness.mjs'
 import { failEntry, settleEntry } from './outcome.mjs'
+import { createFactoryContext } from './resolution.mjs'
 import { isThenable, noop } from './thenable.mjs'
 
 import type { Entry } from './entry.mjs'

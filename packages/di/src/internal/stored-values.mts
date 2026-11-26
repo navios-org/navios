@@ -10,7 +10,7 @@ import type { AnyInjectableType, InjectionToken } from '../token/injection-token
 import { keyOf } from './args-key.mjs'
 import { createEntry, EntryStatus, markReady } from './entry.mjs'
 import { assertLive } from './liveness.mjs'
-import { baseToken, followAlias, lookupRecord, requireToken } from './normalize.mjs'
+import { baseToken, followAlias, lookupRecord, requireToken } from './lookup.mjs'
 import { findStored } from './store.mjs'
 
 import type { Entry } from './entry.mjs'
