@@ -35,7 +35,7 @@ Creates one `ScopedContainer` from the root container on mount and calls its `di
 
 ## Service hooks
 
-All three hooks share one set of overloads. `Result` stands for the hook's return type.
+All three hooks share one set of overloads, the interface `ServiceHook<K>`: `useService` is a `ServiceHook<'service'>`, `useOptionalService` a `ServiceHook<'optional'>` and `useSuspenseService` a `ServiceHook<'suspense'>`. `Result` stands for the hook's return type, `ServiceHookResults<T>[K]`.
 
 ```ts
 // A class registered with @Injectable or @Factory
@@ -144,9 +144,11 @@ The two contexts behind the providers and hooks. They are exported for code that
 
 ## Types
 
-| Export                        | Description                                                |
-| ----------------------------- | ---------------------------------------------------------- |
-| `ContainerProviderProps`      | Props of [`ContainerProvider`](#containerprovider)         |
-| `ScopeProviderProps`          | Props of [`ScopeProvider`](#scopeprovider)                 |
-| `UseServiceResult<T>`         | Return type of [`useService`](#useservice)                 |
-| `UseOptionalServiceResult<T>` | Return type of [`useOptionalService`](#useoptionalservice) |
+| Export                        | Description                                                                                            |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------ |
+| `ContainerProviderProps`      | Props of [`ContainerProvider`](#containerprovider)                                                     |
+| `ScopeProviderProps`          | Props of [`ScopeProvider`](#scopeprovider)                                                             |
+| `UseServiceResult<T>`         | Return type of [`useService`](#useservice)                                                             |
+| `UseOptionalServiceResult<T>` | Return type of [`useOptionalService`](#useoptionalservice)                                             |
+| `ServiceHook<K>`              | The overloads of the [service hooks](#service-hooks); `K` is `'service'`, `'optional'` or `'suspense'` |
+| `ServiceHookResults<T>`       | What each service hook returns for an instance of type `T`, by `K`                                     |

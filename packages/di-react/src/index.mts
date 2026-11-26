@@ -26,4 +26,9 @@ export {
   useService,
   useSuspenseService,
 } from './service/index.mjs'
-export type { UseOptionalServiceResult, UseServiceResult } from './service/index.mjs'
+export type {
+  ServiceHook,
+  ServiceHookResults,
+  UseOptionalServiceResult,
+  UseServiceResult,
+} from './service/index.mjs'

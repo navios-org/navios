@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [2.0.0-alpha.1] - Unreleased
 
+### Added
+
+- **`ServiceHook<K>` and `ServiceHookResults<T>`**: the overloads the service hooks share, as one type. `useService` is a `ServiceHook<'service'>`, `useOptionalService` a `ServiceHook<'optional'>` and `useSuspenseService` a `ServiceHook<'suspense'>`. The hooks are declared as constants of that type; what they accept and return is unchanged.
+
 ### Changed
 
 - **Breaking:** `useService` and `useOptionalService` report `isLoading: true` on the first render when the container does not hold the instance yet. That render used to have every flag `false`.

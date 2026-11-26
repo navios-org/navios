@@ -2,4 +2,9 @@ export { useService } from './use-service.mjs'
 export { useSuspenseService } from './use-suspense-service.mjs'
 export { useOptionalService } from './use-optional-service.mjs'
 export { useInvalidateInstance } from './use-invalidate-instance.mjs'
-export type { UseOptionalServiceResult, UseServiceResult } from './types.mjs'
+export type {
+  ServiceHook,
+  ServiceHookResults,
+  UseOptionalServiceResult,
+  UseServiceResult,
+} from './types.mjs'

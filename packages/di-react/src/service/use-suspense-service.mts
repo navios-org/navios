@@ -1,23 +1,12 @@
 import { useCallback, useEffect, useSyncExternalStore } from 'react'
 
-import type {
-  BoundInjectionToken,
-  ClassType,
-  Container,
-  FactoryInjectionToken,
-  InferInput,
-  InjectionToken,
-  MissingArgsError,
-  ResolvedInstance,
-  ScopedContainer,
-  StandardSchemaV1,
-} from '@navios/di'
+import type { Container, InjectionToken, ScopedContainer } from '@navios/di'
 
 import { useContainer } from '../container/use-container.mjs'
 
 import { getArgsKey } from './args-key.mjs'
 
-import type { AnyServiceToken } from './types.mjs'
+import type { AnyServiceToken, ServiceHook } from './types.mjs'
 
 // Cache entry for suspense
 interface CacheEntry<T> {
@@ -150,28 +139,15 @@ function evictAfterRender(cache: Cache, key: string, entry: CacheEntry<any>): vo
   }, 0)
 }
 
-// #1 Simple class
-export function useSuspenseService<T extends ClassType>(token: T): ResolvedInstance<T>
-
-// #2 Token with required Schema
-export function useSuspenseService<T, S extends StandardSchemaV1>(
-  token: InjectionToken<T, S>,
-  args: InferInput<S>,
-): T
-
-// #3 Token with optional Schema
-export function useSuspenseService<T, S extends StandardSchemaV1, R extends boolean>(
-  token: InjectionToken<T, S, R>,
-): R extends false ? T : MissingArgsError<S>
-
-// #4 Token with no Schema
-export function useSuspenseService<T>(token: InjectionToken<T, unknown>): T
-
-export function useSuspenseService<T>(token: BoundInjectionToken<T, any>): T
-
-export function useSuspenseService<T>(token: FactoryInjectionToken<T, any>): T
-
-export function useSuspenseService(token: AnyServiceToken, args?: unknown): any {
+/**
+ * Hook that returns a service from the DI container and suspends while it is
+ * resolved. A failed resolution is thrown to the nearest error boundary.
+ * Resolves again, suspending, when the instance is invalidated.
+ */
+export const useSuspenseService = function useSuspenseService(
+  token: AnyServiceToken,
+  args?: unknown,
+): any {
   // useContainer returns ScopedContainer if inside ScopeProvider, otherwise Container
   const container = useContainer()
   const cache = getCache(container, token)
@@ -221,4 +197,4 @@ export function useSuspenseService(token: AnyServiceToken, args?: unknown): any 
   }
 
   return entry.result
-}
+} as ServiceHook<'suspense'>

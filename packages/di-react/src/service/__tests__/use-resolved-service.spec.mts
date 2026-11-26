@@ -8,13 +8,15 @@ import { ContainerProvider } from '../../container/container-provider.mjs'
 import { useOptionalService } from '../use-optional-service.mjs'
 import { useService } from '../use-service.mjs'
 
-import type { UseServiceResult } from '../types.mjs'
+import type { ServiceHook, UseServiceResult } from '../types.mjs'
 
 // Behaviour useService and useOptionalService share.
-describe.each([
+const hooks: [string, ServiceHook<'service' | 'optional'>][] = [
   ['useService', useService],
-  ['useOptionalService', useOptionalService as typeof useService],
-])('%s', (_name, useHook) => {
+  ['useOptionalService', useOptionalService],
+]
+
+describe.each(hooks)('%s', (_name, useHook) => {
   let container: Container
 
   beforeEach(() => {
