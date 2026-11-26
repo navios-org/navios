@@ -21,7 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Stale instance in `useOptionalService` after an args change**: a resolution for the previous args that finished after the one for the current args replaced its instance.
 - **`useOptionalService` after `refetch()`**: an instance it resolved after a failure or `isNotFound` was not subscribed to, so invalidating it did not resolve again.
-- **`useSuspenseService` retries after a failure**: a rejected resolution stayed cached for the container, token and args, so resetting the error boundary or mounting the component again threw the same error without another attempt. The error still reaches the error boundary; the next render resolves again.
+- **`useSuspenseService` retries after a failure**: a rejected resolution stayed cached for the container, token and args, so resetting the error boundary or mounting the component again threw the same error without another attempt. The error still reaches the error boundary; the next render resolves again. A failure is resolved once per attempt also when the component renders slowly: the entry is dropped two timer turns after the last render that threw.
 
 ### Removed
 

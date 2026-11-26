@@ -81,7 +81,7 @@ describe('useSuspenseService', () => {
       }
     }
 
-    const renderFlaky = () => {
+    const renderFlaky = ({ slow = false } = {}) => {
       const log = { attempts: 0, renders: 0, failing: true, release: null as (() => void) | null }
 
       @Injectable()
@@ -100,6 +100,10 @@ describe('useSuspenseService', () => {
       }
 
       function TestComponent() {
+        // Longer than a time slice of React, so that it yields after this render
+        for (const end = performance.now() + (slow ? 8 : 0); performance.now() < end;) {
+          // busy
+        }
         if (++log.renders > 100) {
           throw new Error('useSuspenseService never settled')
         }
@@ -135,6 +139,20 @@ describe('useSuspenseService', () => {
 
     it('should throw the error to the error boundary once', async () => {
       const log = renderFlaky()
+
+      await waitFor(() => {
+        expect(screen.getByTestId('error').textContent).toContain('Not ready yet')
+      })
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 20))
+      })
+
+      expect(screen.getByTestId('error').textContent).toContain('Not ready yet')
+      expect(log.attempts).toBe(1)
+    })
+
+    it('should not resolve again when React yields before it renders the failure again', async () => {
+      const log = renderFlaky({ slow: true })
 
       await waitFor(() => {
         expect(screen.getByTestId('error').textContent).toContain('Not ready yet')

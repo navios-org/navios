@@ -17,8 +17,8 @@ interface CacheEntry<T> {
   version: number // Increment on each fetch to track changes
   subscribers: Set<() => void>
   unsubscribe: (() => void) | undefined
-  // A rejected entry that is about to leave the cache
-  evicting: boolean
+  // The timer after which a rejected entry leaves the cache
+  eviction: ReturnType<typeof setTimeout> | undefined
 }
 
 type AnyContainer = Container | ScopedContainer
@@ -65,7 +65,7 @@ function getEntry(
       version: 0,
       subscribers: new Set(),
       unsubscribe: undefined,
-      evicting: false,
+      eviction: undefined,
     }
     cache.set(key, entry)
   }
@@ -123,19 +123,24 @@ function fetchService(
 }
 
 /**
- * Drops a rejected entry once the current task is over. Every render until
- * then throws the error: React renders a failed component again before it
- * shows the error boundary. The next render after that, such as the one of an
- * error boundary reset, resolves the service again.
+ * Drops a rejected entry two timer turns after the last render that threw its
+ * error. Every render until then throws the error again: React renders a
+ * failed component a second time before it shows the error boundary, and when
+ * the first of those renders used up its time slice, the second one runs in a
+ * later task. That task is queued before the second timer is, so it still
+ * finds the entry; with one turn it found the cache empty and resolved the
+ * service again. The next render after that, such as the one of an error
+ * boundary reset, resolves the service again.
  */
 function evictAfterRender(cache: Cache, key: string, entry: CacheEntry<any>): void {
-  if (entry.evicting) return
-  entry.evicting = true
-  setTimeout(() => {
-    if (cache.get(key) === entry && entry.status === 'rejected') {
-      cache.delete(key)
-      entry.unsubscribe?.()
-    }
+  clearTimeout(entry.eviction)
+  entry.eviction = setTimeout(() => {
+    entry.eviction = setTimeout(() => {
+      if (cache.get(key) === entry && entry.status === 'rejected') {
+        cache.delete(key)
+        entry.unsubscribe?.()
+      }
+    }, 0)
   }, 0)
 }
 
