@@ -78,11 +78,14 @@ export class BasicExecutionContext implements ExecutionContext {
    * @internal
    */
   resolverFor(token: AnyInjectableType): Container | ScopedContainer {
-    const { container } = this.host
-    if (this.scope === null && !needsScope(container, token)) {
-      return container
+    const { container, onScopedUse } = this.host
+    if (this.scope !== null && onScopedUse === null) {
+      return this.scope
     }
-    this.host.onScopedUse?.(token)
+    if (!needsScope(container, token)) {
+      return this.scope ?? container
+    }
+    onScopedUse?.(token)
     if (this.scope === null) {
       if (this.finished) {
         throw new Error(

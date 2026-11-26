@@ -459,12 +459,15 @@ export class RequestContext<
 
   /** @internal */
   resolverFor(token: AnyInjectableType): Container | ScopedContainer {
-    this.host.onScopedUse?.(token)
+    const { container, onScopedUse } = this.host
+    if (this.scope !== null && onScopedUse === null) {
+      return this.scope
+    }
+    if (!needsScope(container, token)) {
+      return this.scope ?? container
+    }
+    onScopedUse?.(token)
     if (this.scope === null) {
-      const { container } = this.host
-      if (!needsScope(container, token)) {
-        return container
-      }
       if (this.released) {
         throw new Error(
           '[Navios] Request-scoped services cannot be used: the response has finished, so nothing ' +

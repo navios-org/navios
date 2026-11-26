@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`HandlerInfo.module` is a `ClassType`**, no longer `| null`: every transport sets it.
 - **`ConsoleLogger`'s protected `printMessages()` takes no `requestId`**, which nothing passed: the id is that of `currentContext()` when the `requestId` option is on. `getRequestId()` and `printAsJson()`, protected as well, print the id they are given without checking the option again.
 - **`handlerChain` builds the `HandlerInfo`.** It takes the `controller` and the `handlerName` of the handler besides `node`, `owner` and `member`, and returns `{ info, outer, inner }`: `info` is what the handler's contexts carry as `ctx.handler`, its guards in `info.guards`. `HandlerChain.guards` and `HandlerChain.interceptors` are removed. `resolveChain` takes what `handlerChain` returns, the guards in `info.guards`.
+- **`ContextHost.onScopedUse` is called only for a token that `needsScope` is true for**, and no longer checks that itself. A context of a transport's own calls `needsScope` first, as `BasicExecutionContext` does; with the `'warn'` and `'forbid'` policies a context looks up the provider of a token once per resolution instead of twice.
 
 ### Added
 

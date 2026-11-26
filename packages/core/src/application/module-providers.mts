@@ -1,10 +1,12 @@
+import { isSameProvider } from '@navios/di/internal'
+
 import type { ClassType, InjectionToken, Provider } from '@navios/di'
 
 import type { ModuleNode } from '../modules/module-graph.mjs'
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-export interface ModuleProvider {
+interface ModuleProvider {
   readonly module: ClassType
   readonly provider: Provider
   /**
@@ -15,18 +17,6 @@ export interface ModuleProvider {
 }
 
 type Candidate = { node: ModuleNode; provider: Provider }
-
-/** What a provider consists of. Its type does not show it. */
-function parts(provider: Provider): unknown[] {
-  const { record } = provider as unknown as { record: Record<string, unknown> }
-  return [record.kind, record.scope, record.target, record.fn, record.value]
-}
-
-/** Whether two providers of one token come to the same. */
-function isSame(left: Provider, right: Provider): boolean {
-  const other = parts(right)
-  return parts(left).every((part, index) => Object.is(part, other[index]))
-}
 
 function importsIndirectly(importer: ModuleNode, imported: ModuleNode): boolean {
   const seen = new Set<ModuleNode>()
@@ -45,7 +35,7 @@ function importsIndirectly(importer: ModuleNode, imported: ModuleNode): boolean 
 
 function choose(candidates: readonly Candidate[]): ModuleProvider {
   const [first] = candidates
-  const others = candidates.filter(({ provider }) => !isSame(provider, first.provider))
+  const others = candidates.filter(({ provider }) => !isSameProvider(provider, first.provider))
   if (others.length === 0) {
     return { module: first.node.module, provider: first.provider }
   }
@@ -53,7 +43,7 @@ function choose(candidates: readonly Candidate[]): ModuleProvider {
     ({ node }) =>
       !candidates.some((other) => other.node !== node && importsIndirectly(other.node, node)),
   )
-  const rival = rest.find(({ provider }) => !isSame(provider, top.provider))
+  const rival = rest.find(({ provider }) => !isSameProvider(provider, top.provider))
   return { module: top.node.module, provider: top.provider, rival: rival?.node.module }
 }
 
