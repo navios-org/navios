@@ -104,11 +104,33 @@ function detach(link: ScopedLink): void {
   link.next = null
 }
 
-/** The entries that injected `entry`, in its own container and in scopes. */
+/**
+ * The entries that injected `entry`, in its own container and in scopes, in
+ * the order they did.
+ */
 export function dependentsOf(entry: Entry): Entry[] {
-  const all = entry.dependents === null ? [] : Array.from(entry.dependents)
-  for (let link = entry.scopedDependents; link !== null; link = link.next) {
-    all.push(link.owner)
+  const local = entry.dependents === null ? [] : Array.from(entry.dependents)
+  if (entry.scopedDependents === null) {
+    return local
+  }
+  // The set and the list each keep the order of linking, the list newest
+  // first. An entry links what it injects while it is built, right after it
+  // was created, so the creation order of the owners interleaves the two.
+  const scoped: Entry[] = []
+  for (let link: ScopedLink | null = entry.scopedDependents; link !== null; link = link.next) {
+    scoped.push(link.owner)
+  }
+  const all: Entry[] = []
+  let i = 0
+  let j = scoped.length - 1
+  while (i < local.length && j >= 0) {
+    all.push(local[i].seq < scoped[j].seq ? local[i++] : scoped[j--])
+  }
+  while (i < local.length) {
+    all.push(local[i++])
+  }
+  while (j >= 0) {
+    all.push(scoped[j--])
   }
   return all
 }

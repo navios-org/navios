@@ -79,6 +79,48 @@ describe('scopes created and disposed per request', () => {
       expect(destroyed).toBe(1)
     })
 
+    it('destroys the dependents of a singleton in the order they injected it, in the root and in scopes alike', async () => {
+      const destroyed: string[] = []
+      const notified: string[] = []
+
+      @Injectable()
+      class Shared {}
+
+      @Injectable({ scope: InjectableScope.Request })
+      class PerRequest implements OnServiceDestroy {
+        readonly shared = inject(Shared)
+        name = ''
+        onServiceDestroy() {
+          destroyed.push(this.name)
+        }
+      }
+
+      @Injectable()
+      class RootDependent implements OnServiceDestroy {
+        readonly shared = inject(Shared)
+        onServiceDestroy() {
+          destroyed.push('root')
+        }
+      }
+
+      const open = (name: string) => {
+        const scope = container.createScope()
+        scope.getSync(PerRequest).name = name
+        scope.onInvalidate(PerRequest, undefined, () => notified.push(name))
+        return scope
+      }
+      const a = open('a')
+      container.getSync(RootDependent)
+      const b = open('b')
+      const c = open('c')
+
+      await container.invalidate(container.getSync(Shared))
+
+      expect(destroyed).toEqual(['a', 'root', 'b', 'c'])
+      expect(notified).toEqual(['a', 'b', 'c'])
+      await Promise.all([a.dispose(), b.dispose(), c.dispose()])
+    })
+
     it('reaches a dependent through a request-scoped service in between', async () => {
       const destroyed: string[] = []
 
