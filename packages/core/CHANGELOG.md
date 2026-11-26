@@ -10,7 +10,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Breaking
 
 - **`@navios/core/transport` exports less.** A transport that imports these from it, `@navios/commander` included, changes the import:
-  - `constructedInstances` is part of `@navios/di/internal`, which follows no semver. Import it from there and list `@navios/di` as a peer dependency.
   - `hasModuleMetadata` is removed; `getModuleMetadata` throws for a class that is not a module.
   - The types that `@navios/core` exports are no longer exported a second time: `Transport`, `TransportFactory`, `TransportInstance`, `Guard`, `GuardClass`, `Interceptor`, `InterceptorClass`, `ExecutionContext`, `HandlerInfo`, `AttributeMap`, `ClassType` and `LoggerService`. Import them from `@navios/core`. `TransportDefinition` and `TransportHost` stay.
 - **`ConfigServiceInterface` and `isLogLevel` are removed** from `@navios/core`. `ConfigService` is the configuration service, and `filterLogLevels` reads levels from a setting.

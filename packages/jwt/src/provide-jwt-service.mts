@@ -1,7 +1,8 @@
-import { InjectionToken, registerFactory } from '@navios/di'
+import { InjectionToken, registerFactory } from '@navios/core'
 
-import type { FactoryContext } from '@navios/di'
+import type { FactoryContext } from '@navios/core'
 
+import { isPromiseLike } from './internal/promise-like.mjs'
 import { JwtService } from './jwt-service.mjs'
 
 import type { JwtServiceOptions } from './jwt-service-options.mjs'
@@ -63,9 +64,10 @@ export function provideJwtService(
   class JwtServiceFactory {
     create(ctx: FactoryContext): JwtService | Promise<JwtService> {
       const options = typeof config === 'function' ? config(ctx) : config
-      return typeof (options as Partial<PromiseLike<unknown>> | null)?.then === 'function'
+      // `then` of a thenable that is not a promise may return nothing.
+      return isPromiseLike(options)
         ? Promise.resolve(options).then((resolved) => new JwtService(resolved))
-        : new JwtService(options as JwtServiceOptions)
+        : new JwtService(options)
     }
   }
   registerFactory(JwtServiceFactory, { token })

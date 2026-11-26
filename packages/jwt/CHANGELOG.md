@@ -7,13 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [2.0.0-alpha.1] - Unreleased
 
-### Changed
-
-- **BREAKING**: The peer dependency is `@navios/di` instead of `@navios/core`. The package only uses the container, so it works in an application of `@navios/di` alone. A project that lists `@navios/core` but not `@navios/di` adds `@navios/di` with the same version.
-
 ### Added
 
 - The types `SignOptions` and `VerifyOptions` of `JwtServiceOptions.signOptions` and `JwtServiceOptions.verifyOptions` are exported.
+
+### Fixed
+
+- A configuration function of `provideJwtService` that returns a thenable which is not a native promise is waited for. The service resolved to `undefined`.
 
 ## [2.0.0-alpha.0] - 2026-11-26
 

@@ -7,9 +7,6 @@
   "include": ["src/**/*"],
   "references": [
     {
-      "path": "../di"
-    },
-    {
       "path": "../core"
     }
   ]

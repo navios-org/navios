@@ -1,6 +1,5 @@
 import { Container, inject, InjectableScope, Logger, registerInjectable } from '@navios/core'
-import { settledWithin } from '@navios/core/transport'
-import { constructedInstances } from '@navios/di/internal'
+import { constructedInstances, settledWithin } from '@navios/core/transport'
 
 import type { ClassType, OnServiceDestroy } from '@navios/core'
 

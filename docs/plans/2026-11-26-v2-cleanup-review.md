@@ -169,8 +169,6 @@ of 22 kB. No budget was changed.
 - server's adapter contract types live in `adapter/`, and the pure helpers sit
   next to their kind.
 - otel went from 43 source files to 19, openapi from 32 to 10.
-- `jwt` depends on `@navios/di` instead of `@navios/core`, which is all it
-  uses. It now works in an app that uses only di.
 - `get()`/`getSync()` of the containers are prototype methods, saving two
   closures per scope. `createScope` + `dispose` went from 29 to 22 ns.
 
@@ -191,6 +189,7 @@ Each one has a regression test that failed before the fix.
 | adapter-bun | The CORS origin function ran twice for a refused preflight. A generator that declared `text/event-stream` itself had its headers held back until the first event. |
 | server | A hostile error object (a throwing Proxy) went unreported, and `unexpected()` threw. |
 | otel | An undecorated subclass of a traced class was traced with its parent's settings. `@Traceable` on a subclass dropped the parent's span name and attributes. |
+| jwt | A configuration function of `provideJwtService` that returned a thenable other than a native promise resolved the service to `undefined`. |
 | queues | Kafka's retry `factor` rejected its own default. A RabbitMQ request whose publish failed waited 30 s and left an unhandled rejection. A queue named `toString` counted as configured. |
 
 ## Behaviour changes you may notice
@@ -211,8 +210,6 @@ Each one has a regression test that failed before the fix.
   `deployment.environment.name`.
 - **queues:** an invalid config entry or an empty topic throws when the client
   is resolved. `onServiceInit` is `connect()`.
-- **jwt:** a project that lists `@navios/core` but not `@navios/di` must add
-  di.
 
 ## Changes made, then undone
 
@@ -224,6 +221,16 @@ Each one has a regression test that failed before the fix.
   two small merges inside it went too: the `logger` option is read once, and
   the two settle functions share a configure step. They can be redone inside
   `application.mts` if wanted.
+- **jwt and schedule keep reaching di through core.** The audit proposed that
+  jwt peer on `@navios/di`, since the container is all it uses, and that
+  schedule import `constructedInstances` from `@navios/di/internal` with a di
+  peer of its own. Both were done and undone. A server application does not
+  list di, so the peer would warn as unmet, and a strict install could give
+  the package a second copy of di, with its own decorators and metadata, from
+  the one core uses. A package built for core or server apps imports di's API
+  through `@navios/core`, and `@navios/core/transport` keeps re-exporting
+  `constructedInstances` for that reason. otel peers on di and imports it in
+  12 files; that predates this cleanup and is listed under "Left for you".
 - **Bun's `upgraded.has(request)` check was restored.** It was dropped as
   redundant with `takenOver`. However, a handler that upgrades and then throws
   never sets `takenOver`, and without the check its error response would go
@@ -273,7 +280,11 @@ a cleanup.
 9. **The size budget counts comments.** `check:size` measures unminified
    output with JSDoc, so documenting a public helper costs budget. Measuring
    minified, or comment-free, output would track code.
-10. **`application.mts` is still about 800 lines.** If it should be split,
+10. **otel peers on `@navios/di`** and imports it directly in 12 files, so a
+    server application gets the same unmet peer and the same risk of a second
+    di copy that jwt would have had. Importing through `@navios/core` and
+    dropping the peer would match jwt and schedule.
+11. **`application.mts` is still about 800 lines.** If it should be split,
     plain functions over its state would cost less than the reverted classes.
 
 ## Follow-ups

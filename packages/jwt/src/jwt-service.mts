@@ -16,6 +16,7 @@ import {
   OBJECT_PAYLOAD_OPTIONS,
   readDefaults,
 } from './internal/options.mjs'
+import { isPromiseLike } from './internal/promise-like.mjs'
 
 import type { Key } from './internal/key.mjs'
 import type { KeysFunction, SelectedKey } from './internal/keys-function.mjs'
@@ -464,8 +465,7 @@ function requireSync(
   key: SelectedKey | Promise<SelectedKey>,
   method: 'sign' | 'verify',
 ): SelectedKey {
-  // askKeys answers a promise of its own making when `keys` answers one.
-  if (key instanceof Promise) {
+  if (isPromiseLike(key)) {
     // The promise is dropped; do not let its rejection go unhandled.
     key.then(undefined, () => {})
     throw configurationError(
