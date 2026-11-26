@@ -50,6 +50,16 @@ describe('renderToXml', () => {
       const xml = await renderToXml(node, { declaration: false })
       expect(xml).toBe('<items><item/></items>')
     })
+
+    it('should skip boolean children, as in `{flag && <item />}`', async () => {
+      const node = createElement('items', null, true, false, createElement('item', null))
+      expect(await renderToXml(node, { declaration: false })).toBe('<items><item/></items>')
+    })
+
+    it('should render nothing for a promise of a boolean', async () => {
+      const node = createElement('items', null, Promise.resolve(false))
+      expect(await renderToXml(node, { declaration: false })).toBe('<items></items>')
+    })
   })
 
   describe('XML declaration', () => {

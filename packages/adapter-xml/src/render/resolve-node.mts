@@ -16,7 +16,8 @@ export async function resolveNode(node: AnyXmlNode, env: RenderEnvironment): Pro
   let current = node
   for (;;) {
     if (current == null || typeof current !== 'object') {
-      return current
+      // A boolean renders nothing, as `{flag && <item />}` does.
+      return typeof current === 'boolean' ? null : current
     }
     if (isFunctionComponentNode(current)) {
       // Function components are called here, not when the JSX is evaluated,
