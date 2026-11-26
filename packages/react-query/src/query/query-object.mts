@@ -9,16 +9,16 @@ import type {
   UseSuspenseQueryResult,
 } from '@tanstack/react-query'
 
+import type { AnyKeyBy, KeyedArgs, SendArgs } from '../endpoint/key-by.mjs'
 import type { SurfaceOptions } from '../endpoint/surface-options.mjs'
 import type {
-  ArgsWith,
-  EndpointArgs,
+  ArgsOf,
   EndpointData,
   EndpointFailure,
-  PartialEndpointInputs,
+  PartialKeyedInputs,
 } from '../endpoint/types.mjs'
 
-import type { HookArgsWith, InvalidateFilters, TaggedKey } from './types.mjs'
+import type { HookArgsOf, InvalidateFilters, TaggedKey } from './types.mjs'
 
 /**
  * Every TanStack `useQuery` option except the two this library owns.
@@ -44,14 +44,47 @@ export type QueryDefaults<TData, TError> = Omit<
 >
 
 /**
- * Options of `client.query` and `makeQuery`: the key options, `withResponse`
- * and the query's TanStack {@link QueryDefaults}.
+ * Options of `client.query` and `makeQuery`: the key options, `withResponse`,
+ * `keyBy` and the query's TanStack {@link QueryDefaults}.
+ *
+ * @template TKeyBy - The `keyBy` option; `client.query` and `makeQuery` type it
+ *   from the endpoint as `KeyBy<Options>`
  */
 export type QuerySettings<
   TData,
   TError,
   WithResponse extends boolean = boolean,
-> = SurfaceOptions<WithResponse> & QueryDefaults<TData, TError>
+  TKeyBy = AnyKeyBy,
+> = SurfaceOptions<WithResponse> &
+  QueryDefaults<TData, TError> & {
+    /**
+     * Which inputs identify a cache entry. Inputs left out are shared by
+     * everyone using the entry: a hook or `fetch` that passes them sends them,
+     * the entry refetches with them and every component on it gets the
+     * result. A call without them uses the ones sent last.
+     *
+     * - `false`: no input identifies the entry; the endpoint has one entry
+     * - `{ params: false }`: the query params are left out (also `urlParams`, `data`)
+     * - `{ params: ['role'] }`: only `params.role` identifies the entry
+     *
+     * @default every input identifies the entry
+     *
+     * @example
+     * ```ts
+     * const searchUsers = client.query({
+     *   method: 'GET',
+     *   url: '/users',
+     *   querySchema: z.object({ q: z.string() }),
+     *   responseSchema: usersSchema,
+     *   keyBy: { params: false },
+     * })
+     *
+     * searchUsers.use({ params: { q } }) // the search box sends `q`
+     * searchUsers.use() // anywhere else: the result of the last search
+     * ```
+     */
+    keyBy?: TKeyBy
+  }
 
 /**
  * Every TanStack `useSuspenseQuery` option except the two this library owns.
@@ -82,18 +115,27 @@ export type QueryOptionsResult<TData, TError> = UnusedSkipTokenOptions<
  *
  * Call it to get TanStack query options; use the attached helpers for hooks
  * and typed cache access.
+ *
+ * @template TKeyBy - The declaration's `keyBy`, `undefined` without one. With
+ *   one, the hooks and `fetch` / `prefetch` / `ensure` take the shared inputs
+ *   optionally, and the other members take only the inputs that identify the
+ *   entry.
  */
 export type QueryObject<
   Options extends BaseEndpointOptions,
   TData = EndpointData<Options>,
   TError = EndpointFailure<Options>,
+  TKeyBy = undefined,
 > = {
   /**
    * Builds TanStack query options for these args. Pass the result to
    * `useQuery`, `useSuspenseQuery`, `useQueries` or `queryClient.query`.
+   *
+   * With a `keyBy`, it takes only the inputs that identify the entry: options
+   * cannot react to a change, so they use the shared inputs sent last.
    */
   (
-    ...args: ArgsWith<Options, [options?: QueryHookOptions<TData, TError>]>
+    ...args: ArgsOf<KeyedArgs<Options, TKeyBy>, [options?: QueryHookOptions<TData, TError>]>
   ): QueryOptionsResult<TData, TError>
 
   /**
@@ -103,57 +145,75 @@ export type QueryObject<
    * - partial args: prefix of every entry that matches them
    * - full args: the exact key
    */
-  key: (args?: PartialEndpointInputs<Options>) => TaggedKey<TData, TError>
+  key: (args?: PartialKeyedInputs<Options, TKeyBy>) => TaggedKey<TData, TError>
 
   /**
    * `useQuery` for this endpoint. Accepts every TanStack option except
    * `queryKey` / `queryFn`. Pass `skipToken` as args to disable the query
    * until its inputs are known.
+   *
+   * With a `keyBy`, passing shared inputs sends them: on mount and whenever
+   * they change, the entry refetches with them for every component using it.
+   * Without them, the hook shows the entry as it is.
    */
   use: <TSelected = TData>(
-    ...args: HookArgsWith<Options, [options?: QueryHookOptions<TData, TError, TSelected>]>
+    ...args: HookArgsOf<
+      SendArgs<Options, TKeyBy>,
+      [options?: QueryHookOptions<TData, TError, TSelected>]
+    >
   ) => UseQueryResult<TSelected, TError>
 
-  /** `useSuspenseQuery` for this endpoint. */
+  /** `useSuspenseQuery` for this endpoint. Sends shared inputs as `use` does. */
   useSuspense: <TSelected = TData>(
-    ...args: ArgsWith<Options, [options?: SuspenseQueryHookOptions<TData, TError, TSelected>]>
+    ...args: ArgsOf<
+      SendArgs<Options, TKeyBy>,
+      [options?: SuspenseQueryHookOptions<TData, TError, TSelected>]
+    >
   ) => UseSuspenseQueryResult<TSelected, TError>
 
   /**
    * Fetches through the cache and resolves with the data; rejects with the
    * endpoint's error. Fresh cached data is returned without a request.
+   *
+   * With a `keyBy`, shared inputs that differ from those of the cached data
+   * are sent and fetched, however fresh the entry is.
    */
-  fetch: (queryClient: QueryClient, ...args: ArgsWith<Options>) => Promise<TData>
+  fetch: (queryClient: QueryClient, ...args: ArgsOf<SendArgs<Options, TKeyBy>>) => Promise<TData>
 
   /**
    * Like `fetch`, but resolves with nothing and never rejects. For warming
    * the cache in loaders and on hover.
    */
-  prefetch: (queryClient: QueryClient, ...args: ArgsWith<Options>) => Promise<void>
+  prefetch: (queryClient: QueryClient, ...args: ArgsOf<SendArgs<Options, TKeyBy>>) => Promise<void>
 
   /**
    * Resolves with cached data when there is any, however old, and fetches
-   * only when the cache is empty.
+   * only when the cache is empty — or, with a `keyBy`, when the call sends
+   * shared inputs other than those of the cached data.
    */
-  ensure: (queryClient: QueryClient, ...args: ArgsWith<Options>) => Promise<TData>
+  ensure: (queryClient: QueryClient, ...args: ArgsOf<SendArgs<Options, TKeyBy>>) => Promise<TData>
 
   /** Reads the cached data for these args. */
-  getData: (queryClient: QueryClient, ...args: ArgsWith<Options>) => TData | undefined
+  getData: (
+    queryClient: QueryClient,
+    ...args: ArgsOf<KeyedArgs<Options, TKeyBy>>
+  ) => TData | undefined
 
   /** Writes the cached data for these args. */
   setData: (
     queryClient: QueryClient,
-    args: EndpointArgs<Options>,
+    args: KeyedArgs<Options, TKeyBy>,
     updater: Updater<TData | undefined, TData | undefined>,
   ) => TData | undefined
 
   /**
    * Invalidates entries of this endpoint: all of them without args, the
    * matching ones with partial args. Pass `{ exact: true }` to hit one entry.
+   * A shared entry refetches with the shared inputs sent last.
    */
   invalidate: (
     queryClient: QueryClient,
-    args?: PartialEndpointInputs<Options>,
+    args?: PartialKeyedInputs<Options, TKeyBy>,
     filters?: InvalidateFilters,
   ) => Promise<void>
 

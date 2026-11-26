@@ -11,16 +11,22 @@ export { makeMutation, optimisticUpdate } from './mutation/index.mjs'
 export { declareClient } from './client/index.mjs'
 
 export type {
+  AnyKeyBy,
+  ArgsOf,
   ArgsWith,
   DataWithResponse,
   EndpointArgs,
   EndpointData,
   EndpointFailure,
   EndpointInputs,
+  KeyBy,
+  KeyedArgs,
   KeyOptions,
   MaybeWithResponse,
   PartialEndpointInputs,
+  PartialKeyedInputs,
   RequiredKeys,
+  SendArgs,
   SurfaceOptions,
 } from './endpoint/index.mjs'
 export type {

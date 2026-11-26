@@ -52,15 +52,19 @@ Unknown keys in an inline declaration are compile errors. A method's `keyPrefix`
 | `keySuffix`    | `readonly unknown[]` | `[]`    | Segments placed right after `[method, url]`                                                      |
 | `withResponse` | `boolean`            | `false` | Deliver [`DataWithResponse`](#withresponse-and-datawithresponse) instead of the bare data        |
 
-Query keys have the shape `[...keyPrefix, method, url, ...keySuffix, 'with-response'?, 'infinite'?, inputs?]`, where `inputs` is `{ urlParams?, params?, data? }`. Mutation keys are `[...keyPrefix, method, url, ...keySuffix]`. See [Keys and invalidation](/docs/builder/react-query/keys-and-invalidation).
+Query keys have the shape `[...keyPrefix, method, url, ...keySuffix, 'with-response'?, 'infinite'?, { keyBy }?, inputs?]`, where `inputs` is `{ urlParams?, params?, data? }`. Mutation keys are `[...keyPrefix, method, url, ...keySuffix]`. See [Keys and invalidation](/docs/builder/react-query/keys-and-invalidation).
 
 ## Query settings
 
-`QuerySettings<TData, TError>` is `SurfaceOptions` plus `QueryDefaults<TData, TError>`: every `useQuery` option except `queryKey`, `queryFn`, `select`, `initialData` and `initialDataUpdatedAt`. They apply to every use of the query, under the options of a call site. `fetch`, `prefetch` and `ensure` use those that apply outside a component. See [Options for every use](/docs/builder/react-query/queries#options-for-every-use).
+`QuerySettings<TData, TError, WithResponse, TKeyBy>` is `SurfaceOptions`, `keyBy`, and `QueryDefaults<TData, TError>`: every `useQuery` option except `queryKey`, `queryFn`, `select`, `initialData` and `initialDataUpdatedAt`. They apply to every use of the query, under the options of a call site. `fetch`, `prefetch` and `ensure` use those that apply outside a component. See [Options for every use](/docs/builder/react-query/queries#options-for-every-use).
+
+| Setting | Type             | Default     | Description |
+| ------- | ---------------- | ----------- | ----------- |
+| `keyBy` | `KeyBy<Options>` | every input | Which inputs identify the entry: `false` for none, or `{ urlParams?, params?, data? }`, each `true`, `false` or a list of the fields kept. The rest are shared; see [Shared entries](/docs/builder/react-query/keys-and-invalidation#shared-entries) |
 
 ## Query object
 
-`QueryObject<Options, TData, TError>`. `args` is the endpoint's call arguments; it is optional wherever the endpoint requires nothing. `TError` is the endpoint's typed `EndpointError`.
+`QueryObject<Options, TData, TError, TKeyBy>`. `args` is the endpoint's call arguments; it is optional wherever the endpoint requires nothing. `TError` is the endpoint's typed `EndpointError`. `TKeyBy` is the declaration's `keyBy`, `undefined` without one.
 
 | Member        | Signature                                                             | Description                                                                                         |
 | ------------- | --------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
@@ -75,6 +79,8 @@ Query keys have the shape `[...keyPrefix, method, url, ...keySuffix, 'with-respo
 | `setData`     | `(queryClient, args, updater) => TData \| undefined`                  | Writes the cached data; `updater` is a value or `(current) => next`                                 |
 | `invalidate`  | `(queryClient, args?, filters?) => Promise<void>`                     | Invalidates by the same scopes as `key`. `filters` is TanStack's, minus `queryKey`                  |
 | `endpoint`    | `EndpointHandler<Options>`                                            | The endpoint this query calls                                                                       |
+
+With a `keyBy`, `use`, `useSuspense`, `fetch`, `prefetch` and `ensure` take `SendArgs<Options, TKeyBy>`, where the shared inputs are optional and sent when present. `query()`, `getData` and `setData` take `KeyedArgs<Options, TKeyBy>`, and `key` and `invalidate` take `PartialKeyedInputs<Options, TKeyBy>`: only the inputs that identify the entry.
 
 See [Queries](/docs/builder/react-query/queries).
 
@@ -194,9 +200,9 @@ The key-building functions the objects above use. Prefer `query.key()` and `muta
 
 | Function            | Signature                                                              | Description                                                                              |
 | ------------------- | ---------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
-| `createKeyBuilder`  | `(config, options?, isInfinite?) => { base, key(args?), skipped() }`   | Key builder for one endpoint config. `skipped()` is the key a hook uses under `skipToken` |
+| `createKeyBuilder`  | `(config, options?, isInfinite?) => { base, rule, key(args?), skipped() }` | Key builder for one endpoint config. `options` takes `keyPrefix`, `keySuffix`, `withResponse` and `keyBy`. `skipped()` is the key a hook uses under `skipToken` |
 | `createMutationKey` | `(config, options?: KeyOptions) => readonly unknown[]`                 | The mutation key of an endpoint config                                                   |
-| `pickInputs`        | `(args: unknown) => Record<string, unknown> \| undefined`              | Reduces call arguments to `urlParams`, `params` and `data`; stringifies URL param values and drops empty parts |
+| `pickInputs`        | `(args: unknown, keyBy?: AnyKeyBy) => Record<string, unknown> \| undefined` | Reduces call arguments to `urlParams`, `params` and `data` (only those `keyBy` keeps); stringifies URL param values and drops empty parts |
 | `normalizeKeyValue` | `(value: unknown) => unknown`                                          | Rewrites `URLSearchParams`, `FormData`, `File`, `Blob`, `Map`, `Set` and `bigint` into plain data that hashes by content |
 | `optimisticUpdate`  | `(query, spec: OptimisticUpdateSpec) => OptimisticUpdate`              | The function the `optimistic` setting hands to its callback                              |
 
@@ -211,9 +217,15 @@ The key-building functions the objects above use. Prefer `query.key()` and `muta
 | `EndpointArgs<Options>`             | The full call arguments of an endpoint                                        |
 | `EndpointInputs<Options>`           | The part of the arguments that goes into the key: `urlParams`, `params`, `data` |
 | `PartialEndpointInputs<Options>`    | Any subset of the inputs; the argument of `key` and `invalidate`              |
+| `KeyBy<Options>`                    | The `keyBy` setting, with the endpoint's part and field names                 |
+| `AnyKeyBy`                          | `keyBy` without an endpoint: a boolean, or parts of `boolean \| string[]`     |
+| `SendArgs<Options, TKeyBy>`         | Arguments of the calls that send shared inputs: those inputs are optional     |
+| `KeyedArgs<Options, TKeyBy>`        | Arguments that address the entry: only the inputs that identify it            |
+| `PartialKeyedInputs<Options, TKeyBy>` | Any subset of those inputs; the argument of `key` and `invalidate` under a `keyBy` |
 | `EndpointData<Options>`             | The data an endpoint resolves to                                              |
 | `EndpointFailure<Options>`          | The typed `EndpointError` an endpoint fails with                              |
 | `ArgsWith<Options, Rest>`           | `[args, ...Rest]`, with `args` optional when nothing is required              |
+| `ArgsOf<Args, Rest>`                | The same for any arguments type                                               |
 | `RequiredKeys<T>`                   | Keys of `T` that must be provided                                             |
 | `TaggedKey<TData, TError>`          | A key tagged with the types stored under it                                   |
 | `QueryHookOptions`, `SuspenseQueryHookOptions` | The `options` of `use` and `useSuspense`                           |

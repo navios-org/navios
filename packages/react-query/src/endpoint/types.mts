@@ -5,20 +5,26 @@ import type {
   InferEndpointReturn,
 } from '@navios/builder'
 
+import type { InputPart, KeyedArgs } from './key-by.mjs'
+
 /** Keys of `T` that must be provided. */
 export type RequiredKeys<T> = { [K in keyof T]-?: {} extends Pick<T, K> ? never : K }[keyof T]
 
 /** The full call arguments of an endpoint. */
 export type EndpointArgs<Options extends BaseEndpointOptions> = ClientRequestArgs<Options>
 
+/** `[args, ...Rest]`, with `args` optional when `Args` requires nothing. */
+export type ArgsOf<Args, Rest extends unknown[] = []> = [RequiredKeys<Args>] extends [never]
+  ? [args?: Args, ...rest: Rest]
+  : [args: Args, ...rest: Rest]
+
 /**
  * `[args, ...Rest]`, with `args` optional when the endpoint requires nothing.
  */
-export type ArgsWith<Options extends BaseEndpointOptions, Rest extends unknown[] = []> = [
-  RequiredKeys<EndpointArgs<Options>>,
-] extends [never]
-  ? [args?: EndpointArgs<Options>, ...rest: Rest]
-  : [args: EndpointArgs<Options>, ...rest: Rest]
+export type ArgsWith<Options extends BaseEndpointOptions, Rest extends unknown[] = []> = ArgsOf<
+  EndpointArgs<Options>,
+  Rest
+>
 
 /**
  * The part of the call arguments that identifies a request and therefore
@@ -36,6 +42,20 @@ export type EndpointInputs<Options extends BaseEndpointOptions> = Pick<
 export type PartialEndpointInputs<Options extends BaseEndpointOptions> = {
   [K in keyof EndpointInputs<Options>]?: Partial<EndpointInputs<Options>[K]>
 }
+
+/**
+ * Any subset of the inputs that identify an entry under a `keyBy`: the
+ * argument of `key` and `invalidate`. Without a `keyBy`, {@link PartialEndpointInputs}.
+ */
+export type PartialKeyedInputs<Options extends BaseEndpointOptions, TKeyBy> = [TKeyBy] extends [
+  undefined,
+]
+  ? PartialEndpointInputs<Options>
+  : {
+      [K in Extract<keyof KeyedArgs<Options, TKeyBy>, InputPart>]?: Partial<
+        NonNullable<KeyedArgs<Options, TKeyBy>[K]>
+      >
+    }
 
 /** Data an endpoint resolves to. */
 export type EndpointData<Options extends BaseEndpointOptions> = InferEndpointReturn<Options>
