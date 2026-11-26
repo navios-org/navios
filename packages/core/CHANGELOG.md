@@ -27,6 +27,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`ownMetadata(metadata, key, create)` and `requireMetadata(context)`** in `@navios/core/transport`, for decorators that keep their own entries in decorator metadata: the entry of this class, created from what its parent has, and the metadata of a context that has to have one.
 - **`settledWithin(work, ms)` and `MAX_DELAY_MS`** in `@navios/core/transport`: whether a promise settles within `ms`, for a transport's `stop(timeoutMs)`. A longer time than a timer takes is cut to `MAX_DELAY_MS`.
 
+### Fixed
+
+- **A schema that answers with a thenable that is not a native promise**, such as a promise of another realm, is refused by `AttributeFactory.createAttribute` and `provideConfig` as one that answers with a promise is. It was taken for a result without issues, so the value was `undefined`.
+
 ## [2.0.0-alpha.0] - 2026-11-26
 
 `@navios/core` is now the part of Navios that does not depend on HTTP. The HTTP framework it was in 1.x is `@navios/server`, which is built on this package and re-exports it. The changes to the HTTP framework itself are listed in the changelog of `@navios/server`.

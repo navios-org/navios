@@ -1,5 +1,6 @@
 import type { InferInput, InferOutput, StandardSchemaV1 } from '@navios/di'
 
+import { validateNow } from '../internal/validate-now.mjs'
 import { classAttributes } from '../metadata/class-metadata.mjs'
 import { classOrMemberDecorator } from '../metadata/member-metadata.mjs'
 
@@ -97,13 +98,11 @@ export class AttributeFactory {
       if (!schema) {
         return apply(token, true)
       }
-      const result = schema['~standard'].validate(value)
-      if (result instanceof Promise) {
-        result.catch(() => {})
-        throw new Error(
-          `[Navios] Attribute ${token.toString()} must use a schema that validates synchronously`,
-        )
-      }
+      const result = validateNow(
+        schema,
+        value,
+        `[Navios] Attribute ${token.toString()} must use a schema that validates synchronously`,
+      )
       if (result.issues) {
         throw new Error(
           `[Navios] Invalid value for attribute ${token.toString()}: ${result.issues

@@ -2,6 +2,8 @@ import { InjectionToken, registerProvider } from '@navios/di'
 
 import type { InferOutput, StandardSchemaV1 } from '@navios/di'
 
+import { validateNow } from '../internal/validate-now.mjs'
+
 import { ConfigService } from './config-service.mjs'
 import { describeIssue } from './describe-issue.mjs'
 
@@ -34,13 +36,11 @@ export interface ValidatedConfigProviderOptions<Schema extends StandardSchemaV1>
 function checked(name: string, schema: StandardSchemaV1 | undefined, loaded: unknown): object {
   let config = loaded
   if (schema) {
-    const result = schema['~standard'].validate(loaded)
-    if (result instanceof Promise) {
-      result.catch(() => {})
-      throw new Error(
-        `[Navios] The schema of the configuration ${name} must validate synchronously.`,
-      )
-    }
+    const result = validateNow(
+      schema,
+      loaded,
+      `[Navios] The schema of the configuration ${name} must validate synchronously.`,
+    )
     if (result.issues) {
       throw new Error(
         `[Navios] Invalid configuration ${name}: ` +
