@@ -1,9 +1,7 @@
-import { HttpException } from '@navios/server'
+import { bodyTooLarge } from '@navios/server/adapter'
 
 /** The default of `Bun.serve`. */
 export const DEFAULT_BODY_LIMIT = 128 * 1024 * 1024
-
-export const BODY_TOO_LARGE = 'Request body is too large'
 
 const READERS = ['text', 'json', 'bytes', 'arrayBuffer', 'blob', 'formData', 'clone'] as const
 
@@ -37,7 +35,7 @@ export function limitBody(request: Request, limit: number): void {
         size += value.byteLength
         if (size > limit) {
           void reader.cancel().catch(() => {})
-          controller.error(new HttpException(413, BODY_TOO_LARGE))
+          controller.error(bodyTooLarge())
           return
         }
         controller.enqueue(value)

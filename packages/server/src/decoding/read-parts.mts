@@ -1,12 +1,6 @@
-import { ValidationError } from '../errors/validation-error.mjs'
-
 import type { BodyPart } from '../adapter/route-input.mjs'
 
-/** The error for a multipart body that cannot be parsed. */
-export function malformedMultipart(cause: unknown): ValidationError {
-  const detail = cause instanceof Error ? `: ${cause.message}` : ''
-  return new ValidationError('body', [{ message: `Malformed multipart body${detail}` }])
-}
+import { malformedMultipart } from './request-errors.mjs'
 
 /** The parts of a multipart body that is in memory. */
 export async function readParts(bytes: Uint8Array, contentType: string): Promise<BodyPart[]> {

@@ -7,6 +7,7 @@ import {
   canonicalPath,
   describesSuccess,
   encodeResult,
+  settledWithin,
   toTestMessage,
   toTestResponse,
 } from '@navios/server/adapter'
@@ -257,7 +258,7 @@ export class FastifyAdapter implements HttpAdapter<FastifyEnvironment> {
       }
     }, IDLE_SWEEP_MS)
     try {
-      if (!(await isDoneWithin(closing, timeoutMs))) {
+      if (!(await settledWithin(closing, timeoutMs))) {
         // What has outlived the timeout: requests in flight, and connections
         // that Fastify no longer knows, such as those of WebSockets.
         // A request learns of it when its connection has been closed, and has
@@ -267,24 +268,11 @@ export class FastifyAdapter implements HttpAdapter<FastifyEnvironment> {
           socket.destroy()
           return pending
         })
-        await isDoneWithin(Promise.all([closing, ...closed]), FORCED_CLOSE_MS)
+        await settledWithin(Promise.all([closing, ...closed]), FORCED_CLOSE_MS)
       }
     } finally {
       clearInterval(sweep)
     }
-  }
-}
-
-/** Waits for `work`, for at most `ms`. */
-async function isDoneWithin(work: PromiseLike<unknown>, ms: number): Promise<boolean> {
-  let timer: ReturnType<typeof setTimeout> | undefined
-  const timeout = new Promise<boolean>((resolve) => {
-    timer = setTimeout(resolve, ms, false)
-  })
-  try {
-    return await Promise.race([work.then(() => true), timeout])
-  } finally {
-    clearTimeout(timer)
   }
 }
 

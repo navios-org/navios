@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **`ResponseValidationError`**, with the `issues` of the schema.
 - **`ConformanceCors.origin` may be a function** `(origin, callback)`, `ConformanceOriginFunction`, and the conformance suite checks that an `HttpException` it fails with keeps its status.
+- **Request helpers in `@navios/server/adapter`** that adapters wrote each for themselves: `parseQuery(search)`, the query as `RouteInput.query()` gives it; `bodyTooLarge()` and `incompleteBody(cause?)`, the 413 and 400 of a body; `malformedPath(path)`, the 400 of a path that is not valid percent-encoding; and `settledWithin(work, ms)` of `@navios/core/transport`, for an adapter that peers on the server only.
 
 ### Changed
 

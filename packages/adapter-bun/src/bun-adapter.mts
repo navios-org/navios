@@ -1,8 +1,9 @@
-import { problem } from '@navios/server'
 import {
+  bodyTooLarge,
   canonicalPath,
   encodeResult,
   isEventStream,
+  malformedPath,
   ManagedBody,
   RouteTable,
 } from '@navios/server/adapter'
@@ -19,7 +20,7 @@ import type {
 } from '@navios/server/adapter'
 import type { BunRequest } from 'bun'
 
-import { BODY_TOO_LARGE, DEFAULT_BODY_LIMIT, limitBody } from './body-limit.mjs'
+import { DEFAULT_BODY_LIMIT, limitBody } from './body-limit.mjs'
 import { Cors } from './cors.mjs'
 import { injectRequest } from './inject.mjs'
 import { BunRouteInput } from './request-input.mjs'
@@ -120,7 +121,7 @@ export class BunAdapter<WebSocketData = undefined> implements HttpAdapter<
       if (Number(declared) > this.bodyLimit) {
         // Answered here, as Bun and Fastify do: before guards, and whether or
         // not the route reads a body. Bun discards the body without buffering.
-        return send(encodeResult(problem(413, BODY_TOO_LARGE)))
+        return send(this.context.errors.unexpected(bodyTooLarge()))
       }
     } else if (request.body !== null) {
       // A body of unknown length (chunked transfer encoding, or `inject()`)
@@ -252,8 +253,8 @@ export class BunAdapter<WebSocketData = undefined> implements HttpAdapter<
    * url param would hold what nobody sent.
    */
   private malformed(request: Request): MaybePromise<Response> {
-    const detail = `'${canonicalPath(request.url)}' is not a valid url component`
-    return this.run(() => encodeResult(problem(400, detail)), request, {})
+    const path = canonicalPath(request.url)
+    return this.run(() => encodeResult(malformedPath(path)), request, {})
   }
 
   /** The response to a CORS preflight request, or `null` for any other request. */

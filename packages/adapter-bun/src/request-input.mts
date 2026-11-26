@@ -1,30 +1,14 @@
 import { HttpException } from '@navios/server'
-import { canonicalPath, malformedMultipart } from '@navios/server/adapter'
+import {
+  canonicalPath,
+  incompleteBody,
+  malformedMultipart,
+  parseQuery,
+} from '@navios/server/adapter'
 
 import type { BodyPart, BodySource, RouteInput } from '@navios/server/adapter'
 
 import type { BunEnvironment, BunServer } from './environment.mjs'
-
-function parseQuery(url: string): Record<string, string | string[]> {
-  // Without a prototype, as the query of the Fastify adapter: `constructor`
-  // and `__proto__` are keys like any other.
-  const result: Record<string, string | string[]> = Object.create(null)
-  const index = url.indexOf('?')
-  if (index < 0) {
-    return result
-  }
-  for (const [key, value] of new URLSearchParams(url.slice(index + 1))) {
-    const existing = result[key]
-    if (existing === undefined) {
-      result[key] = value
-    } else if (Array.isArray(existing)) {
-      existing.push(value)
-    } else {
-      result[key] = [existing, value]
-    }
-  }
-  return result
-}
 
 /** One request as the pipeline sees it. It is its own body source. */
 export class BunRouteInput implements RouteInput, BodySource {
@@ -82,7 +66,9 @@ export class BunRouteInput implements RouteInput, BodySource {
   }
 
   query(): unknown {
-    return parseQuery(this.url())
+    const url = this.url()
+    const index = url.indexOf('?')
+    return parseQuery(index < 0 ? '' : url.slice(index + 1))
   }
 
   // A declared length was checked before the pipeline ran, and the body cannot
@@ -125,7 +111,7 @@ export class BunRouteInput implements RouteInput, BodySource {
     }
     if (this.request.signal.aborted) {
       // The client left before it had sent all of it.
-      return new HttpException(400, 'The request body is incomplete', error)
+      return incompleteBody(error)
     }
     return undefined
   }

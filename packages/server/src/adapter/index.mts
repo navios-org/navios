@@ -10,7 +10,15 @@ export type { CompiledRoute, RouteExecutor } from './compiled-route.mjs'
 export type { RouteInfo } from '../routing/route-info.mjs'
 export type { BodyPart, BodySource, RouteInput } from './route-input.mjs'
 export type { RouteBody, RouteResponse } from './route-response.mjs'
-export { malformedMultipart, readParts } from '../decoding/read-parts.mjs'
+export { settledWithin } from '@navios/core/transport'
+export { parseQuery } from '../decoding/parse-query.mjs'
+export { readParts } from '../decoding/read-parts.mjs'
+export {
+  bodyTooLarge,
+  incompleteBody,
+  malformedMultipart,
+  malformedPath,
+} from '../decoding/request-errors.mjs'
 export { encodeResult } from '../pipeline/encode-result.mjs'
 export { ManagedBody } from '../responses/managed-body.mjs'
 export { describesSuccess, isEventStream } from '../responses/response-headers.mjs'

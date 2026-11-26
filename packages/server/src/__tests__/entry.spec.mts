@@ -69,12 +69,17 @@ describe('the adapter entry', () => {
     expect(names(adapter)).toEqual([
       'ManagedBody',
       'RouteTable',
+      'bodyTooLarge',
       'canonicalPath',
       'describesSuccess',
       'encodeResult',
+      'incompleteBody',
       'isEventStream',
       'malformedMultipart',
+      'malformedPath',
+      'parseQuery',
       'readParts',
+      'settledWithin',
       'toTestMessage',
       'toTestResponse',
     ])

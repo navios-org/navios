@@ -41,7 +41,7 @@ Route paths already include the global prefix.
 
 Server features such as CORS, body limits and multipart are options of the definition function, because the application has no methods for them.
 
-A body over the adapter's limit must be answered with a 413 problem response: write `encodeResult(problem(413, detail))` when the server reports it before the executor runs, or throw `new HttpException(413, detail)` while the body is read. Do not let the server answer with a page of its own.
+A body over the adapter's limit must be answered with a 413 problem response: throw `bodyTooLarge()` while the body is read, or write `context.errors.unexpected(bodyTooLarge())` when the server reports it before the executor runs. Do not let the server answer with a page of its own.
 
 ## The `HttpAdapter` contract
 
@@ -130,7 +130,7 @@ Requirements:
 - `remoteAddress()` returns the address of the client, as far as the server knows or is told to trust it.
 - `header(name)` must not find a member of `Object.prototype`, such as `constructor`.
 - `urlParams` holds the parameters of the whole path, prefixes included, as URL-decoded strings.
-- `query()` returns the parsed query string as an object, with an array for a repeated parameter, and takes names such as `__proto__` and `constructor` as plain names. The pipeline calls it at most once per request. It stays text: the server gives it the form its schema describes.
+- `query()` returns the parsed query string as an object, with an array for a repeated parameter, and takes names such as `__proto__` and `constructor` as plain names: what `parseQuery(search)` makes of the query string, for a server that does not parse it. The pipeline calls it at most once per request. It stays text: the server gives it the form its schema describes.
 - `signal()` returns a signal that aborts when the client disconnects before the response is complete. It must not abort because the request body has been read, and it must already be aborted when it is first read after the client has gone.
 - `headerRecord()` is optional. Implement it when the native request has its headers as a record already: it is what a `headersSchema` validates, and without it the pipeline builds a record from `headers()`. Names are lower-case, a repeated header is joined with `, `, and the record is the caller's to change, so return a copy.
 - `responded()` is optional. Implement it when `raw` exposes a native reply a handler can write to, and return `true` once the handler has done so. The pipeline then skips response validation and hands back a response the adapter must not write, with a `release` to call when the handler's own response has ended. Such a response has `takenOver` set when the handler is writing it, perhaps later. Without it, and with an error status, the handler failed after taking over: close the connection unless something has been written. The Fastify adapter returns `reply.sent`.
@@ -153,7 +153,7 @@ The server decodes bodies; an adapter gives it the bytes. Which member is called
 - `isEmpty` is `true` when there is no body, or one that is known to have no bytes.
 - `bytes()` returns the body as it was sent. Return it without a promise when it is there already. When the server lets you defer it, do not read the body before.
 - `parts()` gives the parts of a multipart body in order, as `{ name, value }`: a string for a text field, a `File` for a file. They come one by one, or all together where the server parses the whole body. `readParts(bytes, contentType)` does it for a body that is in memory.
-- For a body over the limit, throw `new HttpException(413, detail)`, from `parts()` too, where all parts count together when they are kept in memory. For one that cannot be parsed, throw `malformedMultipart(error)` or `new ValidationError('body', [{ message }])`, which is a 400. Other errors are the server's, and are logged.
+- For a body over the limit, throw `bodyTooLarge()`, from `parts()` too, where all parts count together when they are kept in memory. For one whose client left before it was complete, throw `incompleteBody(error)`. For one that cannot be parsed, throw `malformedMultipart(error)` or `new ValidationError('body', [{ message }])`, which is a 400. Other errors are the server's, and are logged.
 - `parsed()` is optional. Implement it when the application can have the native server parse bodies of some content type, and return what it made of this one. The server takes it as it is.
 
 ## `RouteResponse`
@@ -205,7 +205,9 @@ Most responses have no `release`. Check for it before installing any listener.
 
 `inject()` turns a `TestRequest` into what is sent over HTTP with `toTestMessage(request)`, and answers with `toTestResponse(status, headers, text)`, so that a test sees the same on every adapter.
 
-An error of the server itself, which never reached an executor or came after it, is answered with `context.errors.unexpected(error, { method, path })`. It maps the error as a route does without error mappers, and returns the `RouteResponse` to write: an `HttpException` keeps its status, and anything else is reported and answered with a 500. For a response that is not an error of the application, such as a 413, encode a result: `encodeResult(problem(413, detail))`.
+An error of the server itself, which never reached an executor or came after it, is answered with `context.errors.unexpected(error, { method, path })`. It maps the error as a route does without error mappers, and returns the `RouteResponse` to write: an `HttpException` keeps its status, and anything else is reported and answered with a 500. A response of the adapter's own is an encoded result: `encodeResult(malformedPath(path))` for a request whose path is not valid percent-encoding, for a router that does not refuse it, or `encodeResult(problem(status, detail))`.
+
+`settledWithin(work, ms)` tells whether `work` settled within `ms`, for a `close()` that waits for the requests in flight.
 
 When the error came after the headers of another response were set, remove those that `describesSuccess(name, value)` names first.
 
